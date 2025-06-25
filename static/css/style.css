@@ -1,0 +1,623 @@
+/* Reset básico e tipografia */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+html, body {
+  height: 100%;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f0f2f5;
+  color: #333;
+}
+
+/* Estrutura principal: sidebar + conteúdo */
+.app-container {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 240px;
+  background-color: #2f3e4e;
+  color: #edf2f7;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  overflow-y: auto;
+  transition: left .3s ease;
+}
+.sidebar ul {
+  list-style: none;
+}
+.sidebar li + li {
+  margin-top: 0.5rem;
+}
+.sidebar a {
+  display: block;
+  padding: 0.5rem 1rem;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 4px;
+}
+.sidebar a:hover,
+.sidebar a.active {
+  background-color: rgba(255,255,255,0.1);
+}
+
+/* Conteúdo principal */
+.main-content {
+  grid-column: 2;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  transition: margin-left .3s ease;
+}
+
+/* Botão toggle mobile */
+.menu-toggle-mobile {
+  display: none;
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  background-color: #2f3e4e;
+  color: #edf2f7;
+  border: none;
+  padding: 0.75rem;
+  font-size: 1.5rem;
+  border-radius: 4px;
+  z-index: 200;
+  cursor: pointer;
+}
+
+/* Em ecrãs até 768px: escondemos sidebar e mostramos botão */
+@media (max-width: 768px) {
+  /* Sidebar escondida e conteúdo em full-width */
+  .app-container {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+  .sidebar {
+    left: -240px;
+  }
+  .sidebar.open {
+    left: 0;
+  }
+  .main-content.shifted {
+    margin-left: 240px;
+  }
+  .menu-toggle-mobile {
+    display: block;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Garante que em mobile cada “coluna” ocupe toda a largura */
+  .dynamic-form form.two-cols > .coluna-1,
+  .dynamic-form form.two-cols > .coluna-2 {
+    flex: 0 0 100% !important;     /* impede a base de 50% */
+    max-width: 100% !important;    /* limita ao container */
+    width: 100% !important;        /* força 100% */
+    margin-bottom: 1rem;           /* espaço entre colunas empilhadas */
+  }
+}
+
+/* Container genérico */
+.dynamic-container {
+  flex: 1;
+  width: 100%;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Mobile: expansão full-width sem bordas ou padding no main */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 0 !important;
+  }
+  .dynamic-container {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+}
+
+/* Cabeçalho (título e ações) */
+.dynamic-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.dynamic-header h2 {
+  font-size: 1.5rem;
+}
+.dynamic-actions .btn {
+  margin-left: 0.5rem;
+}
+
+/* Demais estilos permanecem inalterados... */
+
+
+
+/* Filtros: em única linha com botão no fim */
+/* Filtros: em única linha com botão no fim */
+.dynamic-filters {
+  display: block;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+.dynamic-filters > .filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  width: 100%;
+}
+.dynamic-filters .filter-group {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.dynamic-filters label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.dynamic-filters input,
+.dynamic-filters select {
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 100%;
+}
+.dynamic-filters input[type="checkbox"] {
+  width: auto;
+  margin-top: 0.5rem;
+}
+.dynamic-filters button[type="submit"] {
+  flex: 0 0 auto;
+  margin-left: auto;
+  height: 2.5rem;
+  align-self: flex-end;
+}
+
+.dynamic-filters .filter-group {
+  display: flex;
+  flex-direction: column;
+}
+.dynamic-filters label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.dynamic-filters input,
+.dynamic-filters select {
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  min-width: 120px;
+  width: auto;
+}
+.dynamic-filters input[type="checkbox"] {
+  width: auto;
+  margin-top: 0.5rem;
+}
+.dynamic-filters button[type="submit"] {
+  margin-left: auto;           /* empurra para o fim da linha */
+  height: 2.5rem;
+  align-self: flex-end;
+}
+
+/* Grid de dados */
+.dynamic-grid {
+  flex: 1;
+  overflow-y: auto;
+}
+.dynamic-grid table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.dynamic-grid th,
+.dynamic-grid td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e1e4e8;
+}
+.dynamic-grid th {
+  background-color: #f6f8fa;
+  font-weight: 600;
+  text-align: left;
+}
+.dynamic-grid tbody tr:hover {
+  background-color: #f1f3f5;
+  cursor: pointer;
+}
+
+/* Botões gerais */
+.btn {
+  display: inline-block;
+  padding: 0.7rem 1rem;
+  border-radius: 4px;
+  border: none;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.btn-primary {
+  background-color: #007bff;
+  color: #fff;
+}
+.btn-secondary {
+  background-color: #6c757d;
+  color: #fff;
+}
+.btn:hover {
+  opacity: 0.9;
+}
+.btn-new {
+  border-radius: 4px;
+  background-color: #007bff;
+  color: #fff;
+}
+/* Formulário dinâmico */
+.dynamic-form {
+  width: 100%;
+  background-color: #fff;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+}
+.dynamic-form form.two-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+.dynamic-form .form-group {
+  margin-bottom: 1rem;
+}
+
+/* Checkboxes no form: input antes do label, alinhado */
+/* Checkboxes no formulário: checkbox antes do label, alinhado à esquerda */
+.dynamic-form .form-group.checkbox {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.dynamic-form .form-group.checkbox input[type="checkbox"] {
+  margin: 0;
+  width: 24px;
+  width: 1.5em;
+  height: 1.5em;
+}
+.dynamic-form .form-group.checkbox label {
+  margin: 0;
+}
+
+.dynamic-form .form-group.checkbox input[type="checkbox"] {
+  order: 0;
+}
+.dynamic-form .form-group.checkbox label {
+  order: 1;
+  margin: 0;
+}
+
+.dynamic-form label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.dynamic-form input,
+.dynamic-form select,
+.dynamic-form textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.dynamic-form .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* Datepicker (Flatpickr) ajustes mínimos */
+.flatpickr-date {
+  width: 100%;
+}
+/* Mobile: reduzir margens/paddings de listas e formulários */
+@media (max-width: 768px) {
+  .dynamic-container,
+  .dynamic-filters,
+  .dynamic-grid,
+  .dynamic-form {
+    padding: 0.5rem !important;
+    margin: 0 !important;
+  }
+}
+@media (max-width: 768px) {
+  .form-actions .btn {
+    padding: 0.5rem;
+    width: 2.5rem;        /* quadrado */
+    height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .form-actions .btn .btn-text {
+    display: none;       /* só o ícone */
+  }
+  .form-actions .btn i {
+    font-size: 1.2rem;
+  }
+}
+/* Tornar o botão Filtrar (dentro de .dynamic-filters) num btn-secondary */
+.dynamic-filters button {
+  background-color: #6c757d; /* cinzento secundário */
+  color: white;
+  border-color: #6c757d;
+}
+.dynamic-filters button:hover {
+  background-color: #5a6268;
+  border-color: #545b62;
+}
+.dynamic-filters buttonnew {
+  background-color: #5a6268;
+  border-color: #545b62;
+}
+/* ──────────────────────────────── */
+/*  Login Page Styling             */
+/* ──────────────────────────────── */
+.login-container {
+  max-width: 400px;
+  margin: 4rem auto;
+  padding: 2rem 2.5rem;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.login-container h2 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-size: 1.75rem;
+  color: #2C3E50;
+}
+
+.login-container .alert {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  background-color: #f8d7da;
+  color: #842029;
+  border: 1px solid #f5c2c7;
+}
+
+.login-container .form-group {
+  margin-bottom: 1.25rem;
+}
+
+.login-container label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #495057;
+}
+
+.login-container .form-control {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color .2s;
+}
+
+.login-container .form-control:focus {
+  outline: none;
+  border-color: #80bdff;
+  box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+.login-container .btn-primary {
+  width: 100%;
+  padding: 0.6rem;
+  font-size: 1.1rem;
+  background-color: #007bff;
+  border: none;
+  border-radius: 4px;
+  transition: background .2s;
+}
+
+.login-container .btn-primary:hover {
+  background-color: #0056b3;
+}
+
+/* Responsividade */
+@media (max-width: 480px) {
+  .login-container {
+    margin: 2rem 1rem;
+    padding: 1.5rem;
+  }
+  .login-container h2 {
+    font-size: 1.5rem;
+  }
+}
+/* Labels sempre em cima dos campos de filtro */
+.dynamic-filters .filter-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0.75rem; /* pequeno espaçamento entre grupos */
+}
+
+.dynamic-filters .filter-item label {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  color: #444;
+}
+/* ─── Filtros: checkbox maior para alinhamento ────────────────── */
+.dynamic-filters .filter-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.dynamic-filters .filter-item input[type="checkbox"] {
+  /* aumenta a caixa para alinhar com outros campos */
+  width: 1.5em;
+  height: 1.5em;
+  margin-top: 0.5rem; /* pequeno espaçamento ao rótulo */
+  margin-bottom: 0.5rem;
+  margin-left: 0rem;
+}
+
+/* opcional: centra horizontalmente o checkbox no seu wrapper */
+.dynamic-filters .filter-item.checkbox {
+  align-items: left;
+}
+/* ─── Checkbox filters: título em cima e caixa em baixo, ambos centrados ────────────────── */
+/* Usa :has() para afetar só os wrappers que contêm um checkbox */
+.dynamic-filters .filter-item:has(input[type="checkbox"]) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;  /* espaçamento entre label e checkbox */
+}
+
+/* ─────────────────────────────────────────────────────────
+   Dynamic Form • duas colunas no desktop, uma coluna no mobile
+─────────────────────────────────────────────────────────── */
+.two-cols {
+  display: flex;
+  gap: 1rem;              /* espaço entre colunas */
+}
+.two-cols .coluna-1,
+.two-cols .coluna-2 {
+  flex: 1;                /* cada coluna ocupa igual largura */
+}
+
+@media (max-width: 768px) {
+  .two-cols {
+    flex-direction: column;  /* empilha coluna 2 abaixo da 1 */
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   Dynamic Form: duas colunas no desktop, empilhar no mobile
+─────────────────────────────────────────────────────────── */
+.dynamic-form form.two-cols {
+  display: flex;
+  gap: 1rem;            /* espaço horizontal entre colunas */
+  flex-wrap: wrap;      /* deixa as colunas “encolherem” se preciso */
+}
+
+.dynamic-form form.two-cols > .coluna-1,
+.dynamic-form form.two-cols > .coluna-2 {
+  flex: 1 1 calc(50% - 0.5rem);  /* cada coluna ocupa ~50% do espaço */
+}
+
+/* em ecrãs mais estreitos */
+@media (max-width: 768px) {
+  .dynamic-form form.two-cols {
+    flex-direction: column;      /* empilha as colunas */
+  }
+  .dynamic-form form.two-cols > .coluna-1,
+  .dynamic-form form.two-cols > .coluna-2 {
+    flex: none;
+    width: 100%;                 /* ocupam toda a largura */
+    margin-bottom: 1rem;         /* separação vertical */
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   Dynamic Form – em mobile cada coluna ocupa 100%
+─────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .dynamic-form form.two-cols > .coluna-1,
+  .dynamic-form form.two-cols > .coluna-2 {
+    /* remove o basis de 50% e força 100% */
+    flex: 0 0 100% !important;
+    max-width: 100%     !important;
+    width: 100%         !important;
+  }
+}
+
+
+@media (max-width: 768px) {
+  .dynamic-form form.two-cols {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .dynamic-form form.two-cols > .coluna-1,
+  .dynamic-form form.two-cols > .coluna-2 {
+    flex: none !important;
+    width: 100%  !important;
+    max-width: 100% !important;
+    margin-bottom: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Faz o container ocupar toda a largura disponível */
+  .dynamic-container {
+    width: 100%      !important;
+    max-width: none  !important;
+    margin: 0 auto   !important; /* centra, mas como é 100% vai colar às margens */
+    padding: 0 1rem  !important; /* um bocadinho de padding lateral, opcional */
+  }
+
+  /* E garante que o próprio form se estica dentro do container */
+  .dynamic-form {
+    width: 100%      !important;
+    max-width: none  !important;
+  }
+}
+
+@media (max-width: 768px) {
+  /* ─────────────────────────────────────────────────────────
+     1) Fecha a coluna da sidebar para 0, assim o content ocupa 100%
+  ──────────────────────────────────────────────────────────── */
+  .app-container {
+    grid-template-columns: 0 1fr !important;
+  }
+
+  /* ─────────────────────────────────────────────────────────
+     2) Remove o limite de 400px do card/modal-content
+     e faz o form ocupar toda a largura útil
+  ──────────────────────────────────────────────────────────── */
+  .modal-content {
+    width: 100%         !important;
+    max-width: none     !important;
+    margin: 0 1rem      !important; /* opcional, para dar padding lateral */
+    border-radius: 0    !important; /* opcional, para cantos retos */
+  }
+
+  /* Se estiveres a usar .dynamic-container ou .dynamic-form, força também aqui */
+  .dynamic-container,
+  .dynamic-form {
+    width: 100%         !important;
+    max-width: none     !important;
+  }
+}
+/* Evita auto-zoom aumentando o font-size mínimo dos campos */
+.dynamic-form input,
+.dynamic-form select,
+.dynamic-form textarea,
+.dynamic-form button {
+  font-size: 16px;
+}

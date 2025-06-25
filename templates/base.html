@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}App{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
+  />
+  <!-- FontAwesome sem integrity para evitar bloqueios -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    crossorigin="anonymous"
+  />
+    <!-- injeta as permissões do user para o JS -->
+  <script>
+    window.USER_PERMS = {{ user_perms|tojson }};
+  </script>
+</head>
+<body>
+  <!-- Botão MOBILE (ícone de hambúrguer) -->
+  <button id="menuToggleMobile" class="menu-toggle-mobile">
+    <i class="fa-solid fa-bars"></i>
+  </button>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <a href="{{ url_for('home_page') }}">LOGO</a>
+      </div>
+      <nav>
+        <ul>
+          <li><a href="{{ url_for('home_page') }}">Início</a></li>
+          {% for item in menu_items %}
+            <li><a href="{{ item.url }}">{{ item.nome }}</a></li>
+          {% endfor %}
+          {% if current_user.is_authenticated %}
+            <li><a href="{{ url_for('logout') }}">Logout</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- Scripts ao fim do body -->
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+</body>
+</html>

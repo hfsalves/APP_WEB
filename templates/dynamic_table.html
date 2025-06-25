@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}{{ table_name|capitalize }}{% endblock %}
+
+{% block content %}
+<div class="dynamic-container">
+  <header class="dynamic-header">
+    <h2>{{ table_name|capitalize }}</h2>
+    <div class="dynamic-actions">
+      <button id="btnRefresh" class="btn btn-primary">Atualizar</button>
+      <button id="btnNew" class="btn btn-primary">Novo</button>
+    </div>
+  </header>
+
+  <section id="filters" class="dynamic-filters">
+    <!-- Filtros serão inseridos aqui pelo JS -->
+  </section>
+
+  <section id="grid" class="dynamic-grid">
+    <!-- A grid de dados será renderizada aqui -->
+  </section>
+
+  <!-- Modal de edição/introdução -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <span id="modalClose" class="close">&times;</span>
+      <h3 id="modalTitle"></h3>
+      <form id="editForm">
+        <!-- Campos do formulário serão inseridos pelo JS -->
+        <div class="form-actions">
+          <button type="button" id="btnCancel" class="btn">Cancelar</button>
+          <button type="submit" id="btnSave" class="btn btn-primary">Gravar</button>
+          <button type="button" id="btnDelete" class="btn btn-danger">Eliminar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+  const TABLE_NAME = "{{ table_name }}";
+  const RECORD_STAMP = {{ record_stamp|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/dynamic.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,8 @@
+{% macro render_menu() %}
+  {% import 'models.html' as mdl %} {# ou importa diretamente do contexto #}
+  {% for item in mdl.get_menu_items() %}
+    <li>
+      <a href="{{ item.url }}">{{ item.nome }}</a>
+    </li>
+  {% endfor %}
+{% endmacro %}

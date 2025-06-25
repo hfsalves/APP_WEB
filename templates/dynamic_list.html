@@ -1,0 +1,24 @@
+<!-- templates/dynamic_list.html -->
+{% extends "base.html" %}
+{% block title %}{{ table_name|capitalize }}{% endblock %}
+{% block content %}
+<div class="dynamic-container">
+  <header class="dynamic-header">
+    <h2>{{ menu_label }}</h2>
+  <!--  <div class="dynamic-actions">
+      <button id="btnNew" class="btn btn-primary" onclick="window.location='/generic/form/{{ table_name }}/'">Novo</button>
+    </div> -->
+  </header>
+
+  <!-- Injeção do nome da tabela para JS -->
+  <script>
+    window.TABLE_NAME = "{{ table_name }}";
+  </script>
+
+  <section id="filters" class="dynamic-filters"></section>
+  <section id="grid" class="dynamic-grid"></section>
+</div>
+
+<!-- Carrega o script de listagem -->
+<script src="{{ url_for('static', filename='js/dynamic_list.js') }}"></script>
+{% endblock %}
