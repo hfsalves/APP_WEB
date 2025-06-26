@@ -15,7 +15,7 @@
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     crossorigin="anonymous"
   />
-    <!-- injeta as permissões do user para o JS -->
+  <!-- injeta as permissões do user para o JS -->
   <script>
     window.USER_PERMS = {{ user_perms|tojson }};
   </script>
@@ -29,17 +29,41 @@
   <div class="app-container">
     <!-- Sidebar -->
     <aside class="sidebar">
-      <div class="sidebar-logo">
-        <a href="{{ url_for('home_page') }}">LOGO</a>
-      </div>
+<div class="sidebar-logo">
+  <a href="{{ url_for('home_page') }}" class="sidebar-logo-link">
+    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="sidebar-logo__img" />
+  </a>
+</div>
+
       <nav>
+    <!-- DEBUG: Mostra os caminhos atuais -->
+    <!--<p>request.path = {{ request.path }}</p>
+    {% for item in menu_items %}
+      <p>item.url = {{ item.url }}</p>
+    {% endfor %} -->
+    <!-- Fim do debug -->
         <ul>
-          <li><a href="{{ url_for('home_page') }}">Início</a></li>
+          <!--<li>
+            <a href="{{ url_for('home_page') }}"
+               class="{% if request.path == url_for('home_page') %}active{% endif %}">
+              Início
+            </a>
+          </li> -->
           {% for item in menu_items %}
-            <li><a href="{{ item.url }}">{{ item.nome }}</a></li>
+            <li>
+              <a href="{{ item.url }}"
+                 class="{% if request.path.startswith(item.url) %}active{% endif %}">
+                {{ item.nome }}
+              </a>
+            </li>
           {% endfor %}
           {% if current_user.is_authenticated %}
-            <li><a href="{{ url_for('logout') }}">Logout</a></li>
+            <li>
+              <a href="{{ url_for('logout') }}"
+                 class="{% if request.path == url_for('logout') %}active{% endif %}">
+                Logout
+              </a>
+            </li>
           {% endif %}
         </ul>
       </nav>

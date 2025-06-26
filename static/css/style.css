@@ -26,11 +26,11 @@ html, body {
   left: 0;
   bottom: 0;
   width: 240px;
-  background-color: #2f3e4e;
+  background-color: #4e6a88;
   color: #edf2f7;
   display: flex;
   flex-direction: column;
-  padding: 1rem;
+  padding: 0rem;
   overflow-y: auto;
   transition: left .3s ease;
 }
@@ -45,12 +45,15 @@ html, body {
   padding: 0.5rem 1rem;
   color: inherit;
   text-decoration: none;
-  border-radius: 4px;
+  border-radius: 0px;
 }
 .sidebar a:hover,
 .sidebar a.active {
-  background-color: rgba(255,255,255,0.1);
+  background: #a7bad1;
+  color: #2d415f;
+  border-radius: 0em;
 }
+
 
 /* Conteúdo principal */
 .main-content {
@@ -620,4 +623,22 @@ html, body {
 .dynamic-form textarea,
 .dynamic-form button {
   font-size: 16px;
+}
+/* Sidebar logo */
+.sidebar-logo {
+  padding: 0rem;
+  text-align: center;
+}
+
+.sidebar-logo__img {
+  max-width: 100%;
+  height: auto;
+  /* Se quiseres forçar uma largura fixa, podes usar:
+  width: 120px;
+  height: auto;
+  */
+  display: inline-block;
+}
+.sidebar-logo-link:hover {
+  background: none !important;
 }
