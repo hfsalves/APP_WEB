@@ -589,7 +589,13 @@ html, body {
     width: 100%      !important;
     max-width: none  !important;
   }
+  .dynamic-grid table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: small;
+  }
 }
+
 
 @media (max-width: 768px) {
   /* ─────────────────────────────────────────────────────────
@@ -638,7 +644,4 @@ html, body {
   height: auto;
   */
   display: inline-block;
-}
-.sidebar-logo-link:hover {
-  background: none !important;
 }
