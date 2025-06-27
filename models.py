@@ -60,3 +60,24 @@ class Acessos(db.Model):
 
     # Relacionamento opcional para aceder ao utilizador
     user = db.relationship('US', backref='acessos', primaryjoin="Acessos.utilizador==US.LOGIN")
+
+# Adiciona isto ao teu models.py
+class Widget(db.Model):
+    __tablename__ = 'WIDGETS'
+    WIDGETSSTAMP = db.Column(db.String(25), primary_key=True)
+    NOME         = db.Column(db.String(50), unique=True, nullable=False)
+    TITULO       = db.Column(db.String(80), nullable=False, default='')
+    TIPO         = db.Column(db.String(20), nullable=False, default='GRAFICO')
+    FONTE        = db.Column(db.String(200), nullable=False, default='')
+    CONFIG       = db.Column(db.Text, nullable=False, default='{}')
+    ATIVO        = db.Column(db.Boolean, nullable=False, default=True)
+
+class UsWidget(db.Model):
+    __tablename__ = 'USWIDGETS'
+    USWIDGETSSTAMP = db.Column(db.String(25), primary_key=True)
+    UTILIZADOR     = db.Column(db.String(50), nullable=False)
+    WIDGET         = db.Column(db.String(50), nullable=False)  # liga a WIDGETS.NOME
+    COLUNA         = db.Column(db.Integer, nullable=False, default=1)
+    ORDEM          = db.Column(db.Integer, nullable=False, default=1)
+    VISIVEL        = db.Column(db.Boolean, nullable=False, default=True)
+    MAXHEIGHT      = db.Column(db.Integer, nullable=False, default=1)

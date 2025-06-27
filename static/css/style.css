@@ -47,6 +47,9 @@ html, body {
   text-decoration: none;
   border-radius: 0px;
 }
+.sidebar-logo-link:hover {
+  background: none !important;
+}
 .sidebar a:hover,
 .sidebar a.active {
   background: #a7bad1;
@@ -644,4 +647,117 @@ html, body {
   height: auto;
   */
   display: inline-block;
+}
+
+/* Dashboard columns */
+.dashboard {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0rem 0rem 0 0rem;
+}
+.col {
+  flex: 1;
+  min-width: 280px;
+  background: transparent;
+  min-height: 350px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Widget card */
+.widget {
+  background: #fff;
+  border: 1.5px solid #e1e5e8;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+  padding: 1.25rem 1.25rem 1.5rem 1.25rem;
+  margin-bottom: 0.5rem;
+  min-width: 240px;
+}
+.widget h3 {
+  font-size: 1.18rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  letter-spacing: .01em;
+}
+.widget table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  margin-bottom: 0.5rem;
+  font-size: small;
+}
+.widget th,
+.widget td {
+  padding: 0.3rem 0.2rem;
+  text-align: left;
+  border-bottom: 1px solid #e1e5e8;
+}
+.widget th {
+  background: #f5f7f9;
+  font-weight: 600;
+}
+.widget tbody tr:nth-child(odd) {
+  background: #fcfdfe;
+}
+.widget tbody tr:hover {
+  background: #f0f4f8;
+}
+@media (max-width: 768px) {
+  .dashboard { flex-direction: column; }
+  .col { min-width: 100%; }
+}
+.widget td.num, .widget th.num {
+  text-align: right !important;
+}
+/* --- Tornar a área do widget rolável --- */
+.widget .widget-body {
+  overflow-x: auto;
+  /* opcional: espaço interno para não colar nas bordas */
+  padding-bottom: 0.5rem;
+}
+
+/* --- Garantir que a tabela não saia do container --- */
+.widget .widget-body table {
+  width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+}
+/* --- Faz o canvas do widget gráfico preencher 100% da largura --- */
+.widget.widget-grafico .widget-body {
+  position: relative; /* assegura que o Chart.js fica responsivo */
+}
+
+.widget.widget-grafico .widget-body canvas {
+  width: 100% !important;
+  height: auto !important;
+  display: block;     /* remove espaços brancos à volta */
+}
+/* Limita e expande widgets */
+.widget-body { transition: max-height 0.3s ease; }
+.widget.expanded .widget-body { max-height: none !important; }
+
+/* Botão expandir */
+.widget .widget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.widget .expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+}
+.widget-body {
+  transition: max-height 1.5s ease;
+}
+.widget.expanded .widget-body {
+  max-height: 1000px !important; /* ou um valor generoso > maior conteúdo */
+}
+/* Evita quebra em células numéricas */
+.widget-body table th.num,
+.widget-body table td.num {
+  white-space: nowrap;
 }

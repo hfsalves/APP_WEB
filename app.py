@@ -5,9 +5,8 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from datetime import datetime, date
 
 # Importa a instância db e modelos
-from models import db, US, Menu, Acessos
+from models import db, US, Menu, Acessos, Widget, UsWidget
 
-# Inicializa extensões
 login_manager = LoginManager()
 
 def create_app():
@@ -19,7 +18,6 @@ def create_app():
     )
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    # Inicializa DB e Login
     db.init_app(app)
     login_manager.init_app(app)
     login_manager.login_view = 'login'
@@ -28,21 +26,16 @@ def create_app():
     from blueprints.generic_crud import bp as generic_bp
     app.register_blueprint(generic_bp)
 
-    from sqlalchemy import false
-
     @app.context_processor
     def inject_menu_and_access():
-        # 1) Se não está logado, devolve menus vazios e sem perms
         if not current_user.is_authenticated:
             return dict(menu_items=[], user_perms={})
 
-        # 2) Monta menu (sistema-wide admin vs não-admin system)
         if getattr(current_user, 'ADMIN', False):
             menus = Menu.query.order_by(Menu.ordem).all()
         else:
             menus = Menu.query.filter_by(admin=False).order_by(Menu.ordem).all()
 
-        # 3) Carrega ACL específicas do utilizador (por LOGIN)
         rows = Acessos.query.filter_by(utilizador=current_user.LOGIN).all()
         perms = {}
         for a in rows:
@@ -52,15 +45,11 @@ def create_app():
                 'editar':    bool(a.editar),
                 'eliminar':  bool(a.eliminar),
             }
-
-        # 4) Disponibiliza ambos no template
         return dict(menu_items=menus, user_perms=perms)
 
-    # Carregamento de utilizador
     @login_manager.user_loader
     def load_user(user_stamp):
         return US.query.get(user_stamp)
-
 
     # Rotas de autenticação
     @app.route('/login', methods=['GET', 'POST'])
@@ -71,7 +60,7 @@ def create_app():
             user = US.query.filter_by(LOGIN=login_).first()
             if user and user.check_password(pwd):
                 login_user(user)
-                return redirect(request.args.get('next') or url_for('home_page'))
+                return redirect(request.args.get('next') or url_for('dashboard_page'))
             return render_template('login.html', error='Credenciais inválidas')
         return render_template('login.html')
 
@@ -85,7 +74,7 @@ def create_app():
     @app.route('/')
     @login_required
     def home_page():
-        return render_template('home.html')
+        return redirect(url_for('dashboard_page'))
 
     @app.route('/plan')
     @login_required
@@ -102,47 +91,77 @@ def create_app():
     def cleaning_edit_page(lpstamp):
         return render_template('cleaning_edit.html', lpstamp=lpstamp)
 
-    # API Plan
-    CONN_STR = (
-        'DRIVER={ODBC Driver 17 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=enterprise;TrustServerCertificate=Yes'
-        'SERVER=127.0.0.1,1433;DATABASE=GESTAO;UID=sa;PWD=enterprise;TrustServerCertificate=Yes'
-    )
-
-    @app.route('/api/plan')
+    # --- Página de Dashboard Central ---
+    @app.route('/dashboard')
     @login_required
-    def get_plan():
-        date_str = request.args.get('date')
-        if not date_str:
-            return jsonify({'error': 'date=YYYY-MM-DD obrigatório'}), 400
-        try:
-            dt = datetime.strptime(date_str, '%Y-%m-%d').date()
-        except ValueError:
-            return jsonify({'error': 'Formato inválido'}), 400
+    def dashboard_page():
+        return render_template('dashboard.html')
+
+    # --- Endpoint API de Widgets do Utilizador ---
+    @app.route('/api/dashboard')
+    @login_required
+    def api_dashboard_widgets():
+        user_login = current_user.LOGIN
+        query = (
+            db.session.query(UsWidget, Widget)
+            .join(Widget, UsWidget.WIDGET == Widget.NOME)
+            .filter(
+                UsWidget.UTILIZADOR == user_login,
+                UsWidget.VISIVEL == True,
+                Widget.ATIVO == True
+            )
+            .order_by(UsWidget.COLUNA, UsWidget.ORDEM)
+            .all()
+        )
+        dashboard = {1: [], 2: [], 3: []}
+        for usw, widg in query:
+            dashboard[usw.COLUNA].append({
+                'nome': widg.NOME,
+                'titulo': widg.TITULO,
+                'tipo': widg.TIPO,
+                'fonte': widg.FONTE,
+                'config': widg.CONFIG,
+                'coluna': usw.COLUNA,
+                'ordem': usw.ORDEM,
+                'maxheight': usw.MAXHEIGHT
+            })
+        return jsonify(dashboard)
+
+    import json
+
+    @app.route('/api/widget/analise/<nome>')
+    @login_required
+    def widget_analise(nome):
+        # Aceita widgets de qualquer tipo ativo
+        widget = Widget.query.filter_by(NOME=nome, ATIVO=True).first()
+        if not widget:
+            return jsonify({'error': 'Widget não encontrado'}), 404
 
         try:
+            config = json.loads(widget.CONFIG)
+            query = config.get('query')
+            if not query:
+                return jsonify({'error': 'Query não definida no config'}), 400
+
+            CONN_STR = (
+                'DRIVER={ODBC Driver 17 for SQL Server};'
+                'SERVER=hfsalves.mooo.com,50002;'
+                'DATABASE=GESTAO;'
+                'UID=sa;PWD=enterprise;'
+                'TrustServerCertificate=Yes;'
+            )
             with pyodbc.connect(CONN_STR) as conn:
                 cur = conn.cursor()
-                cur.execute(
-                    "SELECT Data, Alojamento, ... FROM v_plan WHERE Data = ?", dt
-                )
-                plan = [dict(zip([c[0] for c in cur.description], row)) for row in cur.fetchall()]
+                cur.execute(query)
+                col_names = [desc[0] for desc in cur.description]
+                rows = [dict(zip(col_names, row)) for row in cur.fetchall()]
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-        return jsonify(plan=plan)
-
-    # API Cleanings placeholder
-    @app.route('/api/cleanings', methods=['GET', 'POST'])
-    @login_required
-    def api_cleanings():
-        if request.method == 'GET':
-            date_str = request.args.get('date')
-            return jsonify([])
-        return '', 204
+        return jsonify({'columns': col_names, 'rows': rows})
 
     return app
 
-# Criação da app
 app = create_app()
 
 if __name__ == '__main__':
