@@ -15,6 +15,14 @@
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     crossorigin="anonymous"
   />
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <meta name="theme-color" content="#2c3e50">
+
+  <!-- Para iOS (Safari) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="StationZero">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+
   <!-- injeta as permissões do user para o JS -->
   <script>
     window.USER_PERMS = {{ user_perms|tojson }};
@@ -78,5 +86,12 @@
   <!-- Scripts ao fim do body -->
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/service-worker.js')
+        .then(() => console.log("SW registado"));
+    }
+  </script>
+
 </body>
 </html>
