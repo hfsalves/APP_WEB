@@ -773,6 +773,7 @@ html, body {
   gap: 1rem;
 }
 
+
 /* Em mobile, faz só uma coluna */
 @media (max-width: 768px) {
   .dashboard {
