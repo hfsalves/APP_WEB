@@ -6,7 +6,7 @@
 }
 html, body {
   height: 100%;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Nunito', sans-serif;
   background-color: #f0f2f5;
   color: #333;
 }
@@ -26,8 +26,8 @@ html, body {
   left: 0;
   bottom: 0;
   width: 240px;
-  background-color: #4e6a88;
-  color: #edf2f7;
+  background-color:#b9ddeb;
+  color:#0a0e25;
   display: flex;
   flex-direction: column;
   padding: 0rem;
@@ -52,11 +52,23 @@ html, body {
 }
 .sidebar a:hover,
 .sidebar a.active {
-  background: #a7bad1;
+  background: #d2e6f0;
   color: #2d415f;
   border-radius: 0em;
 }
 
+/* 2. Dá um espacinho entre o ícone e o texto, e deixa o ícone um pouco menor */
+.sidebar nav ul li a i {
+  /* espaço à direita do ícone */
+  margin-right: 0.3rem;
+  /* escala do ícone */
+  font-size: 0.8em;
+  /* alinha verticalmente junto ao texto */
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;       /* substitui margin-right do <i> */
+}
 
 /* Conteúdo principal */
 .main-content {
@@ -66,6 +78,7 @@ html, body {
   flex-direction: column;
   overflow-y: auto;
   transition: margin-left .3s ease;
+  margin-left: 240px;
 }
 
 /* Botão toggle mobile */
@@ -132,6 +145,7 @@ html, body {
 @media (max-width: 768px) {
   .main-content {
     padding: 0 !important;
+    margin-left: 0px;
   }
   .dynamic-container {
     border-radius: 0 !important;
@@ -638,8 +652,10 @@ html, body {
 }
 /* Sidebar logo */
 .sidebar-logo {
-  padding: 0rem;
-  text-align: center;
+  padding: 1.2rem;
+  text-align: left;
+  font-size: larger;
+  font-weight: 900;
 }
 
 .sidebar-logo__img {
@@ -787,3 +803,245 @@ html, body {
   margin-bottom: 25px;
   color: #2b2b2b;
 }
+/* Header global */
+.app-header {
+  background-color: #5192b8;  /* ajusta para a cor que quiseres */
+  color: #fff;
+  padding: 0.5rem 1rem;
+}
+
+/* Inner flex container: título à esquerda, avatar à direita */
+.app-header .header-inner {
+  display: flex;
+  flex: 0;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Título da página */
+.app-header .page-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 200;
+}
+
+/* Avatar do utilizador */
+.app-header .user-avatar img {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255,255,255,0.6);
+}
+
+/* Desktop: empurra o header para a direita da sidebar */
+@media (min-width: 769px) {
+  .app-header {
+    margin-left: 240px;                  /* largura fixa da sidebar */
+    width: calc(100% - 240px);           /* resto do ecrã */
+  }
+}
+
+/* Mobile/tablet: header em full-width */
+@media (max-width: 768px) {
+  .app-header {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+/* Ajusta a altura da área principal para levar em conta o header */
+.app-container {
+  display: flex;
+  height: calc(100vh - var(--header-height, 3rem)); /* 3rem = altura aproximada do header */
+}
+
+/* Se já tiver height:100% em main-content, substitua por: */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  max-height: calc(100vh - var(--header-height, 3rem));
+  padding: 1rem;
+}
+
+/* Define uma variável CSS para a altura do header, ou ajuste diretamente */
+.app-header {
+  --header-height: 3rem;   /* ajuste este valor conforme o padding/font-size real */
+  height: var(--header-height);
+}
+
+
+/* Botão dentro do header */
+.app-header .header-toggle {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  margin-right: 1rem;
+  cursor: pointer;
+  color: inherit;
+}
+/* 1) Torna o header um flex‐container que já inclui o toggle, título e avatar */
+.app-header {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+}
+
+/* 2) Ajusta o wrapper interno para isolar título e avatar */
+.app-header .header-inner {
+  flex: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 3) Estilo base para o botão no header */
+.app-header .menu-toggle-mobile.header-toggle {
+  position: static;      /* já não é fixed nem absoluto */
+  bottom: auto;
+  left: auto;
+  display: inline-flex;  /* visível e inline */
+  background: none;
+  border: none;
+  font-size: 1.5rem;     /* aumenta um pouco */
+  margin-right: 1rem;    /* espaço antes do título */
+  color: inherit;
+  cursor: pointer;
+}
+
+/* 4) Continua a aparecer em mobile (display:block já é tratado pela media query) */
+@media (max-width: 768px) {
+  .app-header .menu-toggle-mobile.header-toggle {
+    display: inline-flex;
+  }
+}
+/* ────────────────────────────────────────────────────────────
+   Header e botões de toggle
+──────────────────────────────────────────────────────────── */
+.app-header {
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  position: fixed;
+  top: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  height: var(--header-height);
+  z-index: 1000;
+  left: 0px;
+}
+
+.app-header .header-toggle {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #fff;        /* ajusta à cor do header */
+  cursor: pointer;
+  margin-right: 1rem;
+  display: none;      /* escondidos por defeito */
+}
+
+/* sempre mostramos o “abrir” quando a sidebar estiver fechada */
+.menu-toggle-mobile.open-toggle {
+  display: inline-flex;
+}
+
+/* quando a sidebar ganha a classe “open”, invertemos */
+.sidebar.open ~ .app-header .open-toggle {
+  display: none;
+}
+.sidebar.open ~ .app-header .close-toggle {
+  display: inline-flex;
+}
+
+/* ────────────────────────────────────────────────────────────
+   Sidebar: toggle da classe open
+──────────────────────────────────────────────────────────── */
+/* (já deverás ter JS que faz `sidebar.classList.toggle('open')`
+   quando clicares no #menuToggleMobile) */
+/* botão dentro do header */
+.app-header {
+  display: flex;
+  align-items: center;
+}
+
+.header-toggle {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #fff;
+  cursor: pointer;
+  margin-right: 1rem;
+}
+
+:root {
+  --sidebar-width: 240px;   /* largura da sidebar */
+  --header-height: 3.5rem;  /* ajusta à altura real do header */
+}
+
+/* 1) Header permanece no fluxo normal */
+.app-header {
+  position: relative;      /* desfaz qualquer fixed que pudesse existir */
+  width: 100%;
+  height: var(--header-height);
+  line-height: var(--header-height);
+  background-color: #5a8db2; /* usa tua cor */
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  box-sizing: border-box;
+  z-index: 100;
+}
+
+/* 2) Empurra o container todo abaixo do header */
+.app-container {
+  display: flex;
+  height: calc(100vh - var(--header-height));
+  overflow: hidden;
+}
+
+/* 3) Sidebar fixa em altura completa abaixo do header */
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* 4) Main content ocupa o resto e permite scroll interno */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+/* 5) Em mobile, podes fazer o reset do margin e largura da sidebar se quiseres */
+@media (max-width: 768px) {
+  .app-header {
+    /* manténs relative, full width */
+    left: 0px;
+  }
+  .app-header {
+  left: 0px;
+  }  
+  .app-container {
+    display: block;       /* sidebar + main em bloco */
+    height: auto;
+  }
+  .main-content {
+    margin-top: 0;
+    height: auto;
+  }
+/* header posicionado normalmente */
+.app-header {
+  position: relative;
+  left: 0;
+  transition: left 0.3s ease;
+}
+
+/* quando o body tiver a classe sidebar-open, desloca o header */
+body.sidebar-open .app-header {
+  left: 240px; /* ou var(--sidebar-width) */
+}
+}
+
+

@@ -13,6 +13,7 @@ class Menu(db.Model):
     tabela    = db.Column(db.String(18), nullable=False)
     url       = db.Column(db.String(200), nullable=False)
     admin     = db.Column(db.Boolean, nullable=False, default=False)
+    icone     = db.Column(db.String(100), nullable=False)
 
 class Campo(db.Model):
     __tablename__ = 'CAMPOS'

@@ -1,5 +1,6 @@
 import os
 import pyodbc
+import json
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date
@@ -28,24 +29,51 @@ def create_app():
 
     @app.context_processor
     def inject_menu_and_access():
-        if not current_user.is_authenticated:
-            return dict(menu_items=[], user_perms={})
-
-        if getattr(current_user, 'ADMIN', False):
-            menus = Menu.query.order_by(Menu.ordem).all()
-        else:
-            menus = Menu.query.filter_by(admin=False).order_by(Menu.ordem).all()
-
-        rows = Acessos.query.filter_by(utilizador=current_user.LOGIN).all()
+        """
+        Injeta menu_items, user_perms e page_name baseado na rota:
+        - para genérico: /generic/view/<tabela> e /generic/form/<tabela>/<id>
+        - para estáticas: request.path.startswith(m.url)
+        """
+        page_name = None
+        menu_items = []
         perms = {}
-        for a in rows:
-            perms[a.tabela] = {
-                'consultar': bool(a.consultar),
-                'inserir':   bool(a.inserir),
-                'editar':    bool(a.editar),
-                'eliminar':  bool(a.eliminar),
+
+        if current_user.is_authenticated:
+            # Carrega menus conforme perfil de admin
+            if getattr(current_user, 'ADMIN', False):
+                menu_items = Menu.query.order_by(Menu.ordem).all()
+            else:
+                menu_items = Menu.query.filter_by(admin=False).order_by(Menu.ordem).all()
+
+            # Carrega permissões de acesso
+            rows = Acessos.query.filter_by(utilizador=current_user.LOGIN).all()
+            perms = {
+                a.tabela: {
+                    'consultar': bool(a.consultar),
+                    'inserir':   bool(a.inserir),
+                    'editar':    bool(a.editar),
+                    'eliminar':  bool(a.eliminar),
+                }
+                for a in rows
             }
-        return dict(menu_items=menus, user_perms=perms)
+
+            # Detecta genérico (list e form)
+            parts = request.path.strip('/').split('/')
+            if len(parts) >= 3 and parts[0] == 'generic' and parts[1] in ('view', 'form'):
+                tabela_arg = parts[2]
+                for m in menu_items:
+                    if m.tabela == tabela_arg:
+                        page_name = m.nome
+                        break
+
+            # Fallback para rotas estáticas
+            if not page_name:
+                for m in menu_items:
+                    if request.path.startswith(m.url):
+                        page_name = m.nome
+                        break
+
+        return dict(menu_items=menu_items, user_perms=perms, page_name=page_name)
 
     @login_manager.user_loader
     def load_user(user_stamp):
@@ -70,7 +98,7 @@ def create_app():
         logout_user()
         return redirect(url_for('login'))
 
-    # Páginas
+    # Rotas de páginas estáticas
     @app.route('/')
     @login_required
     def home_page():
@@ -79,7 +107,10 @@ def create_app():
     @app.route('/plan')
     @login_required
     def plan_page():
-        return render_template('plan.html', today=date.today().isoformat())
+        return render_template(
+            'plan.html',
+            today=date.today().isoformat()
+        )
 
     @app.route('/cleanings')
     @login_required
@@ -91,13 +122,12 @@ def create_app():
     def cleaning_edit_page(lpstamp):
         return render_template('cleaning_edit.html', lpstamp=lpstamp)
 
-    # --- Página de Dashboard Central ---
     @app.route('/dashboard')
     @login_required
     def dashboard_page():
         return render_template('dashboard.html')
 
-    # --- Endpoint API de Widgets do Utilizador ---
+    # Endpoints de API
     @app.route('/api/dashboard')
     @login_required
     def api_dashboard_widgets():
@@ -127,12 +157,9 @@ def create_app():
             })
         return jsonify(dashboard)
 
-    import json
-
     @app.route('/api/widget/analise/<nome>')
     @login_required
     def widget_analise(nome):
-        # Aceita widgets de qualquer tipo ativo
         widget = Widget.query.filter_by(NOME=nome, ATIVO=True).first()
         if not widget:
             return jsonify({'error': 'Widget não encontrado'}), 404
