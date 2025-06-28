@@ -238,13 +238,16 @@ html, body {
 }
 .dynamic-grid th,
 .dynamic-grid td {
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 1rem;
   border-bottom: 1px solid #e1e4e8;
 }
 .dynamic-grid th {
   background-color: #f6f8fa;
-  font-weight: 600;
+  font-size: 12px;
   text-align: left;
+}
+.dynamic-grid tbody tr {
+  font-size: 14px;
 }
 .dynamic-grid tbody tr:hover {
   background-color: #f1f3f5;
@@ -595,7 +598,7 @@ html, body {
   .dynamic-grid table {
   width: 100%;
   border-collapse: collapse;
-  font-size: small;
+  font-size: smaller;
   }
 }
 
@@ -631,7 +634,7 @@ html, body {
 .dynamic-form select,
 .dynamic-form textarea,
 .dynamic-form button {
-  font-size: 16px;
+  font-size: 13px;
 }
 /* Sidebar logo */
 .sidebar-logo {
@@ -760,4 +763,26 @@ html, body {
 .widget-body table th.num,
 .widget-body table td.num {
   white-space: nowrap;
+}
+/* ───────────────────────────────────────────────────────────
+   Grid do Dashboard
+─────────────────────────────────────────────────────────── */
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+/* Em mobile, faz só uma coluna */
+@media (max-width: 768px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dá 5px de margem em baixo aos títulos H2 de lista e formulário genéricos */
+.dynamic-list h2,
+.dynamic-form h2 {
+  margin-bottom: 25px;
+  color: #2b2b2b;
 }
