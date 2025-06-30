@@ -8,29 +8,19 @@
   <!-- Nunito via Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&display=swap"
-    rel="stylesheet"
-  >
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
 
   <!-- Flatpickr -->
-  <link
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
-  />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
 
   <!-- FontAwesome (sem integrity para evitar bloqueios) -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    crossorigin="anonymous"
-  />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
+
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" crossorigin="anonymous">
 
   <!-- App CSS -->
-  <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/style.css') }}"
-  >
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
   <!-- Web App Manifest & Theme Color -->
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
@@ -47,40 +37,22 @@
     window.USER_PERMS = {{ user_perms|tojson }};
   </script>
 </head>
-
 <body>
-  <!-- Botão MOBILE (ícone de hambúrguer) 
-  <button id="menuToggleMobile" class="menu-toggle-mobile">
-    <i class="fa-solid fa-bars"></i>
-  </button>-->
-
   {% if request.endpoint != 'login' %}
   <header class="app-header">
     <div class="header-inner">
-  <!-- botão para abrir/fechar sidebar -->
       <button id="menuToggleMobile" class="menu-toggle-mobile header-toggle">
         <i class="fa-solid fa-bars"></i>
       </button>
-
-      <!-- Nome da página: passado via page_name ou extraído do endpoint -->
       <h1 class="page-title">
         {{ page_name or request.endpoint.replace('_', ' ').replace('-', ' ').title() }}
       </h1>
-      <!-- Avatar do utilizador 
-      <div class="user-avatar">
-        <img
-          src="{{ current_user.avatar_url or url_for('static', filename='images/default-avatar.png') }}"
-          alt="Avatar de {{ current_user.NOME }}"
-        >
-      </div>-->
     </div>
   </header>
   {% endif %}
 
   <div class="app-container">
-    <!-- Sidebar -->
     <aside class="sidebar">
-
       <div class="sidebar-logo">
         Olá, {{ current_user.NOME }}
       </div>
@@ -88,42 +60,60 @@
         <ul>
           {% for item in menu_items %}
           <li>
-            <a href="{{ item.url }}"
-               class="{% if request.path.startswith(item.url) %}active{% endif %}">
-              {% if item.icone %}
-                <i class="fa-solid {{ item.icone }}" aria-hidden="true"></i>
-              {% endif %}
+            <a href="{{ item.url }}" class="{% if request.path.startswith(item.url) %}active{% endif %}">
+              {% if item.icone %}<i class="fa-solid {{ item.icone }}" aria-hidden="true"></i>{% endif %}
               {{ item.nome }}
             </a>
           </li>
           {% endfor %}
           {% if current_user.is_authenticated %}
           <li>
-            <a href="{{ url_for('logout') }}"
-               class="{% if request.path == url_for('logout') %}active{% endif %}">
-              Logout
-            </a>
+            <a href="{{ url_for('logout') }}" class="{% if request.path == url_for('logout') %}active{% endif %}">Logout</a>
           </li>
           {% endif %}
         </ul>
       </nav>
     </aside>
 
-    <!-- Main Content -->
     <main class="main-content">
       {% block content %}{% endblock %}
     </main>
   </div>
 
-  <!-- Scripts ao fim do body -->
+  <!-- Bootstrap Bundle com Popper (essencial para modais) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+
+  <!-- Flatpickr -->
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+  <!-- UI Scripts -->
   <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/static/service-worker.js')
         .then(() => console.log("SW registado"));
     }
   </script>
+
+  <!-- Modal Genérico -->
+  <div class="modal fade" id="genericModal" tabindex="-1" aria-labelledby="genericModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="genericModalLabel">Ação</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="gravarModal()">Gravar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% include 'dynamic_modal.html' %}
 
 </body>
 </html>

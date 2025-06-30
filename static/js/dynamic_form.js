@@ -179,8 +179,226 @@
     }
   });
 
+  document.querySelectorAll('.btn-custom').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const tipo = btn.dataset.tipo;
+    const acao = btn.dataset.acao;
+    const destino = btn.dataset.destino;
+
+    if (tipo === 'MODAL') {
+      abrirModal(acao);
+    }
+  });
+});
+
+
   // 8. Cursor no final
   form.querySelectorAll('input[type="text"],input[type="number"],input[type="time"]').forEach(i =>
-    i.addEventListener('focus', () => { const v = i.value; i.value = ''; i.value = v; })
+    i.addEventListener('focus', () => { const v = i.value; i.value = ''; i.value = v; })  
   );
 })();
+
+async function abrirModal(nomeModal) {
+  try {
+    const url = `/generic/api/modal/${nomeModal}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Erro ao carregar o formulário');
+
+    const data = await response.json();
+    const titulo = data.titulo || 'Ação';
+    const campos = data.campos || [];
+
+    document.getElementById("genericModalLabel").innerText = titulo;
+    const body = document.getElementById("modalBody");
+    body.innerHTML = "";
+
+    campos.sort((a, b) => a.ORDEM - b.ORDEM).forEach(campo => {
+      const wrapper = document.createElement("div");
+      wrapper.classList.add("form-group");
+
+      const label = document.createElement("label");
+      label.textContent = campo.LABEL;
+      wrapper.appendChild(label);
+
+      let input;
+      if (campo.TIPO === "COMBO") {
+        input = document.createElement("select");
+        input.name = campo.CAMPO;
+        input.innerHTML = `<option value=''>---</option>`; // opções virão de outra chamada se necessário
+      } else if (campo.TIPO === "BIT") {
+        input = document.createElement("input");
+        input.type = "checkbox";
+        input.name = campo.CAMPO;
+      } else {
+        input = document.createElement("input");
+        input.type = tipoInputHTML(campo.TIPO);
+        input.name = campo.CAMPO;
+      }
+
+      wrapper.appendChild(input);
+      body.appendChild(wrapper);
+    });
+
+    // Mostra o modal
+    const modal = new bootstrap.Modal(document.getElementById('genericModal'));
+    modal.show();
+
+  } catch (error) {
+    console.error(error);
+    alert("Formulário do modal não encontrado");
+  }
+}
+
+function tipoInputHTML(tipo) {
+  switch (tipo) {
+    case "DATE": return "date";
+    case "HOUR": return "time";
+    case "INT": return "number";
+    case "DECIMAL": return "number";
+    case "TEXT": return "text";
+    default: return "text";
+  }
+}
+
+
+// static/js/dynamic_form.js
+// Formulário genérico com tratamento de COMBO, valores por defeito e submissão.
+
+let currentModalName = null;
+
+// Debug: mostra o RECORD_STAMP global
+console.log('🚀 dynamic_form.js carregado - RECORD_STAMP global:', window.RECORD_STAMP);
+
+// Abre o modal e carrega campos dinâmicos
+function abrirModal(nomeModal) {
+  currentModalName = nomeModal;
+  fetch(`/generic/api/modal/${nomeModal}`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data.success) {
+        alert('Erro ao carregar modal: ' + data.message);
+        return;
+      }
+      console.log('⚙️ Dados do modal:', data);
+      // Ajusta título do modal
+      const titleEl = document.getElementById('genericModalLabel');
+      if (titleEl) titleEl.innerText = data.titulo || 'Ação';
+      // Desenha campos
+      renderModalFields(data.campos || []);
+      // Inicia Flatpickr nos campos de data
+      if (window.flatpickr) {
+        document.querySelectorAll('#modalBody .flatpickr-date').forEach(el =>
+          flatpickr(el, { dateFormat: 'Y-m-d', allowInput: true })
+        );
+      }
+      // Exibe o modal
+      const modalEl = document.getElementById('genericModal');
+      new bootstrap.Modal(modalEl).show();
+    })
+    .catch(err => {
+      console.error('Erro ao carregar modal:', err);
+      alert('Erro ao carregar o formulário do modal');
+    });
+}
+
+// Gera os elementos de campo dentro do modal
+function renderModalFields(campos) {
+  console.log('🔨 Renderizando campos:', campos);
+  const container = document.getElementById('modalBody');
+  if (!container) return console.error('❌ Container #modalBody não encontrado!');
+  container.innerHTML = '';
+
+  campos.sort((a, b) => a.ORDEM - b.ORDEM).forEach(col => {
+    console.log(`--> Campo: ${col.CAMPO}, default: ${col.VALORDEFAULT}`);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'form-group';
+    if (col.TIPO === 'BIT') wrapper.classList.add('checkbox');
+
+    const label = document.createElement('label');
+    label.setAttribute('for', col.CAMPO);
+    label.textContent = col.LABEL || col.CAMPO;
+    wrapper.appendChild(label);
+
+    let input;
+    if (col.TIPO === 'COMBO') {
+      input = document.createElement('select');
+      input.name = col.CAMPO;
+      input.id = col.CAMPO;
+      input.className = 'form-control';
+      // opção vazia
+      const emptyOpt = document.createElement('option');
+      emptyOpt.value = '';
+      emptyOpt.text = '---';
+      input.appendChild(emptyOpt);
+      // TODO: popular com col.OPCOES
+    } else {
+      input = document.createElement('input');
+      input.name = col.CAMPO;
+      input.id = col.CAMPO;
+      input.className = 'form-control';
+      switch (col.TIPO) {
+        case 'DATE':    input.type = 'text';    input.classList.add('flatpickr-date'); break;
+        case 'HOUR':    input.type = 'time';    break;
+        case 'INT':     input.type = 'number';  input.step = '1';      break;
+        case 'DECIMAL': input.type = 'number';  input.step = '0.01';   break;
+        case 'BIT':     input.type = 'checkbox'; break;
+        default:        input.type = 'text';
+      }
+      // Aplica valor default
+      if (col.VALORDEFAULT) {
+        let def = col.VALORDEFAULT.trim();
+        if (/^".*"$/.test(def)) {
+          input.value = def.slice(1, -1);
+        } else if (/^\{\s*RECORD_STAMP\s*\}$/.test(def)) {
+          input.value = window.RECORD_STAMP || '';
+        } else {
+          input.value = def;
+        }
+      }
+    }
+
+    wrapper.appendChild(input);
+    container.appendChild(wrapper);
+  });
+}
+
+// Submete o modal ao servidor
+function gravarModal() {
+  // Captura campos dentro de #modalBody (forma mais segura)
+  const container = document.getElementById('modalBody');
+  if (!container) return console.error('❌ Container #modalBody não encontrado');
+
+  const inputs = container.querySelectorAll('input[name], select[name]');
+  const dados = { __modal__: currentModalName };
+  inputs.forEach(i => {
+    if (i.type === 'checkbox') dados[i.name] = i.checked ? 1 : 0;
+    else dados[i.name] = i.value;
+  });
+
+  console.log('📤 Enviando dados modal:', dados);
+
+  fetch('/generic/api/modal/gravar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dados)
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        // Fecha modal e remove backdrop
+        const modalEl = document.getElementById('genericModal');
+        bootstrap.Modal.getInstance(modalEl).hide();
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      } else {
+        alert('Erro ao gravar modal: ' + data.error);
+      }
+    })
+    .catch(e => {
+      console.error('Erro ao gravar modal:', e);
+      alert('Erro ao gravar modal. Veja console.');
+    });
+}
+
+// Expõe no global se quiser usar onclick inline
+window.abrirModal = abrirModal;
+window.gravarModal = gravarModal;

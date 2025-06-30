@@ -3,16 +3,64 @@
 {% block title %}{{ table_name|capitalize }} - Lista{% endblock %}
 
 {% block content %}
+<style>
+/* Tornar o modal mais estreito no desktop */
+@media (min-width: 576px) {
+  .modal-dialog {
+    max-width: 400px;
+  }
+}
+/* No mobile, utilizar largura quase total com margem */
+@media (max-width: 575px) {
+  .modal-dialog {
+    margin: 1rem;
+    max-width: calc(100% - 2rem);
+  }
+}
+</style>
+
   <div class="dynamic-container">
     <div class="dynamic-form">
       <!--<h2>{{ menu_label }}</h2>-->
+
+      {% if botoes %}
+        <div class="d-flex justify-content-end mb-3">
+          <div class="dropdown">
+            <!-- botão branco, sem texto, só ícone de raio -->
+            <button 
+              class="btn btn-light btn-sm" 
+              type="button" 
+              id="acoesDropdown" 
+              data-bs-toggle="dropdown" 
+              aria-expanded="false"
+              style="background: white; border: 1px solid #ddd;">
+              <i class="fa fa-bolt"></i>
+            </button>
+            <!-- menu alinhado à direita do botão -->
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="acoesDropdown">
+              {% for botao in botoes %}
+              <li>
+                <a 
+                  class="dropdown-item" 
+                  href="#" 
+                  onclick="abrirModal('{{ botao.NOME }}')">
+                  <i class="fa {{ botao.ICONE }} me-2"></i>
+                  {{ botao.TEXTO }}
+                </a>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      {% endif %}
 
       <form id="editForm" class="two-cols">
         <!-- o JS só vai preencher os .coluna-1 e .coluna-2 -->
         <div class="coluna-1"></div>
         <div class="coluna-2"></div>
       </form>
-      <!-- Botões só aqui, não no JS -->
+
+      <!-- Botões fixos -->
       <div class="form-actions">
         <button type="submit" form="editForm" class="btn btn-primary btn-save">
           <i class="fa-solid fa-save"></i>
@@ -33,6 +81,7 @@
           <span class="btn-text">Voltar</span>
         </button>
       </div>
+
     </div>
   </div>
 
@@ -47,5 +96,3 @@
   <!-- Carrega o script novo -->
   <script src="{{ url_for('static', filename='js/dynamic_form.js') }}"></script>
 {% endblock %}
-
-  <!-- ALTERAÇAÕ FEITA PARA TESTAR O GIT -->

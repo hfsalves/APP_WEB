@@ -54,14 +54,35 @@ def view_table(table_name, record_stamp):
 @bp.route('/form/<table_name>/<record_stamp>')
 @login_required
 def edit_table(table_name, record_stamp):
+    from models import MenuBotoes  # Importa aqui para evitar circular imports
+
     menu_item = Menu.query.filter_by(tabela=table_name).first()
     menu_label = menu_item.nome if menu_item else table_name.capitalize()
+
+    # Carrega os botões ativos da tabela
+    botoes_query = MenuBotoes.query.filter_by(TABELA=table_name, ATIVO=True).order_by(MenuBotoes.ORDEM)
+    botoes = [
+        {
+            'NOME': b.NOME,
+            'ICONE': b.ICONE,
+            'TEXTO': b.TEXTO,
+            'COR': b.COR,
+            'TIPO': b.TIPO,
+            'ACAO': b.ACAO,
+            'CONDICAO': b.CONDICAO,
+            'DESTINO': b.DESTINO
+        }
+        for b in botoes_query
+    ]
+
     return render_template(
         'dynamic_form.html',
         table_name=table_name,
         record_stamp=record_stamp,
-        menu_label=menu_label
+        menu_label=menu_label,
+        botoes=botoes
     )
+
 
 # API: DESCRIBE colunas
 @bp.route('/api/<table_name>', methods=['GET'])

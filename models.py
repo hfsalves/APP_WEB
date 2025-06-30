@@ -82,3 +82,44 @@ class UsWidget(db.Model):
     ORDEM          = db.Column(db.Integer, nullable=False, default=1)
     VISIVEL        = db.Column(db.Boolean, nullable=False, default=True)
     MAXHEIGHT      = db.Column(db.Integer, nullable=False, default=1)
+
+class MenuBotoes(db.Model):
+    __tablename__ = 'MENUBOTOES'
+
+    MENUBOTOESSTAMP = db.Column(db.String(50), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
+    TABELA          = db.Column(db.String(50), nullable=False, default='')
+    NOME            = db.Column(db.String(100), nullable=False, default='')
+    ICONE           = db.Column(db.String(50), nullable=False, default='')
+    TEXTO           = db.Column(db.String(100), nullable=False, default='')
+    COR             = db.Column(db.String(20), nullable=False, default='')
+    ORDEM           = db.Column(db.Integer, default=0)
+    TIPO            = db.Column(db.String(20), nullable=False, default='')
+    ACAO            = db.Column(db.String(200), nullable=False, default='')
+    CONDICAO        = db.Column(db.Text, nullable=False, default='')
+    DESTINO         = db.Column(db.String(100), nullable=False, default='')
+    ATIVO           = db.Column(db.Boolean, nullable=False, default=False)
+
+class Modais(db.Model):
+    __tablename__ = 'MODAIS'
+
+    MODAISSTAMP = db.Column(db.String(50), primary_key=True)
+    NOME        = db.Column(db.String(100), nullable=False, default='')
+    TITULO      = db.Column(db.String(100), nullable=False, default='')
+    ACAO        = db.Column(db.String(100), nullable=False, default='')
+    ATIVO       = db.Column(db.Boolean, default=True)
+    TABELA      = db.Column(db.String(100), nullable=False, default='')
+
+
+class CamposModal(db.Model):
+    __tablename__ = 'CAMPOSMODAL'
+
+    CAMPOSMODALSTAMP = db.Column(db.String(50), primary_key=True)
+    MODAISSTAMP      = db.Column(db.String(50), nullable=False)
+    CAMPO            = db.Column(db.String(100), nullable=False, default='')
+    LABEL            = db.Column(db.String(100), nullable=False, default='')
+    TIPO             = db.Column(db.String(20), nullable=False, default='')
+    VALORDEFAULT     = db.Column(db.String(100), default='')
+    COMBO            = db.Column(db.Text, default='')
+    ORDEM            = db.Column(db.Integer, default=0)
+    OBRIGATORIO      = db.Column(db.Boolean, default=True)
+    CAMPODESTINO     = db.Column(db.String(100), nullable=False, default='')

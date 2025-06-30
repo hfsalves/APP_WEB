@@ -648,7 +648,7 @@ html, body {
 .dynamic-form select,
 .dynamic-form textarea,
 .dynamic-form button {
-  font-size: 13px;
+  font-size: 16px;
 }
 /* Sidebar logo */
 .sidebar-logo {
@@ -808,6 +808,7 @@ html, body {
   background-color: #5192b8;  /* ajusta para a cor que quiseres */
   color: #fff;
   padding: 0.5rem 1rem;
+  width:100%-240px
 }
 
 /* Inner flex container: título à esquerda, avatar à direita */
@@ -981,7 +982,7 @@ html, body {
 /* 1) Header permanece no fluxo normal */
 .app-header {
   position: relative;      /* desfaz qualquer fixed que pudesse existir */
-  width: 100%;
+  width: 100% - 240px;
   height: var(--header-height);
   line-height: var(--header-height);
   background-color: #5a8db2; /* usa tua cor */
@@ -1019,9 +1020,11 @@ html, body {
   .app-header {
     /* manténs relative, full width */
     left: 0px;
+    width: 100%-140px;
   }
   .app-header {
   left: 0px;
+  width: 100%-140px;
   }  
   .app-container {
     display: block;       /* sidebar + main em bloco */
@@ -1035,13 +1038,82 @@ html, body {
 .app-header {
   position: relative;
   left: 0;
+  width:100%-240px;
   transition: left 0.3s ease;
 }
 
 /* quando o body tiver a classe sidebar-open, desloca o header */
 body.sidebar-open .app-header {
   left: 240px; /* ou var(--sidebar-width) */
+  width: 100%-240px !important;
 }
 }
 
+#modalBody .form-group {
+  margin-bottom: 1rem;
+}
+#modalBody label {
+  font-weight: 500;
+}
+#modalBody input, #modalBody select {
+  width: 100%;
+  padding: .5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.modal {
+  display: none;
+  color:#0a0e25;  
+}
 
+.sidebar ul {
+  list-style: none;
+  padding-left: 0;
+  margin-left: 0;
+  color: #2d415f;
+}
+
+.sidebar ul li a {
+  padding: 8px 10px;
+  margin-left: 0;
+  display: block;
+  text-decoration: none;
+  color: #2d415f;
+}
+
+.sidebar ul li a.active {
+  background: #d2e6f0;
+  color: #2d415f;
+}
+
+/* deixar o fundo do modal transparente e borrado */
+.modal-backdrop.show {
+  background-color: transparent !important;    /* retira o preto/azulado */
+  backdrop-filter: blur(4px);                  /* aplica blur no conteúdo por trás */
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* opcional: se quiseres também escurecer ligeiramente o que há por trás */
+.modal-backdrop.show::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background-color: rgba(0,0,0,0.2);
+}
+
+/* 1️⃣ Torna o backdrop totalmente transparente */
+.modal-backdrop {
+  background-color: transparent !important;
+}
+
+/* 2️⃣ Faz o conteúdo de trás (body) ficar ligeiramente desfocado */
+.modal-open .app-container,   /* ajusta .app-container para o teu wrapper principal */
+.modal-open .main-content {   /* ou outro selector que envolva o teu conteúdo */
+  filter: blur(4px);
+}
+
+/* 3️⃣ Garante que o modal fica acima de tudo */
+.modal {
+  z-index: 2000;   /* por cima do backdrop e do resto */
+}
