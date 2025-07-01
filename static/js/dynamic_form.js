@@ -100,8 +100,25 @@
         } else if (el.type === 'checkbox') {
           el.checked = !!val;
         } else if (el.classList.contains('flatpickr-date')) {
-          el.value = val ? val.slice(0,10) : '';
-        } else {
+            if (val) {
+              let d, m, y;
+              if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
+                // veio em ISO: "2025-07-02..."
+                [y, m, d] = val.slice(0,10).split('-');
+              } else {
+                // veio em RFC: "Fri, 04 Jul 2025 00:00:00 GMT"
+                const dt = new Date(val);
+                d = String(dt.getDate()).padStart(2, '0');
+                m = String(dt.getMonth() + 1).padStart(2, '0');
+                y = dt.getFullYear();
+              }
+              el.value = `${d}.${m}.${y}`;
+            } else {
+              el.value = '';
+            }
+          }
+
+       else {
           el.value = val;
         }
       });
@@ -112,22 +129,136 @@
     document.getElementById('btnDelete')?.style.setProperty('display','none');
   }
 
-  // 5. Inicializa Flatpickr
+  // 5. Inicializa Flatpickr: em edição mantém o valor, em criação força hoje
   if (window.flatpickr) {
-    form.querySelectorAll('.flatpickr-date').forEach(el =>
-      flatpickr(el, { dateFormat:'d.m.Y', allowInput:true, defaultDate: el.value || null })
-    );
-  }
+    form.querySelectorAll('.flatpickr-date').forEach(el => {
+      console.log('>>> flatpickr init on', el.id, 'value=', el.value);
+      flatpickr(el, {
+        dateFormat: 'd.m.Y',      // mantém tua máscara
+        allowInput: true,
+        defaultDate: RECORD_STAMP  // se for novo, RECORD_STAMP é falsy
+                    ? el.value    // edição: valor que veio do servidor
+                    : new Date(), // criação: hoje
+        onReady: (selDates, dateStr, inst) => {
+          if (!RECORD_STAMP) {
+            // força mesmo: substitui qualquer default falhado por hoje
+            inst.setDate(new Date(), true);
+          }
+        }
+      });
+    });
+
+    // === Início dynamic_details ===
+    const detailsContainer = document.getElementById('details-container');
+    if (detailsContainer) {
+      fetch(`/generic/api/dynamic_details/${TABLE_NAME}/${RECORD_STAMP}`)
+        .then(r => r.json())
+        .then(detalhes => {
+          detalhes.forEach(det => {
+            // 1) Card/container
+            const card = document.createElement('div');
+            card.className = 'card p-3 mb-4';
+
+            // 2) Título da tabela-filho
+            const title = document.createElement('h5');
+            title.textContent = det.tabela;
+            card.appendChild(title);
+
+            // 1) Criar o wrapper bootstrap
+            const wrapper = document.createElement('div');
+            wrapper.className = 'table-responsive mb-3'; 
+              // mb-3 dá um espacinho em baixo
+
+            // 2) A própria tabela
+            const tbl = document.createElement('table');
+            tbl.className = 'table table-striped table-sm'; 
+              // table-sm deixa-a mais compacta
+
+            // 3) Anexar a tabela ao wrapper
+            wrapper.appendChild(tbl);
+
+            // 4) Colocar o wrapper no cartão em vez da tabela direta
+            card.appendChild(wrapper);
+
+
+            // 3a) Cabeçalho
+            const thead = tbl.createTHead();
+            const hr = thead.insertRow();
+            det.campos.forEach(c => {
+              const th = document.createElement('th');
+              th.textContent = c.LABEL;
+              hr.appendChild(th);
+            });
+
+            // 3b) Corpo com formatação de datas
+            const tbody = tbl.createTBody();
+            det.rows.forEach(row => {
+              const tr = tbody.insertRow();
+              det.campos.forEach(c => {
+                const td = tr.insertCell();
+                let val = row[c.CAMPODESTINO] ?? '';
+
+                // Caso venha no formato ISO (YYYY-MM-DD)
+                if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                  const [y, m, d] = val.split('-');
+                  val = `${d}.${m}.${y}`;
+                }
+                // Caso venha no formato RFC "Fri, 04 Jul 2025 00:00:00 GMT"
+                else if (typeof val === 'string' && val.includes('GMT')) {
+                  const dt = new Date(val);
+                  const d = dt.getDate().toString().padStart(2, '0');
+                  const m = (dt.getMonth() + 1).toString().padStart(2, '0');
+                  const y = dt.getFullYear();
+                  val = `${d}.${m}.${y}`;
+                }
+
+                td.textContent = val;
+              });
+            });
+
+            card.appendChild(tbl);
+
+            // 4) Botões inserir/editar/apagar
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'btn-group';
+            [
+              {icon: 'fa-plus',  fn: () => abrirInserir(det.tabela)},
+              {icon: 'fa-edit',  fn: () => abrirEditar(det.tabela)},
+              {icon: 'fa-trash', fn: () => apagarDetalhe(det.tabela)}
+            ].forEach(b => {
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'btn btn-outline-secondary btn-sm';
+              btn.innerHTML = `<i class="fas ${b.icon}"></i>`;
+              btn.onclick = b.fn;
+              btnGroup.appendChild(btn);
+            });
+            card.appendChild(btnGroup);
+
+            // 5) Adicionar ao ecrã
+            detailsContainer.appendChild(card);
+          });
+        });
+    }
+    // === Fim dynamic_details ===
+
+    }
+
 
   // 6. Cancelar e eliminar
-  document.getElementById('btnCancel')?.addEventListener('click', () => {
-    location = `/generic/view/${TABLE_NAME}/`;
+  document.getElementById('btnCancel')?.addEventListener('click', ()=> {
+  window.location.href = window.RETURN_TO;
   });
   document.getElementById('btnDelete')?.addEventListener('click', async () => {
     if (!confirm('Confirmar eliminação?')) return;
     await fetch(`/generic/api/${TABLE_NAME}/${RECORD_STAMP}`, { method:'DELETE' });
-    location = `/generic/view/${TABLE_NAME}/`;
+    window.location.href = window.RETURN_TO;
   });
+  // Voltar
+  document.getElementById('btnBack')?.addEventListener('click', () => {
+    window.location.href = window.RETURN_TO;
+  });
+
 
     const userPerms = window.USER_PERMS[TABLE_NAME] || {};
 
@@ -173,7 +304,7 @@
         catch { msg = await res.text(); }
         return alert(`Erro ao gravar: ${msg}`);
       }
-      location = `/generic/view/${TABLE_NAME}/`;
+      window.location.href = window.RETURN_TO;
     } catch (net) {
       alert(`Erro de rede: ${net.message}`);
     }
@@ -197,69 +328,6 @@
     i.addEventListener('focus', () => { const v = i.value; i.value = ''; i.value = v; })  
   );
 })();
-
-async function abrirModal(nomeModal) {
-  try {
-    const url = `/generic/api/modal/${nomeModal}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Erro ao carregar o formulário');
-
-    const data = await response.json();
-    const titulo = data.titulo || 'Ação';
-    const campos = data.campos || [];
-
-    document.getElementById("genericModalLabel").innerText = titulo;
-    const body = document.getElementById("modalBody");
-    body.innerHTML = "";
-
-    campos.sort((a, b) => a.ORDEM - b.ORDEM).forEach(campo => {
-      const wrapper = document.createElement("div");
-      wrapper.classList.add("form-group");
-
-      const label = document.createElement("label");
-      label.textContent = campo.LABEL;
-      wrapper.appendChild(label);
-
-      let input;
-      if (campo.TIPO === "COMBO") {
-        input = document.createElement("select");
-        input.name = campo.CAMPO;
-        input.innerHTML = `<option value=''>---</option>`; // opções virão de outra chamada se necessário
-      } else if (campo.TIPO === "BIT") {
-        input = document.createElement("input");
-        input.type = "checkbox";
-        input.name = campo.CAMPO;
-      } else {
-        input = document.createElement("input");
-        input.type = tipoInputHTML(campo.TIPO);
-        input.name = campo.CAMPO;
-      }
-
-      wrapper.appendChild(input);
-      body.appendChild(wrapper);
-    });
-
-    // Mostra o modal
-    const modal = new bootstrap.Modal(document.getElementById('genericModal'));
-    modal.show();
-
-  } catch (error) {
-    console.error(error);
-    alert("Formulário do modal não encontrado");
-  }
-}
-
-function tipoInputHTML(tipo) {
-  switch (tipo) {
-    case "DATE": return "date";
-    case "HOUR": return "time";
-    case "INT": return "number";
-    case "DECIMAL": return "number";
-    case "TEXT": return "text";
-    default: return "text";
-  }
-}
-
 
 // static/js/dynamic_form.js
 // Formulário genérico com tratamento de COMBO, valores por defeito e submissão.
@@ -288,7 +356,7 @@ function abrirModal(nomeModal) {
       // Inicia Flatpickr nos campos de data
       if (window.flatpickr) {
         document.querySelectorAll('#modalBody .flatpickr-date').forEach(el =>
-          flatpickr(el, { dateFormat: 'Y-m-d', allowInput: true })
+          flatpickr(el, { dateFormat: 'd-m-Y', allowInput: true })
         );
       }
       // Exibe o modal
@@ -298,106 +366,180 @@ function abrirModal(nomeModal) {
     .catch(err => {
       console.error('Erro ao carregar modal:', err);
       alert('Erro ao carregar o formulário do modal');
-    });
+});
 }
 
 // Gera os elementos de campo dentro do modal
 function renderModalFields(campos) {
-  console.log('🔨 Renderizando campos:', campos);
   const container = document.getElementById('modalBody');
-  if (!container) return console.error('❌ Container #modalBody não encontrado!');
+  if (!container) {
+    console.error('❌ Container #modalBody não encontrado!');
+    return;
+  }
   container.innerHTML = '';
 
-  campos.sort((a, b) => a.ORDEM - b.ORDEM).forEach(col => {
-    console.log(`--> Campo: ${col.CAMPO}, default: ${col.VALORDEFAULT}`);
-    const wrapper = document.createElement('div');
-    wrapper.className = 'form-group';
-    if (col.TIPO === 'BIT') wrapper.classList.add('checkbox');
+  campos
+    .sort((a, b) => a.ORDEM - b.ORDEM)
+    .forEach(col => {
+      // Cria wrapper e label
+      const wrapper = document.createElement('div');
+      wrapper.className = 'form-group';
+      if (col.TIPO === 'BIT') wrapper.classList.add('checkbox');
 
-    const label = document.createElement('label');
-    label.setAttribute('for', col.CAMPO);
-    label.textContent = col.LABEL || col.CAMPO;
-    wrapper.appendChild(label);
+      const label = document.createElement('label');
+      label.setAttribute('for', col.CAMPO);
+      label.textContent = col.LABEL || col.CAMPO;
+      wrapper.appendChild(label);
 
-    let input;
-    if (col.TIPO === 'COMBO') {
-      input = document.createElement('select');
-      input.name = col.CAMPO;
-      input.id = col.CAMPO;
-      input.className = 'form-control';
-      // opção vazia
-      const emptyOpt = document.createElement('option');
-      emptyOpt.value = '';
-      emptyOpt.text = '---';
-      input.appendChild(emptyOpt);
-      // TODO: popular com col.OPCOES
-    } else {
-      input = document.createElement('input');
-      input.name = col.CAMPO;
-      input.id = col.CAMPO;
-      input.className = 'form-control';
-      switch (col.TIPO) {
-        case 'DATE':    input.type = 'text';    input.classList.add('flatpickr-date'); break;
-        case 'HOUR':    input.type = 'time';    break;
-        case 'INT':     input.type = 'number';  input.step = '1';      break;
-        case 'DECIMAL': input.type = 'number';  input.step = '0.01';   break;
-        case 'BIT':     input.type = 'checkbox'; break;
-        default:        input.type = 'text';
-      }
-      // Aplica valor default
-      if (col.VALORDEFAULT) {
-        let def = col.VALORDEFAULT.trim();
-        if (/^".*"$/.test(def)) {
-          input.value = def.slice(1, -1);
-        } else if (/^\{\s*RECORD_STAMP\s*\}$/.test(def)) {
-          input.value = window.RECORD_STAMP || '';
-        } else {
+      let input;
+      // ── 1) COMBO ─────────────────────────────────────────────
+      if (col.TIPO === 'COMBO') {
+        input = document.createElement('select');
+        input.name = col.CAMPO;
+        input.id   = col.CAMPO;
+        input.className = 'form-control';
+        // opção vazia
+        input.innerHTML = '<option value="">---</option>';
+        // popula com OPCOES vindas do servidor
+        if (Array.isArray(col.OPCOES)) {
+          col.OPCOES.forEach(opt => {
+            const o = document.createElement('option');
+            o.value = opt[0];
+            o.textContent = opt[1];
+            input.appendChild(o);
+          });
+        }
+        // aplica default só depois das opções existirem
+        if (col.VALORDEFAULT) {
+          let def = col.VALORDEFAULT.trim();
+          // strip de aspas, se houver
+          if (/^".*"$/.test(def)) def = def.slice(1, -1);
           input.value = def;
         }
-      }
-    }
 
-    wrapper.appendChild(input);
-    container.appendChild(wrapper);
+      // ── 2) INPUTS (TEXT, DATE, HOUR, INT, DECIMAL, BIT) ───────
+      } else {
+        input = document.createElement('input');
+        input.name = col.CAMPO;
+        input.id   = col.CAMPO;
+        input.className = 'form-control';
+
+        switch (col.TIPO) {
+          case 'DATE':
+            input.type = 'text';
+            input.classList.add('flatpickr-date');
+            break;
+          case 'HOUR':
+            input.type = 'time';
+            break;
+          case 'INT':
+            input.type = 'number';
+            input.step = '1';
+            break;
+          case 'DECIMAL':
+            input.type = 'number';
+            input.step = '0.01';
+            break;
+          case 'BIT':
+            input.type = 'checkbox';
+            break;
+          default:
+            input.type = 'text';
+        }
+
+        if (col.VALORDEFAULT) {
+          let def = col.VALORDEFAULT.trim();
+          // macro RECORD_STAMP
+          if (/^\{\s*RECORD_STAMP\s*\}$/.test(def)) {
+            def = window.RECORD_STAMP || '';
+          }
+          // strip de aspas
+          else if (/^".*"$/.test(def)) {
+            def = def.slice(1, -1);
+          }
+          if (input.type === 'checkbox') {
+            input.checked = ['1','true','True'].includes(def);
+          } else {
+            input.value = def;
+          }
+        }
+      }
+
+      wrapper.appendChild(input);
+      container.appendChild(wrapper);
+    });
+}
+
+// ── Inicializa Flatpickr nos campos de DATE ───────────────────
+if (window.flatpickr) {
+  form.querySelectorAll('.flatpickr-date').forEach(el => {
+    flatpickr(el, {
+      dateFormat: 'd.m.Y',
+      allowInput: true,
+      // converte a string “DD.MM.YYYY” numa Date válida
+      parseDate: (datestr) => {
+        const [d, m, y] = datestr.split('.');
+        return new Date(`${y}-${m}-${d}`);
+      },
+      // se houver valor (modo edição), usa-o convertido; senão hoje
+      defaultDate: el.value
+        ? (()=>{
+            const [d, m, y] = el.value.split('.');
+            return new Date(`${y}-${m}-${d}`);
+          })()
+        : new Date()
+    });
   });
 }
 
 // Submete o modal ao servidor
 function gravarModal() {
-  // Captura campos dentro de #modalBody (forma mais segura)
   const container = document.getElementById('modalBody');
   if (!container) return console.error('❌ Container #modalBody não encontrado');
 
   const inputs = container.querySelectorAll('input[name], select[name]');
   const dados = { __modal__: currentModalName };
+
   inputs.forEach(i => {
-    if (i.type === 'checkbox') dados[i.name] = i.checked ? 1 : 0;
-    else dados[i.name] = i.value;
+    if (i.type === 'checkbox') {
+      dados[i.name] = i.checked ? 1 : 0;
+    } else {
+      let val = i.value.trim();
+
+      // Se for campo de data (flatpickr-date), converte dd.mm.YYYY → YYYY-MM-DD
+      if (i.classList.contains('flatpickr-date') && val) {
+        const [d, m, y] = val.split(/\D+/);
+        if (d && m && y) {
+          val = `${y.padStart(4,'0')}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+        }
+      }
+
+      dados[i.name] = val;
+    }
   });
 
   console.log('📤 Enviando dados modal:', dados);
-
   fetch('/generic/api/modal/gravar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(dados)
   })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        // Fecha modal e remove backdrop
-        const modalEl = document.getElementById('genericModal');
-        bootstrap.Modal.getInstance(modalEl).hide();
-        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-      } else {
-        alert('Erro ao gravar modal: ' + data.error);
-      }
-    })
-    .catch(e => {
-      console.error('Erro ao gravar modal:', e);
-      alert('Erro ao gravar modal. Veja console.');
-    });
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      const modalEl = document.getElementById('genericModal');
+      bootstrap.Modal.getInstance(modalEl).hide();
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+    } else {
+      alert('Erro ao gravar modal: ' + data.error);
+    }
+  })
+  .catch(e => {
+    console.error('Erro ao gravar modal:', e);
+    alert('Erro ao gravar modal. Veja console.');
+  });
 }
+
 
 // Expõe no global se quiser usar onclick inline
 window.abrirModal = abrirModal;

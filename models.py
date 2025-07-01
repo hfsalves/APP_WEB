@@ -123,3 +123,12 @@ class CamposModal(db.Model):
     ORDEM            = db.Column(db.Integer, default=0)
     OBRIGATORIO      = db.Column(db.Boolean, default=True)
     CAMPODESTINO     = db.Column(db.String(100), nullable=False, default='')
+
+class Linhas(db.Model):
+    __tablename__ = 'LINHAS'
+
+    LINHASSTAMP  = db.Column(db.String(25), primary_key=True)
+    MAE          = db.Column(db.String(50), nullable=False, default='')
+    TABELA       = db.Column(db.String(50), nullable=False, default='')
+    LIGACAO      = db.Column(db.String(200), nullable=False, default='')
+    LIGACAOMAE   = db.Column(db.String(100), nullable=False, default='')

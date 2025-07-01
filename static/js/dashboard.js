@@ -56,56 +56,103 @@ function renderWidget(widget, colDiv) {
   };
   expandBtn.addEventListener('click', () => wDiv.classList.toggle('expanded'));
 
-  if (widget.tipo === 'ANALISE') {
-    fetch(`/api/widget/analise/${widget.nome}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.error) {
-          body.innerHTML = `<span class="error-msg">${data.error}</span>`;
-          toggleExpandBtn();
-          return;
-        }
-        // Identifica colunas numéricas (todas as linhas devem ser numéricas)
-        const numericCols = data.columns.filter(c =>
-          data.rows.every(row => {
-            const v = row[c];
-            if (typeof v === 'number') return true;
-            if (typeof v === 'string') return /^[\d\s\.,-]+$/.test(v);
-            return false;
-          })
-        );
-        // Calcula totais
-        const totals = {};
-        numericCols.forEach(c => totals[c] = 0);
-        data.rows.forEach(row => numericCols.forEach(c => { totals[c] += parseNumber(row[c]); }));
-
-        // Monta tabela com <thead>, <tbody>, <tfoot>
-        let html = '<table>';
-        html += '<thead><tr>' +
-          data.columns.map(c => `<th${numericCols.includes(c) ? ' class="num"' : ''}>${c}</th>`).join('') +
-          '</tr></thead>';
-        html += '<tbody>' + data.rows.map(row => '<tr>' +
-            data.columns.map(c => {
-              if (numericCols.includes(c)) {
-                return `<td class="num">${formatNumber(parseNumber(row[c]))}</td>`;
-              }
-              return `<td>${row[c]}</td>`;
-            }).join('') + '</tr>').join('') + '</tbody>';
-        html += '<tfoot><tr>' + data.columns.map((c,i) => {
-          if (i === 0) return '<td>Total</td>';
-          if (numericCols.includes(c)) return `<td class="num">${formatNumber(totals[c])}</td>`;
-          return '<td></td>';
-        }).join('') + '</tr></tfoot>';
-        html += '</table>';
-
-        body.innerHTML = html;
+if (widget.tipo === 'ANALISE') {
+  fetch(`/api/widget/analise/${widget.nome}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        body.innerHTML = `<span class="error-msg">${data.error}</span>`;
         toggleExpandBtn();
-      })
-      .catch(err => {
-        body.innerHTML = `<span class="error-msg">Erro: ${err.message}</span>`;
-        toggleExpandBtn();
-      });
-  }
+        return;
+      }
+
+      // 1) Colunas numéricas (só dígitos, espaço, vírgula ou ponto)
+      const numericCols = data.columns.filter(c =>
+        data.rows.every(row => {
+          const v = row[c];
+          if (typeof v === 'number') return true;
+          if (typeof v === 'string') return /^[\d\s,\.]+$/.test(v);
+          return false;
+        })
+      );
+
+      // 2) Colunas DECIMAL (com casas decimais)
+      const decimalCols = numericCols.filter(c =>
+        data.rows.some(row => parseNumber(row[c]) % 1 !== 0)
+      );
+
+      // 3) Colunas de data: tudo o que Date.parse entende mas não é numérico
+      const dateCols = data.columns.filter(c =>
+        data.rows.every(row => {
+          const v = row[c];
+          return v != null
+            && isNaN(parseNumber(v))     // não é número
+            && !isNaN(Date.parse(v));    // é reconhecido como data
+        })
+      );
+
+      // Totais
+      const totals = {};
+      numericCols.forEach(c => totals[c] = 0);
+      data.rows.forEach(row =>
+        numericCols.forEach(c => { totals[c] += parseNumber(row[c]); })
+      );
+
+      // Monta HTML da tabela
+      let html = '<table>';
+
+      // Cabeçalho
+      html += '<thead><tr>' +
+        data.columns.map(c =>
+          `<th${numericCols.includes(c) ? ' class="num"' : ''}>${c}</th>`
+        ).join('') +
+      '</tr></thead>';
+
+      // Corpo
+      html += '<tbody>' +
+        data.rows.map(row => '<tr>' +
+          data.columns.map(c => {
+            //  → Se for data, formata dd.mm.yyyy
+            if (dateCols.includes(c)) {
+              const d = new Date(row[c]);
+              const dd = String(d.getDate()).padStart(2,'0');
+              const mm = String(d.getMonth()+1).padStart(2,'0');
+              const yyyy = d.getFullYear();
+              return `<td>${dd}.${mm}.${yyyy}</td>`;
+            }
+            //  → Se for número, formata com separador de milhar e decimais
+            if (numericCols.includes(c)) {
+              return `<td class="num">${formatNumber(parseNumber(row[c]))}</td>`;
+            }
+            //  → Senão, mostra o texto cru
+            return `<td>${row[c]}</td>`;
+          }).join('') +
+        '</tr>').join('') +
+      '</tbody>';
+
+      // Rodapé (apenas se houver DECIMAL)
+      if (decimalCols.length > 0) {
+        html += '<tfoot><tr>' +
+          data.columns.map((c,i) => {
+            if (i === 0) return '<td>Total</td>';
+            if (numericCols.includes(c)) {
+              return `<td class="num">${formatNumber(totals[c])}</td>`;
+            }
+            return '<td></td>';
+          }).join('') +
+        '</tr></tfoot>';
+      }
+
+      html += '</table>';
+      body.innerHTML = html;
+      toggleExpandBtn();
+    })
+    .catch(err => {
+      body.innerHTML = `<span class="error-msg">Erro: ${err.message}</span>`;
+      toggleExpandBtn();
+    });
+}
+
 
   if (widget.tipo === 'GRAFICO') {
     fetch(`/api/widget/analise/${widget.nome}`)

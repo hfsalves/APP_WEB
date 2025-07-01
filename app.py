@@ -7,7 +7,7 @@ from datetime import datetime, date
 from sqlalchemy import text
 
 # Importa a instância db e modelos
-from models import db, US, Menu, Acessos, Widget, UsWidget, MenuBotoes
+from models import db, US, Menu, Acessos, Widget, UsWidget, MenuBotoes, Linhas
 from models import Modais, CamposModal
 #from your_app_folder import db  # ou ajusta conforme a tua estrutura
 
@@ -34,43 +34,58 @@ def create_app():
     def inject_menu_and_access():
         page_name = None
         menu_items = []
+        menu_structure = []
         perms = {}
         menu_botoes = {}
 
         if current_user.is_authenticated:
+            # 1) Carrega todos os menus (filtra admin se for caso)
             if getattr(current_user, 'ADMIN', False):
                 menu_items = Menu.query.order_by(Menu.ordem).all()
             else:
-                menu_items = Menu.query.filter_by(admin=False).order_by(Menu.ordem).all()
+                menu_items = (
+                    Menu.query
+                        .filter_by(admin=False)
+                        .order_by(Menu.ordem)
+                        .all()
+                )
 
+            # 2) Permissões de acesso por tabela
             rows = Acessos.query.filter_by(utilizador=current_user.LOGIN).all()
             perms = {
                 a.tabela: {
                     'consultar': bool(a.consultar),
-                    'inserir': bool(a.inserir),
-                    'editar': bool(a.editar),
+                    'inserir' : bool(a.inserir),
+                    'editar'  : bool(a.editar),
                     'eliminar': bool(a.eliminar),
                 }
                 for a in rows
             }
 
+            # 3) Determinar page_name e menu_botoes (igual lógica atual)
             parts = request.path.strip('/').split('/')
             if len(parts) >= 3 and parts[0] == 'generic' and parts[1] in ('view', 'form'):
                 tabela_arg = parts[2]
                 for m in menu_items:
                     if m.tabela == tabela_arg:
                         page_name = m.nome
-                        botoes = MenuBotoes.query.filter_by(TABELA=m.tabela, ATIVO=True).order_by(MenuBotoes.ORDEM).all()
+                        botoes = (
+                            MenuBotoes.query
+                                .filter_by(TABELA=m.tabela, ATIVO=True)
+                                .order_by(MenuBotoes.ORDEM)
+                                .all()
+                        )
                         menu_botoes = {
                             b.NOME: {
-                                'icone': b.ICONE,
-                                'texto': b.TEXTO,
-                                'cor': b.COR,
-                                'tipo': b.TIPO,
-                                'acao': b.ACAO,
-                                'condicao': b.CONDICAO,
-                                'destino': b.DESTINO,
-                            } for b in botoes
+                                'icone'    : b.ICONE,
+                                'texto'    : b.TEXTO,
+                                'cor'      : b.COR,
+                                'tipo'     : b.TIPO,
+                                'acao'     : b.ACAO,
+                                'condicao' : b.CONDICAO,
+                                'destino'  : b.DESTINO,
+                            }
+                            for b in botoes
                         }
                         break
 
@@ -80,7 +95,43 @@ def create_app():
                         page_name = m.nome
                         break
 
-        return dict(menu_items=menu_items, user_perms=perms, page_name=page_name, menu_botoes=menu_botoes)
+            # 4) Montar estrutura de dropdown: agrupadores são múltiplos de 100
+            current_group = None
+            for m in menu_items:
+                if m.ordem % 100 == 0:
+                    # cabeçalho de grupo (sem URL clicável)
+                    current_group = {
+                        'name'    : m.nome,
+                        'icon'    : m.icone,
+                        'children': []
+                    }
+                    menu_structure.append(current_group)
+                else:
+                    # item “filho” com url
+                    child = {
+                        'name': m.nome,
+                        'url' : m.url,
+                        'icon': m.icone
+                    }
+                    if current_group:
+                        current_group['children'].append(child)
+                    else:
+                        # sem grupo definido, adiciona como item top-level
+                        menu_structure.append({
+                            'name'    : m.nome,
+                            'icon'    : m.icone,
+                            'url'     : m.url,
+                            'children': []
+                        })
+
+        return {
+            'menu_items'     : menu_items,
+            'menu_structure' : menu_structure,
+            'user_perms'     : perms,
+            'page_name'      : page_name,
+            'menu_botoes'    : menu_botoes
+        }
+
 
     @login_manager.user_loader
     def load_user(user_stamp):
@@ -162,32 +213,44 @@ def create_app():
     @app.route('/api/widget/analise/<nome>')
     @login_required
     def widget_analise(nome):
+        # 1. Carrega o widget
         widget = Widget.query.filter_by(NOME=nome, ATIVO=True).first()
         if not widget:
             return jsonify({'error': 'Widget não encontrado'}), 404
 
+        # 2. Lê a query do CONFIG
         try:
             config = json.loads(widget.CONFIG)
             query = config.get('query')
             if not query:
                 return jsonify({'error': 'Query não definida no config'}), 400
-
-            CONN_STR = (
-                'DRIVER={ODBC Driver 17 for SQL Server};'
-                'SERVER=hfsalves.mooo.com,50002;'
-                'DATABASE=GESTAO;'
-                'UID=sa;PWD=enterprise;'
-                'TrustServerCertificate=Yes;'
-            )
-            with pyodbc.connect(CONN_STR) as conn:
-                cur = conn.cursor()
-                cur.execute(query)
-                col_names = [desc[0] for desc in cur.description]
-                rows = [dict(zip(col_names, row)) for row in cur.fetchall()]
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            return jsonify({'error': f'Config inválido: {e}'}), 400
 
-        return jsonify({'columns': col_names, 'rows': rows})
+        # 3. Executa a query via SQLAlchemy
+        try:
+            result = db.session.execute(text(query))
+        except Exception as e:
+            return jsonify({'error': f'Erro ao executar query: {e}'}), 500
+
+        # 4. Constrói as linhas usando .mappings() para ter dicts
+        mappings = result.mappings().all()
+        rows = []
+        for rd in mappings:
+            clean = {}
+            for col, val in rd.items():
+                # Se for date ou datetime, passa para ISO string
+                if isinstance(val, (date, datetime)):
+                    clean[col] = val.strftime('%Y-%m-%d')
+                else:
+                    clean[col] = val
+            rows.append(clean)
+
+        # 5. Devolve colunas e linhas
+        return jsonify({
+            'columns': list(result.keys()),
+            'rows': rows
+        })
 
     @app.route('/modals/<acao>')
     @login_required
@@ -217,8 +280,11 @@ def create_app():
             opcoes = []
             if campo.TIPO == 'COMBO' and campo.COMBO:
                 try:
-                    res = db.session.execute(campo.COMBO)
-                    opcoes = [[str(r[0]), str(r[1])] for r in res.fetchall()]
+                    # ⚠️ use text() aqui
+                    res = db.session.execute(text(campo.COMBO))
+                    for r in res.fetchall():
+                        # adapte se o SELECT tiver só uma coluna
+                        opcoes.append([str(r[0]), str(r[1] if len(r)>1 else r[0])])
                 except Exception as e:
                     print('Erro na query da combo:', e)
 
@@ -228,10 +294,10 @@ def create_app():
                 'TIPO': campo.TIPO,
                 'ORDEM': campo.ORDEM,
                 'OPCOES': opcoes,
-                'VALORDEFAULT': campo.VALORDEFAULT  # ← AQUI ESTAVA A FALTAR
+                'VALORDEFAULT': resolver_macros(campo.VALORDEFAULT)
             })
 
-        return jsonify({'success': True, 'campos': resultado, 'titulo': modal.TITULO})    
+        return jsonify({'success': True, 'campos': resultado})
 
     @app.route('/generic/api/modal/gravar', methods=['POST'])
     @login_required
@@ -281,6 +347,37 @@ def create_app():
             db.session.rollback()
             print(f"❌ ERRO durante gravação:\n{e}")
             return jsonify(success=False, error=str(e)), 500
+        
+
+    from datetime import datetime
+    from flask_login import current_user
+    import uuid
+
+    def resolver_macros(valor):
+        def resolver_macros(valor):
+            print(f"🧩 A resolver macro: {valor}")
+
+        if not isinstance(valor, str):
+            return valor
+
+        hoje = datetime.today().date()
+        agora = datetime.now()
+
+        macros = {
+            '{TODAY}': hoje.strftime('%d.%m.%Y'),
+            '{NOW}': agora.strftime('%H:%M'),
+            '{USER}': current_user.LOGIN if current_user.is_authenticated else '',
+            '{USERSTAMP}': current_user.get_id() if current_user.is_authenticated else '',
+            '{UUID}': str(uuid.uuid4()),
+        }
+
+        for macro, real in macros.items():
+            print(f"➡️  Substituir {macro} por {real}")
+            valor = valor.replace(macro, real)
+
+        print(f"✅ Resultado final: {valor}")
+        return valor
+
 
     return app
 

@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, abort, current_a
 from flask_login import login_required, current_user
 from sqlalchemy import MetaData, Table, select, text
 from app import db
-from models import Campo, Menu, Acessos
+from models import Campo, Menu, Acessos, CamposModal, Linhas
 
 bp = Blueprint('generic', __name__, url_prefix='/generic')
 
@@ -34,6 +34,12 @@ def get_table(table_name):
     except Exception as e:
         current_app.logger.error(f"Erro ao refletir tabela {table_name}: {e}")
         abort(404, f"Tabela {table_name} não encontrada")
+
+@bp.route('/view/calendar/')
+@login_required
+def view_calendar():
+    return render_template('calendar.html')
+
 
 # View: listagem dinâmica
 @bp.route('/view/<table_name>/', defaults={'record_stamp': None})
@@ -244,3 +250,121 @@ def delete_record(table_name, record_stamp):
         current_app.logger.exception(f"Falha ao eliminar {table_name}")
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+from models import Campo, Menu, Acessos, Linhas
+
+@bp.route('/api/linhas/<mae>', methods=['GET'])
+@login_required
+def api_linhas(mae):
+    # 1) Verifica permissão de consulta para a 'tabela-pai'
+    if not has_permission(mae, 'consultar'):
+        abort(403, 'Sem permissão para consultar linhas deste registo')
+
+    # 2) Lê todas as linhas cujo MAE = nome da tabela
+    linhas = Linhas.query.filter_by(MAE=mae).all()
+
+    # 3) Constrói o JSON de resposta
+    resultado = []
+    for l in linhas:
+        resultado.append({
+            'LINHASSTAMP': l.LINHASSTAMP,
+            'TABELA':      l.TABELA,
+            'LIGACAO':     l.LIGACAO,
+            'LIGACAOMAE':  l.LIGACAOMAE
+        })
+
+    return jsonify(resultado)
+
+@bp.route('/api/dynamic_details/<mae>/<record_stamp>', methods=['GET'])
+@login_required
+def api_dynamic_details(mae, record_stamp):
+    if not has_permission(mae, 'consultar'):
+        abort(403, 'Sem permissão para ver detalhes')
+
+    detalhes = []
+    for defn in Linhas.query.filter_by(MAE=mae):
+        tabela     = defn.TABELA.strip()
+        ligacao    = (defn.LIGACAO or '').strip()
+        ligacaomae = defn.LIGACAOMAE.strip()
+
+        # Monta o SQL
+        if ligacao.upper().startswith('SELECT') or ' ' in ligacao:
+            sql = ligacao.replace("{RECORD_STAMP}", ":record")
+        elif ligacao:
+            sql = f"SELECT * FROM {tabela} WHERE {ligacao} = :record"
+        elif ligacaomae:
+            sql = f"SELECT * FROM {tabela} WHERE {ligacaomae} = :record"
+        else:
+            abort(500, f"Definição inválida para detalhe {tabela}")
+
+        # Executa a query
+        try:
+            rows = db.session.execute(text(sql), {"record": record_stamp}).mappings().all()
+        except Exception as e:
+            abort(500, f"Erro ao executar SQL em {tabela}: {e}")
+
+        # Carrega metadados da tabela-filho usando o modelo Campo
+        cols = (
+            Campo.query
+                 .filter_by(tabela=tabela, lista=True)
+                 .order_by(Campo.ordem)
+                 .all()
+        )
+        campos = [
+            {"CAMPO": c.nmcampo, "LABEL": c.descricao, "CAMPODESTINO": c.nmcampo}
+            for c in cols
+        ]
+
+        detalhes.append({
+            "linhasstamp": defn.LINHASSTAMP,
+            "tabela":      tabela,
+            "campos":      campos,
+            "rows":        [dict(r) for r in rows]
+        })
+
+    return jsonify(detalhes)
+
+from datetime import datetime
+from flask import request, abort, jsonify
+from sqlalchemy import text
+
+@bp.route('/api/calendar_tasks', methods=['GET'])
+@login_required
+def api_calendar_tasks():
+    # 1) Lê os parâmetros start e end no formato YYYY-MM-DD
+    start = request.args.get('start')
+    end   = request.args.get('end')
+    if not start or not end:
+        abort(400, 'Precisamos de start e end em formato YYYY-MM-DD')
+    try:
+        # validação simples
+        datetime.strptime(start, '%Y-%m-%d')
+        datetime.strptime(end,   '%Y-%m-%d')
+    except ValueError:
+        abort(400, 'Formato de data inválido')
+
+    # 2) SQL cru para filtrar pela coluna DATA
+    sql = text("""
+    SELECT
+      ta.TAREFASSTAMP,
+      CONVERT(varchar(10), ta.DATA, 23) AS DATA,
+      ta.HORA,
+      ta.DURACAO,
+      ta.TAREFA,
+      ta.ALOJAMENTO,         
+      ta.UTILIZADOR,
+      ta.ORIGEM,
+      ta.ORISTAMP,
+      COALESCE(tc.COR,
+               eq.COR,
+               '#333333') AS COR
+    FROM TAREFAS ta
+    LEFT JOIN US       u  ON u.LOGIN    = ta.UTILIZADOR
+    LEFT JOIN TEC      tc ON tc.NOME    = u.TECNICO
+    LEFT JOIN EQ       eq ON eq.NOME    = u.EQUIPA
+    WHERE ta.DATA BETWEEN :start AND :end
+    ORDER BY ta.DATA, ta.HORA
+    """)
+    rows = db.session.execute(sql, {'start': start, 'end': end}).mappings().all()
+    tarefas = [dict(r) for r in rows]
+    return jsonify(tarefas)

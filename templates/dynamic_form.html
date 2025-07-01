@@ -60,6 +60,13 @@
         <div class="coluna-2"></div>
       </form>
 
+      <!-- === Início dynamic_details === -->
+      <!--<h4>Detalhes</h4>-->
+      <div id="details-container" class="mt-4"></div>
+      <!-- === Fim dynamic_details === -->
+
+
+
       <!-- Botões fixos -->
       <div class="form-actions">
         <button type="submit" form="editForm" class="btn btn-primary btn-save">
@@ -75,15 +82,25 @@
           <span class="btn-text">Eliminar</span>
         </button>
         <button type="button"
-                onclick="location.href='{{ url_for('generic.view_table', table_name=table_name) }}'"
+                id="btnBack"
                 class="btn btn-secondary btn-back">
           <i class="fa-solid fa-arrow-left"></i>
           <span class="btn-text">Voltar</span>
         </button>
+
       </div>
 
     </div>
   </div>
+
+  <!-- Injeta onde devemos voltar após salvar/cancelar -->
+  {% set return_to = request.args.get('return_to', url_for('generic.view_table', table_name=table_name)) %}
+  <script>
+    window.TABLE_NAME    = "{{ table_name }}";
+    window.RECORD_STAMP  = {{ record_stamp|tojson }};
+    window.IS_ADMIN_USER = {{ 'true' if current_user.ADMIN else 'false' }};
+    window.RETURN_TO     = "{{ return_to }}";
+  </script>
 
   <!-- Injeta as vars que o dynamic_form.js vai usar -->
   <script>

@@ -824,6 +824,7 @@ html, body {
   margin: 0;
   font-size: 1.5rem;
   font-weight: 200;
+  width: 400px;
 }
 
 /* Avatar do utilizador */
@@ -1116,4 +1117,39 @@ body.sidebar-open .app-header {
 /* 3️⃣ Garante que o modal fica acima de tudo */
 .modal {
   z-index: 2000;   /* por cima do backdrop e do resto */
+}
+
+/* Calendário como widget igual aos outros */
+.widget-calendar {
+  /* Reaproveita o estilo base de .widget */
+  /* (pode estar vazio se quiseres o mesmo) */
+}
+
+.widget-calendar .widget-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.widget-calendar .widget-body {
+  padding: 1rem 0.5rem 0 0.5rem; /* um bocadinho mais de espaço em cima e em baixo */
+  overflow-x: auto;             /* scroll horizontal se necessário */
+}
+
+/* Ajuste extra para a tabela dentro do widget */
+.widget-calendar .calendar-table {
+  margin-bottom: 0;
+  border: none; /* tira borda externa se houver */
+}
+
+.widget-calendar .calendar-table th,
+.widget-calendar .calendar-table td {
+  border: 1px solid #e1e5e8; /* mantém linhas internas */
+}
+
+/* Botões de navegação ficam mais discretos */
+.widget-calendar .btn-link {
+  color: #5192b8;
+  text-decoration: none;
+  font-size: 1.25rem;
 }

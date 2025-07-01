@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Calendário{% endblock %}
+
+{% block content %}
+<div class="widget widget-calendar mb-4">
+  <!--<div class="widget-header px-4 py-2">
+    <h3 class="m-0">Calendário</h3>
+  </div> -->
+  <div class="widget-body px-4 pb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <button id="prev-month" class="btn btn-link text-decoration-none">
+        &larr;
+      </button>
+      <h3 id="month-year" class="m-0"></h3>
+      <button id="next-month" class="btn btn-link text-decoration-none">
+        &rarr;
+      </button>
+    </div>
+    <div class="table-responsive">
+      <table class="table calendar-table mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Segunda</th>
+            <th>Terça</th>
+            <th>Quarta</th>
+            <th>Quinta</th>
+            <th>Sexta</th>
+            <th>Sábado</th>
+            <th>Domingo</th>
+          </tr>
+        </thead>
+        <tbody id="calendar-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
+{% endblock %}
