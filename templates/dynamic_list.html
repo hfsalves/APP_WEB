@@ -1,24 +1,48 @@
-<!-- templates/dynamic_list.html -->
 {% extends "base.html" %}
 {% block title %}{{ table_name|capitalize }}{% endblock %}
+
 {% block content %}
 <div class="dynamic-container">
-  <header class="dynamic-header">
-   <!-- <h2>{{ menu_label }}</h2> -->
-  <!--  <div class="dynamic-actions">
-      <button id="btnNew" class="btn btn-primary" onclick="window.location='/generic/form/{{ table_name }}/'">Novo</button>
-    </div> -->
+  <header class="dynamic-header justify-content-end">
+    <!-- Botão que abre o modal de filtros -->
+    <button id="btnFilterToggle" class="btn btn-secondary btn-sm me-2">
+      <i class="fa fa-filter"></i> Filtrar
+    </button>
+
+    <!-- Botão Novo, se houver permissão -->
+    {% if user_perms[table_name].inserir %}
+    <button id="btnNew" class="btn btn-primary btn-sm">
+      <i class="fa fa-plus"></i> Novo
+    </button>
+    {% endif %}
   </header>
 
-  <!-- Injeção do nome da tabela para JS -->
-  <script>
-    window.TABLE_NAME = "{{ table_name }}";
-  </script>
-
-  <section id="filters" class="dynamic-filters"></section>
+  <!-- Aqui vai a grid -->
   <section id="grid" class="dynamic-grid"></section>
 </div>
 
-<!-- Carrega o script de listagem -->
+<!-- Modal de Filtros -->
+<div class="modal fade" id="modalFiltros" tabindex="-1" aria-labelledby="modalFiltrosLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalFiltrosLabel">Filtros</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <!-- O form será injetado aqui pelo JS -->
+        <form id="filter-form" class="filter-form"></form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="applyFilters" class="btn btn-primary">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.TABLE_NAME = "{{ table_name }}";
+</script>
 <script src="{{ url_for('static', filename='js/dynamic_list.js') }}"></script>
 {% endblock %}

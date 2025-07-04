@@ -1,207 +1,301 @@
 // static/js/dynamic_list.js
-// Script to render the list view with COMBO filters and type-specific formatting
+// Lista genérica com modal de filtros, suporte a intervalo de datas e ordenação.
 
 document.addEventListener('DOMContentLoaded', () => {
-  const tableName = window.TABLE_NAME;
-  const gridDiv = document.getElementById('grid');
-  const filtersContainer = document.getElementById('filters');
-  const userPerms = window.USER_PERMS[tableName] || {};
+  const tableName       = window.TABLE_NAME;
+  const gridDiv         = document.getElementById('grid');
+  const btnFilterToggle = document.getElementById('btnFilterToggle');
+  const btnNew          = document.getElementById('btnNew');
+  const modalFiltros    = document.getElementById('modalFiltros');
+  const filterForm      = document.getElementById('filter-form');
+  const userPerms       = window.USER_PERMS[tableName] || {};
+  let currentCols       = [];
 
-  // 1) Permissão de consulta
+  // —— ICON-ONLY BUTTONS ——
+  // Renderiza só o ícone e alinha-os lado a lado
+  if (btnFilterToggle) {
+    btnFilterToggle.innerHTML = '<i class="fa fa-filter"></i>';
+    btnFilterToggle.classList.add('btn', 'btn-outline-secondary', 'me-2');
+  }
+  if (btnNew) {
+    btnNew.innerHTML = '<i class="fa fa-plus"></i>';
+    btnNew.classList.add('btn', 'btn-primary');
+  }
+  // — end ICON-ONLY BUTTONS —
+
+  // 1) Sem permissão de consulta, aborta
   if (!userPerms.consultar) {
     alert('Sem permissão para consultar esta lista.');
     return;
   }
-  if (!filtersContainer || !gridDiv) {
-    console.error('Elementos #filters ou #grid não encontrados no DOM');
-    return;
+
+  // 2) Move o modal de filtros para <body> (fora do blur)
+  document.body.appendChild(modalFiltros);
+
+  // 3) Botão “Filtrar” abre modal e aplica blur só no fundo
+  btnFilterToggle.addEventListener('click', () => {
+    document.body.classList.add('modal-filtros-open');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalFiltros);
+    modal.show();
+    modalFiltros.addEventListener('hidden.bs.modal', () => {
+      document.body.classList.remove('modal-filtros-open');
+    }, { once: true });
+  });
+
+  // 4) Botão “Novo”
+  if (btnNew) {
+    btnNew.addEventListener('click', () => {
+      location.href = `/generic/form/${tableName}/`;
+    });
   }
 
-  initListView().catch(err => console.error('Erro ao inicializar lista:', err));
+  // 5) Ao submeter filtros, esconde modal e carrega dados
+  filterForm.addEventListener('submit', e => {
+    e.preventDefault();
+    bootstrap.Modal.getInstance(modalFiltros).hide();
+    loadData();
+  });
+
+  // 5) Submit do form de filtros
+  filterForm.addEventListener('submit', e => {
+    e.preventDefault();
+    bootstrap.Modal.getInstance(modalFiltros).hide();
+    loadData();
+  });
+
+  // 6) Botão pequeno “Aplicar”
+  if (applyFilters) {
+    applyFilters.addEventListener('click', () => {
+      filterForm.requestSubmit();
+    });
+  }  
+
+  // 6) Inicialização da lista
+  initListView().catch(console.error);
+
+  // guarda os dados e estado de ordenação
+  let dataRows = [];
+  let sortField = null;
+  let sortDir = 1; // 1 = asc, -1 = desc
 
   async function initListView() {
-    // 1) DESCRIBE para metadados
+    // a) Describe para metadados
     let meta;
     try {
       const res = await fetch(`/generic/api/${tableName}?action=describe`);
-      if (!res.ok) throw new Error(`Describe falhou: ${res.status}`);
-      const body = await res.json();
-      meta = Array.isArray(body) ? body : Array.isArray(body.columns) ? body.columns : [];
-    } catch (err) {
-      console.error('Erro ao carregar metadados:', err);
-      filtersContainer.innerHTML = '<p>Erro ao carregar filtros.</p>';
+      if (!res.ok) throw new Error(res.statusText);
+      meta = await res.json();
+    } catch (e) {
+      console.error('Falha ao carregar metadados:', e);
+      gridDiv.innerHTML = `<p class="text-danger">Erro ao carregar filtros.</p>`;
       return;
     }
-
-    // 2) Separar colunas de filtro e de listagem
+    // b) Separa colunas de filtros e de listagem
     const filterCols = meta.filter(c => c.filtro);
-    const listCols = meta.filter(c => c.lista);
+    currentCols      = meta.filter(c => c.lista);
 
-    // 3) Renderizar filtros
-    const filterForm = renderFilters(filterCols);
+    // c) Monta filtros no modal
+    renderFilters(filterCols);
 
-    // 4) Popula COMBO filters
-    await Promise.all(
-      filterCols.filter(c => c.tipo === 'COMBO' && c.combo).map(async c => {
-        const sel = filterForm.querySelector(`select[name="${c.name}"]`);
-        if (!sel) return;
-        let opts = [];
-        try {
-          if (/^\s*SELECT\s+/i.test(c.combo)) {
-            opts = await (await fetch(`/generic/api/options?query=${encodeURIComponent(c.combo)}`)).json();
-          } else {
-            opts = await (await fetch(c.combo)).json();
-          }
-        } catch (e) {
-          console.error('Falha ao carregar opções COMBO:', c.name, e);
-        }
-        opts.forEach(o => {
-          const option = document.createElement('option');
-          const value = (typeof o === 'object') ? Object.values(o)[0] : o;
-          option.value = value != null ? value.toString() : '';
-          option.textContent = value;
-          sel.append(option);
-        });
-      })
-    );
-
-    // 5) Bind de submit e inicial load
-    filterForm.addEventListener('submit', e => {
-      e.preventDefault();
-      loadData();
-    });
+    // d) Load inicial de dados
     await loadData();
+  }
 
-    // Carrega dados
-    async function loadData() {
-      const params = new URLSearchParams();
-      filterForm.querySelectorAll('[name]').forEach(input => {
-        if ((input.type === 'checkbox' && input.checked) ||
-            (input.type !== 'checkbox' && input.value)) {
-          params.append(input.name, input.value);
+  function renderFilters(cols) {
+    filterForm.innerHTML = '';
+    filterForm.className  = 'row g-3';
+
+    cols.forEach(col => {
+      // DATE cria “De” e “Até”
+      if (col.tipo === 'DATE') {
+        ['from','to'].forEach((dir, i) => {
+          const wrap = document.createElement('div');
+          wrap.classList.add('col-md-6');
+          const lbl = document.createElement('label');
+          lbl.classList.add('form-label');
+          lbl.textContent = `${col.descricao || col.name} (${dir==='from'?'De':'Até'})`;
+          const inp = document.createElement('input');
+          inp.type     = 'date';
+          inp.name     = `${col.name}_${dir}`;
+          inp.classList.add('form-control');
+          wrap.append(lbl, inp);
+          filterForm.append(wrap);
+        });
+
+      // COMBO
+      } else if (col.tipo === 'COMBO') {
+        const wrap = document.createElement('div');
+        wrap.classList.add('col-md-6');
+        const lbl = document.createElement('label');
+        lbl.classList.add('form-label');
+        lbl.textContent = col.descricao || col.name;
+        const sel = document.createElement('select');
+        sel.name = col.name;
+        sel.classList.add('form-select');
+        sel.innerHTML = '<option value="">---</option>';
+        wrap.append(lbl, sel);
+        filterForm.append(wrap);
+
+        // Popula async
+        (async () => {
+          let opts = [];
+          try {
+            if (/^\s*SELECT\s+/i.test(col.combo)) {
+              opts = await (await fetch(
+                `/generic/api/options?query=${encodeURIComponent(col.combo)}`
+              )).json();
+            } else {
+              opts = await (await fetch(col.combo)).json();
+            }
+          } catch (e) {
+            console.error('Erro COMBO', col.name, e);
+          }
+          opts.forEach(o => {
+            const v   = typeof o === 'object' ? Object.values(o)[0] : o;
+            const opt = document.createElement('option');
+            opt.value       = v ?? '';
+            opt.textContent = v;
+            sel.append(opt);
+          });
+        })();
+
+      // Intervalo de datas
+      } else if (col.tipo === 'DATE') {
+        // (handled above)
+
+      // BIT
+      } else if (col.tipo === 'BIT') {
+        const wrap = document.createElement('div');
+        wrap.classList.add('col-md-6','form-check');
+        const inp = document.createElement('input');
+        inp.type  = 'checkbox';
+        inp.name  = col.name;
+        inp.id    = col.name;
+        inp.classList.add('form-check-input');
+        const lbl = document.createElement('label');
+        lbl.classList.add('form-check-label','ms-2');
+        lbl.setAttribute('for', col.name);
+        lbl.textContent = col.descricao || col.name;
+        wrap.append(inp, lbl);
+        filterForm.append(wrap);
+
+      // Outros
+      } else {
+        const wrap = document.createElement('div');
+        wrap.classList.add('col-md-6');
+        const lbl = document.createElement('label');
+        lbl.classList.add('form-label');
+        lbl.textContent = col.descricao || col.name;
+        const inp = document.createElement('input');
+        inp.name = col.name;
+        inp.classList.add('form-control');
+        switch (col.tipo) {
+          case 'HOUR':    inp.type = 'time';    break;
+          case 'INT':     inp.type = 'number';  inp.step = '1';    break;
+          case 'DECIMAL': inp.type = 'number';  inp.step = '0.01'; break;
+          default:        inp.type = 'text';
         }
-      });
-      const url = `/generic/api/${tableName}${params.toString() ? '?' + params.toString() : ''}`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        gridDiv.innerHTML = `<p>Erro ao carregar dados: ${res.status}</p>`;
-        return;
+        wrap.append(lbl, inp);
+        filterForm.append(wrap);
       }
-      const data = await res.json();
-      renderTable(listCols, data);
+    });
+  }
+
+  async function loadData() {
+    const params = new URLSearchParams();
+    filterForm.querySelectorAll('[name]').forEach(el => {
+      if (el.type === 'checkbox') {
+        if (el.checked) params.append(el.name, '1');
+      } else if (el.value) {
+        params.append(el.name, el.value);
+      }
+    });
+
+    const url = `/generic/api/${tableName}` +
+      (params.toString() ? '?' + params.toString() : '');
+    const res = await fetch(url);
+    if (!res.ok) {
+      gridDiv.innerHTML = `<p class="text-danger">Erro ${res.status}</p>`;
+      return;
     }
+    dataRows = await res.json();
+    renderTable(currentCols, dataRows);
+  }
 
-    // Função de renderização de filtros
-    function renderFilters(cols) {
-      filtersContainer.innerHTML = '';
-      const form = document.createElement('form');
-      form.id = 'filter-form';
-      form.classList.add('filter-form');
-      form.style.display = 'flex';
-      form.style.flexWrap = 'wrap';
-      form.style.gap = '0.5rem';
+  function renderTable(cols, rows) {
+    gridDiv.innerHTML = '';
+    const table = document.createElement('table');
+    table.classList.add('table','table-hover','align-middle');
 
-      cols.forEach(col => {
-        const wrapper = document.createElement('div');
-        wrapper.classList.add('filter-item');
-        const label = document.createElement('label');
-        label.setAttribute('for', col.name);
-        label.textContent = col.descricao || col.name;
+    // Cabeçalho com ordenação
+    const thead = document.createElement('thead');
+    const trh   = document.createElement('tr');
+    cols.forEach((c, idx) => {
+      const th = document.createElement('th');
+      th.textContent = c.descricao || c.name;
+      th.style.cursor = 'pointer';
+      th.addEventListener('click', () => {
+        sortDir   = (sortField === c.name) ? -sortDir : 1;
+        sortField = c.name;
+        dataRows.sort((a, b) => {
+          let va = a[c.name], vb = b[c.name], res = 0;
+          switch (c.tipo) {
+            case 'INT':    res = (Number(va)||0) - (Number(vb)||0); break;
+            case 'DECIMAL':res = (Number(va)||0) - (Number(vb)||0); break;
+            case 'DATE':   res = new Date(va) - new Date(vb);      break;
+            case 'BIT':    res = ((va?1:0) - (vb?1:0));             break;
+            default:       res = String(va||'').localeCompare(String(vb||''));
+          }
+          return res * sortDir;
+        });
+        renderTable(cols, dataRows);
+      });
+      trh.append(th);
+    });
+    thead.append(trh);
+    table.append(thead);
 
-        let input;
-        if (col.tipo === 'COMBO') {
-          input = document.createElement('select');
-          const placeholder = document.createElement('option');
-          placeholder.value = '';
-          placeholder.textContent = '---';
-          input.append(placeholder);
-        } else {
-          input = document.createElement('input');
-          switch (col.tipo) {
-            case 'DATE':    input.type = 'date'; break;
-            case 'DECIMAL': input.type = 'number'; input.step = '0.01'; break;
-            case 'INT':     input.type = 'number'; input.step = '1'; break;
-            case 'HOUR':    input.type = 'time'; break;
-            case 'BIT':     input.type = 'checkbox'; break;
-            default:        input.type = 'text';
+    // Corpo
+    const tbody = document.createElement('tbody');
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      cols.forEach(c => {
+        const td = document.createElement('td');
+        let v = r[c.name];
+
+        // formata datas
+        if (c.tipo==='DATE' && v) {
+          const d = new Date(v);
+          if (!isNaN(d)) {
+            const dd   = String(d.getDate()).padStart(2,'0');
+            const mm   = String(d.getMonth()+1).padStart(2,'0');
+            const yyyy = d.getFullYear();
+            v = `${dd}.${mm}.${yyyy}`;
           }
         }
-        input.name = col.name;
-        input.id = col.name;
-        wrapper.append(label, input);
-        form.append(wrapper);
-      });
-
-      // Botão Filtrar
-      const btnFilter = document.createElement('button');
-      btnFilter.type = 'submit';
-      btnFilter.textContent = 'Filtrar';
-      btnFilter.classList.add('btn', 'btn-secondary');
-      form.append(btnFilter);
-
-      // Botão Novo se permissão inserir
-      if (userPerms.inserir) {
-        const btnNew = document.createElement('button');
-        btnNew.type = 'button';
-        btnNew.textContent = 'Novo';
-        btnNew.classList.add('btn', 'btn-primary');
-        btnNew.addEventListener('click', () => {
-          window.location.href = `/generic/form/${tableName}/`;
-        });
-        form.append(btnNew);
-      }
-
-      filtersContainer.append(form);
-      return form;
-    }
-
-    // Função para render tabela
-    function renderTable(cols, rows) {
-      gridDiv.innerHTML = '';
-      const table = document.createElement('table');
-      table.classList.add('list-table');
-      const thead = document.createElement('thead');
-      const headRow = document.createElement('tr');
-      cols.forEach(c => {
-        const th = document.createElement('th');
-        th.textContent = c.descricao || c.name;
-        headRow.append(th);
-      });
-      thead.append(headRow);
-      table.append(thead);
-
-      const tbody = document.createElement('tbody');
-      const stampField = `${tableName.toUpperCase()}STAMP`;
-      rows.forEach(r => {
-        const tr = document.createElement('tr');
-        cols.forEach(c => {
-          const td = document.createElement('td');
-          td.textContent = formatValue(c.tipo, r[c.name]);
-          tr.append(td);
-        });
-        tr.addEventListener('click', () => {
-          window.location = `/generic/form/${tableName}/${r[stampField]}`;
-        });
-        tbody.append(tr);
-      });
-      table.append(tbody);
-      gridDiv.append(table);
-    }
-
-    // Formatação de valores
-    function formatValue(type, val) {
-      if (val == null) return '';
-      switch (type) {
-        case 'DECIMAL': return Number(val).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-        case 'INT':     return Number(val).toString();
-        case 'DATE':    {
-          const d = new Date(val);
-          return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+        // BIT como ✓
+        if (c.tipo==='BIT') {
+          td.innerHTML = (v===1||v==='1'||v===true) ? '✔' : '';
+        } else {
+          td.textContent = v ?? '';
         }
-        case 'HOUR':    return val.slice(0,5);
-        case 'BIT':     return val ? '✓' : '';
-        default:        return val;
-      }
-    }
+        tr.append(td);
+      });
+
+      // clique abre edição
+      const pk = r[`${tableName.toUpperCase()}STAMP`];
+      tr.addEventListener('click', () => {
+        location.href = `/generic/form/${tableName}/${pk}`;
+      });
+      tbody.append(tr);
+    });
+    table.append(tbody);
+    gridDiv.append(table);
   }
 });
+
+
+
+
+

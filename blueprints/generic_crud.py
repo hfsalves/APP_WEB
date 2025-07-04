@@ -1,17 +1,20 @@
+# blueprints/generic_crud.py
+
 from flask import Blueprint, render_template, request, jsonify, abort, current_app
 from flask_login import login_required, current_user
-from sqlalchemy import MetaData, Table, select, text
+from sqlalchemy import MetaData, Table, select, text, String
 from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
 
 bp = Blueprint('generic', __name__, url_prefix='/generic')
 
+# --------------------------------------------------
 # ACL helper
+# --------------------------------------------------
 def has_permission(table_name: str, action: str) -> bool:
-    # super-admin do sistema vê tudo
+    # super‐admin vê tudo
     if getattr(current_user, 'ADMIN', False):
         return True
-    # busca ACL específica para este utilizador e tabela
     acesso = (
         Acessos.query
                .filter_by(utilizador=current_user.LOGIN, tabela=table_name)
@@ -21,7 +24,9 @@ def has_permission(table_name: str, action: str) -> bool:
         return False
     return getattr(acesso, action, False)
 
+# --------------------------------------------------
 # Helper: reflect a table by name
+# --------------------------------------------------
 def get_table(table_name):
     meta = MetaData()
     try:
@@ -35,18 +40,19 @@ def get_table(table_name):
         current_app.logger.error(f"Erro ao refletir tabela {table_name}: {e}")
         abort(404, f"Tabela {table_name} não encontrada")
 
+# --------------------------------------------------
+# Views para front-end
+# --------------------------------------------------
 @bp.route('/view/calendar/')
 @login_required
 def view_calendar():
     return render_template('calendar.html')
 
-
-# View: listagem dinâmica
 @bp.route('/view/<table_name>/', defaults={'record_stamp': None})
 @bp.route('/view/<table_name>/<record_stamp>')
 @login_required
 def view_table(table_name, record_stamp):
-    menu_item = Menu.query.filter_by(tabela=table_name).first()
+    menu_item  = Menu.query.filter_by(tabela=table_name).first()
     menu_label = menu_item.nome if menu_item else table_name.capitalize()
     return render_template(
         'dynamic_list.html',
@@ -55,31 +61,28 @@ def view_table(table_name, record_stamp):
         menu_label=menu_label
     )
 
-# View: formulário de edição/introdução
 @bp.route('/form/<table_name>/', defaults={'record_stamp': None})
 @bp.route('/form/<table_name>/<record_stamp>')
 @login_required
 def edit_table(table_name, record_stamp):
-    from models import MenuBotoes  # Importa aqui para evitar circular imports
-
-    menu_item = Menu.query.filter_by(tabela=table_name).first()
+    from models import MenuBotoes
+    menu_item  = Menu.query.filter_by(tabela=table_name).first()
     menu_label = menu_item.nome if menu_item else table_name.capitalize()
 
-    # Carrega os botões ativos da tabela
-    botoes_query = MenuBotoes.query.filter_by(TABELA=table_name, ATIVO=True).order_by(MenuBotoes.ORDEM)
-    botoes = [
-        {
-            'NOME': b.NOME,
-            'ICONE': b.ICONE,
-            'TEXTO': b.TEXTO,
-            'COR': b.COR,
-            'TIPO': b.TIPO,
-            'ACAO': b.ACAO,
-            'CONDICAO': b.CONDICAO,
-            'DESTINO': b.DESTINO
-        }
-        for b in botoes_query
-    ]
+    botoes_query = MenuBotoes.query.filter_by(
+        TABELA=table_name, ATIVO=True
+    ).order_by(MenuBotoes.ORDEM)
+
+    botoes = [{
+        'NOME': b.NOME,
+        'ICONE': b.ICONE,
+        'TEXTO': b.TEXTO,
+        'COR': b.COR,
+        'TIPO': b.TIPO,
+        'ACAO': b.ACAO,
+        'CONDICAO': b.CONDICAO,
+        'DESTINO': b.DESTINO
+    } for b in botoes_query]
 
     return render_template(
         'dynamic_form.html',
@@ -89,18 +92,19 @@ def edit_table(table_name, record_stamp):
         botoes=botoes
     )
 
-
-# API: DESCRIBE colunas
+# --------------------------------------------------
+# API: DESCRIBE ou LISTAGEM
+# --------------------------------------------------
 @bp.route('/api/<table_name>', methods=['GET'])
 @login_required
 def list_or_describe(table_name):
-    # DESCRIBE
+    # 1) DESCRIBE
     if request.args.get('action') == 'describe':
         campos = (
             Campo.query
-            .filter_by(tabela=table_name)
-            .order_by(Campo.ordem)
-            .all()
+                 .filter_by(tabela=table_name)
+                 .order_by(Campo.ordem)
+                 .all()
         )
         pk_name = f"{table_name.upper()}STAMP"
         cols = []
@@ -118,27 +122,60 @@ def list_or_describe(table_name):
             })
         return jsonify(cols)
 
-    # LISTAGEM de registros (sem action)
-    # valida permissão de consulta
+    # 2) LISTAGEM
     if not has_permission(table_name, 'consultar'):
         abort(403, 'Sem permissão para consultar')
 
     table = get_table(table_name)
-    stmt = select(table)
+    stmt  = select(table)
+
+    # 3) FILTROS via query string
     for key, value in request.args.items():
         if key == 'action':
             continue
+
+        # intervalo de datas: campo_from e campo_to
+        if key.endswith('_from'):
+            col_name = key[:-5]
+            if hasattr(table.c, col_name):
+                stmt = stmt.where(getattr(table.c, col_name) >= value)
+            continue
+
+        if key.endswith('_to'):
+            col_name = key[:-3]
+            if hasattr(table.c, col_name):
+                stmt = stmt.where(getattr(table.c, col_name) <= value)
+            continue
+
+        # filtros normais
         if hasattr(table.c, key):
-            stmt = stmt.where(getattr(table.c, key) == value)
+            col = getattr(table.c, key)
+            # texto: contém via LIKE
+            if isinstance(col.type, String):
+                stmt = stmt.where(col.like(f"%{value}%"))
+            else:
+                stmt = stmt.where(col == value)
+
+    # 4) ordenação automática por ORDEM → DATA → HORA
+    order_cols = []
+    for cn in ('ORDEM', 'DATA', 'HORA'):
+        if hasattr(table.c, cn):
+            order_cols.append(getattr(table.c, cn))
+    if order_cols:
+        stmt = stmt.order_by(*order_cols)
+
+    # 5) executa e retorna JSON
     try:
-        rows = db.session.execute(stmt).fetchall()
+        rows    = db.session.execute(stmt).fetchall()
         records = [dict(r._mapping) for r in rows]
         return jsonify(records)
     except Exception as e:
         current_app.logger.exception(f"Falha ao listar {table_name}")
         return jsonify({'error': str(e)}), 500
 
+# --------------------------------------------------
 # API: opções para COMBO
+# --------------------------------------------------
 @bp.route('/api/options', methods=['GET'])
 @login_required
 def combo_options():
@@ -157,38 +194,51 @@ def combo_options():
             results.append({'value': r[0], 'text': r[1]})
     return jsonify(results)
 
-# API: Single record retrieval
+# --------------------------------------------------
+# API: registro único
+# --------------------------------------------------
 @bp.route('/api/<table_name>/<record_stamp>', methods=['GET'])
 @login_required
 def get_record(table_name, record_stamp):
-    # valida permissão de consulta
     if not has_permission(table_name, 'consultar'):
         abort(403, 'Sem permissão para consultar')
 
     table = get_table(table_name)
-    pk = getattr(table.c, f"{table_name.upper()}STAMP")
-    stmt = select(table).where(pk == record_stamp)
-    row = db.session.execute(stmt).fetchone()
+    pk    = getattr(table.c, f"{table_name.upper()}STAMP")
+    stmt  = select(table).where(pk == record_stamp)
+    row   = db.session.execute(stmt).fetchone()
     if not row:
         abort(404, f"Registro não encontrado: {record_stamp}")
     return jsonify(dict(row._mapping))
 
-# API: Create new record
+# --------------------------------------------------
+# API: inserir novo registro
+# --------------------------------------------------
 @bp.route('/api/<table_name>', methods=['POST'])
 @login_required
 def create_record(table_name):
-    # valida permissão de inserção
     if not has_permission(table_name, 'inserir'):
         abort(403, 'Sem permissão para inserir')
 
     table = get_table(table_name)
-    data = request.get_json() or {}
-    # permite usar DEFAULT do DB para PK vazio
+    data  = request.get_json() or {}
+
+    # Se vier chave vazia para o PK, removemos
     pk_name = f"{table_name.upper()}STAMP"
     if pk_name in data and not data[pk_name]:
-        data.pop(pk_name, None)
+        data.pop(pk_name)
+
+    # — Filtra só colunas válidas —
+    col_map = {c.name.lower(): c.name for c in table.c}
+    clean   = {}
+    for k, v in data.items():
+        lk = k.lower()
+        if lk in col_map:
+            clean[col_map[lk]] = v
+    # — end filtra —
+
     try:
-        ins = table.insert().values(**data)
+        ins = table.insert().values(**clean)
         db.session.execute(ins)
         db.session.commit()
         return jsonify({'success': True}), 201
@@ -197,30 +247,32 @@ def create_record(table_name):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# API: Update record
+
+# --------------------------------------------------
+# API: atualizar registro
+# --------------------------------------------------
 @bp.route('/api/<table_name>/<record_stamp>', methods=['PUT'])
 @login_required
 def update_record(table_name, record_stamp):
-    # valida permissão de edição
     if not has_permission(table_name, 'editar'):
         abort(403, 'Sem permissão para editar')
 
     table = get_table(table_name)
-    data = request.get_json() or {}
-    # mapeia colunas válidas (case-insensitive)
+    data  = request.get_json() or {}
+    # filtra só colunas válidas
     col_map = {c.name.lower(): c.name for c in table.c}
-    clean_data = {}
+    clean   = {}
     for k, v in data.items():
-        key_lower = k.lower()
-        if key_lower in col_map:
-            clean_data[col_map[key_lower]] = v
-    data = clean_data
+        lk = k.lower()
+        if lk in col_map:
+            clean[col_map[lk]] = v
+    data = clean
 
     pk = getattr(table.c, f"{table_name.upper()}STAMP")
     try:
         upd = table.update().where(pk == record_stamp).values(**data)
-        result = db.session.execute(upd)
-        if result.rowcount == 0:
+        res = db.session.execute(upd)
+        if res.rowcount == 0:
             abort(404)
         db.session.commit()
         return jsonify({'success': True})
@@ -229,20 +281,21 @@ def update_record(table_name, record_stamp):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# API: Delete record
+# --------------------------------------------------
+# API: apagar registro
+# --------------------------------------------------
 @bp.route('/api/<table_name>/<record_stamp>', methods=['DELETE'])
 @login_required
 def delete_record(table_name, record_stamp):
-    # valida permissão de eliminação
     if not has_permission(table_name, 'eliminar'):
         abort(403, 'Sem permissão para eliminar')
 
     table = get_table(table_name)
-    pk = getattr(table.c, f"{table_name.upper()}STAMP")
+    pk    = getattr(table.c, f"{table_name.upper()}STAMP")
     try:
-        delete_stmt = table.delete().where(pk == record_stamp)
-        result = db.session.execute(delete_stmt)
-        if result.rowcount == 0:
+        ddl = table.delete().where(pk == record_stamp)
+        res = db.session.execute(ddl)
+        if res.rowcount == 0:
             abort(404)
         db.session.commit()
         return jsonify({'success': True})
@@ -251,19 +304,16 @@ def delete_record(table_name, record_stamp):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-from models import Campo, Menu, Acessos, Linhas
-
+# --------------------------------------------------
+# API: linhas dinâmicas
+# --------------------------------------------------
 @bp.route('/api/linhas/<mae>', methods=['GET'])
 @login_required
 def api_linhas(mae):
-    # 1) Verifica permissão de consulta para a 'tabela-pai'
     if not has_permission(mae, 'consultar'):
         abort(403, 'Sem permissão para consultar linhas deste registo')
 
-    # 2) Lê todas as linhas cujo MAE = nome da tabela
     linhas = Linhas.query.filter_by(MAE=mae).all()
-
-    # 3) Constrói o JSON de resposta
     resultado = []
     for l in linhas:
         resultado.append({
@@ -272,9 +322,11 @@ def api_linhas(mae):
             'LIGACAO':     l.LIGACAO,
             'LIGACAOMAE':  l.LIGACAOMAE
         })
-
     return jsonify(resultado)
 
+# --------------------------------------------------
+# API: detalhes dinâmicos
+# --------------------------------------------------
 @bp.route('/api/dynamic_details/<mae>/<record_stamp>', methods=['GET'])
 @login_required
 def api_dynamic_details(mae, record_stamp):
@@ -287,7 +339,6 @@ def api_dynamic_details(mae, record_stamp):
         ligacao    = (defn.LIGACAO or '').strip()
         ligacaomae = defn.LIGACAOMAE.strip()
 
-        # Monta o SQL
         if ligacao.upper().startswith('SELECT') or ' ' in ligacao:
             sql = ligacao.replace("{RECORD_STAMP}", ":record")
         elif ligacao:
@@ -297,23 +348,15 @@ def api_dynamic_details(mae, record_stamp):
         else:
             abort(500, f"Definição inválida para detalhe {tabela}")
 
-        # Executa a query
-        try:
-            rows = db.session.execute(text(sql), {"record": record_stamp}).mappings().all()
-        except Exception as e:
-            abort(500, f"Erro ao executar SQL em {tabela}: {e}")
+        rows = db.session.execute(text(sql), {"record": record_stamp}).mappings().all()
 
-        # Carrega metadados da tabela-filho usando o modelo Campo
         cols = (
             Campo.query
                  .filter_by(tabela=tabela, lista=True)
                  .order_by(Campo.ordem)
                  .all()
         )
-        campos = [
-            {"CAMPO": c.nmcampo, "LABEL": c.descricao, "CAMPODESTINO": c.nmcampo}
-            for c in cols
-        ]
+        campos = [{"CAMPO": c.nmcampo, "LABEL": c.descricao, "CAMPODESTINO": c.nmcampo} for c in cols]
 
         detalhes.append({
             "linhasstamp": defn.LINHASSTAMP,
@@ -324,26 +367,24 @@ def api_dynamic_details(mae, record_stamp):
 
     return jsonify(detalhes)
 
+# --------------------------------------------------
+# API: tarefas para calendar
+# --------------------------------------------------
 from datetime import datetime
-from flask import request, abort, jsonify
-from sqlalchemy import text
 
 @bp.route('/api/calendar_tasks', methods=['GET'])
 @login_required
 def api_calendar_tasks():
-    # 1) Lê os parâmetros start e end no formato YYYY-MM-DD
     start = request.args.get('start')
     end   = request.args.get('end')
     if not start or not end:
         abort(400, 'Precisamos de start e end em formato YYYY-MM-DD')
     try:
-        # validação simples
         datetime.strptime(start, '%Y-%m-%d')
         datetime.strptime(end,   '%Y-%m-%d')
     except ValueError:
         abort(400, 'Formato de data inválido')
 
-    # 2) SQL cru para filtrar pela coluna DATA
     sql = text("""
     SELECT
       ta.TAREFASSTAMP,
@@ -351,17 +392,16 @@ def api_calendar_tasks():
       ta.HORA,
       ta.DURACAO,
       ta.TAREFA,
-      ta.ALOJAMENTO,         
+      ta.ALOJAMENTO,
       ta.UTILIZADOR,
       ta.ORIGEM,
       ta.ORISTAMP,
-      COALESCE(tc.COR,
-               eq.COR,
-               '#333333') AS COR
+      ta.TRATADO,
+      COALESCE(tc.COR, eq.COR, '#333333') AS COR
     FROM TAREFAS ta
-    LEFT JOIN US       u  ON u.LOGIN    = ta.UTILIZADOR
-    LEFT JOIN TEC      tc ON tc.NOME    = u.TECNICO
-    LEFT JOIN EQ       eq ON eq.NOME    = u.EQUIPA
+    LEFT JOIN US    u  ON u.LOGIN    = ta.UTILIZADOR
+    LEFT JOIN TEC   tc ON tc.NOME    = u.TECNICO
+    LEFT JOIN EQ    eq ON eq.NOME    = u.EQUIPA
     WHERE ta.DATA BETWEEN :start AND :end
     ORDER BY ta.DATA, ta.HORA
     """)

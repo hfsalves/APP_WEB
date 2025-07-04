@@ -268,11 +268,41 @@ html, body {
   cursor: pointer;
 }
 
+@media (max-width: 768px) {
+  .dynamic-grid {
+    flex: 1;
+    overflow-y: auto;
+  }
+  .dynamic-grid table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .dynamic-grid th,
+  .dynamic-grid td {
+    padding: 0.6rem 0.1rem;
+    border-bottom: 1px solid #e1e4e8;
+    font-size: smaller;
+  }
+  .dynamic-grid th {
+    background-color: #f6f8fa;
+    font-size: 12px;
+    text-align: left;
+  }
+  .dynamic-grid tbody tr {
+    font-size: 14px;
+  }
+  .dynamic-grid tbody tr:hover {
+    background-color: #f1f3f5;
+    cursor: pointer;
+  }
+}
+
 /* Botões gerais */
 .btn {
   display: inline-block;
   padding: 0.7rem 1rem;
-  border-radius: 4px;
+  margin-top: 0.5rem;
+  border-radius: 100px;
   border: none;
   font-size: 0.9rem;
   cursor: pointer;
@@ -1090,8 +1120,7 @@ body.sidebar-open .app-header {
 /* deixar o fundo do modal transparente e borrado */
 .modal-backdrop.show {
   background-color: transparent !important;    /* retira o preto/azulado */
-  backdrop-filter: blur(4px);                  /* aplica blur no conteúdo por trás */
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(100%);                  /* aplica blur no conteúdo por trás */
 }
 
 /* opcional: se quiseres também escurecer ligeiramente o que há por trás */
@@ -1108,11 +1137,6 @@ body.sidebar-open .app-header {
   background-color: transparent !important;
 }
 
-/* 2️⃣ Faz o conteúdo de trás (body) ficar ligeiramente desfocado */
-.modal-open .app-container,   /* ajusta .app-container para o teu wrapper principal */
-.modal-open .main-content {   /* ou outro selector que envolva o teu conteúdo */
-  filter: blur(4px);
-}
 
 /* 3️⃣ Garante que o modal fica acima de tudo */
 .modal {
@@ -1152,4 +1176,15 @@ body.sidebar-open .app-header {
   color: #5192b8;
   text-decoration: none;
   font-size: 1.25rem;
+}
+/* ─── Desativa o blur de fundo ao abrir o modalFiltros ───────────────── */
+
+.btn-group {
+  width: 200px;
+}
+
+.form-check .form-check-input {
+    float: left;
+    margin-left: -1.5em;
+    width: 15px;
 }

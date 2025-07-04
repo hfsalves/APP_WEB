@@ -19,97 +19,76 @@
 }
 </style>
 
-  <div class="dynamic-container">
-    <div class="dynamic-form">
-      <!--<h2>{{ menu_label }}</h2>-->
+<div class="dynamic-container">
+  <div class="dynamic-form">
 
-      {% if botoes %}
-        <div class="d-flex justify-content-end mb-3">
-          <div class="dropdown">
-            <!-- botão branco, sem texto, só ícone de raio -->
-            <button 
-              class="btn btn-light btn-sm" 
-              type="button" 
-              id="acoesDropdown" 
-              data-bs-toggle="dropdown" 
-              aria-expanded="false"
-              style="background: white; border: 1px solid #ddd;">
-              <i class="fa fa-bolt"></i>
-            </button>
-            <!-- menu alinhado à direita do botão -->
-            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="acoesDropdown">
-              {% for botao in botoes %}
+    {% if botoes %}
+      <div class="d-flex justify-content-end mb-3">
+        <div class="dropdown">
+          <button 
+            class="btn btn-light btn-sm" 
+            type="button" 
+            id="acoesDropdown" 
+            data-bs-toggle="dropdown" 
+            aria-expanded="false"
+            style="background: white; border: 1px solid #ddd;">
+            <i class="fa fa-bolt"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="acoesDropdown">
+            {% for botao in botoes %}
               <li>
-                <a 
-                  class="dropdown-item" 
-                  href="#" 
-                  onclick="abrirModal('{{ botao.NOME }}')">
+                <a class="dropdown-item" href="#" onclick="abrirModal('{{ botao.NOME }}')">
                   <i class="fa {{ botao.ICONE }} me-2"></i>
                   {{ botao.TEXTO }}
                 </a>
               </li>
-              {% endfor %}
-            </ul>
-          </div>
+            {% endfor %}
+          </ul>
         </div>
-      {% endif %}
-
-      <form id="editForm" class="two-cols">
-        <!-- o JS só vai preencher os .coluna-1 e .coluna-2 -->
-        <div class="coluna-1"></div>
-        <div class="coluna-2"></div>
-      </form>
-
-      <!-- === Início dynamic_details === -->
-      <!--<h4>Detalhes</h4>-->
-      <div id="details-container" class="mt-4"></div>
-      <!-- === Fim dynamic_details === -->
-
-
-
-      <!-- Botões fixos -->
-      <div class="form-actions">
-        <button type="submit" form="editForm" class="btn btn-primary btn-save">
-          <i class="fa-solid fa-save"></i>
-          <span class="btn-text">Gravar</span>
-        </button>
-        <button type="button" id="btnCancel" class="btn btn-secondary btn-cancel">
-          <i class="fa-solid fa-ban"></i>
-          <span class="btn-text">Cancelar</span>
-        </button>
-        <button type="button" id="btnDelete" class="btn btn-secondary btn-delete">
-          <i class="fa-solid fa-trash-alt"></i>
-          <span class="btn-text">Eliminar</span>
-        </button>
-        <button type="button"
-                id="btnBack"
-                class="btn btn-secondary btn-back">
-          <i class="fa-solid fa-arrow-left"></i>
-          <span class="btn-text">Voltar</span>
-        </button>
-
       </div>
+    {% endif %}
 
+    <form id="editForm" class="row g-3">
+    <!-- O dynamic_form.js vai injectar aqui cada campo dentro de
+       <div class="col-12 col-md-6 mb-3"> -->
+    </form>
+
+
+    <!-- === Início dynamic_details === -->
+    <!--<h4>Detalhes</h4>-->
+    <div id="details-container" class="mt-4"></div>
+    <!-- === Fim dynamic_details === -->
+
+    <div class="form-actions mt-3">
+      <button type="submit" form="editForm" class="btn btn-primary btn-save">
+        <i class="fa-solid fa-save"></i>
+        <span class="btn-text">Gravar</span>
+      </button>
+      <button type="button" id="btnCancel" class="btn btn-secondary btn-cancel">
+        <i class="fa-solid fa-ban"></i>
+        <span class="btn-text">Cancelar</span>
+      </button>
+      <button type="button" id="btnDelete" class="btn btn-secondary btn-delete">
+        <i class="fa-solid fa-trash-alt"></i>
+        <span class="btn-text">Eliminar</span>
+      </button>
+      <button type="button" id="btnBack" class="btn btn-secondary btn-back">
+        <i class="fa-solid fa-arrow-left"></i>
+        <span class="btn-text">Voltar</span>
+      </button>
     </div>
+
   </div>
+</div>
 
-  <!-- Injeta onde devemos voltar após salvar/cancelar -->
-  {% set return_to = request.args.get('return_to', url_for('generic.view_table', table_name=table_name)) %}
-  <script>
-    window.TABLE_NAME    = "{{ table_name }}";
-    window.RECORD_STAMP  = {{ record_stamp|tojson }};
-    window.IS_ADMIN_USER = {{ 'true' if current_user.ADMIN else 'false' }};
-    window.RETURN_TO     = "{{ return_to }}";
-  </script>
+{% set return_to = request.args.get('return_to', url_for('generic.view_table', table_name=table_name)) %}
+<script>
+  window.TABLE_NAME    = "{{ table_name }}";
+  window.RECORD_STAMP  = {{ record_stamp|tojson }};
+  window.IS_ADMIN_USER = {{ 'true' if current_user.ADMIN else 'false' }};
+  window.RETURN_TO     = "{{ return_to }}";
+  console.log('dynamic_form init:', window.TABLE_NAME, window.RECORD_STAMP, window.IS_ADMIN_USER);
+</script>
 
-  <!-- Injeta as vars que o dynamic_form.js vai usar -->
-  <script>
-    window.TABLE_NAME    = "{{ table_name }}";
-    window.RECORD_STAMP  = {{ record_stamp|tojson }};
-    window.IS_ADMIN_USER = {{ 'true' if current_user.ADMIN else 'false' }};
-    console.log('dynamic_form init:', window.TABLE_NAME, window.RECORD_STAMP, window.IS_ADMIN_USER);
-  </script>
-
-  <!-- Carrega o script novo -->
-  <script src="{{ url_for('static', filename='js/dynamic_form.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dynamic_form.js') }}"></script>
 {% endblock %}

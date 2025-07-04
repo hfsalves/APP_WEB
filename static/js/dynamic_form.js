@@ -7,78 +7,133 @@
   const isAdminUser  = window.IS_ADMIN_USER;
 
   // 1. Carrega metadados
-  let columns;
-  try {
-    const res = await fetch(`/generic/api/${TABLE_NAME}?action=describe`);
-    if (!res.ok) throw new Error(res.statusText);
-    const body = await res.json();
-    columns = Array.isArray(body) ? body : body.columns;
-  } catch (err) {
-    console.error('Erro a carregar describe:', err);
-    document.getElementById('editForm').innerHTML = '<p>Erro ao carregar formulário.</p>';
-    return;
-  }
+  const res   = await fetch(`/generic/api/${TABLE_NAME}?action=describe`);
+  const cols  = await res.json();
 
-  // 2. Monta o formulário
-  const form = document.getElementById('editForm');
-  form.classList.add('two-cols');
-  form.innerHTML = '<div class="coluna-1"></div><div class="coluna-2"></div>';
-  const [col1, col2] = form.querySelectorAll('.coluna-1, .coluna-2');
+// 2. Monta o formulário
+const form = document.getElementById('editForm');
+// usa grid do Bootstrap em vez de colunas custom
+form.className = 'row gx-3 gy-2';
+form.innerHTML = `
+  <div id="nonAdminCol" class="col-12 col-md-6"></div>
+  <div id="adminCol"    class="col-12 col-md-6"></div>
+`;
+const nonAdminCol = document.getElementById('nonAdminCol');
+const adminCol    = document.getElementById('adminCol');
 
-  columns.sort((a,b)=>a.ordem-b.ordem).forEach(col => {
-    if (col.admin && !isAdminUser) return;
+// esconde a coluna de admin, se não for
+if (!window.IS_ADMIN_USER) {
+  adminCol.style.display = 'none';
+}
+
+// distribui campos conforme a propriedade `admin`
+ cols
+   .sort((a, b) => (a.ordem||0) - (b.ordem||0))
+  .forEach(col => {
+    // campos admin-only saltados para user não-admin
+    if (col.admin && !window.IS_ADMIN_USER) return;
+
+    // wrapper para cada campo
     const wrapper = document.createElement('div');
-    wrapper.classList.add('form-group');
-    if (col.tipo === 'BIT') wrapper.classList.add('checkbox');
+    wrapper.className = col.tipo === 'BIT' ? 'form-check mb-3' : 'mb-3';
 
-    const label = document.createElement('label');
-    label.textContent = col.descricao || col.name;
-    wrapper.append(label);
-
-    let input;
-    if (col.tipo === 'COMBO') {
-      input = document.createElement('select');
-      input.name = col.name;
-      input.innerHTML = '<option value="">---</option>';
+    if (col.tipo === 'BIT') {
+      // checkbox
+      wrapper.innerHTML = `
+        <input class="form-check-input" type="checkbox"
+               id="${col.name}" name="${col.name}">
+        <label class="form-check-label" for="${col.name}">
+          ${col.descricao || col.name}
+        </label>
+      `;
     } else {
-      input = document.createElement('input');
-      input.name = col.name;
-      switch(col.tipo) {
-        case 'DATE':   input.type = 'text'; input.classList.add('flatpickr-date'); break;
-        case 'HOUR':   input.type = 'time'; break;
-        case 'INT':    input.type = 'number'; break;
-        case 'DECIMAL':input.type = 'number'; input.step = '0.01'; break;
-        case 'BIT':    input.type = 'checkbox'; break;
-        default:       input.type = 'text';
+      // label
+      const label = document.createElement('label');
+      label.setAttribute('for', col.name);
+      label.className = 'form-label';
+      label.textContent = col.descricao || col.name;
+      wrapper.appendChild(label);
+
+      let input;
+      if (col.tipo === 'COMBO') {
+        // select
+        input = document.createElement('select');
+        input.className = 'form-select';
+        input.name = col.name;
+        input.innerHTML = '<option value="">---</option>';
+      } else {
+        // input text/number/date/time
+        input = document.createElement('input');
+        input.className = 'form-control';
+        input.name = col.name;
+        switch (col.tipo) {
+          case 'DATE':
+            input.type = 'text';
+            input.classList.add('flatpickr-date');
+            break;
+          case 'HOUR':
+            input.type = 'time';
+            break;
+          case 'INT':
+            input.type = 'number';
+            break;
+          case 'DECIMAL':
+            input.type = 'number';
+            input.step = '0.01';
+            break;
+          default:
+            input.type = 'text';
+        }
       }
+      if (col.readonly) input.disabled = true;
+      wrapper.appendChild(input);
     }
-    if (col.readonly) input.disabled = true;
-    wrapper.append(input);
-    (col.admin ? col2 : col1).append(wrapper);
+
+    // anexa ao container correto
+    if (col.admin) adminCol.appendChild(wrapper);
+    else           nonAdminCol.appendChild(wrapper);
   });
 
-  // 3. Popula combos
-  await Promise.all(columns.filter(c=>c.tipo==='COMBO'&&c.combo).map(async c => {
-    const sel = form.querySelector(`select[name="${c.name}"]`);
-    if (!sel) return;
-    let opts = [];
-    try {
-      if (/^\s*SELECT\s+/i.test(c.combo)) {
-        opts = await (await fetch(`/generic/api/options?query=${encodeURIComponent(c.combo)}`)).json();
-      } else {
-        opts = await (await fetch(c.combo)).json();
-      }
-    } catch (e) {
-      console.error('Falha ao carregar combo', c.name, e);
-    }
-    opts.forEach(o => {
-      const option = document.createElement('option');
-      const value = typeof o === 'object' ? Object.values(o)[0] : o;
-      option.value = value?.toString() || '';
-      option.textContent = value;
-      sel.append(option);
-    });
-  }));
+// 3. Popula combos
+// ... resto do teu código ...
+
+
+  // 4. Popula combos
+  await Promise.all(
+    cols
+      .filter(c => c.tipo === 'COMBO' && c.combo)
+      .map(async c => {
+        const sel = form.querySelector(`select[name="${c.name}"]`);
+        if (!sel) return;
+        let opts = [];
+        try {
+          if (/^\s*SELECT\s+/i.test(c.combo)) {
+            opts = await (await fetch(
+              `/generic/api/options?query=${encodeURIComponent(c.combo)}`
+            )).json();
+          } else {
+            opts = await (await fetch(c.combo)).json();
+          }
+        } catch (e) {
+          console.error('Falha ao carregar combo', c.name, e);
+        }
+        opts.forEach(o => {
+          const opt = document.createElement('option');
+          if (Array.isArray(o)) {
+            opt.value = o[0];
+            opt.textContent = o[1];
+          } else if (o.value !== undefined && o.text !== undefined) {
+            opt.value       = o.value;
+            opt.textContent = o.text;
+          } else {
+            opt.value       = o;
+            opt.textContent = o;
+          }
+          sel.append(opt);
+        });
+      })
+  );
+
 
   // 4. Se edição, carrega valores com matching inteligente
   if (RECORD_STAMP) {
@@ -152,45 +207,36 @@
     const detailsContainer = document.getElementById('details-container');
     if (detailsContainer) {
       fetch(`/generic/api/dynamic_details/${TABLE_NAME}/${RECORD_STAMP}`)
-        .then(r => r.json())
+        .then(res => res.json())
         .then(detalhes => {
           detalhes.forEach(det => {
-            // 1) Card/container
+            // 1) Card de detalhe
             const card = document.createElement('div');
             card.className = 'card p-3 mb-4';
 
-            // 2) Título da tabela-filho
+            // 2) Título
             const title = document.createElement('h5');
             title.textContent = det.tabela;
             card.appendChild(title);
 
-            // 1) Criar o wrapper bootstrap
+            // 3) Wrapper responsivo e tabela
             const wrapper = document.createElement('div');
-            wrapper.className = 'table-responsive mb-3'; 
-              // mb-3 dá um espacinho em baixo
-
-            // 2) A própria tabela
+            wrapper.className = 'table-responsive mb-3';
             const tbl = document.createElement('table');
-            tbl.className = 'table table-striped table-sm'; 
-              // table-sm deixa-a mais compacta
-
-            // 3) Anexar a tabela ao wrapper
+            tbl.className = 'table table-striped table-sm';
             wrapper.appendChild(tbl);
-
-            // 4) Colocar o wrapper no cartão em vez da tabela direta
             card.appendChild(wrapper);
 
-
-            // 3a) Cabeçalho
+            // 4) Cabeçalho da tabela
             const thead = tbl.createTHead();
-            const hr = thead.insertRow();
+            const hr    = thead.insertRow();
             det.campos.forEach(c => {
               const th = document.createElement('th');
               th.textContent = c.LABEL;
               hr.appendChild(th);
             });
 
-            // 3b) Corpo com formatação de datas
+            // 5) Corpo da tabela com formatação de datas
             const tbody = tbl.createTBody();
             det.rows.forEach(row => {
               const tr = tbody.insertRow();
@@ -198,46 +244,68 @@
                 const td = tr.insertCell();
                 let val = row[c.CAMPODESTINO] ?? '';
 
-                // Caso venha no formato ISO (YYYY-MM-DD)
-                if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                // ISO date YYYY-MM-DD → DD.MM.YYYY
+                if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
                   const [y, m, d] = val.split('-');
                   val = `${d}.${m}.${y}`;
                 }
-                // Caso venha no formato RFC "Fri, 04 Jul 2025 00:00:00 GMT"
+                // RFC date string → DD.MM.YYYY
                 else if (typeof val === 'string' && val.includes('GMT')) {
                   const dt = new Date(val);
-                  const d = dt.getDate().toString().padStart(2, '0');
-                  const m = (dt.getMonth() + 1).toString().padStart(2, '0');
-                  const y = dt.getFullYear();
-                  val = `${d}.${m}.${y}`;
+                  const d2 = String(dt.getDate()).padStart(2,'0');
+                  const m2 = String(dt.getMonth()+1).padStart(2,'0');
+                  const y2 = dt.getFullYear();
+                  val = `${d2}.${m2}.${y2}`;
                 }
 
                 td.textContent = val;
               });
             });
 
-            card.appendChild(tbl);
-
-            // 4) Botões inserir/editar/apagar
+            // 6) Botões de ação (Inserir / Editar / Eliminar)
             const btnGroup = document.createElement('div');
             btnGroup.className = 'btn-group';
-            [
-              {icon: 'fa-plus',  fn: () => abrirInserir(det.tabela)},
-              {icon: 'fa-edit',  fn: () => abrirEditar(det.tabela)},
-              {icon: 'fa-trash', fn: () => apagarDetalhe(det.tabela)}
-            ].forEach(b => {
-              const btn = document.createElement('button');
-              btn.type = 'button';
-              btn.className = 'btn btn-outline-secondary btn-sm';
-              btn.innerHTML = `<i class="fas ${b.icon}"></i>`;
-              btn.onclick = b.fn;
-              btnGroup.appendChild(btn);
+
+            // Inserir
+            const btnInsert = document.createElement('button');
+            btnInsert.className = 'btn btn-sm btn-primary';
+            btnInsert.title = 'Inserir';
+            btnInsert.innerHTML = '<i class="fa fa-plus"></i>';
+            btnInsert.addEventListener('click', () => {
+              location = `/generic/form/${det.tabela}/`;
             });
+
+            // Editar (usa a primeira coluna como chave)
+            const btnEdit = document.createElement('button');
+            btnEdit.className = 'btn btn-sm btn-secondary';
+            btnEdit.title = 'Editar';
+            btnEdit.innerHTML = '<i class="fa fa-edit"></i>';
+            btnEdit.addEventListener('click', () => {
+              const id = row[det.campos[0].CAMPODESTINO];
+              location = `/generic/form/${det.tabela}/${id}`;
+            });
+
+            // Eliminar
+            const btnDelete = document.createElement('button');
+            btnDelete.className = 'btn btn-sm btn-danger';
+            btnDelete.title = 'Eliminar';
+            btnDelete.innerHTML = '<i class="fa fa-trash"></i>';
+            btnDelete.addEventListener('click', async () => {
+              if (!confirm('Confirmar eliminação?')) return;
+              await fetch(`/generic/api/${det.tabela}/${row[det.campos[0].CAMPODESTINO]}`, { method: 'DELETE' });
+              // opcional: recarregar os detalhes
+              card.remove();
+            });
+
+            btnGroup.append(btnInsert, btnEdit, btnDelete);
             card.appendChild(btnGroup);
 
-            // 5) Adicionar ao ecrã
+            // 7) Anexa o card ao container
             detailsContainer.appendChild(card);
           });
+        })
+        .catch(err => {
+          console.error('Erro ao carregar detalhes:', err);
         });
     }
     // === Fim dynamic_details ===
