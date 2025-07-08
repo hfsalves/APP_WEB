@@ -11,6 +11,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const userPerms       = window.USER_PERMS[tableName] || {};
   let currentCols       = [];
 
+
+  // transforma o “Filtrar” e o “Novo” em icon-only e os alinha lado‐a‐lado
+  btnFilterToggle.innerHTML = '<i class="fa fa-filter"></i>';
+  btnFilterToggle.className = 'btn btn-outline-secondary me-2';
+
+  btnNew.innerHTML = '<i class="fa fa-plus"></i>';
+  btnNew.className = 'btn btn-outline-primary';
+
+  // garante que ficam juntos
+  const header = document.querySelector('.dynamic-header');
+  header.classList.add('d-flex', 'align-items-center');
+
   // —— ICON-ONLY BUTTONS ——
   // Renderiza só o ícone e alinha-os lado a lado
   if (btnFilterToggle) {

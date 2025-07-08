@@ -31,24 +31,33 @@ document.addEventListener('DOMContentLoaded', function() {
     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'
   ];
 
+  // Utility: formata uma Date em 'YYYY-MM-DD' no fuso local
+  function toLocalIso(d) {
+    return [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0')
+    ].join('-');
+  }
+
   function loadCalendar(year, month) {
     const firstDay = new Date(year, month, 1);
     const lastDay  = new Date(year, month + 1, 0);
 
-    // calcula início e fim para preencher toda a semana
-    const shiftStart = (firstDay.getDay() + 6) % 7;
+    // calcula início e fim para preencher toda a semana (começa no Domingo)
+    const shiftStart = firstDay.getDay();
     const startDate  = new Date(firstDay);
     startDate.setDate(firstDay.getDate() - shiftStart);
 
-    const shiftEnd = (lastDay.getDay() + 6) % 7;
+    const shiftEnd = lastDay.getDay();
     const endDate  = new Date(lastDay);
     endDate.setDate(lastDay.getDate() + (6 - shiftEnd));
 
     document.getElementById('month-year').textContent = `${monthNames[month]} de ${year}`;
     clearError();
 
-    const startStr = startDate.toISOString().slice(0,10);
-    const endStr   = endDate.toISOString().slice(0,10);
+    const startStr = toLocalIso(startDate);
+    const endStr   = toLocalIso(endDate);
 
     fetch(`${CALENDAR_API}?start=${startStr}&end=${endStr}`)
       .then(res => { if (!res.ok) throw new Error(res.status + ' ' + res.statusText); return res.json(); })
@@ -87,6 +96,9 @@ document.addEventListener('DOMContentLoaded', function() {
     for (let r = 0; r < 5; r++) {
       const tr = document.createElement('tr');
       for (let c = 0; c < 7; c++) {
+        // guarda data específica desta célula
+        const cellDate = new Date(cursor);
+
         const td = document.createElement('td');
         td.className = 'align-top p-1 droppable-cell';
         td.style.width = '14.2857%';
@@ -96,12 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
         td.addEventListener('drop', e => {
           e.preventDefault();
           const stamp = e.dataTransfer.getData('text/plain');
-          const cellDate = new Date(cursor); // corrige referência ao dia
-          const newDate = [
-            cellDate.getFullYear(),
-            String(cellDate.getMonth() + 1).padStart(2,'0'),
-            String(cellDate.getDate()).padStart(2,'0')
-          ].join('-');
+          const newDate = toLocalIso(cellDate);
           fetch(`/generic/api/TAREFAS/${stamp}`, {
             method: 'PUT',
             headers: {'Content-Type':'application/json'},
@@ -111,11 +118,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const dayDiv = document.createElement('div');
         dayDiv.className = 'fw-bold mb-1';
-        dayDiv.textContent = cursor.getDate();
+        dayDiv.textContent = cellDate.getDate();
         dayDiv.style.color = '#aaa';
         td.appendChild(dayDiv);
 
-        const iso = cursor.toISOString().slice(0,10);
+        // filtra tasks usando data local da célula
+        const iso = toLocalIso(cellDate);
         tasks.filter(t => t.DATA === iso).forEach(t => {
           const div = document.createElement('div');
           div.draggable = true;
@@ -123,7 +131,6 @@ document.addEventListener('DOMContentLoaded', function() {
             e.dataTransfer.setData('text/plain', t.TAREFASSTAMP);
           });
 
-          // monta o conteúdo, incluindo check branco se TRATADO
           let content = '';
           if (t.TRATADO) {
             content += '<span class="me-1"><i class="fa-solid fa-check" style="color:#ffffff;"></i></span>';
@@ -136,7 +143,6 @@ document.addEventListener('DOMContentLoaded', function() {
           }
           div.innerHTML = content;
 
-          // estilo do bloco
           div.style.backgroundColor = t.COR || '#333333';
           div.style.color = '#fff';
           div.style.padding = '2px 4px';
@@ -151,6 +157,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         tr.appendChild(td);
+        // avança cursor para o próximo dia
         cursor.setDate(cursor.getDate() + 1);
       }
       tbody.appendChild(tr);

@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import MetaData, Table, select, text, String
 from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
+import uuid
 
 bp = Blueprint('generic', __name__, url_prefix='/generic')
 
@@ -397,7 +398,7 @@ def api_calendar_tasks():
       ta.ORIGEM,
       ta.ORISTAMP,
       ta.TRATADO,
-      COALESCE(tc.COR, eq.COR, '#333333') AS COR
+      COALESCE(u.COR, tc.COR, eq.COR, '#333333') AS COR
     FROM TAREFAS ta
     LEFT JOIN US    u  ON u.LOGIN    = ta.UTILIZADOR
     LEFT JOIN TEC   tc ON tc.NOME    = u.TECNICO
@@ -408,3 +409,123 @@ def api_calendar_tasks():
     rows = db.session.execute(sql, {'start': start, 'end': end}).mappings().all()
     tarefas = [dict(r) for r in rows]
     return jsonify(tarefas)
+
+
+# In generic_crud.py (add within the existing Blueprint `bp`)
+
+@bp.route('/planner')
+def view_planner():
+    """
+    Render the Cleaning Planner page.
+    URL: /generic/planner
+    """
+    return render_template('planner.html')
+
+
+@bp.route('/api/cleaning_plan')
+def api_cleaning_plan():
+    """
+    Return JSON payload with lodging cleaning plan for a given date.
+    Query params:
+      - date: 'YYYY-MM-DD'
+    """
+    date = request.args.get('date')
+    sql = text("""
+        SELECT
+        al.NOME           AS lodging,
+        al.TIPOLOGIA      AS typology,
+        al.ZONA           AS zone,
+        -- Última equipa que limpou
+        lc.last_team      AS last_team,
+        -- Check-out do dia
+        co.HORAOUT        AS checkout_time,
+        co.RESERVA        AS checkout_reservation,
+        co.ADULTOS + co.CRIANCAS  AS checkout_people,
+        co.NOITES         AS checkout_nights,
+        -- Check-in do dia
+        ci.HORAIN         AS checkin_time,
+        ci.RESERVA        AS checkin_reservation,
+        ci.ADULTOS + ci.CRIANCAS  AS checkin_people,
+        ci.NOITES         AS checkin_nights,
+        -- Limpezas já agendadas no dia
+        pl.LPSTAMP        AS cleaning_id,
+        pl.HORA           AS cleaning_time,
+        pl.EQUIPA         AS cleaning_team,
+        pl.TERMINADA      AS cleaning_done,
+        pl.HOSPEDES       AS cleaning_guests,
+        pl.NOITES         AS cleaning_nights,
+        pl.OBS            AS cleaning_notes,
+        -- O estado (1:checkout, 2:checkin, 3:ocupado, 4:vazio)
+        CASE
+            WHEN co.RSSTAMP IS NOT NULL THEN 1
+            WHEN ci.RSSTAMP IS NOT NULL THEN 2
+            WHEN oc.RSSTAMP IS NOT NULL THEN 3
+            ELSE 4
+        END AS planner_status,
+        0                  AS cost
+        FROM AL al
+        LEFT JOIN (
+            SELECT ALOJAMENTO, MAX(DATA) AS last_date, MAX(HORA) AS last_hour, MAX(EQUIPA) AS last_team
+            FROM LP
+            WHERE DATA <= :date
+            GROUP BY ALOJAMENTO
+        ) lc ON lc.ALOJAMENTO = al.NOME
+        -- Apenas reservas NÃO canceladas
+        LEFT JOIN RS co ON co.ALOJAMENTO = al.NOME AND co.DATAOUT = :date AND co.CANCELADA = 0
+        LEFT JOIN RS ci ON ci.ALOJAMENTO = al.NOME AND ci.DATAIN = :date AND ci.CANCELADA = 0
+        LEFT JOIN (
+            SELECT RSSTAMP, ALOJAMENTO
+            FROM RS
+            WHERE CANCELADA = 0
+            AND DATAIN < :date AND DATAOUT > :date
+        ) oc ON oc.ALOJAMENTO = al.NOME
+        LEFT JOIN LP pl ON pl.ALOJAMENTO = al.NOME AND pl.DATA = :date
+        ORDER BY planner_status, al.ZONA, al.NOME
+    """,
+    )
+    # Execute and fetch mappings
+    rows = db.session.execute(sql, {'date': date}).mappings().all()
+
+    # Convert RowMapping to plain dicts for JSON serialization
+    result = [dict(row) for row in rows]
+    return jsonify(result)
+
+@bp.route("/api/LP/gravar", methods=["POST"])
+def api_gravar_limpezas():
+    limpezas = request.get_json()
+    if not limpezas:
+        return jsonify(success=False, message="Nenhum dado recebido"), 400
+    for lp in limpezas:
+        # Verifica se já existe (mesmo ALOJAMENTO, DATA, HORA, EQUIPA)
+        reg = db.session.execute(
+            text("""
+            SELECT LPSTAMP FROM LP WHERE
+              ALOJAMENTO = :alojamento
+              AND DATA = :data
+              AND HORA = :hora
+              AND EQUIPA = :equipa
+            """), dict(
+                alojamento=lp["ALOJAMENTO"],
+                data=lp["DATA"],
+                hora=lp["HORA"],
+                equipa=lp["EQUIPA"]
+            )
+        ).fetchone()
+        if reg:
+            continue  # já existe, não grava de novo
+        # Senão, cria
+        db.session.execute(
+            text("""
+            INSERT INTO LP (LPSTAMP, ALOJAMENTO, DATA, HORA, EQUIPA, TERMINADA, CUSTO, HOSPEDES, NOITES, OBS)
+            VALUES (:lpstamp, :alojamento, :data, :hora, :equipe, 0, 0, 0, 0, '')
+            """),
+            dict(
+                lpstamp=uuid.uuid4().hex[:25],
+                alojamento=lp["ALOJAMENTO"],
+                data=lp["DATA"],
+                hora=lp["HORA"],
+                equipe=lp["EQUIPA"]
+            )
+        )
+    db.session.commit()
+    return jsonify(success=True)

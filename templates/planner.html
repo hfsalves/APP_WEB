@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Planner de Limpezas{% endblock %}
+
+{% block content %}
+<div class="planner-container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <button id="prev-day" class="btn btn-link">&larr;</button>
+    <input id="planner-date" class="form-control d-inline-block w-auto" />
+    <button id="next-day" class="btn btn-link">&rarr;</button>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-bordered table-sm planner-table text-center align-middle" style="font-size:0.75rem;">
+      <thead class="table-light">
+        <tr>
+          <th>Alojamento</th>
+          <th>TP</th>
+          <th>Últ. Eq.</th>
+          <th>H. Out</th>
+          <!-- timeslots 07:00 até 23:30 gerados dinamicamente -->
+          <th>H. In</th>
+          <th>Pessoas</th>
+          <th>Noites</th>
+          <th>Custo</th>
+        </tr>
+      </thead>
+      <tbody id="planner-body"></tbody>
+    </table>
+  </div>
+
+  <div class="mt-3 text-end">
+    <button id="save-planner" class="btn btn-primary">Gravar</button>
+    <button id="cancel-planner" class="btn btn-secondary">Cancelar</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/planner.js') }}"></script>
+{% endblock %}

@@ -1188,3 +1188,21 @@ body.sidebar-open .app-header {
     margin-left: -1.5em;
     width: 15px;
 }
+.planner-table {
+  width: 1600px;
+}
+.planner-table th,
+.planner-table td {
+  border: 1px solid #dee2e6 !important;  /* força linhas de grelha */
+}
+.table-secondary td{
+  background-color: #ffffff;
+}
+
+.gantt-bar-checkout {
+  box-shadow: 0 2px 8px 0 rgba(0,123,255,0.09);
+}
+
+.team-dropdown .dropdown-item:hover {
+  background: #f0f8ff;
+}
