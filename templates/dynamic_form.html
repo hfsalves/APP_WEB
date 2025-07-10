@@ -53,11 +53,61 @@
        <div class="col-12 col-md-6 mb-3"> -->
     </form>
 
+    <div class="accordion mb-4" id="accordionExtras">
 
-    <!-- === Início dynamic_details === -->
-    <!--<h4>Detalhes</h4>-->
-    <div id="details-container" class="mt-4"></div>
-    <!-- === Fim dynamic_details === -->
+      {# — Só mostra o bloco de Detalhes se linhas_exist for True — #}
+      {% if linhas_exist %}
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingDetalhes">
+          <button class="accordion-button collapsed" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#collapseDetalhes"
+                  aria-expanded="false" aria-controls="collapseDetalhes">
+            Detalhes
+          </button>
+        </h2>
+        <div id="collapseDetalhes" class="accordion-collapse collapse"
+            aria-labelledby="headingDetalhes" data-bs-parent="#accordionExtras">
+          <div class="accordion-body p-0">
+            <div id="details-container" class="p-3"></div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# — O bloco de Anexos fica sempre visível — #}
+      <!-- === Anexos === -->
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingAnexos">
+          <button class="accordion-button collapsed" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#collapseAnexos"
+                  aria-expanded="false" aria-controls="collapseAnexos">
+            Anexos
+          </button>
+        </h2>
+        <div id="collapseAnexos"
+            class="accordion-collapse collapse"
+            aria-labelledby="headingAnexos"
+            data-bs-parent="#accordionExtras">
+          <div class="accordion-body">
+            <!-- aqui vai a tua lista -->
+            <div id="anexos-list" class="mb-3"></div>
+
+            <!-- input file invisível -->
+            <input type="file" id="inputAnexo" style="display:none" />
+
+            <!-- botão “Anexar” de 200px -->
+            <button type="button"
+                    id="btnAddAnexo"
+                    class="btn btn-outline-secondary"
+                    style="width:200px">
+              <i class="fa fa-paperclip"></i> Anexar
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
 
     <div class="form-actions mt-3">
       <button type="submit" form="editForm" class="btn btn-primary btn-save">
@@ -78,8 +128,12 @@
       </button>
     </div>
 
+
+
   </div>
 </div>
+
+
 
 {% set return_to = request.args.get('return_to', url_for('generic.view_table', table_name=table_name)) %}
 <script>

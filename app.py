@@ -30,6 +30,9 @@ def create_app():
     from blueprints.generic_crud import bp as generic_bp
     app.register_blueprint(generic_bp)
 
+    from blueprints.anexos import bp as anexos_bp
+    app.register_blueprint(anexos_bp)
+
     @app.context_processor
     def inject_menu_and_access():
         page_name = None

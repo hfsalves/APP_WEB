@@ -96,6 +96,8 @@
     });
 
 
+
+
   // 4. Popula combos
   await Promise.all(
     cols
@@ -132,6 +134,25 @@
       })
   );
 
+    // 5. Preenche defaults a partir da query string (para inserção de linhas)
+  {
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.forEach((val, key) => {
+      const el = form.querySelector(`[name="${key}"]`);
+      if (!el) return;
+      if (el.tagName === 'SELECT') {
+        // garante que o <select> já tem as <option>
+        if ([...el.options].some(o => o.value === val)) {
+          el.value = val;
+        }
+      }
+      else if (el.type === 'checkbox') {
+        el.checked = ['1','true','True'].includes(val);
+      } else {
+        el.value = val;
+      }
+    });
+  }
 
   // 4. Se edição, carrega valores com matching inteligente
   if (RECORD_STAMP) {
@@ -270,7 +291,19 @@
             btnInsert.title = 'Inserir';
             btnInsert.innerHTML = '<i class="fa fa-plus"></i>';
             btnInsert.addEventListener('click', () => {
-              location = `/generic/form/${det.tabela}/`;
+              const params = new URLSearchParams();
+              det.camposcab.forEach((fullSrc, i) => {
+                const fullDst = det.camposlin[i];
+                if (!fullDst) return;                  // garante par
+                const srcCol = fullSrc.split('.')[1];  // ex: "ALSTAMP" ou "NOME"
+                const dstCol = fullDst.split('.')[1];  // ex: "ALCSTAMP" ou "ALOJAMENTO"
+                const el     = form.querySelector(`[name="${srcCol}"]`);
+                const val    = el ? el.value : '';
+                if (val) {
+                  params.append(dstCol, val);
+                }
+              });
+              window.location.href = `/generic/form/${det.tabela}/?${params.toString()}`;
             });
 
             // Editar (usa a primeira coluna como chave)
@@ -309,6 +342,100 @@
     // === Fim dynamic_details ===
 
     }
+
+
+      // ——— Início Anexos ———
+    const btnAddAnexo = document.getElementById('btnAddAnexo');
+    const inputAnexo  = document.getElementById('inputAnexo');
+    const listaAnx    = document.getElementById('anexos-list');
+
+    async function refreshAnexos() {
+      if (!RECORD_STAMP) return; // só em edição
+      const res = await fetch(`/api/anexos?table=${TABLE_NAME}&rec=${RECORD_STAMP}`);
+      if (!res.ok) return console.error('Falha ao listar anexos');
+      const arr = await res.json();
+
+      if (!arr.length) {
+        listaAnx.innerHTML = '<p class="text-muted">Ainda não há anexos.</p>';
+        return;
+      }
+
+      listaAnx.innerHTML = arr.map(a => `
+        <div class="d-inline-flex align-items-center me-2 mb-2 p-2 rounded-pill bg-light">
+          <i class="fa fa-info-circle text-primary me-2" 
+            data-id="${a.ANEXOSSTAMP}" title="Ver detalhes"
+            style="cursor: pointer;"></i>
+
+          <!-- O link do ficheiro volta aqui: -->
+          <a href="${a.CAMINHO}" target="_blank" class="text-decoration-none text-body">
+            ${a.FICHEIRO}
+          </a>
+
+          <i class="fa fa-times text-danger ms-2" 
+            data-id="${a.ANEXOSSTAMP}" title="Eliminar anexo" 
+            style="cursor: pointer;"></i>
+        </div>
+      `).join('');
+
+      // info → abre dynamic_form da tabela ANEXOS
+      listaAnx.querySelectorAll('.fa-info-circle').forEach(el => {
+        el.addEventListener('click', () => {
+          const id = el.dataset.id;
+          window.location.href = `/generic/form/ANEXOS/${id}`;
+        });
+      });
+
+      // × → apagar
+      listaAnx.querySelectorAll('.fa-times').forEach(el => {
+        el.addEventListener('click', async () => {
+          const id = el.dataset.id;
+          if (!confirm('Eliminar este anexo?')) return;
+
+          // aqui: ajusta a URL para o teu endpoint de delete correto.
+          // Por exemplo, se estiver em generic/api/anexos/<id>:
+          const resp = await fetch(`/generic/api/anexos/${id}`, { method: 'DELETE' });
+
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            return alert('Erro ao eliminar: ' + (err.error || resp.statusText));
+          }
+          await refreshAnexos();
+        });
+      });
+    }
+
+
+    // abrir file picker
+    btnAddAnexo.addEventListener('click', () => inputAnexo.click());
+
+    // upload
+    inputAnexo.addEventListener('change', async () => {
+      const file = inputAnexo.files[0];
+      if (!file || !RECORD_STAMP) return;
+      const formD = new FormData();
+      formD.append('file', file);
+      formD.append('table', TABLE_NAME);
+      formD.append('rec', RECORD_STAMP);
+      formD.append('descricao', ''); 
+
+      const res = await fetch('/api/anexos/upload', {
+        method: 'POST',
+        body: formD
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return alert('Erro ao anexar: ' + (err.error || res.statusText));
+      }
+      inputAnexo.value = '';
+      await refreshAnexos();
+    });
+
+    // assim que o form carrega, busca os anexos
+    if (RECORD_STAMP) {
+      await refreshAnexos();
+    }
+    // ——— Fim Anexos ———
+
 
 
   // 6. Cancelar e eliminar

@@ -371,7 +371,8 @@ html, body {
 }
 
 .dynamic-form label {
-  font-weight: 600;
+  font-weight: 500;
+  font-size: smaller;
   margin-bottom: 0.25rem;
 }
 .dynamic-form input,
@@ -1205,4 +1206,53 @@ body.sidebar-open .app-header {
 
 .team-dropdown .dropdown-item:hover {
   background: #f0f8ff;
+}
+/* 1) Acordeão mais compacto */
+.accordion .accordion-button {
+  padding: 0.5rem 1rem;       /* menos padding vertical */
+  font-size: 0.95rem;         /* texto ligeiramente mais pequeno */
+  min-height: 2.5rem;         /* força uma altura consistente */
+  background-color: #e9ecef;  /* cor suave por defeito */
+  color: #313131;
+  border: 1px solid #dfe3e8;  /* separador */
+  border-radius: 4px !important;
+  transition: background-color .2s;
+}
+
+/* 2) Cabeçalho activo (expandido) */
+.accordion .accordion-button:not(.collapsed) {
+  background-color: #5a8db2;
+  color: #ffffff;
+}
+
+/* 3) Retirar o “gap” em branco ao fechar:
+   fecha os cantos inferiores do header para encostar no próximo item */
+.accordion .accordion-button.collapsed {
+  border-bottom-left-radius: 4 !important;
+  border-bottom-right-radius: 4 !important;
+}
+
+/* 4) Os items também com borda suave e arredondado */
+.accordion .accordion-item {
+  border: none;
+  margin-bottom: 0.5rem;
+}
+
+/* 5) O corpo do acordeão (quando aberto) */
+.accordion .accordion-collapse .accordion-body {
+  padding: 0;                 /* para usar o padding do card interno */
+  background-color: transparent;
+}
+
+/* 6) O card interno (detalhes / anexos) */
+.accordion .accordion-body > .card {
+  margin: 0;
+  border: 1px solid #dfe3e8;
+  border-top: none;           /* junta ao header */
+  border-radius: 0 0 4px 4px; /* só os cantos de baixo */
+}
+
+/* 7) Bottão Anexar fixo a 200px */
+#btnAddAnexo {
+  width: 120px !important;
 }

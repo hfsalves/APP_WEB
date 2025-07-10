@@ -84,13 +84,17 @@ def edit_table(table_name, record_stamp):
         'CONDICAO': b.CONDICAO,
         'DESTINO': b.DESTINO
     } for b in botoes_query]
+    
+    linhas_exist = Linhas.query.filter_by(MAE=table_name).count() > 0
+
 
     return render_template(
         'dynamic_form.html',
         table_name=table_name,
         record_stamp=record_stamp,
         menu_label=menu_label,
-        botoes=botoes
+        botoes=botoes,
+        linhas_exist=linhas_exist  # <-- adiciona aqui
     )
 
 # --------------------------------------------------
@@ -365,7 +369,9 @@ def api_linhas(mae):
             'LINHASSTAMP': l.LINHASSTAMP,
             'TABELA':      l.TABELA,
             'LIGACAO':     l.LIGACAO,
-            'LIGACAOMAE':  l.LIGACAOMAE
+            'LIGACAOMAE':  l.LIGACAOMAE,
+            'CAMPOSCAB':   l.LIGACAO,
+            'CAMPOSLIN':   l.LIGACAOMAE
         })
     return jsonify(resultado)
 
@@ -384,6 +390,7 @@ def api_dynamic_details(mae, record_stamp):
         ligacao    = (defn.LIGACAO or '').strip()
         ligacaomae = defn.LIGACAOMAE.strip()
 
+        # --- monta o SQL dinamicamente ---
         if ligacao.upper().startswith('SELECT') or ' ' in ligacao:
             sql = ligacao.replace("{RECORD_STAMP}", ":record")
         elif ligacao:
@@ -393,8 +400,10 @@ def api_dynamic_details(mae, record_stamp):
         else:
             abort(500, f"Definição inválida para detalhe {tabela}")
 
+        # <<< AQUI: executa e define `rows` >>>
         rows = db.session.execute(text(sql), {"record": record_stamp}).mappings().all()
 
+        # metadados de colunas para a lista
         cols = (
             Campo.query
                  .filter_by(tabela=tabela, lista=True)
@@ -403,14 +412,22 @@ def api_dynamic_details(mae, record_stamp):
         )
         campos = [{"CAMPO": c.nmcampo, "LABEL": c.descricao, "CAMPODESTINO": c.nmcampo} for c in cols]
 
+        # mapeia camposcab / camposlin
+        camposcab = [c.strip() for c in (defn.CAMPOSCAB or '').split(',') if c.strip()]
+        camposlin = [c.strip() for c in (defn.CAMPOSLIN or '').split(',') if c.strip()]
+
+        # <<< e só aqui é que usas `rows` >>>
         detalhes.append({
             "linhasstamp": defn.LINHASSTAMP,
             "tabela":      tabela,
             "campos":      campos,
-            "rows":        [dict(r) for r in rows]
+            "rows":        [dict(r) for r in rows],
+            "camposcab":   camposcab,
+            "camposlin":   camposlin
         })
 
     return jsonify(detalhes)
+
 
 # --------------------------------------------------
 # API: tarefas para calendar
@@ -573,3 +590,4 @@ def api_gravar_limpezas():
         )
     db.session.commit()
     return jsonify(success=True)
+

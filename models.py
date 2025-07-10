@@ -133,3 +133,5 @@ class Linhas(db.Model):
     TABELA       = db.Column(db.String(50), nullable=False, default='')
     LIGACAO      = db.Column(db.String(200), nullable=False, default='')
     LIGACAOMAE   = db.Column(db.String(100), nullable=False, default='')
+    CAMPOSCAB    = db.Column(db.String(200), nullable=False, default='')    
+    CAMPOSLIN    = db.Column(db.String(200), nullable=False, default='')
