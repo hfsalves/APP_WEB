@@ -115,11 +115,13 @@ def list_or_describe(table_name):
                 'descricao':   c.descricao,
                 'tipo':        c.tipo,
                 'lista':       bool(c.lista),
-                'filtro':      bool(c.filtro),
+                'filtro':      bool(c.filtro) if c.tipo != 'VIRTUAL' else False,
                 'admin':       bool(c.admin),
                 'primary_key': (c.nmcampo == pk_name),
-                'readonly':    bool(c.ronly),
-                'combo':       c.combo
+                'readonly':    True if c.tipo == 'VIRTUAL' else bool(c.ronly),
+                'combo':       c.combo,
+                'virtual':     c.virtual if c.tipo == 'VIRTUAL' else None,
+                'ordem':       c.ordem       # <— aqui
             })
         return jsonify(cols)
 
@@ -169,6 +171,28 @@ def list_or_describe(table_name):
     try:
         rows    = db.session.execute(stmt).fetchall()
         records = [dict(r._mapping) for r in rows]
+        # 1. Recolhe os campos VIRTUAL para esta tabela
+        virtual_fields = (
+            Campo.query
+                .filter_by(tabela=table_name, tipo='VIRTUAL')
+                .all()
+        )
+
+        # 2. Identifica o nome do PK
+        pk_name = f"{table_name.upper()}STAMP"
+
+        # 3. Para cada campo virtual e registo, executa a subquery
+        for campo in virtual_fields:
+            sql = text(campo.virtual)  # exemplo: SELECT TOP 1 VALOR ... WHERE CLIENTE = :pk
+            for rec in records:
+                pk_value = rec.get(pk_name)
+                if not pk_value:
+                    continue
+                try:
+                    val = db.session.execute(sql, {'pk': pk_value}).scalar()
+                except Exception as e:
+                    val = None  # ou logar erro
+                rec[campo.nmcampo] = val
         return jsonify(records)
     except Exception as e:
         current_app.logger.exception(f"Falha ao listar {table_name}")
@@ -210,7 +234,27 @@ def get_record(table_name, record_stamp):
     row   = db.session.execute(stmt).fetchone()
     if not row:
         abort(404, f"Registro não encontrado: {record_stamp}")
-    return jsonify(dict(row._mapping))
+
+    # Base: dados reais
+    rec = dict(row._mapping)
+
+    # 🔁 Adiciona campos virtuais
+    virtual_fields = (
+        Campo.query
+             .filter_by(tabela=table_name, tipo='VIRTUAL')
+             .all()
+    )
+    pk_value = rec.get(f"{table_name.upper()}STAMP")
+
+    for campo in virtual_fields:
+        try:
+            val = db.session.execute(text(campo.virtual), {'pk': pk_value}).scalar()
+        except Exception as e:
+            val = None
+        rec[campo.nmcampo] = val
+
+    return jsonify(rec)
+
 
 # --------------------------------------------------
 # API: inserir novo registro

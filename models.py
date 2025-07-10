@@ -28,6 +28,7 @@ class Campo(db.Model):
     admin       = db.Column(db.Boolean, default=False, nullable=False)
     ronly       = db.Column(db.Boolean, default=False, nullable=False)
     combo       = db.Column(db.String(200), nullable=True)
+    virtual     = db.Column(db.String(200), nullable=True)
 
 class US(UserMixin, db.Model):
     __tablename__ = 'US'

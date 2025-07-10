@@ -7,95 +7,93 @@
   const isAdminUser  = window.IS_ADMIN_USER;
 
   // 1. Carrega metadados
-  const res   = await fetch(`/generic/api/${TABLE_NAME}?action=describe`);
-  const cols  = await res.json();
+  const res  = await fetch(`/generic/api/${TABLE_NAME}?action=describe`);
+  const cols = await res.json();
 
-// 2. Monta o formulário
-const form = document.getElementById('editForm');
-// usa grid do Bootstrap em vez de colunas custom
-form.className = 'row gx-3 gy-2';
-form.innerHTML = `
-  <div id="nonAdminCol" class="col-12 col-md-6"></div>
-  <div id="adminCol"    class="col-12 col-md-6"></div>
-`;
-const nonAdminCol = document.getElementById('nonAdminCol');
-const adminCol    = document.getElementById('adminCol');
+  // 2. Prepara o form
+  const form = document.getElementById('editForm');
+  // ——— Montagem customizada por ORDEM (uma row por dezena) ———
 
-// esconde a coluna de admin, se não for
-if (!window.IS_ADMIN_USER) {
-  adminCol.style.display = 'none';
-}
+  // limpa o form
+  form.innerHTML = '';
 
-// distribui campos conforme a propriedade `admin`
- cols
-   .sort((a, b) => (a.ordem||0) - (b.ordem||0))
-  .forEach(col => {
-    // campos admin-only saltados para user não-admin
-    if (col.admin && !window.IS_ADMIN_USER) return;
+  // agrupa por dezena de ORDEM
+  const grupos = {};
+  cols
+    .filter(c => !c.admin || isAdminUser)
+    .sort((a, b) => (a.ordem||0) - (b.ordem||0))
+    .forEach(col => {
+      const key = Math.floor((col.ordem||0) / 10) * 10;
+      (grupos[key] ||= []).push(col);
+    });
 
-    // wrapper para cada campo
-    const wrapper = document.createElement('div');
-    wrapper.className = col.tipo === 'BIT' ? 'form-check mb-3' : 'mb-3';
+  // monta cada grupo numa única row
+  Object.keys(grupos)
+    .sort((a, b) => a - b)
+    .forEach(key => {
+      const fields = grupos[key];
+      const span   = Math.floor(12 / fields.length);
+      const row    = document.createElement('div');
+      row.className = 'row gx-3 gy-2';
 
-    if (col.tipo === 'BIT') {
-      // checkbox
-      wrapper.innerHTML = `
-        <input class="form-check-input" type="checkbox"
-               id="${col.name}" name="${col.name}">
-        <label class="form-check-label" for="${col.name}">
-          ${col.descricao || col.name}
-        </label>
-      `;
-    } else {
-      // label
-      const label = document.createElement('label');
-      label.setAttribute('for', col.name);
-      label.className = 'form-label';
-      label.textContent = col.descricao || col.name;
-      wrapper.appendChild(label);
+      fields.forEach(col => {
+        const colDiv = document.createElement('div');
+        colDiv.className = `col-12 col-md-${span}`;
 
-      let input;
-      if (col.tipo === 'COMBO') {
-        // select
-        input = document.createElement('select');
-        input.className = 'form-select';
-        input.name = col.name;
-        input.innerHTML = '<option value="">---</option>';
-      } else {
-        // input text/number/date/time
-        input = document.createElement('input');
-        input.className = 'form-control';
-        input.name = col.name;
-        switch (col.tipo) {
-          case 'DATE':
-            input.type = 'text';
-            input.classList.add('flatpickr-date');
-            break;
-          case 'HOUR':
-            input.type = 'time';
-            break;
-          case 'INT':
-            input.type = 'number';
-            break;
-          case 'DECIMAL':
-            input.type = 'number';
-            input.step = '0.01';
-            break;
-          default:
-            input.type = 'text';
+        const wrapper = document.createElement('div');
+        wrapper.className = col.tipo === 'BIT' ? 'form-check mb-3' : 'mb-3';
+
+        if (col.tipo === 'BIT') {
+          wrapper.innerHTML = `
+            <input class="form-check-input" type="checkbox"
+                   id="${col.name}" name="${col.name}">
+            <label class="form-check-label" for="${col.name}">
+              ${col.descricao||col.name}
+            </label>
+          `;
+        } else {
+          const label = document.createElement('label');
+          label.setAttribute('for', col.name);
+          label.className = 'form-label';
+          label.textContent = col.descricao||col.name;
+          wrapper.appendChild(label);
+
+          let input;
+          if (col.tipo === 'COMBO') {
+            input = document.createElement('select');
+            input.className = 'form-select';
+            input.name = col.name;
+            input.innerHTML = '<option value="">---</option>';
+          } else if (col.tipo === 'MEMO') {
+            // CAIXA DE TEXTO GRANDE
+            input = document.createElement('textarea');
+            input.className = 'form-control';
+            input.name = col.name;
+            // opcional: podes usar um atributo de metadata, e.g. col.rows ou col.virtualRows
+            input.rows = 4;
+            input.placeholder = col.descricao || '';
+          }else {
+            input = document.createElement('input');
+            input.className = 'form-control';
+            input.name = col.name;
+            switch (col.tipo) {
+              case 'DATE':    input.type = 'text'; input.classList.add('flatpickr-date'); break;
+              case 'HOUR':    input.type = 'time'; break;
+              case 'INT':     input.type = 'number'; break;
+              case 'DECIMAL': input.type = 'number'; input.step = '0.01'; break;
+              default:        input.type = 'text';
+            }
+          }
+          if (col.readonly) input.disabled = true;
+          wrapper.appendChild(input);
         }
-      }
-      if (col.readonly) input.disabled = true;
-      wrapper.appendChild(input);
-    }
 
-    // anexa ao container correto
-    if (col.admin) adminCol.appendChild(wrapper);
-    else           nonAdminCol.appendChild(wrapper);
-  });
+        colDiv.appendChild(wrapper);
+        row.appendChild(colDiv);
+      });
 
-// 3. Popula combos
-// ... resto do teu código ...
+      form.appendChild(row);
+    });
 
 
   // 4. Popula combos

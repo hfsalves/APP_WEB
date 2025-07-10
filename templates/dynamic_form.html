@@ -90,5 +90,5 @@
   console.log('dynamic_form init:', window.TABLE_NAME, window.RECORD_STAMP, window.IS_ADMIN_USER);
 </script>
 
-<script src="{{ url_for('static', filename='js/dynamic_form.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/dynamic_form.js') }}"></script>
 {% endblock %}
