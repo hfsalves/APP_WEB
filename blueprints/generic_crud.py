@@ -2,7 +2,7 @@
 
 from flask import Blueprint, render_template, request, jsonify, abort, current_app
 from flask_login import login_required, current_user
-from sqlalchemy import MetaData, Table, select, text, String
+from sqlalchemy import MetaData, Table, select, text, String, or_
 from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
 import uuid
@@ -103,14 +103,8 @@ def edit_table(table_name, record_stamp):
 @bp.route('/api/<table_name>', methods=['GET'])
 @login_required
 def list_or_describe(table_name):
-    # 1) DESCRIBE
     if request.args.get('action') == 'describe':
-        campos = (
-            Campo.query
-                 .filter_by(tabela=table_name)
-                 .order_by(Campo.ordem)
-                 .all()
-        )
+        campos = Campo.query.filter_by(tabela=table_name).order_by(Campo.ordem).all()
         pk_name = f"{table_name.upper()}STAMP"
         cols = []
         for c in campos:
@@ -125,9 +119,11 @@ def list_or_describe(table_name):
                 'readonly':    True if c.tipo == 'VIRTUAL' else bool(c.ronly),
                 'combo':       c.combo,
                 'virtual':     c.virtual if c.tipo == 'VIRTUAL' else None,
-                'ordem':       c.ordem       # <— aqui
+                'ordem':       c.ordem,
+                'tam':         c.tam      # ← new!
             })
         return jsonify(cols)
+
 
     # 2) LISTAGEM
     if not has_permission(table_name, 'consultar'):
@@ -336,22 +332,16 @@ def update_record(table_name, record_stamp):
 @bp.route('/api/<table_name>/<record_stamp>', methods=['DELETE'])
 @login_required
 def delete_record(table_name, record_stamp):
-    if not has_permission(table_name, 'eliminar'):
-        abort(403, 'Sem permissão para eliminar')
+    # ... ACL ...
+    pk_name = f"{table_name.upper()}STAMP"
+    sql = f"DELETE FROM {table_name} WHERE {pk_name} = :id"
+    result = db.session.execute(text(sql), {"id": record_stamp})
+    db.session.commit()
 
-    table = get_table(table_name)
-    pk    = getattr(table.c, f"{table_name.upper()}STAMP")
-    try:
-        ddl = table.delete().where(pk == record_stamp)
-        res = db.session.execute(ddl)
-        if res.rowcount == 0:
-            abort(404)
-        db.session.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        current_app.logger.exception(f"Falha ao eliminar {table_name}")
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+    if result.rowcount == 0:
+        abort(404, "Registo não encontrado")
+
+    return jsonify(success=True)
 
 # --------------------------------------------------
 # API: linhas dinâmicas
@@ -404,13 +394,32 @@ def api_dynamic_details(mae, record_stamp):
         rows = db.session.execute(text(sql), {"record": record_stamp}).mappings().all()
 
         # metadados de colunas para a lista
-        cols = (
+        pk_name = f"{tabela.upper()}STAMP"
+
+        # buscar os campos visíveis na lista
+        cols = list(
             Campo.query
-                 .filter_by(tabela=tabela, lista=True)
-                 .order_by(Campo.ordem)
-                 .all()
+                .filter_by(tabela=tabela, lista=True)
+                .order_by(Campo.ordem)
+                .all()
         )
-        campos = [{"CAMPO": c.nmcampo, "LABEL": c.descricao, "CAMPODESTINO": c.nmcampo} for c in cols]
+
+        # garantir que a PK está incluída (mesmo que lista=False)
+        pk_name = f"{tabela.upper()}STAMP"
+        if not any(c.nmcampo.upper() == pk_name for c in cols):
+            # cria um campo fake, não vem da tabela Campo
+            from types import SimpleNamespace
+            cols.insert(0, SimpleNamespace(nmcampo=pk_name, descricao='ID', ordem=0))
+
+        campos = [
+            {
+                "CAMPO": c.nmcampo,
+                "LABEL": c.descricao,
+                "CAMPODESTINO": c.nmcampo,
+                "VISIVEL": c.nmcampo.upper() != pk_name
+            }
+            for c in cols
+        ]
 
         # mapeia camposcab / camposlin
         camposcab = [c.strip() for c in (defn.CAMPOSCAB or '').split(',') if c.strip()]
@@ -591,3 +600,25 @@ def api_gravar_limpezas():
     db.session.commit()
     return jsonify(success=True)
 
+@bp.route('/api/update_campo', methods=['POST'])
+@login_required
+def update_campo():
+    if not getattr(current_user, 'DEV', False):
+        return jsonify(success=False, error="Acesso negado")
+
+    data = request.get_json()
+    tabela = data.get('tabela')
+    campo  = data.get('campo')
+    ordem  = data.get('ordem')
+    tam    = data.get('tam')
+
+    try:
+        db.session.execute(
+            text("UPDATE CAMPOS SET ORDEM = :ordem, TAM = :tam WHERE TABELA = :tabela AND NMCAMPO = :campo"),
+            {"ordem": ordem, "tam": tam, "tabela": tabela, "campo": campo}
+        )
+        db.session.commit()
+        return jsonify(success=True)
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(success=False, error=str(e))

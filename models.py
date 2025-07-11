@@ -29,7 +29,8 @@ class Campo(db.Model):
     ronly       = db.Column(db.Boolean, default=False, nullable=False)
     combo       = db.Column(db.String(200), nullable=True)
     virtual     = db.Column(db.String(200), nullable=True)
-
+    tam         = db.Column(db.Integer, nullable=False)
+    
 class US(UserMixin, db.Model):
     __tablename__ = 'US'
     USSTAMP  = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])

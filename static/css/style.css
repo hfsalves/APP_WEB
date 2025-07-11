@@ -743,6 +743,7 @@ html, body {
   padding: 0.3rem 0.2rem;
   text-align: left;
   border-bottom: 1px solid #e1e5e8;
+  font-size: smaller;
 }
 .widget th {
   background: #f5f7f9;
@@ -1181,7 +1182,7 @@ body.sidebar-open .app-header {
 /* ─── Desativa o blur de fundo ao abrir o modalFiltros ───────────────── */
 
 .btn-group {
-  width: 200px;
+  width: 120px;
 }
 
 .form-check .form-check-input {
@@ -1255,4 +1256,53 @@ body.sidebar-open .app-header {
 /* 7) Bottão Anexar fixo a 200px */
 #btnAddAnexo {
   width: 120px !important;
+}
+/* Garante que a coluna de checkbox não desapaarece */
+.table-responsive table th:first-child,
+.table-responsive table td:first-child {
+  width: 2rem;
+  text-align: center;
+  vertical-align: middle;
+}
+input[type="checkbox"].detail-select {
+  width: 1.2em;
+  height: 1.2em;
+  aspect-ratio: 1 / 1;         /* força formato quadrado */
+  vertical-align: middle;
+  margin: 0;
+}
+
+.badge-dev-edit {
+    background-color: #1c8aff;
+    color: white;
+    font-weight: 900;
+    border-radius: 0.5rem;
+    font-size: 0.6rem;
+    padding: 2px 5px;
+    margin-left: 6px;
+    vertical-align: middle;
+    transition: background-color 0.2s ease;
+}
+
+.badge-dev-edit:hover {
+  background-color: #0056b3;
+}
+.calendar-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.calendar-table th,
+.calendar-table td {
+  width: 14.2857%;
+}
+/* Cabeçalhos (Dias da semana) centrados */
+.calendar-table th {
+  text-align: center;
+}
+
+/* Células do corpo (números dos dias e eventos) alinhados à esquerda */
+.calendar-table td {
+  text-align: left !important;
+  padding-left: 0.75rem; /* opcional: um pouco de espaçamento à esquerda */
 }

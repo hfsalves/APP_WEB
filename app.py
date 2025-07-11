@@ -127,18 +127,39 @@ def create_app():
                             'children': []
                         })
 
+
+                    print("🧪 current_user", current_user)
+                    print("🧪 current_user.__dict__:", current_user.__dict__)
+                    print("🧪 current_user.DEV =", getattr(current_user, 'DEV', 'NÃO DEFINIDO'))
+
         return {
             'menu_items'     : menu_items,
             'menu_structure' : menu_structure,
             'user_perms'     : perms,
             'page_name'      : page_name,
-            'menu_botoes'    : menu_botoes
+            'menu_botoes'    : menu_botoes,
+            'is_dev'         : getattr(current_user, 'DEV', False) if current_user.is_authenticated else False
         }
 
 
+    from sqlalchemy.sql import text
+
     @login_manager.user_loader
     def load_user(user_stamp):
-        return US.query.get(user_stamp)
+        sql = text("""
+            SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV
+            FROM US
+            WHERE USSTAMP = :stamp
+        """)
+        row = db.session.execute(sql, {'stamp': user_stamp}).mappings().first()
+        if not row:
+            return None
+
+        user = US()
+        for k, v in row.items():
+            setattr(user, k, v)
+        return user
+
 
     # Rotas de autenticação
     @app.route('/login', methods=['GET', 'POST'])
@@ -146,12 +167,24 @@ def create_app():
         if request.method == 'POST':
             login_ = request.form['login']
             pwd = request.form['password']
-            user = US.query.filter_by(LOGIN=login_).first()
-            if user and user.check_password(pwd):
+
+            sql = text("""
+                SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV
+                FROM US
+                WHERE LOGIN = :login
+            """)
+            row = db.session.execute(sql, {'login': login_}).mappings().first()
+            if row and row['PASSWORD'] == pwd:
+                user = US()
+                for k, v in row.items():
+                    setattr(user, k, v)
                 login_user(user)
                 return redirect(request.args.get('next') or url_for('dashboard_page'))
+
             return render_template('login.html', error='Credenciais inválidas')
         return render_template('login.html')
+
+
 
     @app.route('/logout')
     @login_required
@@ -382,7 +415,27 @@ def create_app():
         return valor
 
 
+    @app.route('/api/whoami')
+    @login_required
+    def whoami():
+        from flask import jsonify
+
+        user_data = {
+            'USSTAMP': current_user.USSTAMP,
+            'LOGIN': current_user.LOGIN,
+            'NOME': current_user.NOME,
+            'EMAIL': current_user.EMAIL,
+            'ADMIN': getattr(current_user, 'ADMIN', None),
+            'DEV': getattr(current_user, 'DEV', None),
+            'EQUIPA': getattr(current_user, 'EQUIPA', None)
+        }
+
+        return jsonify(user_data)
+
+
+
     return app
+
 
 app = create_app()
 

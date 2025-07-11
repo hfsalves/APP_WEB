@@ -1,11 +1,53 @@
 // static/js/dynamic_form.js
-// Formulário genérico com tratamento de COMBO matching robusto, BIT booleano, datas e erros no submit
+console.warn('✅ dynamic_form.js carregado');
+
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('📦 DOM totalmente carregado');
+
+  const itens = document.querySelectorAll('.dropdown-item');
+  console.log('🧪 dropdown-item encontrados:', itens.length);
+
+  itens.forEach(item => {
+    item.addEventListener('click', e => {
+      console.log('🔘 CLICADO:', item.innerText.trim());
+      e.preventDefault();
+    });
+  });
+});
+
+
+// 🧪 DEBUG extra
+console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropdown-item').length);
 
 (async function() {
+
+  // ─── DEBUG: find all custom‐action buttons ───
+  console.log('modal triggers encontrados:', document.querySelectorAll('.btn-custom'));
+
   const TABLE_NAME   = window.TABLE_NAME;
   const RECORD_STAMP = window.RECORD_STAMP;
   const isAdminUser  = window.IS_ADMIN_USER;
+  const DEV_MODE = window.DEV_MODE || false;
 
+  console.log('[dynamic_form.js] TABLE_NAME:', TABLE_NAME);
+
+  // ─── Guardar para onde voltar + que detalhe ancorar ───
+  // Captura o return_to (e detail_* se vierem) da URL
+  const urlParams = new URLSearchParams(window.location.search);
+
+  // Este form é acedido a partir de outro? Ou diretamente?
+  const returnTo = urlParams.get('return_to');
+  const RETURN_URL = returnTo && returnTo.trim() !== ''
+    ? returnTo
+    : `/generic/view/${TABLE_NAME}/`;
+
+  console.log('📍 RETURN_URL =', RETURN_URL);
+
+
+  const DETAIL_TAB = urlParams.get('detail_table')|| null;
+  const DETAIL_PK  = urlParams.get('detail_pk')   || null;
+
+    
   // 1. Carrega metadados
   const res  = await fetch(`/generic/api/${TABLE_NAME}?action=describe`);
   const cols = await res.json();
@@ -28,17 +70,37 @@
     });
 
   // monta cada grupo numa única row
+  // monta cada grupo numa única row
   Object.keys(grupos)
     .sort((a, b) => a - b)
     .forEach(key => {
       const fields = grupos[key];
-      const span   = Math.floor(12 / fields.length);
       const row    = document.createElement('div');
       row.className = 'row gx-3 gy-2';
 
+      // soma total dos TAM para calcular proporções
+      const totalTam = fields.reduce((acc, f) => acc + (f.tam || 1), 0);
+
+      row.style.display = 'flex';
+      row.style.flexWrap = 'nowrap';
+
+
       fields.forEach(col => {
+        const fraction = (col.tam || 1) / totalTam;
         const colDiv = document.createElement('div');
-        colDiv.className = `col-12 col-md-${span}`;
+        // fixa largura proporcional e impede flex-grow/shrink
+        colDiv.style.flex = `0 0 ${fraction * 100}%`;
+        colDiv.style.boxSizing = 'border-box';
+        // mantém o mesmo comportamento de responsive para mobile
+        colDiv.classList.add('col-12');
+        row.appendChild(colDiv);
+
+        // se for um campo "vazio", desenha apenas um espaço reservado
+        if (!col.name) {
+          colDiv.innerHTML = '<div class="invisible">.</div>'; // ocupa espaço mas invisível
+          return;
+        }
+
 
         const wrapper = document.createElement('div');
         wrapper.className = col.tipo === 'BIT' ? 'form-check mb-3' : 'mb-3';
@@ -46,17 +108,66 @@
         if (col.tipo === 'BIT') {
           wrapper.innerHTML = `
             <input class="form-check-input" type="checkbox"
-                   id="${col.name}" name="${col.name}">
+                  id="${col.name}" name="${col.name}">
             <label class="form-check-label" for="${col.name}">
-              ${col.descricao||col.name}
+              ${col.descricao || col.name}
             </label>
           `;
         } else {
-          const label = document.createElement('label');
-          label.setAttribute('for', col.name);
-          label.className = 'form-label';
-          label.textContent = col.descricao||col.name;
-          wrapper.appendChild(label);
+            const label = document.createElement('label');
+            label.setAttribute('for', col.name);
+            label.className = 'form-label';
+            label.textContent = col.descricao || col.name;
+
+            // DEV MODE: adiciona info ORDEM | TAM se estiver ativo
+            if (window.DEV_MODE) {
+              const metaTag = document.createElement('span');
+              metaTag.textContent = `${col.ordem}|${col.tam}`;
+              metaTag.className = 'badge-dev-edit'; // para aplicar CSS
+              metaTag.style.cursor = 'pointer';
+
+              metaTag.addEventListener('click', () => {
+                const novaOrdem = prompt(`Nova ORDEM para ${col.name}:`, col.ordem);
+                const novoTam   = prompt(`Novo TAM para ${col.name}:`, col.tam);
+
+                const ordemInt = parseInt(novaOrdem, 10);
+                const tamInt   = parseInt(novoTam, 10);
+
+                if (isNaN(ordemInt) || isNaN(tamInt)) {
+                  alert("Valores inválidos. Ambos devem ser inteiros.");
+                  return;
+                }
+
+                fetch('/generic/api/update_campo', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    tabela: TABLE_NAME,
+                    campo: col.name,
+                    ordem: ordemInt,
+                    tam: tamInt
+                  })
+                })
+
+                .then(res => res.json())
+                .then(resp => {
+                  if (resp.success) {
+                    alert("Campo atualizado com sucesso.");
+                    window.location.reload();
+                  } else {
+                    alert("Erro: " + resp.error);
+                  }
+                })
+                .catch(err => {
+                  console.error(err);
+                  alert("Erro inesperado ao atualizar.");
+                });
+              });
+              label.appendChild(metaTag);
+            }
+            wrapper.appendChild(label);
 
           let input;
           if (col.tipo === 'COMBO') {
@@ -65,31 +176,36 @@
             input.name = col.name;
             input.innerHTML = '<option value="">---</option>';
           } else if (col.tipo === 'MEMO') {
-            // CAIXA DE TEXTO GRANDE
             input = document.createElement('textarea');
             input.className = 'form-control';
             input.name = col.name;
-            // opcional: podes usar um atributo de metadata, e.g. col.rows ou col.virtualRows
             input.rows = 4;
-            input.placeholder = col.descricao || '';
-          }else {
+          } else {
             input = document.createElement('input');
             input.className = 'form-control';
             input.name = col.name;
-            switch (col.tipo) {
-              case 'DATE':    input.type = 'text'; input.classList.add('flatpickr-date'); break;
-              case 'HOUR':    input.type = 'time'; break;
-              case 'INT':     input.type = 'number'; break;
-              case 'DECIMAL': input.type = 'number'; input.step = '0.01'; break;
-              default:        input.type = 'text';
+
+            if (col.tipo === 'DATE') {
+              input.type = 'text';
+              input.classList.add('flatpickr-date');
+            } else {
+              input.type = 'text';
+            }
+
+            if (col.readonly) {
+              input.readOnly = true;
+              input.classList.add('bg-light');
+            }
+
+            if (col.readonly) {
+              input.readOnly = true;
+              input.classList.add('bg-light');
             }
           }
-          if (col.readonly) input.disabled = true;
           wrapper.appendChild(input);
         }
 
         colDiv.appendChild(wrapper);
-        row.appendChild(colDiv);
       });
 
       form.appendChild(row);
@@ -221,7 +337,7 @@
         }
       });
     });
-
+  }
     // === Início dynamic_details ===
     const detailsContainer = document.getElementById('details-container');
     if (detailsContainer) {
@@ -246,10 +362,18 @@
             wrapper.appendChild(tbl);
             card.appendChild(wrapper);
 
-            // 4) Cabeçalho da tabela
+            // 4) Cabeçalho da tabela (checkbox como primeira coluna)
             const thead = tbl.createTHead();
             const hr    = thead.insertRow();
+
+            // inserimos a célula de seleção NA POSIÇÃO 0
+            const thSel = hr.insertCell(0);
+            thSel.innerHTML = '';        // fica em branco, mas força a coluna
+            thSel.style.width = '2rem';  // largura fixa para o checkbox
+
+            // agora as colunas normais (iniciam em índice 1)
             det.campos.forEach(c => {
+              if (c.VISIVEL === false) return;  // ignora colunas invisíveis
               const th = document.createElement('th');
               th.textContent = c.LABEL;
               hr.appendChild(th);
@@ -259,27 +383,48 @@
             const tbody = tbl.createTBody();
             det.rows.forEach(row => {
               const tr = tbody.insertRow();
+
+              // 5.1) checkbox na célula 0
+              const tdSel = tr.insertCell(0);
+              const chk   = document.createElement('input');
+              chk.type    = 'checkbox';
+              chk.className = 'form-check-input detail-select';
+              chk.style.transform = 'scale(1.1'; // opcional: aumenta o tamanho
+              const pk    = row[det.campos[0].CAMPODESTINO];
+              chk.value   = pk;
+              tdSel.appendChild(chk);
+
+              // 5.2) restantes colunas (começam em 1)
               det.campos.forEach(c => {
+                if (c.VISIVEL === false) return;  // ignora colunas invisíveis
                 const td = tr.insertCell();
                 let val = row[c.CAMPODESTINO] ?? '';
-
-                // ISO date YYYY-MM-DD → DD.MM.YYYY
-                if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
-                  const [y, m, d] = val.split('-');
-                  val = `${d}.${m}.${y}`;
-                }
-                // RFC date string → DD.MM.YYYY
-                else if (typeof val === 'string' && val.includes('GMT')) {
-                  const dt = new Date(val);
-                  const d2 = String(dt.getDate()).padStart(2,'0');
-                  const m2 = String(dt.getMonth()+1).padStart(2,'0');
-                  const y2 = dt.getFullYear();
-                  val = `${d2}.${m2}.${y2}`;
-                }
-
                 td.textContent = val;
               });
+
+              // 5.3) clique na linha
+              // 5.3) clique na linha
+              tr.addEventListener('click', e => {
+                if (e.target !== chk) {
+                  const pk = row[det.campos[0].CAMPODESTINO];
+                  
+                  // Certifica-te que TABLE_NAME e RECORD_STAMP estão definidos globalmente
+                  const parentFormUrl = `/generic/form/${TABLE_NAME}/${RECORD_STAMP}`;
+
+                  const p = new URLSearchParams({
+                    return_to: parentFormUrl,
+                    detail_table: det.tabela,
+                    detail_pk: pk
+                  });
+
+                  window.location.href = `/generic/form/${det.tabela}/${pk}?${p.toString()}`;
+                }
+              });
+
             });
+          
+
+
 
             // 6) Botões de ação (Inserir / Editar / Eliminar)
             const btnGroup = document.createElement('div');
@@ -290,19 +435,28 @@
             btnInsert.className = 'btn btn-sm btn-primary';
             btnInsert.title = 'Inserir';
             btnInsert.innerHTML = '<i class="fa fa-plus"></i>';
+
             btnInsert.addEventListener('click', () => {
               const params = new URLSearchParams();
+
+              // Copia campos do formulário pai para os campos da linha filha
               det.camposcab.forEach((fullSrc, i) => {
                 const fullDst = det.camposlin[i];
-                if (!fullDst) return;                  // garante par
-                const srcCol = fullSrc.split('.')[1];  // ex: "ALSTAMP" ou "NOME"
-                const dstCol = fullDst.split('.')[1];  // ex: "ALCSTAMP" ou "ALOJAMENTO"
-                const el     = form.querySelector(`[name="${srcCol}"]`);
-                const val    = el ? el.value : '';
-                if (val) {
-                  params.append(dstCol, val);
-                }
+                if (!fullDst) return;
+
+                const srcCol = fullSrc.split('.')[1];
+                const dstCol = fullDst.split('.')[1];
+                const val = form.querySelector(`[name="${srcCol}"]`)?.value;
+
+                if (val) params.append(dstCol, val);
               });
+
+              // URL do form da tabela mãe
+              const parentFormUrl = `/generic/form/${TABLE_NAME}/${RECORD_STAMP}`;
+
+              params.append('return_to', parentFormUrl);
+              params.append('detail_table', det.tabela);
+
               window.location.href = `/generic/form/${det.tabela}/?${params.toString()}`;
             });
 
@@ -312,23 +466,77 @@
             btnEdit.title = 'Editar';
             btnEdit.innerHTML = '<i class="fa fa-edit"></i>';
             btnEdit.addEventListener('click', () => {
-              const id = row[det.campos[0].CAMPODESTINO];
-              location = `/generic/form/${det.tabela}/${id}`;
+              const id  = row[det.campos[0].CAMPODESTINO];
+              const cur = window.location.pathname + window.location.search;
+              const ret = encodeURIComponent(cur);
+              window.location.href = `/generic/form/${det.tabela}/${id}`
+                + `?return_to=${ret}`
+                + `&detail_table=${det.tabela}`
+                + `&detail_anchor=${id}`;
             });
 
             // Eliminar
+            // Eliminar (tanto single como múltiplos via checkbox)
             const btnDelete = document.createElement('button');
             btnDelete.className = 'btn btn-sm btn-danger';
             btnDelete.title = 'Eliminar';
             btnDelete.innerHTML = '<i class="fa fa-trash"></i>';
-            btnDelete.addEventListener('click', async () => {
-              if (!confirm('Confirmar eliminação?')) return;
-              await fetch(`/generic/api/${det.tabela}/${row[det.campos[0].CAMPODESTINO]}`, { method: 'DELETE' });
-              // opcional: recarregar os detalhes
-              card.remove();
+            btnDelete.addEventListener('click', async e => {
+              e.stopPropagation();
+
+              // ——— AQUI, dentro do listener, antes de qualquer fetch/delete ———
+              // 1) encontra qual é o campo PK (invisível) na definição de colunas
+              const campoPK = det.campos.find(c => c.PRIMARY_KEY || c.VISIVEL === false)?.CAMPODESTINO;
+              if (!campoPK) {
+                alert("Chave primária não definida.");
+                return;
+              }
+
+              // 2) recolhe todas as linhas marcadas
+              const checked = Array.from(card.querySelectorAll('tbody input[type="checkbox"]'))
+                                  .filter(ch => ch.checked);
+
+              // 3) se não houver nenhuma marcada, apaga só a primeira linha
+              if (checked.length === 0) {
+                // pega a primeira <tr>
+                const firstRow = card.querySelector('tbody tr');
+                if (!firstRow) return alert('Nenhum registo visível.');
+
+                // usa o campo PK para ir buscar o valor correto
+                const rowData = det.rows.find(r => r[campoPK] === firstRow.querySelector('input').value);
+                const id = rowData ? rowData[campoPK] : null;
+                if (!id) return alert('Não consegui determinar o ID a eliminar.');
+
+                if (!confirm('Confirmar eliminação deste registo?')) return;
+
+                const resp = await fetch(`/generic/api/${det.tabela}/${id}`, { method: 'DELETE' });
+                if (!resp.ok) {
+                  const err = await resp.json().catch(() => ({}));
+                  return alert('Erro: ' + (err.error || resp.statusText));
+                }
+
+                firstRow.remove();
+                return;
+              }
+
+              // 4) se houver múltiplos marcados, percorre cada um
+              if (!confirm(`Eliminar ${checked.length} registo(s)?`)) return;
+              for (const ch of checked) {
+                const id = ch.value;  // ch.value já foi definido como row[campoPK]
+                const resp = await fetch(`/generic/api/${det.tabela}/${id}`, { method: 'DELETE' });
+                if (!resp.ok) {
+                  const err = await resp.json().catch(() => ({}));
+                  alert(`Falha ao eliminar ${id}: ${err.error || resp.statusText}`);
+                  continue;
+                }
+                ch.closest('tr').remove();
+              }
+
+              // — fim do listener —
             });
 
-            btnGroup.append(btnInsert, btnEdit, btnDelete);
+
+            btnGroup.append(btnInsert, btnDelete);
             card.appendChild(btnGroup);
 
             // 7) Anexa o card ao container
@@ -338,13 +546,9 @@
         .catch(err => {
           console.error('Erro ao carregar detalhes:', err);
         });
-    }
-    // === Fim dynamic_details ===
+      }   
 
-    }
-
-
-      // ——— Início Anexos ———
+    // ——— Início Anexos ———
     const btnAddAnexo = document.getElementById('btnAddAnexo');
     const inputAnexo  = document.getElementById('inputAnexo');
     const listaAnx    = document.getElementById('anexos-list');
@@ -438,19 +642,48 @@
 
 
 
-  // 6. Cancelar e eliminar
-  document.getElementById('btnCancel')?.addEventListener('click', ()=> {
-  window.location.href = window.RETURN_TO;
-  });
-  document.getElementById('btnDelete')?.addEventListener('click', async () => {
-    if (!confirm('Confirmar eliminação?')) return;
-    await fetch(`/generic/api/${TABLE_NAME}/${RECORD_STAMP}`, { method:'DELETE' });
-    window.location.href = window.RETURN_TO;
-  });
-  // Voltar
-  document.getElementById('btnBack')?.addEventListener('click', () => {
-    window.location.href = window.RETURN_TO;
-  });
+    // 6. Cancelar e eliminar
+    document.getElementById('btnCancel')?.addEventListener('click', ()=> {
+    window.location.href = RETURN_URL;
+    });
+    // Eliminar
+    document.getElementById('btnDelete')?.addEventListener('click', async () => {
+      if (!RECORD_STAMP || !TABLE_NAME) return;
+      if (!confirm('Confirmar eliminação?')) return;
+
+      try {
+        const resp = await fetch(`/generic/api/${TABLE_NAME}/${RECORD_STAMP}`, { method: 'DELETE' });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          alert('Erro: ' + (err.error || resp.statusText));
+          return;
+        }
+        window.location.href = RETURN_URL;
+      } catch (err) {
+        console.error('Erro ao eliminar:', err);
+        alert('Erro inesperado ao eliminar.');
+      }
+    });
+
+      // ─── Hooks para os botões customizados de MODAL ───
+      // (click em qualquer <a class="dropdown-item btn-custom" data-tipo="MODAL">)
+      document.addEventListener('click', e => {
+        const btn = e.target.closest('.dropdown-item.btn-custom[data-tipo="MODAL"]');
+        if (!btn) return;
+        console.log('⚡ custom modal button clicked:', btn.dataset.acao);
+        e.preventDefault();
+        abrirModal(btn.dataset.acao);
+      });
+
+
+    // Voltar
+    document.getElementById('btnBack')?.addEventListener('click', () => {
+      if (RETURN_URL) {
+        window.location.href = RETURN_URL;
+      } else {
+        history.back();
+      }
+    });
 
 
     const userPerms = window.USER_PERMS[TABLE_NAME] || {};
@@ -497,23 +730,12 @@
         catch { msg = await res.text(); }
         return alert(`Erro ao gravar: ${msg}`);
       }
-      window.location.href = window.RETURN_TO;
+      window.location.href = RETURN_URL;
     } catch (net) {
       alert(`Erro de rede: ${net.message}`);
     }
   });
 
-  document.querySelectorAll('.btn-custom').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const tipo = btn.dataset.tipo;
-    const acao = btn.dataset.acao;
-    const destino = btn.dataset.destino;
-
-    if (tipo === 'MODAL') {
-      abrirModal(acao);
-    }
-  });
-});
 
 
   // 8. Cursor no final
@@ -561,6 +783,21 @@ function abrirModal(nomeModal) {
       alert('Erro ao carregar o formulário do modal');
 });
 }
+
+// static/js/dynamic_form.js
+
+// ─── Hooks para os botões customizados de MODAL ───
+document.addEventListener('click', e => {
+  // procura o <a> ou <button> mais perto que tenha classe btn-custom e data-tipo="MODAL"
+  const btn = e.target.closest('.btn-custom[data-tipo="MODAL"]');
+  if (!btn) return;
+
+  e.preventDefault();
+  // data-acao contém o nome do modal
+  const nomeModal = btn.dataset.acao;
+  abrirModal(nomeModal);
+});
+
 
 // Gera os elementos de campo dentro do modal
 function renderModalFields(campos) {
@@ -663,28 +900,6 @@ function renderModalFields(campos) {
     });
 }
 
-// ── Inicializa Flatpickr nos campos de DATE ───────────────────
-if (window.flatpickr) {
-  form.querySelectorAll('.flatpickr-date').forEach(el => {
-    flatpickr(el, {
-      dateFormat: 'd.m.Y',
-      allowInput: true,
-      // converte a string “DD.MM.YYYY” numa Date válida
-      parseDate: (datestr) => {
-        const [d, m, y] = datestr.split('.');
-        return new Date(`${y}-${m}-${d}`);
-      },
-      // se houver valor (modo edição), usa-o convertido; senão hoje
-      defaultDate: el.value
-        ? (()=>{
-            const [d, m, y] = el.value.split('.');
-            return new Date(`${y}-${m}-${d}`);
-          })()
-        : new Date()
-    });
-  });
-}
-
 // Submete o modal ao servidor
 function gravarModal() {
   const container = document.getElementById('modalBody');
@@ -733,7 +948,15 @@ function gravarModal() {
   });
 }
 
-
-// Expõe no global se quiser usar onclick inline
+// Expõe no global para onclick inline (se precisares)
 window.abrirModal = abrirModal;
 window.gravarModal = gravarModal;
+
+// Liga todos os dropdown-items que abrem modal
+document.querySelectorAll('.dropdown-item.btn-custom[data-tipo="MODAL"]')
+  .forEach(el => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      abrirModal(el.dataset.acao);
+    });
+  });
