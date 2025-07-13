@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Análise: {{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="analise-wrapper">
+  <div class="analise-box">
+    <h2>{{ titulo }}</h2>
+    <div id="analise-body">A carregar…</div>
+  </div>
+</div>
+<script src="/static/js/analise.js"></script>
+<script>
+  carregarAnalise("{{ usqlstamp }}");
+</script>
+{% endblock %}

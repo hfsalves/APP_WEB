@@ -1,9 +1,5 @@
 // static/js/dynamic_form.js
-console.warn('✅ novo dynamic_form.js carregado');
-
-// ===============================
-// 1. VARIÁVEIS GLOBAIS & INICIALIZAÇÃO
-// ===============================
+console.warn('✅ dynamic_form.js carregado');
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('📦 DOM totalmente carregado');
@@ -20,17 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-
 // 🧪 DEBUG extra
 console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropdown-item').length);
 
 (async function() {
-
-  const isMobile = window.innerWidth <= 768;
-  console.log('📱 Modo:', isMobile ? 'MOBILE' : 'DESKTOP');
-
-  const formState = {};
-  const camposByName = {};
 
   // ─── DEBUG: find all custom‐action buttons ───
   console.log('modal triggers encontrados:', document.querySelectorAll('.btn-custom'));
@@ -59,68 +48,9 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   const DETAIL_PK  = urlParams.get('detail_pk')   || null;
 
     
-// ===============================
-// 2. CONSTRUÇÃO DO FORMULÁRIO
-// ===============================
-
+  // 1. Carrega metadados
   const res  = await fetch(`/generic/api/${TABLE_NAME}?action=describe`);
   const cols = await res.json();
-
-  console.log("🧠 Metadados recebidos:", cols);
-
-    // ===============================
-    // FUNÇÃO UTILITÁRIA: AVALIAR EXPRESSÕES DE VISIBILIDADE
-    // ===============================
-    function avaliarExpressao(expr) {
-      try {
-        const keys = Object.keys(formState);
-        const values = Object.values(formState);
-
-        console.log("🧪 EXPRESSÃO:", expr);
-        console.log("🧪 KEYS:", keys);
-        console.log("🧪 VALUES:", values);
-        console.log("🧪 FORMSTATE:", formState);
-
-        const fn = new Function(...keys, `'use strict'; return (${expr});`);
-        const result = fn(...values);
-
-        console.log("✅ RESULTADO:", result);
-        return result;
-
-      } catch (err) {
-        console.warn(`⚠️ Erro ao avaliar expressão: ${expr}`, err);
-        return true;
-      }
-    }
-
-    // ===============================
-    // FUNÇÃO: APLICAR CONDIÇÕES DE VISIBILIDADE AOS CAMPOS
-    // ===============================
-    function aplicarCondicoesDeVisibilidade() {
-      cols.forEach(col => {
-        if (!col.condicao_visivel) return;
-
-        const input = camposByName[col.name];
-        if (!input) return;
-
-        const wrapper = input.closest('.col-12') || input.closest('.form-check') || input.closest('.mb-3');
-        const visivel = avaliarExpressao(col.condicao_visivel, formState);
-
-        if (wrapper) {
-          wrapper.style.display = visivel ? '' : 'none';
-        }
-      });
-    }
-
-
-  console.table(cols.map(c => ({
-  campo: c.name,
-  ordem: c.ordem,
-  ordem_mobile: c.ordem_mobile,
-  tam: c.tam,
-  tam_mobile: c.tam_mobile
-  })));
-
 
   // 2. Prepara o form
   const form = document.getElementById('editForm');
@@ -133,19 +63,13 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   const grupos = {};
   cols
     .filter(c => !c.admin || isAdminUser)
-    .sort((a, b) => {
-      const oa = isMobile ? a.ordem_mobile : a.ordem;
-      const ob = isMobile ? b.ordem_mobile : b.ordem;
-      return (oa || 0) - (ob || 0);
-    })
+    .sort((a, b) => (a.ordem||0) - (b.ordem||0))
     .forEach(col => {
-      const ordemUsada = isMobile ? col.ordem_mobile : col.ordem;
-      if ((ordemUsada || 0) === 0) return; // se 0, ignorar no mobile (por convenção)
-
-      const key = Math.floor(ordemUsada / 10) * 10;
+      const key = Math.floor((col.ordem||0) / 10) * 10;
       (grupos[key] ||= []).push(col);
     });
 
+  // monta cada grupo numa única row
   // monta cada grupo numa única row
   Object.keys(grupos)
     .sort((a, b) => a - b)
@@ -155,16 +79,14 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
       row.className = 'row gx-3 gy-2';
 
       // soma total dos TAM para calcular proporções
-      const totalTam = fields.reduce((acc, f) => acc + (isMobile ? f.tam_mobile : f.tam || 1), 0);
-
+      const totalTam = fields.reduce((acc, f) => acc + (f.tam || 1), 0);
 
       row.style.display = 'flex';
       row.style.flexWrap = 'nowrap';
 
 
       fields.forEach(col => {
-        const tamUsado = isMobile ? col.tam_mobile : col.tam;
-        const fraction = (tamUsado || 1) / totalTam;
+        const fraction = (col.tam || 1) / totalTam;
         const colDiv = document.createElement('div');
         // fixa largura proporcional e impede flex-grow/shrink
         colDiv.style.flex = `0 0 ${fraction * 100}%`;
@@ -184,50 +106,29 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         wrapper.className = col.tipo === 'BIT' ? 'form-check mb-3' : 'mb-3';
 
         if (col.tipo === 'BIT') {
-              wrapper.innerHTML = `
-                <input class="form-check-input" type="checkbox"
-                      id="${col.name}" name="${col.name}">
-                <label class="form-check-label" for="${col.name}">
-                  ${col.descricao || col.name}
-                </label>
-              `;
-
-              const input = wrapper.querySelector('input');
-              formState[col.name] = false;
-              camposByName[col.name] = input;
-
-              input.addEventListener('change', e => {
-                const nome = e.target.name.toUpperCase();
-                formState[nome] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                aplicarCondicoesDeVisibilidade();
-              });
-            } else {
-              const label = document.createElement('label');
-              label.setAttribute('for', col.name);
-              label.className = 'form-label';
-              label.innerHTML = `${col.descricao || col.name}`;
-              if (col.obrigatorio) {
-                label.innerHTML += ' <span style="color:red">*</span>';
-              }
-
+          wrapper.innerHTML = `
+            <input class="form-check-input" type="checkbox"
+                  id="${col.name}" name="${col.name}">
+            <label class="form-check-label" for="${col.name}">
+              ${col.descricao || col.name}
+            </label>
+          `;
+        } else {
+            const label = document.createElement('label');
+            label.setAttribute('for', col.name);
+            label.className = 'form-label';
+            label.textContent = col.descricao || col.name;
 
             // DEV MODE: adiciona info ORDEM | TAM se estiver ativo
             if (window.DEV_MODE) {
-              const ordemAtual = isMobile ? col.ordem_mobile : col.ordem;
-              const tamAtual   = isMobile ? col.tam_mobile   : col.tam;
-
               const metaTag = document.createElement('span');
-              metaTag.textContent = `${ordemAtual}|${tamAtual}`;
-              metaTag.className = 'badge-dev-edit';
+              metaTag.textContent = `${col.ordem}|${col.tam}`;
+              metaTag.className = 'badge-dev-edit'; // para aplicar CSS
               metaTag.style.cursor = 'pointer';
 
               metaTag.addEventListener('click', () => {
-                const novaOrdem = prompt(
-                  `Nova ${isMobile ? 'ORDEM_MOBILE' : 'ORDEM'} para ${col.name}:`, ordemAtual
-                );
-                const novoTam = prompt(
-                  `Novo ${isMobile ? 'TAM_MOBILE' : 'TAM'} para ${col.name}:`, tamAtual
-                );
+                const novaOrdem = prompt(`Nova ORDEM para ${col.name}:`, col.ordem);
+                const novoTam   = prompt(`Novo TAM para ${col.name}:`, col.tam);
 
                 const ordemInt = parseInt(novaOrdem, 10);
                 const tamInt   = parseInt(novoTam, 10);
@@ -237,25 +138,19 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
                   return;
                 }
 
-                // Monta dinamicamente o payload com os campos certos
-                const body = {
-                  tabela: TABLE_NAME,
-                  campo: col.name
-                };
-
-                if (isMobile) {
-                  body.ordem_mobile = ordemInt;
-                  body.tam_mobile   = tamInt;
-                } else {
-                  body.ordem = ordemInt;
-                  body.tam   = tamInt;
-                }
-
                 fetch('/generic/api/update_campo', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(body)
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    tabela: TABLE_NAME,
+                    campo: col.name,
+                    ordem: ordemInt,
+                    tam: tamInt
+                  })
                 })
+
                 .then(res => res.json())
                 .then(resp => {
                   if (resp.success) {
@@ -270,108 +165,57 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
                   alert("Erro inesperado ao atualizar.");
                 });
               });
-
               label.appendChild(metaTag);
             }
-            wrapper.appendChild(label); 
+            wrapper.appendChild(label);
 
-            let input;
+          let input;
+          if (col.tipo === 'COMBO') {
+            input = document.createElement('select');
+            input.className = 'form-select';
+            input.name = col.name;
+            input.innerHTML = '<option value="">---</option>';
+          } else if (col.tipo === 'MEMO') {
+            input = document.createElement('textarea');
+            input.className = 'form-control';
+            input.name = col.name;
+            input.rows = 4;
+          } else {
+            input = document.createElement('input');
+            input.className = 'form-control';
+            input.name = col.name;
 
-            if (col.tipo === 'COMBO') {
-              input = document.createElement('select');
-                if (col.obrigatorio) {
-                  input.required = true;
-                }
-              camposByName[col.name] = input;
-              input.className = 'form-select';
-              input.name = col.name;
-              input.innerHTML = '<option value="">---</option>';
-
-              formState[col.name] = '';
-              input.addEventListener('change', e => {
-                const nome = e.target.name.toUpperCase();
-                formState[nome] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                aplicarCondicoesDeVisibilidade();
-              });
-
-
-            } else if (col.tipo === 'MEMO') {
-              input = document.createElement('textarea');
-                if (col.obrigatorio) {
-                  input.required = true;
-                }
-              camposByName[col.name] = input;
-              input.className = 'form-control';
-              input.name = col.name;
-              input.rows = 4;
-
-              formState[col.name] = '';
-              input.addEventListener('change', e => {
-                const nome = e.target.name.toUpperCase();
-                formState[nome] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                aplicarCondicoesDeVisibilidade();
-              });
-
+            if (col.tipo === 'DATE') {
+              input.type = 'text';
+              input.classList.add('flatpickr-date');
             } else {
-              input = document.createElement('input');
-                if (col.obrigatorio) {
-                  input.required = true;
-                }
-              camposByName[col.name] = input;
-              input.className = 'form-control';
-              input.name = col.name;
-
-              if (col.tipo === 'DATE') {
-                input.type = 'text';
-                input.classList.add('flatpickr-date');
-              } else {
-                input.type = 'text';
-              }
-
-              if (col.readonly) {
-                input.readOnly = true;
-                input.classList.add('bg-light');
-              }
-
-              if (col.tipo === 'BIT') {
-                formState[col.name] = false;
-                input.type = 'checkbox';
-                input.className = 'form-check-input';
-                input.addEventListener('change', e => {
-                  const nome = e.target.name.toUpperCase();
-                  formState[nome] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                  aplicarCondicoesDeVisibilidade();
-                });
-              } else {
-                formState[col.name] = '';
-                input.addEventListener('change', e => {
-                  const nome = e.target.name.toUpperCase();
-                  formState[nome] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                  aplicarCondicoesDeVisibilidade();
-                });
-              }
+              input.type = 'text';
             }
 
-            wrapper.appendChild(input);
+            if (col.readonly) {
+              input.readOnly = true;
+              input.classList.add('bg-light');
+            }
+
+            if (col.readonly) {
+              input.readOnly = true;
+              input.classList.add('bg-light');
+            }
+          }
+          wrapper.appendChild(input);
         }
 
         colDiv.appendChild(wrapper);
       });
-      
+
       form.appendChild(row);
     });
 
-    console.log("💬 formState final antes de aplicar visibilidade:", formState);
-    aplicarCondicoesDeVisibilidade();
 
 
 
   // 4. Popula combos
-  // ===============================
-// 3. COMBOS E VALORES DEFAULT
-// ===============================
-
-await Promise.all(
+  await Promise.all(
     cols
       .filter(c => c.tipo === 'COMBO' && c.combo)
       .map(async c => {
@@ -416,8 +260,6 @@ await Promise.all(
         // garante que o <select> já tem as <option>
         if ([...el.options].some(o => o.value === val)) {
           el.value = val;
-          formState[el.name] = el.type === 'checkbox' ? el.checked : el.value;
-          aplicarCondicoesDeVisibilidade();
         }
       }
       else if (el.type === 'checkbox') {
@@ -428,64 +270,56 @@ await Promise.all(
     });
   }
 
-  // ===============================
-// 4. CARREGAMENTO DE DADOS EXISTENTES
-// ===============================
-
-// 4. Se edição, carrega valores com matching inteligente
-if (RECORD_STAMP) {
-  try {
-    const rec = await (await fetch(`/generic/api/${TABLE_NAME}/${RECORD_STAMP}`)).json();
-    Object.entries(rec).forEach(([key, val]) => {
-      const nome = key.toUpperCase();
-      const el = form.querySelector(`[name="${key}"]`);
-      if (!el) return;
-
-      if (el.tagName === 'SELECT') {
-        const desired = (val || '').toString().trim();
-        if ([...el.options].some(o => o.value === desired)) {
-          el.value = desired;
-        } else {
-          const match = [...el.options].find(o => o.textContent.trim() === desired);
-          el.value = match ? match.value : '';
-        }
-        formState[nome] = el.value;
-      } else if (el.type === 'checkbox') {
-        el.checked = !!val;
-        formState[nome] = el.checked;
-      } else if (el.classList.contains('flatpickr-date')) {
-        if (val) {
-          let d, m, y;
-          if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
-            [y, m, d] = val.slice(0, 10).split('-');
+  // 4. Se edição, carrega valores com matching inteligente
+  if (RECORD_STAMP) {
+    try {
+      const rec = await (await fetch(`/generic/api/${TABLE_NAME}/${RECORD_STAMP}`)).json();
+      Object.entries(rec).forEach(([key, val]) => {
+        const el = form.querySelector(`[name="${key}"]`);
+        if (!el) return;
+        if (el.tagName === 'SELECT') {
+          const desired = (val||'').toString().trim();
+          // tenta match por value
+          if ([...el.options].some(o => o.value === desired)) {
+            el.value = desired;
           } else {
-            const dt = new Date(val);
-            d = String(dt.getDate()).padStart(2, '0');
-            m = String(dt.getMonth() + 1).padStart(2, '0');
-            y = dt.getFullYear();
+            // tenta match por texto
+            const match = [...el.options].find(o => o.textContent.trim() === desired);
+            el.value = match ? match.value : '';
           }
-          el.value = `${d}.${m}.${y}`;
-        } else {
-          el.value = '';
+        } else if (el.type === 'checkbox') {
+          el.checked = !!val;
+        } else if (el.classList.contains('flatpickr-date')) {
+            if (val) {
+              let d, m, y;
+              if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
+                // veio em ISO: "2025-07-02..."
+                [y, m, d] = val.slice(0,10).split('-');
+              } else {
+                // veio em RFC: "Fri, 04 Jul 2025 00:00:00 GMT"
+                const dt = new Date(val);
+                d = String(dt.getDate()).padStart(2, '0');
+                m = String(dt.getMonth() + 1).padStart(2, '0');
+                y = dt.getFullYear();
+              }
+              el.value = `${d}.${m}.${y}`;
+            } else {
+              el.value = '';
+            }
+          }
+
+       else {
+          el.value = val;
         }
-        formState[nome] = el.value;
-      } else {
-        el.value = val;
-        formState[nome] = el.value;
-      }
-    });
-  } catch (e) {
-    console.error('Erro ao carregar registro:', e);
+      });
+    } catch (e) {
+      console.error('Erro ao carregar registro:', e);
+    }
+  } else {
+    document.getElementById('btnDelete')?.style.setProperty('display','none');
   }
-} else {
-  document.getElementById('btnDelete')?.style.setProperty('display', 'none');
-}
 
-  // ===============================
-// 5. FLATPICKR E FORMATOS
-// ===============================
-
-// 5. Inicializa Flatpickr: em edição mantém o valor, em criação força hoje
+  // 5. Inicializa Flatpickr: em edição mantém o valor, em criação força hoje
   if (window.flatpickr) {
     form.querySelectorAll('.flatpickr-date').forEach(el => {
       console.log('>>> flatpickr init on', el.id, 'value=', el.value);
@@ -504,11 +338,7 @@ if (RECORD_STAMP) {
       });
     });
   }
-    // ===============================
-// 6. GESTÃO DE DETALHES (1:N)
-// ===============================
-
-// === Início dynamic_details ===
+    // === Início dynamic_details ===
     const detailsContainer = document.getElementById('details-container');
     if (detailsContainer) {
       fetch(`/generic/api/dynamic_details/${TABLE_NAME}/${RECORD_STAMP}`)
@@ -718,11 +548,7 @@ if (RECORD_STAMP) {
         });
       }   
 
-    // ===============================
-// 7. ANEXOS
-// ===============================
-
-// ——— Início Anexos ———
+    // ——— Início Anexos ———
     const btnAddAnexo = document.getElementById('btnAddAnexo');
     const inputAnexo  = document.getElementById('inputAnexo');
     const listaAnx    = document.getElementById('anexos-list');
@@ -816,11 +642,7 @@ if (RECORD_STAMP) {
 
 
 
-    // ===============================
-// 8. PERMISSÕES E BOTÕES
-// ===============================
-
-// 6. Cancelar e eliminar
+    // 6. Cancelar e eliminar
     document.getElementById('btnCancel')?.addEventListener('click', ()=> {
     window.location.href = RETURN_URL;
     });
@@ -843,11 +665,7 @@ if (RECORD_STAMP) {
       }
     });
 
-      // ===============================
-// 10. MODAIS CUSTOMIZADOS
-// ===============================
-
-// ─── Hooks para os botões customizados de MODAL ───
+      // ─── Hooks para os botões customizados de MODAL ───
       // (click em qualquer <a class="dropdown-item btn-custom" data-tipo="MODAL">)
       document.addEventListener('click', e => {
         const btn = e.target.closest('.dropdown-item.btn-custom[data-tipo="MODAL"]');
@@ -887,28 +705,9 @@ if (RECORD_STAMP) {
     }
     }
 
-  // ===============================
-// 9. SUBMISSÃO DO FORMULÁRIO
-// ===============================
-
-// 7. Submit com tratamento de erros
+  // 7. Submit com tratamento de erros
   form.addEventListener('submit', async e => {
     e.preventDefault();
-
-    // ✂️ Limpar espaços dos campos de texto
-    form.querySelectorAll('input, textarea').forEach(el => {
-      const tipo = el.type?.toLowerCase();
-      if (tipo !== 'checkbox' && typeof el.value === 'string') {
-        el.value = el.value.trim();
-      }
-    });
-
-    if (!form.checkValidity()) {
-      form.classList.add('was-validated');
-      alert("⚠️ Existem campos obrigatórios por preencher.");
-      return;
-    }
-
     const data = {};
     new FormData(form).forEach((v, k) => data[k] = v);
     // BIT para booleano
@@ -938,7 +737,6 @@ if (RECORD_STAMP) {
   });
 
 
-  aplicarCondicoesDeVisibilidade();
 
   // 8. Cursor no final
   form.querySelectorAll('input[type="text"],input[type="number"],input[type="time"]').forEach(i =>
@@ -987,10 +785,6 @@ function abrirModal(nomeModal) {
 }
 
 // static/js/dynamic_form.js
-
-// ===============================
-// 10. MODAIS CUSTOMIZADOS
-// ===============================
 
 // ─── Hooks para os botões customizados de MODAL ───
 document.addEventListener('click', e => {
@@ -1157,10 +951,6 @@ function gravarModal() {
 // Expõe no global para onclick inline (se precisares)
 window.abrirModal = abrirModal;
 window.gravarModal = gravarModal;
-
-// ===============================
-// 11. EVENTOS GERAIS
-// ===============================
 
 // Liga todos os dropdown-items que abrem modal
 document.querySelectorAll('.dropdown-item.btn-custom[data-tipo="MODAL"]')

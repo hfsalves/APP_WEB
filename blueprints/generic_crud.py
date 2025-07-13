@@ -109,18 +109,22 @@ def list_or_describe(table_name):
         cols = []
         for c in campos:
             cols.append({
-                'name':        c.nmcampo,
-                'descricao':   c.descricao,
-                'tipo':        c.tipo,
-                'lista':       bool(c.lista),
-                'filtro':      bool(c.filtro) if c.tipo != 'VIRTUAL' else False,
-                'admin':       bool(c.admin),
-                'primary_key': (c.nmcampo == pk_name),
-                'readonly':    True if c.tipo == 'VIRTUAL' else bool(c.ronly),
-                'combo':       c.combo,
-                'virtual':     c.virtual if c.tipo == 'VIRTUAL' else None,
-                'ordem':       c.ordem,
-                'tam':         c.tam      # ← new!
+                'name':             c.nmcampo,
+                'descricao':        c.descricao,
+                'tipo':             c.tipo,
+                'lista':            bool(c.lista),
+                'filtro':           bool(c.filtro) if c.tipo != 'VIRTUAL' else False,
+                'admin':            bool(c.admin),
+                'primary_key':      (c.nmcampo == pk_name),
+                'readonly':         True if c.tipo == 'VIRTUAL' else bool(c.ronly),
+                'combo':            c.combo,
+                'virtual':          c.virtual if c.tipo == 'VIRTUAL' else None,
+                'ordem':            c.ordem,
+                'tam':              c.tam,
+                'ordem_mobile':     c.ordem_mobile,
+                'tam_mobile':       c.tam_mobile,
+                'condicao_visivel': c.condicao_visivel,
+                'obrigatorio':      c.obrigatorio
             })
         return jsonify(cols)
 
@@ -609,16 +613,47 @@ def update_campo():
     data = request.get_json()
     tabela = data.get('tabela')
     campo  = data.get('campo')
-    ordem  = data.get('ordem')
-    tam    = data.get('tam')
+
+    if not tabela or not campo:
+        return jsonify(success=False, error="Tabela ou campo em falta")
+
+    # Verifica que tipo de update vamos fazer
+    updates = []
+    params = {}
+
+    if 'ordem' in data:
+        updates.append("ORDEM = :ordem")
+        params["ordem"] = data.get("ordem")
+
+    if 'tam' in data:
+        updates.append("TAM = :tam")
+        params["tam"] = data.get("tam")
+
+    if 'ordem_mobile' in data:
+        updates.append("ORDEM_MOBILE = :ordem_mobile")
+        params["ordem_mobile"] = data.get("ordem_mobile")
+
+    if 'tam_mobile' in data:
+        updates.append("TAM_MOBILE = :tam_mobile")
+        params["tam_mobile"] = data.get("tam_mobile")
+
+    if not updates:
+        return jsonify(success=False, error="Nenhum campo para atualizar")
+
+    sql = f"""
+        UPDATE CAMPOS
+        SET {', '.join(updates)}
+        WHERE TABELA = :tabela AND NMCAMPO = :campo
+    """
+
+    params["tabela"] = tabela
+    params["campo"] = campo
 
     try:
-        db.session.execute(
-            text("UPDATE CAMPOS SET ORDEM = :ordem, TAM = :tam WHERE TABELA = :tabela AND NMCAMPO = :campo"),
-            {"ordem": ordem, "tam": tam, "tabela": tabela, "campo": campo}
-        )
+        db.session.execute(text(sql), params)
         db.session.commit()
         return jsonify(success=True)
     except Exception as e:
         db.session.rollback()
         return jsonify(success=False, error=str(e))
+

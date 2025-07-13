@@ -153,6 +153,10 @@ if (widget.tipo === 'ANALISE') {
     });
 }
 
+if (widget.tipo === 'HTML') {
+  body.innerHTML = widget.config || '<em>(sem conteúdo)</em>';
+}
+
 
   if (widget.tipo === 'GRAFICO') {
     fetch(`/api/widget/analise/${widget.nome}`)

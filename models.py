@@ -17,20 +17,24 @@ class Menu(db.Model):
 
 class Campo(db.Model):
     __tablename__ = 'CAMPOS'
-    camposstamp = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
-    ordem       = db.Column(db.Integer, nullable=False)
-    nmcampo     = db.Column(db.String(25), nullable=False)
-    descricao   = db.Column(db.String(60), nullable=False)
-    tipo        = db.Column(db.String(18), nullable=False)
-    tabela      = db.Column(db.String(18), nullable=False)
-    lista       = db.Column(db.Boolean, default=False, nullable=False)
-    filtro      = db.Column(db.Boolean, default=False, nullable=False)
-    admin       = db.Column(db.Boolean, default=False, nullable=False)
-    ronly       = db.Column(db.Boolean, default=False, nullable=False)
-    combo       = db.Column(db.String(200), nullable=True)
-    virtual     = db.Column(db.String(200), nullable=True)
-    tam         = db.Column(db.Integer, nullable=False)
-    
+    camposstamp       = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
+    ordem             = db.Column(db.Integer, nullable=False)
+    nmcampo           = db.Column(db.String(25), nullable=False)
+    descricao         = db.Column(db.String(60), nullable=False)
+    tipo              = db.Column(db.String(18), nullable=False)
+    tabela            = db.Column(db.String(18), nullable=False)
+    lista             = db.Column(db.Boolean, default=False, nullable=False)
+    filtro            = db.Column(db.Boolean, default=False, nullable=False)
+    admin             = db.Column(db.Boolean, default=False, nullable=False)
+    ronly             = db.Column(db.Boolean, default=False, nullable=False)
+    combo             = db.Column(db.String(200), nullable=True)
+    virtual           = db.Column(db.String(200), nullable=True)
+    tam               = db.Column(db.Integer, nullable=False)
+    ordem_mobile      = db.Column(db.Integer, nullable=False)
+    tam_mobile        = db.Column(db.Integer, nullable=False)
+    condicao_visivel  = db.Column(db.String(200), nullable=True)
+    obrigatorio       = db.Column(db.Boolean, default=False, nullable=False)
+
 class US(UserMixin, db.Model):
     __tablename__ = 'US'
     USSTAMP  = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
@@ -40,6 +44,7 @@ class US(UserMixin, db.Model):
     EMAIL    = db.Column(db.String(120), unique=True, nullable=False)
     ADMIN    = db.Column(db.Boolean, default=False, nullable=False)
     EQUIPA   = db.Column(db.String(25), nullable=True)
+    DEV      = db.Column(db.Boolean, default=False, nullable=False)
 
     def check_password(self, plaintext):
         return self.PASSWORD == plaintext
@@ -136,3 +141,14 @@ class Linhas(db.Model):
     LIGACAOMAE   = db.Column(db.String(100), nullable=False, default='')
     CAMPOSCAB    = db.Column(db.String(200), nullable=False, default='')    
     CAMPOSLIN    = db.Column(db.String(200), nullable=False, default='')
+
+class Usql(db.Model):
+    __tablename__ = 'USQL'
+    usqlstamp = db.Column(db.String(25), primary_key=True)
+    descricao = db.Column(db.String(80), nullable=False)
+    sqlexpr   = db.Column(db.Text, nullable=False)
+    grupo     = db.Column(db.String(100), nullable=True)
+    decimais  = db.Column(db.Numeric(5,2), nullable=False, default=2)
+    totais    = db.Column(db.Boolean, nullable=False, default=False)
+    temgraf   = db.Column(db.Boolean, nullable=False, default=False)
+    tipograf  = db.Column(db.String(100), nullable=True)

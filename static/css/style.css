@@ -1306,3 +1306,121 @@ input[type="checkbox"].detail-select {
   text-align: left !important;
   padding-left: 0.75rem; /* opcional: um pouco de espaçamento à esquerda */
 }
+.was-validated :invalid {
+  border-color: red !important;
+}
+
+/* ───────────────────────────────────────────────────────────
+   Estilo refinado para a página de Análise (com zebra + hover)
+─────────────────────────────────────────────────────────── */
+.analise-wrapper {
+  padding: 0rem 0rem;
+  max-width: 100%;
+}
+
+.analise-box {
+  background: #fff;
+  border-radius: 6px;
+  padding: 1rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  overflow-x: auto;
+  font-size: 0.8rem;
+}
+
+.analise-box h2 {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.analise-box table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: inherit;
+}
+
+.analise-box th,
+.analise-box td {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #eee;
+  white-space: nowrap;
+  font-size: smaller;
+}
+
+.analise-box th {
+  background: #f5f7f9;
+  font-weight: bold;
+  text-align: left;
+}
+
+.analise-box tbody tr:nth-child(odd) {
+  background: #fafafa;
+}
+
+.analise-box tbody tr:hover {
+  background: #f0f4ff;
+}
+
+.analise-box td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.analise-box tfoot td {
+  font-weight: bold;
+  background: #f9f9f9;
+}
+
+.btn-dashboard {
+  display: inline-block;
+  margin: 0.25rem 0;
+  padding: 0.4rem 0.8rem;
+  background: #007bff;
+  color: white;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+.btn-dashboard:hover {
+  background: #0056b3;
+}
+
+.quick-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.link-tile {
+  display: flex;
+  align-items: center;
+  padding: 0.3rem 0.5rem;
+  border-radius: 9px;
+  background: #f0f0f0;
+  text-decoration: none;
+  color: #222;
+  font-weight: 300;
+  font-size: small;
+  transition: background 0.7s;
+}
+.link-tile .icon {
+  font-size: 0.7rem;
+  margin-right: 0.6rem;
+}
+.link-tile .label {
+  flex-grow: 1;
+}
+
+.link-tile:hover {
+  background: #e0e0e0;
+}
+
+.link-tile.blue  { background: #e7f0fd; color: #084298; }
+.link-tile.green { background: #e9f7ef; color: #1e5631; }
+.link-tile.red   { background: #fcebea; color: #842029; }
+
+.link-tile.blue:hover  { background: #d0e4fc; }
+.link-tile.green:hover { background: #d2f4e3; }
+.link-tile.red:hover   { background: #f8d7da; }

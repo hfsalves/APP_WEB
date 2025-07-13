@@ -433,6 +433,46 @@ def create_app():
         return jsonify(user_data)
 
 
+    @app.route('/analise/<usqlstamp>')
+    @login_required
+    def pagina_analise(usqlstamp):
+        from models import Usql
+        entry = Usql.query.filter_by(usqlstamp=usqlstamp).first()
+        if not entry:
+            return render_template('error.html', message='Análise não encontrada'), 404
+        return render_template('analise.html', usqlstamp=usqlstamp, titulo=entry.descricao)
+
+    @app.route('/api/analise/<usqlstamp>')
+    @login_required
+    def api_analise(usqlstamp):
+        from models import Usql
+        entry = Usql.query.filter_by(usqlstamp=usqlstamp).first()
+        if not entry:
+            return jsonify({'error': 'Análise não encontrada'}), 404
+
+        try:
+            result = db.session.execute(text(entry.sqlexpr))
+            mappings = result.mappings().all()
+            rows = []
+            for rd in mappings:
+                clean = {}
+                for col, val in rd.items():
+                    if isinstance(val, (datetime, date)):
+                        clean[col] = val.strftime('%Y-%m-%d')
+                    else:
+                        clean[col] = val
+                rows.append(clean)
+
+            return jsonify({
+                'columns': list(result.keys()),
+                'rows': rows,
+                'decimais': float(entry.decimais or 2),
+                'totais': bool(entry.totais)
+            })
+
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
 
     return app
 
