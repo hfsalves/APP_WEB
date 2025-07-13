@@ -5,7 +5,7 @@
 // =============================
 const LAYOUT = {
   tableWidth: 1600,      // px total largura da grelha
-  lodging: 232,          // "Alojamento" col
+  lodging: 190,          // "Alojamento" col
   tp: 30,                // "TP" col
   zone: 68,
   last_team: 50,         // "Últ. Equipa" col
@@ -27,16 +27,20 @@ fetch('/generic/api/EQ')
 
     // Agora sim, tudo o resto!
     const dateInput = document.getElementById('planner-date');
+    let currentDate = dateInput.value || new Date().toISOString().slice(0,10);
+
     flatpickr(dateInput, {
-    defaultDate: new Date(),
+    defaultDate: currentDate,
     dateFormat: 'Y-m-d',
     onChange: (_, dateStr) => loadPlanner(dateStr)
     });
 
+    loadPlanner(currentDate);
+
+
     document.getElementById('prev-day').addEventListener('click', () => changeDay(-1));
     document.getElementById('next-day').addEventListener('click', () => changeDay(1));
 
-    let currentDate = null;
     let planData = [];
     const timeslots = [];
     for (let h = 7; h <= 24; h++) {
@@ -48,8 +52,12 @@ fetch('/generic/api/EQ')
     const d = new Date(currentDate);
     d.setDate(d.getDate() + offset);
     const iso = d.toISOString().slice(0,10);
-    dateInput._flatpickr.setDate(iso);
+
+    currentDate = iso;  // Atualiza variável global
+    dateInput._flatpickr.setDate(iso);  // Atualiza o input
+    loadPlanner(iso);   // Faz load do novo dia
     }
+
 
     function loadPlanner(date) {
         currentDate = date;
@@ -163,7 +171,7 @@ fetch('/generic/api/EQ')
             if (endIdx < 0) endIdx = 0;
             if (endIdx > timeslots.length - 1) endIdx = timeslots.length - 1;
             let barWidth =
-            -20 +
+            20 + 
             LAYOUT.lodging +
             LAYOUT.tp +
             LAYOUT.zone +
@@ -236,7 +244,7 @@ fetch('/generic/api/EQ')
             if (startIdx < 0) startIdx = 0;
             let endIdx = timeslots.length - 1;
             let barLeft =
-            -20 +
+            20 +
             LAYOUT.lodging +
             LAYOUT.tp +
             LAYOUT.zone +
@@ -274,7 +282,7 @@ fetch('/generic/api/EQ')
         if (startIdx < 0) startIdx = 0;
         const duration = getCleaningDuration(row.typology || row.tp);
         const slots = Math.ceil(duration/30);
-        const barLeft = -20
+        const barLeft = 20
             + LAYOUT.lodging + LAYOUT.tp + LAYOUT.zone + LAYOUT.last_team + LAYOUT.out
             + (LAYOUT.timeslot * startIdx);
         const barWidth = LAYOUT.timeslot * slots;
@@ -300,7 +308,7 @@ fetch('/generic/api/EQ')
         });
         const label = document.createElement('span');
         Object.assign(label.style, {
-            fontSize: '9px',
+            fontSize: '8px',
             fontWeight: 'bold',
             color: '#fff',
             textShadow: '1px 1px 4px #222'
@@ -327,19 +335,30 @@ fetch('/generic/api/EQ')
             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
             borderRadius: '4px'
             });
-            ['Abrir','Eliminar'].forEach(opt => {
+            [
+            { label: 'Abrir', icon: 'fa-regular fa-pen-to-square' },
+            { label: 'Eliminar', icon: 'fa-regular fa-trash-can' }
+            ].forEach(({ label, icon }) => {
             const item = document.createElement('div');
-            Object.assign(item.style, { padding: '4px 8px', cursor: 'pointer' });
-            item.textContent = opt;
+            Object.assign(item.style, { padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' });
+
+            const i = document.createElement('i');
+            i.className = icon;
+            i.style.minWidth = '18px';
+
+            const span = document.createElement('span');
+            span.textContent = label;
+
+            item.append(i, span);
+
+            
             item.addEventListener('click', ev => {
                 ev.stopPropagation();
-                if (opt === 'Abrir') {
+                if (label === 'Abrir') {
                 window.open(`/generic/form/LP/${row.cleaning_id}`, '_blank');
                 } else {
-                fetch('/generic/api/LP/eliminar', {
-                    method: 'POST',
-                    headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({ STAMP: row.cleaning_id })
+                fetch(`/generic/api/LP/${row.cleaning_id}`, {
+                method: 'DELETE'
                 })
                 .then(() => loadPlanner(currentDate))
                 .catch(err => alert('Erro ao eliminar: '+err));
@@ -458,7 +477,7 @@ fetch('/generic/api/EQ')
     const startIdx = idx;
     const slots = Math.ceil(minutos / 30); // quantos slots ocupa (30min cada)
     const barLeft =
-        -12 +
+        30 +
         LAYOUT.lodging +
         LAYOUT.tp +
         LAYOUT.last_team +
@@ -486,7 +505,7 @@ fetch('/generic/api/EQ')
     // Texto na barra
     const label = document.createElement('span');
     label.textContent = team.NOME;
-    label.style.fontSize = '9px';
+    label.style.fontSize = '8px';
     label.style.fontWeight = 'bold';
     label.style.color = '#fff';
     label.style.textShadow = '1px 1px 4px #222';
@@ -532,30 +551,48 @@ fetch('/generic/api/EQ')
 
     document.getElementById('save-planner').addEventListener('click', () => {
     const limpezas = recolherLimpezasParaGravar();
+
+    if (limpezas.length === 0) {
+        alert("Nada para gravar.");
+        return;
+    }
+
     fetch('/generic/api/LP/gravar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(limpezas)
     })
-        .then(res => res.json())
-        .then(resp => {
+    .then(res => res.json())
+    .then(resp => {
         if (resp.success) {
             alert("Limpezas gravadas!");
-            // Podes recarregar planner, se quiseres
-            // loadPlanner(currentDate);
+            loadPlanner(currentDate);
+            const mainContent = document.querySelector('.main-content');
+            if (mainContent) {
+            mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+            // fallback: tenta no window
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
         } else {
-            alert("Erro ao gravar limpezas.");
+        alert("Erro ao gravar limpezas.");
         }
-        })
-        .catch(err => alert("Falha ao gravar limpezas: " + err));
+    })
+    .catch(err => alert("Falha ao gravar limpezas: " + err));
     });
+
 
     document.getElementById('cancel-planner').addEventListener('click', () => loadPlanner(currentDate));
 
-    // Initialize with today's date
-    loadPlanner(new Date().toISOString().slice(0,10));
+    flatpickr(dateInput, {
+    defaultDate: currentDate,
+    dateFormat: 'Y-m-d',
+    onChange: (_, dateStr) => loadPlanner(dateStr)
+    });
 
-    dateInput._flatpickr.setDate(currentDate, true); // true força evento onChange
+    loadPlanner(currentDate);
+
+
     
     })
 

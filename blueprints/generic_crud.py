@@ -487,13 +487,22 @@ def api_calendar_tasks():
 
 # In generic_crud.py (add within the existing Blueprint `bp`)
 
-@bp.route('/planner')
-def view_planner():
-    """
-    Render the Cleaning Planner page.
-    URL: /generic/planner
-    """
-    return render_template('planner.html')
+from datetime import date, datetime
+
+@bp.route('/planner/', defaults={'planner_date': None})
+@bp.route('/planner/<planner_date>')
+@login_required
+def view_planner(planner_date):
+    try:
+        if planner_date:
+            datetime.strptime(planner_date, '%Y-%m-%d')  # valida formato
+        else:
+            planner_date = date.today().isoformat()
+    except ValueError:
+        return "Formato de data inválido (usa YYYY-MM-DD)", 400
+
+    return render_template('planner.html', planner_date=planner_date)
+
 
 
 @bp.route('/api/cleaning_plan')
@@ -541,7 +550,7 @@ def api_cleaning_plan():
         LEFT JOIN (
             SELECT ALOJAMENTO, MAX(DATA) AS last_date, MAX(HORA) AS last_hour, MAX(EQUIPA) AS last_team
             FROM LP
-            WHERE DATA <= :date
+            WHERE DATA < :date
             GROUP BY ALOJAMENTO
         ) lc ON lc.ALOJAMENTO = al.NOME
         -- Apenas reservas NÃO canceladas

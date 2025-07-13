@@ -1424,3 +1424,18 @@ input[type="checkbox"].detail-select {
 .link-tile.blue:hover  { background: #d0e4fc; }
 .link-tile.green:hover { background: #d2f4e3; }
 .link-tile.red:hover   { background: #f8d7da; }
+
+#prev-day,
+#next-day {
+  background-color: #007bff;  /* tom suave */
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+}
+
+#prev-day:hover,
+#next-day:hover {
+  background-color: #ced4da;
+}
+
