@@ -22,9 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const startStr = start.toISOString().slice(0, 10);
   const endStr = end.toISOString().slice(0, 10);
 
-  const CURRENT_USER = window.CURRENT_USER?.trim().toLowerCase();
+  const CURRENT_USER = window.CURRENT_USER;
 
-  fetch(`/generic/api/calendar_tasks?start=${startStr}&end=${endStr}`)
+  //fetch(`/generic/api/calendar_tasks?start=${startStr}&end=${endStr}`)
+  fetch(`/generic/api/monitor_tasks`)
     .then(res => res.json())
     .then(data => {
       colAtrasadas.innerHTML = '';
@@ -33,8 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
       colTratadas.innerHTML = '';
       const hojeStr = hoje.toISOString().slice(0, 10);
 
-      data.filter(t => t.UTILIZADOR?.trim().toLowerCase() === 'kathlee')
-        .forEach(t => {
+    data.forEach(t => {
         const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
         const hhmm = t.HORA;
         const ddmm = dataFormatada.toLocaleDateString('pt-PT');

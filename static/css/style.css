@@ -1439,3 +1439,6 @@ input[type="checkbox"].detail-select {
   background-color: #ced4da;
 }
 
+html, body {
+  overflow-x: hidden !important;
+}

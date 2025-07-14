@@ -702,3 +702,46 @@ def reabrir_tarefa():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+from flask import request, jsonify, abort
+from flask_login import login_required, current_user
+from datetime import datetime, timedelta
+from sqlalchemy import text
+
+@bp.route('/api/monitor_tasks', methods=['GET'])
+@login_required
+def api_monitor_tasks():
+    hoje = datetime.today().date()
+    start = hoje - timedelta(days=7)
+    end = hoje + timedelta(days=7)
+
+    sql = text("""
+    SELECT
+      ta.TAREFASSTAMP,
+      CONVERT(varchar(10), ta.DATA, 23) AS DATA,
+      ta.HORA,
+      ta.DURACAO,
+      ta.TAREFA,
+      ta.ALOJAMENTO,
+      ta.UTILIZADOR,
+      ta.ORIGEM,
+      ta.ORISTAMP,
+      ta.TRATADO,
+      COALESCE(u.COR, tc.COR, eq.COR, '#333333') AS COR
+    FROM TAREFAS ta
+    LEFT JOIN US    u  ON u.LOGIN    = ta.UTILIZADOR
+    LEFT JOIN TEC   tc ON tc.NOME    = u.TECNICO
+    LEFT JOIN EQ    eq ON eq.NOME    = u.EQUIPA
+    WHERE ta.DATA BETWEEN :start AND :end
+      AND UPPER(ta.UTILIZADOR) = UPPER(:user)
+    ORDER BY ta.DATA, ta.HORA
+    """)
+
+    rows = db.session.execute(sql, {
+        'start': start.isoformat(),
+        'end': end.isoformat(),
+        'user': current_user.LOGIN
+    }).mappings().all()
+
+    tarefas = [dict(r) for r in rows]
+    return jsonify(tarefas)
