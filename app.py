@@ -195,7 +195,12 @@ def create_app():
     @app.route('/')
     @login_required
     def home_page():
+        if current_user.HOME == 'dashboard':
+            return redirect(url_for('dashboard_page'))
+        elif current_user.HOME == 'monitor' or not current_user.HOME:
+            return redirect(url_for('monitor_page'))
         return redirect(url_for('dashboard_page'))
+
 
     @app.route('/plan')
     @login_required
@@ -472,6 +477,13 @@ def create_app():
 
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+
+
+    @app.route('/monitor')
+    @login_required
+    def monitor_page():
+        return render_template('monitor.html')
+
 
 
     return app

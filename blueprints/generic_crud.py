@@ -666,3 +666,39 @@ def update_campo():
         db.session.rollback()
         return jsonify(success=False, error=str(e))
 
+
+@bp.route('/api/tarefas/tratar', methods=['POST'])
+@login_required
+def tratar_tarefa():
+    data = request.get_json()
+    tarefa_id = data.get('id')
+
+    if not tarefa_id:
+        return jsonify({'error': 'Falta o ID da tarefa'}), 400
+
+    try:
+        sql = text("UPDATE TAREFAS SET TRATADO = 1 WHERE TAREFASSTAMP = :id")
+        db.session.execute(sql, {'id': tarefa_id})
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/tarefas/reabrir', methods=['POST'])
+@login_required
+def reabrir_tarefa():
+    data = request.get_json()
+    tarefa_id = data.get('id')
+
+    if not tarefa_id:
+        return jsonify({'error': 'Falta o ID da tarefa'}), 400
+
+    try:
+        sql = text("UPDATE TAREFAS SET TRATADO = 0 WHERE TAREFASSTAMP = :id")
+        db.session.execute(sql, {'id': tarefa_id})
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500

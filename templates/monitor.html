@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Monitor de Trabalho{% endblock %}
+
+{% block content %}
+<div class="row gx-3 gy-3 row-cols-1 row-cols-md-4">
+  <div>
+    <h5 class="text-danger">Atrasadas</h5>
+    <div id="tarefas-atrasadas" class="tarefa-coluna"></div>
+  </div>
+  <div>
+    <h5 class="text-warning">Hoje</h5>
+    <div id="tarefas-hoje" class="tarefa-coluna"></div>
+  </div>
+  <div>
+    <h5 class="text-success">Futuras</h5>
+    <div id="tarefas-futuras" class="tarefa-coluna"></div>
+  </div>
+  <div>
+    <h5 class="text-muted">Tratadas</h5>
+    <div id="tarefas-tratadas" class="tarefa-coluna"></div>
+  </div>
+</div>
+
+<script>
+  const CURRENT_USER = "{{ current_user.LOGIN }}";
+</script>
+
+
+<!-- Modal de Ações -->
+<div class="modal fade" id="tarefaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Tarefa</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <p id="tarefaDescricao"></p>
+        <div class="d-flex justify-content-between flex-wrap gap-2">
+        <button id="btnTratar" class="btn btn-success">Marcar como tratada</button>
+        <button id="btnReagendar" class="btn btn-outline-primary">Reagendar</button>
+        <button id="btnNota" class="btn btn-outline-secondary">Nota</button>
+        <button id="btnReabrir" class="btn btn-outline-warning" style="display:none;">Reabrir tarefa</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/monitor.js') }}"></script>
+{% endblock %}
