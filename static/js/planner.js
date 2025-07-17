@@ -70,6 +70,26 @@ fetch('/generic/api/EQ')
         .catch(err => console.error('Erro ao carregar planner:', err));
     }
 
+    function appendBarToRow(tr, bar) {
+        const anchorTd = tr.querySelector('td');
+        if (!anchorTd) return;
+
+        anchorTd.style.position = 'relative';
+        bar.style.position = 'absolute';
+        bar.style.top = '6px';
+        bar.style.height = '18px';
+        bar.style.borderRadius = '12px';
+        bar.style.zIndex = '10';
+        anchorTd.appendChild(bar);
+    };
+
+    function appendBarToCell(td, bar) {
+        td.style.position = 'relative';
+        bar.style.position = 'absolute';
+        bar.style.top = '6px';
+        td.appendChild(bar);
+    };    
+
     function renderPlanner() {
         const table = document.querySelector('.planner-table');
         table.style.width = `${LAYOUT.tableWidth}px`;
@@ -125,7 +145,7 @@ fetch('/generic/api/EQ')
             <td style="width:${LAYOUT.lodging}px">${row.lodging}</td>
             <td style="width:${LAYOUT.tp}px">${row.typology}</td>
             <td style="width:${LAYOUT.zone}px">${row.zone}</td>
-            <td style="width:${LAYOUT.last_team}px">${row.last_team || ''}</td>
+            <td class="small-text" style="width:${LAYOUT.last_team}px;">${row.last_team || ''}</td>
             <td style="width:${LAYOUT.out}px">${row.checkout_time || ''}</td>
         `;
         tr.innerHTML = html;
@@ -150,100 +170,92 @@ fetch('/generic/api/EQ')
 
         tbody.appendChild(tr);
 
-        // ─── Draw checkout Gantt bar as overlay div ───
-        (function() {
+
+
+        // Exemplo: uso na barra de checkout
+        (function () {
             let checkout = row.checkout_time;
             if (row.checkout_reservation && (!checkout || checkout === 'N/D')) {
-            checkout = '11:00';
+                checkout = '11:00';
             }
-            if (!row.checkout_reservation) return; // Só desenha barra se existe reserva de saída
+            if (!row.checkout_reservation) return;
+
             let [hStr, mStr] = checkout.split(':');
             let hour = parseInt(hStr, 10);
             let mins = parseInt(mStr || '0', 10);
             if (isNaN(hour)) hour = 11;
             if (isNaN(mins)) mins = 0;
 
-            // Colunas fixas: 4 primeiras
-            // Usa os valores do LAYOUT diretamente para garantir alinhamento
-            let barLeft = 0;
-            let endIdx = (hour - 7) * 2;
-            if (mins >= 30) endIdx += 1;
-            if (endIdx < 0) endIdx = 0;
-            if (endIdx > timeslots.length - 1) endIdx = timeslots.length - 1;
+            let endIdx = (hour - 7) * 2 + (mins >= 30 ? 1 : 0);
             let barWidth =
-            20 + 
-            LAYOUT.lodging +
-            LAYOUT.tp +
-            LAYOUT.zone +
-            LAYOUT.last_team +
-            LAYOUT.out +
-            (LAYOUT.timeslot * endIdx) +
-            (LAYOUT.timeslot * ((mins % 60) / 30 ? 0.5 : 0)); // se for exatamente :30 acrescenta meia coluna
+                13 +
+                LAYOUT.lodging +
+                LAYOUT.tp +
+                LAYOUT.zone +
+                LAYOUT.last_team +
+                LAYOUT.out +
+                (LAYOUT.timeslot * endIdx);
 
-            tr.querySelectorAll('.gantt-bar-checkout').forEach(el => el.remove());
             const bar = document.createElement('div');
             bar.className = 'gantt-bar-checkout';
-            bar.style.position = 'absolute';
-            bar.style.top = '6px';
-            bar.style.left = `${barLeft}px`;
-            bar.style.width = `${barWidth}px`;
-            bar.style.height = 'calc(100% - 12px)';
-            bar.style.backgroundColor = 'rgba(255, 0, 0, 0.22)';
-            bar.style.borderRadius = '12px';
-            bar.style.zIndex = '10';
-            bar.style.pointerEvents = 'none';
-            tr.style.position = 'relative';
-            tr.appendChild(bar);
+            Object.assign(bar.style, {
+                left: '5px',
+                width: `${barWidth}px`,
+                backgroundColor: 'rgba(255, 0, 0, 0.22)',
+                pointerEvents: 'none'
+            });
+
+            appendBarToRow(tr, bar);
         })();
 
-
         // ─── Draw OCCUPIED (bar across if occupied, blue) ───
-        (function() {
-        // planner_status == 3 → ocupado
+        (function () {
         if (row.planner_status === 3) {
             tr.querySelectorAll('.gantt-bar-occupied').forEach(el => el.remove());
+
             const bar = document.createElement('div');
             bar.className = 'gantt-bar-occupied';
-            bar.style.position = 'absolute';
-            bar.style.top = '6px';
-            bar.style.left = '0px';
-            bar.style.width = '1600px';
-            bar.style.height = 'calc(100% - 12px)';
-            bar.style.backgroundColor = 'rgba(0, 91, 255, 0.12)';
-            bar.style.borderRadius = '10px';
-            bar.style.zIndex = '7';
-            bar.style.pointerEvents = 'none';
-            tr.style.position = 'relative';
-            tr.appendChild(bar);
+            Object.assign(bar.style, {
+            position: 'absolute',
+            top: '6px',
+            left: '5px',
+            width: '1590px',
+            height: '18px',
+            backgroundColor: 'rgba(0, 91, 255, 0.12)',
+            borderRadius: '10px',
+            zIndex: '7',
+            pointerEvents: 'none'
+            });
+
+            appendBarToRow(tr, bar);
         }
         })();
 
-
         // ─── Draw checkin Gantt bar as overlay div ───
-        (function() {
-            let checkin = row.checkin_time;
-            if (row.checkin_reservation && (!checkin || checkin === 'N/D')) {
+        (function () {
+        let checkin = row.checkin_time;
+        if (row.checkin_reservation && (!checkin || checkin === 'N/D')) {
             checkin = '15:00';
-            }
-            if (!checkin) return; // <- SEGURO! Só entra se houver hora
-            let [hStr, mStr] = checkin.split(':');
-            let hour = parseInt(hStr, 10);
-            let mins = parseInt(mStr || '0', 10);
+        }
+        if (!checkin) return;
 
-            // Corrige: se check-in for depois da meia-noite mas antes das 7h (hora começa por "0"), mete na última coluna (23:30)
-            if ((hStr.startsWith('0') || hour < 7)) {
+        let [hStr, mStr] = checkin.split(':');
+        let hour = parseInt(hStr, 10);
+        let mins = parseInt(mStr || '0', 10);
+
+        // Se check-in for antes das 7h, assume 23:30
+        if ((hStr.startsWith('0') || hour < 7)) {
             hour = 23;
             mins = 30;
-            }
-            if (isNaN(hour)) hour = 15;
-            if (isNaN(mins)) mins = 0;
+        }
+        if (isNaN(hour)) hour = 15;
+        if (isNaN(mins)) mins = 0;
 
+        let startIdx = (hour - 7) * 2 + (mins >= 30 ? 1 : 0);
+        if (startIdx < 0) startIdx = 0;
+        let endIdx = timeslots.length - 1;
 
-            let startIdx = (hour - 7) * 2;
-            if (mins >= 30) startIdx += 1;
-            if (startIdx < 0) startIdx = 0;
-            let endIdx = timeslots.length - 1;
-            let barLeft =
+        let barLeft =
             20 +
             LAYOUT.lodging +
             LAYOUT.tp +
@@ -251,43 +263,50 @@ fetch('/generic/api/EQ')
             LAYOUT.last_team +
             LAYOUT.out +
             (LAYOUT.timeslot * startIdx);
-            let barWidth = LAYOUT.timeslot * (endIdx - startIdx + 1) + 180;
 
-            tr.querySelectorAll('.gantt-bar-checkin').forEach(el => el.remove());
-            const bar = document.createElement('div');
-            bar.className = 'gantt-bar-checkin';
-            bar.style.position = 'absolute';
-            bar.style.top = '6px';
-            bar.style.left = `${barLeft}px`;
-            bar.style.width = `${barWidth}px`;
-            bar.style.height = 'calc(100% - 12px)';
-            bar.style.backgroundColor = 'rgba(50, 200, 60, 0.22)';
-            bar.style.borderRadius = '12px';
-            bar.style.zIndex = '8';
-            bar.style.pointerEvents = 'none';
-            tr.style.position = 'relative';
-            tr.appendChild(bar);
+        let barWidth = LAYOUT.timeslot * (endIdx - startIdx + 1) + 175;
+
+        tr.querySelectorAll('.gantt-bar-checkin').forEach(el => el.remove());
+
+        const bar = document.createElement('div');
+        bar.className = 'gantt-bar-checkin';
+        Object.assign(bar.style, {
+            position: 'absolute',
+            top: '6px',
+            left: `${barLeft}px`,
+            width: `${barWidth}px`,
+            height: '18px',
+            backgroundColor: 'rgba(50, 200, 60, 0.22)',
+            borderRadius: '12px',
+            zIndex: '8',
+            pointerEvents: 'none'
+        });
+
+        appendBarToRow(tr, bar);
         })();
 
         // ─── Draw cleaning Gantt bar from DB ───
-        (function() {
-        if (!row.cleaning_team || !row.cleaning_time) return; // Só se existir limpeza agendada
-        // Cor da equipa
+        (function () {
+        if (!row.cleaning_team || !row.cleaning_time) return;
+
         const teamColor = (teams.find(t => t.NOME.trim() === row.cleaning_team.trim()) || {}).COR || '#bbb';
         let [hStr, mStr] = row.cleaning_time.split(':');
-        let hour = parseInt(hStr, 10), mins = parseInt(mStr||'0',10);
+        let hour = parseInt(hStr, 10), mins = parseInt(mStr || '0', 10);
         if (isNaN(hour)) hour = 10;
         if (isNaN(mins)) mins = 0;
+
         let startIdx = (hour - 7) * 2 + (mins >= 30 ? 1 : 0);
         if (startIdx < 0) startIdx = 0;
+
         const duration = getCleaningDuration(row.typology || row.tp);
-        const slots = Math.ceil(duration/30);
+        const slots = Math.ceil(duration / 30);
         const barLeft = 20
             + LAYOUT.lodging + LAYOUT.tp + LAYOUT.zone + LAYOUT.last_team + LAYOUT.out
             + (LAYOUT.timeslot * startIdx);
         const barWidth = LAYOUT.timeslot * slots;
 
         tr.querySelectorAll('.gantt-bar-cleaning').forEach(el => el.remove());
+
         const bar = document.createElement('div');
         bar.className = 'gantt-bar-cleaning';
         Object.assign(bar.style, {
@@ -306,6 +325,7 @@ fetch('/generic/api/EQ')
             alignItems: 'center',
             justifyContent: 'center'
         });
+
         const label = document.createElement('span');
         Object.assign(label.style, {
             fontSize: '8px',
@@ -316,31 +336,38 @@ fetch('/generic/api/EQ')
         label.textContent = row.cleaning_team;
         bar.appendChild(label);
 
-        tr.style.position = 'relative';
-        tr.appendChild(bar);
+        appendBarToRow(tr, bar); // ← aqui está a diferença principal
 
-        // ao clicar, mostrar menu
+        // drop-menu
         bar.addEventListener('click', e => {
             e.stopPropagation();
             if (openDropdown) { openDropdown.remove(); openDropdown = null; }
+
             const rect = bar.getBoundingClientRect();
             const menu = document.createElement('div');
             menu.style.zIndex = '20000';
             Object.assign(menu.style, {
             position: 'fixed',
             left: `${rect.left}px`,
-            top:  `${rect.bottom}px`,
+            top: `${rect.bottom}px`,
             background: '#fff',
             border: '1px solid #ccc',
             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
             borderRadius: '4px'
             });
+
             [
             { label: 'Abrir', icon: 'fa-regular fa-pen-to-square' },
             { label: 'Eliminar', icon: 'fa-regular fa-trash-can' }
             ].forEach(({ label, icon }) => {
             const item = document.createElement('div');
-            Object.assign(item.style, { padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' });
+            Object.assign(item.style, {
+                padding: '4px 8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+            });
 
             const i = document.createElement('i');
             i.className = icon;
@@ -351,22 +378,23 @@ fetch('/generic/api/EQ')
 
             item.append(i, span);
 
-            
             item.addEventListener('click', ev => {
                 ev.stopPropagation();
                 if (label === 'Abrir') {
                 window.open(`/generic/form/LP/${row.cleaning_id}`, '_blank');
                 } else {
                 fetch(`/generic/api/LP/${row.cleaning_id}`, {
-                method: 'DELETE'
+                    method: 'DELETE'
                 })
-                .then(() => loadPlanner(currentDate))
-                .catch(err => alert('Erro ao eliminar: '+err));
+                    .then(() => loadPlanner(currentDate))
+                    .catch(err => alert('Erro ao eliminar: ' + err));
                 }
                 menu.remove();
             });
+
             menu.appendChild(item);
             });
+
             document.body.appendChild(menu);
             openDropdown = menu;
             setTimeout(() => {
@@ -461,21 +489,15 @@ fetch('/generic/api/EQ')
     }
     }
 
-    // Função para desenhar a barra de equipa
+
     function desenhaBarraEquipa(tr, td, slot, row, team) {
-    // Limpa barras antigas desenhadas pelo user (não remove as de checkin/checkout)
     tr.querySelectorAll('.gantt-bar-team').forEach(el => el.remove());
 
-    // Duração da barra, conforme tipologia
-    let tp = ((row && (row.typology || row.tp || '')) + '').toUpperCase().trim();
-
-
     const minutos = getCleaningDuration(row.typology);
-
-    // Índice do slot clicado
-    const idx = Array.from(td.parentNode.children).indexOf(td) - 3; // menos colunas fixas
+    const idx = Array.from(td.parentNode.children).indexOf(td) - 3;
     const startIdx = idx;
-    const slots = Math.ceil(minutos / 30); // quantos slots ocupa (30min cada)
+    const slots = Math.ceil(minutos / 30);
+
     const barLeft =
         30 +
         LAYOUT.lodging +
@@ -483,38 +505,41 @@ fetch('/generic/api/EQ')
         LAYOUT.last_team +
         LAYOUT.out +
         (LAYOUT.timeslot * startIdx);
+
     const barWidth = LAYOUT.timeslot * slots;
 
-    // Desenha barra
     const bar = document.createElement('div');
     bar.className = 'gantt-bar-team';
-    bar.style.position = 'absolute';
-    bar.style.top = '6px';
-    bar.style.left = `${barLeft}px`;
-    bar.style.width = `${barWidth}px`;
-    bar.style.height = 'calc(100% - 12px)';
-    bar.style.backgroundColor = team.COR || '#999';
-    bar.style.opacity = '0.4';
-    bar.style.borderRadius = '10px';
-    bar.style.zIndex = '18';
-    bar.style.pointerEvents = 'none';
-    bar.style.display = 'flex';
-    bar.style.alignItems = 'center';
-    bar.style.justifyContent = 'center';
+    Object.assign(bar.style, {
+        position: 'absolute',
+        top: '6px',
+        left: `${barLeft}px`,
+        width: `${barWidth}px`,
+        height: '18px',
+        backgroundColor: team.COR || '#999',
+        opacity: '0.4',
+        borderRadius: '10px',
+        zIndex: '18',
+        pointerEvents: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+    });
 
-    // Texto na barra
     const label = document.createElement('span');
+    Object.assign(label.style, {
+        fontSize: '8px',
+        fontWeight: 'bold',
+        color: '#fff',
+        textShadow: '1px 1px 4px #222',
+        margin: 'auto'
+    });
     label.textContent = team.NOME;
-    label.style.fontSize = '8px';
-    label.style.fontWeight = 'bold';
-    label.style.color = '#fff';
-    label.style.textShadow = '1px 1px 4px #222';
-    label.style.margin = 'auto';
     bar.appendChild(label);
 
-    tr.style.position = 'relative';
-    tr.appendChild(bar);
+    appendBarToRow(tr, bar);  // ← Insere na linha, não no td
     }
+
 
 
     function recolherLimpezasParaGravar() {
@@ -523,7 +548,7 @@ fetch('/generic/api/EQ')
         const tr = bar.closest('tr');
         if (!tr) return;
         // Extrair alojamento e data
-        const alojamento = tr.children[0].textContent.trim();
+        const alojamento = tr.children[0].childNodes[0]?.nodeValue.trim();
         const typology = tr.children[2].textContent.trim(); // se quiseres usar
         // Extrair hora de início (slot)
         // O left da barra -> slot inicial
@@ -557,13 +582,21 @@ fetch('/generic/api/EQ')
         return;
     }
 
-    fetch('/generic/api/LP/gravar', {
+        fetch('/generic/api/LP/gravar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(limpezas)
-    })
-    .then(res => res.json())
-    .then(resp => {
+        })
+        .then(async res => {
+        const contentType = res.headers.get('content-type');
+        if (!res.ok) throw new Error(res.statusText);
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await res.text();
+            throw new Error(`Resposta inesperada do servidor:\n\n${text}`);
+        }
+        return res.json();
+        })
+        .then(resp => {
         if (resp.success) {
             alert("Limpezas gravadas!");
             loadPlanner(currentDate);
@@ -571,14 +604,13 @@ fetch('/generic/api/EQ')
             if (mainContent) {
             mainContent.scrollTo({ top: 0, behavior: 'smooth' });
             } else {
-            // fallback: tenta no window
             window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         } else {
-        alert("Erro ao gravar limpezas.");
+            alert("Erro ao gravar limpezas.");
         }
-    })
-    .catch(err => alert("Falha ao gravar limpezas: " + err));
+        })
+        .catch(err => alert("Falha ao gravar limpezas: " + err));
     });
 
 

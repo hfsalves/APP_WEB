@@ -11,16 +11,37 @@ function parseNumber(val) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  showLoading();
   fetch('/api/dashboard')
     .then(r => r.json())
     .then(data => {
+      const widgetPromises = [];
       [1,2,3].forEach(col => {
         const colDiv = document.getElementById('col-' + col);
         colDiv.innerHTML = '';
-        data[col].forEach(widget => renderWidget(widget, colDiv));
+        data[col].forEach(widget => {
+          // Modifica renderWidget para devolver uma Promise se tiver fetch!
+          const prom = renderWidget(widget, colDiv);
+          if (prom && typeof prom.then === 'function') widgetPromises.push(prom);
+        });
       });
-    });
+      // Espera por todos os widgets que devolvem Promise (os que têm fetch)
+      return Promise.all(widgetPromises);
+    })
+    .finally(hideLoading);
 });
+
+
+function showLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.style.display = 'flex';
+  setTimeout(() => overlay.style.opacity = '1', 15);
+}
+function hideLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.style.opacity = '0';
+  setTimeout(() => overlay.style.display = 'none', 250); // espera pelo fade-out
+}
 
 function renderWidget(widget, colDiv) {
   const wDiv = document.createElement('div');
@@ -57,7 +78,7 @@ function renderWidget(widget, colDiv) {
   expandBtn.addEventListener('click', () => wDiv.classList.toggle('expanded'));
 
 if (widget.tipo === 'ANALISE') {
-  fetch(`/api/widget/analise/${widget.nome}`)
+  return fetch(`/api/widget/analise/${widget.nome}`)
     .then(r => r.json())
     .then(data => {
       if (data.error) {

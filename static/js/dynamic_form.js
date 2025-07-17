@@ -19,12 +19,24 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+function showLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.style.display = 'flex';
+  setTimeout(() => overlay.style.opacity = '1', 15);
+}
+function hideLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.style.opacity = '0';
+  setTimeout(() => overlay.style.display = 'none', 250); // espera pelo fade-out
+}
 
 
 // 🧪 DEBUG extra
 console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropdown-item').length);
 
 (async function() {
+
+  showLoading()
 
   const isMobile = window.innerWidth <= 768;
   console.log('📱 Modo:', isMobile ? 'MOBILE' : 'DESKTOP');
@@ -179,7 +191,34 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
           return;
         }
 
+        // NOVO: campo COLOR
+        if ((col.tipo || '').toUpperCase() === 'COLOR') {
+          let input = document.createElement('input');
+          input.type = 'color';
+          input.className = 'form-control-color';
+          input.name = col.name;
+          input.id = col.name;
+          input.value = col.valor || col.valorAtual || col.VALORDEFAULT || '#000000';
+          formState[col.name] = input.value;
+          camposByName[col.name] = input;
+          input.addEventListener('change', e => {
+            formState[col.name] = e.target.value;
+            aplicarCondicoesDeVisibilidade();
+          });
 
+          const wrapper = document.createElement('div');
+          wrapper.className = 'mb-3';
+          const label = document.createElement('label');
+          label.setAttribute('for', col.name);
+          label.className = 'form-label';
+          label.innerHTML = `${col.descricao || col.name}`;
+          wrapper.appendChild(label);
+          wrapper.appendChild(input);
+
+          colDiv.appendChild(wrapper);
+          return;
+        }
+                
         const wrapper = document.createElement('div');
         wrapper.className = col.tipo === 'BIT' ? 'form-check mb-3' : 'mb-3';
 
@@ -469,6 +508,12 @@ if (RECORD_STAMP) {
           el.value = '';
         }
         formState[nome] = el.value;
+        } else if (el.type === 'color') {
+        // se a cor vier sem "#", adiciona
+        let cor = (val || '').toString().trim();
+        if (cor && !cor.startsWith('#')) cor = '#' + cor;
+        el.value = cor || '#000000';
+        formState[nome] = el.value;
       } else {
         el.value = val;
         formState[nome] = el.value;
@@ -480,6 +525,8 @@ if (RECORD_STAMP) {
 } else {
   document.getElementById('btnDelete')?.style.setProperty('display', 'none');
 }
+
+hideLoading()
 
   // ===============================
 // 5. FLATPICKR E FORMATOS
@@ -1004,6 +1051,62 @@ document.addEventListener('click', e => {
   abrirModal(nomeModal);
 });
 
+// at the very top, before any form-building logic
+function criarInputPadrao(campo, valorAtual = '') {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'form-control';
+  input.value = valorAtual;
+  return input;
+}
+
+function renderCampo(campo, valorAtual = '') {
+  const div = document.createElement('div');
+  div.className = 'col-12 mb-3';
+  const label = document.createElement('label');
+  label.className = 'form-label';
+  label.textContent = campo.descricao || campo.name;
+  div.appendChild(label);
+
+  let input;
+  const tipo = campo.tipo.toUpperCase();
+
+  if (tipo === 'COLOR') {
+    input = document.createElement('input');
+    input.type = 'color';
+    input.className = 'form-control form-control-color';
+    input.value = valorAtual || '#000000';
+  }
+  else if (tipo === 'LINK') {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'input-group';
+    input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control';
+    input.placeholder = 'https://...';
+    input.value = valorAtual || '';
+    const button = document.createElement('a');
+    button.className = 'btn btn-outline-secondary';
+    button.target = '_blank';
+    button.href   = input.value || '#';
+    button.innerHTML = '<i class="fa fa-link"></i>';
+    input.addEventListener('input', () => button.href = input.value);
+    wrapper.appendChild(input);
+    wrapper.appendChild(button);
+    div.appendChild(wrapper);
+    // skip the `div.appendChild(input)` below
+    input.dataset.campo = campo.name;
+    return div;
+  }
+  else {
+    input = criarInputPadrao(campo, valorAtual);
+  }
+
+  input.dataset.campo = campo.name;
+  div.appendChild(input);
+  return div;
+}
+
 
 // Gera os elementos de campo dentro do modal
 function renderModalFields(campos) {
@@ -1028,6 +1131,7 @@ function renderModalFields(campos) {
       wrapper.appendChild(label);
 
       let input;
+      
       // ── 1) COMBO ─────────────────────────────────────────────
       if (col.TIPO === 'COMBO') {
         input = document.createElement('select');

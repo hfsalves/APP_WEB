@@ -147,7 +147,7 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_stamp):
         sql = text("""
-            SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV
+            SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV, HOME
             FROM US
             WHERE USSTAMP = :stamp
         """)
@@ -169,7 +169,7 @@ def create_app():
             pwd = request.form['password']
 
             sql = text("""
-                SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV
+                SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV, HOME
                 FROM US
                 WHERE LOGIN = :login
             """)
@@ -179,7 +179,7 @@ def create_app():
                 for k, v in row.items():
                     setattr(user, k, v)
                 login_user(user)
-                return redirect(request.args.get('next') or url_for('dashboard_page'))
+                return redirect(request.args.get('next') or url_for('home_page'))
 
             return render_template('login.html', error='Credenciais inválidas')
         return render_template('login.html')
@@ -191,14 +191,19 @@ def create_app():
     def logout():
         logout_user()
         return redirect(url_for('login'))
+   
 
     @app.route('/')
     @login_required
     def home_page():
-        if current_user.HOME == 'dashboard':
+        home = getattr(current_user, 'HOME', '').lower().strip().lstrip('/')
+        print(f"HOME do utilizador: {home}")
+
+        if home == 'dashboard':
             return redirect(url_for('dashboard_page'))
-        elif current_user.HOME == 'monitor' or not current_user.HOME:
+        elif home == 'monitor' or not home:
             return redirect(url_for('monitor_page'))
+
         return redirect(url_for('dashboard_page'))
 
 
@@ -483,7 +488,6 @@ def create_app():
     @login_required
     def monitor_page():
         return render_template('monitor.html')
-
 
 
     return app

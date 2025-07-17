@@ -37,7 +37,7 @@
     window.USER_PERMS = {{ user_perms|tojson }};
   </script>
 </head>
-<body>
+<body class="{% if current_user.is_authenticated %}authenticated{% endif %}">
   {% if request.endpoint != 'login' %}
   <header class="app-header">
     <div class="header-inner">
@@ -159,6 +159,26 @@
   </div>
 
   {% include 'dynamic_modal.html' %}
+
+<div id="loadingOverlay" style="
+  position:fixed; inset:0;
+  background:rgba(255,255,255,0.28);
+  z-index:9999; display:none; align-items:center; justify-content:center;
+  backdrop-filter: blur(1.5px);
+  opacity: 0; transition: opacity 220ms cubic-bezier(.72,0,.23,1);
+">
+  <div style="text-align:center;">
+    <div class="lds-glassdots">
+      <div></div><div></div><div></div>
+    </div>
+    <div style="margin-top:0.7rem;font-size:.95rem;color:#6e6e6e;font-family:sans-serif;letter-spacing:0.02em;">
+      A carregar…
+    </div>
+  </div>
+</div>
+
+
+
 
 </body>
 </html>

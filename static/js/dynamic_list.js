@@ -90,6 +90,18 @@ document.addEventListener('DOMContentLoaded', () => {
   let sortField = null;
   let sortDir = 1; // 1 = asc, -1 = desc
 
+  function showLoading() {
+    const overlay = document.getElementById('loadingOverlay');
+    overlay.style.display = 'flex';
+    setTimeout(() => overlay.style.opacity = '1', 15);
+  }
+  function hideLoading() {
+    const overlay = document.getElementById('loadingOverlay');
+    overlay.style.opacity = '0';
+    setTimeout(() => overlay.style.display = 'none', 250); // espera pelo fade-out
+  }
+
+
   async function initListView() {
     // a) Describe para metadados
     let meta;
@@ -110,8 +122,14 @@ document.addEventListener('DOMContentLoaded', () => {
     renderFilters(filterCols);
 
     // d) Load inicial de dados
+    showLoading()
+
     await loadData();
+
+    hideLoading()
+  
   }
+  
 
   function renderFilters(cols) {
     filterForm.innerHTML = '';
@@ -213,6 +231,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  
+
   async function loadData() {
     const params = new URLSearchParams();
     filterForm.querySelectorAll('[name]').forEach(el => {
@@ -305,8 +325,8 @@ document.addEventListener('DOMContentLoaded', () => {
     table.append(tbody);
     gridDiv.append(table);
   }
-});
 
+});
 
 
 
