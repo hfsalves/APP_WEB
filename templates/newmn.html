@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Nova Incidência{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="card mx-auto" style="max-width: 420px;">
+    <div class="card-body">
+      <h5 class="mb-4 text-center">Nova Incidência</h5>
+      <form id="mnForm" autocomplete="off">
+        <div class="mb-3">
+          <label for="alojamento" class="form-label">Alojamento</label>
+          <select id="alojamento" name="ALOJAMENTO" class="form-select" required>
+            <option value="">Escolha o alojamento…</option>
+            {% for nome in alojamentos %}
+              <option value="{{ nome }}">{{ nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="data" class="form-label">Data</label>
+          <input type="date" id="data" name="DATA" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label for="nome" class="form-label">Nome</label>
+          <input type="text" id="nome" name="NOME" class="form-control" maxlength="60" required>
+        </div>
+        <div class="mb-3">
+          <label for="incidencia" class="form-label">Incidência</label>
+          <textarea id="incidencia" name="INCIDENCIA" class="form-control" maxlength="250" rows="3" required></textarea>
+        </div>
+        <input type="hidden" name="TRATADO" value="0">
+        <input type="hidden" name="DTTRATADO" value="">
+        <input type="hidden" name="NMTRATADO" value="">
+        <div class="d-flex justify-content-between mt-4">
+          <button type="button" id="btnCancel" class="btn btn-secondary flex-fill me-2">Cancelar</button>
+          <button type="submit" class="btn btn-primary flex-fill ms-2">Gravar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  // Foca no primeiro campo ao abrir
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('alojamento').focus();
+    document.getElementById('data').valueAsDate = new Date();
+  });
+
+  // Cancelar volta atrás
+  document.getElementById('btnCancel').onclick = function() {
+    history.back();
+  };
+
+    // Submit do form
+    document.getElementById('mnForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(this));
+    try {
+        const res = await fetch('/generic/api/mn_incidente', {   // <--- aqui!
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+        });
+        if (res.ok) {
+        alert("Incidência registada com sucesso.");
+        window.location.href = '/'; // Ou outro destino
+        } else {
+        const err = await res.json();
+        alert("Erro: " + (err.error || res.statusText));
+        }
+    } catch (ex) {
+        alert("Erro de rede: " + ex.message);
+    }
+    };
+
+</script>
+{% endblock %}

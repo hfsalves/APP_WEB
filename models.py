@@ -66,6 +66,7 @@ class Acessos(db.Model):
     inserir      = db.Column(db.Boolean, default=False, nullable=False)
     editar       = db.Column(db.Boolean, default=False, nullable=False)
     eliminar     = db.Column(db.Boolean, default=False, nullable=False)
+    usstamp      = db.Column(db.String(100), nullable=False)
 
     # Relacionamento opcional para aceder ao utilizador
     user = db.relationship('US', backref='acessos', primaryjoin="Acessos.utilizador==US.LOGIN")

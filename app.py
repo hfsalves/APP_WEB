@@ -488,6 +488,14 @@ def create_app():
     @login_required
     def monitor_page():
         return render_template('monitor.html')
+    
+    from sqlalchemy import text
+
+    @app.route('/newmn')
+    @login_required
+    def newmn():
+        alojamentos = [row[0] for row in db.session.execute(text("SELECT NOME FROM AL ORDER BY 1")).fetchall()]
+        return render_template('newmn.html', alojamentos=alojamentos)
 
 
     return app

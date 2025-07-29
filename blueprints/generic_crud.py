@@ -745,3 +745,51 @@ def api_monitor_tasks():
 
     tarefas = [dict(r) for r in rows]
     return jsonify(tarefas)
+
+
+@bp.route('/api/mn_incidente', methods=['POST'])
+@login_required
+def criar_mn_incidente():
+    """
+    Endpoint dedicado para criar uma nova incidência na tabela MN
+    Garante que o campo TRATADO é sempre booleano.
+    """
+    from sqlalchemy import text
+    import uuid
+    data = request.get_json() or {}
+
+    # Campos obrigatórios
+    obrigatorios = ['ALOJAMENTO', 'DATA', 'NOME', 'INCIDENCIA']
+    for campo in obrigatorios:
+        if not data.get(campo):
+            return jsonify({'error': f'Campo obrigatório em falta: {campo}'}), 400
+
+    # Campos automáticos/defaults
+    mnstamp = uuid.uuid4().hex[:25].upper()
+    tratado = str(data.get('TRATADO', '0')).lower() in ['1', 'true', 'on']
+    dttratado = data.get('DTTRATADO', None) or None
+    nmtratado = data.get('NMTRATADO', '')
+    dttratado = data.get('DTTRATADO') or '1900-01-01'
+
+
+    sql = text("""
+        INSERT INTO MN (MNSTAMP, ALOJAMENTO, DATA, NOME, INCIDENCIA, TRATADO, DTTRATADO, NMTRATADO)
+        VALUES (:mnstamp, :alojamento, :data, :nome, :incidencia, :tratado, :dttratado, :nmtratado)
+    """)
+    try:
+        db.session.execute(sql, {
+            'mnstamp': mnstamp,
+            'alojamento': data['ALOJAMENTO'],
+            'data': data['DATA'],
+            'nome': data['NOME'],
+            'incidencia': data['INCIDENCIA'],
+            'tratado': tratado,
+            'dttratado': dttratado,
+            'nmtratado': nmtratado
+        })
+        db.session.commit()
+        return jsonify({'success': True, 'MNSTAMP': mnstamp}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
