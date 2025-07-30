@@ -1,19 +1,6 @@
 // static/js/monitor.js
 
 document.addEventListener('DOMContentLoaded', () => {
-  // --- BOTÃO NOVA INCIDÊNCIA ---
-  const btnIncidencia = document.createElement('button');
-  btnIncidencia.className = 'btn btn-outline-primary mb-3';
-  btnIncidencia.innerHTML = '<i class="fa fa-plus me-2"></i>Nova Incidência';
-  btnIncidencia.style.float = 'right'; // Se quiseres à direita
-
-  // Ao clicar, abre o form de incidência
-  btnIncidencia.onclick = () => window.location.href = '/newmn';
-
-  // Insere no topo do main-content
-  const main = document.querySelector('.main-content');
-  if (main) main.prepend(btnIncidencia);
-    
   const colAtrasadas = document.getElementById('tarefas-atrasadas');
   const colHoje = document.getElementById('tarefas-hoje');
   const colFuturas = document.getElementById('tarefas-futuras');
@@ -141,4 +128,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }).then(() => window.location.reload());
     });
   }
+});
+
+// FAB menu toggle
+document.getElementById('openFabMenu').onclick = function(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('fabMenu');
+  menu.style.display = (menu.style.display === 'block' ? 'none' : 'block');
+};
+
+// Fecha ao clicar fora
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('fabMenu');
+  if (menu) menu.style.display = 'none';
 });

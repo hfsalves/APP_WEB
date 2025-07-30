@@ -26,6 +26,23 @@
   const CURRENT_USER = "{{ current_user.LOGIN }}";
 </script>
 
+<!-- Botão de ação rápida (FAB) -->
+<div id="fab-actions" style="
+    position: absolute;
+    top: 22px; right: 34px;
+    z-index: 3000;
+    ">
+  <button class="fab-btn" id="openFabMenu" title="Ações rápidas">
+    <i class="fa-solid fa-plus"></i>
+  </button>
+  <div class="fab-menu" id="fabMenu" style="display: none;">
+    <button class="fab-menu-item" onclick="window.location.href='/newmn'">
+      <i class="fa-solid fa-bolt me-2"></i> Nova Incidência
+    </button>
+    <!-- Futuras ações aqui -->
+  </div>
+</div>
+
 
 <!-- Modal de Ações -->
 <div class="modal fade" id="tarefaModal" tabindex="-1" aria-hidden="true">
