@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}App{% endblock %}</title>
+  <title>{% block title %}{{ page_title or "App" }}{% endblock %}</title>
+
 
   <!-- Nunito via Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -45,7 +46,7 @@
         <i class="fa-solid fa-bars"></i>
       </button>
       <h1 class="page-title">
-        {{ page_name or request.endpoint.replace('_', ' ').replace('-', ' ').title() }}
+        {{ page_title or page_name or request.endpoint.replace('_', ' ').replace('-', ' ').title() }}
       </h1>
     </div>
   </header>

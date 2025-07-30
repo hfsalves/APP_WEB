@@ -491,11 +491,24 @@ def create_app():
     
     from sqlalchemy import text
 
+    from flask_login import current_user
+
     @app.route('/newmn')
     @login_required
     def newmn():
         alojamentos = [row[0] for row in db.session.execute(text("SELECT NOME FROM AL ORDER BY 1")).fetchall()]
-        return render_template('newmn.html', alojamentos=alojamentos)
+        users = [row[0] for row in db.session.execute(text("SELECT LOGIN FROM US ORDER BY 1")).fetchall()]
+        utilizador = current_user.LOGIN
+        return render_template('newmn.html', alojamentos=alojamentos, users=users, utilizador=utilizador, page_title='Manutenção')
+    
+    @app.route('/newanexo')
+    @login_required
+    def newanexo():
+        table = request.args.get('table')
+        rec = request.args.get('rec')
+        if not table or not rec:
+            abort(400, "Faltam parâmetros")
+        return render_template('newanexo.html', table=table, rec=rec, page_title='Anexos')
 
 
     return app

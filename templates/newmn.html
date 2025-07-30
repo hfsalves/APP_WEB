@@ -20,10 +20,13 @@
         <div class="mb-3">
           <label for="data" class="form-label">Data</label>
           <input type="date" id="data" name="DATA" class="form-control" required>
-        </div>
         <div class="mb-3">
-          <label for="nome" class="form-label">Nome</label>
-          <input type="text" id="nome" name="NOME" class="form-control" maxlength="60" required>
+        <label for="nome" class="form-label">Nome</label>
+        <select id="nome" name="NOME" class="form-select" required>
+            {% for user in users %}
+            <option value="{{ user }}" {% if user == utilizador %}selected{% endif %}>{{ user }}</option>
+            {% endfor %}
+        </select>
         </div>
         <div class="mb-3">
           <label for="incidencia" class="form-label">Incidência</label>
@@ -67,9 +70,17 @@
         body: JSON.stringify(data)
         });
         if (res.ok) {
-        alert("Incidência registada com sucesso.");
-        window.location.href = '/'; // Ou outro destino
+        // Receber o STAMP gerado na resposta (pede ao backend para devolver!)
+        const out = await res.json();
+        if (confirm("Incidência registada. Deseja anexar ficheiros ou fotos?")) {
+            // Passa table=MN&rec=<STAMP>
+            //const out = await res.json();
+            window.location.href = `/newanexo?table=MN&rec=${out.MNSTAMP}`;
         } else {
+            window.location.href = '/';
+        }   
+        }
+        else {
         const err = await res.json();
         alert("Erro: " + (err.error || res.statusText));
         }
