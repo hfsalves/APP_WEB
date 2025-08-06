@@ -1556,7 +1556,7 @@ body:not(.authenticated) .main-content {
   border: 1px solid #f0f0f0;
 }
 .fab-menu-item {
-  display: flex; align-items: center;
+  display: flex; align-items: left;
   background: none; border: none; width: 100%; text-align: left;
   font-size: 1.05rem; padding: 8px 22px; color: #1c1c1c;
   cursor: pointer;
@@ -1565,4 +1565,15 @@ body:not(.authenticated) .main-content {
 .fab-menu-item:hover {
   background: #f7fafd;
   color: #1677ff;
+}
+
+.planner-container {
+  position: relative;
+}
+#btnPrintLabels {
+  transition: box-shadow 0.18s, background 0.18s;
+}
+#btnPrintLabels:hover {
+  box-shadow: 0 2px 14px #007bff2e;
+  background: #1564cf;
 }

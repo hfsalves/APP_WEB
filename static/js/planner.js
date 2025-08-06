@@ -629,5 +629,36 @@ fetch('/generic/api/EQ')
     })
 
 
-.catch(err => console.error("Erro a carregar equipas:", err));
+    .catch(err => console.error("Erro a carregar equipas:", err));
+
+
+    document.getElementById('btnPrintLabels').addEventListener('click', async () => {
+    const date = document.getElementById('planner-date').value;
+    if (!date) return alert("Seleciona uma data primeiro!");
+
+    // Se quiseres bloquear enquanto processa:
+    const btn = document.getElementById('btnPrintLabels');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-print"></i>';
+
+    try {
+        const res = await fetch(`/planner/api/imprimir_etiquetas?date=${encodeURIComponent(date)}`, {
+        method: 'POST'
+        });
+        const data = await res.json();
+        if (data.success) {
+        alert("Etiquetas criadas!");
+        } else {
+        alert("Erro: " + (data.error || "Erro desconhecido."));
+        }
+    } catch (err) {
+        alert("Erro ao criar etiquetas: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-print"></i>';
+    }
+    });
+
 });
+
+

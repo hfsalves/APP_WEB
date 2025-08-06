@@ -510,6 +510,27 @@ def create_app():
             abort(400, "Faltam parâmetros")
         return render_template('newanexo.html', table=table, rec=rec, page_title='Anexos')
 
+    from sqlalchemy import text
+
+    @app.route('/planner/api/imprimir_etiquetas', methods=['POST'])
+    @login_required
+    def imprimir_etiquetas():
+        data = request.args.get('date')
+        if not data:
+            return jsonify({'error': 'Data em falta'}), 400
+
+        # Inserir todos os LP com DATA = data na tabela ET
+        sql = text("""
+            INSERT INTO ET (LPSTAMP, TRATADO)
+            SELECT LPSTAMP, 0 FROM LP WHERE DATA = :data
+        """)
+        try:
+            db.session.execute(sql, {'data': data})
+            db.session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
 
     return app
 
