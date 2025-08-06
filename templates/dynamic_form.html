@@ -36,14 +36,21 @@
         <i class="fa fa-bolt"></i>
       </button>
       <ul class="dropdown-menu" aria-labelledby="dropdownExemplo">
-            {% for botao in botoes %}
-              <li>
-                <a class="dropdown-item" href="#" onclick="abrirModal('{{ botao.NOME }}')">
-                  <i class="fa {{ botao.ICONE }} me-2"></i>
-                  {{ botao.TEXTO }}
-                </a>
-              </li>
-            {% endfor %}
+        {% for botao in botoes %}
+          <li>
+            {% if botao.TIPO == 'MODAL' %}
+              <a class="dropdown-item btn-custom" data-tipo="MODAL" data-acao="{{ botao.ACAO }}" href="#">
+                <i class="fa {{ botao.ICONE }} me-2"></i>
+                {{ botao.TEXTO }}
+              </a>
+            {% elif botao.TIPO == 'ACAO' %}
+              <a class="dropdown-item btn-custom" data-tipo="ACAO" data-acao="{{ botao.ACAO }}" href="#">
+                <i class="fa {{ botao.ICONE }} me-2"></i>
+                {{ botao.TEXTO }}
+              </a>
+            {% endif %}
+          </li>
+        {% endfor %}
       </ul>
     </div>
     {% endif %}

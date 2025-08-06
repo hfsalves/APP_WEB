@@ -532,6 +532,23 @@ def create_app():
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
+
+    @app.route('/api/etiqueta_rapida', methods=['POST'])
+    @login_required
+    def criar_etiqueta_rapida():
+        lpstamp = request.json.get('lpstamp')
+        if not lpstamp:
+            return jsonify({'error': 'LPSTAMP em falta'}), 400
+        try:
+            # só insere se não existir ainda
+            sql = text('INSERT INTO ET (LPSTAMP, TRATADO) VALUES (:lpstamp, 0)')
+            db.session.execute(sql, {'lpstamp': lpstamp})
+            db.session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+        
     return app
 
 

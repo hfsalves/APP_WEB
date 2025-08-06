@@ -904,6 +904,23 @@ hideLoading()
         abrirModal(btn.dataset.acao);
       });
 
+      // Hook para botões customizados do tipo ACAO (executa código JS do campo ACAO)
+      document.addEventListener('click', e => {
+        // <a> ou <button> com .btn-custom[data-tipo="ACAO"]
+        const btn = e.target.closest('.btn-custom[data-tipo="ACAO"]');
+        if (!btn) return;
+
+        e.preventDefault();
+        try {
+          // O código vem no atributo data-acao (campo ACAO da MENUBOTOES)
+          // Podes usar RECORD_STAMP, TABLE_NAME, etc, aqui.
+          // Usa new Function para correr o código JS
+          const fn = new Function('TABLE_NAME', 'RECORD_STAMP', btn.dataset.acao);
+          fn(window.TABLE_NAME, window.RECORD_STAMP);
+        } catch (err) {
+          alert("Erro ao executar ação: " + err.message);
+        }
+      });      
 
     // Voltar
     document.getElementById('btnBack')?.addEventListener('click', () => {
