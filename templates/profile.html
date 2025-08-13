@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Perfil{% endblock %}
+
+{% block content %}
+<div class="dynamic-container">
+  <div class="dynamic-form">
+    <form id="profileForm" class="row g-3"></form>
+        <div class="form-actions mt-3">
+        <button type="button" id="btnChangePwd" class="btn btn-outline-secondary ms-2">
+            <i class="fa fa-key me-1"></i> Alterar Password
+        </button>
+        <button type="submit" form="profileForm" class="btn btn-primary btn-save">
+            <i class="fa-solid fa-save"></i>
+            <span class="btn-text">Gravar</span>
+        </button>
+        <a href="{{ url_for('monitor_page') }}" class="btn btn-secondary btn-back">
+            <i class="fa-solid fa-arrow-left"></i>
+            <span class="btn-text">Voltar</span>
+        </a>        
+        </div>
+    <div id="profileMsg" class="mt-3"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/profile_form.js') }}"></script>
+<!-- Modal Alterar Password -->
+<div class="modal fade" id="modalChangePwd" tabindex="-1" aria-labelledby="modalChangePwdLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalChangePwdLabel">Alterar Password</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <form id="formChangePwd" autocomplete="off">
+          <div class="mb-3">
+            <label for="pwd1" class="form-label">Nova Password</label>
+            <input type="password" class="form-control" id="pwd1" required autocomplete="new-password">
+          </div>
+          <div class="mb-3">
+            <label for="pwd2" class="form-label">Confirmar Password</label>
+            <input type="password" class="form-control" id="pwd2" required autocomplete="new-password">
+          </div>
+        </form>
+        <div id="msgPwd" class="mt-2 text-danger"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" form="formChangePwd" class="btn btn-primary">Atualizar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

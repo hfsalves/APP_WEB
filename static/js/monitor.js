@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalElement = document.getElementById('tarefaModal');
   const modal = modalElement ? new bootstrap.Modal(modalElement) : null;
   const tarefaDescricao = document.getElementById('tarefaDescricao');
+  const tarefaInfo = document.getElementById('tarefaInfo');
   const btnTratar = document.getElementById('btnTratar');
   const btnReabrir = document.getElementById('btnReabrir');
   const btnReagendar = document.getElementById('btnReagendar');
@@ -61,24 +62,35 @@ document.addEventListener('DOMContentLoaded', () => {
         bloco.innerHTML = `<div class="card-body p-2">${icone}<div>${texto}</div></div>`;
 
         bloco.addEventListener('click', () => {
-          tarefaSelecionada = t;
-          tarefaDescricao.textContent = `${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})`;
+            tarefaSelecionada = t;
+            tarefaDescricao.textContent = `${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})`;
 
-          if (btnTratar) btnTratar.style.display = 'none';
-          if (btnReabrir) btnReabrir.style.display = 'none';
-          if (btnReagendar) btnReagendar.style.display = 'none';
-          if (btnNota) btnNota.style.display = 'none';
+            // buscar info adicional do SQL
+            fetch(`/api/tarefa_info/${t.TAREFASSTAMP}`)
+                .then(res => res.json())
+                .then(data => {
+                    const extraInfo = data.info || '';
+                    tarefaDescricao.innerHTML = `<strong>${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})</strong><br><br>${extraInfo.replace(/\n/g, '<br>')}`;
+                })
+                .catch(err => console.error('Erro ao buscar info da tarefa', err));
 
-          if (!t.TRATADO) {
-            if (btnTratar) btnTratar.style.display = 'inline-block';
-            if (btnReagendar) btnReagendar.style.display = 'inline-block';
-          } else {
-            if (btnReabrir) btnReabrir.style.display = 'inline-block';
-          }
-          if (btnNota) btnNota.style.display = 'inline-block';
+            if (btnTratar) btnTratar.style.display = 'none';
+            if (btnReabrir) btnReabrir.style.display = 'none';
+            if (btnReagendar) btnReagendar.style.display = 'none';
+            if (btnNota) btnNota.style.display = 'none';
 
-          if (modal) modal.show();
+            if (!t.TRATADO) {
+                if (btnTratar) btnTratar.style.display = 'inline-block';
+                if (btnReagendar) btnReagendar.style.display = 'inline-block';
+            } else {
+                if (btnReabrir) btnReabrir.style.display = 'inline-block';
+            }
+            if (btnNota) btnNota.style.display = 'inline-block';
+
+            if (modal) modal.show();
         });
+
+
 
         if (!t.TRATADO) {
           if (t.DATA < hojeStr) {

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Nova Falta{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="card mx-auto" style="max-width: 420px;">
+    <div class="card-body">
+      <h5 class="mb-4 text-center">Nova Falta</h5>
+
+      <form id="fsForm" autocomplete="off">
+        <div class="mb-3">
+          <label for="alojamento" class="form-label">Alojamento</label>
+          <select id="alojamento" name="ALOJAMENTO" class="form-select" required>
+            <option value="">Escolha o alojamento…</option>
+            {% for nome in alojamentos %}
+              <option value="{{ nome }}">{{ nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="data" class="form-label">Data</label>
+          <input type="date" id="data" name="DATA" class="form-control" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="nome" class="form-label">Nome</label>
+          <select id="nome" name="USERNAME" class="form-select" required>
+            {% for user in users %}
+              <option value="{{ user }}" {% if user == utilizador %}selected{% endif %}>{{ user }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="item" class="form-label">Item em falta</label>
+          <textarea id="item" name="ITEM" class="form-control" maxlength="250" rows="3" required></textarea>
+        </div>
+
+        <!-- Defaults invisíveis (idênticos ao newmn) -->
+        <input type="hidden" name="URGENTE" value="0">
+        <input type="hidden" name="TRATADO" value="0">
+        <input type="hidden" name="TRATADOPOR" value="">
+        <input type="hidden" name="DTTRATADO" value="">
+
+        <div class="d-flex justify-content-between mt-4">
+          <button type="button" id="btnCancel" class="btn btn-secondary flex-fill me-2">Cancelar</button>
+          <button type="submit" class="btn btn-primary flex-fill ms-2">Gravar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('alojamento').focus();
+    document.getElementById('data').valueAsDate = new Date();
+  });
+
+  document.getElementById('btnCancel').onclick = function() {
+    history.back();
+  };
+
+  document.getElementById('fsForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(this));
+    try {
+      const res = await fetch('/generic/api/fs_falta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        // sem anexos: grava e sai
+        alert('Falta registada com sucesso.');
+        window.location.href = '/';
+      } else {
+        const err = await res.json().catch(()=>({}));
+        alert("Erro: " + (err.error || res.statusText));
+      }
+    } catch (ex) {
+      alert("Erro de rede: " + ex.message);
+    }
+  };
+</script>
+
+{% endblock %}

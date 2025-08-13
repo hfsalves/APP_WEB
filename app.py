@@ -98,39 +98,60 @@ def create_app():
                         page_name = m.nome
                         break
 
-            # 4) Montar estrutura de dropdown: agrupadores são múltiplos de 100
+            # 4) Montar estrutura do menu com permissões
+            menu_structure = []
+            user_is_admin = getattr(current_user, 'ADMIN', False)
+
+            # Lista de widgets do user (para o dashboard)
+            user_widgets = set()
+            if not user_is_admin:
+                user_widgets = {uw.WIDGET for uw in UsWidget.query.filter_by(UTILIZADOR=current_user.LOGIN, VISIVEL=True)}
+
             current_group = None
             for m in menu_items:
+                mostrar = False
+
+                # Dashboard só para quem tem widgets
+                if m.tabela == "dashboard" and not user_is_admin:
+                    mostrar = bool(user_widgets)
+                # Monitor de Trabalho sempre visível
+                elif m.tabela == "monitor":
+                    mostrar = True
+                # Agrupadores (ordem % 100 == 0)
+                elif m.ordem % 100 == 0:
+                    mostrar = False  # Só será True se algum filho for permitido (mais abaixo)
+                # Todos os outros: só se tem acesso
+                else:
+                    mostrar = user_is_admin or perms.get(m.tabela, {}).get('consultar', False)
+
+                # Criação do grupo ou item
                 if m.ordem % 100 == 0:
-                    # cabeçalho de grupo (sem URL clicável)
                     current_group = {
-                        'name'    : m.nome,
-                        'icon'    : m.icone,
-                        'children': []
+                        'name': m.nome,
+                        'icon': m.icone,
+                        'children': [],
+                        'mostrar': False,  # Só será True se algum filho for mostrado
                     }
                     menu_structure.append(current_group)
                 else:
-                    # item “filho” com url
                     child = {
                         'name': m.nome,
-                        'url' : m.url,
+                        'url': m.url,
                         'icon': m.icone
                     }
                     if current_group:
-                        current_group['children'].append(child)
-                    else:
-                        # sem grupo definido, adiciona como item top-level
-                        menu_structure.append({
-                            'name'    : m.nome,
-                            'icon'    : m.icone,
-                            'url'     : m.url,
-                            'children': []
-                        })
+                        if mostrar:
+                            current_group['mostrar'] = True
+                            current_group['children'].append(child)
+                    elif mostrar:
+                        # Se não está num grupo, mete top-level
+                        menu_structure.append(child)
 
-
-                    print("🧪 current_user", current_user)
-                    print("🧪 current_user.__dict__:", current_user.__dict__)
-                    print("🧪 current_user.DEV =", getattr(current_user, 'DEV', 'NÃO DEFINIDO'))
+            # Depois de montar, remove grupos sem filhos visíveis
+            menu_structure = [
+                g for g in menu_structure
+                if not isinstance(g, dict) or g.get('mostrar', True) or (g.get('children') and len(g['children']) > 0)
+            ]
 
         return {
             'menu_items'     : menu_items,
@@ -140,7 +161,6 @@ def create_app():
             'menu_botoes'    : menu_botoes,
             'is_dev'         : getattr(current_user, 'DEV', False) if current_user.is_authenticated else False
         }
-
 
     from sqlalchemy.sql import text
 
@@ -501,6 +521,22 @@ def create_app():
         utilizador = current_user.LOGIN
         return render_template('newmn.html', alojamentos=alojamentos, users=users, utilizador=utilizador, page_title='Manutenção')
     
+    from sqlalchemy import text
+
+    @app.route('/newfs')
+    @login_required
+    def newfs():
+        # Ajusta os SELECTs para as tuas tabelas reais de alojamentos e utilizadores
+        alojamentos = [row[0] for row in db.session.execute(text("SELECT NOME FROM AL ORDER BY 1")).fetchall()]
+        users = [row[0] for row in db.session.execute(text("SELECT LOGIN FROM US ORDER BY 1")).fetchall()]
+        utilizador = getattr(current_user, 'LOGIN', '')  # default seguro
+        return render_template('newfs.html',
+                            alojamentos=alojamentos,
+                            users=users,
+                            utilizador=utilizador,
+                            page_title='Faltas')
+
+    
     @app.route('/newanexo')
     @login_required
     def newanexo():
@@ -548,7 +584,43 @@ def create_app():
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
+
+
+    from flask import render_template, redirect, url_for
+
+    @app.route('/profile')
+    @login_required
+    def profile():
+        return render_template('profile.html', user=current_user)
+
+
+    @app.route('/api/profile/change_password', methods=['POST'])
+    @login_required
+    def change_password():
+        data = request.json
+        new_pwd = data.get('password', '').strip()
+        if not new_pwd or len(new_pwd) < 4:
+            return {'error': 'Password demasiado curta'}, 400
+
+        from app import db  # ou usa db conforme já tens no teu projeto
+        user = db.session.query(US).get(current_user.USSTAMP)
+        if not user:
+            return {'error': 'Utilizador não encontrado'}, 404
+        user.PASSWORD = new_pwd
+        db.session.commit()
+        return {'success': True}
+
+    @app.route("/api/tarefa_info/<stamp>")
+    @login_required
+    def tarefa_info(stamp):
+        result = db.session.execute(
+            db.text("SELECT dbo.info_tarefa(:stamp) AS info"),
+            {"stamp": stamp}
+        ).fetchone()
         
+        return jsonify({"info": result.info if result else ""})
+
+
     return app
 
 

@@ -793,3 +793,86 @@ def criar_mn_incidente():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/api/fs_falta', methods=['POST'])
+@login_required
+def api_fs_falta():
+    from sqlalchemy import text
+    import uuid
+
+    data = request.get_json() or {}
+    obrig = ['ALOJAMENTO', 'DATA', 'USERNAME', 'ITEM']
+    for c in obrig:
+        if not data.get(c):
+            return jsonify({'error': f'Campo obrigatório em falta: {c}'}), 400
+
+    fsstamp = uuid.uuid4().hex[:25].upper()
+
+    urgente    = str(data.get('URGENTE', '0')).lower() in ('1','true','on')
+    tratado    = str(data.get('TRATADO', '0')).lower() in ('1','true','on')
+    tratadopor = data.get('TRATADOPOR') or ''
+    dttratado  = data.get('DTTRATADO') or '1900-01-01'  # mantém alinhado com o teu default
+
+    sql = text("""
+        INSERT INTO FS (FSSTAMP, ALOJAMENTO, DATA, USERNAME, ITEM, URGENTE, TRATADO, TRATADOPOR, DTTRATADO)
+        VALUES (:FSSTAMP, :ALOJAMENTO, :DATA, :USERNAME, :ITEM, :URGENTE, :TRATADO, :TRATADOPOR, :DTTRATADO)
+    """)
+
+    try:
+        db.session.execute(sql, {
+            'FSSTAMP': fsstamp,
+            'ALOJAMENTO': data['ALOJAMENTO'],
+            'DATA': data['DATA'],
+            'USERNAME': data['USERNAME'],
+            'ITEM': data['ITEM'],
+            'URGENTE': 1 if urgente else 0,
+            'TRATADO': 1 if tratado else 0,
+            'TRATADOPOR': tratadopor,
+            'DTTRATADO': dttratado
+        })
+        db.session.commit()
+        return jsonify({'success': True, 'FSSTAMP': fsstamp}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+
+@bp.route('/api/profile/fields', methods=['GET'])
+@login_required
+def api_profile_fields():
+    """
+    Devolve os campos configurados para o formulário de perfil:
+      - Só campos da tabela US
+      - Só tipo ADMIN=1 na CAMPOS
+      - Lista o nome, tipo, descrição
+    """
+    from app import db
+    try:
+        rows = db.session.execute(
+            text("""
+                SELECT nmcampo, tipo, descricao
+                FROM CAMPOS
+                WHERE tabela = 'US' AND admin = 1
+                ORDER BY ordem
+            """)
+        ).fetchall()
+        fields = [
+            dict(zip(['nmcampo', 'tipo', 'descricao'], row))
+            for row in rows
+        ]
+    except Exception as e:
+        return {'error': str(e)}, 500
+
+    return {'fields': fields}
+
+from sqlalchemy import text
+
+@bp.route("/api/tarefa_info/<stamp>")
+@login_required
+def tarefa_info(stamp):
+    result = db.session.execute(
+        db.text("SELECT dbo.info_tarefa(:stamp) AS info"),
+        {"stamp": stamp}
+    ).fetchone()
+    
+    return jsonify({"info": result.info if result else ""})

@@ -301,7 +301,7 @@ html, body {
 .btn {
   display: inline-block;
   padding: 0.7rem 1rem;
-  margin-top: 0.5rem;
+  margin-top: 0rem;
   border-radius: 100px;
   border: none;
   font-size: 0.9rem;
@@ -1577,3 +1577,33 @@ body:not(.authenticated) .main-content {
   box-shadow: 0 2px 14px #007bff2e;
   background: #1564cf;
 }
+/* --- Força o botão do utilizador no canto superior direito do header --- */
+.app-header,
+.page-header,
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.page-title {
+  margin: 0;
+  flex: 1;            /* Ocupa o espaço restante */
+}
+
+.user-menu-container {
+  position: absolute !important;
+  right: 12px;               /* encostado à direita */
+  top: 50%;                  /* centrado verticalmente no header */
+  transform: translateY(-50%);
+  margin-left: 0 !important; /* neutraliza o ms-auto */
+  z-index: 10;               /* para aparecer acima */
+}
+
+/* Garante que o dropdown abre para a direita */
+.user-menu-container .dropdown-menu {
+  left: auto !important;
+  right: 0 !important;
+}
+
+
+
