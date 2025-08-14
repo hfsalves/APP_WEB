@@ -876,3 +876,87 @@ def tarefa_info(stamp):
     ).fetchone()
     
     return jsonify({"info": result.info if result else ""})
+
+# === Monitor: Manutenções não agendadas + Agendamento em TAREFAS =================
+from sqlalchemy import text
+
+@bp.route('/api/monitor/mn-nao-agendadas', methods=['GET'])
+@login_required
+def api_mn_nao_agendadas():
+    """Lista MN por agendar (sem entrada em TAREFAS). Só para MNADMIN."""
+    if not getattr(current_user, 'MNADMIN', 0):
+        abort(403, 'Sem permissão de manutenção')
+
+    sql = text("""
+        SELECT 
+          MNSTAMP,
+          NOME,
+          ALOJAMENTO,
+          INCIDENCIA,
+          CONVERT(varchar(10), DATA, 23) AS DATA
+        FROM MN
+        WHERE TRATADO = 0
+          AND MNSTAMP NOT IN (SELECT ORISTAMP FROM TAREFAS)
+        ORDER BY DATA DESC, MNSTAMP
+    """)
+    rows = db.session.execute(sql).mappings().all()
+    return jsonify({'rows': [dict(r) for r in rows]})
+
+
+@bp.route('/api/tarefas/from-mn', methods=['POST'])
+@login_required
+def api_criar_tarefa_from_mn():
+    """Cria uma TAREFA a partir de uma MN não agendada."""
+    if not getattr(current_user, 'MNADMIN', 0):
+        abort(403, 'Sem permissão de manutenção')
+
+    data = request.get_json() or {}
+    mnstamp = data.get('MNSTAMP')
+    data_str = data.get('DATA')   # YYYY-MM-DD
+    hora_str = data.get('HORA')   # HH:MM
+
+    if not mnstamp or not data_str or not hora_str:
+        return jsonify({'ok': False, 'error': 'Parâmetros obrigatórios: MNSTAMP, DATA, HORA'}), 400
+
+    # Buscar incidência e alojamento da MN
+    mn = db.session.execute(
+        text("""
+            SELECT 
+              INCIDENCIA,
+              ALOJAMENTO
+            FROM MN
+            WHERE MNSTAMP = :mnstamp
+        """),
+        {'mnstamp': mnstamp}
+    ).fetchone()
+
+    if not mn:
+        return jsonify({'ok': False, 'error': 'MN não encontrada'}), 404
+
+    # Inserir na TAREFAS
+    # Nota: a coluna chama-se DURACAO (conforme queries acima neste ficheiro)
+    ins = text("""
+        INSERT INTO TAREFAS (
+            TAREFASSTAMP, ORIGEM, ORISTAMP, UTILIZADOR,
+            DATA, HORA, DURACAO, TAREFA, ALOJAMENTO, TRATADO
+        )
+        VALUES (
+            LEFT(NEWID(), 25), 'MN', :oristamp, :utilizador,
+            :data, :hora, :duracao, :tarefa, :alojamento, 0
+        )
+    """)
+    try:
+        db.session.execute(ins, {
+            'oristamp':   mnstamp,
+            'utilizador': getattr(current_user, 'LOGIN', None),
+            'data':       data_str,
+            'hora':       hora_str,
+            'duracao':    60,
+            'tarefa':     mn.INCIDENCIA,
+            'alojamento': mn.ALOJAMENTO
+        })
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500

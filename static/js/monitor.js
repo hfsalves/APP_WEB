@@ -13,6 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnReabrir = document.getElementById('btnReabrir');
   const btnReagendar = document.getElementById('btnReagendar');
   const btnNota = document.getElementById('btnNota');
+  
+  console.log('IS_MN_ADMIN =', typeof IS_MN_ADMIN !== 'undefined' ? IS_MN_ADMIN : '(undefined)');
+  console.log('mn-nao-agendadas element =', !!document.getElementById('mn-nao-agendadas'));
+
   let tarefaSelecionada = null;
 
   
@@ -154,3 +158,153 @@ document.addEventListener('click', function(e) {
   const menu = document.getElementById('fabMenu');
   if (menu) menu.style.display = 'none';
 });
+
+// =========================
+// MN NÃO AGENDADAS (NOVO)
+// =========================
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const colMN = document.getElementById('mn-nao-agendadas');
+    if (!colMN) return; // coluna não está no HTML carregado
+    if (typeof IS_MN_ADMIN === 'undefined' || !IS_MN_ADMIN) {
+      // se não é admin, esvazia/sai
+      colMN.innerHTML = '';
+      return;
+    }
+
+    // carrega a lista
+    loadManutencoesNaoAgendadas();
+
+    // submit do modal de agendamento
+    const agendarForm = document.getElementById('agendarForm');
+    if (agendarForm) {
+      agendarForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const mnstamp = document.getElementById('agendarMNStamp').value;
+        const data = document.getElementById('agendarData').value; // YYYY-MM-DD
+        const hora = document.getElementById('agendarHora').value; // HH:MM
+
+        if (!mnstamp || !data || !hora) {
+          alert('Preenche data e hora.');
+          return;
+        }
+
+        try {
+          const resp = await fetch('/generic/api/tarefas/from-mn', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              MNSTAMP: mnstamp,
+              DATA: data,
+              HORA: hora,
+              UTILIZADOR: (typeof CURRENT_USER !== 'undefined' ? CURRENT_USER : null)
+            })
+          });
+          const js = await resp.json();
+          if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao agendar manutenção.');
+
+          // fecha modal
+          const modalEl = document.getElementById('agendarModal');
+          if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modal.hide();
+          }
+
+          // refresca coluna MN e as tarefas (se existir função global)
+          loadManutencoesNaoAgendadas();
+          if (typeof window.loadTarefas === 'function') window.loadTarefas();
+        } catch (err) {
+          console.error(err);
+          alert(err.message || 'Erro ao agendar.');
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Init MN não agendadas falhou:', e);
+  }
+});
+
+async function loadManutencoesNaoAgendadas() {
+  const colMN = document.getElementById('mn-nao-agendadas');
+  if (!colMN) return;
+  colMN.innerHTML = '<div class="text-muted small">A carregar…</div>';
+
+  try {
+    const resp = await fetch('/generic/api/monitor/mn-nao-agendadas');
+    const js = await resp.json();
+    if (!resp.ok) throw new Error(js.error || 'Falha ao carregar MN.');
+
+    const lista = Array.isArray(js.rows) ? js.rows : [];
+    if (lista.length === 0) {
+      colMN.innerHTML = '<div class="text-muted small">Sem manutenções por agendar.</div>';
+      return;
+    }
+
+    colMN.innerHTML = '';
+    for (const mn of lista) colMN.appendChild(renderMNCard(mn));
+  } catch (err) {
+    console.error(err);
+    colMN.innerHTML = '<div class="text-danger small">Erro ao carregar.</div>';
+  }
+}
+
+function renderMNCard(mn) {
+  // Espera { MNSTAMP, NOME, ALOJAMENTO, INCIDENCIA, DATA(YYYY-MM-DD) }
+  const card = document.createElement('div');
+  card.className = 'card tarefa-card mb-2 shadow-sm tarefa-manutencao';
+  card.style.cursor = 'pointer';
+
+  const body = document.createElement('div');
+  body.className = 'card-body p-2 position-relative';
+
+  // Ícone de manutenção (canto superior direito)
+  const icon = document.createElement('i');
+  icon.className = 'fa-solid fa-wrench position-absolute';
+  icon.style.top = '6px';
+  icon.style.right = '8px';
+  icon.style.opacity = '0.7';
+  body.appendChild(icon);
+
+  // Título (incidência)
+  const titulo = document.createElement('div');
+  titulo.className = 'tarefa-titulo';
+  titulo.textContent = mn.INCIDENCIA || '(Sem descrição)';
+  body.appendChild(titulo);
+
+  // Subtítulo (nome • alojamento • data)
+  const sub = document.createElement('div');
+  sub.className = 'tarefa-subtitulo';
+  const aloj = mn.ALOJAMENTO ? ` • ${mn.ALOJAMENTO}` : '';
+  const dataFmt = formatDatePT(mn.DATA);
+  sub.textContent = `${mn.NOME || ''}${aloj}${mn.DATA ? ' • ' + dataFmt : ''}`;
+  body.appendChild(sub);
+
+  // Ao clicar no cartão abre o modal de agendamento
+  card.addEventListener('click', () => {
+    const modalEl = document.getElementById('agendarModal');
+    if (!modalEl) return;
+
+    // Preenche os campos do modal
+    const hid = document.getElementById('agendarMNStamp');
+    const inpData = document.getElementById('agendarData');
+    const inpHora = document.getElementById('agendarHora');
+
+    if (hid) hid.value = mn.MNSTAMP || '';
+    if (inpData) inpData.value = mn.DATA || '';
+    if (inpHora) inpHora.value = '';
+
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modal.show();
+  });
+
+  card.appendChild(body);
+  return card;
+}
+
+// util: YYYY-MM-DD -> DD.MM.YYYY
+function formatDatePT(s) {
+  if (!s) return '';
+  const yyyy = s.slice(0,4), mm = s.slice(5,7), dd = s.slice(8,10);
+  if (yyyy && mm && dd) return `${dd}.${mm}.${yyyy}`;
+  return s;
+}

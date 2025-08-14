@@ -45,6 +45,8 @@ class US(UserMixin, db.Model):
     ADMIN    = db.Column(db.Boolean, default=False, nullable=False)
     EQUIPA   = db.Column(db.String(25), nullable=True)
     DEV      = db.Column(db.Boolean, default=False, nullable=False)
+    MNADMIN  = db.Column(db.Boolean, default=False, nullable=False)
+    LPADMIN  = db.Column(db.Boolean, default=False, nullable=False)
     HOME     = db.Column(db.String(200), unique=True, nullable=False)
 
     def check_password(self, plaintext):
