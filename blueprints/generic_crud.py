@@ -224,6 +224,199 @@ def combo_options():
     return jsonify(results)
 
 # --------------------------------------------------
+# API: marcar MN como tratada
+# --------------------------------------------------
+@bp.route('/api/mn/tratar', methods=['POST'])
+@login_required
+def mn_tratar():
+    data = request.get_json(silent=True) or {}
+    mnstamp = data.get('MNSTAMP') or data.get('mnstamp')
+    if not mnstamp:
+        return jsonify({'ok': False, 'error': 'MNSTAMP em falta'}), 400
+
+    # Permissão: MN admin ou permissão de editar tabela MN (se existir ACL)
+    allowed = getattr(current_user, 'MNADMIN', False) or has_permission('MN', 'editar')
+    if not allowed:
+        return jsonify({'ok': False, 'error': 'Sem permissão'}), 403
+
+    try:
+        sql = text("""
+            UPDATE MN
+            SET TRATADO = 1,
+                NMTRATADO = :user,
+                DTTRATADO = CAST(GETDATE() AS date)
+            WHERE MNSTAMP = :stamp
+        """)
+        db.session.execute(sql, {'user': current_user.LOGIN, 'stamp': mnstamp})
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao marcar MN como tratada')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+# --------------------------------------------------
+# API: tarefas do monitor com filtro por utilizador/origem
+# --------------------------------------------------
+@bp.route('/api/monitor_tasks_filtered', methods=['GET'])
+@login_required
+def monitor_tasks_filtered():
+    only_mine = request.args.get('only_mine', '1') in ('1', 'true', 'True')
+
+    is_mn_admin = bool(getattr(current_user, 'MNADMIN', False))
+    is_lp_admin = bool(getattr(current_user, 'LPADMIN', False))
+
+    where = []
+    params = {'user': current_user.LOGIN}
+
+    if only_mine:
+        where.append("UTILIZADOR = :user")
+    else:
+        origins = []
+        if is_mn_admin:
+            origins.append("'MN'")
+        if is_lp_admin:
+            origins.extend(["'LP'", "'FS'"])
+        if origins:
+            where.append(f"ORIGEM IN ({', '.join(origins)})")
+        else:
+            # fallback para apenas as do próprio
+            where.append("UTILIZADOR = :user")
+
+    # Regras de data: todas as atrasadas, e tratadas apenas últimos 7 dias
+    # Implementamos como (TRATADO=0) OR (TRATADO=1 AND DATA >= hoje-7)
+    where.append("(TRATADO = 0 OR DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))")
+
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+
+    sql = text(f"""
+        SELECT 
+            T.TAREFASSTAMP,
+            CONVERT(varchar(10), T.DATA, 23)       AS DATA,        -- YYYY-MM-DD
+            LEFT(CONVERT(varchar(8), T.HORA, 108), 5) AS HORA,     -- HH:MM
+            T.TAREFA,
+            T.ALOJAMENTO,
+            T.TRATADO,
+            T.ORIGEM,
+            T.UTILIZADOR,
+            U.NOME AS UTILIZADOR_NOME,
+            U.COR  AS UTILIZADOR_COR
+        FROM TAREFAS T
+        LEFT JOIN US U ON U.LOGIN = T.UTILIZADOR
+        {where_sql}
+        ORDER BY T.DATA, T.HORA
+    """)
+    try:
+        rows = db.session.execute(sql, params).fetchall()
+        return jsonify([dict(r._mapping) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro em monitor_tasks_filtered')
+        return jsonify({'error': str(e)}), 500
+
+# --------------------------------------------------
+# API: Tarefas tratar/reabrir
+# --------------------------------------------------
+@bp.route('/api/tarefas/tratar', methods=['POST'])
+@login_required
+def tarefa_tratar():
+    data = request.get_json(silent=True) or {}
+    tid = data.get('id')
+    if not tid:
+        return jsonify({'ok': False, 'error': 'ID em falta'}), 400
+    try:
+        sql = text("""
+            UPDATE TAREFAS
+            SET TRATADO = 1,
+                NMTRATADO = :user,
+                DTTRATADO = CAST(GETDATE() AS date)
+            WHERE TAREFASSTAMP = :id
+        """)
+        db.session.execute(sql, {'user': current_user.LOGIN, 'id': tid})
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao tratar tarefa')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@bp.route('/api/tarefas/reabrir', methods=['POST'])
+@login_required
+def tarefa_reabrir():
+    data = request.get_json(silent=True) or {}
+    tid = data.get('id')
+    if not tid:
+        return jsonify({'ok': False, 'error': 'ID em falta'}), 400
+    try:
+        sql = text("""
+            UPDATE TAREFAS
+            SET TRATADO = 0,
+                NMTRATADO = NULL,
+                DTTRATADO = NULL
+            WHERE TAREFASSTAMP = :id
+        """)
+        db.session.execute(sql, {'id': tid})
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao reabrir tarefa')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+# --------------------------------------------------
+# API: RS search and update OBS
+# --------------------------------------------------
+@bp.route('/api/rs/search')
+@login_required
+def rs_search():
+    date_in   = request.args.get('date')
+    reserva   = request.args.get('reserva')
+    if not date_in and not reserva:
+        return jsonify({'error': 'Indica data ou reserva'}), 400
+
+    try:
+        if date_in:
+            sql = text("""
+                SELECT RESERVA, ALOJAMENTO, CONVERT(varchar(10), DATAIN, 23) AS DATAIN,
+                       NOITES, ADULTOS, CRIANCAS, OBS, NOME
+                FROM RS
+                WHERE DATAIN = :date AND (CANCELADA = 0 OR CANCELADA IS NULL)
+                ORDER BY ALOJAMENTO
+            """)
+            rows = db.session.execute(sql, {'date': date_in}).fetchall()
+        else:
+            sql = text("""
+                SELECT RESERVA, ALOJAMENTO, CONVERT(varchar(10), DATAIN, 23) AS DATAIN,
+                       NOITES, ADULTOS, CRIANCAS, OBS, NOME
+                FROM RS
+                WHERE RESERVA = :reserva AND (CANCELADA = 0 OR CANCELADA IS NULL)
+            """)
+            rows = db.session.execute(sql, {'reserva': reserva}).fetchall()
+        return jsonify([dict(r._mapping) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro em rs_search')
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/rs/obs', methods=['POST'])
+@login_required
+def rs_update_obs():
+    data = request.get_json(silent=True) or {}
+    reserva = data.get('reserva')
+    obs     = data.get('obs', '')
+    if not reserva:
+        return jsonify({'ok': False, 'error': 'Reserva em falta'}), 400
+    try:
+        sql = text("""
+            UPDATE RS SET OBS = :obs WHERE RESERVA = :reserva
+        """)
+        db.session.execute(sql, {'obs': obs, 'reserva': reserva})
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro em rs_update_obs')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+# --------------------------------------------------
 # API: registro único
 # --------------------------------------------------
 @bp.route('/api/<table_name>/<record_stamp>', methods=['GET'])

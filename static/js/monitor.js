@@ -11,8 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const tarefaInfo = document.getElementById('tarefaInfo');
   const btnTratar = document.getElementById('btnTratar');
   const btnReabrir = document.getElementById('btnReabrir');
-  const btnReagendar = document.getElementById('btnReagendar');
-  const btnNota = document.getElementById('btnNota');
+  // botões Reagendar e Nota removidos do UI
   
   console.log('IS_MN_ADMIN =', typeof IS_MN_ADMIN !== 'undefined' ? IS_MN_ADMIN : '(undefined)');
   console.log('mn-nao-agendadas element =', !!document.getElementById('mn-nao-agendadas'));
@@ -40,6 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
       colFuturas.innerHTML = '';
       colTratadas.innerHTML = '';
       const hojeStr = hoje.toISOString().slice(0, 10);
+      let cntAtrasadas = 0, cntHoje = 0, cntFuturas = 0, cntTratadas = 0;
+      const gruposFuturas = new Map();
 
     data.forEach(t => {
         const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
@@ -51,9 +52,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let texto;
         if (t.DATA === hojeStr) {
-          texto = `<strong>${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+          texto = `<strong class="tarefa-alojamento">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
         } else {
-          texto = `<strong>${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+          texto = `<strong class="tarefa-alojamento">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
         }
 
         let icone = '';
@@ -63,10 +64,42 @@ document.addEventListener('DOMContentLoaded', () => {
           icone = '<i class="fas fa-exclamation-circle text-danger float-end"></i>';
         }
 
-        bloco.innerHTML = `<div class="card-body p-2">${icone}<div>${texto}</div></div>`;
+        // Ícone da origem no canto (direita)
+        let origemIcon = '';
+        switch ((t.ORIGEM || '').toUpperCase()) {
+          case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+          case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
+          case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
+          default: break;
+        }
+
+        bloco.innerHTML = `<div class="card-body p-2">${origemIcon}${icone}<div>${texto}</div></div>`;
+        // Garante badge do utilizador no topo direito
+        try {
+          const bodyEl = bloco.querySelector('.card-body');
+          if (bodyEl) {
+            const nm = t.UTILIZADOR_NOME || t.UTILIZADOR || '';
+            const cor = t.UTILIZADOR_COR || '#6c757d';
+            if (nm && !bodyEl.querySelector('.user-badge')) {
+              const badge = document.createElement('span');
+              badge.className = 'user-badge float-end ms-1';
+              badge.title = nm;
+              badge.style.backgroundColor = cor;
+              badge.style.color = '#fff';
+              badge.style.borderRadius = '8px';
+              badge.style.padding = '2px 6px';
+              badge.style.fontSize = '.70rem';
+              badge.style.lineHeight = '1.1';
+              badge.style.whiteSpace = 'nowrap';
+              badge.textContent = nm;
+              bodyEl.prepend(badge);
+            }
+          }
+        } catch(_) {}
 
         bloco.addEventListener('click', () => {
             tarefaSelecionada = t;
+            try { window.tarefaSelecionada = t; } catch(_) {}
             tarefaDescricao.textContent = `${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})`;
 
             // buscar info adicional do SQL
@@ -80,16 +113,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (btnTratar) btnTratar.style.display = 'none';
             if (btnReabrir) btnReabrir.style.display = 'none';
-            if (btnReagendar) btnReagendar.style.display = 'none';
-            if (btnNota) btnNota.style.display = 'none';
 
             if (!t.TRATADO) {
                 if (btnTratar) btnTratar.style.display = 'inline-block';
-                if (btnReagendar) btnReagendar.style.display = 'inline-block';
             } else {
                 if (btnReabrir) btnReabrir.style.display = 'inline-block';
             }
-            if (btnNota) btnNota.style.display = 'inline-block';
 
             if (modal) modal.show();
         });
@@ -98,41 +127,73 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!t.TRATADO) {
           if (t.DATA < hojeStr) {
-            colAtrasadas.appendChild(bloco);
+            colAtrasadas.appendChild(bloco); cntAtrasadas++;
           } else if (t.DATA === hojeStr) {
-            colHoje.appendChild(bloco);
+            colHoje.appendChild(bloco); cntHoje++;
           } else {
-            colFuturas.appendChild(bloco);
+            // Agrupa por diferença de dias
+            const base = new Date(hojeStr + 'T00:00:00');
+            const dataObj = new Date(t.DATA + 'T00:00:00');
+            const diffDays = Math.round((dataObj - base) / (1000*60*60*24));
+            if (diffDays >= 1) {
+              let grp = gruposFuturas.get(diffDays);
+              if (!grp) {
+                const header = document.createElement('div');
+                header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
+                const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
+                header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
+                const container = document.createElement('div');
+                container.className = 'mb-3';
+                colFuturas.appendChild(header);
+                colFuturas.appendChild(container);
+                grp = {container};
+                gruposFuturas.set(diffDays, grp);
+              }
+              // Ajusta label: dia semana + dd/mm hh:mm
+              const dow = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+              const d = new Date(t.DATA + 'T' + t.HORA);
+              const dd = String(d.getDate()).padStart(2,'0');
+              const mm = String(d.getMonth()+1).padStart(2,'0');
+              const lbl = `${dow[d.getDay()]} ${dd}/${mm} ${hhmm}`;
+              const body = bloco.querySelector('.card-body > div');
+              if (body) body.innerHTML = `<strong class=\"tarefa-alojamento\">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${lbl} - ${t.TAREFA}</span>`;
+              grp.container.appendChild(bloco);
+              cntFuturas++;
+            }
           }
         } else {
-          colTratadas.appendChild(bloco);
+          colTratadas.appendChild(bloco); cntTratadas++;
         }
       });
+      // Atualiza contadores nos cabeçalhos
+      const setCount = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      setCount('count-atrasadas', cntAtrasadas);
+      setCount('count-hoje', cntHoje);
+      setCount('count-futuras', cntFuturas);
+      setCount('count-tratadas', cntTratadas);
     })
     .catch(err => alert('Erro ao carregar tarefas: ' + err));
 
   if (btnTratar) {
-    btnTratar.addEventListener('click', () => {
-      if (!tarefaSelecionada) return;
-      fetch('/generic/api/tarefas/tratar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: tarefaSelecionada.TAREFASSTAMP })
-      }).then(() => window.location.reload());
+    btnTratar.addEventListener('click', async () => {
+      const sel = (typeof window !== 'undefined' && window.tarefaSelecionada) ? window.tarefaSelecionada : tarefaSelecionada;
+      if (!sel) return;
+      try {
+        const resp = await fetch('/generic/api/tarefas/tratar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: sel.TAREFASSTAMP })
+        });
+        const js = await resp.json().catch(() => ({}));
+        if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao marcar tarefa.');
+        window.location.reload();
+      } catch (e) {
+        alert(e.message || 'Erro ao marcar tarefa como tratada.');
+      }
     });
   }
 
-  if (btnReagendar) {
-    btnReagendar.addEventListener('click', () => {
-      alert('Funcionalidade de reagendamento por implementar.');
-    });
-  }
-
-  if (btnNota) {
-    btnNota.addEventListener('click', () => {
-      alert('Funcionalidade de nota por implementar.');
-    });
-  }
+  // Reagendar e Nota foram removidos
 
   if (btnReabrir) {
     btnReabrir.addEventListener('click', () => {
@@ -142,6 +203,167 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: tarefaSelecionada.TAREFASSTAMP })
       }).then(() => window.location.reload());
+    });
+  }
+
+  // Filtro: UI toggle by clicking the block
+  const onlyMineChk = document.getElementById('onlyMineChk');
+  const onlyMineBlock = document.getElementById('onlyMineBlock');
+  const onlyMineState = document.getElementById('onlyMineState');
+  function updateOnlyMineUI() {
+    if (!onlyMineChk || !onlyMineBlock) return;
+    if (onlyMineChk.checked) {
+      onlyMineBlock.classList.add('active');
+      if (onlyMineState) onlyMineState.textContent = 'Ativo';
+    } else {
+      onlyMineBlock.classList.remove('active');
+      if (onlyMineState) onlyMineState.textContent = 'Inativo';
+    }
+  }
+  if (onlyMineBlock && onlyMineChk) {
+    onlyMineBlock.addEventListener('click', (e) => {
+      // avoid double toggling if clicking directly checkbox
+      if (e.target && e.target.id === 'onlyMineChk') return;
+      onlyMineChk.checked = !onlyMineChk.checked;
+      onlyMineChk.dispatchEvent(new Event('change'));
+    });
+    onlyMineChk.addEventListener('change', updateOnlyMineUI);
+    updateOnlyMineUI();
+    // Trigger initial data load using current state
+    try { onlyMineChk.dispatchEvent(new Event('change')); } catch(_) {}
+  }
+
+  // =========================
+  // Filtro: Apenas as minhas tarefas (atualiza contadores e grupos)
+  // =========================
+  function renderTasksUI(list) {
+    const data = Array.isArray(list) ? list : [];
+    colAtrasadas.innerHTML = '';
+    colHoje.innerHTML = '';
+    colFuturas.innerHTML = '';
+    colTratadas.innerHTML = '';
+    const hojeStr = new Date().toISOString().slice(0, 10);
+
+    let cntAtrasadas = 0, cntHoje = 0, cntFuturas = 0, cntTratadas = 0;
+    const gruposFuturas = new Map();
+
+    data.forEach(t => {
+      const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
+      const hhmm = t.HORA;
+      const ddmm = dataFormatada.toLocaleDateString('pt-PT');
+
+      const bloco = document.createElement('div');
+      bloco.className = 'card tarefa-card mb-2 shadow-sm';
+
+      let texto;
+      if (t.DATA === hojeStr) {
+        texto = `<strong class="tarefa-alojamento">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+      } else {
+        texto = `<strong class="tarefa-alojamento">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+      }
+
+      let icone = '';
+      if (t.TRATADO) {
+        icone = '<i class="fas fa-check-circle text-success float-end"></i>';
+      } else if (t.DATA < hojeStr) {
+        icone = '<i class="fas fa-exclamation-circle text-danger float-end"></i>';
+      }
+
+      // Badge do utilizador
+      const esc = (s) => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+      const userName = t.UTILIZADOR_NOME || t.UTILIZADOR || '';
+      const userColor = t.UTILIZADOR_COR || '#6c757d';
+      const userBadge = userName
+        ? `<span class=\"user-badge float-end ms-1\" title=\"${esc(userName)}\" style=\"background-color:${esc(userColor)};color:#fff;border-radius:8px;padding:2px 6px;font-size:.70rem;line-height:1.1;white-space:nowrap;\">${esc(userName)}</span>`
+        : '';
+
+      let origemIcon = '';
+      switch ((t.ORIGEM || '').toUpperCase()) {
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+        case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
+        case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
+        default: break;
+      }
+
+      bloco.innerHTML = `<div class="card-body p-2">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
+
+      bloco.addEventListener('click', () => {
+        tarefaSelecionada = t;
+        try { window.tarefaSelecionada = t; } catch(_) {}
+        tarefaDescricao.textContent = `${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})`;
+
+        fetch(`/api/tarefa_info/${t.TAREFASSTAMP}`)
+          .then(res => res.json())
+          .then(data => {
+            const extraInfo = data.info || '';
+            tarefaDescricao.innerHTML = `<strong>${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})</strong><br><br>${extraInfo.replace(/\n/g, '<br>')}`;
+          })
+          .catch(err => console.error('Erro ao buscar info da tarefa', err));
+
+        if (btnTratar) btnTratar.style.display = 'none';
+        if (btnReabrir) btnReabrir.style.display = 'none';
+        if (!t.TRATADO) { if (btnTratar) btnTratar.style.display = 'inline-block'; }
+        else { if (btnReabrir) btnReabrir.style.display = 'inline-block'; }
+        if (modal) modal.show();
+      });
+
+      if (!t.TRATADO) {
+        if (t.DATA < hojeStr) {
+          colAtrasadas.appendChild(bloco); cntAtrasadas++;
+        } else if (t.DATA === hojeStr) {
+          colHoje.appendChild(bloco); cntHoje++;
+        } else {
+          const base = new Date(hojeStr + 'T00:00:00');
+          const dataObj = new Date(t.DATA + 'T00:00:00');
+          const diffDays = Math.round((dataObj - base) / (1000*60*60*24));
+          if (diffDays >= 1) {
+            let grp = gruposFuturas.get(diffDays);
+            if (!grp) {
+              const header = document.createElement('div');
+              header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
+              const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
+              header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
+              const container = document.createElement('div');
+              container.className = 'mb-3';
+              colFuturas.appendChild(header);
+              colFuturas.appendChild(container);
+              grp = {container};
+              gruposFuturas.set(diffDays, grp);
+            }
+            const dow = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+            const d = new Date(t.DATA + 'T' + t.HORA);
+            const dd = String(d.getDate()).padStart(2,'0');
+            const mm = String(d.getMonth()+1).padStart(2,'0');
+            const lbl = `${dow[d.getDay()]} ${dd}/${mm} ${hhmm}`;
+            const body = bloco.querySelector('.card-body > div');
+            if (body) body.innerHTML = `<strong class=\"tarefa-alojamento\">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${lbl} - ${t.TAREFA}</span>`;
+            grp.container.appendChild(bloco);
+            cntFuturas++;
+          }
+        }
+      } else {
+        colTratadas.appendChild(bloco); cntTratadas++;
+      }
+    });
+
+    const setCount = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setCount('count-atrasadas', cntAtrasadas);
+    setCount('count-hoje', cntHoje);
+    setCount('count-futuras', cntFuturas);
+    setCount('count-tratadas', cntTratadas);
+  }
+
+  const onlyMineChk2 = document.getElementById('onlyMineChk');
+  if (onlyMineChk2) {
+    onlyMineChk2.addEventListener('change', async () => {
+      try {
+        const onlyMine = onlyMineChk2.checked ? '1' : '0';
+        const resp = await fetch(`/generic/api/monitor_tasks_filtered?only_mine=${onlyMine}`);
+        const js = await resp.json();
+        renderTasksUI(Array.isArray(js) ? js : (js.rows || []));
+      } catch (e) {
+        console.error('Erro ao aplicar filtro:', e);
+      }
     });
   }
 });
@@ -157,6 +379,139 @@ document.getElementById('openFabMenu').onclick = function(e) {
 document.addEventListener('click', function(e) {
   const menu = document.getElementById('fabMenu');
   if (menu) menu.style.display = 'none';
+});
+
+// =========================
+// Notas de Reserva (popup)
+// =========================
+document.addEventListener('DOMContentLoaded', () => {
+  const btnOpenNR = document.getElementById('openNotasReserva');
+  if (!btnOpenNR) return;
+  btnOpenNR.addEventListener('click', () => {
+    const modalEl = document.getElementById('nrModal');
+    if (!modalEl) return;
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    // limpa estado
+    const resDiv = document.getElementById('nrResultados');
+    const obsArea = document.getElementById('nrObsArea');
+    const obs = document.getElementById('nrObs');
+    const din = document.getElementById('nrDataIn');
+    const res = document.getElementById('nrReserva');
+    if (resDiv) resDiv.innerHTML = '';
+    if (obsArea) obsArea.style.display = 'none';
+    if (obs) obs.value = '';
+    if (din) din.value = '';
+    if (res) res.value = '';
+    modal.show();
+  });
+
+  async function nrBuscar() {
+    const din = document.getElementById('nrDataIn').value;
+    const reserva = document.getElementById('nrReserva').value.trim();
+    const out = document.getElementById('nrResultados');
+    const obsArea = document.getElementById('nrObsArea');
+    const obs = document.getElementById('nrObs');
+    if (out) out.innerHTML = '<div class="text-muted small">A procurar…</div>';
+
+    try {
+      let url = '';
+      if (din) url = `/generic/api/rs/search?date=${encodeURIComponent(din)}`;
+      else if (reserva) url = `/generic/api/rs/search?reserva=${encodeURIComponent(reserva)}`;
+      else {
+        if (out) out.innerHTML = '<div class="text-muted small">Indica a data de check‑in ou o código da reserva.</div>';
+        return;
+      }
+      const r = await fetch(url);
+      const js = await r.json();
+      const rows = Array.isArray(js) ? js : (js.rows || []);
+      if (!rows.length) {
+        out.innerHTML = '<div class="text-muted small">Sem resultados.</div>';
+        return;
+      }
+      // render cards
+      out.innerHTML = '';
+      const esc = (s) => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+      rows.forEach(row => {
+        const card = document.createElement('div');
+        card.className = 'card tarefa-card mb-2 shadow-sm nr-card';
+        const hospedes = (Number(row.ADULTOS||0) + Number(row.CRIANCAS||0)) || 0;
+        const dataIn = row.DATAIN || '';
+        card.innerHTML = `
+          <div class="card-body p-2">
+            <div class="d-flex justify-content-between align-items-center">
+              <strong class="tarefa-alojamento">${esc(row.ALOJAMENTO||'')}</strong>
+              <span class="badge bg-secondary">${(row.RESERVA||'')}</span>
+            </div>
+            <div class="small mt-1"><span class="text-muted">Hóspede:</span> ${esc(row.NOME||'')}</div>
+            <div class="text-muted small mt-1">Check‑in: ${dataIn} • Noites: ${row.NOITES||0} • Hóspedes: ${hospedes}</div>
+          </div>
+        `;
+        card.addEventListener('click', () => {
+          // visual de seleção
+          const container = out;
+          if (container) {
+            container.querySelectorAll('.nr-card.nr-selected').forEach(el => el.classList.remove('nr-selected'));
+          }
+          card.classList.add('nr-selected');
+          // seleciona
+          window.NR_SELECTED = { reserva: row.RESERVA, obs: row.OBS||'' };
+          if (obs) obs.value = row.OBS || '';
+          if (obsArea) obsArea.style.display = '';
+        });
+        out.appendChild(card);
+      });
+    } catch (e) {
+      console.error(e);
+      if (out) out.innerHTML = '<div class="text-danger small">Erro ao procurar.</div>';
+    }
+  }
+
+  const btnBuscar = document.getElementById('nrBuscar');
+  if (btnBuscar) btnBuscar.addEventListener('click', nrBuscar);
+  const din = document.getElementById('nrDataIn');
+  const res = document.getElementById('nrReserva');
+  if (din) din.addEventListener('change', nrBuscar);
+  if (res) res.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); nrBuscar(); }});
+
+  const btnGravar = document.getElementById('nrGravar');
+  if (btnGravar) btnGravar.addEventListener('click', async () => {
+    const sel = window.NR_SELECTED;
+    const obs = document.getElementById('nrObs').value;
+    if (!sel || !sel.reserva) { alert('Escolhe uma reserva.'); return; }
+    try {
+      const r = await fetch('/generic/api/rs/obs', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reserva: sel.reserva, obs })
+      });
+      const js = await r.json();
+      if (!r.ok || js.ok === false) throw new Error(js.error || 'Falha ao gravar.');
+      alert('Notas adicionadas à reserva');
+      const modalEl = document.getElementById('nrModal');
+      if (modalEl) { const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); modal.hide(); }
+    } catch (e) {
+      alert(e.message || 'Erro ao gravar');
+    }
+  });
+
+  // Ensure modal overlays the floating + button
+  const nrModal = document.getElementById('nrModal');
+  const fab = document.getElementById('fab-actions');
+  if (nrModal && fab) {
+    nrModal.addEventListener('shown.bs.modal', () => { fab.style.display = 'none'; });
+    nrModal.addEventListener('hidden.bs.modal', () => { fab.style.display = ''; });
+  }
+});
+
+// Ensure Notas de Reserva search handlers are bound
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const btnBuscar = document.getElementById('nrBuscar');
+    const dinEl = document.getElementById('nrDataIn');
+    const resEl = document.getElementById('nrReserva');
+    if (btnBuscar) btnBuscar.addEventListener('click', () => { if (typeof nrBuscar === 'function') nrBuscar(); });
+    if (dinEl) dinEl.addEventListener('change', () => { if (typeof nrBuscar === 'function') nrBuscar(); });
+    if (resEl) resEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (typeof nrBuscar === 'function') nrBuscar(); }});
+  } catch (e) { /* ignore */ }
 });
 
 // =========================
@@ -197,7 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
               MNSTAMP: mnstamp,
               DATA: data,
               HORA: hora,
-              UTILIZADOR: (typeof CURRENT_USER !== 'undefined' ? CURRENT_USER : null)
+              UTILIZADOR: (typeof window !== 'undefined' && window.CURRENT_USER ? window.CURRENT_USER : null)
             })
           });
           const js = await resp.json();
@@ -235,17 +590,581 @@ async function loadManutencoesNaoAgendadas() {
     if (!resp.ok) throw new Error(js.error || 'Falha ao carregar MN.');
 
     const lista = Array.isArray(js.rows) ? js.rows : [];
+    // contador no cabeçalho "Pendentes"
+    const cntEl = document.getElementById('count-mn');
+    if (cntEl) cntEl.textContent = String(lista.length);
     if (lista.length === 0) {
       colMN.innerHTML = '<div class="text-muted small">Sem manutenções por agendar.</div>';
       return;
     }
 
     colMN.innerHTML = '';
-    for (const mn of lista) colMN.appendChild(renderMNCard(mn));
+    for (const mn of lista) colMN.appendChild(renderMNCardStyled(mn));
   } catch (err) {
     console.error(err);
     colMN.innerHTML = '<div class="text-danger small">Erro ao carregar.</div>';
   }
+}
+
+// --- Override renderer to add FontAwesome maintenance icon ---
+// Ensures MN cards show an icon in the top-right corner.
+if (typeof renderMNCardStyled !== 'function') {
+  // Fallback if previous version not present
+  function renderMNCardStyled(mn) {
+    const card = document.createElement('div');
+    card.className = 'card tarefa-card mb-2 shadow-sm tarefa-manutencao';
+    card.style.cursor = 'pointer';
+
+    const aloj = mn.ALOJAMENTO || '';
+    const quem = mn.NOME || mn.UTILIZADOR || '';
+    const dataStr = mn.DATA ? new Date(mn.DATA).toLocaleDateString('pt-PT') : '';
+    const incid = mn.INCIDENCIA || mn.DESCRICAO || '';
+
+    if (typeof escapeHtml !== 'function') {
+      window.escapeHtml = function(s) {
+        const str = (s === undefined || s === null) ? '' : String(s);
+        return str.replace(/[&<>"']/g, ch => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[ch]);
+      };
+    }
+
+    // Botão do modal: marcar MN como tratada diretamente
+    const btnMnTratada = document.getElementById('mnTratadaBtn');
+    if (btnMnTratada) {
+      btnMnTratada.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const mnstamp = document.getElementById('agendarMNStamp')?.value;
+        if (!mnstamp) {
+          alert('Sem referência da manutenção.');
+          return;
+        }
+        const ok = window.confirm('Queres marcar a manutenção como tratada?');
+        if (!ok) return;
+        try {
+          const resp = await fetch('/generic/api/mn/tratar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ MNSTAMP: mnstamp })
+          });
+          const js = await resp.json();
+          if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao marcar como tratada');
+          // Fecha o modal
+          const modalEl = document.getElementById('agendarModal');
+          if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modal.hide();
+          }
+          // Recarrega colunas
+          if (typeof loadManutencoesNaoAgendadas === 'function') loadManutencoesNaoAgendadas();
+          if (typeof window.loadTarefas === 'function') window.loadTarefas();
+        } catch (err) {
+          console.error(err);
+          alert(err.message || 'Erro ao marcar manutenção como tratada.');
+        }
+      });
+    }
+
+    card.innerHTML = `
+      <div class="card-body p-2">
+        <div class="tarefa-titulo"><strong>${escapeHtml(aloj)}</strong></div>
+        <div class="tarefa-subtitulo text-muted small">${escapeHtml(quem)}${(quem && dataStr) ? ' • ' : ''}${escapeHtml(dataStr)}</div>
+        <div class="tarefa-texto small">${escapeHtml(incid)}</div>
+      </div>
+    `;
+
+    const body = card.querySelector('.card-body');
+    if (body) {
+      const icon = document.createElement('i');
+      icon.className = 'fa-solid fa-screwdriver-wrench text-primary float-end';
+      icon.title = 'Manutenção';
+      body.prepend(icon);
+    }
+
+    card.addEventListener('click', () => {
+      const mnstamp = mn.MNSTAMP || mn.mnstamp || '';
+      const modalEl = document.getElementById('agendarModal');
+      const stampEl = document.getElementById('agendarMNStamp');
+      if (stampEl) stampEl.value = mnstamp;
+      if (modalEl) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      }
+    });
+
+    return card;
+  }
+} else {
+  // Redefine to ensure icon presence if function exists already
+  const _prevRenderMN = renderMNCardStyled;
+  renderMNCardStyled = function(mn) {
+    const card = _prevRenderMN(mn);
+    const body = card && card.querySelector ? card.querySelector('.card-body') : null;
+    if (body && !body.querySelector('.fa-screwdriver-wrench')) {
+      const icon = document.createElement('i');
+      icon.className = 'fa-solid fa-screwdriver-wrench text-primary float-end';
+      icon.title = 'Manutenção';
+      body.prepend(icon);
+    }
+    return card;
+  };
+}
+
+// Enforce desired MN icon: fa-wrench in dark color
+(function() {
+  function wrapWithWrench(fn) {
+    return function(mn) {
+      const card = fn(mn);
+      try {
+        const body = card && card.querySelector ? card.querySelector('.card-body') : null;
+        if (body) {
+          // remove any previous maintenance icons
+          body.querySelectorAll('.fa-screwdriver-wrench, .fa-wrench').forEach(el => el.remove());
+          // add requested icon (dark)
+          const icon = document.createElement('i');
+          icon.className = 'fa-solid fa-wrench float-end text-dark';
+          icon.title = 'Manutenção';
+          body.prepend(icon);
+        }
+      } catch (e) {}
+      return card;
+    }
+  }
+  if (typeof renderMNCardStyled === 'function') {
+    renderMNCardStyled = wrapWithWrench(renderMNCardStyled);
+  }
+})();
+
+// Add "Marcar como tratada" button to MN cards
+(function() {
+  function withTratarButton(fn) {
+    return function(mn) {
+      const card = fn(mn);
+      try {
+        const body = card && card.querySelector ? card.querySelector('.card-body') : null;
+        if (body && !body.querySelector('.mn-actions')) {
+          const actions = document.createElement('div');
+          actions.className = 'mn-actions tarefa-acoes mt-2 d-flex gap-2';
+
+          const btnTratar = document.createElement('button');
+          btnTratar.type = 'button';
+          btnTratar.className = 'btn btn-sm btn-success';
+          btnTratar.textContent = 'Marcar como tratada';
+          btnTratar.addEventListener('click', async (ev) => {
+            ev.stopPropagation();
+            const stamp = mn.MNSTAMP || mn.mnstamp || '';
+            if (!stamp) return;
+            try {
+              const resp = await fetch('/generic/api/mn/tratar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ MNSTAMP: stamp })
+              });
+              const js = await resp.json();
+              if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao marcar como tratada');
+              // Atualiza a lista de MN e tarefas
+              if (typeof loadManutencoesNaoAgendadas === 'function') loadManutencoesNaoAgendadas();
+              if (typeof window.loadTarefas === 'function') window.loadTarefas();
+            } catch (e) {
+              alert(e.message || 'Erro');
+            }
+          });
+
+          actions.appendChild(btnTratar);
+          body.appendChild(actions);
+        }
+      } catch (e) {}
+      return card;
+    }
+  }
+  if (typeof renderMNCardStyled === 'function') {
+    renderMNCardStyled = withTratarButton(renderMNCardStyled);
+  }
+})();
+
+// Delegated handler for modal button (works even if DOMContentLoaded already fired)
+document.addEventListener('click', async (evt) => {
+  const btn = evt.target.closest('#mnTratadaBtn');
+  if (!btn) return;
+  evt.preventDefault();
+  const stampEl = document.getElementById('agendarMNStamp');
+  const mnstamp = stampEl && stampEl.value;
+  if (!mnstamp) {
+    alert('Sem referência da manutenção.');
+    return;
+  }
+  const ok = window.confirm('Queres marcar a manutenção como tratada?');
+  if (!ok) return;
+  try {
+    const resp = await fetch('/generic/api/mn/tratar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ MNSTAMP: mnstamp })
+    });
+    const js = await resp.json();
+    if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao marcar como tratada');
+    const modalEl = document.getElementById('agendarModal');
+    if (modalEl) {
+      const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+      modal.hide();
+    }
+    if (typeof loadManutencoesNaoAgendadas === 'function') loadManutencoesNaoAgendadas();
+    if (typeof window.loadTarefas === 'function') window.loadTarefas();
+  } catch (err) {
+    console.error(err);
+    alert(err.message || 'Erro ao marcar manutenção como tratada.');
+  }
+});
+
+// Confirmação ao marcar tarefa como tratada (popup de tarefas)
+// Usa captura para interceptar antes do handler existente
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('#btnTratar');
+  if (!btn) return;
+  const ok = window.confirm('Queres marcar a tarefa como tratada?');
+  if (!ok) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+}, true);
+
+// =========================
+// Filtro: Apenas as minhas tarefas (setup imediato)
+// =========================
+(function setupOnlyMineFilter() {
+  const chk = document.getElementById('onlyMineChk');
+  if (!chk) return;
+
+  const storageKey = 'monitor_only_mine';
+  try {
+    const stored = localStorage.getItem(storageKey);
+    chk.checked = stored === null ? true : stored === '1';
+  } catch (_) { chk.checked = true; }
+
+  chk.addEventListener('change', () => {
+    try { localStorage.setItem(storageKey, chk.checked ? '1' : '0'); } catch (_) {}
+    reloadTasksFilteredImmediate();
+  });
+
+  reloadTasksFilteredImmediate();
+
+  function getOnlyMine() { return !!chk.checked; }
+
+  function shouldShowTask(t) {
+    const currentUser = (typeof window !== 'undefined' && window.CURRENT_USER) ? window.CURRENT_USER : '';
+    const isMnAdmin = (typeof window !== 'undefined' && window.IS_MN_ADMIN) ? !!window.IS_MN_ADMIN : false;
+    const isLpAdmin = (typeof window !== 'undefined' && window.IS_LP_ADMIN) ? !!window.IS_LP_ADMIN : false;
+    if (getOnlyMine()) return (t.UTILIZADOR || '').toUpperCase() === (currentUser || '').toUpperCase();
+    const origins = [];
+    if (isMnAdmin) origins.push('MN');
+    if (isLpAdmin) { origins.push('LP'); origins.push('FS'); }
+    if (origins.length === 0) return (t.UTILIZADOR || '').toUpperCase() === (currentUser || '').toUpperCase();
+    return origins.includes((t.ORIGEM || '').toUpperCase());
+  }
+
+  async function reloadTasksFilteredImmediate() {
+    try {
+      const onlyMine = !!chk.checked;
+      const res = await fetch(`/generic/api/monitor_tasks_filtered?only_mine=${onlyMine ? '1' : '0'}`);
+      const data = await res.json();
+      window.MONITOR_TAREFAS_DATA = Array.isArray(data) ? data : (data.rows || []);
+      renderTasksFilteredImmediate(window.MONITOR_TAREFAS_DATA);
+    } catch (err) {
+      console.error('Erro a recarregar tarefas (filtro):', err);
+    }
+  }
+
+  function renderTasksFilteredImmediate(data) {
+    const colAtrasadas = document.getElementById('tarefas-atrasadas');
+    const colHoje = document.getElementById('tarefas-hoje');
+    const colFuturas = document.getElementById('tarefas-futuras');
+    const colTratadas = document.getElementById('tarefas-tratadas');
+    if (!colAtrasadas || !colHoje || !colFuturas || !colTratadas) return;
+
+    colAtrasadas.innerHTML = '';
+    colHoje.innerHTML = '';
+    colFuturas.innerHTML = '';
+    colTratadas.innerHTML = '';
+
+    const hoje = new Date();
+    const hojeStr = hoje.toISOString().slice(0, 10);
+
+    (data || []).filter(shouldShowTask).forEach(t => {
+      const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
+      const hhmm = t.HORA;
+      const ddmm = dataFormatada.toLocaleDateString('pt-PT');
+
+      const bloco = document.createElement('div');
+      bloco.className = 'card tarefa-card mb-2 shadow-sm';
+
+      let texto;
+      if (t.DATA === hojeStr) {
+        texto = `<strong>${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+      } else {
+        texto = `<strong>${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+      }
+
+      let icone = '';
+      if (t.TRATADO) {
+        icone = '<i class="fas fa-check-circle text-success float-end"></i>';
+      } else if (t.DATA < hojeStr) {
+        icone = '<i class="fas fa-exclamation-circle text-danger float-end"></i>';
+      }
+
+      // Badge do utilizador (nome) com cor
+      const esc = (typeof window !== 'undefined' && typeof window.escapeHtml === 'function')
+        ? window.escapeHtml
+        : (s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch])));
+      const userName = t.UTILIZADOR_NOME || t.UTILIZADOR || '';
+      const userColor = t.UTILIZADOR_COR || '#6c757d';
+      const userBadge = userName
+        ? `<span class="user-badge float-end ms-1" title="${esc(userName)}" style="background-color:${esc(userColor)};color:#fff;border-radius:8px;padding:2px 6px;font-size:.70rem;line-height:1.1;white-space:nowrap;">${esc(userName)}</span>`
+        : '';
+
+      let origemIcon = '';
+      switch ((t.ORIGEM || '').toUpperCase()) {
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+        case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
+        case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
+        default: break;
+      }
+
+      bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
+
+      bloco.addEventListener('click', () => {
+        const modalElement = document.getElementById('tarefaModal');
+        const modal = modalElement ? new bootstrap.Modal(modalElement) : null;
+        const tarefaDescricao = document.getElementById('tarefaDescricao');
+        const btnTratar = document.getElementById('btnTratar');
+        const btnReabrir = document.getElementById('btnReabrir');
+
+        window.tarefaSelecionada = t;
+        if (tarefaDescricao) tarefaDescricao.textContent = `${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})`;
+
+        fetch(`/api/tarefa_info/${t.TAREFASSTAMP}`)
+          .then(res => res.json())
+          .then(info => {
+            const extraInfo = info.info || '';
+            if (tarefaDescricao) tarefaDescricao.innerHTML = `<strong>${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})</strong><br><br>${extraInfo.replace(/\n/g, '<br>')}`;
+          })
+          .catch(err => console.error('Erro ao buscar info da tarefa', err));
+
+        if (btnTratar) btnTratar.style.display = 'none';
+        if (btnReabrir) btnReabrir.style.display = 'none';
+        if (!t.TRATADO) { if (btnTratar) btnTratar.style.display = 'inline-block'; }
+        else { if (btnReabrir) btnReabrir.style.display = 'inline-block'; }
+        if (modal) modal.show();
+      });
+
+      if (!t.TRATADO) {
+        if (t.DATA < hojeStr) colAtrasadas.appendChild(bloco);
+        else if (t.DATA === hojeStr) colHoje.appendChild(bloco);
+        else colFuturas.appendChild(bloco);
+      } else {
+        colTratadas.appendChild(bloco);
+      }
+    });
+  }
+})();
+
+// Força o estado por defeito com visto e recarrega
+document.addEventListener('DOMContentLoaded', () => {
+  const chk = document.getElementById('onlyMineChk');
+  if (chk) {
+    chk.checked = true;
+    try { localStorage.setItem('monitor_only_mine','1'); } catch(_){}
+    // dispara mudança para garantir render
+    try { chk.dispatchEvent(new Event('change')); } catch(_){}
+  }
+});
+
+// =========================
+// Filtro: Apenas as minhas tarefas
+// =========================
+(function() {
+  const onlyMineKey = 'monitor_only_mine';
+
+  function getOnlyMine() {
+    const chk = document.getElementById('onlyMineChk');
+    if (chk) return !!chk.checked;
+    try {
+      const stored = localStorage.getItem(onlyMineKey);
+      return stored === null ? true : stored === '1';
+    } catch (_) { return true; }
+  }
+
+  function setOnlyMine(val) {
+    try { localStorage.setItem(onlyMineKey, val ? '1' : '0'); } catch (_) {}
+  }
+
+  function shouldShowTask(t, onlyMine) {
+    const currentUser = (typeof window !== 'undefined' && window.CURRENT_USER) ? window.CURRENT_USER : '';
+    const isMnAdmin = (typeof window !== 'undefined' && window.IS_MN_ADMIN) ? !!window.IS_MN_ADMIN : false;
+    const isLpAdmin = (typeof window !== 'undefined' && window.IS_LP_ADMIN) ? !!window.IS_LP_ADMIN : false;
+    if (onlyMine) return (t.UTILIZADOR || '').toUpperCase() === (currentUser || '').toUpperCase();
+    const origins = [];
+    if (isMnAdmin) origins.push('MN');
+    if (isLpAdmin) { origins.push('LP'); origins.push('FS'); }
+    if (origins.length === 0) return (t.UTILIZADOR || '').toUpperCase() === (currentUser || '').toUpperCase();
+    return origins.includes((t.ORIGEM || '').toUpperCase());
+  }
+
+  function renderTasksFiltered(data) {
+    const colAtrasadas = document.getElementById('tarefas-atrasadas');
+    const colHoje = document.getElementById('tarefas-hoje');
+    const colFuturas = document.getElementById('tarefas-futuras');
+    const colTratadas = document.getElementById('tarefas-tratadas');
+    if (!colAtrasadas || !colHoje || !colFuturas || !colTratadas) return;
+
+    colAtrasadas.innerHTML = '';
+    colHoje.innerHTML = '';
+    colFuturas.innerHTML = '';
+    colTratadas.innerHTML = '';
+
+    const hoje = new Date();
+    const hojeStr = hoje.toISOString().slice(0, 10);
+    const onlyMine = getOnlyMine();
+
+    (data || []).filter(t => shouldShowTask(t, onlyMine)).forEach(t => {
+      const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
+      const hhmm = t.HORA;
+      const ddmm = dataFormatada.toLocaleDateString('pt-PT');
+
+      const bloco = document.createElement('div');
+      bloco.className = 'card tarefa-card mb-2 shadow-sm';
+
+      let texto;
+      if (t.DATA === hojeStr) {
+        texto = `<strong>${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+      } else {
+        texto = `<strong>${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+      }
+
+      let icone = '';
+      if (t.TRATADO) {
+        icone = '<i class="fas fa-check-circle text-success float-end"></i>';
+      } else if (t.DATA < hojeStr) {
+        icone = '<i class="fas fa-exclamation-circle text-danger float-end"></i>';
+      }
+
+      let origemIcon = '';
+      switch ((t.ORIGEM || '').toUpperCase()) {
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+        case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
+        case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
+        default: break;
+      }
+
+      bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
+
+      bloco.addEventListener('click', () => {
+        const modalElement = document.getElementById('tarefaModal');
+        const modal = modalElement ? new bootstrap.Modal(modalElement) : null;
+        const tarefaDescricao = document.getElementById('tarefaDescricao');
+        const btnTratar = document.getElementById('btnTratar');
+        const btnReabrir = document.getElementById('btnReabrir');
+        
+        tarefaSelecionada = t;
+        if (tarefaDescricao) tarefaDescricao.textContent = `${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})`;
+
+        fetch(`/api/tarefa_info/${t.TAREFASSTAMP}`)
+          .then(res => res.json())
+          .then(data => {
+            const extraInfo = data.info || '';
+            if (tarefaDescricao) tarefaDescricao.innerHTML = `<strong>${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})</strong><br><br>${extraInfo.replace(/\n/g, '<br>')}`;
+          })
+          .catch(err => console.error('Erro ao buscar info da tarefa', err));
+
+        if (btnTratar) btnTratar.style.display = 'none';
+        if (btnReabrir) btnReabrir.style.display = 'none';
+        if (!t.TRATADO) { if (btnTratar) btnTratar.style.display = 'inline-block'; } else { if (btnReabrir) btnReabrir.style.display = 'inline-block'; }
+        if (modal) modal.show();
+      });
+
+      if (!t.TRATADO) {
+        if (t.DATA < hojeStr) colAtrasadas.appendChild(bloco);
+        else if (t.DATA === hojeStr) colHoje.appendChild(bloco);
+        else colFuturas.appendChild(bloco);
+      } else {
+        colTratadas.appendChild(bloco);
+      }
+    });
+  }
+
+  async function reloadTasksFiltered() {
+    try {
+      const res = await fetch('/generic/api/monitor_tasks');
+      const data = await res.json();
+      window.MONITOR_TAREFAS_DATA = Array.isArray(data) ? data : (data.rows || []);
+      renderTasksFiltered(window.MONITOR_TAREFAS_DATA);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const chk = document.getElementById('onlyMineChk');
+    if (chk) {
+      // default checked
+      try {
+        const stored = localStorage.getItem(onlyMineKey);
+        chk.checked = stored === null ? true : stored === '1';
+      } catch (_) { chk.checked = true; }
+      chk.addEventListener('change', () => {
+        setOnlyMine(chk.checked);
+        if (window.MONITOR_TAREFAS_DATA) renderTasksFiltered(window.MONITOR_TAREFAS_DATA);
+        else reloadTasksFiltered();
+      });
+    }
+    // ensure initial render uses our filter logic
+    reloadTasksFiltered();
+  });
+})();
+
+// Novo renderer: cards de MN semelhantes aos das tarefas
+function renderMNCardStyled(mn) {
+  // Espera { MNSTAMP, NOME (quem pediu), ALOJAMENTO, INCIDENCIA, DATA (YYYY-MM-DD) }
+  const card = document.createElement('div');
+  card.className = 'card tarefa-card mb-2 shadow-sm tarefa-manutencao';
+  card.style.cursor = 'pointer';
+
+  const aloj = mn.ALOJAMENTO || '';
+  const quem = mn.NOME || mn.UTILIZADOR || '';
+  const dataStr = mn.DATA ? new Date(mn.DATA).toLocaleDateString('pt-PT') : '';
+  const incid = mn.INCIDENCIA || mn.DESCRICAO || '';
+
+  card.innerHTML = `
+    <div class="card-body p-2">
+      <div class="tarefa-titulo"><strong>${escapeHtml(aloj)}</strong></div>
+      <div class="tarefa-subtitulo text-muted small">${escapeHtml(quem)}${(quem && dataStr) ? ' • ' : ''}${escapeHtml(dataStr)}</div>
+      <div class="tarefa-texto small">${escapeHtml(incid)}</div>
+    </div>
+  `;
+
+  card.addEventListener('click', () => {
+    const mnstamp = mn.MNSTAMP || mn.MNSTAMP || mn.mnstamp || '';
+    const modalEl = document.getElementById('agendarModal');
+    const stampEl = document.getElementById('agendarMNStamp');
+    if (stampEl) stampEl.value = mnstamp;
+    if (modalEl) {
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.show();
+    }
+  });
+
+  return card;
+}
+
+// Helper para escapar HTML em campos vindos do servidor
+function escapeHtml(s) {
+  const str = (s === undefined || s === null) ? '' : String(s);
+  return str.replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[ch]);
 }
 
 function renderMNCard(mn) {

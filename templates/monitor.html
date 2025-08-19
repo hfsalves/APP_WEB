@@ -3,28 +3,55 @@
 {% block title %}Monitor de Trabalho{% endblock %}
 
 {% block content %}
+<!-- Filtro superior -->
+<div class="mb-2">
+  <div class="col-header filter-header border rounded px-2 py-1 d-flex justify-content-between align-items-center" id="onlyMineBlock" role="button">
+    <div class="d-flex align-items-center gap-2">
+      <input class="form-check-input" type="checkbox" value="1" id="onlyMineChk" checked>
+      <label class="form-check-label mb-0" for="onlyMineChk">Apenas as minhas tarefas</label>
+    </div>
+    <span class="badge bg-secondary" id="onlyMineState">Ativo</span>
+  </div>
+  <small class="text-muted" id="onlyMineHelp"></small>
+</div>
+
 <!-- layout: 5 colunas quando existir a coluna de MN -->
 <div class="row gx-3 gy-3 row-cols-1 row-cols-md-5">
   <!-- Coluna nova: Manutenções não agendadas (mostrada só para MNADMIN) -->
   <div id="col-mn-nao-agendadas">
-    <h5 class="text-primary">Manutenções (não agendadas)</h5>
+    <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
+      <span class="fw-semibold">Pendentes</span>
+      <span class="badge bg-secondary" id="count-mn">0</span>
+    </div>
     <div id="mn-nao-agendadas" class="tarefa-coluna"></div>
   </div>
 
   <div>
-    <h5 class="text-danger">Atrasadas</h5>
+    <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
+      <span class="fw-semibold text-danger">Atrasadas</span>
+      <span class="badge bg-secondary" id="count-atrasadas">0</span>
+    </div>
     <div id="tarefas-atrasadas" class="tarefa-coluna"></div>
   </div>
   <div>
-    <h5 class="text-warning">Hoje</h5>
+    <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
+      <span class="fw-semibold text-warning">Hoje</span>
+      <span class="badge bg-secondary" id="count-hoje">0</span>
+    </div>
     <div id="tarefas-hoje" class="tarefa-coluna"></div>
   </div>
   <div>
-    <h5 class="text-success">Futuras</h5>
+    <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
+      <span class="fw-semibold text-success">Futuras</span>
+      <span class="badge bg-secondary" id="count-futuras">0</span>
+    </div>
     <div id="tarefas-futuras" class="tarefa-coluna"></div>
   </div>
   <div>
-    <h5 class="text-muted">Tratadas</h5>
+    <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
+      <span class="fw-semibold text-muted">Tratadas</span>
+      <span class="badge bg-secondary" id="count-tratadas">0</span>
+    </div>
     <div id="tarefas-tratadas" class="tarefa-coluna"></div>
   </div>
 </div>
@@ -34,6 +61,7 @@
   window.CURRENT_USER = "{{ current_user.LOGIN }}";
   // evita erro se não existir o campo (ex.: perfis antigos)
   window.IS_MN_ADMIN = {{ (current_user.MNADMIN or 0)|int }};
+  window.IS_LP_ADMIN = {{ (current_user.LPADMIN or 0)|int }};
   document.addEventListener('DOMContentLoaded', () => {
     const col = document.getElementById('col-mn-nao-agendadas');
     if (!window.IS_MN_ADMIN && col) col.style.display = 'none';
@@ -64,6 +92,27 @@
     padding: .25rem .5rem;
     font-size: .85rem;
   }
+  /* Garantir que botões antigos não aparecem por cache/templates alternativos */
+  #tarefaModal #btnReagendar,
+  #tarefaModal #btnNota { display:none !important; }
+  /* Não mostrar ações dentro do card MN (apenas no modal) */
+  #mn-nao-agendadas .mn-actions { display: none !important; }
+  .user-badge { font-weight:600; border-radius:.5rem; font-size:.70rem; }
+  /* reduzir fonte do alojamento no card */
+  .tarefa-card .card-body > div > strong,
+  .tarefa-card .tarefa-alojamento { font-size:.90rem; }
+  /* seleção visual de Notas de Reserva */
+  .nr-card.nr-selected {
+    border: 2px solid #0d6efd;
+    box-shadow: 0 0 0 .15rem rgba(13,110,253,.25);
+    background: #f4f8ff;
+  }
+  /* filtro bloco clicável */
+  .filter-header { cursor: pointer; }
+  .filter-header.active { background:#0d6efd; color:#fff; border-color:#0d6efd; }
+  .filter-header.active .form-check-input { border-color:#fff; }
+  .filter-header.active .form-check-label { color:#fff; }
+  .filter-header.active .badge { background: rgba(255,255,255,.25); color:#fff; }
 </style>
 
 <!-- FAB -->
@@ -77,6 +126,9 @@
     </button>
     <button class="fab-menu-item" onclick="window.location.href='/newfs'">
       <i class="fa-solid fa-box-open me-2"></i> Falta
+    </button>
+    <button class="fab-menu-item" id="openNotasReserva">
+      <i class="fa-solid fa-note-sticky me-2"></i> Notas de Reserva
     </button>
   </div>
 </div>
@@ -94,14 +146,52 @@
         <div id="tarefaInfo" class="mt-3" style="white-space:pre-wrap;"></div>
         <div class="d-flex justify-content-between flex-wrap gap-2">
           <button id="btnTratar" class="btn btn-success">Marcar como tratada</button>
-          <button id="btnReagendar" class="btn btn-outline-primary">Reagendar</button>
-          <button id="btnNota" class="btn btn-outline-secondary">Nota</button>
           <button id="btnReabrir" class="btn btn-outline-warning" style="display:none;">Reabrir tarefa</button>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Modal: Notas de Reserva -->
+<div class="modal fade" id="nrModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Notas de Reserva</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <form id="nrForm" onsubmit="return false;">
+          <div class="row g-2 align-items-end mb-2">
+            <div class="col-12 col-md-4">
+              <label for="nrDataIn" class="form-label">Data de Check‑In</label>
+              <input type="date" id="nrDataIn" class="form-control" />
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="nrReserva" class="form-label">Reserva</label>
+              <input type="text" id="nrReserva" class="form-control" placeholder="Código da reserva" />
+            </div>
+            <div class="col-12 col-md-4">
+              <button type="button" id="nrBuscar" class="btn btn-primary">Procurar</button>
+            </div>
+          </div>
+        </form>
+
+        <div id="nrResultados" class="mt-2"></div>
+
+        <div id="nrObsArea" class="mt-3" style="display:none;">
+          <label for="nrObs" class="form-label">Observações</label>
+          <textarea id="nrObs" class="form-control" rows="4" placeholder="Escreve aqui as observações..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="nrGravar">Gravar</button>
+      </div>
+    </div>
+  </div>
+  </div>
 
 <!-- Modal de Agendamento (para MN não agendadas) -->
 <div class="modal fade" id="agendarModal" tabindex="-1" aria-hidden="true">
@@ -138,6 +228,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="mnTratadaBtn">Marcar como tratada</button>
         <button type="submit" class="btn btn-primary" id="agendarConfirm">Agendar</button>
       </div>
     </form>
@@ -152,11 +243,11 @@
     if (!sel) return;
 
     try {
-      // usa o endpoint genérico de options (value/text) – evita mexer no backend
-      const q = encodeURIComponent("SELECT LOGIN AS value, LOGIN AS text FROM US ORDER BY 1");
+      // usa o endpoint genérico de options com 1 coluna
+      const q = encodeURIComponent("SELECT LOGIN FROM US ORDER BY 1");
       const r = await fetch(`/generic/api/options?query=${q}`);
       const js = await r.json();
-      const opts = Array.isArray(js.options) ? js.options : [];
+      const opts = Array.isArray(js) ? js : (Array.isArray(js.options) ? js.options : []);
 
       sel.innerHTML = opts.map(o => `<option value="${o.value}">${o.text}</option>`).join('') ||
                       `<option value="${window.CURRENT_USER}">${window.CURRENT_USER}</option>`;
