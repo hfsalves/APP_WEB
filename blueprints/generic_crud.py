@@ -255,6 +255,57 @@ def mn_tratar():
         current_app.logger.exception('Erro ao marcar MN como tratada')
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+
+# --------------------------------------------------
+# API: criar tarefa manual (Nota Tarefa)
+# --------------------------------------------------
+@bp.route('/api/tarefas/nova', methods=['POST'])
+@login_required
+def api_tarefa_nova():
+    data = request.get_json(silent=True) or {}
+    utilizador = (data.get('UTILIZADOR') or current_user.LOGIN or '').strip()
+    data_str   = (data.get('DATA') or '').strip()      # YYYY-MM-DD
+    hora_str   = (data.get('HORA') or '').strip()      # HH:MM
+    tarefa     = (data.get('TAREFA') or '').strip()
+    duracao    = int(data.get('DURACAO') or 60)
+    aloj       = (data.get('ALOJAMENTO') or '').strip()
+
+    if not tarefa:
+        return jsonify({'ok': False, 'error': 'TAREFA obrigatória'}), 400
+    if not data_str or not hora_str or duracao <= 0:
+        return jsonify({'ok': False, 'error': 'Verifica DATA, HORA e DURACAO'}), 400
+
+    # Opcional: validação de permissões para inserir em TAREFAS
+    if not has_permission('TAREFAS', 'inserir') and not getattr(current_user, 'ADMIN', False):
+        return jsonify({'ok': False, 'error': 'Sem permissão para criar tarefas'}), 403
+
+    tarefastamp = uuid.uuid4().hex[:25].upper()
+    try:
+        sql = text("""
+            INSERT INTO TAREFAS (
+              TAREFASSTAMP, UTILIZADOR, DATA, HORA, DURACAO,
+              TAREFA, ALOJAMENTO, ORIGEM, ORISTAMP, TRATADO, DTTRATADO, NMTRATADO
+            ) VALUES (
+              :id, :util, :data, :hora, :dur,
+              :tarefa, :aloj, '', '', 0, CAST('1900-01-01' AS date), ''
+            )
+        """)
+        db.session.execute(sql, {
+            'id': tarefastamp,
+            'util': utilizador,
+            'data': data_str,
+            'hora': hora_str,
+            'dur': duracao,
+            'tarefa': tarefa,
+            'aloj': aloj
+        })
+        db.session.commit()
+        return jsonify({'ok': True, 'TAREFASSTAMP': tarefastamp})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao criar tarefa manual')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 # --------------------------------------------------
 # API: tarefas do monitor com filtro por utilizador/origem
 # --------------------------------------------------
@@ -351,8 +402,8 @@ def tarefa_reabrir():
         sql = text("""
             UPDATE TAREFAS
             SET TRATADO = 0,
-                NMTRATADO = NULL,
-                DTTRATADO = NULL
+                NMTRATADO = '',
+                DTTRATADO = CAST('1900-01-01' AS date)
             WHERE TAREFASSTAMP = :id
         """)
         db.session.execute(sql, {'id': tid})
@@ -377,8 +428,8 @@ def rs_search():
     try:
         if date_in:
             sql = text("""
-                SELECT RESERVA, ALOJAMENTO, CONVERT(varchar(10), DATAIN, 23) AS DATAIN,
-                       NOITES, ADULTOS, CRIANCAS, OBS, NOME
+                SELECT RSSTAMP, RESERVA, ALOJAMENTO, CONVERT(varchar(10), DATAIN, 23) AS DATAIN,
+                       NOITES, ADULTOS, CRIANCAS, OBS, NOME, ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
                 FROM RS
                 WHERE DATAIN = :date AND (CANCELADA = 0 OR CANCELADA IS NULL)
                 ORDER BY ALOJAMENTO
@@ -386,8 +437,8 @@ def rs_search():
             rows = db.session.execute(sql, {'date': date_in}).fetchall()
         else:
             sql = text("""
-                SELECT RESERVA, ALOJAMENTO, CONVERT(varchar(10), DATAIN, 23) AS DATAIN,
-                       NOITES, ADULTOS, CRIANCAS, OBS, NOME
+                SELECT RSSTAMP, RESERVA, ALOJAMENTO, CONVERT(varchar(10), DATAIN, 23) AS DATAIN,
+                       NOITES, ADULTOS, CRIANCAS, OBS, NOME, ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
                 FROM RS
                 WHERE RESERVA = :reserva AND (CANCELADA = 0 OR CANCELADA IS NULL)
             """)
@@ -403,13 +454,19 @@ def rs_update_obs():
     data = request.get_json(silent=True) or {}
     reserva = data.get('reserva')
     obs     = data.get('obs', '')
+    berco   = 1 if data.get('berco') else 0
+    sofacama= 1 if data.get('sofacama') else 0
     if not reserva:
         return jsonify({'ok': False, 'error': 'Reserva em falta'}), 400
     try:
         sql = text("""
-            UPDATE RS SET OBS = :obs WHERE RESERVA = :reserva
+            UPDATE RS
+            SET OBS = :obs,
+                BERCO = :berco,
+                SOFACAMA = :sofacama
+            WHERE RESERVA = :reserva
         """)
-        db.session.execute(sql, {'obs': obs, 'reserva': reserva})
+        db.session.execute(sql, {'obs': obs, 'reserva': reserva, 'berco': berco, 'sofacama': sofacama})
         db.session.commit()
         return jsonify({'ok': True})
     except Exception as e:
@@ -889,7 +946,13 @@ def reabrir_tarefa():
         return jsonify({'error': 'Falta o ID da tarefa'}), 400
 
     try:
-        sql = text("UPDATE TAREFAS SET TRATADO = 0 WHERE TAREFASSTAMP = :id")
+        sql = text("""
+            UPDATE TAREFAS
+            SET TRATADO = 0,
+                NMTRATADO = '',
+                DTTRATADO = CAST('1900-01-01' AS date)
+            WHERE TAREFASSTAMP = :id
+        """)
         db.session.execute(sql, {'id': tarefa_id})
         db.session.commit()
         return jsonify({'success': True})

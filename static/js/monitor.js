@@ -469,11 +469,18 @@ document.addEventListener('DOMContentLoaded', () => {
         card.className = 'card tarefa-card mb-2 shadow-sm nr-card';
         const hospedes = (Number(row.ADULTOS||0) + Number(row.CRIANCAS||0)) || 0;
         const dataIn = row.DATAIN || '';
+        const canOpenRS = (typeof window !== 'undefined' && window.CAN_OPEN_RS) ? true : false;
+        const openBtn = (canOpenRS && row.RSSTAMP)
+          ? `<a class=\"btn btn-sm btn-primary\" href=\"/generic/form/RS/${encodeURIComponent(row.RSSTAMP)}?return_to=/monitor\">Abrir</a>`
+          : '';
         card.innerHTML = `
           <div class="card-body p-2">
             <div class="d-flex justify-content-between align-items-center">
               <strong class="tarefa-alojamento">${esc(row.ALOJAMENTO||'')}</strong>
-              <span class="badge bg-secondary">${(row.RESERVA||'')}</span>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-secondary">${(row.RESERVA||'')}</span>
+                ${openBtn}
+              </div>
             </div>
             <div class="small mt-1"><span class="text-muted">Hóspede:</span> ${esc(row.NOME||'')}</div>
             <div class="text-muted small mt-1">Check‑in: ${dataIn} • Noites: ${row.NOITES||0} • Hóspedes: ${hospedes}</div>
@@ -487,8 +494,14 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           card.classList.add('nr-selected');
           // seleciona
-          window.NR_SELECTED = { reserva: row.RESERVA, obs: row.OBS||'' };
+          window.NR_SELECTED = { reserva: row.RESERVA, obs: row.OBS||'', berco: row.BERCO||0, sofacama: row.SOFACAMA||0 };
           if (obs) obs.value = row.OBS || '';
+          try {
+            const b = document.getElementById('nrBerco');
+            const s = document.getElementById('nrSofa');
+            if (b) b.checked = !!row.BERCO;
+            if (s) s.checked = !!row.SOFACAMA;
+          } catch(_){}
           if (obsArea) obsArea.style.display = '';
         });
         out.appendChild(card);
@@ -512,9 +525,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const obs = document.getElementById('nrObs').value;
     if (!sel || !sel.reserva) { alert('Escolhe uma reserva.'); return; }
     try {
+      const berco = !!document.getElementById('nrBerco')?.checked;
+      const sofacama = !!document.getElementById('nrSofa')?.checked;
       const r = await fetch('/generic/api/rs/obs', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reserva: sel.reserva, obs })
+        body: JSON.stringify({ reserva: sel.reserva, obs, berco, sofacama })
       });
       const js = await r.json();
       if (!r.ok || js.ok === false) throw new Error(js.error || 'Falha ao gravar.');

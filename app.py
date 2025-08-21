@@ -644,6 +644,51 @@ def create_app():
         
         return jsonify({"info": result.info if result else ""})
 
+    @app.route('/api/alojamentos')
+    @login_required
+    def api_alojamentos():
+        try:
+            can_open = False
+            try:
+                q = db.session.execute(text("""
+                    SELECT CONSULTAR FROM ACESSOS
+                    WHERE UTILIZADOR = :u AND TABELA = 'AL'
+                """), { 'u': current_user.LOGIN }).fetchone()
+                can_open = bool(q[0]) if q is not None else False
+            except Exception:
+                can_open = False
+
+            rows = db.session.execute(text(
+                """
+                SELECT ALSTAMP, NOME, MORADA, CODPOST, LOCAL, TIPOLOGIA, LOTACAO
+                FROM AL
+                WHERE ISNULL(INATIVO,0) = 0
+                ORDER BY NOME
+                """
+            )).mappings().all()
+
+            result = []
+            for r in rows:
+                d = dict(r)
+                # carregar codigos (ALC) por alojamento
+                try:
+                    cods = db.session.execute(text(
+                        """
+                        SELECT CARACTERISTICA, VALOR
+                        FROM ALC
+                        WHERE ALOJAMENTO = :nome AND GRUPO = 'CODIGOS'
+                        ORDER BY CARACTERISTICA
+                        """
+                    ), { 'nome': r['NOME'] }).mappings().all()
+                    d['CODIGOS'] = [ dict(c) for c in cods ]
+                except Exception:
+                    d['CODIGOS'] = []
+                result.append(d)
+
+            return jsonify({ 'rows': result, 'can_open': can_open })
+        except Exception as e:
+            return jsonify({ 'error': str(e) }), 500
+
 
     return app
 

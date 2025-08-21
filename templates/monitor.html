@@ -62,6 +62,7 @@
   // evita erro se não existir o campo (ex.: perfis antigos)
   window.IS_MN_ADMIN = {{ (current_user.MNADMIN or 0)|int }};
   window.IS_LP_ADMIN = {{ (current_user.LPADMIN or 0)|int }};
+  window.CAN_OPEN_RS = {{ 1 if (user_perms.get('RS', {}).get('consultar', False)) else 0 }};
   document.addEventListener('DOMContentLoaded', () => {
     const col = document.getElementById('col-mn-nao-agendadas');
     if (!window.IS_MN_ADMIN && col) col.style.display = 'none';
@@ -113,23 +114,34 @@
   .filter-header.active .form-check-input { border-color:#fff; }
   .filter-header.active .form-check-label { color:#fff; }
   .filter-header.active .badge { background: rgba(255,255,255,.25); color:#fff; }
+  /* Headers de grupos na coluna Futuras */
+  #tarefas-futuras > .bg-light.border.rounded.px-2.py-1.mb-2.d-flex.justify-content-between.align-items-center {
+    background-color: #eef6ff; /* cor diferenciada */
+    border-color: #cfe7ff;
+    color: #0b5ed7;
+  }
+  #tarefas-futuras > .bg-light.border.rounded.px-2.py-1.mb-2.d-flex.justify-content-between.align-items-center span {
+    font-size: .85rem; /* texto mais pequeno */
+    font-weight: 700;  /* negrito */
+  }
+  /* Cartões de alojamentos no modal */
+  #alojList .al-card { border:1px solid #e5e7eb; border-radius:.5rem; padding:.5rem .75rem; background:#fff; }
+  #alojList .al-title { font-weight:700; }
+  #alojList .al-line { color:#6b7280; font-size:.9rem; }
+  #alojList .al-open { float:right; }
 </style>
 
 <!-- FAB -->
 <div id="fab-actions" style="position: absolute; top: 22px; right: 34px; z-index: 3000;">
   <button class="fab-btn" id="openFabMenu" title="Ações rápidas">
-    <i class="fa-solid fa-plus"></i>
+    <i class="fa-solid fa-ellipsis-vertical"></i>
   </button>
   <div class="fab-menu" id="fabMenu" style="display: none;">
-    <button class="fab-menu-item" onclick="window.location.href='/newmn'">
-      <i class="fa-solid fa-bolt me-2"></i> Incidência
-    </button>
-    <button class="fab-menu-item" onclick="window.location.href='/newfs'">
-      <i class="fa-solid fa-box-open me-2"></i> Falta
-    </button>
-    <button class="fab-menu-item" id="openNotasReserva">
-      <i class="fa-solid fa-note-sticky me-2"></i> Notas de Reserva
-    </button>
+    <button class="fab-menu-item" onclick="window.location.href='/newmn'">Nova Incidência</button>
+    <button class="fab-menu-item" onclick="window.location.href='/newfs'">Nova Falta</button>
+    <button class="fab-menu-item" id="openNotasReserva">Notas de Reserva</button>
+    <button class="fab-menu-item" id="openAlojamentos">Alojamentos</button>
+    <button class="fab-menu-item" id="openNotaTarefa">Nota Tarefa</button>
   </div>
 </div>
 
@@ -146,7 +158,7 @@
         <div id="tarefaInfo" class="mt-3" style="white-space:pre-wrap;"></div>
         <div class="d-flex justify-content-between flex-wrap gap-2">
           <button id="btnTratar" class="btn btn-success">Marcar como tratada</button>
-          <button id="btnReabrir" class="btn btn-outline-warning" style="display:none;">Reabrir tarefa</button>
+          <button id="btnReabrir" class="btn btn-warning" style="display:none;">Reabrir tarefa</button>
         </div>
       </div>
     </div>
@@ -183,6 +195,14 @@
         <div id="nrObsArea" class="mt-3" style="display:none;">
           <label for="nrObs" class="form-label">Observações</label>
           <textarea id="nrObs" class="form-control" rows="4" placeholder="Escreve aqui as observações..."></textarea>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="nrBerco">
+            <label class="form-check-label" for="nrBerco">Fazer Berço</label>
+          </div>
+          <div class="form-check mt-1">
+            <input class="form-check-input" type="checkbox" id="nrSofa">
+            <label class="form-check-label" for="nrSofa">Fazer Sofá Cama</label>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -190,6 +210,70 @@
         <button type="button" class="btn btn-primary" id="nrGravar">Gravar</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Modal: Alojamentos -->
+<div class="modal fade" id="alojModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Alojamentos</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="alojList" class="row g-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nota Tarefa -->
+<div class="modal fade" id="notaTarefaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="notaTarefaForm">
+      <div class="modal-header">
+        <h5 class="modal-title">Nota de Tarefa</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label for="ntUser" class="form-label">Utilizador</label>
+          <select id="ntUser" class="form-select"></select>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label for="ntData" class="form-label">Data</label>
+            <input type="date" id="ntData" class="form-control" />
+          </div>
+          <div class="col-6">
+            <label for="ntHora" class="form-label">Hora</label>
+            <input type="time" id="ntHora" class="form-control" />
+          </div>
+        </div>
+        <div class="mb-2 mt-2">
+          <label for="ntDuracao" class="form-label">Duração (min)</label>
+          <input type="number" id="ntDuracao" class="form-control" min="1" step="1" />
+        </div>
+        <div class="mb-2">
+          <label for="ntTarefa" class="form-label">Tarefa</label>
+          <input type="text" id="ntTarefa" class="form-control" placeholder="Descreve a tarefa" />
+        </div>
+        <div class="mb-2">
+          <label for="ntAloj" class="form-label">Alojamento</label>
+          <select id="ntAloj" class="form-select">
+            <option value="">(Sem alojamento)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="ntGravar">Gravar</button>
+      </div>
+    </form>
   </div>
   </div>
 
@@ -280,4 +364,151 @@
 {% block scripts %}
   {{ super() }}
   <script src="{{ url_for('static', filename='js/monitor.js') }}"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('openAlojamentos');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        // Abre imediatamente o modal e mostra estado de carregamento
+        const modalEl = document.getElementById('alojModal');
+        if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        const list = document.getElementById('alojList');
+        if (list) list.innerHTML = '<div class="text-muted small px-1">A carregar…</div>';
+        const menu = document.getElementById('fabMenu');
+        if (menu) menu.style.display = 'none';
+
+        try {
+          const r = await fetch('/api/alojamentos');
+          const js = await r.json();
+          const rows = Array.isArray(js.rows) ? js.rows : [];
+          const canOpen = !!js.can_open;
+          if (list) list.innerHTML = '';
+          const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch]));
+
+          // Render em blocos para manter a UI responsiva
+          let i = 0;
+          const chunk = 25;
+          (function renderChunk(){
+            const end = Math.min(i + chunk, rows.length);
+            for (; i < end; i++) {
+              const al = rows[i];
+              const col = document.createElement('div');
+              col.className = 'col-12';
+              const morada = [al.MORADA, al.CODPOST, al.LOCAL].filter(Boolean).join(' • ');
+              const tip = [al.TIPOLOGIA, (al.LOTACAO ? al.LOTACAO + ' Hóspedes' : null)].filter(Boolean).join(' • ');
+              const codigos = Array.isArray(al.CODIGOS) ? al.CODIGOS : [];
+              let codHtml = '';
+              for (const c of codigos) {
+                codHtml += `<div class=\"al-line\"><span class=\"fw-semibold\">${esc(c.CARACTERISTICA)}</span>: ${esc(c.VALOR)}</div>`;
+              }
+              const openBtn = canOpen ? `<a class=\"btn btn-sm btn-primary al-open\" href=\"/generic/form/AL/${encodeURIComponent(al.ALSTAMP)}?return_to=/monitor\">Abrir</a>` : '';
+              col.innerHTML = `
+                <div class=\"al-card\">
+                  <div class=\"d-flex justify-content-between\">
+                    <div class=\"al-title\">${esc(al.NOME || '')}</div>
+                    ${openBtn}
+                  </div>
+                  <div class=\"al-line\">${esc(morada)}</div>
+                  <div class=\"al-line\">${esc(tip)}</div>
+                  ${codHtml}
+                </div>`;
+              if (list) list.appendChild(col);
+            }
+            if (i < rows.length) setTimeout(renderChunk, 0);
+          })();
+        } catch (e) {
+          if (list) list.innerHTML = `<div class=\"text-danger small px-1\">Erro ao carregar alojamentos: ${ (e && e.message) ? e.message.replace(/</g,'&lt;') : e }</div>`;
+        }
+      });
+    });
+  </script>
+  <script>
+    // Nota Tarefa: abrir e preencher combos/defaults + submit
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('openNotaTarefa');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const modalEl = document.getElementById('notaTarefaModal');
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+        const userSel = document.getElementById('ntUser');
+        const alojSel = document.getElementById('ntAloj');
+        const dataIn  = document.getElementById('ntData');
+        const horaIn  = document.getElementById('ntHora');
+        const durIn   = document.getElementById('ntDuracao');
+        const tarefaIn= document.getElementById('ntTarefa');
+
+        // defaults
+        try {
+          // Utilizadores
+          const qu = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 ORDER BY 1");
+          const ru = await fetch(`/generic/api/options?query=${qu}`);
+          const ou = await ru.json();
+          const listU = Array.isArray(ou) ? ou : (ou.options || []);
+          if (userSel) {
+            userSel.innerHTML = listU.map(o => `<option value="${o.value}">${o.text}</option>`).join('');
+            userSel.value = window.CURRENT_USER || (listU[0]?.value ?? '');
+          }
+
+          // Alojamentos
+          const qa = encodeURIComponent("SELECT NOME FROM AL WHERE ISNULL(INATIVO,0)=0 ORDER BY 1");
+          const ra = await fetch(`/generic/api/options?query=${qa}`);
+          const oa = await ra.json();
+          const listA = Array.isArray(oa) ? oa : (oa.options || []);
+          if (alojSel) {
+            alojSel.innerHTML = '<option value="">(Sem alojamento)</option>' +
+              listA.map(o => `<option value="${o.value}">${o.text}</option>`).join('');
+            alojSel.value = '';
+          }
+        } catch (_) { /* ignora */ }
+
+        // Data = hoje
+        const hoje = new Date();
+        if (dataIn) dataIn.value = hoje.toISOString().slice(0,10);
+        // Hora = próxima meia-hora
+        const m = new Date(hoje);
+        m.setMinutes(m.getMinutes() < 30 ? 30 : 60, 0, 0);
+        const hh = String(m.getHours()).padStart(2,'0');
+        const mm = String(m.getMinutes()).padStart(2,'0');
+        if (horaIn) horaIn.value = `${hh}:${mm}`;
+        // Duração = 60
+        if (durIn) durIn.value = 60;
+        if (tarefaIn) tarefaIn.value = '';
+
+        // fecha menu FAB
+        const menu = document.getElementById('fabMenu');
+        if (menu) menu.style.display = 'none';
+
+        modal.show();
+      });
+
+      const form = document.getElementById('notaTarefaForm');
+      if (form) form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const user = document.getElementById('ntUser')?.value || window.CURRENT_USER || '';
+        const data = document.getElementById('ntData')?.value || '';
+        const hora = document.getElementById('ntHora')?.value || '';
+        const dur  = parseInt(document.getElementById('ntDuracao')?.value || '60', 10);
+        const tarefa = document.getElementById('ntTarefa')?.value?.trim() || '';
+        const aloj = document.getElementById('ntAloj')?.value || '';
+        if (!tarefa) { alert('Indica a descrição da tarefa.'); return; }
+        if (!data || !hora || !Number.isFinite(dur) || dur <= 0) { alert('Verifica data, hora e duração.'); return; }
+        try {
+          const resp = await fetch('/generic/api/tarefas/nova', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ UTILIZADOR: user, DATA: data, HORA: hora, DURACAO: dur, TAREFA: tarefa, ALOJAMENTO: aloj })
+          });
+          const js = await resp.json();
+          if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao criar tarefa');
+          // fechar modal e refrescar
+          const modalEl = document.getElementById('notaTarefaModal');
+          if (modalEl) { const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); modal.hide(); }
+          if (typeof window.loadTarefas === 'function') window.loadTarefas(); else window.location.reload();
+        } catch (e) {
+          alert(e.message || 'Erro ao criar tarefa');
+        }
+      });
+    });
+  </script>
 {% endblock %}
