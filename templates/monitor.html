@@ -63,6 +63,9 @@
   window.IS_MN_ADMIN = {{ (current_user.MNADMIN or 0)|int }};
   window.IS_LP_ADMIN = {{ (current_user.LPADMIN or 0)|int }};
   window.CAN_OPEN_RS = {{ 1 if (user_perms.get('RS', {}).get('consultar', False)) else 0 }};
+  window.CAN_OPEN_TAREFAS = {{ 1 if (user_perms.get('TAREFAS', {}).get('consultar', False)) else 0 }};
+  window.CAN_OPEN_MN = {{ 1 if can_open_mn else 0 }};
+  window.CAN_OPEN_FS = {{ 1 if can_open_fs else 0 }};
   document.addEventListener('DOMContentLoaded', () => {
     const col = document.getElementById('col-mn-nao-agendadas');
     if (!window.IS_MN_ADMIN && col) col.style.display = 'none';
@@ -114,6 +117,8 @@
   .filter-header.active .form-check-input { border-color:#fff; }
   .filter-header.active .form-check-label { color:#fff; }
   .filter-header.active .badge { background: rgba(255,255,255,.25); color:#fff; }
+  /* Não mostrar botão Abrir nas cards das tarefas (passou para o modal) */
+  .tarefa-card a[href*="/generic/form/TAREFAS/"] { display:none !important; }
   /* Headers de grupos na coluna Futuras */
   #tarefas-futuras > .bg-light.border.rounded.px-2.py-1.mb-2.d-flex.justify-content-between.align-items-center {
     background-color: #eef6ff; /* cor diferenciada */
@@ -137,8 +142,8 @@
     <i class="fa-solid fa-ellipsis-vertical"></i>
   </button>
   <div class="fab-menu" id="fabMenu" style="display: none;">
-    <button class="fab-menu-item" onclick="window.location.href='/newmn'">Nova Incidência</button>
-    <button class="fab-menu-item" onclick="window.location.href='/newfs'">Nova Falta</button>
+    <button class="fab-menu-item" id="openNovaMn">Nova Incidência</button>
+    <button class="fab-menu-item" id="openNovaFalta">Nova Falta</button>
     <button class="fab-menu-item" id="openNotasReserva">Notas de Reserva</button>
     <button class="fab-menu-item" id="openAlojamentos">Alojamentos</button>
     <button class="fab-menu-item" id="openNotaTarefa">Nota Tarefa</button>
@@ -159,6 +164,7 @@
         <div class="d-flex justify-content-between flex-wrap gap-2">
           <button id="btnTratar" class="btn btn-success">Marcar como tratada</button>
           <button id="btnReabrir" class="btn btn-warning" style="display:none;">Reabrir tarefa</button>
+          <button id="btnAbrirTarefa" class="btn btn-primary" style="display:none;">Abrir</button>
         </div>
       </div>
     </div>
@@ -213,6 +219,48 @@
   </div>
 </div>
 
+<!-- Modal: Nova Falta (FS) -->
+<div class="modal fade" id="novaFaltaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="novaFaltaForm">
+      <div class="modal-header">
+        <h5 class="modal-title">Nova Falta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label for="nfUser" class="form-label">Utilizador</label>
+          <select id="nfUser" class="form-select"></select>
+        </div>
+        <div class="mb-2">
+          <label for="nfAloj" class="form-label">Alojamento</label>
+          <select id="nfAloj" class="form-select"></select>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label for="nfData" class="form-label">Data</label>
+            <input type="date" id="nfData" class="form-control" />
+          </div>
+          <div class="col-6 d-flex align-items-end">
+            <div class="form-check mt-3">
+              <input class="form-check-input" type="checkbox" id="nfUrgente">
+              <label class="form-check-label" for="nfUrgente">Urgente</label>
+            </div>
+          </div>
+        </div>
+        <div class="mb-2 mt-2">
+          <label for="nfItem" class="form-label">Item</label>
+          <input type="text" id="nfItem" class="form-control" placeholder="Descreve o item em falta" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="nfGravar">Gravar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Modal: Alojamentos -->
 <div class="modal fade" id="alojModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
@@ -226,6 +274,26 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Falta (FS) -->
+<div class="modal fade" id="fsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Falta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="fsStamp" />
+        <div id="fsResumo" class="mb-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-success" id="fsTratadaBtn">Marcar como tratada</button>
+        <button type="button" class="btn btn-primary" id="fsAbrirBtn">Abrir</button>
       </div>
     </div>
   </div>
@@ -275,7 +343,7 @@
       </div>
     </form>
   </div>
-  </div>
+</div>
 
 <!-- Modal de Agendamento (para MN não agendadas) -->
 <div class="modal fade" id="agendarModal" tabindex="-1" aria-hidden="true">
@@ -286,6 +354,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
+        <div id="mnResumo" class="mb-2"></div>
         <input type="hidden" id="agendarMNStamp" />
 
         <div class="mb-3">
@@ -301,19 +370,55 @@
         <div class="mb-3">
           <label for="agendarUser" class="form-label">Utilizador</label>
           <select class="form-select" id="agendarUser"></select>
-          <small class="text-muted">Por defeito, o teu utilizador atual.</small>
         </div>
-
-        <small class="text-muted d-block mt-2">
-          Vai criar uma linha em <code>TAREFAS</code> com
-          <code>ORIGEM='MN'</code>, <code>DURACAO=60</code>,
-          <code>UTILIZADOR</code> escolhido e <code>DATA/HORA</code> indicadas.
-        </small>
+        <div id="mnNextInfo" class="mt-2 small text-muted"></div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-success" id="mnTratadaBtn">Marcar como tratada</button>
-        <button type="submit" class="btn btn-primary" id="agendarConfirm">Agendar</button>
+        <button type="submit" class="btn btn-warning" id="agendarConfirm">Agendar</button>
+        <button type="button" class="btn btn-primary" id="mnAbrirBtn">Abrir</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Nova Incidência (MN) -->
+<div class="modal fade" id="novaMnModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="novaMnForm">
+      <div class="modal-header">
+        <h5 class="modal-title">Nova Incidência</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label for="nmUser" class="form-label">Utilizador</label>
+          <select id="nmUser" class="form-select"></select>
+        </div>
+        <div class="mb-2">
+          <label for="nmAloj" class="form-label">Alojamento</label>
+          <select id="nmAloj" class="form-select"></select>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label for="nmData" class="form-label">Data</label>
+            <input type="date" id="nmData" class="form-control" />
+          </div>
+          <div class="col-6 d-flex align-items-end">
+            <div class="form-check mt-3">
+              <input class="form-check-input" type="checkbox" id="nmUrgente">
+              <label class="form-check-label" for="nmUrgente">Urgente</label>
+            </div>
+          </div>
+        </div>
+        <div class="mb-2 mt-2">
+          <label for="nmIncidencia" class="form-label">Incidência</label>
+          <textarea id="nmIncidencia" class="form-control" rows="3" placeholder="Descreve a incidência"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="nmGravar">Gravar</button>
       </div>
     </form>
   </div>
@@ -418,6 +523,148 @@
           })();
         } catch (e) {
           if (list) list.innerHTML = `<div class=\"text-danger small px-1\">Erro ao carregar alojamentos: ${ (e && e.message) ? e.message.replace(/</g,'&lt;') : e }</div>`;
+        }
+      });
+    });
+  </script>
+  <script>
+    // Nova Incidência (MN): abrir modal, combos, defaults e submit
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('openNovaMn');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const modalEl = document.getElementById('novaMnModal');
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        const userSel = document.getElementById('nmUser');
+        const alojSel = document.getElementById('nmAloj');
+        const dataEl  = document.getElementById('nmData');
+        const incEl   = document.getElementById('nmIncidencia');
+        const urgEl   = document.getElementById('nmUrgente');
+
+        try {
+          // Users
+          const qu = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 ORDER BY 1");
+          const ru = await fetch(`/generic/api/options?query=${qu}`);
+          const ou = await ru.json();
+          const listU = Array.isArray(ou) ? ou : (ou.options || []);
+          if (userSel) {
+            userSel.innerHTML = listU.map(o => `<option value=\"${o.value}\">${o.text}</option>`).join('');
+            userSel.value = window.CURRENT_USER || (listU[0]?.value ?? '');
+          }
+          // Alojamentos
+          const qa = encodeURIComponent("SELECT NOME FROM AL WHERE ISNULL(INATIVO,0)=0 ORDER BY 1");
+          const ra = await fetch(`/generic/api/options?query=${qa}`);
+          const oa = await ra.json();
+          const listA = Array.isArray(oa) ? oa : (oa.options || []);
+          if (alojSel) {
+            alojSel.innerHTML = listA.map(o => `<option value=\"${o.value}\">${o.text}</option>`).join('');
+          }
+        } catch (_) {}
+
+        // Defaults
+        const hoje = new Date();
+        if (dataEl) dataEl.value = hoje.toISOString().slice(0,10);
+        if (incEl) incEl.value = '';
+        if (urgEl) urgEl.checked = false;
+
+        const menu = document.getElementById('fabMenu');
+        if (menu) menu.style.display = 'none';
+        modal.show();
+      });
+
+      const form = document.getElementById('novaMnForm');
+      if (form) form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const NOME = document.getElementById('nmUser')?.value || window.CURRENT_USER || '';
+        const ALOJAMENTO = document.getElementById('nmAloj')?.value || '';
+        const DATA = document.getElementById('nmData')?.value || '';
+        const INCIDENCIA = document.getElementById('nmIncidencia')?.value?.trim() || '';
+        const URGENTE = !!document.getElementById('nmUrgente')?.checked;
+        if (!ALOJAMENTO || !DATA || !NOME || !INCIDENCIA) { alert('Preenche utilizador, alojamento, data e incidência.'); return; }
+        try {
+          const resp = await fetch('/generic/api/mn_incidente', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ NOME, ALOJAMENTO, DATA, INCIDENCIA, URGENTE })
+          });
+          const js = await resp.json();
+          if (!resp.ok || js.success === false) throw new Error(js.error || 'Falha ao gravar incidência');
+          const modalEl = document.getElementById('novaMnModal');
+          if (modalEl) { const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); modal.hide(); }
+          if (typeof loadPendentes === 'function') loadPendentes();
+        } catch (e) {
+          alert(e.message || 'Erro ao gravar incidência');
+        }
+      });
+    });
+  </script>
+  <script>
+    // Nova Falta (FS): abrir modal, preencher combos, defaults e submeter
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('openNovaFalta');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const modalEl = document.getElementById('novaFaltaModal');
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        const userSel = document.getElementById('nfUser');
+        const alojSel = document.getElementById('nfAloj');
+        const dataEl  = document.getElementById('nfData');
+        const itemEl  = document.getElementById('nfItem');
+        const urgEl   = document.getElementById('nfUrgente');
+
+        try {
+          // Users
+          const qu = encodeURIComponent("SELECT LOGIN FROM US WHERE ISNULL(INATIVO,0)=0 ORDER BY 1");
+          const ru = await fetch(`/generic/api/options?query=${qu}`);
+          const ou = await ru.json();
+          const listU = Array.isArray(ou) ? ou : (ou.options || []);
+          if (userSel) {
+            userSel.innerHTML = listU.map(o => `<option value="${o.value}">${o.text}</option>`).join('');
+            userSel.value = window.CURRENT_USER || (listU[0]?.value ?? '');
+          }
+          // Alojamentos
+          const qa = encodeURIComponent("SELECT NOME FROM AL WHERE ISNULL(INATIVO,0)=0 ORDER BY 1");
+          const ra = await fetch(`/generic/api/options?query=${qa}`);
+          const oa = await ra.json();
+          const listA = Array.isArray(oa) ? oa : (oa.options || []);
+          if (alojSel) {
+            alojSel.innerHTML = listA.map(o => `<option value="${o.value}">${o.text}</option>`).join('');
+          }
+        } catch (_) {}
+
+        // Defaults
+        const hoje = new Date();
+        if (dataEl) dataEl.value = hoje.toISOString().slice(0,10);
+        if (itemEl) itemEl.value = '';
+        if (urgEl) urgEl.checked = false;
+
+        const menu = document.getElementById('fabMenu');
+        if (menu) menu.style.display = 'none';
+        modal.show();
+      });
+
+      const form = document.getElementById('novaFaltaForm');
+      if (form) form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const USERNAME = document.getElementById('nfUser')?.value || window.CURRENT_USER || '';
+        const ALOJAMENTO = document.getElementById('nfAloj')?.value || '';
+        const DATA = document.getElementById('nfData')?.value || '';
+        const ITEM = document.getElementById('nfItem')?.value?.trim() || '';
+        const URGENTE = !!document.getElementById('nfUrgente')?.checked;
+        if (!ALOJAMENTO || !DATA || !USERNAME || !ITEM) { alert('Preenche utilizador, alojamento, data e item.'); return; }
+        try {
+          const resp = await fetch('/generic/api/fs_falta', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ USERNAME, ALOJAMENTO, DATA, ITEM, URGENTE })
+          });
+          const js = await resp.json();
+          if (!resp.ok || js.success === false) throw new Error(js.error || 'Falha ao gravar falta');
+          const modalEl = document.getElementById('novaFaltaModal');
+          if (modalEl) { const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); modal.hide(); }
+          if (typeof loadPendentes === 'function') loadPendentes();
+        } catch (e) {
+          alert(e.message || 'Erro ao gravar falta');
         }
       });
     });

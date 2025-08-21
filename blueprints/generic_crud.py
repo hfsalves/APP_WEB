@@ -6,6 +6,7 @@ from sqlalchemy import MetaData, Table, select, text, String, or_
 from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
 import uuid
+from datetime import date
 
 bp = Blueprint('generic', __name__, url_prefix='/generic')
 
@@ -1024,14 +1025,15 @@ def criar_mn_incidente():
     # Campos automÃ¡ticos/defaults
     mnstamp = uuid.uuid4().hex[:25].upper()
     tratado = str(data.get('TRATADO', '0')).lower() in ['1', 'true', 'on']
+    urgente = 1 if str(data.get('URGENTE', '0')).lower() in ['1','true','on'] else 0
     dttratado = data.get('DTTRATADO', None) or None
     nmtratado = data.get('NMTRATADO', '')
     dttratado = data.get('DTTRATADO') or '1900-01-01'
 
 
     sql = text("""
-        INSERT INTO MN (MNSTAMP, ALOJAMENTO, DATA, NOME, INCIDENCIA, TRATADO, DTTRATADO, NMTRATADO)
-        VALUES (:mnstamp, :alojamento, :data, :nome, :incidencia, :tratado, :dttratado, :nmtratado)
+        INSERT INTO MN (MNSTAMP, ALOJAMENTO, DATA, NOME, INCIDENCIA, URGENTE, TRATADO, DTTRATADO, NMTRATADO)
+        VALUES (:mnstamp, :alojamento, :data, :nome, :incidencia, :urgente, :tratado, :dttratado, :nmtratado)
     """)
     try:
         db.session.execute(sql, {
@@ -1040,6 +1042,7 @@ def criar_mn_incidente():
             'data': data['DATA'],
             'nome': data['NOME'],
             'incidencia': data['INCIDENCIA'],
+            'urgente': urgente,
             'tratado': tratado,
             'dttratado': dttratado,
             'nmtratado': nmtratado
@@ -1150,6 +1153,7 @@ def api_mn_nao_agendadas():
           NOME,
           ALOJAMENTO,
           INCIDENCIA,
+          ISNULL(URGENTE,0) AS URGENTE,
           CONVERT(varchar(10), DATA, 23) AS DATA
         FROM MN
         WHERE TRATADO = 0
@@ -1158,6 +1162,118 @@ def api_mn_nao_agendadas():
     """)
     rows = db.session.execute(sql).mappings().all()
     return jsonify({'rows': [dict(r) for r in rows]})
+
+@bp.route('/api/monitor/proximos', methods=['GET'])
+@login_required
+def api_monitor_proximos():
+    aloj = (request.args.get('alojamento') or '').strip()
+    if not aloj:
+        return jsonify({'error': 'Alojamento em falta'}), 400
+    hoje = date.today().isoformat()
+    out = {}
+    try:
+        rs_out = db.session.execute(text(
+            """
+            SELECT TOP 1 CONVERT(varchar(10), DATAOUT, 23) AS DATAOUT, HORAOUT
+            FROM RS
+            WHERE ALOJAMENTO = :aloj AND DATAOUT >= :hoje AND (CANCELADA = 0 OR CANCELADA IS NULL)
+            ORDER BY DATAOUT, HORAOUT
+            """
+        ), { 'aloj': aloj, 'hoje': hoje }).mappings().first()
+        if rs_out:
+            out['rs_out'] = { 'DATAOUT': rs_out['DATAOUT'], 'HORAOUT': rs_out['HORAOUT'] }
+
+        rs_in = db.session.execute(text(
+            """
+            SELECT TOP 1 CONVERT(varchar(10), DATAIN, 23) AS DATAIN, HORAIN
+            FROM RS
+            WHERE ALOJAMENTO = :aloj AND DATAIN >= :hoje AND (CANCELADA = 0 OR CANCELADA IS NULL)
+            ORDER BY DATAIN, HORAIN
+            """
+        ), { 'aloj': aloj, 'hoje': hoje }).mappings().first()
+        if rs_in:
+            out['rs_in'] = { 'DATAIN': rs_in['DATAIN'], 'HORAIN': rs_in['HORAIN'] }
+
+        lp = db.session.execute(text(
+            """
+            SELECT TOP 1 CONVERT(varchar(10), DATA, 23) AS DATA, HORA, EQUIPA
+            FROM LP
+            WHERE ALOJAMENTO = :aloj AND DATA >= :hoje
+            ORDER BY DATA, HORA
+            """
+        ), { 'aloj': aloj, 'hoje': hoje }).mappings().first()
+        if lp:
+            out['lp'] = { 'DATA': lp['DATA'], 'HORA': lp['HORA'], 'EQUIPA': lp['EQUIPA'] }
+
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/mn/<mnstamp>', methods=['GET'])
+@login_required
+def api_mn_get(mnstamp):
+    try:
+        row = db.session.execute(text(
+            """
+            SELECT TOP 1 MNSTAMP, NOME, ALOJAMENTO, INCIDENCIA,
+                   CONVERT(varchar(10), DATA, 23) AS DATA
+            FROM MN
+            WHERE MNSTAMP = :id
+            """
+        ), { 'id': mnstamp }).mappings().first()
+        if not row:
+            return jsonify({'error': 'MN não encontrada'}), 404
+        return jsonify(dict(row))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/monitor/fs-nao-agendadas', methods=['GET'])
+@login_required
+def api_fs_nao_agendadas():
+    """Lista FS pendentes (sem entrada em TAREFAS)."""
+    sql = text("""
+        SELECT 
+          FSSTAMP,
+          ALOJAMENTO,
+          USERNAME,
+          ITEM,
+          ISNULL(URGENTE,0) AS URGENTE,
+          CONVERT(varchar(10), DATA, 23) AS DATA
+        FROM FS
+        WHERE TRATADO = 0
+          AND FSSTAMP NOT IN (SELECT ORISTAMP FROM TAREFAS)
+        ORDER BY DATA DESC, FSSTAMP
+    """)
+    rows = db.session.execute(sql).mappings().all()
+    return jsonify({'rows': [dict(r) for r in rows]})
+
+@bp.route('/api/fs/tratar', methods=['POST'])
+@login_required
+def api_fs_tratar():
+    data = request.get_json(silent=True) or {}
+    fsstamp = data.get('FSSTAMP') or data.get('fsstamp')
+    if not fsstamp:
+        return jsonify({'ok': False, 'error': 'FSSTAMP em falta'}), 400
+
+    # Permissão: LP admin ou permissão de editar FS
+    allowed = getattr(current_user, 'LPADMIN', False) or has_permission('FS', 'editar') or getattr(current_user, 'ADMIN', False)
+    if not allowed:
+        return jsonify({'ok': False, 'error': 'Sem permissão'}), 403
+
+    try:
+        sql = text("""
+            UPDATE FS
+            SET TRATADO   = 1,
+                NMTRATADO = :user,
+                DTTRATADO = CAST(GETDATE() AS date)
+            WHERE FSSTAMP = :stamp
+        """)
+        db.session.execute(sql, {'user': current_user.LOGIN, 'stamp': fsstamp})
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 
 @bp.route('/api/tarefas/from-mn', methods=['POST'])

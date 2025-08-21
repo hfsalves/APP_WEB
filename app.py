@@ -87,6 +87,23 @@ def create_app():
                 for a in rows
             }
 
+            # Verificação direta de acesso à MN conforme pedido
+            try:
+                q_mn = db.session.execute(text(
+                    "SELECT CONSULTAR FROM ACESSOS WHERE TABELA = 'MN' AND UTILIZADOR = :u"
+                ), { 'u': current_user.LOGIN }).fetchone()
+                can_open_mn = bool(getattr(current_user, 'ADMIN', False)) or (bool(q_mn[0]) if q_mn is not None else False)
+            except Exception:
+                can_open_mn = False
+
+            try:
+                q_fs = db.session.execute(text(
+                    "SELECT CONSULTAR FROM ACESSOS WHERE TABELA = 'FS' AND UTILIZADOR = :u"
+                ), { 'u': current_user.LOGIN }).fetchone()
+                can_open_fs = bool(getattr(current_user, 'ADMIN', False)) or (bool(q_fs[0]) if q_fs is not None else False)
+            except Exception:
+                can_open_fs = False
+
             # 3) Determinar page_name e menu_botoes (igual lógica atual)
             parts = request.path.strip('/').split('/')
             if len(parts) >= 3 and parts[0] == 'generic' and parts[1] in ('view', 'form'):
@@ -181,7 +198,9 @@ def create_app():
             'user_perms'     : perms,
             'page_name'      : page_name,
             'menu_botoes'    : menu_botoes,
-            'is_dev'         : getattr(current_user, 'DEV', False) if current_user.is_authenticated else False
+            'is_dev'         : getattr(current_user, 'DEV', False) if current_user.is_authenticated else False,
+            'can_open_mn'    : can_open_mn if current_user.is_authenticated else False,
+            'can_open_fs'    : can_open_fs if current_user.is_authenticated else False
         }
 
     from sqlalchemy.sql import text

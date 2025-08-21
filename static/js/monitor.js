@@ -94,7 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
             break;
         }
 
-        bloco.innerHTML = `<div class="card-body p-2">${origemIcon}${icone}<div>${texto}</div></div>`;
+        const canOpenT0 = (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) ? true : false;
+        const openBtn0 = (canOpenT0 && t.TAREFASSTAMP)
+          ? `<a class=\"btn btn-sm btn-primary float-end ms-1\" onclick=\"event.stopPropagation()\" href=\"/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor\">Abrir</a>`
+          : '';
+        bloco.innerHTML = `<div class="card-body p-2">${openBtn0}${origemIcon}${icone}<div>${texto}</div></div>`;
         // Garante badge do utilizador no topo direito
         try {
           const bodyEl = bloco.querySelector('.card-body');
@@ -140,6 +144,22 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 if (btnReabrir) btnReabrir.style.display = 'inline-block';
             }
+
+            // Botão Abrir (no modal)
+            try {
+              const btnAbrir = document.getElementById('btnAbrirTarefa');
+              if (btnAbrir) {
+                if (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) {
+                  btnAbrir.style.display = 'inline-block';
+                  btnAbrir.onclick = () => {
+                    window.location.href = `/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor`;
+                  };
+                } else {
+                  btnAbrir.style.display = 'none';
+                  btnAbrir.onclick = null;
+                }
+              }
+            } catch(_){}
 
             if (modal) modal.show();
         });
@@ -337,6 +357,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btnReabrir) btnReabrir.style.display = 'none';
         if (!t.TRATADO) { if (btnTratar) btnTratar.style.display = 'inline-block'; }
         else { if (btnReabrir) btnReabrir.style.display = 'inline-block'; }
+        // Botão Abrir (no modal)
+        try {
+          const btnAbrir = document.getElementById('btnAbrirTarefa');
+          if (btnAbrir) {
+            if (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) {
+              btnAbrir.style.display = 'inline-block';
+              btnAbrir.onclick = () => {
+                window.location.href = `/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor`;
+              };
+            } else {
+              btnAbrir.style.display = 'none';
+              btnAbrir.onclick = null;
+            }
+          }
+        } catch(_){}
         if (modal) modal.show();
       });
 
@@ -575,8 +610,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // carrega a lista
-    loadManutencoesNaoAgendadas();
+    // carrega pendentes (MN + FS) ordenados por data
+    loadPendentes();
 
     // submit do modal de agendamento
     const agendarForm = document.getElementById('agendarForm');
@@ -638,19 +673,161 @@ async function loadManutencoesNaoAgendadas() {
     if (!resp.ok) throw new Error(js.error || 'Falha ao carregar MN.');
 
     const lista = Array.isArray(js.rows) ? js.rows : [];
-    // contador no cabeçalho "Pendentes"
-    const cntEl = document.getElementById('count-mn');
-    if (cntEl) cntEl.textContent = String(lista.length);
-    if (lista.length === 0) {
-      colMN.innerHTML = '<div class="text-muted small">Sem manutenções por agendar.</div>';
-      return;
-    }
-
-    colMN.innerHTML = '';
-    for (const mn of lista) colMN.appendChild(renderMNCardStyled(mn));
+    // Este método já não é usado diretamente para render da coluna; usar loadPendentes()
+    // Mantido por compatibilidade de chamadas antigas
+    await loadPendentes();
   } catch (err) {
     console.error(err);
     colMN.innerHTML = '<div class="text-danger small">Erro ao carregar.</div>';
+  }
+}
+
+async function loadFaltasNaoAgendadas() {
+  const colMN = document.getElementById('mn-nao-agendadas');
+  if (!colMN) return;
+  // Este método já não é usado diretamente para render da coluna; usar loadPendentes()
+  try { await loadPendentes(); } catch(_) {}
+}
+
+function renderFSCard(fs) {
+  const card = document.createElement('div');
+  card.className = 'card tarefa-card mb-2 shadow-sm fs-card';
+  card.style.cursor = 'pointer';
+
+  const aloj = fs.ALOJAMENTO || '';
+  const quem = fs.USERNAME || '';
+  const dataStr = fs.DATA ? new Date(fs.DATA).toLocaleDateString('pt-PT') : '';
+  const item = fs.ITEM || '';
+  const ufs = fs && (fs.URGENTE ?? 0);
+  const urgente = (ufs === 1) || (ufs === true) || (ufs === '1') || (String(ufs).toLowerCase() === 'true');
+
+  if (typeof escapeHtml !== 'function') {
+    window.escapeHtml = function(s) {
+      const str = (s === undefined || s === null) ? '' : String(s);
+      return str.replace(/[&<>"']/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[ch]));
+    };
+  }
+
+  card.innerHTML = `
+    <div class="card-body p-2">
+      <div class="tarefa-titulo"><strong>${escapeHtml(aloj)}</strong></div>
+      <div class="tarefa-subtitulo text-muted small">${escapeHtml(quem)}${(quem && dataStr) ? ' • ' : ''}${escapeHtml(dataStr)}</div>
+      <div class="tarefa-texto small">${escapeHtml(item)}</div>
+    </div>
+  `;
+
+  const body = card.querySelector('.card-body');
+  if (body) {
+    // ícone de falta (cart)
+    const icon = document.createElement('i');
+    icon.className = 'fa-solid fa-cart-shopping text-dark float-end';
+    icon.title = 'Falta';
+    body.prepend(icon);
+    // ícone urgente
+    if (urgente) {
+      const urg = document.createElement('i');
+      urg.className = 'fa-solid fa-triangle-exclamation text-danger float-end me-1';
+      urg.title = 'Urgente';
+      body.prepend(urg);
+    }
+  }
+
+  card.addEventListener('click', () => {
+    const fsstamp = fs.FSSTAMP || fs.fsstamp || '';
+    const modalEl = document.getElementById('fsModal');
+    const stampEl = document.getElementById('fsStamp');
+    if (stampEl) stampEl.value = fsstamp;
+
+    // Preenche resumo no modal FS
+    try {
+      const resumo = document.getElementById('fsResumo');
+      if (resumo) {
+        resumo.innerHTML = `
+          <div class=\"tarefa-titulo\"><strong>${escapeHtml(aloj)}</strong></div>
+          <div class=\"tarefa-subtitulo text-muted small\">${escapeHtml(quem)}${(quem && dataStr) ? ' • ' : ''}${escapeHtml(dataStr)}</div>
+          <div class=\"tarefa-texto small\">${escapeHtml(item)}</div>
+        `;
+      }
+    } catch(_) {}
+
+    // Botões do modal FS
+    try {
+      const btnTratar = document.getElementById('fsTratadaBtn');
+      if (btnTratar) {
+        btnTratar.onclick = async () => {
+          try {
+            const r = await fetch('/generic/api/fs/tratar', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ FSSTAMP: fsstamp }) });
+            const js = await r.json();
+            if (!r.ok || js.ok === false) throw new Error(js.error || 'Falha ao marcar falta.');
+            // fecha modal
+            const m = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            m.hide();
+            // refresca colunas
+            if (typeof loadFaltasNaoAgendadas === 'function') loadFaltasNaoAgendadas();
+            if (typeof window.loadTarefas === 'function') window.loadTarefas();
+          } catch (e) { alert(e.message || 'Erro'); }
+        };
+      }
+
+      const btnAbrir = document.getElementById('fsAbrirBtn');
+      if (btnAbrir) {
+        if (typeof window !== 'undefined' && window.CAN_OPEN_FS) {
+          btnAbrir.style.display = 'inline-block';
+          btnAbrir.onclick = () => {
+            window.location.href = `/generic/form/FS/${encodeURIComponent(fsstamp)}?return_to=/monitor`;
+          };
+        } else {
+          btnAbrir.style.display = 'none';
+          btnAbrir.onclick = null;
+        }
+      }
+    } catch(_){}
+
+    if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  });
+
+  return card;
+}
+
+// Carrega MN e FS e ordena por DATA (asc)
+async function loadPendentes() {
+  const col = document.getElementById('mn-nao-agendadas');
+  if (!col) return;
+  col.innerHTML = '<div class="text-muted small">A carregar…</div>';
+  try {
+    const [mnResp, fsResp] = await Promise.all([
+      fetch('/generic/api/monitor/mn-nao-agendadas'),
+      fetch('/generic/api/monitor/fs-nao-agendadas')
+    ]);
+    const [mnJs, fsJs] = await Promise.all([mnResp.json(), fsResp.json()]);
+    const mnList = Array.isArray(mnJs.rows) ? mnJs.rows : [];
+    const fsList = Array.isArray(fsJs.rows) ? fsJs.rows : [];
+    const toTs = (d) => {
+      if (!d) return 0;
+      // d esperado 'YYYY-MM-DD'
+      const dt = new Date(d + 'T00:00:00');
+      return dt.getTime();
+    };
+    const merged = [
+      ...mnList.map(x => ({ type:'MN', ts: toTs(x.DATA), data:x })),
+      ...fsList.map(x => ({ type:'FS', ts: toTs(x.DATA), data:x }))
+    ].sort((a,b) => (a.ts - b.ts) || (a.type.localeCompare(b.type)));
+
+    const cntEl = document.getElementById('count-mn');
+    if (cntEl) cntEl.textContent = String(merged.length);
+
+    if (!merged.length) {
+      col.innerHTML = '<div class="text-muted small">Sem pendentes.</div>';
+      return;
+    }
+    col.innerHTML = '';
+    for (const row of merged) {
+      if (row.type === 'MN') col.appendChild(renderMNCardStyled(row.data));
+      else col.appendChild(renderFSCard(row.data));
+    }
+  } catch (err) {
+    console.error('Erro ao carregar pendentes:', err);
+    col.innerHTML = '<div class="text-danger small">Erro ao carregar.</div>';
   }
 }
 
@@ -727,6 +904,17 @@ if (typeof renderMNCardStyled !== 'function') {
       icon.className = 'fa-solid fa-screwdriver-wrench text-primary float-end';
       icon.title = 'Manutenção';
       body.prepend(icon);
+      // urgente
+      try {
+        const u = mn && (mn.URGENTE ?? 0);
+        const isUrg = (u === 1) || (u === true) || (u === '1') || (String(u).toLowerCase() === 'true');
+        if (isUrg) {
+          const urg = document.createElement('i');
+          urg.className = 'fa-solid fa-triangle-exclamation text-danger float-end me-1';
+          urg.title = 'Urgente';
+          body.prepend(urg);
+        }
+      } catch(_){}
     }
 
     card.addEventListener('click', () => {
@@ -734,6 +922,67 @@ if (typeof renderMNCardStyled !== 'function') {
       const modalEl = document.getElementById('agendarModal');
       const stampEl = document.getElementById('agendarMNStamp');
       if (stampEl) stampEl.value = mnstamp;
+      try { window.CURRENT_MN = mn; } catch(_) {}
+      // Defaults: hoje e próxima meia hora
+      try {
+        const dEl = document.getElementById('agendarData');
+        const hEl = document.getElementById('agendarHora');
+        const now = new Date();
+        if (dEl) dEl.value = now.toISOString().slice(0,10);
+        const round = new Date(now);
+        round.setMinutes(round.getMinutes() < 30 ? 30 : 60, 0, 0);
+        const hh = String(round.getHours()).padStart(2,'0');
+        const mm = String(round.getMinutes()).padStart(2,'0');
+        if (hEl) hEl.value = `${hh}:${mm}`;
+      } catch(_){}
+
+      // Replicar card no topo do modal
+      try {
+        const resumo = document.getElementById('mnResumo');
+        if (resumo) {
+          const esc = window.escapeHtml || (s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch])));
+          resumo.innerHTML = `
+            <div class=\"tarefa-titulo\"><strong>${esc(aloj)}</strong></div>
+            <div class=\"tarefa-subtitulo text-muted small\">${esc(quem)}${(quem && dataStr) ? ' • ' : ''}${esc(dataStr)}</div>
+            <div class=\"tarefa-texto small\">${esc(incid)}</div>
+          `;
+        }
+      } catch(_){}
+
+      // Info: próximos eventos (RS out/in, LP)
+      try {
+        const infoEl = document.getElementById('mnNextInfo');
+        if (infoEl) {
+          infoEl.textContent = 'A carregar informação do alojamento…';
+          fetch(`/generic/api/monitor/proximos?alojamento=${encodeURIComponent(aloj)}`)
+            .then(r => r.json())
+            .then(js => {
+              const parts = [];
+              if (js.rs_out && (js.rs_out.DATAOUT || js.rs_out.HORAOUT)) {
+                parts.push(`Próximo Check-Out: ${js.rs_out.DATAOUT || ''} às ${js.rs_out.HORAOUT || ''}`);
+              }
+              if (js.rs_in && (js.rs_in.DATAIN || js.rs_in.HORAIN)) {
+                parts.push(`Próximo Check-In: ${js.rs_in.DATAIN || ''} às ${js.rs_in.HORAIN || ''}`);
+              }
+              if (js.lp && (js.lp.DATA || js.lp.HORA || js.lp.EQUIPA)) {
+                const bullet = (js.lp.DATA || js.lp.HORA) && js.lp.EQUIPA ? ' • ' : '';
+                parts.push(`Próxima Limpeza: ${js.lp.DATA || ''} às ${js.lp.HORA || ''}${bullet}${js.lp.EQUIPA || ''}`);
+              }
+              infoEl.innerHTML = parts.length ? parts.map(p => `<div>${p}</div>`).join('') : '<div class="text-muted">Sem eventos próximos.</div>';
+            })
+            .catch(() => { infoEl.textContent = 'Sem informação disponível.'; });
+        }
+      } catch(_){}
+      // Configura o botão Abrir (mostrar sempre para debug)
+      try {
+        const btnAbrirMn = document.getElementById('mnAbrirBtn');
+        if (btnAbrirMn) {
+          btnAbrirMn.style.display = 'inline-block';
+          btnAbrirMn.onclick = () => {
+            window.location.href = `/generic/form/MN/${encodeURIComponent(mnstamp)}?return_to=/monitor`;
+          };
+        }
+      } catch(_){}
       if (modalEl) {
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
@@ -782,6 +1031,83 @@ if (typeof renderMNCardStyled !== 'function') {
     renderMNCardStyled = wrapWithWrench(renderMNCardStyled);
   }
 })();
+
+// Quando o modal de MN abrir, preencher defaults + resumo + próximos eventos
+document.addEventListener('DOMContentLoaded', () => {
+  const modalEl = document.getElementById('agendarModal');
+  if (!modalEl) return;
+  modalEl.addEventListener('shown.bs.modal', () => {
+    try {
+      const mn = (typeof window !== 'undefined' && window.CURRENT_MN) ? window.CURRENT_MN : null;
+      // Defaults de Data e Hora (se vazios ou sempre forçar)
+      const dEl = document.getElementById('agendarData');
+      const hEl = document.getElementById('agendarHora');
+      const now = new Date();
+      if (dEl) dEl.value = now.toISOString().slice(0,10);
+      const round = new Date(now);
+      round.setMinutes(round.getMinutes() < 30 ? 30 : 60, 0, 0);
+      const hh = String(round.getHours()).padStart(2,'0');
+      const mm = String(round.getMinutes()).padStart(2,'0');
+      if (hEl) hEl.value = `${hh}:${mm}`;
+
+      // Resumo + Próximos eventos baseados no mnstamp (não depende de window.CURRENT_MN)
+      const resumo = document.getElementById('mnResumo');
+      const infoEl = document.getElementById('mnNextInfo');
+      const stampEl = document.getElementById('agendarMNStamp');
+      const mnstamp = stampEl && stampEl.value;
+      if (resumo && mnstamp) {
+        resumo.innerHTML = '<div class="text-muted small">A carregar…</div>';
+        fetch(`/generic/api/mn/${encodeURIComponent(mnstamp)}`)
+          .then(r => r.json())
+          .then(row => {
+            const esc = window.escapeHtml || (s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch])));
+            const aloj = row.ALOJAMENTO || '';
+            const quem = row.NOME || '';
+            const dataStr = row.DATA || '';
+            const incid = row.INCIDENCIA || '';
+            resumo.innerHTML = `
+              <div class=\"tarefa-titulo\"><strong>${esc(aloj)}</strong></div>
+              <div class=\"tarefa-subtitulo text-muted small\">${esc(quem)}${(quem && dataStr) ? ' • ' : ''}${esc(dataStr)}</div>
+              <div class=\"tarefa-texto small\">${esc(incid)}</div>
+            `;
+            if (infoEl) {
+              infoEl.textContent = 'A carregar informação do alojamento…';
+              fetch(`/generic/api/monitor/proximos?alojamento=${encodeURIComponent(aloj)}`)
+                .then(rr => rr.json())
+                .then(js => {
+                  const parts = [];
+                  const b = (s) => `<strong>${s}</strong>`;
+                  const fmtDDMM = (d) => {
+                    if (!d) return '';
+                    // espera 'YYYY-MM-DD'
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+                      const [Y,M,D] = d.split('-');
+                      return `${D}/${M}`;
+                    }
+                    try { const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`; } catch(_) { return d; }
+                  };
+                  if (js.rs_out && (js.rs_out.DATAOUT || js.rs_out.HORAOUT)) {
+                    const segs = [fmtDDMM(js.rs_out.DATAOUT), js.rs_out.HORAOUT].filter(Boolean).join(' • ');
+                    parts.push(`${b('Próximo Check-Out:')} ${segs}`);
+                  }
+                  if (js.rs_in && (js.rs_in.DATAIN || js.rs_in.HORAIN)) {
+                    const segs = [fmtDDMM(js.rs_in.DATAIN), js.rs_in.HORAIN].filter(Boolean).join(' • ');
+                    parts.push(`${b('Próximo Check-In:')} ${segs}`);
+                  }
+                  if (js.lp && (js.lp.DATA || js.lp.HORA || js.lp.EQUIPA)) {
+                    const segs = [fmtDDMM(js.lp.DATA), js.lp.HORA, js.lp.EQUIPA].filter(Boolean).join(' • ');
+                    parts.push(`${b('Próxima Limpeza:')} ${segs}`);
+                  }
+                  infoEl.innerHTML = parts.length ? parts.map(p => `<div>${p}</div>`).join('') : '<div class=\"text-muted\">Sem eventos próximos.</div>';
+                })
+                .catch(() => { infoEl.textContent = 'Sem informação disponível.'; });
+            }
+          })
+          .catch(() => { resumo.innerHTML = ''; });
+      }
+    } catch (_) {}
+  });
+});
 
 // Add "Marcar como tratada" button to MN cards
 (function() {
@@ -862,6 +1188,19 @@ document.addEventListener('click', async (evt) => {
     console.error(err);
     alert(err.message || 'Erro ao marcar manutenção como tratada.');
   }
+});
+
+// Navegar para o registo de MN a partir do modal (botão Abrir)
+document.addEventListener('click', (evt) => {
+  const btn = evt.target.closest('#mnAbrirBtn');
+  if (!btn) return;
+  evt.preventDefault();
+  try {
+    const stampEl = document.getElementById('agendarMNStamp');
+    const mnstamp = stampEl && stampEl.value;
+    if (!mnstamp) return;
+    window.location.href = `/generic/form/MN/${encodeURIComponent(mnstamp)}?return_to=/monitor`;
+  } catch (_) {}
 });
 
 // Confirmação ao marcar tarefa como tratada (popup de tarefas)
@@ -985,7 +1324,11 @@ document.addEventListener('click', function(e) {
           break;
       }
 
-      bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
+        const canOpenT = (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) ? true : false;
+        const openBtn = (canOpenT && t.TAREFASSTAMP)
+          ? `<a class=\"btn btn-sm btn-primary float-end ms-1\" onclick=\"event.stopPropagation()\" href=\"/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor\">Abrir</a>`
+          : '';
+        bloco.innerHTML = `<div class=\"card-body p-2\">${openBtn}${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
 
       bloco.addEventListener('click', () => {
         const modalElement = document.getElementById('tarefaModal');
@@ -1009,6 +1352,22 @@ document.addEventListener('click', function(e) {
         if (btnReabrir) btnReabrir.style.display = 'none';
         if (!t.TRATADO) { if (btnTratar) btnTratar.style.display = 'inline-block'; }
         else { if (btnReabrir) btnReabrir.style.display = 'inline-block'; }
+
+        // Botão Abrir (no modal)
+        try {
+          const btnAbrir = document.getElementById('btnAbrirTarefa');
+          if (btnAbrir) {
+            if (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) {
+              btnAbrir.style.display = 'inline-block';
+              btnAbrir.onclick = () => {
+                window.location.href = `/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor`;
+              };
+            } else {
+              btnAbrir.style.display = 'none';
+              btnAbrir.onclick = null;
+            }
+          }
+        } catch(_){}
         if (modal) modal.show();
       });
 
@@ -1129,7 +1488,11 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
       }
 
-      bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
+      const canOpenT2 = (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) ? true : false;
+      const openBtn2 = (canOpenT2 && t.TAREFASSTAMP)
+        ? `<a class=\"btn btn-sm btn-primary float-end ms-1\" onclick=\"event.stopPropagation()\" href=\"/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor\">Abrir</a>`
+        : '';
+      bloco.innerHTML = `<div class=\"card-body p-2\">${openBtn2}${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
 
       bloco.addEventListener('click', () => {
         const modalElement = document.getElementById('tarefaModal');
