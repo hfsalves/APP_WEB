@@ -22,6 +22,28 @@ def create_app():
     )
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+    # Garantir JSON e respostas com UTF-8 para evitar problemas de acentuação
+    try:
+        # Flask 2.x/3.x JSON provider
+        app.json.ensure_ascii = False
+    except Exception:
+        app.config['JSON_AS_ASCII'] = False
+
+    @app.after_request
+    def _force_utf8(resp):
+        try:
+            mt = resp.mimetype or ''
+            if mt.startswith('text/'):
+                # acrescenta charset se não existir
+                if 'charset=' not in (resp.headers.get('Content-Type') or ''):
+                    resp.headers['Content-Type'] = f"{mt}; charset=utf-8"
+            elif mt == 'application/json':
+                # alguns navegadores assumem latin-1 sem charset
+                resp.headers['Content-Type'] = 'application/json; charset=utf-8'
+        except Exception:
+            pass
+        return resp
+
     db.init_app(app)
     login_manager.init_app(app)
     login_manager.login_view = 'login'

@@ -1,4 +1,4 @@
-# blueprints/generic_crud.py
+﻿# blueprints/generic_crud.py
 
 from flask import Blueprint, render_template, request, jsonify, abort, current_app
 from flask_login import login_required, current_user
@@ -13,7 +13,7 @@ bp = Blueprint('generic', __name__, url_prefix='/generic')
 # ACL helper
 # --------------------------------------------------
 def has_permission(table_name: str, action: str) -> bool:
-    # super‐admin vê tudo
+    # superâ€admin vÃª tudo
     if getattr(current_user, 'ADMIN', False):
         return True
     acesso = (
@@ -39,7 +39,7 @@ def get_table(table_name):
         )
     except Exception as e:
         current_app.logger.error(f"Erro ao refletir tabela {table_name}: {e}")
-        abort(404, f"Tabela {table_name} não encontrada")
+        abort(404, f"Tabela {table_name} nÃ£o encontrada")
 
 # --------------------------------------------------
 # Views para front-end
@@ -131,7 +131,7 @@ def list_or_describe(table_name):
 
     # 2) LISTAGEM
     if not has_permission(table_name, 'consultar'):
-        abort(403, 'Sem permissão para consultar')
+        abort(403, 'Sem permissÃ£o para consultar')
 
     table = get_table(table_name)
     stmt  = select(table)
@@ -157,15 +157,15 @@ def list_or_describe(table_name):
         # filtros normais
         if hasattr(table.c, key):
             col = getattr(table.c, key)
-            # texto: contém via LIKE
+            # texto: contÃ©m via LIKE
             if isinstance(col.type, String):
                 stmt = stmt.where(col.like(f"%{value}%"))
             else:
                 stmt = stmt.where(col == value)
 
-    # 4) ordenação automática por ORDEM → DATA → HORA
+    # 4) ordenaÃ§Ã£o automÃ¡tica por ORDEM â†’ DATA â†’ HORA
     order_cols = []
-    for cn in ('ORDEM', 'DATA', 'HORA'):
+    for cn in ('ORDEM', 'DATA', 'HORA', 'NOME'):
         if hasattr(table.c, cn):
             order_cols.append(getattr(table.c, cn))
     if order_cols:
@@ -203,7 +203,7 @@ def list_or_describe(table_name):
         return jsonify({'error': str(e)}), 500
 
 # --------------------------------------------------
-# API: opções para COMBO
+# API: opÃ§Ãµes para COMBO
 # --------------------------------------------------
 @bp.route('/api/options', methods=['GET'])
 @login_required
@@ -234,10 +234,10 @@ def mn_tratar():
     if not mnstamp:
         return jsonify({'ok': False, 'error': 'MNSTAMP em falta'}), 400
 
-    # Permissão: MN admin ou permissão de editar tabela MN (se existir ACL)
+    # PermissÃ£o: MN admin ou permissÃ£o de editar tabela MN (se existir ACL)
     allowed = getattr(current_user, 'MNADMIN', False) or has_permission('MN', 'editar')
     if not allowed:
-        return jsonify({'ok': False, 'error': 'Sem permissão'}), 403
+        return jsonify({'ok': False, 'error': 'Sem permissÃ£o'}), 403
 
     try:
         sql = text("""
@@ -278,12 +278,13 @@ def monitor_tasks_filtered():
         if is_lp_admin:
             origins.extend(["'LP'", "'FS'"])
         if origins:
-            where.append(f"ORIGEM IN ({', '.join(origins)})")
+            # Incluir tarefas sem origem (NULL/''), além das de origem permitida
+            where.append(f"(ORIGEM IN ({', '.join(origins)}) OR ORIGEM IS NULL OR LTRIM(RTRIM(ORIGEM)) = '')")
         else:
-            # fallback para apenas as do próprio
+            # fallback para apenas as do prÃ³prio
             where.append("UTILIZADOR = :user")
 
-    # Regras de data: todas as atrasadas, e tratadas apenas últimos 7 dias
+    # Regras de data: todas as atrasadas, e tratadas apenas Ãºltimos 7 dias
     # Implementamos como (TRATADO=0) OR (TRATADO=1 AND DATA >= hoje-7)
     where.append("(TRATADO = 0 OR DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))")
 
@@ -417,25 +418,25 @@ def rs_update_obs():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 # --------------------------------------------------
-# API: registro único
+# API: registro Ãºnico
 # --------------------------------------------------
 @bp.route('/api/<table_name>/<record_stamp>', methods=['GET'])
 @login_required
 def get_record(table_name, record_stamp):
     if not has_permission(table_name, 'consultar'):
-        abort(403, 'Sem permissão para consultar')
+        abort(403, 'Sem permissÃ£o para consultar')
 
     table = get_table(table_name)
     pk    = getattr(table.c, f"{table_name.upper()}STAMP")
     stmt  = select(table).where(pk == record_stamp)
     row   = db.session.execute(stmt).fetchone()
     if not row:
-        abort(404, f"Registro não encontrado: {record_stamp}")
+        abort(404, f"Registro nÃ£o encontrado: {record_stamp}")
 
     # Base: dados reais
     rec = dict(row._mapping)
 
-    # 🔁 Adiciona campos virtuais
+    # ðŸ” Adiciona campos virtuais
     virtual_fields = (
         Campo.query
              .filter_by(tabela=table_name, tipo='VIRTUAL')
@@ -460,7 +461,7 @@ def get_record(table_name, record_stamp):
 @login_required
 def create_record(table_name):
     if not has_permission(table_name, 'inserir'):
-        abort(403, 'Sem permissão para inserir')
+        abort(403, 'Sem permissÃ£o para inserir')
 
     table = get_table(table_name)
     data  = request.get_json() or {}
@@ -470,14 +471,14 @@ def create_record(table_name):
     if pk_name in data and not data[pk_name]:
         data.pop(pk_name)
 
-    # — Filtra só colunas válidas —
+    # â€” Filtra sÃ³ colunas vÃ¡lidas â€”
     col_map = {c.name.lower(): c.name for c in table.c}
     clean   = {}
     for k, v in data.items():
         lk = k.lower()
         if lk in col_map:
             clean[col_map[lk]] = v
-    # — end filtra —
+    # â€” end filtra â€”
 
     try:
         ins = table.insert().values(**clean)
@@ -497,11 +498,11 @@ def create_record(table_name):
 @login_required
 def update_record(table_name, record_stamp):
     if not has_permission(table_name, 'editar'):
-        abort(403, 'Sem permissão para editar')
+        abort(403, 'Sem permissÃ£o para editar')
 
     table = get_table(table_name)
     data  = request.get_json() or {}
-    # filtra só colunas válidas
+    # filtra sÃ³ colunas vÃ¡lidas
     col_map = {c.name.lower(): c.name for c in table.c}
     clean   = {}
     for k, v in data.items():
@@ -536,18 +537,18 @@ def delete_record(table_name, record_stamp):
     db.session.commit()
 
     if result.rowcount == 0:
-        abort(404, "Registo não encontrado")
+        abort(404, "Registo nÃ£o encontrado")
 
     return jsonify(success=True)
 
 # --------------------------------------------------
-# API: linhas dinâmicas
+# API: linhas dinÃ¢micas
 # --------------------------------------------------
 @bp.route('/api/linhas/<mae>', methods=['GET'])
 @login_required
 def api_linhas(mae):
     if not has_permission(mae, 'consultar'):
-        abort(403, 'Sem permissão para consultar linhas deste registo')
+        abort(403, 'Sem permissÃ£o para consultar linhas deste registo')
 
     linhas = Linhas.query.filter_by(MAE=mae).all()
     resultado = []
@@ -563,13 +564,13 @@ def api_linhas(mae):
     return jsonify(resultado)
 
 # --------------------------------------------------
-# API: detalhes dinâmicos
+# API: detalhes dinÃ¢micos
 # --------------------------------------------------
 @bp.route('/api/dynamic_details/<mae>/<record_stamp>', methods=['GET'])
 @login_required
 def api_dynamic_details(mae, record_stamp):
     if not has_permission(mae, 'consultar'):
-        abort(403, 'Sem permissão para ver detalhes')
+        abort(403, 'Sem permissÃ£o para ver detalhes')
 
     detalhes = []
     for defn in Linhas.query.filter_by(MAE=mae):
@@ -585,7 +586,7 @@ def api_dynamic_details(mae, record_stamp):
         elif ligacaomae:
             sql = f"SELECT * FROM {tabela} WHERE {ligacaomae} = :record"
         else:
-            abort(500, f"Definição inválida para detalhe {tabela}")
+            abort(500, f"DefiniÃ§Ã£o invÃ¡lida para detalhe {tabela}")
 
         # <<< AQUI: executa e define `rows` >>>
         rows = db.session.execute(text(sql), {"record": record_stamp}).mappings().all()
@@ -593,7 +594,7 @@ def api_dynamic_details(mae, record_stamp):
         # metadados de colunas para a lista
         pk_name = f"{tabela.upper()}STAMP"
 
-        # buscar os campos visíveis na lista
+        # buscar os campos visÃ­veis na lista
         cols = list(
             Campo.query
                 .filter_by(tabela=tabela, lista=True)
@@ -601,10 +602,10 @@ def api_dynamic_details(mae, record_stamp):
                 .all()
         )
 
-        # garantir que a PK está incluída (mesmo que lista=False)
+        # garantir que a PK estÃ¡ incluÃ­da (mesmo que lista=False)
         pk_name = f"{tabela.upper()}STAMP"
         if not any(c.nmcampo.upper() == pk_name for c in cols):
-            # cria um campo fake, não vem da tabela Campo
+            # cria um campo fake, nÃ£o vem da tabela Campo
             from types import SimpleNamespace
             cols.insert(0, SimpleNamespace(nmcampo=pk_name, descricao='ID', ordem=0))
 
@@ -622,7 +623,7 @@ def api_dynamic_details(mae, record_stamp):
         camposcab = [c.strip() for c in (defn.CAMPOSCAB or '').split(',') if c.strip()]
         camposlin = [c.strip() for c in (defn.CAMPOSLIN or '').split(',') if c.strip()]
 
-        # <<< e só aqui é que usas `rows` >>>
+        # <<< e sÃ³ aqui Ã© que usas `rows` >>>
         detalhes.append({
             "linhasstamp": defn.LINHASSTAMP,
             "tabela":      tabela,
@@ -651,7 +652,7 @@ def api_calendar_tasks():
         datetime.strptime(start, '%Y-%m-%d')
         datetime.strptime(end,   '%Y-%m-%d')
     except ValueError:
-        abort(400, 'Formato de data inválido')
+        abort(400, 'Formato de data invÃ¡lido')
 
     sql = text("""
     SELECT
@@ -692,7 +693,7 @@ def view_planner(planner_date):
         else:
             planner_date = date.today().isoformat()
     except ValueError:
-        return "Formato de data inválido (usa YYYY-MM-DD)", 400
+        return "Formato de data invÃ¡lido (usa YYYY-MM-DD)", 400
 
     return render_template('planner.html', planner_date=planner_date)
 
@@ -711,7 +712,7 @@ def api_cleaning_plan():
         al.NOME           AS lodging,
         al.TIPOLOGIA      AS typology,
         al.ZONA           AS zone,
-        -- Última equipa que limpou
+        -- Ãšltima equipa que limpou
         lc.last_team      AS last_team,
         -- Check-out do dia
         co.HORAOUT        AS checkout_time,
@@ -723,7 +724,7 @@ def api_cleaning_plan():
         ci.RESERVA        AS checkin_reservation,
         ci.ADULTOS + ci.CRIANCAS  AS checkin_people,
         ci.NOITES         AS checkin_nights,
-        -- Limpezas já agendadas no dia
+        -- Limpezas jÃ¡ agendadas no dia
         pl.LPSTAMP        AS cleaning_id,
         pl.HORA           AS cleaning_time,
         pl.EQUIPA         AS cleaning_team,
@@ -746,7 +747,7 @@ def api_cleaning_plan():
             WHERE DATA < :date
             GROUP BY ALOJAMENTO
         ) lc ON lc.ALOJAMENTO = al.NOME
-        -- Apenas reservas NÃO canceladas
+        -- Apenas reservas NÃƒO canceladas
         LEFT JOIN RS co ON co.ALOJAMENTO = al.NOME AND co.DATAOUT = :date AND co.CANCELADA = 0
         LEFT JOIN RS ci ON ci.ALOJAMENTO = al.NOME AND ci.DATAIN = :date AND ci.CANCELADA = 0
         LEFT JOIN (
@@ -772,7 +773,7 @@ def api_gravar_limpezas():
     if not limpezas:
         return jsonify(success=False, message="Nenhum dado recebido"), 400
     for lp in limpezas:
-        # Verifica se já existe (mesmo ALOJAMENTO, DATA, HORA, EQUIPA)
+        # Verifica se jÃ¡ existe (mesmo ALOJAMENTO, DATA, HORA, EQUIPA)
         reg = db.session.execute(
             text("""
             SELECT LPSTAMP FROM LP WHERE
@@ -788,8 +789,8 @@ def api_gravar_limpezas():
             )
         ).fetchone()
         if reg:
-            continue  # já existe, não grava de novo
-        # Senão, cria
+            continue  # jÃ¡ existe, nÃ£o grava de novo
+        # SenÃ£o, cria
         db.session.execute(
             text("""
             INSERT INTO LP (LPSTAMP, ALOJAMENTO, DATA, HORA, EQUIPA, TERMINADA, CUSTO, HOSPEDES, NOITES, OBS)
@@ -944,20 +945,20 @@ def api_monitor_tasks():
 @login_required
 def criar_mn_incidente():
     """
-    Endpoint dedicado para criar uma nova incidência na tabela MN
-    Garante que o campo TRATADO é sempre booleano.
+    Endpoint dedicado para criar uma nova incidÃªncia na tabela MN
+    Garante que o campo TRATADO Ã© sempre booleano.
     """
     from sqlalchemy import text
     import uuid
     data = request.get_json() or {}
 
-    # Campos obrigatórios
+    # Campos obrigatÃ³rios
     obrigatorios = ['ALOJAMENTO', 'DATA', 'NOME', 'INCIDENCIA']
     for campo in obrigatorios:
         if not data.get(campo):
-            return jsonify({'error': f'Campo obrigatório em falta: {campo}'}), 400
+            return jsonify({'error': f'Campo obrigatÃ³rio em falta: {campo}'}), 400
 
-    # Campos automáticos/defaults
+    # Campos automÃ¡ticos/defaults
     mnstamp = uuid.uuid4().hex[:25].upper()
     tratado = str(data.get('TRATADO', '0')).lower() in ['1', 'true', 'on']
     dttratado = data.get('DTTRATADO', None) or None
@@ -996,14 +997,14 @@ def api_fs_falta():
     obrig = ['ALOJAMENTO', 'DATA', 'USERNAME', 'ITEM']
     for c in obrig:
         if not data.get(c):
-            return jsonify({'error': f'Campo obrigatório em falta: {c}'}), 400
+            return jsonify({'error': f'Campo obrigatÃ³rio em falta: {c}'}), 400
 
     fsstamp = uuid.uuid4().hex[:25].upper()
 
     urgente    = str(data.get('URGENTE', '0')).lower() in ('1','true','on')
     tratado    = str(data.get('TRATADO', '0')).lower() in ('1','true','on')
     tratadopor = data.get('TRATADOPOR') or ''
-    dttratado  = data.get('DTTRATADO') or '1900-01-01'  # mantém alinhado com o teu default
+    dttratado  = data.get('DTTRATADO') or '1900-01-01'  # mantÃ©m alinhado com o teu default
 
     sql = text("""
         INSERT INTO FS (FSSTAMP, ALOJAMENTO, DATA, USERNAME, ITEM, URGENTE, TRATADO, TRATADOPOR, DTTRATADO)
@@ -1034,10 +1035,10 @@ def api_fs_falta():
 @login_required
 def api_profile_fields():
     """
-    Devolve os campos configurados para o formulário de perfil:
-      - Só campos da tabela US
-      - Só tipo ADMIN=1 na CAMPOS
-      - Lista o nome, tipo, descrição
+    Devolve os campos configurados para o formulÃ¡rio de perfil:
+      - SÃ³ campos da tabela US
+      - SÃ³ tipo ADMIN=1 na CAMPOS
+      - Lista o nome, tipo, descriÃ§Ã£o
     """
     from app import db
     try:
@@ -1070,15 +1071,15 @@ def tarefa_info(stamp):
     
     return jsonify({"info": result.info if result else ""})
 
-# === Monitor: Manutenções não agendadas + Agendamento em TAREFAS =================
+# === Monitor: ManutenÃ§Ãµes nÃ£o agendadas + Agendamento em TAREFAS =================
 from sqlalchemy import text
 
 @bp.route('/api/monitor/mn-nao-agendadas', methods=['GET'])
 @login_required
 def api_mn_nao_agendadas():
-    """Lista MN por agendar (sem entrada em TAREFAS). Só para MNADMIN."""
+    """Lista MN por agendar (sem entrada em TAREFAS). SÃ³ para MNADMIN."""
     if not getattr(current_user, 'MNADMIN', 0):
-        abort(403, 'Sem permissão de manutenção')
+        abort(403, 'Sem permissÃ£o de manutenÃ§Ã£o')
 
     sql = text("""
         SELECT 
@@ -1099,9 +1100,9 @@ def api_mn_nao_agendadas():
 @bp.route('/api/tarefas/from-mn', methods=['POST'])
 @login_required
 def api_criar_tarefa_from_mn():
-    """Cria uma TAREFA a partir de uma MN não agendada."""
+    """Cria uma TAREFA a partir de uma MN nÃ£o agendada."""
     if not getattr(current_user, 'MNADMIN', 0):
-        abort(403, 'Sem permissão de manutenção')
+        abort(403, 'Sem permissÃ£o de manutenÃ§Ã£o')
 
     data = request.get_json() or {}
     mnstamp = data.get('MNSTAMP')
@@ -1109,9 +1110,9 @@ def api_criar_tarefa_from_mn():
     hora_str = data.get('HORA')   # HH:MM
 
     if not mnstamp or not data_str or not hora_str:
-        return jsonify({'ok': False, 'error': 'Parâmetros obrigatórios: MNSTAMP, DATA, HORA'}), 400
+        return jsonify({'ok': False, 'error': 'ParÃ¢metros obrigatÃ³rios: MNSTAMP, DATA, HORA'}), 400
 
-    # Buscar incidência e alojamento da MN
+    # Buscar incidÃªncia e alojamento da MN
     mn = db.session.execute(
         text("""
             SELECT 
@@ -1124,7 +1125,7 @@ def api_criar_tarefa_from_mn():
     ).fetchone()
 
     if not mn:
-        return jsonify({'ok': False, 'error': 'MN não encontrada'}), 404
+        return jsonify({'ok': False, 'error': 'MN nÃ£o encontrada'}), 404
 
     # Inserir na TAREFAS
     # Nota: a coluna chama-se DURACAO (conforme queries acima neste ficheiro)
@@ -1153,3 +1154,5 @@ def api_criar_tarefa_from_mn():
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+

@@ -46,15 +46,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
         const hhmm = t.HORA;
         const ddmm = dataFormatada.toLocaleDateString('pt-PT');
+        // Determina título do card: se não tiver origem e não tiver alojamento, mostrar "Tarefa"
+        const _semOrigem = !t.ORIGEM || String(t.ORIGEM).trim() === '';
+        const _semAloj = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
+        const _tituloCard = (_semOrigem && _semAloj) ? 'Tarefa' : (t.ALOJAMENTO || '');
+        // Se não tiver ORIGEM e nem ALOJAMENTO, mostrar "Tarefa" como título
+        const origemVazia = !t.ORIGEM || String(t.ORIGEM).trim() === '';
+        const alojVazio = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
+        const displayAloj = (origemVazia && alojVazio) ? 'Tarefa' : (t.ALOJAMENTO || '');
 
         const bloco = document.createElement('div');
         bloco.className = 'card tarefa-card mb-2 shadow-sm';
 
         let texto;
         if (t.DATA === hojeStr) {
-          texto = `<strong class="tarefa-alojamento">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+          texto = `<strong class="tarefa-alojamento">${_tituloCard}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
         } else {
-          texto = `<strong class="tarefa-alojamento">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+          texto = `<strong class="tarefa-alojamento">${_tituloCard}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+        }
+
+        // Override do título quando não tem origem e não tem alojamento
+        if (origemVazia && alojVazio) {
+          if (t.DATA === hojeStr) {
+            texto = `<strong class=\"tarefa-alojamento\">Tarefa</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+          } else {
+            texto = `<strong class=\"tarefa-alojamento\">Tarefa</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+          }
         }
 
         let icone = '';
@@ -70,7 +87,11 @@ document.addEventListener('DOMContentLoaded', () => {
           case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
           case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
           case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
-          default: break;
+          default:
+            if (!t.ORIGEM || String(t.ORIGEM).trim() === '') {
+              origemIcon = '<i class="fa-solid fa-list-check text-dark float-end ms-1" title="Tarefa"></i>';
+            }
+            break;
         }
 
         bloco.innerHTML = `<div class="card-body p-2">${origemIcon}${icone}<div>${texto}</div></div>`;
@@ -156,7 +177,11 @@ document.addEventListener('DOMContentLoaded', () => {
               const mm = String(d.getMonth()+1).padStart(2,'0');
               const lbl = `${dow[d.getDay()]} ${dd}/${mm} ${hhmm}`;
               const body = bloco.querySelector('.card-body > div');
-              if (body) body.innerHTML = `<strong class=\"tarefa-alojamento\">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${lbl} - ${t.TAREFA}</span>`;
+              if (body) body.innerHTML = `<strong class=\"tarefa-alojamento\">${displayAloj}</strong><br><span class='text-muted small'>${lbl} - ${t.TAREFA}</span>`;
+              // Override quando não tem origem nem alojamento: mostra "Tarefa"
+              if (origemVazia && alojVazio && body) {
+                body.innerHTML = `<strong class=\"tarefa-alojamento\">Tarefa</strong><br><span class='text-muted small'>${lbl} - ${t.TAREFA}</span>`;
+              }
               grp.container.appendChild(bloco);
               cntFuturas++;
             }
@@ -251,15 +276,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
       const hhmm = t.HORA;
       const ddmm = dataFormatada.toLocaleDateString('pt-PT');
+      // Título do card: se não tiver origem e nem alojamento, mostrar "Tarefa"
+      const _semOrigem = !t.ORIGEM || String(t.ORIGEM).trim() === '';
+      const _semAloj = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
+      const _tituloCard = (_semOrigem && _semAloj) ? 'Tarefa' : (t.ALOJAMENTO || '');
 
       const bloco = document.createElement('div');
       bloco.className = 'card tarefa-card mb-2 shadow-sm';
 
       let texto;
       if (t.DATA === hojeStr) {
-        texto = `<strong class="tarefa-alojamento">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+        texto = `<strong class="tarefa-alojamento">${_tituloCard}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
       } else {
-        texto = `<strong class="tarefa-alojamento">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+        texto = `<strong class="tarefa-alojamento">${_tituloCard}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
       }
 
       let icone = '';
@@ -282,7 +311,11 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
-        default: break;
+        default:
+          if (!t.ORIGEM || String(t.ORIGEM).trim() === '') {
+            origemIcon = '<i class="fa-solid fa-list-check text-dark float-end ms-1" title="Tarefa"></i>';
+          }
+          break;
       }
 
       bloco.innerHTML = `<div class="card-body p-2">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
@@ -336,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const mm = String(d.getMonth()+1).padStart(2,'0');
             const lbl = `${dow[d.getDay()]} ${dd}/${mm} ${hhmm}`;
             const body = bloco.querySelector('.card-body > div');
-            if (body) body.innerHTML = `<strong class=\"tarefa-alojamento\">${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${lbl} - ${t.TAREFA}</span>`;
+              if (body) body.innerHTML = `<strong class=\"tarefa-alojamento\">${_tituloCard}</strong><br><span class='text-muted small'>${lbl} - ${t.TAREFA}</span>`;
             grp.container.appendChild(bloco);
             cntFuturas++;
           }
@@ -893,15 +926,19 @@ document.addEventListener('click', function(e) {
       const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
       const hhmm = t.HORA;
       const ddmm = dataFormatada.toLocaleDateString('pt-PT');
+      // Título do card: se não tiver origem e nem alojamento, mostrar "Tarefa"
+      const _semOrigem = !t.ORIGEM || String(t.ORIGEM).trim() === '';
+      const _semAloj = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
+      const _tituloCard = (_semOrigem && _semAloj) ? 'Tarefa' : (t.ALOJAMENTO || '');
 
       const bloco = document.createElement('div');
       bloco.className = 'card tarefa-card mb-2 shadow-sm';
 
       let texto;
       if (t.DATA === hojeStr) {
-        texto = `<strong>${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+        texto = `<strong class=\"tarefa-alojamento\">${_tituloCard}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
       } else {
-        texto = `<strong>${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+        texto = `<strong class=\"tarefa-alojamento\">${_tituloCard}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
       }
 
       let icone = '';
@@ -926,7 +963,11 @@ document.addEventListener('click', function(e) {
         case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
-        default: break;
+        default:
+          if (!t.ORIGEM || String(t.ORIGEM).trim() === '') {
+            origemIcon = '<i class="fa-solid fa-list-check text-dark float-end ms-1" title="Tarefa"></i>';
+          }
+          break;
       }
 
       bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
@@ -1029,15 +1070,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
       const hhmm = t.HORA;
       const ddmm = dataFormatada.toLocaleDateString('pt-PT');
+      // Título do card: se não tiver origem e nem alojamento, mostrar "Tarefa"
+      const _semOrigem = !t.ORIGEM || String(t.ORIGEM).trim() === '';
+      const _semAloj = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
+      const _tituloCard = (_semOrigem && _semAloj) ? 'Tarefa' : (t.ALOJAMENTO || '');
 
       const bloco = document.createElement('div');
       bloco.className = 'card tarefa-card mb-2 shadow-sm';
 
       let texto;
       if (t.DATA === hojeStr) {
-        texto = `<strong>${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+        texto = `<strong class=\"tarefa-alojamento\">${_tituloCard}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
       } else {
-        texto = `<strong>${t.ALOJAMENTO}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+        texto = `<strong class=\"tarefa-alojamento\">${_tituloCard}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
       }
 
       let icone = '';
@@ -1047,12 +1092,26 @@ document.addEventListener('DOMContentLoaded', () => {
         icone = '<i class="fas fa-exclamation-circle text-danger float-end"></i>';
       }
 
+      // Badge do utilizador
+      const esc = (typeof window !== 'undefined' && typeof window.escapeHtml === 'function')
+        ? window.escapeHtml
+        : (s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch])));
+      const userName = t.UTILIZADOR_NOME || t.UTILIZADOR || '';
+      const userColor = t.UTILIZADOR_COR || '#6c757d';
+      const userBadge = userName
+        ? `<span class=\"user-badge float-end ms-1\" title=\"${esc(userName)}\" style=\"background-color:${esc(userColor)};color:#fff;border-radius:8px;padding:2px 6px;font-size:.70rem;line-height:1.1;white-space:nowrap;\">${esc(userName)}</span>`
+        : '';
+
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
         case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
-        default: break;
+        default:
+          if (!t.ORIGEM || String(t.ORIGEM).trim() === '') {
+            origemIcon = '<i class="fa-solid fa-list-check text-dark float-end ms-1" title="Tarefa"></i>';
+          }
+          break;
       }
 
       bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
