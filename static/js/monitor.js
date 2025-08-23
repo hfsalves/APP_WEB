@@ -795,13 +795,16 @@ async function loadPendentes() {
   if (!col) return;
   col.innerHTML = '<div class="text-muted small">A carregar…</div>';
   try {
-    const [mnResp, fsResp] = await Promise.all([
-      fetch('/generic/api/monitor/mn-nao-agendadas'),
-      fetch('/generic/api/monitor/fs-nao-agendadas')
-    ]);
-    const [mnJs, fsJs] = await Promise.all([mnResp.json(), fsResp.json()]);
+    const isLpAdmin = (typeof window !== 'undefined' && window.IS_LP_ADMIN) ? !!window.IS_LP_ADMIN : false;
+    const mnResp = await fetch('/generic/api/monitor/mn-nao-agendadas');
+    const mnJs = await mnResp.json();
     const mnList = Array.isArray(mnJs.rows) ? mnJs.rows : [];
-    const fsList = Array.isArray(fsJs.rows) ? fsJs.rows : [];
+    let fsList = [];
+    if (isLpAdmin) {
+      const fsResp = await fetch('/generic/api/monitor/fs-nao-agendadas');
+      const fsJs = await fsResp.json();
+      fsList = Array.isArray(fsJs.rows) ? fsJs.rows : [];
+    }
     const toTs = (d) => {
       if (!d) return 0;
       // d esperado 'YYYY-MM-DD'
@@ -949,28 +952,49 @@ if (typeof renderMNCardStyled !== 'function') {
         }
       } catch(_){}
 
-      // Info: próximos eventos (RS out/in, LP)
+      // Blocos por cada próximo Check-Out
       try {
-        const infoEl = document.getElementById('mnNextInfo');
-        if (infoEl) {
-          infoEl.textContent = 'A carregar informação do alojamento…';
-          fetch(`/generic/api/monitor/proximos?alojamento=${encodeURIComponent(aloj)}`)
+        const optsEl = document.getElementById('mnOutOptions');
+        if (optsEl) {
+          optsEl.innerHTML = '<div class="text-muted small">A carregar check-outs…</div>';
+          fetch(`/generic/api/monitor/outs?alojamento=${encodeURIComponent(aloj)}`)
             .then(r => r.json())
             .then(js => {
-              const parts = [];
-              if (js.rs_out && (js.rs_out.DATAOUT || js.rs_out.HORAOUT)) {
-                parts.push(`Próximo Check-Out: ${js.rs_out.DATAOUT || ''} às ${js.rs_out.HORAOUT || ''}`);
-              }
-              if (js.rs_in && (js.rs_in.DATAIN || js.rs_in.HORAIN)) {
-                parts.push(`Próximo Check-In: ${js.rs_in.DATAIN || ''} às ${js.rs_in.HORAIN || ''}`);
-              }
-              if (js.lp && (js.lp.DATA || js.lp.HORA || js.lp.EQUIPA)) {
-                const bullet = (js.lp.DATA || js.lp.HORA) && js.lp.EQUIPA ? ' • ' : '';
-                parts.push(`Próxima Limpeza: ${js.lp.DATA || ''} às ${js.lp.HORA || ''}${bullet}${js.lp.EQUIPA || ''}`);
-              }
-              infoEl.innerHTML = parts.length ? parts.map(p => `<div>${p}</div>`).join('') : '<div class="text-muted">Sem eventos próximos.</div>';
+              const rows = Array.isArray(js.rows) ? js.rows : [];
+              if (!rows.length) { optsEl.innerHTML = '<div class="text-muted small">Sem check-outs futuros.</div>'; return; }
+              const fmtDDMM = (d) => {
+                if (!d) return '';
+                if (/^\d{4}-\d{2}-\d{2}$/.test(d)) { const [Y,M,D] = d.split('-'); return `${D}/${M}`; }
+                try { const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`; } catch(_) { return d; }
+              };
+              optsEl.innerHTML = '';
+              rows.forEach((r) => {
+                const coDate = fmtDDMM(r.DATAOUT);
+                const coHora = r.HORAOUT && r.HORAOUT !== 'N/D' ? r.HORAOUT : 'N/D';
+                const ciDate = fmtDDMM(r.DATAIN || '');
+                const ciHora = r.HORAIN || '';
+                const lpLine = (r.LPHORA || r.LPEQUIPA) ? `<div class=\"small text-muted\"><strong>Limpeza:</strong> ${(r.LPHORA||'')} ${(r.LPEQUIPA? ' • ' + r.LPEQUIPA : '')}</div>` : '';
+                const block = document.createElement('div');
+                block.className = 'border rounded p-2 mb-2';
+                block.style.cursor = 'pointer';
+                block.innerHTML = `
+                  <div><strong>Check-Out:</strong> ${coDate}${coHora ? ' • ' + coHora : ''}</div>
+                  <div class=\"small text-muted\"><strong>Check-In:</strong> ${ciDate}${ciHora ? ' • ' + ciHora : ''}</div>
+                  ${lpLine}
+                `;
+                block.addEventListener('click', () => {
+                  try {
+                    const dEl = document.getElementById('agendarData');
+                    const hEl = document.getElementById('agendarHora');
+                    if (dEl && r.DATAOUT) dEl.value = r.DATAOUT;
+                    let hora = r.HORAOUT && r.HORAOUT !== 'N/D' ? r.HORAOUT : '11:00';
+                    if (hEl) hEl.value = hora;
+                  } catch(_) {}
+                });
+                optsEl.appendChild(block);
+              });
             })
-            .catch(() => { infoEl.textContent = 'Sem informação disponível.'; });
+            .catch(() => { optsEl.innerHTML = '<div class="text-muted small">Sem informação disponível.</div>'; });
         }
       } catch(_){}
       // Configura o botão Abrir (mostrar sempre para debug)
@@ -1032,6 +1056,67 @@ if (typeof renderMNCardStyled !== 'function') {
   }
 })();
 
+// Helper: preenche blocos de próximos check-outs clicáveis
+function fillOutOptions(aloj) {
+  try {
+    const optsEl = document.getElementById('mnOutOptions');
+    if (!optsEl || !aloj) return;
+    optsEl.innerHTML = '<div class="text-muted small">A carregar check-outs…</div>';
+    fetch(`/generic/api/monitor/outs?alojamento=${encodeURIComponent(aloj)}`)
+      .then(r => r.json())
+      .then(js => {
+        const rows = Array.isArray(js.rows) ? js.rows : [];
+        if (!rows.length) { optsEl.innerHTML = '<div class="text-muted small">Sem check-outs futuros.</div>'; return; }
+        const fmtDDMM = (d) => {
+          if (!d) return '';
+          if (/^\d{4}-\d{2}-\d{2}$/.test(d)) { const [Y,M,D] = d.split('-'); return `${D}/${M}`; }
+          try { const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`; } catch(_) { return d; }
+        };
+        optsEl.innerHTML = '';
+        rows.forEach((r) => {
+          const coDate = fmtDDMM(r.DATAOUT);
+          const coHora = r.HORAOUT && r.HORAOUT !== 'N/D' ? r.HORAOUT : 'N/D';
+          const ciDate = fmtDDMM(r.DATAIN || '');
+          const ciHora = r.HORAIN || '';
+          const lpLine = (r.LPHORA || r.LPEQUIPA) ? `<div class=\"small text-muted\"><strong>Limpeza:</strong> ${(r.LPHORA||'')} ${(r.LPEQUIPA? ' • ' + r.LPEQUIPA : '')}</div>` : '';
+          const block = document.createElement('div');
+          block.className = 'mn-out-option border rounded p-2 mb-2';
+          block.style.cursor = 'pointer';
+          block.innerHTML = `
+            <div><strong>Check-Out:</strong> ${coDate}${coHora ? ' • ' + coHora : ''}</div>
+            <div class=\"small text-muted\"><strong>Check-In:</strong> ${ciDate}${ciHora ? ' • ' + ciHora : ''}</div>
+            ${lpLine}
+          `;
+          block.addEventListener('click', () => {
+            try {
+              const dEl = document.getElementById('agendarData');
+              const hEl = document.getElementById('agendarHora');
+              if (dEl && r.DATAOUT) dEl.value = r.DATAOUT;
+              let hora = r.HORAOUT && r.HORAOUT !== 'N/D' ? r.HORAOUT : '11:00';
+              if (hEl) hEl.value = hora;
+              // seleção visual
+              try {
+                optsEl.querySelectorAll('.mn-out-option').forEach(el => {
+                  el.classList.remove('mn-selected');
+                  el.style.border = '';
+                  el.style.boxShadow = '';
+                  el.style.background = '';
+                });
+                block.classList.add('mn-selected');
+                // também aplica estilos inline para garantir override
+                block.style.border = '2px solid #0d6efd';
+                block.style.boxShadow = '0 0 0 .15rem rgba(13,110,253,.25)';
+                block.style.background = '#f4f8ff';
+              } catch(_){}
+            } catch(_) {}
+          });
+          optsEl.appendChild(block);
+        });
+      })
+      .catch(() => { optsEl.innerHTML = '<div class="text-muted small">Sem informação disponível.</div>'; });
+  } catch(_) {}
+}
+
 // Quando o modal de MN abrir, preencher defaults + resumo + próximos eventos
 document.addEventListener('DOMContentLoaded', () => {
   const modalEl = document.getElementById('agendarModal');
@@ -1052,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Resumo + Próximos eventos baseados no mnstamp (não depende de window.CURRENT_MN)
       const resumo = document.getElementById('mnResumo');
-      const infoEl = document.getElementById('mnNextInfo');
+      const infoEl = document.getElementById('mnOutOptions');
       const stampEl = document.getElementById('agendarMNStamp');
       const mnstamp = stampEl && stampEl.value;
       if (resumo && mnstamp) {
@@ -1070,38 +1155,8 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class=\"tarefa-subtitulo text-muted small\">${esc(quem)}${(quem && dataStr) ? ' • ' : ''}${esc(dataStr)}</div>
               <div class=\"tarefa-texto small\">${esc(incid)}</div>
             `;
-            if (infoEl) {
-              infoEl.textContent = 'A carregar informação do alojamento…';
-              fetch(`/generic/api/monitor/proximos?alojamento=${encodeURIComponent(aloj)}`)
-                .then(rr => rr.json())
-                .then(js => {
-                  const parts = [];
-                  const b = (s) => `<strong>${s}</strong>`;
-                  const fmtDDMM = (d) => {
-                    if (!d) return '';
-                    // espera 'YYYY-MM-DD'
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-                      const [Y,M,D] = d.split('-');
-                      return `${D}/${M}`;
-                    }
-                    try { const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`; } catch(_) { return d; }
-                  };
-                  if (js.rs_out && (js.rs_out.DATAOUT || js.rs_out.HORAOUT)) {
-                    const segs = [fmtDDMM(js.rs_out.DATAOUT), js.rs_out.HORAOUT].filter(Boolean).join(' • ');
-                    parts.push(`${b('Próximo Check-Out:')} ${segs}`);
-                  }
-                  if (js.rs_in && (js.rs_in.DATAIN || js.rs_in.HORAIN)) {
-                    const segs = [fmtDDMM(js.rs_in.DATAIN), js.rs_in.HORAIN].filter(Boolean).join(' • ');
-                    parts.push(`${b('Próximo Check-In:')} ${segs}`);
-                  }
-                  if (js.lp && (js.lp.DATA || js.lp.HORA || js.lp.EQUIPA)) {
-                    const segs = [fmtDDMM(js.lp.DATA), js.lp.HORA, js.lp.EQUIPA].filter(Boolean).join(' • ');
-                    parts.push(`${b('Próxima Limpeza:')} ${segs}`);
-                  }
-                  infoEl.innerHTML = parts.length ? parts.map(p => `<div>${p}</div>`).join('') : '<div class=\"text-muted\">Sem eventos próximos.</div>';
-                })
-                .catch(() => { infoEl.textContent = 'Sem informação disponível.'; });
-            }
+            // Preenche blocos de check-outs (override conteúdo anterior)
+            if (infoEl) setTimeout(() => fillOutOptions(aloj), 0);
           })
           .catch(() => { resumo.innerHTML = ''; });
       }

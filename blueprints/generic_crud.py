@@ -1209,6 +1209,58 @@ def api_monitor_proximos():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/api/monitor/outs', methods=['GET'])
+@login_required
+def api_monitor_outs():
+    aloj = (request.args.get('alojamento') or '').strip()
+    if not aloj:
+        return jsonify({'error': 'Alojamento em falta'}), 400
+    hoje = date.today().isoformat()
+    try:
+        outs = db.session.execute(text(
+            """
+            SELECT TOP 10 CONVERT(varchar(10), DATAOUT, 23) AS DATAOUT, HORAOUT
+            FROM RS
+            WHERE ALOJAMENTO = :aloj AND DATAOUT >= :hoje AND (CANCELADA = 0 OR CANCELADA IS NULL)
+            ORDER BY DATAOUT, HORAOUT
+            """
+        ), { 'aloj': aloj, 'hoje': hoje }).mappings().all()
+
+        result = []
+        for o in outs:
+            dataout = o['DATAOUT']
+            # próximo checkin após este checkout
+            inrow = db.session.execute(text(
+                """
+                SELECT TOP 1 CONVERT(varchar(10), DATAIN, 23) AS DATAIN, HORAIN
+                FROM RS
+                WHERE ALOJAMENTO = :aloj AND DATAIN >= :dataout AND (CANCELADA = 0 OR CANCELADA IS NULL)
+                ORDER BY DATAIN, HORAIN
+                """
+            ), { 'aloj': aloj, 'dataout': dataout }).mappings().first()
+            # limpeza marcada para a data do checkout
+            lprow = db.session.execute(text(
+                """
+                SELECT TOP 1 HORA, EQUIPA
+                FROM LP
+                WHERE ALOJAMENTO = :aloj AND DATA = :dataout
+                ORDER BY HORA
+                """
+            ), { 'aloj': aloj, 'dataout': dataout }).mappings().first()
+
+            result.append({
+                'DATAOUT': o['DATAOUT'],
+                'HORAOUT': o['HORAOUT'],
+                'DATAIN': (inrow['DATAIN'] if inrow else None),
+                'HORAIN': (inrow['HORAIN'] if inrow else None),
+                'LPHORA': (lprow['HORA'] if lprow else None),
+                'LPEQUIPA': (lprow['EQUIPA'] if lprow else None),
+            })
+
+        return jsonify({'rows': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/api/mn/<mnstamp>', methods=['GET'])
 @login_required
 def api_mn_get(mnstamp):

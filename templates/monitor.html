@@ -111,6 +111,12 @@
     box-shadow: 0 0 0 .15rem rgba(13,110,253,.25);
     background: #f4f8ff;
   }
+  /* seleção visual de bloco de Check-Out no modal MN */
+  .mn-out-option.mn-selected {
+    border: 2px solid #0d6efd !important;
+    box-shadow: 0 0 0 .15rem rgba(13,110,253,.25);
+    background: #f4f8ff;
+  }
   /* filtro bloco clicável */
   .filter-header { cursor: pointer; }
   .filter-header.active { background:#0d6efd; color:#fff; border-color:#0d6efd; }
@@ -371,7 +377,7 @@
           <label for="agendarUser" class="form-label">Utilizador</label>
           <select class="form-select" id="agendarUser"></select>
         </div>
-        <div id="mnNextInfo" class="mt-2 small text-muted"></div>
+        <div id="mnOutOptions" class="mt-2"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-success" id="mnTratadaBtn">Marcar como tratada</button>
