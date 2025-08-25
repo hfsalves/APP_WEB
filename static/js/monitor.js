@@ -93,12 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             break;
         }
-
-        const canOpenT0 = (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) ? true : false;
-        const openBtn0 = (canOpenT0 && t.TAREFASSTAMP)
-          ? `<a class=\"btn btn-sm btn-primary float-end ms-1\" onclick=\"event.stopPropagation()\" href=\"/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor\">Abrir</a>`
-          : '';
-        bloco.innerHTML = `<div class="card-body p-2">${openBtn0}${origemIcon}${icone}<div>${texto}</div></div>`;
+        bloco.innerHTML = `<div class=\"card-body p-2\">${origemIcon}${icone}<div>${texto}</div></div>`;
         // Garante badge do utilizador no topo direito
         try {
           const bodyEl = bloco.querySelector('.card-body');
@@ -145,15 +140,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnReabrir) btnReabrir.style.display = 'inline-block';
             }
 
-            // Botão Abrir (no modal)
+            // Botão Abrir (no modal) – controlado por origem e permissões
             try {
               const btnAbrir = document.getElementById('btnAbrirTarefa');
               if (btnAbrir) {
-                if (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) {
+                const oi = getOpenInfo(t);
+                if (oi.can) {
                   btnAbrir.style.display = 'inline-block';
-                  btnAbrir.onclick = () => {
-                    window.location.href = `/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor`;
-                  };
+                  btnAbrir.onclick = () => { window.location.href = oi.url; };
                 } else {
                   btnAbrir.style.display = 'none';
                   btnAbrir.onclick = null;
@@ -357,15 +351,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btnReabrir) btnReabrir.style.display = 'none';
         if (!t.TRATADO) { if (btnTratar) btnTratar.style.display = 'inline-block'; }
         else { if (btnReabrir) btnReabrir.style.display = 'inline-block'; }
-        // Botão Abrir (no modal)
+        // Botão Abrir (no modal) – por origem/permissões
         try {
           const btnAbrir = document.getElementById('btnAbrirTarefa');
           if (btnAbrir) {
-            if (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) {
+            const oi = getOpenInfo(t);
+            if (oi.can) {
               btnAbrir.style.display = 'inline-block';
-              btnAbrir.onclick = () => {
-                window.location.href = `/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor`;
-              };
+              btnAbrir.onclick = () => { window.location.href = oi.url; };
             } else {
               btnAbrir.style.display = 'none';
               btnAbrir.onclick = null;
@@ -1245,6 +1238,45 @@ document.addEventListener('click', async (evt) => {
   }
 });
 
+// Helper: decide permissões/URL para Abrir conforme ORIGEM
+function getOpenInfo(t) {
+  const origin = (t.ORIGEM || '').toUpperCase().trim();
+  if (origin === 'MN') {
+    return {
+      can: !!(typeof window !== 'undefined' && window.CAN_OPEN_MN),
+      url: t.ORISTAMP
+        ? `/generic/form/MN/${encodeURIComponent(t.ORISTAMP)}?return_to=/monitor`
+        : (t.TAREFASSTAMP
+            ? `/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor`
+            : '#')
+    };
+  }
+  if (origin === 'LP') {
+    return {
+      can: !!(typeof window !== 'undefined' && window.CAN_OPEN_LP),
+      url: t.ORISTAMP
+        ? `/generic/form/LP/${encodeURIComponent(t.ORISTAMP)}?return_to=/monitor`
+        : (t.TAREFASSTAMP
+            ? `/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor`
+            : '#')
+    };
+  }
+  if (origin === 'FS') {
+    return {
+      can: !!(typeof window !== 'undefined' && window.CAN_OPEN_FS),
+      url: t.ORISTAMP
+        ? `/generic/form/FS/${encodeURIComponent(t.ORISTAMP)}?return_to=/monitor`
+        : (t.TAREFASSTAMP
+            ? `/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor`
+            : '#')
+    };
+  }
+  return {
+    can: !!(typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) && !!t.TAREFASSTAMP,
+    url: `/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP || '')}?return_to=/monitor`
+  };
+}
+
 // Navegar para o registo de MN a partir do modal (botão Abrir)
 document.addEventListener('click', (evt) => {
   const btn = evt.target.closest('#mnAbrirBtn');
@@ -1379,11 +1411,7 @@ document.addEventListener('click', function(e) {
           break;
       }
 
-        const canOpenT = (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) ? true : false;
-        const openBtn = (canOpenT && t.TAREFASSTAMP)
-          ? `<a class=\"btn btn-sm btn-primary float-end ms-1\" onclick=\"event.stopPropagation()\" href=\"/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor\">Abrir</a>`
-          : '';
-        bloco.innerHTML = `<div class=\"card-body p-2\">${openBtn}${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
+        bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
 
       bloco.addEventListener('click', () => {
         const modalElement = document.getElementById('tarefaModal');
@@ -1408,15 +1436,14 @@ document.addEventListener('click', function(e) {
         if (!t.TRATADO) { if (btnTratar) btnTratar.style.display = 'inline-block'; }
         else { if (btnReabrir) btnReabrir.style.display = 'inline-block'; }
 
-        // Botão Abrir (no modal)
+        // Botão Abrir (no modal) – por origem/permissões
         try {
           const btnAbrir = document.getElementById('btnAbrirTarefa');
           if (btnAbrir) {
-            if (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) {
+            const oiM = getOpenInfo(t);
+            if (oiM.can) {
               btnAbrir.style.display = 'inline-block';
-              btnAbrir.onclick = () => {
-                window.location.href = `/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor`;
-              };
+              btnAbrir.onclick = () => { window.location.href = oiM.url; };
             } else {
               btnAbrir.style.display = 'none';
               btnAbrir.onclick = null;
@@ -1543,11 +1570,7 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
       }
 
-      const canOpenT2 = (typeof window !== 'undefined' && window.CAN_OPEN_TAREFAS) ? true : false;
-      const openBtn2 = (canOpenT2 && t.TAREFASSTAMP)
-        ? `<a class=\"btn btn-sm btn-primary float-end ms-1\" onclick=\"event.stopPropagation()\" href=\"/generic/form/TAREFAS/${encodeURIComponent(t.TAREFASSTAMP)}?return_to=/monitor\">Abrir</a>`
-        : '';
-      bloco.innerHTML = `<div class=\"card-body p-2\">${openBtn2}${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
+      bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
 
       bloco.addEventListener('click', () => {
         const modalElement = document.getElementById('tarefaModal');

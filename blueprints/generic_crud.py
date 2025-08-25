@@ -767,54 +767,96 @@ def api_cleaning_plan():
     date = request.args.get('date')
     sql = text("""
         SELECT
-        al.NOME           AS lodging,
-        al.TIPOLOGIA      AS typology,
-        al.ZONA           AS zone,
-        -- Ãšltima equipa que limpou
-        lc.last_team      AS last_team,
-        -- Check-out do dia
-        co.HORAOUT        AS checkout_time,
-        co.RESERVA        AS checkout_reservation,
-        co.ADULTOS + co.CRIANCAS  AS checkout_people,
-        co.NOITES         AS checkout_nights,
-        -- Check-in do dia
-        ci.HORAIN         AS checkin_time,
-        ci.RESERVA        AS checkin_reservation,
-        ci.ADULTOS + ci.CRIANCAS  AS checkin_people,
-        ci.NOITES         AS checkin_nights,
-        -- Limpezas jÃ¡ agendadas no dia
-        pl.LPSTAMP        AS cleaning_id,
-        pl.HORA           AS cleaning_time,
-        pl.EQUIPA         AS cleaning_team,
-        pl.TERMINADA      AS cleaning_done,
-        pl.HOSPEDES       AS cleaning_guests,
-        pl.NOITES         AS cleaning_nights,
-        pl.OBS            AS cleaning_notes,
-        -- O estado (1:checkout, 2:checkin, 3:ocupado, 4:vazio)
-        CASE
+          al.NOME                 AS lodging,
+          al.TIPOLOGIA            AS typology,
+          al.ZONA                 AS zone,
+          -- Última equipa que limpou
+          lc.last_team            AS last_team,
+          -- Check-out do dia
+          co.HORAOUT              AS checkout_time,
+          co.RESERVA              AS checkout_reservation,
+          co.ADULTOS + co.CRIANCAS AS checkout_people,
+          co.NOITES               AS checkout_nights,
+          -- Check-in do dia
+          ci.HORAIN               AS checkin_time,
+          ci.RESERVA              AS checkin_reservation,
+          ci.ADULTOS + ci.CRIANCAS AS checkin_people,
+          ci.NOITES               AS checkin_nights,
+          -- Limpezas já agendadas no dia
+          pl_day.LPSTAMP          AS cleaning_id,
+          pl_day.HORA             AS cleaning_time,
+          pl_day.EQUIPA           AS cleaning_team,
+          pl_day.TERMINADA        AS cleaning_done,
+          pl_day.HOSPEDES         AS cleaning_guests,
+          pl_day.NOITES           AS cleaning_nights,
+          pl_day.OBS              AS cleaning_notes,
+          -- Limpeza adiada (entre hoje e o próximo check-in)
+          (
+            SELECT TOP 1 LP.DATA
+            FROM LP
+            WHERE LP.ALOJAMENTO = al.NOME
+              AND LP.DATA > :date
+              AND (
+                    (SELECT MIN(RS.DATAIN)
+                     FROM RS
+                     WHERE RS.ALOJAMENTO = al.NOME
+                       AND RS.CANCELADA = 0
+                       AND RS.DATAIN > :date) IS NULL
+                 OR LP.DATA < (
+                     SELECT MIN(RS.DATAIN)
+                     FROM RS
+                     WHERE RS.ALOJAMENTO = al.NOME
+                       AND RS.CANCELADA = 0
+                       AND RS.DATAIN > :date)
+                )
+            ORDER BY LP.DATA ASC
+          ) AS postponed_date,
+          (
+            SELECT TOP 1 LP.EQUIPA
+            FROM LP
+            WHERE LP.ALOJAMENTO = al.NOME
+              AND LP.DATA > :date
+              AND (
+                    (SELECT MIN(RS.DATAIN)
+                     FROM RS
+                     WHERE RS.ALOJAMENTO = al.NOME
+                       AND RS.CANCELADA = 0
+                       AND RS.DATAIN > :date) IS NULL
+                 OR LP.DATA < (
+                     SELECT MIN(RS.DATAIN)
+                     FROM RS
+                     WHERE RS.ALOJAMENTO = al.NOME
+                       AND RS.CANCELADA = 0
+                       AND RS.DATAIN > :date)
+                )
+            ORDER BY LP.DATA ASC
+          ) AS postponed_team,
+          -- O estado (1:checkout, 2:checkin, 3:ocupado, 4:vazio)
+          CASE
             WHEN co.RSSTAMP IS NOT NULL THEN 1
             WHEN ci.RSSTAMP IS NOT NULL THEN 2
             WHEN oc.RSSTAMP IS NOT NULL THEN 3
             ELSE 4
-        END AS planner_status,
-        0                  AS cost
+          END AS planner_status,
+          0 AS cost
         FROM AL al
         LEFT JOIN (
-            SELECT ALOJAMENTO, MAX(DATA) AS last_date, MAX(HORA) AS last_hour, MAX(EQUIPA) AS last_team
-            FROM LP
-            WHERE DATA < :date
-            GROUP BY ALOJAMENTO
+          SELECT ALOJAMENTO, MAX(DATA) AS last_date, MAX(HORA) AS last_hour, MAX(EQUIPA) AS last_team
+          FROM LP
+          WHERE DATA < :date
+          GROUP BY ALOJAMENTO
         ) lc ON lc.ALOJAMENTO = al.NOME
-        -- Apenas reservas NÃƒO canceladas
+        -- Apenas reservas NÃO canceladas
         LEFT JOIN RS co ON co.ALOJAMENTO = al.NOME AND co.DATAOUT = :date AND co.CANCELADA = 0
         LEFT JOIN RS ci ON ci.ALOJAMENTO = al.NOME AND ci.DATAIN = :date AND ci.CANCELADA = 0
         LEFT JOIN (
-            SELECT RSSTAMP, ALOJAMENTO
-            FROM RS
-            WHERE CANCELADA = 0
+          SELECT RSSTAMP, ALOJAMENTO
+          FROM RS
+          WHERE CANCELADA = 0
             AND DATAIN < :date AND DATAOUT > :date
         ) oc ON oc.ALOJAMENTO = al.NOME
-        LEFT JOIN LP pl ON pl.ALOJAMENTO = al.NOME AND pl.DATA = :date
+        LEFT JOIN LP pl_day ON pl_day.ALOJAMENTO = al.NOME AND pl_day.DATA = :date
+        
         ORDER BY planner_status, al.ZONA, al.NOME
     """,
     )

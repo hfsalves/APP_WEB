@@ -208,6 +208,71 @@ fetch('/generic/api/EQ')
             appendBarToRow(tr, bar);
         })();
 
+        // ─── Draw postponed cleaning bar (if exists) ───
+        (function () {
+            // Condições: há checkout, não há limpeza marcada no dia, e existe LP noutra data antes do próximo check-in
+            if (!row.checkout_reservation) return;
+            if (row.cleaning_time || row.cleaning_id) return;
+            if (!row.postponed_date || !row.postponed_team) return;
+
+            // Hora base para posicionar: checkout (ou 11:00 por defeito em reserva de checkout)
+            let checkout = row.checkout_time;
+            if (row.checkout_reservation && (!checkout || checkout === 'N/D')) {
+                checkout = '11:00';
+            }
+            let [hStr, mStr] = (checkout || '11:00').split(':');
+            let hour = parseInt(hStr, 10);
+            let mins = parseInt(mStr || '0', 10);
+            if (isNaN(hour)) hour = 11;
+            if (isNaN(mins)) mins = 0;
+
+            let startIdx = (hour - 7) * 2 + (mins >= 30 ? 1 : 0);
+            if (startIdx < 0) startIdx = 0;
+
+            const barLeft = 20
+                + LAYOUT.lodging + LAYOUT.tp + LAYOUT.zone + LAYOUT.last_team + LAYOUT.out
+                + (LAYOUT.timeslot * startIdx);
+
+            // Largura generosa para caber o texto
+            const barWidth = 480;
+
+            // Evitar duplicados
+            tr.querySelectorAll('.gantt-bar-postponed').forEach(el => el.remove());
+
+            const bar = document.createElement('div');
+            bar.className = 'gantt-bar-postponed';
+            Object.assign(bar.style, {
+                position: 'absolute',
+                top: '6px',
+                left: `${barLeft}px`,
+                width: `${barWidth}px`,
+                height: '18px',
+                backgroundColor: '#444',
+                opacity: '0.9',
+                borderRadius: '8px',
+                zIndex: '14',
+                pointerEvents: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 6px'
+            });
+
+            const label = document.createElement('span');
+            Object.assign(label.style, {
+                fontSize: '10px',
+                fontWeight: '600',
+                color: '#fff',
+                whiteSpace: 'nowrap',
+                textOverflow: 'ellipsis',
+                overflow: 'hidden',
+            });
+            label.textContent = `Limpeza adiada para ${row.postponed_date} | ${row.postponed_team}`;
+            bar.appendChild(label);
+
+            appendBarToRow(tr, bar);
+        })();
+
         // ─── Draw OCCUPIED (bar across if occupied, blue) ───
         (function () {
         if (row.planner_status === 3) {

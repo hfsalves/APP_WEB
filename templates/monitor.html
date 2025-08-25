@@ -64,11 +64,19 @@
   window.IS_LP_ADMIN = {{ (current_user.LPADMIN or 0)|int }};
   window.CAN_OPEN_RS = {{ 1 if (user_perms.get('RS', {}).get('consultar', False)) else 0 }};
   window.CAN_OPEN_TAREFAS = {{ 1 if (user_perms.get('TAREFAS', {}).get('consultar', False)) else 0 }};
+  window.CAN_OPEN_LP = {{ 1 if (user_perms.get('LP', {}).get('consultar', False)) else 0 }};
   window.CAN_OPEN_MN = {{ 1 if can_open_mn else 0 }};
   window.CAN_OPEN_FS = {{ 1 if can_open_fs else 0 }};
   document.addEventListener('DOMContentLoaded', () => {
     const col = document.getElementById('col-mn-nao-agendadas');
     if (!window.IS_MN_ADMIN && col) col.style.display = 'none';
+    // Controla visibilidade dos itens do FAB conforme permissões
+    try {
+      const btnNR = document.getElementById('openNotasReserva');
+      if (btnNR && !window.CAN_OPEN_RS) btnNR.style.display = 'none';
+      const btnNT = document.getElementById('openNotaTarefa');
+      if (btnNT && !window.CAN_OPEN_TAREFAS) btnNT.style.display = 'none';
+    } catch(_) {}
   });
 </script>
 
@@ -152,7 +160,7 @@
     <button class="fab-menu-item" id="openNovaFalta">Nova Falta</button>
     <button class="fab-menu-item" id="openNotasReserva">Notas de Reserva</button>
     <button class="fab-menu-item" id="openAlojamentos">Alojamentos</button>
-    <button class="fab-menu-item" id="openNotaTarefa">Nota Tarefa</button>
+    <button class="fab-menu-item" id="openNotaTarefa">Nova Tarefa</button>
   </div>
 </div>
 
@@ -305,12 +313,12 @@
   </div>
 </div>
 
-<!-- Modal: Nota Tarefa -->
+<!-- Modal: Nova Tarefa -->
 <div class="modal fade" id="notaTarefaModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <form class="modal-content" id="notaTarefaForm">
       <div class="modal-header">
-        <h5 class="modal-title">Nota de Tarefa</h5>
+        <h5 class="modal-title">Nova Tarefa</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
