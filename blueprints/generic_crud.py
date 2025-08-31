@@ -367,6 +367,119 @@ def monitor_tasks_filtered():
         return jsonify({'error': str(e)}), 500
 
 # --------------------------------------------------
+# API: tarefas do monitor filtradas por lista de utilizadores (multi)
+# --------------------------------------------------
+@bp.route('/api/monitor_tasks_by_users', methods=['GET'])
+@login_required
+def monitor_tasks_by_users():
+    users_param = (request.args.get('users') or '').strip()
+    origins_param = (request.args.get('origins') or '').strip()
+    aloj_param = (request.args.get('aloj') or '').strip()
+    if not users_param:
+        # por defeito, devolve as do pr�prio utilizador
+        users = [current_user.LOGIN]
+    else:
+        users = []
+        seen = set()
+        for u in [p.strip() for p in users_param.split(',') if p.strip()]:
+            key = u.upper()
+            if key not in seen:
+                users.append(u)
+                seen.add(key)
+        if not users:
+            return jsonify([])
+
+    # constr�i IN din�mico
+    params = {}
+    placeholders = []
+    for i, u in enumerate(users):
+        pn = f'u{i}'
+        params[pn] = u
+        placeholders.append(f':{pn}')
+
+    where = []
+    where.append("UPPER(T.UTILIZADOR) IN (" + ", ".join(placeholders) + ")")
+
+    # Filtro opcional por origem: tokens MN,LP,FS,__EMPTY__
+    if origins_param:
+        oris = []
+        seen_o = set()
+        include_empty = False
+        for o in [p.strip() for p in origins_param.split(',') if p.strip()]:
+            ou = o.upper()
+            if ou == '__EMPTY__':
+                include_empty = True
+                continue
+            if ou not in seen_o:
+                seen_o.add(ou)
+                oris.append(ou)
+        ori_clause = []
+        if oris:
+            o_placeholders = []
+            for i, ov in enumerate(oris):
+                on = f'o{i}'
+                params[on] = ov
+                o_placeholders.append(f':{on}')
+            ori_clause.append("UPPER(T.ORIGEM) IN (" + ", ".join(o_placeholders) + ")")
+        if include_empty:
+            ori_clause.append("(T.ORIGEM IS NULL OR LTRIM(RTRIM(T.ORIGEM)) = '')")
+        if ori_clause:
+            where.append("(" + " OR ".join(ori_clause) + ")")
+
+    # Filtro opcional por alojamento: lista de nomes e token __EMPTY__
+    if aloj_param:
+        al_list = []
+        seen_a = set()
+        include_empty_al = False
+        for a in [p.strip() for p in aloj_param.split(',') if p.strip()]:
+            au = a.upper()
+            if au == '__EMPTY__':
+                include_empty_al = True
+                continue
+            if au not in seen_a:
+                seen_a.add(au)
+                al_list.append(a)
+        al_clause = []
+        if al_list:
+            a_placeholders = []
+            for i, av in enumerate(al_list):
+                an = f'a{i}'
+                params[an] = av
+                a_placeholders.append(f':{an}')
+            al_clause.append("UPPER(T.ALOJAMENTO) IN (" + ", ".join(a_placeholders) + ")")
+        if include_empty_al:
+            al_clause.append("(T.ALOJAMENTO IS NULL OR LTRIM(RTRIM(T.ALOJAMENTO)) = '')")
+        if al_clause:
+            where.append("(" + " OR ".join(al_clause) + ")")
+
+    where.append("(T.TRATADO = 0 OR T.DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))")
+    where_sql = " WHERE " + " AND ".join(where)
+
+    sql = text(f"""
+        SELECT 
+            T.TAREFASSTAMP,
+            CONVERT(varchar(10), T.DATA, 23)         AS DATA,
+            LEFT(CONVERT(varchar(8), T.HORA, 108), 5) AS HORA,
+            T.TAREFA,
+            T.ALOJAMENTO,
+            T.TRATADO,
+            T.ORIGEM,
+            T.UTILIZADOR,
+            U.NOME AS UTILIZADOR_NOME,
+            U.COR  AS UTILIZADOR_COR
+        FROM TAREFAS T
+        LEFT JOIN US U ON U.LOGIN = T.UTILIZADOR
+        {where_sql}
+        ORDER BY T.DATA, T.HORA
+    """)
+    try:
+        rows = db.session.execute(sql, params).fetchall()
+        return jsonify([dict(r._mapping) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro em monitor_tasks_by_users')
+        return jsonify({'error': str(e)}), 500
+
+# --------------------------------------------------
 # API: Tarefas tratar/reabrir
 # --------------------------------------------------
 @bp.route('/api/tarefas/tratar', methods=['POST'])
@@ -1198,7 +1311,7 @@ def api_mn_nao_agendadas():
           ISNULL(URGENTE,0) AS URGENTE,
           CONVERT(varchar(10), DATA, 23) AS DATA
         FROM MN
-        WHERE TRATADO = 0
+        WHERE (TRATADO = 0 OR ISNULL(URGENTE,0) = 1)
           AND MNSTAMP NOT IN (SELECT ORISTAMP FROM TAREFAS)
         ORDER BY DATA DESC, MNSTAMP
     """)

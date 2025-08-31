@@ -3,16 +3,15 @@
 {% block title %}Monitor de Trabalho{% endblock %}
 
 {% block content %}
-<!-- Filtro superior -->
-<div class="mb-2">
-  <div class="col-header filter-header border rounded px-2 py-1 d-flex justify-content-between align-items-center" id="onlyMineBlock" role="button">
-    <div class="d-flex align-items-center gap-2">
-      <input class="form-check-input" type="checkbox" value="1" id="onlyMineChk" checked>
-      <label class="form-check-label mb-0" for="onlyMineChk">Apenas as minhas tarefas</label>
-    </div>
-    <span class="badge bg-secondary" id="onlyMineState">Ativo</span>
+<!-- Barra de ações superior -->
+<div class="mb-2 d-flex align-items-center justify-content-between">
+  <div class="d-flex align-items-center gap-2">
+    <button class="btn btn-outline-secondary btn-sm" id="openFilters">
+      <i class="fa-solid fa-filter me-1"></i>
+      Filtros
+    </button>
   </div>
-  <small class="text-muted" id="onlyMineHelp"></small>
+  <small class="text-muted" id="filtersSummary"></small>
 </div>
 
 <!-- layout: 5 colunas quando existir a coluna de MN -->
@@ -67,6 +66,7 @@
   window.CAN_OPEN_LP = {{ 1 if (user_perms.get('LP', {}).get('consultar', False)) else 0 }};
   window.CAN_OPEN_MN = {{ 1 if can_open_mn else 0 }};
   window.CAN_OPEN_FS = {{ 1 if can_open_fs else 0 }};
+  window.IS_ADMIN = {{ 1 if (current_user.ADMIN if current_user.is_authenticated else False) else 0 }};
   document.addEventListener('DOMContentLoaded', () => {
     const col = document.getElementById('col-mn-nao-agendadas');
     if (!window.IS_MN_ADMIN && col) col.style.display = 'none';
@@ -80,8 +80,60 @@
   });
 </script>
 
+<!-- Modal de Filtros -->
+<div class="modal fade" id="filtersModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa-solid fa-filter me-2"></i>Filtros</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="btn-group mb-2 filters-tabs" role="group" aria-label="Tabs filtros">
+          <button type="button" class="btn btn-outline-primary active" id="filtersTabUsers">Utilizadores</button>
+          <button type="button" class="btn btn-outline-primary" id="filtersTabAloj">Alojamentos</button>
+          <button type="button" class="btn btn-outline-primary" id="filtersTabOrigins">Origens</button>
+        </div>
+
+        <div class="filters-list-wrapper">
+          <div id="filtersList" class="filters-list"></div>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary" id="filtersSelectAll">Todos</button>
+          <button type="button" class="btn btn-outline-secondary" id="filtersSelectNone">Nenhum</button>
+          <button type="button" class="btn btn-outline-secondary" id="filtersClear">Limpar filtros</button>
+        </div>
+        <div>
+          <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="filtersApply">Aplicar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <style>
+    /* Modal filters layout */
+    #filtersModal .modal-body { display: flex; flex-direction: column; overflow: hidden; }
+    #filtersModal .filters-tabs { background: #fff; z-index: 2; padding-top: .25rem; padding-bottom: .25rem; border-bottom: 1px solid #eee; }
+    #filtersModal .filters-list-wrapper { flex: 1 1 auto; overflow: auto; padding: 0 8px 0 6px; }
+    #filtersModal .filters-list { display: grid; grid-template-columns: 1fr; gap: .5rem; padding-top: .25rem; padding-bottom: .25rem; }
+
+    /* Cards */
+    .select-card { cursor: pointer; user-select: none; border: 1px solid #e5e7eb; border-radius: .5rem; padding: .5rem .75rem; background: #fff; margin: 0 2px; }
+    .select-card.selected { outline: 2px solid #0d6efd; outline-offset: 2px; background: #f0f7ff; }
+    .select-card .badge { font-size: .75rem; }
+  </style>
+</div>
+
 <!-- Estilo para fazer os cartões de MN ficarem como os das tarefas -->
 <style>
+  /* Garantir que o modal fica acima de qualquer overlay residual */
+  .modal-backdrop { z-index: 10990 !important; }
+  .modal { z-index: 11000 !important; }
+  .modal * { pointer-events: auto !important; }
+  /* Evita que o overlay global de carregamento interfira no Monitor */
+  #loadingOverlay { display: none !important; opacity: 0 !important; pointer-events: none !important; }
   /* aproxima visual dos blocos MN aos cards das tarefas */
   #mn-nao-agendadas .tarefa-bloco {
     background: #fff;
@@ -197,7 +249,7 @@
         <form id="nrForm" onsubmit="return false;">
           <div class="row g-2 align-items-end mb-2">
             <div class="col-12 col-md-4">
-              <label for="nrDataIn" class="form-label">Data de Check‑In</label>
+              <label for="nrDataIn" class="form-label">Data de CheckIn</label>
               <input type="date" id="nrDataIn" class="form-control" />
             </div>
             <div class="col-12 col-md-4">
@@ -483,6 +535,7 @@
 {% block scripts %}
   {{ super() }}
   <script src="{{ url_for('static', filename='js/monitor.js') }}"></script>
+  
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const btn = document.getElementById('openAlojamentos');
@@ -492,7 +545,7 @@
         const modalEl = document.getElementById('alojModal');
         if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
         const list = document.getElementById('alojList');
-        if (list) list.innerHTML = '<div class="text-muted small px-1">A carregar…</div>';
+        if (list) list.innerHTML = '<div class="text-muted small px-1">A carregar</div>';
         const menu = document.getElementById('fabMenu');
         if (menu) menu.style.display = 'none';
 
@@ -772,4 +825,146 @@
       });
     });
   </script>
+  <script>
+    // Esconder o FAB quando qualquer modal relevante estiver aberto (evita bloquear o header do modal)
+    document.addEventListener('DOMContentLoaded', () => {
+      const fab = document.getElementById('fab-actions');
+      const modalIds = ['agendarModal','fsModal','notaTarefaModal','novaMnModal','novaFaltaModal','nrModal','alojModal'];
+      if (!fab) return;
+      modalIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('shown.bs.modal', () => { fab.style.display = 'none'; });
+        el.addEventListener('hidden.bs.modal', () => { fab.style.display = ''; });
+      });
+    });
+  </script>
+  <script>
+    // Re-implementação segura do Agendar MN: neutraliza handlers antigos e usa fluxo simples
+    document.addEventListener('DOMContentLoaded', () => {
+      function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+
+      async function fillCheckouts(aloj){
+        const optsEl = document.getElementById('mnOutOptions');
+        if (!optsEl) return;
+        optsEl.innerHTML = '<div class="text-muted small">A carregar...</div>';
+        try {
+          const r = await fetch(`/generic/api/monitor/outs?alojamento=${encodeURIComponent(aloj)}`);
+          const js = await r.json();
+          const rows = Array.isArray(js.rows) ? js.rows : [];
+          if (!rows.length){ optsEl.innerHTML = '<div class="text-muted small">Sem check-outs futuros.</div>'; return; }
+          const fmt = d => { try { const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}` } catch{ return d } };
+          optsEl.innerHTML = '';
+          rows.forEach(rw => {
+            const co = `${fmt(rw.DATAOUT)}${rw.HORAOUT && rw.HORAOUT !== 'N/D' ? '  ' + rw.HORAOUT : ''}`;
+            const ci = `${fmt(rw.DATAIN||'')}${rw.HORAIN ? '  ' + rw.HORAIN : ''}`;
+            const div = document.createElement('div');
+            div.className = 'mn-out-option border rounded p-2 mb-2';
+            div.innerHTML = `<div><strong>Check-Out:</strong> ${esc(co)}</div><div class=\"small text-muted\"><strong>Check-In:</strong> ${esc(ci)}</div>`;
+            div.addEventListener('click', () => {
+              const dEl = document.getElementById('agendarData');
+              const hEl = document.getElementById('agendarHora');
+              if (dEl && rw.DATAOUT) dEl.value = rw.DATAOUT;
+              if (hEl) hEl.value = (rw.HORAOUT && rw.HORAOUT !== 'N/D') ? rw.HORAOUT : '11:00';
+              // seleção visual
+              try { optsEl.querySelectorAll('.mn-out-option').forEach(el => el.classList.remove('mn-selected')); div.classList.add('mn-selected'); } catch{}
+            });
+            optsEl.appendChild(div);
+          });
+        } catch(e){ optsEl.innerHTML = '<div class="text-muted small">Sem informação disponível.</div>'; }
+      }
+
+      async function openMnAgendar(data){
+        const { mnstamp, aloj, nome, data: dref } = data || {};
+        const modalEl = document.getElementById('agendarModal');
+        if (!modalEl) return;
+        // preencher hidden e defaults
+        try { const hid = document.getElementById('agendarMNStamp'); if (hid) hid.value = mnstamp || ''; } catch{}
+        try {
+          const now = new Date();
+          const dEl = document.getElementById('agendarData');
+          const hEl = document.getElementById('agendarHora');
+          if (dEl) dEl.value = now.toISOString().slice(0,10);
+          const round = new Date(now); round.setMinutes(round.getMinutes() < 30 ? 30 : 60, 0, 0);
+          const hh = String(round.getHours()).padStart(2,'0'); const mm = String(round.getMinutes()).padStart(2,'0');
+          if (hEl) hEl.value = `${hh}:${mm}`;
+        } catch{}
+        // resumo
+        try {
+          const resumo = document.getElementById('mnResumo');
+          if (resumo) resumo.innerHTML = `<div class=\"tarefa-titulo\"><strong>${esc(aloj||'')}</strong></div><div class=\"tarefa-subtitulo text-muted small\">${esc(nome||'')}${(nome&&dref)?'  ':''}${esc(dref||'')}</div>`;
+        } catch{}
+        // check-outs
+        if (aloj) fillCheckouts(aloj);
+        // handlers: tratar & abrir
+        try {
+          const btnTratar = document.getElementById('mnTratadaBtn');
+          if (btnTratar) btnTratar.onclick = async () => {
+            try {
+              const r = await fetch('/generic/api/mn/tratar', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ MNSTAMP: mnstamp })});
+              const js = await r.json(); if (!r.ok || js.ok === false) throw new Error(js.error||'Falha ao marcar');
+              bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+              if (typeof window.loadTarefas === 'function') window.loadTarefas();
+            } catch(err){ alert(err.message||'Erro'); }
+          };
+          const btnAbrir = document.getElementById('mnAbrirBtn');
+          if (btnAbrir) { btnAbrir.style.display='inline-block'; btnAbrir.onclick=()=>{ if(mnstamp) window.location.href = `/generic/form/MN/${encodeURIComponent(mnstamp)}?return_to=/monitor`; }; }
+        } catch{}
+        // submit agendar
+        try {
+          const form = document.getElementById('agendarForm');
+          if (form) {
+            form.onsubmit = async (e) => {
+              e.preventDefault();
+              const DATA = document.getElementById('agendarData')?.value || '';
+              const HORA = document.getElementById('agendarHora')?.value || '';
+              const UTILIZADOR = window.CURRENT_USER || '';
+              if (!mnstamp || !DATA || !HORA) { alert('Preenche data e hora'); return; }
+              try {
+                const resp = await fetch('/generic/api/tarefas/from-mn', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ MNSTAMP: mnstamp, DATA, HORA, UTILIZADOR }) });
+                const js = await resp.json(); if (!resp.ok || js.ok === false) throw new Error(js.error||'Falha ao agendar');
+                bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                if (typeof window.loadTarefas === 'function') window.loadTarefas();
+              } catch(err){ alert(err.message||'Erro ao agendar'); }
+            };
+          }
+        } catch{}
+        // mostrar modal
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      }
+
+      // Wrap de renderMNCardStyled para neutralizar handlers antigos e anexar dataset
+      try {
+        if (typeof renderMNCardStyled === 'function') {
+          const prev = renderMNCardStyled;
+          renderMNCardStyled = function(mn){
+            const original = prev(mn);
+            const clone = original.cloneNode(true);
+            clone.classList.add('mn-card-enhanced');
+            clone.dataset.mnstamp = mn.MNSTAMP || mn.mnstamp || '';
+            clone.dataset.aloj = mn.ALOJAMENTO || '';
+            clone.dataset.nome = mn.NOME || mn.UTILIZADOR || '';
+            clone.dataset.data = mn.DATA || '';
+            clone.addEventListener('click', (evt) => { evt.preventDefault(); evt.stopImmediatePropagation(); openMnAgendar(clone.dataset); });
+            original.replaceWith(clone);
+            return clone;
+          };
+        }
+      } catch(e) { console.warn('Falha a reconfigurar cards MN:', e); }
+
+      // Delegate: força o nosso handler para todos os cards MN
+      document.addEventListener('click', (e) => {
+        const el = e.target.closest('.tarefa-manutencao');
+        if (!el) return;
+        // Interceta sempre e usa dataset (preenchido em monitor.js)
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const data = el.dataset || {};
+        openMnAgendar({ mnstamp: data.mnstamp, aloj: data.aloj, nome: data.nome, data: data.data });
+      }, true);
+    });
+  </script>
 {% endblock %}
+
+
+

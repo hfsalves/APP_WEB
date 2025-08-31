@@ -5,13 +5,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const colHoje = document.getElementById('tarefas-hoje');
   const colFuturas = document.getElementById('tarefas-futuras');
   const colTratadas = document.getElementById('tarefas-tratadas');
+  const filtersSummaryEl = document.getElementById('filtersSummary');
+  const filtersModalEl = document.getElementById('filtersModal');
+  const filtersModal = filtersModalEl ? new bootstrap.Modal(filtersModalEl) : null;
+  const btnOpenFilters = document.getElementById('openFilters');
+  const btnTabUsers = document.getElementById('filtersTabUsers');
+  const btnTabAloj = document.getElementById('filtersTabAloj');
+  const btnTabOrigins = document.getElementById('filtersTabOrigins');
+  const listContainer = document.getElementById('filtersList');
+  const btnApply = document.getElementById('filtersApply');
+  const btnClear = document.getElementById('filtersClear');
+  const btnAll   = document.getElementById('filtersSelectAll');
+  const btnNone  = document.getElementById('filtersSelectNone');
   const modalElement = document.getElementById('tarefaModal');
   const modal = modalElement ? new bootstrap.Modal(modalElement) : null;
   const tarefaDescricao = document.getElementById('tarefaDescricao');
   const tarefaInfo = document.getElementById('tarefaInfo');
   const btnTratar = document.getElementById('btnTratar');
   const btnReabrir = document.getElementById('btnReabrir');
-  // botões Reagendar e Nota removidos do UI
+  // botes Reagendar e Nota removidos do UI
   
   console.log('IS_MN_ADMIN =', typeof IS_MN_ADMIN !== 'undefined' ? IS_MN_ADMIN : '(undefined)');
   console.log('mn-nao-agendadas element =', !!document.getElementById('mn-nao-agendadas'));
@@ -29,11 +41,449 @@ document.addEventListener('DOMContentLoaded', () => {
   const endStr = end.toISOString().slice(0, 10);
 
   const CURRENT_USER = window.CURRENT_USER;
+  const IS_ADMIN = Number(window.IS_ADMIN || 0) === 1;
+
+  // ---- Estado de filtros ----
+  const state = {
+    users: new Set([CURRENT_USER]), // por defeito só o utilizador corrente
+    aloj: new Set(),                // vazio = todos
+    origins: new Set(),             // vazio = todas
+  };
+  // cache das listas
+  let cacheUsers = null;   // array de logins
+  let cacheAloj = null;    // array de nomes dos alojamentos
+  // temp state enquanto o modal está aberto
+  let temp = { users: new Set(), aloj: new Set(), origins: new Set() };
+  let tempAll = { users: false, aloj: true, origins: true };
+  let currentTab = 'users';
+
+  function normalizeStr(v) { return (v == null ? '' : String(v)).trim(); }
+
+  function updateFiltersSummary() {
+    const usersLabel = (state.users.size === 1 && state.users.has(CURRENT_USER))
+      ? 'Utilizador: Eu'
+      : (state.users.size > 0 ? `Utilizadores: ${state.users.size}` : 'Utilizadores: Todos');
+    const alojLabel = state.aloj.size > 0 ? `Aloj.: ${state.aloj.size}` : 'Aloj.: Todos';
+    const origLabel = state.origins.size > 0 ? `Origens: ${state.origins.size}` : 'Origens: Todas';
+    if (filtersSummaryEl) filtersSummaryEl.textContent = `${usersLabel} • ${alojLabel} • ${origLabel}`;
+  }
+
+  async function fetchUsersList() {
+    if (!IS_ADMIN) return [CURRENT_USER];
+    if (cacheUsers) return cacheUsers;
+    try {
+      const res = await fetch('/generic/api/US?INATIVO=0');
+      if (!res.ok) throw new Error('HTTP '+res.status);
+      const rows = await res.json();
+      cacheUsers = rows.map(r => r.LOGIN).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+      return cacheUsers;
+    } catch (_) {
+      // fallback para apenas o utilizador corrente
+      cacheUsers = [CURRENT_USER];
+      return cacheUsers;
+    }
+  }
+
+  async function fetchAlojList() {
+    if (cacheAloj) return cacheAloj;
+    try {
+      // Prefer backend helper that is accessible to non-admins
+      let nomes = [];
+      try {
+        const resA = await fetch('/api/alojamentos');
+        if (!resA.ok) throw new Error('HTTP '+resA.status);
+        const dataA = await resA.json();
+        if (dataA && Array.isArray(dataA.rows)) {
+          nomes = dataA.rows.map(r => r.NOME).filter(Boolean);
+        }
+      } catch (_) {
+        // fallback to generic endpoint if available
+        const res = await fetch('/generic/api/AL?INATIVO=0');
+        if (!res.ok) throw new Error('HTTP '+res.status);
+        const rows = await res.json();
+        nomes = rows.map(r => r.NOME).filter(Boolean);
+      }
+      nomes.sort((a,b)=>a.localeCompare(b));
+      // inclui o especial "sem alojamento" na primeira posição como ''
+      cacheAloj = [''].concat(nomes);
+      return cacheAloj;
+    } catch (_) {
+      cacheAloj = ['']; // pelo menos permitir "sem alojamento"
+      return cacheAloj;
+    }
+  }
+
+  function renderCards(items, type) {
+    listContainer.innerHTML = '';
+    items.forEach(val => {
+      const card = document.createElement('div');
+      card.className = 'select-card';
+      card.style.minHeight = '36px';
+      const key = normalizeStr(val);
+      let label = key;
+      if (type === 'aloj' && key === '') label = 'Sem alojamento';
+      if (type === 'origins') {
+        const map = { 'MN': 'Manutenção', 'LP': 'Limpeza', 'FS': 'Faltas', '': 'Tarefas' };
+        label = map[key] || key;
+      }
+      card.textContent = label;
+
+      const tempSet = temp[type];
+      const markSelected = (tempAll[type] === true) || tempSet.has(key);
+      if (markSelected) card.classList.add('selected');
+
+      card.addEventListener('click', () => {
+        const sel = card.classList.toggle('selected');
+        // se estava em modo "todos", converte para seleção explícita completa antes de alternar um item
+        if (tempAll[type] === true) {
+          tempAll[type] = false;
+          temp[type] = new Set(items.map(v => normalizeStr(v)));
+        }
+        if (sel) tempSet.add(key); else tempSet.delete(key);
+      });
+
+      listContainer.appendChild(card);
+    });
+  }
+
+  async function showTab(tab) {
+    currentTab = tab;
+    btnTabUsers.classList.toggle('active', tab === 'users');
+    btnTabAloj.classList.toggle('active', tab === 'aloj');
+    btnTabOrigins.classList.toggle('active', tab === 'origins');
+
+    if (tab === 'users') {
+      const users = await fetchUsersList();
+      renderCards(users, 'users');
+    } else if (tab === 'aloj') {
+      const aloj = await fetchAlojList();
+      renderCards(aloj, 'aloj');
+    } else {
+      const origins = ['MN', 'LP', 'FS', ''];
+      renderCards(origins, 'origins');
+    }
+  }
+
+  async function openFiltersModal() {
+    // sincroniza estado temporário com estado atual apenas ao abrir
+    // users: vazio no state significa "sem filtro" (todos)
+    if (state.users.size === 0) { tempAll.users = true; temp.users = new Set(); } else { tempAll.users = false; temp.users = new Set(state.users); }
+    if (state.aloj.size === 0) { tempAll.aloj = true; temp.aloj = new Set(); } else { tempAll.aloj = false; temp.aloj = new Set(state.aloj); }
+    if (state.origins.size === 0) { tempAll.origins = true; temp.origins = new Set(); } else { tempAll.origins = false; temp.origins = new Set(state.origins); }
+    await showTab(currentTab || 'users');
+    if (filtersModal) filtersModal.show();
+  }
+
+  function applyFiltersAndRender() {
+    updateFiltersSummary();
+    if (!window._ALL_TASKS || !Array.isArray(window._ALL_TASKS)) return;
+
+    // limpar colunas
+    colAtrasadas.innerHTML = '';
+    colHoje.innerHTML = '';
+    colFuturas.innerHTML = '';
+    colTratadas.innerHTML = '';
+
+    const hoje = new Date();
+    const hojeStr = hoje.toISOString().slice(0, 10);
+    let cntAtrasadas = 0, cntHoje = 0, cntFuturas = 0, cntTratadas = 0;
+    const gruposFuturas = new Map();
+
+    const usersSet = state.users; // vazio => todos
+    const alojSet = state.aloj;   // vazio => todos
+    const origSet = state.origins; // vazio => todas
+
+    const matches = (t) => {
+      const u = normalizeStr(t.UTILIZADOR);
+      const a = normalizeStr(t.ALOJAMENTO);
+      const o = normalizeStr(t.ORIGEM);
+      if (usersSet.size > 0 && !usersSet.has(u)) return false;
+      if (alojSet.size > 0) {
+        const aval = a === '' ? '' : a;
+        if (!alojSet.has(aval)) return false;
+      }
+      if (origSet.size > 0) {
+        const oval = o === '' ? '' : o.toUpperCase();
+        if (!origSet.has(oval)) return false;
+      }
+      return true;
+    };
+
+    // Regra: para LP do(s) utilizador(es) selecionado(s), incluir MN/FS do mesmo dia/aloj, ignorando utilizador.
+    // 1) tarefas que passam no filtro normal
+    const initiallyMatched = window._ALL_TASKS.filter(matches);
+    // 2) pares (DATA, ALOJAMENTO) de LP de utilizadores selecionados
+    const lpPairs = new Set();
+    if (usersSet.size > 0) {
+      for (const t of window._ALL_TASKS) {
+        const u = normalizeStr(t.UTILIZADOR);
+        const a = normalizeStr(t.ALOJAMENTO);
+        const o = normalizeStr(t.ORIGEM).toUpperCase();
+        if (!usersSet.has(u)) continue;
+        if (alojSet.size > 0 && !alojSet.has(a === '' ? '' : a)) continue;
+        if (t.DATA && o === 'LP') {
+          lpPairs.add(`${t.DATA}||${a}`);
+        }
+      }
+    }
+    // 3) se houver pares LP, acrescentar MN/FS para esses pares respeitando filtro de Origens
+    const includeOrigins = (origSet.size === 0) ? new Set(['MN','FS']) : new Set(Array.from(origSet).filter(x => x === 'MN' || x === 'FS'));
+    const extra = [];
+    if (lpPairs.size > 0 && includeOrigins.size > 0) {
+      const seen = new Set();
+      for (const t of window._ALL_TASKS) {
+        const a = normalizeStr(t.ALOJAMENTO);
+        const o = normalizeStr(t.ORIGEM).toUpperCase();
+        const keyPair = `${t.DATA}||${a}`;
+        if (!lpPairs.has(keyPair)) continue;
+        if (!includeOrigins.has(o)) continue;
+        // respeitar filtro de alojamentos
+        if (alojSet.size > 0 && !alojSet.has(a === '' ? '' : a)) continue;
+        // não precisa respeitar filtro de users (ignorar utilizador)
+        const k = `${o}|${t.DATA}|${t.HORA || ''}|${a}|${t.TAREFA || ''}|${normalizeStr(t.UTILIZADOR)}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        extra.push(t);
+      }
+    }
+    const finalTasks = initiallyMatched.concat(extra);
+
+    const addCard = (container, t) => {
+      const dataFormatada = new Date(`${t.DATA}T${t.HORA}`);
+      const hhmm = t.HORA;
+      const ddmm = dataFormatada.toLocaleDateString('pt-PT');
+      const origemVazia = !t.ORIGEM || String(t.ORIGEM).trim() === '';
+      const alojVazio = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
+      const displayAloj = (origemVazia && alojVazio) ? 'Tarefa' : (t.ALOJAMENTO || '');
+
+      const bloco = document.createElement('div');
+      bloco.className = 'card tarefa-card mb-2 shadow-sm';
+
+      let texto;
+      if (t.DATA === hojeStr) {
+        texto = `<strong class="tarefa-alojamento">${displayAloj}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+      } else {
+        texto = `<strong class="tarefa-alojamento">${displayAloj}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+      }
+
+      let icone = '';
+      if (t.TRATADO) {
+        icone = '<i class="fas fa-check-circle text-success float-end"></i>';
+      } else if (t.DATA < hojeStr) {
+        icone = '<i class="fas fa-exclamation-circle text-danger float-end"></i>';
+      }
+
+      let origemIcon = '';
+      switch ((t.ORIGEM || '').toUpperCase()) {
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+        case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
+        case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
+        default:
+          if (!t.ORIGEM || String(t.ORIGEM).trim() === '') {
+            origemIcon = '<i class="fa-solid fa-list-check text-dark float-end ms-1" title="Tarefa"></i>';
+          }
+      }
+      bloco.innerHTML = `<div class=\"card-body p-2\">${origemIcon}${icone}<div>${texto}</div></div>`;
+
+      try {
+        const bodyEl = bloco.querySelector('.card-body');
+        if (bodyEl) {
+          const nm = t.UTILIZADOR_NOME || t.UTILIZADOR || '';
+          const cor = t.UTILIZADOR_COR || '#6c757d';
+          if (nm && !bodyEl.querySelector('.user-badge')) {
+            const badge = document.createElement('span');
+            badge.className = 'user-badge float-end ms-1';
+            badge.title = nm;
+            badge.style.backgroundColor = cor;
+            badge.style.color = '#fff';
+            badge.style.borderRadius = '8px';
+            badge.style.padding = '2px 6px';
+            badge.style.fontSize = '.70rem';
+            badge.style.lineHeight = '1.1';
+            badge.style.whiteSpace = 'nowrap';
+            badge.textContent = nm;
+            bodyEl.prepend(badge);
+          }
+        }
+      } catch(_) {}
+
+      bloco.addEventListener('click', () => {
+        try { window.tarefaSelecionada = t; } catch(_) {}
+        tarefaDescricao.textContent = `${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})`;
+        fetch(`/api/tarefa_info/${t.TAREFASSTAMP}`)
+          .then(res => res.json())
+          .then(data => {
+            const extraInfo = data.info || '';
+            tarefaDescricao.innerHTML = `<strong>${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})</strong><br><br>${extraInfo.replace(/\n/g, '<br>')}`;
+          })
+          .catch(() => {});
+
+        if (btnTratar) btnTratar.style.display = t.TRATADO ? 'none' : 'inline-block';
+        if (btnReabrir) btnReabrir.style.display = t.TRATADO ? 'inline-block' : 'none';
+
+        try {
+          const btnAbrir = document.getElementById('btnAbrirTarefa');
+          if (btnAbrir) {
+            const oi = getOpenInfo(t);
+            if (oi.can) {
+              btnAbrir.style.display = 'inline-block';
+              btnAbrir.onclick = () => { window.location.href = oi.url; };
+            } else {
+              btnAbrir.style.display = 'none';
+              btnAbrir.onclick = null;
+            }
+          }
+        } catch(_){}
+
+        if (modal) modal.show();
+      });
+
+      container.appendChild(bloco);
+    };
+
+    finalTasks.forEach(t => {
+      if (!t.TRATADO) {
+        if (t.DATA < hojeStr) {
+          addCard(colAtrasadas, t); cntAtrasadas++;
+        } else if (t.DATA === hojeStr) {
+          addCard(colHoje, t); cntHoje++;
+        } else {
+          const base = new Date(hojeStr + 'T00:00:00');
+          const dataObj = new Date(t.DATA + 'T00:00:00');
+          const diffDays = Math.round((dataObj - base) / (1000*60*60*24));
+          if (diffDays >= 1) {
+            let grp = gruposFuturas.get(diffDays);
+            if (!grp) {
+              const header = document.createElement('div');
+              header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
+              const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
+              header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
+              const container = document.createElement('div');
+              container.className = 'mb-3';
+              colFuturas.appendChild(header);
+              colFuturas.appendChild(container);
+              grp = {container};
+              gruposFuturas.set(diffDays, grp);
+            }
+            addCard(grp.container, t);
+            cntFuturas++;
+          }
+        }
+      } else {
+        addCard(colTratadas, t); cntTratadas++;
+      }
+    });
+
+    const setCount = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setCount('count-atrasadas', cntAtrasadas);
+    setCount('count-hoje', cntHoje);
+    setCount('count-futuras', cntFuturas);
+    setCount('count-tratadas', cntTratadas);
+  }
+
+  // listeners do modal
+  if (btnOpenFilters) btnOpenFilters.addEventListener('click', openFiltersModal);
+  if (btnTabUsers) btnTabUsers.addEventListener('click', () => showTab('users'));
+  if (btnTabAloj) btnTabAloj.addEventListener('click', () => showTab('aloj'));
+  if (btnTabOrigins) btnTabOrigins.addEventListener('click', () => showTab('origins'));
+  if (btnClear) btnClear.addEventListener('click', async () => {
+    // reset para defaults: users=EU, aloj=todos, origins=todas
+    tempAll.users = false; temp.users = new Set([CURRENT_USER]);
+    const aloj = await fetchAlojList();
+    tempAll.aloj = true; temp.aloj = new Set(); // todas
+    const origins = ['MN','LP','FS',''];
+    tempAll.origins = true; temp.origins = new Set();
+    await showTab(currentTab);
+  });
+  if (btnAll) btnAll.addEventListener('click', async () => {
+    // Seleciona todos no tab atual
+    if (currentTab === 'users') {
+      const users = await fetchUsersList();
+      tempAll.users = true; temp.users = new Set();
+      renderCards(users, 'users');
+    } else if (currentTab === 'aloj') {
+      const aloj = await fetchAlojList();
+      tempAll.aloj = true; temp.aloj = new Set();
+      renderCards(aloj, 'aloj');
+    } else {
+      const origins = ['MN','LP','FS',''];
+      tempAll.origins = true; temp.origins = new Set();
+      renderCards(origins, 'origins');
+    }
+  });
+  if (btnNone) btnNone.addEventListener('click', async () => {
+    // Remove todas seleções no tab atual
+    if (currentTab === 'users') {
+      tempAll.users = false; temp.users = new Set();
+      const users = await fetchUsersList();
+      renderCards(users, 'users');
+    } else if (currentTab === 'aloj') {
+      tempAll.aloj = false; temp.aloj = new Set();
+      const aloj = await fetchAlojList();
+      renderCards(aloj, 'aloj');
+    } else {
+      tempAll.origins = false; temp.origins = new Set();
+      const origins = ['MN','LP','FS',''];
+      renderCards(origins, 'origins');
+    }
+  });
+  if (btnApply) btnApply.addEventListener('click', () => {
+    // commit dos temporários
+    state.users = tempAll.users ? new Set() : new Set(temp.users);
+    state.aloj = tempAll.aloj ? new Set() : new Set(temp.aloj);
+    state.origins = tempAll.origins ? new Set() : new Set(temp.origins);
+    if (filtersModal) filtersModal.hide();
+    // Recarrega do servidor para garantir dados atualizados
+    startFetchTasks();
+  });
+  // resumo inicial
+  updateFiltersSummary();
+
+  // carrega tarefas inicialmente (com salvaguardas) e renderiza conforme filtros
+  function startFetchTasks() {
+    try {
+      // tenta enviar uma hint para o backend (caso suporte): only_mine
+      const onlyMine = (state.users.size === 1 && state.users.has(CURRENT_USER)) && state.aloj.size === 0 && state.origins.size === 0 ? '1' : '0';
+      // janela temporal (7 dias antes/depois)
+      const hoje = new Date();
+      const start = new Date(hoje); start.setDate(start.getDate() - 7);
+      const end   = new Date(hoje); end.setDate(end.getDate() + 7);
+      const startStr = start.toISOString().slice(0, 10);
+      const endStr   = end.toISOString().slice(0, 10);
+
+      const params = new URLSearchParams();
+      params.set('only_mine', onlyMine);
+      params.set('start', startStr);
+      params.set('end', endStr);
+      params.set('_', String(Date.now()));
+      // Nota: buscamos o conjunto completo para a janela e filtramos no cliente,
+      // de forma a poder aplicar a regra LP→(MN/FS) ignorando utilizador.
+
+      const url = `/generic/api/monitor_tasks_filtered?${params.toString()}`;
+      try { console.log('[Monitor] Fetch URL:', url); } catch(_) {}
+      fetch(url)
+        .then(r => r.json())
+        .then(data => {
+          try { console.log('[Monitor] Fetched rows:', Array.isArray(data) ? data.length : 'n/a'); } catch(_) {}
+          try { window._ALL_TASKS = Array.isArray(data) ? data : []; } catch(_) {}
+          applyFiltersAndRender();
+        })
+        .catch(err => console.error('Falha ao carregar monitor_tasks', err));
+    } catch (e) {
+      console.error('Erro ao iniciar fetch de monitor_tasks', e);
+    }
+  }
+
+  startFetchTasks();
 
   //fetch(`/generic/api/calendar_tasks?start=${startStr}&end=${endStr}`)
   fetch(`/generic/api/monitor_tasks`)
     .then(res => res.json())
     .then(data => {
+      // guarda dados globais e renderiza conforme filtros
+      try { window._ALL_TASKS = Array.isArray(data) ? data : []; } catch(_) {}
+      applyFiltersAndRender();
+      return; // evita o render antigo (sem filtros)
       colAtrasadas.innerHTML = '';
       colHoje.innerHTML = '';
       colFuturas.innerHTML = '';
@@ -46,11 +496,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
         const hhmm = t.HORA;
         const ddmm = dataFormatada.toLocaleDateString('pt-PT');
-        // Determina título do card: se não tiver origem e não tiver alojamento, mostrar "Tarefa"
+        // Determina ttulo do card: se no tiver origem e no tiver alojamento, mostrar "Tarefa"
         const _semOrigem = !t.ORIGEM || String(t.ORIGEM).trim() === '';
         const _semAloj = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
         const _tituloCard = (_semOrigem && _semAloj) ? 'Tarefa' : (t.ALOJAMENTO || '');
-        // Se não tiver ORIGEM e nem ALOJAMENTO, mostrar "Tarefa" como título
+        // Se no tiver ORIGEM e nem ALOJAMENTO, mostrar "Tarefa" como ttulo
         const origemVazia = !t.ORIGEM || String(t.ORIGEM).trim() === '';
         const alojVazio = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
         const displayAloj = (origemVazia && alojVazio) ? 'Tarefa' : (t.ALOJAMENTO || '');
@@ -65,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
           texto = `<strong class="tarefa-alojamento">${_tituloCard}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
         }
 
-        // Override do título quando não tem origem e não tem alojamento
+        // Override do ttulo quando no tem origem e no tem alojamento
         if (origemVazia && alojVazio) {
           if (t.DATA === hojeStr) {
             texto = `<strong class=\"tarefa-alojamento\">Tarefa</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
@@ -140,7 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnReabrir) btnReabrir.style.display = 'inline-block';
             }
 
-            // Botão Abrir (no modal) – controlado por origem e permissões
+            // Boto Abrir (no modal)  controlado por origem e permisses
             try {
               const btnAbrir = document.getElementById('btnAbrirTarefa');
               if (btnAbrir) {
@@ -166,7 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
           } else if (t.DATA === hojeStr) {
             colHoje.appendChild(bloco); cntHoje++;
           } else {
-            // Agrupa por diferença de dias
+            // Agrupa por diferena de dias
             const base = new Date(hojeStr + 'T00:00:00');
             const dataObj = new Date(t.DATA + 'T00:00:00');
             const diffDays = Math.round((dataObj - base) / (1000*60*60*24));
@@ -192,7 +642,7 @@ document.addEventListener('DOMContentLoaded', () => {
               const lbl = `${dow[d.getDay()]} ${dd}/${mm} ${hhmm}`;
               const body = bloco.querySelector('.card-body > div');
               if (body) body.innerHTML = `<strong class=\"tarefa-alojamento\">${displayAloj}</strong><br><span class='text-muted small'>${lbl} - ${t.TAREFA}</span>`;
-              // Override quando não tem origem nem alojamento: mostra "Tarefa"
+              // Override quando no tem origem nem alojamento: mostra "Tarefa"
               if (origemVazia && alojVazio && body) {
                 body.innerHTML = `<strong class=\"tarefa-alojamento\">Tarefa</strong><br><span class='text-muted small'>${lbl} - ${t.TAREFA}</span>`;
               }
@@ -204,7 +654,7 @@ document.addEventListener('DOMContentLoaded', () => {
           colTratadas.appendChild(bloco); cntTratadas++;
         }
       });
-      // Atualiza contadores nos cabeçalhos
+      // Atualiza contadores nos cabealhos
       const setCount = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
       setCount('count-atrasadas', cntAtrasadas);
       setCount('count-hoje', cntHoje);
@@ -290,7 +740,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
       const hhmm = t.HORA;
       const ddmm = dataFormatada.toLocaleDateString('pt-PT');
-      // Título do card: se não tiver origem e nem alojamento, mostrar "Tarefa"
+      // Ttulo do card: se no tiver origem e nem alojamento, mostrar "Tarefa"
       const _semOrigem = !t.ORIGEM || String(t.ORIGEM).trim() === '';
       const _semAloj = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
       const _tituloCard = (_semOrigem && _semAloj) ? 'Tarefa' : (t.ALOJAMENTO || '');
@@ -322,7 +772,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -351,7 +801,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btnReabrir) btnReabrir.style.display = 'none';
         if (!t.TRATADO) { if (btnTratar) btnTratar.style.display = 'inline-block'; }
         else { if (btnReabrir) btnReabrir.style.display = 'inline-block'; }
-        // Botão Abrir (no modal) – por origem/permissões
+        // Boto Abrir (no modal)  por origem/permisses
         try {
           const btnAbrir = document.getElementById('btnAbrirTarefa');
           if (btnAbrir) {
@@ -382,7 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!grp) {
               const header = document.createElement('div');
               header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
-              const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
+              const title = diffDays === 1 ? 'Amanh' : `Daqui a ${diffDays} dias`;
               header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
               const container = document.createElement('div');
               container.className = 'mb-3';
@@ -391,7 +841,7 @@ document.addEventListener('DOMContentLoaded', () => {
               grp = {container};
               gruposFuturas.set(diffDays, grp);
             }
-            const dow = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+            const dow = ['Dom','Seg','Ter','Qua','Qui','Sex','Sb'];
             const d = new Date(t.DATA + 'T' + t.HORA);
             const dd = String(d.getDate()).padStart(2,'0');
             const mm = String(d.getMonth()+1).padStart(2,'0');
@@ -472,14 +922,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const out = document.getElementById('nrResultados');
     const obsArea = document.getElementById('nrObsArea');
     const obs = document.getElementById('nrObs');
-    if (out) out.innerHTML = '<div class="text-muted small">A procurar…</div>';
+    if (out) out.innerHTML = '<div class="text-muted small">A procurar</div>';
 
     try {
       let url = '';
       if (din) url = `/generic/api/rs/search?date=${encodeURIComponent(din)}`;
       else if (reserva) url = `/generic/api/rs/search?reserva=${encodeURIComponent(reserva)}`;
       else {
-        if (out) out.innerHTML = '<div class="text-muted small">Indica a data de check‑in ou o código da reserva.</div>';
+        if (out) out.innerHTML = '<div class="text-muted small">Indica a data de checkin ou o cdigo da reserva.</div>';
         return;
       }
       const r = await fetch(url);
@@ -510,12 +960,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${openBtn}
               </div>
             </div>
-            <div class="small mt-1"><span class="text-muted">Hóspede:</span> ${esc(row.NOME||'')}</div>
-            <div class="text-muted small mt-1">Check‑in: ${dataIn} • Noites: ${row.NOITES||0} • Hóspedes: ${hospedes}</div>
+            <div class="small mt-1"><span class="text-muted">Hspede:</span> ${esc(row.NOME||'')}</div>
+            <div class="text-muted small mt-1">Checkin: ${dataIn}  Noites: ${row.NOITES||0}  Hspedes: ${hospedes}</div>
           </div>
         `;
         card.addEventListener('click', () => {
-          // visual de seleção
+          // visual de seleo
           const container = out;
           if (container) {
             container.querySelectorAll('.nr-card.nr-selected').forEach(el => el.classList.remove('nr-selected'));
@@ -561,7 +1011,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const js = await r.json();
       if (!r.ok || js.ok === false) throw new Error(js.error || 'Falha ao gravar.');
-      alert('Notas adicionadas à reserva');
+      alert('Notas adicionadas  reserva');
       const modalEl = document.getElementById('nrModal');
       if (modalEl) { const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); modal.hide(); }
     } catch (e) {
@@ -591,14 +1041,14 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // =========================
-// MN NÃO AGENDADAS (NOVO)
+// MN NO AGENDADAS (NOVO)
 // =========================
 document.addEventListener('DOMContentLoaded', () => {
   try {
     const colMN = document.getElementById('mn-nao-agendadas');
-    if (!colMN) return; // coluna não está no HTML carregado
+    if (!colMN) return; // coluna no est no HTML carregado
     if (typeof IS_MN_ADMIN === 'undefined' || !IS_MN_ADMIN) {
-      // se não é admin, esvazia/sai
+      // se no  admin, esvazia/sai
       colMN.innerHTML = '';
       return;
     }
@@ -632,7 +1082,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
           });
           const js = await resp.json();
-          if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao agendar manutenção.');
+          if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao agendar manuteno.');
 
           // fecha modal
           const modalEl = document.getElementById('agendarModal');
@@ -641,7 +1091,7 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.hide();
           }
 
-          // refresca coluna MN e as tarefas (se existir função global)
+          // refresca coluna MN e as tarefas (se existir funo global)
           loadManutencoesNaoAgendadas();
           if (typeof window.loadTarefas === 'function') window.loadTarefas();
         } catch (err) {
@@ -651,14 +1101,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
   } catch (e) {
-    console.warn('Init MN não agendadas falhou:', e);
+    console.warn('Init MN no agendadas falhou:', e);
   }
 });
 
 async function loadManutencoesNaoAgendadas() {
   const colMN = document.getElementById('mn-nao-agendadas');
   if (!colMN) return;
-  colMN.innerHTML = '<div class="text-muted small">A carregar…</div>';
+  colMN.innerHTML = '<div class="text-muted small">A carregar</div>';
 
   try {
     const resp = await fetch('/generic/api/monitor/mn-nao-agendadas');
@@ -666,7 +1116,7 @@ async function loadManutencoesNaoAgendadas() {
     if (!resp.ok) throw new Error(js.error || 'Falha ao carregar MN.');
 
     const lista = Array.isArray(js.rows) ? js.rows : [];
-    // Este método já não é usado diretamente para render da coluna; usar loadPendentes()
+    // Este mtodo j no  usado diretamente para render da coluna; usar loadPendentes()
     // Mantido por compatibilidade de chamadas antigas
     await loadPendentes();
   } catch (err) {
@@ -678,7 +1128,7 @@ async function loadManutencoesNaoAgendadas() {
 async function loadFaltasNaoAgendadas() {
   const colMN = document.getElementById('mn-nao-agendadas');
   if (!colMN) return;
-  // Este método já não é usado diretamente para render da coluna; usar loadPendentes()
+  // Este mtodo j no  usado diretamente para render da coluna; usar loadPendentes()
   try { await loadPendentes(); } catch(_) {}
 }
 
@@ -704,19 +1154,19 @@ function renderFSCard(fs) {
   card.innerHTML = `
     <div class="card-body p-2">
       <div class="tarefa-titulo"><strong>${escapeHtml(aloj)}</strong></div>
-      <div class="tarefa-subtitulo text-muted small">${escapeHtml(quem)}${(quem && dataStr) ? ' • ' : ''}${escapeHtml(dataStr)}</div>
+      <div class="tarefa-subtitulo text-muted small">${escapeHtml(quem)}${(quem && dataStr) ? '  ' : ''}${escapeHtml(dataStr)}</div>
       <div class="tarefa-texto small">${escapeHtml(item)}</div>
     </div>
   `;
 
   const body = card.querySelector('.card-body');
   if (body) {
-    // ícone de falta (cart)
+    // cone de falta (cart)
     const icon = document.createElement('i');
     icon.className = 'fa-solid fa-cart-shopping text-dark float-end';
     icon.title = 'Falta';
     body.prepend(icon);
-    // ícone urgente
+    // cone urgente
     if (urgente) {
       const urg = document.createElement('i');
       urg.className = 'fa-solid fa-triangle-exclamation text-danger float-end me-1';
@@ -737,13 +1187,13 @@ function renderFSCard(fs) {
       if (resumo) {
         resumo.innerHTML = `
           <div class=\"tarefa-titulo\"><strong>${escapeHtml(aloj)}</strong></div>
-          <div class=\"tarefa-subtitulo text-muted small\">${escapeHtml(quem)}${(quem && dataStr) ? ' • ' : ''}${escapeHtml(dataStr)}</div>
+          <div class=\"tarefa-subtitulo text-muted small\">${escapeHtml(quem)}${(quem && dataStr) ? '  ' : ''}${escapeHtml(dataStr)}</div>
           <div class=\"tarefa-texto small\">${escapeHtml(item)}</div>
         `;
       }
     } catch(_) {}
 
-    // Botões do modal FS
+    // Botes do modal FS
     try {
       const btnTratar = document.getElementById('fsTratadaBtn');
       if (btnTratar) {
@@ -786,7 +1236,7 @@ function renderFSCard(fs) {
 async function loadPendentes() {
   const col = document.getElementById('mn-nao-agendadas');
   if (!col) return;
-  col.innerHTML = '<div class="text-muted small">A carregar…</div>';
+  col.innerHTML = '<div class="text-muted small">A carregar</div>';
   try {
     const isLpAdmin = (typeof window !== 'undefined' && window.IS_LP_ADMIN) ? !!window.IS_LP_ADMIN : false;
     const mnResp = await fetch('/generic/api/monitor/mn-nao-agendadas');
@@ -850,17 +1300,17 @@ if (typeof renderMNCardStyled !== 'function') {
       };
     }
 
-    // Botão do modal: marcar MN como tratada diretamente
+    // Boto do modal: marcar MN como tratada diretamente
     const btnMnTratada = document.getElementById('mnTratadaBtn');
     if (btnMnTratada) {
       btnMnTratada.addEventListener('click', async (e) => {
         e.preventDefault();
         const mnstamp = document.getElementById('agendarMNStamp')?.value;
         if (!mnstamp) {
-          alert('Sem referência da manutenção.');
+          alert('Sem referncia da manuteno.');
           return;
         }
-        const ok = window.confirm('Queres marcar a manutenção como tratada?');
+        const ok = window.confirm('Queres marcar a manuteno como tratada?');
         if (!ok) return;
         try {
           const resp = await fetch('/generic/api/mn/tratar', {
@@ -881,7 +1331,7 @@ if (typeof renderMNCardStyled !== 'function') {
           if (typeof window.loadTarefas === 'function') window.loadTarefas();
         } catch (err) {
           console.error(err);
-          alert(err.message || 'Erro ao marcar manutenção como tratada.');
+          alert(err.message || 'Erro ao marcar manuteno como tratada.');
         }
       });
     }
@@ -889,7 +1339,7 @@ if (typeof renderMNCardStyled !== 'function') {
     card.innerHTML = `
       <div class="card-body p-2">
         <div class="tarefa-titulo"><strong>${escapeHtml(aloj)}</strong></div>
-        <div class="tarefa-subtitulo text-muted small">${escapeHtml(quem)}${(quem && dataStr) ? ' • ' : ''}${escapeHtml(dataStr)}</div>
+        <div class="tarefa-subtitulo text-muted small">${escapeHtml(quem)}${(quem && dataStr) ? '  ' : ''}${escapeHtml(dataStr)}</div>
         <div class="tarefa-texto small">${escapeHtml(incid)}</div>
       </div>
     `;
@@ -898,7 +1348,7 @@ if (typeof renderMNCardStyled !== 'function') {
     if (body) {
       const icon = document.createElement('i');
       icon.className = 'fa-solid fa-screwdriver-wrench text-primary float-end';
-      icon.title = 'Manutenção';
+      icon.title = 'Manuteno';
       body.prepend(icon);
       // urgente
       try {
@@ -919,7 +1369,7 @@ if (typeof renderMNCardStyled !== 'function') {
       const stampEl = document.getElementById('agendarMNStamp');
       if (stampEl) stampEl.value = mnstamp;
       try { window.CURRENT_MN = mn; } catch(_) {}
-      // Defaults: hoje e próxima meia hora
+      // Defaults: hoje e prxima meia hora
       try {
         const dEl = document.getElementById('agendarData');
         const hEl = document.getElementById('agendarHora');
@@ -939,17 +1389,17 @@ if (typeof renderMNCardStyled !== 'function') {
           const esc = window.escapeHtml || (s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch])));
           resumo.innerHTML = `
             <div class=\"tarefa-titulo\"><strong>${esc(aloj)}</strong></div>
-            <div class=\"tarefa-subtitulo text-muted small\">${esc(quem)}${(quem && dataStr) ? ' • ' : ''}${esc(dataStr)}</div>
+            <div class=\"tarefa-subtitulo text-muted small\">${esc(quem)}${(quem && dataStr) ? '  ' : ''}${esc(dataStr)}</div>
             <div class=\"tarefa-texto small\">${esc(incid)}</div>
           `;
         }
       } catch(_){}
 
-      // Blocos por cada próximo Check-Out
+      // Blocos por cada prximo Check-Out
       try {
         const optsEl = document.getElementById('mnOutOptions');
         if (optsEl) {
-          optsEl.innerHTML = '<div class="text-muted small">A carregar check-outs…</div>';
+          optsEl.innerHTML = '<div class="text-muted small">A carregar check-outs</div>';
           fetch(`/generic/api/monitor/outs?alojamento=${encodeURIComponent(aloj)}`)
             .then(r => r.json())
             .then(js => {
@@ -966,13 +1416,13 @@ if (typeof renderMNCardStyled !== 'function') {
                 const coHora = r.HORAOUT && r.HORAOUT !== 'N/D' ? r.HORAOUT : 'N/D';
                 const ciDate = fmtDDMM(r.DATAIN || '');
                 const ciHora = r.HORAIN || '';
-                const lpLine = (r.LPHORA || r.LPEQUIPA) ? `<div class=\"small text-muted\"><strong>Limpeza:</strong> ${(r.LPHORA||'')} ${(r.LPEQUIPA? ' • ' + r.LPEQUIPA : '')}</div>` : '';
+                const lpLine = (r.LPHORA || r.LPEQUIPA) ? `<div class=\"small text-muted\"><strong>Limpeza:</strong> ${(r.LPHORA||'')} ${(r.LPEQUIPA? '  ' + r.LPEQUIPA : '')}</div>` : '';
                 const block = document.createElement('div');
                 block.className = 'border rounded p-2 mb-2';
                 block.style.cursor = 'pointer';
                 block.innerHTML = `
-                  <div><strong>Check-Out:</strong> ${coDate}${coHora ? ' • ' + coHora : ''}</div>
-                  <div class=\"small text-muted\"><strong>Check-In:</strong> ${ciDate}${ciHora ? ' • ' + ciHora : ''}</div>
+                  <div><strong>Check-Out:</strong> ${coDate}${coHora ? '  ' + coHora : ''}</div>
+                  <div class=\"small text-muted\"><strong>Check-In:</strong> ${ciDate}${ciHora ? '  ' + ciHora : ''}</div>
                   ${lpLine}
                 `;
                 block.addEventListener('click', () => {
@@ -987,10 +1437,10 @@ if (typeof renderMNCardStyled !== 'function') {
                 optsEl.appendChild(block);
               });
             })
-            .catch(() => { optsEl.innerHTML = '<div class="text-muted small">Sem informação disponível.</div>'; });
+            .catch(() => { optsEl.innerHTML = '<div class="text-muted small">Sem informao disponvel.</div>'; });
         }
       } catch(_){}
-      // Configura o botão Abrir (mostrar sempre para debug)
+      // Configura o boto Abrir (mostrar sempre para debug)
       try {
         const btnAbrirMn = document.getElementById('mnAbrirBtn');
         if (btnAbrirMn) {
@@ -1017,7 +1467,7 @@ if (typeof renderMNCardStyled !== 'function') {
     if (body && !body.querySelector('.fa-screwdriver-wrench')) {
       const icon = document.createElement('i');
       icon.className = 'fa-solid fa-screwdriver-wrench text-primary float-end';
-      icon.title = 'Manutenção';
+      icon.title = 'Manuteno';
       body.prepend(icon);
     }
     return card;
@@ -1037,7 +1487,7 @@ if (typeof renderMNCardStyled !== 'function') {
           // add requested icon (dark)
           const icon = document.createElement('i');
           icon.className = 'fa-solid fa-wrench float-end text-dark';
-          icon.title = 'Manutenção';
+          icon.title = 'Manuteno';
           body.prepend(icon);
         }
       } catch (e) {}
@@ -1049,12 +1499,12 @@ if (typeof renderMNCardStyled !== 'function') {
   }
 })();
 
-// Helper: preenche blocos de próximos check-outs clicáveis
+// Helper: preenche blocos de prximos check-outs clicveis
 function fillOutOptions(aloj) {
   try {
     const optsEl = document.getElementById('mnOutOptions');
     if (!optsEl || !aloj) return;
-    optsEl.innerHTML = '<div class="text-muted small">A carregar check-outs…</div>';
+    optsEl.innerHTML = '<div class="text-muted small">A carregar check-outs</div>';
     fetch(`/generic/api/monitor/outs?alojamento=${encodeURIComponent(aloj)}`)
       .then(r => r.json())
       .then(js => {
@@ -1071,13 +1521,13 @@ function fillOutOptions(aloj) {
           const coHora = r.HORAOUT && r.HORAOUT !== 'N/D' ? r.HORAOUT : 'N/D';
           const ciDate = fmtDDMM(r.DATAIN || '');
           const ciHora = r.HORAIN || '';
-          const lpLine = (r.LPHORA || r.LPEQUIPA) ? `<div class=\"small text-muted\"><strong>Limpeza:</strong> ${(r.LPHORA||'')} ${(r.LPEQUIPA? ' • ' + r.LPEQUIPA : '')}</div>` : '';
+          const lpLine = (r.LPHORA || r.LPEQUIPA) ? `<div class=\"small text-muted\"><strong>Limpeza:</strong> ${(r.LPHORA||'')} ${(r.LPEQUIPA? '  ' + r.LPEQUIPA : '')}</div>` : '';
           const block = document.createElement('div');
           block.className = 'mn-out-option border rounded p-2 mb-2';
           block.style.cursor = 'pointer';
           block.innerHTML = `
-            <div><strong>Check-Out:</strong> ${coDate}${coHora ? ' • ' + coHora : ''}</div>
-            <div class=\"small text-muted\"><strong>Check-In:</strong> ${ciDate}${ciHora ? ' • ' + ciHora : ''}</div>
+            <div><strong>Check-Out:</strong> ${coDate}${coHora ? '  ' + coHora : ''}</div>
+            <div class=\"small text-muted\"><strong>Check-In:</strong> ${ciDate}${ciHora ? '  ' + ciHora : ''}</div>
             ${lpLine}
           `;
           block.addEventListener('click', () => {
@@ -1087,7 +1537,7 @@ function fillOutOptions(aloj) {
               if (dEl && r.DATAOUT) dEl.value = r.DATAOUT;
               let hora = r.HORAOUT && r.HORAOUT !== 'N/D' ? r.HORAOUT : '11:00';
               if (hEl) hEl.value = hora;
-              // seleção visual
+              // seleo visual
               try {
                 optsEl.querySelectorAll('.mn-out-option').forEach(el => {
                   el.classList.remove('mn-selected');
@@ -1096,7 +1546,7 @@ function fillOutOptions(aloj) {
                   el.style.background = '';
                 });
                 block.classList.add('mn-selected');
-                // também aplica estilos inline para garantir override
+                // tambm aplica estilos inline para garantir override
                 block.style.border = '2px solid #0d6efd';
                 block.style.boxShadow = '0 0 0 .15rem rgba(13,110,253,.25)';
                 block.style.background = '#f4f8ff';
@@ -1106,18 +1556,18 @@ function fillOutOptions(aloj) {
           optsEl.appendChild(block);
         });
       })
-      .catch(() => { optsEl.innerHTML = '<div class="text-muted small">Sem informação disponível.</div>'; });
+      .catch(() => { optsEl.innerHTML = '<div class="text-muted small">Sem informao disponvel.</div>'; });
   } catch(_) {}
 }
 
-// Quando o modal de MN abrir, preencher defaults + resumo + próximos eventos
+// Quando o modal de MN abrir, preencher defaults + resumo + prximos eventos
 document.addEventListener('DOMContentLoaded', () => {
   const modalEl = document.getElementById('agendarModal');
   if (!modalEl) return;
   modalEl.addEventListener('shown.bs.modal', () => {
     try {
       const mn = (typeof window !== 'undefined' && window.CURRENT_MN) ? window.CURRENT_MN : null;
-      // Defaults de Data e Hora (se vazios ou sempre forçar)
+      // Defaults de Data e Hora (se vazios ou sempre forar)
       const dEl = document.getElementById('agendarData');
       const hEl = document.getElementById('agendarHora');
       const now = new Date();
@@ -1128,13 +1578,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const mm = String(round.getMinutes()).padStart(2,'0');
       if (hEl) hEl.value = `${hh}:${mm}`;
 
-      // Resumo + Próximos eventos baseados no mnstamp (não depende de window.CURRENT_MN)
+      // Resumo + Prximos eventos baseados no mnstamp (no depende de window.CURRENT_MN)
       const resumo = document.getElementById('mnResumo');
       const infoEl = document.getElementById('mnOutOptions');
       const stampEl = document.getElementById('agendarMNStamp');
       const mnstamp = stampEl && stampEl.value;
       if (resumo && mnstamp) {
-        resumo.innerHTML = '<div class="text-muted small">A carregar…</div>';
+        resumo.innerHTML = '<div class="text-muted small">A carregar</div>';
         fetch(`/generic/api/mn/${encodeURIComponent(mnstamp)}`)
           .then(r => r.json())
           .then(row => {
@@ -1145,10 +1595,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const incid = row.INCIDENCIA || '';
             resumo.innerHTML = `
               <div class=\"tarefa-titulo\"><strong>${esc(aloj)}</strong></div>
-              <div class=\"tarefa-subtitulo text-muted small\">${esc(quem)}${(quem && dataStr) ? ' • ' : ''}${esc(dataStr)}</div>
+              <div class=\"tarefa-subtitulo text-muted small\">${esc(quem)}${(quem && dataStr) ? '  ' : ''}${esc(dataStr)}</div>
               <div class=\"tarefa-texto small\">${esc(incid)}</div>
             `;
-            // Preenche blocos de check-outs (override conteúdo anterior)
+            // Preenche blocos de check-outs (override contedo anterior)
             if (infoEl) setTimeout(() => fillOutOptions(aloj), 0);
           })
           .catch(() => { resumo.innerHTML = ''; });
@@ -1212,10 +1662,10 @@ document.addEventListener('click', async (evt) => {
   const stampEl = document.getElementById('agendarMNStamp');
   const mnstamp = stampEl && stampEl.value;
   if (!mnstamp) {
-    alert('Sem referência da manutenção.');
+    alert('Sem referncia da manuteno.');
     return;
   }
-  const ok = window.confirm('Queres marcar a manutenção como tratada?');
+  const ok = window.confirm('Queres marcar a manuteno como tratada?');
   if (!ok) return;
   try {
     const resp = await fetch('/generic/api/mn/tratar', {
@@ -1234,11 +1684,11 @@ document.addEventListener('click', async (evt) => {
     if (typeof window.loadTarefas === 'function') window.loadTarefas();
   } catch (err) {
     console.error(err);
-    alert(err.message || 'Erro ao marcar manutenção como tratada.');
+    alert(err.message || 'Erro ao marcar manuteno como tratada.');
   }
 });
 
-// Helper: decide permissões/URL para Abrir conforme ORIGEM
+// Helper: decide permisses/URL para Abrir conforme ORIGEM
 function getOpenInfo(t) {
   const origin = (t.ORIGEM || '').toUpperCase().trim();
   if (origin === 'MN') {
@@ -1277,7 +1727,7 @@ function getOpenInfo(t) {
   };
 }
 
-// Navegar para o registo de MN a partir do modal (botão Abrir)
+// Navegar para o registo de MN a partir do modal (boto Abrir)
 document.addEventListener('click', (evt) => {
   const btn = evt.target.closest('#mnAbrirBtn');
   if (!btn) return;
@@ -1290,7 +1740,7 @@ document.addEventListener('click', (evt) => {
   } catch (_) {}
 });
 
-// Confirmação ao marcar tarefa como tratada (popup de tarefas)
+// Confirmao ao marcar tarefa como tratada (popup de tarefas)
 // Usa captura para interceptar antes do handler existente
 document.addEventListener('click', function(e) {
   const btn = e.target.closest('#btnTratar');
@@ -1367,7 +1817,7 @@ document.addEventListener('click', function(e) {
       const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
       const hhmm = t.HORA;
       const ddmm = dataFormatada.toLocaleDateString('pt-PT');
-      // Título do card: se não tiver origem e nem alojamento, mostrar "Tarefa"
+      // Ttulo do card: se no tiver origem e nem alojamento, mostrar "Tarefa"
       const _semOrigem = !t.ORIGEM || String(t.ORIGEM).trim() === '';
       const _semAloj = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
       const _tituloCard = (_semOrigem && _semAloj) ? 'Tarefa' : (t.ALOJAMENTO || '');
@@ -1401,7 +1851,7 @@ document.addEventListener('click', function(e) {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -1436,7 +1886,7 @@ document.addEventListener('click', function(e) {
         if (!t.TRATADO) { if (btnTratar) btnTratar.style.display = 'inline-block'; }
         else { if (btnReabrir) btnReabrir.style.display = 'inline-block'; }
 
-        // Botão Abrir (no modal) – por origem/permissões
+        // Boto Abrir (no modal)  por origem/permisses
         try {
           const btnAbrir = document.getElementById('btnAbrirTarefa');
           if (btnAbrir) {
@@ -1464,13 +1914,13 @@ document.addEventListener('click', function(e) {
   }
 })();
 
-// Força o estado por defeito com visto e recarrega
+// Fora o estado por defeito com visto e recarrega
 document.addEventListener('DOMContentLoaded', () => {
   const chk = document.getElementById('onlyMineChk');
   if (chk) {
     chk.checked = true;
     try { localStorage.setItem('monitor_only_mine','1'); } catch(_){}
-    // dispara mudança para garantir render
+    // dispara mudana para garantir render
     try { chk.dispatchEvent(new Event('change')); } catch(_){}
   }
 });
@@ -1526,7 +1976,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const dataFormatada = new Date(t.DATA + 'T' + t.HORA);
       const hhmm = t.HORA;
       const ddmm = dataFormatada.toLocaleDateString('pt-PT');
-      // Título do card: se não tiver origem e nem alojamento, mostrar "Tarefa"
+      // Ttulo do card: se no tiver origem e nem alojamento, mostrar "Tarefa"
       const _semOrigem = !t.ORIGEM || String(t.ORIGEM).trim() === '';
       const _semAloj = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
       const _tituloCard = (_semOrigem && _semAloj) ? 'Tarefa' : (t.ALOJAMENTO || '');
@@ -1560,7 +2010,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -1651,7 +2101,7 @@ function renderMNCardStyled(mn) {
   card.innerHTML = `
     <div class="card-body p-2">
       <div class="tarefa-titulo"><strong>${escapeHtml(aloj)}</strong></div>
-      <div class="tarefa-subtitulo text-muted small">${escapeHtml(quem)}${(quem && dataStr) ? ' • ' : ''}${escapeHtml(dataStr)}</div>
+      <div class="tarefa-subtitulo text-muted small">${escapeHtml(quem)}${(quem && dataStr) ? '  ' : ''}${escapeHtml(dataStr)}</div>
       <div class="tarefa-texto small">${escapeHtml(incid)}</div>
     </div>
   `;
@@ -1691,7 +2141,7 @@ function renderMNCard(mn) {
   const body = document.createElement('div');
   body.className = 'card-body p-2 position-relative';
 
-  // Ícone de manutenção (canto superior direito)
+  // cone de manuteno (canto superior direito)
   const icon = document.createElement('i');
   icon.className = 'fa-solid fa-wrench position-absolute';
   icon.style.top = '6px';
@@ -1699,21 +2149,21 @@ function renderMNCard(mn) {
   icon.style.opacity = '0.7';
   body.appendChild(icon);
 
-  // Título (incidência)
+  // Ttulo (incidncia)
   const titulo = document.createElement('div');
   titulo.className = 'tarefa-titulo';
-  titulo.textContent = mn.INCIDENCIA || '(Sem descrição)';
+  titulo.textContent = mn.INCIDENCIA || '(Sem descrio)';
   body.appendChild(titulo);
 
-  // Subtítulo (nome • alojamento • data)
+  // Subttulo (nome  alojamento  data)
   const sub = document.createElement('div');
   sub.className = 'tarefa-subtitulo';
-  const aloj = mn.ALOJAMENTO ? ` • ${mn.ALOJAMENTO}` : '';
+  const aloj = mn.ALOJAMENTO ? `  ${mn.ALOJAMENTO}` : '';
   const dataFmt = formatDatePT(mn.DATA);
-  sub.textContent = `${mn.NOME || ''}${aloj}${mn.DATA ? ' • ' + dataFmt : ''}`;
+  sub.textContent = `${mn.NOME || ''}${aloj}${mn.DATA ? '  ' + dataFmt : ''}`;
   body.appendChild(sub);
 
-  // Ao clicar no cartão abre o modal de agendamento
+  // Ao clicar no carto abre o modal de agendamento
   card.addEventListener('click', () => {
     const modalEl = document.getElementById('agendarModal');
     if (!modalEl) return;
