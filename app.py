@@ -976,6 +976,10 @@ def create_app():
     @login_required
     def api_alojamentos():
         try:
+            # lightweight mode: just names, no extra queries
+            basic_param = (request.args.get('basic') or '').strip().lower()
+            basic = basic_param in ('1', 'true', 'yes', 'y')
+
             can_open = False
             try:
                 q = db.session.execute(text("""
@@ -985,6 +989,18 @@ def create_app():
                 can_open = bool(q[0]) if q is not None else False
             except Exception:
                 can_open = False
+
+            if basic:
+                rows = db.session.execute(text(
+                    """
+                    SELECT NOME
+                    FROM AL
+                    WHERE ISNULL(INATIVO,0) = 0
+                    ORDER BY NOME
+                    """
+                )).fetchall()
+                nomes = [r[0] for r in rows if r and r[0]]
+                return jsonify({ 'rows': [ { 'NOME': n } for n in nomes ], 'can_open': can_open })
 
             rows = db.session.execute(text(
                 """

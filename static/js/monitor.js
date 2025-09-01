@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Prefer backend helper that is accessible to non-admins
       let nomes = [];
       try {
-        const resA = await fetch('/api/alojamentos');
+        const resA = await fetch('/api/alojamentos?basic=1');
         if (!resA.ok) throw new Error('HTTP '+resA.status);
         const dataA = await resA.json();
         if (dataA && Array.isArray(dataA.rows)) {
