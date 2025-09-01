@@ -133,6 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const map = { 'MN': 'ManutenÃ§Ã£o', 'LP': 'Limpeza', 'FS': 'Faltas', '': 'Tarefas' };
         label = map[key] || key;
       }
+      if (type === 'origins' && key === '') label = 'Tarefas';
+      if (type === 'origins' && key === 'MN') label = 'Manutenção';
       card.textContent = label;
 
       const markSelected = (tempAll[type] === true) || (temp[type] && temp[type].has(key));
@@ -296,6 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
       }
       bloco.innerHTML = `<div class=\"card-body p-2\">${origemIcon}${icone}<div>${texto}</div></div>`;
+      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
 
       try {
         const bodyEl = bloco.querySelector('.card-body');
@@ -556,6 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
             break;
         }
         bloco.innerHTML = `<div class=\"card-body p-2\">${origemIcon}${icone}<div>${texto}</div></div>`;
+        try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
         // Garante badge do utilizador no topo direito
         try {
           const bodyEl = bloco.querySelector('.card-body');
@@ -784,7 +788,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -795,6 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       bloco.innerHTML = `<div class="card-body p-2">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
+      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
 
       bloco.addEventListener('click', () => {
         tarefaSelecionada = t;
@@ -1100,7 +1105,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
           });
           const js = await resp.json();
-          if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao agendar manuteno.');
+          if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao agendar manutenção.');
 
           // fecha modal
           const modalEl = document.getElementById('agendarModal');
@@ -1325,10 +1330,10 @@ if (typeof renderMNCardStyled !== 'function') {
         e.preventDefault();
         const mnstamp = document.getElementById('agendarMNStamp')?.value;
         if (!mnstamp) {
-          alert('Sem referncia da manuteno.');
+          alert('Sem referência da manutenção.');
           return;
         }
-        const ok = window.confirm('Queres marcar a manuteno como tratada?');
+        const ok = window.confirm('Queres marcar a manutenção como tratada?');
         if (!ok) return;
         try {
           const resp = await fetch('/generic/api/mn/tratar', {
@@ -1349,7 +1354,7 @@ if (typeof renderMNCardStyled !== 'function') {
           if (typeof window.loadTarefas === 'function') window.loadTarefas();
         } catch (err) {
           console.error(err);
-          alert(err.message || 'Erro ao marcar manuteno como tratada.');
+          alert(err.message || 'Erro ao marcar manutenção como tratada.');
         }
       });
     }
@@ -1366,7 +1371,7 @@ if (typeof renderMNCardStyled !== 'function') {
     if (body) {
       const icon = document.createElement('i');
       icon.className = 'fa-solid fa-screwdriver-wrench text-primary float-end';
-      icon.title = 'Manuteno';
+      icon.title = 'Manutenção';
       body.prepend(icon);
       // urgente
       try {
@@ -1485,7 +1490,7 @@ if (typeof renderMNCardStyled !== 'function') {
     if (body && !body.querySelector('.fa-screwdriver-wrench')) {
       const icon = document.createElement('i');
       icon.className = 'fa-solid fa-screwdriver-wrench text-primary float-end';
-      icon.title = 'Manuteno';
+      icon.title = 'Manutenção';
       body.prepend(icon);
     }
     return card;
@@ -1505,7 +1510,7 @@ if (typeof renderMNCardStyled !== 'function') {
           // add requested icon (dark)
           const icon = document.createElement('i');
           icon.className = 'fa-solid fa-wrench float-end text-dark';
-          icon.title = 'Manuteno';
+          icon.title = 'Manutenção';
           body.prepend(icon);
         }
       } catch (e) {}
@@ -1680,10 +1685,10 @@ document.addEventListener('click', async (evt) => {
   const stampEl = document.getElementById('agendarMNStamp');
   const mnstamp = stampEl && stampEl.value;
   if (!mnstamp) {
-    alert('Sem referncia da manuteno.');
+    alert('Sem referência da manutenção.');
     return;
   }
-  const ok = window.confirm('Queres marcar a manuteno como tratada?');
+  const ok = window.confirm('Queres marcar a manutenção como tratada?');
   if (!ok) return;
   try {
     const resp = await fetch('/generic/api/mn/tratar', {
@@ -1702,7 +1707,7 @@ document.addEventListener('click', async (evt) => {
     if (typeof window.loadTarefas === 'function') window.loadTarefas();
   } catch (err) {
     console.error(err);
-    alert(err.message || 'Erro ao marcar manuteno como tratada.');
+    alert(err.message || 'Erro ao marcar manutenção como tratada.');
   }
 });
 
@@ -1864,7 +1869,7 @@ document.addEventListener('click', function(e) {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -1875,6 +1880,7 @@ document.addEventListener('click', function(e) {
       }
 
         bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
+        try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
 
       bloco.addEventListener('click', () => {
         const modalElement = document.getElementById('tarefaModal');
@@ -2022,7 +2028,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -2033,6 +2039,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
+      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
 
       bloco.addEventListener('click', () => {
         const modalElement = document.getElementById('tarefaModal');
@@ -2204,3 +2211,107 @@ function formatDatePT(s) {
 
 
 
+  // =========================
+  // Anexos (modal genérico)
+  // =========================
+  (function setupAnexosModal(){
+    const form = document.getElementById('anexoForm');
+    if (!form) return;
+    const qEl = document.getElementById('anexoQueue');
+    const addBtn  = document.getElementById('btnAddAnexo');
+    const fileInput = document.getElementById('anexoFile');
+    const tableEl = document.getElementById('anexoTable');
+    const recEl = document.getElementById('anexoRec');
+    const descEl = document.getElementById('anexoDescricao');
+    let queue = [];
+
+    function renderQueue() {
+      if (!qEl) return;
+      qEl.innerHTML = '';
+      queue.forEach((f, idx) => {
+        const item = document.createElement('div');
+        item.className = 'anexo-item';
+        const isImg = /^image\//.test(f.type);
+        const isVid = /^video\//.test(f.type);
+        const url = (isImg || isVid) ? URL.createObjectURL(f) : '';
+        let inner = '';
+        if (isImg) inner = `<img class="anexo-thumb" src="${url}">`;
+        else if (isVid) inner = `<video class="anexo-thumb" src="${url}" muted controls></video>`;
+        else inner = `<div class="anexo-thumb d-flex align-items-center justify-content-center text-muted">${(f.name||'Ficheiro')}</div>`;
+        item.innerHTML = `${inner}<div class="anexo-name" title="${f.name}">${f.name}</div><button type="button" class="anexo-remove" aria-label="Remover">×</button>`;
+        item.querySelector('.anexo-remove').addEventListener('click', () => { queue.splice(idx, 1); renderQueue(); });
+        qEl.appendChild(item);
+      });
+    }
+
+    function pushFiles(fileList) {
+      if (!fileList) return;
+      for (const f of fileList) { if (f && f.size > 0) queue.push(f); }
+      renderQueue();
+    }
+
+    if (addBtn && fileInput) addBtn.addEventListener('click', () => fileInput.click());
+    if (fileInput) fileInput.addEventListener('change', (e) => pushFiles(e.target.files));
+
+    try {
+      const modalEl = document.getElementById('anexoModal');
+      if (modalEl) {
+        modalEl.addEventListener('shown.bs.modal', () => { queue = []; renderQueue(); });
+      }
+    } catch(_){}
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const table = tableEl?.value || '';
+      const rec   = recEl?.value || '';
+      const desc  = descEl?.value || '';
+      if (!table || !rec || queue.length === 0) { alert('Seleciona pelo menos um ficheiro.'); return; }
+      try {
+        const btn = document.getElementById('anexoUploadBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'A enviar...'; }
+        let ok = 0, fail = 0;
+        for (const f of queue) {
+          const fd = new FormData();
+          fd.append('table', table);
+          fd.append('rec', rec);
+          fd.append('descricao', desc);
+          fd.append('file', f);
+          try {
+            const r = await fetch('/api/anexos/upload', { method: 'POST', body: fd });
+            const js = await r.json().catch(()=>({}));
+            if (!r.ok || js.error) { fail++; } else { ok++; }
+          } catch (_) { fail++; }
+        }
+        if (btn) { btn.disabled = false; btn.textContent = 'Gravar'; }
+        const modalEl = document.getElementById('anexoModal');
+        if (modalEl) (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide();
+        queue = []; renderQueue();
+        if (fail === 0) alert(`Enviado${ok>1?'s':''} ${ok} ficheiro${ok===1?'':'s'} com sucesso.`);
+        else alert(`Uploads concluídos: ${ok} ok, ${fail} falhados.`);
+      } catch (err) {
+        alert(err.message || 'Erro ao enviar anexo.');
+        const btn = document.getElementById('anexoUploadBtn');
+        if (btn) { btn.disabled = false; btn.textContent = 'Gravar'; }
+      }
+    });
+
+    // API pública para abrir o modal já configurado
+    window.openAnexoModal = function(table, rec, descricao) {
+      try {
+        if (tableEl) tableEl.value = table || '';
+        if (recEl) recEl.value = rec || '';
+        if (descEl) descEl.value = descricao || '';
+        const modalEl = document.getElementById('anexoModal');
+        if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      } catch(_){}
+    }
+
+    // Helper: pergunta e abre para MN
+    window.askAddAnexosForMN = function(mnStamp) {
+      try {
+        if (!mnStamp) return;
+        const quer = window.confirm('Queres anexar fotos/vídeos à Incidência agora?');
+        if (quer) window.openAnexoModal('MN', mnStamp, '');
+      } catch(_){}
+    }
+  })();

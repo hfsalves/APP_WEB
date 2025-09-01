@@ -1,0 +1,5 @@
+﻿const js = await resp.json();
+          if (!resp.ok || js.success === false) throw new Error(js.error || 'Falha ao gravar incidÃªncia');
+          const modalEl = document.getElementById('novaMnModal');
+          if (modalEl) { const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); modal.hide(); }
+          if (typeof loadPendentes === 'function') loadPendentes();

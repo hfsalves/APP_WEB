@@ -1,9 +1,9 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Monitor de Trabalho{% endblock %}
 
 {% block content %}
-<!-- Barra de ações superior -->
+<!-- Barra de aÃ§Ãµes superior -->
 <div class="mb-2 d-flex align-items-center justify-content-between">
   <div class="d-flex align-items-center gap-2">
     <button class="btn btn-outline-secondary btn-sm" id="openFilters">
@@ -16,7 +16,7 @@
 
 <!-- layout: 5 colunas quando existir a coluna de MN -->
 <div class="row gx-3 gy-3 row-cols-1 row-cols-md-5">
-  <!-- Coluna nova: Manutenções não agendadas (mostrada só para MNADMIN) -->
+  <!-- Coluna nova: ManutenÃ§Ãµes nÃ£o agendadas (mostrada sÃ³ para MNADMIN) -->
   <div id="col-mn-nao-agendadas">
     <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
       <span class="fw-semibold">Pendentes</span>
@@ -55,10 +55,10 @@
   </div>
 </div>
 
-<!-- Variáveis globais seguras -->
+<!-- VariÃ¡veis globais seguras -->
 <script>
   window.CURRENT_USER = "{{ current_user.LOGIN }}";
-  // evita erro se não existir o campo (ex.: perfis antigos)
+  // evita erro se nÃ£o existir o campo (ex.: perfis antigos)
   window.IS_MN_ADMIN = {{ (current_user.MNADMIN or 0)|int }};
   window.IS_LP_ADMIN = {{ (current_user.LPADMIN or 0)|int }};
   window.CAN_OPEN_RS = {{ 1 if (user_perms.get('RS', {}).get('consultar', False)) else 0 }};
@@ -70,7 +70,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     const col = document.getElementById('col-mn-nao-agendadas');
     if (!window.IS_MN_ADMIN && col) col.style.display = 'none';
-    // Controla visibilidade dos itens do FAB conforme permissões
+    // Controla visibilidade dos itens do FAB conforme permissÃµes
     try {
       const btnNR = document.getElementById('openNotasReserva');
       if (btnNR && !window.CAN_OPEN_RS) btnNR.style.display = 'none';
@@ -123,7 +123,7 @@
     #filtersModal .filters-list-wrapper.loading { position: relative; }
     #filtersModal .filters-list-wrapper.loading .filters-list { filter: blur(1px); pointer-events: none; }
     #filtersModal .filters-list-wrapper.loading::before { content: ""; position: absolute; inset: 0; background: rgba(255,255,255,.6); z-index: 3; }
-    #filtersModal .filters-list-wrapper.loading::after { content: "A carregar…"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #555; font-size: .95rem; z-index: 4; }
+    #filtersModal .filters-list-wrapper.loading::after { content: "A carregarâ€¦"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #555; font-size: .95rem; z-index: 4; }
 
     /* Cards */
     .select-card { cursor: pointer; user-select: none; border: 1px solid #e5e7eb; border-radius: .5rem; padding: .5rem .75rem; background: #fff; margin: 0 2px; }
@@ -132,7 +132,7 @@
   </style>
 </div>
 
-<!-- Estilo para fazer os cartões de MN ficarem como os das tarefas -->
+<!-- Estilo para fazer os cartÃµes de MN ficarem como os das tarefas -->
 <style>
   /* Garantir que o modal fica acima de qualquer overlay residual */
   .modal-backdrop { z-index: 10990 !important; }
@@ -162,34 +162,34 @@
     padding: .25rem .5rem;
     font-size: .85rem;
   }
-  /* Garantir que botões antigos não aparecem por cache/templates alternativos */
+  /* Garantir que botÃµes antigos nÃ£o aparecem por cache/templates alternativos */
   #tarefaModal #btnReagendar,
   #tarefaModal #btnNota { display:none !important; }
-  /* Não mostrar ações dentro do card MN (apenas no modal) */
+  /* NÃ£o mostrar aÃ§Ãµes dentro do card MN (apenas no modal) */
   #mn-nao-agendadas .mn-actions { display: none !important; }
   .user-badge { font-weight:600; border-radius:.5rem; font-size:.70rem; }
   /* reduzir fonte do alojamento no card */
   .tarefa-card .card-body > div > strong,
   .tarefa-card .tarefa-alojamento { font-size:.90rem; }
-  /* seleção visual de Notas de Reserva */
+  /* seleÃ§Ã£o visual de Notas de Reserva */
   .nr-card.nr-selected {
     border: 2px solid #0d6efd;
     box-shadow: 0 0 0 .15rem rgba(13,110,253,.25);
     background: #f4f8ff;
   }
-  /* seleção visual de bloco de Check-Out no modal MN */
+  /* seleÃ§Ã£o visual de bloco de Check-Out no modal MN */
   .mn-out-option.mn-selected {
     border: 2px solid #0d6efd !important;
     box-shadow: 0 0 0 .15rem rgba(13,110,253,.25);
     background: #f4f8ff;
   }
-  /* filtro bloco clicável */
+  /* filtro bloco clicÃ¡vel */
   .filter-header { cursor: pointer; }
   .filter-header.active { background:#0d6efd; color:#fff; border-color:#0d6efd; }
   .filter-header.active .form-check-input { border-color:#fff; }
   .filter-header.active .form-check-label { color:#fff; }
   .filter-header.active .badge { background: rgba(255,255,255,.25); color:#fff; }
-  /* Não mostrar botão Abrir nas cards das tarefas (passou para o modal) */
+  /* NÃ£o mostrar botÃ£o Abrir nas cards das tarefas (passou para o modal) */
   .tarefa-card a[href*="/generic/form/TAREFAS/"] { display:none !important; }
   /* Headers de grupos na coluna Futuras */
   #tarefas-futuras > .bg-light.border.rounded.px-2.py-1.mb-2.d-flex.justify-content-between.align-items-center {
@@ -201,23 +201,23 @@
     font-size: .85rem; /* texto mais pequeno */
     font-weight: 700;  /* negrito */
   }
-  /* Cartões de alojamentos no modal */
+  /* CartÃµes de alojamentos no modal */
   #alojList .al-card { border:1px solid #e5e7eb; border-radius:.5rem; padding:.5rem .75rem; background:#fff; }
   #alojList .al-title { font-weight:700; }
   #alojList .al-line { color:#6b7280; font-size:.9rem; }
   #alojList .al-open { float:right; }
-  /* Alojamentos modal: limitar altura e tornar lista scrollável */
+  /* Alojamentos modal: limitar altura e tornar lista scrollÃ¡vel */
   #alojModal .modal-content { max-height: 90vh; display: flex; flex-direction: column; }
   #alojModal .modal-body { flex: 1 1 auto; overflow: auto; }
 </style>
 
 <!-- FAB -->
 <div id="fab-actions" style="position: absolute; top: 22px; right: 34px; z-index: 3000;">
-  <button class="fab-btn" id="openFabMenu" title="Ações rápidas">
+  <button class="fab-btn" id="openFabMenu" title="AÃ§Ãµes rÃ¡pidas">
     <i class="fa-solid fa-ellipsis-vertical"></i>
   </button>
   <div class="fab-menu" id="fabMenu" style="display: none;">
-    <button class="fab-menu-item" id="openNovaMn">Nova Incidência</button>
+    <button class="fab-menu-item" id="openNovaMn">Nova IncidÃªncia</button>
     <button class="fab-menu-item" id="openNovaFalta">Nova Falta</button>
     <button class="fab-menu-item" id="openNotasReserva">Notas de Reserva</button>
     <button class="fab-menu-item" id="openAlojamentos">Alojamentos</button>
@@ -225,7 +225,7 @@
   </div>
 </div>
 
-<!-- Modal de Ações (tarefas) -->
+<!-- Modal de AÃ§Ãµes (tarefas) -->
 <div class="modal fade" id="tarefaModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -263,7 +263,7 @@
             </div>
             <div class="col-12 col-md-4">
               <label for="nrReserva" class="form-label">Reserva</label>
-              <input type="text" id="nrReserva" class="form-control" placeholder="Código da reserva" />
+              <input type="text" id="nrReserva" class="form-control" placeholder="CÃ³digo da reserva" />
             </div>
             <div class="col-12 col-md-4">
               <button type="button" id="nrBuscar" class="btn btn-primary">Procurar</button>
@@ -274,29 +274,72 @@
         <div id="nrResultados" class="mt-2"></div>
 
         <div id="nrObsArea" class="mt-3" style="display:none;">
-          <label for="nrObs" class="form-label">Observações</label>
-          <textarea id="nrObs" class="form-control" rows="4" placeholder="Escreve aqui as observações..."></textarea>
+          <label for="nrObs" class="form-label">ObservaÃ§Ãµes</label>
+          <textarea id="nrObs" class="form-control" rows="4" placeholder="Escreve aqui as observaÃ§Ãµes..."></textarea>
           <div class="form-check mt-2">
             <input class="form-check-input" type="checkbox" id="nrBerco">
-            <label class="form-check-label" for="nrBerco">Fazer Berço</label>
+            <label class="form-check-label" for="nrBerco">Fazer BerÃ§o</label>
           </div>
           <div class="form-check mt-1">
             <input class="form-check-input" type="checkbox" id="nrSofa">
-            <label class="form-check-label" for="nrSofa">Fazer Sofá Cama</label>
+            <label class="form-check-label" for="nrSofa">Fazer SofÃ¡ Cama</label>
           </div>
         </div>
       </div>
       <div class="modal-footer">
+        <button type="button" class="btn btn-primary me-auto" id="nrAbrir" disabled>Abrir</button>
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="nrAbrir" disabled>Abrir</button>
         <button type="button" class="btn btn-primary" id="nrGravar">Gravar</button>
       </div>
     </div>
   </div>
 </div>
 
+<!-- Modal: Anexar Ficheiros/Fotos -->
+<div class="modal fade" id="anexoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <form class="modal-content" id="anexoForm" enctype="multipart/form-data">
+      <div class="modal-header">
+        <h5 class="modal-title">Anexos</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="anexoTable" name="table" value="" />
+        <input type="hidden" id="anexoRec" name="rec" value="" />
+        <div class="mb-2">
+          <label for="anexoDescricao" class="form-label">DescriÃ§Ã£o (opcional)</label>
+          <input type="text" id="anexoDescricao" name="descricao" class="form-control" maxlength="200" />
+        </div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <small class="text-muted">Podes adicionar vÃ¡rias fotos, vÃ­deos ou ficheiros.</small>
+          <button type="button" class="btn btn-outline-primary btn-sm" id="btnAddAnexo">
+            <i class="fa fa-paperclip me-1"></i>Novo anexo
+          </button>
+        </div>
+        <input type="file" id="anexoFile" style="display:none" multiple accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.zip,.txt" capture="environment" />
+
+        <div id="anexoQueue" class="anexo-queue"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="anexoUploadBtn">Gravar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <style>
-  /* Notas de Reserva: altura máxima e resultados scrolláveis */
+  #anexoModal .modal-content { max-height: 90vh; display:flex; flex-direction:column; }
+  #anexoModal .modal-body { overflow:auto; }
+  #anexoModal .anexo-queue { display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:.5rem; }
+  #anexoModal .anexo-item { border:1px solid #e5e7eb; border-radius:.5rem; padding:.5rem; background:#fff; position:relative; }
+  #anexoModal .anexo-thumb { width:100%; height:100px; object-fit:cover; border-radius:.25rem; background:#f3f4f6; display:block; }
+  #anexoModal .anexo-name { font-size:.8rem; margin-top:.25rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #anexoModal .anexo-remove { position:absolute; top:4px; right:4px; border:none; background:rgba(0,0,0,.55); color:#fff; border-radius:12px; width:24px; height:24px; line-height:24px; text-align:center; cursor:pointer; }
+</style>
+
+<style>
+  /* Notas de Reserva: altura mÃ¡xima e resultados scrollÃ¡veis */
   #nrModal .modal-content { max-height: 90vh; display: flex; flex-direction: column; }
   #nrModal .modal-body { flex: 1 1 auto; overflow: hidden; display: flex; flex-direction: column; }
   #nrResultados { flex: 1 1 auto; overflow: auto; }
@@ -406,7 +449,7 @@
           </div>
         </div>
         <div class="mb-2 mt-2">
-          <label for="ntDuracao" class="form-label">Duração (min)</label>
+          <label for="ntDuracao" class="form-label">DuraÃ§Ã£o (min)</label>
           <input type="number" id="ntDuracao" class="form-control" min="1" step="1" />
         </div>
         <div class="mb-2">
@@ -428,12 +471,12 @@
   </div>
 </div>
 
-<!-- Modal de Agendamento (para MN não agendadas) -->
+<!-- Modal de Agendamento (para MN nÃ£o agendadas) -->
 <div class="modal fade" id="agendarModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <form class="modal-content" id="agendarForm">
       <div class="modal-header">
-        <h5 class="modal-title">Agendar manutenção</h5>
+        <h5 class="modal-title">Agendar manutenÃ§Ã£o</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
@@ -465,12 +508,12 @@
   </div>
 </div>
 
-<!-- Modal: Nova Incidência (MN) -->
+<!-- Modal: Nova IncidÃªncia (MN) -->
 <div class="modal fade" id="novaMnModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <form class="modal-content" id="novaMnForm">
       <div class="modal-header">
-        <h5 class="modal-title">Nova Incidência</h5>
+        <h5 class="modal-title">Nova IncidÃªncia</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
@@ -495,8 +538,8 @@
           </div>
         </div>
         <div class="mb-2 mt-2">
-          <label for="nmIncidencia" class="form-label">Incidência</label>
-          <textarea id="nmIncidencia" class="form-control" rows="3" placeholder="Descreve a incidência"></textarea>
+          <label for="nmIncidencia" class="form-label">IncidÃªncia</label>
+          <textarea id="nmIncidencia" class="form-control" rows="3" placeholder="Descreve a incidÃªncia"></textarea>
         </div>
       </div>
       <div class="modal-footer">
@@ -510,12 +553,12 @@
 <!-- Preenche o combo de utilizadores e sincroniza com window.CURRENT_USER -->
 <script>
   document.addEventListener('DOMContentLoaded', async () => {
-    // só precisamos disto se o modal existir (página do monitor)
+    // sÃ³ precisamos disto se o modal existir (pÃ¡gina do monitor)
     const sel = document.getElementById('agendarUser');
     if (!sel) return;
 
     try {
-      // usa o endpoint genérico de options com 1 coluna
+      // usa o endpoint genÃ©rico de options com 1 coluna
       const q = encodeURIComponent("SELECT LOGIN FROM US ORDER BY 1");
       const r = await fetch(`/generic/api/options?query=${q}`);
       const js = await r.json();
@@ -527,7 +570,7 @@
       // valor por defeito: utilizador atual
       sel.value = window.CURRENT_USER || (opts[0]?.value ?? '');
 
-      // quando mudar, atualiza a variável global que o monitor.js usa no POST
+      // quando mudar, atualiza a variÃ¡vel global que o monitor.js usa no POST
       sel.addEventListener('change', () => {
         window.CURRENT_USER = sel.value;
       });
@@ -540,8 +583,8 @@
         });
       }
     } catch (e) {
-      console.warn('Não foi possível carregar utilizadores:', e);
-      // fallback: mantém o current_user como única opção
+      console.warn('NÃ£o foi possÃ­vel carregar utilizadores:', e);
+      // fallback: mantÃ©m o current_user como Ãºnica opÃ§Ã£o
       sel.innerHTML = `<option value="${window.CURRENT_USER}">${window.CURRENT_USER}</option>`;
       sel.value = window.CURRENT_USER;
     }
@@ -583,8 +626,8 @@
               const al = rows[i];
               const col = document.createElement('div');
               col.className = 'col-12';
-              const morada = [al.MORADA, al.CODPOST, al.LOCAL].filter(Boolean).join(' • ');
-              const tip = [al.TIPOLOGIA, (al.LOTACAO ? al.LOTACAO + ' Hóspedes' : null)].filter(Boolean).join(' • ');
+              const morada = [al.MORADA, al.CODPOST, al.LOCAL].filter(Boolean).join(' â€¢ ');
+              const tip = [al.TIPOLOGIA, (al.LOTACAO ? al.LOTACAO + ' HÃ³spedes' : null)].filter(Boolean).join(' â€¢ ');
               const codigos = Array.isArray(al.CODIGOS) ? al.CODIGOS : [];
               let codHtml = '';
               for (const c of codigos) {
@@ -612,7 +655,7 @@
     });
   </script>
   <script>
-    // Nova Incidência (MN): abrir modal, combos, defaults e submit
+    // Nova IncidÃªncia (MN): abrir modal, combos, defaults e submit
     document.addEventListener('DOMContentLoaded', () => {
       const btn = document.getElementById('openNovaMn');
       if (!btn) return;
@@ -665,19 +708,24 @@
         const DATA = document.getElementById('nmData')?.value || '';
         const INCIDENCIA = document.getElementById('nmIncidencia')?.value?.trim() || '';
         const URGENTE = !!document.getElementById('nmUrgente')?.checked;
-        if (!ALOJAMENTO || !DATA || !NOME || !INCIDENCIA) { alert('Preenche utilizador, alojamento, data e incidência.'); return; }
+        if (!ALOJAMENTO || !DATA || !NOME || !INCIDENCIA) { alert('Preenche utilizador, alojamento, data e incidÃªncia.'); return; }
         try {
           const resp = await fetch('/generic/api/mn_incidente', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ NOME, ALOJAMENTO, DATA, INCIDENCIA, URGENTE })
           });
           const js = await resp.json();
-          if (!resp.ok || js.success === false) throw new Error(js.error || 'Falha ao gravar incidência');
+          if (!resp.ok || js.success === false) throw new Error(js.error || 'Falha ao gravar incidÃªncia');
           const modalEl = document.getElementById('novaMnModal');
           if (modalEl) { const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); modal.hide(); }
           if (typeof loadPendentes === 'function') loadPendentes();
-        } catch (e) {
-          alert(e.message || 'Erro ao gravar incidência');
+          try {
+            const stamp = js.MNSTAMP || js.mnSTAMP || js.mnstamp || js.MNSTAMP || '';
+            if (stamp && typeof window.askAddAnexosForMN === 'function') {
+              window.askAddAnexosForMN(stamp);
+            }
+          } catch(_){ }        } catch (e) {
+          alert(e.message || 'Erro ao gravar incidÃªncia');
         }
       });
     });
@@ -797,13 +845,13 @@
         // Data = hoje
         const hoje = new Date();
         if (dataIn) dataIn.value = hoje.toISOString().slice(0,10);
-        // Hora = próxima meia-hora
+        // Hora = prÃ³xima meia-hora
         const m = new Date(hoje);
         m.setMinutes(m.getMinutes() < 30 ? 30 : 60, 0, 0);
         const hh = String(m.getHours()).padStart(2,'0');
         const mm = String(m.getMinutes()).padStart(2,'0');
         if (horaIn) horaIn.value = `${hh}:${mm}`;
-        // Duração = 60
+        // DuraÃ§Ã£o = 60
         if (durIn) durIn.value = 60;
         if (tarefaIn) tarefaIn.value = '';
 
@@ -823,8 +871,8 @@
         const dur  = parseInt(document.getElementById('ntDuracao')?.value || '60', 10);
         const tarefa = document.getElementById('ntTarefa')?.value?.trim() || '';
         const aloj = document.getElementById('ntAloj')?.value || '';
-        if (!tarefa) { alert('Indica a descrição da tarefa.'); return; }
-        if (!data || !hora || !Number.isFinite(dur) || dur <= 0) { alert('Verifica data, hora e duração.'); return; }
+        if (!tarefa) { alert('Indica a descriÃ§Ã£o da tarefa.'); return; }
+        if (!data || !hora || !Number.isFinite(dur) || dur <= 0) { alert('Verifica data, hora e duraÃ§Ã£o.'); return; }
         try {
           const resp = await fetch('/generic/api/tarefas/nova', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -857,7 +905,7 @@
     });
   </script>
   <script>
-    // Re-implementação segura do Agendar MN: neutraliza handlers antigos e usa fluxo simples
+    // Re-implementaÃ§Ã£o segura do Agendar MN: neutraliza handlers antigos e usa fluxo simples
     document.addEventListener('DOMContentLoaded', () => {
       function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
 
@@ -883,12 +931,12 @@
               const hEl = document.getElementById('agendarHora');
               if (dEl && rw.DATAOUT) dEl.value = rw.DATAOUT;
               if (hEl) hEl.value = (rw.HORAOUT && rw.HORAOUT !== 'N/D') ? rw.HORAOUT : '11:00';
-              // seleção visual
+              // seleÃ§Ã£o visual
               try { optsEl.querySelectorAll('.mn-out-option').forEach(el => el.classList.remove('mn-selected')); div.classList.add('mn-selected'); } catch{}
             });
             optsEl.appendChild(div);
           });
-        } catch(e){ optsEl.innerHTML = '<div class="text-muted small">Sem informação disponível.</div>'; }
+        } catch(e){ optsEl.innerHTML = '<div class="text-muted small">Sem informaÃ§Ã£o disponÃ­vel.</div>'; }
       }
 
       async function openMnAgendar(data){
@@ -969,7 +1017,7 @@
         }
       } catch(e) { console.warn('Falha a reconfigurar cards MN:', e); }
 
-      // Delegate: força o nosso handler para todos os cards MN
+      // Delegate: forÃ§a o nosso handler para todos os cards MN
       document.addEventListener('click', (e) => {
         const el = e.target.closest('.tarefa-manutencao');
         if (!el) return;
@@ -981,7 +1029,49 @@
       }, true);
     });
   </script>
+  <script>
+    // Correção pontual de textos com acentos (Incidência/Manutenção) no DOM
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        const btnNovaMn = document.getElementById('openNovaMn');
+        if (btnNovaMn) btnNovaMn.textContent = 'Nova Incidência';
+
+        const modalNovaMn = document.querySelector('#novaMnModal .modal-title');
+        if (modalNovaMn) modalNovaMn.textContent = 'Nova Incidência';
+
+        const lblInc = document.querySelector('label[for="nmIncidencia"]');
+        if (lblInc) lblInc.textContent = 'Incidência';
+
+        const taInc = document.getElementById('nmIncidencia');
+        if (taInc) taInc.placeholder = 'Descreve a incidência';
+
+        const modalAgendar = document.querySelector('#agendarModal .modal-title');
+        if (modalAgendar) modalAgendar.textContent = 'Agendar manutenção';
+
+        const fabBtn = document.getElementById('openFabMenu');
+        if (fabBtn) fabBtn.title = 'Ações rápidas';
+      } catch (_) {}
+
+      // Normaliza mensagens de alert relacionadas a incidência
+      try {
+        const _alert = window.alert;
+        window.alert = function(msg) {
+          try {
+            if (typeof msg === 'string') {
+              msg = msg
+                .replace(/incid[^a-z]?ncia/gi, 'incidência')
+                .replace(/Falha ao gravar incid[^a-z]?ncia/gi, 'Falha ao gravar incidência')
+                .replace(/Erro ao gravar incid[^a-z]?ncia/gi, 'Erro ao gravar incidência');
+            }
+          } catch (_) {}
+          return _alert(msg);
+        };
+      } catch (_) {}
+    });
+  </script>
 {% endblock %}
+
+
 
 
 
