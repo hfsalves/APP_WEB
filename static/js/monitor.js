@@ -1435,18 +1435,29 @@ if (typeof renderMNCardStyled !== 'function') {
               };
               optsEl.innerHTML = '';
               rows.forEach((r) => {
+                const fmtDOW = (d) => {
+                  if (!d) return '';
+                  try { const dt = new Date(d + 'T00:00:00'); return ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dt.getDay()]; } catch(_) { return ''; }
+                };
                 const coDate = fmtDDMM(r.DATAOUT);
-                const coHora = r.HORAOUT && r.HORAOUT !== 'N/D' ? r.HORAOUT : 'N/D';
+                const coHora = (r.HORAOUT && r.HORAOUT !== 'N/D') ? r.HORAOUT : '';
                 const ciDate = fmtDDMM(r.DATAIN || '');
                 const ciHora = r.HORAIN || '';
-                const lpLine = (r.LPHORA || r.LPEQUIPA) ? `<div class=\"small text-muted\"><strong>Limpeza:</strong> ${(r.LPHORA||'')} ${(r.LPEQUIPA? '  ' + r.LPEQUIPA : '')}</div>` : '';
+                const sep = ' \u2022 ';
+                const outParts = [fmtDOW(r.DATAOUT), coDate].concat(coHora ? [coHora] : []);
+                const inParts  = r.DATAIN ? [fmtDOW(r.DATAIN), ciDate].concat(ciHora ? [ciHora] : []) : [];
+                const outStr = outParts.filter(Boolean).join(sep);
+                const inStr  = inParts.length ? inParts.filter(Boolean).join(sep) : '';
+                const firstLine = `<strong>Check-Out:</strong> ${outStr}` + (inStr ? ` | <strong>Check-In:</strong> ${inStr}` : '');
+                const limpezaStr = (r.LPHORA || r.LPEQUIPA)
+                  ? `<strong>Limpeza:</strong> ${(r.LPEQUIPA||'')}${(r.LPEQUIPA && r.LPHORA) ? ' \u2022 ' : (r.LPHORA ? '' : '')}${(r.LPHORA||'')}`
+                  : '';
                 const block = document.createElement('div');
-                block.className = 'border rounded p-2 mb-2';
+                block.className = 'mn-out-option border rounded p-2 mb-2';
                 block.style.cursor = 'pointer';
                 block.innerHTML = `
-                  <div><strong>Check-Out:</strong> ${coDate}${coHora ? '  ' + coHora : ''}</div>
-                  <div class=\"small text-muted\"><strong>Check-In:</strong> ${ciDate}${ciHora ? '  ' + ciHora : ''}</div>
-                  ${lpLine}
+                  <div class=\"small\">${firstLine}</div>
+                  ${limpezaStr ? `<div class=\"small\">${limpezaStr}</div>` : ''}
                 `;
                 block.addEventListener('click', () => {
                   try {
@@ -1540,18 +1551,29 @@ function fillOutOptions(aloj) {
         };
         optsEl.innerHTML = '';
         rows.forEach((r) => {
+          const fmtDOW = (d) => {
+            if (!d) return '';
+            try { const dt = new Date(d + 'T00:00:00'); return ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dt.getDay()]; } catch(_) { return ''; }
+          };
           const coDate = fmtDDMM(r.DATAOUT);
-          const coHora = r.HORAOUT && r.HORAOUT !== 'N/D' ? r.HORAOUT : 'N/D';
+          const coHora = (r.HORAOUT && r.HORAOUT !== 'N/D') ? r.HORAOUT : '';
           const ciDate = fmtDDMM(r.DATAIN || '');
           const ciHora = r.HORAIN || '';
-          const lpLine = (r.LPHORA || r.LPEQUIPA) ? `<div class=\"small text-muted\"><strong>Limpeza:</strong> ${(r.LPHORA||'')} ${(r.LPEQUIPA? '  ' + r.LPEQUIPA : '')}</div>` : '';
+          const sep = ' \u2022 ';
+          const outParts = [fmtDOW(r.DATAOUT), coDate].concat(coHora ? [coHora] : []);
+          const inParts  = r.DATAIN ? [fmtDOW(r.DATAIN), ciDate].concat(ciHora ? [ciHora] : []) : [];
+          const outStr = outParts.filter(Boolean).join(sep);
+          const inStr  = inParts.length ? inParts.filter(Boolean).join(sep) : '';
+          const firstLine = `<strong>Check-Out:</strong> ${outStr}` + (inStr ? ` | <strong>Check-In:</strong> ${inStr}` : '');
+          const limpezaStr = (r.LPHORA || r.LPEQUIPA)
+            ? `<strong>Limpeza:</strong> ${(r.LPEQUIPA||'')}${(r.LPEQUIPA && r.LPHORA) ? ' \u2022 ' : (r.LPHORA ? '' : '')}${(r.LPHORA||'')}`
+            : '';
           const block = document.createElement('div');
           block.className = 'mn-out-option border rounded p-2 mb-2';
           block.style.cursor = 'pointer';
           block.innerHTML = `
-            <div><strong>Check-Out:</strong> ${coDate}${coHora ? '  ' + coHora : ''}</div>
-            <div class=\"small text-muted\"><strong>Check-In:</strong> ${ciDate}${ciHora ? '  ' + ciHora : ''}</div>
-            ${lpLine}
+            <div class=\"small\">${firstLine}</div>
+            ${limpezaStr ? `<div class=\"small\">${limpezaStr}</div>` : ''}
           `;
           block.addEventListener('click', () => {
             try {
@@ -2273,9 +2295,10 @@ function formatDatePT(s) {
               const row = addBtn.closest('.mb-2');
               if (row) {
                 row.style.setProperty('display', 'flex', 'important');
-                row.style.justifyContent = 'end';
+                try { row.style.setProperty('justify-content', 'flex-start', 'important'); } catch(_) { row.style.justifyContent = 'flex-start'; }
                 const sm = row.querySelector('small');
                 if (sm) sm.style.display = 'none';
+                try { addBtn.style.whiteSpace = 'nowrap'; } catch(_) {}
               }
             }
           } catch(_){}
@@ -2336,3 +2359,16 @@ function formatDatePT(s) {
       } catch(_){}
     }
   })();
+
+  // Normaliza prompt de anexos após criar incidência (garante acentos corretos)
+  try {
+    if (typeof window.askAddAnexosForMN === 'function') {
+      window.askAddAnexosForMN = function(mnStamp) {
+        try {
+          if (!mnStamp) return;
+          const quer = window.confirm('Queres anexar fotos/vídeos à Incidência agora?');
+          if (quer) window.openAnexoModal('MN', mnStamp, '');
+        } catch(_){}
+      };
+    }
+  } catch(_){}

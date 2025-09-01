@@ -340,6 +340,11 @@
   #anexoModal .modal-body > .mb-2:first-of-type { display:none !important; }
   #anexoModal .modal-body > .d-flex.align-items-center.mb-2 { justify-content:end !important; }
   #anexoModal .modal-body > .d-flex.align-items-center.mb-2 small { display:none !important; }
+  /* Agendar MN: limitar altura do modal e cards de check-out scrolláveis */
+  #agendarModal .modal-content { max-height: 90vh; display: flex; flex-direction: column; }
+  #agendarModal .modal-body { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
+  #agendarModal #mnOutOptions { flex: 1 1 auto; overflow: auto; padding-right: 2px; }
+  #agendarModal #mnOutOptions .mn-out-option { border:1px solid #e5e7eb; border-radius:.5rem; background:#fff; }
 </style>
 
 <style>
@@ -477,7 +482,7 @@
 
 <!-- Modal de Agendamento (para MN nÃ£o agendadas) -->
 <div class="modal fade" id="agendarModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-dialog-scrollable">
     <form class="modal-content" id="agendarForm">
       <div class="modal-header">
         <h5 class="modal-title">Agendar manutenÃ§Ã£o</h5>
@@ -487,14 +492,15 @@
         <div id="mnResumo" class="mb-2"></div>
         <input type="hidden" id="agendarMNStamp" />
 
-        <div class="mb-3">
-          <label for="agendarData" class="form-label">Data</label>
-          <input type="date" class="form-control" id="agendarData" required>
-        </div>
-
-        <div class="mb-3">
-          <label for="agendarHora" class="form-label">Hora</label>
-          <input type="time" class="form-control" id="agendarHora" required>
+        <div class="row g-2">
+          <div class="col-6">
+            <label for="agendarData" class="form-label">Data</label>
+            <input type="date" class="form-control" id="agendarData" required>
+          </div>
+          <div class="col-6">
+            <label for="agendarHora" class="form-label">Hora</label>
+            <input type="time" class="form-control" id="agendarHora" required>
+          </div>
         </div>
 
         <div class="mb-3">
