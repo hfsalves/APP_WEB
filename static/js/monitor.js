@@ -2222,6 +2222,7 @@ function formatDatePT(s) {
     const fileInput = document.getElementById('anexoFile');
     const tableEl = document.getElementById('anexoTable');
     const recEl = document.getElementById('anexoRec');
+    // descrição removida do UI
     const descEl = document.getElementById('anexoDescricao');
     let queue = [];
 
@@ -2256,7 +2257,29 @@ function formatDatePT(s) {
     try {
       const modalEl = document.getElementById('anexoModal');
       if (modalEl) {
-        modalEl.addEventListener('shown.bs.modal', () => { queue = []; renderQueue(); });
+        modalEl.addEventListener('shown.bs.modal', () => {
+          // Reset e render
+          queue = []; renderQueue();
+          // Oculta descrição e label (sem remover o bloco para não ativar :first-of-type)
+          try {
+            const lbl = modalEl.querySelector('label[for="anexoDescricao"]');
+            const inp = modalEl.querySelector('#anexoDescricao');
+            if (lbl) lbl.style.display = 'none';
+            if (inp) inp.style.display = 'none';
+          } catch(_){}
+          // Garante que a linha do botão "Novo anexo" está visível e alinhada à direita
+          try {
+            if (addBtn) {
+              const row = addBtn.closest('.mb-2');
+              if (row) {
+                row.style.setProperty('display', 'flex', 'important');
+                row.style.justifyContent = 'end';
+                const sm = row.querySelector('small');
+                if (sm) sm.style.display = 'none';
+              }
+            }
+          } catch(_){}
+        });
       }
     } catch(_){}
 
@@ -2264,7 +2287,6 @@ function formatDatePT(s) {
       e.preventDefault();
       const table = tableEl?.value || '';
       const rec   = recEl?.value || '';
-      const desc  = descEl?.value || '';
       if (!table || !rec || queue.length === 0) { alert('Seleciona pelo menos um ficheiro.'); return; }
       try {
         const btn = document.getElementById('anexoUploadBtn');
@@ -2274,7 +2296,6 @@ function formatDatePT(s) {
           const fd = new FormData();
           fd.append('table', table);
           fd.append('rec', rec);
-          fd.append('descricao', desc);
           fd.append('file', f);
           try {
             const r = await fetch('/api/anexos/upload', { method: 'POST', body: fd });

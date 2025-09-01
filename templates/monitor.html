@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Monitor de Trabalho{% endblock %}
 
@@ -336,6 +336,10 @@
   #anexoModal .anexo-thumb { width:100%; height:100px; object-fit:cover; border-radius:.25rem; background:#f3f4f6; display:block; }
   #anexoModal .anexo-name { font-size:.8rem; margin-top:.25rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #anexoModal .anexo-remove { position:absolute; top:4px; right:4px; border:none; background:rgba(0,0,0,.55); color:#fff; border-radius:12px; width:24px; height:24px; line-height:24px; text-align:center; cursor:pointer; }
+  /* Simplificar modal de anexos: esconder descrição e nota */
+  #anexoModal .modal-body > .mb-2:first-of-type { display:none !important; }
+  #anexoModal .modal-body > .d-flex.align-items-center.mb-2 { justify-content:end !important; }
+  #anexoModal .modal-body > .d-flex.align-items-center.mb-2 small { display:none !important; }
 </style>
 
 <style>
@@ -1052,7 +1056,7 @@
         if (fabBtn) fabBtn.title = 'Ações rápidas';
       } catch (_) {}
 
-      // Normaliza mensagens de alert relacionadas a incidência
+      // Normaliza mensagens de alert relacionadas a incidência/anexos
       try {
         const _alert = window.alert;
         window.alert = function(msg) {
@@ -1061,11 +1065,30 @@
               msg = msg
                 .replace(/incid[^a-z]?ncia/gi, 'incidência')
                 .replace(/Falha ao gravar incid[^a-z]?ncia/gi, 'Falha ao gravar incidência')
-                .replace(/Erro ao gravar incid[^a-z]?ncia/gi, 'Erro ao gravar incidência');
+                .replace(/Erro ao gravar incid[^a-z]?ncia/gi, 'Erro ao gravar incidência')
+                .replace(/Uploads conclu[^a-z]?dos/gi, 'Uploads concluídos');
             }
           } catch (_) {}
           return _alert(msg);
         };
+      } catch (_) {}
+
+      // Simplifica modal de anexos: remove descrição e texto auxiliar, força alinhamento à direita
+      try {
+        const modal = document.getElementById('anexoModal');
+        if (modal) {
+          const body = modal.querySelector('.modal-body');
+          if (body) {
+            const firstMb2 = body.querySelector('.mb-2');
+            if (firstMb2 && firstMb2.querySelector('#anexoDescricao')) firstMb2.remove();
+            const hintRow = body.querySelector('.d-flex.align-items-center.mb-2');
+            if (hintRow) {
+              const small = hintRow.querySelector('small');
+              if (small) small.remove();
+              hintRow.style.justifyContent = 'end';
+            }
+          }
+        }
       } catch (_) {}
     });
   </script>
@@ -1074,4 +1097,17 @@
 
 
 
+
+      // Substitui confirm do fluxo de anexos para MN com texto corrigido
+      try {
+        if (typeof window.askAddAnexosForMN === 'function') {
+          window.askAddAnexosForMN = function(mnStamp) {
+            try {
+              if (!mnStamp) return;
+              const quer = window.confirm('Queres anexar fotos/vídeos à Incidência agora?');
+              if (quer) window.openAnexoModal('MN', mnStamp, '');
+            } catch(_){}
+          };
+        }
+      } catch(_){}
 
