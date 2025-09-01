@@ -342,8 +342,13 @@
   #anexoModal .modal-body > .d-flex.align-items-center.mb-2 small { display:none !important; }
   /* Agendar MN: limitar altura do modal e cards de check-out scrolláveis */
   #agendarModal .modal-content { max-height: 90vh; display: flex; flex-direction: column; }
-  #agendarModal .modal-body { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
-  #agendarModal #mnOutOptions { flex: 1 1 auto; overflow: auto; padding-right: 2px; }
+  #agendarModal .modal-body { display: block; overflow: auto; }
+  /* Thumbs de anexos no agendarModal (igual ao anexoModal) */
+  #agendarModal .anexo-queue { display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:.5rem; }
+  #agendarModal .anexo-item { border:1px solid #e5e7eb; border-radius:.5rem; padding:.5rem; background:#fff; position:relative; }
+  #agendarModal .anexo-thumb { width:100%; height:100px; object-fit:cover; border-radius:.25rem; background:#f3f4f6; display:block; }
+  #agendarModal .anexo-name { font-size:.8rem; margin-top:.25rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #agendarModal #mnOutOptions { overflow: visible; padding-right: 0; }
   #agendarModal #mnOutOptions .mn-out-option { border:1px solid #e5e7eb; border-radius:.5rem; background:#fff; }
 </style>
 
@@ -507,6 +512,8 @@
           <label for="agendarUser" class="form-label">Utilizador</label>
           <select class="form-select" id="agendarUser"></select>
         </div>
+        <!-- Thumbnails de anexos da MN -->
+        <div id="mnAnexos" class="anexo-queue mt-2"></div>
         <div id="mnOutOptions" class="mt-2"></div>
       </div>
       <div class="modal-footer">

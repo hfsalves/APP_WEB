@@ -1645,6 +1645,36 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             // Preenche blocos de check-outs (override contedo anterior)
             if (infoEl) setTimeout(() => fillOutOptions(aloj), 0);
+            // Carrega thumbnails de anexos da MN
+            try {
+              const thumbsEl = document.getElementById('mnAnexos');
+              if (thumbsEl) {
+                thumbsEl.innerHTML = '<div class="text-muted small">A carregar anexos...</div>';
+                fetch(`/api/anexos?table=MN&rec=${encodeURIComponent(mnstamp)}`)
+                  .then(a => a.json())
+                  .then(list => {
+                    if (!Array.isArray(list) || list.length === 0) { thumbsEl.innerHTML = ''; return; }
+                    thumbsEl.innerHTML = '';
+                    const isImg = (t) => /^(png|jpg|jpeg|gif|webp)$/i.test(String(t||''));
+                    const isVid = (t) => /^(mp4|webm|ogg|mov)$/i.test(String(t||''));
+                    list.forEach((a) => {
+                      const url = a.CAMINHO || '#';
+                      const typ = a.TIPO || '';
+                      const name = a.FICHEIRO || '';
+                      const item = document.createElement('a');
+                      item.className = 'anexo-item text-decoration-none text-body';
+                      item.href = url; item.target = '_blank';
+                      let inner = '';
+                      if (isImg(typ)) inner = `<img class=\"anexo-thumb\" src=\"${url}\">`;
+                      else if (isVid(typ)) inner = `<video class=\"anexo-thumb\" src=\"${url}\" muted></video>`;
+                      else inner = `<div class=\"anexo-thumb d-flex align-items-center justify-content-center text-muted\"><i class=\"fa-regular fa-file-lines fa-2x\"></i></div>`;
+                      item.innerHTML = `${inner}<div class=\"anexo-name\" title=\"${name}\">${name}</div>`;
+                      thumbsEl.appendChild(item);
+                    });
+                  })
+                  .catch(()=> { thumbsEl.innerHTML=''; });
+              }
+            } catch(_) {}
           })
           .catch(() => { resumo.innerHTML = ''; });
       }
