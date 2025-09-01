@@ -288,11 +288,19 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="nrAbrir" disabled>Abrir</button>
         <button type="button" class="btn btn-primary" id="nrGravar">Gravar</button>
       </div>
     </div>
   </div>
 </div>
+
+<style>
+  /* Notas de Reserva: altura máxima e resultados scrolláveis */
+  #nrModal .modal-content { max-height: 90vh; display: flex; flex-direction: column; }
+  #nrModal .modal-body { flex: 1 1 auto; overflow: hidden; display: flex; flex-direction: column; }
+  #nrResultados { flex: 1 1 auto; overflow: auto; }
+</style>
 
 <!-- Modal: Nova Falta (FS) -->
 <div class="modal fade" id="novaFaltaModal" tabindex="-1" aria-hidden="true">

@@ -1,0 +1,4 @@
+﻿const canOpenRS = (typeof window !== 'undefined' && window.CAN_OPEN_RS) ? true : false;
+        const openBtn = (canOpenRS && row.RSSTAMP)
+          ? `<a class=\"btn btn-sm btn-primary\" href=\"/generic/form/RS/${encodeURIComponent(row.RSSTAMP)}?return_to=/monitor\">Abrir</a>`
+          : '';
