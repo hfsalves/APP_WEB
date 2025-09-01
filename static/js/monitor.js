@@ -13,6 +13,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnTabAloj = document.getElementById('filtersTabAloj');
   const btnTabOrigins = document.getElementById('filtersTabOrigins');
   const listContainer = document.getElementById('filtersList');
+  const listWrapper = document.querySelector('#filtersModal .filters-list-wrapper');
+  function setFiltersLoading(isLoading) {
+    try {
+      if (listWrapper) listWrapper.classList.toggle('loading', !!isLoading);
+      if (listContainer) listContainer.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+    } catch(_) {}
+  }
   const btnApply = document.getElementById('filtersApply');
   const btnClear = document.getElementById('filtersClear');
   const btnAll   = document.getElementById('filtersSelectAll');
@@ -128,8 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       card.textContent = label;
 
-      const tempSet = temp[type];
-      const markSelected = (tempAll[type] === true) || tempSet.has(key);
+      const markSelected = (tempAll[type] === true) || (temp[type] && temp[type].has(key));
       if (markSelected) card.classList.add('selected');
 
       card.addEventListener('click', () => {
@@ -139,7 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
           tempAll[type] = false;
           temp[type] = new Set(items.map(v => normalizeStr(v)));
         }
-        if (sel) tempSet.add(key); else tempSet.delete(key);
+        // operar sempre sobre o set atual (após possível substituição acima)
+        if (!temp[type]) temp[type] = new Set();
+        if (sel) temp[type].add(key); else temp[type].delete(key);
       });
 
       listContainer.appendChild(card);
@@ -147,20 +155,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function showTab(tab) {
+    setFiltersLoading(true);
     currentTab = tab;
     btnTabUsers.classList.toggle('active', tab === 'users');
     btnTabAloj.classList.toggle('active', tab === 'aloj');
     btnTabOrigins.classList.toggle('active', tab === 'origins');
-
-    if (tab === 'users') {
-      const users = await fetchUsersList();
-      renderCards(users, 'users');
-    } else if (tab === 'aloj') {
-      const aloj = await fetchAlojList();
-      renderCards(aloj, 'aloj');
-    } else {
-      const origins = ['MN', 'LP', 'FS', ''];
-      renderCards(origins, 'origins');
+    try {
+      if (tab === 'users') {
+        const users = await fetchUsersList();
+        renderCards(users, 'users');
+      } else if (tab === 'aloj') {
+        const aloj = await fetchAlojList();
+        renderCards(aloj, 'aloj');
+      } else {
+        const origins = ['MN', 'LP', 'FS', ''];
+        renderCards(origins, 'origins');
+      }
+    } finally {
+      setFiltersLoading(false);
     }
   }
 
@@ -477,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
   startFetchTasks();
 
   //fetch(`/generic/api/calendar_tasks?start=${startStr}&end=${endStr}`)
-  fetch(`/generic/api/monitor_tasks`)
+  /* fetch(`/generic/api/monitor_tasks`)
     .then(res => res.json())
     .then(data => {
       // guarda dados globais e renderiza conforme filtros
@@ -661,7 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setCount('count-futuras', cntFuturas);
       setCount('count-tratadas', cntTratadas);
     })
-    .catch(err => alert('Erro ao carregar tarefas: ' + err));
+    .catch(err => alert('Erro ao carregar tarefas: ' + err)); */
 
   if (btnTratar) {
     btnTratar.addEventListener('click', async () => {
@@ -1787,18 +1799,13 @@ document.addEventListener('click', function(e) {
   }
 
   async function reloadTasksFilteredImmediate() {
-    try {
-      const onlyMine = !!chk.checked;
-      const res = await fetch(`/generic/api/monitor_tasks_filtered?only_mine=${onlyMine ? '1' : '0'}`);
-      const data = await res.json();
-      window.MONITOR_TAREFAS_DATA = Array.isArray(data) ? data : (data.rows || []);
-      renderTasksFilteredImmediate(window.MONITOR_TAREFAS_DATA);
-    } catch (err) {
-      console.error('Erro a recarregar tarefas (filtro):', err);
-    }
+    // Desativado: lógica legacy que sobrescrevia o render do modal de filtros
+    return;
   }
 
   function renderTasksFilteredImmediate(data) {
+    // Desativado
+    return;
     const colAtrasadas = document.getElementById('tarefas-atrasadas');
     const colHoje = document.getElementById('tarefas-hoje');
     const colFuturas = document.getElementById('tarefas-futuras');
@@ -1914,20 +1921,17 @@ document.addEventListener('click', function(e) {
   }
 })();
 
-// Fora o estado por defeito com visto e recarrega
+// Removido: bloco legado de filtro "Apenas as minhas tarefas" duplicado
+/*
 document.addEventListener('DOMContentLoaded', () => {
   const chk = document.getElementById('onlyMineChk');
   if (chk) {
     chk.checked = true;
     try { localStorage.setItem('monitor_only_mine','1'); } catch(_){}
-    // dispara mudana para garantir render
     try { chk.dispatchEvent(new Event('change')); } catch(_){}
   }
 });
 
-// =========================
-// Filtro: Apenas as minhas tarefas
-// =========================
 (function() {
   const onlyMineKey = 'monitor_only_mine';
 
@@ -1957,6 +1961,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderTasksFiltered(data) {
+    // Desativado: renderer legado baseado em onlyMine
+    return;
     const colAtrasadas = document.getElementById('tarefas-atrasadas');
     const colHoje = document.getElementById('tarefas-hoje');
     const colFuturas = document.getElementById('tarefas-futuras');
@@ -2057,14 +2063,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function reloadTasksFiltered() {
-    try {
-      const res = await fetch('/generic/api/monitor_tasks');
-      const data = await res.json();
-      window.MONITOR_TAREFAS_DATA = Array.isArray(data) ? data : (data.rows || []);
-      renderTasksFiltered(window.MONITOR_TAREFAS_DATA);
-    } catch (err) {
-      console.error(err);
-    }
+    // Desativado: fetch/render legado
+    return;
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -2085,6 +2085,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reloadTasksFiltered();
   });
 })();
+*/
 
 // Novo renderer: cards de MN semelhantes aos das tarefas
 function renderMNCardStyled(mn) {
