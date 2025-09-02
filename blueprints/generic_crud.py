@@ -361,7 +361,156 @@ def monitor_tasks_filtered():
     """)
     try:
         rows = db.session.execute(sql, params).fetchall()
-        return jsonify([dict(r._mapping) for r in rows])
+        base_rows = [dict(r._mapping) for r in rows]
+
+        # Regra urgente: Se o utilizador tiver LP num alojamento num dia,
+        # incluir MN/FS desse alojamento/dia (mesmo de outros utilizadores),
+        # sem necessidade de aplicar filtros.
+        # Implementação: só ativa quando only_mine=True (caso típico do utilizador comum).
+        # Regra urgente ativa sempre: com base nas LP do utilizador atual,
+        # incluir MN/FS do mesmo alojamento/dia, independentemente de filtros.
+        if True:
+            try:
+                # Pairs (DATA, ALOJAMENTO) de LP do utilizador na mesma janela lógica
+                lp_sql = text(
+                    """
+                    SELECT CONVERT(varchar(10), DATA, 23) AS DATA,
+                           ISNULL(ALOJAMENTO,'')           AS ALOJAMENTO
+                    FROM TAREFAS
+                    WHERE UPPER(ISNULL(ORIGEM,'')) = 'LP'
+                      AND UPPER(UTILIZADOR) = UPPER(:u)
+                      AND (TRATADO = 0 OR DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))
+                    """
+                )
+                lp_pairs = [(r.DATA, r.ALOJAMENTO) for r in db.session.execute(lp_sql, {'u': current_user.LOGIN})]
+
+                if lp_pairs:
+                    # Construir WHERE por pares (DATA, ALOJAMENTO)
+                    def build_pair_where(alias_data: str, alias_aloj: str, prefix: str):
+                        conds = []
+                        bind = {}
+                        for idx, (d, a) in enumerate(lp_pairs):
+                            kd, ka = f"{prefix}d{idx}", f"{prefix}a{idx}"
+                            bind[kd] = d
+                            bind[ka] = a
+                            conds.append(f"({alias_data} = :{kd} AND ISNULL({alias_aloj},'') = :{ka})")
+                        return ("(" + " OR ".join(conds) + ")", bind) if conds else ("1=0", {})
+
+                    extra = []
+
+                    # TAREFAS extra (de outros utilizadores) para MN/FS que coincidam com (DATA, ALOJAMENTO)
+                    try:
+                        tf_where_pairs, tf_bind = build_pair_where('T.DATA', 'T.ALOJAMENTO', 't')
+                        tf_sql = text(
+                                f"""
+                                SELECT 
+                                  T.TAREFASSTAMP,
+                                  CONVERT(varchar(10), T.DATA, 23)       AS DATA,
+                                  LEFT(CONVERT(varchar(8), T.HORA, 108), 5) AS HORA,
+                                  T.TAREFA,
+                                  ISNULL(T.ALOJAMENTO,'')                 AS ALOJAMENTO,
+                                  T.TRATADO,
+                                  ISNULL(T.ORIGEM,'')                      AS ORIGEM,
+                                  T.UTILIZADOR,
+                                  U.NOME                                   AS UTILIZADOR_NOME,
+                                  U.COR                                    AS UTILIZADOR_COR
+                                FROM TAREFAS T
+                                LEFT JOIN US U ON U.LOGIN = T.UTILIZADOR
+                                WHERE {tf_where_pairs}
+                                  AND (T.TRATADO = 0 OR T.DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))
+                                  AND T.DATA >= CAST(GETDATE() AS date)
+                                  AND UPPER(ISNULL(T.ORIGEM,'')) IN ('MN','FS')
+                                """
+                            )
+                        for r in db.session.execute(tf_sql, tf_bind).mappings().all():
+                            extra.append(dict(r))
+                    except Exception:
+                        pass
+
+                    # MN extra (não agendadas): usa INCIDENCIA, junta nome/cor do utilizador
+                    try:
+                        mn_where_pairs, mn_bind = build_pair_where('M.DATA', 'M.ALOJAMENTO', 'm')
+                        mn_sql = text(
+                            f"""
+                            SELECT
+                              CONVERT(varchar(10), M.DATA, 23)   AS DATA,
+                              '00:00'                            AS HORA,
+                              ISNULL(M.ALOJAMENTO,'')            AS ALOJAMENTO,
+                              'MN'                               AS ORIGEM,
+                              M.INCIDENCIA                       AS TAREFA,
+                              ISNULL(M.TRATADO,0)                AS TRATADO,
+                              ISNULL(M.NOME,'')                  AS UTILIZADOR,
+                              U.NOME                             AS UTILIZADOR_NOME,
+                              U.COR                              AS UTILIZADOR_COR
+                            FROM MN M
+                            LEFT JOIN US U ON U.LOGIN = M.NOME
+                            WHERE {mn_where_pairs}
+                              AND (ISNULL(M.TRATADO,0) = 0 OR M.DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))
+                              AND M.DATA >= CAST(GETDATE() AS date)
+                              AND M.MNSTAMP NOT IN (SELECT ORISTAMP FROM TAREFAS)
+                            """
+                        )
+                        for r in db.session.execute(mn_sql, mn_bind).mappings().all():
+                            extra.append(dict(r))
+                    except Exception:
+                        pass
+
+                    # FS extra (não agendadas): usa ITEM, junta nome/cor do utilizador
+                    try:
+                        fs_where_pairs, fs_bind = build_pair_where('F.DATA', 'F.ALOJAMENTO', 'f')
+                        fs_sql = text(
+                            f"""
+                            SELECT
+                              CONVERT(varchar(10), F.DATA, 23)   AS DATA,
+                              '00:00'                            AS HORA,
+                              ISNULL(F.ALOJAMENTO,'')            AS ALOJAMENTO,
+                              'FS'                               AS ORIGEM,
+                              F.ITEM                             AS TAREFA,
+                              ISNULL(F.TRATADO,0)                AS TRATADO,
+                              ISNULL(F.USERNAME,'')              AS UTILIZADOR,
+                              U.NOME                             AS UTILIZADOR_NOME,
+                              U.COR                              AS UTILIZADOR_COR
+                            FROM FS F
+                            LEFT JOIN US U ON U.LOGIN = F.USERNAME
+                            WHERE {fs_where_pairs}
+                              AND (ISNULL(F.TRATADO,0) = 0 OR F.DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))
+                              AND F.DATA >= CAST(GETDATE() AS date)
+                              AND F.FSSTAMP NOT IN (SELECT ORISTAMP FROM TAREFAS)
+                            """
+                        )
+                        for r in db.session.execute(fs_sql, fs_bind).mappings().all():
+                            extra.append(dict(r))
+                    except Exception:
+                        pass
+
+                    if extra:
+                        # Evitar duplicados por chave lógica
+                        seen = set(
+                            f"{x.get('ORIGEM','')}|{x.get('DATA','')}|{x.get('HORA','')}|{x.get('ALOJAMENTO','')}|{x.get('TAREFA','')}|{x.get('UTILIZADOR','')}"
+                            for x in base_rows
+                        )
+                        for r in extra:
+                            k = f"{r.get('ORIGEM','')}|{r.get('DATA','')}|{r.get('HORA','')}|{r.get('ALOJAMENTO','')}|{r.get('TAREFA','')}|{r.get('UTILIZADOR','')}"
+                            if k in seen:
+                                continue
+                            seen.add(k)
+                            # garantir campos esperados
+                            if not r.get('HORA'):
+                                r['HORA'] = '00:00'
+                            r.setdefault('TAREFASSTAMP', None)
+                            base_rows.append(r)
+
+            except Exception:
+                # Não falhar o endpoint por causa da lógica extra
+                pass
+
+        # ordena por data/hora para consistência
+        try:
+            base_rows.sort(key=lambda x: (str(x.get('DATA') or ''), str(x.get('HORA') or '')))
+        except Exception:
+            pass
+
+        return jsonify(base_rows)
     except Exception as e:
         current_app.logger.exception('Erro em monitor_tasks_filtered')
         return jsonify({'error': str(e)}), 500

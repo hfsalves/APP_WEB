@@ -485,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!grp) {
               const header = document.createElement('div');
               header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
-              const title = diffDays === 1 ? 'AmanhÃ£' : `Daqui a ${diffDays} dias`;
+              const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
               header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
               const container = document.createElement('div');
               container.className = 'mb-3';
@@ -755,7 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
               if (!grp) {
                 const header = document.createElement('div');
                 header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
-                const title = diffDays === 1 ? 'AmanhÃ£' : `Daqui a ${diffDays} dias`;
+                const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
                 header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
                 const container = document.createElement('div');
                 container.className = 'mb-3';
@@ -963,7 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!grp) {
               const header = document.createElement('div');
               header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
-              const title = diffDays === 1 ? 'Amanh' : `Daqui a ${diffDays} dias`;
+              const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
               header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
               const container = document.createElement('div');
               container.className = 'mb-3';
