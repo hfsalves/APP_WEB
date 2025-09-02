@@ -983,7 +983,8 @@
           if (resumo) resumo.innerHTML = `<div class=\"tarefa-titulo\"><strong>${esc(aloj||'')}</strong></div><div class=\"tarefa-subtitulo text-muted small\">${esc(nome||'')}${(nome&&dref)?'  ':''}${esc(dref||'')}</div>`;
         } catch{}
         // check-outs
-        if (aloj) fillCheckouts(aloj);
+        // preenchimento legacy desativado: monitor.js preenche os check-outs
+        // if (aloj) fillCheckouts(aloj);
         // handlers: tratar & abrir
         try {
           const btnTratar = document.getElementById('mnTratadaBtn');
@@ -1075,7 +1076,7 @@
         if (fabBtn) fabBtn.title = 'Ações rápidas';
       } catch (_) {}
 
-      // Normaliza mensagens de alert relacionadas a incidência/anexos
+      // Normaliza mensagens de alert relacionadas a incidência/anexos e troca por toast quando for sucesso/aviso/erro de anexos
       try {
         const _alert = window.alert;
         window.alert = function(msg) {
@@ -1086,6 +1087,26 @@
                 .replace(/Falha ao gravar incid[^a-z]?ncia/gi, 'Falha ao gravar incidência')
                 .replace(/Erro ao gravar incid[^a-z]?ncia/gi, 'Erro ao gravar incidência')
                 .replace(/Uploads conclu[^a-z]?dos/gi, 'Uploads concluídos');
+              // Converte alertas específicos do fluxo de anexos em toasts
+              try {
+                const s = String(msg);
+                if (/^Enviado(s)?\s+\d+\s+ficheiro(s)?\s+com sucesso\./i.test(s)) {
+                  if (window.showToast) window.showToast(s, 'success');
+                  return;
+                }
+                if (/^Uploads\s+conclu/i.test(s)) {
+                  if (window.showToast) window.showToast(s, 'warning');
+                  return;
+                }
+                if (/Erro\s+ao\s+enviar\s+anexo\.?/i.test(s)) {
+                  if (window.showToast) window.showToast(s, 'danger');
+                  return;
+                }
+                if (/Seleciona\s+pelo\s+menos\s+um\s+ficheiro\.?/i.test(s)) {
+                  if (window.showToast) window.showToast(s, 'warning');
+                  return;
+                }
+              } catch (_) {}
             }
           } catch (_) {}
           return _alert(msg);

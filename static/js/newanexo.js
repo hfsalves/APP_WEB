@@ -25,6 +25,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!confirm('Eliminar este anexo?')) return;
             await fetch(`/generic/api/anexos/${el.dataset.id}`, { method: 'DELETE' });
             refreshAnexos();
+            if (typeof window.showToast === 'function') {
+              window.showToast('Anexo eliminado.', 'info');
+            }
           }
         });
       });
@@ -45,6 +48,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (res.ok) {
       inputFile.value = '';
       refreshAnexos();
+      if (typeof window.showToast === 'function') {
+        window.showToast('Anexo gravado com sucesso.', 'success');
+      }
     } else {
       alert('Erro ao anexar!');
     }
