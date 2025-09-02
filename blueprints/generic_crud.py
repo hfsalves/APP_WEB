@@ -659,8 +659,33 @@ def create_record(table_name):
     except Exception as e:
         current_app.logger.exception(f"Falha ao criar {table_name}")
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+    return jsonify({'error': str(e)}), 500
 
+
+# --------------------------------------------------
+# API: obter ORIGEM e ORISTAMP de uma TAREFA
+# --------------------------------------------------
+@bp.route('/api/tarefa_origin/<tarefas_stamp>', methods=['GET'])
+@login_required
+def tarefa_origin(tarefas_stamp):
+    if not tarefas_stamp:
+        return jsonify({'error': 'TAREFASSTAMP em falta'}), 400
+    # Permissão básica: consultar TAREFAS
+    if not has_permission('TAREFAS', 'consultar') and not getattr(current_user, 'ADMIN', False):
+        return jsonify({'error': 'Sem permissão'}), 403
+    try:
+        sql = text("""
+            SELECT TOP 1 ORIGEM, ORISTAMP
+            FROM TAREFAS
+            WHERE TAREFASSTAMP = :id
+        """)
+        row = db.session.execute(sql, {'id': tarefas_stamp}).mappings().first()
+        if not row:
+            return jsonify({}), 404
+        return jsonify({'ORIGEM': row['ORIGEM'] or '', 'ORISTAMP': row['ORISTAMP'] or ''})
+    except Exception as e:
+        current_app.logger.exception('Erro em tarefa_origin')
+        return jsonify({'error': str(e)}), 500
 
 # --------------------------------------------------
 # API: atualizar registro

@@ -37,6 +37,119 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let tarefaSelecionada = null;
 
+  // Fallback: quando o modal da tarefa abrir, tenta carregar anexos a partir de window.tarefaSelecionada
+  try {
+    const tarefaModalEl = document.getElementById('tarefaModal');
+    if (tarefaModalEl) {
+      tarefaModalEl.addEventListener('shown.bs.modal', () => {
+        try { console.log('[TarefaAnexos] modal shown; selected =', window.tarefaSelecionada); } catch(_) {}
+        if (typeof loadTarefaAnexos === 'function') {
+          try { loadTarefaAnexos(window.tarefaSelecionada || tarefaSelecionada || null); } catch(_) {}
+        }
+      });
+    }
+  } catch(_) {}
+
+  // Resolve ORISTAMP a partir do objeto da tarefa (heurística)
+  function resolveOriStamp(task) {
+    try {
+      if (!task || typeof task !== 'object') return '';
+      if (task.ORISTAMP) return task.ORISTAMP;
+      // preferências por origem
+      const origem = (task.ORIGEM || '').toUpperCase();
+      const prefs = {
+        'MN': ['MNSTAMP','MN_STAMP','ORISTAMP'],
+        'LP': ['LPSTAMP','LP_STAMP','ORISTAMP'],
+        'FS': ['FSSTAMP','FS_STAMP','ORISTAMP']
+      };
+      const list = prefs[origem] || ['MNSTAMP','LPSTAMP','FSSTAMP','ORISTAMP'];
+      for (const k of list) {
+        if (k in task && task[k]) return task[k];
+      }
+      // fallback: primeira propriedade que termine em STAMP diferente de TAREFASSTAMP
+      for (const k of Object.keys(task)) {
+        if (/STAMP$/i.test(k) && k.toUpperCase() !== 'TAREFASSTAMP' && task[k]) return task[k];
+      }
+      return '';
+    } catch(_) { return ''; }
+  }
+
+  // Carrega thumbnails de anexos no modal de tarefa, com base em ORISTAMP
+  async function loadTarefaAnexos(task) {
+    try {
+      const cont = document.getElementById('tarefaAnexos');
+      if (!cont) return;
+      cont.innerHTML = '';
+      let oristamp = resolveOriStamp(task);
+      try { console.log('[TarefaAnexos] Task clicked:', task); } catch(_) {}
+      try { console.log('[TarefaAnexos] Keys:', task ? Object.keys(task) : 'no-task'); } catch(_) {}
+      let origem = (task && task.ORIGEM ? String(task.ORIGEM) : '').toUpperCase();
+      // Fallback: tenta extrair do URL de abertura, caso não haja ORISTAMP direto
+      if (!oristamp) {
+        try {
+          const oi = (typeof getOpenInfo === 'function') ? getOpenInfo(task || {}) : null;
+          const url = oi && oi.url ? oi.url : '';
+          const m = url.match(/\/generic\/form\/(MN|LP|FS)\/([^/?#]+)/i);
+          if (m) {
+            origem = (m[1] || '').toUpperCase();
+            oristamp = decodeURIComponent(m[2] || '');
+            console.log('[TarefaAnexos] Fallback from URL:', origem, oristamp);
+          }
+        } catch(_) {}
+      }
+      // Fallback final: consulta backend por origem/stamp da tarefa
+      if (!oristamp && task && task.TAREFASSTAMP) {
+        try {
+          const r = await fetch(`/generic/api/tarefa_origin/${encodeURIComponent(task.TAREFASSTAMP)}`);
+          const js = await r.json().catch(()=>({}));
+          if (r.ok && js) {
+            if (!origem) origem = (js.ORIGEM || '').toUpperCase();
+            oristamp = js.ORISTAMP || oristamp;
+            console.log('[TarefaAnexos] Fallback from API:', origem, oristamp);
+          }
+        } catch(_) {}
+      }
+      if (!oristamp) { try { console.log('[TarefaAnexos] Sem ORISTAMP; não vai buscar anexos'); } catch(_) {}; cont.innerHTML = ''; return; }
+      const tables = (origem && ['MN','LP','FS'].includes(origem)) ? [origem] : ['MN','LP','FS'];
+      cont.innerHTML = '<div class="text-muted small">A carregar anexos...</div>';
+      const fetchTab = async (tab) => {
+        try {
+          const url = `/api/anexos?table=${tab}&rec=${encodeURIComponent(oristamp)}`;
+          try { console.log('[TarefaAnexos] GET', url); } catch(_) {}
+          const r = await fetch(url);
+          if (!r.ok) return [];
+          const arr = await r.json();
+          return Array.isArray(arr) ? arr : [];
+        } catch { return []; }
+      };
+      const lists = await Promise.all(tables.map(fetchTab));
+      const flat = [].concat(...lists);
+      const seen = new Set();
+      const rows = flat.filter(a => {
+        const k = a.ANEXOSSTAMP || a.anexosstamp || `${a.CAMINHO}|${a.FICHEIRO}`;
+        if (seen.has(k)) return false; seen.add(k); return true;
+      });
+      cont.innerHTML = '';
+      if (rows.length === 0) return;
+      const isImg = (t) => /^(png|jpg|jpeg|gif|webp)$/i.test(String(t||''));
+      const isVid = (t) => /^(mp4|webm|ogg|mov)$/i.test(String(t||''));
+      rows.forEach((a) => {
+        const url = a.CAMINHO || '#';
+        const typ = a.TIPO || '';
+        const name = a.FICHEIRO || '';
+        const item = document.createElement('a');
+        item.className = 'anexo-item text-decoration-none text-body';
+        item.href = url; item.target = '_blank';
+        let inner = '';
+        if (isImg(typ)) inner = `<img class=\"anexo-thumb\" src=\"${url}\">`;
+        else if (isVid(typ)) inner = `<video class=\"anexo-thumb\" src=\"${url}\" muted></video>`;
+        else inner = `<div class=\"anexo-thumb d-flex align-items-center justify-content-center text-muted\"><i class=\"fa-regular fa-file-lines fa-2x\"></i></div>`;
+        item.innerHTML = `${inner}<div class=\"anexo-name\" title=\"${name}\">${name}</div>`;
+        cont.appendChild(item);
+      });
+    } catch(_) {}
+  }
+
   
 
   const hoje = new Date();
@@ -325,6 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
       bloco.addEventListener('click', () => {
         try { window.tarefaSelecionada = t; } catch(_) {}
         tarefaDescricao.textContent = `${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})`;
+        loadTarefaAnexos(t);
         fetch(`/api/tarefa_info/${t.TAREFASSTAMP}`)
           .then(res => res.json())
           .then(data => {
@@ -1943,6 +2057,7 @@ document.addEventListener('click', function(e) {
 
         window.tarefaSelecionada = t;
         if (tarefaDescricao) tarefaDescricao.textContent = `${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})`;
+        loadTarefaAnexos(t);
 
         fetch(`/api/tarefa_info/${t.TAREFASSTAMP}`)
           .then(res => res.json())
@@ -2102,6 +2217,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         tarefaSelecionada = t;
         if (tarefaDescricao) tarefaDescricao.textContent = `${t.TAREFA} (${t.HORA} - ${t.ALOJAMENTO})`;
+        loadTarefaAnexos(t);
 
         fetch(`/api/tarefa_info/${t.TAREFASSTAMP}`)
           .then(res => res.json())
