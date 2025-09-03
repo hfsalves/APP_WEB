@@ -1,9 +1,10 @@
-console.warn('✅ profile_form.js carregado');
+﻿console.warn('âœ… profile_form.js carregado');
 
 const TABLE_NAME = 'US';
-const camposEditaveis = ['EMAIL']; // PASSWORD e FOTO tratadas em flows próprios
-const camposOcultos = ['PASSWORD', 'FOTO']; // não desenhar estes campos no formulário
+const camposEditaveis = ['EMAIL','COR']; // PASSWORD e FOTO tratadas em flows prÃ³prios
+const camposOcultos = ['PASSWORD', 'FOTO']; // nÃ£o desenhar estes campos no formulÃ¡rio
 
+const camposMostrar = ['NOME', 'COR', 'LOGIN', 'EMAIL'];
 function showLoading() {
   const overlay = document.getElementById('loadingOverlay');
   if (overlay) {
@@ -63,19 +64,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       row.className = 'row gx-3 gy-2';
       const totalTam = fields.reduce((acc, f) => acc + (isMobile ? f.tam_mobile : f.tam || 1), 0);
       row.style.display = 'flex';
-      row.style.flexWrap = 'nowrap';
+      row.style.flexWrap = 'wrap';
 
       fields.forEach(col => {
         if (camposOcultos.includes(col.name)) return; // salta campos ocultos
+        if (!camposMostrar.includes(col.name)) return; // mostra apenas os desejados
         const tamUsado = isMobile ? col.tam_mobile : col.tam;
         const fraction = (tamUsado || 1) / totalTam;
         const colDiv = document.createElement('div');
-        colDiv.style.flex = `0 0 ${fraction * 100}%`;
+        // ForÃ§a LOGIN e EMAIL a ocupar 100% da largura
+        if (['LOGIN','EMAIL'].includes(col.name)) {
+          colDiv.style.flex = '0 0 100%';
+        } else {
+          colDiv.style.flex = `0 0 ${fraction * 100}%`;
+        }
         colDiv.style.boxSizing = 'border-box';
         colDiv.classList.add('col-12');
         row.appendChild(colDiv);
 
-        // Se for um campo vazio, desenha espaço reservado
+        // Se for um campo vazio, desenha espaÃ§o reservado
         if (!col.name) {
           colDiv.innerHTML = '<div class="invisible">.</div>';
           return;
@@ -91,7 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           input.className = 'form-select';
           input.name = col.name;
           input.innerHTML = '<option value="">---</option>';
-          // Opcional: Preencher opções depois
+          // Opcional: Preencher opÃ§Ãµes depois
         }
         // === MEMO ===
         else if (col.tipo === 'MEMO') {
@@ -114,7 +121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           input.className = 'form-check-input';
           input.name = col.name;
           input.checked = !!user[col.name];
-          input.disabled = true; // Nunca editável por perfil
+          input.disabled = true; // Nunca editÃ¡vel por perfil
         }
         // === TEXT, DATE, ETC ===
         else {
@@ -126,10 +133,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Preencher valor do utilizador
         if (col.tipo !== 'BIT') {
-          input.value = user[col.name] || '';
+          let v = user[col.name] || '';
+          if (col.tipo && col.tipo.toUpperCase() === 'COLOR') {
+            if (!v || typeof v !== 'string' || !v.startsWith('#')) {
+              v = '#223044';
+            }
+          }
+          input.value = v;
         }
 
-        // Editável só se constar nos camposEditaveis
+        // EditÃ¡vel sÃ³ se constar nos camposEditaveis
         if (!camposEditaveis.includes(col.name)) {
           input.readOnly = true;
           input.classList.add('bg-light');
@@ -151,14 +164,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   hideLoading();
 
-  // Submissão do perfil (apenas placeholder, ainda não grava nada)
+  // SubmissÃ£o do perfil (apenas placeholder, ainda nÃ£o grava nada)
   form.addEventListener('submit', e => {
     e.preventDefault();
-    document.getElementById('profileMsg').textContent = '🚧 Gravação ainda não implementada!';
+    document.getElementById('profileMsg').textContent = 'ðŸš§ GravaÃ§Ã£o ainda nÃ£o implementada!';
   });
 });
 
-// Abrir modal ao clicar no botão "Alterar Password"
+// Abrir modal ao clicar no botÃ£o "Alterar Password"
 document.getElementById('btnChangePwd').addEventListener('click', () => {
   document.getElementById('formChangePwd').reset();
   document.getElementById('msgPwd').textContent = '';
@@ -166,7 +179,7 @@ document.getElementById('btnChangePwd').addEventListener('click', () => {
   modal.show();
 });
 
-// Validar e submeter o formulário de alteração de password
+// Validar e submeter o formulÃ¡rio de alteraÃ§Ã£o de password
 document.getElementById('formChangePwd').addEventListener('submit', async function(e) {
   e.preventDefault();
   const pwd1 = document.getElementById('pwd1').value.trim();
@@ -180,7 +193,7 @@ document.getElementById('formChangePwd').addEventListener('submit', async functi
     return;
   }
   if (pwd1 !== pwd2) {
-    msgDiv.textContent = 'As passwords não coincidem!';
+    msgDiv.textContent = 'As passwords nÃ£o coincidem!';
     msgDiv.classList.remove('text-success');
     msgDiv.classList.add('text-danger');
     return;
@@ -207,7 +220,7 @@ document.getElementById('formChangePwd').addEventListener('submit', async functi
   }
 });
 
-// Handler de gravação do perfil (envia campos editáveis)
+// Handler de gravaÃ§Ã£o do perfil (envia campos editÃ¡veis)
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('profileForm');
   if (!form) return;
@@ -285,3 +298,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// Click no botÃ£o e upload no change
+document.addEventListener('DOMContentLoaded', () => {
+  const trigger = document.getElementById('btnUploadPhoto');
+  const input = document.getElementById('photoInput');
+  if (!trigger || !input) return;
+  trigger.addEventListener('click', () => input.click());
+  input.addEventListener('change', async () => {
+    if (!input.files || !input.files[0]) return;
+    const fd = new FormData();
+    fd.append('photo', input.files[0]);
+    try {
+      const resp = await fetch('/api/profile/upload_photo', { method: 'POST', body: fd });
+      if (!resp.ok) throw new Error('Upload falhou');
+      const data = await resp.json();
+      const newPath = data.path;
+      const preview = document.getElementById('profilePhotoPreview');
+      if (preview) preview.src = `/static/${newPath}`;
+      let headerImg = document.getElementById('headerUserPhoto');
+      const headerIcon = document.getElementById('headerUserIcon');
+      if (!headerImg) {
+        const btn = document.getElementById('userMenuToggle');
+        if (btn) {
+          headerImg = document.createElement('img');
+          headerImg.id = 'headerUserPhoto';
+          headerImg.style.width = '40px';
+          headerImg.style.height = '40px';
+          headerImg.style.objectFit = 'cover';
+          btn.innerHTML = '';
+          btn.appendChild(headerImg);
+        }
+      }
+      if (headerImg) {
+        headerImg.src = `/static/${newPath}`;
+        headerImg.style.display = 'block';
+      }
+      if (headerIcon) headerIcon.style.display = 'none';
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao carregar foto');
+    } finally {
+      input.value = '';
+    }
+  });
+});
+

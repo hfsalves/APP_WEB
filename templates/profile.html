@@ -5,17 +5,19 @@
 <div class="dynamic-container">
   <div class="dynamic-form">
     <!-- Bloco de foto de perfil -->
-    <div class="mb-3 d-flex align-items-center gap-3">
-      <img
+    <div id="profilePhotoSection" class="mb-3 d-flex flex-column gap-2">
+      <div class="profile-photo-block">
+        <img
         id="profilePhotoPreview"
         src="{% if user.FOTO %}{{ url_for('static', filename=user.FOTO) }}{% else %}{{ url_for('static', filename='images/icon-192.png') }}{% endif %}"
         alt="Foto de perfil"
         class="rounded-circle border"
-        style="width:64px; height:64px; object-fit:cover;"
+        style="width:100%; aspect-ratio:1; object-fit:cover;"
       />
-      <form id="photoUploadForm" class="d-flex align-items-center gap-2" enctype="multipart/form-data">
-        <input type="file" name="photo" id="photoInput" accept="image/*" class="form-control form-control-sm" style="max-width:260px;" />
-        <button type="submit" class="btn btn-primary btn-sm">Carregar Foto</button>
+      </div>
+      <form id="photoUploadForm" enctype="multipart/form-data" class="profile-photo-block">
+        <input type="file" name="photo" id="photoInput" accept="image/*" style="display:none;" />
+        <button type="button" id="btnUploadPhoto" class="btn btn-primary w-100">Carregar Foto</button>
       </form>
     </div>
     <form id="profileForm" class="row g-3"></form>

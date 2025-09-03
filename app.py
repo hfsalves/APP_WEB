@@ -221,7 +221,7 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_stamp):
         sql = text("""
-            SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, FOTO
+            SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, FOTO
             FROM US
             WHERE USSTAMP = :stamp
         """)
@@ -243,7 +243,7 @@ def create_app():
             pwd = request.form['password']
 
             sql = text("""
-                SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, FOTO
+                SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, FOTO
                 FROM US
                 WHERE LOGIN = :login
             """)
@@ -509,6 +509,7 @@ def create_app():
             'LOGIN': current_user.LOGIN,
             'NOME': current_user.NOME,
             'EMAIL': current_user.EMAIL,
+            'COR': getattr(current_user, 'COR', None),
             'ADMIN': getattr(current_user, 'ADMIN', None),
             'DEV': getattr(current_user, 'DEV', None),
             'MNADMIN': getattr(current_user, 'MNADMIN', None),
@@ -648,7 +649,7 @@ def create_app():
     @app.route('/profile')
     @login_required
     def profile():
-        return render_template('profile.html', user=current_user)
+        return render_template('profile.html', user=current_user, page_title='Perfil')
 
 
     @app.route('/api/profile/change_password', methods=['POST'])
@@ -673,7 +674,7 @@ def create_app():
         try:
             data = request.get_json(force=True) or {}
             # Campos permitidos a serem atualizados no perfil
-            allowed_fields = {'EMAIL'}
+            allowed_fields = {'EMAIL', 'COR'}
 
             user = db.session.query(US).get(current_user.USSTAMP)
             if not user:

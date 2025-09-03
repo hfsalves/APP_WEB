@@ -42,6 +42,7 @@ class US(UserMixin, db.Model):
     LOGIN    = db.Column(db.String(60), unique=True, nullable=False)
     PASSWORD = db.Column(db.String(128), nullable=False)
     EMAIL    = db.Column(db.String(120), unique=True, nullable=False)
+    COR      = db.Column(db.String(20), nullable=True)
     ADMIN    = db.Column(db.Boolean, default=False, nullable=False)
     EQUIPA   = db.Column(db.String(25), nullable=True)
     DEV      = db.Column(db.Boolean, default=False, nullable=False)
