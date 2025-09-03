@@ -1,7 +1,7 @@
 import os
 import pyodbc
 import json
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date
 from sqlalchemy import text
@@ -54,6 +54,19 @@ def create_app():
 
     from blueprints.anexos import bp as anexos_bp
     app.register_blueprint(anexos_bp)
+
+    # Favicon at root path
+    @app.route('/favicon.ico')
+    def favicon():
+        try:
+            return send_from_directory(
+                os.path.join(app.root_path, 'static', 'images'),
+                'favicon.ico',
+                mimetype='image/x-icon'
+            )
+        except Exception:
+            # As fallback, try /static/images/favicon.ico redirect
+            return redirect(url_for('static', filename='images/favicon.ico'))
 
     @app.context_processor
     def inject_menu_and_access():
