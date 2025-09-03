@@ -26,8 +26,8 @@ html, body {
   left: 0;
   bottom: 0;
   width: 240px;
-  background-color:#b9ddeb;
-  color:#0a0e25;
+  background-color: #2d3e50; /* fundo do sidebar */
+  color: #cbd1db;            /* cor do texto do menu */
   display: flex;
   flex-direction: column;
   padding: 0rem;
@@ -42,18 +42,32 @@ html, body {
 }
 .sidebar a {
   display: block;
-  padding: 0.5rem 1rem;
-  color: inherit;
+  padding: 0.5rem 1rem 0.5rem 36px; /* reserva coluna fixa para o ícone */
+  color: #cbd1db;            /* texto do menu */
+  font-size: 0.88rem;        /* reduz ligeiramente o tamanho */
+  font-weight: 300;          /* texto mais leve */
   text-decoration: none;
   border-radius: 0px;
+  text-align: left;          /* garante alinhamento à esquerda */
+  position: relative;        /* base para posicionar o ícone */
+}
+/* Garante a cor do texto do menu em todos os estados relevantes */
+.sidebar a:visited,
+.sidebar a:focus {
+  color: #cbd1db;
+}
+/* Garante que spans e ícones dentro do link herdam a mesma cor */
+.sidebar a span,
+.sidebar a i {
+  color: #cbd1db;
 }
 .sidebar-logo-link:hover {
   background: none !important;
 }
 .sidebar a:hover,
 .sidebar a.active {
-  background: #d2e6f0;
-  color: #2d415f;
+  background: #516f90;       /* hover do menu */
+  color: #cbd1db;
   border-radius: 0em;
 }
 
@@ -308,11 +322,67 @@ html, body {
   cursor: pointer;
 }
 .btn-primary {
-  background-color: #007bff;
+  background-color: #223044;
   color: #fff;
 }
+/* Hover para botões primários */
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+  background-color: #0b5ed7;
+}
 .btn-secondary {
-  background-color: #6c757d;
+  background-color: #707070; /* cor dos botões Cancelar */
+  color: #fff;
+}
+/* Hover/focus/active dos botões Cancelar */
+.btn-secondary:hover,
+.btn-secondary:focus,
+.btn-secondary:active {
+  background-color: #4f4f4f;
+  color: #fff;
+}
+
+/* Botão específico: Cancelar */
+.btn-cancel {
+  background-color: #af9b5c;
+  color: #fff;
+  border: none;
+}
+.btn-cancel:hover,
+.btn-cancel:focus,
+.btn-cancel:active {
+  background-color: #ffc107;
+  color: #fff;
+}
+
+/* Botão específico: Voltar (caso se use .btn-back) */
+.btn-back {
+  background-color: #707070;
+  color: #fff;
+  border: none;
+}
+.btn-back:hover,
+.btn-back:focus,
+.btn-back:active {
+  background-color: #4f4f4f;
+  color: #fff;
+}
+
+/* Botões de Eliminar */
+.btn-danger,
+.btn-delete {
+  background-color: #a83c38; /* cor base eliminar */
+  color: #fff;
+  border: none;
+}
+.btn-danger:hover,
+.btn-danger:focus,
+.btn-danger:active,
+.btn-delete:hover,
+.btn-delete:focus,
+.btn-delete:active {
+  background-color: #d73932; /* hover eliminar */
   color: #fff;
 }
 .btn:hover {
@@ -320,9 +390,12 @@ html, body {
 }
 .btn-new {
   border-radius: 4px;
-  background-color: #007bff;
+  background-color: #223044;
   color: #fff;
 }
+.btn-new:hover,
+.btn-new:focus,
+.btn-new:active { background-color: #0b5ed7; }
 /* FormulÃ¡rio dinÃ¢mico */
 .dynamic-form {
   width: 100%;
@@ -503,14 +576,14 @@ html, body {
   width: 100%;
   padding: 0.6rem;
   font-size: 1.1rem;
-  background-color: #007bff;
+  background-color: #223044;
   border: none;
   border-radius: 4px;
   transition: background .2s;
 }
 
 .login-container .btn-primary:hover {
-  background-color: #0056b3;
+  background-color: #0b5ed7;
 }
 
 /* Responsividade */
@@ -856,7 +929,7 @@ html, body {
 }
 /* Header global */
 .app-header {
-  background-color: #5192b8;  /* ajusta para a cor que quiseres */
+  background-color: #2d3e50;  /* fundo do header para combinar com sidebar */
   color: #fff;
   padding: 0.5rem 1rem;
   width:100%-240px
@@ -1038,7 +1111,7 @@ html, body {
   width: 100% - 240px;
   height: var(--header-height);
   line-height: var(--header-height);
-  background-color: #5a8db2; /* usa tua cor */
+  background-color: #2d3e50; /* harmonizado com a sidebar */
   display: flex;
   align-items: center;
   padding: 0 0rem;
@@ -1123,20 +1196,44 @@ body.sidebar-open .app-header {
   list-style: none;
   padding-left: 0;
   margin-left: 0;
-  color: #2d415f;
+  color: #cbd1db;            /* cor dos itens do menu */
 }
 
 .sidebar ul li a {
-  padding: 8px 10px;
+  padding: 8px 10px 8px 36px; /* mesmo alinhamento do topo */
   margin-left: 0;
   display: block;
   text-decoration: none;
-  color: #2d415f;
+  color: #cbd1db;
+  font-size: 0.88rem;        /* manter tamanho reduzido também aqui */
+}
+
+/* Reserva uma coluna fixa para os ícones e alinha o texto igual em todos */
+.sidebar nav ul li a > i:first-child,
+.sidebar nav ul li a span > i:first-child {
+  position: absolute;
+  left: 12px;                /* margem à esquerda do ícone */
+  top: 50%;                  /* alinha verticalmente ao centro */
+  transform: translateY(-50%);
+  width: 20px;               /* largura fixa para todos os ícones */
+  text-align: center;        /* centraliza o ícone na coluna */
+  display: inline-block;     /* sobrepõe regras anteriores */
+  margin-right: 0 !important;
+}
+
+/* Mantém a indentação dos submenus (igual ao Bootstrap ps-3) */
+.sidebar .collapse.list-unstyled.ps-3 {
+  padding-left: 1rem !important;
 }
 
 .sidebar ul li a.active {
-  background: #d2e6f0;
-  color: #2d415f;
+  background: #516f90;
+  color: #cbd1db;
+}
+/* Hover específico com maior especificidade para prevalecer */
+.sidebar ul li a:hover {
+  background: #516f90;
+  color: #cbd1db;
 }
 
 /* deixar o fundo do modal transparente e borrado */
@@ -1396,14 +1493,14 @@ input[type="checkbox"].detail-select {
   display: inline-block;
   margin: 0.25rem 0;
   padding: 0.4rem 0.8rem;
-  background: #007bff;
+  background: #223044;
   color: white;
   border-radius: 4px;
   text-decoration: none;
   font-size: 0.85rem;
 }
 .btn-dashboard:hover {
-  background: #0056b3;
+  background: #0b5ed7;
 }
 
 .quick-links {
@@ -1447,7 +1544,7 @@ input[type="checkbox"].detail-select {
 
 #prev-day,
 #next-day {
-  background-color: #007bff;  /* tom suave */
+  background-color: #223044;  /* tom suave */
   color: #ffffff;
   border: none;
   padding: 6px 12px;
@@ -1455,7 +1552,7 @@ input[type="checkbox"].detail-select {
 }
 #prev-day:hover,
 #next-day:hover {
-  background-color: #ced4da;
+  background-color: #0b5ed7;
 }
 @media (max-width: 768px) {
   html, body {
@@ -1549,7 +1646,7 @@ body:not(.authenticated) .main-content {
   right: 18px;
   z-index: 1032;
   width: 48px; height: 48px;
-  background: #1677ff;
+  background: #223044;
   color: #fff;
   border: none;
   border-radius: 50%;
@@ -1559,8 +1656,7 @@ body:not(.authenticated) .main-content {
   cursor: pointer;
   transition: box-shadow .16s, background .22s;
 }
-.fab-btn:hover {
-  background: #0d6efd;
+\.fab-btn:hover {`n  background: #0b5ed7;
   box-shadow: 0 6px 24px rgba(30,80,210,0.21);
 }
 
@@ -1593,7 +1689,7 @@ body:not(.authenticated) .main-content {
   transition: box-shadow 0.18s, background 0.18s;
 }
 #btnPrintLabels:hover {
-  box-shadow: 0 2px 14px #007bff2e;
+  box-shadow: 0 2px 14px #2230442e;
   background: #1564cf;
 }
 /* --- ForÃ§a o botÃ£o do utilizador no canto superior direito do header --- */
@@ -1623,6 +1719,10 @@ body:not(.authenticated) .main-content {
   left: auto !important;
   right: 0 !important;
 }
+
+
+
+
 
 
 
