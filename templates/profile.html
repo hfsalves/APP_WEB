@@ -4,15 +4,33 @@
 {% block content %}
 <div class="dynamic-container">
   <div class="dynamic-form">
+    <!-- Bloco de foto de perfil -->
+    <div class="mb-3 d-flex align-items-center gap-3">
+      <img
+        id="profilePhotoPreview"
+        src="{% if user.FOTO %}{{ url_for('static', filename=user.FOTO) }}{% else %}{{ url_for('static', filename='images/icon-192.png') }}{% endif %}"
+        alt="Foto de perfil"
+        class="rounded-circle border"
+        style="width:64px; height:64px; object-fit:cover;"
+      />
+      <form id="photoUploadForm" class="d-flex align-items-center gap-2" enctype="multipart/form-data">
+        <input type="file" name="photo" id="photoInput" accept="image/*" class="form-control form-control-sm" style="max-width:260px;" />
+        <button type="submit" class="btn btn-primary btn-sm">Carregar Foto</button>
+      </form>
+    </div>
     <form id="profileForm" class="row g-3"></form>
         <div class="form-actions mt-3">
-        <button type="button" id="btnChangePwd" class="btn btn-outline-secondary ms-2">
+        <button type="button" id="btnChangePwd" class="btn btn-success ms-2">
             <i class="fa fa-key me-1"></i> Alterar Password
         </button>
         <button type="submit" form="profileForm" class="btn btn-primary btn-save">
             <i class="fa-solid fa-save"></i>
             <span class="btn-text">Gravar</span>
         </button>
+        <a href="{{ url_for('monitor_page') }}" class="btn btn-cancel">
+            <i class="fa-solid fa-ban"></i>
+            <span class="btn-text">Cancelar</span>
+        </a>
         <a href="{{ url_for('monitor_page') }}" class="btn btn-secondary btn-back">
             <i class="fa-solid fa-arrow-left"></i>
             <span class="btn-text">Voltar</span>

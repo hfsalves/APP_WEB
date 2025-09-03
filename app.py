@@ -221,7 +221,7 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_stamp):
         sql = text("""
-            SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN
+            SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, FOTO
             FROM US
             WHERE USSTAMP = :stamp
         """)
@@ -243,7 +243,7 @@ def create_app():
             pwd = request.form['password']
 
             sql = text("""
-                SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN
+                SELECT USSTAMP, LOGIN, NOME, EMAIL, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, FOTO
                 FROM US
                 WHERE LOGIN = :login
             """)
@@ -513,7 +513,8 @@ def create_app():
             'DEV': getattr(current_user, 'DEV', None),
             'MNADMIN': getattr(current_user, 'MNADMIN', None),
             'LPADMIN': getattr(current_user, 'LPADMIN', None),
-            'EQUIPA': getattr(current_user, 'EQUIPA', None)
+            'EQUIPA': getattr(current_user, 'EQUIPA', None),
+            'FOTO': getattr(current_user, 'FOTO', None)
         }
 
         return jsonify(user_data)
@@ -665,6 +666,66 @@ def create_app():
         user.PASSWORD = new_pwd
         db.session.commit()
         return {'success': True}
+
+    @app.route('/api/profile/save', methods=['POST'])
+    @login_required
+    def save_profile():
+        try:
+            data = request.get_json(force=True) or {}
+            # Campos permitidos a serem atualizados no perfil
+            allowed_fields = {'EMAIL'}
+
+            user = db.session.query(US).get(current_user.USSTAMP)
+            if not user:
+                return {'error': 'Utilizador não encontrado'}, 404
+
+            updated = {}
+            for field in allowed_fields:
+                if field in data:
+                    setattr(user, field, data[field])
+                    updated[field] = data[field]
+
+            if not updated:
+                return {'error': 'Sem alterações válidas'}, 400
+
+            db.session.commit()
+            return jsonify({'success': True, 'updated': updated})
+        except Exception as e:
+            db.session.rollback()
+            return {'error': str(e)}, 500
+
+    @app.route('/api/profile/upload_photo', methods=['POST'])
+    @login_required
+    def upload_photo():
+        try:
+            from werkzeug.utils import secure_filename
+            import uuid as _uuid
+            photo = request.files.get('photo')
+            if not photo or photo.filename == '':
+                return {'error': 'Ficheiro em falta'}, 400
+            fname = secure_filename(photo.filename)
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp'):
+                return {'error': 'Formato inválido'}, 400
+
+            target_dir = os.path.join(app.static_folder, 'images', 'profile')
+            os.makedirs(target_dir, exist_ok=True)
+            new_name = f"{_uuid.uuid4().hex}{ext}"
+            save_path = os.path.join(target_dir, new_name)
+            photo.save(save_path)
+
+            # Atualiza caminho relativo sob /static
+            rel_path = f"images/profile/{new_name}"
+            user = db.session.query(US).get(current_user.USSTAMP)
+            if not user:
+                return {'error': 'Utilizador não encontrado'}, 404
+            user.FOTO = rel_path
+            db.session.commit()
+
+            return jsonify({'success': True, 'path': rel_path})
+        except Exception as e:
+            db.session.rollback()
+            return {'error': str(e)}, 500
 
     # Monitor: lista de tarefas unificada com filtros simples
     @app.route('/generic/api/monitor_tasks')

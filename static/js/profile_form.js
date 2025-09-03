@@ -1,7 +1,8 @@
 console.warn('✅ profile_form.js carregado');
 
 const TABLE_NAME = 'US';
-const camposEditaveis = ['EMAIL', 'PASSWORD', 'FOTO']; // Ajusta aqui os campos editáveis do perfil
+const camposEditaveis = ['EMAIL']; // PASSWORD e FOTO tratadas em flows próprios
+const camposOcultos = ['PASSWORD', 'FOTO']; // não desenhar estes campos no formulário
 
 function showLoading() {
   const overlay = document.getElementById('loadingOverlay');
@@ -65,6 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       row.style.flexWrap = 'nowrap';
 
       fields.forEach(col => {
+        if (camposOcultos.includes(col.name)) return; // salta campos ocultos
         const tamUsado = isMobile ? col.tam_mobile : col.tam;
         const fraction = (tamUsado || 1) / totalTam;
         const colDiv = document.createElement('div');
@@ -203,4 +205,83 @@ document.getElementById('formChangePwd').addEventListener('submit', async functi
     msgDiv.classList.remove('text-success');
     msgDiv.classList.add('text-danger');
   }
+});
+
+// Handler de gravação do perfil (envia campos editáveis)
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('profileForm');
+  if (!form) return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {};
+    for (const name of (window.camposEditaveis || camposEditaveis)) {
+      const el = form.querySelector(`[name="${name}"]`);
+      if (el) payload[name] = el.value;
+    }
+    const msg = document.getElementById('profileMsg');
+    try {
+      const resp = await fetch('/api/profile/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (resp.ok) {
+        msg.textContent = 'Perfil atualizado com sucesso!';
+        msg.classList.remove('text-danger');
+        msg.classList.add('text-success');
+      } else {
+        const err = await resp.json().catch(()=>({error:'Erro'}));
+        msg.textContent = (err && err.error) ? err.error : 'Erro ao guardar perfil';
+        msg.classList.remove('text-success');
+        msg.classList.add('text-danger');
+      }
+    } catch (err) {
+      msg.textContent = 'Erro de rede ao guardar perfil';
+      msg.classList.remove('text-success');
+      msg.classList.add('text-danger');
+    }
+  });
+});
+
+// Upload de foto (form no topo do perfil)
+document.addEventListener('DOMContentLoaded', () => {
+  const uploadForm = document.getElementById('photoUploadForm');
+  if (!uploadForm) return;
+  uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fileInput = document.getElementById('photoInput');
+    if (!fileInput || !fileInput.files || !fileInput.files[0]) return;
+    const fd = new FormData();
+    fd.append('photo', fileInput.files[0]);
+    try {
+      const resp = await fetch('/api/profile/upload_photo', { method: 'POST', body: fd });
+      if (!resp.ok) throw new Error('Upload falhou');
+      const data = await resp.json();
+      const newPath = data.path; // relativo a /static
+      const preview = document.getElementById('profilePhotoPreview');
+      if (preview) preview.src = `/static/${newPath}`;
+      let headerImg = document.getElementById('headerUserPhoto');
+      const headerIcon = document.getElementById('headerUserIcon');
+      if (!headerImg) {
+        const btn = document.getElementById('userMenuToggle');
+        if (btn) {
+          headerImg = document.createElement('img');
+          headerImg.id = 'headerUserPhoto';
+          headerImg.style.width = '40px';
+          headerImg.style.height = '40px';
+          headerImg.style.objectFit = 'cover';
+          btn.innerHTML = '';
+          btn.appendChild(headerImg);
+        }
+      }
+      if (headerImg) {
+        headerImg.src = `/static/${newPath}`;
+        headerImg.style.display = 'block';
+      }
+      if (headerIcon) headerIcon.style.display = 'none';
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao carregar foto');
+    }
+  });
 });

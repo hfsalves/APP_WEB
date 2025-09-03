@@ -57,10 +57,10 @@
         <div class="user-menu-container ms-auto" style="position:relative; margin-left:auto;">
           <button class="btn btn-light btn-user rounded-circle p-0" id="userMenuToggle" style="width:40px; height:40px; overflow:hidden;">
             {% if current_user.FOTO %}
-              <img src="{{ url_for('static', filename='images/fotos/' ~ current_user.FOTO) }}"
-                  alt="Foto de utilizador" style="width:40px;height:40px;object-fit:cover;"/>
+              <img id="headerUserPhoto" src="{{ url_for('static', filename=current_user.FOTO) }}"
+                   alt="Foto de utilizador" style="width:40px;height:40px;object-fit:cover;"/>
             {% else %}
-              <i class="fa-solid fa-user" style="font-size:1.5rem; color:#888;"></i>
+              <i class="fa-solid fa-user" id="headerUserIcon" style="font-size:1.5rem; color:#888;"></i>
             {% endif %}
           </button>
           <div class="dropdown-menu dropdown-menu-end" id="userDropdownMenu" style="right:0; left:auto; min-width:160px;">
