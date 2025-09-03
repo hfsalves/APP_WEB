@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="login-container">
-  <h2>Entrar</h2>
+  <img src="{{ url_for('static', filename='images/icon-512.png') }}" alt="Aplicação" class="d-block mx-auto mb-3 login-logo" style="object-fit:contain;">
   {% if error %}
     <div class="alert alert-danger">{{ error }}</div>
   {% endif %}

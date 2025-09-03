@@ -1,4 +1,4 @@
-/* Reset básico e tipografia */
+/* Reset bÃ¡sico e tipografia */
 * {
   margin: 0;
   padding: 0;
@@ -11,7 +11,7 @@ html, body {
   color: #333;
 }
 
-/* Estrutura principal: sidebar + conteúdo */
+/* Estrutura principal: sidebar + conteÃºdo */
 .app-container {
   display: grid;
   grid-template-columns: 240px 1fr;
@@ -57,11 +57,11 @@ html, body {
   border-radius: 0em;
 }
 
-/* 2. Dá um espacinho entre o ícone e o texto, e deixa o ícone um pouco menor */
+/* 2. DÃ¡ um espacinho entre o Ã­cone e o texto, e deixa o Ã­cone um pouco menor */
 .sidebar nav ul li a i {
-  /* espaço à direita do ícone */
+  /* espaÃ§o Ã  direita do Ã­cone */
   margin-right: 0.3rem;
-  /* escala do ícone */
+  /* escala do Ã­cone */
   font-size: 0.8em;
   /* alinha verticalmente junto ao texto */
   vertical-align: middle;
@@ -70,7 +70,7 @@ html, body {
   gap: 0.3rem;       /* substitui margin-right do <i> */
 }
 
-/* Conteúdo principal */
+/* ConteÃºdo principal */
 .main-content {
   grid-column: 2;
   padding: 2rem;
@@ -81,7 +81,7 @@ html, body {
   margin-left: 240px;
 }
 
-/* Botão toggle mobile */
+/* BotÃ£o toggle mobile */
 .menu-toggle-mobile {
   display: none;
   position: fixed;
@@ -97,9 +97,9 @@ html, body {
   cursor: pointer;
 }
 
-/* Em ecrãs até 768px: escondemos sidebar e mostramos botão */
+/* Em ecrÃ£s atÃ© 768px: escondemos sidebar e mostramos botÃ£o */
 @media (max-width: 768px) {
-  /* Sidebar escondida e conteúdo em full-width */
+  /* Sidebar escondida e conteÃºdo em full-width */
   .app-container {
     grid-template-columns: 1fr;
     width: 100%;
@@ -119,17 +119,17 @@ html, body {
 }
 
 @media (max-width: 768px) {
-  /* Garante que em mobile cada “coluna” ocupe toda a largura */
+  /* Garante que em mobile cada â€œcolunaâ€ ocupe toda a largura */
   .dynamic-form form.two-cols > .coluna-1,
   .dynamic-form form.two-cols > .coluna-2 {
     flex: 0 0 100% !important;     /* impede a base de 50% */
     max-width: 100% !important;    /* limita ao container */
-    width: 100% !important;        /* força 100% */
-    margin-bottom: 1rem;           /* espaço entre colunas empilhadas */
+    width: 100% !important;        /* forÃ§a 100% */
+    margin-bottom: 1rem;           /* espaÃ§o entre colunas empilhadas */
   }
 }
 
-/* Container genérico */
+/* Container genÃ©rico */
 .dynamic-container {
   flex: 1;
   width: 100%;
@@ -141,7 +141,7 @@ html, body {
   flex-direction: column;
 }
 
-/* Mobile: expansão full-width sem bordas ou padding no main */
+/* Mobile: expansÃ£o full-width sem bordas ou padding no main */
 @media (max-width: 768px) {
   .main-content {
     padding: 5px !important;
@@ -156,7 +156,7 @@ html, body {
   }
 }
 
-/* Cabeçalho (título e ações) */
+/* CabeÃ§alho (tÃ­tulo e aÃ§Ãµes) */
 .dynamic-header {
   display: flex;
   justify-content: space-between;
@@ -174,8 +174,8 @@ html, body {
 
 
 
-/* Filtros: em única linha com botão no fim */
-/* Filtros: em única linha com botão no fim */
+/* Filtros: em Ãºnica linha com botÃ£o no fim */
+/* Filtros: em Ãºnica linha com botÃ£o no fim */
 .dynamic-filters {
   display: block;
   width: 100%;
@@ -297,7 +297,7 @@ html, body {
   }
 }
 
-/* Botões gerais */
+/* BotÃµes gerais */
 .btn {
   display: inline-block;
   padding: 0.7rem 1rem;
@@ -323,7 +323,7 @@ html, body {
   background-color: #007bff;
   color: #fff;
 }
-/* Formulário dinâmico */
+/* FormulÃ¡rio dinÃ¢mico */
 .dynamic-form {
   width: 100%;
   background-color: #fff;
@@ -343,7 +343,7 @@ html, body {
 }
 
 /* Checkboxes no form: input antes do label, alinhado */
-/* Checkboxes no formulário: checkbox antes do label, alinhado à esquerda */
+/* Checkboxes no formulÃ¡rio: checkbox antes do label, alinhado Ã  esquerda */
 .dynamic-form .form-group.checkbox {
   display: flex;
   flex-direction: row;
@@ -390,11 +390,11 @@ html, body {
   margin-top: 1rem;
 }
 
-/* Datepicker (Flatpickr) ajustes mínimos */
+/* Datepicker (Flatpickr) ajustes mÃ­nimos */
 .flatpickr-date {
   width: 100%;
 }
-/* Mobile: reduzir margens/paddings de listas e formulários */
+/* Mobile: reduzir margens/paddings de listas e formulÃ¡rios */
 @media (max-width: 768px) {
   .dynamic-container,
   .dynamic-filters,
@@ -414,15 +414,15 @@ html, body {
     justify-content: center;
   }
   .form-actions .btn .btn-text {
-    display: none;       /* só o ícone */
+    display: none;       /* sÃ³ o Ã­cone */
   }
   .form-actions .btn i {
     font-size: 1.2rem;
   }
 }
-/* Tornar o botão Filtrar (dentro de .dynamic-filters) num btn-secondary */
+/* Tornar o botÃ£o Filtrar (dentro de .dynamic-filters) num btn-secondary */
 .dynamic-filters button {
-  background-color: #6c757d; /* cinzento secundário */
+  background-color: #6c757d; /* cinzento secundÃ¡rio */
   color: white;
   border-color: #6c757d;
 }
@@ -434,9 +434,20 @@ html, body {
   background-color: #5a6268;
   border-color: #545b62;
 }
-/* ──────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /*  Login Page Styling             */
-/* ──────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Login logo sizing */
+.login-logo {
+  width: 200px;
+  height: 200px;
+}
+@media (max-width: 480px) {
+  .login-logo {
+    width: 128px;
+    height: 128px;
+  }
+}
 .login-container {
   max-width: 400px;
   margin: 4rem auto;
@@ -505,18 +516,26 @@ html, body {
 /* Responsividade */
 @media (max-width: 480px) {
   .login-container {
-    margin: 2rem 1rem;
-    padding: 1.5rem;
+    /* Reduz margens e padding no telefone para manter o botão visível ao abrir o teclado */
+    margin: 0.75rem 0.5rem;
+    padding: 1rem;
   }
   .login-container h2 {
     font-size: 1.5rem;
   }
 }
+
+/* Ajustes adicionais para mobile: garante mais espaço útil quando o teclado abre */
+@media (max-width: 480px) {
+  .login-logo { margin-bottom: 0.75rem; }
+  .login-container .form-group { margin-bottom: 0.9rem; }
+  .login-container .btn-primary { padding: 0.55rem; }
+}
 /* Labels sempre em cima dos campos de filtro */
 .dynamic-filters .filter-item {
   display: flex;
   flex-direction: column;
-  margin-bottom: 0.75rem; /* pequeno espaçamento entre grupos */
+  margin-bottom: 0.75rem; /* pequeno espaÃ§amento entre grupos */
 }
 
 .dynamic-filters .filter-item label {
@@ -524,7 +543,7 @@ html, body {
   font-size: 0.875rem;
   color: #444;
 }
-/* ─── Filtros: checkbox maior para alinhamento ────────────────── */
+/* â”€â”€â”€ Filtros: checkbox maior para alinhamento â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .dynamic-filters .filter-item {
   display: flex;
   flex-direction: column;
@@ -534,7 +553,7 @@ html, body {
   /* aumenta a caixa para alinhar com outros campos */
   width: 1.5em;
   height: 1.5em;
-  margin-top: 0.5rem; /* pequeno espaçamento ao rótulo */
+  margin-top: 0.5rem; /* pequeno espaÃ§amento ao rÃ³tulo */
   margin-bottom: 0.5rem;
   margin-left: 0rem;
 }
@@ -543,21 +562,21 @@ html, body {
 .dynamic-filters .filter-item.checkbox {
   align-items: left;
 }
-/* ─── Checkbox filters: título em cima e caixa em baixo, ambos centrados ────────────────── */
-/* Usa :has() para afetar só os wrappers que contêm um checkbox */
+/* â”€â”€â”€ Checkbox filters: tÃ­tulo em cima e caixa em baixo, ambos centrados â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Usa :has() para afetar sÃ³ os wrappers que contÃªm um checkbox */
 .dynamic-filters .filter-item:has(input[type="checkbox"]) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;  /* espaçamento entre label e checkbox */
+  gap: 0.25rem;  /* espaÃ§amento entre label e checkbox */
 }
 
-/* ─────────────────────────────────────────────────────────
-   Dynamic Form • duas colunas no desktop, uma coluna no mobile
-─────────────────────────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Dynamic Form â€¢ duas colunas no desktop, uma coluna no mobile
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .two-cols {
   display: flex;
-  gap: 1rem;              /* espaço entre colunas */
+  gap: 1rem;              /* espaÃ§o entre colunas */
 }
 .two-cols .coluna-1,
 .two-cols .coluna-2 {
@@ -570,21 +589,21 @@ html, body {
   }
 }
 
-/* ─────────────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Dynamic Form: duas colunas no desktop, empilhar no mobile
-─────────────────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .dynamic-form form.two-cols {
   display: flex;
-  gap: 1rem;            /* espaço horizontal entre colunas */
-  flex-wrap: wrap;      /* deixa as colunas “encolherem” se preciso */
+  gap: 1rem;            /* espaÃ§o horizontal entre colunas */
+  flex-wrap: wrap;      /* deixa as colunas â€œencolheremâ€ se preciso */
 }
 
 .dynamic-form form.two-cols > .coluna-1,
 .dynamic-form form.two-cols > .coluna-2 {
-  flex: 1 1 calc(50% - 0.5rem);  /* cada coluna ocupa ~50% do espaço */
+  flex: 1 1 calc(50% - 0.5rem);  /* cada coluna ocupa ~50% do espaÃ§o */
 }
 
-/* em ecrãs mais estreitos */
+/* em ecrÃ£s mais estreitos */
 @media (max-width: 768px) {
   .dynamic-form form.two-cols {
     flex-direction: column;      /* empilha as colunas */
@@ -593,17 +612,17 @@ html, body {
   .dynamic-form form.two-cols > .coluna-2 {
     flex: none;
     width: 100%;                 /* ocupam toda a largura */
-    margin-bottom: 1rem;         /* separação vertical */
+    margin-bottom: 1rem;         /* separaÃ§Ã£o vertical */
   }
 }
 
-/* ─────────────────────────────────────────────────────────
-   Dynamic Form – em mobile cada coluna ocupa 100%
-─────────────────────────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Dynamic Form â€“ em mobile cada coluna ocupa 100%
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @media (max-width: 768px) {
   .dynamic-form form.two-cols > .coluna-1,
   .dynamic-form form.two-cols > .coluna-2 {
-    /* remove o basis de 50% e força 100% */
+    /* remove o basis de 50% e forÃ§a 100% */
     flex: 0 0 100% !important;
     max-width: 100%     !important;
     width: 100%         !important;
@@ -627,15 +646,15 @@ html, body {
 }
 
 @media (max-width: 768px) {
-  /* Faz o container ocupar toda a largura disponível */
+  /* Faz o container ocupar toda a largura disponÃ­vel */
   .dynamic-container {
     width: 100%      !important;
     max-width: none  !important;
-    margin: 0 auto   !important; /* centra, mas como é 100% vai colar às margens */
+    margin: 0 auto   !important; /* centra, mas como Ã© 100% vai colar Ã s margens */
     padding: 0 1rem  !important; /* um bocadinho de padding lateral, opcional */
   }
 
-  /* E garante que o próprio form se estica dentro do container */
+  /* E garante que o prÃ³prio form se estica dentro do container */
   .dynamic-form {
     width: 100%      !important;
     max-width: none  !important;
@@ -649,17 +668,17 @@ html, body {
 
 
 @media (max-width: 768px) {
-  /* ─────────────────────────────────────────────────────────
+  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
      1) Fecha a coluna da sidebar para 0, assim o content ocupa 100%
-  ──────────────────────────────────────────────────────────── */
+  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   .app-container {
     grid-template-columns: 0 1fr !important;
   }
 
-  /* ─────────────────────────────────────────────────────────
+  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
      2) Remove o limite de 400px do card/modal-content
-     e faz o form ocupar toda a largura útil
-  ──────────────────────────────────────────────────────────── */
+     e faz o form ocupar toda a largura Ãºtil
+  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   .modal-content {
     width: 100%         !important;
     max-width: none     !important;
@@ -667,14 +686,14 @@ html, body {
     border-radius: 5    !important; /* opcional, para cantos retos */
   }
 
-  /* Se estiveres a usar .dynamic-container ou .dynamic-form, força também aqui */
+  /* Se estiveres a usar .dynamic-container ou .dynamic-form, forÃ§a tambÃ©m aqui */
   .dynamic-container,
   .dynamic-form {
     width: 100%         !important;
     max-width: none     !important;
   }
 }
-/* Evita auto-zoom aumentando o font-size mínimo dos campos */
+/* Evita auto-zoom aumentando o font-size mÃ­nimo dos campos */
 .dynamic-form input,
 .dynamic-form select,
 .dynamic-form textarea,
@@ -692,7 +711,7 @@ html, body {
 .sidebar-logo__img {
   max-width: 100%;
   height: auto;
-  /* Se quiseres forçar uma largura fixa, podes usar:
+  /* Se quiseres forÃ§ar uma largura fixa, podes usar:
   width: 120px;
   height: auto;
   */
@@ -762,20 +781,20 @@ html, body {
 .widget td.num, .widget th.num {
   text-align: right !important;
 }
-/* --- Tornar a área do widget rolável --- */
+/* --- Tornar a Ã¡rea do widget rolÃ¡vel --- */
 .widget .widget-body {
   overflow-x: auto;
-  /* opcional: espaço interno para não colar nas bordas */
+  /* opcional: espaÃ§o interno para nÃ£o colar nas bordas */
   padding-bottom: 0.5rem;
 }
 
-/* --- Garantir que a tabela não saia do container --- */
+/* --- Garantir que a tabela nÃ£o saia do container --- */
 .widget .widget-body table {
   width: 100%;
   table-layout: auto;
   border-collapse: collapse;
 }
-/* --- Faz o canvas do widget gráfico preencher 100% da largura --- */
+/* --- Faz o canvas do widget grÃ¡fico preencher 100% da largura --- */
 .widget.widget-grafico .widget-body {
   position: relative; /* assegura que o Chart.js fica responsivo */
 }
@@ -783,13 +802,13 @@ html, body {
 .widget.widget-grafico .widget-body canvas {
   width: 100% !important;
   height: auto !important;
-  display: block;     /* remove espaços brancos à volta */
+  display: block;     /* remove espaÃ§os brancos Ã  volta */
 }
 /* Limita e expande widgets */
 .widget-body { transition: max-height 0.3s ease; }
 .widget.expanded .widget-body { max-height: none !important; }
 
-/* Botão expandir */
+/* BotÃ£o expandir */
 .widget .widget-header {
   display: flex;
   justify-content: space-between;
@@ -805,16 +824,16 @@ html, body {
   transition: max-height 1.5s ease;
 }
 .widget.expanded .widget-body {
-  max-height: 1000px !important; /* ou um valor generoso > maior conteúdo */
+  max-height: 1000px !important; /* ou um valor generoso > maior conteÃºdo */
 }
-/* Evita quebra em células numéricas */
+/* Evita quebra em cÃ©lulas numÃ©ricas */
 .widget-body table th.num,
 .widget-body table td.num {
   white-space: nowrap;
 }
-/* ───────────────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Grid do Dashboard
-─────────────────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .dashboard {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -822,14 +841,14 @@ html, body {
 }
 
 
-/* Em mobile, faz só uma coluna */
+/* Em mobile, faz sÃ³ uma coluna */
 @media (max-width: 768px) {
   .dashboard {
     grid-template-columns: 1fr;
   }
 }
 
-/* Dá 5px de margem em baixo aos títulos H2 de lista e formulário genéricos */
+/* DÃ¡ 5px de margem em baixo aos tÃ­tulos H2 de lista e formulÃ¡rio genÃ©ricos */
 .dynamic-list h2,
 .dynamic-form h2 {
   margin-bottom: 25px;
@@ -843,7 +862,7 @@ html, body {
   width:100%-240px
 }
 
-/* Inner flex container: título à esquerda, avatar à direita */
+/* Inner flex container: tÃ­tulo Ã  esquerda, avatar Ã  direita */
 .app-header .header-inner {
   display: flex;
   flex: 0;
@@ -851,7 +870,7 @@ html, body {
   align-items: center;
 }
 
-/* Título da página */
+/* TÃ­tulo da pÃ¡gina */
 .app-header .page-title {
   margin: 10px;
   font-size: 1.5rem;
@@ -872,7 +891,7 @@ html, body {
 @media (min-width: 769px) {
   .app-header {
     margin-left: 240px;                  /* largura fixa da sidebar */
-    width: calc(100% - 240px);           /* resto do ecrã */
+    width: calc(100% - 240px);           /* resto do ecrÃ£ */
   }
 }
 
@@ -883,13 +902,13 @@ html, body {
     width: 100%;
   }
 }
-/* Ajusta a altura da área principal para levar em conta o header */
+/* Ajusta a altura da Ã¡rea principal para levar em conta o header */
 .app-container {
   display: flex;
   height: calc(100vh - var(--header-height, 3rem)); /* 3rem = altura aproximada do header */
 }
 
-/* Se já tiver height:100% em main-content, substitua por: */
+/* Se jÃ¡ tiver height:100% em main-content, substitua por: */
 .main-content {
   flex: 1;
   overflow-y: auto;
@@ -897,14 +916,14 @@ html, body {
   padding: 1rem;
 }
 
-/* Define uma variável CSS para a altura do header, ou ajuste diretamente */
+/* Define uma variÃ¡vel CSS para a altura do header, ou ajuste diretamente */
 .app-header {
   --header-height: 3rem;   /* ajuste este valor conforme o padding/font-size real */
   height: var(--header-height);
 }
 
 
-/* Botão dentro do header */
+/* BotÃ£o dentro do header */
 .app-header .header-toggle {
   background: none;
   border: none;
@@ -913,14 +932,14 @@ html, body {
   cursor: pointer;
   color: inherit;
 }
-/* 1) Torna o header um flex‐container que já inclui o toggle, título e avatar */
+/* 1) Torna o header um flexâ€container que jÃ¡ inclui o toggle, tÃ­tulo e avatar */
 .app-header {
   display: flex;
   align-items: center;
   padding: 0.5rem 1rem;
 }
 
-/* 2) Ajusta o wrapper interno para isolar título e avatar */
+/* 2) Ajusta o wrapper interno para isolar tÃ­tulo e avatar */
 .app-header .header-inner {
   flex: 0;
   display: flex;
@@ -928,30 +947,30 @@ html, body {
   align-items: center;
 }
 
-/* 3) Estilo base para o botão no header */
+/* 3) Estilo base para o botÃ£o no header */
 .app-header .menu-toggle-mobile.header-toggle {
-  position: static;      /* já não é fixed nem absoluto */
+  position: static;      /* jÃ¡ nÃ£o Ã© fixed nem absoluto */
   bottom: auto;
   left: auto;
-  display: inline-flex;  /* visível e inline */
+  display: inline-flex;  /* visÃ­vel e inline */
   background: none;
   border: none;
   font-size: 1.5rem;     /* aumenta um pouco */
-  margin-right: 0rem;    /* espaço antes do título */
+  margin-right: 0rem;    /* espaÃ§o antes do tÃ­tulo */
   color: inherit;
   cursor: pointer;
   display: none;
 }
 
-/* 4) Continua a aparecer em mobile (display:block já é tratado pela media query) */
+/* 4) Continua a aparecer em mobile (display:block jÃ¡ Ã© tratado pela media query) */
 @media (max-width: 768px) {
   .app-header .menu-toggle-mobile.header-toggle {
     display: inline-flex;
   }
 }
-/* ────────────────────────────────────────────────────────────
-   Header e botões de toggle
-──────────────────────────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Header e botÃµes de toggle
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .app-header {
   display: flex;
   align-items: center;
@@ -969,18 +988,18 @@ html, body {
   background: none;
   border: none;
   font-size: 1.5rem;
-  color: #fff;        /* ajusta à cor do header */
+  color: #fff;        /* ajusta Ã  cor do header */
   cursor: pointer;
   margin-right: 1rem;
   display: none;      /* escondidos por defeito */
 }
 
-/* sempre mostramos o “abrir” quando a sidebar estiver fechada */
+/* sempre mostramos o â€œabrirâ€ quando a sidebar estiver fechada */
 .menu-toggle-mobile.open-toggle {
   display: inline-flex;
 }
 
-/* quando a sidebar ganha a classe “open”, invertemos */
+/* quando a sidebar ganha a classe â€œopenâ€, invertemos */
 .sidebar.open ~ .app-header .open-toggle {
   display: none;
 }
@@ -988,12 +1007,12 @@ html, body {
   display: inline-flex;
 }
 
-/* ────────────────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Sidebar: toggle da classe open
-──────────────────────────────────────────────────────────── */
-/* (já deverás ter JS que faz `sidebar.classList.toggle('open')`
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* (jÃ¡ deverÃ¡s ter JS que faz `sidebar.classList.toggle('open')`
    quando clicares no #menuToggleMobile) */
-/* botão dentro do header */
+/* botÃ£o dentro do header */
 .app-header {
   display: flex;
   align-items: center;
@@ -1010,7 +1029,7 @@ html, body {
 
 :root {
   --sidebar-width: 240px;   /* largura da sidebar */
-  --header-height: 3.5rem;  /* ajusta à altura real do header */
+  --header-height: 3.5rem;  /* ajusta Ã  altura real do header */
 }
 
 /* 1) Header permanece no fluxo normal */
@@ -1052,7 +1071,7 @@ html, body {
 /* 5) Em mobile, podes fazer o reset do margin e largura da sidebar se quiseres */
 @media (max-width: 768px) {
   .app-header {
-    /* manténs relative, full width */
+    /* mantÃ©ns relative, full width */
     left: 0px;
     width: 100%-140px;
   }
@@ -1123,10 +1142,10 @@ body.sidebar-open .app-header {
 /* deixar o fundo do modal transparente e borrado */
 .modal-backdrop.show {
   background-color: transparent !important;    /* retira o preto/azulado */
-  backdrop-filter: blur(100%);                  /* aplica blur no conteúdo por trás */
+  backdrop-filter: blur(100%);                  /* aplica blur no conteÃºdo por trÃ¡s */
 }
 
-/* opcional: se quiseres também escurecer ligeiramente o que há por trás */
+/* opcional: se quiseres tambÃ©m escurecer ligeiramente o que hÃ¡ por trÃ¡s */
 .modal-backdrop.show::before {
   content: '';
   position: fixed;
@@ -1135,18 +1154,18 @@ body.sidebar-open .app-header {
   background-color: rgba(0,0,0,0.2);
 }
 
-/* 1️⃣ Torna o backdrop totalmente transparente */
+/* 1ï¸âƒ£ Torna o backdrop totalmente transparente */
 .modal-backdrop {
   background-color: transparent !important;
 }
 
 
-/* 3️⃣ Garante que o modal fica acima de tudo */
+/* 3ï¸âƒ£ Garante que o modal fica acima de tudo */
 .modal {
   z-index: 2000;   /* por cima do backdrop e do resto */
 }
 
-/* Calendário como widget igual aos outros */
+/* CalendÃ¡rio como widget igual aos outros */
 .widget-calendar {
   /* Reaproveita o estilo base de .widget */
   /* (pode estar vazio se quiseres o mesmo) */
@@ -1159,8 +1178,8 @@ body.sidebar-open .app-header {
 }
 
 .widget-calendar .widget-body {
-  padding: 1rem 0.5rem 0 0.5rem; /* um bocadinho mais de espaço em cima e em baixo */
-  overflow-x: auto;             /* scroll horizontal se necessário */
+  padding: 1rem 0.5rem 0 0.5rem; /* um bocadinho mais de espaÃ§o em cima e em baixo */
+  overflow-x: auto;             /* scroll horizontal se necessÃ¡rio */
 }
 
 /* Ajuste extra para a tabela dentro do widget */
@@ -1171,16 +1190,16 @@ body.sidebar-open .app-header {
 
 .widget-calendar .calendar-table th,
 .widget-calendar .calendar-table td {
-  border: 1px solid #e1e5e8; /* mantém linhas internas */
+  border: 1px solid #e1e5e8; /* mantÃ©m linhas internas */
 }
 
-/* Botões de navegação ficam mais discretos */
+/* BotÃµes de navegaÃ§Ã£o ficam mais discretos */
 .widget-calendar .btn-link {
   color: #5192b8;
   text-decoration: none;
   font-size: 1.25rem;
 }
-/* ─── Desativa o blur de fundo ao abrir o modalFiltros ───────────────── */
+/* â”€â”€â”€ Desativa o blur de fundo ao abrir o modalFiltros â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .btn-group {
   width: 120px;
@@ -1196,7 +1215,7 @@ body.sidebar-open .app-header {
 }
 .planner-table th,
 .planner-table td {
-  border: 1px solid #dee2e6 !important;  /* força linhas de grelha */
+  border: 1px solid #dee2e6 !important;  /* forÃ§a linhas de grelha */
 }
 .table-secondary td{
   background-color: #ffffff;
@@ -1209,11 +1228,11 @@ body.sidebar-open .app-header {
 .team-dropdown .dropdown-item:hover {
   background: #f0f8ff;
 }
-/* 1) Acordeão mais compacto */
+/* 1) AcordeÃ£o mais compacto */
 .accordion .accordion-button {
   padding: 0.5rem 1rem;       /* menos padding vertical */
   font-size: 0.95rem;         /* texto ligeiramente mais pequeno */
-  min-height: 2.5rem;         /* força uma altura consistente */
+  min-height: 2.5rem;         /* forÃ§a uma altura consistente */
   background-color: #e9ecef;  /* cor suave por defeito */
   color: #313131;
   border: 1px solid #dfe3e8;  /* separador */
@@ -1221,26 +1240,26 @@ body.sidebar-open .app-header {
   transition: background-color .2s;
 }
 
-/* 2) Cabeçalho activo (expandido) */
+/* 2) CabeÃ§alho activo (expandido) */
 .accordion .accordion-button:not(.collapsed) {
   background-color: #5a8db2;
   color: #ffffff;
 }
 
-/* 3) Retirar o “gap” em branco ao fechar:
-   fecha os cantos inferiores do header para encostar no próximo item */
+/* 3) Retirar o â€œgapâ€ em branco ao fechar:
+   fecha os cantos inferiores do header para encostar no prÃ³ximo item */
 .accordion .accordion-button.collapsed {
   border-bottom-left-radius: 4 !important;
   border-bottom-right-radius: 4 !important;
 }
 
-/* 4) Os items também com borda suave e arredondado */
+/* 4) Os items tambÃ©m com borda suave e arredondado */
 .accordion .accordion-item {
   border: none;
   margin-bottom: 0.5rem;
 }
 
-/* 5) O corpo do acordeão (quando aberto) */
+/* 5) O corpo do acordeÃ£o (quando aberto) */
 .accordion .accordion-collapse .accordion-body {
   padding: 0;                 /* para usar o padding do card interno */
   background-color: transparent;
@@ -1251,14 +1270,14 @@ body.sidebar-open .app-header {
   margin: 0;
   border: 1px solid #dfe3e8;
   border-top: none;           /* junta ao header */
-  border-radius: 0 0 4px 4px; /* só os cantos de baixo */
+  border-radius: 0 0 4px 4px; /* sÃ³ os cantos de baixo */
 }
 
-/* 7) Bottão Anexar fixo a 200px */
+/* 7) BottÃ£o Anexar fixo a 200px */
 #btnAddAnexo {
   width: 120px !important;
 }
-/* Garante que a coluna de checkbox não desapaarece */
+/* Garante que a coluna de checkbox nÃ£o desapaarece */
 .table-responsive table th:first-child,
 .table-responsive table td:first-child {
   width: 2rem;
@@ -1268,7 +1287,7 @@ body.sidebar-open .app-header {
 input[type="checkbox"].detail-select {
   width: 1.2em;
   height: 1.2em;
-  aspect-ratio: 1 / 1;         /* força formato quadrado */
+  aspect-ratio: 1 / 1;         /* forÃ§a formato quadrado */
   vertical-align: middle;
   margin: 0;
 }
@@ -1297,23 +1316,23 @@ input[type="checkbox"].detail-select {
 .calendar-table td {
   width: 14.2857%;
 }
-/* Cabeçalhos (Dias da semana) centrados */
+/* CabeÃ§alhos (Dias da semana) centrados */
 .calendar-table th {
   text-align: center;
 }
 
-/* Células do corpo (números dos dias e eventos) alinhados à esquerda */
+/* CÃ©lulas do corpo (nÃºmeros dos dias e eventos) alinhados Ã  esquerda */
 .calendar-table td {
   text-align: left !important;
-  padding-left: 0.75rem; /* opcional: um pouco de espaçamento à esquerda */
+  padding-left: 0.75rem; /* opcional: um pouco de espaÃ§amento Ã  esquerda */
 }
 .was-validated :invalid {
   border-color: red !important;
 }
 
-/* ───────────────────────────────────────────────────────────
-   Estilo refinado para a página de Análise (com zebra + hover)
-─────────────────────────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Estilo refinado para a pÃ¡gina de AnÃ¡lise (com zebra + hover)
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .analise-wrapper {
   padding: 0rem 0rem;
   max-width: 100%;
@@ -1526,7 +1545,7 @@ body:not(.authenticated) .main-content {
 
 .fab-btn {
   position: fixed;
-  bottom: 18px;    /* distância ao topo (ajusta conforme header) */
+  bottom: 18px;    /* distÃ¢ncia ao topo (ajusta conforme header) */
   right: 18px;
   z-index: 1032;
   width: 48px; height: 48px;
@@ -1577,7 +1596,7 @@ body:not(.authenticated) .main-content {
   box-shadow: 0 2px 14px #007bff2e;
   background: #1564cf;
 }
-/* --- Força o botão do utilizador no canto superior direito do header --- */
+/* --- ForÃ§a o botÃ£o do utilizador no canto superior direito do header --- */
 .app-header,
 .page-header,
 .header-inner {
@@ -1587,12 +1606,12 @@ body:not(.authenticated) .main-content {
 }
 .page-title {
   margin: 0;
-  flex: 1;            /* Ocupa o espaço restante */
+  flex: 1;            /* Ocupa o espaÃ§o restante */
 }
 
 .user-menu-container {
   position: absolute !important;
-  right: 12px;               /* encostado à direita */
+  right: 12px;               /* encostado Ã  direita */
   top: 50%;                  /* centrado verticalmente no header */
   transform: translateY(-50%);
   margin-left: 0 !important; /* neutraliza o ms-auto */
