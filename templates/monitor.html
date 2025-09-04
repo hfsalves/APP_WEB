@@ -663,8 +663,8 @@
                     <div class=\"al-title\">${esc(al.NOME || '')}</div>
                     ${openBtn}
                   </div>
-                  <div class=\"al-line\">${esc(morada)}</div>
-                  <div class=\"al-line\">${esc(tip)}</div>
+                  <div class=\"al-line\">${esc([al.MORADA, al.CODPOST, al.LOCAL].filter(Boolean).join(' ' + String.fromCharCode(8226) + ' '))}</div>
+                  <div class=\"al-line\">${esc([al.TIPOLOGIA, (al.LOTACAO ? al.LOTACAO + ' H' + String.fromCharCode(243) + 'spedes' : null)].filter(Boolean).join(' ' + String.fromCharCode(8226) + ' '))}</div>
                   ${codHtml}
                 </div>`;
               if (list) list.appendChild(col);
