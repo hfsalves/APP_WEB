@@ -1,4 +1,4 @@
-﻿// static/js/monitor.js
+// static/js/monitor.js
 
 document.addEventListener('DOMContentLoaded', () => {
   const colAtrasadas = document.getElementById('tarefas-atrasadas');
@@ -50,12 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   } catch(_) {}
 
-  // Resolve ORISTAMP a partir do objeto da tarefa (heurística)
+  // Resolve ORISTAMP a partir do objeto da tarefa (heurstica)
   function resolveOriStamp(task) {
     try {
       if (!task || typeof task !== 'object') return '';
       if (task.ORISTAMP) return task.ORISTAMP;
-      // preferências por origem
+      // preferncias por origem
       const origem = (task.ORIGEM || '').toUpperCase();
       const prefs = {
         'MN': ['MNSTAMP','MN_STAMP','ORISTAMP'],
@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try { console.log('[TarefaAnexos] Task clicked:', task); } catch(_) {}
       try { console.log('[TarefaAnexos] Keys:', task ? Object.keys(task) : 'no-task'); } catch(_) {}
       let origem = (task && task.ORIGEM ? String(task.ORIGEM) : '').toUpperCase();
-      // Fallback: tenta extrair do URL de abertura, caso não haja ORISTAMP direto
+      // Fallback: tenta extrair do URL de abertura, caso no haja ORISTAMP direto
       if (!oristamp) {
         try {
           const oi = (typeof getOpenInfo === 'function') ? getOpenInfo(task || {}) : null;
@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         } catch(_) {}
       }
-      if (!oristamp) { try { console.log('[TarefaAnexos] Sem ORISTAMP; não vai buscar anexos'); } catch(_) {}; cont.innerHTML = ''; return; }
+      if (!oristamp) { try { console.log('[TarefaAnexos] Sem ORISTAMP; no vai buscar anexos'); } catch(_) {}; cont.innerHTML = ''; return; }
       const tables = (origem && ['MN','LP','FS'].includes(origem)) ? [origem] : ['MN','LP','FS'];
       cont.innerHTML = '<div class="text-muted small">A carregar anexos...</div>';
       const fetchTab = async (tab) => {
@@ -165,14 +165,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---- Estado de filtros ----
   const state = {
-    users: new Set([CURRENT_USER]), // por defeito sÃ³ o utilizador corrente
+    users: new Set([CURRENT_USER]), // por defeito só o utilizador corrente
     aloj: new Set(),                // vazio = todos
     origins: new Set(),             // vazio = todas
   };
   // cache das listas
   let cacheUsers = null;   // array de logins
   let cacheAloj = null;    // array de nomes dos alojamentos
-  // temp state enquanto o modal estÃ¡ aberto
+  // temp state enquanto o modal está aberto
   let temp = { users: new Set(), aloj: new Set(), origins: new Set() };
   let tempAll = { users: false, aloj: true, origins: true };
   let currentTab = 'users';
@@ -224,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nomes = rows.map(r => r.NOME).filter(Boolean);
       }
       nomes.sort((a,b)=>a.localeCompare(b));
-      // inclui o especial "sem alojamento" na primeira posiÃ§Ã£o como ''
+      // inclui o especial "sem alojamento" na primeira posição como ''
       cacheAloj = [''].concat(nomes);
       return cacheAloj;
     } catch (_) {
@@ -243,11 +243,11 @@ document.addEventListener('DOMContentLoaded', () => {
       let label = key;
       if (type === 'aloj' && key === '') label = 'Sem alojamento';
       if (type === 'origins') {
-        const map = { 'MN': 'ManutenÃ§Ã£o', 'LP': 'Limpeza', 'FS': 'Faltas', '': 'Tarefas' };
+        const map = { 'MN': 'Manutenção', 'LP': 'Limpeza', 'FS': 'Faltas', '': 'Tarefas' };
         label = map[key] || key;
       }
       if (type === 'origins' && key === '') label = 'Tarefas';
-      if (type === 'origins' && key === 'MN') label = 'Manutenção';
+      if (type === 'origins' && key === 'MN') label = 'Manuteno';
       card.textContent = label;
 
       const markSelected = (tempAll[type] === true) || (temp[type] && temp[type].has(key));
@@ -255,12 +255,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       card.addEventListener('click', () => {
         const sel = card.classList.toggle('selected');
-        // se estava em modo "todos", converte para seleÃ§Ã£o explÃ­cita completa antes de alternar um item
+        // se estava em modo "todos", converte para seleção explícita completa antes de alternar um item
         if (tempAll[type] === true) {
           tempAll[type] = false;
           temp[type] = new Set(items.map(v => normalizeStr(v)));
         }
-        // operar sempre sobre o set atual (apÃ³s possÃ­vel substituiÃ§Ã£o acima)
+        // operar sempre sobre o set atual (após possível substituição acima)
         if (!temp[type]) temp[type] = new Set();
         if (sel) temp[type].add(key); else temp[type].delete(key);
       });
@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function openFiltersModal() {
-    // sincroniza estado temporÃ¡rio com estado atual apenas ao abrir
+    // sincroniza estado temporário com estado atual apenas ao abrir
     // users: vazio no state significa "sem filtro" (todos)
     if (state.users.size === 0) { tempAll.users = true; temp.users = new Set(); } else { tempAll.users = false; temp.users = new Set(state.users); }
     if (state.aloj.size === 0) { tempAll.aloj = true; temp.aloj = new Set(); } else { tempAll.aloj = false; temp.aloj = new Set(state.aloj); }
@@ -366,7 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!includeOrigins.has(o)) continue;
         // respeitar filtro de alojamentos
         if (alojSet.size > 0 && !alojSet.has(a === '' ? '' : a)) continue;
-        // nÃ£o precisa respeitar filtro de users (ignorar utilizador)
+        // não precisa respeitar filtro de users (ignorar utilizador)
         const k = `${o}|${t.DATA}|${t.HORA || ''}|${a}|${t.TAREFA || ''}|${normalizeStr(t.UTILIZADOR)}`;
         if (seen.has(k)) continue;
         seen.add(k);
@@ -402,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="ManutenÃ§Ã£o"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -411,7 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
       }
       bloco.innerHTML = `<div class=\"card-body p-2\">${origemIcon}${icone}<div>${texto}</div></div>`;
-      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
+      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manuteno'; } } catch(_) {}
 
       try {
         const bodyEl = bloco.querySelector('.card-body');
@@ -485,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!grp) {
               const header = document.createElement('div');
               header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
-              const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
+              const title = diffDays === 1 ? 'Amanh' : `Daqui a ${diffDays} dias`;
               header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
               const container = document.createElement('div');
               container.className = 'mb-3';
@@ -541,7 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   if (btnNone) btnNone.addEventListener('click', async () => {
-    // Remove todas seleÃ§Ãµes no tab atual
+    // Remove todas seleções no tab atual
     if (currentTab === 'users') {
       tempAll.users = false; temp.users = new Set();
       const users = await fetchUsersList();
@@ -557,7 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   if (btnApply) btnApply.addEventListener('click', () => {
-    // commit dos temporÃ¡rios
+    // commit dos temporários
     state.users = tempAll.users ? new Set() : new Set(temp.users);
     state.aloj = tempAll.aloj ? new Set() : new Set(temp.aloj);
     state.origins = tempAll.origins ? new Set() : new Set(temp.origins);
@@ -586,7 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
       params.set('end', endStr);
       params.set('_', String(Date.now()));
       // Nota: buscamos o conjunto completo para a janela e filtramos no cliente,
-      // de forma a poder aplicar a regra LPâ†’(MN/FS) ignorando utilizador.
+      // de forma a poder aplicar a regra LP→(MN/FS) ignorando utilizador.
 
       const url = `/generic/api/monitor_tasks_filtered?${params.toString()}`;
       try { console.log('[Monitor] Fetch URL:', url); } catch(_) {}
@@ -660,10 +660,10 @@ document.addEventListener('DOMContentLoaded', () => {
           icone = '<i class="fas fa-exclamation-circle text-danger float-end"></i>';
         }
 
-        // Ãcone da origem no canto (direita)
+        // cone da origem no canto (direita)
         let origemIcon = '';
         switch ((t.ORIGEM || '').toUpperCase()) {
-          case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="ManutenÃ§Ã£o"></i>'; break;
+          case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
           case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
           case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
           default:
@@ -673,7 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
             break;
         }
         bloco.innerHTML = `<div class=\"card-body p-2\">${origemIcon}${icone}<div>${texto}</div></div>`;
-        try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
+        try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manuteno'; } } catch(_) {}
         // Garante badge do utilizador no topo direito
         try {
           const bodyEl = bloco.querySelector('.card-body');
@@ -755,7 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
               if (!grp) {
                 const header = document.createElement('div');
                 header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
-                const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
+                const title = diffDays === 1 ? 'Amanh' : `Daqui a ${diffDays} dias`;
                 header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
                 const container = document.createElement('div');
                 container.className = 'mb-3';
@@ -765,7 +765,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 gruposFuturas.set(diffDays, grp);
               }
               // Ajusta label: dia semana + dd/mm hh:mm
-              const dow = ['Dom','Seg','Ter','Qua','Qui','Sex','SÃ¡b'];
+              const dow = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
               const d = new Date(t.DATA + 'T' + t.HORA);
               const dd = String(d.getDate()).padStart(2,'0');
               const mm = String(d.getMonth()+1).padStart(2,'0');
@@ -902,7 +902,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -913,7 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       bloco.innerHTML = `<div class="card-body p-2">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
-      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
+      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manuteno'; } } catch(_) {}
 
       bloco.addEventListener('click', () => {
         tarefaSelecionada = t;
@@ -963,7 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!grp) {
               const header = document.createElement('div');
               header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
-              const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
+              const title = diffDays === 1 ? 'Amanh' : `Daqui a ${diffDays} dias`;
               header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
               const container = document.createElement('div');
               container.className = 'mb-3';
@@ -1219,7 +1219,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
           });
           const js = await resp.json();
-          if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao agendar manutenção.');
+          if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao agendar manuteno.');
 
           // fecha modal
           const modalEl = document.getElementById('agendarModal');
@@ -1444,10 +1444,10 @@ if (typeof renderMNCardStyled !== 'function') {
         e.preventDefault();
         const mnstamp = document.getElementById('agendarMNStamp')?.value;
         if (!mnstamp) {
-          alert('Sem referência da manutenção.');
+          alert('Sem referncia da manuteno.');
           return;
         }
-        const ok = window.confirm('Queres marcar a manutenção como tratada?');
+        const ok = window.confirm('Queres marcar a manuteno como tratada?');
         if (!ok) return;
         try {
           const resp = await fetch('/generic/api/mn/tratar', {
@@ -1468,7 +1468,7 @@ if (typeof renderMNCardStyled !== 'function') {
           if (typeof window.loadTarefas === 'function') window.loadTarefas();
         } catch (err) {
           console.error(err);
-          alert(err.message || 'Erro ao marcar manutenção como tratada.');
+          alert(err.message || 'Erro ao marcar manuteno como tratada.');
         }
       });
     }
@@ -1485,7 +1485,7 @@ if (typeof renderMNCardStyled !== 'function') {
     if (body) {
       const icon = document.createElement('i');
       icon.className = 'fa-solid fa-screwdriver-wrench text-primary float-end';
-      icon.title = 'Manutenção';
+      icon.title = 'Manuteno';
       body.prepend(icon);
       // urgente
       try {
@@ -1551,7 +1551,7 @@ if (typeof renderMNCardStyled !== 'function') {
               rows.forEach((r) => {
                 const fmtDOW = (d) => {
                   if (!d) return '';
-                  try { const dt = new Date(d + 'T00:00:00'); return ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dt.getDay()]; } catch(_) { return ''; }
+                  try { const dt = new Date(d + 'T00:00:00'); return ['Dom','Seg','Ter','Qua','Qui','Sex','Sb'][dt.getDay()]; } catch(_) { return ''; }
                 };
                 const coDate = fmtDDMM(r.DATAOUT);
                 const coHora = (r.HORAOUT && r.HORAOUT !== 'N/D') ? r.HORAOUT : '';
@@ -1615,7 +1615,7 @@ if (typeof renderMNCardStyled !== 'function') {
     if (body && !body.querySelector('.fa-screwdriver-wrench')) {
       const icon = document.createElement('i');
       icon.className = 'fa-solid fa-screwdriver-wrench text-primary float-end';
-      icon.title = 'Manutenção';
+      icon.title = 'Manuteno';
       body.prepend(icon);
     }
     return card;
@@ -1635,7 +1635,7 @@ if (typeof renderMNCardStyled !== 'function') {
           // add requested icon (dark)
           const icon = document.createElement('i');
           icon.className = 'fa-solid fa-wrench float-end text-dark';
-          icon.title = 'Manutenção';
+          icon.title = 'Manuteno';
           body.prepend(icon);
         }
       } catch (e) {}
@@ -1667,7 +1667,7 @@ function fillOutOptions(aloj) {
         rows.forEach((r) => {
           const fmtDOW = (d) => {
             if (!d) return '';
-            try { const dt = new Date(d + 'T00:00:00'); return ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dt.getDay()]; } catch(_) { return ''; }
+            try { const dt = new Date(d + 'T00:00:00'); return ['Dom','Seg','Ter','Qua','Qui','Sex','Sb'][dt.getDay()]; } catch(_) { return ''; }
           };
           const coDate = fmtDDMM(r.DATAOUT);
           const coHora = (r.HORAOUT && r.HORAOUT !== 'N/D') ? r.HORAOUT : '';
@@ -1851,10 +1851,10 @@ document.addEventListener('click', async (evt) => {
   const stampEl = document.getElementById('agendarMNStamp');
   const mnstamp = stampEl && stampEl.value;
   if (!mnstamp) {
-    alert('Sem referência da manutenção.');
+    alert('Sem referncia da manuteno.');
     return;
   }
-  const ok = window.confirm('Queres marcar a manutenção como tratada?');
+  const ok = window.confirm('Queres marcar a manuteno como tratada?');
   if (!ok) return;
   try {
     const resp = await fetch('/generic/api/mn/tratar', {
@@ -1873,7 +1873,7 @@ document.addEventListener('click', async (evt) => {
     if (typeof window.loadTarefas === 'function') window.loadTarefas();
   } catch (err) {
     console.error(err);
-    alert(err.message || 'Erro ao marcar manutenção como tratada.');
+    alert(err.message || 'Erro ao marcar manuteno como tratada.');
   }
 });
 
@@ -1976,7 +1976,7 @@ document.addEventListener('click', function(e) {
   }
 
   async function reloadTasksFilteredImmediate() {
-    // Desativado: lÃ³gica legacy que sobrescrevia o render do modal de filtros
+    // Desativado: lógica legacy que sobrescrevia o render do modal de filtros
     return;
   }
 
@@ -2035,7 +2035,7 @@ document.addEventListener('click', function(e) {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -2046,7 +2046,7 @@ document.addEventListener('click', function(e) {
       }
 
         bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
-        try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
+        try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manuteno'; } } catch(_) {}
 
       bloco.addEventListener('click', () => {
         const modalElement = document.getElementById('tarefaModal');
@@ -2195,7 +2195,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -2206,7 +2206,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
-      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
+      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manuteno'; } } catch(_) {}
 
       bloco.addEventListener('click', () => {
         const modalElement = document.getElementById('tarefaModal');
@@ -2380,7 +2380,7 @@ function formatDatePT(s) {
 
 
   // =========================
-  // Anexos (modal genérico)
+  // Anexos (modal genrico)
   // =========================
   (function setupAnexosModal(){
     const form = document.getElementById('anexoForm');
@@ -2390,7 +2390,7 @@ function formatDatePT(s) {
     const fileInput = document.getElementById('anexoFile');
     const tableEl = document.getElementById('anexoTable');
     const recEl = document.getElementById('anexoRec');
-    // descrição removida do UI
+    // descrio removida do UI
     const descEl = document.getElementById('anexoDescricao');
     let queue = [];
 
@@ -2407,7 +2407,7 @@ function formatDatePT(s) {
         if (isImg) inner = `<img class="anexo-thumb" src="${url}">`;
         else if (isVid) inner = `<video class="anexo-thumb" src="${url}" muted controls></video>`;
         else inner = `<div class="anexo-thumb d-flex align-items-center justify-content-center text-muted">${(f.name||'Ficheiro')}</div>`;
-        item.innerHTML = `${inner}<div class="anexo-name" title="${f.name}">${f.name}</div><button type="button" class="anexo-remove" aria-label="Remover">×</button>`;
+        item.innerHTML = `${inner}<div class="anexo-name" title="${f.name}">${f.name}</div><button type="button" class="anexo-remove" aria-label="Remover"></button>`;
         item.querySelector('.anexo-remove').addEventListener('click', () => { queue.splice(idx, 1); renderQueue(); });
         qEl.appendChild(item);
       });
@@ -2428,14 +2428,14 @@ function formatDatePT(s) {
         modalEl.addEventListener('shown.bs.modal', () => {
           // Reset e render
           queue = []; renderQueue();
-          // Oculta descrição e label (sem remover o bloco para não ativar :first-of-type)
+          // Oculta descrio e label (sem remover o bloco para no ativar :first-of-type)
           try {
             const lbl = modalEl.querySelector('label[for="anexoDescricao"]');
             const inp = modalEl.querySelector('#anexoDescricao');
             if (lbl) lbl.style.display = 'none';
             if (inp) inp.style.display = 'none';
           } catch(_){}
-          // Garante que a linha do botão "Novo anexo" está visível e alinhada à direita
+          // Garante que a linha do boto "Novo anexo" est visvel e alinhada  direita
           try {
             if (addBtn) {
               const row = addBtn.closest('.mb-2');
@@ -2477,7 +2477,7 @@ function formatDatePT(s) {
         if (modalEl) (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide();
         queue = []; renderQueue();
         if (fail === 0) alert(`Enviado${ok>1?'s':''} ${ok} ficheiro${ok===1?'':'s'} com sucesso.`);
-        else alert(`Uploads concluídos: ${ok} ok, ${fail} falhados.`);
+        else alert(`Uploads concludos: ${ok} ok, ${fail} falhados.`);
       } catch (err) {
         alert(err.message || 'Erro ao enviar anexo.');
         const btn = document.getElementById('anexoUploadBtn');
@@ -2485,7 +2485,7 @@ function formatDatePT(s) {
       }
     });
 
-    // API pública para abrir o modal já configurado
+    // API pblica para abrir o modal j configurado
     window.openAnexoModal = function(table, rec, descricao) {
       try {
         if (tableEl) tableEl.value = table || '';
@@ -2500,19 +2500,19 @@ function formatDatePT(s) {
     window.askAddAnexosForMN = function(mnStamp) {
       try {
         if (!mnStamp) return;
-        const quer = window.confirm('Queres anexar fotos/vídeos à Incidência agora?');
+        const quer = window.confirm('Queres anexar fotos/vdeos  Incidncia agora?');
         if (quer) window.openAnexoModal('MN', mnStamp, '');
       } catch(_){}
     }
   })();
 
-  // Normaliza prompt de anexos após criar incidência (garante acentos corretos)
+  // Normaliza prompt de anexos aps criar incidncia (garante acentos corretos)
   try {
     if (typeof window.askAddAnexosForMN === 'function') {
       window.askAddAnexosForMN = function(mnStamp) {
         try {
           if (!mnStamp) return;
-          const quer = window.confirm('Queres anexar fotos/vídeos à Incidência agora?');
+          const quer = window.confirm('Queres anexar fotos/vdeos  Incidncia agora?');
           if (quer) window.openAnexoModal('MN', mnStamp, '');
         } catch(_){}
       };
