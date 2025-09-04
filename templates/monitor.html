@@ -274,7 +274,11 @@
         <div class="row g-2 mb-2">
           <div class="col-6">
             <label for="lsQtt" class="form-label">Número de items</label>
-            <input type="number" id="lsQtt" class="form-control" min="1" step="1" value="1" required />
+            <div class="input-group">
+              <button type="button" class="btn btn-outline-secondary" id="lsQttDec" aria-label="Diminuir">-</button>
+              <input type="text" id="lsQtt" class="form-control text-center" value="1" readonly />
+              <button type="button" class="btn btn-primary" id="lsQttInc" aria-label="Aumentar">+</button>
+            </div>
           </div>
           <div class="col-6">
             <label for="lsValor" class="form-label">Valor</label>
@@ -1085,12 +1089,17 @@
 
       // Atualiza VALOR quando QTT muda
       const qEl = document.getElementById('lsQtt');
-      if (qEl) qEl.addEventListener('input', () => {
-        const vEl = document.getElementById('lsValor');
-        const q = Math.max(1, Number(qEl.value || 1));
-        qEl.value = q;
+      const vEl = document.getElementById('lsValor');
+      const decBtn = document.getElementById('lsQttDec');
+      const incBtn = document.getElementById('lsQttInc');
+      function setQtt(q){
+        q = Math.max(1, parseInt(q || '1', 10));
+        if (qEl) qEl.value = String(q);
         if (vEl) vEl.value = (q * 4).toFixed(2);
-      });
+        try { if (decBtn) decBtn.disabled = (q <= 1); } catch(_){}
+      }
+      if (decBtn) decBtn.addEventListener('click', () => setQtt((parseInt(qEl.value||'1',10) - 1)));
+      if (incBtn) incBtn.addEventListener('click', () => setQtt((parseInt(qEl.value||'1',10) + 1)));
 
       // Botões + por linha de TAG: move o "+" para a frente da próxima tag
       function showNextTag(current) {
