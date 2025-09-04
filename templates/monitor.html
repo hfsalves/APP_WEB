@@ -61,6 +61,7 @@
   // evita erro se não existir o campo (ex.: perfis antigos)
   window.IS_MN_ADMIN = {{ (current_user.MNADMIN or 0)|int }};
   window.IS_LP_ADMIN = {{ (current_user.LPADMIN or 0)|int }};
+  window.IS_LS_ADMIN = {{ (current_user.LSADMIN or 0)|int }};
   window.CAN_OPEN_RS = {{ 1 if (user_perms.get('RS', {}).get('consultar', False)) else 0 }};
   window.CAN_OPEN_TAREFAS = {{ 1 if (user_perms.get('TAREFAS', {}).get('consultar', False)) else 0 }};
   window.CAN_OPEN_LP = {{ 1 if (user_perms.get('LP', {}).get('consultar', False)) else 0 }};
@@ -76,6 +77,8 @@
       if (btnNR && !window.CAN_OPEN_RS) btnNR.style.display = 'none';
       const btnNT = document.getElementById('openNotaTarefa');
       if (btnNT && !window.CAN_OPEN_TAREFAS) btnNT.style.display = 'none';
+      const btnLS = document.getElementById('openLuggageStorage');
+      if (btnLS && !window.IS_LS_ADMIN) btnLS.style.display = 'none';
     } catch(_) {}
   });
 </script>
@@ -222,6 +225,7 @@
     <button class="fab-menu-item" id="openNotasReserva">Notas de Reserva</button>
     <button class="fab-menu-item" id="openAlojamentos">Alojamentos</button>
     <button class="fab-menu-item" id="openNotaTarefa">Nova Tarefa</button>
+    <button class="fab-menu-item" id="openLuggageStorage">Luggage Storage</button>
   </div>
 </div>
 
@@ -245,6 +249,116 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- Modal: Luggage Storage (LS) -->
+<div class="modal fade" id="lsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="lsForm">
+      <div class="modal-header">
+        <h5 class="modal-title">Luggage Storage</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label for="lsData" class="form-label">Data</label>
+            <input type="date" id="lsData" class="form-control" required />
+          </div>
+          <div class="col-6">
+            <label for="lsHora" class="form-label">Hora</label>
+            <input type="time" id="lsHora" class="form-control" required />
+          </div>
+        </div>
+
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label for="lsQtt" class="form-label">Número de items</label>
+            <input type="number" id="lsQtt" class="form-control" min="1" step="1" value="1" required />
+          </div>
+          <div class="col-6">
+            <label for="lsValor" class="form-label">Valor</label>
+            <input type="text" id="lsValor" class="form-control" value="4.00" readonly />
+          </div>
+        </div>
+
+        <div class="row g-2 align-items-end mb-2" id="lsTag1Container">
+          <div class="col-9 col-md-10">
+            <label for="lsTag1" class="form-label">Tag</label>
+            <input type="number" id="lsTag1" class="form-control" min="1" step="1" />
+          </div>
+          <div class="col-3 col-md-2 d-grid">
+            <label class="form-label d-none d-md-block">&nbsp;</label>
+            <button type="button" class="btn btn-primary" id="lsAddTag1">+</button>
+          </div>
+        </div>
+
+        <div class="row g-2 align-items-end mb-2" id="lsTag2Container" style="display:none;">
+          <div class="col-9 col-md-10">
+            <label for="lsTag2" class="form-label">Tag 2</label>
+            <input type="number" id="lsTag2" class="form-control" min="1" step="1" />
+          </div>
+          <div class="col-3 col-md-2 d-grid">
+            <label class="form-label d-none d-md-block">&nbsp;</label>
+            <button type="button" class="btn btn-primary" id="lsAddTag2" style="display:none;">+</button>
+          </div>
+        </div>
+
+        <div class="row g-2 align-items-end mb-2" id="lsTag3Container" style="display:none;">
+          <div class="col-9 col-md-10">
+            <label for="lsTag3" class="form-label">Tag 3</label>
+            <input type="number" id="lsTag3" class="form-control" min="1" step="1" />
+          </div>
+          <div class="col-3 col-md-2 d-grid">
+            <label class="form-label d-none d-md-block">&nbsp;</label>
+            <button type="button" class="btn btn-primary" id="lsAddTag3" style="display:none;">+</button>
+          </div>
+        </div>
+
+        <div class="row g-2 align-items-end mb-2" id="lsTag4Container" style="display:none;">
+          <div class="col-9 col-md-10">
+            <label for="lsTag4" class="form-label">Tag 4</label>
+            <input type="number" id="lsTag4" class="form-control" min="1" step="1" />
+          </div>
+          <div class="col-3 col-md-2 d-grid">
+            <label class="form-label d-none d-md-block">&nbsp;</label>
+            <button type="button" class="btn btn-primary" id="lsAddTag4" style="display:none;">+</button>
+          </div>
+        </div>
+
+        <div class="row g-2 align-items-end mb-2" id="lsTag5Container" style="display:none;">
+          <div class="col-12">
+            <label for="lsTag5" class="form-label">Tag 5</label>
+            <input type="number" id="lsTag5" class="form-control" min="1" step="1" />
+          </div>
+        </div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="lsHospede" />
+          <label class="form-check-label" for="lsHospede">Hóspede</label>
+        </div>
+        <div id="lsHospedeFields">
+          <div class="mb-2">
+            <label for="lsNome" class="form-label">Nome</label>
+            <input type="text" id="lsNome" class="form-control" />
+          </div>
+          <div class="mb-2">
+            <label for="lsEmail" class="form-label">Email</label>
+            <input type="email" id="lsEmail" class="form-control" />
+          </div>
+          <div class="mb-2">
+            <label for="lsNif" class="form-label">NIF</label>
+            <input type="text" id="lsNif" class="form-control" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="lsGravar">Gravar</button>
+      </div>
+    </form>
+  </div>
+  
 </div>
 
 <!-- Modal: Notas de Reserva -->
@@ -917,13 +1031,142 @@
     // Esconder o FAB quando qualquer modal relevante estiver aberto (evita bloquear o header do modal)
     document.addEventListener('DOMContentLoaded', () => {
       const fab = document.getElementById('fab-actions');
-      const modalIds = ['agendarModal','fsModal','notaTarefaModal','novaMnModal','novaFaltaModal','nrModal','alojModal'];
+      const modalIds = ['agendarModal','fsModal','notaTarefaModal','novaMnModal','novaFaltaModal','nrModal','alojModal','lsModal'];
       if (!fab) return;
       modalIds.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('shown.bs.modal', () => { fab.style.display = 'none'; });
         el.addEventListener('hidden.bs.modal', () => { fab.style.display = ''; });
+      });
+    });
+  </script>
+  <script>
+    // Luggage Storage: abrir modal, lógicas de UI e submit
+    document.addEventListener('DOMContentLoaded', () => {
+      const openBtn = document.getElementById('openLuggageStorage');
+      if (openBtn) openBtn.addEventListener('click', () => {
+        const modalEl = document.getElementById('lsModal');
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        // defaults: data/hora agora arredondada
+        const hoje = new Date();
+        const dEl = document.getElementById('lsData');
+        const hEl = document.getElementById('lsHora');
+        const qEl = document.getElementById('lsQtt');
+        const vEl = document.getElementById('lsValor');
+        try {
+          if (dEl) dEl.value = hoje.toISOString().slice(0,10);
+          if (hEl) {
+            const hh = String(hoje.getHours()).padStart(2,'0');
+            const mm = String(hoje.getMinutes()).padStart(2,'0');
+            hEl.value = `${hh}:${mm}`;
+          }
+          if (qEl) qEl.value = Math.max(1, Number(qEl.value||1));
+          if (vEl) vEl.value = (Number(qEl.value||1) * 4).toFixed(2);
+        } catch(_) {}
+        // limpa tags extra
+        ['lsTag2','lsTag3','lsTag4','lsTag5'].forEach(id => { const el = document.getElementById(id); if (el) el.value = '' });
+        ['lsTag2Container','lsTag3Container','lsTag4Container','lsTag5Container'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none' });
+        // Reinicia botões "+": mostra no Tag1, esconde restantes
+        const _b1 = document.getElementById('lsAddTag1'); if (_b1) _b1.style.display = '';
+        const _b2 = document.getElementById('lsAddTag2'); if (_b2) _b2.style.display = 'none';
+        const _b3 = document.getElementById('lsAddTag3'); if (_b3) _b3.style.display = 'none';
+        const _b4 = document.getElementById('lsAddTag4'); if (_b4) _b4.style.display = 'none';
+        // hospede unchecked por defeito
+        const hosp = document.getElementById('lsHospede');
+        if (hosp) { hosp.checked = false; }
+        const hospFields = document.getElementById('lsHospedeFields');
+        if (hospFields) hospFields.style.display = '';
+        // fecha FAB
+        const menu = document.getElementById('fabMenu'); if (menu) menu.style.display = 'none';
+        modal.show();
+      });
+
+      // Atualiza VALOR quando QTT muda
+      const qEl = document.getElementById('lsQtt');
+      if (qEl) qEl.addEventListener('input', () => {
+        const vEl = document.getElementById('lsValor');
+        const q = Math.max(1, Number(qEl.value || 1));
+        qEl.value = q;
+        if (vEl) vEl.value = (q * 4).toFixed(2);
+      });
+
+      // Botões + por linha de TAG: move o "+" para a frente da próxima tag
+      function showNextTag(current) {
+        const getVal = (id) => String(document.getElementById(id)?.value || '').trim();
+        const show = (id) => { const el = document.getElementById(id); if (el) el.style.display = ''; };
+        const hide = (id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
+
+        if (current === 1) {
+          if (!getVal('lsTag1')) { document.getElementById('lsTag1')?.focus(); return; }
+          show('lsTag2Container'); hide('lsAddTag1'); show('lsAddTag2'); document.getElementById('lsTag2')?.focus();
+        } else if (current === 2) {
+          if (!getVal('lsTag2')) { document.getElementById('lsTag2')?.focus(); return; }
+          show('lsTag3Container'); hide('lsAddTag2'); show('lsAddTag3'); document.getElementById('lsTag3')?.focus();
+        } else if (current === 3) {
+          if (!getVal('lsTag3')) { document.getElementById('lsTag3')?.focus(); return; }
+          show('lsTag4Container'); hide('lsAddTag3'); show('lsAddTag4'); document.getElementById('lsTag4')?.focus();
+        } else if (current === 4) {
+          if (!getVal('lsTag4')) { document.getElementById('lsTag4')?.focus(); return; }
+          show('lsTag5Container'); hide('lsAddTag4'); document.getElementById('lsTag5')?.focus();
+        }
+      }
+
+      const btn1 = document.getElementById('lsAddTag1'); if (btn1) btn1.addEventListener('click', () => showNextTag(1));
+      const btn2 = document.getElementById('lsAddTag2'); if (btn2) btn2.addEventListener('click', () => showNextTag(2));
+      const btn3 = document.getElementById('lsAddTag3'); if (btn3) btn3.addEventListener('click', () => showNextTag(3));
+      const btn4 = document.getElementById('lsAddTag4'); if (btn4) btn4.addEventListener('click', () => showNextTag(4));
+
+      // Esconde/mostra campos de hóspede
+      const hosp = document.getElementById('lsHospede');
+      if (hosp) hosp.addEventListener('change', () => {
+        const fs = document.getElementById('lsHospedeFields');
+        if (!fs) return;
+        fs.style.display = hosp.checked ? 'none' : '';
+        if (hosp.checked) {
+          ['lsNome','lsEmail','lsNif'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        }
+      });
+
+      // Submit
+      const form = document.getElementById('lsForm');
+      if (form) form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const DATA = document.getElementById('lsData')?.value || '';
+        // HORA deve ser a hora do sistema no momento de gravar (HH:MM)
+        const _now = new Date();
+        const HORA = `${String(_now.getHours()).padStart(2,'0')}:${String(_now.getMinutes()).padStart(2,'0')}`;
+        try { const hEl = document.getElementById('lsHora'); if (hEl) hEl.value = HORA; } catch(_){}
+        const QTT  = Number(document.getElementById('lsQtt')?.value || 0);
+        const TAG1 = Number(document.getElementById('lsTag1')?.value || 0);
+        const TAG2 = Number(document.getElementById('lsTag2')?.value || 0);
+        const TAG3 = Number(document.getElementById('lsTag3')?.value || 0);
+        const TAG4 = Number(document.getElementById('lsTag4')?.value || 0);
+        const TAG5 = Number(document.getElementById('lsTag5')?.value || 0);
+        const HOSPEDE = !!document.getElementById('lsHospede')?.checked;
+        let NOME  = document.getElementById('lsNome')?.value?.trim() || '';
+        let EMAIL = document.getElementById('lsEmail')?.value?.trim() || '';
+        let NIF   = document.getElementById('lsNif')?.value?.trim() || '';
+        const VALOR = Number(((QTT || 0) * 4).toFixed(2));
+
+        if (!DATA || !HORA || QTT <= 0 || TAG1 <= 0) { alert('Preenche Data, Hora, Número de items e Tag.'); return; }
+        // Nome/Email/NIF são opcionais, mesmo quando HOSPEDE = 0
+        if (HOSPEDE) { NOME=''; EMAIL=''; NIF=''; }
+
+        try {
+          const resp = await fetch('/generic/api/ls_novo', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ DATA, HORA, QTT, TAG1, TAG2, TAG3, TAG4, TAG5, HOSPEDE, NOME, EMAIL, NIF, VALOR })
+          });
+          const js = await resp.json().catch(()=>({}));
+          if (!resp.ok || js.ok === false || js.success === false) throw new Error(js.error || 'Falha ao gravar');
+          const modalEl = document.getElementById('lsModal');
+          if (modalEl) { const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); modal.hide(); }
+          if (window.showToast) window.showToast('Registo criado com sucesso.', 'success');
+        } catch (e) {
+          alert(e.message || 'Erro ao gravar');
+        }
       });
     });
   </script>

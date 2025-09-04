@@ -221,7 +221,7 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_stamp):
         sql = text("""
-            SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, FOTO
+            SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO
             FROM US
             WHERE USSTAMP = :stamp
         """)
@@ -243,7 +243,7 @@ def create_app():
             pwd = request.form['password']
 
             sql = text("""
-                SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, FOTO
+                SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO
                 FROM US
                 WHERE LOGIN = :login
             """)
@@ -513,6 +513,7 @@ def create_app():
             'ADMIN': getattr(current_user, 'ADMIN', None),
             'DEV': getattr(current_user, 'DEV', None),
             'MNADMIN': getattr(current_user, 'MNADMIN', None),
+            'LSADMIN': getattr(current_user, 'LSADMIN', None),
             'LPADMIN': getattr(current_user, 'LPADMIN', None),
             'EQUIPA': getattr(current_user, 'EQUIPA', None),
             'FOTO': getattr(current_user, 'FOTO', None)

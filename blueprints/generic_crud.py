@@ -308,6 +308,86 @@ def api_tarefa_nova():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 # --------------------------------------------------
+# API: criar registo Luggage Storage (LS)
+# --------------------------------------------------
+@bp.route('/api/ls_novo', methods=['POST'])
+@login_required
+def api_ls_novo():
+    try:
+        is_admin = bool(getattr(current_user, 'ADMIN', False))
+        is_ls_admin = bool(getattr(current_user, 'LSADMIN', False))
+    except Exception:
+        is_admin = False
+        is_ls_admin = False
+
+    if not (is_admin or is_ls_admin):
+        return jsonify({'ok': False, 'error': 'Sem permissão'}), 403
+
+    data = request.get_json(silent=True) or {}
+
+    try:
+        util = (current_user.LOGIN or '').strip()
+    except Exception:
+        util = ''
+
+    DATA = (data.get('DATA') or '').strip()
+    HORA = (data.get('HORA') or '').strip()[:5]
+    QTT  = int(data.get('QTT') or 0)
+    TAG1 = int(data.get('TAG1') or 0)
+    TAG2 = int(data.get('TAG2') or 0)
+    TAG3 = int(data.get('TAG3') or 0)
+    TAG4 = int(data.get('TAG4') or 0)
+    TAG5 = int(data.get('TAG5') or 0)
+    HOSPEDE = 1 if (data.get('HOSPEDE') in (True, 1, '1', 'true', 'True')) else 0
+    NOME  = (data.get('NOME')  or '').strip()
+    EMAIL = (data.get('EMAIL') or '').strip()
+    NIF   = (data.get('NIF')   or '').strip()
+    VALOR = float(data.get('VALOR') or (QTT * 4))
+
+    if not (DATA and HORA and QTT > 0 and TAG1 > 0 and util):
+        return jsonify({'ok': False, 'error': 'Dados obrigatórios em falta'}), 400
+
+    if HOSPEDE == 1:
+        NOME = ''
+        EMAIL = ''
+        NIF = ''
+
+    try:
+        sql = text("""
+            INSERT INTO LS (
+              UTILIZADOR, DATA, HORA, QTT,
+              TAG1, TAG2, TAG3, TAG4, TAG5,
+              VALOR, HOSPEDE, NOME, EMAIL, NIF
+            ) VALUES (
+              :UTILIZADOR, :DATA, :HORA, :QTT,
+              :TAG1, :TAG2, :TAG3, :TAG4, :TAG5,
+              :VALOR, :HOSPEDE, :NOME, :EMAIL, :NIF
+            )
+        """)
+        db.session.execute(sql, {
+            'UTILIZADOR': util,
+            'DATA': DATA,
+            'HORA': HORA,
+            'QTT': QTT,
+            'TAG1': TAG1,
+            'TAG2': TAG2,
+            'TAG3': TAG3,
+            'TAG4': TAG4,
+            'TAG5': TAG5,
+            'VALOR': VALOR,
+            'HOSPEDE': HOSPEDE,
+            'NOME': NOME,
+            'EMAIL': EMAIL,
+            'NIF': NIF
+        })
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao criar Luggage Storage (LS)')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+# --------------------------------------------------
 # API: tarefas do monitor com filtro por utilizador/origem
 # --------------------------------------------------
 @bp.route('/api/monitor_tasks_filtered', methods=['GET'])
