@@ -1,4 +1,4 @@
-// static/js/monitor.js
+﻿// static/js/monitor.js
 
 document.addEventListener('DOMContentLoaded', () => {
   const colAtrasadas = document.getElementById('tarefas-atrasadas');
@@ -165,14 +165,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---- Estado de filtros ----
   const state = {
-    users: new Set([CURRENT_USER]), // por defeito só o utilizador corrente
+    users: new Set([CURRENT_USER]), // por defeito sÃ³ o utilizador corrente
     aloj: new Set(),                // vazio = todos
     origins: new Set(),             // vazio = todas
   };
   // cache das listas
   let cacheUsers = null;   // array de logins
   let cacheAloj = null;    // array de nomes dos alojamentos
-  // temp state enquanto o modal está aberto
+  // temp state enquanto o modal estÃ¡ aberto
   let temp = { users: new Set(), aloj: new Set(), origins: new Set() };
   let tempAll = { users: false, aloj: true, origins: true };
   let currentTab = 'users';
@@ -224,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nomes = rows.map(r => r.NOME).filter(Boolean);
       }
       nomes.sort((a,b)=>a.localeCompare(b));
-      // inclui o especial "sem alojamento" na primeira posição como ''
+      // inclui o especial "sem alojamento" na primeira posiÃ§Ã£o como ''
       cacheAloj = [''].concat(nomes);
       return cacheAloj;
     } catch (_) {
@@ -243,11 +243,11 @@ document.addEventListener('DOMContentLoaded', () => {
       let label = key;
       if (type === 'aloj' && key === '') label = 'Sem alojamento';
       if (type === 'origins') {
-        const map = { 'MN': 'Manutenção', 'LP': 'Limpeza', 'FS': 'Faltas', '': 'Tarefas' };
+        const map = { 'MN': 'ManutenÃ§Ã£o', 'LP': 'Limpeza', 'FS': 'Faltas', '': 'Tarefas' };
         label = map[key] || key;
       }
       if (type === 'origins' && key === '') label = 'Tarefas';
-      if (type === 'origins' && key === 'MN') label = 'Manuteno';
+      if (type === 'origins' && key === 'MN') label = 'Manutenção';
       card.textContent = label;
 
       const markSelected = (tempAll[type] === true) || (temp[type] && temp[type].has(key));
@@ -255,12 +255,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       card.addEventListener('click', () => {
         const sel = card.classList.toggle('selected');
-        // se estava em modo "todos", converte para seleção explícita completa antes de alternar um item
+        // se estava em modo "todos", converte para seleÃ§Ã£o explÃ­cita completa antes de alternar um item
         if (tempAll[type] === true) {
           tempAll[type] = false;
           temp[type] = new Set(items.map(v => normalizeStr(v)));
         }
-        // operar sempre sobre o set atual (após possível substituição acima)
+        // operar sempre sobre o set atual (apÃ³s possÃ­vel substituiÃ§Ã£o acima)
         if (!temp[type]) temp[type] = new Set();
         if (sel) temp[type].add(key); else temp[type].delete(key);
       });
@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function openFiltersModal() {
-    // sincroniza estado temporário com estado atual apenas ao abrir
+    // sincroniza estado temporÃ¡rio com estado atual apenas ao abrir
     // users: vazio no state significa "sem filtro" (todos)
     if (state.users.size === 0) { tempAll.users = true; temp.users = new Set(); } else { tempAll.users = false; temp.users = new Set(state.users); }
     if (state.aloj.size === 0) { tempAll.aloj = true; temp.aloj = new Set(); } else { tempAll.aloj = false; temp.aloj = new Set(state.aloj); }
@@ -366,7 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!includeOrigins.has(o)) continue;
         // respeitar filtro de alojamentos
         if (alojSet.size > 0 && !alojSet.has(a === '' ? '' : a)) continue;
-        // não precisa respeitar filtro de users (ignorar utilizador)
+        // nÃ£o precisa respeitar filtro de users (ignorar utilizador)
         const k = `${o}|${t.DATA}|${t.HORA || ''}|${a}|${t.TAREFA || ''}|${normalizeStr(t.UTILIZADOR)}`;
         if (seen.has(k)) continue;
         seen.add(k);
@@ -402,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="ManutenÃ§Ã£o"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -411,7 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
       }
       bloco.innerHTML = `<div class=\"card-body p-2\">${origemIcon}${icone}<div>${texto}</div></div>`;
-      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manuteno'; } } catch(_) {}
+      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
 
       try {
         const bodyEl = bloco.querySelector('.card-body');
@@ -541,7 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   if (btnNone) btnNone.addEventListener('click', async () => {
-    // Remove todas seleções no tab atual
+    // Remove todas seleÃ§Ãµes no tab atual
     if (currentTab === 'users') {
       tempAll.users = false; temp.users = new Set();
       const users = await fetchUsersList();
@@ -557,7 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   if (btnApply) btnApply.addEventListener('click', () => {
-    // commit dos temporários
+    // commit dos temporÃ¡rios
     state.users = tempAll.users ? new Set() : new Set(temp.users);
     state.aloj = tempAll.aloj ? new Set() : new Set(temp.aloj);
     state.origins = tempAll.origins ? new Set() : new Set(temp.origins);
@@ -586,7 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
       params.set('end', endStr);
       params.set('_', String(Date.now()));
       // Nota: buscamos o conjunto completo para a janela e filtramos no cliente,
-      // de forma a poder aplicar a regra LP→(MN/FS) ignorando utilizador.
+      // de forma a poder aplicar a regra LPâ†’(MN/FS) ignorando utilizador.
 
       const url = `/generic/api/monitor_tasks_filtered?${params.toString()}`;
       try { console.log('[Monitor] Fetch URL:', url); } catch(_) {}
@@ -663,7 +663,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // cone da origem no canto (direita)
         let origemIcon = '';
         switch ((t.ORIGEM || '').toUpperCase()) {
-          case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manutenção"></i>'; break;
+          case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="ManutenÃ§Ã£o"></i>'; break;
           case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
           case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
           default:
@@ -673,7 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
             break;
         }
         bloco.innerHTML = `<div class=\"card-body p-2\">${origemIcon}${icone}<div>${texto}</div></div>`;
-        try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manuteno'; } } catch(_) {}
+        try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
         // Garante badge do utilizador no topo direito
         try {
           const bodyEl = bloco.querySelector('.card-body');
@@ -765,7 +765,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 gruposFuturas.set(diffDays, grp);
               }
               // Ajusta label: dia semana + dd/mm hh:mm
-              const dow = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+              const dow = ['Dom','Seg','Ter','Qua','Qui','Sex','SÃ¡b'];
               const d = new Date(t.DATA + 'T' + t.HORA);
               const dd = String(d.getDate()).padStart(2,'0');
               const mm = String(d.getMonth()+1).padStart(2,'0');
@@ -902,7 +902,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title=\"Manutenção\"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -913,7 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       bloco.innerHTML = `<div class="card-body p-2">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
-      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manuteno'; } } catch(_) {}
+      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
 
       bloco.addEventListener('click', () => {
         tarefaSelecionada = t;
@@ -1090,8 +1090,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
               </div>
             </div>
-            <div class="small mt-1"><span class="text-muted">Hspede:</span> ${esc(row.NOME||'')}</div>
-            <div class="text-muted small mt-1">Checkin: ${dataIn}  Noites: ${row.NOITES||0}  Hspedes: ${hospedes}</div>
+            <div class="small mt-1"><span class="text-muted">Hóspede:</span> ${esc(row.NOME||'')}</div>
+            <div class="text-muted small mt-1">Checkin: ${dataIn}  Noites: ${row.NOITES||0}  Hóspedes: ${hospedes}</div>
           </div>
         `;
         card.addEventListener('click', () => {
@@ -1485,7 +1485,7 @@ if (typeof renderMNCardStyled !== 'function') {
     if (body) {
       const icon = document.createElement('i');
       icon.className = 'fa-solid fa-screwdriver-wrench text-primary float-end';
-      icon.title = 'Manuteno';
+      icon.title = 'Manutenção';
       body.prepend(icon);
       // urgente
       try {
@@ -1615,7 +1615,7 @@ if (typeof renderMNCardStyled !== 'function') {
     if (body && !body.querySelector('.fa-screwdriver-wrench')) {
       const icon = document.createElement('i');
       icon.className = 'fa-solid fa-screwdriver-wrench text-primary float-end';
-      icon.title = 'Manuteno';
+      icon.title = 'Manutenção';
       body.prepend(icon);
     }
     return card;
@@ -1635,7 +1635,7 @@ if (typeof renderMNCardStyled !== 'function') {
           // add requested icon (dark)
           const icon = document.createElement('i');
           icon.className = 'fa-solid fa-wrench float-end text-dark';
-          icon.title = 'Manuteno';
+          icon.title = 'Manutenção';
           body.prepend(icon);
         }
       } catch (e) {}
@@ -1976,7 +1976,7 @@ document.addEventListener('click', function(e) {
   }
 
   async function reloadTasksFilteredImmediate() {
-    // Desativado: lógica legacy que sobrescrevia o render do modal de filtros
+    // Desativado: lÃ³gica legacy que sobrescrevia o render do modal de filtros
     return;
   }
 
@@ -2035,7 +2035,7 @@ document.addEventListener('click', function(e) {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title=\"Manutenção\"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -2046,7 +2046,7 @@ document.addEventListener('click', function(e) {
       }
 
         bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
-        try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manuteno'; } } catch(_) {}
+        try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
 
       bloco.addEventListener('click', () => {
         const modalElement = document.getElementById('tarefaModal');
@@ -2195,7 +2195,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let origemIcon = '';
       switch ((t.ORIGEM || '').toUpperCase()) {
-        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title="Manuteno"></i>'; break;
+        case 'MN': origemIcon = '<i class="fa-solid fa-wrench text-dark float-end ms-1" title=\"Manutenção\"></i>'; break;
         case 'LP': origemIcon = '<i class="fa-solid fa-broom text-dark float-end ms-1" title="Limpeza"></i>'; break;
         case 'FS': origemIcon = '<i class="fa-solid fa-cart-shopping text-dark float-end ms-1" title="Falta de Stock"></i>'; break;
         default:
@@ -2206,7 +2206,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       bloco.innerHTML = `<div class=\"card-body p-2\">${userBadge}${origemIcon}${icone}<div>${texto}</div></div>`;
-      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manuteno'; } } catch(_) {}
+      try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
 
       bloco.addEventListener('click', () => {
         const modalElement = document.getElementById('tarefaModal');
@@ -2518,3 +2518,5 @@ function formatDatePT(s) {
       };
     }
   } catch(_){}
+
+
