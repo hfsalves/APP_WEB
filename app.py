@@ -1,4 +1,4 @@
-import os
+﻿import os
 import pyodbc
 import json
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
@@ -6,7 +6,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from datetime import datetime, date
 from sqlalchemy import text
 
-# Importa a instância db e modelos
+# Importa a instÃ¢ncia db e modelos
 from models import db, US, Menu, Acessos, Widget, UsWidget, MenuBotoes, Linhas
 from models import Modais, CamposModal
 #from your_app_folder import db  # ou ajusta conforme a tua estrutura
@@ -22,7 +22,7 @@ def create_app():
     )
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    # Garantir JSON e respostas com UTF-8 para evitar problemas de acentuação
+    # Garantir JSON e respostas com UTF-8 para evitar problemas de acentuaÃ§Ã£o
     try:
         # Flask 2.x/3.x JSON provider
         app.json.ensure_ascii = False
@@ -34,7 +34,7 @@ def create_app():
         try:
             mt = resp.mimetype or ''
             if mt.startswith('text/'):
-                # acrescenta charset se não existir
+                # acrescenta charset se nÃ£o existir
                 if 'charset=' not in (resp.headers.get('Content-Type') or ''):
                     resp.headers['Content-Type'] = f"{mt}; charset=utf-8"
             elif mt == 'application/json':
@@ -48,7 +48,7 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'login'
 
-    # Importa e regista blueprint genérico
+    # Importa e regista blueprint genÃ©rico
     from blueprints.generic_crud import bp as generic_bp
     app.register_blueprint(generic_bp)
 
@@ -88,7 +88,7 @@ def create_app():
                         .all()
                 )
 
-            # 2) Permissões de acesso por tabela
+            # 2) PermissÃµes de acesso por tabela
             rows = Acessos.query.filter_by(utilizador=current_user.LOGIN).all()
             perms = {
                 a.tabela: {
@@ -100,7 +100,7 @@ def create_app():
                 for a in rows
             }
 
-            # Verificação direta de acesso à MN conforme pedido
+            # VerificaÃ§Ã£o direta de acesso Ã  MN conforme pedido
             try:
                 q_mn = db.session.execute(text(
                     "SELECT CONSULTAR FROM ACESSOS WHERE TABELA = 'MN' AND UTILIZADOR = :u"
@@ -117,7 +117,7 @@ def create_app():
             except Exception:
                 can_open_fs = False
 
-            # 3) Determinar page_name e menu_botoes (igual lógica atual)
+            # 3) Determinar page_name e menu_botoes (igual lÃ³gica atual)
             parts = request.path.strip('/').split('/')
             if len(parts) >= 3 and parts[0] == 'generic' and parts[1] in ('view', 'form'):
                 tabela_arg = parts[2]
@@ -150,7 +150,7 @@ def create_app():
                         page_name = m.nome
                         break
 
-            # 4) Montar estrutura do menu com permissões
+            # 4) Montar estrutura do menu com permissÃµes
             menu_structure = []
             user_is_admin = getattr(current_user, 'ADMIN', False)
 
@@ -163,26 +163,26 @@ def create_app():
             for m in menu_items:
                 mostrar = False
 
-                # Dashboard só para quem tem widgets
+                # Dashboard sÃ³ para quem tem widgets
                 if m.tabela == "dashboard" and not user_is_admin:
                     mostrar = bool(user_widgets)
-                # Monitor de Trabalho sempre visível
+                # Monitor de Trabalho sempre visÃ­vel
                 elif m.tabela == "monitor":
                     mostrar = True
                 # Agrupadores (ordem % 100 == 0)
                 elif m.ordem % 100 == 0:
-                    mostrar = False  # Só será True se algum filho for permitido (mais abaixo)
-                # Todos os outros: só se tem acesso
+                    mostrar = False  # SÃ³ serÃ¡ True se algum filho for permitido (mais abaixo)
+                # Todos os outros: sÃ³ se tem acesso
                 else:
                     mostrar = user_is_admin or perms.get(m.tabela, {}).get('consultar', False)
 
-                # Criação do grupo ou item
+                # CriaÃ§Ã£o do grupo ou item
                 if m.ordem % 100 == 0:
                     current_group = {
                         'name': m.nome,
                         'icon': m.icone,
                         'children': [],
-                        'mostrar': False,  # Só será True se algum filho for mostrado
+                        'mostrar': False,  # SÃ³ serÃ¡ True se algum filho for mostrado
                     }
                     menu_structure.append(current_group)
                 else:
@@ -196,10 +196,10 @@ def create_app():
                             current_group['mostrar'] = True
                             current_group['children'].append(child)
                     elif mostrar:
-                        # Se não está num grupo, mete top-level
+                        # Se nÃ£o estÃ¡ num grupo, mete top-level
                         menu_structure.append(child)
 
-            # Depois de montar, remove grupos sem filhos visíveis
+            # Depois de montar, remove grupos sem filhos visÃ­veis
             menu_structure = [
                 g for g in menu_structure
                 if not isinstance(g, dict) or g.get('mostrar', True) or (g.get('children') and len(g['children']) > 0)
@@ -235,7 +235,7 @@ def create_app():
         return user
 
 
-    # Rotas de autenticação
+    # Rotas de autenticaÃ§Ã£o
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         if request.method == 'POST':
@@ -255,7 +255,7 @@ def create_app():
                 login_user(user)
                 return redirect(request.args.get('next') or url_for('home_page'))
 
-            return render_template('login.html', error='Credenciais inválidas')
+            return render_template('login.html', error='Credenciais invÃ¡lidas')
         return render_template('login.html')
 
 
@@ -336,16 +336,16 @@ def create_app():
         # 1. Carrega o widget
         widget = Widget.query.filter_by(NOME=nome, ATIVO=True).first()
         if not widget:
-            return jsonify({'error': 'Widget não encontrado'}), 404
+            return jsonify({'error': 'Widget nÃ£o encontrado'}), 404
 
-        # 2. Lê a query do CONFIG
+        # 2. LÃª a query do CONFIG
         try:
             config = json.loads(widget.CONFIG)
             query = config.get('query')
             if not query:
-                return jsonify({'error': 'Query não definida no config'}), 400
+                return jsonify({'error': 'Query nÃ£o definida no config'}), 400
         except Exception as e:
-            return jsonify({'error': f'Config inválido: {e}'}), 400
+            return jsonify({'error': f'Config invÃ¡lido: {e}'}), 400
 
         # 3. Executa a query via SQLAlchemy
         try:
@@ -353,7 +353,7 @@ def create_app():
         except Exception as e:
             return jsonify({'error': f'Erro ao executar query: {e}'}), 500
 
-        # 4. Constrói as linhas usando .mappings() para ter dicts
+        # 4. ConstrÃ³i as linhas usando .mappings() para ter dicts
         mappings = result.mappings().all()
         rows = []
         for rd in mappings:
@@ -375,7 +375,7 @@ def create_app():
     @app.route('/modals/<acao>')
     @login_required
     def modal_generico(acao):
-    # Exemplo de configuração por acao
+    # Exemplo de configuraÃ§Ã£o por acao
         if acao == 'agendar_tarefa':
             campos = [
             {'nome': 'PESSOA', 'label': 'Pessoa', 'tipo': 'text'},
@@ -391,7 +391,7 @@ def create_app():
         from models import Modais, CamposModal
         modal = Modais.query.filter_by(NOME=modal_nome, ATIVO=True).first()
         if not modal:
-            return jsonify({'success': False, 'message': 'Modal não encontrado'}), 404
+            return jsonify({'success': False, 'message': 'Modal nÃ£o encontrado'}), 404
 
         campos = CamposModal.query.filter_by(MODAISSTAMP=modal.MODAISSTAMP).order_by(CamposModal.ORDEM).all()
 
@@ -400,10 +400,10 @@ def create_app():
             opcoes = []
             if campo.TIPO == 'COMBO' and campo.COMBO:
                 try:
-                    # ⚠️ use text() aqui
+                    # âš ï¸ use text() aqui
                     res = db.session.execute(text(campo.COMBO))
                     for r in res.fetchall():
-                        # adapte se o SELECT tiver só uma coluna
+                        # adapte se o SELECT tiver sÃ³ uma coluna
                         opcoes.append([str(r[0]), str(r[1] if len(r)>1 else r[0])])
                 except Exception as e:
                     print('Erro na query da combo:', e)
@@ -425,13 +425,13 @@ def create_app():
         dados = request.json
         nome_modal = dados.pop('__modal__', None)
 
-        print(f"\n📥 [MODAL] A gravar modal: {nome_modal}")
-        print(f"📦 Dados recebidos: {dados}")
+        print(f"\nðŸ“¥ [MODAL] A gravar modal: {nome_modal}")
+        print(f"ðŸ“¦ Dados recebidos: {dados}")
 
         modal = Modais.query.filter_by(NOME=nome_modal, ATIVO=True).first()
         if not modal:
-            print(f"❌ Modal '{nome_modal}' não encontrado ou inativo.")
-            return jsonify(success=False, error="Modal não encontrado")
+            print(f"âŒ Modal '{nome_modal}' nÃ£o encontrado ou inativo.")
+            return jsonify(success=False, error="Modal nÃ£o encontrado")
 
         try:
             campos = CamposModal.query.filter_by(MODAISSTAMP=modal.MODAISSTAMP).all()
@@ -440,32 +440,32 @@ def create_app():
                 for c in campos
             }
 
-            print(f"🔁 Mapeamento CAMPO → CAMPODESTINO: {mapa}")
+            print(f"ðŸ” Mapeamento CAMPO â†’ CAMPODESTINO: {mapa}")
 
             dados_filtrados = {
                 mapa[k.upper()]: v for k, v in dados.items() if k.upper() in mapa
             }
 
-            print(f"✅ Dados finais para INSERT na tabela {modal.TABELA}: {dados_filtrados}")
+            print(f"âœ… Dados finais para INSERT na tabela {modal.TABELA}: {dados_filtrados}")
 
             if not dados_filtrados:
-                print("⚠️ Nenhum campo corresponde ao mapping — abortado.")
-                return jsonify(success=False, error="Nenhum dado válido para inserir")
+                print("âš ï¸ Nenhum campo corresponde ao mapping â€” abortado.")
+                return jsonify(success=False, error="Nenhum dado vÃ¡lido para inserir")
 
             colunas = ', '.join(dados_filtrados.keys())
             marcadores = ', '.join([f':{k}' for k in dados_filtrados.keys()])
             sql = f"INSERT INTO {modal.TABELA} ({colunas}) VALUES ({marcadores})"
 
-            print(f"📝 SQL gerado:\n{sql}")
+            print(f"ðŸ“ SQL gerado:\n{sql}")
 
             db.session.execute(text(sql), dados_filtrados)
             db.session.commit()
-            print("✅ Inserção concluída com sucesso.")
+            print("âœ… InserÃ§Ã£o concluÃ­da com sucesso.")
             return jsonify(success=True)
 
         except Exception as e:
             db.session.rollback()
-            print(f"❌ ERRO durante gravação:\n{e}")
+            print(f"âŒ ERRO durante gravaÃ§Ã£o:\n{e}")
             return jsonify(success=False, error=str(e)), 500
         
 
@@ -475,7 +475,7 @@ def create_app():
 
     def resolver_macros(valor):
         def resolver_macros(valor):
-            print(f"🧩 A resolver macro: {valor}")
+            print(f"ðŸ§© A resolver macro: {valor}")
 
         if not isinstance(valor, str):
             return valor
@@ -492,10 +492,10 @@ def create_app():
         }
 
         for macro, real in macros.items():
-            print(f"➡️  Substituir {macro} por {real}")
+            print(f"âž¡ï¸  Substituir {macro} por {real}")
             valor = valor.replace(macro, real)
 
-        print(f"✅ Resultado final: {valor}")
+        print(f"âœ… Resultado final: {valor}")
         return valor
 
 
@@ -528,7 +528,7 @@ def create_app():
         from models import Usql
         entry = Usql.query.filter_by(usqlstamp=usqlstamp).first()
         if not entry:
-            return render_template('error.html', message='Análise não encontrada'), 404
+            return render_template('error.html', message='AnÃ¡lise nÃ£o encontrada'), 404
         return render_template('analise.html', usqlstamp=usqlstamp, titulo=entry.descricao)
 
     @app.route('/api/analise/<usqlstamp>')
@@ -537,7 +537,7 @@ def create_app():
         from models import Usql
         entry = Usql.query.filter_by(usqlstamp=usqlstamp).first()
         if not entry:
-            return jsonify({'error': 'Análise não encontrada'}), 404
+            return jsonify({'error': 'AnÃ¡lise nÃ£o encontrada'}), 404
 
         try:
             result = db.session.execute(text(entry.sqlexpr))
@@ -578,7 +578,7 @@ def create_app():
         alojamentos = [row[0] for row in db.session.execute(text("SELECT NOME FROM AL ORDER BY 1")).fetchall()]
         users = [row[0] for row in db.session.execute(text("SELECT LOGIN FROM US ORDER BY 1")).fetchall()]
         utilizador = current_user.LOGIN
-        return render_template('newmn.html', alojamentos=alojamentos, users=users, utilizador=utilizador, page_title='Manutenção')
+        return render_template('newmn.html', alojamentos=alojamentos, users=users, utilizador=utilizador, page_title='ManutenÃ§Ã£o')
     
     from sqlalchemy import text
 
@@ -602,7 +602,7 @@ def create_app():
         table = request.args.get('table')
         rec = request.args.get('rec')
         if not table or not rec:
-            abort(400, "Faltam parâmetros")
+            abort(400, "Faltam parÃ¢metros")
         return render_template('newanexo.html', table=table, rec=rec, page_title='Anexos')
 
     from sqlalchemy import text
@@ -635,7 +635,7 @@ def create_app():
         if not lpstamp:
             return jsonify({'error': 'LPSTAMP em falta'}), 400
         try:
-            # só insere se não existir ainda
+            # sÃ³ insere se nÃ£o existir ainda
             sql = text('INSERT INTO ET (LPSTAMP, TRATADO) VALUES (:lpstamp, 0)')
             db.session.execute(sql, {'lpstamp': lpstamp})
             db.session.commit()
@@ -661,10 +661,10 @@ def create_app():
         if not new_pwd or len(new_pwd) < 4:
             return {'error': 'Password demasiado curta'}, 400
 
-        from app import db  # ou usa db conforme já tens no teu projeto
+        from app import db  # ou usa db conforme jÃ¡ tens no teu projeto
         user = db.session.query(US).get(current_user.USSTAMP)
         if not user:
-            return {'error': 'Utilizador não encontrado'}, 404
+            return {'error': 'Utilizador nÃ£o encontrado'}, 404
         user.PASSWORD = new_pwd
         db.session.commit()
         return {'success': True}
@@ -679,7 +679,7 @@ def create_app():
 
             user = db.session.query(US).get(current_user.USSTAMP)
             if not user:
-                return {'error': 'Utilizador não encontrado'}, 404
+                return {'error': 'Utilizador nÃ£o encontrado'}, 404
 
             updated = {}
             for field in allowed_fields:
@@ -688,7 +688,7 @@ def create_app():
                     updated[field] = data[field]
 
             if not updated:
-                return {'error': 'Sem alterações válidas'}, 400
+                return {'error': 'Sem alteraÃ§Ãµes vÃ¡lidas'}, 400
 
             db.session.commit()
             return jsonify({'success': True, 'updated': updated})
@@ -708,7 +708,7 @@ def create_app():
             fname = secure_filename(photo.filename)
             ext = os.path.splitext(fname)[1].lower()
             if ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp'):
-                return {'error': 'Formato inválido'}, 400
+                return {'error': 'Formato invÃ¡lido'}, 400
 
             target_dir = os.path.join(app.static_folder, 'images', 'profile')
             os.makedirs(target_dir, exist_ok=True)
@@ -720,7 +720,7 @@ def create_app():
             rel_path = f"images/profile/{new_name}"
             user = db.session.query(US).get(current_user.USSTAMP)
             if not user:
-                return {'error': 'Utilizador não encontrado'}, 404
+                return {'error': 'Utilizador nÃ£o encontrado'}, 404
             user.FOTO = rel_path
             db.session.commit()
 
@@ -739,7 +739,7 @@ def create_app():
             only_mine = params.get('only_mine') in ('1', 'true', 'True')
             start = params.get('start')
             end = params.get('end')
-            # aceita também CSV alternativo (users, aloj, origins)
+            # aceita tambÃ©m CSV alternativo (users, aloj, origins)
             utilizadores = params.getlist('UTILIZADOR') or ([] if params.get('UTILIZADOR') is None else [params.get('UTILIZADOR')])
             if not utilizadores and params.get('users'):
                 utilizadores = [u.strip() for u in params.get('users').split(',') if u.strip() != '']
@@ -749,6 +749,14 @@ def create_app():
             origens = params.getlist('ORIGEM') or ([] if params.get('ORIGEM') is None else [params.get('ORIGEM')])
             if not origens and params.get('origins'):
                 origens = [o.strip() for o in params.get('origins').split(',')]
+            # Regra: LPADMIN vê sempre FS. Não remove filtros existentes; apenas acrescenta FS.
+            try:
+                is_lp_admin = bool(getattr(current_user, 'LPADMIN', 0))
+            except Exception:
+                is_lp_admin = False
+            if is_lp_admin and origens:
+                if 'FS' not in {str(o).upper() for o in origens}:
+                    origens.append('FS')
 
             # Defaults date window
             if not start:
@@ -838,6 +846,53 @@ def create_app():
                         for k in list(b.keys()):
                             s = s.replace(f":{k}", f":{prefix}_{k}")
                         selects[-1] = s
+
+            # LPADMIN: garantir FS visível, ignorando only_mine
+            try:
+                _lpadmin_flag = bool(getattr(current_user, 'LPADMIN', 0))
+            except Exception:
+                _lpadmin_flag = False
+            if _lpadmin_flag:
+                try:
+                    _only_backup = only_mine
+                except Exception:
+                    _only_backup = False
+                try:
+                    only_mine = False
+                    if exists_table('FS'):
+                        s2, b2 = build_select('FS', 'FS')
+                        if s2:
+                            # Renomear binds para evitar colisões
+                            selects.append(s2)
+                            binds_union.update({ f"fsall_{k}": v for k, v in b2.items() })
+                            for k in list(b2.keys()):
+                                s2 = s2.replace(f":{k}", f":fsall_{k}")
+                            selects[-1] = s2
+                    elif exists_table('TAREFAS') and 'ORIGEM' in get_columns('TAREFAS'):
+                        cols = get_columns('TAREFAS')
+                        data_col = 'DATA' if 'DATA' in cols else None
+                        hora_col = 'HORA' if 'HORA' in cols else None
+                        aloj_col = 'ALOJAMENTO' if 'ALOJAMENTO' in cols else None
+                        user_col = 'UTILIZADOR' if 'UTILIZADOR' in cols else None
+                        tarefa_col = next((c for c in ('TAREFA','TITULO','ASSUNTO','DESCRICAO','DESCR') if c in cols), None)
+                        tratado_col = 'TRATADO' if 'TRATADO' in cols else None
+                        if data_col:
+                            sel = [
+                                "NULL AS TAREFASSTAMP",
+                                f"CAST({data_col} AS date) AS DATA",
+                                (f"CAST({hora_col} AS varchar(8)) AS HORA" if hora_col else "'' AS HORA"),
+                                (f"ISNULL({aloj_col}, '') AS ALOJAMENTO" if aloj_col else "'' AS ALOJAMENTO"),
+                                "'FS' AS ORIGEM",
+                                (f"{tarefa_col} AS TAREFA" if tarefa_col else "'Tarefa' AS TAREFA"),
+                                (f"ISNULL({tratado_col}, 0) AS TRATADO" if tratado_col else "0 AS TRATADO"),
+                                (f"ISNULL({user_col}, '') AS UTILIZADOR" if user_col else "'' AS UTILIZADOR"),
+                            ]
+                            sel_sql = ",\n                    ".join(sel)
+                            fs_sql = f"SELECT\n                    {sel_sql}\n                FROM TAREFAS\n                WHERE {data_col} BETWEEN :fs_start AND :fs_end AND ISNULL(ORIGEM,'') = 'FS'"
+                            selects.append(fs_sql)
+                            binds_union.update({ 'fs_start': start, 'fs_end': end })
+                finally:
+                    only_mine = _only_backup
 
             if not selects:
                 return jsonify([])
@@ -1021,7 +1076,7 @@ def create_app():
                                     'UTILIZADOR': r.get('UTILIZADOR') or ''
                                 })
 
-            # 3) juntar e eliminar duplicados por chave lógica
+            # 3) juntar e eliminar duplicados por chave lÃ³gica
             seen = set()
             out = []
             def key_of(x):

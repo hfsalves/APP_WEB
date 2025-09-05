@@ -402,7 +402,11 @@ def monitor_tasks_filtered():
     params = {'user': current_user.LOGIN}
 
     if only_mine:
-        where.append("UTILIZADOR = :user")
+        # LPADMIN: ver sempre FS, mesmo quando only_mine=1
+        if is_lp_admin:
+            where.append("(UTILIZADOR = :user OR UPPER(ISNULL(ORIGEM,'')) = 'FS')")
+        else:
+            where.append("UTILIZADOR = :user")
     else:
         origins = []
         if is_mn_admin:

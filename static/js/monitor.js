@@ -319,12 +319,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const usersSet = state.users; // vazio => todos
     const alojSet = state.aloj;   // vazio => todos
     const origSet = state.origins; // vazio => todas
+    const isLpAdmin = Number(window.IS_LP_ADMIN || 0) === 1;
 
     const matches = (t) => {
       const u = normalizeStr(t.UTILIZADOR);
       const a = normalizeStr(t.ALOJAMENTO);
       const o = normalizeStr(t.ORIGEM);
-      if (usersSet.size > 0 && !usersSet.has(u)) return false;
+      const oU = o.toUpperCase();
+      // LPADMIN: não restringe FS por utilizador
+      if (usersSet.size > 0) {
+        if (!(isLpAdmin && oU === 'FS') && !usersSet.has(u)) return false;
+      }
       if (alojSet.size > 0) {
         const aval = a === '' ? '' : a;
         if (!alojSet.has(aval)) return false;
