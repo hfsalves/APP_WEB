@@ -438,9 +438,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const finalTasks = initiallyMatched.concat(extra);
 
     const addCard = (container, t) => {
-      const dataFormatada = new Date(`${t.DATA}T${t.HORA}`);
-      const hhmm = t.HORA;
-      const ddmm = dataFormatada.toLocaleDateString('pt-PT');
+      // Escolhe a data a exibir: para tratadas usa DTTRATADO (se válido), caso contrário DATA
+      const dtTratRaw = t.DTTRATADO || t.DT_TRATADO || t.dttratado || t.dt_tratado || '';
+      const isTreated = !!t.TRATADO;
+      const treatedYear = dtTratRaw ? parseInt(String(dtTratRaw).slice(0,4), 10) : 1900;
+      const displayDate = (isTreated && dtTratRaw && treatedYear !== 1900) ? String(dtTratRaw) : String(t.DATA || '');
+      const displayTime = String(t.HORA || '00:00');
+      const dataFormatada = new Date(`${displayDate}T${displayTime}`);
+      const hhmm = displayTime;
+      const ddmm = isNaN(dataFormatada.getTime()) ? (displayDate || '') : dataFormatada.toLocaleDateString('pt-PT');
       const origemVazia = !t.ORIGEM || String(t.ORIGEM).trim() === '';
       const alojVazio = !t.ALOJAMENTO || String(t.ALOJAMENTO).trim() === '';
       const displayAloj = (origemVazia && alojVazio) ? 'Tarefa' : (t.ALOJAMENTO || '');
@@ -449,10 +455,29 @@ document.addEventListener('DOMContentLoaded', () => {
       bloco.className = 'card tarefa-card mb-2 shadow-sm';
 
       let texto;
-      if (t.DATA === hojeStr) {
-        texto = `<strong class="tarefa-alojamento">${displayAloj}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+      if (isTreated) {
+        // Tratadas: mostrar sempre a data tratada, sem hora
+        texto = `<strong class="tarefa-alojamento">${displayAloj}</strong><br><span class='text-muted small'>${ddmm} - ${t.TAREFA}</span>`;
       } else {
-        texto = `<strong class="tarefa-alojamento">${displayAloj}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+        if (displayDate === hojeStr) {
+          texto = `<strong class="tarefa-alojamento">${displayAloj}</strong><br><span class='text-muted small'>${hhmm} - ${t.TAREFA}</span>`;
+        } else {
+          texto = `<strong class="tarefa-alojamento">${displayAloj}</strong><br><span class='text-muted small'>${ddmm} ${hhmm} - ${t.TAREFA}</span>`;
+        }
+      }
+
+      // Ajuste: para tarefas futuras não tratadas, usar formato "DOW DD/MM HH'H'MM"
+      if (!isTreated && displayDate > hojeStr) {
+        try {
+          const d = new Date(`${t.DATA}T${t.HORA || '00:00'}`);
+          const dow = ['DOM','SEG','TER','QUA','QUI','SEX','SAB'];
+          const dd = String(d.getDate()).padStart(2,'0');
+          const mm = String(d.getMonth()+1).padStart(2,'0');
+          const HH = String(d.getHours()).padStart(2,'0');
+          const MM = String(d.getMinutes()).padStart(2,'0');
+          const lbl = `${dow[d.getDay()]} ${dd}/${mm} ${HH}H${MM}`;
+          texto = `<strong class=\"tarefa-alojamento\">${displayAloj}</strong><br><span class='text-muted small'>${lbl} - ${t.TAREFA}</span>`;
+        } catch(_) {}
       }
 
       let icone = '';
@@ -532,6 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
       container.appendChild(bloco);
     };
 
+    const treated = [];
     finalTasks.forEach(t => {
       if (!t.TRATADO) {
         if (t.DATA < hojeStr) {
@@ -561,9 +587,48 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
       } else {
-        addCard(colTratadas, t); cntTratadas++;
+        treated.push(t); cntTratadas++;
       }
     });
+
+    // Ordena tratadas por data/hora descendente e renderiza
+    if (treated.length > 0) {
+      const parseDateTime = (sDate, sTime) => {
+        try {
+          if (!sDate) return 0;
+          const d = String(sDate);
+          if (/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(d)) {
+            // already has time component
+            return new Date(d.replace(' ', 'T')).getTime() || 0;
+          }
+          const h = String(sTime || '00:00');
+          return new Date(`${d}T${h}`).getTime() || 0;
+        } catch (_) { return 0; }
+      };
+      const toTs = (t) => {
+        try {
+          const isTreated = !!t.TRATADO;
+          if (isTreated) {
+            const data = String(t.DATA || '');
+            const dtTrat = t.DTTRATADO || t.DT_TRATADO || t.dttratado || t.dt_tratado || '';
+            // CASE WHEN TRATADO = 1 THEN CASE WHEN YEAR(DTTRATADO)=1900 THEN DATA ELSE DTTRATADO END ELSE DATA END
+            const year = dtTrat && /^\d{4}-\d{2}-\d{2}$/.test(String(dtTrat)) ? parseInt(String(dtTrat).slice(0,4), 10) : 1900;
+            if (year === 1900) {
+              return parseDateTime(data, t.HORA || '00:00');
+            }
+            if (dtTrat) {
+              return parseDateTime(dtTrat, '00:00');
+            }
+            // fallback to DATA+HORA
+            return parseDateTime(data, t.HORA || '00:00');
+          }
+          // untreated: DATA+HORA
+          return parseDateTime(t.DATA || '', t.HORA || '00:00');
+        } catch (_) { return 0; }
+      };
+      treated.sort((a,b) => toTs(b) - toTs(a));
+      treated.forEach(t => addCard(colTratadas, t));
+    }
 
     const setCount = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     setCount('count-atrasadas', cntAtrasadas);

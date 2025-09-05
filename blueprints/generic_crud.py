@@ -434,6 +434,7 @@ def monitor_tasks_filtered():
             T.TAREFA,
             T.ALOJAMENTO,
             T.TRATADO,
+            CONVERT(varchar(10), T.DTTRATADO, 23)  AS DTTRATADO,
             T.ORIGEM,
             T.UTILIZADOR,
             U.NOME AS UTILIZADOR_NOME,
@@ -494,6 +495,7 @@ def monitor_tasks_filtered():
                                   T.TAREFA,
                                   ISNULL(T.ALOJAMENTO,'')                 AS ALOJAMENTO,
                                   T.TRATADO,
+                                  CONVERT(varchar(10), T.DTTRATADO, 23)   AS DTTRATADO,
                                   ISNULL(T.ORIGEM,'')                      AS ORIGEM,
                                   T.UTILIZADOR,
                                   U.NOME                                   AS UTILIZADOR_NOME,
@@ -523,6 +525,7 @@ def monitor_tasks_filtered():
                               'MN'                               AS ORIGEM,
                               M.INCIDENCIA                       AS TAREFA,
                               ISNULL(M.TRATADO,0)                AS TRATADO,
+                              CONVERT(varchar(10), M.DTTRATADO, 23) AS DTTRATADO,
                               ISNULL(M.NOME,'')                  AS UTILIZADOR,
                               U.NOME                             AS UTILIZADOR_NOME,
                               U.COR                              AS UTILIZADOR_COR
@@ -551,6 +554,7 @@ def monitor_tasks_filtered():
                               'FS'                               AS ORIGEM,
                               F.ITEM                             AS TAREFA,
                               ISNULL(F.TRATADO,0)                AS TRATADO,
+                              CONVERT(varchar(10), F.DTTRATADO, 23) AS DTTRATADO,
                               ISNULL(F.USERNAME,'')              AS UTILIZADOR,
                               U.NOME                             AS UTILIZADOR_NOME,
                               U.COR                              AS UTILIZADOR_COR
