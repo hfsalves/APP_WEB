@@ -220,7 +220,7 @@
     <i class="fa-solid fa-ellipsis-vertical"></i>
   </button>
   <div class="fab-menu" id="fabMenu" style="display: none;">
-    <button class="fab-menu-item" id="openNovaMn">Nova IncidÃªncia</button>
+    <button class="fab-menu-item" id="openNovaMn">Nova Incid&ecirc;ncia</button>
     <button class="fab-menu-item" id="openNovaFalta">Nova Falta</button>
     <button class="fab-menu-item" id="openNotasReserva">Notas de Reserva</button>
     <button class="fab-menu-item" id="openAlojamentos">Alojamentos</button>
@@ -239,6 +239,7 @@
       </div>
       <div class="modal-body">
         <p id="tarefaDescricao"></p>
+        <div id="tarefaPedidoPor" class="text-muted small mb-2" style="display:none;"></div>
         <div id="tarefaAnexos" class="anexo-queue mt-2"></div>
         <div id="tarefaInfo" class="mt-3" style="white-space:pre-wrap;"></div>
         <div class="d-flex justify-content-between flex-wrap gap-2">
@@ -383,7 +384,7 @@
             </div>
             <div class="col-12 col-md-4">
               <label for="nrReserva" class="form-label">Reserva</label>
-              <input type="text" id="nrReserva" class="form-control" placeholder="CÃ³digo da reserva" />
+              <input type="text" id="nrReserva" class="form-control" placeholder="C&oacute;digo da reserva" />
             </div>
             <div class="col-12 col-md-4">
               <button type="button" id="nrBuscar" class="btn btn-primary">Procurar</button>
@@ -394,15 +395,15 @@
         <div id="nrResultados" class="mt-2"></div>
 
         <div id="nrObsArea" class="mt-3" style="display:none;">
-          <label for="nrObs" class="form-label">ObservaÃ§Ãµes</label>
-          <textarea id="nrObs" class="form-control" rows="4" placeholder="Escreve aqui as observaÃ§Ãµes..."></textarea>
+          <label for="nrObs" class="form-label">Observa&ccedil;&otilde;es</label>
+          <textarea id="nrObs" class="form-control" rows="4" placeholder="Escreve aqui as observa&ccedil;&otilde;es..."></textarea>
           <div class="form-check mt-2">
             <input class="form-check-input" type="checkbox" id="nrBerco">
-            <label class="form-check-label" for="nrBerco">Fazer BerÃ§o</label>
+            <label class="form-check-label" for="nrBerco">Fazer Ber&ccedil;o</label>
           </div>
           <div class="form-check mt-1">
             <input class="form-check-input" type="checkbox" id="nrSofa">
-            <label class="form-check-label" for="nrSofa">Fazer SofÃ¡ Cama</label>
+            <label class="form-check-label" for="nrSofa">Fazer Sof&aacute; Cama</label>
           </div>
         </div>
       </div>
@@ -655,7 +656,7 @@
   <div class="modal-dialog">
     <form class="modal-content" id="novaMnForm">
       <div class="modal-header">
-        <h5 class="modal-title">Nova IncidÃªncia</h5>
+        <h5 class="modal-title">Nova Incid&ecirc;ncia</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
@@ -680,8 +681,8 @@
           </div>
         </div>
         <div class="mb-2 mt-2">
-          <label for="nmIncidencia" class="form-label">IncidÃªncia</label>
-          <textarea id="nmIncidencia" class="form-control" rows="3" placeholder="Descreve a incidÃªncia"></textarea>
+          <label for="nmIncidencia" class="form-label">Incid&ecirc;ncia</label>
+          <textarea id="nmIncidencia" class="form-control" rows="3" placeholder="Descreve a incid&ecirc;ncia"></textarea>
         </div>
       </div>
       <div class="modal-footer">
@@ -1025,6 +1026,7 @@
           // fechar modal e refrescar
           const modalEl = document.getElementById('notaTarefaModal');
           if (modalEl) { const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); modal.hide(); }
+                try { if (typeof window.loadManutencoesNaoAgendadas === 'function') window.loadManutencoesNaoAgendadas(); } catch(_){}
           if (typeof window.loadTarefas === 'function') window.loadTarefas(); else window.location.reload();
         } catch (e) {
           alert(e.message || 'Erro ao criar tarefa');
@@ -1275,7 +1277,6 @@
               const r = await fetch('/generic/api/mn/tratar', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ MNSTAMP: mnstamp })});
               const js = await r.json(); if (!r.ok || js.ok === false) throw new Error(js.error||'Falha ao marcar');
               bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-              if (typeof window.loadTarefas === 'function') window.loadTarefas();
             } catch(err){ alert(err.message||'Erro'); }
           };
           const btnAbrir = document.getElementById('mnAbrirBtn');
@@ -1285,17 +1286,20 @@
         try {
           const form = document.getElementById('agendarForm');
           if (form) {
+            form.dataset.agendarHandler = 'html';
             form.onsubmit = async (e) => {
               e.preventDefault();
               const DATA = document.getElementById('agendarData')?.value || '';
               const HORA = document.getElementById('agendarHora')?.value || '';
-              const UTILIZADOR = window.CURRENT_USER || '';
+              // Utilizador escolhido no select do modal; fallback para o utilizador atual
+              const UTILIZADOR = (document.getElementById('agendarUser')?.value || window.CURRENT_USER || '').trim();
               if (!mnstamp || !DATA || !HORA) { alert('Preenche data e hora'); return; }
               try {
                 const resp = await fetch('/generic/api/tarefas/from-mn', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ MNSTAMP: mnstamp, DATA, HORA, UTILIZADOR }) });
                 const js = await resp.json(); if (!resp.ok || js.ok === false) throw new Error(js.error||'Falha ao agendar');
                 bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                if (typeof window.loadTarefas === 'function') window.loadTarefas();
+                try { if (typeof window.loadManutencoesNaoAgendadas === 'function') window.loadManutencoesNaoAgendadas(); } catch(_){}
+                try { if (typeof window.loadTarefas === 'function') window.loadTarefas(); } catch(_){}
               } catch(err){ alert(err.message||'Erro ao agendar'); }
             };
           }
@@ -1340,16 +1344,13 @@
     document.addEventListener('DOMContentLoaded', () => {
       try {
         const btnNovaMn = document.getElementById('openNovaMn');
-        if (btnNovaMn) btnNovaMn.textContent = 'Nova Incidncia';
-
+        if (btnNovaMn) btnNovaMn.textContent = 'Nova Incid\u00EAncia';
         const modalNovaMn = document.querySelector('#novaMnModal .modal-title');
-        if (modalNovaMn) modalNovaMn.textContent = 'Nova Incidncia';
-
+        if (modalNovaMn) modalNovaMn.textContent = 'Nova Incid\u00EAncia';
         const lblInc = document.querySelector('label[for="nmIncidencia"]');
-        if (lblInc) lblInc.textContent = 'Incidncia';
-
+        if (lblInc) lblInc.textContent = 'Incid\u00EAncia';
         const taInc = document.getElementById('nmIncidencia');
-        if (taInc) taInc.placeholder = 'Descreve a incidncia';
+        if (taInc) taInc.placeholder = 'Descreve a incid\u00EAncia';
 
         const modalAgendar = document.querySelector('#agendarModal .modal-title');
         if (modalAgendar) modalAgendar.textContent = 'Agendar manuteno';
@@ -1426,12 +1427,15 @@
           window.askAddAnexosForMN = function(mnStamp) {
             try {
               if (!mnStamp) return;
-              const quer = window.confirm('Queres anexar fotos/vdeos  Incidncia agora?');
+              const quer = window.confirm('Queres anexar fotos/vídeos  Incidência agora?');
               if (quer) window.openAnexoModal('MN', mnStamp, '');
             } catch(_){}
           };
         }
       } catch(_){}
+
+
+
 
 
 

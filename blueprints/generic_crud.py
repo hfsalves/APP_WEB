@@ -1784,9 +1784,12 @@ def api_criar_tarefa_from_mn():
         )
     """)
     try:
+        # Utilizador alvo: respeita UTILIZADOR enviado, se presente; caso contrário, usa o utilizador autenticado
+        req_util = (data.get('UTILIZADOR') or '').strip()
+        utilizador_dest = req_util if req_util else getattr(current_user, 'LOGIN', None)
         db.session.execute(ins, {
             'oristamp':   mnstamp,
-            'utilizador': getattr(current_user, 'LOGIN', None),
+            'utilizador': utilizador_dest,
             'data':       data_str,
             'hora':       hora_str,
             'duracao':    60,
@@ -1800,3 +1803,31 @@ def api_criar_tarefa_from_mn():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
+# --------------------------------------------------
+# API: obter "pedido por" para tarefas de MN/FS
+# --------------------------------------------------
+@bp.route('/api/tarefa_requester', methods=['GET'])
+@login_required
+def tarefa_requester():
+    try:
+        origem = (request.args.get('origem') or '').strip().upper()
+        oristamp = (request.args.get('oristamp') or '').strip()
+        if origem not in ('MN','FS') or not oristamp:
+            return jsonify({'utilizador': '', 'nome': ''})
+        if origem == 'MN':
+            sql = text("SELECT TOP 1 ISNULL(UTILIZADOR,'') AS UTILIZADOR FROM MN WHERE MNSTAMP = :s")
+        else:
+            # FS pode usar USERNAME em algumas bases; tenta ambos
+            sql = text("SELECT TOP 1 ISNULL(UTILIZADOR, ISNULL(USERNAME,'')) AS UTILIZADOR FROM FS WHERE FSSTAMP = :s")
+        row = db.session.execute(sql, {'s': oristamp}).fetchone()
+        login = (row[0] if row else '') or ''
+        nome = ''
+        if login:
+            try:
+                r2 = db.session.execute(text("SELECT TOP 1 ISNULL(NOME,'') FROM US WHERE LOGIN = :u"), {'u': login}).fetchone()
+                nome = (r2[0] if r2 else '') or ''
+            except Exception:
+                nome = ''
+        return jsonify({'utilizador': login, 'nome': nome})
+    except Exception as e:
+        return jsonify({'utilizador': '', 'nome': '', 'error': str(e) }), 500

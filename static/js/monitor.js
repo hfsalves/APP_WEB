@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const tarefaDescricao = document.getElementById('tarefaDescricao');
   const tarefaInfo = document.getElementById('tarefaInfo');
   const btnTratar = document.getElementById('btnTratar');
+  const tarefaPedidoPor = document.getElementById('tarefaPedidoPor');
   const btnReabrir = document.getElementById('btnReabrir');
   // botes Reagendar e Nota removidos do UI
   
@@ -44,10 +45,15 @@ document.addEventListener('DOMContentLoaded', () => {
       tarefaModalEl.addEventListener('shown.bs.modal', () => {
         try { console.log('[TarefaAnexos] modal shown; selected =', window.tarefaSelecionada); } catch(_) {}
         if (typeof loadTarefaAnexos === 'function') {
+        try { showRequester(window.tarefaSelecionada || tarefaSelecionada || null); } catch(_) {}
           try { loadTarefaAnexos(window.tarefaSelecionada || tarefaSelecionada || null); } catch(_) {}
         }
       });
     }
+  } catch(_) {}
+  try {
+    const tmEl = document.getElementById('tarefaModal');
+    if (tmEl) tmEl.addEventListener('shown.bs.modal', () => { try { showRequester(window.tarefaSelecionada || tarefaSelecionada || null); } catch(_) {} });
   } catch(_) {}
 
   // Resolve ORISTAMP a partir do objeto da tarefa (heurstica)
@@ -298,7 +304,58 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.aloj.size === 0) { tempAll.aloj = true; temp.aloj = new Set(); } else { tempAll.aloj = false; temp.aloj = new Set(state.aloj); }
     if (state.origins.size === 0) { tempAll.origins = true; temp.origins = new Set(); } else { tempAll.origins = false; temp.origins = new Set(state.origins); }
     await showTab(currentTab || 'users');
-    if (filtersModal) filtersModal.show();
+    try { if (filtersModal) filtersModal.show(); } catch(_) {}
+  }
+
+  async function showRequester(task) {
+    try {
+      if (!tarefaPedidoPor) return;
+      tarefaPedidoPor.style.display = 'none';
+      tarefaPedidoPor.textContent = '';
+      if (!task) return;
+      let origem = String(task.ORIGEM || '').toUpperCase();
+      let oristamp = resolveOriStamp(task);
+      // Fallback: obter origem/stamp via backend
+      if (!oristamp && task.TAREFASSTAMP) {
+        try {
+          const r0 = await fetch(`/generic/api/tarefa_origin/${encodeURIComponent(task.TAREFASSTAMP)}`);
+          const j0 = await r0.json().catch(()=>({}));
+          if (r0.ok && j0) {
+            if (!origem) origem = String(j0.ORIGEM || '').toUpperCase();
+            oristamp = j0.ORISTAMP || '';
+          }
+        } catch(_) {}
+      }
+      if (!oristamp) return;
+      if (origem !== 'MN' && origem !== 'FS') return;
+      const endpoint = origem === 'MN'
+        ? `/generic/api/mn/${encodeURIComponent(oristamp)}`
+        : `/generic/api/fs/${encodeURIComponent(oristamp)}`;
+      const r = await fetch(endpoint);
+      const js = await r.json().catch(()=>({}));
+      if (!r.ok) return;
+      // tenta vários nomes de campos usuais
+      const login = js && (js.UTILIZADOR || js.utilizador || js.USERNAME || js.username) ? String(js.UTILIZADOR || js.utilizador || js.USERNAME || js.username) : '';
+      let nome  = js && (js.NOME || js.nome || js.UTILIZADOR_NOME || js.utilizador_nome) ? String(js.NOME || js.nome || js.UTILIZADOR_NOME || js.utilizador_nome) : '';
+      // Preferir o nome da tabela US (US.NOME onde US.LOGIN = <login>)
+      try {
+        if (login) {
+          const ru = await fetch(`/generic/api/US?LOGIN=${encodeURIComponent(login)}`);
+          const jusers = await ru.json().catch(()=>({}));
+          const rows = Array.isArray(jusers) ? jusers : (jusers.rows || []);
+          if (rows && rows.length) {
+            const row = rows[0];
+            const usNome = row && (row.NOME || row.nome);
+            if (usNome) nome = String(usNome);
+          }
+        }
+      } catch(_) {}
+      const who = nome || login;
+      if (who) {
+        tarefaPedidoPor.textContent = `Pedido por ${who}`;
+        tarefaPedidoPor.style.display = '';
+      }
+    } catch(_) {}
   }
 
   function applyFiltersAndRender() {
@@ -490,7 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!grp) {
               const header = document.createElement('div');
               header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
-              const title = diffDays === 1 ? 'Amanh' : `Daqui a ${diffDays} dias`;
+              const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
               header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
               const container = document.createElement('div');
               container.className = 'mb-3';
@@ -760,7 +817,7 @@ document.addEventListener('DOMContentLoaded', () => {
               if (!grp) {
                 const header = document.createElement('div');
                 header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
-                const title = diffDays === 1 ? 'Amanh' : `Daqui a ${diffDays} dias`;
+                const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
                 header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
                 const container = document.createElement('div');
                 container.className = 'mb-3';
@@ -968,7 +1025,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!grp) {
               const header = document.createElement('div');
               header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
-              const title = diffDays === 1 ? 'Amanh' : `Daqui a ${diffDays} dias`;
+              const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
               header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
               const container = document.createElement('div');
               container.className = 'mb-3';
@@ -1013,7 +1070,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-});
+
 
 // FAB menu toggle
 document.getElementById('openFabMenu').onclick = function(e) {
@@ -1198,50 +1255,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // carrega pendentes (MN + FS) ordenados por data
     loadPendentes();
 
-    // submit do modal de agendamento
-    const agendarForm = document.getElementById('agendarForm');
-    if (agendarForm) {
-      agendarForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const mnstamp = document.getElementById('agendarMNStamp').value;
-        const data = document.getElementById('agendarData').value; // YYYY-MM-DD
-        const hora = document.getElementById('agendarHora').value; // HH:MM
-
-        if (!mnstamp || !data || !hora) {
-          alert('Preenche data e hora.');
-          return;
-        }
-
-        try {
-          const resp = await fetch('/generic/api/tarefas/from-mn', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              MNSTAMP: mnstamp,
-              DATA: data,
-              HORA: hora,
-              UTILIZADOR: (typeof window !== 'undefined' && window.CURRENT_USER ? window.CURRENT_USER : null)
-            })
-          });
-          const js = await resp.json();
-          if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao agendar manuteno.');
-
-          // fecha modal
-          const modalEl = document.getElementById('agendarModal');
-          if (modalEl) {
-            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-            modal.hide();
-          }
-
-          // refresca coluna MN e as tarefas (se existir funo global)
-          loadManutencoesNaoAgendadas();
-          if (typeof window.loadTarefas === 'function') window.loadTarefas();
-        } catch (err) {
-          console.error(err);
-          alert(err.message || 'Erro ao agendar.');
-        }
-      });
-    }
+    // submit do modal de agendamento: tratado no HTML (openMnAgendar)
   } catch (e) {
     console.warn('Init MN no agendadas falhou:', e);
   }
@@ -2525,3 +2539,13 @@ function formatDatePT(s) {
   } catch(_){}
 
 
+
+
+
+
+
+
+
+
+
+});
