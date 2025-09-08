@@ -1249,11 +1249,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const btnBuscar = document.getElementById('nrBuscar');
-  if (btnBuscar) btnBuscar.addEventListener('click', nrBuscar);
+  if (btnBuscar) btnBuscar.addEventListener('click', () => { try { console.log('[NR] click Buscar'); } catch(_) {} nrBuscar(); });
   const din = document.getElementById('nrDataIn');
   const res = document.getElementById('nrReserva');
-  if (din) din.addEventListener('change', nrBuscar);
+  if (din) din.addEventListener('change', () => { try { console.log('[NR] change DataIn'); } catch(_) {} setTimeout(() => nrBuscar(), 0); });
   if (res) res.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); nrBuscar(); }});
+
+  // Expose for delegated fallback
+  try { window.nrBuscar = nrBuscar; } catch(_) {}
 
   const btnGravar = document.getElementById('nrGravar');
   if (btnGravar) btnGravar.addEventListener('click', async () => {
@@ -1323,6 +1326,118 @@ function initMnPendentes() {
     console.warn('Init MN não agendadas falhou:', e);
   }
 }
+
+// Delegated fallback: ensures NR modal opens even if direct handler is not bound
+document.addEventListener('click', (ev) => {
+  const btn = ev.target && ev.target.closest && ev.target.closest('#openNotasReserva');
+  if (!btn) return;
+  ev.preventDefault();
+  try { const menu = document.getElementById('fabMenu'); if (menu) menu.style.display = 'none'; } catch(_) {}
+  const modalEl = document.getElementById('nrModal');
+  if (!modalEl) return;
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  try {
+    const resDiv = document.getElementById('nrResultados');
+    const obsArea = document.getElementById('nrObsArea');
+    const obs = document.getElementById('nrObs');
+    const din = document.getElementById('nrDataIn');
+    const res = document.getElementById('nrReserva');
+    if (resDiv) resDiv.innerHTML = '';
+    if (obsArea) obsArea.style.display = 'none';
+    if (obs) obs.value = '';
+    if (din) din.value = '';
+    if (res) res.value = '';
+  } catch(_) {}
+  modal.show();
+}, true);
+
+// Define global nrBuscar if missing so delegated handlers can call it
+if (typeof window.nrBuscar !== 'function') {
+  window.nrBuscar = async function nrBuscar() {
+    const dinEl = document.getElementById('nrDataIn');
+    const resEl = document.getElementById('nrReserva');
+    const out = document.getElementById('nrResultados');
+    const obsArea = document.getElementById('nrObsArea');
+    const obs = document.getElementById('nrObs');
+    const din = dinEl ? dinEl.value : '';
+    const reserva = resEl ? String(resEl.value || '').trim() : '';
+    if (out) out.innerHTML = '<div class="text-muted small">A procurar</div>';
+    try {
+      let url = '';
+      if (din) url = `/generic/api/rs/search?date=${encodeURIComponent(din)}`;
+      else if (reserva) url = `/generic/api/rs/search?reserva=${encodeURIComponent(reserva)}`;
+      else {
+        if (out) out.innerHTML = '<div class="text-muted small">Indica a data de checkin ou o código da reserva.</div>';
+        return;
+      }
+      try { console.log('[NR] fetch (global)', url); } catch(_) {}
+      const r = await fetch(url + `&_=${Date.now()}`);
+      const js = await r.json();
+      const rows = Array.isArray(js) ? js : (js.rows || []);
+      if (!rows.length) {
+        if (out) out.innerHTML = '<div class="text-muted small">Sem resultados.</div>';
+        return;
+      }
+      if (out) out.innerHTML = '';
+      const esc = (s) => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch]));
+      const canOpenRSGlob = !!(typeof window !== 'undefined' && window.CAN_OPEN_RS);
+      const btnAbrirSel = document.getElementById('nrAbrir');
+      if (btnAbrirSel) btnAbrirSel.disabled = true;
+      rows.forEach(row => {
+        const card = document.createElement('div');
+        card.className = 'card tarefa-card mb-2 shadow-sm nr-card';
+        const hospedes = (Number(row.ADULTOS||0) + Number(row.CRIANCAS||0)) || 0;
+        const dataIn = row.DATAIN || '';
+        card.innerHTML = `
+          <div class="card-body p-2">
+            <div class="d-flex justify-content-between align-items-center">
+              <strong class="tarefa-alojamento">${esc(row.ALOJAMENTO||'')}</strong>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-secondary">${(row.RESERVA||'')}</span>
+              </div>
+            </div>
+            <div class="small mt-1"><span class="text-muted">Hóspede:</span> ${esc(row.NOME||'')}</div>
+            <div class="text-muted small mt-1">Checkin: ${dataIn}  Noites: ${row.NOITES||0}  Hóspedes: ${hospedes}</div>
+          </div>
+        `;
+        card.addEventListener('click', () => {
+          if (out) out.querySelectorAll('.nr-card.nr-selected').forEach(el => el.classList.remove('nr-selected'));
+          card.classList.add('nr-selected');
+          window.NR_SELECTED = { reserva: row.RESERVA, rsstamp: row.RSSTAMP, obs: row.OBS||'', berco: row.BERCO||0, sofacama: row.SOFACAMA||0 };
+          if (obs) obs.value = row.OBS || '';
+          try {
+            const b = document.getElementById('nrBerco');
+            const s = document.getElementById('nrSofa');
+            if (b) b.checked = !!row.BERCO;
+            if (s) s.checked = !!row.SOFACAMA;
+          } catch(_){}
+          if (obsArea) obsArea.style.display = '';
+          if (btnAbrirSel) btnAbrirSel.disabled = !(canOpenRSGlob && row.RSSTAMP);
+        });
+        if (out) out.appendChild(card);
+      });
+    } catch (e) {
+      console.error(e);
+      if (out) out.innerHTML = '<div class="text-danger small">Erro ao procurar.</div>';
+    }
+  }
+}
+// Delegated triggers for NR search (works even if direct handlers missed)
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (el && el.id === 'nrDataIn') {
+    try { console.log('[NR] delegated change DataIn'); } catch(_) {}
+    if (window.nrBuscar) setTimeout(() => window.nrBuscar(), 0);
+  }
+}, true);
+
+document.addEventListener('click', (e) => {
+  const btn = e.target && e.target.closest && e.target.closest('#nrBuscar');
+  if (!btn) return;
+  try { console.log('[NR] delegated click Buscar'); } catch(_) {}
+  e.preventDefault();
+  if (window.nrBuscar) window.nrBuscar();
+}, true);
 
 // Garante execução mesmo se o listener for registado tarde
 if (document.readyState === 'loading') {
@@ -2002,6 +2117,40 @@ document.addEventListener('DOMContentLoaded', () => {
     renderMNCardStyled = withTratarButton(renderMNCardStyled);
   }
 })();
+
+// Delegated submit handler for Agendar Manutenção
+document.addEventListener('submit', async (e) => {
+  const form = e.target && e.target.closest && e.target.closest('#agendarForm');
+  if (!form) return;
+  e.preventDefault();
+  try {
+    const mnstamp = document.getElementById('agendarMNStamp')?.value || '';
+    const DATA = document.getElementById('agendarData')?.value || '';
+    const HORA = document.getElementById('agendarHora')?.value || '';
+    const UTILIZADOR = (document.getElementById('agendarUser')?.value || window.CURRENT_USER || '').trim();
+    if (!mnstamp || !DATA || !HORA) { alert('Preenche data e hora'); return; }
+    try { console.log('[MN] Agendar submit', { mnstamp, DATA, HORA, UTILIZADOR }); } catch(_) {}
+    const btn = document.getElementById('agendarConfirm');
+    if (btn) { btn.disabled = true; btn.textContent = 'A gravar...'; }
+    const resp = await fetch('/generic/api/tarefas/from-mn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ MNSTAMP: mnstamp, DATA, HORA, UTILIZADOR })
+    });
+    const js = await resp.json().catch(()=>({}));
+    if (!resp.ok || js.ok === false) throw new Error(js.error || `Falha ao agendar (${resp.status})`);
+    const modalEl = document.getElementById('agendarModal');
+    if (modalEl) { const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); modal.hide(); }
+    try { if (typeof loadPendentes === 'function') loadPendentes(); } catch(_) {}
+    try { if (typeof window.loadTarefas === 'function') window.loadTarefas(); } catch(_) {}
+  } catch (err) {
+    console.error(err);
+    alert(err.message || 'Erro ao agendar');
+  } finally {
+    const btn = document.getElementById('agendarConfirm');
+    if (btn) { btn.disabled = false; btn.textContent = 'Agendar'; }
+  }
+}, true);
 
 // Delegated handler for modal button (works even if DOMContentLoaded already fired)
 document.addEventListener('click', async (evt) => {
