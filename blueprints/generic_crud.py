@@ -1573,8 +1573,11 @@ def api_mn_nao_agendadas():
           ISNULL(URGENTE,0) AS URGENTE,
           CONVERT(varchar(10), DATA, 23) AS DATA
         FROM MN
-        WHERE (TRATADO = 0 OR ISNULL(URGENTE,0) = 1)
-          AND MNSTAMP NOT IN (SELECT ORISTAMP FROM TAREFAS)
+        WHERE TRATADO = 0
+          AND MNSTAMP NOT IN (
+            SELECT ORISTAMP FROM TAREFAS
+            WHERE UPPER(ISNULL(ORIGEM,'')) = 'MN'
+          )
         ORDER BY DATA DESC, MNSTAMP
     """)
     rows = db.session.execute(sql).mappings().all()
@@ -1710,7 +1713,10 @@ def api_fs_nao_agendadas():
           CONVERT(varchar(10), DATA, 23) AS DATA
         FROM FS
         WHERE TRATADO = 0
-          AND FSSTAMP NOT IN (SELECT ORISTAMP FROM TAREFAS)
+          AND FSSTAMP NOT IN (
+            SELECT ORISTAMP FROM TAREFAS
+            WHERE UPPER(ISNULL(ORIGEM,'')) = 'FS'
+          )
         ORDER BY DATA DESC, FSSTAMP
     """)
     rows = db.session.execute(sql).mappings().all()

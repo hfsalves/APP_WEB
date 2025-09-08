@@ -737,7 +737,7 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/monitor.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/monitor.js') }}?v=3"></script>
   
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -1308,35 +1308,8 @@
         bootstrap.Modal.getOrCreateInstance(modalEl).show();
       }
 
-      // Wrap de renderMNCardStyled para neutralizar handlers antigos e anexar dataset
-      try {
-        if (typeof renderMNCardStyled === 'function') {
-          const prev = renderMNCardStyled;
-          renderMNCardStyled = function(mn){
-            const original = prev(mn);
-            const clone = original.cloneNode(true);
-            clone.classList.add('mn-card-enhanced');
-            clone.dataset.mnstamp = mn.MNSTAMP || mn.mnstamp || '';
-            clone.dataset.aloj = mn.ALOJAMENTO || '';
-            clone.dataset.nome = mn.NOME || mn.UTILIZADOR || '';
-            clone.dataset.data = mn.DATA || '';
-            clone.addEventListener('click', (evt) => { evt.preventDefault(); evt.stopImmediatePropagation(); openMnAgendar(clone.dataset); });
-            original.replaceWith(clone);
-            return clone;
-          };
-        }
-      } catch(e) { console.warn('Falha a reconfigurar cards MN:', e); }
-
-      // Delegate: forÃ§a o nosso handler para todos os cards MN
-      document.addEventListener('click', (e) => {
-        const el = e.target.closest('.tarefa-manutencao');
-        if (!el) return;
-        // Interceta sempre e usa dataset (preenchido em monitor.js)
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        const data = el.dataset || {};
-        openMnAgendar({ mnstamp: data.mnstamp, aloj: data.aloj, nome: data.nome, data: data.data });
-      }, true);
+      // monitor.js já injeta o click e preenche modal (outs + anexos).
+      // Evitamos substituir os handlers para não perder funcionalidades.
     });
   </script>
   <script>

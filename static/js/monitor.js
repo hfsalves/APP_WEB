@@ -1307,24 +1307,29 @@ document.addEventListener('DOMContentLoaded', () => {
 // =========================
 // MN NO AGENDADAS (NOVO)
 // =========================
-document.addEventListener('DOMContentLoaded', () => {
+function initMnPendentes() {
   try {
     const colMN = document.getElementById('mn-nao-agendadas');
-    if (!colMN) return; // coluna no est no HTML carregado
-    if (typeof IS_MN_ADMIN === 'undefined' || !IS_MN_ADMIN) {
-      // se no  admin, esvazia/sai
+    if (!colMN) return; // coluna não está no HTML carregado
+    // Gate por permissão
+    const isAdmin = (typeof IS_MN_ADMIN !== 'undefined') && !!IS_MN_ADMIN;
+    if (!isAdmin) {
       colMN.innerHTML = '';
       return;
     }
-
     // carrega pendentes (MN + FS) ordenados por data
     loadPendentes();
-
-    // submit do modal de agendamento: tratado no HTML (openMnAgendar)
   } catch (e) {
-    console.warn('Init MN no agendadas falhou:', e);
+    console.warn('Init MN não agendadas falhou:', e);
   }
-});
+}
+
+// Garante execução mesmo se o listener for registado tarde
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initMnPendentes);
+} else {
+  initMnPendentes();
+}
 
 async function loadManutencoesNaoAgendadas() {
   const colMN = document.getElementById('mn-nao-agendadas');
@@ -1584,12 +1589,68 @@ if (typeof renderMNCardStyled !== 'function') {
       } catch(_){}
     }
 
-    card.addEventListener('click', () => {
-      const mnstamp = mn.MNSTAMP || mn.mnstamp || '';
-      const modalEl = document.getElementById('agendarModal');
-      const stampEl = document.getElementById('agendarMNStamp');
-      if (stampEl) stampEl.value = mnstamp;
-      try { window.CURRENT_MN = mn; } catch(_) {}
+    // Helper to populate modal sections from current hidden mnstamp
+    function ensureMnModalPopulate() {
+      try {
+        const stampEl = document.getElementById('agendarMNStamp');
+        const mnstamp2 = stampEl && stampEl.value;
+        const resumo = document.getElementById('mnResumo');
+        const infoEl = document.getElementById('mnOutOptions');
+        if (!mnstamp2) return;
+        if (resumo) resumo.innerHTML = '<div class="text-muted small">A carregar</div>';
+        fetch(`/generic/api/mn/${encodeURIComponent(mnstamp2)}`)
+          .then(r => r.json())
+          .then(row => {
+            const esc = window.escapeHtml || (s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch])));
+            const aloj2 = row.ALOJAMENTO || '';
+            const quem2 = row.NOME || '';
+            const dataStr2 = row.DATA || '';
+            const incid2 = row.INCIDENCIA || '';
+            if (resumo) resumo.innerHTML = `
+              <div class=\"tarefa-titulo\"><strong>${esc(aloj2)}</strong></div>
+              <div class=\"tarefa-subtitulo text-muted small\">${esc(quem2)}${(quem2 && dataStr2) ? '  ' : ''}${esc(dataStr2)}</div>
+              <div class=\"tarefa-texto small\">${esc(incid2)}</div>
+            `;
+            if (infoEl) setTimeout(() => fillOutOptions(aloj2), 0);
+            // Thumbs
+            const thumbsEl = document.getElementById('mnAnexos');
+            if (thumbsEl) {
+              thumbsEl.innerHTML = '<div class="text-muted small">A carregar anexos...</div>';
+              fetch(`/api/anexos?table=MN&rec=${encodeURIComponent(mnstamp2)}`)
+                .then(a => a.json())
+                .then(list => {
+                  if (!Array.isArray(list) || list.length === 0) { thumbsEl.innerHTML = ''; return; }
+                  thumbsEl.innerHTML = '';
+                  const isImg = (t) => /^(png|jpg|jpeg|gif|webp)$/i.test(String(t||''));
+                  const isVid = (t) => /^(mp4|webm|ogg|mov)$/i.test(String(t||''));
+                  list.forEach((a) => {
+                    const url = a.CAMINHO || '#';
+                    const typ = a.TIPO || '';
+                    const name = a.FICHEIRO || '';
+                    const item = document.createElement('a');
+                    item.className = 'anexo-item text-decoration-none text-body';
+                    item.href = url; item.target = '_blank';
+                    let inner = '';
+                    if (isImg(typ)) inner = `<img class=\"anexo-thumb\" src=\"${url}\">`;
+                    else if (isVid(typ)) inner = `<video class=\"anexo-thumb\" src=\"${url}\" muted></video>`;
+                    else inner = `<div class=\"anexo-thumb d-flex align-items-center justify-content-center text-muted\"><i class=\"fa-regular fa-file-lines fa-2x\"></i></div>`;
+                    item.innerHTML = `${inner}<div class=\"anexo-name\" title=\"${name}\">${name}</div>`;
+                    thumbsEl.appendChild(item);
+                  });
+                })
+                .catch(()=> { thumbsEl.innerHTML=''; });
+            }
+          })
+          .catch(() => { if (resumo) resumo.innerHTML = ''; });
+      } catch(_) {}
+    }
+
+      card.addEventListener('click', () => {
+        const mnstamp = mn.MNSTAMP || mn.mnstamp || '';
+        const modalEl = document.getElementById('agendarModal');
+        const stampEl = document.getElementById('agendarMNStamp');
+        if (stampEl) stampEl.value = mnstamp;
+        try { window.CURRENT_MN = mn; } catch(_) {}
       // Defaults: hoje e prxima meia hora
       try {
         const dEl = document.getElementById('agendarData');
@@ -1618,12 +1679,15 @@ if (typeof renderMNCardStyled !== 'function') {
 
       // Blocos por cada prximo Check-Out
       try {
+        try { console.log('[MN] card click', { aloj, mnstamp }); } catch(_) {}
         const optsEl = document.getElementById('mnOutOptions');
         if (optsEl) {
           optsEl.innerHTML = '<div class="text-muted small">A carregar check-outs</div>';
+          try { console.log('[MN] outs fetch alojamento=', aloj); } catch(_) {}
           fetch(`/generic/api/monitor/outs?alojamento=${encodeURIComponent(aloj)}`)
             .then(r => r.json())
             .then(js => {
+              try { console.log('[MN] outs rows:', js && Array.isArray(js.rows) ? js.rows.length : 'n/a'); } catch(_) {}
               const rows = Array.isArray(js.rows) ? js.rows : [];
               if (!rows.length) { optsEl.innerHTML = '<div class="text-muted small">Sem check-outs futuros.</div>'; return; }
               const fmtDDMM = (d) => {
@@ -1669,9 +1733,12 @@ if (typeof renderMNCardStyled !== 'function') {
                 optsEl.appendChild(block);
               });
             })
-            .catch(() => { optsEl.innerHTML = '<div class="text-muted small">Sem informao disponvel.</div>'; });
+            .catch((e) => { try { console.error('[MN] outs fetch error', e); } catch(_) {}; optsEl.innerHTML = '<div class="text-muted small">Sem informao disponvel.</div>'; });
         }
       } catch(_){}
+
+      // Thumbnails de anexos (por RECSTAMP = MNSTAMP)
+      try { if (mnstamp) fillMnThumbs(mnstamp); } catch(_) {}
       // Configura o boto Abrir (mostrar sempre para debug)
       try {
         const btnAbrirMn = document.getElementById('mnAbrirBtn');
@@ -1686,6 +1753,9 @@ if (typeof renderMNCardStyled !== 'function') {
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
       }
+
+      // Re-populate using backend (robust against missing closure data)
+      ensureMnModalPopulate();
     });
 
     return card;
@@ -1803,6 +1873,40 @@ function fillOutOptions(aloj) {
   } catch(_) {}
 }
 
+// Helper: carrega thumbnails de anexos para a MN no modal de agendamento
+function fillMnThumbs(mnstamp) {
+  try {
+    const thumbsEl = document.getElementById('mnAnexos');
+    if (!thumbsEl || !mnstamp) return;
+    thumbsEl.innerHTML = '<div class="text-muted small">A carregar anexos...</div>';
+    try { console.log('[MN] fillMnThumbs fetch', mnstamp); } catch(_) {}
+    fetch(`/api/anexos?table=MN&rec=${encodeURIComponent(mnstamp)}`)
+      .then(a => a.json())
+      .then(list => {
+        try { console.log('[MN] anexos rows:', Array.isArray(list) ? list.length : 'n/a'); } catch(_) {}
+        if (!Array.isArray(list) || list.length === 0) { thumbsEl.innerHTML = ''; return; }
+        thumbsEl.innerHTML = '';
+        const isImg = (t) => /^(png|jpg|jpeg|gif|webp)$/i.test(String(t||''));
+        const isVid = (t) => /^(mp4|webm|ogg|mov)$/i.test(String(t||''));
+        list.forEach((a) => {
+          const url = a.CAMINHO || '#';
+          const typ = a.TIPO || '';
+          const name = a.FICHEIRO || '';
+          const item = document.createElement('a');
+          item.className = 'anexo-item text-decoration-none text-body';
+          item.href = url; item.target = '_blank';
+          let inner = '';
+          if (isImg(typ)) inner = `<img class=\"anexo-thumb\" src=\"${url}\">`;
+          else if (isVid(typ)) inner = `<video class=\"anexo-thumb\" src=\"${url}\" muted></video>`;
+          else inner = `<div class=\"anexo-thumb d-flex align-items-center justify-content-center text-muted\"><i class=\"fa-regular fa-file-lines fa-2x\"></i></div>`;
+          item.innerHTML = `${inner}<div class=\"anexo-name\" title=\"${name}\">${name}</div>`;
+          thumbsEl.appendChild(item);
+        });
+      })
+      .catch((e)=> { try { console.error('[MN] anexos fetch error', e); } catch(_) {}; thumbsEl.innerHTML=''; });
+  } catch(_) {}
+}
+
 // Quando o modal de MN abrir, preencher defaults + resumo + prximos eventos
 document.addEventListener('DOMContentLoaded', () => {
   const modalEl = document.getElementById('agendarModal');
@@ -1821,7 +1925,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const mm = String(round.getMinutes()).padStart(2,'0');
       if (hEl) hEl.value = `${hh}:${mm}`;
 
-      // Resumo + Prximos eventos baseados no mnstamp (no depende de window.CURRENT_MN)
+      // Resumo + Próximos eventos baseados no MNSTAMP (independente de variáveis anteriores)
       const resumo = document.getElementById('mnResumo');
       const infoEl = document.getElementById('mnOutOptions');
       const stampEl = document.getElementById('agendarMNStamp');
@@ -1841,38 +1945,10 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class=\"tarefa-subtitulo text-muted small\">${esc(quem)}${(quem && dataStr) ? '  ' : ''}${esc(dataStr)}</div>
               <div class=\"tarefa-texto small\">${esc(incid)}</div>
             `;
-            // Preenche blocos de check-outs (override contedo anterior)
+            // Preenche blocos de check-outs (override conteúdo anterior)
             if (infoEl) setTimeout(() => fillOutOptions(aloj), 0);
-            // Carrega thumbnails de anexos da MN
-            try {
-              const thumbsEl = document.getElementById('mnAnexos');
-              if (thumbsEl) {
-                thumbsEl.innerHTML = '<div class="text-muted small">A carregar anexos...</div>';
-                fetch(`/api/anexos?table=MN&rec=${encodeURIComponent(mnstamp)}`)
-                  .then(a => a.json())
-                  .then(list => {
-                    if (!Array.isArray(list) || list.length === 0) { thumbsEl.innerHTML = ''; return; }
-                    thumbsEl.innerHTML = '';
-                    const isImg = (t) => /^(png|jpg|jpeg|gif|webp)$/i.test(String(t||''));
-                    const isVid = (t) => /^(mp4|webm|ogg|mov)$/i.test(String(t||''));
-                    list.forEach((a) => {
-                      const url = a.CAMINHO || '#';
-                      const typ = a.TIPO || '';
-                      const name = a.FICHEIRO || '';
-                      const item = document.createElement('a');
-                      item.className = 'anexo-item text-decoration-none text-body';
-                      item.href = url; item.target = '_blank';
-                      let inner = '';
-                      if (isImg(typ)) inner = `<img class=\"anexo-thumb\" src=\"${url}\">`;
-                      else if (isVid(typ)) inner = `<video class=\"anexo-thumb\" src=\"${url}\" muted></video>`;
-                      else inner = `<div class=\"anexo-thumb d-flex align-items-center justify-content-center text-muted\"><i class=\"fa-regular fa-file-lines fa-2x\"></i></div>`;
-                      item.innerHTML = `${inner}<div class=\"anexo-name\" title=\"${name}\">${name}</div>`;
-                      thumbsEl.appendChild(item);
-                    });
-                  })
-                  .catch(()=> { thumbsEl.innerHTML=''; });
-              }
-            } catch(_) {}
+            // Carrega thumbnails de anexos da MN (por RECSTAMP)
+            fillMnThumbs(mnstamp);
           })
           .catch(() => { resumo.innerHTML = ''; });
       }
@@ -2352,39 +2428,7 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 */
 
-// Novo renderer: cards de MN semelhantes aos das tarefas
-function renderMNCardStyled(mn) {
-  // Espera { MNSTAMP, NOME (quem pediu), ALOJAMENTO, INCIDENCIA, DATA (YYYY-MM-DD) }
-  const card = document.createElement('div');
-  card.className = 'card tarefa-card mb-2 shadow-sm tarefa-manutencao';
-  card.style.cursor = 'pointer';
-
-  const aloj = mn.ALOJAMENTO || '';
-  const quem = mn.NOME || mn.UTILIZADOR || '';
-  const dataStr = mn.DATA ? new Date(mn.DATA).toLocaleDateString('pt-PT') : '';
-  const incid = mn.INCIDENCIA || mn.DESCRICAO || '';
-
-  card.innerHTML = `
-    <div class="card-body p-2">
-      <div class="tarefa-titulo"><strong>${escapeHtml(aloj)}</strong></div>
-      <div class="tarefa-subtitulo text-muted small">${escapeHtml(quem)}${(quem && dataStr) ? '  ' : ''}${escapeHtml(dataStr)}</div>
-      <div class="tarefa-texto small">${escapeHtml(incid)}</div>
-    </div>
-  `;
-
-  card.addEventListener('click', () => {
-    const mnstamp = mn.MNSTAMP || mn.MNSTAMP || mn.mnstamp || '';
-    const modalEl = document.getElementById('agendarModal');
-    const stampEl = document.getElementById('agendarMNStamp');
-    if (stampEl) stampEl.value = mnstamp;
-    if (modalEl) {
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.show();
-    }
-  });
-
-  return card;
-}
+// (removido: duplicate simplistic renderMNCardStyled; use the full-featured one defined earlier)
 
 // Helper para escapar HTML em campos vindos do servidor
 function escapeHtml(s) {

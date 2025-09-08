@@ -17,12 +17,17 @@ ALLOWED_EXT = {'png','jpg','jpeg','gif','pdf','docx','xlsx','txt'}
 @bp.route('', methods=['GET'])
 @login_required
 def list_anexos():
-    tabela   = request.args.get('table', '')
-    recstamp = request.args.get('rec', '')
+    tabela   = (request.args.get('table', '') or '').strip()
+    recstamp = (request.args.get('rec', '') or '').strip()
+    # Tornar a pesquisa robusta a espaos e maisculas, e permitir anexos antigos sem TABELA preenchida
     sql = text("""
         SELECT ANEXOSSTAMP, TABELA, RECSTAMP, DESCRICAO, FICHEIRO, CAMINHO, TIPO, DATA, UTILIZADOR
           FROM ANEXOS
-         WHERE TABELA = :t AND RECSTAMP = :r
+         WHERE (
+                 (UPPER(LTRIM(RTRIM(TABELA))) = UPPER(:t) AND LTRIM(RTRIM(RECSTAMP)) = :r)
+              OR (:t = '' AND LTRIM(RTRIM(RECSTAMP)) = :r)
+              OR (UPPER(:t) = 'MN' AND (TABELA IS NULL OR LTRIM(RTRIM(TABELA)) = '') AND LTRIM(RTRIM(RECSTAMP)) = :r)
+              )
          ORDER BY DATA DESC
     """)
     rows = db.session.execute(sql, {'t': tabela, 'r': recstamp}).mappings().all()
