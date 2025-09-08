@@ -1439,6 +1439,40 @@ document.addEventListener('click', (e) => {
   if (window.nrBuscar) window.nrBuscar();
 }, true);
 
+// Delegated handler: Gravar Notas de Reserva
+document.addEventListener('click', async (e) => {
+  const btn = e.target && e.target.closest && e.target.closest('#nrGravar');
+  if (!btn) return;
+  e.preventDefault();
+  try { console.log('[NR] delegated click Gravar'); } catch(_) {}
+  const sel = window.NR_SELECTED;
+  const obsEl = document.getElementById('nrObs');
+  const bercoEl = document.getElementById('nrBerco');
+  const sofaEl  = document.getElementById('nrSofa');
+  const obs = obsEl ? obsEl.value : '';
+  const berco = !!(bercoEl && bercoEl.checked);
+  const sofacama = !!(sofaEl && sofaEl.checked);
+  if (!sel || !sel.reserva) { alert('Escolhe uma reserva.'); return; }
+  try {
+    btn.disabled = true;
+    const r = await fetch('/generic/api/rs/obs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reserva: sel.reserva, obs, berco, sofacama })
+    });
+    const js = await r.json().catch(()=>({}));
+    if (!r.ok || js.ok === false) throw new Error(js.error || 'Falha ao gravar.');
+    alert('Notas adicionadas à reserva');
+    const modalEl = document.getElementById('nrModal');
+    if (modalEl) { const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); modal.hide(); }
+  } catch (err) {
+    console.error('[NR] save error', err);
+    alert(err.message || 'Erro ao gravar');
+  } finally {
+    try { btn.disabled = false; } catch(_) {}
+  }
+}, true);
+
 // Garante execução mesmo se o listener for registado tarde
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initMnPendentes);
