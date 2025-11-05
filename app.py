@@ -616,6 +616,18 @@ def create_app():
                 future_start = today
             noites_futuras_totais = (data_fim - future_start).days + 1 if data_fim >= future_start else 0
 
+            # Next 2/4/7 nights windows for alert (from today, capped to selected period)
+            next_start = today if today > data_inicio else data_inicio
+            next2_end_raw = today + timedelta(days=1)
+            next4_end_raw = today + timedelta(days=3)
+            next7_end_raw = today + timedelta(days=6)
+            next2_end = next2_end_raw if next2_end_raw < data_fim else data_fim
+            next4_end = next4_end_raw if next4_end_raw < data_fim else data_fim
+            next7_end = next7_end_raw if next7_end_raw < data_fim else data_fim
+            total_next2_days = (next2_end - next_start).days + 1 if next2_end >= next_start else 0
+            total_next4_days = (next4_end - next_start).days + 1 if next4_end >= next_start else 0
+            total_next7_days = (next7_end - next_start).days + 1 if next7_end >= next_start else 0
+
             # SQL Server aggregation with LEFT JOIN and filters in ON to preserve AL rows
             sql = text(
                 """
@@ -628,7 +640,10 @@ def create_app():
                     CASE WHEN COUNT(DISTINCT V.data) > 0
                          THEN SUM(ISNULL(V.valor,0)) / NULLIF(COUNT(DISTINCT V.data), 0)
                          ELSE 0 END AS preco_medio_noite,
-                    COUNT(DISTINCT CASE WHEN V.data >= :hoje THEN V.data END) AS noites_futuras_ocupadas
+                    COUNT(DISTINCT CASE WHEN V.data >= :hoje THEN V.data END) AS noites_futuras_ocupadas,
+                    COUNT(DISTINCT CASE WHEN V.data BETWEEN :next_start AND :next2_end THEN V.data END) AS next2_ocupadas,
+                    COUNT(DISTINCT CASE WHEN V.data BETWEEN :next_start AND :next4_end THEN V.data END) AS next4_ocupadas,
+                    COUNT(DISTINCT CASE WHEN V.data BETWEEN :next_start AND :next7_end THEN V.data END) AS next7_ocupadas
                 FROM AL AS A
                 LEFT JOIN v_diario_all AS V
                   ON V.CCUSTO = A.NOME
@@ -643,8 +658,35 @@ def create_app():
             rows = db.session.execute(sql, {
                 'data_inicio': data_inicio,
                 'data_fim': data_fim,
-                'hoje': today
+                'hoje': today,
+                'next_start': next_start,
+                'next2_end': next2_end,
+                'next4_end': next4_end,
+                'next7_end': next7_end
             }).mappings().all()
+            # Build occupancy map for next 7-day horizon to detect 2+ night gaps
+            from datetime import datetime as _dt
+            sql_occ = text(
+                """
+                SELECT V.CCUSTO AS nome, CAST(V.data AS date) AS dia
+                FROM v_diario_all V
+                JOIN AL A ON V.CCUSTO = A.NOME AND ISNULL(A.INATIVO,0)=0
+                WHERE ISNULL(V.valor,0) <> 0
+                  AND V.data BETWEEN :start AND :end
+                """
+            )
+            occ_rows = db.session.execute(sql_occ, {
+                'start': next_start,
+                'end': next7_end
+            }).fetchall()
+            occ_map = {}
+            for nome, dia in occ_rows:
+                # Ensure date object
+                if isinstance(dia, _dt):
+                    dkey = dia.date()
+                else:
+                    dkey = dia
+                occ_map.setdefault(nome, set()).add(dkey)
 
             result = []
             for r in rows:
@@ -655,8 +697,32 @@ def create_app():
                 total_liquido = float(r.get('total_liquido') or 0)
                 preco_medio_noite = float(r.get('preco_medio_noite') or 0)
                 noites_futuras_ocupadas = int(r.get('noites_futuras_ocupadas') or 0)
+                # Occupancy map for this lodging in next horizon
+                occ_set = occ_map.get(nome, set())
+                # Helper to detect if there exists a run of >=2 empty nights within first L days
+                def has_two_plus_gap(L):
+                    if L is None or L < 2:
+                        return False
+                    run = 0
+                    for i in range(L):
+                        d = next_start + timedelta(days=i)
+                        if d in occ_set:
+                            run = 0
+                        else:
+                            run += 1
+                            if run >= 2:
+                                return True
+                    return False
                 noites_disponiveis = max(0, noites_futuras_totais - noites_futuras_ocupadas)
                 taxa = (noites_ocupadas / noites_totais * 100.0) if noites_totais > 0 else 0.0
+                # Determine alert level based on first window that contains a 2+ empty-night run
+                alert_level = ''
+                if has_two_plus_gap(total_next2_days):
+                    alert_level = 'red'
+                elif has_two_plus_gap(total_next4_days):
+                    alert_level = 'orange'
+                elif has_two_plus_gap(total_next7_days):
+                    alert_level = 'yellow'
 
                 result.append({
                     'nome': nome,
@@ -669,7 +735,8 @@ def create_app():
                     'preco_medio_noite': round(preco_medio_noite, 2),
                     'noites_futuras_ocupadas': noites_futuras_ocupadas,
                     'noites_futuras_totais': noites_futuras_totais,
-                    'noites_disponiveis': noites_disponiveis
+                    'noites_disponiveis': noites_disponiveis,
+                    'alert_level': alert_level
                 })
 
             return jsonify({
