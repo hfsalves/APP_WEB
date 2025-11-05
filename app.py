@@ -1,4 +1,7 @@
 ﻿import os
+import tempfile
+import subprocess
+import shutil
 import pyodbc
 import json
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
@@ -567,6 +570,245 @@ def create_app():
     @login_required
     def monitor_page():
         return render_template('monitor.html')
+
+    # Performance dashboard page
+    @app.route('/performance')
+    @login_required
+    def performance_page():
+        return render_template('performance.html', page_title='Performance')
+
+    # API: Alojamentos performance aggregation
+    @app.route('/api/performance')
+    @login_required
+    def api_performance():
+        try:
+            # Parse dates or default to current month
+            qs_ini = (request.args.get('data_inicio') or '').strip()
+            qs_fim = (request.args.get('data_fim') or '').strip()
+
+            today = date.today()
+            first_day = date(today.year, today.month, 1)
+            # Compute last day of month
+            if today.month == 12:
+                next_month_first = date(today.year + 1, 1, 1)
+            else:
+                next_month_first = date(today.year, today.month + 1, 1)
+            from datetime import timedelta
+            last_day = next_month_first - timedelta(days=1)
+
+            def parse_d(dstr, fallback):
+                try:
+                    return datetime.strptime(dstr, '%Y-%m-%d').date()
+                except Exception:
+                    return fallback
+
+            data_inicio = parse_d(qs_ini, first_day)
+            data_fim = parse_d(qs_fim, last_day)
+
+            # Nights total in the period (1 per day, inclusive)
+            noites_totais = (data_fim - data_inicio).days + 1
+            if noites_totais < 0:
+                return jsonify({'error': 'Intervalo de datas inválido'}), 400
+
+            # Future window: from max(today, start) to end (inclusive)
+            future_start = first_day if data_inicio < first_day else data_inicio
+            if today > future_start:
+                future_start = today
+            noites_futuras_totais = (data_fim - future_start).days + 1 if data_fim >= future_start else 0
+
+            # SQL Server aggregation with LEFT JOIN and filters in ON to preserve AL rows
+            sql = text(
+                """
+                SELECT
+                    A.NOME AS nome,
+                    A.TIPOLOGIA AS tipologia,
+                    A.TIPO AS tipo,
+                    COUNT(DISTINCT V.data) AS noites_ocupadas,
+                    SUM(ISNULL(V.valor, 0)) AS total_liquido,
+                    CASE WHEN COUNT(DISTINCT V.data) > 0
+                         THEN SUM(ISNULL(V.valor,0)) / NULLIF(COUNT(DISTINCT V.data), 0)
+                         ELSE 0 END AS preco_medio_noite,
+                    COUNT(DISTINCT CASE WHEN V.data >= :hoje THEN V.data END) AS noites_futuras_ocupadas
+                FROM AL AS A
+                LEFT JOIN v_diario_all AS V
+                  ON V.CCUSTO = A.NOME
+                 AND ISNULL(V.valor, 0) <> 0
+                 AND V.data BETWEEN :data_inicio AND :data_fim
+                WHERE ISNULL(A.INATIVO, 0) = 0
+                GROUP BY A.NOME, A.TIPOLOGIA, A.TIPO
+                ORDER BY A.NOME
+                """
+            )
+
+            rows = db.session.execute(sql, {
+                'data_inicio': data_inicio,
+                'data_fim': data_fim,
+                'hoje': today
+            }).mappings().all()
+
+            result = []
+            for r in rows:
+                nome = r.get('nome')
+                tipologia = r.get('tipologia')
+                tipo = r.get('tipo')
+                noites_ocupadas = float(r.get('noites_ocupadas') or 0)
+                total_liquido = float(r.get('total_liquido') or 0)
+                preco_medio_noite = float(r.get('preco_medio_noite') or 0)
+                noites_futuras_ocupadas = int(r.get('noites_futuras_ocupadas') or 0)
+                noites_disponiveis = max(0, noites_futuras_totais - noites_futuras_ocupadas)
+                taxa = (noites_ocupadas / noites_totais * 100.0) if noites_totais > 0 else 0.0
+
+                result.append({
+                    'nome': nome,
+                    'tipologia': tipologia,
+                    'tipo': tipo,
+                    'noites_ocupadas': round(noites_ocupadas, 2),
+                    'noites_totais': noites_totais,
+                    'taxa_ocupacao': round(taxa, 2),
+                    'total_liquido': round(total_liquido, 2),
+                    'preco_medio_noite': round(preco_medio_noite, 2),
+                    'noites_futuras_ocupadas': noites_futuras_ocupadas,
+                    'noites_futuras_totais': noites_futuras_totais,
+                    'noites_disponiveis': noites_disponiveis
+                })
+
+            return jsonify({
+                'rows': result,
+                'data_inicio': data_inicio.strftime('%Y-%m-%d'),
+                'data_fim': data_fim.strftime('%Y-%m-%d')
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    # API: Detalhe de faturação por reserva para um alojamento
+    @app.route('/api/performance/detalhe')
+    @login_required
+    def api_performance_detalhe():
+        try:
+            alojamento = (request.args.get('alojamento') or '').strip()
+            data_inicio = (request.args.get('data_inicio') or '').strip()
+            data_fim = (request.args.get('data_fim') or '').strip()
+            if not alojamento or not data_inicio or not data_fim:
+                return jsonify({'error': 'Parâmetros em falta'}), 400
+
+            # Query: agrupa por reserva, soma valor, mostra uma linha por reserva
+            sql = text(
+                """
+                SELECT
+                    CAST(MIN(V.data) AS date) AS data_reserva,
+                    MAX(ISNULL(V.nome, ''))    AS hospede,
+                    ISNULL(V.reserva, '')      AS reserva,
+                    SUM(ISNULL(V.valor, 0))    AS total
+                FROM v_diario_all AS V
+                WHERE V.CCUSTO = :aloj
+                  AND ISNULL(V.valor, 0) <> 0
+                  AND V.data BETWEEN :data_inicio AND :data_fim
+                GROUP BY ISNULL(V.reserva, '')
+                ORDER BY data_reserva, reserva
+                """
+            )
+
+            rows = db.session.execute(sql, {
+                'aloj': alojamento,
+                'data_inicio': data_inicio,
+                'data_fim': data_fim
+            }).mappings().all()
+
+            out = []
+            total_sum = 0.0
+            for r in rows:
+                data_res = r.get('data_reserva')
+                if isinstance(data_res, (datetime, date)):
+                    data_str = data_res.strftime('%Y-%m-%d')
+                else:
+                    data_str = str(data_res) if data_res is not None else ''
+                val = float(r.get('total') or 0)
+                total_sum += val
+                out.append({
+                    'data_reserva': data_str,
+                    'hospede': r.get('hospede') or '',
+                    'reserva': r.get('reserva') or '',
+                    'valor': round(val, 2)
+                })
+
+            # Custos: agrupar por referência (REF), somando o valor no período
+            sql_c = text(
+                """
+                SELECT ISNULL(C.ref,'') AS ref, SUM(ISNULL(C.valor,0)) AS valor
+                FROM v_custos AS C
+                WHERE C.ccusto = :aloj
+                  AND C.data BETWEEN :data_inicio AND :data_fim
+                GROUP BY ISNULL(C.ref,'')
+                ORDER BY ISNULL(C.ref,'')
+                """
+            )
+            c_rows_db = db.session.execute(sql_c, {
+                'aloj': alojamento,
+                'data_inicio': data_inicio,
+                'data_fim': data_fim
+            }).mappings().all()
+
+            custos_rows = []
+            custos_total = 0.0
+            for r in c_rows_db:
+                v = float(r.get('valor') or 0)
+                custos_total += v
+                custos_rows.append({
+                    'ref': r.get('ref') or '',
+                    'valor': round(v, 2)
+                })
+
+            return jsonify({
+                'rows': out,
+                'total': round(total_sum, 2),
+                'custos': custos_rows,
+                'total_custos': round(custos_total, 2),
+                'resultado': round(total_sum - custos_total, 2)
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    # API: Ocupação por dia (datas e totais) para um alojamento num período
+    @app.route('/api/performance/ocupacao')
+    @login_required
+    def api_performance_ocupacao():
+        try:
+            alojamento = (request.args.get('alojamento') or '').strip()
+            data_inicio = (request.args.get('data_inicio') or '').strip()
+            data_fim = (request.args.get('data_fim') or '').strip()
+            if not alojamento or not data_inicio or not data_fim:
+                return jsonify({'error': 'Parâmetros em falta'}), 400
+
+            sql = text(
+                """
+                SELECT CAST(V.data AS date) AS dia, SUM(ISNULL(V.valor,0)) AS total
+                FROM v_diario_all V
+                WHERE V.CCUSTO = :aloj
+                  AND ISNULL(V.valor,0) <> 0
+                  AND V.data BETWEEN :data_inicio AND :data_fim
+                GROUP BY CAST(V.data AS date)
+                ORDER BY dia
+                """
+            )
+            rows = db.session.execute(sql, {
+                'aloj': alojamento,
+                'data_inicio': data_inicio,
+                'data_fim': data_fim
+            }).fetchall()
+            dias = []
+            mapa = {}
+            for r in rows:
+                d = r[0]
+                tot = float(r[1] or 0)
+                if isinstance(d, (date, datetime)):
+                    key = d.strftime('%Y-%m-%d')
+                else:
+                    key = str(d)
+                dias.append(key)
+                mapa[key] = round(tot, 2)
+            return jsonify({'dias': dias, 'mapa': mapa})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
     from sqlalchemy import text
 
@@ -1165,6 +1407,180 @@ def create_app():
             return jsonify({ 'error': str(e) }), 500
 
 
+    # Report per client/month (HTML)
+    @app.route('/report/<cliente_id>/<int:ano>/<int:mes>')
+    @login_required
+    def report_cliente_mes(cliente_id, ano, mes):
+        # Resolve month range
+        try:
+            start = date(ano, mes, 1)
+            if mes == 12:
+                end = date(ano + 1, 1, 1)
+            else:
+                end = date(ano, mes + 1, 1)
+            end = end.replace(day=1)
+            # last day of month
+            from datetime import timedelta
+            end = end - timedelta(days=1)
+        except Exception:
+            # fallback: current month
+            today = date.today()
+            start = date(today.year, today.month, 1)
+            if today.month == 12:
+                end = date(today.year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+
+        # Fetch client's alojamentos; prefer CLIENTID when numeric
+        alojamentos = []
+        monthly_map = {}
+        try:
+            is_num = False
+            try:
+                _cid_int = int(cliente_id)
+                is_num = True
+            except Exception:
+                is_num = False
+
+            if is_num:
+                rows = db.session.execute(text("""
+                    SELECT NOME, TIPOLOGIA, EMPRESA, PROPRIETARIO, CCUSTO, TIPO
+                    FROM AL
+                    WHERE ISNULL(INATIVO,0)=0 AND CLIENTID = :cid
+                    ORDER BY NOME
+                """), { 'cid': _cid_int }).mappings().all()
+            else:
+                rows = db.session.execute(text("""
+                    SELECT NOME, TIPOLOGIA, EMPRESA, PROPRIETARIO, CCUSTO, TIPO
+                    FROM AL
+                    WHERE ISNULL(INATIVO,0)=0 AND (PROPRIETARIO = :cid OR EMPRESA = :cid)
+                    ORDER BY NOME
+                """), { 'cid': cliente_id }).mappings().all()
+            alojamentos = [ dict(r) for r in rows ]
+
+            if is_num:
+                sql_aggr = text("""
+                    SELECT A.NOME AS ALOJ, MONTH(RS.DATAOUT) AS MES,
+                           SUM(ISNULL(RS.ESTADIA,0)+ISNULL(RS.LIMPEZA,0)) AS VENDAS,
+                           SUM(ISNULL(RS.COMISSAO,0)) AS COM_CANAL
+                    FROM AL A
+                    LEFT JOIN RS ON ISNULL(RS.ALOJAMENTO, RS.CCUSTO) = A.NOME AND YEAR(RS.DATAOUT) = :ano
+                    WHERE ISNULL(A.INATIVO,0)=0 AND A.CLIENTID = :cid
+                    GROUP BY A.NOME, MONTH(RS.DATAOUT)
+                    ORDER BY A.NOME, MES
+                """)
+                ag = db.session.execute(sql_aggr, { 'cid': _cid_int, 'ano': ano }).all()
+                for aloj, mesn, vendas, com_canal in ag:
+                    monthly_map.setdefault(aloj, {})[int(mesn or 0)] = {
+                        'vendas': float(vendas or 0),
+                        'com_canal': float(com_canal or 0)
+                    }
+        except Exception:
+            alojamentos = []
+            monthly_map = {}
+
+        # Render standalone printable HTML
+        return render_template('report.html', cliente_id=cliente_id, ano=ano, mes=mes, inicio=start, fim=end, alojamentos=alojamentos, monthly_map=monthly_map)# Report per client/month (PDF)
+    @app.route('/report/<cliente_id>/<int:ano>/<int:mes>/pdf')
+    @login_required
+    def report_cliente_mes_pdf(cliente_id, ano, mes):
+        # Reuse same data gathering as HTML
+        try:
+            start = date(ano, mes, 1)
+            if mes == 12:
+                next_month_first = date(ano + 1, 1, 1)
+            else:
+                next_month_first = date(ano, mes + 1, 1)
+            from datetime import timedelta
+            end = next_month_first - timedelta(days=1)
+        except Exception:
+            today = date.today()
+            start = date(today.year, today.month, 1)
+            if today.month == 12:
+                end = date(today.year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+
+        alojamentos = []
+        try:
+            query = text(
+                """
+                SELECT NOME, TIPOLOGIA, EMPRESA, PROPRIETARIO, CCUSTO, TIPO
+                FROM AL
+                WHERE ISNULL(INATIVO,0)=0
+                  AND (
+                        PROPRIETARIO = :cid
+                     OR EMPRESA = :cid
+                     OR (CASE WHEN TRY_CAST(:cid AS int) IS NOT NULL THEN IDPLABS ELSE NULL END) = TRY_CAST(:cid AS int)
+                  )
+                ORDER BY NOME
+                """
+            )
+            rows = db.session.execute(query, { 'cid': cliente_id }).mappings().all()
+            alojamentos = [ dict(r) for r in rows ]
+        except Exception:
+            alojamentos = []
+
+        # Render HTML
+        from flask import render_template_string, current_app, Response
+        html = render_template('report.html', cliente_id=cliente_id, ano=ano, mes=mes, inicio=start, fim=end, alojamentos=alojamentos, monthly_map={})
+
+        # Try WeasyPrint / wkhtmltopdf / Headless Chrome
+        pdf_bytes = None
+        try:
+            from weasyprint import HTML
+            pdf_bytes = HTML(string=html, base_url=current_app.root_path).write_pdf()
+        except Exception:
+            try:
+                import pdfkit  # requires wkhtmltopdf installed
+                pdf_bytes = pdfkit.from_string(html, False)
+            except Exception:
+                # Try Headless Chrome/Edge as a last resort
+                try:
+                    chrome_paths = [
+                        os.environ.get('CHROME_PATH') or '',
+                        shutil.which('chrome') or '',
+                        shutil.which('google-chrome') or '',
+                        shutil.which('msedge') or '',
+                        r"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+                        r"C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+                        r"C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+                        r"/usr/bin/google-chrome",
+                        r"/usr/bin/chromium",
+                    ]
+                    chrome = next((p for p in chrome_paths if p and os.path.exists(p)), None)
+                    if chrome:
+                        with tempfile.TemporaryDirectory() as td:
+                            html_path = os.path.join(td, 'report.html')
+                            pdf_path = os.path.join(td, 'report.pdf')
+                            with open(html_path, 'w', encoding='utf-8') as f:
+                                f.write(html)
+                            uri = 'file:///' + html_path.replace('\\', '/')
+                            cmd = [
+                                chrome,
+                                '--headless=new',
+                                '--disable-gpu',
+                                f'--print-to-pdf={pdf_path}',
+                                '--no-sandbox',
+                                uri
+                            ]
+                            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            with open(pdf_path, 'rb') as pf:
+                                pdf_bytes = pf.read()
+                except Exception:
+                    pdf_bytes = None
+
+        if not pdf_bytes:
+            # Fallback: return HTML with hint
+            return html + "<!-- PDF generator not available. Install WeasyPrint (pip install weasyprint + deps), wkhtmltopdf/pdfkit, or set CHROME_PATH to a Chrome/Edge binary for headless printing. -->"
+
+        headers = {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': f'inline; filename="report_{cliente_id}_{ano:04d}-{mes:02d}.pdf"'
+        }
+        return Response(pdf_bytes, headers=headers)
+
+
     return app
 
 
@@ -1172,3 +1588,10 @@ app = create_app()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+
+
+
+
+
+

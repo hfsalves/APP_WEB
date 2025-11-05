@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Performance{% endblock %}
+
+{% block content %}
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { gridTemplateColumns: { 'auto-fit': 'repeat(auto-fit, minmax(180px, 1fr))' } } } };
+  </script>
+
+  <div class="px-2 md:px-4">
+    <div id="topSummary" class="grid grid-cols-1 md:grid-cols-5 gap

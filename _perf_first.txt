@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}Performance{% endblock %}
+
+{% block content %}
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { gridTemplateColumns: { 'auto-fit': 'repeat(auto-fit, minmax(180px, 1fr))' } } } };
+  </script>
+
+  <div class="px-2 md:px-4">
+    <div id="topSummary" class="grid grid-cols-1 md:grid-cols-5 gap-2 md:gap-3 mb-3">
+      <div class="bg-white rounded-md shadow-sm border p-2">
+        <div class="flex items-center gap-2">
+          <button id="btnPrevMonth" class="px-2 py-1 text-sm rounded border bg-gray-50 hover:bg-gray-100" title="M√™s anterior">&lt;</button>
+          <div id="monthLabel" class="text-sm font-semibold text-gray-800 select-none"></div>
+          <button id="btnNextMonth" class="px-2 py-1 text-sm rounded border bg-gray-50 hover:bg-gray-100" title="M√™s seguinte">&gt;</button>
+        </div>
+      </div>
+      <div class="bg-white rounded-md shadow-sm border p-2">
+        <div class="text-[11px] text-gray-500 mb-1">Ocupa√ß√£o</div>
+        <div class="flex flex-wrap gap-4">
+          <span id="totalOccText" class="font-bold text-base">--%</span>
+          <span id="gestaoOccText" class="font-bold text-base text-green-600">--%</span>
+          <span id="exploracaoOccText" class="font-bold text-base text-blue-600">--%</span>
+        </div>
+      </div>
+      <div class="bg-white rounded-md shadow-sm border p-2">
+        <div class="text-[11px] text-gray-500 mb-1">Disponibilidade</div>
+        <div class="flex flex-wrap gap-4">
+          <span id="totalDispText" class="font-semibold text-sm">--</span>
+          <span id="gestaoDispText" class="font-semibold text-sm text-green-600">--</span>
+          <span id="exploracaoDispText" class="font-semibold text-sm text-blue-600">--</span>
+        </div>
+      </div>
+      <div class="bg-white rounded-md shadow-sm border p-2">
+        <div class="text-[11px] text-gray-500 mb-1">Fatura√ß√£o</div>
+        <div class="flex flex-wrap gap-4">
+          <span id="totalFatText" class="font-semibold text-sm">--</span>
+          <span id="gestaoFatText" class="font-semibold text-sm text-green-600">--</span>
+          <span id="exploracaoFatText" class="font-semibold text-sm text-blue-600">--</span>
+        </div>
+      </div>
+      <div class="bg-white rounded-md shadow-sm border p-2">
+        <div class="text-[11px] text-gray-500 mb-1">Alojamentos</div>
+        <div class="flex flex-wrap gap-4">
+          <span id="totalCountText" class="font-semibold text-sm">--</span>
+          <span id="gestaoCountText" class="font-semibold text-sm text-green-600">--</span>
+          <span id="exploracaoCountText" class="font-semibold text-sm text-blue-600">--</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="cardsGrid" class="grid grid-cols-auto-fit gap-2"></div>
+  </div>
+
+  <script>
+    const fmtMoney0 = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 });
+    const fmtEUR0 = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+    const fmtNum = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    const fmtPct0 = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 });
+
+    function toYMD(d) { const m = String(d.getMonth()+1).padStart(2,'0'); const day = String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${m}-${day}`; }
+    function firstDayOfMonth(base){ return new Date(base.getFullYear(), base.getMonth(), 1); }
+    function lastDayOfMonth(base){ return new Date(base.getFullYear(), base.getMonth()+1, 0); }
+    function monthLabelText(d){ return d.toLocaleDateString('pt-PT',{ month:'long' }) + ' ' + d.getFullYear(); }
+
+    let currentMonth = firstDayOfMonth(new Date());
+
+    async function loadData(){
+      const ini = toYMD(firstDayOfMonth(currentMonth));
+      const nextFirst = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 1);
+      const fim = toYMD(nextFirst);
+      const res = await fetch(`/api/performance?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
+      const data = await res.json();
+      if(data.error){ document.getElementById('cardsGrid').innerHTML = '<div class="text-red-600">Erro ao carregar.</div>'; return; }
+      const rows = data.rows || [];
+      renderCards(rows);
+      renderTotals(rows);
+    }
+
+    function renderCards(rows){
+      const grid = document.getElementById('cardsGrid');
+      if(!rows.length){ grid.innerHTML = '<div class="text-gray-600">Sem dados para o per√≠odo selecionado.</div>'; return; }
+      rows.sort((a,b)=>(Number(a.taxa_OcupaÁ„o)||0)-(Number(b.taxa_OcupaÁ„o)||0));
+      grid.innerHTML = rows.map(r=>cardHTML(r)).join('');
+    }
+
+    function cardHTML(r){
+      const nome = r.nome||''; const tipologia=r.tipologia||''; const tipo=r.tipo||'';
+      const noitesOcup=Number(r.noites_ocupadas||0); const noitesDisp=Number(r.noites_disponiveis||0); const noitesTot=Number(r.noites_totais||0);
+      const taxa = Math.max(0, Math.min(100, Number(r.taxa_OcupaÁ„o||0)));
+      const total=Number(r.total_liquido||0); const pm=Number(r.preco_medio_noite||0);
+      const tint = cardTintStyle(taxa);
+      return `
+        <div class="border rounded-md shadow-sm p-2 flex flex-col gap-1 min-h-[110px] perf-card cursor-pointer hover:shadow" style="${tint}" data-nome="${encodeURIComponent(nome)}">
+          <div class="flex items-start justify-between gap-1">
+            <div class="font-semibold text-gray-800 text-xs leading-tight truncate flex-1 min-w-0">${escapeHtml(nome)}</div>
+            <div class="flex gap-1 flex-wrap items-center justify-end">${badge(tipologia,'bg-gray-100 text-gray-700')}${typeIcon(tipo)}</div>
+          </div>
+          <div class="grid grid-cols-4 gap-1 text-xs mt-1">
+            <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">Noites</span><span class="font-medium">${fmtNum.format(noitesOcup)} / ${fmtNum.format(noitesTot)}</span></div>
+            <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">Disp.</span><span class="font-medium">${fmtNum.format(noitesDisp)}</span></div>
+            <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">Total</span><span class="font-medium">${fmtEUR0.format(total)}</span></div>
+            <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">PMN</span><span class="font-medium">${fmtEUR0.format(pm)}</span></div>
+          </div>
+          <div class="mt-auto pt-1">
+            <div class="flex justify-between text-[10px] text-gray-600 mb-0.5"><span>Ocupa√ß√£o</span><span class="font-bold text-sm">${fmtNum.format(taxa)}%</span></div>
+            <div class="w-full h-1.5 bg-gray-200 rounded"><div class="h-1.5 rounded" style="width:${taxa}%; background-color:${barColor(taxa)};"></div></div>
+          </div>
+        </div>`;
+    }
+
+    function badge(text, cls){ if(!text) return ''; return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}">${escapeHtml(text)}</span>`; }
+    function typeIcon(tipo){ const norm=(tipo||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase(); if(norm==='GESTAO'){ return `<i class="fa-solid fa-user text-gray-600 text-[12px]" title="Gest√£o"></i>` } return ''; }
+    function barColor(p){ const clamped=Math.max(0,Math.min(100,Number(p)||0)); const hue=Math.round((clamped/100)*120); return `hsl(${hue} 85% 45%)`; }
+    function cardTintStyle(p){ const v=Number(p)||0; if(v>=99.5) return 'background-color:#f0fdf4'; if(v<=0.5) return 'background-color:#fef2f2'; return ''; }
+    function escapeHtml(s){ const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}; return String(s).replace(/[&<>"']/g,c=>m[c]||c); }
+    function normalizeTipo(t){ return (t||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase(); }
+
+    function renderTotals(rows){
+      const totalSpan=document.getElementById('totalOccText'); const gestaoSpan=document.getElementById('gestaoOccText'); const explSpan=document.getElementById('exploracaoOccText');
+      const totalFat=document.getElementById('totalFatText'); const gestaoFat=document.getElementById('gestaoFatText'); const explFat=document.getElementById('exploracaoFatText');
+      const totalCount=document.getElementById('totalCountText'); const gestaoCount=document.getElementById('gestaoCountText'); const explCount=document.getElementById('exploracaoCountText');
+      const totalDisp=document.getElementById('totalDispText'); const gestaoDisp=document.getElementById('gestaoDispText'); const explDisp=document.getElementById('exploracaoDispText');
+
+      function calcOcc(list){ const t=list.reduce((a,r)=>{a.nt+=Number(r.noites_totais||0); a.no+=Number(r.noites_ocupadas||0); return a;},{nt:0,no:0}); return t.nt>0?(t.no/t.nt)*100:0 }
+      const gestaoRows=rows.filter(r=>normalizeTipo(r.tipo)==='GESTAO'); const explRows=rows.filter(r=>normalizeTipo(r.tipo)!=='GESTAO');
+      const allOcc=calcOcc(rows), gestaoOcc=calcOcc(gestaoRows), explOcc=calcOcc(explRows);
+      if(totalSpan) totalSpan.textContent = `${fmtPct0.format(allOcc)}%`; if(gestaoSpan) gestaoSpan.textContent = `${fmtPct0.format(gestaoOcc)}%`; if(explSpan) explSpan.textContent = `${fmtPct0.format(explOcc)}%`;
+
+      const sumValor=list=>list.reduce((a,r)=>a+Number(r.total_liquido||0),0);
+      const gestFatVal=sumValor(gestaoRows), explFatVal=sumValor(explRows); const totalFatVal=(gestFatVal*0.25)+explFatVal;
+      if(totalFat) totalFat.textContent = fmtEUR0.format(totalFatVal);
+      if(gestaoFat){ const gest25=gestFatVal*0.25; gestaoFat.innerHTML = `${fmtEUR0.format(gest25)} <span class="text-[11px] text-gray-500">(${fmtEUR0.format(gestFatVal)})</span>`; }
+      if(explFat) explFat.textContent = fmtEUR0.format(explFatVal);
+
+      const sumDisp=list=>list.reduce((a,r)=>a+Math.max(0,Number(r.noites_disponiveis||0)),0);
+      if(totalDisp) totalDisp.textContent = fmtNum.format(sumDisp(rows));
+      if(gestaoDisp) gestaoDisp.textContent = fmtNum.format(sumDisp(gestaoRows));
+      if(explDisp) explDisp.textContent = fmtNum.format(sumDisp(explRows));

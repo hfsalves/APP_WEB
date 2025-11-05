@@ -1,0 +1,317 @@
+1: {% extends 'base.html' %}
+2: {% block title %}Performance{% endblock %}
+3: 
+4: {% block content %}
+5:   <script src="https://cdn.tailwindcss.com"></script>
+6:   <script>
+7:     tailwind.config = { theme: { extend: { gridTemplateColumns: { 'auto-fit': 'repeat(auto-fit, minmax(180px, 1fr))' } } } };
+8:   </script>
+9: 
+10:   <div class="px-2 md:px-4">
+11:     <div id="topSummary" class="grid grid-cols-1 md:grid-cols-5 gap-2 md:gap-3 mb-3">
+12:       <div class="bg-white rounded-md shadow-sm border p-2">
+13:         <div class="flex items-center gap-2">
+14:           <button id="btnPrevMonth" class="px-2 py-1 text-sm rounded border bg-gray-50 hover:bg-gray-100" title="Mês anterior">&lt;</button>
+15:           <div id="monthLabel" class="text-sm font-semibold text-gray-800 select-none"></div>
+16:           <button id="btnNextMonth" class="px-2 py-1 text-sm rounded border bg-gray-50 hover:bg-gray-100" title="Mês seguinte">&gt;</button>
+17:         </div>
+18:       </div>
+19:       <div class="bg-white rounded-md shadow-sm border p-2">
+20:         <div class="text-[11px] text-gray-500 mb-1">Ocupação</div>
+21:         <div class="flex flex-wrap gap-4">
+22:           <span id="totalOccText" class="font-bold text-base">--%</span>
+23:           <span id="gestaoOccText" class="font-bold text-base text-green-600">--%</span>
+24:           <span id="exploracaoOccText" class="font-bold text-base text-blue-600">--%</span>
+25:         </div>
+26:       </div>
+27:       <div class="bg-white rounded-md shadow-sm border p-2">
+28:         <div class="text-[11px] text-gray-500 mb-1">Disponibilidade</div>
+29:         <div class="flex flex-wrap gap-4">
+30:           <span id="totalDispText" class="font-semibold text-sm">--</span>
+31:           <span id="gestaoDispText" class="font-semibold text-sm text-green-600">--</span>
+32:           <span id="exploracaoDispText" class="font-semibold text-sm text-blue-600">--</span>
+33:         </div>
+34:       </div>
+35:       <div class="bg-white rounded-md shadow-sm border p-2">
+36:         <div class="text-[11px] text-gray-500 mb-1">Faturação</div>
+37:         <div class="flex flex-wrap gap-4">
+38:           <span id="totalFatText" class="font-semibold text-sm">--</span>
+39:           <span id="gestaoFatText" class="font-semibold text-sm text-green-600">--</span>
+40:           <span id="exploracaoFatText" class="font-semibold text-sm text-blue-600">--</span>
+41:         </div>
+42:       </div>
+43:       <div class="bg-white rounded-md shadow-sm border p-2">
+44:         <div class="text-[11px] text-gray-500 mb-1">Alojamentos</div>
+45:         <div class="flex flex-wrap gap-4">
+46:           <span id="totalCountText" class="font-semibold text-sm">--</span>
+47:           <span id="gestaoCountText" class="font-semibold text-sm text-green-600">--</span>
+48:           <span id="exploracaoCountText" class="font-semibold text-sm text-blue-600">--</span>
+49:         </div>
+50:       </div>
+51:     </div>
+52: 
+53:     <div id="cardsGrid" class="grid grid-cols-auto-fit gap-2"></div>
+54:   </div>
+55: 
+56:   <script>
+57:     const fmtMoney0 = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 });
+58:     const fmtEUR0 = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+59:     const fmtNum = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+60:     const fmtPct0 = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 });
+61: 
+62:     function toYMD(d) { const m = String(d.getMonth()+1).padStart(2,'0'); const day = String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${m}-${day}`; }
+63:     function firstDayOfMonth(base){ return new Date(base.getFullYear(), base.getMonth(), 1); }
+64:     function lastDayOfMonth(base){ return new Date(base.getFullYear(), base.getMonth()+1, 0); }
+65:     function monthLabelText(d){ return d.toLocaleDateString('pt-PT',{ month:'long' }) + ' ' + d.getFullYear(); }
+66: 
+67:     let currentMonth = firstDayOfMonth(new Date());
+68: 
+69:     async function loadData(){
+70:       const ini = toYMD(firstDayOfMonth(currentMonth));
+71:       const nextFirst = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 1);
+72:       const fim = toYMD(nextFirst);
+73:       const res = await fetch(`/api/performance?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
+74:       const data = await res.json();
+75:       if(data.error){ document.getElementById('cardsGrid').innerHTML = '<div class="text-red-600">Erro ao carregar.</div>'; return; }
+76:       const rows = data.rows || [];
+77:       renderCards(rows);
+78:       renderTotals(rows);
+79:     }
+80: 
+81:     function renderCards(rows){
+82:       const grid = document.getElementById('cardsGrid');
+83:       if(!rows.length){ grid.innerHTML = '<div class="text-gray-600">Sem dados para o período selecionado.</div>'; return; }
+84:       rows.sort((a,b)=>(Number(a.taxa_Ocupa��o)||0)-(Number(b.taxa_Ocupa��o)||0));
+85:       grid.innerHTML = rows.map(r=>cardHTML(r)).join('');
+86:     }
+87: 
+88:     function cardHTML(r){
+89:       const nome = r.nome||''; const tipologia=r.tipologia||''; const tipo=r.tipo||'';
+90:       const noitesOcup=Number(r.noites_ocupadas||0); const noitesDisp=Number(r.noites_disponiveis||0); const noitesTot=Number(r.noites_totais||0);
+91:       const taxa = Math.max(0, Math.min(100, Number(r.taxa_Ocupa��o||0)));
+92:       const total=Number(r.total_liquido||0); const pm=Number(r.preco_medio_noite||0);
+93:       const tint = cardTintStyle(taxa);
+94:       return `
+95:         <div class="border rounded-md shadow-sm p-2 flex flex-col gap-1 min-h-[110px] perf-card cursor-pointer hover:shadow" style="${tint}" data-nome="${encodeURIComponent(nome)}">
+96:           <div class="flex items-start justify-between gap-1">
+97:             <div class="font-semibold text-gray-800 text-xs leading-tight truncate flex-1 min-w-0">${escapeHtml(nome)}</div>
+98:             <div class="flex gap-1 flex-wrap items-center justify-end">${badge(tipologia,'bg-gray-100 text-gray-700')}${typeIcon(tipo)}</div>
+99:           </div>
+100:           <div class="grid grid-cols-4 gap-1 text-xs mt-1">
+101:             <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">Noites</span><span class="font-medium">${fmtNum.format(noitesOcup)} / ${fmtNum.format(noitesTot)}</span></div>
+102:             <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">Disp.</span><span class="font-medium">${fmtNum.format(noitesDisp)}</span></div>
+103:             <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">Total</span><span class="font-medium">${fmtEUR0.format(total)}</span></div>
+104:             <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">PMN</span><span class="font-medium">${fmtEUR0.format(pm)}</span></div>
+105:           </div>
+106:           <div class="mt-auto pt-1">
+107:             <div class="flex justify-between text-[10px] text-gray-600 mb-0.5"><span>Ocupação</span><span class="font-bold text-sm">${fmtNum.format(taxa)}%</span></div>
+108:             <div class="w-full h-1.5 bg-gray-200 rounded"><div class="h-1.5 rounded" style="width:${taxa}%; background-color:${barColor(taxa)};"></div></div>
+109:           </div>
+110:         </div>`;
+111:     }
+112: 
+113:     function badge(text, cls){ if(!text) return ''; return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}">${escapeHtml(text)}</span>`; }
+114:     function typeIcon(tipo){ const norm=(tipo||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase(); if(norm==='GESTAO'){ return `<i class="fa-solid fa-user text-gray-600 text-[12px]" title="Gestão"></i>` } return ''; }
+115:     function barColor(p){ const clamped=Math.max(0,Math.min(100,Number(p)||0)); const hue=Math.round((clamped/100)*120); return `hsl(${hue} 85% 45%)`; }
+116:     function cardTintStyle(p){ const v=Number(p)||0; if(v>=99.5) return 'background-color:#f0fdf4'; if(v<=0.5) return 'background-color:#fef2f2'; return ''; }
+117:     function escapeHtml(s){ const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}; return String(s).replace(/[&<>"']/g,c=>m[c]||c); }
+118:     function normalizeTipo(t){ return (t||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase(); }
+119: 
+120:     function renderTotals(rows){
+121:       const totalSpan=document.getElementById('totalOccText'); const gestaoSpan=document.getElementById('gestaoOccText'); const explSpan=document.getElementById('exploracaoOccText');
+122:       const totalFat=document.getElementById('totalFatText'); const gestaoFat=document.getElementById('gestaoFatText'); const explFat=document.getElementById('exploracaoFatText');
+123:       const totalCount=document.getElementById('totalCountText'); const gestaoCount=document.getElementById('gestaoCountText'); const explCount=document.getElementById('exploracaoCountText');
+124:       const totalDisp=document.getElementById('totalDispText'); const gestaoDisp=document.getElementById('gestaoDispText'); const explDisp=document.getElementById('exploracaoDispText');
+125: 
+126:       function calcOcc(list){ const t=list.reduce((a,r)=>{a.nt+=Number(r.noites_totais||0); a.no+=Number(r.noites_ocupadas||0); return a;},{nt:0,no:0}); return t.nt>0?(t.no/t.nt)*100:0 }
+127:       const gestaoRows=rows.filter(r=>normalizeTipo(r.tipo)==='GESTAO'); const explRows=rows.filter(r=>normalizeTipo(r.tipo)!=='GESTAO');
+128:       const allOcc=calcOcc(rows), gestaoOcc=calcOcc(gestaoRows), explOcc=calcOcc(explRows);
+129:       if(totalSpan) totalSpan.textContent = `${fmtPct0.format(allOcc)}%`; if(gestaoSpan) gestaoSpan.textContent = `${fmtPct0.format(gestaoOcc)}%`; if(explSpan) explSpan.textContent = `${fmtPct0.format(explOcc)}%`;
+130: 
+131:       const sumValor=list=>list.reduce((a,r)=>a+Number(r.total_liquido||0),0);
+132:       const gestFatVal=sumValor(gestaoRows), explFatVal=sumValor(explRows); const totalFatVal=(gestFatVal*0.25)+explFatVal;
+133:       if(totalFat) totalFat.textContent = fmtEUR0.format(totalFatVal);
+134:       if(gestaoFat){ const gest25=gestFatVal*0.25; gestaoFat.innerHTML = `${fmtEUR0.format(gest25)} <span class="text-[11px] text-gray-500">(${fmtEUR0.format(gestFatVal)})</span>`; }
+135:       if(explFat) explFat.textContent = fmtEUR0.format(explFatVal);
+136: 
+137:       const sumDisp=list=>list.reduce((a,r)=>a+Math.max(0,Number(r.noites_disponiveis||0)),0);
+138:       if(totalDisp) totalDisp.textContent = fmtNum.format(sumDisp(rows));
+139:       if(gestaoDisp) gestaoDisp.textContent = fmtNum.format(sumDisp(gestaoRows));
+140:       if(explDisp) explDisp.textContent = fmtNum.format(sumDisp(explRows));
+141: 
+142:       if(totalCount) totalCount.textContent = String(rows.length);
+143:       if(gestaoCount) gestaoCount.textContent = String(gestaoRows.length);
+144:       if(explCount) explCount.textContent = String(explRows.length);
+145:     }
+146: 
+147:     document.addEventListener('DOMContentLoaded',()=>{
+148:       const label=document.getElementById('monthLabel'); const prev=document.getElementById('btnPrevMonth'); const next=document.getElementById('btnNextMonth');
+149:       function updateMonth(delta){ if(delta){ currentMonth=new Date(currentMonth.getFullYear(), currentMonth.getMonth()+delta, 1); } if(label) label.textContent=monthLabelText(currentMonth); loadData(); }
+150:       if(prev) prev.addEventListener('click',()=>updateMonth(-1)); if(next) next.addEventListener('click',()=>updateMonth(1));
+151:       document.getElementById('cardsGrid').addEventListener('click',ev=>{ const card=ev.target.closest('.perf-card'); if(!card) return; const nome=decodeURIComponent(card.dataset.nome||''); openPerfDetail(nome); });
+152:       updateMonth(0);
+153:     });
+154: 
+155:     async function openPerfDetail(nome){
+156:       const title=document.getElementById('perfDetailTitle');
+157:       const monthTxt=monthLabelText(currentMonth);
+158:       title.textContent = nome + ' \u2014 ' + monthTxt;
+159:       // Build calendar for current month and mark occupied days
+160:       const ini = toYMD(firstDayOfMonth(currentMonth));
+161:       const nextFirst = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 1);
+162:       const fim = toYMD(nextFirst);
+163:       try{
+164:         const res = await fetch(`/api/performance/Ocupa��o?alojamento=${encodeURIComponent(nome)}&data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
+165:         const data = await res.json(); if(data && data.error){ console.error(data.error); throw new Error(data.error); } const mapa = (data && data.mapa) || {};
+166:         // resumo por mês
+167:         const totalMonth = Object.values(mapa).reduce((a,v)=>a+Number(v||0), 0);
+168:         const occupiedDays = new Set(Object.keys(mapa));
+169:         const occupiedCount = occupiedDays.size;
+170:         // noites disponíveis do hoje até fim do mês selecionado, excluindo intervalos de 1 noite
+171:         const today = new Date(); const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+172:         const baseStart = firstDayOfMonth(currentMonth); const baseEnd = lastDayOfMonth(currentMonth);
+173:         const availStart = (t0 > baseStart) ? t0 : baseStart;
+174:         // Build list of keys for [baseStart..baseEnd]
+175:         const keys = [];
+176:         for(let d=new Date(baseStart); d <= baseEnd; d.setDate(d.getDate()+1)){
+177:           keys.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+178:         }
+179:         // Determine runs of empty nights from availStart onward
+180:         const singles = new Set();
+181:         let nightsAvail = 0;
+182:         let i = 0;
+183:         // Index of availStart in keys
+184:         while(i < keys.length){
+185:           const parts = keys[i].split('-');
+186:           const kd = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2]));
+187:           if (kd >= availStart) break; i++;
+188:         }
+189:         while(i < keys.length){
+190:           const k = keys[i];
+191:           const parts = k.split('-');
+192:           const kd = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2]));
+193:           if (occupiedDays.has(k)) { i++; continue; }
+194:           // start empty run
+195:           let j = i;
+196:           while(j < keys.length && !occupiedDays.has(keys[j])) j++;
+197:           const runLen = j - i;
+198:           if (runLen === 1){ singles.add(keys[i]); }
+199:           if (runLen >= 2){ nightsAvail += runLen; }
+200:           i = j;
+201:         }
+202:         renderCalendar('perfCalendar', currentMonth, mapa, singles);
+203:         const avgPerNight = occupiedCount > 0 ? (totalMonth / occupiedCount) : 0;
+204:         const estimate = avgPerNight * nightsAvail * 0.8;
+205:         document.getElementById('perfCalTotalMonth').textContent = fmtEUR0.format(totalMonth);
+206:         document.getElementById('perfCalNightsAvail').textContent = fmtNum.format(nightsAvail);
+207:         document.getElementById('perfCalEstimate').textContent = fmtEUR0.format(estimate);
+208:         document.getElementById('perfCalTotalEstimated').textContent = fmtEUR0.format(totalMonth + estimate);
+209:       } catch(e){
+210:         console.error(e);
+211:         renderCalendar('perfCalendar', currentMonth, {}, new Set());
+212:         document.getElementById('perfCalTotalMonth').textContent = '--';
+213:         document.getElementById('perfCalNightsAvail').textContent = '--';
+214:         document.getElementById('perfCalEstimate').textContent = '--';
+215:         document.getElementById('perfCalTotalEstimated').textContent = '--';
+216:       }
+217:       const modal=new bootstrap.Modal(document.getElementById('perfDetailModal'));
+218:       modal.show();
+219:     }
+220: 
+221:     function renderCalendar(containerId, baseDate, dailyTotals, singleNights){
+222:       const cont = document.getElementById(containerId);
+223:       if(!cont) return;
+224:       const year = baseDate.getFullYear();
+225:       const month = baseDate.getMonth(); // 0-11
+226:       const first = new Date(year, month, 1);
+227:       const last = new Date(year, month+1, 0);
+228:       const today = new Date();
+229:       const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+230:       // Week starts Monday (1..7), JS getDay(): 0=Sun..6=Sat
+231:       const firstWeekday = (first.getDay() === 0 ? 7 : first.getDay());
+232:       const daysInMonth = last.getDate();
+233:       const cells = [];
+234:       for(let i=1;i<firstWeekday;i++){ cells.push(null); }
+235:       for(let d=1; d<=daysInMonth; d++){ cells.push(new Date(year, month, d)); }
+236:       while(cells.length % 7 !== 0){ cells.push(null); }
+237: 
+238:       const weekdays = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+239:       let html = '';
+240:       html += '<div class="grid grid-cols-7 gap-1 text-xs mb-1">' +
+241:               weekdays.map(w=>`<div class="text-gray-500 text-center font-medium">${w}</div>`).join('') + '</div>';
+242:       html += '<div class="grid grid-cols-7 gap-1">';
+243:       for(const cell of cells){
+244:         if(cell===null){ html += '<div class="h-12 bg-gray-50 rounded"></div>'; continue; }
+245:         const y = cell.getFullYear();
+246:         const m = String(cell.getMonth()+1).padStart(2,'0');
+247:         const d = String(cell.getDate()).padStart(2,'0');
+248:         const key = `${y}-${m}-${d}`;
+249:         const val = Number((dailyTotals && dailyTotals[key]) || 0);
+250:         const occ = val > 0;
+251:         const isPast = cell < todayStart;
+252:         const isSingle = singleNights && singleNights.has(key);
+253:         // Month-end bridge: if this is the last day and next month's first is also empty, do not treat as single
+254:         const isBoundaryLast = (cell.getFullYear()===year && cell.getMonth()===month && cell.getDate()===daysInMonth);
+255:         const nextFirstDate = new Date(year, month+1, 1);
+256:         const nextFirstKey = `${nextFirstDate.getFullYear()}-${String(nextFirstDate.getMonth()+1).padStart(2,'0')}-${String(nextFirstDate.getDate()).padStart(2,'0')}`;
+257:         const nextFirstOcc = Number((dailyTotals && dailyTotals[nextFirstKey]) || 0) > 0;
+258:         const effectiveSingle = isSingle && !(isBoundaryLast && !nextFirstOcc);
+259:         const cls = occ ? 'bg-blue-500' : (isPast ? 'bg-gray-100 opacity-60' : (effectiveSingle ? 'bg-amber-100' : 'bg-white'));
+260:         const ring = occ ? '' : 'border border-gray-200';
+261:         const totalTxt = occ ? fmtEUR0.format(val) : '';
+262:         const dayNumCls = 'text-[10px] font-semibold text-right ' + (occ ? 'text-white' : (isPast ? 'text-gray-400' : 'text-gray-700'));
+263:         const valCls = 'mt-auto text-[10px] text-right ' + (occ ? 'text-white' : (isPast ? 'text-gray-400' : 'text-gray-600'));
+264:         const dayNum = cell.getDate();
+265:         const diagStyle = (!occ && effectiveSingle) ? 'background-image: repeating-linear-gradient(135deg, rgba(245,158,11,0.35) 0 3px, transparent 3px 8px);' : '';
+266:         html += `<div class="h-12 rounded ${cls} ${ring} p-1 flex flex-col" style="${diagStyle}">
+267:                    <div class="${dayNumCls}">${dayNum}</div>
+268:                    <div class="${valCls}">${totalTxt}</div>
+269:                  </div>`;
+270:       }
+271:       html += '</div>';
+272:       cont.innerHTML = html;
+273:     }
+274:   </script>
+275: 
+276:   <div class="modal fade" id="perfDetailModal" tabindex="-1" aria-labelledby="perfDetailTitle" aria-hidden="true">
+277:     <div class="modal-dialog modal-lg modal-dialog-scrollable">
+278:       <div class="modal-content">
+279:         <div class="modal-header">
+280:           <h5 class="modal-title" id="perfDetailTitle">Detalhe</h5>
+281:           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+282:         </div>
+283:         <div class="modal-body">
+284:           <div id="perfCalendar" class="p-2"></div>
+285:           <div class="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-2 text-sm">
+286:             <div class="bg-gray-50 border rounded p-2 flex items-center justify-between">
+287:               <span class="text-gray-600">Faturado mês</span>
+288:               <span id="perfCalTotalMonth" class="font-semibold">--</span>
+289:             </div>
+290:             <div class="bg-gray-50 border rounded p-2 flex items-center justify-between">
+291:               <span class="text-gray-600">Noites disp.</span>
+292:               <span id="perfCalNightsAvail" class="font-semibold">--</span>
+293:             </div>
+294:             <div class="bg-gray-50 border rounded p-2 flex items-center justify-between">
+295:               <span class="text-gray-600">Est. restante</span>
+296:               <span id="perfCalEstimate" class="font-semibold">--</span>
+297:             </div>
+298:             <div class="bg-gray-50 border rounded p-2 flex items-center justify-between">
+299:               <span class="text-gray-600">Total estimado</span>
+300:               <span id="perfCalTotalEstimated" class="font-semibold">--</span>
+301:             </div>
+302:           </div>
+303:         </div>
+304:       </div>
+305:     </div>
+306:   </div>
+307: {% endblock %}
+308: 
+309: 
+310: 
+311: 
+312: 
+313: 
+314: 
+315: 
+316: 
+317: 

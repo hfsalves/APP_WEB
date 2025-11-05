@@ -1,0 +1,742 @@
+1:	{% extends 'base.html' %}
+2:	{% block title %}Performance{% endblock %}
+3:	
+4:	{% block content %}
+5:	  <!-- Tailwind via CDN for this page -->
+6:	  <script src="https://cdn.tailwindcss.com"></script>
+7:	  <script>
+8:	    tailwind.config = {
+9:	      theme: {
+10:	        extend: {
+11:	          gridTemplateColumns: {
+12:	            'auto-fit': 'repeat(auto-fit, minmax(180px, 1fr))'
+13:	          },
+14:	          fontSize: {
+15:	            '2xs': '0.7rem'
+16:	          }
+17:	        }
+18:	      }
+19:	    }
+20:	  </script>
+21:	
+22:	  <div class="px-2 md:px-4">    <!-- Month navigator -->
+23:	        <!-- Top summary blocks -->
+24:	    <div id="topSummary" class="grid grid-cols-1 md:grid-cols-5 gap-2 md:gap-3 mb-3">
+25:	      <div class="bg-white rounded-md shadow-sm border p-2">
+26:	        <div class="flex items-center gap-2">
+27:	          <button id="btnPrevMonth" class="px-2 py-1 text-sm rounded border bg-gray-50 hover:bg-gray-100" title="M&ecirc;s anterior">&lt;</button>
+28:	          <div id="monthLabel" class="text-sm font-semibold text-gray-800 select-none"></div>
+29:	          <button id="btnNextMonth" class="px-2 py-1 text-sm rounded border bg-gray-50 hover:bg-gray-100" title="M&ecirc;s seguinte">&gt;</button>
+30:	        </div>
+31:	      </div>
+32:	      <div class="bg-white rounded-md shadow-sm border p-2">
+33:	        <div class="text-[11px] text-gray-500 mb-1">Ocupa&ccedil;&atilde;o</div>
+34:	        <div class="flex flex-wrap gap-4">
+35:	          <div class="flex items-baseline gap-1"><span id="totalOccText" class="font-bold text-base">--%</span></div>
+36:	          <div class="flex items-baseline gap-1"><span id="gestaoOccText" class="font-bold text-base text-green-600">--%</span></div>
+37:	          <div class="flex items-baseline gap-1"><span id="exploracaoOccText" class="font-bold text-base text-blue-600">--%</span></div>
+38:	        </div>
+39:	      </div>
+40:	      <!-- Disponibilidade (sibling block) -->
+41:	      <div class="bg-white rounded-md shadow-sm border p-2">
+42:	        <div class="text-[11px] text-gray-500 mb-1">Disponibilidade</div>
+43:	        <div class="flex flex-wrap gap-4">
+44:	          <div class="flex items-baseline gap-1"><span id="totalDispText" class="font-semibold text-sm">--</span></div>
+45:	          <div class="flex items-baseline gap-1"><span id="gestaoDispText" class="font-semibold text-sm text-green-600">--</span></div>
+46:	          <div class="flex items-baseline gap-1"><span id="exploracaoDispText" class="font-semibold text-sm text-blue-600">--</span></div>
+47:	        </div>
+48:	      </div>
+49:	      <div class="bg-white rounded-md shadow-sm border p-2">
+50:	        <div class="text-[11px] text-gray-500 mb-1">Fatura&ccedil;&atilde;o</div>
+51:	        <div class="flex flex-wrap gap-4">
+52:	          <div class="flex items-baseline gap-1"><span id="totalFatText" class="font-semibold text-sm">--</span></div>
+53:	          <div class="flex items-baseline gap-1"><span id="gestaoFatText" class="font-semibold text-sm text-green-600">--</span></div>
+54:	          <div class="flex items-baseline gap-1"><span id="exploracaoFatText" class="font-semibold text-sm text-blue-600">--</span></div>
+55:	        </div>
+56:	      </div>
+57:	      <div class="bg-white rounded-md shadow-sm border p-2">
+58:	        <div class="text-[11px] text-gray-500 mb-1">Alojamentos</div>
+59:	        <div class="flex flex-wrap gap-4">
+60:	          <div class="flex items-baseline gap-1"><span id="totalCountText" class="font-semibold text-sm">--</span></div>
+61:	          <div class="flex items-baseline gap-1"><span id="gestaoCountText" class="font-semibold text-sm text-green-600">--</span></div>
+62:	          <div class="flex items-baseline gap-1"><span id="exploracaoCountText" class="font-semibold text-sm text-blue-600">--</span></div>
+63:	        </div>
+64:	      </div>
+65:	    </div>
+66:	    <!-- Grid -->
+67:	    <div id="cardsGrid" class="grid grid-cols-auto-fit gap-2"></div>
+68:	  </div>
+69:	
+70:	  <!-- Chart.js (if needed later) -->
+71:	  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+72:	
+73:	  <script>
+74:	    const fmtMoney0 = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 });
+75:	    const fmtNum = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+76:	    const fmtPct0 = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 });
+77:	
+78:	    function firstDayOfCurrentMonth() {
+79:	      const d = new Date();
+80:	      return new Date(d.getFullYear(), d.getMonth(), 1);
+81:	    }
+82:	    function lastDayOfCurrentMonth() {
+83:	      const d = new Date();
+84:	      return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+85:	    }
+86:	    function toYMD(d) {
+87:	      const m = String(d.getMonth() + 1).padStart(2, '0');
+88:	      const day = String(d.getDate()).padStart(2, '0');
+89:	      return `${d.getFullYear()}-${m}-${day}`;
+90:	    }
+91:	    function firstDayOfMonth(base) {
+92:	      return new Date(base.getFullYear(), base.getMonth(), 1);
+93:	    }
+94:	    function lastDayOfMonth(base) {
+95:	      return new Date(base.getFullYear(), base.getMonth() + 1, 0);
+96:	    }
+97:	    function monthLabelText(d) {
+98:	      const month = d.toLocaleDateString('pt-PT', { month: 'long' });
+99:	      const year = d.getFullYear();
+100:	      return `${month} ${year}`;
+101:	    }
+102:	
+103:	    let currentMonth = firstDayOfCurrentMonth();
+104:	
+105:	    async function loadData() {
+106:	      const ini = toYMD(firstDayOfMonth(currentMonth));
+107:	      const fim = toYMD(lastDayOfMonth(currentMonth));
+108:	      const url = `/api/performance?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`;
+109:	      const res = await fetch(url);
+110:	      const data = await res.json();
+111:	      if (data.error) {
+112:	        console.error(data.error);
+113:	        document.getElementById('cardsGrid').innerHTML = `<div class="text-red-600">Erro: ${data.error}</div>`;
+114:	        return;
+115:	      }
+116:	      const rows = data.rows || [];
+117:	      renderCards(rows);
+118:	      renderTotals(rows);
+119:	    }
+120:	
+121:	    function renderCards(rows) {
+122:	      const grid = document.getElementById('cardsGrid');
+123:	      if (!rows.length) {
+124:	        grid.innerHTML = '<div class="text-gray-600">Sem dados para o per√≠odo selecionado.</div>';
+125:	        return;
+126:	      }
+127:	      rows.sort((a, b) => (Number(a.taxa_ocupacao) || 0) - (Number(b.taxa_ocupacao) || 0));
+128:	      grid.innerHTML = rows.map(r => cardHTML(r)).join('');
+129:	    }
+130:	
+131:	    function cardHTML(r) {
+132:	      const nome = r.nome || '';
+133:	      const tipologia = r.tipologia || '';
+134:	      const tipo = r.tipo || '';
+135:	      const noitesOcup = Number(r.noites_ocupadas || 0);
+136:	      const noitesDisp = Number(r.noites_disponiveis || 0);
+137:	      const noitesTot = Number(r.noites_totais || 0);
+138:	      const taxa = Math.max(0, Math.min(100, Number(r.taxa_ocupacao || 0)));
+139:	      const total = Number(r.total_liquido || 0);
+140:	      const pm = Number(r.preco_medio_noite || 0);
+141:	      const tint = cardTintStyle(taxa);
+142:	
+143:	      return `
+144:	        <div class="border rounded-md shadow-sm p-2 flex flex-col gap-1 min-h-[110px] perf-card cursor-pointer hover:shadow" style="${tint}" data-nome="${encodeURIComponent(nome)}">
+145:	          <div class="flex items-start justify-between gap-1">
+146:	            <div class="font-semibold text-gray-800 text-xs leading-tight truncate flex-1 min-w-0">${escapeHtml(nome)}</div>
+147:	            <div class="flex gap-1 flex-wrap items-center justify-end">
+148:	              ${badge(tipologia, 'bg-gray-100 text-gray-700')}
+149:	              ${typeIcon(tipo)}
+150:	            </div>
+151:	          </div>
+152:	
+153:	          <div class="grid grid-cols-4 gap-1 text-xs mt-1">
+154:	            <div class="flex flex-col leading-tight">
+155:	              <span class="text-gray-500 text-[10px]">Noites</span>
+156:	              <span class="font-medium">${fmtNum.format(noitesOcup)} / ${fmtNum.format(noitesTot)}</span>
+157:	            </div>
+158:	            <div class="flex flex-col leading-tight">
+159:	              <span class="text-gray-500 text-[10px]">Disp.</span>
+160:	              <span class="font-medium">${fmtNum.format(noitesDisp)}</span>
+161:	            </div>
+162:	            <div class="flex flex-col leading-tight">
+163:	              <span class="text-gray-500 text-[10px]">Total</span>
+164:	              <span class="font-medium">${fmtMoney0.format(total)}</span>
+165:	            </div>
+166:	            <div class="flex flex-col leading-tight">
+167:	              <span class="text-gray-500 text-[10px]">PMN</span>
+168:	              <span class="font-medium">${fmtMoney0.format(pm)}</span>
+169:	            </div>
+170:	          </div>
+171:	
+172:	          <div class="mt-auto pt-1">
+173:	            <div class="flex justify-between text-[10px] text-gray-600 mb-0.5">
+174:	              <span>Ocupa&ccedil;&atilde;o</span>
+175:	              <span class="font-bold text-sm">${fmtNum.format(taxa)}%</span>
+176:	            </div>
+177:	            <div class="w-full h-1.5 bg-gray-200 rounded">
+178:	              <div class="h-1.5 rounded" style="width:${taxa}%; background-color:${barColor(taxa)};"></div>
+179:	            </div>
+180:	          </div>
+181:	        </div>`;
+182:	    }
+183:	
+184:	    function badge(text, cls) {
+185:	      if (!text) return '';
+186:	      return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}">${escapeHtml(text)}</span>`;
+187:	    }
+188:	
+189:	    function typeIcon(tipo) {
+190:	      const t = (tipo || '').toString();
+191:	      const norm = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+192:	      if (norm === 'GESTAO') {
+193:	        return `<i class="fa-solid fa-user text-gray-600 text-[12px]" title="Gest√£o"></i>`;
+194:	      }
+195:	      return '';
+196:	    }
+197:	
+198:	    // Continuous red->green scale for the bar
+199:	    function barColor(p) {
+200:	      const clamped = Math.max(0, Math.min(100, Number(p) || 0));
+201:	      const hue = Math.round((clamped / 100) * 120); // 0=red, 120=green
+202:	      return `hsl(${hue} 85% 45%)`;
+203:	    }
+204:	
+205:	    // Subtle card tint at extremes (0% red tint, 100% green tint)
+206:	    function cardTintStyle(p) {
+207:	      const val = Number(p) || 0;
+208:	      if (val >= 99.5) {
+209:	        return 'background-color:#f0fdf4'; // tailwind green-50
+210:	      }
+211:	      if (val <= 0.5) {
+212:	        return 'background-color:#fef2f2'; // tailwind red-50
+213:	      }
+214:	      return '';
+215:	    }
+216:	
+217:	    function normalizeTipo(t) {
+218:	      return (t || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+219:	    }
+220:	
+221:	    function renderTotals(rows) {
+222:	      const totalSpan = document.getElementById('totalOccText');
+223:	      const gestaoSpan = document.getElementById('gestaoOccText');
+224:	      const explSpan = document.getElementById('exploracaoOccText');
+225:	      const totalFat = document.getElementById('totalFatText');
+226:	      const gestaoFat = document.getElementById('gestaoFatText');
+227:	      const explFat = document.getElementById('exploracaoFatText');
+228:	      const totalCount = document.getElementById('totalCountText');
+229:	      const gestaoCount = document.getElementById('gestaoCountText');
+230:	      const explCount = document.getElementById('exploracaoCountText');
+231:	      const totalDisp = document.getElementById('totalDispText');
+232:	      const gestaoDisp = document.getElementById('gestaoDispText');
+233:	      const explDisp = document.getElementById('exploracaoDispText');
+234:	
+235:	      function calcOcc(list) {
+236:	        const totals = list.reduce((acc, r) => {
+237:	          const nt = Number(r.noites_totais || 0);
+238:	          const no = Number(r.noites_ocupadas || 0);
+239:	          acc.nt += nt;
+240:	          acc.no += no;
+241:	          return acc;
+242:	        }, { nt: 0, no: 0 });
+243:	        return totals.nt > 0 ? (totals.no / totals.nt) * 100 : 0;
+244:	      }
+245:	
+246:	      const allOcc = calcOcc(rows);
+247:	      const gestaoRows = rows.filter(r => normalizeTipo(r.tipo) === 'GESTAO');
+248:	      const explRows = rows.filter(r => normalizeTipo(r.tipo) !== 'GESTAO');
+249:	      const gestaoOcc = calcOcc(gestaoRows);
+250:	      const explOcc = calcOcc(explRows);
+251:	
+252:	      if (totalSpan) totalSpan.textContent = `${fmtPct0.format(allOcc)}%`;
+253:	      if (gestaoSpan) gestaoSpan.textContent = `${fmtPct0.format(gestaoOcc)}%`;
+254:	      if (explSpan) explSpan.textContent = `${fmtPct0.format(explOcc)}%`;
+255:	
+256:	      // faturado totals (sum of total_liquido)
+257:	      const sumValor = (list) => list.reduce((acc, r) => acc + Number(r.total_liquido || 0), 0);
+258:	      const allFat = sumValor(rows);
+259:	      const gestFatVal = sumValor(gestaoRows);
+260:	      const explFatVal = sumValor(explRows);
+261:	
+262:	      const totalFatVal = (gestFatVal * 0.25) + explFatVal;
+263:	      if (totalFat) totalFat.textContent = fmtMoney0.format(totalFatVal);
+264:	      if (gestaoFat) {
+265:	        const gest25 = gestFatVal * 0.25;
+266:	        gestaoFat.innerHTML = `${fmtMoney0.format(gest25)} <span class="text-[11px] text-gray-500">(${fmtMoney0.format(gestFatVal)})</span>`;
+267:	      }
+268:	      if (explFat) explFat.textContent = fmtMoney0.format(explFatVal);
+269:	
+270:	      // disponibilidade (noites futuras disponÌveis por alojamento)
+271:	      const sumDisp = (list) => list.reduce((acc, r) => acc + Math.max(0, Number(r.noites_disponiveis || 0)), 0);
+272:	      const totalDispVal = sumDisp(rows);
+273:	      const gestaoDispVal = sumDisp(gestaoRows);
+274:	      const explDispVal = sumDisp(explRows);
+275:	      if (totalDisp) totalDisp.textContent = `${fmtMoney0.format(totalDispVal)}`.replace(/\s/g, ' ');
+276:	      if (gestaoDisp) gestaoDisp.textContent = `${fmtMoney0.format(gestaoDispVal)}`.replace(/\s/g, ' ');
+277:	      if (explDisp) explDisp.textContent = `${fmtMoney0.format(explDispVal)}`.replace(/\s/g, ' ');
+278:	
+279:	      // counts
+280:	      if (totalCount) totalCount.textContent = rows.length.toString();
+281:	      if (gestaoCount) gestaoCount.textContent = gestaoRows.length.toString();
+282:	      if (explCount) explCount.textContent = explRows.length.toString();
+283:	    }
+284:	
+285:	    function escapeHtml(s) {
+286:	      const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'};
+287:	      return String(s).replace(/[&<>"']/g, c => map[c] || c);
+288:	    }
+289:	
+290:	    document.addEventListener('DOMContentLoaded', () => {
+291:	      const label = document.getElementById('monthLabel');
+292:	      const prev = document.getElementById('btnPrevMonth');
+293:	      const next = document.getElementById('btnNextMonth');
+294:	
+295:	      function updateMonth(delta) {
+296:	        if (delta) {
+297:	          currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1);
+298:	        }
+299:	        if (label) label.textContent = monthLabelText(currentMonth);
+300:	        loadData();
+301:	      }
+302:	
+303:	      if (prev) prev.addEventListener('click', () => updateMonth(-1));
+304:	      if (next) next.addEventListener('click', () => updateMonth(1));
+305:	
+306:	      const grid = document.getElementById('cardsGrid');
+307:	      grid.addEventListener('click', (ev) => {
+308:	        const card = ev.target.closest('.perf-card');
+309:	        if (!card) return;
+310:	        const nome = decodeURIComponent(card.dataset.nome || '');
+311:	        openPerfDetail(nome);
+312:	      });
+313:	
+314:	      updateMonth(0);
+315:	    });
+316:	
+317:	            async function openPerfDetail(nome) {
+318:	      const title = document.getElementById('perfDetailTitle');
+319:	      const monthTxt = monthLabelText(currentMonth);
+320:	      title.textContent = ${nome} ó ;
+321:	      const modal = new bootstrap.Modal(document.getElementById('perfDetailModal'));
+322:	      modal.show();
+323:	    }  </script></script>
+324:	
+325:	  <!-- Detalhe Modal -->
+326:	    <!-- Detalhe Modal (tÌtulo apenas) -->
+327:	    <!-- Detalhe Modal (tÌtulo apenas) -->
+328:	  <div class=\"modal fade\" id=\"perfDetailModal\" tabindex=\"-1\" aria-labelledby=\"perfDetailTitle\" aria-hidden=\"true\">
+329:	    <div class=\"modal-dialog\">
+330:	      <div class=\"modal-content\">
+331:	        <div class=\"modal-header\">
+332:	          <h5 class=\"modal-title\" id=\"perfDetailTitle\">Detalhe</h5>
+333:	          <button type=\"button\" class=\"btn-close\" data-bs-dismiss=\"modal\" aria-label=\"Fechar\"></button>
+334:	        </div>
+335:	      </div>
+336:	    </div>
+337:	  </div>
+338:	        <div class="flex flex-wrap gap-4">
+339:	          <div class="flex items-baseline gap-1"><span id="totalDispText" class="font-semibold text-sm">--</span></div>
+340:	          <div class="flex items-baseline gap-1"><span id="gestaoDispText" class="font-semibold text-sm text-green-600">--</span></div>
+341:	          <div class="flex items-baseline gap-1"><span id="exploracaoDispText" class="font-semibold text-sm text-blue-600">--</span></div>
+342:	        </div>
+343:	      </div>
+344:	      <div class="bg-white rounded-md shadow-sm border p-2">
+345:	        <div class="text-[11px] text-gray-500 mb-1">Fatura&ccedil;&atilde;o</div>
+346:	        <div class="flex flex-wrap gap-4">
+347:	          <div class="flex items-baseline gap-1"><span id="totalFatText" class="font-semibold text-sm">--</span></div>
+348:	          <div class="flex items-baseline gap-1"><span id="gestaoFatText" class="font-semibold text-sm text-green-600">--</span></div>
+349:	          <div class="flex items-baseline gap-1"><span id="exploracaoFatText" class="font-semibold text-sm text-blue-600">--</span></div>
+350:	        </div>
+351:	      </div>
+352:	      <div class="bg-white rounded-md shadow-sm border p-2">
+353:	        <div class="text-[11px] text-gray-500 mb-1">Alojamentos</div>
+354:	        <div class="flex flex-wrap gap-4">
+355:	          <div class="flex items-baseline gap-1"><span id="totalCountText" class="font-semibold text-sm">--</span></div>
+356:	          <div class="flex items-baseline gap-1"><span id="gestaoCountText" class="font-semibold text-sm text-green-600">--</span></div>
+357:	          <div class="flex items-baseline gap-1"><span id="exploracaoCountText" class="font-semibold text-sm text-blue-600">--</span></div>
+358:	        </div>
+359:	      </div>
+360:	    </div>
+361:	    <!-- Grid -->
+362:	    <div id="cardsGrid" class="grid grid-cols-auto-fit gap-2"></div>
+363:	  </div>
+364:	
+365:	  <!-- Chart.js (if needed later) -->
+366:	  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+367:	
+368:	  <script>
+369:	    const fmtMoney0 = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 });
+370:	    const fmtNum = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+371:	    const fmtPct0 = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 });
+372:	
+373:	    function firstDayOfCurrentMonth() {
+374:	      const d = new Date();
+375:	      return new Date(d.getFullYear(), d.getMonth(), 1);
+376:	    }
+377:	    function lastDayOfCurrentMonth() {
+378:	      const d = new Date();
+379:	      return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+380:	    }
+381:	    function toYMD(d) {
+382:	      const m = String(d.getMonth() + 1).padStart(2, '0');
+383:	      const day = String(d.getDate()).padStart(2, '0');
+384:	      return `${d.getFullYear()}-${m}-${day}`;
+385:	    }
+386:	    function firstDayOfMonth(base) {
+387:	      return new Date(base.getFullYear(), base.getMonth(), 1);
+388:	    }
+389:	    function lastDayOfMonth(base) {
+390:	      return new Date(base.getFullYear(), base.getMonth() + 1, 0);
+391:	    }
+392:	    function monthLabelText(d) {
+393:	      const month = d.toLocaleDateString('pt-PT', { month: 'long' });
+394:	      const year = d.getFullYear();
+395:	      return `${month} ${year}`;
+396:	    }
+397:	
+398:	    let currentMonth = firstDayOfCurrentMonth();
+399:	
+400:	    async function loadData() {
+401:	      const ini = toYMD(firstDayOfMonth(currentMonth));
+402:	      const fim = toYMD(lastDayOfMonth(currentMonth));
+403:	      const url = `/api/performance?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`;
+404:	      const res = await fetch(url);
+405:	      const data = await res.json();
+406:	      if (data.error) {
+407:	        console.error(data.error);
+408:	        document.getElementById('cardsGrid').innerHTML = `<div class="text-red-600">Erro: ${data.error}</div>`;
+409:	        return;
+410:	      }
+411:	      const rows = data.rows || [];
+412:	      renderCards(rows);
+413:	      renderTotals(rows);
+414:	    }
+415:	
+416:	    function renderCards(rows) {
+417:	      const grid = document.getElementById('cardsGrid');
+418:	      if (!rows.length) {
+419:	        grid.innerHTML = '<div class="text-gray-600">Sem dados para o per√≠odo selecionado.</div>';
+420:	        return;
+421:	      }
+422:	      rows.sort((a, b) => (Number(a.taxa_ocupacao) || 0) - (Number(b.taxa_ocupacao) || 0));
+423:	      grid.innerHTML = rows.map(r => cardHTML(r)).join('');
+424:	    }
+425:	
+426:	    function cardHTML(r) {
+427:	      const nome = r.nome || '';
+428:	      const tipologia = r.tipologia || '';
+429:	      const tipo = r.tipo || '';
+430:	      const noitesOcup = Number(r.noites_ocupadas || 0);
+431:	      const noitesDisp = Number(r.noites_disponiveis || 0);
+432:	      const noitesTot = Number(r.noites_totais || 0);
+433:	      const taxa = Math.max(0, Math.min(100, Number(r.taxa_ocupacao || 0)));
+434:	      const total = Number(r.total_liquido || 0);
+435:	      const pm = Number(r.preco_medio_noite || 0);
+436:	      const tint = cardTintStyle(taxa);
+437:	
+438:	      return `
+439:	        <div class="border rounded-md shadow-sm p-2 flex flex-col gap-1 min-h-[110px] perf-card cursor-pointer hover:shadow" style="${tint}" data-nome="${encodeURIComponent(nome)}">
+440:	          <div class="flex items-start justify-between gap-1">
+441:	            <div class="font-semibold text-gray-800 text-xs leading-tight truncate flex-1 min-w-0">${escapeHtml(nome)}</div>
+442:	            <div class="flex gap-1 flex-wrap items-center justify-end">
+443:	              ${badge(tipologia, 'bg-gray-100 text-gray-700')}
+444:	              ${typeIcon(tipo)}
+445:	            </div>
+446:	          </div>
+447:	
+448:	          <div class="grid grid-cols-4 gap-1 text-xs mt-1">
+449:	            <div class="flex flex-col leading-tight">
+450:	              <span class="text-gray-500 text-[10px]">Noites</span>
+451:	              <span class="font-medium">${fmtNum.format(noitesOcup)} / ${fmtNum.format(noitesTot)}</span>
+452:	            </div>
+453:	            <div class="flex flex-col leading-tight">
+454:	              <span class="text-gray-500 text-[10px]">Disp.</span>
+455:	              <span class="font-medium">${fmtNum.format(noitesDisp)}</span>
+456:	            </div>
+457:	            <div class="flex flex-col leading-tight">
+458:	              <span class="text-gray-500 text-[10px]">Total</span>
+459:	              <span class="font-medium">${fmtMoney0.format(total)}</span>
+460:	            </div>
+461:	            <div class="flex flex-col leading-tight">
+462:	              <span class="text-gray-500 text-[10px]">PMN</span>
+463:	              <span class="font-medium">${fmtMoney0.format(pm)}</span>
+464:	            </div>
+465:	          </div>
+466:	
+467:	          <div class="mt-auto pt-1">
+468:	            <div class="flex justify-between text-[10px] text-gray-600 mb-0.5">
+469:	              <span>Ocupa&ccedil;&atilde;o</span>
+470:	              <span class="font-bold text-sm">${fmtNum.format(taxa)}%</span>
+471:	            </div>
+472:	            <div class="w-full h-1.5 bg-gray-200 rounded">
+473:	              <div class="h-1.5 rounded" style="width:${taxa}%; background-color:${barColor(taxa)};"></div>
+474:	            </div>
+475:	          </div>
+476:	        </div>`;
+477:	    }
+478:	
+479:	    function badge(text, cls) {
+480:	      if (!text) return '';
+481:	      return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}">${escapeHtml(text)}</span>`;
+482:	    }
+483:	
+484:	    function typeIcon(tipo) {
+485:	      const t = (tipo || '').toString();
+486:	      const norm = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+487:	      if (norm === 'GESTAO') {
+488:	        return `<i class="fa-solid fa-user text-gray-600 text-[12px]" title="Gest√£o"></i>`;
+489:	      }
+490:	      return '';
+491:	    }
+492:	
+493:	    // Continuous red->green scale for the bar
+494:	    function barColor(p) {
+495:	      const clamped = Math.max(0, Math.min(100, Number(p) || 0));
+496:	      const hue = Math.round((clamped / 100) * 120); // 0=red, 120=green
+497:	      return `hsl(${hue} 85% 45%)`;
+498:	    }
+499:	
+500:	    // Subtle card tint at extremes (0% red tint, 100% green tint)
+501:	    function cardTintStyle(p) {
+502:	      const val = Number(p) || 0;
+503:	      if (val >= 99.5) {
+504:	        return 'background-color:#f0fdf4'; // tailwind green-50
+505:	      }
+506:	      if (val <= 0.5) {
+507:	        return 'background-color:#fef2f2'; // tailwind red-50
+508:	      }
+509:	      return '';
+510:	    }
+511:	
+512:	    function normalizeTipo(t) {
+513:	      return (t || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+514:	    }
+515:	
+516:	    function renderTotals(rows) {
+517:	      const totalSpan = document.getElementById('totalOccText');
+518:	      const gestaoSpan = document.getElementById('gestaoOccText');
+519:	      const explSpan = document.getElementById('exploracaoOccText');
+520:	      const totalFat = document.getElementById('totalFatText');
+521:	      const gestaoFat = document.getElementById('gestaoFatText');
+522:	      const explFat = document.getElementById('exploracaoFatText');
+523:	      const totalCount = document.getElementById('totalCountText');
+524:	      const gestaoCount = document.getElementById('gestaoCountText');
+525:	      const explCount = document.getElementById('exploracaoCountText');
+526:	      const totalDisp = document.getElementById('totalDispText');
+527:	      const gestaoDisp = document.getElementById('gestaoDispText');
+528:	      const explDisp = document.getElementById('exploracaoDispText');
+529:	
+530:	      function calcOcc(list) {
+531:	        const totals = list.reduce((acc, r) => {
+532:	          const nt = Number(r.noites_totais || 0);
+533:	          const no = Number(r.noites_ocupadas || 0);
+534:	          acc.nt += nt;
+535:	          acc.no += no;
+536:	          return acc;
+537:	        }, { nt: 0, no: 0 });
+538:	        return totals.nt > 0 ? (totals.no / totals.nt) * 100 : 0;
+539:	      }
+540:	
+541:	      const allOcc = calcOcc(rows);
+542:	      const gestaoRows = rows.filter(r => normalizeTipo(r.tipo) === 'GESTAO');
+543:	      const explRows = rows.filter(r => normalizeTipo(r.tipo) !== 'GESTAO');
+544:	      const gestaoOcc = calcOcc(gestaoRows);
+545:	      const explOcc = calcOcc(explRows);
+546:	
+547:	      if (totalSpan) totalSpan.textContent = `${fmtPct0.format(allOcc)}%`;
+548:	      if (gestaoSpan) gestaoSpan.textContent = `${fmtPct0.format(gestaoOcc)}%`;
+549:	      if (explSpan) explSpan.textContent = `${fmtPct0.format(explOcc)}%`;
+550:	
+551:	      // faturado totals (sum of total_liquido)
+552:	      const sumValor = (list) => list.reduce((acc, r) => acc + Number(r.total_liquido || 0), 0);
+553:	      const allFat = sumValor(rows);
+554:	      const gestFatVal = sumValor(gestaoRows);
+555:	      const explFatVal = sumValor(explRows);
+556:	
+557:	      const totalFatVal = (gestFatVal * 0.25) + explFatVal;
+558:	      if (totalFat) totalFat.textContent = fmtMoney0.format(totalFatVal);
+559:	      if (gestaoFat) {
+560:	        const gest25 = gestFatVal * 0.25;
+561:	        gestaoFat.innerHTML = `${fmtMoney0.format(gest25)} <span class="text-[11px] text-gray-500">(${fmtMoney0.format(gestFatVal)})</span>`;
+562:	      }
+563:	      if (explFat) explFat.textContent = fmtMoney0.format(explFatVal);
+564:	
+565:	      // disponibilidade (noites futuras disponÌveis por alojamento)
+566:	      const sumDisp = (list) => list.reduce((acc, r) => acc + Math.max(0, Number(r.noites_disponiveis || 0)), 0);
+567:	      const totalDispVal = sumDisp(rows);
+568:	      const gestaoDispVal = sumDisp(gestaoRows);
+569:	      const explDispVal = sumDisp(explRows);
+570:	      if (totalDisp) totalDisp.textContent = `${fmtMoney0.format(totalDispVal)}`.replace(/\s/g, ' ');
+571:	      if (gestaoDisp) gestaoDisp.textContent = `${fmtMoney0.format(gestaoDispVal)}`.replace(/\s/g, ' ');
+572:	      if (explDisp) explDisp.textContent = `${fmtMoney0.format(explDispVal)}`.replace(/\s/g, ' ');
+573:	
+574:	      // counts
+575:	      if (totalCount) totalCount.textContent = rows.length.toString();
+576:	      if (gestaoCount) gestaoCount.textContent = gestaoRows.length.toString();
+577:	      if (explCount) explCount.textContent = explRows.length.toString();
+578:	    }
+579:	
+580:	    function escapeHtml(s) {
+581:	      const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'};
+582:	      return String(s).replace(/[&<>"']/g, c => map[c] || c);
+583:	    }
+584:	
+585:	    document.addEventListener('DOMContentLoaded', () => {
+586:	      const label = document.getElementById('monthLabel');
+587:	      const prev = document.getElementById('btnPrevMonth');
+588:	      const next = document.getElementById('btnNextMonth');
+589:	
+590:	      function updateMonth(delta) {
+591:	        if (delta) {
+592:	          currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1);
+593:	        }
+594:	        if (label) label.textContent = monthLabelText(currentMonth);
+595:	        loadData();
+596:	      }
+597:	
+598:	      if (prev) prev.addEventListener('click', () => updateMonth(-1));
+599:	      if (next) next.addEventListener('click', () => updateMonth(1));
+600:	
+601:	      const grid = document.getElementById('cardsGrid');
+602:	      grid.addEventListener('click', (ev) => {
+603:	        const card = ev.target.closest('.perf-card');
+604:	        if (!card) return;
+605:	        const nome = decodeURIComponent(card.dataset.nome || '');
+606:	        openPerfDetail(nome);
+607:	      });
+608:	
+609:	      updateMonth(0);
+610:	    });
+611:	
+612:	        async function openPerfDetail(nome) {
+613:	      const title = document.getElementById("perfDetailTitle");
+614:	      const monthTxt = monthLabelText(currentMonth);
+615:	      title.textContent = `${nome} ó ${monthTxt}`;
+616:	      const modal = new bootstrap.Modal(document.getElementById("perfDetailModal"));
+617:	      modal.show();
+618:	    }`;
+619:	        const res = await fetch(url);
+620:	        const data = await res.json();
+621:	        if (data.error) {
+622:	          alert('Erro: ' + data.error);
+623:	          return;
+624:	        }
+625:	        const title = document.getElementById('perfDetailTitle');
+626:	        const monthTxt = monthLabelText(currentMonth);
+627:	        title.textContent = `${nome} ó ${monthTxt}`;
+628:	        const tbody = document.getElementById('perfDetailBody');
+629:	        const rows = data.rows || [];
+630:	        tbody.innerHTML = rows.map(r => (
+631:	          `<tr class="even:bg-gray-50 hover:bg-gray-50 transition-colors">
+632:	            <td class="px-3 py-2 whitespace-nowrap text-gray-700">${escapeHtml(r.data_reserva || '')}</td>
+633:	            <td class="px-3 py-2 text-gray-800">${escapeHtml(r.hospede || '')}</td>
+634:	            <td class="px-3 py-2 whitespace-nowrap font-mono text-[12px] text-gray-700">${escapeHtml(r.reserva || '')}</td>
+635:	            <td class="px-3 py-2 text-right font-medium">${fmtMoney0.format(Number(r.valor || 0))}</td>
+636:	          </tr>`
+637:	        )).join('');
+638:	        document.getElementById('perfDetailTotal').textContent = fmtMoney0.format(Number(data.total || 0));
+639:	        // custos
+640:	        const ctbody = document.getElementById('perfCostBody');
+641:	        const crows = data.custos || [];
+642:	        ctbody.innerHTML = crows.map(r => (
+643:	          `<tr class="even:bg-gray-50 hover:bg-gray-50 transition-colors">
+644:	            <td class="px-3 py-2 text-gray-800">${escapeHtml(r.ref || '')}</td>
+645:	            <td class="px-3 py-2 text-right font-medium">${fmtMoney0.format(Number(r.valor || 0))}</td>
+646:	          </tr>`
+647:	        )).join('');
+648:	        document.getElementById('perfCostTotal').textContent = fmtMoney0.format(Number(data.total_custos || 0));
+649:	        // resultado
+650:	        document.getElementById('perfResult').textContent = fmtMoney0.format(Number(data.resultado || 0));
+651:	        const modal = new bootstrap.Modal(document.getElementById('perfDetailModal'));
+652:	        modal.show();
+653:	      } catch (err) {
+654:	        console.error(err);
+655:	        alert('Erro ao carregar detalhe.');
+656:	      }
+657:	    }
+658:	  </script>
+659:	
+660:	  <!-- Detalhe Modal -->
+661:	  <div class="modal fade" id="perfDetailModal" tabindex="-1" aria-labelledby="perfDetailTitle" aria-hidden="true">
+662:	    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+663:	      <div class="modal-content">
+664:	        <div class="modal-header">
+665:	          <h5 class="modal-title" id="perfDetailTitle">Detalhe</h5>
+666:	          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+667:	        </div>
+668:	        <div class="modal-body">
+669:	          <div class="rounded-md border border-gray-200 overflow-hidden mb-3">
+670:	            <div class="overflow-x-auto">
+671:	              <table class="min-w-full table-auto text-sm">
+672:	                <thead class="sticky top-0 z-10 bg-gray-50 text-gray-600">
+673:	                  <tr class="">
+674:	                    <th class="px-3 py-2 text-left font-semibold tracking-wide w-32">Data</th>
+675:	                    <th class="px-3 py-2 text-left font-semibold tracking-wide">HÛspede</th>
+676:	                    <th class="px-3 py-2 text-left font-semibold tracking-wide w-40">Reserva</th>
+677:	                    <th class="px-3 py-2 text-right font-semibold tracking-wide w-32">Valor</th>
+678:	                  </tr>
+679:	                </thead>
+680:	                <tbody id="perfDetailBody" class="divide-y divide-gray-100"></tbody>
+681:	                <tfoot class="bg-gray-50">
+682:	                  <tr>
+683:	                    <th colspan="3" class="px-3 py-2 text-right font-semibold">Total</th>
+684:	                    <th class="px-3 py-2 text-right font-semibold" id="perfDetailTotal">--</th>
+685:	                  </tr>
+686:	                </tfoot>
+687:	              </table>
+688:	            </div>
+689:	          </div>
+690:	          <!-- Custos -->
+691:	          <div class="rounded-md border border-gray-200 overflow-hidden mb-3">
+692:	            <div class="overflow-x-auto">
+693:	              <table class="min-w-full table-auto text-sm">
+694:	                <thead class="sticky top-0 z-10 bg-gray-50 text-gray-600">
+695:	                  <tr>
+696:	                    <th class="px-3 py-2 text-left font-semibold tracking-wide">Refer&ecirc;ncia</th>
+697:	                    <th class="px-3 py-2 text-right font-semibold tracking-wide w-32">Valor</th>
+698:	                  </tr>
+699:	                </thead>
+700:	                <tbody id="perfCostBody" class="divide-y divide-gray-100"></tbody>
+701:	                <tfoot class="bg-gray-50">
+702:	                  <tr>
+703:	                    <th class="px-3 py-2 text-right font-semibold">Total</th>
+704:	                    <th class="px-3 py-2 text-right font-semibold" id="perfCostTotal">--</th>
+705:	                  </tr>
+706:	                </tfoot>
+707:	              </table>
+708:	            </div>
+709:	          </div>
+710:	          <!-- Resultado -->
+711:	          <div class="d-flex justify-content-end">
+712:	            <div class="px-3 py-2 bg-gray-50 border rounded">
+713:	              <span class="text-gray-600 me-2">Resultado</span>
+714:	              <span id="perfResult" class="fw-bold">--</span>
+715:	            </div>
+716:	          </div>
+717:	        </div>
+718:	        <div class="modal-footer">
+719:	          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+720:	        </div>
+721:	      </div>
+722:	    </div>
+723:	  </div>
+724:	{% endblock %}
+725:	
+726:	
+727:	
+728:	
+729:	
+730:	
+731:	
+732:	
+733:	
+734:	
+735:	
+736:	
+737:	
+738:	
+739:	
+740:	
+741:	
+742:	

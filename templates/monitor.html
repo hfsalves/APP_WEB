@@ -738,6 +738,15 @@
 {% block scripts %}
   {{ super() }}
   <script src="{{ url_for('static', filename='js/monitor.js') }}?v=3"></script>
+  <script>
+    // Corrige rótulo com má codificação: "Duração (min)"
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        const durLbl = document.querySelector('label[for="ntDuracao"]');
+        if (durLbl) durLbl.textContent = 'Duração (min)';
+      } catch(_) {}
+    });
+  </script>
   
   <script>
     document.addEventListener('DOMContentLoaded', () => {

@@ -1,0 +1,127 @@
+﻿<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RelatÃ³rio {{ cliente_id }} â€” {{ '%02d' % mes }}/{{ ano }}</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+    }
+    html, body { margin:0; padding:0; color:var(--ink); font: 12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .container { padding: 20px 24px; }
+    .header { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 16px; }
+    .title { font-weight: 700; font-size: 20px; }
+    .subtitle { color: var(--muted); font-size: 12px; }
+    .period { font-weight:600; }
+    .card { border:1px solid var(--border); border-radius:8px; padding:16px; }
+    .aloj-header { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+    .aloj-name { font-weight:700; font-size:16px; }
+    .aloj-tags { color: var(--muted); font-size: 11px; }
+    .placeholder { color: var(--muted); font-size: 12px; padding: 12px; border: 1px dashed var(--border); border-radius: 6px; text-align:center; }
+    .page-break { page-break-after: always; }
+    @media print {
+      .no-print { display:none !important; }
+      @page { size: A4 portrait; margin: 12mm; }
+      body { font-size: 11px; }
+      .container { padding: 0; }
+      .card { border-color: #ddd; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <div class="title">RelatÃ³rio mensal</div>
+        <div class="subtitle">Cliente: <strong>{{ cliente_id }}</strong></div>
+      </div>
+      <div class="period">PerÃ­odo: {{ '%02d' % mes }}/{{ ano }}</div>
+    </div>
+
+    {% if alojamentos and alojamentos|length > 0 %}
+      {% for al in alojamentos %}
+        <section class="card">
+          <div class="aloj-header">
+            <div class="aloj-name">{{ al.NOME }}</div>
+            <div class="aloj-tags">
+              {% if al.TIPOLOGIA %}<span>{{ al.TIPOLOGIA }}</span>{% endif %}
+              {% if al.TIPO %}<span> â€¢ {{ al.TIPO }}</span>{% endif %}
+            </div>
+          </div>
+                    {% set mm = monthly_map.get(al.NOME, {}) %}
+          <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead>
+              <tr>
+                <th style="text-align:left; border-bottom:1px solid #e5e7eb; padding:6px 4px;">Mês</th>
+                <th style="text-align:right; border-bottom:1px solid #e5e7eb; padding:6px 4px;">Vendas (€)</th>
+                <th style="text-align:right; border-bottom:1px solid #e5e7eb; padding:6px 4px;">Comissão Canal (€)</th>
+                <th style="text-align:right; border-bottom:1px solid #e5e7eb; padding:6px 4px;">Comissão Gestão (25%)</th>
+                <th style="text-align:right; border-bottom:1px solid #e5e7eb; padding:6px 4px;">Receita Proprietário (75%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in range(1,13) %}
+                {% set row = mm.get(m, {}) %}
+                {% set vendas = (row.get('vendas') or 0.0) %}
+                {% set canal = (row.get('com_canal') or 0.0) %}
+                {% set net = vendas - canal %}
+                {% set gest = net * 0.25 %}
+                {% set prop = net * 0.75 %}
+                <tr>
+                  <td style="padding:6px 4px; border-bottom:1px solid #f3f4f6;">{{ '%02d' % m }}</td>
+                  <td style="padding:6px 4px; border-bottom:1px solid #f3f4f6; text-align:right;">{{ vendas|round(0, 'floor') }}</td>
+                  <td style="padding:6px 4px; border-bottom:1px solid #f3f4f6; text-align:right;">{{ canal|round(0, 'floor') }}</td>
+                  <td style="padding:6px 4px; border-bottom:1px solid #f3f4f6; text-align:right;">{{ gest|round(0, 'floor') }}</td>
+                  <td style="padding:6px 4px; border-bottom:1px solid #f3f4f6; text-align:right;">{{ prop|round(0, 'floor') }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+        {% if not loop.last %}<div class="page-break"></div>{% endif %}
+      {% endfor %}
+    {% else %}
+                {% set mm = monthly_map.get(al.NOME, {}) %}
+          <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead>
+              <tr>
+                <th style="text-align:left; border-bottom:1px solid #e5e7eb; padding:6px 4px;">Mês</th>
+                <th style="text-align:right; border-bottom:1px solid #e5e7eb; padding:6px 4px;">Vendas (€)</th>
+                <th style="text-align:right; border-bottom:1px solid #e5e7eb; padding:6px 4px;">Comissão Canal (€)</th>
+                <th style="text-align:right; border-bottom:1px solid #e5e7eb; padding:6px 4px;">Comissão Gestão (25%)</th>
+                <th style="text-align:right; border-bottom:1px solid #e5e7eb; padding:6px 4px;">Receita Proprietário (75%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in range(1,13) %}
+                {% set row = mm.get(m, {}) %}
+                {% set vendas = (row.get('vendas') or 0.0) %}
+                {% set canal = (row.get('com_canal') or 0.0) %}
+                {% set net = vendas - canal %}
+                {% set gest = net * 0.25 %}
+                {% set prop = net * 0.75 %}
+                <tr>
+                  <td style="padding:6px 4px; border-bottom:1px solid #f3f4f6;">{{ '%02d' % m }}</td>
+                  <td style="padding:6px 4px; border-bottom:1px solid #f3f4f6; text-align:right;">{{ vendas|round(0, 'floor') }}</td>
+                  <td style="padding:6px 4px; border-bottom:1px solid #f3f4f6; text-align:right;">{{ canal|round(0, 'floor') }}</td>
+                  <td style="padding:6px 4px; border-bottom:1px solid #f3f4f6; text-align:right;">{{ gest|round(0, 'floor') }}</td>
+                  <td style="padding:6px 4px; border-bottom:1px solid #f3f4f6; text-align:right;">{{ prop|round(0, 'floor') }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+    {% endif %}
+
+    <div class="no-print" style="margin-top:16px; display:flex; gap:8px;">
+      <a href="javascript:window.print()" style="border:1px solid var(--border); padding:8px 10px; border-radius:6px; text-decoration:none; color:inherit;">Imprimir / PDF</a>
+      <a href="/performance" style="border:1px solid var(--border); padding:8px 10px; border-radius:6px; text-decoration:none; color:inherit;">Voltar</a>
+    </div>
+  </div>
+</body>
+</html>
+
+
+

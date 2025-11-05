@@ -307,6 +307,91 @@ document.addEventListener('DOMContentLoaded', () => {
     try { if (filtersModal) filtersModal.show(); } catch(_) {}
   }
 
+  // Determina se um valor "urgente" é verdadeiro (1/true/'1'/'true')
+  function isUrgente(val) {
+    try {
+      const u = (val ?? 0);
+      return (u === 1) || (u === true) || (u === '1') || (String(u).toLowerCase() === 'true');
+    } catch(_) { return false; }
+  }
+
+  // Resolve origem e oristamp de uma tarefa (usando ORISTAMP direto, URL de abertura ou API de fallback)
+  async function resolveOrigemEStamp(task) {
+    try {
+      if (!task) return { origem: '', oristamp: '' };
+      let origem = (task.ORIGEM || '').toUpperCase();
+      let oristamp = resolveOriStamp(task);
+
+      // Fallback: tenta extrair do URL de abertura
+      if (!oristamp) {
+        try {
+          const oi = (typeof getOpenInfo === 'function') ? getOpenInfo(task || {}) : null;
+          const url = oi && oi.url ? oi.url : '';
+          const m = url.match(/\/generic\/form\/(MN|LP|FS)\/([^/?#]+)/i);
+          if (m) {
+            origem = (m[1] || '').toUpperCase();
+            oristamp = decodeURIComponent(m[2] || '');
+          }
+        } catch(_) {}
+      }
+
+      // Fallback final: consulta backend por origem/stamp da tarefa
+      if (!oristamp && task && task.TAREFASSTAMP) {
+        try {
+          const r = await fetch(`/generic/api/tarefa_origin/${encodeURIComponent(task.TAREFASSTAMP)}`);
+          const js = await r.json().catch(()=>({}));
+          if (r.ok && js) {
+            if (!origem) origem = (js.ORIGEM || '').toUpperCase();
+            oristamp = js.ORISTAMP || oristamp;
+          }
+        } catch(_) {}
+      }
+
+      return { origem, oristamp };
+    } catch(_) { return { origem: '', oristamp: '' }; }
+  }
+
+  // Marca o card da tarefa com ícone de URGENTE caso a origem (MN/FS) esteja marcada como urgente
+  async function markUrgenteOnCard(cardEl, task) {
+    try {
+      if (!cardEl || !task) return;
+      const bodyEl = cardEl.querySelector('.card-body');
+      if (!bodyEl) return;
+
+      // Caixa de ícones à direita (garante ordem e evita duplicados)
+      let iconsBox = bodyEl.querySelector('.tarefa-icons');
+      if (!iconsBox) {
+        iconsBox = document.createElement('span');
+        iconsBox.className = 'tarefa-icons float-end';
+        bodyEl.prepend(iconsBox);
+      }
+      if (iconsBox.querySelector('.tarefa-urgente-icon')) return;
+
+      const { origem, oristamp } = await resolveOrigemEStamp(task);
+      if (!oristamp) return;
+      if (origem !== 'MN' && origem !== 'FS') return; // só para MN e FS
+
+      // Usa endpoint genérico que devolve a linha completa (inclui URGENTE)
+      const url = `/generic/api/${origem}/${encodeURIComponent(oristamp)}`;
+      const resp = await fetch(url);
+      const row = await resp.json().catch(()=>({}));
+      if (!resp.ok || !row) return;
+
+      const urgente = isUrgente(row.URGENTE ?? row.urgente);
+      if (!urgente) return;
+
+      const urg = document.createElement('i');
+      urg.className = 'fa-solid fa-triangle-exclamation text-danger me-1 tarefa-urgente-icon';
+      urg.title = 'Urgente';
+      // Urgente deve vir primeiro na caixa (mais à direita visualmente)
+      if (iconsBox.firstChild) {
+        iconsBox.insertBefore(urg, iconsBox.firstChild);
+      } else {
+        iconsBox.appendChild(urg);
+      }
+    } catch(_) { /* noop */ }
+  }
+
   async function showRequester(task) {
     try {
       if (!tarefaPedidoPor) return;
@@ -498,6 +583,29 @@ document.addEventListener('DOMContentLoaded', () => {
           }
       }
       bloco.innerHTML = `<div class=\"card-body p-2\">${origemIcon}${icone}<div>${texto}</div></div>`;
+
+      // Cria uma caixa de ícones flutuada à direita para controlar a ordem
+      try {
+        const bodyEl = bloco.querySelector('.card-body');
+        if (bodyEl) {
+          let iconsBox = bodyEl.querySelector('.tarefa-icons');
+          if (!iconsBox) {
+            iconsBox = document.createElement('span');
+            iconsBox.className = 'tarefa-icons float-end';
+            bodyEl.prepend(iconsBox);
+          }
+          // Move o ícone de tipo (origem) para a caixa e ajusta classes
+          const tipoIcon = bodyEl.querySelector('.fa-wrench, .fa-broom, .fa-cart-shopping, .fa-list-check');
+          if (tipoIcon) {
+            tipoIcon.classList.remove('float-end');
+            if (!tipoIcon.classList.contains('ms-1')) tipoIcon.classList.add('ms-1');
+            iconsBox.appendChild(tipoIcon);
+          }
+        }
+      } catch(_) {}
+
+      // Assíncrono: marcar ícone de urgente com base na origem (MN/FS)
+      try { markUrgenteOnCard(bloco, t); } catch(_) {}
       try { if ((t.ORIGEM || '').toUpperCase() === 'MN') { const i = bloco.querySelector('.fa-wrench'); if (i) i.title = 'Manutenção'; } } catch(_) {}
 
       try {
@@ -507,7 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const cor = t.UTILIZADOR_COR || '#6c757d';
           if (nm && !bodyEl.querySelector('.user-badge')) {
             const badge = document.createElement('span');
-            badge.className = 'user-badge float-end ms-1';
+            badge.className = 'user-badge ms-1';
             badge.title = nm;
             badge.style.backgroundColor = cor;
             badge.style.color = '#fff';
@@ -517,7 +625,14 @@ document.addEventListener('DOMContentLoaded', () => {
             badge.style.lineHeight = '1.1';
             badge.style.whiteSpace = 'nowrap';
             badge.textContent = nm;
-            bodyEl.prepend(badge);
+            // Garante ordem: Urgente / Tipo / Nome do user
+            let iconsBox = bodyEl.querySelector('.tarefa-icons');
+            if (!iconsBox) {
+              iconsBox = document.createElement('span');
+              iconsBox.className = 'tarefa-icons float-end';
+              bodyEl.prepend(iconsBox);
+            }
+            iconsBox.appendChild(badge);
           }
         }
       } catch(_) {}
