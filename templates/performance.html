@@ -252,13 +252,16 @@
         const val = Number((dailyTotals && dailyTotals[key]) || 0);
         const occ = val > 0;
         const isPast = cell < todayStart;
+        const isToday = (cell.getFullYear()===todayStart.getFullYear() && cell.getMonth()===todayStart.getMonth() && cell.getDate()===todayStart.getDate());
         const isSingle = singleNights && singleNights.has(key);
         const isBoundaryLast = (cell.getFullYear()===year && cell.getMonth()===month && cell.getDate()===daysInMonth);
         const nextFirstDate = new Date(year, month+1, 1);
         const nextFirstKey = `${nextFirstDate.getFullYear()}-${String(nextFirstDate.getMonth()+1).padStart(2,'0')}-${String(nextFirstDate.getDate()).padStart(2,'0')}`;
         const nextFirstOcc = Number((dailyTotals && dailyTotals[nextFirstKey]) || 0) > 0;
         const effectiveSingle = isSingle && !(isBoundaryLast && !nextFirstOcc);
-        const cls = occ ? 'bg-blue-500' : (isPast ? 'bg-gray-100 opacity-60' : (effectiveSingle ? 'bg-amber-100' : 'bg-white'));
+        let cls = occ ? 'bg-blue-500' : (isPast ? 'bg-gray-100 opacity-60' : (effectiveSingle ? 'bg-amber-100' : 'bg-white'));
+        // Today: change background color only (no ring/border emphasis)
+        if (isToday) { cls = occ ? 'bg-blue-600' : 'bg-gray-400'; }
         const ring = occ ? '' : 'border border-gray-200';
         const totalTxt = occ ? fmtEUR0.format(val) : '';
         const dayNumCls = 'text-[10px] font-semibold text-right ' + (occ ? 'text-white' : (isPast ? 'text-gray-400' : 'text-gray-700'));
