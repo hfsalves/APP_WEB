@@ -747,6 +747,289 @@ def create_app():
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    # -----------------------------
+    # Não disponibilidades (ND)
+    # -----------------------------
+    @app.route('/nd')
+    @login_required
+    def nd_page():
+        return render_template('nd.html', page_title='Não disponibilidades')
+
+    @app.route('/api/nd', methods=['GET', 'POST'])
+    @login_required
+    def api_nd():
+        try:
+            if request.method == 'GET':
+                qs_ini = (request.args.get('data_inicio') or '').strip()
+                qs_fim = (request.args.get('data_fim') or '').strip()
+                def parse_d(dstr):
+                    try:
+                        return datetime.strptime(dstr, '%Y-%m-%d').date()
+                    except Exception:
+                        return None
+                di = parse_d(qs_ini)
+                df = parse_d(qs_fim)
+                if not di or not df:
+                    return jsonify({'error': 'Parâmetros de datas inválidos'}), 400
+                sql = text(
+                    """
+                    SELECT N.NDSTAMP, N.DATA, N.TIPO, N.UTILIZADOR, U.NOME, U.COR
+                    FROM ND AS N
+                    INNER JOIN US AS U ON U.LOGIN = N.UTILIZADOR
+                    WHERE N.DATA BETWEEN :di AND :df
+                    ORDER BY N.DATA, U.NOME
+                    """
+                )
+                rows = db.session.execute(sql, {'di': di, 'df': df}).fetchall()
+                items = [
+                    {
+                        'id': r[0],
+                        'data': r[1].isoformat(),
+                        'tipo': r[2],
+                        'login': r[3],
+                        'nome': r[4],
+                        'cor': r[5] or '#94a3b8'
+                    }
+                    for r in rows
+                ]
+                return jsonify({'rows': items})
+            # POST: inserir ND (FOLGA)
+            body = request.get_json(silent=True) or {}
+            data_str = (body.get('data') or '').strip()
+            utilizador = (body.get('utilizador') or '').strip()
+            try:
+                d = datetime.strptime(data_str, '%Y-%m-%d').date()
+            except Exception:
+                return jsonify({'error': 'Data inválida'}), 400
+            if not utilizador:
+                return jsonify({'error': 'Utilizador obrigatório'}), 400
+            ins = text(
+                """
+                INSERT INTO ND (NDSTAMP, EQUIPA, DATA, TIPO, UTILIZADOR)
+                SELECT LEFT(CONVERT(varchar(36), NEWID()), 25), '', :data, 'FOLGA', :util
+                """
+            )
+            db.session.execute(ins, {'data': d, 'util': utilizador})
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/nd/move', methods=['POST'])
+    @login_required
+    def api_nd_move():
+        try:
+            body = request.get_json(silent=True) or {}
+            nd_id = (body.get('id') or '').strip()
+            data_str = (body.get('data') or '').strip()
+            if not nd_id:
+                return jsonify({'error': 'ID em falta'}), 400
+            try:
+                new_date = datetime.strptime(data_str, '%Y-%m-%d').date()
+            except Exception:
+                return jsonify({'error': 'Data inválida'}), 400
+            upd = text("UPDATE ND SET DATA = :d WHERE NDSTAMP = :id")
+            res = db.session.execute(upd, {'d': new_date, 'id': nd_id})
+            db.session.commit()
+            return jsonify({'ok': True, 'updated': res.rowcount})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/nd/delete', methods=['POST'])
+    @login_required
+    def api_nd_delete():
+        try:
+            body = request.get_json(silent=True) or {}
+            nd_id = (body.get('id') or '').strip()
+            if not nd_id:
+                return jsonify({'error': 'ID em falta'}), 400
+            del_sql = text("DELETE FROM ND WHERE NDSTAMP = :id")
+            res = db.session.execute(del_sql, {'id': nd_id})
+            db.session.commit()
+            return jsonify({'ok': True, 'deleted': res.rowcount})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/nd/ferias', methods=['POST'])
+    @login_required
+    def api_nd_ferias():
+        try:
+            body = request.get_json(silent=True) or {}
+            utilizador = (body.get('utilizador') or '').strip()
+            di_str = (body.get('data_inicio') or '').strip()
+            df_str = (body.get('data_fim') or '').strip()
+            ano_str = (body.get('ano') or '').strip()
+            if not utilizador:
+                return jsonify({'error': 'Utilizador obrigatório'}), 400
+            try:
+                di = datetime.strptime(di_str, '%Y-%m-%d').date()
+                df = datetime.strptime(df_str, '%Y-%m-%d').date()
+            except Exception:
+                return jsonify({'error': 'Datas inválidas'}), 400
+            if df < di:
+                return jsonify({'error': 'Data fim anterior à data início'}), 400
+            # Determina ano
+            try:
+                ano = int(ano_str) if ano_str else di.year
+            except Exception:
+                ano = di.year
+            # Nota: o ano (FA/ND.ANO) representa o direito adquirido; as datas podem ser gozadas noutro ano.
+            from datetime import timedelta
+            # Validação: dias disponíveis em FA vs usados em ND
+            q_fa = db.session.execute(text(
+                "SELECT ISNULL(DIAS,0) FROM FA WHERE UTILIZADOR = :u AND ANO = :a"
+            ), { 'u': utilizador, 'a': ano }).fetchone()
+            total_fa = int(q_fa[0]) if q_fa is not None else 0
+            q_used = db.session.execute(text(
+                "SELECT COUNT(*) FROM ND WHERE UTILIZADOR = :u AND TIPO = 'FERIAS' AND ANO = :a"
+            ), { 'u': utilizador, 'a': ano }).fetchone()
+            usados = int(q_used[0]) if q_used is not None else 0
+            # calcula dias solicitados
+            solicitados = (df - di).days + 1
+            if total_fa <= 0:
+                return jsonify({'error': 'Não existem dias de férias anuais configurados (FA) para este utilizador/ano'}), 400
+            if usados + solicitados > total_fa:
+                disponiveis = max(0, total_fa - usados)
+                return jsonify({'error': f'Sem dias suficientes. Disponíveis: {disponiveis}'}), 400
+            ins = text("""
+                INSERT INTO ND (NDSTAMP, EQUIPA, DATA, TIPO, UTILIZADOR, ANO)
+                SELECT LEFT(CONVERT(varchar(36), NEWID()), 25), '', :data, 'FERIAS', :util, :ano
+            """)
+            d = di
+            total = 0
+            while d <= df:
+                db.session.execute(ins, {'data': d, 'util': utilizador, 'ano': ano})
+                total += 1
+                d += timedelta(days=1)
+            db.session.commit()
+            return jsonify({'ok': True, 'count': total})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/nd/users')
+    @login_required
+    def api_nd_users():
+        try:
+            # Apenas utilizadores ativos (INATIVO = 0)
+            sql = text("SELECT LOGIN, NOME, ISNULL(COR,'') AS COR FROM US WHERE ISNULL(INATIVO,0)=0 ORDER BY NOME")
+            rows = db.session.execute(sql).fetchall()
+            items = [
+                {
+                    'login': r[0],
+                    'nome': r[1],
+                    'cor': r[2] or '#94a3b8'
+                }
+                for r in rows
+            ]
+            return jsonify({'users': items})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    # -----------------------------
+    # Configuração de Escalas (ES/ESL)
+    # -----------------------------
+    @app.route('/escalas')
+    @login_required
+    def escalas_page():
+        return render_template('escalas.html', page_title='Configuração de Escalas')
+
+    @app.route('/api/escalas', methods=['GET', 'POST'])
+    @login_required
+    def api_escalas():
+        try:
+            if request.method == 'GET':
+                sql = text(
+                    """
+                    SELECT E.ESSTAMP, E.ESCALA, ISNULL(L.DIA, 0) AS DIA, ISNULL(L.FOLGA,0) AS FOLGA
+                    FROM ES AS E
+                    LEFT JOIN ESL AS L ON L.ESSTAMP = E.ESSTAMP
+                    ORDER BY E.ESCALA, E.ESSTAMP, ISNULL(L.DIA, 0)
+                    """
+                )
+                rows = db.session.execute(sql).fetchall()
+                escalas = {}
+                for r in rows:
+                    es_id, nome, dia, folga = r[0], r[1], int(r[2] or 0), int(r[3] or 0)
+                    if es_id not in escalas:
+                        escalas[es_id] = { 'id': es_id, 'escala': nome, 'dias': {}, 'max_dia': 0 }
+                    if dia:
+                        escalas[es_id]['dias'][dia] = folga
+                        if dia > escalas[es_id]['max_dia']:
+                            escalas[es_id]['max_dia'] = dia
+                items = []
+                max_dias = 0
+                for es in escalas.values():
+                    max_dias = max(max_dias, es['max_dia'])
+                    items.append({ 'id': es['id'], 'escala': es['escala'], 'dias': es['dias'], 'total_dias': es['max_dia'] })
+                return jsonify({ 'rows': items, 'max_dias': max_dias })
+
+            # POST (create): { escala, dias }
+            body = request.get_json(silent=True) or {}
+            nome = (body.get('escala') or '').strip()
+            try:
+                dias = int(body.get('dias') or 0)
+            except Exception:
+                dias = 0
+            if not nome:
+                return jsonify({ 'error': 'Nome da escala obrigatório' }), 400
+            if dias <= 0 or dias > 366:
+                return jsonify({ 'error': 'Número de dias inválido' }), 400
+            new_id_row = db.session.execute(text("SELECT LEFT(CONVERT(varchar(36), NEWID()), 25)")).fetchone()
+            es_id = new_id_row[0]
+            db.session.execute(text("INSERT INTO ES (ESSTAMP, ESCALA) VALUES (:id, :nome)"), { 'id': es_id, 'nome': nome })
+            # Preenche dias com FOLGA=0
+            ins = text("INSERT INTO ESL (ESLSTAMP, ESSTAMP, DIA, FOLGA) VALUES (LEFT(CONVERT(varchar(36), NEWID()), 25), :es, :dia, 0)")
+            for d in range(1, dias+1):
+                db.session.execute(ins, { 'es': es_id, 'dia': d })
+            db.session.commit()
+            return jsonify({ 'ok': True, 'id': es_id })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/escalas/<es_id>', methods=['DELETE'])
+    @login_required
+    def api_escalas_delete(es_id):
+        try:
+            db.session.execute(text("DELETE FROM ESL WHERE ESSTAMP = :id"), { 'id': es_id })
+            res = db.session.execute(text("DELETE FROM ES WHERE ESSTAMP = :id"), { 'id': es_id })
+            db.session.commit()
+            return jsonify({ 'ok': True, 'deleted': res.rowcount })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/escalas/<es_id>/toggle', methods=['POST'])
+    @login_required
+    def api_escalas_toggle(es_id):
+        try:
+            body = request.get_json(silent=True) or {}
+            try:
+                dia = int(body.get('dia') or 0)
+            except Exception:
+                dia = 0
+            if dia <= 0:
+                return jsonify({ 'error': 'Dia inválido' }), 400
+            # Tenta atualizar; se não existir, cria com FOLGA=1
+            upd = text("UPDATE ESL SET FOLGA = CASE WHEN ISNULL(FOLGA,0)=1 THEN 0 ELSE 1 END WHERE ESSTAMP = :es AND DIA = :dia")
+            res = db.session.execute(upd, { 'es': es_id, 'dia': dia })
+            if res.rowcount == 0:
+                db.session.execute(text("INSERT INTO ESL (ESLSTAMP, ESSTAMP, DIA, FOLGA) VALUES (LEFT(CONVERT(varchar(36), NEWID()), 25), :es, :dia, 1)"), { 'es': es_id, 'dia': dia })
+                new_val = 1
+            else:
+                # fetch new value
+                cur = db.session.execute(text("SELECT ISNULL(FOLGA,0) FROM ESL WHERE ESSTAMP=:es AND DIA=:dia"), { 'es': es_id, 'dia': dia }).fetchone()
+                new_val = int(cur[0]) if cur else 0
+            db.session.commit()
+            return jsonify({ 'ok': True, 'folga': new_val })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
     # API: Detalhe de faturação por reserva para um alojamento
     @app.route('/api/performance/detalhe')
     @login_required

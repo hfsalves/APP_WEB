@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}N&atilde;o disponibilidades{% endblock %}
+
+{% block content %}
+<div class="widget widget-calendar nd-cal mb-4">
+  <div class="widget-body px-4 pb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <button id="prev-month" class="btn btn-link text-decoration-none" title="M&ecirc;s anterior">&larr;</button>
+      <h3 id="month-year" class="m-0"></h3>
+      <button id="next-month" class="btn btn-link text-decoration-none" title="M&ecirc;s seguinte">&rarr;</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table calendar-table mb-0">
+        <thead class="table-light">
+        <tr>
+          <th>Segunda</th>
+          <th>Ter&ccedil;a</th>
+          <th>Quarta</th>
+          <th>Quinta</th>
+          <th>Sexta</th>
+          <th>S&aacute;bado</th>
+          <th>Domingo</th>
+        </tr>
+        </thead>
+        <tbody id="calendar-body"></tbody>
+      </table>
+    </div>
+    <div class="mt-3">
+      <button type="button" class="btn btn-outline-primary" id="btnOpenFerias">
+        <i class="fa-solid fa-umbrella-beach me-1"></i> Marcar F&eacute;rias
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- user menu (outside calendar container) -->
+<div id="userMenu" class="card shadow-sm" style="position:fixed; display:none; z-index:1055; min-width: 200px; max-width: 280px;">
+  <div class="card-body p-1" id="userMenuList"></div>
+</div>
+
+<!-- item menu (delete) -->
+<div id="itemMenu" class="card shadow-sm" style="position:fixed; display:none; z-index:1056; min-width: 160px;">
+  <div class="list-group list-group-flush" id="itemMenuList">
+    <button type="button" class="list-group-item list-group-item-action text-danger py-2" id="actionDeleteND">
+      <i class="fa-solid fa-trash-can me-2"></i>Apagar
+    </button>
+  </div>
+</div>
+
+<!-- Ferias modal -->
+<div class="modal fade" id="feriasModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Marca&ccedil;&atilde;o de F&eacute;rias</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Utilizador</label>
+          <select class="form-select" id="feriasUser"></select>
+        </div>
+        <div class="d-flex gap-2 align-items-end mb-2">
+          <div style="width:110px;">
+            <label class="form-label">Ano</label>
+            <input type="number" class="form-control" id="feriasAno" min="2000" max="2100" />
+          </div>
+          <div class="flex-fill">
+            <label class="form-label">In&iacute;cio</label>
+            <input type="date" class="form-control" id="feriasStart" />
+          </div>
+          <div class="flex-fill">
+            <label class="form-label">Fim</label>
+            <input type="date" class="form-control" id="feriasEnd" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="feriasSave">Gravar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .nd-badge { display:inline-flex; align-items:center; gap:.25rem; padding:2px 6px; border-radius:6px; font-size:.75rem; color:#111827; }
+  #userMenu { max-height: 60vh; overflow: auto; }
+  #userMenuList { display: flex; flex-direction: column; gap: 2px; }
+  .nd-user { display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:.9rem; }
+  .nd-user:hover { background:#f3f4f6; }
+  .nd-dot { width:10px; height:10px; border-radius:3px; display:inline-block; }
+  .day-cell { cursor: pointer; vertical-align: top; min-height: 90px; }
+  .day-num { font-size:.8rem; color:#6b7280; line-height:1; }
+  .day-wd { font-size:.65rem; color:#9ca3af; line-height:1; font-weight:500; display:block; }
+  .nd-list { margin-top: .25rem; display:flex; flex-direction: column; gap: .25rem; }
+  .calendar-table { border-collapse: separate; border-spacing: 0; }
+  .calendar-table td { height: 110px; }
+  .calendar-table thead th { border-bottom:1px solid #e5e7eb; }
+  .calendar-table thead th, .calendar-table tbody td { border-right: 1px solid #e5e7eb; }
+  .calendar-table thead th:first-child, .calendar-table tbody td:first-child { border-left: 1px solid #e5e7eb; }
+  .calendar-table thead th:last-child, .calendar-table tbody td:last-child { border-right: 0; }
+  .day-cell.weekend { background-color:#f9fafb; }
+  .day-cell.sat { background-color:#f8fafc; }
+  .day-cell.sun { background-color:#fff7ed; }
+  .calendar-table td.empty { background:#fafafa; }
+  .calendar-table td.today { outline:2px solid #60a5fa; outline-offset:-2px; }
+  .nd-cal .calendar-table td.day-cell:nth-child(1) { vertical-align: top; }
+  #itemMenu .list-group-item { font-size:.9rem; }
+</style>
+{% endblock %}
+
+{% block scripts %} {{ super() }}
+  <script>
+  function ymd(d){ const m=String(d.getMonth()+1).padStart(2,'0'); const dy=String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${m}-${dy}`; }
+  function firstOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function lastOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+
+  let currentBase = new Date();
+  currentBase = new Date(currentBase.getFullYear(), currentBase.getMonth(), 1);
+  let usersCache = [];
+  let ndByDate = {};
+
+  async function loadUsers(){ if(usersCache.length) return usersCache; const res = await fetch('/api/nd/users'); const data = await res.json(); usersCache = (data && data.users) ? data.users : []; return usersCache; }
+
+  async function loadMonth(){
+    try{
+      const ini = ymd(firstOfMonth(currentBase));
+      const fim = ymd(lastOfMonth(currentBase));
+      const res = await fetch(`/api/nd?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
+      const data = await res.json();
+      const rows = (data && data.rows) || [];
+      ndByDate = {};
+      for(const r of rows){ (ndByDate[r.data] ||= []).push(r); }
+    }catch(e){ console.warn('Falha ao carregar ND:', e); ndByDate = {}; }
+    renderMonth();
+  }
+
+  function ndBadge(rec){ const bg = rec.cor || '#94a3b8'; const id = rec.id ? String(rec.id) : ''; const tipo = (rec.tipo||'').toString().toUpperCase(); const isFerias = (tipo === 'FERIAS'); const icon = isFerias ? 'fa-umbrella-beach' : 'fa-house'; const title = isFerias ? 'Ferias' : 'Folga'; return `<span class="nd-badge nd-item" draggable="true" data-id="${id}" style="background:${bg};" title="${title}"><i class="fa-solid ${icon}"></i> ${rec.nome}</span>`; }
+
+  function renderMonth(){
+    const body = document.getElementById('calendar-body');
+    const head = document.getElementById('month-year');
+    if(!body || !head) return;
+    const d0 = firstOfMonth(currentBase);
+    const last = lastOfMonth(currentBase);
+    head.textContent = d0.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+    const firstWeekday = (d0.getDay() + 6) % 7;
+    const totalDays = last.getDate();
+    const cells = [];
+    for(let i=0;i<firstWeekday;i++) cells.push(null);
+    for(let d=1; d<=totalDays; d++) cells.push(new Date(d0.getFullYear(), d0.getMonth(), d));
+    while(cells.length % 7 !== 0) cells.push(null);
+    let html = '';
+    for(let r=0;r<cells.length;r+=7){
+      html += '<tr>';
+      for(let c=0;c<7;c++){
+        const cell = cells[r+c];
+        if(!cell){ html += '<td class="empty"></td>'; continue; }
+        const key = ymd(cell);
+        const items = ndByDate[key] || [];
+        const isToday = (new Date().toDateString() === cell.toDateString());
+        const wdIdx = (cell.getDay()+6)%7; // 0..6 Monday..Sunday
+        const wdLetter = ['S','T','Q','Q','S','S','D'][wdIdx];
+        const weekendCls = (wdIdx>=5) ? (' weekend ' + (wdIdx===5?'sat':'sun')) : '';
+        html += `<td class="day-cell ${isToday?'today':''}${weekendCls}" data-date="${key}">
+                   <div class="d-flex flex-column align-items-start">
+                     <span class="day-wd">${wdLetter}</span>
+                     <span class="day-num">${cell.getDate()}</span>
+                 </div>
+                   <div class="nd-list">${items.map(ndBadge).join('')}</div>
+                 </td>`;
+      }
+      html += '</tr>';
+    }
+    body.innerHTML = html;
+  }
+
+  function hideMenu(){ const m=document.getElementById('userMenu'); if(m){ m.style.display='none'; m.dataset.date=''; } }
+  function hideItemMenu(){ const m=document.getElementById('itemMenu'); if(m){ m.style.display='none'; m.dataset.id=''; } }
+
+  async function openMenuForCell(td){ const menu = document.getElementById('userMenu'); const list = document.getElementById('userMenuList'); const users = await loadUsers(); list.innerHTML = users.map(u=>`<div class="nd-user" data-login="${u.login}"><span class="nd-dot" style="background:${u.cor}"></span><span class="nd-name">${u.nome}</span></div>`).join(''); const rect = td.getBoundingClientRect(); let left = Math.round(rect.left + 8); let top = Math.round(rect.top + 24); const vw = window.innerWidth, vh = window.innerHeight; menu.style.display = 'block'; const mw = menu.offsetWidth || 240; const mh = menu.offsetHeight || 200; if(left + mw > vw - 8) left = Math.max(8, vw - mw - 8); if(top + mh > vh - 8) top = Math.max(8, vh - mh - 8); menu.style.left = left + 'px'; menu.style.top = top + 'px'; menu.style.display = 'block'; menu.dataset.date = td.dataset.date || ''; }
+
+  function openItemMenuForBadge(el){ const menu = document.getElementById('itemMenu'); if(!menu) return; const rect = el.getBoundingClientRect(); let left = Math.round(rect.left + 8); let top = Math.round(rect.top + rect.height + 6); const vw = window.innerWidth, vh = window.innerHeight; menu.style.display = 'block'; const mw = menu.offsetWidth || 160; const mh = menu.offsetHeight || 40; if(left + mw > vw - 8) left = Math.max(8, vw - mw - 8); if(top + mh > vh - 8) top = Math.max(8, vh - mh - 8); menu.style.left = left + 'px'; menu.style.top = top + 'px'; menu.dataset.id = el.getAttribute('data-id') || ''; }
+
+  async function createND(dateKey, login){ const res = await fetch('/api/nd', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ data: dateKey, utilizador: login }) }); const data = await res.json(); if(data && data.ok){ await loadMonth(); } else { alert((data && data.error) ? data.error : 'Erro ao gravar'); } }
+  async function moveND(id, toDate){ const res = await fetch('/api/nd/move', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ id, data: toDate }) }); const data = await res.json(); if(!(data && data.ok)) throw new Error((data && data.error) ? data.error : 'Erro ao mover'); }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const prevBtn = document.getElementById('prev-month');
+    const nextBtn = document.getElementById('next-month');
+    if(prevBtn) prevBtn.addEventListener('click', ()=>{ currentBase = new Date(currentBase.getFullYear(), currentBase.getMonth()-1, 1); loadMonth(); });
+    if(nextBtn) nextBtn.addEventListener('click', ()=>{ currentBase = new Date(currentBase.getFullYear(), currentBase.getMonth()+1, 1); loadMonth(); });
+    const cal = document.getElementById('calendar-body');
+    if(cal) cal.addEventListener('click', (ev)=>{ ev.stopPropagation(); const badge = ev.target.closest('.nd-item[draggable="true"][data-id]'); if(badge){ hideMenu(); openItemMenuForBadge(badge); return; } const td = ev.target.closest('td.day-cell'); if(!td) return; openMenuForCell(td); });
+    if(cal) cal.addEventListener('dragover', (ev)=>{ if(ev.target.closest('.day-cell')){ ev.preventDefault(); } });
+    if(cal) cal.addEventListener('drop', async (ev)=>{ ev.preventDefault(); const td = ev.target.closest('.day-cell'); if(!td) return; const id = ev.dataTransfer.getData('text/nd-id'); const from = ev.dataTransfer.getData('text/nd-from'); const to = td.dataset.date; if(!id || !to || from===to) return; try{ await moveND(id, to); for(const dateKey of Object.keys(ndByDate)){ const arr = ndByDate[dateKey]; const idx = arr ? arr.findIndex(x=>String(x.id)===String(id)) : -1; if(idx>=0){ const rec = arr.splice(idx,1)[0]; rec.data = to; (ndByDate[to] ||= []).push(rec); break; } } renderMonth(); }catch(e){ alert(e.message||'Erro a mover'); } });
+    document.addEventListener('dragstart', (ev)=>{ const it = ev.target.closest('.nd-item[draggable="true"][data-id]'); if(!it) return; const td = it.closest('.day-cell'); const id = it.getAttribute('data-id'); const from = td ? (td.getAttribute('data-date')||'') : ''; if(ev.dataTransfer){ ev.dataTransfer.setData('text/nd-id', id); ev.dataTransfer.setData('text/nd-from', from); ev.dataTransfer.effectAllowed = 'move'; } });
+    document.addEventListener('click', (ev)=>{ const menu = document.getElementById('userMenu'); if(menu && menu.style.display!=='none' && !ev.target.closest('#userMenu')){ hideMenu(); } });
+    document.addEventListener('click', (ev)=>{ const menu = document.getElementById('itemMenu'); if(menu && menu.style.display!=='none' && !ev.target.closest('#itemMenu')){ hideItemMenu(); } });
+    const userMenuList = document.getElementById('userMenuList'); if(userMenuList) userMenuList.addEventListener('click', (ev)=>{ const item = ev.target.closest('.nd-user[data-login]'); if(!item) return; const login = item.dataset.login; const menu = document.getElementById('userMenu'); const dateKey = menu.dataset.date; hideMenu(); if(login && dateKey){ createND(dateKey, login); } });
+    const delBtn = document.getElementById('actionDeleteND'); if(delBtn) delBtn.addEventListener('click', async ()=>{ const im = document.getElementById('itemMenu'); const id = im.dataset.id || ''; hideItemMenu(); if(!id) return; if(!confirm('Apagar este registo?')) return; try{ const res = await fetch('/api/nd/delete', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ id }) }); const data = await res.json(); if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao apagar'); for(const k of Object.keys(ndByDate)){ const arr = ndByDate[k]; const idx = arr ? arr.findIndex(x=>String(x.id)===String(id)) : -1; if(idx>=0){ arr.splice(idx,1); break; } } renderMonth(); }catch(e){ alert(e.message||'Erro ao apagar'); } });
+    const btnFerias = document.getElementById('btnOpenFerias'); if(btnFerias){ btnFerias.addEventListener('click', async ()=>{ try{ const users = await loadUsers(); const sel = document.getElementById('feriasUser'); if(sel){ sel.innerHTML = users.map(u=>`<option value="${u.login}">${u.nome}</option>`).join(''); } const start = firstOfMonth(currentBase); const end = lastOfMonth(currentBase); const i1=document.getElementById('feriasStart'); const i2=document.getElementById('feriasEnd'); const ia=document.getElementById('feriasAno'); if(i1) i1.value = ymd(start); if(i2) i2.value = ymd(end); if(ia) ia.value = String(currentBase.getFullYear()); const modalEl = document.getElementById('feriasModal'); if(window.bootstrap && modalEl){ bootstrap.Modal.getOrCreateInstance(modalEl).show(); } }catch(e){ console.error(e); } }); }
+    const feriasSaveBtn = document.getElementById('feriasSave'); if(feriasSaveBtn){ feriasSaveBtn.addEventListener('click', async ()=>{ const sel=document.getElementById('feriasUser'); const i1=document.getElementById('feriasStart'); const i2=document.getElementById('feriasEnd'); const ia=document.getElementById('feriasAno'); const login = sel ? sel.value : ''; const di = i1 ? i1.value : ''; const df = i2 ? i2.value : ''; const ano = ia ? ia.value : ''; if(!login || !di || !df){ alert('Preencha utilizador e datas.'); return; } try{ const resp = await fetch('/api/nd/ferias', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ utilizador: login, data_inicio: di, data_fim: df, ano }) }); const data = await resp.json(); if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao gravar ferias'); const modalEl = document.getElementById('feriasModal'); if(modalEl && window.bootstrap){ bootstrap.Modal.getOrCreateInstance(modalEl).hide(); } await loadMonth(); }catch(e){ alert(e.message||'Erro ao gravar ferias'); } }); }
+    loadMonth();
+  });
+  </script>
+{% endblock %}

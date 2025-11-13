@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Configura&ccedil;&atilde;o de Escalas{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="m-0">Escalas</h5>
+      <button class="btn btn-primary" id="btnAddEscala"><i class="fa-solid fa-plus me-1"></i>Nova Escala</button>
+    </div>
+    <div class="table-responsive" id="escTableWrap">
+      <table class="table table-sm align-middle" id="escTable">
+        <thead id="escHead"></thead>
+        <tbody id="escBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal nova escala -->
+<div class="modal fade" id="escModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nova Escala</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Nome da escala</label>
+          <input type="text" class="form-control" id="escNome" placeholder="Ex.: Semanal A" />
+        </div>
+        <div class="mb-2">
+          <label class="form-label">N&uacute;mero de dias</label>
+          <input type="number" min="1" max="366" class="form-control" id="escDias" value="7" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="escSave">Gravar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .esc-day { width: 28px; text-align: center; cursor: pointer; }
+  .esc-day.disabled { background: #f8f9fa; cursor: default; }
+  .esc-day.folga { background: #fee2e2; color: #b91c1c; font-weight: 600; }
+  .esc-actions { white-space: nowrap; }
+  /* Header day letters */
+  .wd-head { display:block; font-size:.7rem; color:#6c757d; font-weight:600; line-height:1; }
+  /* Vertical lines */
+  #escTable { border-collapse: separate; border-spacing: 0; }
+  #escTable thead th, #escTable tbody td { border-right:1px solid #e5e7eb; }
+  #escTable thead th:first-child, #escTable tbody td:first-child { border-left:1px solid #e5e7eb; }
+  #escTable thead th:last-child, #escTable tbody td:last-child { border-right:0; }
+  #escTable thead th { border-bottom:1px solid #e5e7eb; }
+  /* Weekend columns */
+  #escTable thead th.sat-col, #escTable tbody td.sat-col { background:#f8fafc; }
+  #escTable thead th.sun-col, #escTable tbody td.sun-col { background:#fff7ed; }
+</style>
+{% endblock %}
+
+{% block scripts %} {{ super() }}
+<script>
+  let ESC_DATA = [];
+  let MAX_DIAS = 0;
+
+  async function fetchEscalas(){
+    const res = await fetch('/api/escalas');
+    const data = await res.json();
+    ESC_DATA = data.rows || [];
+    MAX_DIAS = Number(data.max_dias||0);
+    renderTable();
+  }
+
+  function renderTable(){
+    const head = document.getElementById('escHead');
+    const body = document.getElementById('escBody');
+    // build head (two rows: letters + numbers)
+    const letters = ['S','T','Q','Q','S','S','D'];
+    const lettersRow = '<tr><th rowspan="2" style="min-width:220px;">Escala</th>'
+      + Array.from({length:MAX_DIAS}, (_,i)=>{
+          const dow = i % 7; const wk = dow>=5 ? (dow===5?' sat-col':' sun-col') : '';
+          return `<th class="text-center${wk}"><span class="wd-head">${letters[dow]}</span></th>`;
+        }).join('')
+      + '<th class="esc-actions" rowspan="2"></th></tr>';
+    const numsRow = '<tr>'
+      + Array.from({length:MAX_DIAS}, (_,i)=>{
+          const dow = i % 7; const wk = dow>=5 ? (dow===5?' sat-col':' sun-col') : '';
+          return `<th class="text-center${wk}" title="Dia ${i+1}">${i+1}</th>`;
+        }).join('')
+      + '</tr>';
+    head.innerHTML = lettersRow + numsRow;
+    // build rows
+    body.innerHTML = ESC_DATA.map(row=>{
+      const total = Number(row.total_dias||0);
+      const dias = row.dias || {};
+      const cells = Array.from({length:MAX_DIAS}, (_,i)=>{
+        const d=i+1; const active = d<=total; const folga = active && Number(dias[d]||0)===1;
+        const dow = (d-1) % 7; const wk = dow>=5 ? (dow===5?' sat-col':' sun-col') : '';
+        const cls = (!active? 'esc-day disabled' : ('esc-day'+(folga?' folga':''))) + wk;
+        const label = folga? 'F' : '';
+        return `<td class="${cls}" data-id="${row.id}" data-dia="${d}">${label}</td>`;
+      }).join('');
+      const actions = `<td class="esc-actions text-end"><button class="btn btn-sm btn-outline-danger esc-del" data-id="${row.id}"><i class="fa-solid fa-trash-can"></i></button></td>`;
+      return `<tr><td><strong>${row.escala}</strong></td>${cells}${actions}</tr>`;
+    }).join('');
+  }
+
+  async function createEscala(nome, dias){
+    const res = await fetch('/api/escalas', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ escala:nome, dias }) });
+    const data = await res.json();
+    if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao gravar escala');
+  }
+
+  async function deleteEscala(id){
+    const res = await fetch(`/api/escalas/${encodeURIComponent(id)}`, { method:'DELETE' });
+    const data = await res.json();
+    if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao eliminar');
+  }
+
+  async function toggleDia(id, dia){
+    const res = await fetch(`/api/escalas/${encodeURIComponent(id)}/toggle`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ dia }) });
+    const data = await res.json();
+    if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao atualizar');
+    return Number(data.folga||0);
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    fetchEscalas();
+
+    document.getElementById('btnAddEscala').addEventListener('click', ()=>{
+      const el = document.getElementById('escModal');
+      if(window.bootstrap && el){ bootstrap.Modal.getOrCreateInstance(el).show(); }
+    });
+
+    document.getElementById('escSave').addEventListener('click', async ()=>{
+      const nome = (document.getElementById('escNome').value||'').trim();
+      const dias = Number(document.getElementById('escDias').value||0);
+      if(!nome || !dias){ alert('Indique o nome e o número de dias.'); return; }
+      try{
+        await createEscala(nome, dias);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('escModal')).hide();
+        document.getElementById('escNome').value='';
+        document.getElementById('escDias').value='7';
+        await fetchEscalas();
+      }catch(e){ alert(e.message||'Erro a gravar'); }
+    });
+
+    document.getElementById('escBody').addEventListener('click', async (ev)=>{
+      const del = ev.target.closest('.esc-del');
+      if(del){
+        const id = del.dataset.id; if(!id) return;
+        if(!confirm('Eliminar esta escala?')) return;
+        try{ await deleteEscala(id); await fetchEscalas(); }catch(e){ alert(e.message||'Erro a eliminar'); }
+        return;
+      }
+      const cell = ev.target.closest('.esc-day');
+      if(!cell || cell.classList.contains('disabled')) return;
+      const id = cell.dataset.id; const dia = Number(cell.dataset.dia||0);
+      try{
+        const newVal = await toggleDia(id, dia);
+        if(newVal===1){ cell.classList.add('folga'); cell.textContent='F'; }
+        else { cell.classList.remove('folga'); cell.textContent=''; }
+      }catch(e){ alert(e.message||'Erro a atualizar'); }
+    });
+  });
+</script>
+{% endblock %}
