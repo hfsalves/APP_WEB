@@ -21,7 +21,8 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
     app.config['SQLALCHEMY_DATABASE_URI'] = (
         "mssql+pyodbc://sa:enterprise@hfsalves.mooo.com,50002/GESTAO"
-        "?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=Yes&protocol=TCP"
+        "?driver=ODBC+Driver+17+for+SQL+Server"
+        "&TrustServerCertificate=Yes&protocol=TCP&application_name=SZERO"
     )
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 

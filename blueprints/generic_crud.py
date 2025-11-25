@@ -450,7 +450,10 @@ def monitor_tasks_filtered():
         FROM TAREFAS T
         LEFT JOIN US U ON U.LOGIN = T.UTILIZADOR
         {where_sql}
-        ORDER BY T.DATA, T.HORA
+        ORDER BY 
+          T.DATA,
+          CASE WHEN UPPER(T.UTILIZADOR) = UPPER(:user) THEN 0 ELSE 1 END,
+          T.HORA
     """)
     try:
         rows = db.session.execute(sql, params).fetchall()
@@ -700,6 +703,8 @@ def monitor_tasks_by_users():
     where.append("(T.TRATADO = 0 OR T.DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))")
     where_sql = " WHERE " + " AND ".join(where)
 
+    params['me'] = current_user.LOGIN
+
     sql = text(f"""
         SELECT 
             T.TAREFASSTAMP,
@@ -715,7 +720,10 @@ def monitor_tasks_by_users():
         FROM TAREFAS T
         LEFT JOIN US U ON U.LOGIN = T.UTILIZADOR
         {where_sql}
-        ORDER BY T.DATA, T.HORA
+        ORDER BY 
+          T.DATA,
+          CASE WHEN UPPER(T.UTILIZADOR) = UPPER(:me) THEN 0 ELSE 1 END,
+          T.HORA
     """)
     try:
         rows = db.session.execute(sql, params).fetchall()

@@ -4,7 +4,7 @@
 
 {% block content %}
 <!-- Barra de aÃ§Ãµes superior -->
-<div class="mb-2 d-flex align-items-center justify-content-between">
+<div class="monitor-toolbar mb-2 d-flex align-items-center justify-content-between">
   <div class="d-flex align-items-center gap-2">
     <button class="btn btn-outline-secondary btn-sm" id="openFilters">
       <i class="fa-solid fa-filter me-1"></i>
@@ -15,9 +15,9 @@
 </div>
 
 <!-- layout: 5 colunas quando existir a coluna de MN -->
-<div class="row gx-3 gy-3 row-cols-1 row-cols-md-5">
+<div class="monitor-board row gx-3 gy-3 row-cols-1 row-cols-md-5">
   <!-- Coluna nova: ManutenÃ§Ãµes nÃ£o agendadas (mostrada sÃ³ para MNADMIN) -->
-  <div id="col-mn-nao-agendadas">
+    <div id="col-mn-nao-agendadas" class="col">
     <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
       <span class="fw-semibold">Pendentes</span>
       <span class="badge bg-secondary" id="count-mn">0</span>
@@ -25,28 +25,28 @@
     <div id="mn-nao-agendadas" class="tarefa-coluna"></div>
   </div>
 
-  <div>
+  <div class="col">
     <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
       <span class="fw-semibold text-danger">Atrasadas</span>
       <span class="badge bg-secondary" id="count-atrasadas">0</span>
     </div>
     <div id="tarefas-atrasadas" class="tarefa-coluna"></div>
   </div>
-  <div>
+  <div class="col">
     <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
       <span class="fw-semibold text-warning">Hoje</span>
       <span class="badge bg-secondary" id="count-hoje">0</span>
     </div>
     <div id="tarefas-hoje" class="tarefa-coluna"></div>
   </div>
-  <div>
+  <div class="col">
     <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
       <span class="fw-semibold text-success">Futuras</span>
       <span class="badge bg-secondary" id="count-futuras">0</span>
     </div>
     <div id="tarefas-futuras" class="tarefa-coluna"></div>
   </div>
-  <div>
+  <div class="col">
     <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
       <span class="fw-semibold text-muted">Tratadas</span>
       <span class="badge bg-secondary" id="count-tratadas">0</span>
@@ -115,24 +115,227 @@
       </div>
     </div>
   </div>
-  <style>
-    /* Modal filters layout */
-    #filtersModal .modal-body { display: flex; flex-direction: column; overflow: hidden; }
-    #filtersModal .filters-tabs { background: #fff; z-index: 2; padding-top: .25rem; padding-bottom: .25rem; border-bottom: 1px solid #eee; }
-    #filtersModal .filters-list-wrapper { flex: 1 1 auto; overflow: auto; padding: 0 8px 0 6px; }
-    #filtersModal .filters-list { display: grid; grid-template-columns: 1fr; gap: .5rem; padding-top: .25rem; padding-bottom: .25rem; }
+  
 
-    /* Loading state for filters list */
-    #filtersModal .filters-list-wrapper.loading { position: relative; }
-    #filtersModal .filters-list-wrapper.loading .filters-list { filter: blur(1px); pointer-events: none; }
-    #filtersModal .filters-list-wrapper.loading::before { content: ""; position: absolute; inset: 0; background: rgba(255,255,255,.6); z-index: 3; }
-    #filtersModal .filters-list-wrapper.loading::after { content: "A carregarâ€¦"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #555; font-size: .95rem; z-index: 4; }
-
-    /* Cards */
-    .select-card { cursor: pointer; user-select: none; border: 1px solid #e5e7eb; border-radius: .5rem; padding: .5rem .75rem; background: #fff; margin: 0 2px; }
-    .select-card.selected { outline: 2px solid #0d6efd; outline-offset: 2px; background: #f0f7ff; }
-    .select-card .badge { font-size: .75rem; }
-  </style>
+<style>
+  .monitor-toolbar {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 1.3rem 0rem;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  #openFilters {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: linear-gradient(135deg, #2563eb, #ec4899);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 0.4rem 0.9rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.2);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  #openFilters:hover,
+  #openFilters:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(37, 99, 235, 0.26);
+    color: #fff;
+  }
+  /* Filtros */
+  #filtersModal .filters-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.6rem;
+  }
+  .select-card {
+    cursor: pointer;
+    user-select: none;
+    background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 0.75rem 0.85rem;
+    box-shadow: 0 8px 18px rgba(15,23,42,0.08);
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease, filter .12s ease;
+  }
+  .select-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px rgba(15,23,42,0.12);
+    filter: saturate(1.05);
+  }
+  .select-card.selected {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37,99,235,0.28), 0 12px 24px rgba(15,23,42,0.12);
+    background: linear-gradient(180deg, #eef4ff 0%, #e7f0ff 100%);
+  }
+  /* Monitor columns com look dynamic-list-card */
+  .monitor-board {
+    display: grid !important;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.5rem;
+    background: #ffffff;
+    border: none;
+    overflow: hidden;
+    backdrop-filter: none;
+    box-shadow: none;
+    position: relative;
+    border-radius: 16px;
+    padding: 0.5rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+  }
+  .monitor-board.row {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .monitor-board::-webkit-scrollbar { display: none; }
+.monitor-board > div {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    min-width: 0;
+    padding: 0;
+    width: 100%;
+  }
+  @media (max-width: 1199px) {
+    .monitor-board { grid-template-columns: repeat(3, minmax(220px, 1fr)); }
+  }
+  @media (max-width: 992px) {
+    .monitor-board { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+  }
+  @media (max-width: 768px) {
+    .monitor-board { grid-template-columns: 1fr; max-height: none; }
+  }
+  .monitor-board .col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    background: linear-gradient(135deg, #20324a, #344c6a);
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    color: #f8fafc;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.16) inset;
+    border-radius: 14px;
+    padding: 0.65rem 0.85rem;
+    letter-spacing: 0.02em;
+    font-weight: 700;
+  }
+  .monitor-board .col-header .text-danger,
+  .monitor-board .col-header .fw-semibold.text-danger {
+    color: #ffffff !important;
+  }
+  .monitor-board .col-header .text-success,
+  .monitor-board .col-header .fw-semibold.text-success {
+    color: #ffffff !important;
+  }
+  .monitor-board .col-header .text-muted,
+  .monitor-board .col-header .fw-semibold.text-muted {
+    color: #ffffff !important;
+  }
+  .monitor-board .col-header .badge {
+    background: rgba(255,255,255,0.14);
+    color: #e5e7eb;
+    border: 1px solid rgba(255,255,255,0.12);
+    font-weight: 700;
+  }
+  /* Subtítulos (grupos) dentro das tarefas futuras */
+  #tarefas-futuras > .bg-light.border.rounded {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #e3fcec, #d6edff);
+    border: 1px solid #c3d9ef !important;
+    color: #0b1725;
+    border-radius: 12px;
+    padding: 0.5rem 0.75rem;
+    box-shadow: 0 8px 18px rgba(15,23,42,0.18);
+  }
+  #tarefas-futuras > .bg-light.border.rounded::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 4px;
+    background: linear-gradient(180deg, #16a34a, #1d4ed8);
+    opacity: 0.9;
+  }
+  #tarefas-futuras > .bg-light.border.rounded > span {
+    position: relative;
+    z-index: 1;
+  }
+  .tarefa-coluna {
+    background: rgba(255,255,255,0.75);
+    border: none;
+    border-radius: 14px;
+    min-height: 64px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+  }
+  .tarefa-coluna .tarefa-card,
+  .tarefa-coluna .tarefa-bloco {
+    background: #2d3f58;
+    border: 1px solid rgba(15,23,42,0.16);
+    border-radius: 12px;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+    color: #ffffff;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  .tarefa-coluna .tarefa-card *,
+  .tarefa-coluna .tarefa-bloco * {
+    color: inherit;
+  }
+  .tarefa-coluna .tarefa-card i,
+  .tarefa-coluna .tarefa-bloco i {
+    color: #e5e7eb !important;
+  }
+  .tarefa-coluna .tarefa-card .text-danger i,
+  .tarefa-coluna .tarefa-bloco .text-danger i,
+  .tarefa-coluna .tarefa-card i.text-danger,
+  .tarefa-coluna .tarefa-bloco i.text-danger {
+    color: #ef4444 !important;
+  }
+  .tarefa-coluna .tarefa-card .text-success i,
+  .tarefa-coluna .tarefa-bloco .text-success i,
+  .tarefa-coluna .tarefa-card i.text-success,
+  .tarefa-coluna .tarefa-bloco i.text-success {
+    color: #22c55e !important;
+  }
+  .tarefa-coluna .tarefa-card .text-muted,
+  .tarefa-coluna .tarefa-bloco .text-muted,
+  .tarefa-coluna .tarefa-card .small,
+  .tarefa-coluna .tarefa-bloco .small {
+    color: #dfe7f5 !important;
+  }
+  .tarefa-coluna .tarefa-card:hover,
+  .tarefa-coluna .tarefa-bloco:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 36px rgba(0,0,0,0.36);
+    border-color: rgba(56, 189, 248, 0.35);
+  }
+  .monitor-toolbar .btn {
+    border-radius: 10px;
+  }
+  /* Evita colapso de altura por floats nos cards (sobretudo em mobile) */
+  .tarefa-card .card-body,
+  .tarefa-bloco .card-body {
+    position: relative;
+  }
+  .tarefa-card .card-body::after,
+  .tarefa-bloco .card-body::after {
+    content: '';
+    display: block;
+    clear: both;
+  }
+  @media (max-width: 768px) {
+    .tarefa-coluna { min-height: 64px; }
+    .monitor-board { padding: 0.6rem; border-radius: 12px; }
+  }
+</style>
 </div>
 
 <!-- Estilo para fazer os cartÃµes de MN ficarem como os das tarefas -->
@@ -447,8 +650,6 @@
       </div>
     </form>
   </div>
-</div>
-
 <style>
   #anexoModal .modal-content { max-height: 90vh; display:flex; flex-direction:column; }
   #anexoModal .modal-body { overflow:auto; }
@@ -1415,10 +1616,6 @@
           };
         }
       } catch(_){}
-
-
-
-
 
 
 
