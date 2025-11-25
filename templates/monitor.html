@@ -178,21 +178,17 @@
     gap: 0.5rem;
     background: #ffffff;
     border: none;
-    overflow: hidden;
+    overflow: visible;
     backdrop-filter: none;
     box-shadow: none;
     position: relative;
     border-radius: 16px;
     padding: 0.5rem;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: none;
   }
   .monitor-board.row {
     margin-left: 0;
     margin-right: 0;
   }
-  .monitor-board::-webkit-scrollbar { display: none; }
 .monitor-board > div {
     display: flex;
     flex-direction: column;
@@ -337,6 +333,22 @@
   }
 </style>
 </div>
+
+<script>
+  // Move todos os modais do monitor para o body para evitar clipping/z-index em mobile
+  document.addEventListener('DOMContentLoaded', () => {
+    const modalIds = [
+      'filtersModal','tarefaModal','lsModal','nrModal','anexoModal',
+      'novaFaltaModal','alojModal','fsModal','notaTarefaModal','agendarModal','novaMnModal'
+    ];
+    modalIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement !== document.body) {
+        document.body.appendChild(el);
+      }
+    });
+  });
+</script>
 
 <!-- Estilo para fazer os cartÃµes de MN ficarem como os das tarefas -->
 <style>
