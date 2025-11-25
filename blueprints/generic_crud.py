@@ -105,10 +105,16 @@ def edit_table(table_name, record_stamp):
 @login_required
 def list_or_describe(table_name):
     if request.args.get('action') == 'describe':
+        table = get_table(table_name)
+        column_meta = {col.name.upper(): col for col in table.columns} if table is not None else {}
         campos = Campo.query.filter_by(tabela=table_name).order_by(Campo.ordem).all()
         pk_name = f"{table_name.upper()}STAMP"
         cols = []
         for c in campos:
+            col_ref = column_meta.get(c.nmcampo.upper())
+            col_type = getattr(col_ref, 'type', None) if col_ref is not None else None
+            precision = getattr(col_type, 'precision', None) if col_type is not None else None
+            scale = getattr(col_type, 'scale', None) if col_type is not None else None
             cols.append({
                 'name':             c.nmcampo,
                 'descricao':        c.descricao,
@@ -125,7 +131,9 @@ def list_or_describe(table_name):
                 'ordem_mobile':     c.ordem_mobile,
                 'tam_mobile':       c.tam_mobile,
                 'condicao_visivel': c.condicao_visivel,
-                'obrigatorio':      c.obrigatorio
+                'obrigatorio':      c.obrigatorio,
+                'precisao':         precision,
+                'decimais':         scale
             })
         return jsonify(cols)
 

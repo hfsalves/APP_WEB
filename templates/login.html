@@ -3,21 +3,42 @@
 {% block title %}Login{% endblock %}
 
 {% block content %}
-<div class="login-container">
-  <img src="{{ url_for('static', filename='images/icon-512.png') }}" alt="Aplicação" class="d-block mx-auto mb-3 login-logo" style="object-fit:contain;">
-  {% if error %}
-    <div class="alert alert-danger">{{ error }}</div>
-  {% endif %}
-  <form method="post" action="{{ url_for('login') }}">
-    <div class="form-group">
-      <label for="login">Utilizador</label>
-      <input type="text" id="login" name="login" class="form-control" required>
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-card-header">
+      <div class="login-logo-wrap">
+        <img src="{{ url_for('static', filename='images/icon-512.png') }}" alt="Aplicacao" class="login-logo" loading="lazy">
+      </div>
+      <div>
+        <p class="login-eyebrow">StationZero</p>
+        <h2>Operations Hub</h2>
+      </div>
     </div>
-    <div class="form-group">
-      <label for="password">Password</label>
-      <input type="password" id="password" name="password" class="form-control" required>
-    </div>
-    <button type="submit" class="btn btn-primary">Entrar</button>
-  </form>
+
+    {% if error %}
+      <div class="alert alert-danger mb-3">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('login') }}" class="login-form">
+      <div class="form-group">
+        <label for="login">Utilizador</label>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-user"></i>
+          <input type="text" id="login" name="login" class="form-control" required autocomplete="username">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <div class="input-with-icon">
+          <i class="fa-solid fa-lock"></i>
+          <input type="password" id="password" name="password" class="form-control" required autocomplete="current-password">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">
+        <i class="fa-solid fa-arrow-right-to-bracket me-1"></i>
+        Entrar
+      </button>
+    </form>
+  </div>
 </div>
 {% endblock %}

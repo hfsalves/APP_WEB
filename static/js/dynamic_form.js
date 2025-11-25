@@ -136,6 +136,203 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
 
   // 2. Prepara o form
   const form = document.getElementById('editForm');
+  const DECIMAL_SEPARATOR = ',';
+
+  const isDecimalInput = el => el?.dataset?.decimal === 'true';
+  const getDecimalPlacesForInput = el => {
+    const places = Number(el?.dataset?.decimalPlaces);
+    return Number.isFinite(places) ? Math.max(0, places) : 2;
+  };
+
+  function parseDecimalString(value) {
+    if (value === null || value === undefined) {
+      return { sign: false, integers: '', decimals: '', hasDigits: false };
+    }
+    let str = String(value).trim();
+    let sign = false;
+    if (str.startsWith('-')) {
+      sign = true;
+      str = str.slice(1);
+    }
+    str = str.replace(/\./g, DECIMAL_SEPARATOR);
+    const allowed = new RegExp(`[^0-9${DECIMAL_SEPARATOR}]`, 'g');
+    str = str.replace(allowed, '');
+    const parts = str.split(DECIMAL_SEPARATOR);
+    const integers = parts.shift() || '';
+    const decimals = parts.join('');
+    const hasDigits = (integers + decimals).length > 0;
+    return { sign, integers, decimals, hasDigits };
+  }
+
+  function formatDecimalString(parsed, places, { padDecimals = false, forceComma = false } = {}) {
+    const { sign, integers, decimals, hasDigits } = parsed;
+    if (!hasDigits) return '';
+    const normalizedPlaces = Number.isFinite(places) ? Math.max(0, places) : null;
+    let integerPart = integers.replace(/^0+(?=\d)/, '');
+    if (!integerPart && (decimals || padDecimals)) {
+      integerPart = '0';
+    } else if (!integerPart) {
+      integerPart = '0';
+    }
+    let decimalPart = decimals;
+    if (normalizedPlaces !== null) {
+      decimalPart = decimalPart.slice(0, normalizedPlaces);
+      if (padDecimals && normalizedPlaces > 0) {
+        decimalPart = decimalPart.padEnd(normalizedPlaces, '0');
+      }
+    }
+    let result = integerPart || '0';
+    if (normalizedPlaces !== null) {
+      if (normalizedPlaces === 0) {
+        // sem parte decimal
+      } else if (decimalPart.length > 0 || padDecimals || forceComma) {
+        const padded = padDecimals
+          ? decimalPart.padEnd(normalizedPlaces, '0')
+          : decimalPart;
+        result += DECIMAL_SEPARATOR + padded;
+      }
+    } else if (decimalPart.length > 0) {
+      result += DECIMAL_SEPARATOR + decimalPart;
+    }
+    return (sign ? '-' : '') + result;
+  }
+
+  function toDisplayDecimal(value, places) {
+    const parsed = parseDecimalString(value);
+    if (!parsed.hasDigits) return '';
+    return formatDecimalString(parsed, places, {
+      padDecimals: places > 0,
+      forceComma: places > 0
+    });
+  }
+
+  function toServerDecimal(value, places) {
+    const parsed = parseDecimalString(value);
+    if (!parsed.hasDigits) return '';
+    const formatted = formatDecimalString(parsed, places, {
+      padDecimals: places > 0,
+      forceComma: places > 0
+    });
+    return formatted.replace(DECIMAL_SEPARATOR, '.');
+  }
+
+  function sanitizeDecimalForInput(value, places, hadComma = false) {
+    if (value === null || value === undefined) return '';
+    const parsed = parseDecimalString(value);
+    if (!parsed.hasDigits) return '';
+    return formatDecimalString(parsed, places, {
+      padDecimals: hadComma && places > 0,
+      forceComma: hadComma && places > 0
+    });
+  }
+
+  function setCaretPosition(input, pos) {
+    if (typeof input.setSelectionRange === 'function') {
+      requestAnimationFrame(() => input.setSelectionRange(pos, pos));
+    }
+  }
+
+  function collectDigits(text = '') {
+    return (text.match(/\d+/g) || []).join('');
+  }
+
+  function attachDecimalInputBehavior(input, places) {
+    if (!input) return;
+    const decimalPlaces = Number.isFinite(places) ? Math.max(0, places) : 2;
+    input.type = 'text';
+    input.inputMode = 'decimal';
+    input.autocomplete = 'off';
+    input.dataset.decimal = 'true';
+    input.dataset.decimalPlaces = decimalPlaces;
+    input.classList.add('decimal-input');
+
+    input.addEventListener('keydown', e => {
+      if (e.key === ',' || e.key === '.' || e.key === 'Decimal') {
+        e.preventDefault();
+        const value = input.value || '';
+        const start = input.selectionStart ?? value.length;
+        const existingComma = value.indexOf(DECIMAL_SEPARATOR);
+        if (existingComma >= 0 && start > existingComma) {
+          setCaretPosition(input, existingComma + 1);
+          return;
+        }
+        const sign = value.trim().startsWith('-') ? '-' : '';
+        const leftDigits = collectDigits(value.slice(0, start));
+        const nextCommaIndex = value.indexOf(DECIMAL_SEPARATOR, start);
+        const segmentForDecimals = nextCommaIndex >= 0
+          ? value.slice(start, nextCommaIndex)
+          : value.slice(start);
+        const rightDigits = collectDigits(segmentForDecimals);
+        const paddedRight = decimalPlaces > 0
+          ? rightDigits.slice(0, decimalPlaces).padEnd(decimalPlaces, '0')
+          : '';
+        let newValue = leftDigits;
+        if (!newValue) newValue = '0';
+        if (decimalPlaces > 0) {
+          newValue += DECIMAL_SEPARATOR + paddedRight;
+        }
+        input.value = (sign && newValue !== '0' ? sign : '') + newValue;
+        const caretPos = input.value.indexOf(DECIMAL_SEPARATOR);
+        if (caretPos >= 0) {
+          setCaretPosition(input, caretPos + 1);
+        }
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+
+      if (/^[0-9]$/.test(e.key)) {
+        const value = input.value || '';
+        const commaIndex = value.indexOf(DECIMAL_SEPARATOR);
+        if (commaIndex >= 0) {
+          const start = input.selectionStart ?? value.length;
+          if (start > commaIndex) {
+            e.preventDefault();
+            const offset = Math.min(
+              Math.max(start - commaIndex - 1, 0),
+              Math.max(decimalPlaces - 1, 0)
+            );
+            const decimals = value.slice(commaIndex + 1).padEnd(decimalPlaces, '0');
+            const decArray = decimals.split('');
+            decArray[offset] = e.key;
+            const newDecimals = decArray.join('').slice(0, decimalPlaces);
+            input.value = value.slice(0, commaIndex + 1) + newDecimals;
+            setCaretPosition(input, commaIndex + 1 + Math.min(offset + 1, decimalPlaces));
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            return;
+          }
+        }
+      }
+    });
+
+    input.addEventListener('input', () => {
+      const hadComma = (input.value || '').includes(DECIMAL_SEPARATOR);
+      const sanitized = sanitizeDecimalForInput(input.value, decimalPlaces, hadComma);
+      if (sanitized !== input.value) {
+        const cursor = input.selectionStart ?? sanitized.length;
+        input.value = sanitized;
+        setCaretPosition(input, Math.min(cursor, sanitized.length));
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      if (!input.value) return;
+      input.value = toDisplayDecimal(input.value, decimalPlaces);
+    });
+  }
+
+  function readValueForState(el) {
+    if (!el) return '';
+    if (el.type === 'checkbox') return el.checked;
+    if (isDecimalInput(el)) return toServerDecimal(el.value, getDecimalPlacesForInput(el));
+    return el.value;
+  }
+
+  function handleFieldChange(e) {
+    const target = e.target;
+    if (!target || !target.name) return;
+    formState[target.name.toUpperCase()] = readValueForState(target);
+    aplicarCondicoesDeVisibilidade();
+  }
   // ——— Montagem customizada por ORDEM (uma row por dezena) ———
 
   // limpa o form
@@ -235,11 +432,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
               formState[col.name] = false;
               camposByName[col.name] = input;
 
-              input.addEventListener('change', e => {
-                const nome = e.target.name.toUpperCase();
-                formState[nome] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                aplicarCondicoesDeVisibilidade();
-              });
+              input.addEventListener('change', handleFieldChange);
             } else {
               const label = document.createElement('label');
               label.setAttribute('for', col.name);
@@ -327,11 +520,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
               input.innerHTML = '<option value="">---</option>';
 
               formState[col.name] = '';
-              input.addEventListener('change', e => {
-                const nome = e.target.name.toUpperCase();
-                formState[nome] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                aplicarCondicoesDeVisibilidade();
-              });
+              input.addEventListener('change', handleFieldChange);
 
 
             } else if (col.tipo === 'MEMO') {
@@ -345,11 +534,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
               input.rows = 4;
 
               formState[col.name] = '';
-              input.addEventListener('change', e => {
-                const nome = e.target.name.toUpperCase();
-                formState[nome] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                aplicarCondicoesDeVisibilidade();
-              });
+              input.addEventListener('change', handleFieldChange);
 
             } else {
               input = document.createElement('input');
@@ -359,10 +544,23 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
               camposByName[col.name] = input;
               input.className = 'form-control';
               input.name = col.name;
+              input.dataset.tipoCampo = (col.tipo || '').toUpperCase();
+
+              const decimalPlaces = Number.isFinite(Number(col.decimais))
+                ? Number(col.decimais)
+                : 2;
 
               if (col.tipo === 'DATE') {
                 input.type = 'text';
                 input.classList.add('flatpickr-date');
+              } else if (col.tipo === 'HOUR') {
+                input.type = 'time';
+              } else if (col.tipo === 'INT') {
+                input.type = 'number';
+                input.step = '1';
+                input.inputMode = 'numeric';
+              } else if (col.tipo === 'DECIMAL') {
+                attachDecimalInputBehavior(input, decimalPlaces);
               } else {
                 input.type = 'text';
               }
@@ -376,18 +574,10 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
                 formState[col.name] = false;
                 input.type = 'checkbox';
                 input.className = 'form-check-input';
-                input.addEventListener('change', e => {
-                  const nome = e.target.name.toUpperCase();
-                  formState[nome] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                  aplicarCondicoesDeVisibilidade();
-                });
+                input.addEventListener('change', handleFieldChange);
               } else {
                 formState[col.name] = '';
-                input.addEventListener('change', e => {
-                  const nome = e.target.name.toUpperCase();
-                  formState[nome] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-                  aplicarCondicoesDeVisibilidade();
-                });
+                input.addEventListener('change', handleFieldChange);
               }
             }
 
@@ -455,14 +645,23 @@ await Promise.all(
         // garante que o <select> já tem as <option>
         if ([...el.options].some(o => o.value === val)) {
           el.value = val;
-          formState[el.name] = el.type === 'checkbox' ? el.checked : el.value;
+          formState[el.name.toUpperCase()] = el.value;
           aplicarCondicoesDeVisibilidade();
         }
       }
       else if (el.type === 'checkbox') {
         el.checked = ['1','true','True'].includes(val);
+        formState[el.name.toUpperCase()] = el.checked;
+        aplicarCondicoesDeVisibilidade();
+      } else if (isDecimalInput(el)) {
+        const places = getDecimalPlacesForInput(el);
+        el.value = toDisplayDecimal(val, places);
+        formState[el.name.toUpperCase()] = toServerDecimal(el.value, places);
+        aplicarCondicoesDeVisibilidade();
       } else {
         el.value = val;
+        formState[el.name.toUpperCase()] = el.value;
+        aplicarCondicoesDeVisibilidade();
       }
     });
   }
@@ -514,6 +713,11 @@ if (RECORD_STAMP) {
         if (cor && !cor.startsWith('#')) cor = '#' + cor;
         el.value = cor || '#000000';
         formState[nome] = el.value;
+      } else if (isDecimalInput(el)) {
+        const places = getDecimalPlacesForInput(el);
+        const display = toDisplayDecimal(val ?? '', places);
+        el.value = display;
+        formState[nome] = toServerDecimal(display, places);
       } else {
         el.value = val;
         formState[nome] = el.value;
@@ -977,6 +1181,13 @@ hideLoading()
     new FormData(form).forEach((v, k) => data[k] = v);
     // BIT para booleano
     form.querySelectorAll('input[type="checkbox"]').forEach(cb => data[cb.name] = cb.checked);
+    // Decimais usam vírgula mas o backend espera ponto
+    form.querySelectorAll('input[data-decimal="true"]').forEach(input => {
+      data[input.name] = toServerDecimal(
+        input.value,
+        getDecimalPlacesForInput(input)
+      );
+    });
     // Datas para ISO
     form.querySelectorAll('.flatpickr-date').forEach(input => {
       const raw = input.value.trim();

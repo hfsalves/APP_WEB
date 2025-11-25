@@ -189,38 +189,70 @@ if (widget.tipo === 'HTML') {
           return;
         }
         let cfg = {};
-        try { cfg = JSON.parse(widget.config); } catch {}
+        try { cfg = JSON.parse(widget.config || '{}'); } catch {}
         const chartType = cfg.tipo_grafico || 'bar';
         const labelCol = cfg.label_col || data.columns[0];
         const dataCol = cfg.data_col || data.columns[1];
-        const labels = data.rows.map(r => r[labelCol]);
-        const values = data.rows.map(r => parseNumber(r[dataCol]));
+        const stackCol = cfg.stack_col || null; // quando existir, faz stacked por stack_col
 
-        const dataset = { label: widget.titulo || widget.nome, data: values };
-        if (chartType === 'bar' || chartType === 'line') {
-          Object.assign(dataset, {
-            backgroundColor: 'rgba(0, 123, 255, 0.5)',
-            borderColor: 'rgba(0, 123, 255, 1)',
-            borderWidth: 1,
-            borderRadius: 5,
-            borderSkipped: false
+        // labels únicas (especialmente importante para stacking)
+        const labels = stackCol
+          ? Array.from(new Map(data.rows.map(r => [r[labelCol], r[labelCol]])).values())
+          : data.rows.map(r => r[labelCol]);
+
+        let datasets = [];
+
+        if (stackCol) {
+          // Constrói datasets por stack (ex.: GESTAO/EXPLORACAO)
+          const stacks = [...new Set(data.rows.map(r => r[stackCol]))];
+          const palette = cfg.stack_colors || {};
+          datasets = stacks.map((stack, idx) => {
+            const baseHue = Math.round(idx * 360 / Math.max(stacks.length,1));
+            const color = palette[stack] || `hsla(${baseHue}, 65%, 68%, 0.6)`; // tons mais soft
+            const vals = labels.map(label =>
+              data.rows
+                .filter(r => r[labelCol] === label && r[stackCol] === stack)
+                .reduce((sum, row) => sum + parseNumber(row[dataCol]), 0)
+            );
+            return {
+              label: stack,
+              data: vals,
+              backgroundColor: color,
+              borderColor: color,
+              borderWidth: 1,
+              borderRadius: 4
+            };
           });
         } else {
-          dataset.backgroundColor = labels.map((_,i) => `hsl(${Math.round(i*360/labels.length)},70%,60%)`);
-          dataset.borderWidth = 1;
+          const values = data.rows.map(r => parseNumber(r[dataCol]));
+          const dataset = { label: widget.titulo || widget.nome, data: values };
+          if (chartType === 'bar' || chartType === 'line') {
+            Object.assign(dataset, {
+              backgroundColor: 'rgba(56, 189, 248, 0.35)', // azul soft
+              borderColor: 'rgba(56, 189, 248, 0.8)',
+              borderWidth: 1,
+              borderRadius: 5,
+              borderSkipped: false
+            });
+          } else {
+            dataset.backgroundColor = labels.map((_,i) => `hsl(${Math.round(i*360/labels.length)},70%,60%)`);
+            dataset.borderWidth = 1;
+          }
+          datasets = [dataset];
         }
+
         body.innerHTML = '';
         const canvas = document.createElement('canvas');
         body.appendChild(canvas);
         new Chart(canvas.getContext('2d'), {
           type: chartType,
-          data: { labels, datasets: [dataset] },
+          data: { labels, datasets },
           options: {
             responsive: true,
-            plugins: { legend: { display: chartType !== 'bar' && chartType !== 'line' } },
+            plugins: { legend: { display: false } },
             scales: (chartType === 'bar' || chartType === 'line') ? {
-              x: { grid: { display: false } },
-              y: { beginAtZero: true, grid: { display: true, color: '#e0e0e0' } }
+              x: { stacked: !!stackCol, grid: { display: false } },
+              y: { stacked: !!stackCol, beginAtZero: true, grid: { display: true, color: '#e0e0e0' } }
             } : {}
           }
         });

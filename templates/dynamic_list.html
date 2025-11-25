@@ -2,23 +2,27 @@
 {% block title %}{{ table_name|capitalize }}{% endblock %}
 
 {% block content %}
-<div class="dynamic-container">
-  <header class="dynamic-header justify-content-end">
-    <!-- Botão que abre o modal de filtros -->
-    <button id="btnFilterToggle" class="btn btn-secondary btn-sm me-2">
-      <i class="fa fa-filter"></i> Filtrar
-    </button>
-
-    <!-- Botão Novo, se houver permissão -->
-    {% if user_perms[table_name].inserir %}
-    <button id="btnNew" class="btn btn-primary btn-sm">
-      <i class="fa fa-plus"></i> Novo
-    </button>
-    {% endif %}
+<div class="dynamic-container dynamic-list-card">
+  <header class="dynamic-list-header">
+    <div>
+      <span id="recordCount" class="dynamic-list-count text-muted small"></span>
+    </div>
+    <div class="dynamic-list-actions">
+      <button id="btnFilterToggle" class="btn btn-outline-secondary btn-sm">
+        <i class="fa fa-filter"></i>
+        <span>Filtrar</span>
+      </button>
+      {% if user_perms[table_name].inserir %}
+        <button id="btnNew" class="btn btn-primary btn-sm">
+          <i class="fa fa-plus"></i>
+          <span>Novo</span>
+        </button>
+      {% endif %}
+    </div>
   </header>
-
-  <!-- Aqui vai a grid -->
-  <section id="grid" class="dynamic-grid"></section>
+  <div class="dynamic-grid-panel">
+    <section id="grid" class="dynamic-grid"></section>
+  </div>
 </div>
 
 <!-- Modal de Filtros -->
@@ -30,12 +34,24 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
-        <!-- O form será injetado aqui pelo JS -->
+        <!-- O form sera injetado aqui pelo JS -->
         <form id="filter-form" class="filter-form"></form>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" id="applyFilters" class="btn btn-primary">Aplicar</button>
+        <div class="dynamic-form-modal-actions">
+          <button type="button" class="btn btn-outline-secondary btn-cancel" data-bs-dismiss="modal">
+            <i class="fa-solid fa-ban"></i>
+            <span class="btn-text">Cancelar</span>
+          </button>
+          <button type="button" id="clearFilters" class="btn btn-outline-secondary btn-delete">
+            <i class="fa-solid fa-rotate-left"></i>
+            <span class="btn-text">Limpar</span>
+          </button>
+          <button type="button" id="applyFilters" class="btn btn-outline-primary btn-save">
+            <i class="fa-solid fa-check"></i>
+            <span class="btn-text">Aplicar</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
