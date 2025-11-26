@@ -85,6 +85,7 @@ class Widget(db.Model):
     TIPO         = db.Column(db.String(20), nullable=False, default='GRAFICO')
     FONTE        = db.Column(db.String(200), nullable=False, default='')
     CONFIG       = db.Column(db.Text, nullable=False, default='{}')
+    FILTROS      = db.Column(db.Text, nullable=False, default='{}')
     ATIVO        = db.Column(db.Boolean, nullable=False, default=True)
 
 class UsWidget(db.Model):

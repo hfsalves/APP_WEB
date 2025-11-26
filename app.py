@@ -328,6 +328,7 @@ def create_app():
                 'tipo': widg.TIPO,
                 'fonte': widg.FONTE,
                 'config': widg.CONFIG,
+                'filtros': getattr(widg, 'FILTROS', '') or '',
                 'coluna': usw.COLUNA,
                 'ordem': usw.ORDEM,
                 'maxheight': usw.MAXHEIGHT
@@ -375,6 +376,75 @@ def create_app():
             'columns': list(result.keys()),
             'rows': rows
         })
+
+    @app.route('/api/widgets/<widget_id>/filters/options', methods=['POST'])
+    @login_required
+    def widget_filter_options(widget_id):
+        data = request.get_json(silent=True) or {}
+        options_query = (data.get('options_query') or '').strip()
+        if not options_query:
+            return jsonify({'error': 'options_query em falta'}), 400
+
+        widget = Widget.query.filter((Widget.NOME == widget_id) | (Widget.WIDGETSSTAMP == widget_id)).first()
+        if not widget or not widget.ATIVO:
+            return jsonify({'error': 'Widget não encontrado'}), 404
+
+        try:
+            result = db.session.execute(text(options_query))
+            options = []
+            for row in result:
+                if hasattr(row, '_mapping'):
+                    m = row._mapping
+                    val = m.get('value', list(m.values())[0])
+                    lab = m.get('label', val)
+                else:
+                    val = row[0]
+                    lab = row[1] if len(row) > 1 else val
+                options.append({'value': val, 'label': lab})
+            return jsonify({'options': options})
+        except Exception as e:
+            current_app.logger.exception('Erro em widget_filter_options')
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/widgets/<widget_id>/run', methods=['POST'])
+    @login_required
+    def widget_run(widget_id):
+        payload = request.get_json(silent=True) or {}
+        filters = payload.get('filters') or {}
+
+        widget = Widget.query.filter((Widget.NOME == widget_id) | (Widget.WIDGETSSTAMP == widget_id)).first()
+        if not widget or not widget.ATIVO:
+            return jsonify({'error': 'Widget não encontrado'}), 404
+
+        try:
+            config = json.loads(widget.CONFIG or '{}')
+            query = config.get('query')
+            if not query:
+                return jsonify({'error': 'Query não definida no config'}), 400
+        except Exception as e:
+            return jsonify({'error': f'Config inválido: {e}'}), 400
+
+        # Prepara bind params apenas para as keys presentes na query (simples heurística por prefixo :)
+        bind_params = {}
+        for key, val in (filters.items() if isinstance(filters, dict) else []):
+            bind_params[key] = val
+
+        try:
+            result = db.session.execute(text(query), bind_params)
+            mappings = result.mappings().all()
+            rows = []
+            for rd in mappings:
+                clean = {}
+                for col, val in rd.items():
+                    if isinstance(val, (date, datetime)):
+                        clean[col] = val.strftime('%Y-%m-%d')
+                    else:
+                        clean[col] = val
+                rows.append(clean)
+            return jsonify({'columns': list(result.keys()), 'rows': rows})
+        except Exception as e:
+            current_app.logger.exception('Erro ao executar widget_run')
+            return jsonify({'error': f'Erro ao executar query: {e}'}), 500
 
     @app.route('/modals/<acao>')
     @login_required
