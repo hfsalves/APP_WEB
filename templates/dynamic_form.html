@@ -130,8 +130,6 @@
 </div>
 <!-- fim do Modal -->
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
 {% set return_to = request.args.get('return_to', url_for('generic.edit_table', table_name=table_name, record_stamp=record_stamp)) %}
 <script>
   window.TABLE_NAME    = "{{ table_name }}";
@@ -154,24 +152,47 @@
     (function () {
       document.addEventListener('DOMContentLoaded', () => {
         const dropdownTrigger = document.getElementById('dropdownExemplo');
-        const dropdownMenu = document.querySelector('#dropdownExemplo + .dropdown-menu');
+        const dropdownMenu = dropdownTrigger?.nextElementSibling?.classList.contains('dropdown-menu')
+          ? dropdownTrigger.nextElementSibling
+          : document.querySelector('#dropdownExemplo + .dropdown-menu');
+
+        const hasBootstrap = Boolean(window.bootstrap?.Dropdown);
+        console.info('[dropdown debug] trigger found:', !!dropdownTrigger, 'menu found:', !!dropdownMenu, 'bootstrap:', hasBootstrap);
+
+        if (dropdownTrigger) {
+          dropdownTrigger.addEventListener('click', () => {
+            console.info('[dropdown debug] click on trigger; menu classes before:', dropdownMenu?.className);
+          });
+        }
 
         if (dropdownTrigger && dropdownMenu) {
-          dropdownTrigger.addEventListener('click', e => {
-            e.preventDefault();
-            const isOpen = dropdownMenu.classList.contains('show');
-            dropdownMenu.classList.toggle('show', !isOpen);
-            dropdownTrigger.classList.toggle('show', !isOpen);
-            dropdownTrigger.setAttribute('aria-expanded', String(!isOpen));
-          });
+          if (hasBootstrap) {
+            const instance = bootstrap.Dropdown.getOrCreateInstance(dropdownTrigger);
+            dropdownTrigger.addEventListener('shown.bs.dropdown', () => {
+              console.info('[dropdown debug] shown event; menu classes:', dropdownMenu.className);
+            });
+            dropdownTrigger.addEventListener('hidden.bs.dropdown', () => {
+              console.info('[dropdown debug] hidden event; menu classes:', dropdownMenu.className);
+            });
+            console.info('[dropdown debug] bootstrap dropdown instance created:', !!instance);
+          } else {
+            dropdownTrigger.addEventListener('click', e => {
+              e.preventDefault();
+              const isOpen = dropdownMenu.classList.contains('show');
+              dropdownMenu.classList.toggle('show', !isOpen);
+              dropdownTrigger.classList.toggle('show', !isOpen);
+              dropdownTrigger.setAttribute('aria-expanded', String(!isOpen));
+              console.info('[dropdown debug] manual toggle; now open:', !isOpen, 'menu classes:', dropdownMenu.className);
+            });
 
-          document.addEventListener('click', e => {
-            if (!dropdownTrigger.contains(e.target) && !dropdownMenu.contains(e.target)) {
-              dropdownMenu.classList.remove('show');
-              dropdownTrigger.classList.remove('show');
-              dropdownTrigger.setAttribute('aria-expanded', 'false');
-            }
-          });
+            document.addEventListener('click', e => {
+              if (!dropdownTrigger.contains(e.target) && !dropdownMenu.contains(e.target)) {
+                dropdownMenu.classList.remove('show');
+                dropdownTrigger.classList.remove('show');
+                dropdownTrigger.setAttribute('aria-expanded', 'false');
+              }
+            });
+          }
         }
 
         document.querySelectorAll('#accordionExtras .accordion-button').forEach(button => {
