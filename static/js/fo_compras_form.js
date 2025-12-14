@@ -8,6 +8,7 @@ let currentFoStamp = window.FO_STAMP || '';
 let editingFnStamp = null;
 let linesData = [];
 let deletedLineIds = [];
+let foLoadedData = null;
 
 const returnTo = window.RETURN_TO || '/generic/view/FO/';
 const form = document.getElementById('foForm');
@@ -40,6 +41,7 @@ const isTempId = (id) => typeof id === 'string' && id.startsWith('TMP_'); // leg
 const isNewLine = (line) => line && (line.__new === true || isTempId(line.FNSTAMP));
 
 function setFoFormValues(data = {}) {
+  foLoadedData = data || {};
   foFields.forEach(f => {
     const el = document.getElementById(f);
     if (!el) return;
@@ -54,20 +56,22 @@ function setFoFormValues(data = {}) {
     }
   });
 
-  // garante seleção correta em DOCNOME mesmo com espaços/maiúsculas
-  const docSel = document.getElementById('DOCNOME');
-  if (docSel && data.DOCNOME) {
-    const target = data.DOCNOME.toString().trim();
-    let matched = false;
-    Array.from(docSel.options).forEach(opt => {
-      const val = (opt.value || '').trim();
-      const text = (opt.textContent || '').trim();
-      if (!matched && (val === target || text === target)) {
-        opt.selected = true;
-        matched = true;
-      }
-    });
-  }
+  selectOptionTrim(document.getElementById('DOCNOME'), data.DOCNOME);
+  selectOptionTrim(document.getElementById('TPDESC'), data.TPDESC);
+}
+
+function selectOptionTrim(selectEl, targetVal) {
+  if (!selectEl || targetVal == null) return;
+  const target = targetVal.toString().trim();
+  let matched = false;
+  Array.from(selectEl.options).forEach(opt => {
+    const val = (opt.value || '').trim();
+    const text = (opt.textContent || '').trim();
+    if (!matched && (val === target || text === target)) {
+      opt.selected = true;
+      matched = true;
+    }
+  });
 }
 
 function getFoPayload() {
@@ -126,6 +130,8 @@ async function loadFo() {
   if (!res.ok) return;
   const data = await res.json();
   setFoFormValues(data);
+  selectOptionTrim(document.getElementById('DOCNOME'), data.DOCNOME);
+  selectOptionTrim(document.getElementById('TPDESC'), data.TPDESC);
 }
 
 async function loadDocnomeOptions() {
@@ -145,6 +151,7 @@ async function loadDocnomeOptions() {
       sel.append(opt);
     });
     if (current) sel.value = current;
+    if (foLoadedData?.DOCNOME) selectOptionTrim(sel, foLoadedData.DOCNOME);
   } catch (e) {
     console.error('Erro ao carregar DOCNOME options', e);
   }
@@ -230,6 +237,7 @@ async function loadTpOptions() {
       sel.append(opt);
     });
     if (current) sel.value = current;
+    if (foLoadedData?.TPDESC) selectOptionTrim(sel, foLoadedData.TPDESC);
   } catch (e) {
     console.error('Erro ao carregar TPDESC options', e);
   }
@@ -461,7 +469,7 @@ async function loadLines() {
 function renderLines() {
   if (!linesTableBody) return;
   if (!linesData.length) {
-    linesTableBody.innerHTML = '<tr><td colspan="14" class="text-muted">Sem linhas</td></tr>';
+    linesTableBody.innerHTML = '<tr><td colspan="11" class="text-muted">Sem linhas</td></tr>';
     return;
   }
   linesTableBody.innerHTML = '';
@@ -472,6 +480,13 @@ function renderLines() {
     if (Number.isFinite(qtt) && Number.isFinite(epv)) {
       r.ETILIQUIDO = (qtt * epv).toFixed(2);
     }
+    const tabivaInt = Number.isFinite(Number(r.TABIVA)) ? Math.trunc(Number(r.TABIVA)) : '';
+    const taxaivaInt = Number.isFinite(Number(r.TAXAIVA)) ? Math.trunc(Number(r.TAXAIVA)) : '';
+    const ivaParts = [];
+    if (tabivaInt !== '') ivaParts.push(tabivaInt);
+    if (taxaivaInt !== '') ivaParts.push(taxaivaInt);
+    const ivaCombined = ivaParts.join(' | ');
+    const ivainclChecked = (r.IVAINCL === 1 || r.IVAINCL === '1' || r.IVAINCL === true);
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${r.REF || ''}</td>
@@ -480,9 +495,8 @@ function renderLines() {
       <td>${r.UNIDADE || ''}</td>
       <td>${r.EPV ?? ''}</td>
       <td>${r.ETILIQUIDO ?? ''}</td>
-      <td>${r.TABIVA ?? ''}</td>
-      <td>${r.TAXAIVA ?? ''}</td>
-      <td>${r.IVAINCL ?? ''}</td>
+      <td>${ivaCombined}</td>
+      <td class="text-center"><input type="checkbox" disabled ${ivainclChecked ? 'checked' : ''}></td>
       <td>${r.FNCCUSTO || ''}</td>
       <td>${r.FAMILIA || ''}</td>
       <td class="text-end">

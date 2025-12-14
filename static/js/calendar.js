@@ -199,13 +199,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const lastDay  = new Date(year, month + 1, 0);
 
     // calcula início e fim para preencher toda a semana (começa no Domingo)
-    const shiftStart = firstDay.getDay();
+    const weekdayMon0 = (d) => (d.getDay() + 6) % 7;
+    const shiftStart = weekdayMon0(firstDay);
     const startDate  = new Date(firstDay);
     startDate.setDate(firstDay.getDate() - shiftStart);
 
-    const shiftEnd = lastDay.getDay();
+    const shiftEnd = 6 - weekdayMon0(lastDay);
     const endDate  = new Date(lastDay);
-    endDate.setDate(lastDay.getDate() + (6 - shiftEnd));
+    endDate.setDate(lastDay.getDate() + shiftEnd);
 
     document.getElementById('month-year').textContent = `${monthNames[month]} de ${year}`;
     clearError();
@@ -431,9 +432,17 @@ document.addEventListener('DOMContentLoaded', function() {
     state.origins = tempAll.origins ? new Set() : new Set(temp.origins);
     if (filtersModal) filtersModal.hide();
     updateFiltersSummary();
+    // recalcula o intervalo completo (semana inteira) para manter o alinhamento correto
     const firstDay = new Date(currentYear, currentMonth, 1);
     const lastDay  = new Date(currentYear, currentMonth + 1, 0);
-    renderCalendar(firstDay, new Date(lastDay), loadedTasks || []);
+    const weekdayMon0 = (d) => (d.getDay() + 6) % 7;
+    const shiftStart = weekdayMon0(firstDay);
+    const startDate = new Date(firstDay);
+    startDate.setDate(firstDay.getDate() - shiftStart);
+    const shiftEnd = 6 - weekdayMon0(lastDay);
+    const endDate = new Date(lastDay);
+    endDate.setDate(lastDay.getDate() + shiftEnd);
+    renderCalendar(startDate, endDate, loadedTasks || []);
   });
 
   // Resumo inicial

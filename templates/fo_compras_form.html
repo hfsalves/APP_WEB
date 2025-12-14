@@ -1,28 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}{{ menu_label or "FO - Compras" }}{% endblock %}
+{% set page_title = "Compras" %}
+{% set page_name = "Compras" %}
+{% block title %}Compras{% endblock %}
 
 {% block content %}
 <div class="dynamic-form dynamic-form-card">
-  <div class="dynamic-form-toolbar d-flex justify-content-between align-items-center mb-3">
-    <div>
-      <span class="fw-semibold">{{ menu_label or "FO - Compras" }}</span>
-      {% if record_stamp %}
-        <span class="text-muted small ms-2">{{ record_stamp }}</span>
-      {% endif %}
-    </div>
-    <div class="d-flex gap-2">
-      <button id="btnSaveFo" class="btn btn-outline-primary btn-sm">
-        <i class="fa-solid fa-save"></i> Gravar
-      </button>
-      <button id="btnDeleteFo" class="btn btn-outline-secondary btn-sm">
-        <i class="fa-solid fa-trash-alt"></i> Eliminar
-      </button>
-      <button id="btnCancelFo" class="btn btn-outline-secondary btn-sm">
-        <i class="fa-solid fa-ban"></i> Cancelar
-      </button>
-    </div>
-  </div>
+  <div class="dynamic-form-toolbar d-flex justify-content-between align-items-center mb-3"></div>
 
   <section class="dynamic-form-body dynamic-form-body-modern">
     <form id="foForm" class="row g-3" autocomplete="off">
@@ -36,21 +20,21 @@
       <div class="col-12">
         <div class="row g-2">
         <div class="col-md-3">
-          <label class="form-label" for="DOCNOME">DOCNOME <span class="text-danger">*</span></label>
+          <label class="form-label" for="DOCNOME">Documento <span class="text-danger">*</span></label>
           <select id="DOCNOME" name="DOCNOME" class="form-select" required>
             <option value="">---</option>
           </select>
         </div>
           <div class="col-md-3">
-            <label class="form-label" for="ADOC">ADOC <span class="text-danger">*</span></label>
+            <label class="form-label" for="ADOC">Numero <span class="text-danger">*</span></label>
             <input type="text" id="ADOC" name="ADOC" class="form-control" required>
           </div>
           <div class="col-md-3">
-            <label class="form-label" for="DATA">DATA <span class="text-danger">*</span></label>
+            <label class="form-label" for="DATA">Data <span class="text-danger">*</span></label>
             <input type="date" id="DATA" name="DATA" class="form-control" required>
           </div>
           <div class="col-md-3">
-            <label class="form-label" for="PDATA">PDATA <span class="text-danger">*</span></label>
+            <label class="form-label" for="PDATA">Vencimento <span class="text-danger">*</span></label>
             <input type="date" id="PDATA" name="PDATA" class="form-control" required>
           </div>
         </div>
@@ -59,22 +43,22 @@
       <div class="col-12">
         <div class="row g-2">
         <div class="col-md-6">
-          <label class="form-label" for="NOME">NOME <span class="text-danger">*</span></label>
+          <label class="form-label" for="NOME">Nome <span class="text-danger">*</span></label>
           <div class="position-relative">
             <input type="text" id="NOME" name="NOME" class="form-control" autocomplete="off" required>
             <div id="nomeSuggestions" class="dropdown-menu w-100" style="max-height:200px; overflow-y:auto;"></div>
           </div>
         </div>
         <div class="col-md-1">
-          <label class="form-label" for="NO">NO <span class="text-danger">*</span></label>
+          <label class="form-label" for="NO">No. <span class="text-danger">*</span></label>
           <input type="number" step="1" id="NO" name="NO" class="form-control" readonly required>
         </div>
         <div class="col-md-2">
-          <label class="form-label" for="NCONT">NCONT</label>
+          <label class="form-label" for="NCONT">NIF</label>
           <input type="text" id="NCONT" name="NCONT" class="form-control" readonly>
         </div>
         <div class="col-md-3">
-          <label class="form-label" for="CCUSTO">CCUSTO <span class="text-danger">*</span></label>
+          <label class="form-label" for="CCUSTO">C. Custo <span class="text-danger">*</span></label>
           <select id="CCUSTO" name="CCUSTO" class="form-select" required>
             <option value="">---</option>
           </select>
@@ -85,21 +69,21 @@
       <div class="col-12">
         <div class="row g-2">
           <div class="col-md-3">
-            <label class="form-label" for="TPDESC">TPDESC</label>
+            <label class="form-label" for="TPDESC">Modo Pagamento</label>
             <select id="TPDESC" name="TPDESC" class="form-select">
               <option value="">---</option>
             </select>
           </div>
         <div class="col-md-3">
-          <label class="form-label" for="ETTILIQ">ETTILIQ</label>
+          <label class="form-label" for="ETTILIQ">Base</label>
           <input type="number" step="0.01" id="ETTILIQ" name="ETTILIQ" class="form-control" readonly>
         </div>
         <div class="col-md-3">
-          <label class="form-label" for="ETTIVA">ETTIVA</label>
+          <label class="form-label" for="ETTIVA">IVA</label>
           <input type="number" step="0.01" id="ETTIVA" name="ETTIVA" class="form-control" readonly>
         </div>
         <div class="col-md-3">
-          <label class="form-label" for="ETOTAL">ETOTAL</label>
+          <label class="form-label" for="ETOTAL">Total</label>
           <input type="number" step="0.01" id="ETOTAL" name="ETOTAL" class="form-control" readonly>
         </div>
         </div>
@@ -117,17 +101,16 @@
     <table class="table table-sm table-hover align-middle fo-lines-table" id="linesTable">
       <thead>
         <tr>
-            <th>REF</th>
-            <th>DESIGN</th>
-            <th>QTT</th>
-            <th>UNIDADE</th>
-            <th>EPV</th>
-            <th>ETILIQUIDO</th>
-            <th>TABIVA</th>
-            <th>TAXAIVA</th>
-            <th>IVAINCL</th>
-            <th>FNCCUSTO</th>
-            <th>FAMILIA</th>
+            <th>Referência</th>
+            <th>Designação</th>
+            <th>Quant.</th>
+            <th>Un.</th>
+            <th>Preço</th>
+            <th>Total</th>
+            <th>IVA</th>
+            <th>Iva Incl.</th>
+            <th>C. Custo</th>
+            <th>Família</th>
             <th></th>
           </tr>
         </thead>
@@ -135,6 +118,21 @@
       </table>
     </div>
   </section>
+
+  <div class="form-actions mt-3">
+    <button type="button" id="btnSaveFo" class="btn btn-outline-primary btn-save">
+      <i class="fa-solid fa-save"></i>
+      <span class="btn-text">Gravar</span>
+    </button>
+    <button type="button" id="btnCancelFo" class="btn btn-outline-secondary btn-cancel">
+      <i class="fa-solid fa-ban"></i>
+      <span class="btn-text">Cancelar</span>
+    </button>
+    <button type="button" id="btnDeleteFo" class="btn btn-outline-secondary btn-delete">
+      <i class="fa-solid fa-trash-alt"></i>
+      <span class="btn-text">Eliminar</span>
+    </button>
+  </div>
 </div>
 
 <!-- Estilo inline dedicado à grelha de linhas -->
@@ -194,8 +192,7 @@
   /* Right align numeric columns in grid */
   .fo-lines-table tbody tr td:nth-child(3),
   .fo-lines-table tbody tr td:nth-child(5),
-  .fo-lines-table tbody tr td:nth-child(6),
-  .fo-lines-table tbody tr td:nth-child(8) {
+  .fo-lines-table tbody tr td:nth-child(6) {
     text-align: right;
   }
 </style>
@@ -350,8 +347,7 @@
   /* Right align numeric columns in grid */
   .fo-lines-table tbody tr td:nth-child(3),
   .fo-lines-table tbody tr td:nth-child(5),
-  .fo-lines-table tbody tr td:nth-child(6),
-  .fo-lines-table tbody tr td:nth-child(8) {
+  .fo-lines-table tbody tr td:nth-child(6) {
     text-align: right;
   }
 </style>

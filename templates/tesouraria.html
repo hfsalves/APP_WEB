@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% set page_title = "Tesouraria" %}
+{% set page_name = "Tesouraria" %}
+{% block title %}Tesouraria{% endblock %}
+
+{% block content %}
+<div class="widget widget-calendar nd-cal mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="btn-group" role="group" aria-label="Tipos de vista">
+      <button type="button" class="btn btn-outline-primary active" id="viewCalendarBtn">
+        <i class="fa-regular fa-calendar"></i> Calendário
+      </button>
+      <button type="button" class="btn btn-outline-primary" id="viewAgendaBtn">
+        <i class="fa-solid fa-list"></i> Agenda
+      </button>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button id="prev-month" class="btn btn-link text-decoration-none" title="Mês anterior">&larr;</button>
+      <h3 id="month-year" class="m-0"></h3>
+      <button id="next-month" class="btn btn-link text-decoration-none" title="Mês seguinte">&rarr;</button>
+    </div>
+  </div>
+
+  <div id="calendarView" class="widget-body px-4 pb-4">
+    <div class="table-responsive">
+      <table class="table calendar-table mb-0">
+        <thead class="table-light">
+        <tr>
+          <th>Segunda</th>
+          <th>Terça</th>
+          <th>Quarta</th>
+          <th>Quinta</th>
+          <th>Sexta</th>
+          <th>Sábado</th>
+          <th>Domingo</th>
+        </tr>
+        </thead>
+        <tbody id="calendar-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="agendaView" class="widget-body px-4 pb-4" style="display:none;">
+    <div id="agendaList" class="list-group list-group-flush"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .calendar-table { border-collapse: separate; border-spacing: 0; }
+  .calendar-table td { height: 110px; vertical-align: top; }
+  .calendar-table thead th { border-bottom:1px solid #e5e7eb; }
+  .calendar-table thead th, .calendar-table tbody td { border-right: 1px solid #e5e7eb; }
+  .calendar-table thead th:first-child, .calendar-table tbody td:first-child { border-left: 1px solid #e5e7eb; }
+  .calendar-table thead th:last-child, .calendar-table tbody td:last-child { border-right: 0; }
+  .day-num { font-size:.85rem; color:#6b7280; line-height:1; }
+  .badge-mov { display:inline-flex; align-items:center; gap:.35rem; padding:2px 6px; border-radius:8px; font-size:.78rem; color:#0f172a; }
+  .badge-ent { background:#dcfce7; }
+  .badge-sai { background:#fee2e2; }
+  .badge-saldo { background:#e0f2fe; }
+  .day-cell.weekend { background-color:#f9fafb; }
+  .day-cell.today { outline:2px solid #60a5fa; outline-offset:-2px; }
+  #agendaList .list-group-item { display:flex; justify-content:space-between; align-items:center; }
+  #agendaList .mov-labels { display:flex; gap:.35rem; align-items:center; flex-wrap:wrap; }
+</style>
+<script src="{{ url_for('static', filename='js/tesouraria.js') }}"></script>
+{% endblock %}

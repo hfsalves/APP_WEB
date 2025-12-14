@@ -1004,6 +1004,32 @@ def create_app():
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    # Tesouraria
+    @app.route('/tesouraria')
+    @login_required
+    def tesouraria_page():
+        return render_template('tesouraria.html', page_title='Tesouraria')
+
+    @app.route('/generic/api/tesouraria')
+    @login_required
+    def api_tesouraria():
+        try:
+            start = request.args.get('start')
+            end = request.args.get('end')
+            if not start or not end:
+                return jsonify({'error': 'Parâmetros start/end obrigatórios'}), 400
+            sql = text("""
+                SELECT DATAENTRADA AS DATA, TIPOLINHA AS TIPO, SUM(VALOR) AS VALOR
+                FROM DBO.V_ENTRADAS_TESOURARIA
+                WHERE DATAENTRADA BETWEEN :start AND :end
+                GROUP BY DATAENTRADA, TIPOLINHA
+                ORDER BY DATAENTRADA, TIPOLINHA
+            """)
+            rows = db.session.execute(sql, {'start': start, 'end': end}).mappings().all()
+            return jsonify([dict(r) for r in rows])
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     # -----------------------------
     # Configuração de Escalas (ES/ESL)
     # -----------------------------
