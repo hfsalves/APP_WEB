@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+
+{% block title %}{{ menu_label or "FO - Compras" }}{% endblock %}
+
+{% block content %}
+<div class="dynamic-form dynamic-form-card">
+  <div class="dynamic-form-toolbar d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <span class="fw-semibold">{{ menu_label or "FO - Compras" }}</span>
+      {% if record_stamp %}
+        <span class="text-muted small ms-2">{{ record_stamp }}</span>
+      {% endif %}
+    </div>
+    <div class="d-flex gap-2">
+      <button id="btnSaveFo" class="btn btn-outline-primary btn-sm">
+        <i class="fa-solid fa-save"></i> Gravar
+      </button>
+      <button id="btnDeleteFo" class="btn btn-outline-secondary btn-sm">
+        <i class="fa-solid fa-trash-alt"></i> Eliminar
+      </button>
+      <button id="btnCancelFo" class="btn btn-outline-secondary btn-sm">
+        <i class="fa-solid fa-ban"></i> Cancelar
+      </button>
+    </div>
+  </div>
+
+  <section class="dynamic-form-body dynamic-form-body-modern">
+    <form id="foForm" class="row g-3" autocomplete="off">
+      <input type="hidden" id="FOSTAMP" name="FOSTAMP" />
+      <input type="hidden" id="MORADA" name="MORADA" />
+      <input type="hidden" id="LOCAL" name="LOCAL" />
+      <input type="hidden" id="CODPOST" name="CODPOST" />
+      <input type="hidden" id="TPSTAMP" name="TPSTAMP" />
+      <input type="hidden" id="OLLOCAL" name="OLLOCAL" />
+
+      <div class="col-12">
+        <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label" for="DOCNOME">DOCNOME <span class="text-danger">*</span></label>
+          <select id="DOCNOME" name="DOCNOME" class="form-select" required>
+            <option value="">---</option>
+          </select>
+        </div>
+          <div class="col-md-3">
+            <label class="form-label" for="ADOC">ADOC <span class="text-danger">*</span></label>
+            <input type="text" id="ADOC" name="ADOC" class="form-control" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="DATA">DATA <span class="text-danger">*</span></label>
+            <input type="date" id="DATA" name="DATA" class="form-control" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="PDATA">PDATA <span class="text-danger">*</span></label>
+            <input type="date" id="PDATA" name="PDATA" class="form-control" required>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="row g-2">
+        <div class="col-md-6">
+          <label class="form-label" for="NOME">NOME <span class="text-danger">*</span></label>
+          <div class="position-relative">
+            <input type="text" id="NOME" name="NOME" class="form-control" autocomplete="off" required>
+            <div id="nomeSuggestions" class="dropdown-menu w-100" style="max-height:200px; overflow-y:auto;"></div>
+          </div>
+        </div>
+        <div class="col-md-1">
+          <label class="form-label" for="NO">NO <span class="text-danger">*</span></label>
+          <input type="number" step="1" id="NO" name="NO" class="form-control" readonly required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label" for="NCONT">NCONT</label>
+          <input type="text" id="NCONT" name="NCONT" class="form-control" readonly>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="CCUSTO">CCUSTO <span class="text-danger">*</span></label>
+          <select id="CCUSTO" name="CCUSTO" class="form-select" required>
+            <option value="">---</option>
+          </select>
+        </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label" for="TPDESC">TPDESC</label>
+            <select id="TPDESC" name="TPDESC" class="form-select">
+              <option value="">---</option>
+            </select>
+          </div>
+        <div class="col-md-3">
+          <label class="form-label" for="ETTILIQ">ETTILIQ</label>
+          <input type="number" step="0.01" id="ETTILIQ" name="ETTILIQ" class="form-control" readonly>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="ETTIVA">ETTIVA</label>
+          <input type="number" step="0.01" id="ETTIVA" name="ETTIVA" class="form-control" readonly>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="ETOTAL">ETOTAL</label>
+          <input type="number" step="0.01" id="ETOTAL" name="ETOTAL" class="form-control" readonly>
+        </div>
+        </div>
+      </div>
+    </form>
+  </section>
+
+  <section class="dynamic-form-panels mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <button id="btnAddLine" class="btn btn-outline-primary btn-sm">
+        <i class="fa fa-plus"></i> Adicionar linha
+      </button>
+    </div>
+  <div class="table-responsive fo-lines">
+    <table class="table table-sm table-hover align-middle fo-lines-table" id="linesTable">
+      <thead>
+        <tr>
+            <th>REF</th>
+            <th>DESIGN</th>
+            <th>QTT</th>
+            <th>UNIDADE</th>
+            <th>EPV</th>
+            <th>ETILIQUIDO</th>
+            <th>TABIVA</th>
+            <th>TAXAIVA</th>
+            <th>IVAINCL</th>
+            <th>FNCCUSTO</th>
+            <th>FAMILIA</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<!-- Estilo inline dedicado à grelha de linhas -->
+<style>
+  .fo-lines {
+    background: linear-gradient(145deg, #f8fafc 0%, #eef2f7 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 0.75rem;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  }
+  .fo-lines-table tbody tr td:nth-child(1),
+  .fo-lines-table thead th:nth-child(1) {
+    text-align: left !important;
+    width: auto !important;
+  }
+  .fo-lines-table {
+    width: 100%;
+    font-size: 0.82rem;
+    color: #0f172a;
+    border-collapse: separate;
+    border-spacing: 0 6px;
+  }
+  .fo-lines-table thead th {
+    font-weight: 700;
+    color: #1f2937;
+    border: none;
+    padding: 0.35rem 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: transparent;
+  }
+  .fo-lines-table tbody tr {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+  }
+  .fo-lines-table tbody tr td {
+    border: none;
+    padding: 0.35rem 0.6rem;
+    vertical-align: middle;
+  }
+  .fo-lines-table tbody tr:hover {
+    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
+    border-color: #cbd5e1;
+  }
+  .fo-lines-table .btn {
+    padding: 0.2rem 0.35rem;
+    font-size: 0.78rem;
+    border-radius: 8px;
+  }
+  /* Numeric fields right-aligned; labels remain default */
+  input[type="number"].form-control {
+    text-align: right;
+  }
+  /* Right align numeric columns in grid */
+  .fo-lines-table tbody tr td:nth-child(3),
+  .fo-lines-table tbody tr td:nth-child(5),
+  .fo-lines-table tbody tr td:nth-child(6),
+  .fo-lines-table tbody tr td:nth-child(8) {
+    text-align: right;
+  }
+</style>
+
+<!-- Modal Linha FN -->
+<div class="modal fade" id="lineModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Linha FN</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <form id="lineForm" class="row g-3">
+          <input type="hidden" id="FN_FNSTAMP" name="FNSTAMP" />
+
+          <div class="col-12">
+            <div class="row g-2">
+              <div class="col-md-3">
+                <label class="form-label" for="FN_REF">REF</label>
+                <div class="position-relative">
+                  <input type="text" id="FN_REF" name="REF" class="form-control" autocomplete="off">
+                  <div id="refSuggestions" class="dropdown-menu w-100" style="max-height:200px; overflow-y:auto;"></div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="FN_DESIGN">DESIGN</label>
+                <input type="text" id="FN_DESIGN" name="DESIGN" class="form-control">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="FN_FAMILIA">FAMILIA</label>
+                <input type="text" id="FN_FAMILIA" name="FAMILIA" class="form-control">
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div class="row g-2">
+              <div class="col-md-4">
+                <label class="form-label" for="FN_QTT">QTT</label>
+                <input type="number" step="0.01" id="FN_QTT" name="QTT" class="form-control">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label" for="FN_UNIDADE">UNIDADE</label>
+                <input type="text" id="FN_UNIDADE" name="UNIDADE" class="form-control">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="FN_EPV">EPV</label>
+                <input type="number" step="0.01" id="FN_EPV" name="EPV" class="form-control">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="FN_ETILIQUIDO">ETILIQUIDO</label>
+                <input type="number" step="0.01" id="FN_ETILIQUIDO" name="ETILIQUIDO" class="form-control" readonly>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div class="row g-2">
+              <div class="col-md-2">
+                <label class="form-label" for="FN_TABIVA">TABIVA</label>
+                <select id="FN_TABIVA" name="TABIVA" class="form-select">
+                  <option value="">---</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label" for="FN_TAXAIVA">TAXAIVA</label>
+                <input type="number" step="0.01" id="FN_TAXAIVA" name="TAXAIVA" class="form-control" readonly>
+              </div>
+              <div class="col-md-2 d-flex align-items-center">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" type="checkbox" id="FN_IVAINCL" name="IVAINCL" value="1">
+                  <label class="form-check-label" for="FN_IVAINCL">IVAINCL</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="FN_FNCCUSTO">FNCCUSTO</label>
+                <select id="FN_FNCCUSTO" name="FNCCUSTO" class="form-select">
+                  <option value="">---</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="btnSaveLine" class="btn btn-outline-primary">Gravar linha</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.FO_STAMP = {{ record_stamp|tojson }};
+  window.RETURN_TO = "{{ request.args.get('return_to', url_for('generic.view_table', table_name='FO')) }}";
+  window.SAVE_OVERLAY_TEXT = "A gravar...";
+</script>
+<script type="module" src="{{ url_for('static', filename='js/fo_compras_form.js') }}"></script>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+  .fo-lines {
+    background: linear-gradient(145deg, #f8fafc 0%, #eef2f7 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 0.75rem;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  }
+  .fo-lines-table {
+    width: 100%;
+    font-size: 0.82rem;
+    color: #0f172a;
+    border-collapse: separate;
+    border-spacing: 0 6px;
+  }
+  .fo-lines-table thead th {
+    font-weight: 700;
+    color: #1f2937;
+    border: none;
+    padding: 0.35rem 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: transparent;
+  }
+  .fo-lines-table tbody tr {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+  }
+  .fo-lines-table tbody tr td {
+    border: none;
+    padding: 0.35rem 0.6rem;
+    vertical-align: middle;
+  }
+  .fo-lines-table tbody tr:hover {
+    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
+    border-color: #cbd5e1;
+  }
+  .fo-lines-table .btn {
+    padding: 0.2rem 0.35rem;
+    font-size: 0.78rem;
+    border-radius: 8px;
+  }
+  /* Numeric fields right-aligned; labels remain default */
+  input[type="number"].form-control {
+    text-align: right;
+  }
+  /* Right align numeric columns in grid */
+  .fo-lines-table tbody tr td:nth-child(3),
+  .fo-lines-table tbody tr td:nth-child(5),
+  .fo-lines-table tbody tr td:nth-child(6),
+  .fo-lines-table tbody tr td:nth-child(8) {
+    text-align: right;
+  }
+</style>
+{% endblock %}

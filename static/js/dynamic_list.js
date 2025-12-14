@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalFiltros    = document.getElementById('modalFiltros');
   const filterForm      = document.getElementById('filter-form');
   const userPerms       = window.USER_PERMS[tableName] || {};
+  const tableForm       = (window.TABLE_FORM || '').trim();
+  const listUrl         = window.location.pathname + window.location.search;
   let currentCols       = [];
 
 
@@ -33,6 +35,29 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
+  const sanitizeBaseForm = (path) => {
+    const base = path.startsWith('/') ? path : `/${path}`;
+    return base.replace(/\/+$/, '');
+  };
+
+  const resolveFormUrl = (stamp = '') => {
+    if (tableForm) {
+      const pref = tableForm.startsWith('/') ? tableForm : `/generic/${tableForm}`;
+      const base = sanitizeBaseForm(pref).toLowerCase(); // rotas registadas em minúsculas
+      return stamp ? `${base}/${stamp}` : `${base}/`;
+    }
+    return `/generic/form/${tableName}/${stamp || ''}`;
+  };
+
+  const withReturnTo = (url) => {
+    try {
+      const sep = url.includes('?') ? '&' : '?';
+      return `${url}${sep}return_to=${encodeURIComponent(listUrl)}`;
+    } catch (_) {
+      return url;
+    }
+  };
+
   // 2) Move o modal de filtros para <body> (fora do blur)
   // 2) Move o modal de filtros para <body> (fora do blur)
   if (modalFiltros) { document.body.appendChild(modalFiltros); }
@@ -50,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (btnNew) {
     btnNew.addEventListener('click', () => {
-      location.href = `/generic/form/${tableName}/`;
+      location.href = withReturnTo(resolveFormUrl());
     });
   }
 
@@ -333,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // clique abre ediÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o
       const pk = r[`${tableName.toUpperCase()}STAMP`];
       tr.addEventListener('click', () => {
-        location.href = `/generic/form/${tableName}/${pk}`;
+        location.href = withReturnTo(resolveFormUrl(pk));
       });
       tbody.append(tr);
     });

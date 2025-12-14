@@ -98,6 +98,86 @@ def edit_table(table_name, record_stamp):
         linhas_exist=linhas_exist  # <-- adiciona aqui
     )
 
+@bp.route('/fo_compras_form/', defaults={'record_stamp': None})
+@bp.route('/fo_compras_form/<record_stamp>')
+@login_required
+def fo_compras_form(record_stamp):
+    menu_item  = Menu.query.filter_by(tabela='FO').first()
+    menu_label = menu_item.nome if menu_item else "FO - Compras"
+    return render_template(
+        'fo_compras_form.html',
+        record_stamp=record_stamp,
+        menu_label=menu_label
+    )
+
+@bp.route('/api/fo/tp_options')
+@login_required
+def fo_tp_options():
+    try:
+        sql = text("""
+            SELECT TPSTAMP, TPDESC, DIAS, OLLOCAL
+            FROM V_TP
+            ORDER BY TPDESC
+        """)
+        rows = db.session.execute(sql).fetchall()
+        return jsonify([dict(r._mapping) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro em fo_tp_options')
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/fo/search_artigos')
+@login_required
+def fo_search_artigos():
+    term = (request.args.get('q') or '').strip()
+    if len(term) < 2:
+        return jsonify([])
+    try:
+        sql = text("""
+            SELECT TOP 10 REF, DESIGN, TABIVA, FAMILIA
+            FROM V_ST
+            WHERE REF LIKE :t OR DESIGN LIKE :t
+            ORDER BY REF
+        """)
+        rows = db.session.execute(sql, {'t': f'%{term}%'}).fetchall()
+        return jsonify([dict(r._mapping) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro em fo_search_artigos')
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/fo/search_cliente')
+@login_required
+def fo_search_cliente():
+    term = (request.args.get('q') or '').strip()
+    if len(term) < 2:
+        return jsonify([])
+    try:
+        sql = text("""
+            SELECT TOP 10 NO, NOME, NCONT, MORADA, LOCAL, CODPOST
+            FROM V_FL
+            WHERE NOME LIKE :t
+            ORDER BY NOME
+        """)
+        rows = db.session.execute(sql, {'t': f'%{term}%'}).fetchall()
+        return jsonify([dict(r._mapping) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro em fo_search_cliente')
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/fo/taxas')
+@login_required
+def fo_taxas():
+    try:
+        sql = text("""
+            SELECT TABIVA, TAXAIVA
+            FROM V_TAXASIVA
+            ORDER BY TABIVA
+        """)
+        rows = db.session.execute(sql).fetchall()
+        return jsonify([dict(r._mapping) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro em fo_taxas')
+        return jsonify({'error': str(e)}), 500
+
 # --------------------------------------------------
 # API: DESCRIBE ou LISTAGEM
 # --------------------------------------------------

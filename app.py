@@ -79,6 +79,7 @@ def create_app():
         menu_structure = []
         perms = {}
         menu_botoes = {}
+        menu_forms = {}
 
         if current_user.is_authenticated:
             # 1) Carrega todos os menus (filtra admin se for caso)
@@ -209,12 +210,15 @@ def create_app():
                 if not isinstance(g, dict) or g.get('mostrar', True) or (g.get('children') and len(g['children']) > 0)
             ]
 
+            menu_forms = { m.tabela: getattr(m, 'form', None) for m in menu_items }
+
         return {
             'menu_items'     : menu_items,
             'menu_structure' : menu_structure,
             'user_perms'     : perms,
             'page_name'      : page_name,
             'menu_botoes'    : menu_botoes,
+            'menu_forms'     : menu_forms,
             'is_dev'         : getattr(current_user, 'DEV', False) if current_user.is_authenticated else False,
             'can_open_mn'    : can_open_mn if current_user.is_authenticated else False,
             'can_open_fs'    : can_open_fs if current_user.is_authenticated else False

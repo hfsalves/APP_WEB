@@ -10,9 +10,8 @@ function parseNumber(val) {
 function formatNumber(n) {
   const num = Number(n);
   if (isNaN(num)) return '';
-  const parts = num.toFixed(2).split('.');
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ');
-  return parts.join(',');
+  const intStr = String(Math.trunc(num));
+  return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 function formatTitle(str) {
   return str.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());

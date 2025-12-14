@@ -59,6 +59,7 @@
 
 <script>
   window.TABLE_NAME = "{{ table_name }}";
+  window.TABLE_FORM = {{ menu_forms.get(table_name)|tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/dynamic_list.js') }}"></script>
 {% endblock %}
