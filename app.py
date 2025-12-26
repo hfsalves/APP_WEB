@@ -4,6 +4,7 @@ import subprocess
 import shutil
 import pyodbc
 import json
+from decimal import Decimal
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date
@@ -25,6 +26,15 @@ def create_app():
         "&TrustServerCertificate=Yes&protocol=TCP&application_name=SZERO"
     )
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    radar_conn_str = os.environ.get('RADAR_CONN_STR') or (
+        "DRIVER={ODBC Driver 17 for SQL Server};"
+        "SERVER=hfsalves.mooo.com,50002;"
+        "DATABASE=GESTAO;"
+        "UID=sa;"
+        "PWD=enterprise;"
+        "TrustServerCertificate=Yes;"
+        "Application Name=SZERO"
+    )
 
     # Garantir JSON e respostas com UTF-8 para evitar problemas de acentuaÃ§Ã£o
     try:
@@ -646,6 +656,218 @@ def create_app():
     def monitor_page():
         return render_template('monitor.html')
 
+    @app.route('/radar')
+    @login_required
+    def radar_page():
+        radar_rows = []
+        radar_error = None
+        radar_sql = """
+/*  RADAR (1 linha por alojamento)
+    - HOJE+1 até HOJE+30
+    - Noites livres = noites que NÃO existem em v_diario_all (por CCUSTO, DATA)
+    - Só conta livres vendáveis: blocos consecutivos com >= 2 noites
+    - Métricas por alojamento:
+        Livres_D7, Livres_D14, Livres_D30
+        Pressao_D7, Pressao_D14, Pressao_D30
+        ADR_60d (média VALOR>0 últimos 60 dias; fallback = média global 60d)
+        Sugestão de Ação (prioriza risco D7)
+*/
+
+DECLARE @Hoje date = CAST(GETDATE() AS date);
+DECLARE @DataInicio date = DATEADD(day, 1, @Hoje);
+DECLARE @DataFim    date = DATEADD(day, 30, @Hoje);
+
+;WITH
+Aloj AS (
+    SELECT
+        al.nome as CCUSTO,
+        al.TIPO
+    FROM dbo.AL al
+    WHERE 1=1
+      -- aplica aqui os teus filtros (fechados/inativos)
+      AND ISNULL(al.FECHADO, 0) = 0
+      -- AND ISNULL(al.ATIVO, 1) = 1
+),
+Cal AS (
+    SELECT @DataInicio AS [DATA]
+    UNION ALL
+    SELECT DATEADD(day, 1, [DATA])
+    FROM Cal
+    WHERE [DATA] < @DataFim
+),
+Occ AS (
+    -- ocupadas = existem na view
+    SELECT DISTINCT
+        v.CCUSTO,
+        CAST(v.[DATA] AS date) AS [DATA]
+    FROM dbo.v_diario_all v
+    WHERE v.[DATA] BETWEEN @DataInicio AND @DataFim
+),
+Livres AS (
+    -- livres = (alojamento x calendário) sem registo em Occ
+    SELECT
+        a.CCUSTO,
+        a.TIPO,
+        c.[DATA]
+    FROM Aloj a
+    CROSS JOIN Cal c
+    LEFT JOIN Occ o
+      ON o.CCUSTO = a.CCUSTO
+     AND o.[DATA] = c.[DATA]
+    WHERE o.CCUSTO IS NULL
+),
+LivresComGrupo AS (
+    -- ilhas de livres consecutivas
+    SELECT
+        CCUSTO,
+        TIPO,
+        [DATA],
+        DATEADD(day, -ROW_NUMBER() OVER (PARTITION BY CCUSTO ORDER BY [DATA]), [DATA]) AS grp
+    FROM Livres
+),
+LivresValidas AS (
+    -- só blocos com >= 2 noites; e já com bucket temporal
+    SELECT
+        l.CCUSTO,
+        l.TIPO,
+        l.[DATA],
+        DATEDIFF(day, @Hoje, l.[DATA]) AS Dias_Ate,
+        CASE
+            WHEN DATEDIFF(day, @Hoje, l.[DATA]) BETWEEN 1 AND 7  THEN 'D7'
+            WHEN DATEDIFF(day, @Hoje, l.[DATA]) BETWEEN 8 AND 14 THEN 'D14'
+            WHEN DATEDIFF(day, @Hoje, l.[DATA]) BETWEEN 15 AND 30 THEN 'D30'
+        END AS Janela
+    FROM LivresComGrupo l
+    JOIN (
+        SELECT CCUSTO, grp
+        FROM LivresComGrupo
+        GROUP BY CCUSTO, grp
+        HAVING COUNT(*) >= 2
+    ) g
+      ON g.CCUSTO = l.CCUSTO
+     AND g.grp    = l.grp
+    WHERE
+        DATEDIFF(day, @Hoje, l.[DATA]) BETWEEN 1 AND 30
+),
+LivresAgg AS (
+    SELECT
+        CCUSTO,
+        TIPO,
+        SUM(CASE WHEN Janela = 'D7'  THEN 1 ELSE 0 END)  AS Livres_D7,
+        SUM(CASE WHEN Janela = 'D14' THEN 1 ELSE 0 END)  AS Livres_D14,
+        SUM(CASE WHEN Janela = 'D30' THEN 1 ELSE 0 END)  AS Livres_D30
+    FROM LivresValidas
+    GROUP BY CCUSTO, TIPO
+),
+ADR_Aloj_60d AS (
+    SELECT
+        v.CCUSTO,
+        AVG(CAST(v.VALOR AS decimal(18,6))) AS ADR_60d
+    FROM dbo.v_diario_all v
+    WHERE v.[DATA] >= DATEADD(day, -60, @Hoje)
+      AND v.[DATA] <  @Hoje
+      AND v.VALOR IS NOT NULL
+      AND v.VALOR > 0
+    GROUP BY v.CCUSTO
+),
+ADR_Portfolio_60d AS (
+    SELECT
+        AVG(CAST(v.VALOR AS decimal(18,6))) AS ADR_Portfolio_60d
+    FROM dbo.v_diario_all v
+    WHERE v.[DATA] >= DATEADD(day, -60, @Hoje)
+      AND v.[DATA] <  @Hoje
+      AND v.VALOR IS NOT NULL
+      AND v.VALOR > 0
+),
+Base AS (
+    SELECT
+        a.CCUSTO AS Alojamento,
+        a.TIPO,
+        ISNULL(l.Livres_D7,  0) AS Livres_D7,
+        ISNULL(l.Livres_D14, 0) AS Livres_D14,
+        ISNULL(l.Livres_D30, 0) AS Livres_D30,
+        CAST(1.0 * ISNULL(l.Livres_D7,  0) / 7.0  AS decimal(10,4)) AS Pressao_D7,
+        CAST(1.0 * ISNULL(l.Livres_D14, 0) / 7.0  AS decimal(10,4)) AS Pressao_D14,
+        CAST(1.0 * ISNULL(l.Livres_D30, 0) / 16.0 AS decimal(10,4)) AS Pressao_D30,
+        COALESCE(adr.ADR_60d, p.ADR_Portfolio_60d) AS ADR_Usado_60d,
+        p.ADR_Portfolio_60d
+    FROM Aloj a
+    LEFT JOIN LivresAgg l
+      ON l.CCUSTO = a.CCUSTO
+    LEFT JOIN ADR_Aloj_60d adr
+      ON adr.CCUSTO = a.CCUSTO
+    CROSS JOIN ADR_Portfolio_60d p
+)
+SELECT
+    Alojamento,
+    TIPO,
+    Livres_D7,
+    Livres_D14,
+    Livres_D30,
+    Pressao_D7,
+    Pressao_D14,
+    Pressao_D30,
+    ADR_Usado_60d,
+    ADR_Portfolio_60d,
+    CAST((ADR_Usado_60d / NULLIF(ADR_Portfolio_60d,0)) - 1 AS decimal(10,4)) AS Desvio_ADR,
+    CASE
+        WHEN Pressao_D7 >= 0.40 AND ADR_Usado_60d >= ADR_Portfolio_60d
+            THEN 'Urgente: baixar preco / abrir regras (D7)'
+        WHEN Pressao_D7 >= 0.40
+            THEN 'Urgente: mexer em regras/anuncio (D7)'
+        WHEN Pressao_D14 >= 0.50 AND ADR_Usado_60d >= ADR_Portfolio_60d
+            THEN 'Ajuste: preco ligeiro / min nights (D14)'
+        WHEN Pressao_D14 >= 0.50
+            THEN 'Ajuste: monitorizar + regras (D14)'
+        WHEN Pressao_D30 >= 0.60
+            THEN 'Atencao: comecar a trabalhar D30'
+        ELSE 'OK'
+    END AS Acao
+FROM Base
+ORDER BY
+    CASE
+        WHEN Pressao_D7  >= 0.40 THEN 1
+        WHEN Pressao_D14 >= 0.50 THEN 2
+        WHEN Pressao_D30 >= 0.60 THEN 3
+        ELSE 4
+    END,
+    Pressao_D7 DESC,
+    Pressao_D14 DESC,
+    Pressao_D30 DESC,
+    Alojamento
+OPTION (MAXRECURSION 32767);
+        """
+
+        try:
+            with pyodbc.connect(radar_conn_str) as conn:
+                cur = conn.cursor()
+                cur.execute(radar_sql)
+                cols = [c[0] for c in cur.description]
+                for raw in cur.fetchall():
+                    row = {}
+                    for col_name, val in zip(cols, raw):
+                        if isinstance(val, Decimal):
+                            row[col_name] = float(val)
+                        elif isinstance(val, (datetime, date)):
+                            row[col_name] = val.isoformat()
+                        else:
+                            row[col_name] = val
+                    radar_rows.append(row)
+        except Exception:
+            radar_error = "Não foi possível carregar o radar neste momento. Tenta novamente em breve."
+            try:
+                app.logger.exception("Erro ao obter dados do Radar de Atenção")
+            except Exception:
+                pass
+
+        status_code = 500 if radar_error else 200
+        return render_template(
+            'radar.html',
+            page_title='Radar de Atenção',
+            radar_rows=radar_rows,
+            radar_error=radar_error
+        ), status_code
+
     # Performance dashboard page
     @app.route('/performance')
     @login_required
@@ -1010,22 +1232,41 @@ def create_app():
     def tesouraria_page():
         return render_template('tesouraria.html', page_title='Tesouraria')
 
+    @app.route('/generic/api/tesouraria/contas')
+    @login_required
+    def api_tesouraria_contas():
+        try:
+            sql = text("""
+                SELECT BANCO, CONTA, ORDEM, NOCONTA
+                FROM V_BL
+                ORDER BY ORDEM, BANCO, CONTA
+            """)
+            rows = db.session.execute(sql).mappings().all()
+            return jsonify([dict(r) for r in rows])
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/generic/api/tesouraria')
     @login_required
     def api_tesouraria():
         try:
             start = request.args.get('start')
             end = request.args.get('end')
+            account = (request.args.get('account') or '').strip()
             if not start or not end:
                 return jsonify({'error': 'Parâmetros start/end obrigatórios'}), 400
-            sql = text("""
-                SELECT DATAENTRADA AS DATA, TIPOLINHA AS TIPO, SUM(VALOR) AS VALOR
+            base_sql = """
+                SELECT DATAENTRADA AS DATA, TIPOLINHA AS TIPO, SUM(VALOR) AS VALOR, NoConta AS NOCONTA
                 FROM DBO.V_ENTRADAS_TESOURARIA
                 WHERE DATAENTRADA BETWEEN :start AND :end
-                GROUP BY DATAENTRADA, TIPOLINHA
-                ORDER BY DATAENTRADA, TIPOLINHA
-            """)
-            rows = db.session.execute(sql, {'start': start, 'end': end}).mappings().all()
+            """
+            params = {'start': start, 'end': end}
+            if account:
+                base_sql += " AND NoConta = :account"
+                params['account'] = account
+            base_sql += " GROUP BY DATAENTRADA, TIPOLINHA, NoConta ORDER BY DATAENTRADA, TIPOLINHA"
+            sql = text(base_sql)
+            rows = db.session.execute(sql, params).mappings().all()
             return jsonify([dict(r) for r in rows])
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -2039,10 +2280,6 @@ app = create_app()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-
-
-
 
 
 

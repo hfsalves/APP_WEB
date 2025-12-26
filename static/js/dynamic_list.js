@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const tableName       = window.TABLE_NAME;
   const gridDiv         = document.getElementById('grid');
   const btnFilterToggle = document.getElementById('btnFilterToggle');
+  const btnNewAttachment= document.getElementById('btnNewAttachment');
   const btnNew          = document.getElementById('btnNew');
   const modalFiltros    = document.getElementById('modalFiltros');
   const filterForm      = document.getElementById('filter-form');
@@ -12,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const tableForm       = (window.TABLE_FORM || '').trim();
   const listUrl         = window.location.pathname + window.location.search;
   let currentCols       = [];
+
 
 
   // Ajusta os botÃƒÆ’Ã‚Âµes do header (com guardas)
@@ -23,6 +25,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btnNew.innerHTML = '<i class="fa fa-plus"></i><span>Novo</span>';
     btnNew.className = 'btn btn-primary btn-sm';
   }
+  if (btnNewAttachment) {
+    btnNewAttachment.innerHTML = '<i class="fa fa-paperclip"></i><span>+ Anexo</span>';
+    btnNewAttachment.classList.add('btn-attach-custom');
+  }
+  // removido botão de anexo específico
 
   // garante que ficam juntos
   const header = document.querySelector('.dynamic-header'); if(header){ header.classList.add('d-flex','align-items-center'); }
@@ -78,7 +85,60 @@ document.addEventListener('DOMContentLoaded', () => {
       location.href = withReturnTo(resolveFormUrl());
     });
   }
-
+  if (btnNewAttachment) {
+    btnNewAttachment.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const picker = document.createElement('input');
+      picker.type = 'file';
+      picker.accept = 'image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain';
+      picker.capture = 'environment'; // em mobile, permite camera
+      picker.style.display = 'none';
+      picker.multiple = false;
+      document.body.appendChild(picker);
+      picker.addEventListener('change', async () => {
+        const file = picker.files?.[0];
+        picker.remove();
+        if (!file) return;
+        try {
+          const recStamp = crypto.randomUUID().replace(/-/g, '').toUpperCase().slice(0, 25);
+          const fd = new FormData();
+          fd.append('file', file);
+          fd.append('table', 'FO');
+          fd.append('rec', recStamp);
+          fd.append('descricao', '');
+          const up = await fetch('/api/anexos/upload', { method: 'POST', body: fd });
+          if (!up.ok) {
+            const err = await up.json().catch(() => ({}));
+            alert('Erro ao anexar: ' + (err.error || up.statusText));
+            return;
+          }
+          // cria FO com o mesmo stamp e data de hoje + OBS
+          const todayIso = new Date().toISOString().slice(0, 10);
+          const foPayload = { FOSTAMP: recStamp, DATA: todayIso, PDATA: todayIso, OBS: 'Documento por classificar' };
+          const foRes = await fetch('/generic/api/FO', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(foPayload)
+          });
+          if (!foRes.ok) {
+            const err = await foRes.json().catch(() => ({}));
+            alert('Anexo gravado, mas falhou criar FO: ' + (err.error || foRes.statusText));
+            return;
+          }
+          alert('Anexo adicionado.');
+          if (typeof loadData === 'function') {
+            await loadData();
+          } else {
+            window.location.reload();
+          }
+        } catch (err) {
+          alert('Erro ao anexar: ' + err.message);
+        }
+      }, { once: true });
+      picker.click();
+    });
+  }
   // 5) Ao submeter filtros, esconde modal e carrega dados
   filterForm.addEventListener('submit', e => {
     e.preventDefault();

@@ -13,6 +13,12 @@
         <span>Filtrar</span>
       </button>
       {% if user_perms[table_name].inserir %}
+        {% if table_name == 'FO' %}
+          <button id="btnNewAttachment" class="btn btn-outline-primary btn-sm btn-attach-custom">
+            <i class="fa fa-paperclip"></i>
+            <span>+ Anexo</span>
+          </button>
+        {% endif %}
         <button id="btnNew" class="btn btn-primary btn-sm">
           <i class="fa fa-plus"></i>
           <span>Novo</span>

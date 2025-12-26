@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdn.datatables.net/v/bs5/dt-1.13.8/b-2.4.2/b-html5-2.4.2/datatables.min.css">
+
+<style>
+  .radar-page { font-size: 0.9rem; }
+  .radar-page table { font-size: 0.85rem; }
+  .radar-page .badge { font-size: 0.78rem; }
+</style>
+
+<div class="container-fluid py-3 radar-page">
+  {% if radar_error %}
+    <div class="alert alert-danger d-flex align-items-center" role="alert">
+      <i class="fa-solid fa-circle-exclamation me-2"></i>
+      <div>{{ radar_error }}</div>
+    </div>
+  {% endif %}
+
+  <div class="row g-3 mb-3" id="radarSummary">
+    <div class="col-sm-6 col-lg-3">
+      <div class="card shadow-sm h-100 border-0">
+        <div class="card-body">
+          <div class="text-muted text-uppercase fw-semibold small mb-1">Alojamentos 🔴</div>
+          <div class="fs-3 fw-bold" id="kpiRed">0</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card shadow-sm h-100 border-0">
+        <div class="card-body">
+          <div class="text-muted text-uppercase fw-semibold small mb-1">Alojamentos 🟠</div>
+          <div class="fs-3 fw-bold" id="kpiOrange">0</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card shadow-sm h-100 border-0">
+        <div class="card-body">
+          <div class="text-muted text-uppercase fw-semibold small mb-1">Alojamentos 🟢</div>
+          <div class="fs-3 fw-bold" id="kpiGreen">0</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card shadow-sm h-100 border-0">
+        <div class="card-body">
+          <div class="text-muted text-uppercase fw-semibold small mb-1">Noites livres</div>
+          <div class="d-flex align-items-baseline gap-3 flex-wrap">
+            <div>
+              <div class="text-uppercase small text-muted">D7</div>
+              <div class="fs-5 fw-bold" id="kpiLivres7">0</div>
+            </div>
+            <div>
+              <div class="text-uppercase small text-muted">D14</div>
+              <div class="fs-5 fw-bold" id="kpiLivres14">0</div>
+            </div>
+            <div>
+              <div class="text-uppercase small text-muted">D30</div>
+              <div class="fs-5 fw-bold" id="kpiLivres30">0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="filterUrgent">
+          <label class="form-check-label" for="filterUrgent">Só urgentes (🔴)</label>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <label class="form-label mb-0" for="filterTipo">Tipo</label>
+          <select id="filterTipo" class="form-select form-select-sm" style="width:auto;">
+            <option value="TODOS">Todos</option>
+            <option value="EXPLORACAO">Exploração</option>
+            <option value="GESTAO">Gestão</option>
+          </select>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <label class="form-label mb-0" for="filterPressao">Pressão D7 mínimo</label>
+          <input type="range" class="form-range" id="filterPressao" min="0" max="60" step="20" value="0" style="width:140px;">
+          <span class="badge bg-secondary" id="pressaoValue">0%</span>
+        </div>
+        <div class="ms-auto d-flex gap-2">
+          <button id="btnCsvExport" class="btn btn-outline-secondary btn-sm">
+            <i class="fa-solid fa-file-csv me-1"></i> Exportar CSV
+          </button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table id="radarTable" class="table table-sm table-striped table-hover w-100 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Alojamento</th>
+              <th>Tipo</th>
+              <th class="text-end">Livres D7</th>
+              <th class="text-end">Livres D14</th>
+              <th class="text-end">Livres D30</th>
+              <th class="text-end">Pressão D7</th>
+              <th class="text-end">Pressão D14</th>
+              <th class="text-end">Pressão D30</th>
+              <th class="text-end">ADR 60d</th>
+              <th class="text-end">ADR Portfólio</th>
+              <th class="text-end">Desvio ADR</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tfoot class="table-light">
+            <tr>
+              <th colspan="2" class="text-end">Totais:</th>
+              <th class="text-end" id="ftLivres7">0</th>
+              <th class="text-end" id="ftLivres14">0</th>
+              <th class="text-end" id="ftLivres30">0</th>
+              <th class="text-end" id="ftPressao7">-</th>
+              <th class="text-end" id="ftPressao14">-</th>
+              <th class="text-end" id="ftPressao30">-</th>
+              <th class="text-end" id="ftAdrUsado">-</th>
+              <th class="text-end" id="ftAdrPortfolio">-</th>
+              <th class="text-end" id="ftDesvioAdr">-</th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.RADAR_DATA = {{ radar_rows|tojson }};
+  window.RADAR_ERROR = {{ radar_error|tojson }};
+</script>
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.datatables.net/v/bs5/dt-1.13.8/b-2.4.2/b-html5-2.4.2/datatables.min.js"></script>
+  <script src="{{ url_for('static', filename='js/radar.js') }}"></script>
+{% endblock %}

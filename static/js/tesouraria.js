@@ -12,11 +12,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnViewAgenda = document.getElementById('viewAgendaBtn');
   const viewCalendar = document.getElementById('calendarView');
   const viewAgenda = document.getElementById('agendaView');
+  const accountFilter = document.getElementById('accountFilter');
 
   const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   let current = new Date();
   current = new Date(current.getFullYear(), current.getMonth(), 1);
   let cacheData = [];
+
+  const fmt = (n) => Number(n || 0).toLocaleString('pt-PT', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: true
+  });
 
   const weekdayMon0 = (d) => (d.getDay() + 6) % 7; // Monday=0
   const toIso = (d) => [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
@@ -106,16 +113,14 @@ document.addEventListener('DOMContentLoaded', () => {
         header.innerHTML = `<span class="day-num">${cursor.getDate()}</span>`;
         td.appendChild(header);
 
-        if (list.length) {
-          const wrap = document.createElement('div');
-          wrap.className = 'd-flex flex-column gap-1';
-          Object.entries(sumsByType).forEach(([tipo, val]) => {
-            const cls = tipo === 'EXPLORACAO' ? 'badge-ent' : (tipo === 'GESTAO' ? 'badge-sai' : 'badge-saldo');
-            wrap.innerHTML += `<span class="badge-mov ${cls}">${tipo}: ${val.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</span>`;
-          });
-          wrap.innerHTML += `<span class="badge-mov badge-saldo">Saldo: ${saldoDia.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</span>`;
-          td.appendChild(wrap);
-        }
+        const wrap = document.createElement('div');
+        wrap.className = 'd-flex flex-column gap-1';
+        Object.entries(sumsByType).forEach(([tipo, val]) => {
+          const cls = tipo === 'EXPLORACAO' ? 'badge-ent' : 'badge-sai';
+          wrap.innerHTML += `<span class="badge-mov ${cls}">${fmt(val)}</span>`;
+        });
+        wrap.innerHTML += `<span class="badge-mov badge-saldo">${fmt(saldoDia)}</span>`;
+        td.appendChild(wrap);
 
         tr.appendChild(td);
         cursor.setDate(cursor.getDate() + 1);
@@ -142,17 +147,18 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const saldoDia = cum.get(iso) ?? 0;
       const li = document.createElement('div');
-      li.className = 'list-group-item';
+      const wd = weekdayMon0(cursor);
+      li.className = 'list-group-item' + (wd >= 5 ? ' weekend' : '');
       li.innerHTML = `
         <div>
-          <div class="fw-semibold">${cursor.getDate().toString().padStart(2,'0')}/${(cursor.getMonth()+1).toString().padStart(2,'0')} (${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'][weekdayMon0(cursor)]})</div>
+          <div class="fw-semibold">${cursor.getDate().toString().padStart(2,'0')}/${(cursor.getMonth()+1).toString().padStart(2,'0')} (${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'][wd]})</div>
         </div>
         <div class="mov-labels">
           ${Object.entries(sumsByType).map(([tipo,val]) => {
-            const cls = tipo === 'EXPLORACAO' ? 'badge-ent' : (tipo === 'GESTAO' ? 'badge-sai' : 'badge-saldo');
-            return `<span class="badge-mov ${cls}">${tipo}: ${val.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</span>`;
+            const cls = tipo === 'EXPLORACAO' ? 'badge-ent' : 'badge-sai';
+            return `<span class="badge-mov ${cls}">${fmt(val)}</span>`;
           }).join('')}
-          <span class="badge-mov badge-saldo">Saldo: ${saldoDia.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</span>
+          <span class="badge-mov badge-saldo">${fmt(saldoDia)}</span>
         </div>
       `;
       agendaList.appendChild(li);
@@ -167,6 +173,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function loadAccounts() {
+    if (!accountFilter) return;
+    try {
+      const res = await fetch('/generic/api/tesouraria/contas');
+      if (!res.ok) throw new Error(res.statusText);
+      const contas = await res.json();
+      accountFilter.innerHTML = '<option value="">Todas</option>';
+      contas.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.NOCONTA ?? c.noconta ?? '';
+        const banco = c.BANCO || c.banco || '';
+        const conta = c.CONTA || c.conta || '';
+        opt.textContent = [banco, conta].filter(Boolean).join(' - ');
+        accountFilter.append(opt);
+      });
+    } catch (_) {}
+  }
+
   async function loadDataAndRender() {
     const { first, last, start, end } = getRangeForMonth(current);
     monthYearEl.textContent = `${monthNames[current.getMonth()]} de ${current.getFullYear()}`;
@@ -174,8 +198,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const fetchStart = new Date(current.getFullYear(), current.getMonth() - 1, 1);
     const startStr = toIso(fetchStart);
     const endStr = toIso(end);
+    const account = accountFilter?.value || '';
     try {
-      const res = await fetch(`${API}?start=${startStr}&end=${endStr}`);
+      const url = new URL(API, window.location.origin);
+      url.searchParams.set('start', startStr);
+      url.searchParams.set('end', endStr);
+      if (account) url.searchParams.set('account', account);
+      const res = await fetch(url.toString());
       if (!res.ok) throw new Error(res.statusText);
       cacheData = await res.json();
     } catch (e) {
@@ -211,8 +240,9 @@ document.addEventListener('DOMContentLoaded', () => {
     current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
     loadDataAndRender();
   });
+  accountFilter?.addEventListener('change', () => loadDataAndRender());
   btnViewCal?.addEventListener('click', () => switchView('cal'));
   btnViewAgenda?.addEventListener('click', () => switchView('agenda'));
 
-  loadDataAndRender();
+  loadAccounts().then(loadDataAndRender);
 });
