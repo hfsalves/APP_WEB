@@ -656,6 +656,272 @@ def create_app():
     def monitor_page():
         return render_template('monitor.html')
 
+    @app.route('/posicoes_pesquisas')
+    @login_required
+    def posicoes_pesquisas_alias():
+        return redirect(url_for('pesquisas_posicoes_page'))
+
+    @app.route('/pesquisas/posicoes')
+    @login_required
+    def pesquisas_posicoes_page():
+        return render_template('posicoes_pesquisas.html', page_title='Posições de Pesquisas')
+
+    @app.route('/api/pesquisas/posicoes')
+    @login_required
+    def api_pesquisas_posicoes():
+        sql_blocos = """
+DECLARE @Hoje date = CAST(GETDATE() AS date);
+DECLARE @DataInicio date = @Hoje;
+DECLARE @DataFim    date = DATEADD(day, 30, @Hoje);
+
+;WITH
+Aloj AS (
+    SELECT
+        al.nome as CCUSTO,
+        al.TIPO,
+        al.NMAIRBNB
+    FROM dbo.AL al
+    WHERE 1=1
+      AND ISNULL(al.FECHADO, 0) = 0
+),
+Cal AS (
+    SELECT @DataInicio AS [DATA]
+    UNION ALL
+    SELECT DATEADD(day, 1, [DATA])
+    FROM Cal
+    WHERE [DATA] < @DataFim
+),
+Occ AS (
+    SELECT DISTINCT
+        v.CCUSTO,
+        CAST(v.[DATA] AS date) AS [DATA]
+    FROM dbo.v_diario_all v
+    WHERE v.[DATA] BETWEEN @DataInicio AND @DataFim
+      AND ISNULL(v.VALOR, 0) <> 0  -- ignorar check-out (VALOR=0)
+),
+Livres AS (
+    SELECT
+        a.CCUSTO,
+        a.TIPO,
+        a.NMAIRBNB,
+        c.[DATA]
+    FROM Aloj a
+    CROSS JOIN Cal c
+    LEFT JOIN Occ o
+      ON o.CCUSTO = a.CCUSTO
+     AND o.[DATA] = c.[DATA]
+    WHERE o.CCUSTO IS NULL
+),
+LivresComGrupo AS (
+    SELECT
+        CCUSTO,
+        TIPO,
+        NMAIRBNB,
+        [DATA],
+        DATEADD(day, -ROW_NUMBER() OVER (PARTITION BY CCUSTO ORDER BY [DATA]), [DATA]) AS grp
+    FROM Livres
+),
+LivresValidas AS (
+    SELECT
+        l.CCUSTO,
+        l.TIPO,
+        l.NMAIRBNB,
+        l.[DATA],
+        l.grp
+    FROM LivresComGrupo l
+    JOIN (
+        SELECT CCUSTO, grp
+        FROM LivresComGrupo
+        GROUP BY CCUSTO, grp
+        HAVING COUNT(*) >= 2
+    ) g
+      ON g.CCUSTO = l.CCUSTO
+     AND g.grp    = l.grp
+    WHERE
+        DATEDIFF(day, @Hoje, l.[DATA]) BETWEEN 0 AND 30
+),
+Blocos AS (
+    SELECT
+        CCUSTO,
+        TIPO,
+        NMAIRBNB,
+        MIN([DATA]) AS DataInicio,
+        MAX([DATA]) AS DataFim,
+        COUNT(*) AS Noites
+    FROM LivresValidas
+    GROUP BY CCUSTO, TIPO, NMAIRBNB, grp
+)
+SELECT
+    b.CCUSTO,
+    b.TIPO,
+    b.NMAIRBNB,
+    b.DataInicio,
+    b.DataFim,
+    b.Noites
+FROM Blocos b
+ORDER BY b.CCUSTO, b.DataInicio
+OPTION (MAXRECURSION 32767);
+        """
+
+        sql_pesquisas = """
+DECLARE @Hoje date = CAST(GETDATE() AS date);
+DECLARE @DataInicio date = @Hoje;
+DECLARE @DataFim    date = DATEADD(day, 30, @Hoje);
+
+SELECT
+    PESQUISASSTAMP,
+    CCUSTO,
+    DATA,
+    NOITES,
+    HOSPEDES,
+    DTPESQUISA,
+    PAGINA,
+    POSICAO
+FROM PESQUISAS
+WHERE DATA BETWEEN @DataInicio AND @DataFim
+ORDER BY CCUSTO, DATA, DTPESQUISA DESC;
+        """
+
+        blocos = []
+        pesquisas = []
+        try:
+            with pyodbc.connect(radar_conn_str) as conn:
+                cur = conn.cursor()
+                cur.execute(sql_blocos)
+                cols = [c[0] for c in cur.description]
+                for raw in cur.fetchall():
+                    entry = {}
+                    for col_name, val in zip(cols, raw):
+                        if isinstance(val, (datetime, date)):
+                            entry[col_name] = val.isoformat()
+                        else:
+                            entry[col_name] = val
+                    blocos.append(entry)
+
+                cur.execute(sql_pesquisas)
+                cols2 = [c[0] for c in cur.description]
+                for raw in cur.fetchall():
+                    entry = {}
+                    for col_name, val in zip(cols2, raw):
+                        if isinstance(val, (datetime, date)):
+                            entry[col_name] = val.isoformat()
+                        else:
+                            entry[col_name] = val
+                    pesquisas.append(entry)
+        except Exception:
+            try:
+                app.logger.exception("Erro ao carregar posições de pesquisas")
+            except Exception:
+                pass
+            return jsonify({"error": "Não foi possível carregar os dados"}), 500
+
+        return jsonify({"blocks": blocos, "pesquisas": pesquisas})
+
+    @app.route('/api/pesquisas/posicoes/<stamp>', methods=['DELETE'])
+    @login_required
+    def api_pesquisas_posicoes_delete(stamp):
+        if not stamp:
+            return jsonify({"error": "stamp obrigatório"}), 400
+        try:
+            with pyodbc.connect(radar_conn_str) as conn:
+                cur = conn.cursor()
+                cur.execute("DELETE FROM PESQUISAS WHERE PESQUISASSTAMP = ?", stamp)
+                conn.commit()
+        except Exception:
+            try:
+                app.logger.exception("Erro ao eliminar pesquisa")
+            except Exception:
+                pass
+            return jsonify({"error": "Não foi possível eliminar"}), 500
+        return jsonify({"ok": True})
+
+    @app.route('/api/pesquisas/posicoes/<stamp>/relaunch', methods=['POST'])
+    @login_required
+    def api_pesquisas_posicoes_relaunch(stamp):
+        if not stamp:
+            return jsonify({"error": "stamp obrigatório"}), 400
+        try:
+            with pyodbc.connect(radar_conn_str) as conn:
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT CCUSTO, DATA, NOITES, HOSPEDES, NMAIRBNB
+                    FROM PESQUISAS
+                    WHERE PESQUISASSTAMP = ?
+                """, stamp)
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "Pesquisa não encontrada"}), 404
+                ccusto, data_val, noites_val, hosp_val, nmairbnb = row
+                novo_stamp = datetime.now().strftime("%Y%m%d%H%M%S%f")[:25]
+                cur.execute("""
+                    INSERT INTO PESQUISAS
+                        (PESQUISASSTAMP, CCUSTO, DATA, DTPESQUISA, NOITES, HOSPEDES, PAGINA, POSICAO, NMAIRBNB)
+                    VALUES
+                        (?, ?, ?, CAST(GETDATE() AS date), ?, ?, 0, 0, ?)
+                """, novo_stamp, ccusto, data_val, noites_val, hosp_val, nmairbnb)
+                conn.commit()
+        except Exception:
+            try:
+                app.logger.exception("Erro ao relançar pesquisa")
+            except Exception:
+                pass
+            return jsonify({"error": "Não foi possível relançar"}), 500
+        return jsonify({"ok": True, "stamp": novo_stamp})
+
+    @app.route('/api/pesquisas/posicoes', methods=['POST'])
+    @login_required
+    def api_pesquisas_posicoes_insert():
+        payload = request.get_json(silent=True) or {}
+        ccusto = (payload.get('ccusto') or '').strip()
+        data_inicio = payload.get('data')
+        noites = payload.get('noites')
+        hospedes = payload.get('hospedes')
+        nmairbnb = (payload.get('nmairbnb') or '').strip()
+
+        if not ccusto or not data_inicio or not noites:
+            return jsonify({"error": "ccusto, data e noites são obrigatórios"}), 400
+
+        try:
+            noites_int = int(noites)
+            if noites_int < 1:
+                noites_int = 1
+        except Exception:
+            noites_int = 1
+
+        try:
+            hospedes_int = int(hospedes or 2)
+            if hospedes_int < 1:
+                hospedes_int = 2
+        except Exception:
+            hospedes_int = 2
+
+        try:
+            data_obj = datetime.fromisoformat(data_inicio).date()
+        except Exception:
+            return jsonify({"error": "Data inválida"}), 400
+
+        stamp = datetime.now().strftime("%Y%m%d%H%M%S%f")[:25]
+        insert_sql = """
+INSERT INTO PESQUISAS
+    (PESQUISASSTAMP, CCUSTO, DATA, DTPESQUISA, NOITES, HOSPEDES, PAGINA, POSICAO, NMAIRBNB)
+VALUES
+    (?, ?, ?, CAST(GETDATE() AS date), ?, ?, 0, 0, ?);
+        """
+
+        try:
+            with pyodbc.connect(radar_conn_str) as conn:
+                cur = conn.cursor()
+                cur.execute(insert_sql, stamp, ccusto, data_obj, str(noites_int), hospedes_int, nmairbnb)
+                conn.commit()
+        except Exception:
+            try:
+                app.logger.exception("Erro ao inserir pesquisa para posição")
+            except Exception:
+                pass
+            return jsonify({"error": "Não foi possível registar a pesquisa"}), 500
+
+        return jsonify({"ok": True, "stamp": stamp})
+
     @app.route('/radar')
     @login_required
     def radar_page():
@@ -2280,6 +2546,3 @@ app = create_app()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-
-

@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+  .pos-card { border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+  .pos-card .header { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f1f1; }
+  .pos-card .body { padding: 0.75rem 1rem 1rem; }
+  .timeline-header,
+  .timeline-body { display: grid; grid-template-columns: repeat(15, minmax(0, 1fr)); gap: 2px; }
+  .timeline-header div { text-align: center; font-size: 11px; font-weight: 700; color: #475569; }
+  .timeline-body .day { height: 26px; border-radius: 4px; background: #e5e7eb; position: relative; cursor: pointer; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; }
+  .timeline-body .day.weekday-occupied { background: #e5e7eb; border-color: #d1d5db; }
+  .timeline-body .day.weekend-occupied { background: #9ca3af; border-color: #6b7280; }
+  .timeline-body .day.available { background: #bbf7d0; border-color: #34d399; }
+  .timeline-body .day.available.weekend { background: #a5f3fc; border-color: #22d3ee; }
+  .timeline-body .day.selected { background: #38bdf8; border-color: #0284c7; color: #0f172a; }
+  .timeline-body .day.selected-start { outline: 2px solid #2563eb; }
+  .timeline-body .day.selected-end { outline: 2px solid #1d4ed8; }
+  .btn-icon-mini { padding: 2px 5px; line-height: 1; height: 26px; }
+</style>
+
+<div class="container-fluid py-3">
+  <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+    <div class="d-flex align-items-center gap-2">
+      <label class="form-label mb-0 small text-muted">Alojamento</label>
+      <input type="text" id="filterNome" class="form-control form-control-sm" placeholder="Filtrar por nome...">
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <label class="form-label mb-0 small text-muted">Tipo</label>
+      <select id="filterTipo" class="form-select form-select-sm" style="width:140px;">
+        <option value="TODOS">Todos</option>
+        <option value="GESTAO">Gestão</option>
+        <option value="EXPLORACAO">Exploração</option>
+      </select>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <label class="form-label mb-0 small text-muted">Estado</label>
+      <select id="filterEstado" class="form-select form-select-sm" style="width:160px;">
+        <option value="TODOS">Todos</option>
+        <option value="EM_PESQUISA">Em pesquisa</option>
+        <option value="NAO_ENCONTRADO">Não encontrado</option>
+        <option value="ALERTA">Amarelo/Vermelho</option>
+      </select>
+    </div>
+    <button class="btn btn-primary btn-sm" id="btnReload">
+      <i class="fa-solid fa-rotate me-1"></i> Recarregar
+    </button>
+    <div class="badge bg-secondary" id="badgePesquisaPendentes">Em pesquisa: 0</div>
+    <div class="text-muted small">
+      Clique numa data para escolher início, clique noutra mais à frente para fechar o intervalo. Ajuste hóspedes no próprio alojamento e clique em “Lançar pesquisa”.
+    </div>
+  </div>
+
+  <div id="posicoesGrid" class="row g-3"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/posicoes_pesquisas.js') }}"></script>
+{% endblock %}
