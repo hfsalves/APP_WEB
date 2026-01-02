@@ -47,6 +47,10 @@ const btnAddAnexo = document.getElementById('btnAddAnexo');
 const inputAnexoFile = document.getElementById('inputAnexoFile');
 const inputAnexoCamera = document.getElementById('inputAnexoCamera');
 const anexosList = document.getElementById('anexosList');
+const anexoPreviewModalEl = document.getElementById('anexoPreviewModal');
+const anexoPreviewBody = document.getElementById('anexoPreviewBody');
+const anexoPreviewTitle = document.getElementById('anexoPreviewTitle');
+const anexoPreviewModal = anexoPreviewModalEl ? new bootstrap.Modal(anexoPreviewModalEl) : null;
 
 const foFields = [
   'FOSTAMP',
@@ -220,6 +224,31 @@ async function uploadAnexo(file) {
     return;
   }
   refreshAnexos();
+}
+
+function openAnexoPreview() {
+  return;
+}
+
+function closeAnexoPreview() {
+  return;
+}
+
+function buildFoObs(payload) {
+  const msgs = [];
+  const hasFamiliaMissing = linesData.some(l => !((l.FAMILIA || '').toString().trim()));
+  const hasRefMissing = linesData.some(l => !((l.REF || '').toString().trim()));
+  const hasCcustoLineMissing = linesData.some(l => !((l.FNCCUSTO || '').toString().trim()));
+  const cabCcustoMissing = !((payload.CCUSTO || '').toString().trim());
+  const fornecedorMissing = Number(payload.NO || 0) === 0;
+
+  if (hasFamiliaMissing) msgs.push('Famílias em Falta');
+  if (hasRefMissing) msgs.push('Referências em Falta');
+  if (fornecedorMissing) msgs.push('Fornecedor em Falta');
+  if (hasCcustoLineMissing || cabCcustoMissing) msgs.push('CCusto em Falta');
+
+  if (!msgs.length) return 'Ok - Tudo validado';
+  return msgs.join(' ; ');
 }
 
 async function loadDocnomeOptions() {
@@ -843,6 +872,7 @@ async function saveFo() {
     return;
   }
   const payload = getFoPayload();
+  payload.OBS = buildFoObs(payload);
   if (!payload.NO) payload.NO = 0;
   if (!payload.PDATA && payload.DATA) payload.PDATA = payload.DATA;
   const isNew = isNewRecord;
