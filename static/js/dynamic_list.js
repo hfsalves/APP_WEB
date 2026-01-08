@@ -168,16 +168,70 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  let jsQrLoaded = false;
+
+  function loadJsQrLibrary() {
+    return new Promise((resolve, reject) => {
+      if (jsQrLoaded && window.jsQR) return resolve(window.jsQR);
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+      script.async = true;
+      script.onload = () => {
+        jsQrLoaded = true;
+        resolve(window.jsQR);
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  async function fileToImageData(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || img.width;
+            canvas.height = img.naturalHeight || img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            resolve(data);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function detectQrFromFile(file) {
     if (!file) return null;
-    if (typeof BarcodeDetector === 'undefined') return null;
-    try {
-      const detector = new BarcodeDetector({ formats: ['qr_code'] });
-      const img = await createImageBitmap(file);
-      const results = await detector.detect(img);
-      if (results && results.length) {
-        return results[0].rawValue || '';
+    // 1) BarcodeDetector (Chrome/Android)
+    if (typeof BarcodeDetector !== 'undefined') {
+      try {
+        const detector = new BarcodeDetector({ formats: ['qr_code'] });
+        const bitmap = await (window.createImageBitmap ? createImageBitmap(file) : null);
+        if (bitmap) {
+          const results = await detector.detect(bitmap);
+          if (results && results.length) return results[0].rawValue || '';
+        }
+      } catch (_) {
+        // fallback below
       }
+    }
+    // 2) jsQR fallback (iOS/Safari)
+    try {
+      const jsQR = await loadJsQrLibrary();
+      const imageData = await fileToImageData(file);
+      const res = jsQR(imageData.data, imageData.width, imageData.height);
+      if (res && res.data) return res.data;
     } catch (_) {
       // ignore
     }
@@ -520,6 +574,5 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 });
-
 
 
