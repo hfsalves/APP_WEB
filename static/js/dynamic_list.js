@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalFiltros    = document.getElementById('modalFiltros');
   const filterForm      = document.getElementById('filter-form');
   const userPerms       = window.USER_PERMS[tableName] || {};
+  const isFoList        = (tableName || '').toUpperCase() === 'FO';
   const tableForm       = (window.TABLE_FORM || '').trim();
   const listUrl         = window.location.pathname + window.location.search;
   let currentCols       = [];
@@ -86,57 +87,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   if (btnNewAttachment) {
-    btnNewAttachment.addEventListener('click', (e) => {
+    btnNewAttachment.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const picker = document.createElement('input');
-      picker.type = 'file';
-      picker.accept = 'image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain';
-      picker.capture = 'environment'; // em mobile, permite camera
-      picker.style.display = 'none';
-      picker.multiple = false;
-      document.body.appendChild(picker);
-      picker.addEventListener('change', async () => {
-        const file = picker.files?.[0];
-        picker.remove();
-        if (!file) return;
-        try {
-          const recStamp = crypto.randomUUID().replace(/-/g, '').toUpperCase().slice(0, 25);
-          const fd = new FormData();
-          fd.append('file', file);
-          fd.append('table', 'FO');
-          fd.append('rec', recStamp);
-          fd.append('descricao', '');
-          const up = await fetch('/api/anexos/upload', { method: 'POST', body: fd });
-          if (!up.ok) {
-            const err = await up.json().catch(() => ({}));
-            alert('Erro ao anexar: ' + (err.error || up.statusText));
-            return;
-          }
-          // cria FO com o mesmo stamp e data de hoje + OBS
-          const todayIso = new Date().toISOString().slice(0, 10);
-          const foPayload = { FOSTAMP: recStamp, DATA: todayIso, PDATA: todayIso, OBS: 'Documento por classificar' };
-          const foRes = await fetch('/generic/api/FO', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(foPayload)
-          });
-          if (!foRes.ok) {
-            const err = await foRes.json().catch(() => ({}));
-            alert('Anexo gravado, mas falhou criar FO: ' + (err.error || foRes.statusText));
-            return;
-          }
-          alert('Anexo adicionado.');
-          if (typeof loadData === 'function') {
-            await loadData();
-          } else {
-            window.location.reload();
-          }
-        } catch (err) {
-          alert('Erro ao anexar: ' + err.message);
+      try {
+        if (isFoList) {
+          await handleFoAttachmentFlow();
+        } else {
+          await handleGenericAttachmentFlow();
         }
-      }, { once: true });
-      picker.click();
+      } catch (err) {
+        alert('Erro ao anexar: ' + err.message);
+      }
     });
   }
   // 5) Ao submeter filtros, esconde modal e carrega dados
@@ -183,6 +145,137 @@ document.addEventListener('DOMContentLoaded', () => {
     const overlay = document.getElementById('loadingOverlay');
     overlay.style.opacity = '0';
     setTimeout(() => overlay.style.display = 'none', 250); // espera pelo fade-out
+  }
+
+  async function captureFileFromCamera(accept = 'image/*', captureEnv = 'environment') {
+    return new Promise((resolve, reject) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = accept;
+      if (captureEnv) input.capture = captureEnv;
+      input.style.display = 'none';
+      document.body.appendChild(input);
+      input.addEventListener('change', () => {
+        const file = input.files?.[0];
+        input.remove();
+        resolve(file || null);
+      }, { once: true });
+      input.addEventListener('error', (err) => {
+        input.remove();
+        reject(err);
+      }, { once: true });
+      input.click();
+    });
+  }
+
+  async function detectQrFromFile(file) {
+    if (!file) return null;
+    if (typeof BarcodeDetector === 'undefined') return null;
+    try {
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      const img = await createImageBitmap(file);
+      const results = await detector.detect(img);
+      if (results && results.length) {
+        return results[0].rawValue || '';
+      }
+    } catch (_) {
+      // ignore
+    }
+    return null;
+  }
+
+  async function handleFoAttachmentFlow() {
+    const wantsQr = confirm('O documento tem QR Code?');
+    let qrValue = '';
+    if (wantsQr) {
+      const qrPhoto = await captureFileFromCamera('image/*', 'environment');
+      if (!qrPhoto) return;
+      const detected = await detectQrFromFile(qrPhoto);
+      if (detected) {
+        qrValue = detected.toString().trim();
+      } else {
+        const manual = prompt('Nao foi possivel ler o QR. Introduza o codigo (ou deixe vazio):', '');
+        if (manual !== null) qrValue = manual.trim();
+      }
+    }
+
+    const docPhoto = await captureFileFromCamera('image/*', 'environment');
+    if (!docPhoto) return;
+
+    const recStamp = crypto.randomUUID().replace(/-/g, '').toUpperCase().slice(0, 25);
+    const fd = new FormData();
+    fd.append('file', docPhoto);
+    fd.append('table', 'FO');
+    fd.append('rec', recStamp);
+    fd.append('descricao', '');
+    const up = await fetch('/api/anexos/upload', { method: 'POST', body: fd });
+    if (!up.ok) {
+      const err = await up.json().catch(() => ({}));
+      throw new Error(err.error || up.statusText);
+    }
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const foPayload = { FOSTAMP: recStamp, DATA: todayIso, PDATA: todayIso, OBS: 'Documento por classificar', QR_CODE: qrValue };
+    const foRes = await fetch('/generic/api/FO', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(foPayload)
+    });
+    if (!foRes.ok) {
+      const err = await foRes.json().catch(() => ({}));
+      throw new Error(err.error || foRes.statusText);
+    }
+    alert('Anexo adicionado.');
+    if (typeof loadData === 'function') {
+      await loadData();
+    } else {
+      window.location.reload();
+    }
+  }
+
+  async function handleGenericAttachmentFlow() {
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain';
+    picker.capture = 'environment';
+    picker.style.display = 'none';
+    picker.multiple = false;
+    document.body.appendChild(picker);
+    picker.addEventListener('change', async () => {
+      const file = picker.files?.[0];
+      picker.remove();
+      if (!file) return;
+      const recStamp = crypto.randomUUID().replace(/-/g, '').toUpperCase().slice(0, 25);
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('table', 'FO');
+      fd.append('rec', recStamp);
+      fd.append('descricao', '');
+      const up = await fetch('/api/anexos/upload', { method: 'POST', body: fd });
+      if (!up.ok) {
+        const err = await up.json().catch(() => ({}));
+        alert('Erro ao anexar: ' + (err.error || up.statusText));
+        return;
+      }
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const foPayload = { FOSTAMP: recStamp, DATA: todayIso, PDATA: todayIso, OBS: 'Documento por classificar' };
+      const foRes = await fetch('/generic/api/FO', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(foPayload)
+      });
+      if (!foRes.ok) {
+        const err = await foRes.json().catch(() => ({}));
+        alert('Anexo gravado, mas falhou criar FO: ' + (err.error || foRes.statusText));
+        return;
+      }
+      alert('Anexo adicionado.');
+      if (typeof loadData === 'function') {
+        await loadData();
+      } else {
+        window.location.reload();
+      }
+    }, { once: true });
+    picker.click();
   }
 
 
@@ -427,8 +520,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 });
-
-
 
 
 

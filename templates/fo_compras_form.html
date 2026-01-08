@@ -8,6 +8,10 @@
 <div class="fo-layout">
 <div class="dynamic-form dynamic-form-card">
   <div class="dynamic-form-toolbar d-flex justify-content-between align-items-center mb-3"></div>
+  <div class="fo-status-row d-flex gap-2 mb-2" id="foStatusRow" style="display:none;">
+    <div class="fo-status-card sync" id="foSyncBadge">Sincronizado</div>
+    <div class="fo-status-card plano" id="foPlanoBadge">Contabilizado</div>
+  </div>
 
   <section class="dynamic-form-body dynamic-form-body-modern">
     <form id="foForm" class="row g-3" autocomplete="off">
@@ -17,6 +21,8 @@
       <input type="hidden" id="CODPOST" name="CODPOST" />
       <input type="hidden" id="TPSTAMP" name="TPSTAMP" />
       <input type="hidden" id="OLLOCAL" name="OLLOCAL" />
+      <input type="hidden" id="SYNC" name="SYNC" />
+      <input type="hidden" id="PLANO" name="PLANO" />
 
       <div class="col-12">
         <div class="row g-2">
@@ -68,22 +74,28 @@
       </div>
 
       <div class="col-12">
-        <div class="row g-2">
-          <div class="col-md-3">
+        <div class="fo-totals-row" id="totalsRow">
+          <div class="fo-totals-col">
             <label class="form-label" for="TPDESC">Modo Pagamento</label>
             <select id="TPDESC" name="TPDESC" class="form-select">
               <option value="">---</option>
             </select>
           </div>
-        <div class="col-md-3">
+          <div class="fo-totals-col invisible-slot" id="colabWrapper">
+            <label class="form-label" for="COLAB">Colaborador</label>
+            <select id="COLAB" name="COLAB" class="form-select">
+              <option value="">---</option>
+            </select>
+          </div>
+        <div class="fo-totals-col">
           <label class="form-label" for="ETTILIQ">Base</label>
           <input type="number" step="0.01" id="ETTILIQ" name="ETTILIQ" class="form-control" readonly>
         </div>
-        <div class="col-md-3">
+        <div class="fo-totals-col">
           <label class="form-label" for="ETTIVA">IVA</label>
           <input type="number" step="0.01" id="ETTIVA" name="ETTIVA" class="form-control" readonly>
         </div>
-        <div class="col-md-3">
+        <div class="fo-totals-col">
           <label class="form-label" for="ETOTAL">Total</label>
           <input type="number" step="0.01" id="ETOTAL" name="ETOTAL" class="form-control" readonly>
         </div>
@@ -254,6 +266,26 @@
   #nomeSuggestions.dropdown-menu {
     left: 0 !important;
     right: auto !important;
+  }
+  .fo-totals-row {
+    display: flex !important;
+    flex-wrap: nowrap;
+    gap: 0.75rem;
+    align-items: flex-end;
+    width: 100%;
+  }
+  .fo-totals-col {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .fo-totals-row .form-control,
+  .fo-totals-row .form-select {
+    width: 100%;
+  }
+  .fo-totals-col.invisible-slot {
+    visibility: hidden;
   }
   /* Column widths proportional to visible chars */
   .fo-lines-table thead th:nth-child(1),
@@ -473,7 +505,7 @@
     left: 0 !important;
     right: auto !important;
   }
-.anexo-modal-body {
+  .anexo-modal-body {
     width: 100%;
     height: calc(90vh - 56px);
     padding: 0;
@@ -488,6 +520,57 @@
     height: 100%;
     border: none;
     flex: 1;
+  }
+  .fo-totals-row {
+    display: flex !important;
+    flex-wrap: nowrap;
+    gap: 0.75rem;
+    align-items: flex-end;
+    width: 100%;
+  }
+  .fo-totals-col {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .fo-totals-row .form-control,
+  .fo-totals-row .form-select {
+    width: 100%;
+  }
+  .fo-totals-col.invisible-slot {
+    visibility: hidden;
+  }
+  .fo-status-row {
+    align-items: center;
+    display: flex !important;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .fo-status-row .fo-status-card {
+    padding: 0.5rem 1rem !important;
+    border-radius: 10px !important;
+    font-size: 0.88rem !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08) !important;
+    letter-spacing: 0.01em !important;
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    min-height: 38px;
+  }
+  .fo-status-row .fo-status-card.sync {
+    background: #0d6efd !important;
+    color: #fff !important;
+    border-color: #0b5ed7 !important;
+  }
+  .fo-status-row .fo-status-card.plano {
+    background: #198754 !important;
+    color: #fff !important;
+    border-color: #146c43 !important;
   }
 </style>
 {% endblock %}

@@ -10,6 +10,8 @@ let editingFnStamp = null;
 let linesData = [];
 let deletedLineIds = [];
 let foLoadedData = null;
+let foSyncValue = 0;
+let foPlanoValue = 0;
 let tabivaOptions = [];
 let ccustoOptions = [];
 let tabivaLoaded = false;
@@ -58,7 +60,8 @@ const foFields = [
   'NO', 'NOME', 'NCONT', 'CCUSTO',
   'MORADA', 'LOCAL', 'CODPOST',
   'TPSTAMP', 'OLLOCAL', 'TPDESC',
-  'ETTILIQ', 'ETTIVA', 'ETOTAL'
+  'ETTILIQ', 'ETTIVA', 'ETOTAL',
+  'COLAB', 'SYNC', 'PLANO'
 ];
 const fnFields = ['FNSTAMP','REF','DESIGN','UNIDADE','TAXAIVA','QTT','IVA','IVAINCL','TABIVA','LORDEM','ETILIQUIDO','EPV','FNCCUSTO','FAMILIA'];
 
@@ -77,6 +80,8 @@ function setFoFormValues(data = {}) {
     if (foStampInput) foStampInput.value = currentFoStamp;
   }
   foLoadedData = data || {};
+  foSyncValue = Number(data.SYNC || 0);
+  foPlanoValue = Number(data.PLANO || 0);
   foFields.forEach(f => {
     const el = document.getElementById(f);
     if (!el) return;
@@ -93,6 +98,10 @@ function setFoFormValues(data = {}) {
 
   selectOptionTrim(document.getElementById('DOCNOME'), data.DOCNOME);
   selectOptionTrim(document.getElementById('TPDESC'), data.TPDESC);
+  selectOptionTrim(document.getElementById('COLAB'), data.COLAB);
+  toggleColabVisibility();
+  renderFoStatusBadges();
+  applyEditLocks();
 }
 
 function selectOptionTrim(selectEl, targetVal) {
@@ -130,6 +139,13 @@ function getFoPayload() {
   payload.FOANO = payload.FOANO || Number(dataBase.slice(0, 4)) || 0;
   payload.DOCCODE = payload.DOCCODE || 0;
   payload.PLANO = payload.PLANO ?? 0;
+  const boolToBit = (v) => {
+    if (v === true || v === 1 || v === '1' || (typeof v === 'string' && v.toLowerCase() === 'true')) return 1;
+    return 0;
+  };
+  payload.SYNC = boolToBit(payload.SYNC);
+  payload.PLANO = boolToBit(payload.PLANO);
+  payload.APROVADO = boolToBit(payload.APROVADO);
   payload.ETTILIQ = Number(payload.ETTILIQ) || 0;
   payload.ETTIVA = Number(payload.ETTIVA) || 0;
   payload.ETOTAL = Number(payload.ETTOTAL) || (payload.ETTILIQ + payload.ETTIVA) || 0;
@@ -234,6 +250,84 @@ function closeAnexoPreview() {
   return;
 }
 
+function toggleColabVisibility() {
+  const wrapper = document.getElementById('colabWrapper');
+  const sel = document.getElementById('TPDESC');
+  const colabSel = document.getElementById('COLAB');
+  const val = (sel?.value || '').toString().trim().toUpperCase();
+  if (!wrapper) return;
+  if (val === 'DESPESAS') {
+    wrapper.classList.remove('invisible-slot');
+  } else {
+    wrapper.classList.add('invisible-slot');
+    if (colabSel) colabSel.value = '';
+  }
+}
+
+function renderFoStatusBadges() {
+  const row = document.getElementById('foStatusRow');
+  const sync = document.getElementById('foSyncBadge');
+  const plano = document.getElementById('foPlanoBadge');
+  const showSync = Number(foSyncValue) === 1;
+  const showPlano = Number(foPlanoValue) === 1;
+  const applyCardStyles = (el, type) => {
+    if (!el) return;
+    const base = [
+      'display:inline-flex',
+      'align-items:center',
+      'gap:0.4rem',
+      'padding:0.5rem 1rem',
+      'border-radius:10px',
+      'font-size:0.88rem',
+      'font-weight:700',
+      'box-shadow:0 8px 20px rgba(0,0,0,0.08)',
+      'letter-spacing:0.01em',
+      'border:1px solid #cbd5e1'
+    ];
+    if (type === 'sync') {
+      base.push('background:#0d6efd', 'color:#fff', 'border-color:#0b5ed7');
+    } else if (type === 'plano') {
+      base.push('background:#198754', 'color:#fff', 'border-color:#146c43');
+    } else {
+      base.push('background:#e2e8f0', 'color:#0f172a');
+    }
+    el.style.cssText = base.join(';') + ';';
+  };
+
+  if (sync) sync.style.display = showSync ? 'inline-flex' : 'none';
+  if (plano) plano.style.display = showPlano ? 'inline-flex' : 'none';
+  if (showSync) applyCardStyles(sync, 'sync');
+  if (showPlano) applyCardStyles(plano, 'plano');
+  if (row) {
+    const any = showSync || showPlano;
+    row.style.display = any ? 'flex' : 'none';
+  }
+}
+
+function applyEditLocks() {
+  const isPlano = Number(foPlanoValue) === 1;
+  const disableDelete = isPlano || Number(foSyncValue) === 1;
+  if (btnSaveFo) {
+    btnSaveFo.disabled = isPlano;
+    btnSaveFo.classList.toggle('disabled', isPlano);
+  }
+  if (btnDeleteFo) {
+    btnDeleteFo.disabled = disableDelete;
+    btnDeleteFo.classList.toggle('disabled', disableDelete);
+  }
+  if (btnAddLine) {
+    btnAddLine.disabled = isPlano;
+    btnAddLine.classList.toggle('disabled', isPlano);
+  }
+  if (isPlano && form) {
+    form.querySelectorAll('input, select, textarea, button').forEach(el => {
+      if (el.type === 'hidden') return;
+      if (el.id === 'btnCancelFo') return; // permite sair
+      el.disabled = true;
+    });
+  }
+}
+
 function buildFoObs(payload) {
   const msgs = [];
   const hasFamiliaMissing = linesData.some(l => !((l.FAMILIA || '').toString().trim()));
@@ -260,13 +354,25 @@ async function loadDocnomeOptions() {
     const opts = await res.json();
     const current = sel.value;
     sel.innerHTML = '<option value="">---</option>';
+    const normalized = new Set();
     opts.forEach(o => {
       const v = typeof o === 'object' ? Object.values(o)[0] : o;
+      const text = (v ?? '').toString();
+      if (!text) return;
       const opt = document.createElement('option');
-      opt.value = v ?? '';
-      opt.textContent = v ?? '';
+      opt.value = text;
+      opt.textContent = text;
+      normalized.add(text.toUpperCase());
       sel.append(opt);
     });
+    // ensure "V/Fatura Recibo" is present
+    const extra = 'V/Fatura Recibo';
+    if (!normalized.has(extra.toUpperCase())) {
+      const opt = document.createElement('option');
+      opt.value = extra;
+      opt.textContent = extra;
+      sel.append(opt);
+    }
     if (current) sel.value = current;
     if (foLoadedData?.DOCNOME) selectOptionTrim(sel, foLoadedData.DOCNOME);
   } catch (e) {
@@ -368,6 +474,28 @@ async function loadTpOptions() {
   }
 }
 
+async function loadColabOptions() {
+  const sel = document.getElementById('COLAB');
+  if (!sel) return;
+  try {
+    const res = await fetch('/generic/api/options?query=' + encodeURIComponent('SELECT NOME FROM US WHERE INATIVO = 0 ORDER BY 1'));
+    if (!res.ok) throw new Error(res.statusText);
+    const opts = await res.json();
+    const current = sel.value;
+    sel.innerHTML = '<option value="">---</option>';
+    opts.forEach(o => {
+      const v = typeof o === 'object' ? Object.values(o)[0] : o;
+      const opt = document.createElement('option');
+      opt.value = v ?? '';
+      opt.textContent = v ?? '';
+      sel.append(opt);
+    });
+    if (current) sel.value = current;
+  } catch (e) {
+    console.error('Erro ao carregar COLAB options', e);
+  }
+}
+
 function applyTpSelection() {
   const sel = document.getElementById('TPDESC');
   if (!sel) return;
@@ -387,6 +515,9 @@ function applyTpSelection() {
       pdataEl.value = d.toISOString().slice(0, 10);
     }
   }
+
+  // toggle COLAB when TPDESC == DESPESAS
+  toggleColabVisibility();
 }
 
 function bindNomeAutocomplete() {
@@ -856,6 +987,10 @@ function updateLineField(lineId, field, value) {
 }
 
 async function saveFo() {
+  if (Number(foPlanoValue) === 1) {
+    alert('Documento contabilizado no ERP. Não pode ser alterado.');
+    return;
+  }
   // mostra overlay
   if (overlay) {
     overlay.style.display = 'flex';
@@ -875,6 +1010,11 @@ async function saveFo() {
   payload.OBS = buildFoObs(payload);
   if (!payload.NO) payload.NO = 0;
   if (!payload.PDATA && payload.DATA) payload.PDATA = payload.DATA;
+  if (!isNewRecord && Number(foSyncValue) === 1) {
+    payload.SYNC = 0; // forçar re-sincronização
+    const syncEl = document.getElementById('SYNC');
+    if (syncEl) syncEl.value = 0;
+  }
   const isNew = isNewRecord;
   const url = isNew ? `/generic/api/${FO_TABLE}` : `/generic/api/${FO_TABLE}/${currentFoStamp}`;
   const method = isNew ? 'POST' : 'PUT';
@@ -918,6 +1058,14 @@ async function saveFo() {
 async function deleteFo() {
   if (!currentFoStamp) {
     alert('Nada para eliminar.');
+    return;
+  }
+  if (Number(foPlanoValue) === 1) {
+    alert('Documento contabilizado no ERP. Não pode ser eliminado.');
+    return;
+  }
+  if (Number(foSyncValue) === 1) {
+    alert('Documento sincronizado. Não pode ser eliminado.');
     return;
   }
   if (!confirm('Eliminar este FO?')) return;
@@ -1111,6 +1259,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadCcustOptions();
     loadTpOptions();
     loadTaxaOptions();
+    loadColabOptions();
     bindTabivaListener();
     bindNomeAutocomplete();
     loadFo();
@@ -1120,6 +1269,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadCcustOptions();
     loadTpOptions();
     loadTaxaOptions();
+    loadColabOptions();
     bindTabivaListener();
     bindNomeAutocomplete();
     renderLines();
@@ -1165,6 +1315,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnSaveLine?.addEventListener('click', e => { e.preventDefault(); saveLine(); });
 
   document.getElementById('TPDESC')?.addEventListener('change', applyTpSelection);
+  document.getElementById('TPDESC')?.addEventListener('change', toggleColabVisibility);
   document.getElementById('DATA')?.addEventListener('change', applyTpSelection);
   document.getElementById('FN_QTT')?.addEventListener('input', recalcModalEtiliq);
   document.getElementById('FN_EPV')?.addEventListener('input', recalcModalEtiliq);
