@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body bg-light rounded-3">
+      <div class="d-flex flex-wrap align-items-end gap-3">
+        <div>
+          <label for="mapAno" class="form-label text-muted small mb-1">Ano</label>
+          <input type="number" class="form-control" id="mapAno" min="2000" max="2100" value="{{ ano_atual }}" style="width:120px;">
+        </div>
+        <div class="flex-grow-1">
+          <label class="form-label text-muted small mb-1">Centro de Custo</label>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" id="mapBtnCcusto" type="button">
+              <i class="fa-solid fa-building me-1"></i><span id="mapCcustoLabel">Todos os centros</span>
+            </button>
+            <button class="btn btn-primary" id="mapBtnAplicar">
+              <i class="fa-solid fa-filter me-1"></i> Aplicar
+            </button>
+            <button class="btn btn-outline-secondary" id="mapBtnLimpar">Limpar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+      <div class="d-flex justify-content-end gap-2 mb-2">
+        <button class="btn btn-sm btn-outline-secondary" id="mapCollapseAll"><i class="fa-solid fa-compress"></i> Fechar tudo</button>
+        <button class="btn btn-sm btn-outline-primary" id="mapExpandAll"><i class="fa-solid fa-expand"></i> Expandir tudo</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle" id="mapaTabela">
+          <thead class="table-light">
+            <tr>
+              <th>Familia</th>
+              <th class="text-end">Jan</th>
+              <th class="text-end">Fev</th>
+              <th class="text-end">Mar</th>
+              <th class="text-end">Abr</th>
+              <th class="text-end">Mai</th>
+              <th class="text-end">Jun</th>
+              <th class="text-end">Jul</th>
+              <th class="text-end">Ago</th>
+              <th class="text-end">Set</th>
+              <th class="text-end">Out</th>
+              <th class="text-end">Nov</th>
+              <th class="text-end">Dez</th>
+              <th class="text-end">Total</th>
+              <th class="text-end">Peso</th>
+            </tr>
+          </thead>
+          <tbody id="mapaBody">
+            <tr>
+              <td colspan="15" class="text-center text-muted">A carregar...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Centro de Custo -->
+<div class="modal fade" id="mapCcustoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Selecionar Centros de Custo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex gap-2 mb-3">
+          <button class="btn btn-sm btn-outline-primary" id="mapCcAll">Selecionar todos</button>
+          <button class="btn btn-sm btn-outline-secondary" id="mapCcNone">Nenhum</button>
+        </div>
+        <div class="list-group" id="mapCcList"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" id="mapCcApply">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Detalhe -->
+<div class="modal fade" id="mapDetailModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <h5 class="modal-title mb-0" id="mapDetailTitle">Detalhe</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-0">
+        <div class="table-responsive rounded-3 shadow-sm">
+          <table class="table table-sm align-middle detail-table" id="mapDetailTable">
+            <thead>
+              <tr>
+                <th>Documento</th>
+                <th>Número</th>
+                <th>Data</th>
+                <th>Nome</th>
+                <th>C. Custo</th>
+                <th>Referência</th>
+                <th>Designação</th>
+                <th class="text-end">Quantidade</th>
+                <th class="text-end">Preço</th>
+                <th class="text-end">Total</th>
+                <th class="text-center">Anexo</th>
+              </tr>
+            </thead>
+            <tbody id="mapDetailBody">
+              <tr><td colspan="11" class="text-center text-muted">Selecione um valor na grelha.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapDetailTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #mapaTabela { font-size: 12px; }
+  #mapaTabela td, #mapaTabela th { padding: 0.35rem 0.5rem; }
+  #mapaTabela td:first-child, #mapaTabela th:first-child { text-align: left; }
+  #mapaTabela td:first-child { white-space: nowrap; min-width: 260px; padding-right: 12px; }
+  .fam-cell.level-1 { font-weight: 700; padding-left: 6px !important; }
+  .fam-cell.level-2 { font-weight: 600; color: #1f2937; padding-left: 24px !important; }
+  .fam-cell.level-3 { color: #374151; padding-left: 40px !important; }
+  .mapa-row:hover { background-color: #f8fafc; }
+  .row-proveito td { color: #0ea5e9; }
+  .total-row { background: #f1f5f9; }
+  .toggle-node {
+    width: 22px; height: 22px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #475569;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 0.15s ease;
+  }
+  .toggle-node:hover { background: #e2e8f0; color: #1f2937; }
+  .toggle-node:focus { outline: 2px solid #94a3b8; outline-offset: 2px; }
+  .toggle-spacer { display: inline-block; width: 22px; }
+  /* Modal detalhe */
+  .detail-card { border: none; border-radius: 14px; box-shadow: 0 15px 50px rgba(15,23,42,0.15); }
+  .detail-table thead { background: linear-gradient(90deg, #0ea5e9, #6366f1); color: #fff; }
+  .detail-table th { border: none; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .detail-table td { font-size: 12px; vertical-align: middle; }
+  .detail-table tbody tr:nth-child(odd) { background-color: #f8fafc; }
+  .detail-table tbody tr:hover { background-color: #e2e8f0; }
+  #mapDetailTotal { font-size: 14px; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.MAPA_ANO_PADRAO = {{ ano_atual }};
+</script>
+<script src="{{ url_for('static', filename='js/mapa_gestao.js') }}"></script>
+{% endblock %}

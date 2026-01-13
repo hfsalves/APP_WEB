@@ -1134,6 +1134,252 @@ OPTION (MAXRECURSION 32767);
             radar_error=radar_error
         ), status_code
 
+    @app.route('/mapa-gestao')
+    @login_required
+    def mapa_gestao_page():
+        return render_template('mapa_gestao.html', page_title='Mapa de Gestao', ano_atual=date.today().year)
+
+    @app.route('/api/mapa_gestao/ccustos')
+    @login_required
+    def api_mapa_gestao_ccustos():
+        try:
+            rows = db.session.execute(text("SELECT CCUSTO FROM v_cct ORDER BY CCUSTO")).fetchall()
+            opts = [r[0] for r in rows if r and r[0] is not None]
+            return jsonify({'options': opts})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/mapa_gestao')
+    @login_required
+    def api_mapa_gestao():
+        try:
+            ano = request.args.get('ano', type=int) or date.today().year
+        except Exception:
+            ano = date.today().year
+
+        ccustos_raw = (request.args.get('ccustos') or '').strip()
+        ccustos = [c.strip() for c in ccustos_raw.split(',') if c.strip()]
+
+        try:
+            fam_rows = db.session.execute(text("SELECT ref, nome FROM v_stfami ORDER BY ref")).fetchall()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter familias: {e}'}), 500
+
+        def level_from_ref(ref: str) -> int:
+            try:
+                return ref.count('.') + 1
+            except Exception:
+                return 1
+
+        familias_map = {}
+        for r in fam_rows:
+            ref = str(r[0]).strip() if r and r[0] is not None else ''
+            if not ref:
+                continue
+            nome = r[1] if len(r) > 1 else ''
+            familias_map[ref] = {
+                'ref': ref,
+                'nome': nome,
+                'nivel': level_from_ref(ref),
+                'meses': [0.0] * 12,
+                'total': 0.0,
+            }
+
+        def ensure_node(ref: str):
+            if ref not in familias_map:
+                familias_map[ref] = {
+                    'ref': ref,
+                    'nome': ref,
+                    'nivel': level_from_ref(ref),
+                    'meses': [0.0] * 12,
+                    'total': 0.0,
+                }
+
+        # Custos por familia/mes
+        where_parts = ["YEAR(DATA) = :ano"]
+        params = {'ano': ano}
+        if ccustos:
+            keys = []
+            for idx, cc in enumerate(ccustos):
+                k = f"c{idx}"
+                params[k] = cc
+                keys.append(f":{k}")
+            where_parts.append("CCUSTO IN (" + ",".join(keys) + ")")
+
+        where_sql = " AND ".join(where_parts)
+        custos_sql = f"""
+            SELECT FAMILIA, MONTH(DATA) AS MES, SUM(TOTAL) AS TOTAL
+            FROM v_custo
+            WHERE {where_sql}
+            GROUP BY FAMILIA, MONTH(DATA)
+        """
+
+        try:
+            custo_rows = db.session.execute(text(custos_sql), params).fetchall()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter custos: {e}'}), 500
+
+        for row in custo_rows:
+            familia = str(row[0]).strip() if row[0] is not None else ''
+            mes = int(row[1]) if row[1] is not None else None
+            valor = float(row[2] or 0)
+            if not familia or mes is None or mes < 1 or mes > 12:
+                continue
+
+            # acumula na familia e respetivos pais
+            partes = familia.split('.')
+            while partes:
+                ref_atual = '.'.join(partes)
+                ensure_node(ref_atual)
+                node = familias_map[ref_atual]
+                node['meses'][mes - 1] += valor
+                node['total'] += valor
+                partes = partes[:-1]
+
+        def sort_key(ref: str):
+            parts = []
+            for p in ref.split('.'):
+                try:
+                    parts.append(int(p))
+                except Exception:
+                    parts.append(p)
+            return parts
+
+        total_geral = sum(v['total'] for v in familias_map.values() if v.get('nivel') == 1)
+        familias_lista = []
+        for f in sorted(familias_map.values(), key=lambda x: sort_key(x['ref'])):
+            total_fam = float(f['total'] or 0)
+            meses_fmt = [round(float(v or 0), 2) for v in f['meses']]
+            familias_lista.append({
+                'ref': f['ref'],
+                'nome': f.get('nome', ''),
+                'nivel': f.get('nivel', 1),
+                'meses': meses_fmt,
+                'total': round(total_fam, 2),
+                'percent': round((total_fam / total_geral * 100) if total_geral else 0, 2)
+            })
+
+        return jsonify({
+            'ano': ano,
+            'ccustos': ccustos,
+                'total_geral': round(float(total_geral or 0), 2),
+                'familias': familias_lista
+            })
+
+    @app.route('/api/mapa_gestao/detalhe')
+    @login_required
+    def api_mapa_gestao_detalhe():
+        try:
+            ano = request.args.get('ano', type=int) or date.today().year
+        except Exception:
+            ano = date.today().year
+        familia = (request.args.get('familia') or '').strip()
+        if not familia:
+            return jsonify({'error': 'familia obrigatoria'}), 400
+        mes = request.args.get('mes', type=int)
+        include_children = request.args.get('include_children') in ('1', 'true', 'True')
+        ccustos_raw = (request.args.get('ccustos') or '').strip()
+        ccustos = [c.strip() for c in ccustos_raw.split(',') if c.strip()]
+
+        where_parts = ["YEAR(data) = :ano"]
+        params = {'ano': ano, 'familia': familia}
+        if include_children:
+            where_parts.append("(FAMILIA = :familia OR FAMILIA LIKE :familia_like)")
+            params['familia_like'] = familia + ".%"
+        else:
+            where_parts.append("FAMILIA = :familia")
+        if mes and 1 <= mes <= 12:
+            where_parts.append("MONTH(data) = :mes")
+            params['mes'] = mes
+        if ccustos:
+            keys = []
+            for idx, cc in enumerate(ccustos):
+                k = f"c{idx}"
+                params[k] = cc
+                keys.append(f":{k}")
+            where_parts.append("ccusto IN (" + ",".join(keys) + ")")
+
+        where_sql = " AND ".join(where_parts)
+        sql = f"""
+            SELECT
+                nmdoc AS documento,
+                nrdoc AS numero,
+                data  AS data,
+                nome  AS nome,
+                ccusto AS ccusto,
+                ref    AS referencia,
+                design AS designacao,
+                qtt    AS quantidade,
+                epv    AS preco,
+                total  AS total,
+                CABSTAMP AS cabstamp
+            FROM v_custo
+            WHERE {where_sql}
+            ORDER BY data, nmdoc, nrdoc
+        """
+        try:
+            rows = db.session.execute(text(sql), params).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter detalhe: {e}'}), 500
+
+        out = []
+        total_sum = 0.0
+        cabstamps = []
+        for r in rows:
+            val = float(r.get('total') or 0)
+            total_sum += val
+            data_val = r.get('data')
+            if isinstance(data_val, (datetime, date)):
+                data_val = data_val.strftime('%Y-%m-%d')
+            cabstamp = r.get('cabstamp')
+            if cabstamp:
+                cabstamps.append(str(cabstamp))
+            out.append({
+                'documento': r.get('documento'),
+                'numero': r.get('numero'),
+                'data': data_val,
+                'nome': r.get('nome'),
+                'ccusto': r.get('ccusto'),
+                'referencia': r.get('referencia'),
+                'designacao': r.get('designacao'),
+                'quantidade': r.get('quantidade'),
+                'preco': r.get('preco'),
+                'total': round(val, 2),
+                'cabstamp': cabstamp
+            })
+
+        anexo_map = {}
+        if cabstamps:
+            placeholders = []
+            params_anx = {}
+            for idx, cab in enumerate(cabstamps):
+                key = f"c{idx}"
+                params_anx[key] = cab
+                placeholders.append(f":{key}")
+            sql_anx = f"""
+                SELECT RECSTAMP, CAMINHO, FICHEIRO
+                FROM ANEXOS
+                WHERE RECSTAMP IN ({",".join(placeholders)})
+                ORDER BY RECSTAMP
+            """
+            try:
+                rows_anx = db.session.execute(text(sql_anx), params_anx).fetchall()
+                for ra in rows_anx:
+                    rec = str(ra[0])
+                    if rec and rec not in anexo_map:
+                        caminho = ra[1] if len(ra) > 1 else None
+                        ficheiro = ra[2] if len(ra) > 2 else None
+                        anexo_map[rec] = caminho or ficheiro or None
+            except Exception:
+                anexo_map = {}
+
+        for item in out:
+            cab = item.get('cabstamp')
+            url = anexo_map.get(str(cab)) if cab else None
+            item['anexo_url'] = url
+
+        return jsonify({'rows': out, 'total': round(total_sum, 2)})
+
     # Performance dashboard page
     @app.route('/performance')
     @login_required
@@ -1693,7 +1939,7 @@ OPTION (MAXRECURSION 32767);
             sql_c = text(
                 """
                 SELECT ISNULL(C.ref,'') AS ref, SUM(ISNULL(C.valor,0)) AS valor
-                FROM v_custos AS C
+                FROM v_custo AS C
                 WHERE C.ccusto = :aloj
                   AND C.data BETWEEN :data_inicio AND :data_fim
                 GROUP BY ISNULL(C.ref,'')
