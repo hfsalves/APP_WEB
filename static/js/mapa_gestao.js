@@ -165,6 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const nivel = Number(r.nivel || 1);
         const ref = String(r.ref || '');
         const isProveito = ref.trim().startsWith('9');
+        const percVal = (r.percent === '' || r.percent == null) ? '' : `${fmtPct.format(Number(r.percent || 0))}%`;
         const mesesHtml = r.meses.map((v, idx) => {
           const mesNum = idx + 1;
           return `<td class="text-end cell-drill" data-level="${nivel}" data-ref="${attrEscape(ref)}" data-nome="${attrEscape(r.nome || '')}" data-mes="${mesNum}">${fmtNum.format(Number(v || 0))}</td>`;
@@ -181,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <td class="fam-cell level-${nivel} d-flex align-items-center gap-1">${toggle}<span>${escapeHtml(ref)} - ${escapeHtml(r.nome || '')}</span></td>
             ${mesesHtml}
             <td class="text-end fw-semibold cell-drill" data-level="${nivel}" data-ref="${attrEscape(ref)}" data-nome="${attrEscape(r.nome || '')}" data-mes="all">${fmtNum.format(Number(r.total || 0))}</td>
-            <td class="text-end text-muted">${fmtPct.format(Number(r.percent || 0))}%</td>
+            <td class="text-end text-muted">${percVal}</td>
           </tr>
         `;
       }).join('');

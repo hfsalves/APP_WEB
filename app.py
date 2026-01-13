@@ -1245,26 +1245,31 @@ OPTION (MAXRECURSION 32767);
                     parts.append(p)
             return parts
 
-        total_geral = sum(v['total'] for v in familias_map.values() if v.get('nivel') == 1)
+        total_base = sum(
+            v['total']
+            for v in familias_map.values()
+            if v.get('nivel') == 1 and not str(v.get('ref') or '').strip().startswith('9')
+        )
         familias_lista = []
         for f in sorted(familias_map.values(), key=lambda x: sort_key(x['ref'])):
             total_fam = float(f['total'] or 0)
             meses_fmt = [round(float(v or 0), 2) for v in f['meses']]
+            is_proveito = str(f.get('ref') or '').strip().startswith('9')
             familias_lista.append({
                 'ref': f['ref'],
                 'nome': f.get('nome', ''),
                 'nivel': f.get('nivel', 1),
                 'meses': meses_fmt,
                 'total': round(total_fam, 2),
-                'percent': round((total_fam / total_geral * 100) if total_geral else 0, 2)
+                'percent': ('' if is_proveito else round((total_fam / total_base * 100) if total_base else 0, 2))
             })
 
         return jsonify({
             'ano': ano,
             'ccustos': ccustos,
-                'total_geral': round(float(total_geral or 0), 2),
-                'familias': familias_lista
-            })
+            'total_geral': round(float(total_base or 0), 2),
+            'familias': familias_lista
+        })
 
     @app.route('/api/mapa_gestao/detalhe')
     @login_required
