@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCcusto = document.getElementById('mapBtnCcusto');
   const btnCcAll = document.getElementById('mapCcAll');
   const btnCcNone = document.getElementById('mapCcNone');
+  const btnCcEstrutura = document.getElementById('mapCcEstrutura');
+  const btnCcExploracao = document.getElementById('mapCcExploracao');
+  const btnCcGestao = document.getElementById('mapCcGestao');
   const btnCcApply = document.getElementById('mapCcApply');
   const btnAplicar = document.getElementById('mapBtnAplicar');
   const btnLimpar = document.getElementById('mapBtnLimpar');
@@ -24,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const filtrosLbl = document.getElementById('mapFiltros');
   const defaultYear = window.MAPA_ANO_PADRAO || new Date().getFullYear();
   const modalCcusto = ccModalEl ? new bootstrap.Modal(ccModalEl) : null;
-  let ccOptions = [];
+  let ccOptions = []; // [{ccusto, tipo}]
   let ccSelected = new Set();
   let lastRows = [];
   let treeExpanded = new Set(); // refs abertos (por defeito vazio: apenas nivel 1 visivel)
@@ -63,11 +66,16 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderCcList() {
     if (!ccList) return;
     ccList.innerHTML = ccOptions.map((cc) => {
-      const checked = ccSelected.has(cc) ? 'checked' : '';
+      const checked = ccSelected.has(cc.ccusto) ? 'checked' : '';
+      const tipoNorm = (cc.tipo || '').trim().toUpperCase();
+      let badge = '<span class="badge bg-secondary-subtle text-secondary ms-auto">Estrutura</span>';
+      if (tipoNorm === 'EXPLORACAO') badge = '<span class="badge bg-info-subtle text-info ms-auto">Exploração</span>';
+      else if (tipoNorm === 'GESTAO') badge = '<span class="badge bg-success-subtle text-success ms-auto">Gestão</span>';
       return `
         <label class="list-group-item d-flex align-items-center gap-2">
-          <input class="form-check-input" type="checkbox" value="${cc}" ${checked}>
-          <span>${cc}</span>
+          <input class="form-check-input" type="checkbox" value="${cc.ccusto}" ${checked}>
+          <span>${cc.ccusto}</span>
+          ${badge}
         </label>
       `;
     }).join('') || '<div class="text-muted">Sem centros de custo.</div>';
@@ -87,8 +95,17 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch('/api/mapa_gestao/ccustos');
       const data = await res.json();
-      ccOptions = Array.isArray(data.options) ? data.options : [];
-      ccSelected = new Set(ccOptions); // default = todos
+      const optsRaw = Array.isArray(data.options)
+        ? data.options
+        : (data.options ? Object.values(data.options) : []);
+      ccOptions = optsRaw.map(o => {
+        if (typeof o === 'string') return { ccusto: o, tipo: '' };
+        if (o && typeof o === 'object') {
+          return { ccusto: o.ccusto || o.CCUSTO || o.Ccusto || '', tipo: o.tipo || o.TIPO || o.Tipo || '' };
+        }
+        return { ccusto: '', tipo: '' };
+      }).filter(o => o.ccusto);
+      ccSelected = new Set(ccOptions.map(o => o.ccusto)); // default = todos
       renderCcList();
     } catch (err) {
       console.error(err);
@@ -121,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
       lastRows = normalized;
       levelOneRefs = lastRows.filter(r => Number(r.nivel || 1) === 1).map(r => String(r.ref || '').trim());
       allRefs = lastRows.map(r => String(r.ref || '').trim());
-      treeExpanded = new Set(levelOneRefs); // por defeito: niveis 1 abertos (mostra nivel 2)
+      treeExpanded = new Set(); // por defeito: apenas nivel 1 visivel; restantes fechados
       renderTabela();
     } catch (err) {
       console.error(err);
@@ -202,16 +219,21 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isProv) totalProv += Number(r.total || 0);
       else totalCustos += Number(r.total || 0);
     });
-    const totalMeses = custoMeses.map((c, i) => provMeses[i] - c);
-    const totalGeral = totalProv - totalCustos;
-    const totalRowHtml = `
-      <tr class="mapa-row total-row">
-        <td class="fam-cell level-1 d-flex align-items-center gap-1"><span class="fw-semibold">Total</span></td>
-        ${totalMeses.map(v => `<td class="text-end fw-semibold">${fmtNum.format(v)}</td>`).join('')}
-        <td class="text-end fw-semibold">${fmtNum.format(totalGeral)}</td>
-        <td class="text-end text-muted fw-semibold">--</td>
+    const saldoMeses = custoMeses.map((c, i) => provMeses[i] - c);
+    const totalSaldo = totalProv - totalCustos;
+    const rowResumo = (label, arr, total, extraClass='') => `
+      <tr class="mapa-row total-row ${extraClass}">
+        <td class="fam-cell level-1 d-flex align-items-center gap-1"><span class="fw-semibold">${label}</span></td>
+        ${arr.map(v => `<td class="text-end fw-semibold">${fmtNum.format(v)}</td>`).join('')}
+        <td class="text-end fw-semibold">${fmtNum.format(total)}</td>
+        <td class="text-end text-muted fw-semibold"></td>
       </tr>
     `;
+    const totalRowHtml = [
+      rowResumo('Custos', custoMeses, totalCustos, 'total-custos'),
+      rowResumo('Proveitos', provMeses, totalProv, 'total-proveitos'),
+      rowResumo('Saldo', saldoMeses, totalSaldo, 'total-saldo')
+    ].join('');
 
     tbody.innerHTML = rowsHtml
       ? rowsHtml + totalRowHtml
@@ -321,6 +343,21 @@ document.addEventListener('DOMContentLoaded', () => {
     updateCcSummary();
     modalCcusto.hide();
     loadMapa();
+  });
+  if (btnCcEstrutura) btnCcEstrutura.addEventListener('click', () => {
+    const filtered = ccOptions.filter(o => !(o.tipo || '').trim());
+    ccSelected = new Set(filtered.map(o => o.ccusto));
+    renderCcList();
+  });
+  if (btnCcExploracao) btnCcExploracao.addEventListener('click', () => {
+    const filtered = ccOptions.filter(o => (o.tipo || '').trim().toUpperCase() === 'EXPLORACAO');
+    ccSelected = new Set(filtered.map(o => o.ccusto));
+    renderCcList();
+  });
+  if (btnCcGestao) btnCcGestao.addEventListener('click', () => {
+    const filtered = ccOptions.filter(o => (o.tipo || '').trim().toUpperCase() === 'GESTAO');
+    ccSelected = new Set(filtered.map(o => o.ccusto));
+    renderCcList();
   });
   if (btnExpandAll) btnExpandAll.addEventListener('click', () => {
     treeExpanded = new Set(allRefs);

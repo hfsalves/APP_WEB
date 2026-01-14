@@ -1143,8 +1143,21 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def api_mapa_gestao_ccustos():
         try:
-            rows = db.session.execute(text("SELECT CCUSTO FROM v_cct ORDER BY CCUSTO")).fetchall()
-            opts = [r[0] for r in rows if r and r[0] is not None]
+            rows = db.session.execute(text("""
+                SELECT c.CCUSTO, ISNULL(a.TIPO,'') AS TIPO
+                FROM v_cct c
+                LEFT JOIN AL a
+                  ON LTRIM(RTRIM(a.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                   = LTRIM(RTRIM(c.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                ORDER BY ISNULL(a.TIPO,''), c.CCUSTO
+            """)).fetchall()
+            opts = []
+            for r in rows:
+                cc = r[0] if len(r) > 0 else None
+                tipo = r[1] if len(r) > 1 else ''
+                if cc is None:
+                    continue
+                opts.append({'ccusto': cc, 'tipo': tipo})
             return jsonify({'options': opts})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -1245,23 +1258,29 @@ OPTION (MAXRECURSION 32767);
                     parts.append(p)
             return parts
 
+        def is_prov_ref(rf: str) -> bool:
+            try:
+                return str(rf or '').strip().startswith('9')
+            except Exception:
+                return False
+
         total_base = sum(
             v['total']
             for v in familias_map.values()
-            if v.get('nivel') == 1 and not str(v.get('ref') or '').strip().startswith('9')
+            if v.get('nivel') == 1 and not is_prov_ref(v.get('ref'))
         )
         familias_lista = []
         for f in sorted(familias_map.values(), key=lambda x: sort_key(x['ref'])):
             total_fam = float(f['total'] or 0)
             meses_fmt = [round(float(v or 0), 2) for v in f['meses']]
-            is_proveito = str(f.get('ref') or '').strip().startswith('9')
+            is_proveito = is_prov_ref(f.get('ref'))
             familias_lista.append({
                 'ref': f['ref'],
                 'nome': f.get('nome', ''),
                 'nivel': f.get('nivel', 1),
                 'meses': meses_fmt,
                 'total': round(total_fam, 2),
-                'percent': ('' if is_proveito else round((total_fam / total_base * 100) if total_base else 0, 2))
+                'percent': (None if is_proveito else round((total_fam / total_base * 100) if total_base else 0, 2))
             })
 
         return jsonify({
