@@ -12,27 +12,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const fmtTime = (t) => {
     const s = String(t == null ? '' : t).trim();
     if (!s) return 'N/D';
-    const colon = s.includes(':');
-    if (colon && /^\d{1,2}:\d{2}$/.test(s)) {
-      const [h, m] = s.split(':');
-      return `${h.padStart(2, '0')}:${m}`;
-    }
-    let digits = s.replace(/\D/g, '');
+    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (m) return `${m[1].padStart(2, '0')}:${m[2]}`;
+    const digits = s.replace(/\D/g, '');
     if (!digits) return 'N/D';
     if (digits.length >= 3) {
       const mins = digits.slice(-2);
       const hours = digits.slice(0, -2).padStart(2, '0');
       return `${hours}:${mins}`;
     }
-    const hours = digits.padStart(2, '0');
-    return `${hours}:00`;
+    return `${digits.padStart(2, '0')}:00`;
   };
 
   const fmtGuests = (n) => `${Number(n || 0)}P`;
   const fmtNoites = (n) => `${Number(n || 0)}N`;
 
   async function loadData() {
-    const d = dateInput.value || (new Date()).toISOString().slice(0, 10);
+    const d = dateInput.value || new Date().toISOString().slice(0, 10);
     try {
       const res = await fetch(`/api/turnover?data=${encodeURIComponent(d)}`);
       const text = await res.text();
@@ -58,22 +54,55 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'sem';
   }
 
+  function toMinutes(hhmm) {
+    const s = String(hhmm || '').trim();
+    if (!s) return null;
+    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    const digits = s.replace(/\D/g, '');
+    if (digits.length >= 3) {
+      const mins = parseInt(digits.slice(-2), 10);
+      const hours = parseInt(digits.slice(0, -2), 10);
+      return hours * 60 + mins;
+    }
+    if (digits) return parseInt(digits, 10) * 60;
+    return null;
+  }
+
   function renderCards(list) {
     if (!cardsWrap) return;
     if (!list.length) {
       cardsWrap.innerHTML = '<div class="text-muted">Sem alojamentos para este dia.</div>';
       return;
     }
-    cardsWrap.innerHTML = list.map(c => {
+
+    const sorted = list.slice().sort((a, b) => {
+      const hasA = !!a.has_check_in;
+      const hasB = !!b.has_check_in;
+      if (hasA && !hasB) return -1;
+      if (!hasA && hasB) return 1;
+      const tA = hasA ? toMinutes(a.check_in) : null;
+      const tB = hasB ? toMinutes(b.check_in) : null;
+      const scoreA = hasA ? (tA === null ? 0 : 1) : 2;
+      const scoreB = hasB ? (tB === null ? 0 : 1) : 2;
+      if (scoreA !== scoreB) return scoreA - scoreB;
+      if (scoreA === 2) return (a.alojamento || '').localeCompare(b.alojamento || '', 'pt-PT');
+      if (scoreA === 0 && scoreB === 0) return (a.alojamento || '').localeCompare(b.alojamento || '', 'pt-PT');
+      return (tA || 0) - (tB || 0) || (a.alojamento || '').localeCompare(b.alojamento || '', 'pt-PT');
+    });
+
+    cardsWrap.innerHTML = sorted.map(c => {
       const status = c.status || 'Sem limpeza';
       const statusCls = statusClass(status);
       const equipa = c.equipa || '—';
-      const obs = c.obs || '';
+      let obs = c.obs || '';
+      if (obs.trim().toLowerCase() === 'sofá-cama' || obs.trim().toLowerCase() === 'sofa-cama') {
+        obs = '';
+      }
       const pax = fmtGuests(c.hospedes);
       const nts = fmtNoites(c.noites);
       const extra = [];
-      if (c.berco) extra.push('Berço');
-      if (c.sofacama) extra.push('Sofá-cama');
+      // berço e sofá-cama não são mostrados na UI
       const hasOut = Boolean(c.has_check_out);
       const hasIn = Boolean(c.has_check_in);
       const outText = hasOut ? fmtTime(c.check_out) : '';

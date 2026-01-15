@@ -1418,41 +1418,47 @@ OPTION (MAXRECURSION 32767);
             dia_iso = dia.isoformat()
 
             reservas_out = db.session.execute(text("""
-                SELECT ALOJAMENTO, ISNULL(HORAOUT,'') AS HORAOUT, NOITES,
-                    ISNULL(ADULTOS,0) AS ADULTOS, ISNULL(CRIANCAS,0) AS CRIANCAS,
-                    ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
+                SELECT LTRIM(RTRIM(ALOJAMENTO)) AS ALOJAMENTO, ISNULL(HORAOUT,'') AS HORAOUT, NOITES,
+                       ISNULL(ADULTOS,0) AS ADULTOS, ISNULL(CRIANCAS,0) AS CRIANCAS,
+                       ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
                 FROM RS
                 WHERE CAST(DATAOUT AS date) = :dia
             """), {'dia': dia_iso}).mappings().all()
 
             reservas_in = db.session.execute(text("""
-                SELECT ALOJAMENTO, ISNULL(HORAIN,'') AS HORAIN, NOITES,
-                    ISNULL(ADULTOS,0) AS ADULTOS, ISNULL(CRIANCAS,0) AS CRIANCAS,
-                    ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
+                SELECT LTRIM(RTRIM(ALOJAMENTO)) AS ALOJAMENTO, ISNULL(HORAIN,'') AS HORAIN, NOITES,
+                       ISNULL(ADULTOS,0) AS ADULTOS, ISNULL(CRIANCAS,0) AS CRIANCAS,
+                       ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
                 FROM RS
                 WHERE CAST(DATAIN AS date) = :dia
             """), {'dia': dia_iso}).mappings().all()
 
             tarefas = db.session.execute(text("""
-                SELECT t.ALOJAMENTO, t.UTILIZADOR, ISNULL(t.TRATADO,0) AS TRATADO,
-                    ISNULL(t.TAREFA,'') AS OBS, ISNULL(u.NOME, t.UTILIZADOR) AS NOME
+                SELECT LTRIM(RTRIM(t.ALOJAMENTO)) AS ALOJAMENTO, t.UTILIZADOR, ISNULL(t.TRATADO,0) AS TRATADO,
+                       ISNULL(t.TAREFA,'') AS OBS, ISNULL(u.NOME, t.UTILIZADOR) AS NOME
                 FROM TAREFAS t
                 LEFT JOIN US u ON u.LOGIN = t.UTILIZADOR
-                WHERE ISNULL(t.ORIGEM,'') = 'LP'
-                AND CAST(t.DATA AS date) = :dia
+                WHERE LTRIM(RTRIM(ISNULL(t.ORIGEM,''))) = 'LP'
+                  AND CAST(t.DATA AS date) = :dia
             """), {'dia': dia_iso}).mappings().all()
+
+            def norm_aloj(v: str) -> str:
+                try:
+                    return (v or '').strip().upper()
+                except Exception:
+                    return ''
 
             map_out, map_in, map_tasks = {}, {}, {}
             for r in reservas_out:
-                aloj = (r.get('ALOJAMENTO') or '').strip()
+                aloj = norm_aloj(r.get('ALOJAMENTO'))
                 if aloj:
                     map_out.setdefault(aloj, []).append(r)
             for r in reservas_in:
-                aloj = (r.get('ALOJAMENTO') or '').strip()
+                aloj = norm_aloj(r.get('ALOJAMENTO'))
                 if aloj:
                     map_in.setdefault(aloj, []).append(r)
             for r in tarefas:
-                aloj = (r.get('ALOJAMENTO') or '').strip()
+                aloj = norm_aloj(r.get('ALOJAMENTO'))
                 if aloj:
                     map_tasks.setdefault(aloj, []).append(r)
 
@@ -1462,6 +1468,12 @@ OPTION (MAXRECURSION 32767);
                 out_list = map_out.get(aloj, [])
                 in_list = map_in.get(aloj, [])
                 task_list = map_tasks.get(aloj, [])
+
+                aloj_display = ''
+                for src in (out_list, in_list, task_list):
+                    if src:
+                        aloj_display = src[0].get('ALOJAMENTO') or ''
+                        break
 
                 def first_val(lst, key):
                     try:
@@ -1494,7 +1506,7 @@ OPTION (MAXRECURSION 32767);
                 obs = ' • '.join(extras_obs)
 
                 cards.append({
-                    'alojamento': aloj,
+                    'alojamento': aloj_display or aloj,
                     'status': status,
                     'check_out': chk_out,
                     'has_check_out': bool(out_list),
@@ -2929,4 +2941,3 @@ app = create_app()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
