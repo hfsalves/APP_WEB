@@ -1404,6 +1404,119 @@ OPTION (MAXRECURSION 32767);
 
         return jsonify({'rows': out, 'total': round(total_sum, 2)})
 
+    @app.route('/turnover')
+    @login_required
+    def turnover_page():
+        return render_template('turnover.html', page_title='Turnover Diário', today=date.today().isoformat())
+
+    @app.route('/api/turnover')
+    @login_required
+    def api_turnover():
+        try:
+            data_str = (request.args.get('data') or '').strip()
+            dia = datetime.strptime(data_str, '%Y-%m-%d').date() if data_str else date.today()
+            dia_iso = dia.isoformat()
+
+            reservas_out = db.session.execute(text("""
+                SELECT ALOJAMENTO, ISNULL(HORAOUT,'') AS HORAOUT, NOITES,
+                    ISNULL(ADULTOS,0) AS ADULTOS, ISNULL(CRIANCAS,0) AS CRIANCAS,
+                    ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
+                FROM RS
+                WHERE CAST(DATAOUT AS date) = :dia
+            """), {'dia': dia_iso}).mappings().all()
+
+            reservas_in = db.session.execute(text("""
+                SELECT ALOJAMENTO, ISNULL(HORAIN,'') AS HORAIN, NOITES,
+                    ISNULL(ADULTOS,0) AS ADULTOS, ISNULL(CRIANCAS,0) AS CRIANCAS,
+                    ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
+                FROM RS
+                WHERE CAST(DATAIN AS date) = :dia
+            """), {'dia': dia_iso}).mappings().all()
+
+            tarefas = db.session.execute(text("""
+                SELECT t.ALOJAMENTO, t.UTILIZADOR, ISNULL(t.TRATADO,0) AS TRATADO,
+                    ISNULL(t.TAREFA,'') AS OBS, ISNULL(u.NOME, t.UTILIZADOR) AS NOME
+                FROM TAREFAS t
+                LEFT JOIN US u ON u.LOGIN = t.UTILIZADOR
+                WHERE ISNULL(t.ORIGEM,'') = 'LP'
+                AND CAST(t.DATA AS date) = :dia
+            """), {'dia': dia_iso}).mappings().all()
+
+            map_out, map_in, map_tasks = {}, {}, {}
+            for r in reservas_out:
+                aloj = (r.get('ALOJAMENTO') or '').strip()
+                if aloj:
+                    map_out.setdefault(aloj, []).append(r)
+            for r in reservas_in:
+                aloj = (r.get('ALOJAMENTO') or '').strip()
+                if aloj:
+                    map_in.setdefault(aloj, []).append(r)
+            for r in tarefas:
+                aloj = (r.get('ALOJAMENTO') or '').strip()
+                if aloj:
+                    map_tasks.setdefault(aloj, []).append(r)
+
+            all_aloj = set(map_out.keys()) | set(map_in.keys()) | set(map_tasks.keys())
+            cards = []
+            for aloj in sorted(all_aloj):
+                out_list = map_out.get(aloj, [])
+                in_list = map_in.get(aloj, [])
+                task_list = map_tasks.get(aloj, [])
+
+                def first_val(lst, key):
+                    try:
+                        return lst[0].get(key) if lst else ''
+                    except Exception:
+                        return ''
+
+                chk_out = first_val(out_list, 'HORAOUT') or ''
+                chk_in = first_val(in_list, 'HORAIN') or ''
+                noites = first_val(in_list, 'NOITES') or 0
+                try:
+                    hospedes = int(first_val(in_list, 'ADULTOS') or 0) + int(first_val(in_list, 'CRIANÇAS') or first_val(in_list, 'CRIANCAS') or 0)
+                except Exception:
+                    hospedes = 0
+                berco = bool(first_val(in_list, 'BERCO'))
+                sof = bool(first_val(in_list, 'SOFACAMA'))
+
+                status = 'Sem limpeza'
+                if task_list:
+                    if any(int(t.get('TRATADO') or 0) == 0 for t in task_list):
+                        status = 'Planeada'
+                    elif any(int(t.get('TRATADO') or 0) == 1 for t in task_list):
+                        status = 'Concluída'
+                equipa = first_val(task_list, 'NOME') or ''
+                extras_obs = []
+                if berco:
+                    extras_obs.append('Berço')
+                if sof:
+                    extras_obs.append('Sofá-cama')
+                obs = ' • '.join(extras_obs)
+
+                cards.append({
+                    'alojamento': aloj,
+                    'status': status,
+                    'check_out': chk_out,
+                    'has_check_out': bool(out_list),
+                    'check_in': chk_in,
+                    'has_check_in': bool(in_list),
+                    'equipa': equipa,
+                    'noites': noites,
+                    'hospedes': hospedes,
+                    'berco': berco,
+                    'sofacama': sof,
+                    'obs': obs
+                })
+
+            return jsonify({'data': dia_iso, 'cards': cards})
+        except Exception as e:
+            try:
+                app.logger.exception('Erro em api_turnover')
+            except Exception:
+                pass
+            return jsonify({'error': str(e)}), 500
+
+
     # Performance dashboard page
     @app.route('/performance')
     @login_required
@@ -2816,3 +2929,4 @@ app = create_app()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
