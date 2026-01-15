@@ -1423,6 +1423,7 @@ OPTION (MAXRECURSION 32767);
                        ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
                 FROM RS
                 WHERE CAST(DATAOUT AS date) = :dia
+                  AND ISNULL(CANCELADA,0) = 0
             """), {'dia': dia_iso}).mappings().all()
 
             reservas_in = db.session.execute(text("""
@@ -1431,6 +1432,7 @@ OPTION (MAXRECURSION 32767);
                        ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
                 FROM RS
                 WHERE CAST(DATAIN AS date) = :dia
+                  AND ISNULL(CANCELADA,0) = 0
             """), {'dia': dia_iso}).mappings().all()
 
             tarefas = db.session.execute(text("""
