@@ -134,7 +134,11 @@
   #mapaTabela td, #mapaTabela th { padding: 0.35rem 0.5rem; }
   #mapaTabela td:first-child, #mapaTabela th:first-child { text-align: left; }
   #mapaTabela td:first-child { white-space: nowrap; min-width: 260px; padding-right: 12px; }
-  .map-table-wrap { max-height: 65vh; overflow: auto; position: relative; }
+  .map-table-wrap {
+    height: calc(100vh - 325px);
+    overflow: auto;
+    position: relative;
+  }
   #mapaTabela thead { position: sticky; top: 0; z-index: 3; background: #f8fafc; }
   #mapaTabela thead th { position: sticky; top: 0; z-index: 4; background: #f8fafc; }
   .fam-cell.level-1 { font-weight: 700; padding-left: 6px !important; }
