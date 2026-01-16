@@ -107,10 +107,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const sorted = list.slice().sort((a, b) => {
+      const atrasA = statusClass(a.status || '') === 'atrasada';
+      const atrasB = statusClass(b.status || '') === 'atrasada';
+      if (atrasA && !atrasB) return -1;
+      if (!atrasA && atrasB) return 1;
+
+      const doneA = !!a.entrou;
+      const doneB = !!b.entrou;
+      if (doneA && !doneB) return 1;
+      if (!doneA && doneB) return -1;
+
       const hasA = !!a.has_check_in;
       const hasB = !!b.has_check_in;
       if (hasA && !hasB) return -1;
       if (!hasA && hasB) return 1;
+
       const tA = hasA ? toMinutes(a.check_in) : null;
       const tB = hasB ? toMinutes(b.check_in) : null;
       const scoreA = hasA ? (tA === null ? 0 : 1) : 2;
