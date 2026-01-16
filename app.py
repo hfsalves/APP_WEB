@@ -1530,7 +1530,7 @@ OPTION (MAXRECURSION 32767);
                 berco = bool(first_val(in_list, 'BERCO'))
                 sof = bool(first_val(in_list, 'SOFACAMA'))
 
-                status = 'Sem limpeza'
+                status = 'Já limpo'
                 tem_planeada = False
                 tem_concluida = False
                 if task_list:

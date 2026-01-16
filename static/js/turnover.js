@@ -133,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     cardsWrap.innerHTML = sorted.map(c => {
-      const status = c.status || 'Sem limpeza';
+      const status = c.status || 'Já limpo';
       const statusCls = statusClass(status);
       const lastInfo = Boolean(c.last_info);
       const equipa = c.equipa || 'Sem limpeza';
