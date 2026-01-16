@@ -1427,12 +1427,19 @@ OPTION (MAXRECURSION 32767);
             """), {'dia': dia_iso}).mappings().all()
 
             reservas_in = db.session.execute(text("""
-                SELECT LTRIM(RTRIM(ALOJAMENTO)) AS ALOJAMENTO, ISNULL(HORAIN,'') AS HORAIN, NOITES,
-                       ISNULL(ADULTOS,0) AS ADULTOS, ISNULL(CRIANCAS,0) AS CRIANCAS,
-                       ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
+                SELECT LTRIM(RTRIM(RS.ALOJAMENTO)) AS ALOJAMENTO, ISNULL(RS.HORAIN,'') AS HORAIN, RS.NOITES,
+                       ISNULL(RS.ADULTOS,0) AS ADULTOS, ISNULL(RS.CRIANCAS,0) AS CRIANCAS,
+                       ISNULL(RS.BERCO,0) AS BERCO, ISNULL(RS.SOFACAMA,0) AS SOFACAMA,
+                       ISNULL(RS.SEF,0) AS SEF, ISNULL(RS.USRSEF,'') AS USRSEF,
+                       ISNULL(RS.INSTR,0) AS INSTR, ISNULL(RS.USRINSTR,'') AS USRINSTR,
+                       ISNULL(RS.PRESENCIAL,0) AS PRESENCIAL,
+                       ISNULL(RS.ENTROU,0) AS ENTROU,
+                       ISNULL(RS.USRCHECKIN,'') AS USRCHECKIN,
+                       ISNULL(uc.NOME, RS.USRCHECKIN) AS USRCHECKIN_NOME
                 FROM RS
-                WHERE CAST(DATAIN AS date) = :dia
-                  AND ISNULL(CANCELADA,0) = 0
+                LEFT JOIN US uc ON uc.LOGIN = RS.USRCHECKIN
+                WHERE CAST(RS.DATAIN AS date) = :dia
+                  AND ISNULL(RS.CANCELADA,0) = 0
             """), {'dia': dia_iso}).mappings().all()
 
             tarefas = db.session.execute(text("""
@@ -1450,13 +1457,32 @@ OPTION (MAXRECURSION 32767);
                   AND CAST(t.DATA AS date) = :dia
             """), {'dia': dia_iso}).mappings().all()
 
+            ultimas_limpezas = db.session.execute(text("""
+                WITH cte AS (
+                    SELECT LTRIM(RTRIM(t.ALOJAMENTO)) AS ALOJAMENTO,
+                           CAST(t.DATA AS date) AS DIA,
+                           ISNULL(t.HORA,'') AS HORA,
+                           ISNULL(u.NOME, t.UTILIZADOR) AS NOME,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY LTRIM(RTRIM(t.ALOJAMENTO))
+                               ORDER BY CAST(t.DATA AS date) DESC, ISNULL(t.HORA,'') DESC
+                           ) AS rn
+                    FROM TAREFAS t
+                    LEFT JOIN US u ON u.LOGIN = t.UTILIZADOR
+                    WHERE LTRIM(RTRIM(ISNULL(t.ORIGEM,''))) = 'LP'
+                      AND ISNULL(t.TRATADO,0) = 1
+                      AND CAST(t.DATA AS date) <= :dia
+                )
+                SELECT ALOJAMENTO, DIA, HORA, NOME FROM cte WHERE rn = 1
+            """), {'dia': dia_iso}).mappings().all()
+
             def norm_aloj(v: str) -> str:
                 try:
                     return (v or '').strip().upper()
                 except Exception:
                     return ''
 
-            map_out, map_in, map_tasks = {}, {}, {}
+            map_out, map_in, map_tasks, map_last = {}, {}, {}, {}
             for r in reservas_out:
                 aloj = norm_aloj(r.get('ALOJAMENTO'))
                 if aloj:
@@ -1469,6 +1495,10 @@ OPTION (MAXRECURSION 32767);
                 aloj = norm_aloj(r.get('ALOJAMENTO'))
                 if aloj:
                     map_tasks.setdefault(aloj, []).append(r)
+            for r in ultimas_limpezas:
+                aloj = norm_aloj(r.get('ALOJAMENTO'))
+                if aloj and aloj not in map_last:
+                    map_last[aloj] = r
 
             now_dt = datetime.now()
             all_aloj = set(map_out.keys()) | set(map_in.keys()) | set(map_tasks.keys())
@@ -1549,6 +1579,24 @@ OPTION (MAXRECURSION 32767);
                             pass
                 if atrasada:
                     status = 'Atrasada'
+                last_info = False
+                if not task_list:
+                    last = map_last.get(aloj)
+                    if last:
+                        try:
+                            dia_last = last.get('DIA')
+                            dia_str = ''
+                            if dia_last:
+                                try:
+                                    dia_str = dia_last.strftime('%d/%m/%Y')
+                                except Exception:
+                                    dia_str = str(dia_last)[:10]
+                            nome_last = last.get('NOME') or ''
+                            if nome_last or dia_str:
+                                equipa = f"{nome_last} ({dia_str})".strip()
+                            last_info = True
+                        except Exception:
+                            pass
                 extras_obs = []
                 if berco:
                     extras_obs.append('Berço')
@@ -1563,20 +1611,126 @@ OPTION (MAXRECURSION 32767);
                     'has_check_out': bool(out_list),
                     'check_in': chk_in,
                     'has_check_in': bool(in_list),
+                    'entrou': bool(first_val(in_list, 'ENTROU') or 0),
                     'equipa': equipa,
+                    'last_info': last_info,
                     'hora_lp': hora_lp,
                     'hora_fim': hora_fim,
                     'noites': noites,
                     'hospedes': hospedes,
                     'berco': berco,
                     'sofacama': sof,
-                    'obs': obs
+                    'obs': obs,
+                    'sef': bool(first_val(in_list, 'SEF') or 0),
+                    'instr': bool(first_val(in_list, 'INSTR') or 0),
+                    'presencial': bool(first_val(in_list, 'PRESENCIAL') or 0),
+                    'usrcheckin': first_val(in_list, 'USRCHECKIN') or '',
+                    'usrcheckin_nome': first_val(in_list, 'USRCHECKIN_NOME') or ''
                 })
 
             return jsonify({'data': dia_iso, 'cards': cards})
         except Exception as e:
             try:
                 app.logger.exception('Erro em api_turnover')
+            except Exception:
+                pass
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/turnover/checkin', methods=['GET', 'POST'])
+    @login_required
+    def api_turnover_checkin():
+        try:
+            if request.method == 'GET':
+                data_str = (request.args.get('data') or '').strip()
+                aloj = (request.args.get('alojamento') or '').strip()
+                if not data_str or not aloj:
+                    return jsonify({'error': 'Parâmetros em falta'}), 400
+                try:
+                    dia = datetime.strptime(data_str, '%Y-%m-%d').date()
+                except Exception:
+                    return jsonify({'error': 'Data inválida'}), 400
+
+                users_rows = db.session.execute(text(
+                    "SELECT LOGIN, NOME FROM US WHERE ISNULL(INATIVO,0)=0 ORDER BY NOME"
+                )).fetchall()
+                users = [{'value': r[0], 'label': r[1] or r[0]} for r in users_rows]
+
+                row = db.session.execute(text("""
+                    SELECT TOP 1 ISNULL(PRESENCIAL,0) AS PRESENCIAL,
+                           ISNULL(ENTROU,0) AS ENTROU,
+                           ISNULL(USRCHECKIN,'') AS USRCHECKIN,
+                           ISNULL(SEF,0) AS SEF,
+                           ISNULL(USRSEF,'') AS USRSEF,
+                           ISNULL(INSTR,0) AS INSTR,
+                           ISNULL(USRINSTR,'') AS USRINSTR
+                    FROM RS
+                    WHERE CAST(DATAIN AS date) = :dia
+                      AND LTRIM(RTRIM(ALOJAMENTO)) = LTRIM(RTRIM(:aloj))
+                      AND ISNULL(CANCELADA,0) = 0
+                    ORDER BY DATAIN DESC
+                """), {'dia': dia, 'aloj': aloj}).mappings().first()
+                if not row:
+                    return jsonify({'error': 'Reserva não encontrada'}), 404
+
+                data = {
+                    'presencial': bool(row.get('PRESENCIAL') or 0),
+                    'entrou': bool(row.get('ENTROU') or 0),
+                    'usrcheckin': row.get('USRCHECKIN') or '',
+                    'sef': bool(row.get('SEF') or 0),
+                    'usrsef': row.get('USRSEF') or '',
+                    'instr': bool(row.get('INSTR') or 0),
+                    'usrinstr': row.get('USRINSTR') or ''
+                }
+                return jsonify({'data': data, 'users': users, 'alojamento': aloj})
+
+            # POST
+            body = request.get_json(silent=True) or {}
+            data_str = (body.get('data') or '').strip()
+            aloj = (body.get('alojamento') or '').strip()
+            if not data_str or not aloj:
+                return jsonify({'error': 'Parâmetros em falta'}), 400
+            try:
+                dia = datetime.strptime(data_str, '%Y-%m-%d').date()
+            except Exception:
+                return jsonify({'error': 'Data inválida'}), 400
+            sef = 1 if body.get('sef') else 0
+            instr = 1 if body.get('instr') else 0
+            presencial = 1 if body.get('presencial') else 0
+            entrou = 1 if body.get('entrou') else 0
+            usrcheckin = (body.get('usrcheckin') or '').strip()
+            usrsef = getattr(current_user, 'LOGIN', '')
+            usrinstr = getattr(current_user, 'LOGIN', '')
+
+            upd = text("""
+                UPDATE RS
+                   SET PRESENCIAL = :p,
+                       ENTROU = :e,
+                       USRCHECKIN = :u,
+                       SEF = :sef,
+                       USRSEF = CASE WHEN :sef = 1 THEN :usrsef ELSE USRSEF END,
+                       INSTR = :instr,
+                       USRINSTR = CASE WHEN :instr = 1 THEN :usrinstr ELSE USRINSTR END
+                 WHERE CAST(DATAIN AS date) = :dia
+                   AND LTRIM(RTRIM(ALOJAMENTO)) = LTRIM(RTRIM(:aloj))
+                   AND ISNULL(CANCELADA,0) = 0
+            """)
+            res = db.session.execute(upd, {
+                'p': presencial,
+                'e': entrou,
+                'u': usrcheckin,
+                'sef': sef,
+                'usrsef': usrsef,
+                'instr': instr,
+                'usrinstr': usrinstr,
+                'dia': dia,
+                'aloj': aloj
+            })
+            db.session.commit()
+            return jsonify({'ok': True, 'updated': res.rowcount})
+        except Exception as e:
+            db.session.rollback()
+            try:
+                app.logger.exception('Erro em api_turnover_checkin')
             except Exception:
                 pass
             return jsonify({'error': str(e)}), 500

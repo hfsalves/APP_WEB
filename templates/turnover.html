@@ -23,6 +23,10 @@
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: 12px;
   }
+  .turn-pill.turn-pill-ok { background: #dcfce7; color: #166534; }
+  .turn-pill.turn-pill-warn { background: #fee2e2; color: #b91c1c; }
+  .turn-pill.turn-pill-pres { background: #fed7aa; color: #9a3412; }
+  .turn-pill.turn-pill-pres-off { background: #f1f5f9; color: #475569; border: 1px dashed #cbd5e1; }
   @media (min-width: 1280px) {
     .turn-grid {
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -52,7 +56,7 @@
   }
   .turn-card .card-body {
     display: grid;
-    grid-template-columns: minmax(64px, 90px) 1fr minmax(64px, 90px);
+    grid-template-columns: minmax(46px, 60px) 1fr minmax(46px, 60px);
     align-items: stretch;
   }
   .turn-hours {
@@ -62,21 +66,23 @@
   }
   .turn-block {
     border-radius: 0;
-    padding: 8px;
+    padding: 5px;
     color: #fff;
     display: flex;
     flex-direction: column;
     gap: 4px;
     min-height: 72px;
     justify-content: center;
-    min-width: 70px;
+    min-width: 50px;
     text-align: center;
   }
   .turn-block.out { background: #dc2626; }
   .turn-block.in { background: #16a34a; }
   .turn-block.muted { background: #cbd5e1; color: #0f172a; }
-  .turn-block .label { font-size: 10px; text-transform: uppercase; opacity: 0.8; }
-  .turn-block .time { font-size: 16px; font-weight: 700; line-height: 1; }
+  .turn-block.in.done { background: #15803d; }
+  .turn-block.in { cursor: pointer; }
+  .turn-block .label { font-size: 9px; text-transform: uppercase; opacity: 0.8; }
+  .turn-block .time { font-size: 14px; font-weight: 700; line-height: 1; }
   .turn-middle {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
@@ -108,8 +114,79 @@
   .turn-status.concluida { background: #dcfce7; color: #166534; }
   .turn-status.atrasada { background: #fee2e2; color: #b91c1c; }
   .turn-status.sem { background: #e2e8f0; color: #0f172a; }
-  /* Mobile mantém 3 colunas compactas */
+  /* Modal styling */
+  .turn-modal .modal-content {
+    border: none;
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(15,23,42,0.2);
+    overflow: hidden;
+  }
+  .turn-modal .modal-header {
+    background: linear-gradient(90deg, #0ea5e9, #6366f1);
+    color: #fff;
+    border: none;
+  }
+  .turn-modal .modal-title {
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+  .turn-modal .modal-body {
+    background: #f8fafc;
+    display: grid;
+    gap: 10px;
+  }
+  .turn-modal .form-check-input:checked {
+    background-color: #0ea5e9;
+    border-color: #0ea5e9;
+  }
+  .turn-modal .btn-primary {
+    background: linear-gradient(90deg, #0ea5e9, #6366f1);
+    border: none;
+    box-shadow: 0 10px 20px rgba(99,102,241,0.25);
+  }
 </style>
+
+<!-- Modal Check-in -->
+<div class="modal fade turn-modal" id="checkinModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="turnCheckinTitle">Check-in</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger d-none" id="turnCheckinErr"></div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="turnSef">
+          <label class="form-check-label" for="turnSef">SEF preenchido</label>
+          <div class="text-muted small ms-4 mt-1 d-none" id="turnSefUser"></div>
+        </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="turnInstr">
+          <label class="form-check-label" for="turnInstr">Instruções de check-in enviadas</label>
+          <div class="text-muted small ms-4 mt-1 d-none" id="turnInstrUser"></div>
+        </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="turnPresencial">
+          <label class="form-check-label" for="turnPresencial">Check-in presencial</label>
+        </div>
+        <div class="mb-2">
+          <label class="form-label" for="turnUser">Responsável pelo check-in</label>
+          <select class="form-select" id="turnUser"></select>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="turnEntro">
+          <label class="form-check-label" for="turnEntro">Check-in concluído</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="turnSaveCheckin">Gravar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}

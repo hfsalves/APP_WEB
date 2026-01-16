@@ -6,6 +6,35 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnNext = document.getElementById('turnNext');
   const cardsWrap = document.getElementById('turnCards');
   const infoEl = document.getElementById('turnInfo');
+  const modalEl = document.getElementById('checkinModal');
+  const modalTitle = document.getElementById('turnCheckinTitle');
+  const fieldPresencial = document.getElementById('turnPresencial');
+  const fieldSef = document.getElementById('turnSef');
+  const labelSefUser = document.getElementById('turnSefUser');
+  const fieldInstr = document.getElementById('turnInstr');
+  const labelInstrUser = document.getElementById('turnInstrUser');
+  const fieldUser = document.getElementById('turnUser');
+  const fieldEntro = document.getElementById('turnEntro');
+  const btnSaveCheckin = document.getElementById('turnSaveCheckin');
+  const msgErr = document.getElementById('turnCheckinErr');
+  const modal = (() => {
+    if (!modalEl) return null;
+    if (window.bootstrap && window.bootstrap.Modal) {
+      return new bootstrap.Modal(modalEl);
+    }
+    // Fallback modal controller if bootstrap not on window (minimal)
+    return {
+      show() {
+        modalEl.classList.add('show', 'd-block');
+        modalEl.removeAttribute('aria-hidden');
+      },
+      hide() {
+        modalEl.classList.remove('show', 'd-block');
+        modalEl.setAttribute('aria-hidden', 'true');
+      }
+    };
+  })();
+  let currentAloj = '';
 
   if (!dateInput) return;
 
@@ -95,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
     cardsWrap.innerHTML = sorted.map(c => {
       const status = c.status || 'Sem limpeza';
       const statusCls = statusClass(status);
+      const lastInfo = Boolean(c.last_info);
       const equipa = c.equipa || 'Sem limpeza';
       const horaIni = c.hora_lp ? fmtTime(c.hora_lp) : '';
       const horaFim = c.hora_fim ? fmtTime(c.hora_fim) : '';
@@ -108,14 +138,27 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const pax = fmtGuests(c.hospedes);
       const nts = fmtNoites(c.noites);
+      const sefBadge = c.sef
+        ? '<span class="turn-pill turn-pill-ok">SEF</span>'
+        : '<span class="turn-pill turn-pill-warn">SEF</span>';
+      const instrBadge = c.instr
+        ? '<span class="turn-pill turn-pill-ok"><i class="fa-solid fa-camera"></i></span>'
+        : '<span class="turn-pill turn-pill-warn"><i class="fa-solid fa-camera"></i></span>';
+      const usrCheck = c.usrcheckin_nome || c.usrcheckin || '';
+      const pres = !!c.presencial;
+      const presencialBadge = pres || usrCheck
+        ? `<span class="turn-pill ${pres ? 'turn-pill-pres' : 'turn-pill-pres-off'}"><i class="fa-solid ${pres ? 'fa-user' : 'fa-user-slash'}"></i>${usrCheck ? ' ' + escapeHtml(usrCheck) : ''}</span>`
+        : '';
       const extra = [];
       const hasOut = Boolean(c.has_check_out);
       const hasIn = Boolean(c.has_check_in);
       const outText = hasOut ? fmtTime(c.check_out) : '';
       const inText = hasIn ? fmtTime(c.check_in) : '';
+      const entrou = !!c.entrou;
+      const inClass = hasIn ? (entrou ? ' done' : '') : ' muted';
       const headerClass = statusCls === 'atrasada' ? ' delayed' : '';
       return `
-        <div class="turn-card">
+        <div class="turn-card" data-aloj="${escapeHtml(c.alojamento || '')}">
           <div class="card-header${headerClass}">
             <span>${escapeHtml(c.alojamento || '')}</span>
             <span class="turn-status ${statusCls}">${escapeHtml(status)}</span>
@@ -126,22 +169,111 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="time">${escapeHtml(outText)}</div>
             </div>
             <div class="turn-middle">
-              <div><strong>${escapeHtml(equipa)}</strong>${horaTexto ? ' &middot; <span class="turn-hours">' + escapeHtml(horaTexto) + '</span>' : ''}</div>
+              <div><span class="${lastInfo ? 'text-muted fst-italic' : ''}"><strong>${escapeHtml(equipa)}</strong></span>${horaTexto ? ' &middot; <span class="turn-hours">' + escapeHtml(horaTexto) + '</span>' : ''}</div>
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="turn-pill">${escapeHtml(nts)}</span>
                 <span class="turn-pill">${escapeHtml(pax)}</span>
+                ${sefBadge}
+                ${instrBadge}
+                ${presencialBadge}
                 ${extra.map(e => `<span class="turn-pill">${escapeHtml(e)}</span>`).join('')}
               </div>
               <div class="text-muted small">${escapeHtml(obs)}</div>
             </div>
-            <div class="turn-block in ${hasIn ? '' : 'muted'}">
-              <div class="label">&nbsp;</div>
+            <div class="turn-block in${inClass}">
+              <div class="label">${entrou ? '<i class="fa-solid fa-check"></i>' : '&nbsp;'}</div>
               <div class="time">${escapeHtml(inText)}</div>
             </div>
           </div>
         </div>
       `;
     }).join('');
+  }
+
+  async function openCheckinModal(aloj) {
+    currentAloj = aloj;
+    const d = dateInput.value || new Date().toISOString().slice(0, 10);
+    if (modalTitle) modalTitle.textContent = `Check-in · ${aloj}`;
+    if (msgErr) { msgErr.classList.add('d-none'); msgErr.textContent = ''; }
+    btnSaveCheckin?.setAttribute('disabled', 'disabled');
+    modal?.show();
+    try {
+      const res = await fetch(`/api/turnover/checkin?data=${encodeURIComponent(d)}&alojamento=${encodeURIComponent(aloj)}`);
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar');
+      const users = data.users || [];
+      if (fieldUser) {
+        fieldUser.innerHTML = '<option value=\"\">(sem responsável)</option>' +
+          users.map(u => `<option value=\"${escapeHtml(u.value)}\">${escapeHtml(u.label)}</option>`).join('');
+      }
+      const info = data.data || {};
+      if (fieldSef) fieldSef.checked = !!info.sef;
+      if (labelSefUser) {
+        const usrsef = info.usrsef || '';
+        if (info.sef && usrsef) {
+          labelSefUser.textContent = `Marcado por ${usrsef}`;
+          labelSefUser.classList.remove('d-none');
+        } else {
+          labelSefUser.textContent = '';
+          labelSefUser.classList.add('d-none');
+        }
+      }
+      if (fieldInstr) fieldInstr.checked = !!info.instr;
+      if (labelInstrUser) {
+        const uinstr = info.usrinstr || '';
+        if (info.instr && uinstr) {
+          labelInstrUser.textContent = `Enviado por ${uinstr}`;
+          labelInstrUser.classList.remove('d-none');
+        } else {
+          labelInstrUser.textContent = '';
+          labelInstrUser.classList.add('d-none');
+        }
+      }
+      if (fieldPresencial) fieldPresencial.checked = !!info.presencial;
+      if (fieldEntro) fieldEntro.checked = !!info.entrou;
+      if (fieldUser) fieldUser.value = info.usrcheckin || '';
+      btnSaveCheckin?.removeAttribute('disabled');
+    } catch (err) {
+      console.error(err);
+      if (msgErr) {
+        msgErr.textContent = err.message || 'Erro';
+        msgErr.classList.remove('d-none');
+      }
+    }
+  }
+
+  async function saveCheckin() {
+    if (!currentAloj) return;
+    const d = dateInput.value || new Date().toISOString().slice(0, 10);
+    const payload = {
+      alojamento: currentAloj,
+      data: d,
+      sef: fieldSef?.checked || false,
+      instr: fieldInstr?.checked || false,
+      presencial: fieldPresencial?.checked || false,
+      entrou: fieldEntro?.checked || false,
+      usrcheckin: fieldUser?.value || ''
+    };
+    try {
+      btnSaveCheckin?.setAttribute('disabled', 'disabled');
+      const res = await fetch('/api/turnover/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao gravar');
+      modal?.hide();
+      loadData();
+    } catch (err) {
+      console.error(err);
+      if (msgErr) {
+        msgErr.textContent = err.message || 'Erro';
+        msgErr.classList.remove('d-none');
+      }
+    } finally {
+      btnSaveCheckin?.removeAttribute('disabled');
+    }
   }
 
   function escapeHtml(str) {
@@ -164,9 +296,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  cardsWrap?.addEventListener('click', (ev) => {
+    const block = ev.target.closest('.turn-block.in');
+    if (!block || block.classList.contains('muted')) return;
+    const card = block.closest('.turn-card');
+    const aloj = card?.dataset?.aloj;
+    if (aloj) {
+      openCheckinModal(aloj);
+    }
+  });
+
   btnPrev?.addEventListener('click', () => changeDate(-1));
   btnNext?.addEventListener('click', () => changeDate(1));
   dateInput.addEventListener('change', loadData);
+  btnSaveCheckin?.addEventListener('click', saveCheckin);
 
   if (!dateInput.value) {
     dateInput.value = window.TURNOVER_TODAY || new Date().toISOString().slice(0, 10);
