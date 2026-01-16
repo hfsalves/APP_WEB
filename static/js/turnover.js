@@ -168,6 +168,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const entrou = !!c.entrou;
       const inClass = hasIn ? (entrou ? ' done' : '') : ' muted';
       const headerClass = statusCls === 'atrasada' ? ' delayed' : '';
+      const fallbackOut = c.fallback_out || null;
+      const fallbackIn = c.fallback_in || null;
+      const outHtml = fallbackOut
+        ? `<div class="dow">${escapeHtml(fallbackOut.dow || '')}</div><div class="date">${escapeHtml(fallbackOut.date || '')}</div>`
+        : escapeHtml(outText);
+      const inHtml = fallbackIn
+        ? (fallbackIn.text ? `<div class="dow">${escapeHtml(fallbackIn.text)}</div>` : `<div class="dow">${escapeHtml(fallbackIn.dow || '')}</div><div class="date">${escapeHtml(fallbackIn.date || '')}</div>`)
+        : escapeHtml(inText);
       return `
         <div class="turn-card" data-aloj="${escapeHtml(c.alojamento || '')}">
           <div class="card-header${headerClass}">
@@ -177,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="card-body">
             <div class="turn-block out ${hasOut ? '' : 'muted'}">
               <div class="label">&nbsp;</div>
-              <div class="time">${escapeHtml(outText)}</div>
+              <div class="time">${outHtml}</div>
             </div>
             <div class="turn-middle">
               <div><span class="${lastInfo ? 'text-muted fst-italic' : ''}"><strong>${escapeHtml(equipa)}</strong></span>${horaTexto ? ' &middot; <span class="turn-hours">' + escapeHtml(horaTexto) + '</span>' : ''}</div>
@@ -193,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="turn-block in${inClass}">
               <div class="label">${entrou ? '<i class="fa-solid fa-check"></i>' : '&nbsp;'}</div>
-              <div class="time">${escapeHtml(inText)}</div>
+              <div class="time">${inHtml}</div>
             </div>
           </div>
         </div>

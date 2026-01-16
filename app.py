@@ -1502,6 +1502,59 @@ OPTION (MAXRECURSION 32767);
 
             now_dt = datetime.now()
             all_aloj = set(map_out.keys()) | set(map_in.keys()) | set(map_tasks.keys())
+
+            # Helpers to cache last checkout and next checkin dates
+            cache_last_out = {}
+            cache_next_in = {}
+
+            def get_last_out(aloj):
+                if aloj in cache_last_out:
+                    return cache_last_out[aloj]
+                try:
+                    row = db.session.execute(text("""
+                        SELECT TOP 1 CAST(DATAOUT AS date) AS DIA
+                        FROM RS
+                        WHERE CAST(DATAOUT AS date) < :dia
+                          AND LTRIM(RTRIM(ALOJAMENTO)) = LTRIM(RTRIM(:aloj))
+                          AND ISNULL(CANCELADA,0) = 0
+                        ORDER BY DATAOUT DESC
+                    """), {'dia': dia_iso, 'aloj': aloj}).first()
+                    cache_last_out[aloj] = row[0] if row else None
+                except Exception:
+                    cache_last_out[aloj] = None
+                return cache_last_out[aloj]
+
+            def get_next_in(aloj):
+                if aloj in cache_next_in:
+                    return cache_next_in[aloj]
+                try:
+                    row = db.session.execute(text("""
+                        SELECT TOP 1 CAST(DATAIN AS date) AS DIA
+                        FROM RS
+                        WHERE CAST(DATAIN AS date) > :dia
+                          AND LTRIM(RTRIM(ALOJAMENTO)) = LTRIM(RTRIM(:aloj))
+                          AND ISNULL(CANCELADA,0) = 0
+                        ORDER BY DATAIN ASC
+                    """), {'dia': dia_iso, 'aloj': aloj}).first()
+                    cache_next_in[aloj] = row[0] if row else None
+                except Exception:
+                    cache_next_in[aloj] = None
+                return cache_next_in[aloj]
+
+            dow_pt = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM']
+
+            def fmt_date_parts(dval):
+                try:
+                    if isinstance(dval, datetime):
+                        d = dval.date()
+                    else:
+                        d = dval
+                    dow = dow_pt[d.weekday()]
+                    dat = d.strftime('%d/%m')
+                    return {'dow': dow, 'date': dat}
+                except Exception:
+                    return None
+
             cards = []
             for aloj in sorted(all_aloj):
                 out_list = map_out.get(aloj, [])
@@ -1603,6 +1656,22 @@ OPTION (MAXRECURSION 32767);
                 if sof:
                     extras_obs.append('Sofá-cama')
                 obs = ' • '.join(extras_obs)
+                fallback_out = None
+                if not out_list:
+                    d_last = get_last_out(aloj)
+                    if d_last:
+                        fmt = fmt_date_parts(d_last)
+                        if fmt:
+                            fallback_out = fmt
+                fallback_in = None
+                if not in_list:
+                    d_next = get_next_in(aloj)
+                    if d_next:
+                        fmt = fmt_date_parts(d_next)
+                        if fmt:
+                            fallback_in = fmt
+                    else:
+                        fallback_in = {'text': 'Sem Reservas'}
 
                 cards.append({
                     'alojamento': aloj_display or aloj,
@@ -1625,7 +1694,9 @@ OPTION (MAXRECURSION 32767);
                     'instr': bool(first_val(in_list, 'INSTR') or 0),
                     'presencial': bool(first_val(in_list, 'PRESENCIAL') or 0),
                     'usrcheckin': first_val(in_list, 'USRCHECKIN') or '',
-                    'usrcheckin_nome': first_val(in_list, 'USRCHECKIN_NOME') or ''
+                    'usrcheckin_nome': first_val(in_list, 'USRCHECKIN_NOME') or '',
+                    'fallback_out': fallback_out,
+                    'fallback_in': fallback_in
                 })
 
             return jsonify({'data': dia_iso, 'cards': cards})
