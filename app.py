@@ -1436,10 +1436,16 @@ OPTION (MAXRECURSION 32767);
             """), {'dia': dia_iso}).mappings().all()
 
             tarefas = db.session.execute(text("""
-                SELECT LTRIM(RTRIM(t.ALOJAMENTO)) AS ALOJAMENTO, t.UTILIZADOR, ISNULL(t.TRATADO,0) AS TRATADO,
-                       ISNULL(t.TAREFA,'') AS OBS, ISNULL(u.NOME, t.UTILIZADOR) AS NOME
+                SELECT LTRIM(RTRIM(t.ALOJAMENTO)) AS ALOJAMENTO,
+                       t.UTILIZADOR,
+                       ISNULL(t.TRATADO,0) AS TRATADO,
+                       ISNULL(t.TAREFA,'') AS OBS,
+                       ISNULL(u.NOME, t.UTILIZADOR) AS NOME,
+                       ISNULL(t.HORA,'') AS HORA,
+                       ISNULL(al.TIPOLOGIA,'') AS TIPOLOGIA
                 FROM TAREFAS t
                 LEFT JOIN US u ON u.LOGIN = t.UTILIZADOR
+                LEFT JOIN AL al ON LTRIM(RTRIM(al.NOME)) = LTRIM(RTRIM(t.ALOJAMENTO))
                 WHERE LTRIM(RTRIM(ISNULL(t.ORIGEM,''))) = 'LP'
                   AND CAST(t.DATA AS date) = :dia
             """), {'dia': dia_iso}).mappings().all()
@@ -1464,6 +1470,7 @@ OPTION (MAXRECURSION 32767);
                 if aloj:
                     map_tasks.setdefault(aloj, []).append(r)
 
+            now_dt = datetime.now()
             all_aloj = set(map_out.keys()) | set(map_in.keys()) | set(map_tasks.keys())
             cards = []
             for aloj in sorted(all_aloj):
@@ -1494,12 +1501,54 @@ OPTION (MAXRECURSION 32767);
                 sof = bool(first_val(in_list, 'SOFACAMA'))
 
                 status = 'Sem limpeza'
+                tem_planeada = False
+                tem_concluida = False
                 if task_list:
-                    if any(int(t.get('TRATADO') or 0) == 0 for t in task_list):
+                    tem_planeada = any(int(t.get('TRATADO') or 0) == 0 for t in task_list)
+                    tem_concluida = any(int(t.get('TRATADO') or 0) == 1 for t in task_list)
+                    if tem_planeada:
                         status = 'Planeada'
-                    elif any(int(t.get('TRATADO') or 0) == 1 for t in task_list):
+                    elif tem_concluida:
                         status = 'Concluída'
                 equipa = first_val(task_list, 'NOME') or ''
+                hora_lp = first_val(task_list, 'HORA') or ''
+                tipologia = (first_val(task_list, 'TIPOLOGIA') or '').strip().upper()
+                dur_map = {'T0': 60, 'T1': 60, 'T2': 90, 'T3': 120, 'T4': 150}
+                dur_min = dur_map.get(tipologia)
+                hora_fim = ''
+                try:
+                    if hora_lp and dur_min:
+                        s = str(hora_lp).strip()
+                        hh = mm = 0
+                        if ':' in s:
+                            parts = s.split(':')
+                            hh = int(parts[0])
+                            mm = int(parts[1] if len(parts) > 1 else 0)
+                        else:
+                            digits = ''.join(ch for ch in s if ch.isdigit())
+                            if len(digits) >= 3:
+                                mm = int(digits[-2:])
+                                hh = int(digits[:-2])
+                            elif digits:
+                                hh = int(digits)
+                        total = hh * 60 + mm + dur_min
+                        hora_fim = f"{(total // 60) % 24:02d}:{total % 60:02d}"
+                except Exception:
+                    hora_fim = ''
+                atrasada = False
+                if tem_planeada and not tem_concluida:
+                    if dia < now_dt.date():
+                        atrasada = True
+                    elif dia == now_dt.date():
+                        try:
+                            if hora_fim:
+                                h_end = datetime.strptime(hora_fim, '%H:%M').time()
+                                if now_dt.time() > h_end:
+                                    atrasada = True
+                        except Exception:
+                            pass
+                if atrasada:
+                    status = 'Atrasada'
                 extras_obs = []
                 if berco:
                     extras_obs.append('Berço')
@@ -1515,6 +1564,8 @@ OPTION (MAXRECURSION 32767);
                     'check_in': chk_in,
                     'has_check_in': bool(in_list),
                     'equipa': equipa,
+                    'hora_lp': hora_lp,
+                    'hora_fim': hora_fim,
                     'noites': noites,
                     'hospedes': hospedes,
                     'berco': berco,

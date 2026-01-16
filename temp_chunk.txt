@@ -49,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function statusClass(s) {
     const val = (s || '').toLowerCase();
-    if (val.includes('atras')) return 'atrasada';
     if (val.includes('plane')) return 'planeada';
     if (val.includes('conclu')) return 'concluida';
     return 'sem';
@@ -95,28 +94,23 @@ document.addEventListener('DOMContentLoaded', () => {
     cardsWrap.innerHTML = sorted.map(c => {
       const status = c.status || 'Sem limpeza';
       const statusCls = statusClass(status);
-      const equipa = c.equipa || 'Sem limpeza';
-      const horaIni = c.hora_lp ? fmtTime(c.hora_lp) : '';
-      const horaFim = c.hora_fim ? fmtTime(c.hora_fim) : '';
-      const horaTexto = horaIni
-        ? (horaFim ? `${horaIni} - ${horaFim}` : horaIni)
-        : (horaFim ? horaFim : '');
+      const equipa = c.equipa || '—';
+      const horaLp = c.hora_lp || '';
       let obs = c.obs || '';
-      const obsLower = obs.trim().toLowerCase();
-      if (obsLower === 'sofá-cama' || obsLower === 'sofa-cama') {
+      if (obs.trim().toLowerCase() === 'sofá-cama' || obs.trim().toLowerCase() === 'sofa-cama') {
         obs = '';
       }
       const pax = fmtGuests(c.hospedes);
       const nts = fmtNoites(c.noites);
       const extra = [];
+      // berço e sofá-cama não são mostrados na UI
       const hasOut = Boolean(c.has_check_out);
       const hasIn = Boolean(c.has_check_in);
       const outText = hasOut ? fmtTime(c.check_out) : '';
       const inText = hasIn ? fmtTime(c.check_in) : '';
-      const headerClass = statusCls === 'atrasada' ? ' delayed' : '';
       return `
         <div class="turn-card">
-          <div class="card-header${headerClass}">
+          <div class="card-header">
             <span>${escapeHtml(c.alojamento || '')}</span>
             <span class="turn-status ${statusCls}">${escapeHtml(status)}</span>
           </div>
@@ -126,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="time">${escapeHtml(outText)}</div>
             </div>
             <div class="turn-middle">
-              <div><strong>${escapeHtml(equipa)}</strong>${horaTexto ? ' &middot; <span class="turn-hours">' + escapeHtml(horaTexto) + '</span>' : ''}</div>
+              <div><strong>${escapeHtml(equipa)}</strong>${horaLp ? ' · ' + escapeHtml(fmtTime(horaLp)) : ''}</div>
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="turn-pill">${escapeHtml(nts)}</span>
                 <span class="turn-pill">${escapeHtml(pax)}</span>
@@ -164,12 +158,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  btnPrev?.addEventListener('click', () => changeDate(-1));
-  btnNext?.addEventListener('click', () => changeDate(1));
-  dateInput.addEventListener('change', loadData);
-
-  if (!dateInput.value) {
-    dateInput.value = window.TURNOVER_TODAY || new Date().toISOString().slice(0, 10);
-  }
-  loadData();
-});

@@ -42,10 +42,18 @@
     font-weight: 700;
     font-size: 14px;
   }
+  .turn-card .card-header.delayed {
+    background: linear-gradient(90deg, #f87171, #b91c1c);
+  }
   .turn-card .card-body {
     display: grid;
     grid-template-columns: minmax(64px, 90px) 1fr minmax(64px, 90px);
     align-items: stretch;
+  }
+  .turn-hours {
+    font-size: 11px;
+    color: #475569;
+    font-weight: 600;
   }
   .turn-block {
     border-radius: 0;
@@ -93,6 +101,7 @@
   }
   .turn-status.planeada { background: #fff3cd; color: #92400e; }
   .turn-status.concluida { background: #dcfce7; color: #166534; }
+  .turn-status.atrasada { background: #fee2e2; color: #b91c1c; }
   .turn-status.sem { background: #e2e8f0; color: #0f172a; }
   /* Mobile mantém 3 colunas compactas */
 </style>
