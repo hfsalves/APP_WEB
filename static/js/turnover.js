@@ -153,8 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ? '<span class="turn-pill turn-pill-ok">SEF</span>'
         : '<span class="turn-pill turn-pill-warn">SEF</span>';
       const instrBadge = c.instr
-        ? '<span class="turn-pill turn-pill-ok"><i class="fa-solid fa-camera"></i></span>'
-        : '<span class="turn-pill turn-pill-warn"><i class="fa-solid fa-camera"></i></span>';
+        ? '<span class="turn-pill turn-pill-ok"><i class="fa-solid fa-images"></i></span>'
+        : '<span class="turn-pill turn-pill-warn"><i class="fa-solid fa-images"></i></span>';
       const usrCheck = c.usrcheckin_nome || c.usrcheckin || '';
       const pres = !!c.presencial;
       const presencialBadge = pres || usrCheck
