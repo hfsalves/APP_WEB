@@ -7,7 +7,7 @@ import json
 from decimal import Decimal
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from sqlalchemy import text
 
 # Importa a instÃ¢ncia db e modelos
@@ -1506,6 +1506,7 @@ OPTION (MAXRECURSION 32767);
             # Helpers to cache last checkout and next checkin dates
             cache_last_out = {}
             cache_next_in = {}
+            cache_future_clean = {}
 
             def get_last_out(aloj):
                 if aloj in cache_last_out:
@@ -1540,6 +1541,34 @@ OPTION (MAXRECURSION 32767);
                 except Exception:
                     cache_next_in[aloj] = None
                 return cache_next_in[aloj]
+
+            def get_future_clean(aloj, limite):
+                if aloj in cache_future_clean:
+                    return cache_future_clean[aloj]
+                try:
+                    params = {'dia': dia_iso, 'aloj': aloj}
+                    sql = """
+                        SELECT TOP 1 CAST(t.DATA AS date) AS DIA,
+                               ISNULL(u.NOME, t.UTILIZADOR) AS NOME
+                        FROM TAREFAS t
+                        LEFT JOIN US u ON u.LOGIN = t.UTILIZADOR
+                        WHERE LTRIM(RTRIM(t.ALOJAMENTO)) = LTRIM(RTRIM(:aloj))
+                          AND LTRIM(RTRIM(ISNULL(t.ORIGEM,''))) = 'LP'
+                          AND CAST(t.DATA AS date) > :dia
+                          AND ISNULL(t.TRATADO,0) = 0
+                    """
+                    if limite:
+                        sql += " AND CAST(t.DATA AS date) <= :limite"
+                        params['limite'] = limite
+                    sql += " ORDER BY t.DATA ASC"
+                    row = db.session.execute(text(sql), params).first()
+                    if row:
+                        cache_future_clean[aloj] = {'dia': row[0], 'nome': row[1]}
+                    else:
+                        cache_future_clean[aloj] = None
+                except Exception:
+                    cache_future_clean[aloj] = None
+                return cache_future_clean[aloj]
 
             dow_pt = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM']
 
@@ -1632,6 +1661,8 @@ OPTION (MAXRECURSION 32767);
                             pass
                 if atrasada:
                     status = 'Atrasada'
+                if out_list and not task_list:
+                    status = 'Por atribuir'
                 last_info = False
                 if not task_list:
                     last = map_last.get(aloj)
@@ -1672,6 +1703,28 @@ OPTION (MAXRECURSION 32767);
                             fallback_in = fmt
                     else:
                         fallback_in = {'text': 'Sem Reservas'}
+                # Se existe checkout e nÇõo hÇ  limpeza hoje, verificar limpeza planeada antes/prÇüx checkin
+                if out_list and not task_list:
+                    limite = get_next_in(aloj) or (dia + timedelta(days=14))
+                    prox_limpeza = get_future_clean(aloj, limite)
+                    if prox_limpeza:
+                        dia_fut = prox_limpeza.get('dia')
+                        nome_fut = prox_limpeza.get('nome') or ''
+                        try:
+                            data_fmt = dia_fut.strftime('%d/%m') if dia_fut else ''
+                            status = f"Planeada {data_fmt}" if data_fmt else 'Planeada'
+                        except Exception:
+                            status = 'Planeada'
+                        try:
+                            if dia_fut:
+                                data_lbl = dia_fut.strftime('%d/%m')
+                            else:
+                                data_lbl = ''
+                            if nome_fut or data_lbl:
+                                equipa = f"{nome_fut} ({data_lbl})".strip()
+                                last_info = True
+                        except Exception:
+                            pass
 
                 cards.append({
                     'alojamento': aloj_display or aloj,
