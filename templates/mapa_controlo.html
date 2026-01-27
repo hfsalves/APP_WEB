@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body bg-light rounded-3">
+      <div class="d-flex flex-wrap align-items-end gap-3">
+        <div>
+          <label for="mcAno" class="form-label text-muted small mb-1">Ano</label>
+          <input type="number" class="form-control" id="mcAno" min="2000" max="2100" value="{{ ano_atual }}" style="width:120px;">
+        </div>
+        <div>
+          <label for="mcMes" class="form-label text-muted small mb-1">Mês</label>
+          <select class="form-select" id="mcMes" style="width:160px;">
+            <option value="1">Janeiro</option>
+            <option value="2">Fevereiro</option>
+            <option value="3">Março</option>
+            <option value="4">Abril</option>
+            <option value="5">Maio</option>
+            <option value="6">Junho</option>
+            <option value="7">Julho</option>
+            <option value="8">Agosto</option>
+            <option value="9">Setembro</option>
+            <option value="10">Outubro</option>
+            <option value="11">Novembro</option>
+            <option value="12">Dezembro</option>
+          </select>
+        </div>
+        <div class="flex-grow-1 d-flex gap-2">
+          <button class="btn btn-primary" id="mcBtnAplicar">
+            <i class="fa-solid fa-filter me-1"></i> Aplicar
+          </button>
+          <button class="btn btn-outline-secondary" id="mcBtnHoje">Mês atual</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+      <div class="table-responsive mc-table-wrap">
+        <table class="table table-sm align-middle" id="mcTabela">
+          <thead class="table-light">
+            <tr>
+              <th>Centro de custo</th>
+              <th class="text-end">Proveito</th>
+              <th class="text-end">Rendas</th>
+              <th class="text-end">Luz</th>
+              <th class="text-end">Água</th>
+              <th class="text-end">Comunicações</th>
+              <th class="text-end">Outros</th>
+              <th class="text-end">Total</th>
+              <th class="text-end">Saldo</th>
+            </tr>
+          </thead>
+          <tbody id="mcBody">
+            <tr>
+              <td colspan="9" class="text-center text-muted">A carregar...</td>
+            </tr>
+          </tbody>
+          <tfoot class="table-light">
+            <tr id="mcTotalsRow">
+              <th class="fw-semibold">TOTAL</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #mcTabela { font-size: 12px; }
+  #mcTabela td, #mcTabela th { padding: 0.35rem 0.5rem; }
+  #mcTabela td:first-child, #mcTabela th:first-child { text-align: left; white-space: nowrap; min-width: 220px; }
+  /* Bootstrap tables paint backgrounds on cells; apply zebra/hover to cells */
+  #mcTabela tbody tr:nth-child(odd) > * { background-color: #f8fafc !important; }
+  #mcTabela tbody tr:nth-child(even) > * { background-color: #ffffff !important; }
+  #mcTabela tbody tr:hover > * { background-color: #e0f2fe !important; }
+  .mc-table-wrap {
+    height: calc(100vh - 260px);
+    overflow: auto;
+    position: relative;
+  }
+  #mcTabela thead { position: sticky; top: 0; z-index: 3; background: #f8fafc; }
+  #mcTabela thead th { position: sticky; top: 0; z-index: 4; background: #f8fafc; }
+  #mcTotalsRow th, #mcTotalsRow td { font-weight: 800; }
+  #mcTotalsRow { border-top: 2px solid #cbd5e1; }
+  .mc-negative { color: #b91c1c; font-weight: 700; }
+  .mc-positive { color: #0f766e; font-weight: 700; }
+  .mc-zero { color: #b91c1c !important; font-weight: inherit; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.MC_ANO_PADRAO = {{ ano_atual }};
+  window.MC_MES_PADRAO = {{ mes_atual }};
+</script>
+<script src="{{ url_for('static', filename='js/mapa_controlo.js') }}"></script>
+{% endblock %}

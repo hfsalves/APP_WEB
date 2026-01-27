@@ -2,11 +2,12 @@
 
 from flask import Blueprint, render_template, request, jsonify, abort, current_app
 from flask_login import login_required, current_user
-from sqlalchemy import MetaData, Table, select, text, String, or_
+from sqlalchemy import MetaData, Table, select, text, String, or_, bindparam
 from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
 import uuid
 from datetime import date
+import re
 
 bp = Blueprint('generic', __name__, url_prefix='/generic')
 
@@ -144,6 +145,54 @@ def fo_search_artigos():
         current_app.logger.exception('Erro em fo_search_artigos')
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/api/fo/artigos_familia', methods=['POST'])
+@login_required
+def fo_artigos_familia():
+    """
+    Devolve FAMILIA por REF, usando a view V_ST.
+    Body: { "refs": ["A1", "B2", ...] }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        refs = body.get('refs') or []
+        if not isinstance(refs, list):
+            refs = []
+        cleaned = []
+        seen = set()
+        for r in refs:
+            if r is None:
+                continue
+            val = str(r).strip()
+            if not val:
+                continue
+            key = val.upper()
+            if key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(val)
+            if len(cleaned) >= 200:
+                break
+        if not cleaned:
+            return jsonify({})
+
+        sql = text("""
+            SELECT REF, FAMILIA
+            FROM V_ST
+            WHERE REF IN :refs
+        """).bindparams(bindparam('refs', expanding=True))
+
+        rows = db.session.execute(sql, {'refs': cleaned}).fetchall()
+        out = {}
+        for r in rows:
+            ref = (r._mapping.get('REF') or '').strip()
+            fam = (r._mapping.get('FAMILIA') or '').strip()
+            if ref:
+                out[ref] = fam
+        return jsonify(out)
+    except Exception as e:
+        current_app.logger.exception('Erro em fo_artigos_familia')
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/api/fo/search_cliente')
 @login_required
 def fo_search_cliente():
@@ -176,6 +225,76 @@ def fo_taxas():
         return jsonify([dict(r._mapping) for r in rows])
     except Exception as e:
         current_app.logger.exception('Erro em fo_taxas')
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/fo/contratos')
+@login_required
+def fo_contratos():
+    """
+    Lista contratos (cabeçalhos) a partir do ERP.
+    Se ?no=... vier preenchido (fornecedor), filtra pelo mesmo fornecedor.
+    """
+    try:
+        no = request.args.get('no', '').strip()
+        no_int = int(no) if no and no.isdigit() else 0
+        erp_db = (current_app.config.get('ERP_CONTRATOS_DB') or 'GUEST_SPA_TUR').strip()
+        if not re.fullmatch(r'[A-Za-z0-9_]+', erp_db):
+            erp_db = 'GUEST_SPA_TUR'
+        sql = text(f"""
+            SELECT
+                BOSTAMP,
+                NDOS,
+                NMDOS,
+                OBRANO,
+                NO,
+                NOME,
+                MAQUINA,
+                ETOTALDEB
+            FROM [{erp_db}].[dbo].[BO]
+            WHERE NDOS = 14
+              AND FECHADA = 0
+              AND (:no = 0 OR NO = :no)
+            ORDER BY OBRANO DESC, BOSTAMP DESC
+        """)
+        rows = db.session.execute(sql, {'no': no_int}).fetchall()
+        return jsonify([dict(r._mapping) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro em fo_contratos')
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/fo/contratos/<bostamp>/linhas')
+@login_required
+def fo_contrato_linhas(bostamp):
+    """
+    Linhas do contrato (ERP) por BOSTAMP.
+    """
+    try:
+        if not bostamp:
+            return jsonify([])
+        erp_db = (current_app.config.get('ERP_CONTRATOS_DB') or 'GUEST_SPA_TUR').strip()
+        if not re.fullmatch(r'[A-Za-z0-9_]+', erp_db):
+            erp_db = 'GUEST_SPA_TUR'
+        sql = text(f"""
+            SELECT
+                BOSTAMP,
+                BISTAMP,
+                REF,
+                DESIGN,
+                QTT,
+                EDEBITO,
+                ETTDEB,
+                CCUSTO,
+                IVA,
+                TABIVA
+            FROM [{erp_db}].[dbo].[BI]
+            WHERE NDOS = 14
+              AND BOSTAMP = :bostamp
+            ORDER BY BISTAMP
+        """)
+        rows = db.session.execute(sql, {'bostamp': bostamp}).fetchall()
+        return jsonify([dict(r._mapping) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro em fo_contrato_linhas')
         return jsonify({'error': str(e)}), 500
 
 # --------------------------------------------------

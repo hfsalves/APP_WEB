@@ -34,10 +34,16 @@ const btnSaveFo = document.getElementById('btnSaveFo');
 const btnDeleteFo = document.getElementById('btnDeleteFo');
 const btnCancelFo = document.getElementById('btnCancelFo');
 const btnAddLine = document.getElementById('btnAddLine');
+const btnImportContrato = document.getElementById('btnImportContrato');
 const linesTableBody = document.querySelector('#linesTable tbody');
 const lineModalEl = document.getElementById('lineModal');
 const btnSaveLine = document.getElementById('btnSaveLine');
 const lineModal = lineModalEl ? new bootstrap.Modal(lineModalEl) : null;
+const contratoModalEl = document.getElementById('contratoModal');
+const contratoModal = contratoModalEl ? new bootstrap.Modal(contratoModalEl) : null;
+const contratoTableBody = document.querySelector('#contratoTable tbody');
+const contratoSearch = document.getElementById('contratoSearch');
+const contratoSupplierInfo = document.getElementById('contratoSupplierInfo');
 const overlay = document.getElementById('loadingOverlay');
 const overlayText = overlay?.querySelector('.loading-text');
 const foStampInput = document.getElementById('FOSTAMP');
@@ -319,6 +325,10 @@ function applyEditLocks() {
     btnAddLine.disabled = isPlano;
     btnAddLine.classList.toggle('disabled', isPlano);
   }
+  if (btnImportContrato) {
+    btnImportContrato.disabled = isPlano;
+    btnImportContrato.classList.toggle('disabled', isPlano);
+  }
   if (isPlano && form) {
     form.querySelectorAll('input, select, textarea, button').forEach(el => {
       if (el.type === 'hidden') return;
@@ -343,6 +353,153 @@ function buildFoObs(payload) {
 
   if (!msgs.length) return 'Ok - Tudo validado';
   return msgs.join(' ; ');
+}
+
+function getTaxaForTabiva(tabiva) {
+  const tab = (tabiva ?? '').toString().trim();
+  if (!tab) return '';
+  const found = (tabivaOptions || []).find(o => (o.tab ?? '').toString().trim() === tab);
+  return found ? (found.taxa ?? '').toString().trim() : '';
+}
+
+function contractRowText(row) {
+  const parts = [
+    row.NDOS, row.NMDOS, row.OBRANO, row.MAQUINA, row.NO, row.NOME, row.ETOTALDEB
+  ];
+  return parts.map(v => (v ?? '').toString().toLowerCase()).join(' ');
+}
+
+function renderContratosRows(rows, filterText = '') {
+  if (!contratoTableBody) return;
+  const ft = (filterText || '').toString().trim().toLowerCase();
+  const filtered = ft ? rows.filter(r => contractRowText(r).includes(ft)) : rows;
+  if (!filtered.length) {
+    contratoTableBody.innerHTML = '<tr><td colspan="7" class="text-muted">Sem contratos.</td></tr>';
+    return;
+  }
+  contratoTableBody.innerHTML = filtered.map(r => {
+    const total = Number(r.ETOTALDEB);
+    const totalTxt = Number.isFinite(total) ? total.toFixed(2) : (r.ETOTALDEB ?? '');
+    const doc = (r.NMDOS ?? '').toString().trim() || (r.NDOS ?? '').toString().trim();
+    const noTxt = (r.NO ?? '').toString().trim();
+    const nomeTxt = (r.NOME ?? '').toString().trim();
+    const maquinaTxt = (r.MAQUINA ?? '').toString().trim();
+    const obraTxt = (r.OBRANO ?? '').toString().trim();
+    return `
+      <tr data-bostamp="${(r.BOSTAMP ?? '').toString().trim()}">
+        <td>${(r.NDOS ?? '').toString().trim()}</td>
+        <td>${escapeHtml(doc)}</td>
+        <td>${escapeHtml(obraTxt)}</td>
+        <td>${escapeHtml(maquinaTxt)}</td>
+        <td class="text-end">${escapeHtml(totalTxt)}</td>
+        <td>${escapeHtml(noTxt ? `${noTxt} - ${nomeTxt}` : nomeTxt)}</td>
+        <td class="text-end"><button class="btn btn-sm btn-primary" data-action="pick">Escolher</button></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  return (s ?? '').toString()
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+async function loadContratosIntoModal() {
+  if (!contratoModal) return;
+  const no = (document.getElementById('NO')?.value || '').toString().trim();
+  const nome = (document.getElementById('NOME')?.value || '').toString().trim();
+  if (contratoSupplierInfo) {
+    contratoSupplierInfo.textContent = no ? `Fornecedor: ${no}${nome ? ' - ' + nome : ''}` : 'Sem fornecedor no cabeçalho: a mostrar todos os contratos.';
+  }
+  if (contratoTableBody) {
+    contratoTableBody.innerHTML = '<tr><td colspan="7" class="text-muted">A carregar...</td></tr>';
+  }
+
+  const res = await fetch(`/generic/api/fo/contratos?no=${encodeURIComponent(no)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const msg = err.error || res.statusText;
+    if (contratoTableBody) {
+      contratoTableBody.innerHTML = `<tr><td colspan="7" class="text-danger">Erro: ${escapeHtml(msg)}</td></tr>`;
+    }
+    return;
+  }
+  const rows = await res.json();
+  const state = { rows };
+  contratoModalEl.__rowsState = state;
+  renderContratosRows(rows, contratoSearch?.value || '');
+}
+
+async function importContratoByBoStamp(bostamp) {
+  if (!bostamp) return;
+  const res = await fetch(`/generic/api/fo/contratos/${encodeURIComponent(bostamp)}/linhas`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert('Erro ao carregar linhas: ' + (err.error || res.statusText));
+    return;
+  }
+  const rows = await res.json();
+
+  // carregar famílias por REF (V_ST)
+  let familiaByRef = {};
+  try {
+    const refs = Array.from(new Set(rows.map(r => (r.REF ?? '').toString().trim()).filter(Boolean)));
+    if (refs.length) {
+      const famRes = await fetch('/generic/api/fo/artigos_familia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refs })
+      });
+      if (famRes.ok) {
+        familiaByRef = await famRes.json();
+      }
+    }
+  } catch (_) {}
+
+  const shouldReplace = linesData.length
+    ? confirm('Substituir as linhas atuais pelas do contrato?\n\nOK = Substituir\nCancelar = Acrescentar')
+    : true;
+
+  if (shouldReplace) {
+    linesData = [];
+    deletedLineIds = [];
+  }
+
+  const headerCcusto = (document.getElementById('CCUSTO')?.value || '').toString().trim();
+  rows.forEach((r) => {
+    const ref = (r.REF ?? '').toString().trim();
+    const qtt = Number(r.QTT);
+    const epv = Number(r.EDEBITO);
+    const tabiva = (r.TABIVA ?? '').toString().trim();
+    const taxa = getTaxaForTabiva(tabiva) || (r.IVA ?? '').toString().trim();
+    const fnccusto = ((r.CCUSTO ?? '').toString().trim()) || headerCcusto;
+    const familia = ((familiaByRef?.[ref] ?? '').toString().trim());
+    const line = {
+      FNSTAMP: randomStamp(),
+      FOSTAMP: currentFoStamp,
+      REF: ref,
+      DESIGN: (r.DESIGN ?? '').toString().trim(),
+      QTT: Number.isFinite(qtt) ? qtt : (r.QTT ?? ''),
+      UNIDADE: '',
+      EPV: Number.isFinite(epv) ? epv : (r.EDEBITO ?? ''),
+      ETILIQUIDO: (Number.isFinite(qtt) && Number.isFinite(epv)) ? (qtt * epv).toFixed(2) : '',
+      TABIVA: tabiva,
+      TAXAIVA: (taxa ?? '').toString().trim(),
+      IVAINCL: 0,
+      FNCCUSTO: fnccusto,
+      FAMILIA: familia,
+      LORDEM: (linesData.length || 0) + 1,
+      __new: true
+    };
+    linesData.push(line);
+  });
+  renderLines();
+  recalcTotals();
+  contratoModal?.hide();
 }
 
 async function loadDocnomeOptions() {
@@ -1310,6 +1467,28 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     linesData.push(newLine);
     renderLines();
+  });
+
+  btnImportContrato?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (Number(foPlanoValue) === 1) return;
+    contratoSearch && (contratoSearch.value = '');
+    await loadContratosIntoModal();
+    contratoModal?.show();
+  });
+
+  contratoSearch?.addEventListener('input', () => {
+    const state = contratoModalEl?.__rowsState;
+    const rows = state?.rows || [];
+    renderContratosRows(rows, contratoSearch.value || '');
+  });
+
+  contratoTableBody?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-action="pick"]');
+    if (!btn) return;
+    const tr = btn.closest('tr[data-bostamp]');
+    const bostamp = tr?.dataset?.bostamp;
+    await importContratoByBoStamp(bostamp);
   });
 
   btnSaveLine?.addEventListener('click', e => { e.preventDefault(); saveLine(); });

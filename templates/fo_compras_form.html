@@ -106,9 +106,14 @@
 
   <section class="dynamic-form-panels mt-3">
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <button id="btnAddLine" class="btn btn-outline-primary btn-sm">
-        <i class="fa fa-plus"></i> Adicionar linha
-      </button>
+      <div class="d-flex gap-2">
+        <button id="btnAddLine" class="btn btn-outline-primary btn-sm">
+          <i class="fa fa-plus"></i> Adicionar linha
+        </button>
+        <button id="btnImportContrato" class="btn btn-outline-secondary btn-sm">
+          <i class="fa fa-copy"></i> Importar contrato
+        </button>
+      </div>
     </div>
   <div class="table-responsive fo-lines">
     <table class="table table-sm table-hover align-middle fo-lines-table fo-lines-compact" id="linesTable">
@@ -402,6 +407,53 @@
       <div class="modal-footer border-0 pt-0">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" id="btnSaveLine" class="btn btn-primary">Gravar linha</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Importar Contrato -->
+<div class="modal fade" id="contratoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header">
+        <div>
+          <p class="text-muted text-uppercase small mb-1">Contrato</p>
+          <h5 class="modal-title fw-semibold">Importar linhas de contrato</h5>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2 align-items-end mb-2">
+          <div class="col-md-6">
+            <label class="form-label mb-1" for="contratoSearch">Pesquisar</label>
+            <input type="text" id="contratoSearch" class="form-control" placeholder="Filtrar por nome, máquina, obra, nº...">
+          </div>
+          <div class="col-md-6 text-md-end">
+            <div id="contratoSupplierInfo" class="small text-muted"></div>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle" id="contratoTable">
+            <thead>
+              <tr>
+                <th>Nº</th>
+                <th>Documento</th>
+                <th>Obra</th>
+                <th>Máquina</th>
+                <th class="text-end">Total</th>
+                <th>Fornecedor</th>
+                <th class="text-end"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="7" class="text-muted">A carregar...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>

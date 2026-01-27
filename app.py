@@ -1139,6 +1139,117 @@ OPTION (MAXRECURSION 32767);
     def mapa_gestao_page():
         return render_template('mapa_gestao.html', page_title='Mapa de Gestao', ano_atual=date.today().year)
 
+    @app.route('/mapa-controlo')
+    @login_required
+    def mapa_controlo_page():
+        hoje = date.today()
+        return render_template(
+            'mapa_controlo.html',
+            page_title='Mapa de Controlo',
+            ano_atual=hoje.year,
+            mes_atual=hoje.month
+        )
+
+    @app.route('/api/mapa_controlo')
+    @login_required
+    def api_mapa_controlo():
+        try:
+            ano = request.args.get('ano', type=int) or date.today().year
+        except Exception:
+            ano = date.today().year
+        try:
+            mes = request.args.get('mes', type=int) or date.today().month
+        except Exception:
+            mes = date.today().month
+        if mes < 1 or mes > 12:
+            mes = date.today().month
+
+        sql = text("""
+            SELECT
+                LTRIM(RTRIM(C.CCUSTO)) AS CCUSTO,
+                SUM(CASE WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) = '9' THEN ISNULL(C.TOTAL,0) ELSE 0 END) AS PROVEITO,
+                SUM(CASE WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) = 'RENDA' THEN ISNULL(C.TOTAL,0) ELSE 0 END) AS RENDAS,
+                SUM(CASE WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) IN ('LUZ-6','LUZ-23') THEN ISNULL(C.TOTAL,0) ELSE 0 END) AS LUZ,
+                SUM(CASE WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) IN ('AGUA','SANEAMENTO') THEN ISNULL(C.TOTAL,0) ELSE 0 END) AS AGUA,
+                SUM(CASE WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) = 'COMUNICACOES' THEN ISNULL(C.TOTAL,0) ELSE 0 END) AS COMUNICACOES,
+                SUM(CASE
+                      WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9'
+                       AND NOT (
+                          LTRIM(RTRIM(C.REF)) = 'RENDA'
+                          OR LTRIM(RTRIM(C.REF)) IN ('LUZ-6','LUZ-23')
+                          OR LTRIM(RTRIM(C.REF)) IN ('AGUA','SANEAMENTO')
+                          OR LTRIM(RTRIM(C.REF)) = 'COMUNICACOES'
+                       )
+                      THEN ISNULL(C.TOTAL,0)
+                      ELSE 0
+                END) AS OUTROS
+            FROM v_custo C
+            INNER JOIN AL a
+              ON LTRIM(RTRIM(a.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(C.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE YEAR(C.DATA) = :ano
+              AND MONTH(C.DATA) = :mes
+              AND UPPER(LTRIM(RTRIM(ISNULL(a.TIPO,'')))) = 'EXPLORACAO'
+            GROUP BY LTRIM(RTRIM(C.CCUSTO))
+            ORDER BY LTRIM(RTRIM(C.CCUSTO))
+        """)
+        try:
+            rows = db.session.execute(sql, {'ano': ano, 'mes': mes}).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter mapa controlo: {e}'}), 500
+
+        out_rows = []
+        totals = {
+            'ccusto': 'TOTAL',
+            'proveito': 0.0,
+            'rendas': 0.0,
+            'luz': 0.0,
+            'agua': 0.0,
+            'comunicacoes': 0.0,
+            'outros': 0.0,
+            'total_custos': 0.0,
+            'saldo': 0.0
+        }
+        for r in rows:
+            ccusto = (r.get('CCUSTO') or '').strip()
+            proveito = float(r.get('PROVEITO') or 0)
+            rendas = float(r.get('RENDAS') or 0)
+            luz = float(r.get('LUZ') or 0)
+            agua = float(r.get('AGUA') or 0)
+            comunic = float(r.get('COMUNICACOES') or 0)
+            outros = float(r.get('OUTROS') or 0)
+            total_custos = rendas + luz + agua + comunic + outros
+            saldo = proveito - total_custos
+            out_rows.append({
+                'ccusto': ccusto,
+                'proveito': round(proveito, 2),
+                'rendas': round(rendas, 2),
+                'luz': round(luz, 2),
+                'agua': round(agua, 2),
+                'comunicacoes': round(comunic, 2),
+                'outros': round(outros, 2),
+                'total_custos': round(total_custos, 2),
+                'saldo': round(saldo, 2)
+            })
+            totals['proveito'] += proveito
+            totals['rendas'] += rendas
+            totals['luz'] += luz
+            totals['agua'] += agua
+            totals['comunicacoes'] += comunic
+            totals['outros'] += outros
+
+        totals['total_custos'] = totals['rendas'] + totals['luz'] + totals['agua'] + totals['comunicacoes'] + totals['outros']
+        totals['saldo'] = totals['proveito'] - totals['total_custos']
+        for k in ('proveito','rendas','luz','agua','comunicacoes','outros','total_custos','saldo'):
+            totals[k] = round(float(totals[k] or 0), 2)
+
+        return jsonify({
+            'ano': ano,
+            'mes': mes,
+            'rows': out_rows,
+            'totals': totals
+        })
+
     @app.route('/api/mapa_gestao/ccustos')
     @login_required
     def api_mapa_gestao_ccustos():
