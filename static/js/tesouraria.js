@@ -2,6 +2,8 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   const API = '/generic/api/tesouraria'; // esperado: ?start=YYYY-MM-DD&end=YYYY-MM-DD
+  const API_BA = '/generic/api/tesouraria/ba'; // esperado: ?start=YYYY-MM-DD&end=YYYY-MM-DD
+  const API_BA_BASE = '/generic/api/tesouraria/ba/saldo_base'; // ?before=YYYY-MM-DD
 
   const monthYearEl = document.getElementById('month-year');
   const calendarBody = document.getElementById('calendar-body');
@@ -13,11 +15,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const viewCalendar = document.getElementById('calendarView');
   const viewAgenda = document.getElementById('agendaView');
   const accountFilter = document.getElementById('accountFilter');
+  const baDetailModalEl = document.getElementById('baDetailModal');
+  const baDetailTitle = document.getElementById('baDetailTitle');
+  const baDetailBody = document.getElementById('baDetailBody');
+  const baDetailTotal = document.getElementById('baDetailTotal');
+  const baDetailModal = baDetailModalEl ? new bootstrap.Modal(baDetailModalEl) : null;
 
   const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   let current = new Date();
   current = new Date(current.getFullYear(), current.getMonth(), 1);
   let cacheData = [];
+  let cacheBa = [];
 
   const fmt = (n) => Number(n || 0).toLocaleString('pt-PT', {
     minimumFractionDigits: 2,
@@ -25,8 +33,26 @@ document.addEventListener('DOMContentLoaded', () => {
     useGrouping: true
   });
 
+  const escapeHtml = (str) => String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
   const weekdayMon0 = (d) => (d.getDay() + 6) % 7; // Monday=0
   const toIso = (d) => [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+
+  function toIsoFromRaw(rawDate) {
+    if (!rawDate) return '';
+    if (typeof rawDate === 'string') {
+      const s = rawDate.trim();
+      if (s.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    }
+    const d = new Date(rawDate);
+    if (Number.isNaN(d)) return '';
+    return toIso(d);
+  }
 
   function getRangeForMonth(base) {
     const first = new Date(base.getFullYear(), base.getMonth(), 1);
@@ -57,6 +83,52 @@ document.addEventListener('DOMContentLoaded', () => {
     return map;
   }
 
+  function groupBaByDate(rows) {
+    const map = new Map(); // iso -> { entrada, saida }
+    (rows || []).forEach(r => {
+      const iso = toIsoFromRaw(r.DATA || r.data || '');
+      if (!iso) return;
+      const entrada = Number(r.EENTRADA ?? r.eentrada ?? 0) || 0;
+      const saida = Number(r.ESAIDA ?? r.esaida ?? 0) || 0;
+      const cur = map.get(iso) || { entrada: 0, saida: 0 };
+      cur.entrada += entrada;
+      cur.saida += saida;
+      map.set(iso, cur);
+    });
+    return map;
+  }
+
+  async function openBaDetail(dateIso, kind) {
+    if (!baDetailModal || !baDetailBody) return;
+    const kindLabel = kind === 'in' ? 'Entradas' : 'Saídas';
+    if (baDetailTitle) baDetailTitle.textContent = `${kindLabel} - ${dateIso}`;
+    if (baDetailTotal) baDetailTotal.textContent = 'Total: --';
+    baDetailBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">A carregar...</td></tr>`;
+    baDetailModal.show();
+    try {
+      const qs = new URLSearchParams({ date: dateIso, kind });
+      const res = await fetch(`/generic/api/tesouraria/ba/detalhe?${qs.toString()}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || res.statusText);
+      const rows = Array.isArray(data.rows) ? data.rows : [];
+      if (!rows.length) {
+        baDetailBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">Sem movimentos.</td></tr>`;
+      } else {
+        baDetailBody.innerHTML = rows.map(r => `
+          <tr>
+            <td>${escapeHtml(r.documento || '')}</td>
+            <td>${escapeHtml(r.descricao || '')}</td>
+            <td class="text-end fw-semibold">${fmt(r.valor || 0)}</td>
+          </tr>
+        `).join('');
+      }
+      if (baDetailTotal) baDetailTotal.textContent = `Total: ${fmt(data.total || 0)}`;
+    } catch (err) {
+      baDetailBody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">${escapeHtml(err.message || 'Erro')}</td></tr>`;
+      if (baDetailTotal) baDetailTotal.textContent = 'Total: --';
+    }
+  }
+
   function buildCumulative(map, start, end, baseDate) {
     const cum = new Map();
     let sum = 0;
@@ -83,10 +155,33 @@ document.addEventListener('DOMContentLoaded', () => {
     return cum;
   }
 
-  function renderCalendar(start, end, dataRows, cumulativeMap) {
+  function buildCumulativeCombined(preMap, baMap, start, end, baseSum) {
+    const cum = new Map();
+    let sum = Number(baseSum || 0) || 0;
+
+    const addDayNet = (iso) => {
+      const preList = preMap.get(iso) || [];
+      const preSum = preList.reduce((acc, it) => acc + (Number(it.valor || 0) || 0), 0);
+      const ba = baMap.get(iso) || { entrada: 0, saida: 0 };
+      const baNet = (Number(ba.entrada || 0) || 0) - (Number(ba.saida || 0) || 0);
+      sum += preSum + baNet;
+    };
+
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      const iso = toIso(cursor);
+      addDayNet(iso);
+      cum.set(iso, sum);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return cum;
+  }
+
+  function renderCalendar(start, end, dataRows, cumulativeMap, baRows) {
     if (!calendarBody) return;
     const map = groupByDate(dataRows);
-    const cum = cumulativeMap || buildCumulative(map, start, end);
+    const baMap = groupBaByDate(baRows);
+    const cum = cumulativeMap || buildCumulativeCombined(map, baMap, start, end, 0);
     calendarBody.innerHTML = '';
 
     let cursor = new Date(start);
@@ -95,12 +190,9 @@ document.addEventListener('DOMContentLoaded', () => {
       for (let i = 0; i < 7; i++) {
         const iso = toIso(cursor);
         const list = map.get(iso) || [];
-        const sumsByType = {};
-        list.forEach(it => {
-          const key = it.tipo || 'OUTROS';
-          sumsByType[key] = (sumsByType[key] || 0) + Number(it.valor || 0);
-        });
+        const previsao = list.reduce((acc, it) => acc + (Number(it.valor || 0) || 0), 0);
         const saldoDia = cum.get(iso) ?? 0;
+        const ba = baMap.get(iso) || { entrada: 0, saida: 0 };
 
         const td = document.createElement('td');
         td.className = 'day-cell p-2';
@@ -114,11 +206,14 @@ document.addEventListener('DOMContentLoaded', () => {
         td.appendChild(header);
 
         const wrap = document.createElement('div');
-        wrap.className = 'd-flex flex-column gap-1';
-        Object.entries(sumsByType).forEach(([tipo, val]) => {
-          const cls = tipo === 'EXPLORACAO' ? 'badge-ent' : 'badge-sai';
-          wrap.innerHTML += `<span class="badge-mov ${cls}">${fmt(val)}</span>`;
-        });
+        wrap.className = 'd-flex flex-column gap-1 day-cards';
+
+        const cashCards = [];
+        if (Number(ba.entrada || 0) !== 0) cashCards.push(`<button type="button" class="cash-card in js-ba-detail" data-date="${iso}" data-kind="in" title="Entradas">▲ ${fmt(ba.entrada)}</button>`);
+        if (Number(ba.saida || 0) !== 0) cashCards.push(`<button type="button" class="cash-card out js-ba-detail" data-date="${iso}" data-kind="out" title="Saídas">▼ ${fmt(ba.saida)}</button>`);
+        if (Number(previsao || 0) !== 0) cashCards.push(`<span class="cash-card prev" title="Previsões" aria-label="Previsões"><i class="fa-regular fa-calendar"></i> ${fmt(previsao)}</span>`);
+        if (cashCards.length) wrap.innerHTML += `<div class="cash-cards cash-cards-vertical">${cashCards.join('')}</div>`;
+
         wrap.innerHTML += `<span class="badge-mov badge-saldo">${fmt(saldoDia)}</span>`;
         td.appendChild(wrap);
 
@@ -128,36 +223,35 @@ document.addEventListener('DOMContentLoaded', () => {
       calendarBody.appendChild(tr);
     }
   }
-
-  function renderAgenda(first, last, dataRows, cumulativeMap) {
+  function renderAgenda(first, last, dataRows, cumulativeMap, baRows) {
     if (!agendaList) return;
     const map = groupByDate(dataRows);
-    const cum = cumulativeMap || buildCumulative(map, first, last);
+    const baMap = groupBaByDate(baRows);
+    const cum = cumulativeMap || buildCumulativeCombined(map, baMap, first, last, 0);
     agendaList.innerHTML = '';
     let cursor = new Date(first);
     let added = 0;
     while (cursor <= last) {
       const iso = toIso(cursor);
       const list = map.get(iso) || [];
-      const sumsByType = {};
-      list.forEach(it => {
-        const key = it.tipo || 'OUTROS';
-        const val = Number(it.valor || 0) || 0;
-        sumsByType[key] = (sumsByType[key] || 0) + val;
-      });
+      const previsao = list.reduce((acc, it) => acc + (Number(it.valor || 0) || 0), 0);
       const saldoDia = cum.get(iso) ?? 0;
+      const ba = baMap.get(iso) || { entrada: 0, saida: 0 };
       const li = document.createElement('div');
       const wd = weekdayMon0(cursor);
       li.className = 'list-group-item' + (wd >= 5 ? ' weekend' : '');
+
+      const badges = [];
+      if (Number(ba.entrada || 0) !== 0) badges.push(`<button type="button" class="cash-card in js-ba-detail" data-date="${iso}" data-kind="in" title="Entradas">▲ ${fmt(ba.entrada)}</button>`);
+      if (Number(ba.saida || 0) !== 0) badges.push(`<button type="button" class="cash-card out js-ba-detail" data-date="${iso}" data-kind="out" title="Saídas">▼ ${fmt(ba.saida)}</button>`);
+      if (Number(previsao || 0) !== 0) badges.push(`<span class="cash-card prev" title="Previsões" aria-label="Previsões"><i class="fa-regular fa-calendar"></i> ${fmt(previsao)}</span>`);
+
       li.innerHTML = `
         <div>
           <div class="fw-semibold">${cursor.getDate().toString().padStart(2,'0')}/${(cursor.getMonth()+1).toString().padStart(2,'0')} (${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'][wd]})</div>
         </div>
         <div class="mov-labels">
-          ${Object.entries(sumsByType).map(([tipo,val]) => {
-            const cls = tipo === 'EXPLORACAO' ? 'badge-ent' : 'badge-sai';
-            return `<span class="badge-mov ${cls}">${fmt(val)}</span>`;
-          }).join('')}
+          ${badges.join('')}
           <span class="badge-mov badge-saldo">${fmt(saldoDia)}</span>
         </div>
       `;
@@ -172,7 +266,6 @@ document.addEventListener('DOMContentLoaded', () => {
       agendaList.appendChild(empty);
     }
   }
-
   async function loadAccounts() {
     if (!accountFilter) return;
     try {
@@ -198,6 +291,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const fetchStart = new Date(current.getFullYear(), current.getMonth() - 1, 1);
     const startStr = toIso(fetchStart);
     const endStr = toIso(end);
+    const startGridStr = toIso(start);
+    const endGridStr = toIso(end);
     const account = accountFilter?.value || '';
     try {
       const url = new URL(API, window.location.origin);
@@ -210,11 +305,33 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
       cacheData = Array.isArray(window.TESOURARIA_DATA) ? window.TESOURARIA_DATA : [];
     }
-    // saldo de abertura fixo (sem movimentos reais ainda)
-    const today = new Date(); today.setHours(0,0,0,0);
-    const cumMap = buildCumulative(groupByDate(cacheData), start, end, today);
-    renderCalendar(start, end, cacheData, cumMap);
-    renderAgenda(first, last, cacheData, cumMap);
+    try {
+      const urlBa = new URL(API_BA, window.location.origin);
+      urlBa.searchParams.set('start', startGridStr);
+      urlBa.searchParams.set('end', endGridStr);
+      const resBa = await fetch(urlBa.toString());
+      if (!resBa.ok) throw new Error(resBa.statusText);
+      cacheBa = await resBa.json();
+    } catch (_) {
+      cacheBa = [];
+    }
+    const preMap = groupByDate(cacheData);
+    const baMap = groupBaByDate(cacheBa);
+    let baseSum = 0;
+    try {
+      const urlBase = new URL(API_BA_BASE, window.location.origin);
+      urlBase.searchParams.set('before', startGridStr);
+      const resBase = await fetch(urlBase.toString());
+      const dataBase = await resBase.json().catch(() => ({}));
+      if (!resBase.ok || dataBase.error) throw new Error(dataBase.error || resBase.statusText);
+      baseSum = Number(dataBase.base || 0) || 0;
+    } catch (_) {
+      baseSum = 0;
+    }
+    // saldo do dia (base de sempre + previsões + movimentos reais)
+    const cumMap = buildCumulativeCombined(preMap, baMap, start, end, baseSum);
+    renderCalendar(start, end, cacheData, cumMap, cacheBa);
+    renderAgenda(first, last, cacheData, cumMap, cacheBa);
   }
 
   function switchView(view) {
@@ -245,4 +362,15 @@ document.addEventListener('DOMContentLoaded', () => {
   btnViewAgenda?.addEventListener('click', () => switchView('agenda'));
 
   loadAccounts().then(loadDataAndRender);
+
+  // Delegação: clique em cards de entradas/saídas abre detalhe
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest?.('.js-ba-detail');
+    if (!btn) return;
+    const dateIso = btn.dataset.date || '';
+    const kindRaw = (btn.dataset.kind || '').toLowerCase();
+    const kind = kindRaw === 'in' ? 'in' : 'out';
+    if (!dateIso) return;
+    openBaDetail(dateIso, kind);
+  });
 });

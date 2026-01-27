@@ -2374,6 +2374,132 @@ OPTION (MAXRECURSION 32767);
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/generic/api/tesouraria/ba')
+    @login_required
+    def api_tesouraria_ba():
+        """
+        Movimentos reais de tesouraria (BA) por dia:
+        - Entradas: soma EENTRADA
+        - Saídas: soma ESAIDA
+        Fonte: dbo.V_BA (na BD GESTAO)
+        """
+        try:
+            start = request.args.get('start')
+            end = request.args.get('end')
+            if not start or not end:
+                return jsonify({'error': 'Parâmetros start/end obrigatórios'}), 400
+
+            sql = text(f"""
+                SELECT
+                    CAST(BA.DATA AS date) AS DATA,
+                    SUM(ISNULL(BA.EENTRADA, 0)) AS EENTRADA,
+                    SUM(ISNULL(BA.ESAIDA, 0)) AS ESAIDA
+                FROM dbo.V_BA AS BA
+                WHERE CAST(BA.DATA AS date) BETWEEN :start AND :end
+                  AND (ISNULL(BA.EENTRADA, 0) <> 0 OR ISNULL(BA.ESAIDA, 0) <> 0)
+                GROUP BY CAST(BA.DATA AS date)
+                ORDER BY CAST(BA.DATA AS date)
+            """)
+            rows = db.session.execute(sql, {'start': start, 'end': end}).mappings().all()
+            out = []
+            for r in rows:
+                d = r.get('DATA')
+                if isinstance(d, (datetime, date)):
+                    d = d.strftime('%Y-%m-%d')
+                else:
+                    d = str(d) if d is not None else ''
+                out.append({
+                    'DATA': d,
+                    'EENTRADA': float(r.get('EENTRADA') or 0),
+                    'ESAIDA': float(r.get('ESAIDA') or 0)
+                })
+            return jsonify(out)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/generic/api/tesouraria/ba/saldo_base')
+    @login_required
+    def api_tesouraria_ba_saldo_base():
+        """
+        Saldo base (acumulado) antes de uma data (exclusive).
+        Query: ?before=YYYY-MM-DD
+        Retorna: { "base": <float> }
+        """
+        try:
+            before = (request.args.get('before') or '').strip()
+            if not before:
+                return jsonify({'error': 'Parâmetro before obrigatório'}), 400
+
+            sql = text(f"""
+                SELECT
+                    SUM(ISNULL(BA.EENTRADA, 0) - ISNULL(BA.ESAIDA, 0)) AS BASE
+                FROM dbo.V_BA AS BA
+                WHERE CAST(BA.DATA AS date) < :before
+                  AND (ISNULL(BA.EENTRADA, 0) <> 0 OR ISNULL(BA.ESAIDA, 0) <> 0)
+            """)
+            row = db.session.execute(sql, {'before': before}).mappings().first() or {}
+            base = float(row.get('BASE') or 0)
+            return jsonify({'base': base})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/generic/api/tesouraria/ba/detalhe')
+    @login_required
+    def api_tesouraria_ba_detalhe():
+        """
+        Detalhe de movimentos reais (V_BA) num dia.
+        Query: ?date=YYYY-MM-DD&kind=in|out
+        """
+        try:
+            d = (request.args.get('date') or '').strip()
+            kind = (request.args.get('kind') or '').strip().lower()
+            if not d:
+                return jsonify({'error': 'Parâmetro date obrigatório'}), 400
+            if kind not in ('in', 'out'):
+                return jsonify({'error': 'Parâmetro kind inválido (in|out)'}), 400
+
+            if kind == 'in':
+                where_kind = "ISNULL(BA.EENTRADA,0) <> 0"
+                value_col = "ISNULL(BA.EENTRADA,0)"
+            else:
+                where_kind = "ISNULL(BA.ESAIDA,0) <> 0"
+                value_col = "ISNULL(BA.ESAIDA,0)"
+
+            sql = text(f"""
+                SELECT
+                    CAST(BA.DATA AS date) AS DATA,
+                    ISNULL(BA.BASTAMP,'') AS BASTAMP,
+                    ISNULL(BA.DOCUMENTO,'') AS DOCUMENTO,
+                    ISNULL(BA.DESCRICAO,'') AS DESCRICAO,
+                    {value_col} AS VALOR
+                FROM dbo.V_BA AS BA
+                WHERE CAST(BA.DATA AS date) = :d
+                  AND {where_kind}
+                ORDER BY ISNULL(BA.DOCUMENTO,''), ISNULL(BA.DESCRICAO,'')
+            """)
+            rows = db.session.execute(sql, {'d': d}).mappings().all()
+            out = []
+            total = 0.0
+            for r in rows:
+                val = float(r.get('VALOR') or 0)
+                total += val
+                data_val = r.get('DATA')
+                if isinstance(data_val, (datetime, date)):
+                    data_str = data_val.strftime('%Y-%m-%d')
+                else:
+                    data_str = str(data_val) if data_val is not None else ''
+                out.append({
+                    'data': data_str,
+                    'bastamp': r.get('BASTAMP') or '',
+                    'documento': r.get('DOCUMENTO') or '',
+                    'descricao': r.get('DESCRICAO') or '',
+                    'valor': round(val, 2)
+                })
+
+            return jsonify({'date': d, 'kind': kind, 'rows': out, 'total': round(total, 2)})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     # -----------------------------
     # Configuração de Escalas (ES/ESL)
     # -----------------------------

@@ -530,6 +530,14 @@ async function loadDocnomeOptions() {
       opt.textContent = extra;
       sel.append(opt);
     }
+    // ensure "V/Nt. Crédito DD" is present
+    const extra2 = 'V/Nt. Crédito DD';
+    if (!normalized.has(extra2.toUpperCase())) {
+      const opt = document.createElement('option');
+      opt.value = extra2;
+      opt.textContent = extra2;
+      sel.append(opt);
+    }
     if (current) sel.value = current;
     if (foLoadedData?.DOCNOME) selectOptionTrim(sel, foLoadedData.DOCNOME);
   } catch (e) {
