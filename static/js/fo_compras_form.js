@@ -44,6 +44,17 @@ const contratoModal = contratoModalEl ? new bootstrap.Modal(contratoModalEl) : n
 const contratoTableBody = document.querySelector('#contratoTable tbody');
 const contratoSearch = document.getElementById('contratoSearch');
 const contratoSupplierInfo = document.getElementById('contratoSupplierInfo');
+const artigoModalEl = document.getElementById('artigoModal');
+const artigoModal = artigoModalEl ? new bootstrap.Modal(artigoModalEl) : null;
+const artigoTable = document.getElementById('artigoTable');
+const artigoTableBody = document.querySelector('#artigoTable tbody');
+const artigoSearch = document.getElementById('artigoSearch');
+const btnChooseArtigoLineModal = document.getElementById('btnChooseArtigoLineModal');
+let artigoPickTarget = null; // { type: 'inline', lineId } | { type: 'modal' }
+let artigoRowsState = [];
+let artigoDebounceTimer = null;
+let artigoSortKey = 'REF';
+let artigoSortDir = 'asc';
 const overlay = document.getElementById('loadingOverlay');
 const overlayText = overlay?.querySelector('.loading-text');
 const foStampInput = document.getElementById('FOSTAMP');
@@ -500,6 +511,186 @@ async function importContratoByBoStamp(bostamp) {
   renderLines();
   recalcTotals();
   contratoModal?.hide();
+}
+
+function openArtigoModal(target) {
+  if (!artigoModal) return;
+  artigoPickTarget = target || null;
+  if (artigoSearch) artigoSearch.value = '';
+  if (artigoTableBody) {
+    artigoTableBody.innerHTML = '<tr><td colspan="3" class="text-muted">A carregar...</td></tr>';
+  }
+  artigoModal.show();
+  loadArtigosIntoModal('');
+  setTimeout(() => artigoSearch?.focus(), 200);
+}
+
+function renderArtigosRows(rows) {
+  if (!artigoTableBody) return;
+  if (!Array.isArray(rows) || !rows.length) {
+    artigoTableBody.innerHTML = '<tr><td colspan="3" class="text-muted">Sem artigos.</td></tr>';
+    return;
+  }
+  artigoTableBody.innerHTML = '';
+  rows.forEach((r, idx) => {
+    const tr = document.createElement('tr');
+    tr.dataset.index = String(idx);
+    const ref = (r.REF ?? '').toString().trim();
+    const design = (r.DESIGN ?? '').toString().trim();
+    const familia = (r.FAMILIA ?? '').toString().trim();
+    const familiaNome = (r.FAMILIA_NOME ?? '').toString().trim();
+    const familiaTxt = familia ? `${familia}${familiaNome ? ' - ' + familiaNome : ''}` : (familiaNome || '');
+
+    const tdRef = document.createElement('td');
+    tdRef.textContent = ref;
+    tdRef.className = 'artigo-ref';
+    const tdDesign = document.createElement('td');
+    tdDesign.textContent = design;
+    const tdFam = document.createElement('td');
+    tdFam.textContent = familiaTxt;
+
+    tr.appendChild(tdRef);
+    tr.appendChild(tdDesign);
+    tr.appendChild(tdFam);
+    artigoTableBody.appendChild(tr);
+  });
+}
+
+function updateArtigoSortIndicators() {
+  const ths = artigoTable?.querySelectorAll('thead th[data-sort]');
+  ths?.forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    const key = (th.dataset.sort || '').toString().trim();
+    if (key && key === artigoSortKey) {
+      th.classList.add(artigoSortDir === 'desc' ? 'sort-desc' : 'sort-asc');
+    }
+  });
+}
+
+function artigoSortValue(item, key) {
+  const k = (key || '').toString().trim().toUpperCase();
+  if (k === 'REF') return (item?.REF ?? '').toString().trim();
+  if (k === 'DESIGN') return (item?.DESIGN ?? '').toString().trim();
+  if (k === 'FAMILIA') {
+    const cod = (item?.FAMILIA ?? '').toString().trim();
+    const nome = (item?.FAMILIA_NOME ?? '').toString().trim();
+    return `${cod}${nome ? ' - ' + nome : ''}`.trim();
+  }
+  return (item?.[key] ?? '').toString().trim();
+}
+
+function sortArtigosInPlace() {
+  if (!Array.isArray(artigoRowsState) || !artigoRowsState.length) return;
+  const key = artigoSortKey;
+  const dir = artigoSortDir === 'desc' ? -1 : 1;
+  const collator = new Intl.Collator('pt-PT', { numeric: true, sensitivity: 'base' });
+  artigoRowsState.sort((a, b) => {
+    const va = artigoSortValue(a, key);
+    const vb = artigoSortValue(b, key);
+    return dir * collator.compare(va, vb);
+  });
+}
+
+function applyArtigoSortAndRender() {
+  sortArtigosInPlace();
+  renderArtigosRows(artigoRowsState);
+  updateArtigoSortIndicators();
+}
+
+function setArtigoSort(key) {
+  const k = (key || '').toString().trim().toUpperCase();
+  if (!k) return;
+  if (k === artigoSortKey) {
+    artigoSortDir = artigoSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    artigoSortKey = k;
+    artigoSortDir = 'asc';
+  }
+  applyArtigoSortAndRender();
+}
+
+async function loadArtigosIntoModal(term) {
+  if (!artigoModal) return;
+  const q = (term || '').toString().trim();
+  try {
+    const res = await fetch(`/generic/api/fo/artigos?q=${encodeURIComponent(q)}&limit=200`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const msg = err.error || res.statusText;
+      if (artigoTableBody) {
+        artigoTableBody.innerHTML = `<tr><td colspan="3" class="text-danger">Erro: ${escapeHtml(msg)}</td></tr>`;
+      }
+      artigoRowsState = [];
+      return;
+    }
+    artigoRowsState = await res.json();
+    applyArtigoSortAndRender();
+  } catch (e) {
+    console.error('Erro ao carregar artigos', e);
+    if (artigoTableBody) {
+      artigoTableBody.innerHTML = '<tr><td colspan="3" class="text-danger">Erro ao carregar artigos.</td></tr>';
+    }
+    artigoRowsState = [];
+  }
+}
+
+function applyPickedArtigo(item) {
+  if (!item) return;
+  const ref = (item.REF ?? '').toString().trim();
+  const design = (item.DESIGN ?? '').toString().trim();
+  const familia = (item.FAMILIA ?? '').toString().trim();
+  const tabiva = (item.TABIVA ?? '').toString().trim();
+
+  if (artigoPickTarget?.type === 'modal') {
+    const refEl = document.getElementById('FN_REF');
+    const designEl = document.getElementById('FN_DESIGN');
+    const famEl = document.getElementById('FN_FAMILIA');
+    if (refEl) refEl.value = ref;
+    if (designEl) designEl.value = design;
+    if (famEl) famEl.value = familia;
+    if (tabiva) {
+      const sel = document.getElementById('FN_TABIVA');
+      if (sel) {
+        sel.value = tabiva;
+      }
+      const taxaEl = document.getElementById('FN_TAXAIVA');
+      if (taxaEl) {
+        taxaEl.value = getTaxaForTabiva(tabiva);
+      }
+    }
+    recalcModalEtiliq();
+    artigoModal?.hide();
+    return;
+  }
+
+  const lineId = artigoPickTarget?.lineId;
+  if (!lineId) return;
+  updateLineField(lineId, 'REF', ref);
+  updateLineField(lineId, 'DESIGN', design);
+  updateLineField(lineId, 'FAMILIA', familia);
+
+  const refInput = linesTableBody?.querySelector(`input[data-line="${lineId}"][data-field="REF"]`);
+  const designInput = linesTableBody?.querySelector(`input[data-line="${lineId}"][data-field="DESIGN"]`);
+  const famInput = linesTableBody?.querySelector(`input[data-line="${lineId}"][data-field="FAMILIA"]`);
+  if (refInput) refInput.value = ref;
+  if (designInput) designInput.value = design;
+  if (famInput) famInput.value = familia;
+
+  if (tabiva) {
+    const currentLine = linesData.find(l => l.FNSTAMP === lineId);
+    const currentTab = (currentLine?.TABIVA ?? '').toString().trim();
+    if (!currentTab) {
+      updateLineField(lineId, 'TABIVA', tabiva);
+      const taxa = getTaxaForTabiva(tabiva);
+      updateLineField(lineId, 'TAXAIVA', taxa);
+      const tabSel = linesTableBody?.querySelector(`select[data-line="${lineId}"][data-field="TABIVA"]`);
+      const taxaHidden = tabSel?.parentElement?.querySelector('input[data-field="TAXAIVA"]');
+      if (tabSel) tabSel.value = tabiva;
+      if (taxaHidden) taxaHidden.value = taxa;
+    }
+  }
+
+  artigoModal?.hide();
 }
 
 async function loadDocnomeOptions() {
@@ -1097,7 +1288,14 @@ function renderLines() {
     const ivainclChecked = (r.IVAINCL === 1 || r.IVAINCL === '1' || r.IVAINCL === true);
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="REF" value="${r.REF || ''}"></td>
+      <td>
+        <div class="input-group input-group-sm">
+          <button type="button" class="btn btn-outline-secondary" data-action="choose_artigo" data-id="${r.FNSTAMP}" title="Escolher artigo">
+            <i class="fa fa-search"></i>
+          </button>
+          <input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="REF" value="${r.REF || ''}">
+        </div>
+      </td>
       <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="DESIGN" value="${r.DESIGN || ''}"></td>
       <td><input class="form-control form-control-sm text-end" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="QTT" value="${r.QTT ?? ''}"></td>
       <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="UNIDADE" value="${r.UNIDADE || ''}"></td>
@@ -1499,6 +1697,36 @@ document.addEventListener('DOMContentLoaded', () => {
     await importContratoByBoStamp(bostamp);
   });
 
+  artigoSearch?.addEventListener('input', () => {
+    clearTimeout(artigoDebounceTimer);
+    artigoDebounceTimer = setTimeout(() => {
+      loadArtigosIntoModal(artigoSearch.value || '');
+    }, 200);
+  });
+
+  artigoTable?.querySelector('thead')?.addEventListener('click', (e) => {
+    const th = e.target.closest('th[data-sort]');
+    if (!th) return;
+    setArtigoSort(th.dataset.sort || '');
+  });
+
+  artigoTableBody?.addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-index]');
+    if (!tr) return;
+    const idx = Number(tr.dataset.index);
+    const item = Number.isFinite(idx) ? artigoRowsState[idx] : null;
+    applyPickedArtigo(item);
+  });
+
+  btnChooseArtigoLineModal?.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (Number(foPlanoValue) === 1) {
+      alert('Documento contabilizado no ERP. N\u00e3o pode ser alterado.');
+      return;
+    }
+    openArtigoModal({ type: 'modal' });
+  });
+
   btnSaveLine?.addEventListener('click', e => { e.preventDefault(); saveLine(); });
 
   document.getElementById('TPDESC')?.addEventListener('change', applyTpSelection);
@@ -1537,6 +1765,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const action = btn.dataset.action;
     const id = btn.dataset.id;
     if (action === 'delete') deleteLine(id);
+    if (action === 'choose_artigo') {
+      if (Number(foPlanoValue) === 1) {
+        alert('Documento contabilizado no ERP. N\u00e3o pode ser alterado.');
+        return;
+      }
+      openArtigoModal({ type: 'inline', lineId: id });
+    }
   });
 
   // inline edits

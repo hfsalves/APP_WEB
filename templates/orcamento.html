@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body bg-light rounded-3">
+      <div class="d-flex flex-wrap align-items-end gap-3">
+        <div>
+          <label for="orcAno" class="form-label text-muted small mb-1">Ano</label>
+          <input type="number" class="form-control" id="orcAno" min="2000" max="2100" value="{{ ano_atual }}" style="width:120px;">
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary" id="orcBtnAplicar">
+            <i class="fa-solid fa-filter me-1"></i> Aplicar
+          </button>
+          <button class="btn btn-outline-secondary" id="orcBtnReplicarJan" type="button" title="Replica Janeiro para os restantes meses">
+            <i class="fa-solid fa-clone me-1"></i> Replicar Jan
+          </button>
+          <div class="small text-muted align-self-center" id="orcStatus"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+      <div class="table-responsive orc-table-wrap">
+        <table class="table table-sm align-middle" id="orcTabela">
+          <thead class="table-light">
+            <tr>
+              <th>Família</th>
+              <th class="text-end">Jan</th>
+              <th class="text-end">Fev</th>
+              <th class="text-end">Mar</th>
+              <th class="text-end">Abr</th>
+              <th class="text-end">Mai</th>
+              <th class="text-end">Jun</th>
+              <th class="text-end">Jul</th>
+              <th class="text-end">Ago</th>
+              <th class="text-end">Set</th>
+              <th class="text-end">Out</th>
+              <th class="text-end">Nov</th>
+              <th class="text-end">Dez</th>
+              <th class="text-end">Total</th>
+            </tr>
+          </thead>
+          <tbody id="orcBody">
+            <tr>
+              <td colspan="14" class="text-center text-muted">A carregar...</td>
+            </tr>
+          </tbody>
+          <tfoot class="table-light">
+            <tr id="orcTotalsRow">
+              <th class="fw-semibold">TOTAL</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+              <th class="text-end">--</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #orcTabela { font-size: 11px; }
+  #orcTabela td, #orcTabela th { padding: 0.25rem 0.35rem; }
+  #orcTabela td:first-child, #orcTabela th:first-child { text-align: left; min-width: 320px; }
+  #orcTabela td:last-child, #orcTabela th:last-child { min-width: 92px; }
+  .orc-table-wrap { height: calc(100vh - 265px); overflow: auto; position: relative; }
+  #orcTabela thead { position: sticky; top: 0; z-index: 3; background: #f8fafc; }
+  #orcTabela thead th { position: sticky; top: 0; z-index: 4; background: #f8fafc; }
+  .fam-cell.level-1 { font-weight: 800; padding-left: 6px !important; }
+  .fam-cell.level-2 { font-weight: 700; color: #1f2937; padding-left: 24px !important; }
+  .fam-cell.level-3 { color: #374151; padding-left: 40px !important; }
+  .orc-input {
+    width: 100%;
+    min-width: 72px;
+    text-align: right;
+    font-size: 11px;
+    padding: 0.12rem 0.3rem;
+    height: calc(1.4em + 0.3rem);
+  }
+  .orc-readonly { color: #64748b; }
+  .orc-saving { color: #0ea5e9; font-weight: 700; }
+  .orc-saved { color: #16a34a; font-weight: 700; }
+  #orcTotalsRow th, #orcTotalsRow td { font-weight: 800; }
+  #orcTotalsRow { border-top: 2px solid #cbd5e1; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.ORC_ANO_PADRAO = {{ ano_atual }};
+</script>
+<script src="{{ url_for('static', filename='js/orcamento.js') }}"></script>
+{% endblock %}

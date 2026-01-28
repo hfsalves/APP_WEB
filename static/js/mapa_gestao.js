@@ -2,6 +2,8 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   const anoInput = document.getElementById('mapAno');
+  const diffEnableEl = document.getElementById('mapDiffEnable');
+  const diffPctEl = document.getElementById('mapDiffPct');
   const ccModalEl = document.getElementById('mapCcustoModal');
   const ccList = document.getElementById('mapCcList');
   const ccLabel = document.getElementById('mapCcustoLabel');
@@ -45,6 +47,13 @@ document.addEventListener('DOMContentLoaded', () => {
     anoInput.value = defaultYear;
   }
 
+  // evidenciar diferenças vs orçamento (persistência)
+  const savedPct = localStorage.getItem('mapDiffPct');
+  if (diffPctEl && savedPct != null && savedPct !== '') diffPctEl.value = savedPct;
+  // Por defeito: não evidenciar (sem visto), independentemente de preferências anteriores
+  if (diffEnableEl) diffEnableEl.checked = false;
+  if (diffPctEl && (!diffPctEl.value || diffPctEl.value === '0')) diffPctEl.value = '3';
+
   function escapeHtml(str) {
     return String(str == null ? '' : str)
       .replace(/&/g, '&amp;')
@@ -56,6 +65,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function getSelectedCcustos() {
     return Array.from(ccSelected);
+  }
+
+  function isAllCentersSelected() {
+    const selected = getSelectedCcustos();
+    if (!ccOptions.length) return true;
+    return selected.length === 0 || selected.length === ccOptions.length;
+  }
+
+  function updateDiffAvailability() {
+    if (!diffEnableEl || !diffPctEl) return;
+    const all = isAllCentersSelected();
+    if (!all) diffEnableEl.checked = false;
+    diffEnableEl.disabled = !all;
+    diffPctEl.disabled = !all || !diffEnableEl.checked;
+    const title = all ? '' : 'Disponível apenas com Todos os centros selecionados';
+    diffEnableEl.title = title;
+    diffPctEl.title = title;
   }
 
   function setLoading(message) {
@@ -88,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const label = !sel || sel === total ? 'Todos os centros' : `${sel} selecionado(s)`;
     if (ccLabel) ccLabel.textContent = label;
     if (ccCount) ccCount.textContent = `${sel || total} selecionados${sel ? '' : ' (todos)'}`;
+    updateDiffAvailability();
   }
 
   async function loadCcustos() {
@@ -107,12 +134,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }).filter(o => o.ccusto);
       ccSelected = new Set(ccOptions.map(o => o.ccusto)); // default = todos
       renderCcList();
+      updateDiffAvailability();
     } catch (err) {
       console.error(err);
       ccOptions = [];
       ccSelected = new Set();
       if (ccList) ccList.innerHTML = '<div class="text-danger">Erro ao carregar centros de custo.</div>';
       setLoading('Erro ao carregar centros de custo');
+      updateDiffAvailability();
     }
   }
 
@@ -133,7 +162,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const normalized = fams.map(r => {
         const meses = Array.isArray(r.meses) ? r.meses.slice(0, 12) : [];
         while (meses.length < 12) meses.push(0);
-        return { ...r, meses };
+        const orc_meses = Array.isArray(r.orc_meses) ? r.orc_meses.slice(0, 12) : [];
+        while (orc_meses.length < 12) orc_meses.push(0);
+        return { ...r, meses, orc_meses };
       });
       lastRows = normalized;
       levelOneRefs = lastRows.filter(r => Number(r.nivel || 1) === 1).map(r => String(r.ref || '').trim());
@@ -182,10 +213,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const nivel = Number(r.nivel || 1);
         const ref = String(r.ref || '');
         const isProveito = ref.trim().startsWith('9');
+        const diffEnabled = isAllCentersSelected() && !!diffEnableEl?.checked;
+        const diffPct = Math.abs(Number(diffPctEl?.value || 3) || 3);
         const percVal = (r.percent === '' || r.percent == null) ? '' : `${fmtPct.format(Number(r.percent || 0))}%`;
         const mesesHtml = r.meses.map((v, idx) => {
           const mesNum = idx + 1;
-          return `<td class="text-end cell-drill" data-level="${nivel}" data-ref="${attrEscape(ref)}" data-nome="${attrEscape(r.nome || '')}" data-mes="${mesNum}">${fmtNum.format(Number(v || 0))}</td>`;
+          let diffClass = '';
+          if (diffEnabled) {
+            const bArr = Array.isArray(r.orc_meses) ? r.orc_meses : null;
+            const budget = bArr ? Number(bArr[idx] || 0) : 0;
+            const actual = Number(v || 0);
+            if (budget > 0) {
+              const pct = ((actual - budget) / budget) * 100;
+              // Custos: acima orçamento = vermelho; abaixo = verde
+              // Proveitos: abaixo objetivo = vermelho; acima = verde (inverso)
+              if (!isProveito) {
+                if (pct >= diffPct) diffClass = ' diff-over';
+                else if (pct <= -diffPct) diffClass = ' diff-under';
+              } else {
+                if (pct >= diffPct) diffClass = ' diff-under';
+                else if (pct <= -diffPct) diffClass = ' diff-over';
+              }
+            }
+          }
+          return `<td class="text-end cell-drill${diffClass}" data-level="${nivel}" data-ref="${attrEscape(ref)}" data-nome="${attrEscape(r.nome || '')}" data-mes="${mesNum}">${fmtNum.format(Number(v || 0))}</td>`;
         }).join('');
         let toggle = '<span class="toggle-spacer"></span>';
         if (nivel <= 2 && hasChild[ref]) {
@@ -194,11 +245,26 @@ document.addEventListener('DOMContentLoaded', () => {
           toggle = `<button class="toggle-node" data-ref="${ref}" title="${isOpen ? 'Colapsar' : 'Expandir'}" aria-label="${isOpen ? 'Colapsar' : 'Expandir'}"><i class="fa-solid ${icon}"></i></button>`;
         }
         const rowClass = `mapa-row level-${nivel}${isProveito ? ' row-proveito' : ''}`;
+        let totalDiffClass = '';
+        if (diffEnabled) {
+          const budgetTotal = Number(r.orc_total || 0);
+          const actualTotal = Number(r.total || 0);
+          if (budgetTotal > 0) {
+            const pct = ((actualTotal - budgetTotal) / budgetTotal) * 100;
+            if (!isProveito) {
+              if (pct >= diffPct) totalDiffClass = ' diff-over';
+              else if (pct <= -diffPct) totalDiffClass = ' diff-under';
+            } else {
+              if (pct >= diffPct) totalDiffClass = ' diff-under';
+              else if (pct <= -diffPct) totalDiffClass = ' diff-over';
+            }
+          }
+        }
         return `
           <tr class="${rowClass}" data-level="${nivel}">
             <td class="fam-cell level-${nivel} d-flex align-items-center gap-1">${toggle}<span>${escapeHtml(ref)} - ${escapeHtml(r.nome || '')}</span></td>
             ${mesesHtml}
-            <td class="text-end fw-semibold cell-drill" data-level="${nivel}" data-ref="${attrEscape(ref)}" data-nome="${attrEscape(r.nome || '')}" data-mes="all">${fmtNum.format(Number(r.total || 0))}</td>
+            <td class="text-end fw-semibold cell-drill${totalDiffClass}" data-level="${nivel}" data-ref="${attrEscape(ref)}" data-nome="${attrEscape(r.nome || '')}" data-mes="all">${fmtNum.format(Number(r.total || 0))}</td>
             <td class="text-end text-muted">${percVal}</td>
           </tr>
         `;
@@ -308,7 +374,26 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         }).join('');
       }
-      if (detailTotal) detailTotal.textContent = `Total: ${fmtNum2.format(Number(data.total || 0))}`;
+      if (detailTotal) {
+        const total = Number(data.total || 0);
+        const orc = Number(data.orc_total || 0);
+        const desvio = Number(data.desvio || 0);
+        const pct = data.desvio_pct == null ? null : Number(data.desvio_pct || 0);
+        if (orc > 0) {
+          const isProveito = String(ref || '').trim().startsWith('9');
+          const cls = !isProveito
+            ? (desvio > 0 ? 'text-danger' : (desvio < 0 ? 'text-success' : 'text-muted'))
+            : (desvio > 0 ? 'text-success' : (desvio < 0 ? 'text-danger' : 'text-muted'));
+          const pctTxt = pct == null ? '' : ` (${fmtPct.format(pct)}%)`;
+          detailTotal.innerHTML = `
+            <span class="fw-bold">Total: ${fmtNum2.format(total)}</span>
+            <span class="text-muted small ms-2">Orçamento: ${fmtNum2.format(orc)}</span>
+            <span class="text-muted small ms-2">Desvio: <span class="${cls} opacity-75">${fmtNum2.format(desvio)}${pctTxt}</span></span>
+          `.trim();
+        } else {
+          detailTotal.innerHTML = `<span class="fw-bold">Total: ${fmtNum2.format(total)}</span>`;
+        }
+      }
     } catch (err) {
       console.error(err);
       detailBody.innerHTML = `<tr><td colspan="10" class="text-center text-danger">${escapeHtml(err.message || 'Erro ao carregar detalhe')}</td></tr>`;
@@ -317,8 +402,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnAplicar) btnAplicar.addEventListener('click', loadMapa);
+  diffEnableEl?.addEventListener('change', () => {
+    updateDiffAvailability();
+    renderTabela();
+  });
+  diffPctEl?.addEventListener('change', () => {
+    localStorage.setItem('mapDiffPct', diffPctEl.value || '3');
+    renderTabela();
+  });
+  diffPctEl?.addEventListener('input', () => {
+    // live update, but avoid spamming storage
+    renderTabela();
+  });
   if (btnLimpar) btnLimpar.addEventListener('click', () => {
-    ccSelected = new Set(ccOptions); // todos
+    ccSelected = new Set(ccOptions.map(o => o.ccusto)); // todos
     if (anoInput) anoInput.value = defaultYear;
     updateCcSummary();
     renderCcList();
@@ -327,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnCcusto && modalCcusto) btnCcusto.addEventListener('click', () => modalCcusto.show());
   if (btnCcAll) btnCcAll.addEventListener('click', () => {
-    ccSelected = new Set(ccOptions);
+    ccSelected = new Set(ccOptions.map(o => o.ccusto));
     renderCcList();
   });
   if (btnCcNone) btnCcNone.addEventListener('click', () => {

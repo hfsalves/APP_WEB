@@ -21,6 +21,16 @@
             <button class="btn btn-outline-secondary" id="mapBtnLimpar">Limpar</button>
           </div>
         </div>
+        <div class="ms-auto d-flex align-items-end gap-2 flex-wrap justify-content-end">
+          <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" id="mapDiffEnable">
+            <label class="form-check-label small text-muted" for="mapDiffEnable">Evidenciar diferenças superiores a</label>
+          </div>
+          <div class="d-flex align-items-center gap-1 mb-1">
+            <input type="number" class="form-control form-control-sm" id="mapDiffPct" min="0" max="100" step="0.5" value="3" style="width:90px;">
+            <span class="text-muted small">%</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -152,6 +162,8 @@
   .total-custos td { color: #b91c1c; background: #fef2f2; }
   .total-proveitos td { color: #0ea5e9; background: #e0f2fe; }
   .total-saldo td { color: #0f172a; background: #e2e8f0; }
+  .diff-over { background: #fee2e2 !important; color: #7f1d1d !important; font-weight: 700; }
+  .diff-under { background: #dcfce7 !important; color: #14532d !important; font-weight: 700; }
   .cc-btns { gap: 4px; }
   .toggle-node {
     width: 22px; height: 22px;

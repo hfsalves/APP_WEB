@@ -317,6 +317,104 @@
   .fo-lines-table tbody td:nth-child(11) { width: 3%; min-width: 6ch; }    /* Ações */
 </style>
 
+<style>
+  /* Artigos modal */
+  #artigoModal .modal-body {
+    padding-top: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #artigoModal .modal-dialog {
+    height: 80vh;
+    max-height: 80vh;
+  }
+  #artigoModal .modal-content {
+    height: 80vh;
+    max-height: 80vh;
+  }
+  .artigo-modal-header {
+    background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+    color: #fff;
+    border-bottom: none;
+  }
+  .artigo-modal-header .btn-close {
+    filter: invert(1) grayscale(1) brightness(2);
+    opacity: 0.9;
+  }
+  .artigo-sticky {
+    z-index: 2;
+    background: #fff;
+    margin: 0 -1rem;
+    padding: 1rem 1rem 0.5rem 1rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  }
+  /* Nota: cabeçalho sticky aqui causa artefactos visuais no Bootstrap modal-scrollable */
+  .artigo-table thead th {
+    position: static;
+    top: auto;
+    background: #fff;
+    z-index: auto;
+  }
+  .artigo-table tbody tr {
+    cursor: pointer;
+  }
+  .artigo-table tbody tr:hover {
+    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
+  }
+  .artigo-ref {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-align: left;
+  }
+  .artigo-table thead th:nth-child(1),
+  .artigo-table tbody td:nth-child(1) {
+    text-align: left !important;
+  }
+  /* Overrides (scroll apenas na tabela) */
+  .artigo-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 12px;
+    position: relative;
+    background: #fff;
+  }
+  .artigo-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    min-width: 680px;
+  }
+  .artigo-table thead th {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 3;
+    box-shadow: 0 1px 0 rgba(148, 163, 184, 0.45);
+  }
+  .artigo-sortable {
+    cursor: pointer;
+    user-select: none;
+  }
+  .artigo-sortable::after {
+    content: "  \2195";
+    opacity: 0.35;
+    font-weight: 700;
+  }
+  .artigo-sortable.sort-asc::after {
+    content: "  \2191";
+    opacity: 0.9;
+  }
+  .artigo-sortable.sort-desc::after {
+    content: "  \2193";
+    opacity: 0.9;
+  }
+</style>
+
 <!-- Modal Linha FN -->
 <div class="modal fade" id="lineModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -340,7 +438,12 @@
               <div class="col-md-3">
                 <label class="form-label" for="FN_REF">REF</label>
                 <div class="position-relative">
-                  <input type="text" id="FN_REF" name="REF" class="form-control" autocomplete="off" placeholder="Ref. artigo">
+                  <div class="input-group input-group-sm">
+                    <button type="button" class="btn btn-outline-secondary" id="btnChooseArtigoLineModal" title="Escolher artigo">
+                      <i class="fa fa-search"></i>
+                    </button>
+                    <input type="text" id="FN_REF" name="REF" class="form-control" autocomplete="off" placeholder="Ref. artigo">
+                  </div>
                   <div id="refSuggestions" class="dropdown-menu w-100" style="max-height:200px; overflow-y:auto;"></div>
                 </div>
               </div>
@@ -448,6 +551,50 @@
             </thead>
             <tbody>
               <tr><td colspan="7" class="text-muted">A carregar...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Escolher Artigo (V_ST) -->
+<div class="modal fade" id="artigoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header artigo-modal-header">
+        <div class="w-100">
+          <h5 class="modal-title fw-semibold mb-0">Escolher artigo</h5>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="artigo-sticky">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-12">
+              <label class="form-label mb-1" for="artigoSearch">Pesquisar</label>
+              <div class="input-group">
+                <span class="input-group-text bg-light"><i class="fa fa-search"></i></span>
+                <input type="text" id="artigoSearch" class="form-control" placeholder="Refer&ecirc;ncia, descri&ccedil;&atilde;o ou fam&iacute;lia...">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="artigo-table-wrap mt-2">
+            <table class="table table-sm table-hover align-middle artigo-table mb-0" id="artigoTable">
+            <thead>
+              <tr>
+                <th class="artigo-sortable" data-sort="REF">Refer&ecirc;ncia</th>
+                <th class="artigo-sortable" data-sort="DESIGN">Descri&ccedil;&atilde;o</th>
+                <th class="artigo-sortable" data-sort="FAMILIA">Fam&iacute;lia</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="3" class="text-muted">A carregar...</td></tr>
             </tbody>
           </table>
         </div>

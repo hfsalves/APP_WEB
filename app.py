@@ -1150,6 +1150,180 @@ OPTION (MAXRECURSION 32767);
             mes_atual=hoje.month
         )
 
+    @app.route('/orcamento')
+    @login_required
+    def orcamento_page():
+        return render_template('orcamento.html', page_title='Orçamento', ano_atual=date.today().year)
+
+    @app.route('/api/orcamento')
+    @login_required
+    def api_orcamento_get():
+        try:
+            ano = request.args.get('ano', type=int) or date.today().year
+        except Exception:
+            ano = date.today().year
+
+        try:
+            fam_rows = db.session.execute(text("SELECT ref, nome FROM v_stfami ORDER BY ref")).fetchall()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter familias: {e}'}), 500
+
+        def level_from_ref(ref: str) -> int:
+            try:
+                return ref.count('.') + 1
+            except Exception:
+                return 1
+
+        def sort_key(ref: str):
+            parts = []
+            for p in str(ref or '').split('.'):
+                try:
+                    parts.append(int(p))
+                except Exception:
+                    parts.append(p)
+            return parts
+
+        def is_prov_ref(rf: str) -> bool:
+            try:
+                return str(rf or '').strip().startswith('9')
+            except Exception:
+                return False
+
+        familias_map = {}
+        for r in fam_rows:
+            ref = str(r[0]).strip() if r and r[0] is not None else ''
+            if not ref:
+                continue
+            if is_prov_ref(ref):
+                continue  # orçamento só de custos
+            nome = r[1] if len(r) > 1 else ''
+            nivel = level_from_ref(ref)
+            familias_map[ref] = {
+                'ref': ref,
+                'nome': nome,
+                'nivel': nivel,
+                'editable': False,
+                'meses': [0.0] * 12
+            }
+
+        # Apenas famílias de movimento (folhas) são editáveis:
+        # - se existir 3 níveis num ramo => nível 3 (folha)
+        # - se existir 2 níveis num ramo => nível 2 (folha)
+        # - se existir 1 nível => nível 1 (folha)
+        parents = set()
+        for ref in familias_map.keys():
+            parts = ref.split('.')
+            if len(parts) <= 1:
+                continue
+            # marca todos os prefixos como pais
+            for i in range(1, len(parts)):
+                parents.add('.'.join(parts[:i]))
+        for ref, f in familias_map.items():
+            f['editable'] = (ref not in parents)
+
+        # carregar valores existentes
+        try:
+            oc_rows = db.session.execute(
+                text("SELECT FAMILIA, MES, VALOR FROM OC WHERE ANO = :ano"),
+                {'ano': ano}
+            ).fetchall()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter orçamento (OC): {e}'}), 500
+
+        for r in oc_rows:
+            fam = str(r[0]).strip() if r[0] is not None else ''
+            try:
+                mes = int(r[1])
+            except Exception:
+                mes = 0
+            val = float(r[2] or 0)
+            if not fam or mes < 1 or mes > 12:
+                continue
+            node = familias_map.get(fam)
+            if node is None:
+                # se existir orçamento para família não mapeada, ignora
+                continue
+            node['meses'][mes - 1] = round(val, 2)
+
+        # agrega para pais (mostrar totais por nível, mas só folhas editáveis gravam)
+        # regra: pais = soma dos filhos diretos (bottom-up)
+        refs_sorted = sorted(familias_map.keys(), key=lambda x: (familias_map[x]['nivel'], sort_key(x)), reverse=True)
+        for ref in refs_sorted:
+            node = familias_map[ref]
+            if node.get('editable'):
+                continue
+            prefix = ref + '.'
+            children = [c for c in familias_map.keys() if c.startswith(prefix) and familias_map[c]['nivel'] == node['nivel'] + 1]
+            if not children:
+                continue
+            for m in range(12):
+                node['meses'][m] = round(sum(float(familias_map[c]['meses'][m] or 0) for c in children), 2)
+
+        familias_lista = []
+        for ref in sorted(familias_map.keys(), key=sort_key):
+            f = familias_map[ref]
+            meses = [round(float(v or 0), 2) for v in f['meses']]
+            familias_lista.append({
+                'ref': f['ref'],
+                'nome': f.get('nome', ''),
+                'nivel': int(f.get('nivel') or 1),
+                'editable': bool(f.get('editable')),
+                'meses': meses
+            })
+
+        return jsonify({'ano': ano, 'editable_rule': 'leaf', 'familias': familias_lista})
+
+    @app.route('/api/orcamento/batch', methods=['POST'])
+    @login_required
+    def api_orcamento_batch():
+        try:
+            body = request.get_json(silent=True) or {}
+            try:
+                ano = int(body.get('ano') or date.today().year)
+            except Exception:
+                ano = date.today().year
+            updates = body.get('updates') or []
+            if not isinstance(updates, list) or not updates:
+                return jsonify({'ok': True, 'updated': 0})
+
+            updated = 0
+            for u in updates[:500]:
+                fam = str(u.get('familia') or '').strip()
+                try:
+                    mes = int(u.get('mes') or 0)
+                except Exception:
+                    mes = 0
+                try:
+                    valor = float(u.get('valor') or 0)
+                except Exception:
+                    valor = 0.0
+                if not fam or mes < 1 or mes > 12:
+                    continue
+
+                # find existing
+                row = db.session.execute(
+                    text("SELECT TOP 1 OCSTAMP FROM OC WHERE ANO=:ano AND MES=:mes AND FAMILIA=:fam"),
+                    {'ano': ano, 'mes': mes, 'fam': fam}
+                ).fetchone()
+                if row and row[0]:
+                    db.session.execute(
+                        text("UPDATE OC SET VALOR=:valor WHERE OCSTAMP=:id"),
+                        {'valor': valor, 'id': row[0]}
+                    )
+                else:
+                    new_id_row = db.session.execute(text("SELECT LEFT(CONVERT(varchar(36), NEWID()), 25)")).fetchone()
+                    oc_id = new_id_row[0]
+                    db.session.execute(
+                        text("INSERT INTO OC (OCSTAMP, ANO, MES, FAMILIA, VALOR) VALUES (:id,:ano,:mes,:fam,:valor)"),
+                        {'id': oc_id, 'ano': ano, 'mes': mes, 'fam': fam, 'valor': valor}
+                    )
+                updated += 1
+            db.session.commit()
+            return jsonify({'ok': True, 'updated': updated})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/mapa_controlo')
     @login_required
     def api_mapa_controlo():
@@ -1307,6 +1481,8 @@ OPTION (MAXRECURSION 32767);
                 'nivel': level_from_ref(ref),
                 'meses': [0.0] * 12,
                 'total': 0.0,
+                'orc_meses': [0.0] * 12,
+                'orc_total': 0.0,
             }
 
         def ensure_node(ref: str):
@@ -1317,7 +1493,15 @@ OPTION (MAXRECURSION 32767);
                     'nivel': level_from_ref(ref),
                     'meses': [0.0] * 12,
                     'total': 0.0,
+                    'orc_meses': [0.0] * 12,
+                    'orc_total': 0.0,
                 }
+
+        def is_prov_ref(rf: str) -> bool:
+            try:
+                return str(rf or '').strip().startswith('9')
+            except Exception:
+                return False
 
         # Custos por familia/mes
         where_parts = ["YEAR(DATA) = :ano"]
@@ -1360,6 +1544,111 @@ OPTION (MAXRECURSION 32767);
                 node['total'] += valor
                 partes = partes[:-1]
 
+        # Orçamento (OC) por familia/mes (custos)
+        try:
+            oc_rows = db.session.execute(
+                text("SELECT FAMILIA, MES, VALOR FROM OC WHERE ANO = :ano"),
+                {'ano': ano}
+            ).fetchall()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter orçamento (OC): {e}'}), 500
+
+        for row in oc_rows:
+            familia = str(row[0]).strip() if row[0] is not None else ''
+            try:
+                mes = int(row[1]) if row[1] is not None else None
+            except Exception:
+                mes = None
+            valor = float(row[2] or 0)
+            if not familia or mes is None or mes < 1 or mes > 12:
+                continue
+            if is_prov_ref(familia):
+                continue
+            # acumula no nó e respetivos pais (para permitir evidenciar também níveis superiores)
+            partes = familia.split('.')
+            while partes:
+                ref_atual = '.'.join(partes)
+                ensure_node(ref_atual)
+                node = familias_map[ref_atual]
+                node['orc_meses'][mes - 1] += valor
+                node['orc_total'] += valor
+                partes = partes[:-1]
+
+        # Objetivos de venda (OV) para proveitos:
+        # - 9.1 => EXPLORACAO
+        # - 9.2 => GESTAO
+        try:
+            where_ov = ["ov.ANO = :ano"]
+            params_ov = {'ano': ano}
+            if ccustos:
+                keys = []
+                for idx, cc in enumerate(ccustos):
+                    k = f"cc{idx}"
+                    params_ov[k] = cc
+                    keys.append(f":{k}")
+                where_ov.append("ov.CCUSTO IN (" + ",".join(keys) + ")")
+            sql_ov = f"""
+                SELECT
+                    ov.CCUSTO,
+                    UPPER(LTRIM(RTRIM(ISNULL(a.TIPO,'')))) AS TIPO,
+                    ISNULL(ov.JANEIRO,0)   AS JANEIRO,
+                    ISNULL(ov.FEVEREIRO,0) AS FEVEREIRO,
+                    ISNULL(ov.MARCO,0)     AS MARCO,
+                    ISNULL(ov.ABRIL,0)     AS ABRIL,
+                    ISNULL(ov.MAIO,0)      AS MAIO,
+                    ISNULL(ov.JUNHO,0)     AS JUNHO,
+                    ISNULL(ov.JULHO,0)     AS JULHO,
+                    ISNULL(ov.AGOSTO,0)    AS AGOSTO,
+                    ISNULL(ov.SETEMBRO,0)  AS SETEMBRO,
+                    ISNULL(ov.OUTUBRO,0)   AS OUTUBRO,
+                    ISNULL(ov.NOVEMBRO,0)  AS NOVEMBRO,
+                    ISNULL(ov.DEZEMBRO,0)  AS DEZEMBRO
+                FROM OV ov
+                LEFT JOIN AL a
+                  ON LTRIM(RTRIM(a.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                   = LTRIM(RTRIM(ov.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                WHERE {" AND ".join(where_ov)}
+            """
+            ov_rows = db.session.execute(text(sql_ov), params_ov).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter objetivos (OV): {e}'}), 500
+
+        expl = [0.0] * 12
+        gest = [0.0] * 12
+        for r in ov_rows:
+            tipo = (r.get('TIPO') or '').strip().upper()
+            months = [
+                float(r.get('JANEIRO') or 0),
+                float(r.get('FEVEREIRO') or 0),
+                float(r.get('MARCO') or 0),
+                float(r.get('ABRIL') or 0),
+                float(r.get('MAIO') or 0),
+                float(r.get('JUNHO') or 0),
+                float(r.get('JULHO') or 0),
+                float(r.get('AGOSTO') or 0),
+                float(r.get('SETEMBRO') or 0),
+                float(r.get('OUTUBRO') or 0),
+                float(r.get('NOVEMBRO') or 0),
+                float(r.get('DEZEMBRO') or 0),
+            ]
+            if tipo == 'EXPLORACAO':
+                for i in range(12):
+                    expl[i] += months[i]
+            elif tipo == 'GESTAO':
+                for i in range(12):
+                    gest[i] += months[i]
+
+        ensure_node('9')
+        ensure_node('9.1')
+        ensure_node('9.2')
+        for i in range(12):
+            familias_map['9.1']['orc_meses'][i] += expl[i]
+            familias_map['9.1']['orc_total'] += expl[i]
+            familias_map['9.2']['orc_meses'][i] += gest[i]
+            familias_map['9.2']['orc_total'] += gest[i]
+            familias_map['9']['orc_meses'][i] += (expl[i] + gest[i])
+            familias_map['9']['orc_total'] += (expl[i] + gest[i])
+
         def sort_key(ref: str):
             parts = []
             for p in ref.split('.'):
@@ -1368,12 +1657,6 @@ OPTION (MAXRECURSION 32767);
                 except Exception:
                     parts.append(p)
             return parts
-
-        def is_prov_ref(rf: str) -> bool:
-            try:
-                return str(rf or '').strip().startswith('9')
-            except Exception:
-                return False
 
         total_base = sum(
             v['total']
@@ -1385,13 +1668,17 @@ OPTION (MAXRECURSION 32767);
             total_fam = float(f['total'] or 0)
             meses_fmt = [round(float(v or 0), 2) for v in f['meses']]
             is_proveito = is_prov_ref(f.get('ref'))
+            orc_meses_fmt = [round(float(v or 0), 2) for v in (f.get('orc_meses') or [0.0] * 12)]
+            orc_total = round(float(f.get('orc_total') or 0), 2)
             familias_lista.append({
                 'ref': f['ref'],
                 'nome': f.get('nome', ''),
                 'nivel': f.get('nivel', 1),
                 'meses': meses_fmt,
                 'total': round(total_fam, 2),
-                'percent': (None if is_proveito else round((total_fam / total_base * 100) if total_base else 0, 2))
+                'percent': (None if is_proveito else round((total_fam / total_base * 100) if total_base else 0, 2)),
+                'orc_meses': orc_meses_fmt,
+                'orc_total': orc_total,
             })
 
         return jsonify({
@@ -1457,6 +1744,91 @@ OPTION (MAXRECURSION 32767);
         except Exception as e:
             return jsonify({'error': f'Erro ao obter detalhe: {e}'}), 500
 
+        # Orçamento/Objetivo:
+        # - Custos => OC (por família/mês)
+        # - Proveitos (famílias 9.1/9.2) => OV (por CCUSTO, mapeado via AL.TIPO)
+        orc_total = 0.0
+        familia_is_prov = str(familia or '').strip().startswith('9')
+        if familia_is_prov:
+            try:
+                where_ov = ["ov.ANO = :ano"]
+                params_ov = {'ano': ano}
+                if ccustos:
+                    keys = []
+                    for idx, cc in enumerate(ccustos):
+                        k = f"cc{idx}"
+                        params_ov[k] = cc
+                        keys.append(f":{k}")
+                    where_ov.append("ov.CCUSTO IN (" + ",".join(keys) + ")")
+                sql_ov = f"""
+                    SELECT
+                        UPPER(LTRIM(RTRIM(ISNULL(a.TIPO,'')))) AS TIPO,
+                        SUM(ISNULL(ov.JANEIRO,0))   AS JANEIRO,
+                        SUM(ISNULL(ov.FEVEREIRO,0)) AS FEVEREIRO,
+                        SUM(ISNULL(ov.MARCO,0))     AS MARCO,
+                        SUM(ISNULL(ov.ABRIL,0))     AS ABRIL,
+                        SUM(ISNULL(ov.MAIO,0))      AS MAIO,
+                        SUM(ISNULL(ov.JUNHO,0))     AS JUNHO,
+                        SUM(ISNULL(ov.JULHO,0))     AS JULHO,
+                        SUM(ISNULL(ov.AGOSTO,0))    AS AGOSTO,
+                        SUM(ISNULL(ov.SETEMBRO,0))  AS SETEMBRO,
+                        SUM(ISNULL(ov.OUTUBRO,0))   AS OUTUBRO,
+                        SUM(ISNULL(ov.NOVEMBRO,0))  AS NOVEMBRO,
+                        SUM(ISNULL(ov.DEZEMBRO,0))  AS DEZEMBRO
+                    FROM OV ov
+                    LEFT JOIN AL a
+                      ON LTRIM(RTRIM(a.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                       = LTRIM(RTRIM(ov.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                    WHERE {" AND ".join(where_ov)}
+                    GROUP BY UPPER(LTRIM(RTRIM(ISNULL(a.TIPO,''))))
+                """
+                ov_rows = db.session.execute(text(sql_ov), params_ov).mappings().all()
+                by_tipo = { (r.get('TIPO') or '').strip().upper(): r for r in ov_rows }
+                exp = by_tipo.get('EXPLORACAO', {}) or {}
+                ges = by_tipo.get('GESTAO', {}) or {}
+                month_cols = ['JANEIRO','FEVEREIRO','MARCO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO']
+                if mes and 1 <= mes <= 12:
+                    col = month_cols[mes - 1]
+                    val_exp = float(exp.get(col) or 0)
+                    val_ges = float(ges.get(col) or 0)
+                    fam = str(familia or '').strip()
+                    if fam.startswith('9.1'):
+                        orc_total = val_exp
+                    elif fam.startswith('9.2'):
+                        orc_total = val_ges
+                    else:
+                        # 9 (ou outras) -> soma
+                        orc_total = val_exp + val_ges
+                else:
+                    val_exp = sum(float(exp.get(c) or 0) for c in month_cols)
+                    val_ges = sum(float(ges.get(c) or 0) for c in month_cols)
+                    fam = str(familia or '').strip()
+                    if fam.startswith('9.1'):
+                        orc_total = val_exp
+                    elif fam.startswith('9.2'):
+                        orc_total = val_ges
+                    else:
+                        orc_total = val_exp + val_ges
+            except Exception as e:
+                return jsonify({'error': f'Erro ao obter objetivos (OV): {e}'}), 500
+        else:
+            try:
+                oc_where = ["ANO = :ano"]
+                oc_params = {'ano': ano, 'familia': familia}
+                if include_children:
+                    oc_where.append("(FAMILIA = :familia OR FAMILIA LIKE :familia_like)")
+                    oc_params['familia_like'] = familia + ".%"
+                else:
+                    oc_where.append("FAMILIA = :familia")
+                if mes and 1 <= mes <= 12:
+                    oc_where.append("MES = :mes")
+                    oc_params['mes'] = mes
+                oc_sql = "SELECT SUM(ISNULL(VALOR,0)) AS ORCAMENTO FROM OC WHERE " + " AND ".join(oc_where)
+                oc_row = db.session.execute(text(oc_sql), oc_params).mappings().first() or {}
+                orc_total = float(oc_row.get('ORCAMENTO') or 0)
+            except Exception as e:
+                return jsonify({'error': f'Erro ao obter orçamento (OC): {e}'}), 500
+
         out = []
         total_sum = 0.0
         cabstamps = []
@@ -1513,7 +1885,21 @@ OPTION (MAXRECURSION 32767);
             url = anexo_map.get(str(cab)) if cab else None
             item['anexo_url'] = url
 
-        return jsonify({'rows': out, 'total': round(total_sum, 2)})
+        desvio = total_sum - orc_total
+        desvio_pct = None
+        if orc_total:
+            try:
+                desvio_pct = (desvio / orc_total) * 100
+            except Exception:
+                desvio_pct = None
+
+        return jsonify({
+            'rows': out,
+            'total': round(total_sum, 2),
+            'orc_total': round(float(orc_total or 0), 2),
+            'desvio': round(float(desvio or 0), 2),
+            'desvio_pct': (None if desvio_pct is None else round(float(desvio_pct), 2))
+        })
 
     @app.route('/turnover')
     @login_required
@@ -2498,6 +2884,414 @@ OPTION (MAXRECURSION 32767);
 
             return jsonify({'date': d, 'kind': kind, 'rows': out, 'total': round(total, 2)})
         except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    # -----------------------------
+    # Contas Correntes - Fornecedores
+    # -----------------------------
+    @app.route('/cc_fornecedores')
+    @app.route('/contas-correntes-fornecedores')
+    @login_required
+    def cc_fornecedores_page():
+        return render_template('cc_fornecedores.html', page_title='Contas Correntes - Fornecedores')
+
+    # Alias para abrir FO sem o prefixo /generic (usado em links do ecrã de CC)
+    @app.route('/fo_compras_form/', defaults={'record_stamp': None})
+    @app.route('/fo_compras_form/<record_stamp>')
+    @login_required
+    def fo_compras_form_alias(record_stamp):
+        if record_stamp:
+            return redirect(url_for('generic.fo_compras_form', record_stamp=record_stamp))
+        return redirect(url_for('generic.fo_compras_form'))
+
+    @app.route('/api/cc_fornecedores/resumo')
+    @login_required
+    def api_cc_fornecedores_resumo():
+        """
+        Resumo por fornecedor (saldo em aberto).
+        Query:
+          - q (opcional): pesquisa por NO/NOME
+          - pendentes=1: apenas fornecedores com saldo em aberto != 0
+        """
+        try:
+            q = (request.args.get('q') or '').strip()
+            pendentes = (request.args.get('pendentes') or '').strip() in ('1', 'true', 'True')
+
+            # Fonte: dbo.V_FC (BD GESTAO).
+            # Fornecedores: a dÃ­vida em aberto deve ficar positiva (normalmente vem do lado do crÃ©dito).
+            #   (ECRED - ECREDF) - (EDEB - EDEBF)
+            open_expr = "(ISNULL(ECRED,0) - ISNULL(ECREDF,0)) - (ISNULL(EDEB,0) - ISNULL(EDEBF,0))"
+
+            where = []
+            params = {}
+            if q:
+                where.append("(CAST(NO AS varchar(50)) LIKE :q OR NOME LIKE :q)")
+                params['q'] = f"%{q}%"
+
+            where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+            having_sql = f"HAVING ABS(SUM({open_expr})) > 0.005" if pendentes else ""
+
+            sql = text(f"""
+                SELECT
+                    NO,
+                    MAX(NOME) AS NOME,
+                    SUM({open_expr}) AS SALDO_ABERTO
+                FROM dbo.V_FC
+                {where_sql}
+                GROUP BY NO
+                {having_sql}
+                ORDER BY SUM({open_expr}) DESC, MAX(NOME)
+            """)
+            rows = db.session.execute(sql, params).mappings().all()
+
+            items = []
+            total_divida = 0.0
+            total_saldo = 0.0
+            for r in rows:
+                no = r.get('NO')
+                nome = str(r.get('NOME') or '').strip()
+                saldo = float(r.get('SALDO_ABERTO') or 0)
+                total_saldo += saldo
+                divida = saldo if saldo > 0 else 0.0
+                total_divida += divida
+                items.append({
+                    'NO': int(no) if str(no).isdigit() else no,
+                    'NOME': nome,
+                    'SALDO_ABERTO': round(saldo, 2),
+                    'DIVIDA': round(divida, 2)
+                })
+
+            return jsonify({
+                'total_divida': round(total_divida, 2),
+                'total_saldo': round(total_saldo, 2),
+                'count_fornecedores': len(items),
+                'items': items
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/cc_fornecedores/detalhe')
+    @login_required
+    def api_cc_fornecedores_detalhe():
+        """
+        Movimentos de conta corrente por fornecedor.
+        Query:
+          - no (obrigatório): fornecedor
+          - pendentes=1: apenas linhas com aberto != 0
+        """
+        try:
+            no = request.args.get('no', type=int)
+            if not no:
+                return jsonify({'error': 'Parâmetro no obrigatório'}), 400
+            pendentes = (request.args.get('pendentes') or '').strip() in ('1', 'true', 'True')
+
+            open_expr = "(ISNULL(ECRED,0) - ISNULL(ECREDF,0)) - (ISNULL(EDEB,0) - ISNULL(EDEBF,0))"
+
+            where_pend = f"AND ABS({open_expr}) > 0.005" if pendentes else ""
+            sql = text(f"""
+                SELECT
+                    FCSTAMP,
+                    CAST(DATALC AS date) AS DATALC,
+                    CAST(DATAVEN AS date) AS DATAVEN,
+                    ISNULL(CMDESC,'') AS CMDESC,
+                    ISNULL(ADOC,'') AS ADOC,
+                    ISNULL(EDEB,0) AS EDEB,
+                    ISNULL(ECRED,0) AS ECRED,
+                    ISNULL(EDEBF,0) AS EDEBF,
+                    ISNULL(ECREDF,0) AS ECREDF,
+                    ISNULL(MOEDA,'') AS MOEDA,
+                    ISNULL(CCUSTO,'') AS CCUSTO,
+                    ISNULL(FOSTAMP,'') AS FOSTAMP,
+                    {open_expr} AS ABERTO
+                FROM dbo.V_FC
+                WHERE NO = :no
+                {where_pend}
+                ORDER BY CAST(DATALC AS date), FCSTAMP
+            """)
+            rows = db.session.execute(sql, {'no': no}).mappings().all()
+
+            out = []
+            total_aberto = 0.0
+            for r in rows:
+                aberto = float(r.get('ABERTO') or 0)
+                total_aberto += aberto
+                dlc = r.get('DATALC')
+                dven = r.get('DATAVEN')
+                out.append({
+                    'FCSTAMP': r.get('FCSTAMP') or '',
+                    'DATALC': dlc.strftime('%Y-%m-%d') if isinstance(dlc, (datetime, date)) else (str(dlc) if dlc is not None else ''),
+                    'DATAVEN': dven.strftime('%Y-%m-%d') if isinstance(dven, (datetime, date)) else (str(dven) if dven is not None else ''),
+                    'CMDESC': r.get('CMDESC') or '',
+                    'ADOC': r.get('ADOC') or '',
+                    'EDEB': round(float(r.get('EDEB') or 0), 2),
+                    'ECRED': round(float(r.get('ECRED') or 0), 2),
+                    'EDEBF': round(float(r.get('EDEBF') or 0), 2),
+                    'ECREDF': round(float(r.get('ECREDF') or 0), 2),
+                    'ABERTO': round(aberto, 2),
+                    'MOEDA': r.get('MOEDA') or '',
+                    'CCUSTO': r.get('CCUSTO') or '',
+                    'FOSTAMP': r.get('FOSTAMP') or ''
+                })
+
+            return jsonify({'no': no, 'rows': out, 'total_aberto': round(total_aberto, 2)})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/cc_fornecedores/pendentes')
+    @login_required
+    def api_cc_fornecedores_pendentes():
+        """
+        Lista movimentos pendentes (em aberto) para assistente de pagamentos.
+        Query:
+          - q (opcional): pesquisa por NO/NOME/ADOC/CMDESC
+
+        Nota: considera pendente apenas ABERTO > 0 (dívida) para pagamento.
+        """
+        try:
+            q = (request.args.get('q') or '').strip()
+
+            open_expr = "(ISNULL(ECRED,0) - ISNULL(ECREDF,0)) - (ISNULL(EDEB,0) - ISNULL(EDEBF,0))"
+            where = [f"({open_expr}) > 0.005"]
+            params = {}
+            if q:
+                where.append("(CAST(NO AS varchar(50)) LIKE :q OR NOME LIKE :q OR ADOC LIKE :q OR CMDESC LIKE :q)")
+                params['q'] = f"%{q}%"
+
+            where_sql = "WHERE " + " AND ".join(where)
+
+            def run_query(include_cm: bool):
+                cm_sel = "ISNULL(CM,0) AS CM," if include_cm else "CAST(0 AS int) AS CM,"
+                sql = text(f"""
+                    SELECT
+                        FCSTAMP,
+                        CAST(DATALC AS date) AS DATALC,
+                        CAST(DATAVEN AS date) AS DATAVEN,
+                        ISNULL(CMDESC,'') AS CMDESC,
+                        ISNULL(ADOC,'') AS ADOC,
+                        {cm_sel}
+                        ISNULL(NO,0) AS NO,
+                        ISNULL(NOME,'') AS NOME,
+                        ISNULL(MOEDA,'') AS MOEDA,
+                        ISNULL(CCUSTO,'') AS CCUSTO,
+                        ISNULL(FOSTAMP,'') AS FOSTAMP,
+                        {open_expr} AS ABERTO
+                    FROM dbo.V_FC
+                    {where_sql}
+                    ORDER BY ISNULL(NOME,''), CAST(DATAVEN AS date), CAST(DATALC AS date), FCSTAMP
+                """)
+                return db.session.execute(sql, params).mappings().all()
+
+            try:
+                rows = run_query(include_cm=True)
+            except Exception as e:
+                # compat: a view V_FC pode nÃ£o ter a coluna CM ainda
+                msg = str(e)
+                if "Invalid column name 'CM'" in msg or "Invalid column name \"CM\"" in msg:
+                    rows = run_query(include_cm=False)
+                else:
+                    raise
+
+            out = []
+            total = 0.0
+            for r in rows:
+                dlc = r.get('DATALC')
+                dven = r.get('DATAVEN')
+                aberto = float(r.get('ABERTO') or 0)
+                total += aberto
+                out.append({
+                    'FCSTAMP': (r.get('FCSTAMP') or '').strip(),
+                    'DATALC': dlc.strftime('%Y-%m-%d') if isinstance(dlc, (datetime, date)) else (str(dlc) if dlc is not None else ''),
+                    'DATAVEN': dven.strftime('%Y-%m-%d') if isinstance(dven, (datetime, date)) else (str(dven) if dven is not None else ''),
+                    'CMDESC': r.get('CMDESC') or '',
+                    'ADOC': r.get('ADOC') or '',
+                    'CM': int(r.get('CM') or 0),
+                    'NO': int(r.get('NO') or 0),
+                    'NOME': r.get('NOME') or '',
+                    'MOEDA': r.get('MOEDA') or '',
+                    'CCUSTO': r.get('CCUSTO') or '',
+                    'FOSTAMP': r.get('FOSTAMP') or '',
+                    'ABERTO': round(aberto, 2)
+                })
+
+            return jsonify({'rows': out, 'total': round(total, 2), 'count': len(out)})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/cc_fornecedores/pagamentos/criar', methods=['POST'])
+    @login_required
+    def api_cc_fornecedores_pagamentos_criar():
+        """
+        Cria registos PO/PL a partir de movimentos pendentes selecionados.
+        Body:
+          { "items": [ { FCSTAMP, NO, NOME, CMDESC, ADOC, DATALC, DATAVEN, ABERTO, MOEDA, CCUSTO } ... ] }
+        Cria 1 PO por fornecedor e 1 PL por movimento.
+        """
+        try:
+            body = request.get_json(silent=True) or {}
+            pay_date_str = str(body.get('pay_date') or '').strip()
+            items = body.get('items') or []
+            if not isinstance(items, list) or not items:
+                return jsonify({'error': 'Sem movimentos selecionados.'}), 400
+
+            # normalizar e validar
+            cleaned = []
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                no = int(it.get('NO') or 0)
+                fcstamp = str(it.get('FCSTAMP') or '').strip()
+                nome = str(it.get('NOME') or '').strip()
+                if not no or not fcstamp:
+                    continue
+                try:
+                    aberto = float(it.get('ABERTO') or 0)
+                except Exception:
+                    aberto = 0.0
+                if aberto <= 0:
+                    continue
+                try:
+                    payval = float(it.get('PAYVAL') if it.get('PAYVAL') is not None else it.get('EVAL') or aberto)
+                except Exception:
+                    payval = aberto
+                if payval <= 0:
+                    continue
+                if payval > aberto:
+                    payval = aberto
+                cleaned.append({
+                    'NO': no,
+                    'NOME': nome,
+                    'FCSTAMP': fcstamp[:25],
+                    'CMDESC': str(it.get('CMDESC') or '').strip()[:20],
+                    'ADOC': str(it.get('ADOC') or '').strip()[:50],
+                    'DATALC': str(it.get('DATALC') or '').strip(),
+                    'DATAVEN': str(it.get('DATAVEN') or '').strip(),
+                    'CM': int(it.get('CM') or 0),
+                    'EVAL': payval,
+                    'ABERTO': aberto,
+                    'MOEDA': str(it.get('MOEDA') or '').strip()[:11],
+                    'CCUSTO': str(it.get('CCUSTO') or '').strip()[:20],
+                })
+                if len(cleaned) >= 2000:
+                    break
+            if not cleaned:
+                return jsonify({'error': 'Sem movimentos válidos.'}), 400
+
+            # agrupar por fornecedor
+            by_no = {}
+            for it in cleaned:
+                by_no.setdefault(it['NO'], {'NO': it['NO'], 'NOME': it['NOME'], 'items': []})
+                by_no[it['NO']]['items'].append(it)
+
+            def new_stamp():
+                import uuid
+                return uuid.uuid4().hex.upper()[:25]
+
+            # Data do pagamento (sem hora)
+            try:
+                base_date = date.fromisoformat(pay_date_str) if pay_date_str else date.today()
+            except Exception:
+                base_date = date.today()
+            base_dt = datetime.combine(base_date, datetime.min.time())
+            ano = int(base_date.strftime('%Y'))
+
+            created = []
+            for grp in by_no.values():
+                no = grp['NO']
+                nome = grp['NOME'] or ''
+                movs = grp['items']
+                total = sum(float(x['EVAL'] or 0) for x in movs)
+
+                # RNO sequencial simples
+                rno_row = db.session.execute(text("SELECT ISNULL(MAX(RNO),0) + 1 AS N FROM dbo.PO")).mappings().first() or {}
+                rno = int(rno_row.get('N') or 1)
+
+                postamp = new_stamp()
+                moeda = (movs[0].get('MOEDA') or 'EUR').strip()[:11]
+                ccusto = (movs[0].get('CCUSTO') or '').strip()[:20]
+                fcstamp_head = (movs[0].get('FCSTAMP') or '').strip()[:25]
+                cmdesc_head = (movs[0].get('CMDESC') or 'PAGAMENTO').strip()[:20]
+                adoc_head = (movs[0].get('ADOC') or '').strip()[:50]
+
+                ins_po = text("""
+                    INSERT INTO dbo.PO
+                    (POSTAMP, RNO, RDATA, NOME, TOTAL, ETOTAL, PAIS, NO, POANO, DVALOR, OLCODIGO, TELOCAL, MOEDA, CONTADO,
+                     PROCESS, PROCDATA, OLLOCAL, CCUSTO, PLANO, OLSTAMP, FCSTAMP, CM, CMDESC, ADOC)
+                    VALUES
+                    (:POSTAMP, :RNO, :RDATA, :NOME, :TOTAL, :ETOTAL, :PAIS, :NO, :POANO, :DVALOR, :OLCODIGO, :TELOCAL, :MOEDA, :CONTADO,
+                     :PROCESS, :PROCDATA, :OLLOCAL, :CCUSTO, :PLANO, :OLSTAMP, :FCSTAMP, :CM, :CMDESC, :ADOC)
+                """)
+                db.session.execute(ins_po, {
+                    'POSTAMP': postamp,
+                    'RNO': rno,
+                    'RDATA': base_dt,
+                    'NOME': nome[:55],
+                    'TOTAL': total,
+                    'ETOTAL': total,
+                    'PAIS': 0,
+                    'NO': no,
+                    'POANO': ano,
+                    'DVALOR': base_dt,
+                    'OLCODIGO': 'P10001',
+                    'TELOCAL': 'B',
+                    'MOEDA': moeda,
+                    'CONTADO': 1,
+                    'PROCESS': 1,
+                    'PROCDATA': base_dt,
+                    'OLLOCAL': 'Santander  DO',
+                    'CCUSTO': ccusto,
+                    'PLANO': 0,
+                    'OLSTAMP': '',
+                    'FCSTAMP': fcstamp_head,
+                    'CM': 104,
+                    'CMDESC': 'N/Trfa.',
+                    'ADOC': str(rno)
+                })
+
+                ins_pl = text("""
+                    INSERT INTO dbo.PL
+                    (POSTAMP, PLSTAMP, RNO, CDESC, ADOC, DATALC, DATAVEN, FCSTAMP, CM, EVAL, EREC, PROCESS, MOEDA, RDATA)
+                    VALUES
+                    (:POSTAMP, :PLSTAMP, :RNO, :CDESC, :ADOC, :DATALC, :DATAVEN, :FCSTAMP, :CM, :EVAL, :EREC, :PROCESS, :MOEDA, :RDATA)
+                """)
+                for m in movs:
+                    plstamp = new_stamp()
+                    # datas como datetime (YYYY-MM-DD)
+                    try:
+                        dlc_dt = datetime.fromisoformat(m['DATALC'])
+                    except Exception:
+                        dlc_dt = base_dt
+                    try:
+                        dven_dt = datetime.fromisoformat(m['DATAVEN'])
+                    except Exception:
+                        dven_dt = dlc_dt
+
+                    dlc = datetime.combine(dlc_dt.date(), datetime.min.time())
+                    dven = datetime.combine(dven_dt.date(), datetime.min.time())
+                    cm_line = int(m.get('CM') or 0)
+
+                    db.session.execute(ins_pl, {
+                        'POSTAMP': postamp,
+                        'PLSTAMP': plstamp,
+                        'RNO': rno,
+                        'CDESC': (m.get('CMDESC') or '')[:20],
+                        'ADOC': (m.get('ADOC') or '')[:50],
+                        'DATALC': dlc,
+                        'DATAVEN': dven,
+                        'FCSTAMP': (m.get('FCSTAMP') or '')[:25],
+                        'CM': cm_line,
+                        'EVAL': float(m.get('EVAL') or 0),
+                        'EREC': float(m.get('EVAL') or 0),
+                        'PROCESS': 1,
+                        'MOEDA': (m.get('MOEDA') or moeda)[:11],
+                        'RDATA': base_dt
+                    })
+
+                created.append({'NO': no, 'NOME': nome, 'POSTAMP': postamp, 'RNO': rno, 'TOTAL': round(total, 2), 'COUNT': len(movs)})
+
+            db.session.commit()
+            return jsonify({'ok': True, 'created': created})
+        except Exception as e:
+            db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
     # -----------------------------

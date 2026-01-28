@@ -145,6 +145,65 @@ def fo_search_artigos():
         current_app.logger.exception('Erro em fo_search_artigos')
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/api/fo/artigos')
+@login_required
+def fo_artigos():
+    """
+    Lista artigos para seleÃ§Ã£o via modal.
+    Querystring:
+      - q (opcional): termo de pesquisa (REF/DESIGN/FAMILIA)
+      - limit (opcional): mÃ¡ximo de registos (default 200, max 500)
+    """
+    try:
+        term = (request.args.get('q') or '').strip()
+        try:
+            limit = int(request.args.get('limit', 200))
+        except Exception:
+            limit = 200
+        if limit < 1:
+            limit = 1
+        if limit > 500:
+            limit = 500
+
+        if term:
+            sql = text(f"""
+                SELECT TOP {limit}
+                    s.REF,
+                    s.DESIGN,
+                    s.FAMILIA,
+                    f.NOME AS FAMILIA_NOME,
+                    s.TABIVA
+                FROM V_ST s
+                LEFT JOIN V_STFAMI f
+                  ON f.REF = s.FAMILIA
+                WHERE s.REF LIKE :t
+                   OR s.DESIGN LIKE :t
+                   OR s.FAMILIA LIKE :t
+                   OR f.NOME LIKE :t
+                ORDER BY s.REF
+            """)
+            params = {'t': f'%{term}%'}
+        else:
+            sql = text(f"""
+                SELECT TOP {limit}
+                    s.REF,
+                    s.DESIGN,
+                    s.FAMILIA,
+                    f.NOME AS FAMILIA_NOME,
+                    s.TABIVA
+                FROM V_ST s
+                LEFT JOIN V_STFAMI f
+                  ON f.REF = s.FAMILIA
+                ORDER BY s.REF
+            """)
+            params = {}
+
+        rows = db.session.execute(sql, params).fetchall()
+        return jsonify([dict(r._mapping) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro em fo_artigos')
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/api/fo/artigos_familia', methods=['POST'])
 @login_required
 def fo_artigos_familia():
