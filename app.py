@@ -2886,6 +2886,65 @@ OPTION (MAXRECURSION 32767);
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/generic/api/tesouraria/ba/extrato')
+    @login_required
+    def api_tesouraria_ba_extrato():
+        """
+        Extrato de movimentos reais (V_BA) num intervalo.
+        Query: ?start=YYYY-MM-DD&end=YYYY-MM-DD
+        Retorna linhas normalizadas:
+          { DATA, KIND: in|out, DOCUMENTO, DESCRICAO, VALOR }
+        """
+        try:
+            start = (request.args.get('start') or '').strip()
+            end = (request.args.get('end') or '').strip()
+            if not start or not end:
+                return jsonify({'error': 'Parâmetros start/end obrigatórios'}), 400
+
+            sql = text("""
+                SELECT
+                    CAST(BA.DATA AS date) AS DATA,
+                    'in' AS KIND,
+                    ISNULL(BA.DOCUMENTO,'') AS DOCUMENTO,
+                    ISNULL(BA.DESCRICAO,'') AS DESCRICAO,
+                    ISNULL(BA.EENTRADA,0) AS VALOR
+                FROM dbo.V_BA AS BA
+                WHERE CAST(BA.DATA AS date) BETWEEN :start AND :end
+                  AND ISNULL(BA.EENTRADA,0) <> 0
+
+                UNION ALL
+
+                SELECT
+                    CAST(BA.DATA AS date) AS DATA,
+                    'out' AS KIND,
+                    ISNULL(BA.DOCUMENTO,'') AS DOCUMENTO,
+                    ISNULL(BA.DESCRICAO,'') AS DESCRICAO,
+                    ISNULL(BA.ESAIDA,0) AS VALOR
+                FROM dbo.V_BA AS BA
+                WHERE CAST(BA.DATA AS date) BETWEEN :start AND :end
+                  AND ISNULL(BA.ESAIDA,0) <> 0
+
+                ORDER BY DATA, KIND, DOCUMENTO, DESCRICAO
+            """)
+            rows = db.session.execute(sql, {'start': start, 'end': end}).mappings().all()
+            out = []
+            for r in rows:
+                d = r.get('DATA')
+                if isinstance(d, (datetime, date)):
+                    d = d.strftime('%Y-%m-%d')
+                else:
+                    d = str(d) if d is not None else ''
+                out.append({
+                    'DATA': d,
+                    'KIND': (r.get('KIND') or '').strip(),
+                    'DOCUMENTO': r.get('DOCUMENTO') or '',
+                    'DESCRICAO': r.get('DESCRICAO') or '',
+                    'VALOR': round(float(r.get('VALOR') or 0), 2)
+                })
+            return jsonify(out)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     # -----------------------------
     # Contas Correntes - Fornecedores
     # -----------------------------
@@ -3194,7 +3253,28 @@ OPTION (MAXRECURSION 32767);
             base_dt = datetime.combine(base_date, datetime.min.time())
             ano = int(base_date.strftime('%Y'))
 
+            # Lote sequencial (1 por execução do assistente)
+            lote_row = db.session.execute(text("SELECT ISNULL(MAX(LOTE),0) + 1 AS N FROM dbo.PO")).mappings().first() or {}
+            lote = int(lote_row.get('N') or 1)
+
             created = []
+            # Algumas BD usam DVALOR, outras DTVALOR (ou ambas). Detecta e usa as que existirem.
+            po_cols = set(
+                r['COLUMN_NAME'].upper()
+                for r in (
+                    db.session.execute(
+                        text("""
+                            SELECT COLUMN_NAME
+                            FROM INFORMATION_SCHEMA.COLUMNS
+                            WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'PO'
+                        """)
+                    ).mappings().all()
+                    or []
+                )
+            )
+            has_dvalor = 'DVALOR' in po_cols
+            has_dtvalor = 'DTVALOR' in po_cols
+
             for grp in by_no.values():
                 no = grp['NO']
                 nome = grp['NOME'] or ''
@@ -3212,15 +3292,31 @@ OPTION (MAXRECURSION 32767);
                 cmdesc_head = (movs[0].get('CMDESC') or 'PAGAMENTO').strip()[:20]
                 adoc_head = (movs[0].get('ADOC') or '').strip()[:50]
 
-                ins_po = text("""
+                po_cols_sql = [
+                    'POSTAMP', 'RNO', 'RDATA', 'NOME', 'TOTAL', 'ETOTAL', 'PAIS', 'NO', 'POANO',
+                    'OLCODIGO', 'TELOCAL', 'MOEDA', 'CONTADO',
+                    'PROCESS', 'PROCDATA', 'OLLOCAL', 'CCUSTO', 'PLANO', 'OLSTAMP', 'FCSTAMP', 'CM', 'CMDESC', 'ADOC', 'LOTE'
+                ]
+                po_vals_sql = [
+                    ':POSTAMP', ':RNO', ':RDATA', ':NOME', ':TOTAL', ':ETOTAL', ':PAIS', ':NO', ':POANO',
+                    ':OLCODIGO', ':TELOCAL', ':MOEDA', ':CONTADO',
+                    ':PROCESS', ':PROCDATA', ':OLLOCAL', ':CCUSTO', ':PLANO', ':OLSTAMP', ':FCSTAMP', ':CM', ':CMDESC', ':ADOC', ':LOTE'
+                ]
+                if has_dvalor:
+                    po_cols_sql.insert(9, 'DVALOR')
+                    po_vals_sql.insert(9, ':DVALOR')
+                if has_dtvalor:
+                    po_cols_sql.insert(9, 'DTVALOR')
+                    po_vals_sql.insert(9, ':DTVALOR')
+
+                ins_po = text(f"""
                     INSERT INTO dbo.PO
-                    (POSTAMP, RNO, RDATA, NOME, TOTAL, ETOTAL, PAIS, NO, POANO, DVALOR, OLCODIGO, TELOCAL, MOEDA, CONTADO,
-                     PROCESS, PROCDATA, OLLOCAL, CCUSTO, PLANO, OLSTAMP, FCSTAMP, CM, CMDESC, ADOC)
+                    ({", ".join(po_cols_sql)})
                     VALUES
-                    (:POSTAMP, :RNO, :RDATA, :NOME, :TOTAL, :ETOTAL, :PAIS, :NO, :POANO, :DVALOR, :OLCODIGO, :TELOCAL, :MOEDA, :CONTADO,
-                     :PROCESS, :PROCDATA, :OLLOCAL, :CCUSTO, :PLANO, :OLSTAMP, :FCSTAMP, :CM, :CMDESC, :ADOC)
+                    ({", ".join(po_vals_sql)})
                 """)
-                db.session.execute(ins_po, {
+
+                po_params = {
                     'POSTAMP': postamp,
                     'RNO': rno,
                     'RDATA': base_dt,
@@ -3230,7 +3326,6 @@ OPTION (MAXRECURSION 32767);
                     'PAIS': 0,
                     'NO': no,
                     'POANO': ano,
-                    'DVALOR': base_dt,
                     'OLCODIGO': 'P10001',
                     'TELOCAL': 'B',
                     'MOEDA': moeda,
@@ -3244,8 +3339,15 @@ OPTION (MAXRECURSION 32767);
                     'FCSTAMP': fcstamp_head,
                     'CM': 104,
                     'CMDESC': 'N/Trfa.',
-                    'ADOC': str(rno)
-                })
+                    'ADOC': str(rno),
+                    'LOTE': lote
+                }
+                if has_dvalor:
+                    po_params['DVALOR'] = base_dt
+                if has_dtvalor:
+                    po_params['DTVALOR'] = base_dt
+
+                db.session.execute(ins_po, po_params)
 
                 ins_pl = text("""
                     INSERT INTO dbo.PL
@@ -3286,10 +3388,318 @@ OPTION (MAXRECURSION 32767);
                         'RDATA': base_dt
                     })
 
-                created.append({'NO': no, 'NOME': nome, 'POSTAMP': postamp, 'RNO': rno, 'TOTAL': round(total, 2), 'COUNT': len(movs)})
+                created.append({'NO': no, 'NOME': nome, 'POSTAMP': postamp, 'RNO': rno, 'TOTAL': round(total, 2), 'COUNT': len(movs), 'LOTE': lote})
 
             db.session.commit()
-            return jsonify({'ok': True, 'created': created})
+            return jsonify({'ok': True, 'lote': lote, 'created': created})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    # -----------------------------
+    # Pagamentos (PO)
+    # -----------------------------
+    @app.route('/pagamentos')
+    @login_required
+    def pagamentos_page():
+        return render_template('pagamentos.html', page_title='Pagamentos')
+
+    @app.route('/api/pagamentos')
+    @login_required
+    def api_pagamentos_list():
+        """
+        Lista pagamentos (PO) com filtros simples.
+        Query:
+          - de=YYYY-MM-DD
+          - ate=YYYY-MM-DD
+          - lote=int
+          - q=texto (NO, NOME, ADOC, CMDESC, OLCODIGO, OLLOCAL)
+        """
+        try:
+            de = (request.args.get('de') or '').strip()
+            ate = (request.args.get('ate') or '').strip()
+            q = (request.args.get('q') or '').strip()
+            try:
+                lote = int(request.args.get('lote')) if request.args.get('lote') not in (None, '') else None
+            except Exception:
+                lote = None
+
+            where = []
+            params = {}
+            if de:
+                where.append("CAST(PO.RDATA AS date) >= :de")
+                params['de'] = de
+            if ate:
+                where.append("CAST(PO.RDATA AS date) <= :ate")
+                params['ate'] = ate
+            if lote is not None:
+                where.append("PO.LOTE = :lote")
+                params['lote'] = lote
+            if q:
+                where.append("""(
+                    CAST(PO.NO AS varchar(50)) LIKE :q OR
+                    PO.NOME LIKE :q OR
+                    PO.ADOC LIKE :q OR
+                    PO.CMDESC LIKE :q OR
+                    PO.OLCODIGO LIKE :q OR
+                    PO.OLLOCAL LIKE :q
+                )""")
+                params['q'] = f"%{q}%"
+
+            where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+            sql = text(f"""
+                SELECT TOP 2000
+                    PO.POSTAMP,
+                    PO.RNO,
+                    CAST(PO.RDATA AS date) AS RDATA,
+                    ISNULL(PO.LOTE,0) AS LOTE,
+                    ISNULL(PO.NO,0) AS NO,
+                    ISNULL(PO.NOME,'') AS NOME,
+                    ISNULL(PO.MOEDA,'') AS MOEDA,
+                    ISNULL(PO.ETOTAL,0) AS ETOTAL,
+                    ISNULL(PO.OLLOCAL,'') AS OLLOCAL,
+                    ISNULL(PO.OLCODIGO,'') AS OLCODIGO,
+                    ISNULL(PO.TELOCAL,'') AS TELOCAL,
+                    ISNULL(PO.CMDESC,'') AS CMDESC,
+                    ISNULL(PO.ADOC,'') AS ADOC
+                FROM dbo.PO AS PO
+                {where_sql}
+                ORDER BY CAST(PO.RDATA AS date) DESC, ISNULL(PO.LOTE,0) DESC, PO.RNO DESC
+            """)
+            rows = db.session.execute(sql, params).mappings().all()
+
+            out = []
+            total = 0.0
+            for r in rows:
+                d = r.get('RDATA')
+                if isinstance(d, (datetime, date)):
+                    d = d.strftime('%Y-%m-%d')
+                else:
+                    d = str(d) if d is not None else ''
+                et = float(r.get('ETOTAL') or 0)
+                total += et
+                out.append({
+                    'POSTAMP': r.get('POSTAMP') or '',
+                    'RNO': int(r.get('RNO') or 0),
+                    'RDATA': d,
+                    'LOTE': int(r.get('LOTE') or 0),
+                    'NO': int(r.get('NO') or 0),
+                    'NOME': r.get('NOME') or '',
+                    'MOEDA': r.get('MOEDA') or '',
+                    'ETOTAL': round(et, 2),
+                    'OLLOCAL': r.get('OLLOCAL') or '',
+                    'OLCODIGO': r.get('OLCODIGO') or '',
+                    'TELOCAL': r.get('TELOCAL') or '',
+                    'CMDESC': r.get('CMDESC') or '',
+                    'ADOC': r.get('ADOC') or ''
+                })
+
+            return jsonify({'rows': out, 'count': len(out), 'total': round(total, 2)})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/pagamentos/<postamp>')
+    @login_required
+    def api_pagamentos_detail(postamp):
+        """
+        Detalhe de um pagamento:
+          - Cabeçalho: PO
+          - Linhas: PL
+        """
+        try:
+            postamp = (postamp or '').strip()
+            if not postamp:
+                return jsonify({'error': 'POSTAMP obrigatório'}), 400
+
+            head_sql = text("""
+                SELECT
+                    PO.POSTAMP,
+                    PO.RNO,
+                    CAST(PO.RDATA AS date) AS RDATA,
+                    ISNULL(PO.LOTE,0) AS LOTE,
+                    ISNULL(PO.NO,0) AS NO,
+                    ISNULL(PO.NOME,'') AS NOME,
+                    ISNULL(PO.ETOTAL,0) AS ETOTAL,
+                    ISNULL(PO.MOEDA,'') AS MOEDA,
+                    ISNULL(PO.OLCODIGO,'') AS OLCODIGO,
+                    ISNULL(PO.OLLOCAL,'') AS OLLOCAL,
+                    ISNULL(PO.TELOCAL,'') AS TELOCAL,
+                    ISNULL(PO.CM,0) AS CM,
+                    ISNULL(PO.CMDESC,'') AS CMDESC,
+                    ISNULL(PO.ADOC,'') AS ADOC,
+                    ISNULL(PO.PROCESS,0) AS PROCESS
+                FROM dbo.PO AS PO
+                WHERE PO.POSTAMP = :postamp
+            """)
+            head = db.session.execute(head_sql, {'postamp': postamp}).mappings().first()
+            if not head:
+                return jsonify({'error': 'Pagamento não encontrado.'}), 404
+
+            d = head.get('RDATA')
+            if isinstance(d, (datetime, date)):
+                d = d.strftime('%Y-%m-%d')
+            else:
+                d = str(d) if d is not None else ''
+
+            header = {
+                'POSTAMP': head.get('POSTAMP') or '',
+                'RNO': int(head.get('RNO') or 0),
+                'RDATA': d,
+                'LOTE': int(head.get('LOTE') or 0),
+                'NO': int(head.get('NO') or 0),
+                'NOME': head.get('NOME') or '',
+                'ETOTAL': round(float(head.get('ETOTAL') or 0), 2),
+                'MOEDA': head.get('MOEDA') or '',
+                'OLCODIGO': head.get('OLCODIGO') or '',
+                'OLLOCAL': head.get('OLLOCAL') or '',
+                'TELOCAL': head.get('TELOCAL') or '',
+                'CM': int(head.get('CM') or 0),
+                'CMDESC': head.get('CMDESC') or '',
+                'ADOC': head.get('ADOC') or '',
+                'PROCESS': int(head.get('PROCESS') or 0),
+            }
+
+            lines_sql = text("""
+                SELECT
+                    PL.PLSTAMP,
+                    PL.RNO,
+                    CAST(PL.RDATA AS date) AS RDATA,
+                    ISNULL(PL.CDESC,'') AS CDESC,
+                    ISNULL(PL.ADOC,'') AS ADOC,
+                    CAST(PL.DATALC AS date) AS DATALC,
+                    CAST(PL.DATAVEN AS date) AS DATAVEN,
+                    ISNULL(PL.FCSTAMP,'') AS FCSTAMP,
+                    ISNULL(PL.CM,0) AS CM,
+                    ISNULL(PL.EVAL,0) AS EVAL,
+                    ISNULL(PL.EREC,0) AS EREC,
+                    ISNULL(PL.PROCESS,0) AS PROCESS,
+                    ISNULL(PL.MOEDA,'') AS MOEDA
+                FROM dbo.PL AS PL
+                WHERE PL.POSTAMP = :postamp
+                ORDER BY CAST(PL.DATAVEN AS date), CAST(PL.DATALC AS date), PL.PLSTAMP
+            """)
+            rows = db.session.execute(lines_sql, {'postamp': postamp}).mappings().all()
+
+            lines = []
+            for r in rows:
+                dlc = r.get('DATALC')
+                dven = r.get('DATAVEN')
+                lines.append({
+                    'PLSTAMP': r.get('PLSTAMP') or '',
+                    'RNO': int(r.get('RNO') or 0),
+                    'RDATA': (r.get('RDATA').strftime('%Y-%m-%d') if isinstance(r.get('RDATA'), (datetime, date)) else str(r.get('RDATA') or '')),
+                    'CDESC': r.get('CDESC') or '',
+                    'ADOC': r.get('ADOC') or '',
+                    'DATALC': dlc.strftime('%Y-%m-%d') if isinstance(dlc, (datetime, date)) else (str(dlc) if dlc is not None else ''),
+                    'DATAVEN': dven.strftime('%Y-%m-%d') if isinstance(dven, (datetime, date)) else (str(dven) if dven is not None else ''),
+                    'FCSTAMP': r.get('FCSTAMP') or '',
+                    'CM': int(r.get('CM') or 0),
+                    'EVAL': round(float(r.get('EVAL') or 0), 2),
+                    'EREC': round(float(r.get('EREC') or 0), 2),
+                    'PROCESS': int(r.get('PROCESS') or 0),
+                    'MOEDA': r.get('MOEDA') or ''
+                })
+
+            return jsonify({'header': header, 'lines': lines})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/pagamentos/<postamp>', methods=['PUT'])
+    @login_required
+    def api_pagamentos_update(postamp):
+        """
+        Atualiza campos do pagamento (PO). Por agora:
+          - RDATA/(DVALOR|DTVALOR)/PROCDATA (data sem hora)
+          - PL.RDATA (para manter consistência)
+        Body: { "RDATA": "YYYY-MM-DD" }
+        """
+        try:
+            postamp = (postamp or '').strip()
+            if not postamp:
+                return jsonify({'error': 'POSTAMP obrigatório'}), 400
+            body = request.get_json(silent=True) or {}
+            rdata = str(body.get('RDATA') or '').strip()
+            if not rdata:
+                return jsonify({'error': 'RDATA obrigatória'}), 400
+
+            try:
+                d = date.fromisoformat(rdata)
+            except Exception:
+                return jsonify({'error': 'RDATA inválida (YYYY-MM-DD)'}), 400
+
+            dt0 = datetime.combine(d, datetime.min.time())
+
+            # garantir que existe
+            exists = db.session.execute(
+                text("SELECT 1 AS X FROM dbo.PO WHERE POSTAMP = :p"),
+                {'p': postamp}
+            ).mappings().first()
+            if not exists:
+                return jsonify({'error': 'Pagamento não encontrado.'}), 404
+
+            po_cols = set(
+                r['COLUMN_NAME'].upper()
+                for r in (
+                    db.session.execute(
+                        text("""
+                            SELECT COLUMN_NAME
+                            FROM INFORMATION_SCHEMA.COLUMNS
+                            WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'PO'
+                        """)
+                    ).mappings().all()
+                    or []
+                )
+            )
+
+            set_parts = ["RDATA = :d", "PROCDATA = :d"]
+            if 'DVALOR' in po_cols:
+                set_parts.append("DVALOR = :d")
+            if 'DTVALOR' in po_cols:
+                set_parts.append("DTVALOR = :d")
+
+            db.session.execute(
+                text(f"""
+                    UPDATE dbo.PO
+                    SET {", ".join(set_parts)}
+                    WHERE POSTAMP = :p
+                """),
+                {'d': dt0, 'p': postamp}
+            )
+            db.session.execute(
+                text("""
+                    UPDATE dbo.PL
+                    SET RDATA = :d
+                    WHERE POSTAMP = :p
+                """),
+                {'d': dt0, 'p': postamp}
+            )
+            db.session.commit()
+            return jsonify({'ok': True, 'POSTAMP': postamp, 'RDATA': rdata})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/pagamentos/<postamp>', methods=['DELETE'])
+    @login_required
+    def api_pagamentos_delete(postamp):
+        """
+        Elimina um pagamento (PO) e as suas linhas (PL).
+        """
+        try:
+            postamp = (postamp or '').strip()
+            if not postamp:
+                return jsonify({'error': 'POSTAMP obrigatório'}), 400
+
+            # delete linhas primeiro
+            db.session.execute(text("DELETE FROM dbo.PL WHERE POSTAMP = :p"), {'p': postamp})
+            res = db.session.execute(text("DELETE FROM dbo.PO WHERE POSTAMP = :p"), {'p': postamp})
+            # SQLAlchemy 2: rowcount disponível
+            if getattr(res, 'rowcount', 0) == 0:
+                db.session.rollback()
+                return jsonify({'error': 'Pagamento não encontrado.'}), 404
+            db.session.commit()
+            return jsonify({'ok': True, 'POSTAMP': postamp})
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 500

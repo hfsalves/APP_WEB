@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% set page_title = "Pagamentos" %}
+{% set page_name = "Pagamentos" %}
+
+{% block title %}Pagamentos{% endblock %}
+
+{% block content %}
+<div class="dynamic-container dynamic-list-card">
+  <header class="dynamic-list-header">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <span id="recordCount" class="dynamic-list-count text-muted small"></span>
+      <div class="d-flex align-items-end gap-2 flex-wrap pagamentos-filtros">
+        <div>
+          <label class="form-label small mb-1" for="payFrom">De</label>
+          <input type="date" id="payFrom" class="form-control form-control-sm">
+        </div>
+        <div>
+          <label class="form-label small mb-1" for="payTo">At&eacute;</label>
+          <input type="date" id="payTo" class="form-control form-control-sm">
+        </div>
+        <div>
+          <label class="form-label small mb-1" for="payLote">Lote</label>
+          <input type="number" step="1" id="payLote" class="form-control form-control-sm" style="width:110px;">
+        </div>
+        <div style="min-width:240px;">
+          <label class="form-label small mb-1" for="payQ">Fornecedor / Doc.</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text bg-light"><i class="fa fa-search"></i></span>
+            <input type="text" id="payQ" class="form-control" placeholder="N&ordm; ou nome, doc...">
+          </div>
+        </div>
+        <div>
+          <button class="btn btn-outline-secondary btn-sm" id="payClear">
+            <i class="fa-solid fa-rotate-left"></i> Limpar
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="dynamic-list-actions">
+      <button class="btn btn-outline-primary btn-sm" id="payRefresh">
+        <i class="fa-solid fa-rotate"></i> Atualizar
+      </button>
+    </div>
+  </header>
+
+  <div class="dynamic-grid-panel">
+    <section class="dynamic-grid">
+      <div class="pagamentos-table-wrap">
+        <table class="table table-sm mb-0 pagamentos-table" id="pagamentosTable">
+          <thead>
+            <tr>
+              <th style="width:120px;">Data</th>
+              <th style="width:120px;">Lote</th>
+              <th style="width:120px;">RNO</th>
+              <th style="width:140px;">Fornecedor</th>
+              <th>Nome</th>
+              <th class="text-end" style="width:160px;">Total</th>
+              <th style="width:140px;">Conta</th>
+              <th style="width:140px;">Doc.</th>
+            </tr>
+          </thead>
+          <tbody id="pagamentosBody">
+            <tr><td colspan="8" class="text-muted p-3">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- Modal Detalhe Pagamento -->
+<div class="modal fade" id="pagamentoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header pagamentos-modal-header">
+        <div class="w-100">
+          <div class="d-flex flex-wrap justify-content-between align-items-end gap-2">
+            <div>
+              <h5 class="modal-title mb-0" id="pagamentoModalTitle">Pagamento</h5>
+              <div class="small opacity-75" id="pagamentoModalSub"></div>
+            </div>
+            <div class="d-flex align-items-end gap-2">
+              <div class="text-end">
+                <div class="small opacity-75">Total</div>
+                <div class="fw-bold" id="pagamentoModalTotal">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="pagamento-head-grid mb-3">
+          <div>
+            <span class="text-muted small">Data</span>
+            <input type="date" class="form-control form-control-sm mt-1" id="pH_DataInput">
+          </div>
+          <div><span class="text-muted small">Lote</span><div class="fw-semibold" id="pH_Lote">--</div></div>
+          <div><span class="text-muted small">RNO</span><div class="fw-semibold" id="pH_Rno">--</div></div>
+          <div><span class="text-muted small">Fornecedor</span><div class="fw-semibold" id="pH_For">--</div></div>
+          <div><span class="text-muted small">Conta</span><div class="fw-semibold" id="pH_Conta">--</div></div>
+          <div><span class="text-muted small">Doc.</span><div class="fw-semibold" id="pH_Doc">--</div></div>
+        </div>
+        <div class="pagamento-lines-wrap">
+          <table class="table table-sm mb-0" id="pagamentoLinesTable">
+            <thead class="table-light">
+              <tr>
+                <th style="width:120px;">Data</th>
+                <th style="width:120px;">Venc.</th>
+                <th style="width:180px;">Doc.</th>
+                <th style="width:180px;">N&ordm;</th>
+                <th class="text-end" style="width:140px;">Valor</th>
+              </tr>
+            </thead>
+            <tbody id="pagamentoLinesBody">
+              <tr><td colspan="5" class="text-muted p-3">A carregar...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="pagamentoSaveDate" title="Atualizar data">
+          <i class="fa-solid fa-save me-1"></i> Guardar
+        </button>
+        <button type="button" class="btn btn-outline-danger" id="pagamentoDelete" title="Eliminar pagamento">
+          <i class="fa-solid fa-trash me-1"></i> Eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .pagamentos-table-wrap {
+    max-height: calc(100vh - 250px);
+    overflow: auto;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 14px;
+    background: #fff;
+  }
+  .pagamentos-table {
+    border-collapse: separate;
+    border-spacing: 0 6px;
+    width: 100%;
+    min-width: 980px;
+    font-size: 12px;
+    color: #0f172a;
+  }
+  .pagamentos-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 11px;
+    color: #334155;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    padding: 0.55rem 0.75rem;
+    white-space: nowrap;
+  }
+  .pagamentos-table tbody tr {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+    cursor: pointer;
+  }
+  .pagamentos-table tbody tr td {
+    border: none;
+    padding: 0.5rem 0.75rem;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .pagamentos-table tbody tr td:first-child {
+    border-top-left-radius: 12px;
+    border-bottom-left-radius: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-weight: 700;
+  }
+  .pagamentos-table tbody tr td:last-child {
+    border-top-right-radius: 12px;
+    border-bottom-right-radius: 12px;
+  }
+  .pagamentos-table tbody tr:hover {
+    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
+  }
+  .pagamentos-total {
+    font-weight: 800;
+  }
+  .pagamentos-modal-header {
+    background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+    color: #fff;
+    border-bottom: none;
+  }
+  .pagamentos-modal-header .btn-close {
+    filter: invert(1) grayscale(1) brightness(2);
+    opacity: 0.9;
+  }
+  .pagamento-head-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px 16px;
+  }
+  @media (max-width: 991.98px) {
+    .pagamento-head-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .pagamento-lines-wrap {
+    max-height: 60vh;
+    overflow: auto;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 14px;
+    background: #fff;
+  }
+  #pagamentoLinesTable thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+</style>
+<script src="{{ url_for('static', filename='js/pagamentos.js') }}"></script>
+{% endblock %}

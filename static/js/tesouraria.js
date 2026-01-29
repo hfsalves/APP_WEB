@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const API = '/generic/api/tesouraria'; // esperado: ?start=YYYY-MM-DD&end=YYYY-MM-DD
   const API_BA = '/generic/api/tesouraria/ba'; // esperado: ?start=YYYY-MM-DD&end=YYYY-MM-DD
   const API_BA_BASE = '/generic/api/tesouraria/ba/saldo_base'; // ?before=YYYY-MM-DD
+  const API_BA_EXTRATO = '/generic/api/tesouraria/ba/extrato'; // ?start=YYYY-MM-DD&end=YYYY-MM-DD
 
   const monthYearEl = document.getElementById('month-year');
   const calendarBody = document.getElementById('calendar-body');
@@ -12,8 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnNext = document.getElementById('next-month');
   const btnViewCal = document.getElementById('viewCalendarBtn');
   const btnViewAgenda = document.getElementById('viewAgendaBtn');
+  const btnViewExtrato = document.getElementById('viewExtratoBtn');
   const viewCalendar = document.getElementById('calendarView');
   const viewAgenda = document.getElementById('agendaView');
+  const viewExtrato = document.getElementById('extratoView');
+  const extratoBody = document.getElementById('extratoBody');
   const accountFilter = document.getElementById('accountFilter');
   const baDetailModalEl = document.getElementById('baDetailModal');
   const baDetailTitle = document.getElementById('baDetailTitle');
@@ -26,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   current = new Date(current.getFullYear(), current.getMonth(), 1);
   let cacheData = [];
   let cacheBa = [];
+  let cacheBaExtrato = [];
 
   const fmt = (n) => Number(n || 0).toLocaleString('pt-PT', {
     minimumFractionDigits: 2,
@@ -96,6 +101,99 @@ document.addEventListener('DOMContentLoaded', () => {
       map.set(iso, cur);
     });
     return map;
+  }
+
+  function groupBaExtratoByDate(rows) {
+    const map = new Map(); // iso -> array of { kind, documento, descricao, valor }
+    (rows || []).forEach(r => {
+      const iso = toIsoFromRaw(r.DATA || r.data || '');
+      if (!iso) return;
+      const kind = (r.KIND || r.kind || '').toString().trim().toLowerCase();
+      const documento = (r.DOCUMENTO || r.documento || '').toString().trim();
+      const descricao = (r.DESCRICAO || r.descricao || '').toString().trim();
+      const valor = Number(r.VALOR ?? r.valor ?? 0) || 0;
+      const arr = map.get(iso) || [];
+      arr.push({ kind, documento, descricao, valor });
+      map.set(iso, arr);
+    });
+    return map;
+  }
+
+  function renderExtrato(first, last, dataRows, baseSum, baExtratoRows) {
+    if (!extratoBody) return;
+    const preMap = groupByDate(dataRows); // previsões só no futuro
+    const baMap = groupBaExtratoByDate(baExtratoRows);
+
+    const rows = [];
+    let saldo = Number(baseSum || 0) || 0;
+
+    // saldo inicial
+    rows.push({
+      date: toIso(first),
+      desc: 'Saldo inicial',
+      in: '',
+      out: '',
+      saldo
+    });
+
+    let cursor = new Date(first);
+    while (cursor <= last) {
+      const iso = toIso(cursor);
+      const dayBa = baMap.get(iso) || [];
+      const dayPrevList = preMap.get(iso) || [];
+      const dayPrev = dayPrevList.reduce((acc, it) => acc + (Number(it.valor || 0) || 0), 0);
+
+      // ordenar dentro do dia: entradas, saídas, previsões (como no calendário)
+      const ins = dayBa.filter(x => x.kind === 'in');
+      const outs = dayBa.filter(x => x.kind === 'out');
+
+      ins.forEach(m => {
+        saldo += Number(m.valor || 0) || 0;
+        const d = [m.documento, m.descricao].filter(Boolean).join(' - ') || 'Entrada';
+        rows.push({ date: iso, desc: d, in: Number(m.valor || 0), out: '', saldo, cls: 'extrato-kind-in' });
+      });
+      outs.forEach(m => {
+        const v = Number(m.valor || 0) || 0;
+        saldo -= v;
+        const d = [m.documento, m.descricao].filter(Boolean).join(' - ') || 'Saída';
+        rows.push({ date: iso, desc: d, in: '', out: v, saldo, cls: 'extrato-kind-out' });
+      });
+      if (Number(dayPrev || 0) !== 0) {
+        saldo += dayPrev;
+        const isIn = dayPrev >= 0;
+        rows.push({
+          date: iso,
+          desc: 'Previsões',
+          in: isIn ? dayPrev : '',
+          out: !isIn ? Math.abs(dayPrev) : '',
+          saldo,
+          cls: 'extrato-kind-prev'
+        });
+      }
+
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    extratoBody.innerHTML = '';
+    if (!rows.length) {
+      extratoBody.innerHTML = '<tr><td colspan="5" class="text-muted text-center p-3">Sem movimentos.</td></tr>';
+      return;
+    }
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      const desc = escapeHtml(r.desc || '');
+      const inVal = r.in === '' ? '' : fmt(r.in);
+      const outVal = r.out === '' ? '' : fmt(r.out);
+      const saldoCls = (Number(r.saldo || 0) < 0) ? 'text-danger' : '';
+      tr.innerHTML = `
+        <td>${escapeHtml(r.date)}</td>
+        <td class="extrato-desc ${r.cls || ''}">${desc}</td>
+        <td class="text-end ${r.cls === 'extrato-kind-in' ? 'extrato-kind-in' : ''}">${escapeHtml(inVal)}</td>
+        <td class="text-end ${r.cls === 'extrato-kind-out' ? 'extrato-kind-out' : ''}">${escapeHtml(outVal)}</td>
+        <td class="text-end fw-bold ${saldoCls}">${escapeHtml(fmt(r.saldo))}</td>
+      `;
+      extratoBody.appendChild(tr);
+    });
   }
 
   async function openBaDetail(dateIso, kind) {
@@ -315,6 +413,17 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (_) {
       cacheBa = [];
     }
+
+    try {
+      const urlEx = new URL(API_BA_EXTRATO, window.location.origin);
+      urlEx.searchParams.set('start', toIso(first));
+      urlEx.searchParams.set('end', toIso(last));
+      const resEx = await fetch(urlEx.toString());
+      if (!resEx.ok) throw new Error(resEx.statusText);
+      cacheBaExtrato = await resEx.json();
+    } catch (_) {
+      cacheBaExtrato = [];
+    }
     const preMap = groupByDate(cacheData);
     const baMap = groupBaByDate(cacheBa);
     let baseSum = 0;
@@ -332,20 +441,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const cumMap = buildCumulativeCombined(preMap, baMap, start, end, baseSum);
     renderCalendar(start, end, cacheData, cumMap, cacheBa);
     renderAgenda(first, last, cacheData, cumMap, cacheBa);
+    renderExtrato(first, last, cacheData, baseSum, cacheBaExtrato);
   }
 
   function switchView(view) {
-    if (!viewCalendar || !viewAgenda) return;
+    if (!viewCalendar || !viewAgenda || !viewExtrato) return;
     if (view === 'agenda') {
       viewAgenda.style.display = '';
       viewCalendar.style.display = 'none';
+      viewExtrato.style.display = 'none';
       btnViewAgenda?.classList.add('active');
       btnViewCal?.classList.remove('active');
+      btnViewExtrato?.classList.remove('active');
+    } else if (view === 'extrato') {
+      viewAgenda.style.display = 'none';
+      viewCalendar.style.display = 'none';
+      viewExtrato.style.display = '';
+      btnViewExtrato?.classList.add('active');
+      btnViewCal?.classList.remove('active');
+      btnViewAgenda?.classList.remove('active');
     } else {
       viewAgenda.style.display = 'none';
       viewCalendar.style.display = '';
+      viewExtrato.style.display = 'none';
       btnViewCal?.classList.add('active');
       btnViewAgenda?.classList.remove('active');
+      btnViewExtrato?.classList.remove('active');
     }
   }
 
@@ -360,6 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
   accountFilter?.addEventListener('change', () => loadDataAndRender());
   btnViewCal?.addEventListener('click', () => switchView('cal'));
   btnViewAgenda?.addEventListener('click', () => switchView('agenda'));
+  btnViewExtrato?.addEventListener('click', () => switchView('extrato'));
 
   loadAccounts().then(loadDataAndRender);
 
