@@ -205,6 +205,8 @@ document.addEventListener('DOMContentLoaded', () => {
     baDetailModal.show();
     try {
       const qs = new URLSearchParams({ date: dateIso, kind });
+      const account = accountFilter?.value || '';
+      if (account) qs.set('account', account);
       const res = await fetch(`/generic/api/tesouraria/ba/detalhe?${qs.toString()}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.error) throw new Error(data.error || res.statusText);
@@ -379,6 +381,10 @@ document.addEventListener('DOMContentLoaded', () => {
         opt.textContent = [banco, conta].filter(Boolean).join(' - ');
         accountFilter.append(opt);
       });
+
+      // Por defeito, selecionar a conta 1 (NOCONTA=1) ao abrir o ecrã, se existir.
+      const has1 = Array.from(accountFilter.options).some(o => (o.value || '') === '1');
+      if (has1) accountFilter.value = '1';
     } catch (_) {}
   }
 
@@ -391,6 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const endStr = toIso(end);
     const startGridStr = toIso(start);
     const endGridStr = toIso(end);
+    const firstStr = toIso(first);
     const account = accountFilter?.value || '';
     try {
       const url = new URL(API, window.location.origin);
@@ -407,6 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const urlBa = new URL(API_BA, window.location.origin);
       urlBa.searchParams.set('start', startGridStr);
       urlBa.searchParams.set('end', endGridStr);
+      if (account) urlBa.searchParams.set('account', account);
       const resBa = await fetch(urlBa.toString());
       if (!resBa.ok) throw new Error(resBa.statusText);
       cacheBa = await resBa.json();
@@ -418,6 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const urlEx = new URL(API_BA_EXTRATO, window.location.origin);
       urlEx.searchParams.set('start', toIso(first));
       urlEx.searchParams.set('end', toIso(last));
+      if (account) urlEx.searchParams.set('account', account);
       const resEx = await fetch(urlEx.toString());
       if (!resEx.ok) throw new Error(resEx.statusText);
       cacheBaExtrato = await resEx.json();
@@ -426,22 +435,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const preMap = groupByDate(cacheData);
     const baMap = groupBaByDate(cacheBa);
-    let baseSum = 0;
-    try {
-      const urlBase = new URL(API_BA_BASE, window.location.origin);
-      urlBase.searchParams.set('before', startGridStr);
-      const resBase = await fetch(urlBase.toString());
-      const dataBase = await resBase.json().catch(() => ({}));
-      if (!resBase.ok || dataBase.error) throw new Error(dataBase.error || resBase.statusText);
-      baseSum = Number(dataBase.base || 0) || 0;
-    } catch (_) {
-      baseSum = 0;
-    }
+
+    const fetchBase = async (beforeIso) => {
+      try {
+        const urlBase = new URL(API_BA_BASE, window.location.origin);
+        urlBase.searchParams.set('before', beforeIso);
+        if (account) urlBase.searchParams.set('account', account);
+        const resBase = await fetch(urlBase.toString());
+        const dataBase = await resBase.json().catch(() => ({}));
+        if (!resBase.ok || dataBase.error) throw new Error(dataBase.error || resBase.statusText);
+        return Number(dataBase.base || 0) || 0;
+      } catch (_) {
+        return 0;
+      }
+    };
+
+    // base para o calendário (começa no início da grelha)
+    const baseSumGrid = await fetchBase(startGridStr);
+    // base para o extrato (saldo inicial do mês: antes do dia 1)
+    const baseSumMonth = await fetchBase(firstStr);
+
     // saldo do dia (base de sempre + previsões + movimentos reais)
-    const cumMap = buildCumulativeCombined(preMap, baMap, start, end, baseSum);
+    const cumMap = buildCumulativeCombined(preMap, baMap, start, end, baseSumGrid);
     renderCalendar(start, end, cacheData, cumMap, cacheBa);
     renderAgenda(first, last, cacheData, cumMap, cacheBa);
-    renderExtrato(first, last, cacheData, baseSum, cacheBaExtrato);
+    renderExtrato(first, last, cacheData, baseSumMonth, cacheBaExtrato);
   }
 
   function switchView(view) {

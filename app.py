@@ -4,6 +4,8 @@ import subprocess
 import shutil
 import pyodbc
 import json
+import time
+import uuid
 from decimal import Decimal
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -17,9 +19,14 @@ from models import Modais, CamposModal
 
 login_manager = LoginManager()
 
+def new_stamp() -> str:
+    return uuid.uuid4().hex.upper()[:25]
+
 def create_app():
     app = Flask(__name__, static_folder='static', template_folder='templates')
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+    # Cache-busting para assets estÃ¡ticos (evita o browser usar JS antigo)
+    app.config['STATIC_VERSION'] = int(time.time())
     app.config['SQLALCHEMY_DATABASE_URI'] = (
         "mssql+pyodbc://sa:enterprise@hfsalves.mooo.com,50002/GESTAO"
         "?driver=ODBC+Driver+17+for+SQL+Server"
@@ -231,7 +238,8 @@ def create_app():
             'menu_forms'     : menu_forms,
             'is_dev'         : getattr(current_user, 'DEV', False) if current_user.is_authenticated else False,
             'can_open_mn'    : can_open_mn if current_user.is_authenticated else False,
-            'can_open_fs'    : can_open_fs if current_user.is_authenticated else False
+            'can_open_fs'    : can_open_fs if current_user.is_authenticated else False,
+            'static_version' : app.config.get('STATIC_VERSION', 1)
         }
 
     from sqlalchemy.sql import text
@@ -2745,15 +2753,16 @@ OPTION (MAXRECURSION 32767);
             if not start or not end:
                 return jsonify({'error': 'Parâmetros start/end obrigatórios'}), 400
             base_sql = """
-                SELECT DATAENTRADA AS DATA, TIPOLINHA AS TIPO, SUM(VALOR) AS VALOR, NoConta AS NOCONTA
+                SELECT DATAENTRADA AS DATA, TIPOLINHA AS TIPO, SUM(VALOR) AS VALOR, ISNULL(NoConta, 1) AS NOCONTA
                 FROM DBO.V_ENTRADAS_TESOURARIA
                 WHERE DATAENTRADA BETWEEN :start AND :end
             """
             params = {'start': start, 'end': end}
             if account:
-                base_sql += " AND NoConta = :account"
+                # As previsões podem vir sem NoConta; por defeito, assumimos que pertencem à conta 1.
+                base_sql += " AND ISNULL(NoConta, 1) = :account"
                 params['account'] = account
-            base_sql += " GROUP BY DATAENTRADA, TIPOLINHA, NoConta ORDER BY DATAENTRADA, TIPOLINHA"
+            base_sql += " GROUP BY DATAENTRADA, TIPOLINHA, ISNULL(NoConta, 1) ORDER BY DATAENTRADA, TIPOLINHA"
             sql = text(base_sql)
             rows = db.session.execute(sql, params).mappings().all()
             return jsonify([dict(r) for r in rows])
@@ -2772,8 +2781,15 @@ OPTION (MAXRECURSION 32767);
         try:
             start = request.args.get('start')
             end = request.args.get('end')
+            account = (request.args.get('account') or '').strip()
             if not start or not end:
                 return jsonify({'error': 'Parâmetros start/end obrigatórios'}), 400
+
+            where_account = ""
+            params = {'start': start, 'end': end}
+            if account:
+                where_account = " AND BA.NOCONTA = :account"
+                params['account'] = account
 
             sql = text(f"""
                 SELECT
@@ -2783,10 +2799,11 @@ OPTION (MAXRECURSION 32767);
                 FROM dbo.V_BA AS BA
                 WHERE CAST(BA.DATA AS date) BETWEEN :start AND :end
                   AND (ISNULL(BA.EENTRADA, 0) <> 0 OR ISNULL(BA.ESAIDA, 0) <> 0)
+                  {where_account}
                 GROUP BY CAST(BA.DATA AS date)
                 ORDER BY CAST(BA.DATA AS date)
             """)
-            rows = db.session.execute(sql, {'start': start, 'end': end}).mappings().all()
+            rows = db.session.execute(sql, params).mappings().all()
             out = []
             for r in rows:
                 d = r.get('DATA')
@@ -2813,8 +2830,15 @@ OPTION (MAXRECURSION 32767);
         """
         try:
             before = (request.args.get('before') or '').strip()
+            account = (request.args.get('account') or '').strip()
             if not before:
                 return jsonify({'error': 'Parâmetro before obrigatório'}), 400
+
+            where_account = ""
+            params = {'before': before}
+            if account:
+                where_account = " AND BA.NOCONTA = :account"
+                params['account'] = account
 
             sql = text(f"""
                 SELECT
@@ -2822,8 +2846,9 @@ OPTION (MAXRECURSION 32767);
                 FROM dbo.V_BA AS BA
                 WHERE CAST(BA.DATA AS date) < :before
                   AND (ISNULL(BA.EENTRADA, 0) <> 0 OR ISNULL(BA.ESAIDA, 0) <> 0)
+                  {where_account}
             """)
-            row = db.session.execute(sql, {'before': before}).mappings().first() or {}
+            row = db.session.execute(sql, params).mappings().first() or {}
             base = float(row.get('BASE') or 0)
             return jsonify({'base': base})
         except Exception as e:
@@ -2839,6 +2864,7 @@ OPTION (MAXRECURSION 32767);
         try:
             d = (request.args.get('date') or '').strip()
             kind = (request.args.get('kind') or '').strip().lower()
+            account = (request.args.get('account') or '').strip()
             if not d:
                 return jsonify({'error': 'Parâmetro date obrigatório'}), 400
             if kind not in ('in', 'out'):
@@ -2851,6 +2877,12 @@ OPTION (MAXRECURSION 32767);
                 where_kind = "ISNULL(BA.ESAIDA,0) <> 0"
                 value_col = "ISNULL(BA.ESAIDA,0)"
 
+            where_account = ""
+            params = {'d': d}
+            if account:
+                where_account = " AND BA.NOCONTA = :account"
+                params['account'] = account
+
             sql = text(f"""
                 SELECT
                     CAST(BA.DATA AS date) AS DATA,
@@ -2861,9 +2893,10 @@ OPTION (MAXRECURSION 32767);
                 FROM dbo.V_BA AS BA
                 WHERE CAST(BA.DATA AS date) = :d
                   AND {where_kind}
+                  {where_account}
                 ORDER BY ISNULL(BA.DOCUMENTO,''), ISNULL(BA.DESCRICAO,'')
             """)
-            rows = db.session.execute(sql, {'d': d}).mappings().all()
+            rows = db.session.execute(sql, params).mappings().all()
             out = []
             total = 0.0
             for r in rows:
@@ -2898,8 +2931,15 @@ OPTION (MAXRECURSION 32767);
         try:
             start = (request.args.get('start') or '').strip()
             end = (request.args.get('end') or '').strip()
+            account = (request.args.get('account') or '').strip()
             if not start or not end:
                 return jsonify({'error': 'Parâmetros start/end obrigatórios'}), 400
+
+            where_account = ""
+            params = {'start': start, 'end': end}
+            if account:
+                where_account = " AND BA.NOCONTA = :account"
+                params['account'] = account
 
             sql = text("""
                 SELECT
@@ -2911,6 +2951,7 @@ OPTION (MAXRECURSION 32767);
                 FROM dbo.V_BA AS BA
                 WHERE CAST(BA.DATA AS date) BETWEEN :start AND :end
                   AND ISNULL(BA.EENTRADA,0) <> 0
+            """ + where_account + """
 
                 UNION ALL
 
@@ -2923,10 +2964,11 @@ OPTION (MAXRECURSION 32767);
                 FROM dbo.V_BA AS BA
                 WHERE CAST(BA.DATA AS date) BETWEEN :start AND :end
                   AND ISNULL(BA.ESAIDA,0) <> 0
+            """ + where_account + """
 
                 ORDER BY DATA, KIND, DOCUMENTO, DESCRICAO
             """)
-            rows = db.session.execute(sql, {'start': start, 'end': end}).mappings().all()
+            rows = db.session.execute(sql, params).mappings().all()
             out = []
             for r in rows:
                 d = r.get('DATA')
@@ -3174,6 +3216,428 @@ OPTION (MAXRECURSION 32767);
 
             return jsonify({'rows': out, 'total': round(total, 2), 'count': len(out)})
         except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    # -----------------------------
+    # Contas Correntes - Clientes
+    # -----------------------------
+    @app.route('/cc_clientes')
+    @app.route('/contas-correntes-clientes')
+    @login_required
+    def cc_clientes_page():
+        return render_template('cc_clientes.html', page_title='Contas Correntes - Clientes')
+
+    @app.route('/api/cc_clientes/resumo')
+    @login_required
+    def api_cc_clientes_resumo():
+        """
+        Resumo por cliente (saldo em aberto).
+        Query:
+          - q (opcional): pesquisa por NO/NOME
+          - pendentes=1: apenas clientes com saldo em aberto != 0
+        """
+        try:
+            q = (request.args.get('q') or '').strip()
+            pendentes = (request.args.get('pendentes') or '').strip() in ('1', 'true', 'True')
+
+            # Fonte: dbo.V_CC (BD GESTAO).
+            # Clientes: o valor em aberto deve ficar positivo quando o cliente nos deve (normalmente vem do lado do débito).
+            #   (EDEB - EDEBF) - (ECRED - ECREDF)
+            open_expr = "(ISNULL(EDEB,0) - ISNULL(EDEBF,0)) - (ISNULL(ECRED,0) - ISNULL(ECREDF,0))"
+
+            where = []
+            params = {}
+            if q:
+                where.append("(CAST(NO AS varchar(50)) LIKE :q OR NOME LIKE :q)")
+                params['q'] = f"%{q}%"
+
+            where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+            having_sql = f"HAVING ABS(SUM({open_expr})) > 0.005" if pendentes else ""
+
+            sql = text(f"""
+                SELECT
+                    NO,
+                    MAX(NOME) AS NOME,
+                    SUM({open_expr}) AS SALDO_ABERTO
+                FROM dbo.V_CC
+                {where_sql}
+                GROUP BY NO
+                {having_sql}
+                ORDER BY SUM({open_expr}) DESC, MAX(NOME)
+            """)
+            rows = db.session.execute(sql, params).mappings().all()
+
+            items = []
+            total_aberto = 0.0
+            total_saldo = 0.0
+            for r in rows:
+                no = r.get('NO')
+                nome = str(r.get('NOME') or '').strip()
+                saldo = float(r.get('SALDO_ABERTO') or 0)
+                total_saldo += saldo
+                aberto = saldo if saldo > 0 else 0.0
+                total_aberto += aberto
+                items.append({
+                    'NO': int(no) if str(no).isdigit() else no,
+                    'NOME': nome,
+                    'SALDO_ABERTO': round(saldo, 2),
+                    'ABERTO': round(aberto, 2)
+                })
+
+            return jsonify({
+                'total_aberto': round(total_aberto, 2),
+                'total_saldo': round(total_saldo, 2),
+                'count_clientes': len(items),
+                'items': items
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/cc_clientes/detalhe')
+    @login_required
+    def api_cc_clientes_detalhe():
+        """
+        Movimentos de conta corrente por cliente.
+        Query:
+          - no (obrigatório): cliente
+          - pendentes=1: apenas linhas com aberto != 0
+        """
+        try:
+            no = request.args.get('no', type=int)
+            if not no:
+                return jsonify({'error': 'Parâmetro no obrigatório'}), 400
+            pendentes = (request.args.get('pendentes') or '').strip() in ('1', 'true', 'True')
+
+            open_expr = "(ISNULL(EDEB,0) - ISNULL(EDEBF,0)) - (ISNULL(ECRED,0) - ISNULL(ECREDF,0))"
+            where_pend = f"AND ABS({open_expr}) > 0.005" if pendentes else ""
+
+            sql = text(f"""
+                SELECT
+                    CCSTAMP,
+                    CAST(DATALC AS date) AS DATALC,
+                    CAST(DATAVEN AS date) AS DATAVEN,
+                    ISNULL(CMDESC,'') AS CMDESC,
+                    ISNULL(NRDOC,'') AS NRDOC,
+                    ISNULL(EDEB,0) AS EDEB,
+                    ISNULL(ECRED,0) AS ECRED,
+                    ISNULL(EDEBF,0) AS EDEBF,
+                    ISNULL(ECREDF,0) AS ECREDF,
+                    ISNULL(MOEDA,'') AS MOEDA,
+                    ISNULL(CCUSTO,'') AS CCUSTO,
+                    ISNULL(FTSTAMP,'') AS FTSTAMP,
+                    ISNULL(CM,0) AS CM,
+                    {open_expr} AS ABERTO
+                FROM dbo.V_CC
+                WHERE NO = :no
+                {where_pend}
+                ORDER BY CAST(DATALC AS date), CCSTAMP
+            """)
+            rows = db.session.execute(sql, {'no': no}).mappings().all()
+
+            out = []
+            total_aberto = 0.0
+            for r in rows:
+                aberto = float(r.get('ABERTO') or 0)
+                total_aberto += aberto
+                dlc = r.get('DATALC')
+                dven = r.get('DATAVEN')
+                out.append({
+                    'CCSTAMP': r.get('CCSTAMP') or '',
+                    'DATALC': dlc.strftime('%Y-%m-%d') if isinstance(dlc, (datetime, date)) else (str(dlc) if dlc is not None else ''),
+                    'DATAVEN': dven.strftime('%Y-%m-%d') if isinstance(dven, (datetime, date)) else (str(dven) if dven is not None else ''),
+                    'CMDESC': r.get('CMDESC') or '',
+                    'NRDOC': r.get('NRDOC') or '',
+                    'EDEB': round(float(r.get('EDEB') or 0), 2),
+                    'ECRED': round(float(r.get('ECRED') or 0), 2),
+                    'EDEBF': round(float(r.get('EDEBF') or 0), 2),
+                    'ECREDF': round(float(r.get('ECREDF') or 0), 2),
+                    'ABERTO': round(aberto, 2),
+                    'MOEDA': r.get('MOEDA') or '',
+                    'CCUSTO': r.get('CCUSTO') or '',
+                    'FTSTAMP': r.get('FTSTAMP') or '',
+                    'CM': int(r.get('CM') or 0),
+                })
+
+            return jsonify({'no': no, 'rows': out, 'total_aberto': round(total_aberto, 2)})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/cc_clientes/pendentes')
+    @login_required
+    def api_cc_clientes_pendentes():
+        """
+        Lista movimentos pendentes (em aberto) para assistente de recebimentos.
+        Query:
+          - q (opcional): pesquisa por NO/NOME/NRDOC/CMDESC
+
+        Nota: considera pendente quando ABS(ABERTO) > 0 (a receber / a crédito).
+        """
+        try:
+            q = (request.args.get('q') or '').strip()
+
+            open_expr = "(ISNULL(EDEB,0) - ISNULL(EDEBF,0)) - (ISNULL(ECRED,0) - ISNULL(ECREDF,0))"
+            where = [f"ABS(({open_expr})) > 0.005"]
+            params = {}
+            if q:
+                where.append("(CAST(NO AS varchar(50)) LIKE :q OR NOME LIKE :q OR CAST(NRDOC AS varchar(50)) LIKE :q OR CMDESC LIKE :q)")
+                params['q'] = f"%{q}%"
+
+            where_sql = "WHERE " + " AND ".join(where)
+
+            sql = text(f"""
+                SELECT
+                    CCSTAMP,
+                    CAST(DATALC AS date) AS DATALC,
+                    CAST(DATAVEN AS date) AS DATAVEN,
+                    ISNULL(CMDESC,'') AS CMDESC,
+                    ISNULL(NRDOC,0) AS NRDOC,
+                    ISNULL(CM,0) AS CM,
+                    ISNULL(NO,0) AS NO,
+                    ISNULL(NOME,'') AS NOME,
+                    ISNULL(MOEDA,'') AS MOEDA,
+                    ISNULL(CCUSTO,'') AS CCUSTO,
+                    ISNULL(FTSTAMP,'') AS FTSTAMP,
+                    {open_expr} AS ABERTO
+                FROM dbo.V_CC
+                {where_sql}
+                ORDER BY ISNULL(NOME,''), CAST(DATAVEN AS date), CAST(DATALC AS date), CCSTAMP
+            """)
+            rows = db.session.execute(sql, params).mappings().all()
+
+            out = []
+            total = 0.0
+            for r in rows:
+                dlc = r.get('DATALC')
+                dven = r.get('DATAVEN')
+                aberto = float(r.get('ABERTO') or 0)
+                total += aberto
+                out.append({
+                    'CCSTAMP': (r.get('CCSTAMP') or '').strip(),
+                    'DATALC': dlc.strftime('%Y-%m-%d') if isinstance(dlc, (datetime, date)) else (str(dlc) if dlc is not None else ''),
+                    'DATAVEN': dven.strftime('%Y-%m-%d') if isinstance(dven, (datetime, date)) else (str(dven) if dven is not None else ''),
+                    'CMDESC': r.get('CMDESC') or '',
+                    'NRDOC': int(r.get('NRDOC') or 0),
+                    'CM': int(r.get('CM') or 0),
+                    'NO': int(r.get('NO') or 0),
+                    'NOME': r.get('NOME') or '',
+                    'MOEDA': r.get('MOEDA') or '',
+                    'CCUSTO': r.get('CCUSTO') or '',
+                    'FTSTAMP': r.get('FTSTAMP') or '',
+                    'ABERTO': round(aberto, 2)
+                })
+
+            return jsonify({'rows': out, 'total': round(total, 2), 'count': len(out)})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/cc_clientes/recebimentos/criar', methods=['POST'])
+    @login_required
+    def api_cc_clientes_recebimentos_criar():
+        """
+        Cria registos RE/RL a partir de movimentos pendentes selecionados.
+        Body:
+          { "rec_date": "YYYY-MM-DD", "items": [ { CCSTAMP, NO, NOME, CMDESC, NRDOC, DATALC, DATAVEN, ABERTO, PAYVAL, MOEDA } ... ] }
+        Cria 1 RE por cliente e 1 RL por movimento.
+        """
+        try:
+            body = request.get_json(silent=True) or {}
+            rec_date = str(body.get('rec_date') or '').strip()
+            items = body.get('items') or []
+            if not rec_date:
+                return jsonify({'error': 'rec_date obrigatório (YYYY-MM-DD)'}), 400
+            if not isinstance(items, list) or not items:
+                return jsonify({'error': 'items obrigatório'}), 400
+
+            try:
+                d = date.fromisoformat(rec_date)
+            except Exception:
+                return jsonify({'error': 'rec_date inválido (YYYY-MM-DD)'}), 400
+            base_dt = datetime.combine(d, datetime.min.time())
+            ano = d.year
+
+            # agrupar por cliente
+            by_no = {}
+            for it in items:
+                no = int(it.get('NO') or 0)
+                if not no:
+                    continue
+                nome = str(it.get('NOME') or '').strip()
+                ccstamp = str(it.get('CCSTAMP') or '').strip()
+                if not ccstamp:
+                    continue
+                aberto = float(it.get('ABERTO') or 0)
+                payval = it.get('PAYVAL', None)
+                pay = float(payval) if payval is not None else aberto
+
+                # Permitir também créditos (ABERTO < 0): aceita valores positivos e negativos,
+                # mas força o sinal e limita à faixa válida do "aberto".
+                if not (abs(aberto) > 0.005):
+                    continue
+                if aberto > 0:
+                    # entre 0 e aberto
+                    if pay < 0:
+                        pay = 0.0
+                    if pay > aberto:
+                        pay = aberto
+                else:
+                    # aberto < 0: entre aberto e 0 (valores negativos)
+                    if pay > 0:
+                        pay = 0.0
+                    if pay < aberto:
+                        pay = aberto
+                if abs(pay) <= 0.00001:
+                    continue
+                if no not in by_no:
+                    by_no[no] = {'NO': no, 'NOME': nome, 'items': []}
+                by_no[no]['items'].append({**it, 'PAYVAL': pay})
+
+            if not by_no:
+                return jsonify({'error': 'Nenhum movimento válido selecionado.'}), 400
+
+            created = []
+            for grp in by_no.values():
+                no = grp['NO']
+                nome = grp['NOME'] or ''
+                movs = grp['items']
+                total = sum(float(x.get('PAYVAL') or 0) for x in movs)
+
+                # Colunas disponíveis (para compatibilidade entre bases)
+                re_cols = set(
+                    r['COLUMN_NAME'].upper()
+                    for r in (
+                        db.session.execute(
+                            text("""
+                                SELECT COLUMN_NAME
+                                FROM INFORMATION_SCHEMA.COLUMNS
+                                WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'RE'
+                            """)
+                        ).mappings().all()
+                        or []
+                    )
+                )
+                rl_cols = set(
+                    r['COLUMN_NAME'].upper()
+                    for r in (
+                        db.session.execute(
+                            text("""
+                                SELECT COLUMN_NAME
+                                FROM INFORMATION_SCHEMA.COLUMNS
+                                WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'RL'
+                            """)
+                        ).mappings().all()
+                        or []
+                    )
+                )
+
+                # RNO sequencial simples
+                rno_row = db.session.execute(text("SELECT ISNULL(MAX(RNO),0) + 1 AS N FROM dbo.RE")).mappings().first() or {}
+                rno = int(rno_row.get('N') or 1)
+
+                restamp = new_stamp()
+                moeda = (movs[0].get('MOEDA') or 'EUR').strip()[:11]
+
+                re_cols_sql = [
+                    'RESTAMP', 'NMDOC', 'RNO', 'RDATA', 'NOME', 'TOTAL', 'ETOTAL',
+                    'NO', 'REANO',
+                    'OLCODIGO', 'TELOCAL', 'MOEDA', 'CONTADO', 'PROCESS', 'PROCDATA', 'OLLOCAL', 'PLANO', 'TIPO', 'PAIS', 'SYNC'
+                ]
+                re_vals_sql = [
+                    ':RESTAMP', ':NMDOC', ':RNO', ':RDATA', ':NOME', ':TOTAL', ':ETOTAL',
+                    ':NO', ':REANO',
+                    ':OLCODIGO', ':TELOCAL', ':MOEDA', ':CONTADO', ':PROCESS', ':PROCDATA', ':OLLOCAL', ':PLANO', ':TIPO', ':PAIS', ':SYNC'
+                ]
+                # Algumas bases usam NDOC, outras NDOS.
+                if 'NDOC' in re_cols:
+                    re_cols_sql.insert(7, 'NDOC')
+                    re_vals_sql.insert(7, ':NDOC')
+                if 'NDOS' in re_cols:
+                    re_cols_sql.insert(7, 'NDOS')
+                    re_vals_sql.insert(7, ':NDOS')
+
+                ins_re = text(f"""
+                    INSERT INTO dbo.RE
+                    ({", ".join(re_cols_sql)})
+                    VALUES
+                    ({", ".join(re_vals_sql)})
+                """)
+                re_params = {
+                    'RESTAMP': restamp,
+                    'NMDOC': 'Normal',
+                    'RNO': rno,
+                    'RDATA': base_dt,
+                    'NOME': nome[:55],
+                    'TOTAL': total,
+                    'ETOTAL': total,
+                    'NO': no,
+                    'REANO': ano,
+                    'OLCODIGO': 'R10001',
+                    'TELOCAL': 'B',
+                    'MOEDA': moeda,
+                    'CONTADO': 1,
+                    'PROCESS': 1,
+                    'PROCDATA': base_dt,
+                    'OLLOCAL': 'Santander  DO',
+                    'PLANO': 0,
+                    'TIPO': '',
+                    'PAIS': 1,
+                    'SYNC': 0
+                }
+                if 'NDOC' in re_cols:
+                    re_params['NDOC'] = 1
+                if 'NDOS' in re_cols:
+                    re_params['NDOS'] = 1
+                db.session.execute(ins_re, re_params)
+
+                # RL: algumas bases podem ter VAL (em vez de EVAL). Queremos:
+                #   - VAL/EVAL = valor pendente (ABERTO)
+                #   - EREC = valor recebido (PAYVAL)
+                rl_value_col = 'EVAL' if 'EVAL' in rl_cols else ('VAL' if 'VAL' in rl_cols else 'EVAL')
+                ins_rl = text(f"""
+                    INSERT INTO dbo.RL
+                    (RLSTAMP, NDOC, RNO, CDESC, NRDOC, DATALC, DATAVEN, RESTAMP, CCSTAMP, CM, {rl_value_col}, EREC, PROCESS, MOEDA, RDATA)
+                    VALUES
+                    (:RLSTAMP, :NDOC, :RNO, :CDESC, :NRDOC, :DATALC, :DATAVEN, :RESTAMP, :CCSTAMP, :CM, :VALPEND, :EREC, :PROCESS, :MOEDA, :RDATA)
+                """)
+                for m in movs:
+                    rlstamp = new_stamp()
+                    dlc = str(m.get('DATALC') or '').strip()
+                    dven = str(m.get('DATAVEN') or '').strip()
+                    try:
+                        dlc_dt = datetime.combine(date.fromisoformat(dlc), datetime.min.time()) if dlc else base_dt
+                    except Exception:
+                        dlc_dt = base_dt
+                    try:
+                        dven_dt = datetime.combine(date.fromisoformat(dven), datetime.min.time()) if dven else base_dt
+                    except Exception:
+                        dven_dt = base_dt
+
+                    aberto0 = float(m.get('ABERTO') or 0)
+                    recebido = float(m.get('PAYVAL') or 0)
+
+                    db.session.execute(ins_rl, {
+                        'RLSTAMP': rlstamp,
+                        'NDOC': 1,
+                        'RNO': rno,
+                        'CDESC': (str(m.get('CMDESC') or '')[:20]),
+                        'NRDOC': int(m.get('NRDOC') or 0),
+                        'DATALC': dlc_dt,
+                        'DATAVEN': dven_dt,
+                        'RESTAMP': restamp,
+                        'CCSTAMP': (str(m.get('CCSTAMP') or '')[:25]),
+                        'CM': int(m.get('CM') or 0),
+                        'VALPEND': aberto0,
+                        'EREC': recebido,
+                        'PROCESS': 1,
+                        'MOEDA': (str(m.get('MOEDA') or moeda)[:11]),
+                        'RDATA': base_dt
+                    })
+
+                created.append({'RESTAMP': restamp, 'RNO': rno, 'NO': no, 'TOTAL': round(total, 2)})
+
+            db.session.commit()
+            return jsonify({'ok': True, 'created': created})
+        except Exception as e:
+            db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/cc_fornecedores/pagamentos/criar', methods=['POST'])
@@ -3700,6 +4164,293 @@ OPTION (MAXRECURSION 32767);
                 return jsonify({'error': 'Pagamento não encontrado.'}), 404
             db.session.commit()
             return jsonify({'ok': True, 'POSTAMP': postamp})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    # -----------------------------
+    # Recebimentos (RE)
+    # -----------------------------
+    @app.route('/recebimentos')
+    @login_required
+    def recebimentos_page():
+        return render_template('recebimentos.html', page_title='Recebimentos')
+
+    @app.route('/api/recebimentos')
+    @login_required
+    def api_recebimentos_list():
+        """
+        Lista recebimentos (RE) com filtros simples.
+        Query:
+          - de=YYYY-MM-DD
+          - ate=YYYY-MM-DD
+          - q=texto (NO, NOME, NRDOC, CDESC, NMDOC, OLCODIGO, OLLOCAL)
+        """
+        try:
+            de = (request.args.get('de') or '').strip()
+            ate = (request.args.get('ate') or '').strip()
+            q = (request.args.get('q') or '').strip()
+
+            where = []
+            params = {}
+            if de:
+                where.append("CAST(RE.RDATA AS date) >= :de")
+                params['de'] = de
+            if ate:
+                where.append("CAST(RE.RDATA AS date) <= :ate")
+                params['ate'] = ate
+            if q:
+                where.append("""(
+                    CAST(RE.NO AS varchar(50)) LIKE :q OR
+                    RE.NOME LIKE :q OR
+                    RE.NMDOC LIKE :q OR
+                    RE.OLCODIGO LIKE :q OR
+                    RE.OLLOCAL LIKE :q OR
+                    EXISTS (
+                        SELECT 1 FROM dbo.RL AS RL
+                        WHERE RL.RESTAMP = RE.RESTAMP
+                          AND (
+                            CAST(ISNULL(RL.NRDOC,0) AS varchar(50)) LIKE :q OR
+                            RL.CDESC LIKE :q
+                          )
+                    )
+                )""")
+                params['q'] = f"%{q}%"
+
+            where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+            sql = text(f"""
+                SELECT TOP 2000
+                    RE.RESTAMP,
+                    RE.RNO,
+                    CAST(RE.RDATA AS date) AS RDATA,
+                    ISNULL(RE.NO,0) AS NO,
+                    ISNULL(RE.NOME,'') AS NOME,
+                    ISNULL(RE.MOEDA,'') AS MOEDA,
+                    ISNULL(RE.ETOTAL,0) AS ETOTAL,
+                    ISNULL(RE.OLLOCAL,'') AS OLLOCAL,
+                    ISNULL(RE.OLCODIGO,'') AS OLCODIGO,
+                    ISNULL(RE.TELOCAL,'') AS TELOCAL,
+                    ISNULL(RE.NMDOC,'') AS NMDOC
+                FROM dbo.RE AS RE
+                {where_sql}
+                ORDER BY CAST(RE.RDATA AS date) DESC, RE.RNO DESC
+            """)
+            rows = db.session.execute(sql, params).mappings().all()
+
+            out = []
+            total = 0.0
+            for r in rows:
+                d = r.get('RDATA')
+                if isinstance(d, (datetime, date)):
+                    d = d.strftime('%Y-%m-%d')
+                else:
+                    d = str(d) if d is not None else ''
+                et = float(r.get('ETOTAL') or 0)
+                total += et
+                out.append({
+                    'RESTAMP': r.get('RESTAMP') or '',
+                    'RNO': int(r.get('RNO') or 0),
+                    'RDATA': d,
+                    'NO': int(r.get('NO') or 0),
+                    'NOME': r.get('NOME') or '',
+                    'MOEDA': r.get('MOEDA') or '',
+                    'ETOTAL': round(et, 2),
+                    'OLLOCAL': r.get('OLLOCAL') or '',
+                    'OLCODIGO': r.get('OLCODIGO') or '',
+                    'TELOCAL': r.get('TELOCAL') or '',
+                    'NMDOC': r.get('NMDOC') or ''
+                })
+
+            return jsonify({'rows': out, 'total': round(total, 2), 'count': len(out)})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/recebimentos/<restamp>')
+    @login_required
+    def api_recebimentos_detail(restamp):
+        """
+        Detalhe de recebimento: cabeçalho (RE) + linhas (RL).
+        """
+        try:
+            restamp = (restamp or '').strip()
+            if not restamp:
+                return jsonify({'error': 'RESTAMP obrigatório'}), 400
+
+            head_sql = text("""
+                SELECT TOP 1
+                    RE.RESTAMP,
+                    RE.RNO,
+                    CAST(RE.RDATA AS date) AS RDATA,
+                    ISNULL(RE.NO,0) AS NO,
+                    ISNULL(RE.NOME,'') AS NOME,
+                    ISNULL(RE.MOEDA,'') AS MOEDA,
+                    ISNULL(RE.ETOTAL,0) AS ETOTAL,
+                    ISNULL(RE.OLLOCAL,'') AS OLLOCAL,
+                    ISNULL(RE.OLCODIGO,'') AS OLCODIGO,
+                    ISNULL(RE.TELOCAL,'') AS TELOCAL,
+                    ISNULL(RE.NMDOC,'') AS NMDOC,
+                    ISNULL(RE.PROCESS,0) AS PROCESS
+                FROM dbo.RE AS RE
+                WHERE RE.RESTAMP = :s
+            """)
+            head = db.session.execute(head_sql, {'s': restamp}).mappings().first()
+            if not head:
+                return jsonify({'error': 'Recebimento não encontrado.'}), 404
+
+            rdata = head.get('RDATA')
+            rdata_str = rdata.strftime('%Y-%m-%d') if isinstance(rdata, (datetime, date)) else (str(rdata) if rdata is not None else '')
+            header = {
+                'RESTAMP': head.get('RESTAMP') or '',
+                'RNO': int(head.get('RNO') or 0),
+                'RDATA': rdata_str,
+                'NO': int(head.get('NO') or 0),
+                'NOME': head.get('NOME') or '',
+                'MOEDA': head.get('MOEDA') or '',
+                'ETOTAL': round(float(head.get('ETOTAL') or 0), 2),
+                'OLLOCAL': head.get('OLLOCAL') or '',
+                'OLCODIGO': head.get('OLCODIGO') or '',
+                'TELOCAL': head.get('TELOCAL') or '',
+                'NMDOC': head.get('NMDOC') or '',
+                'PROCESS': int(head.get('PROCESS') or 0),
+            }
+
+            rl_cols = set(
+                r['COLUMN_NAME'].upper()
+                for r in (
+                    db.session.execute(
+                        text("""
+                            SELECT COLUMN_NAME
+                            FROM INFORMATION_SCHEMA.COLUMNS
+                            WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'RL'
+                        """)
+                    ).mappings().all()
+                    or []
+                )
+            )
+            value_col = 'EVAL' if 'EVAL' in rl_cols else ('VAL' if 'VAL' in rl_cols else 'EVAL')
+
+            lines_sql = text(f"""
+                SELECT
+                    RL.RLSTAMP,
+                    RL.RNO,
+                    CAST(RL.RDATA AS date) AS RDATA,
+                    ISNULL(RL.CDESC,'') AS CDESC,
+                    ISNULL(RL.NRDOC,0) AS NRDOC,
+                    CAST(RL.DATALC AS date) AS DATALC,
+                    CAST(RL.DATAVEN AS date) AS DATAVEN,
+                    ISNULL(RL.CCSTAMP,'') AS CCSTAMP,
+                    ISNULL(RL.CM,0) AS CM,
+                    ISNULL(RL.{value_col},0) AS EVAL,
+                    ISNULL(RL.EREC,0) AS EREC,
+                    ISNULL(RL.PROCESS,0) AS PROCESS,
+                    ISNULL(RL.MOEDA,'') AS MOEDA
+                FROM dbo.RL AS RL
+                WHERE RL.RESTAMP = :s
+                ORDER BY CAST(RL.DATAVEN AS date), CAST(RL.DATALC AS date), RL.RLSTAMP
+            """)
+            rows = db.session.execute(lines_sql, {'s': restamp}).mappings().all()
+
+            lines = []
+            for r in rows:
+                dlc = r.get('DATALC')
+                dven = r.get('DATAVEN')
+                lines.append({
+                    'RLSTAMP': r.get('RLSTAMP') or '',
+                    'RNO': int(r.get('RNO') or 0),
+                    'RDATA': (r.get('RDATA').strftime('%Y-%m-%d') if isinstance(r.get('RDATA'), (datetime, date)) else str(r.get('RDATA') or '')),
+                    'CDESC': r.get('CDESC') or '',
+                    'NRDOC': int(r.get('NRDOC') or 0),
+                    'DATALC': dlc.strftime('%Y-%m-%d') if isinstance(dlc, (datetime, date)) else (str(dlc) if dlc is not None else ''),
+                    'DATAVEN': dven.strftime('%Y-%m-%d') if isinstance(dven, (datetime, date)) else (str(dven) if dven is not None else ''),
+                    'CCSTAMP': r.get('CCSTAMP') or '',
+                    'CM': int(r.get('CM') or 0),
+                    'EVAL': round(float(r.get('EVAL') or 0), 2),
+                    'EREC': round(float(r.get('EREC') or 0), 2),
+                    'PROCESS': int(r.get('PROCESS') or 0),
+                    'MOEDA': r.get('MOEDA') or ''
+                })
+
+            return jsonify({'header': header, 'lines': lines})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/recebimentos/<restamp>', methods=['PUT'])
+    @login_required
+    def api_recebimentos_update(restamp):
+        """
+        Atualiza campos do recebimento (RE):
+          - RDATA/PROCDATA (data sem hora)
+          - RL.RDATA (consistência)
+        Body: { "RDATA": "YYYY-MM-DD" }
+        """
+        try:
+            restamp = (restamp or '').strip()
+            if not restamp:
+                return jsonify({'error': 'RESTAMP obrigatório'}), 400
+            body = request.get_json(silent=True) or {}
+            rdata = str(body.get('RDATA') or '').strip()
+            if not rdata:
+                return jsonify({'error': 'RDATA obrigatória'}), 400
+
+            try:
+                d = date.fromisoformat(rdata)
+            except Exception:
+                return jsonify({'error': 'RDATA inválida (YYYY-MM-DD)'}), 400
+
+            dt0 = datetime.combine(d, datetime.min.time())
+
+            exists = db.session.execute(
+                text("SELECT 1 AS X FROM dbo.RE WHERE RESTAMP = :s"),
+                {'s': restamp}
+            ).mappings().first()
+            if not exists:
+                return jsonify({'error': 'Recebimento não encontrado.'}), 404
+
+            db.session.execute(
+                text("""
+                    UPDATE dbo.RE
+                    SET RDATA = :d, PROCDATA = :d
+                    WHERE RESTAMP = :s
+                """),
+                {'d': dt0, 's': restamp}
+            )
+            db.session.execute(
+                text("""
+                    UPDATE dbo.RL
+                    SET RDATA = :d
+                    WHERE RESTAMP = :s
+                """),
+                {'d': dt0, 's': restamp}
+            )
+            db.session.commit()
+            return jsonify({'ok': True, 'RESTAMP': restamp, 'RDATA': rdata})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/recebimentos/<restamp>', methods=['DELETE'])
+    @login_required
+    def api_recebimentos_delete(restamp):
+        """
+        Elimina um recebimento (RE) e as suas linhas (RL).
+        """
+        try:
+            restamp = (restamp or '').strip()
+            if not restamp:
+                return jsonify({'error': 'RESTAMP obrigatório'}), 400
+
+            exists = db.session.execute(
+                text("SELECT 1 AS X FROM dbo.RE WHERE RESTAMP = :s"),
+                {'s': restamp}
+            ).mappings().first()
+            if not exists:
+                return jsonify({'error': 'Recebimento não encontrado.'}), 404
+
+            db.session.execute(text("DELETE FROM dbo.RL WHERE RESTAMP = :s"), {'s': restamp})
+            db.session.execute(text("DELETE FROM dbo.RE WHERE RESTAMP = :s"), {'s': restamp})
+            db.session.commit()
+            return jsonify({'ok': True})
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
