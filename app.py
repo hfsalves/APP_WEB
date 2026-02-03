@@ -4456,6 +4456,161 @@ OPTION (MAXRECURSION 32767);
             return jsonify({'error': str(e)}), 500
 
     # -----------------------------
+    # Registo de tempos (Limpeza)
+    # -----------------------------
+    @app.route('/tempos_limpeza')
+    @login_required
+    def tempos_limpeza_page():
+        return render_template('tempos_limpeza.html', page_title='Limpezas de Hoje')
+
+    @app.route('/api/tempos_limpeza/hoje')
+    @login_required
+    def api_tempos_limpeza_hoje():
+        """
+        Lista tarefas de limpeza (ORIGEM='LP') do dia de hoje para o utilizador autenticado.
+        """
+        try:
+            user = (getattr(current_user, 'LOGIN', '') or '').strip()
+            if not user:
+                return jsonify({'error': 'Utilizador inválido.'}), 400
+
+            cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'TAREFAS'")
+                ).fetchall()
+            )
+            need = {'HORAINI', 'HORAFIM'}
+            missing = sorted(list(need - cols))
+            if missing:
+                return jsonify({'error': f"Campos em falta na TAREFAS: {', '.join(missing)}"}), 400
+
+            sql = text("""
+                SELECT
+                    T.TAREFASSTAMP,
+                    CAST(T.DATA AS date) AS DATA,
+                    ISNULL(T.HORA,'') AS HORA,
+                    ISNULL(T.ALOJAMENTO,'') AS ALOJAMENTO,
+                    ISNULL(T.TAREFA,'') AS TAREFA,
+                    ISNULL(T.TRATADO,0) AS TRATADO,
+                    ISNULL(T.HORAINI,'') AS HORAINI,
+                    ISNULL(T.HORAFIM,'') AS HORAFIM
+                FROM dbo.TAREFAS AS T
+                WHERE LTRIM(RTRIM(ISNULL(T.ORIGEM,''))) = 'LP'
+                  AND CAST(T.DATA AS date) = CAST(GETDATE() AS date)
+                  AND ISNULL(T.UTILIZADOR,'') = :u
+                ORDER BY ISNULL(T.HORA,''), ISNULL(T.ALOJAMENTO,''), T.TAREFASSTAMP
+            """)
+            rows = db.session.execute(sql, {'u': user}).mappings().all()
+            out = []
+            for r in rows:
+                d = r.get('DATA')
+                d = d.strftime('%Y-%m-%d') if isinstance(d, (date, datetime)) else (str(d) if d is not None else '')
+                out.append({
+                    'TAREFASSTAMP': r.get('TAREFASSTAMP') or '',
+                    'DATA': d,
+                    'HORA': r.get('HORA') or '',
+                    'ALOJAMENTO': r.get('ALOJAMENTO') or '',
+                    'TAREFA': r.get('TAREFA') or '',
+                    'TRATADO': int(r.get('TRATADO') or 0),
+                    'HORAINI': (r.get('HORAINI') or '').strip(),
+                    'HORAFIM': (r.get('HORAFIM') or '').strip(),
+                })
+            return jsonify({'rows': out, 'count': len(out), 'user': user})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/tempos_limpeza/start', methods=['POST'])
+    @login_required
+    def api_tempos_limpeza_start():
+        """
+        Define TAREFAS.HORAINI (HH:MM) para a tarefa, se ainda não estiver definida.
+        Body: { "id": "<TAREFASSTAMP>" }
+        """
+        try:
+            body = request.get_json(silent=True) or {}
+            tid = (body.get('id') or '').strip()
+            if not tid:
+                return jsonify({'error': 'id obrigatório'}), 400
+
+            user = (getattr(current_user, 'LOGIN', '') or '').strip()
+            if not user:
+                return jsonify({'error': 'Utilizador inválido.'}), 400
+
+            # Só permite iniciar tarefas do próprio utilizador e de hoje
+            exists = db.session.execute(text("""
+                SELECT 1 AS X
+                FROM dbo.TAREFAS
+                WHERE TAREFASSTAMP = :id
+                  AND LTRIM(RTRIM(ISNULL(ORIGEM,''))) = 'LP'
+                  AND CAST(DATA AS date) = CAST(GETDATE() AS date)
+                  AND ISNULL(UTILIZADOR,'') = :u
+            """), {'id': tid, 'u': user}).fetchone()
+            if not exists:
+                return jsonify({'error': 'Tarefa não encontrada.'}), 404
+
+            # Hora atual HH:MM, sem segundos
+            now_hm = db.session.execute(text("SELECT CONVERT(varchar(5), GETDATE(), 108)")).fetchone()[0]
+
+            # Não sobrescreve se já existir
+            db.session.execute(text("""
+                UPDATE dbo.TAREFAS
+                SET HORAINI = CASE WHEN LTRIM(RTRIM(ISNULL(HORAINI,''))) = '' THEN :hm ELSE HORAINI END
+                WHERE TAREFASSTAMP = :id
+            """), {'hm': now_hm, 'id': tid})
+            db.session.commit()
+            return jsonify({'ok': True, 'id': tid, 'HORAINI': now_hm})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/tempos_limpeza/stop', methods=['POST'])
+    @login_required
+    def api_tempos_limpeza_stop():
+        """
+        Define TAREFAS.HORAFIM (HH:MM) e marca como tratada.
+        Também garante HORAINI se estiver vazio.
+        Body: { "id": "<TAREFASSTAMP>" }
+        """
+        try:
+            body = request.get_json(silent=True) or {}
+            tid = (body.get('id') or '').strip()
+            if not tid:
+                return jsonify({'error': 'id obrigatório'}), 400
+
+            user = (getattr(current_user, 'LOGIN', '') or '').strip()
+            if not user:
+                return jsonify({'error': 'Utilizador inválido.'}), 400
+
+            exists = db.session.execute(text("""
+                SELECT 1 AS X
+                FROM dbo.TAREFAS
+                WHERE TAREFASSTAMP = :id
+                  AND LTRIM(RTRIM(ISNULL(ORIGEM,''))) = 'LP'
+                  AND CAST(DATA AS date) = CAST(GETDATE() AS date)
+                  AND ISNULL(UTILIZADOR,'') = :u
+            """), {'id': tid, 'u': user}).fetchone()
+            if not exists:
+                return jsonify({'error': 'Tarefa não encontrada.'}), 404
+
+            now_hm = db.session.execute(text("SELECT CONVERT(varchar(5), GETDATE(), 108)")).fetchone()[0]
+
+            db.session.execute(text("""
+                UPDATE dbo.TAREFAS
+                SET
+                  HORAINI = CASE WHEN LTRIM(RTRIM(ISNULL(HORAINI,''))) = '' THEN :hm ELSE HORAINI END,
+                  HORAFIM = CASE WHEN LTRIM(RTRIM(ISNULL(HORAFIM,''))) = '' THEN :hm ELSE HORAFIM END,
+                  TRATADO = 1,
+                  NMTRATADO = :u,
+                  DTTRATADO = CAST(GETDATE() AS date)
+                WHERE TAREFASSTAMP = :id
+            """), {'hm': now_hm, 'u': user, 'id': tid})
+            db.session.commit()
+            return jsonify({'ok': True, 'id': tid, 'HORAFIM': now_hm})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    # -----------------------------
     # Configuração de Escalas (ES/ESL)
     # -----------------------------
     @app.route('/escalas')

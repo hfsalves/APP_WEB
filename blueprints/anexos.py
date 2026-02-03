@@ -11,7 +11,7 @@ bp = Blueprint('anexos', __name__, url_prefix='/api/anexos')
 
 # Pasta onde vamos guardar os ficheiros (relativa a current_app.root_path)
 UPLOAD_FOLDER = os.path.join('static', 'images', 'anexos')
-ALLOWED_EXT = {'png','jpg','jpeg','gif','pdf','docx','xlsx','txt'}
+ALLOWED_EXT = {'png','jpg','jpeg','gif','pdf','docx','xlsx','txt','webm','mp4','mov','m4v'}
 
 # — Listar anexos de um registo —
 @bp.route('', methods=['GET'])
