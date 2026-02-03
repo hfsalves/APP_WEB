@@ -510,6 +510,26 @@ async function fetchAlojList() {
     colFuturas.innerHTML = '';
     colTratadas.innerHTML = '';
 
+    // Atalho para registo de tempos (só no "Hoje", antes das tarefas)
+    try {
+      if (Number(window.IS_TEMPOS || 0) === 1 && colHoje) {
+        const card = document.createElement('a');
+        card.href = '/tempos_limpeza';
+        card.className = 'card tarefa-card mb-2 shadow-sm tempos-clean-card text-decoration-none';
+        card.style.cursor = 'pointer';
+        card.setAttribute('role', 'button');
+        card.innerHTML = `
+          <div class="card-body tempos-clean-body">
+            <div class="tempos-clean-icon" aria-hidden="true">
+              <i class="fa-solid fa-stopwatch"></i>
+            </div>
+            <div class="tempos-clean-title">Registo de Limpezas</div>
+          </div>
+        `;
+        colHoje.appendChild(card);
+      }
+    } catch (_) {}
+
     const hoje = new Date();
     const hojeStr = hoje.toISOString().slice(0, 10);
     let cntAtrasadas = 0, cntHoje = 0, cntFuturas = 0, cntTratadas = 0;
@@ -706,7 +726,9 @@ async function fetchAlojList() {
           })
           .catch(() => {});
 
-        if (btnTratar) btnTratar.style.display = t.TRATADO ? 'none' : 'inline-block';
+        const isTempos = Number(window.IS_TEMPOS || 0) === 1;
+        const isLimpeza = String(t.ORIGEM || '').toUpperCase() === 'LP';
+        if (btnTratar) btnTratar.style.display = (t.TRATADO || (isTempos && isLimpeza)) ? 'none' : 'inline-block';
         if (btnReabrir) btnReabrir.style.display = t.TRATADO ? 'inline-block' : 'none';
 
         try {
@@ -1096,6 +1118,14 @@ async function fetchAlojList() {
     btnTratar.addEventListener('click', async () => {
       const sel = (typeof window !== 'undefined' && window.tarefaSelecionada) ? window.tarefaSelecionada : tarefaSelecionada;
       if (!sel) return;
+      try {
+        const isTempos = Number(window.IS_TEMPOS || 0) === 1;
+        const isLimpeza = String(sel.ORIGEM || '').toUpperCase() === 'LP';
+        if (isTempos && isLimpeza) {
+          alert('A conclusão das limpezas deve ser feita no Registo de Limpezas.');
+          return;
+        }
+      } catch (_) {}
       try {
         const resp = await fetch('/generic/api/tarefas/tratar', {
           method: 'POST',

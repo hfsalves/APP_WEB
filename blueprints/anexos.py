@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
-from flask_login import login_required
+from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from sqlalchemy import text
 from models import db  # ou de onde importas db
@@ -42,7 +42,7 @@ def upload_anexo():
     tabela = request.form.get('table', '')
     rec    = request.form.get('rec', '')
     desc   = request.form.get('descricao', '')
-    user   = getattr(request, 'remote_user', '') or ''  # ou current_user.LOGIN
+    user   = (getattr(current_user, 'LOGIN', '') or '').strip()
 
     if not f or not tabela or not rec:
         return jsonify({'error': 'table, rec e file são obrigatórios'}), 400
@@ -93,3 +93,55 @@ def upload_anexo():
       'DATA':         datetime.utcnow().isoformat(),
       'UTILIZADOR':   user
     }), 201
+
+
+@bp.route('/<stamp>', methods=['DELETE'])
+@login_required
+def delete_anexo(stamp):
+    try:
+        stamp = (stamp or '').strip()
+        if not stamp:
+            return jsonify({'error': 'ANEXOSSTAMP obrigatório'}), 400
+
+        row = db.session.execute(text("""
+            SELECT TOP 1
+              ANEXOSSTAMP, CAMINHO, UTILIZADOR
+            FROM ANEXOS
+            WHERE ANEXOSSTAMP = :s
+        """), {'s': stamp}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Anexo não encontrado.'}), 404
+
+        # ACL simples: admin pode sempre; caso contrário, só o utilizador que anexou.
+        is_admin = bool(getattr(current_user, 'ADMIN', False))
+        owner = (row.get('UTILIZADOR') or '').strip()
+        cur = (getattr(current_user, 'LOGIN', '') or '').strip()
+        if not is_admin:
+            if not owner or owner.upper() != cur.upper():
+                return jsonify({'error': 'Sem permissão para eliminar este anexo.'}), 403
+
+        caminho = (row.get('CAMINHO') or '').strip()
+
+        db.session.execute(text("DELETE FROM ANEXOS WHERE ANEXOSSTAMP = :s"), {'s': stamp})
+        db.session.commit()
+
+        # Remove ficheiro do disco (best-effort)
+        try:
+            if caminho.startswith('/'):
+                rel = caminho.lstrip('/').replace('/', os.sep)
+                full = os.path.join(current_app.root_path, rel)
+                # segurança: garantir que está dentro da pasta de anexos
+                safe_root = os.path.abspath(os.path.join(current_app.root_path, UPLOAD_FOLDER))
+                full_abs = os.path.abspath(full)
+                if full_abs.startswith(safe_root) and os.path.isfile(full_abs):
+                    os.remove(full_abs)
+        except Exception:
+            pass
+
+        return jsonify({'ok': True, 'ANEXOSSTAMP': stamp})
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(e)}), 500

@@ -1001,6 +1001,25 @@ def tarefa_tratar():
     if not tid:
         return jsonify({'ok': False, 'error': 'ID em falta'}), 400
     try:
+        # Regra: utilizadores com registo de tempos não podem concluir limpezas via monitor
+        try:
+            is_tempos = int(getattr(current_user, 'TEMPOS', 0) or 0) == 1
+            is_admin = bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'LPADMIN', False))
+        except Exception:
+            is_tempos = False
+            is_admin = False
+
+        if is_tempos and not is_admin:
+            origem = db.session.execute(text("""
+                SELECT UPPER(LTRIM(RTRIM(ISNULL(ORIGEM,'')))) AS ORIGEM
+                FROM TAREFAS
+                WHERE TAREFASSTAMP = :id
+            """), {'id': tid}).scalar()
+            if origem is None:
+                return jsonify({'ok': False, 'error': 'Tarefa não encontrada'}), 404
+            if str(origem).upper() == 'LP':
+                return jsonify({'ok': False, 'error': 'A conclusão das limpezas deve ser feita no Registo de Limpezas.'}), 403
+
         sql = text("""
             UPDATE TAREFAS
             SET TRATADO = 1,
@@ -1620,6 +1639,25 @@ def tratar_tarefa():
         return jsonify({'error': 'Falta o ID da tarefa'}), 400
 
     try:
+        # Regra: utilizadores com registo de tempos não podem concluir limpezas via monitor
+        try:
+            is_tempos = int(getattr(current_user, 'TEMPOS', 0) or 0) == 1
+            is_admin = bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'LPADMIN', False))
+        except Exception:
+            is_tempos = False
+            is_admin = False
+
+        if is_tempos and not is_admin:
+            origem = db.session.execute(text("""
+                SELECT UPPER(LTRIM(RTRIM(ISNULL(ORIGEM,'')))) AS ORIGEM
+                FROM TAREFAS
+                WHERE TAREFASSTAMP = :id
+            """), {'id': tarefa_id}).scalar()
+            if origem is None:
+                return jsonify({'error': 'Tarefa não encontrada'}), 404
+            if str(origem).upper() == 'LP':
+                return jsonify({'error': 'A conclusão das limpezas deve ser feita no Registo de Limpezas.'}), 403
+
         sql = text("UPDATE TAREFAS SET TRATADO = 1 WHERE TAREFASSTAMP = :id")
         db.session.execute(sql, {'id': tarefa_id})
         db.session.commit()

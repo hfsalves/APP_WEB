@@ -9,7 +9,7 @@ import uuid
 from decimal import Decimal
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time as dtime
 from sqlalchemy import text
 
 # Importa a instÃ¢ncia db e modelos
@@ -247,7 +247,7 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_stamp):
         sql = text("""
-            SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO
+            SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO, TEMPOS
             FROM US
             WHERE USSTAMP = :stamp
         """)
@@ -260,8 +260,7 @@ def create_app():
             setattr(user, k, v)
         return user
 
-
-    # Rotas de autenticaÃ§Ã£o
+    # Rotas de autenticação
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         if request.method == 'POST':
@@ -269,7 +268,7 @@ def create_app():
             pwd = request.form['password']
 
             sql = text("""
-                SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO
+                SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO, TEMPOS
                 FROM US
                 WHERE LOGIN = :login
             """)
@@ -284,20 +283,46 @@ def create_app():
             return render_template('login.html', error='Credenciais invÃ¡lidas')
         return render_template('login.html')
 
-
-
     @app.route('/logout')
     @login_required
     def logout():
         logout_user()
         return redirect(url_for('login'))
-   
 
     @app.route('/')
     @login_required
     def home_page():
         home = getattr(current_user, 'HOME', '').lower().strip().lstrip('/')
         print(f"HOME do utilizador: {home}")
+
+        # Se o utilizador regista tempos e tiver tarefas LP hoje, entre 08:00 e 20:00,
+        # abre o ecrã de tempos em vez do monitor.
+        try:
+            tempos_enabled = int(getattr(current_user, 'TEMPOS', 0) or 0) == 1
+        except Exception:
+            tempos_enabled = False
+        try:
+            now_t = datetime.now().time()
+            in_window = (dtime(8, 0) <= now_t <= dtime(20, 0))
+        except Exception:
+            in_window = False
+
+        if tempos_enabled and in_window and (home == 'monitor' or not home):
+            try:
+                user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+                if user_login:
+                    has_lp_today = db.session.execute(text("""
+                        SELECT TOP 1 1 AS X
+                        FROM dbo.TAREFAS
+                        WHERE LTRIM(RTRIM(ISNULL(ORIGEM,''))) = 'LP'
+                          AND CAST(DATA AS date) = CAST(GETDATE() AS date)
+                          AND ISNULL(UTILIZADOR,'') = :u
+                          AND LTRIM(RTRIM(ISNULL(HORAFIM,''))) = ''
+                    """), {'u': user_login}).fetchone()
+                    if has_lp_today:
+                        return redirect(url_for('tempos_limpeza_page'))
+            except Exception:
+                pass
 
         if home == 'dashboard':
             return redirect(url_for('dashboard_page'))
@@ -4461,7 +4486,17 @@ OPTION (MAXRECURSION 32767);
     @app.route('/tempos_limpeza')
     @login_required
     def tempos_limpeza_page():
-        return render_template('tempos_limpeza.html', page_title='Limpezas de Hoje')
+        try:
+            can_assign = bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'LPADMIN', False))
+        except Exception:
+            can_assign = False
+        current_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        return render_template(
+            'tempos_limpeza.html',
+            page_title='Limpezas de Hoje',
+            can_assign=can_assign,
+            current_login=current_login,
+        )
 
     @app.route('/api/tempos_limpeza/hoje')
     @login_required

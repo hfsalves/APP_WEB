@@ -11,6 +11,58 @@
   </div>
 </div>
 
+<!-- Botão: Lançar falta -->
+<div class="tempos-fab">
+  <button type="button" class="btn btn-primary shadow-lg" id="openNovaFalta">
+    <i class="fa-solid fa-cart-shopping me-2"></i> Lan&ccedil;ar falta
+  </button>
+</div>
+
+<!-- Modal: Nova Falta (FS) -->
+<div class="modal fade" id="novaFaltaModalTL" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content shadow-lg border-0" id="novaFaltaFormTL">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); color:#fff; border-bottom:none;">
+        <h5 class="modal-title mb-0">Nova falta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar" style="filter:invert(1) grayscale(1) brightness(2); opacity:.9;"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2" id="nfUserWrapTL">
+          <label for="nfUserTL" class="form-label">Utilizador</label>
+          <select id="nfUserTL" class="form-select"></select>
+        </div>
+        <div class="mb-2">
+          <label for="nfAlojTL" class="form-label">Alojamento</label>
+          <select id="nfAlojTL" class="form-select"></select>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label for="nfDataTL" class="form-label">Data</label>
+            <input type="date" id="nfDataTL" class="form-control" />
+          </div>
+          <div class="col-6 d-flex align-items-end">
+            <div class="form-check mt-3">
+              <input class="form-check-input" type="checkbox" id="nfUrgenteTL">
+              <label class="form-check-label" for="nfUrgenteTL">Urgente</label>
+            </div>
+          </div>
+        </div>
+        <div class="mb-2 mt-2">
+          <label for="nfItemTL" class="form-label">Item</label>
+          <input type="text" id="nfItemTL" class="form-control" placeholder="Descreve o item em falta" />
+        </div>
+        <div class="small text-muted mt-2" id="nfStatusTL"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="nfGravarTL">
+          <i class="fa-solid fa-check me-1"></i> Gravar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Modal: Vídeo (até 1 min) -->
 <div class="modal fade" id="videoModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -39,11 +91,8 @@
             <button type="button" class="btn btn-outline-secondary btn-sm" id="vidPickFile" style="display:none;">
               <i class="fa-solid fa-upload me-1"></i> Escolher ficheiro
             </button>
-            <button type="button" class="btn btn-outline-light btn-sm" id="vidStart">
-              <i class="fa-solid fa-circle me-1 text-danger"></i> Gravar
-            </button>
-            <button type="button" class="btn btn-outline-light btn-sm" id="vidStop" disabled>
-              <i class="fa-solid fa-stop me-1"></i> Parar
+            <button type="button" class="btn btn-danger btn-sm" id="vidRec">
+              <span class="rec-dot me-2" aria-hidden="true"></span> Gravar
             </button>
             <button type="button" class="btn btn-primary btn-sm" id="vidUpload" disabled>
               <i class="fa-solid fa-cloud-arrow-up me-1"></i> Enviar
@@ -61,12 +110,30 @@
 
 {% block scripts %}
 {{ super() }}
+<script>
+  window.TEMPOS_LIMPEZA_META = {{ {'current_user': (current_login or ''), 'can_assign': (can_assign or False)} | tojson }};
+</script>
 <style>
+  .tempos-page{ padding-bottom: 74px; }
   .tempos-grid{
     display:grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 14px;
   }
+  .tempos-fab{
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 1040;
+  }
+  #openNovaFalta{
+    border-radius: 999px;
+    font-weight: 800;
+    padding: 10px 14px;
+    background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+    border: none;
+  }
+  #openNovaFalta:hover{ filter: brightness(0.96); }
   .tcard{
     background:#fff;
     border:1px solid #e5e7eb;
@@ -178,6 +245,74 @@
   }
   .tcard-detail-inner table { width: 100%; }
   .tcard-detail-loading{ color:#64748b; font-weight:700; }
+  .tcard-anexos{
+    padding: 0 14px 14px 14px;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .anx{
+    position:relative;
+    width:52px;
+    height:52px;
+    border-radius: 12px;
+    overflow:hidden;
+    border:1px solid rgba(148, 163, 184, 0.35);
+    background:#fff;
+  }
+  .anx img, .anx video{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+  }
+  .anx .anx-del{
+    position:absolute;
+    top:4px;
+    right:4px;
+    width:22px;
+    height:22px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(15,23,42,.75);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    opacity: 0.92;
+  }
+  .anx .anx-del:hover{ opacity: 1; }
+  .anx-empty{
+    color:#64748b;
+    font-size:12px;
+    font-weight:700;
+    padding: 0 14px 14px 14px;
+  }
+  .rec-dot{
+    width:10px;
+    height:10px;
+    border-radius:999px;
+    background:#fff;
+    box-shadow: 0 0 0 0 rgba(255,255,255,.0);
+    display:inline-block;
+  }
+  #videoModal.is-recording .rec-dot{
+    background:#fff;
+    animation: recPulse 1.1s infinite;
+  }
+  @keyframes recPulse{
+    0%{ box-shadow: 0 0 0 0 rgba(255,255,255,.45); opacity: 1; }
+    70%{ box-shadow: 0 0 0 10px rgba(255,255,255,0); opacity: .95; }
+    100%{ box-shadow: 0 0 0 0 rgba(255,255,255,0); opacity: 1; }
+  }
+  #vidRec.btn-outline-danger{
+    border-width: 2px;
+    font-weight: 800;
+  }
+  #videoModal.is-recording #vidRec.btn-outline-danger{
+    background: rgba(239,68,68,.08);
+  }
   .btn-start{
     background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
     color:#fff;
