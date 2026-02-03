@@ -168,11 +168,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (vidStart) vidStart.style.display = '';
     if (vidStop) vidStop.style.display = '';
 
-    const constraints = {
+    const baseConstraints = {
       audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
-      video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 15, max: 24 } }
+      video: {
+        // Preferir câmara traseira (environment). Alguns browsers só aceitam ideal, outros suportam exact.
+        facingMode: { exact: 'environment' },
+        width: { ideal: 640 },
+        height: { ideal: 360 },
+        frameRate: { ideal: 15, max: 24 }
+      }
     };
-    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia(baseConstraints);
+    } catch (_) {
+      // fallback mais permissivo
+      const fallback = {
+        ...baseConstraints,
+        video: { ...baseConstraints.video, facingMode: { ideal: 'environment' } }
+      };
+      mediaStream = await navigator.mediaDevices.getUserMedia(fallback);
+    }
     vidPreview.srcObject = mediaStream;
     vidPreview.muted = true;
     try { await vidPreview.play(); } catch (_) {}
