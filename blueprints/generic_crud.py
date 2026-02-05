@@ -12,6 +12,66 @@ import re
 bp = Blueprint('generic', __name__, url_prefix='/generic')
 
 # --------------------------------------------------
+# FO: pagamento (V_FC) helper
+# --------------------------------------------------
+def fo_pagamento_status(fostamp: str):
+    """
+    Determina se um documento FO (FOSTAMP) estÃ¡ incluÃ­do em pagamento
+    atravÃ©s da view dbo.V_FC (FOSTAMP).
+
+    Regras:
+      - se SUM(EDEBF) ou SUM(ECREDF) != 0 => tem regularizaÃ§Ã£o => parcial/total
+      - se ABERTO = SUM((ECRED-ECREDF) - (EDEB-EDEBF)) == 0 => totalmente pago
+    """
+    fs = (fostamp or '').strip()
+    if not fs:
+        return {
+            'status': 'none',
+            'locked': False,
+            'aberto': 0.0,
+            'regularizado': 0.0,
+            'edebf': 0.0,
+            'ecredf': 0.0,
+        }
+
+    sql = text("""
+        SELECT
+          SUM(ISNULL(EDEBF,0)) AS EDEBF,
+          SUM(ISNULL(ECREDF,0)) AS ECREDF,
+          SUM(
+            (ISNULL(ECRED,0) - ISNULL(ECREDF,0)) - (ISNULL(EDEB,0) - ISNULL(EDEBF,0))
+          ) AS ABERTO
+        FROM dbo.V_FC
+        WHERE LTRIM(RTRIM(ISNULL(FOSTAMP,''))) = :fs
+    """)
+    row = db.session.execute(sql, {'fs': fs}).mappings().first() or {}
+    edebf = float(row.get('EDEBF') or 0)
+    ecredf = float(row.get('ECREDF') or 0)
+    aberto = float(row.get('ABERTO') or 0)
+
+    regularizado = abs(edebf) + abs(ecredf)
+    tol = 0.005
+    if regularizado <= tol:
+        status = 'none'
+        locked = False
+    else:
+        if abs(aberto) <= tol:
+            status = 'full'
+            locked = True
+        else:
+            status = 'partial'
+            locked = True
+
+    return {
+        'status': status,
+        'locked': locked,
+        'aberto': aberto,
+        'regularizado': regularizado,
+        'edebf': edebf,
+        'ecredf': ecredf,
+    }
+
+# --------------------------------------------------
 # ACL helper
 # --------------------------------------------------
 def has_permission(table_name: str, action: str) -> bool:
@@ -110,6 +170,15 @@ def fo_compras_form(record_stamp):
         record_stamp=record_stamp,
         menu_label=menu_label
     )
+
+@bp.route('/api/fo/pagamento/<fostamp>', methods=['GET'])
+@login_required
+def api_fo_pagamento(fostamp):
+    try:
+        return jsonify(fo_pagamento_status(fostamp))
+    except Exception as e:
+        current_app.logger.exception('Erro em api_fo_pagamento')
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/fo/tp_options')
 @login_required
@@ -1181,6 +1250,17 @@ def create_record(table_name):
             clean[col_map[lk]] = v
     # â€” end filtra â€”
 
+    # Bloqueio: FO/FN incluÃ­do(s) em pagamento nÃ£o podem ser alterados
+    try:
+        tn = (table_name or '').strip().upper()
+        if tn == 'FN':
+            fs = (clean.get('FOSTAMP') or '').strip()
+            if fs and fo_pagamento_status(fs).get('locked'):
+                return jsonify({'error': 'Documento incluido em pagamento. Nao pode ser alterado.'}), 403
+    except Exception:
+        # nÃ£o bloquear por falhas no check; deixa seguir e o erro aparece no commit se existir
+        pass
+
     try:
         ins = table.insert().values(**clean)
         db.session.execute(ins)
@@ -1238,6 +1318,24 @@ def update_record(table_name, record_stamp):
     data = clean
 
     pk = getattr(table.c, f"{table_name.upper()}STAMP")
+
+    # Bloqueio: FO/FN incluÃ­do(s) em pagamento nÃ£o podem ser alterados
+    try:
+        tn = (table_name or '').strip().upper()
+        if tn == 'FO':
+            if fo_pagamento_status(record_stamp).get('locked'):
+                return jsonify({'error': 'Documento incluido em pagamento. Nao pode ser alterado.'}), 403
+        elif tn == 'FN':
+            row = db.session.execute(
+                text("SELECT TOP 1 LTRIM(RTRIM(ISNULL(FOSTAMP,''))) AS FOSTAMP FROM dbo.FN WHERE FNSTAMP = :id"),
+                {'id': record_stamp}
+            ).mappings().first()
+            fs = (row or {}).get('FOSTAMP') or ''
+            if fs and fo_pagamento_status(fs).get('locked'):
+                return jsonify({'error': 'Documento incluido em pagamento. Nao pode ser alterado.'}), 403
+    except Exception:
+        pass
+
     try:
         upd = table.update().where(pk == record_stamp).values(**data)
         res = db.session.execute(upd)
@@ -1256,6 +1354,23 @@ def update_record(table_name, record_stamp):
 @bp.route('/api/<table_name>/<record_stamp>', methods=['DELETE'])
 @login_required
 def delete_record(table_name, record_stamp):
+    # Bloqueio: FO/FN incluÃ­do(s) em pagamento nÃ£o podem ser eliminados
+    try:
+        tn = (table_name or '').strip().upper()
+        if tn == 'FO':
+            if fo_pagamento_status(record_stamp).get('locked'):
+                return jsonify({'error': 'Documento incluido em pagamento. Nao pode ser eliminado.'}), 403
+        elif tn == 'FN':
+            row = db.session.execute(
+                text("SELECT TOP 1 LTRIM(RTRIM(ISNULL(FOSTAMP,''))) AS FOSTAMP FROM dbo.FN WHERE FNSTAMP = :id"),
+                {'id': record_stamp}
+            ).mappings().first()
+            fs = (row or {}).get('FOSTAMP') or ''
+            if fs and fo_pagamento_status(fs).get('locked'):
+                return jsonify({'error': 'Documento incluido em pagamento. Nao pode ser eliminado.'}), 403
+    except Exception:
+        pass
+
     # ... ACL ...
     pk_name = f"{table_name.upper()}STAMP"
     sql = f"DELETE FROM {table_name} WHERE {pk_name} = :id"

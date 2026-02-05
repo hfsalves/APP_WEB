@@ -2754,6 +2754,648 @@ OPTION (MAXRECURSION 32767);
     def tesouraria_page():
         return render_template('tesouraria.html', page_title='Tesouraria')
 
+    # -----------------------------
+    # Importação de Extrato Bancário (EXT/EL)
+    # -----------------------------
+    @app.route('/extratos_importar')
+    @app.route('/extrato_import')
+    @app.route('/extrato_importar')
+    @login_required
+    def extratos_importar_page():
+        return render_template('extrato_import.html', page_title='Importar Extrato Bancário')
+
+    @app.route('/reconciliacao_bancaria')
+    @app.route('/reconciliacao-bancaria')
+    @login_required
+    def reconciliacao_bancaria_page():
+        return render_template('reconciliacao_bancaria.html', page_title='Reconciliação Bancária')
+
+    @app.route('/api/extratos')
+    @login_required
+    def api_extratos_list():
+        try:
+            cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EXT'")
+                ).fetchall()
+            )
+            need = {'EXTSTAMP', 'NOCONTA', 'DATAINI', 'DATAFIM'}
+            missing = sorted(list(need - cols))
+            if missing:
+                return jsonify({'error': f"Campos em falta na EXT: {', '.join(missing)}"}), 400
+
+            rows = db.session.execute(text("""
+                SELECT EXTSTAMP, NOCONTA, DATAINI, DATAFIM, ISNULL(RECONCILIADO,0) AS RECONCILIADO
+                FROM dbo.EXT
+                ORDER BY DATAFIM DESC, DATAINI DESC, EXTSTAMP DESC
+            """)).mappings().all()
+            out = []
+            for r in rows:
+                di = r.get('DATAINI')
+                df = r.get('DATAFIM')
+                out.append({
+                    'EXTSTAMP': r.get('EXTSTAMP') or '',
+                    'NOCONTA': int(r.get('NOCONTA') or 0),
+                    'DATAINI': di.strftime('%Y-%m-%d') if isinstance(di, (date, datetime)) else (str(di) if di else ''),
+                    'DATAFIM': df.strftime('%Y-%m-%d') if isinstance(df, (date, datetime)) else (str(df) if df else ''),
+                    'RECONCILIADO': int(r.get('RECONCILIADO') or 0),
+                })
+            return jsonify(out)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/extratos/<extstamp>')
+    @login_required
+    def api_extrato_detail(extstamp):
+        """
+        Devolve:
+          - ext: cabeçalho
+          - el: linhas do extrato (EL) com flag de reconciliado + groupid (se existir)
+          - ba: movimentos BA no período/conta com flag de reconciliado + groupid (se existir)
+        """
+        try:
+            extstamp = (extstamp or '').strip()
+            if not extstamp:
+                return jsonify({'error': 'EXTSTAMP obrigatório'}), 400
+
+            ext = db.session.execute(text("""
+                SELECT EXTSTAMP, NOCONTA, DATAINI, DATAFIM
+                FROM dbo.EXT
+                WHERE EXTSTAMP = :s
+            """), {'s': extstamp}).mappings().first()
+            if not ext:
+                return jsonify({'error': 'Extrato não encontrado.'}), 404
+
+            noconta = int(ext.get('NOCONTA') or 0)
+            di = ext.get('DATAINI')
+            df = ext.get('DATAFIM')
+            di_s = di.strftime('%Y-%m-%d') if isinstance(di, (date, datetime)) else str(di)
+            df_s = df.strftime('%Y-%m-%d') if isinstance(df, (date, datetime)) else str(df)
+
+            el_cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EL'")
+                ).fetchall()
+            )
+            if 'EXTSTAMP' not in el_cols:
+                return jsonify({'error': 'A tabela EL precisa do campo EXTSTAMP.'}), 400
+            stamp_col = 'ELSTAMP' if 'ELSTAMP' in el_cols else ('ELSATMP' if 'ELSATMP' in el_cols else None)
+            if not stamp_col:
+                return jsonify({'error': 'A tabela EL precisa de um campo stamp (ELSTAMP ou ELSATMP).'}), 400
+
+            has_rec = db.session.execute(text("""
+                SELECT 1 AS X
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_NAME = 'REC'
+            """)).fetchone()
+            if not has_rec:
+                return jsonify({'error': 'Tabela REC não existe.'}), 400
+
+            # EL lines + reconciled info
+            el_rows = db.session.execute(text(f"""
+                SELECT
+                  LTRIM(RTRIM(EL.{stamp_col})) AS STAMP,
+                  CAST(EL.DATA AS date) AS DATA,
+                  CAST(EL.DTVALOR AS date) AS DTVALOR,
+                  ISNULL(EL.DESCRICAO,'') AS DESCRICAO,
+                  CAST(EL.VALOR AS numeric(12,2)) AS VALOR,
+                  ISNULL(R.GROUPID, 0) AS GROUPID
+                FROM dbo.EL AS EL
+                LEFT JOIN (
+                  SELECT LTRIM(RTRIM(STAMP)) AS STAMP, MAX(GROUPID) AS GROUPID
+                  FROM dbo.REC
+                  WHERE EXTSTAMP = :s AND ORIGEM = 'EL'
+                  GROUP BY LTRIM(RTRIM(STAMP))
+                ) AS R ON R.STAMP = LTRIM(RTRIM(EL.{stamp_col}))
+                WHERE EL.EXTSTAMP = :s
+                ORDER BY CAST(EL.DATA AS date), CAST(EL.DTVALOR AS date), EL.{stamp_col}
+            """), {'s': extstamp}).mappings().all()
+            el_out = []
+            for r in el_rows:
+                d0 = r.get('DATA')
+                dv = r.get('DTVALOR')
+                gid = int(r.get('GROUPID') or 0)
+                el_out.append({
+                    'STAMP': r.get('STAMP') or '',
+                    'DATA': d0.strftime('%Y-%m-%d') if isinstance(d0, (date, datetime)) else (str(d0) if d0 else ''),
+                    'DTVALOR': dv.strftime('%Y-%m-%d') if isinstance(dv, (date, datetime)) else (str(dv) if dv else ''),
+                    'DESCRICAO': r.get('DESCRICAO') or '',
+                    'VALOR': float(r.get('VALOR') or 0),
+                    'RECONCILIADO': 1 if gid > 0 else 0,
+                    'GROUPID': gid,
+                })
+
+            # BA movements normalized (signed) + reconciled info
+            ba_rows = db.session.execute(text("""
+                SELECT
+                  LTRIM(RTRIM(ISNULL(BA.BASTAMP,''))) AS BASTAMP,
+                  CAST(BA.DATA AS date) AS DATA,
+                  ISNULL(BA.DOCUMENTO,'') AS DOCUMENTO,
+                  ISNULL(BA.DESCRICAO,'') AS DESCRICAO,
+                  CAST(ISNULL(BA.EENTRADA,0) - ISNULL(BA.ESAIDA,0) AS numeric(12,2)) AS VALOR
+                FROM dbo.V_BA AS BA
+                WHERE CAST(BA.DATA AS date) BETWEEN :di AND :df
+                  AND (ISNULL(BA.EENTRADA,0) <> 0 OR ISNULL(BA.ESAIDA,0) <> 0)
+                  AND BA.NOCONTA = :acc
+                  AND LTRIM(RTRIM(ISNULL(BA.BASTAMP,''))) <> ''
+                ORDER BY CAST(BA.DATA AS date), ISNULL(BA.DOCUMENTO,''), ISNULL(BA.DESCRICAO,''), ISNULL(BA.BASTAMP,'')
+            """), {'di': di_s, 'df': df_s, 'acc': noconta}).mappings().all()
+
+            # groupid by BA stamp for this ext
+            ba_rec = db.session.execute(text("""
+                SELECT LTRIM(RTRIM(STAMP)) AS STAMP, MAX(GROUPID) AS GROUPID
+                FROM dbo.REC
+                WHERE EXTSTAMP = :s AND ORIGEM = 'BA'
+                GROUP BY LTRIM(RTRIM(STAMP))
+            """), {'s': extstamp}).mappings().all()
+            ba_gid = { (r.get('STAMP') or '').strip(): int(r.get('GROUPID') or 0) for r in ba_rec }
+
+            ba_out = []
+            for r in ba_rows:
+                d0 = r.get('DATA')
+                bastamp = (r.get('BASTAMP') or '').strip()
+                gid = ba_gid.get(bastamp, 0)
+                ba_out.append({
+                    'BASTAMP': bastamp,
+                    'DATA': d0.strftime('%Y-%m-%d') if isinstance(d0, (date, datetime)) else (str(d0) if d0 else ''),
+                    'DOCUMENTO': r.get('DOCUMENTO') or '',
+                    'DESCRICAO': r.get('DESCRICAO') or '',
+                    'VALOR': float(r.get('VALOR') or 0),
+                    'RECONCILIADO': 1 if gid > 0 else 0,
+                    'GROUPID': gid,
+                })
+
+            return jsonify({
+                'ext': {
+                    'EXTSTAMP': extstamp,
+                    'NOCONTA': noconta,
+                    'DATAINI': di_s,
+                    'DATAFIM': df_s,
+                },
+                'el': el_out,
+                'ba': ba_out,
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/reconciliacao', methods=['POST'])
+    @login_required
+    def api_reconciliar():
+        """
+        Cria um grupo REC para um conjunto de linhas EL e BA.
+        Regras:
+          - todas as linhas ficam associadas ao mesmo EXTSTAMP + GROUPID
+          - a soma EL deve igualar a soma BA (diferença ~0)
+        """
+        import uuid
+        from decimal import Decimal
+        from sqlalchemy import bindparam
+        try:
+            body = request.get_json(silent=True) or {}
+            extstamp = (body.get('EXTSTAMP') or '').strip()
+            el_list = body.get('EL') or []
+            ba_list = body.get('BA') or []
+            if not extstamp:
+                return jsonify({'error': 'EXTSTAMP obrigatório'}), 400
+            if not isinstance(el_list, list) or not isinstance(ba_list, list) or not el_list or not ba_list:
+                return jsonify({'error': 'Seleciona pelo menos 1 linha EL e 1 movimento BA.'}), 400
+
+            ext = db.session.execute(text("""
+                SELECT EXTSTAMP, NOCONTA, DATAINI, DATAFIM
+                FROM dbo.EXT
+                WHERE EXTSTAMP = :s
+            """), {'s': extstamp}).mappings().first()
+            if not ext:
+                return jsonify({'error': 'Extrato não encontrado.'}), 404
+
+            noconta = int(ext.get('NOCONTA') or 0)
+            di = ext.get('DATAINI')
+            df = ext.get('DATAFIM')
+            di_s = di.strftime('%Y-%m-%d') if isinstance(di, (date, datetime)) else str(di)
+            df_s = df.strftime('%Y-%m-%d') if isinstance(df, (date, datetime)) else str(df)
+
+            el_cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EL'")
+                ).fetchall()
+            )
+            if 'EXTSTAMP' not in el_cols:
+                return jsonify({'error': 'A tabela EL precisa do campo EXTSTAMP.'}), 400
+            stamp_col = 'ELSTAMP' if 'ELSTAMP' in el_cols else ('ELSATMP' if 'ELSATMP' in el_cols else None)
+            if not stamp_col:
+                return jsonify({'error': 'A tabela EL precisa de um campo stamp (ELSTAMP ou ELSATMP).'}), 400
+
+            # Carrega valores EL
+            el_vals = db.session.execute(text(f"""
+                SELECT LTRIM(RTRIM({stamp_col})) AS STAMP, CAST(VALOR AS numeric(12,2)) AS VALOR
+                FROM dbo.EL
+                WHERE EXTSTAMP = :s AND LTRIM(RTRIM({stamp_col})) IN :ids
+            """).bindparams(bindparam('ids', expanding=True)), {'s': extstamp, 'ids': el_list}).mappings().all()
+            if len(el_vals) != len(set(el_list)):
+                return jsonify({'error': 'Uma ou mais linhas EL não foram encontradas no extrato.'}), 400
+
+            el_sum = sum(Decimal(str(r.get('VALOR') or 0)) for r in el_vals)
+
+            # Carrega valores BA (no período/conta)
+            ba_vals = db.session.execute(text("""
+                SELECT LTRIM(RTRIM(ISNULL(BA.BASTAMP,''))) AS STAMP, CAST(ISNULL(BA.EENTRADA,0) - ISNULL(BA.ESAIDA,0) AS numeric(12,2)) AS VALOR
+                FROM dbo.V_BA AS BA
+                WHERE CAST(BA.DATA AS date) BETWEEN :di AND :df
+                  AND BA.NOCONTA = :acc
+                  AND LTRIM(RTRIM(ISNULL(BA.BASTAMP,''))) IN :ids
+            """).bindparams(bindparam('ids', expanding=True)), {'di': di_s, 'df': df_s, 'acc': noconta, 'ids': ba_list}).mappings().all()
+            if len(ba_vals) != len(set(ba_list)):
+                return jsonify({'error': 'Um ou mais movimentos BA não foram encontrados no período/conta.'}), 400
+
+            ba_sum = sum(Decimal(str(r.get('VALOR') or 0)) for r in ba_vals)
+            diff = (el_sum - ba_sum).copy_abs()
+            if diff > Decimal('0.01'):
+                return jsonify({'error': f'Os valores não batem. Diferença: {float(el_sum - ba_sum):.2f}'}), 400
+
+            # Novo groupid sequencial (lock para evitar duplicados)
+            gid = db.session.execute(text("""
+                SELECT ISNULL(MAX(GROUPID),0) + 1 AS N
+                FROM dbo.REC WITH (UPDLOCK, HOLDLOCK)
+            """)).scalar()
+            gid = int(gid or 1)
+
+            # Inserir REC (uma linha por item)
+            rec_rows = []
+            for r in el_vals:
+                rec_rows.append({
+                    'RECSTAMP': uuid.uuid4().hex[:25].upper(),
+                    'EXTSTAMP': extstamp,
+                    'GROUPID': gid,
+                    'ORIGEM': 'EL',
+                    'STAMP': (r.get('STAMP') or '').strip(),
+                    'VALOR': float(r.get('VALOR') or 0),
+                })
+            for r in ba_vals:
+                rec_rows.append({
+                    'RECSTAMP': uuid.uuid4().hex[:25].upper(),
+                    'EXTSTAMP': extstamp,
+                    'GROUPID': gid,
+                    'ORIGEM': 'BA',
+                    'STAMP': (r.get('STAMP') or '').strip(),
+                    'VALOR': float(r.get('VALOR') or 0),
+                })
+
+            db.session.execute(text("""
+                INSERT INTO dbo.REC (RECSTAMP, EXTSTAMP, GROUPID, ORIGEM, STAMP, VALOR)
+                VALUES (:RECSTAMP, :EXTSTAMP, :GROUPID, :ORIGEM, :STAMP, :VALOR)
+            """), rec_rows)
+
+            # Atualiza EXT.RECONCILIADO se todas as EL estiverem conciliadas
+            not_done = db.session.execute(text(f"""
+                SELECT COUNT(1) AS N
+                FROM dbo.EL AS EL
+                LEFT JOIN dbo.REC AS R
+                  ON R.EXTSTAMP = EL.EXTSTAMP AND R.ORIGEM = 'EL' AND R.STAMP = EL.{stamp_col}
+                WHERE EL.EXTSTAMP = :s
+                  AND R.RECSTAMP IS NULL
+            """), {'s': extstamp}).scalar()
+            if int(not_done or 0) == 0:
+                db.session.execute(text("UPDATE dbo.EXT SET RECONCILIADO = 1 WHERE EXTSTAMP = :s"), {'s': extstamp})
+
+            db.session.commit()
+            return jsonify({'ok': True, 'GROUPID': gid})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/reconciliacao/<extstamp>/<int:groupid>', methods=['DELETE'])
+    @login_required
+    def api_reconciliacao_delete_group(extstamp, groupid):
+        """
+        Remove uma reconciliação (grupo) inteira:
+          - apaga todas as linhas da REC do mesmo EXTSTAMP + GROUPID
+          - recalcula EXT.RECONCILIADO (1 apenas se todas as EL estiverem reconciliadas)
+        """
+        try:
+            extstamp = (extstamp or '').strip()
+            if not extstamp:
+                return jsonify({'error': 'EXTSTAMP obrigatório'}), 400
+            if int(groupid or 0) <= 0:
+                return jsonify({'error': 'GROUPID inválido'}), 400
+
+            # garantir que existe
+            has = db.session.execute(text("""
+                SELECT TOP 1 1 AS X
+                FROM dbo.REC
+                WHERE EXTSTAMP = :s AND GROUPID = :g
+            """), {'s': extstamp, 'g': int(groupid)}).fetchone()
+            if not has:
+                return jsonify({'error': 'Grupo não encontrado.'}), 404
+
+            db.session.execute(text("""
+                DELETE FROM dbo.REC
+                WHERE EXTSTAMP = :s AND GROUPID = :g
+            """), {'s': extstamp, 'g': int(groupid)})
+
+            # Recalcular EXT.RECONCILIADO: 1 apenas se todas as EL tiverem reconciliação
+            el_cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EL'")
+                ).fetchall()
+            )
+            if 'EXTSTAMP' in el_cols:
+                stamp_col = 'ELSTAMP' if 'ELSTAMP' in el_cols else ('ELSATMP' if 'ELSATMP' in el_cols else None)
+                if stamp_col:
+                    not_done = db.session.execute(text(f"""
+                        SELECT COUNT(1) AS N
+                        FROM dbo.EL AS EL
+                        LEFT JOIN dbo.REC AS R
+                          ON R.EXTSTAMP = EL.EXTSTAMP AND R.ORIGEM = 'EL' AND R.STAMP = LTRIM(RTRIM(EL.{stamp_col}))
+                        WHERE EL.EXTSTAMP = :s
+                          AND R.RECSTAMP IS NULL
+                    """), {'s': extstamp}).scalar()
+                    if int(not_done or 0) == 0:
+                        db.session.execute(text("UPDATE dbo.EXT SET RECONCILIADO = 1 WHERE EXTSTAMP = :s"), {'s': extstamp})
+                    else:
+                        db.session.execute(text("UPDATE dbo.EXT SET RECONCILIADO = 0 WHERE EXTSTAMP = :s"), {'s': extstamp})
+
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/extratos/import', methods=['POST'])
+    @login_required
+    def api_extratos_import():
+        """
+        Importa um extrato bancário a partir de um CSV (ou Excel).
+        CSV (separador ';'):
+          - campo 2: DATA
+          - campo 3: DTVALOR
+          - campo 4: DESCRICAO
+          - campo 7: VALOR (com sinal +/-)
+        Excel:
+          Folha: "estrato"
+            - B: DATA
+            - C: DTVALOR
+            - D: DESCRICAO
+            - E: DEBITO (negativo)
+            - F: CREDITO (positivo)
+        Cria EXT + EL.
+        """
+        import io
+        import uuid
+        from decimal import Decimal, InvalidOperation
+        import csv
+
+        # openpyxl é opcional (só para xlsx)
+        load_workbook = None
+        from_excel = None
+        try:
+            from openpyxl import load_workbook as _lw
+            from openpyxl.utils.datetime import from_excel as _fe
+            load_workbook = _lw
+            from_excel = _fe
+        except Exception:
+            load_workbook = None
+            from_excel = None
+
+        def to_date(v):
+            if v is None or v == '':
+                return None
+            if isinstance(v, datetime):
+                return v.date()
+            if isinstance(v, date):
+                return v
+            if isinstance(v, (int, float)) and from_excel:
+                try:
+                    dt = from_excel(v)
+                    return dt.date() if isinstance(dt, datetime) else dt
+                except Exception:
+                    return None
+            if isinstance(v, str):
+                s = v.strip()
+                if not s:
+                    return None
+                for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y'):
+                    try:
+                        return datetime.strptime(s, fmt).date()
+                    except Exception:
+                        pass
+            return None
+
+        def to_dec(v):
+            if v is None or v == '':
+                return Decimal('0')
+            if isinstance(v, Decimal):
+                return v
+            if isinstance(v, (int, float)):
+                return Decimal(str(v))
+            if isinstance(v, str):
+                s = v.strip().replace('.', '').replace(',', '.')
+                if s in ('', '-', '+'):
+                    return Decimal('0')
+                try:
+                    return Decimal(s)
+                except InvalidOperation:
+                    return Decimal('0')
+            try:
+                return Decimal(str(v))
+            except Exception:
+                return Decimal('0')
+
+        try:
+            noconta = (request.form.get('noconta') or '').strip()
+            dataini = (request.form.get('dataini') or '').strip()
+            datafim = (request.form.get('datafim') or '').strip()
+            saldoini = (request.form.get('saldoini') or '0').strip()
+            saldofim = (request.form.get('saldofim') or '0').strip()
+            f = request.files.get('file')
+
+            if not noconta:
+                return jsonify({'error': 'Conta em falta.'}), 400
+            if not dataini or not datafim:
+                return jsonify({'error': 'Data início/fim em falta.'}), 400
+            if not f or not getattr(f, 'filename', ''):
+                return jsonify({'error': 'Ficheiro em falta.'}), 400
+            filename = (getattr(f, 'filename', '') or '').lower()
+
+            try:
+                noconta_i = int(noconta)
+            except Exception:
+                return jsonify({'error': 'NOCONTA inválido.'}), 400
+
+            try:
+                di = datetime.strptime(dataini, '%Y-%m-%d').date()
+                df = datetime.strptime(datafim, '%Y-%m-%d').date()
+            except Exception:
+                return jsonify({'error': 'Datas inválidas (YYYY-MM-DD).'}), 400
+
+            if df < di:
+                return jsonify({'error': 'Data fim não pode ser inferior à data início.'}), 400
+
+            if len(saldoini) > 10 or len(saldofim) > 10:
+                return jsonify({'error': 'Saldo início/fim demasiado longo (máx 10 caracteres).'}), 400
+
+            # Verifica colunas da tabela EL
+            el_cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EL'")
+                ).fetchall()
+            )
+            ext_cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EXT'")
+                ).fetchall()
+            )
+            need_ext = {'EXTSTAMP', 'NOCONTA', 'DATAINI', 'DATAFIM', 'SALDOINI', 'SALDOFIM', 'RECONCILIADO'}
+            missing_ext = sorted(list(need_ext - ext_cols))
+            if missing_ext:
+                return jsonify({'error': f"Campos em falta na EXT: {', '.join(missing_ext)}"}), 400
+
+            # Precisamos de ligar EL ao cabeçalho
+            if 'EXTSTAMP' not in el_cols:
+                return jsonify({'error': 'A tabela EL precisa do campo EXTSTAMP para ligar ao cabeçalho.'}), 400
+
+            stamp_col = 'ELSTAMP' if 'ELSTAMP' in el_cols else ('ELSATMP' if 'ELSATMP' in el_cols else None)
+            if not stamp_col:
+                return jsonify({'error': 'A tabela EL precisa de um campo stamp (ELSTAMP ou ELSATMP).'}), 400
+
+            rows_in = []
+            skipped = 0
+            file_bytes = f.read()
+
+            if filename.endswith('.csv'):
+                # decode best-effort (PT banks often cp1252/latin1)
+                text_data = None
+                for enc in ('utf-8-sig', 'utf-8', 'cp1252', 'latin-1'):
+                    try:
+                        text_data = file_bytes.decode(enc)
+                        break
+                    except Exception:
+                        continue
+                if text_data is None:
+                    return jsonify({'error': 'Não foi possível ler o CSV (encoding).'}), 400
+
+                rdr = csv.reader(io.StringIO(text_data), delimiter=';')
+                for row in rdr:
+                    if not row or len(row) < 7:
+                        continue
+                    data0 = to_date(row[1])
+                    dtval0 = to_date(row[2])
+                    desc0 = (row[3] or '').strip()
+
+                    # Alguns CSVs trazem débito/crédito em colunas separadas (débitos já negativos).
+                    # Heurística:
+                    #   - tenta 6ª e 7ª colunas (1-based) => indexes 5 e 6 (0-based)
+                    #   - se der zero, tenta o primeiro número não-zero a seguir à descrição
+                    deb = to_dec(row[5]) if len(row) > 5 else Decimal('0')
+                    cred = to_dec(row[6]) if len(row) > 6 else Decimal('0')
+                    valor = (deb or Decimal('0')) + (cred or Decimal('0'))
+                    if abs(valor) < Decimal('0.005'):
+                        for cell in row[4:]:
+                            v2 = to_dec(cell)
+                            if abs(v2) >= Decimal('0.005'):
+                                valor = v2
+                                break
+
+                    if data0 is None:
+                        continue
+                    # filtra pelo intervalo escolhido
+                    if data0 < di or data0 > df:
+                        skipped += 1
+                        continue
+                    if dtval0 is None:
+                        dtval0 = data0
+                    if abs(valor) < Decimal('0.005'):
+                        skipped += 1
+                        continue
+                    rows_in.append({
+                        'DATA': data0,
+                        'DTVALOR': dtval0,
+                        'DESCRICAO': (desc0 or '')[:200],
+                        'VALOR': valor.quantize(Decimal('0.01')),
+                    })
+            else:
+                if not load_workbook:
+                    return jsonify({'error': 'Para importar Excel (.xlsx) é necessário instalar openpyxl.'}), 400
+
+                wb = load_workbook(io.BytesIO(file_bytes), data_only=True)
+                ws = None
+                for name in wb.sheetnames:
+                    if (name or '').strip().lower() == 'estrato':
+                        ws = wb[name]
+                        break
+                if ws is None:
+                    return jsonify({'error': 'Folha "estrato" não encontrada no Excel.'}), 400
+
+                for row in ws.iter_rows(values_only=True):
+                    # Colunas B..F => indexes 1..5 (0-based)
+                    if not row or len(row) < 6:
+                        continue
+                    data0 = to_date(row[1])
+                    dtval0 = to_date(row[2])
+                    desc0 = (row[3] or '').strip() if isinstance(row[3], str) else (str(row[3]).strip() if row[3] is not None else '')
+                    deb = to_dec(row[4])
+                    cred = to_dec(row[5])
+                    valor = (cred or Decimal('0')) + (deb or Decimal('0'))
+
+                    if data0 is None:
+                        continue
+                    if data0 < di or data0 > df:
+                        skipped += 1
+                        continue
+                    if dtval0 is None:
+                        dtval0 = data0
+                    if abs(valor) < Decimal('0.005'):
+                        skipped += 1
+                        continue
+                    rows_in.append({
+                        'DATA': data0,
+                        'DTVALOR': dtval0,
+                        'DESCRICAO': (desc0 or '')[:200],
+                        'VALOR': valor.quantize(Decimal('0.01')),
+                    })
+
+            if not rows_in:
+                return jsonify({'error': 'Não foram encontradas linhas válidas para importar.'}), 400
+
+            extstamp = uuid.uuid4().hex[:25].upper()
+
+            db.session.execute(text("""
+                INSERT INTO dbo.EXT (EXTSTAMP, NOCONTA, DATAINI, DATAFIM, SALDOINI, SALDOFIM, RECONCILIADO)
+                VALUES (:s, :n, :di, :df, :si, :sf, 0)
+            """), {'s': extstamp, 'n': noconta_i, 'di': di, 'df': df, 'si': saldoini, 'sf': saldofim})
+
+            # Inserção de linhas
+            el_rows = []
+            for r0 in rows_in:
+                el_rows.append({
+                    'EXTSTAMP': extstamp,
+                    'STAMP': uuid.uuid4().hex[:25].upper(),
+                    'DATA': r0['DATA'],
+                    'DTVALOR': r0['DTVALOR'],
+                    'DESCRICAO': r0['DESCRICAO'],
+                    'VALOR': r0['VALOR'],
+                })
+
+            ins = text(f"""
+                INSERT INTO dbo.EL ({stamp_col}, EXTSTAMP, DATA, DTVALOR, DESCRICAO, VALOR)
+                VALUES (:STAMP, :EXTSTAMP, :DATA, :DTVALOR, :DESCRICAO, :VALOR)
+            """)
+            db.session.execute(ins, el_rows)
+            db.session.commit()
+
+            sample = [
+                {
+                    'DATA': r['DATA'].strftime('%Y-%m-%d') if isinstance(r['DATA'], date) else str(r['DATA']),
+                    'DTVALOR': r['DTVALOR'].strftime('%Y-%m-%d') if isinstance(r['DTVALOR'], date) else str(r['DTVALOR']),
+                    'DESCRICAO': r['DESCRICAO'],
+                    'VALOR': float(r['VALOR']),
+                }
+                for r in rows_in[:50]
+            ]
+            return jsonify({'ok': True, 'EXTSTAMP': extstamp, 'inserted': len(rows_in), 'skipped': skipped, 'sample': sample})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/generic/api/tesouraria/contas')
     @login_required
     def api_tesouraria_contas():

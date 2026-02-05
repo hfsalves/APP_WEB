@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% set page_title = "Importar Extrato Banc&aacute;rio" %}
+{% set page_name = "Importar Extrato Banc&aacute;rio" %}
+
+{% block title %}Importar Extrato Banc&aacute;rio{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="row g-3">
+    <div class="col-12 col-lg-5">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+            <div>
+              <div class="h5 mb-0">Importar extrato</div>
+              <div class="text-muted small">CSV (separador <span class="badge bg-light text-dark">;</span>)</div>
+            </div>
+          </div>
+
+          <form id="extForm" enctype="multipart/form-data">
+            <div class="mb-2">
+              <label class="form-label" for="extConta">Conta</label>
+              <select class="form-select" id="extConta" name="noconta" required></select>
+            </div>
+
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label" for="extIni">Data in&iacute;cio</label>
+                <input type="date" class="form-control" id="extIni" name="dataini" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="extFim">Data fim</label>
+                <input type="date" class="form-control" id="extFim" name="datafim" required>
+              </div>
+            </div>
+
+            <div class="row g-2 mt-0">
+              <div class="col-6">
+                <label class="form-label" for="extSaldoIni">Saldo in&iacute;cio</label>
+                <input type="text" class="form-control" id="extSaldoIni" name="saldoini" value="0" inputmode="decimal">
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="extSaldoFim">Saldo fim</label>
+                <input type="text" class="form-control" id="extSaldoFim" name="saldofim" value="0" inputmode="decimal">
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <label class="form-label" for="extFile">Ficheiro CSV</label>
+              <input class="form-control" type="file" id="extFile" name="file" accept=".csv,text/csv" required>
+              <div class="form-text text-muted">
+                Campos (mais comum): data (2), data valor (3), descri&ccedil;&atilde;o (4), d&eacute;bito (6, negativo) e/ou cr&eacute;dito (7, positivo)
+              </div>
+            </div>
+
+            <div class="mt-3 d-flex align-items-center justify-content-between gap-2">
+              <div class="text-muted small" id="extStatus"></div>
+              <button type="submit" class="btn btn-primary" id="extSubmit">
+                <i class="fa-solid fa-file-import me-1"></i> Importar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-7">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="h6 mb-0">Resultado</div>
+            <span class="badge bg-light text-dark" id="extCount">0</span>
+          </div>
+          <div class="text-muted small mb-2" id="extMeta">Sem importa&ccedil;&otilde;es.</div>
+
+          <div class="table-responsive ext-table-wrap">
+            <table class="table table-sm align-middle mb-0" id="extPreview">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width:110px;">Data</th>
+                  <th style="width:110px;">Dt. Valor</th>
+                  <th>Descri&ccedil;&atilde;o</th>
+                  <th class="text-end" style="width:120px;">Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="4" class="text-muted">Sem dados.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .ext-table-wrap{ max-height: calc(100vh - 220px); overflow:auto; border:1px solid #e5e7eb; border-radius: 12px; }
+  #extPreview thead th{ position: sticky; top: 0; z-index: 2; }
+</style>
+<script src="{{ url_for('static', filename='js/extrato_import.js') }}?v={{ static_version }}"></script>
+{% endblock %}

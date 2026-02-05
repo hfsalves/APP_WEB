@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% set page_title = "Reconciliação Bancária" %}
+{% set page_name = "Reconciliação Bancária" %}
+
+{% block title %}Reconciliação Bancária{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 rb-page">
+  <div class="card border-0 shadow-sm rb-top">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-end justify-content-between gap-2">
+        <div class="d-flex flex-wrap align-items-end gap-2">
+          <div style="min-width: 320px;">
+            <label class="form-label mb-1" for="rbExtrato">Extrato</label>
+            <select class="form-select" id="rbExtrato"></select>
+          </div>
+          <div>
+            <label class="form-label mb-1" for="rbConta">Conta</label>
+            <input class="form-control" id="rbConta" disabled>
+          </div>
+          <div>
+            <label class="form-label mb-1" for="rbPeriodo">Per&iacute;odo</label>
+            <input class="form-control" id="rbPeriodo" disabled>
+          </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+          <div class="form-check form-switch mb-0 me-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="rbOnlyOpen">
+            <label class="form-check-label small text-muted" for="rbOnlyOpen">S&oacute; n&atilde;o reconciliados</label>
+          </div>
+          <div class="text-end">
+            <div class="text-muted small">Diferen&ccedil;a</div>
+            <div class="fw-bold rb-diff" id="rbDiff">0,00</div>
+          </div>
+          <button type="button" class="btn btn-success rb-btn" id="rbReconciliar" disabled>
+            <i class="fa-solid fa-link me-1"></i> Reconciliar
+          </button>
+          <button type="button" class="btn btn-outline-danger rb-btn" id="rbRemoveRec" disabled>
+            <i class="fa-solid fa-unlink me-1"></i> Remover
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-2 d-flex flex-wrap align-items-center gap-3 small text-muted">
+        <div>Selecionado EL: <span class="fw-bold" id="rbSumEl">0,00</span></div>
+        <div>Selecionado BA: <span class="fw-bold" id="rbSumBa">0,00</span></div>
+        <div id="rbStatus" class="ms-auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 rb-split">
+    <div class="col-12 col-xl-6">
+      <div class="card border-0 shadow-sm h-100 rb-panel">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <div class="h6 mb-0">Banco (EL)</div>
+            <div class="input-group input-group-sm rb-search">
+              <input class="form-control" id="rbSearchEl" placeholder="Pesquisar...">
+              <button class="btn btn-outline-secondary" type="button" id="rbClearEl" title="Limpar">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
+          <div class="rb-grid-wrap">
+            <table class="table table-sm table-hover align-middle mb-0 rb-table" id="rbTableEl">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:38px;"></th>
+                  <th style="width:110px;">Data</th>
+                  <th style="width:110px;">Dt. Valor</th>
+                  <th>Descri&ccedil;&atilde;o</th>
+                  <th class="text-end" style="width:120px;">Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-6">
+      <div class="card border-0 shadow-sm h-100 rb-panel">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <div class="h6 mb-0">Tesouraria (BA)</div>
+            <div class="input-group input-group-sm rb-search">
+              <input class="form-control" id="rbSearchBa" placeholder="Pesquisar...">
+              <button class="btn btn-outline-secondary" type="button" id="rbClearBa" title="Limpar">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
+          <div class="rb-grid-wrap">
+            <table class="table table-sm table-hover align-middle mb-0 rb-table" id="rbTableBa">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:38px;"></th>
+                  <th style="width:110px;">Data</th>
+                  <th>Documento</th>
+                  <th>Descri&ccedil;&atilde;o</th>
+                  <th class="text-end" style="width:120px;">Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="text-muted small mt-2">Valor BA = EENTRADA - ESAIDA</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  /* main-content tem padding 1rem (top+bottom=2rem) e está abaixo de um header com --header-height */
+  .rb-page{
+    height: calc(100vh - var(--header-height, 3.5rem) - 2rem);
+    display:flex;
+    flex-direction:column;
+    gap: 12px;
+    overflow:hidden;
+    box-sizing: border-box;
+    min-height: 0;
+  }
+  .rb-top{ flex: 0 0 auto; }
+  /* flex-basis:0 e height:0 ajudam a impedir que o conteúdo "empurre" os containers */
+  .rb-split{ flex: 1 1 0; height: 0; min-height: 0; overflow:hidden; }
+  .rb-split > [class*="col-"]{ display:flex; min-height: 0; }
+  .rb-panel{ min-height: 0; flex: 1 1 0; display:flex; flex-direction:column; overflow:hidden; }
+  .rb-panel .card-body{ display:flex; flex-direction:column; min-height: 0; flex: 1 1 0; overflow:hidden; }
+  .rb-grid-wrap{
+    border:1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow-x: auto;
+    overflow-y: auto;
+    flex: 1 1 0;
+    min-height: 0;
+    height: auto;
+    max-height: 100%;
+    overscroll-behavior: contain;
+  }
+  .rb-table thead th{ position: sticky; top: 0; z-index: 2; }
+  .rb-table{ font-size: 12px; }
+  .rb-table thead th{ font-size: 11px; letter-spacing: .2px; }
+  .rb-table td{ padding-top: 6px; padding-bottom: 6px; }
+  .rb-search{ max-width: 260px; }
+  .rb-btn{ border-radius: 999px; font-weight: 900; padding: 10px 14px; }
+  .rb-diff{ font-variant-numeric: tabular-nums; }
+  .rb-money{ font-variant-numeric: tabular-nums; font-weight: 800; }
+  /* Bootstrap define a cor base via selector bem específico; por isso usamos maior especificidade aqui */
+  .rb-table td.rb-money.rb-neg{ color:#b91c1c; }
+  .rb-table td.rb-money.rb-pos{ color:#166534; }
+  /* Bootstrap aplica backgrounds via selectors nas células; por isso pintamos os TDs */
+  .rb-table tbody tr.rb-reconciled > *{
+    background-color: rgba(34,197,94,.10) !important;
+  }
+  .rb-table.table-hover tbody tr.rb-reconciled:hover > *{
+    background-color: rgba(34,197,94,.14) !important;
+  }
+  .rb-table tbody tr.rb-reconciled{
+    opacity: 1;
+    filter: none;
+    border-left: 3px solid rgba(34,197,94,.85);
+  }
+  .rb-reconciled td{
+    color:#0f172a;
+  }
+  .rb-reconciled .rb-money{
+    font-weight: 900;
+  }
+  .rb-pill{
+    display:inline-flex;
+    align-items:center;
+    border-radius:999px;
+    padding: 1px 7px;
+    border:1px solid rgba(15,23,42,.14);
+    background: rgba(15,23,42,.04);
+    font-size: 11px;
+    font-weight: 800;
+    color:#0f172a;
+    margin-left: 6px;
+    white-space: nowrap;
+  }
+</style>
+<script src="{{ url_for('static', filename='js/reconciliacao_bancaria.js') }}?v={{ static_version }}"></script>
+{% endblock %}

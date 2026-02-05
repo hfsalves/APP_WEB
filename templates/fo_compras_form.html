@@ -11,6 +11,7 @@
   <div class="fo-status-row d-flex gap-2 mb-2" id="foStatusRow" style="display:none;">
     <div class="fo-status-card sync" id="foSyncBadge">Sincronizado</div>
     <div class="fo-status-card plano" id="foPlanoBadge">Contabilizado</div>
+    <div class="fo-status-card pago" id="foPagoBadge" style="display:none;">Pago</div>
   </div>
 
   <section class="dynamic-form-body dynamic-form-body-modern">
@@ -36,11 +37,15 @@
             <label class="form-label" for="ADOC">Numero <span class="text-danger">*</span></label>
             <input type="text" id="ADOC" name="ADOC" class="form-control" required>
           </div>
-          <div class="col-md-3">
+          <div class="col-md-2">
             <label class="form-label" for="DATA">Data <span class="text-danger">*</span></label>
             <input type="date" id="DATA" name="DATA" class="form-control" required>
           </div>
-          <div class="col-md-3">
+          <div class="col-md-2">
+            <label class="form-label" for="DOCDATA">Data Documento <span class="text-danger">*</span></label>
+            <input type="date" id="DOCDATA" name="DOCDATA" class="form-control" required>
+          </div>
+          <div class="col-md-2">
             <label class="form-label" for="PDATA">Vencimento <span class="text-danger">*</span></label>
             <input type="date" id="PDATA" name="PDATA" class="form-control" required>
           </div>
@@ -128,6 +133,7 @@
             <th>IVA</th>
             <th>Incl.</th>
             <th>C. Custo</th>
+            <th>DT. CUSTO</th>
             <th>Família</th>
             <th></th>
           </tr>
@@ -195,7 +201,6 @@
   .fo-lines-table tbody tr td:nth-child(1),
   .fo-lines-table thead th:nth-child(1) {
     text-align: left !important;
-    width: auto !important;
   }
   .fo-lines-table {
     width: 100%;
@@ -292,29 +297,31 @@
   .fo-totals-col.invisible-slot {
     visibility: hidden;
   }
-  /* Column widths proportional to visible chars */
+  /* Column widths (ajustado: REF mais largo, C. Custo mais curto) */
   .fo-lines-table thead th:nth-child(1),
-  .fo-lines-table tbody td:nth-child(1) { width: 10.9%; min-width: 12ch; } /* REF ~20 */
+  .fo-lines-table tbody td:nth-child(1) { width: 12.5%; min-width: 14ch; } /* REF */
   .fo-lines-table thead th:nth-child(2),
-  .fo-lines-table tbody td:nth-child(2) { width: 21.9%; min-width: 22ch; } /* DESIGN ~40 */
+  .fo-lines-table tbody td:nth-child(2) { width: 20%; min-width: 22ch; } /* DESIGN */
   .fo-lines-table thead th:nth-child(3),
-  .fo-lines-table tbody td:nth-child(3) { width: 8.2%; min-width: 10ch; }  /* QTT ~15 */
+  .fo-lines-table tbody td:nth-child(3) { width: 7.5%; min-width: 9ch; }  /* QTT */
   .fo-lines-table thead th:nth-child(4),
-  .fo-lines-table tbody td:nth-child(4) { width: 4.4%; min-width: 7ch; }   /* UN ~8 */
+  .fo-lines-table tbody td:nth-child(4) { width: 4%; min-width: 6ch; }   /* UN */
   .fo-lines-table thead th:nth-child(5),
-  .fo-lines-table tbody td:nth-child(5) { width: 8.2%; min-width: 10ch; }  /* EPV ~15 */
+  .fo-lines-table tbody td:nth-child(5) { width: 7.5%; min-width: 9ch; }  /* EPV */
   .fo-lines-table thead th:nth-child(6),
-  .fo-lines-table tbody td:nth-child(6) { width: 8.2%; min-width: 10ch; }  /* TOTAL ~15 */
+  .fo-lines-table tbody td:nth-child(6) { width: 7.5%; min-width: 9ch; }  /* TOTAL */
   .fo-lines-table thead th:nth-child(7),
-  .fo-lines-table tbody td:nth-child(7) { width: 6.6%; min-width: 9ch; }   /* IVA ~12 */
+  .fo-lines-table tbody td:nth-child(7) { width: 6%; min-width: 9ch; }   /* IVA */
   .fo-lines-table thead th:nth-child(8),
-  .fo-lines-table tbody td:nth-child(8) { width: 4.4%; min-width: 6ch; }   /* IVAINCL ~8 */
+  .fo-lines-table tbody td:nth-child(8) { width: 3%; min-width: 5ch; }   /* IVAINCL */
   .fo-lines-table thead th:nth-child(9),
-  .fo-lines-table tbody td:nth-child(9) { width: 16.4%; min-width: 18ch; } /* FNCCUSTO ~30 */
+  .fo-lines-table tbody td:nth-child(9) { width: 13%; min-width: 16ch; } /* FNCCUSTO */
   .fo-lines-table thead th:nth-child(10),
-  .fo-lines-table tbody td:nth-child(10) { width: 10.9%; min-width: 14ch; }/* FAMILIA ~20 */
+  .fo-lines-table tbody td:nth-child(10) { width: 7.5%; min-width: 12ch; }/* DTCUSTO */
   .fo-lines-table thead th:nth-child(11),
-  .fo-lines-table tbody td:nth-child(11) { width: 3%; min-width: 6ch; }    /* Ações */
+  .fo-lines-table tbody td:nth-child(11) { width: 9%; min-width: 14ch; }  /* FAMILIA */
+  .fo-lines-table thead th:nth-child(12),
+  .fo-lines-table tbody td:nth-child(12) { width: 2.5%; min-width: 6ch; } /* Ações */
 </style>
 
 <style>

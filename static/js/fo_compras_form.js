@@ -12,6 +12,8 @@ let deletedLineIds = [];
 let foLoadedData = null;
 let foSyncValue = 0;
 let foPlanoValue = 0;
+let foPagoStatus = 'none'; // none | partial | full
+let foPagoLocked = false;
 let tabivaOptions = [];
 let ccustoOptions = [];
 let tabivaLoaded = false;
@@ -71,16 +73,20 @@ const anexoPreviewBody = document.getElementById('anexoPreviewBody');
 const anexoPreviewTitle = document.getElementById('anexoPreviewTitle');
 const anexoPreviewModal = anexoPreviewModalEl ? new bootstrap.Modal(anexoPreviewModalEl) : null;
 
+function isFoLocked() {
+  return Number(foPlanoValue) === 1 || foPagoLocked === true;
+}
+
 const foFields = [
   'FOSTAMP',
-  'DOCNOME', 'ADOC', 'DATA', 'PDATA',
+  'DOCNOME', 'ADOC', 'DATA', 'DOCDATA', 'PDATA',
   'NO', 'NOME', 'NCONT', 'CCUSTO',
   'MORADA', 'LOCAL', 'CODPOST',
   'TPSTAMP', 'OLLOCAL', 'TPDESC',
   'ETTILIQ', 'ETTIVA', 'ETOTAL',
   'COLAB', 'SYNC', 'PLANO'
 ];
-const fnFields = ['FNSTAMP','REF','DESIGN','UNIDADE','TAXAIVA','QTT','IVA','IVAINCL','TABIVA','LORDEM','ETILIQUIDO','EPV','FNCCUSTO','FAMILIA'];
+const fnFields = ['FNSTAMP','REF','DESIGN','DTCUSTO','UNIDADE','TAXAIVA','QTT','IVA','IVAINCL','TABIVA','LORDEM','ETILIQUIDO','EPV','FNCCUSTO','FAMILIA'];
 
 function randomStamp() {
   if (crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '').toUpperCase().slice(0, 25);
@@ -117,8 +123,21 @@ function setFoFormValues(data = {}) {
   selectOptionTrim(document.getElementById('TPDESC'), data.TPDESC);
   selectOptionTrim(document.getElementById('COLAB'), data.COLAB);
   toggleColabVisibility();
+  syncDocdataFromDataIfEmpty();
   renderFoStatusBadges();
   applyEditLocks();
+}
+
+function toDateInputValue(v) {
+  if (v == null) return null;
+  const s = v.toString().trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  try {
+    const d = new Date(s);
+    if (!Number.isNaN(d)) return d.toISOString().slice(0, 10);
+  } catch (_) {}
+  return null;
 }
 
 function selectOptionTrim(selectEl, targetVal) {
@@ -146,6 +165,9 @@ function getFoPayload() {
       payload[f] = el.value;
     }
   });
+  if (!payload.DOCDATA && payload.DATA) {
+    payload.DOCDATA = payload.DATA;
+  }
   if (!payload.FOSTAMP) payload.FOSTAMP = currentFoStamp || randomStamp();
   const todayIso = new Date().toISOString();
   const todayDate = todayIso.slice(0, 10);
@@ -192,6 +214,15 @@ function getFoPayload() {
   return payload;
 }
 
+function syncDocdataFromDataIfEmpty() {
+  const dataEl = document.getElementById('DATA');
+  const docEl = document.getElementById('DOCDATA');
+  if (!dataEl || !docEl) return;
+  if (docEl.value) return;
+  if (!dataEl.value) return;
+  docEl.value = dataEl.value;
+}
+
 async function loadFo() {
   if (!currentFoStamp) return;
   const res = await fetch(`/generic/api/${FO_TABLE}/${currentFoStamp}`);
@@ -200,6 +231,27 @@ async function loadFo() {
   setFoFormValues(data);
   selectOptionTrim(document.getElementById('DOCNOME'), data.DOCNOME);
   selectOptionTrim(document.getElementById('TPDESC'), data.TPDESC);
+  await loadFoPagamentoStatus();
+}
+
+async function loadFoPagamentoStatus() {
+  if (!currentFoStamp) return;
+  foPagoStatus = 'none';
+  foPagoLocked = false;
+  try {
+    const res = await fetch(`/generic/api/fo/pagamento/${encodeURIComponent(currentFoStamp)}`);
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    const status = (data?.status || 'none').toString().trim().toLowerCase();
+    foPagoStatus = (status === 'full' || status === 'partial') ? status : 'none';
+    foPagoLocked = Boolean(data?.locked) === true && foPagoStatus !== 'none';
+  } catch (_) {
+    foPagoStatus = 'none';
+    foPagoLocked = false;
+  }
+  renderFoStatusBadges();
+  applyEditLocks();
+  renderLines();
 }
 
 async function refreshAnexos() {
@@ -285,8 +337,10 @@ function renderFoStatusBadges() {
   const row = document.getElementById('foStatusRow');
   const sync = document.getElementById('foSyncBadge');
   const plano = document.getElementById('foPlanoBadge');
+  const pago = document.getElementById('foPagoBadge');
   const showSync = Number(foSyncValue) === 1;
   const showPlano = Number(foPlanoValue) === 1;
+  const showPago = foPagoStatus === 'full' || foPagoStatus === 'partial';
   const applyCardStyles = (el, type) => {
     if (!el) return;
     const base = [
@@ -305,6 +359,10 @@ function renderFoStatusBadges() {
       base.push('background:#0d6efd', 'color:#fff', 'border-color:#0b5ed7');
     } else if (type === 'plano') {
       base.push('background:#198754', 'color:#fff', 'border-color:#146c43');
+    } else if (type === 'pago_full') {
+      base.push('background:#0f766e', 'color:#fff', 'border-color:#0f766e');
+    } else if (type === 'pago_partial') {
+      base.push('background:#f59e0b', 'color:#111827', 'border-color:#d97706');
     } else {
       base.push('background:#e2e8f0', 'color:#0f172a');
     }
@@ -313,40 +371,55 @@ function renderFoStatusBadges() {
 
   if (sync) sync.style.display = showSync ? 'inline-flex' : 'none';
   if (plano) plano.style.display = showPlano ? 'inline-flex' : 'none';
+  if (pago) pago.style.display = showPago ? 'inline-flex' : 'none';
   if (showSync) applyCardStyles(sync, 'sync');
   if (showPlano) applyCardStyles(plano, 'plano');
+  if (showPago && pago) {
+    pago.textContent = (foPagoStatus === 'full') ? 'Pago' : 'Pago Parcialmente';
+    applyCardStyles(pago, foPagoStatus === 'full' ? 'pago_full' : 'pago_partial');
+  }
   if (row) {
-    const any = showSync || showPlano;
+    const any = showSync || showPlano || showPago;
     row.style.display = any ? 'flex' : 'none';
   }
 }
 
 function applyEditLocks() {
-  const isPlano = Number(foPlanoValue) === 1;
-  const disableDelete = isPlano || Number(foSyncValue) === 1;
+  const locked = isFoLocked();
+  const disableDelete = locked || Number(foSyncValue) === 1;
   if (btnSaveFo) {
-    btnSaveFo.disabled = isPlano;
-    btnSaveFo.classList.toggle('disabled', isPlano);
+    btnSaveFo.disabled = locked;
+    btnSaveFo.classList.toggle('disabled', locked);
   }
   if (btnDeleteFo) {
     btnDeleteFo.disabled = disableDelete;
     btnDeleteFo.classList.toggle('disabled', disableDelete);
   }
   if (btnAddLine) {
-    btnAddLine.disabled = isPlano;
-    btnAddLine.classList.toggle('disabled', isPlano);
+    btnAddLine.disabled = locked;
+    btnAddLine.classList.toggle('disabled', locked);
   }
   if (btnImportContrato) {
-    btnImportContrato.disabled = isPlano;
-    btnImportContrato.classList.toggle('disabled', isPlano);
+    btnImportContrato.disabled = locked;
+    btnImportContrato.classList.toggle('disabled', locked);
   }
-  if (isPlano && form) {
+  if (locked && form) {
     form.querySelectorAll('input, select, textarea, button').forEach(el => {
       if (el.type === 'hidden') return;
       if (el.id === 'btnCancelFo') return; // permite sair
       el.disabled = true;
     });
   }
+
+  if (btnSaveLine) btnSaveLine.disabled = locked;
+
+  // anexos
+  if (btnAddAnexo) btnAddAnexo.disabled = locked;
+  if (inputAnexoFile) inputAnexoFile.disabled = locked;
+  if (inputAnexoCamera) inputAnexoCamera.disabled = locked;
+  anexosList?.querySelectorAll('button[data-anx-id]')?.forEach(b => {
+    b.disabled = locked;
+  });
 }
 
 function buildFoObs(payload) {
@@ -1078,7 +1151,7 @@ async function loadLines() {
     recalcTotals();
     if (tabivaLoaded && linesData?.length) renderLines();
   } catch {
-    linesTableBody.innerHTML = '<tr><td colspan="11" class="text-danger">Erro ao carregar linhas</td></tr>';
+    linesTableBody.innerHTML = '<tr><td colspan="12" class="text-danger">Erro ao carregar linhas</td></tr>';
   }
 }
 
@@ -1088,6 +1161,7 @@ function renderTabivaSelect(line) {
   const lineTaxa = (line.TAXAIVA ?? '').toString().trim();
   const sel = document.createElement('select');
   sel.className = 'form-select form-select-sm';
+  sel.disabled = isFoLocked();
   sel.dataset.line = line.FNSTAMP;
   sel.dataset.field = 'TABIVA';
   sel.innerHTML = '<option value=""></option>';
@@ -1139,6 +1213,7 @@ function renderCcustoSelect(line) {
   const lineCcusto = (line.FNCCUSTO ?? '').toString().trim();
   const sel = document.createElement('select');
   sel.className = 'form-select form-select-sm';
+  sel.disabled = isFoLocked();
   sel.dataset.line = line.FNSTAMP;
   sel.dataset.field = 'FNCCUSTO';
   sel.innerHTML = '<option value=""></option>';
@@ -1256,9 +1331,11 @@ function attachRefAutocompleteInline(input) {
 function renderLines() {
   if (!linesTableBody) return;
   if (!linesData.length) {
-    linesTableBody.innerHTML = '<tr><td colspan="11" class="text-muted">Sem linhas</td></tr>';
+    linesTableBody.innerHTML = '<tr><td colspan="12" class="text-muted">Sem linhas</td></tr>';
     return;
   }
+  const locked = isFoLocked();
+  const dis = locked ? 'disabled' : '';
   normalizeLineOrder();
   linesTableBody.innerHTML = '';
   linesData.forEach(r => {
@@ -1268,6 +1345,7 @@ function renderLines() {
     r.FNCCUSTO = (r.FNCCUSTO ?? '').toString().trim();
     r.REF = (r.REF ?? '').toString().trim();
     r.DESIGN = (r.DESIGN ?? '').toString().trim();
+    r.DTCUSTO = toDateInputValue(r.DTCUSTO) || null;
     r.FAMILIA = (r.FAMILIA ?? '').toString().trim();
     // garantir ETILIQUIDO calculado localmente se possível
     const qtt = Number(r.QTT);
@@ -1290,23 +1368,24 @@ function renderLines() {
     tr.innerHTML = `
       <td>
         <div class="input-group input-group-sm">
-          <button type="button" class="btn btn-outline-secondary" data-action="choose_artigo" data-id="${r.FNSTAMP}" title="Escolher artigo">
+          <button type="button" class="btn btn-outline-secondary" data-action="choose_artigo" data-id="${r.FNSTAMP}" title="Escolher artigo" ${dis}>
             <i class="fa fa-search"></i>
           </button>
-          <input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="REF" value="${r.REF || ''}">
+          <input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="REF" value="${r.REF || ''}" ${dis}>
         </div>
       </td>
-      <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="DESIGN" value="${r.DESIGN || ''}"></td>
-      <td><input class="form-control form-control-sm text-end" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="QTT" value="${r.QTT ?? ''}"></td>
-      <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="UNIDADE" value="${r.UNIDADE || ''}"></td>
-      <td><input class="form-control form-control-sm text-end" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="EPV" value="${r.EPV ?? ''}"></td>
+      <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="DESIGN" value="${r.DESIGN || ''}" ${dis}></td>
+      <td><input class="form-control form-control-sm text-end" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="QTT" value="${r.QTT ?? ''}" ${dis}></td>
+      <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="UNIDADE" value="${r.UNIDADE || ''}" ${dis}></td>
+      <td><input class="form-control form-control-sm text-end" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="EPV" value="${r.EPV ?? ''}" ${dis}></td>
       <td><input class="form-control form-control-sm text-end" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="ETILIQUIDO" value="${r.ETILIQUIDO ?? ''}" readonly></td>
       <td>${renderTabivaSelect(r)}</td>
-      <td class="text-center"><input type="checkbox" data-line="${r.FNSTAMP}" data-field="IVAINCL" ${ivainclChecked ? 'checked' : ''}></td>
+      <td class="text-center"><input type="checkbox" data-line="${r.FNSTAMP}" data-field="IVAINCL" ${ivainclChecked ? 'checked' : ''} ${dis}></td>
       <td>${renderCcustoSelect(r)}</td>
-      <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="FAMILIA" value="${r.FAMILIA || ''}"></td>
+      <td><input class="form-control form-control-sm" type="date" data-line="${r.FNSTAMP}" data-field="DTCUSTO" value="${r.DTCUSTO || ''}" ${dis}></td>
+      <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="FAMILIA" value="${r.FAMILIA || ''}" ${dis}></td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${r.FNSTAMP}" title="Apagar"><i class="fa fa-trash"></i></button>
+        <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${r.FNSTAMP}" title="Apagar" ${dis}><i class="fa fa-trash"></i></button>
       </td>
     `;
     linesTableBody.appendChild(tr);
@@ -1335,7 +1414,7 @@ function updateLineField(lineId, field, value) {
   const line = linesData[idx];
   if (field === 'IVAINCL') {
     line[field] = value ? 1 : 0;
-  } else if (['REF','DESIGN','UNIDADE','FNCCUSTO','FAMILIA','TABIVA','TAXAIVA'].includes(field)) {
+  } else if (['REF','DESIGN','UNIDADE','FNCCUSTO','FAMILIA','TABIVA','TAXAIVA','DTCUSTO'].includes(field)) {
     line[field] = (value ?? '').toString().trim();
   } else {
     line[field] = value;
@@ -1352,6 +1431,10 @@ function updateLineField(lineId, field, value) {
 async function saveFo() {
   if (Number(foPlanoValue) === 1) {
     alert('Documento contabilizado no ERP. Não pode ser alterado.');
+    return;
+  }
+  if (foPagoLocked) {
+    alert('Documento incluído em pagamento. Não pode ser alterado.');
     return;
   }
   // mostra overlay
@@ -1425,6 +1508,10 @@ async function deleteFo() {
   }
   if (Number(foPlanoValue) === 1) {
     alert('Documento contabilizado no ERP. Não pode ser eliminado.');
+    return;
+  }
+  if (foPagoLocked) {
+    alert('Documento incluído em pagamento. Não pode ser eliminado.');
     return;
   }
   if (Number(foSyncValue) === 1) {
@@ -1502,6 +1589,14 @@ async function saveLine() {
 
 async function deleteLine(fnStamp) {
   if (!fnStamp) return;
+  if (Number(foPlanoValue) === 1) {
+    alert('Documento contabilizado no ERP. Não pode ser alterado.');
+    return;
+  }
+  if (foPagoLocked) {
+    alert('Documento incluído em pagamento. Não pode ser alterado.');
+    return;
+  }
   if (!confirm('Eliminar esta linha?')) return;
   const idx = linesData.findIndex(l => l.FNSTAMP === fnStamp);
   if (idx >= 0) {
@@ -1551,7 +1646,7 @@ function normalizeLineForSave(line) {
     body.FNCCUSTO = headerCcusto.value || '';
   }
   // trim text fields
-  ['REF', 'DESIGN', 'UNIDADE', 'FNCCUSTO', 'FAMILIA', 'TABIVA', 'TAXAIVA'].forEach(f => {
+  ['REF', 'DESIGN', 'DTCUSTO', 'UNIDADE', 'FNCCUSTO', 'FAMILIA', 'TABIVA', 'TAXAIVA'].forEach(f => {
     if (body[f] != null && typeof body[f] === 'string') {
       body[f] = body[f].trim();
     }
@@ -1642,10 +1737,17 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!currentFoStamp) {
     const hoje = new Date().toISOString().slice(0, 10);
     const dataEl = document.getElementById('DATA');
+    const docEl = document.getElementById('DOCDATA');
     const pdataEl = document.getElementById('PDATA');
     if (dataEl && !dataEl.value) dataEl.value = hoje;
+    if (docEl && !docEl.value && dataEl?.value) docEl.value = dataEl.value;
     if (pdataEl && !pdataEl.value) pdataEl.value = hoje;
   }
+
+  // se o user preencher DATA e DOCDATA estiver vazio, assume o mesmo valor
+  document.getElementById('DATA')?.addEventListener('change', () => {
+    syncDocdataFromDataIfEmpty();
+  });
 
   btnSaveFo?.addEventListener('click', e => { e.preventDefault(); saveFo(); });
   btnDeleteFo?.addEventListener('click', e => { e.preventDefault(); deleteFo(); });
@@ -1654,6 +1756,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnAddLine?.addEventListener('click', e => {
     e.preventDefault();
     const cabCcusto = document.getElementById('CCUSTO');
+    const cabData = document.getElementById('DATA');
     const newLine = {
       FNSTAMP: randomStamp(),
       FOSTAMP: currentFoStamp,
@@ -1665,6 +1768,7 @@ document.addEventListener('DOMContentLoaded', () => {
       TAXAIVA: '',
       IVAINCL: 0,
       FNCCUSTO: cabCcusto?.value || '',
+      DTCUSTO: cabData?.value || '',
       FAMILIA: '',
       REF: '',
       DESIGN: '',
@@ -1677,7 +1781,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnImportContrato?.addEventListener('click', async (e) => {
     e.preventDefault();
-    if (Number(foPlanoValue) === 1) return;
+    if (isFoLocked()) return;
     contratoSearch && (contratoSearch.value = '');
     await loadContratosIntoModal();
     contratoModal?.show();
@@ -1767,7 +1871,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (action === 'delete') deleteLine(id);
     if (action === 'choose_artigo') {
       if (Number(foPlanoValue) === 1) {
-        alert('Documento contabilizado no ERP. N\u00e3o pode ser alterado.');
+        alert('Documento contabilizado no ERP. Não pode ser alterado.');
+        return;
+      }
+      if (foPagoLocked) {
+        alert('Documento incluído em pagamento. Não pode ser alterado.');
         return;
       }
       openArtigoModal({ type: 'inline', lineId: id });
