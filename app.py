@@ -1462,11 +1462,25 @@ OPTION (MAXRECURSION 32767);
     def api_mapa_gestao_ccustos():
         try:
             rows = db.session.execute(text("""
-                SELECT c.CCUSTO, ISNULL(a.TIPO,'') AS TIPO
-                FROM v_cct c
-                LEFT JOIN AL a
-                  ON LTRIM(RTRIM(a.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
-                   = LTRIM(RTRIM(c.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                SELECT
+                    c.CCUSTO,
+                    ISNULL(a.TIPO,'') AS TIPO
+                FROM (
+                    SELECT DISTINCT
+                        LTRIM(RTRIM(CCUSTO)) AS CCUSTO
+                    FROM v_cct
+                    WHERE CCUSTO IS NOT NULL
+                      AND LTRIM(RTRIM(CCUSTO)) <> ''
+                ) c
+                LEFT JOIN (
+                    SELECT
+                        LTRIM(RTRIM(CCUSTO)) AS CCUSTO,
+                        MAX(ISNULL(TIPO,'')) AS TIPO
+                    FROM AL
+                    GROUP BY LTRIM(RTRIM(CCUSTO))
+                ) a
+                  ON a.CCUSTO COLLATE SQL_Latin1_General_CP1_CI_AI
+                   = c.CCUSTO COLLATE SQL_Latin1_General_CP1_CI_AI
                 ORDER BY ISNULL(a.TIPO,''), c.CCUSTO
             """)).fetchall()
             opts = []
@@ -2764,6 +2778,15 @@ OPTION (MAXRECURSION 32767);
     def extratos_importar_page():
         return render_template('extrato_import.html', page_title='Importar Extrato Bancário')
 
+    # -----------------------------
+    # Importação de Faturas de Reservas (FR)
+    # -----------------------------
+    @app.route('/fr_import')
+    @app.route('/fr_importar')
+    @login_required
+    def fr_import_page():
+        return render_template('fr_import.html', page_title='Importar Faturas de Reservas')
+
     @app.route('/reconciliacao_bancaria')
     @app.route('/reconciliacao-bancaria')
     @login_required
@@ -3120,6 +3143,167 @@ OPTION (MAXRECURSION 32767);
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/api/reconciliacao/ow', methods=['POST'])
+    @login_required
+    def api_reconciliacao_create_ow():
+        """
+        Gera movimentos de tesouraria (OW) no ERP a partir de entradas (VALOR > 0)
+        selecionadas na grelha EL (não reconciliadas).
+
+        Body:
+          { "EXTSTAMP": "...", "EL": ["<ELSTAMP>", ...] }
+        """
+        try:
+            body = request.get_json(silent=True) or {}
+            extstamp = (body.get('EXTSTAMP') or '').strip()
+            stamps = body.get('EL') or []
+            if not extstamp:
+                return jsonify({'error': 'EXTSTAMP obrigatório'}), 400
+            if not isinstance(stamps, list) or not stamps:
+                return jsonify({'error': 'Selecione movimentos EL.'}), 400
+
+            ERP_DB = 'GUEST_SPA_TUR'
+
+            # Detetar stamp column na EL
+            el_cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EL'")
+                ).fetchall()
+            )
+            if 'EXTSTAMP' not in el_cols:
+                return jsonify({'error': 'A tabela EL precisa do campo EXTSTAMP.'}), 400
+            stamp_col = 'ELSTAMP' if 'ELSTAMP' in el_cols else ('ELSATMP' if 'ELSATMP' in el_cols else None)
+            if not stamp_col:
+                return jsonify({'error': 'A tabela EL precisa de um campo stamp (ELSTAMP ou ELSATMP).'}), 400
+
+            # Verificar tabela/colunas na OW (na BD do ERP)
+            ow_tbl = db.session.execute(text(f"""
+                SELECT 1 AS X
+                FROM [{ERP_DB}].INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'OW'
+            """)).fetchone()
+            if not ow_tbl:
+                return jsonify({'error': f"Tabela OW não existe na BD {ERP_DB}."}), 400
+
+            ow_cols = set(
+                r[0] for r in db.session.execute(
+                    text(f"""
+                        SELECT UPPER(COLUMN_NAME)
+                        FROM [{ERP_DB}].INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'OW'
+                    """)
+                ).fetchall()
+            )
+            if not ow_cols:
+                return jsonify({'error': f"Não foi possível ler colunas da OW em {ERP_DB}."}), 400
+
+            eentr_col = 'EENTR' if 'EENTR' in ow_cols else ('EENTRADA' if 'EENTRADA' in ow_cols else None)
+            docno_col = 'DOCNO' if 'DOCNO' in ow_cols else ('NDOS' if 'NDOS' in ow_cols else None)
+
+            required = {'OWSTAMP', 'DATA', 'DOCNOME', 'DESCRICAO', 'LOCAL', 'SGRUPO', 'GRUPO', 'ORIGEM', 'CONTADO', 'OLLOCAL', 'OLCODIGO'}
+            missing_req = sorted([c for c in required if c not in ow_cols])
+            if not eentr_col:
+                missing_req.append('EENTR')
+            if not docno_col:
+                missing_req.append('DOCNO')
+            if missing_req:
+                return jsonify({'error': f"Campos em falta na OW ({ERP_DB}): " + ', '.join(missing_req)}), 400
+
+            inserted = 0
+            skipped_exists = 0
+            skipped_reconciled = 0
+            skipped_invalid = 0
+
+            ins_cols = ['OWSTAMP', 'DATA', 'DOCNOME', 'DESCRICAO', eentr_col, 'LOCAL', 'SGRUPO', 'GRUPO', 'ORIGEM', 'CONTADO', 'OLLOCAL', 'OLCODIGO', docno_col]
+            ins_vals = [':OWSTAMP', ':DATA', ':DOCNOME', ':DESCRICAO', ':EENTR', ':LOCAL', ':SGRUPO', ':GRUPO', ':ORIGEM', ':CONTADO', ':OLLOCAL', ':OLCODIGO', ':DOCNO']
+            ins_sql = text(f"""
+                INSERT INTO [{ERP_DB}].[dbo].[OW] ({", ".join(ins_cols)})
+                VALUES ({", ".join(ins_vals)})
+            """)
+
+            for s in stamps[:5000]:
+                stamp = (str(s or '').strip())[:25]
+                if not stamp:
+                    skipped_invalid += 1
+                    continue
+
+                # Já reconciliado?
+                rec = db.session.execute(text("""
+                    SELECT TOP 1 1 AS X
+                    FROM dbo.REC
+                    WHERE EXTSTAMP = :e AND ORIGEM = 'EL' AND LTRIM(RTRIM(STAMP)) = :s
+                """), {'e': extstamp, 's': stamp}).fetchone()
+                if rec:
+                    skipped_reconciled += 1
+                    continue
+
+                # Buscar EL
+                el = db.session.execute(text(f"""
+                    SELECT TOP 1
+                      CAST(DATA AS date) AS DATA,
+                      ISNULL(DESCRICAO,'') AS DESCRICAO,
+                      CAST(VALOR AS numeric(19,6)) AS VALOR
+                    FROM dbo.EL
+                    WHERE EXTSTAMP = :e
+                      AND LTRIM(RTRIM({stamp_col})) = :s
+                """), {'e': extstamp, 's': stamp}).mappings().first()
+                if not el:
+                    skipped_invalid += 1
+                    continue
+
+                valor = float(el.get('VALOR') or 0)
+                if valor <= 0.005:
+                    skipped_invalid += 1
+                    continue
+
+                # Já existe na OW?
+                exists = db.session.execute(text("""
+                    SELECT TOP 1 1 AS X
+                    FROM [GUEST_SPA_TUR].[dbo].[OW]
+                    WHERE LTRIM(RTRIM(OWSTAMP)) = :s
+                """), {'s': stamp}).fetchone()
+                if exists:
+                    skipped_exists += 1
+                    continue
+
+                d = el.get('DATA')
+                if isinstance(d, datetime):
+                    d = d.date()
+                if not isinstance(d, date):
+                    skipped_invalid += 1
+                    continue
+                data_dt = datetime.combine(d, datetime.min.time())
+                desc = (str(el.get('DESCRICAO') or '')).strip()
+
+                db.session.execute(ins_sql, {
+                    'OWSTAMP': stamp,
+                    'DATA': data_dt,
+                    'DOCNOME': 'Recebimento Airbnb',
+                    'DESCRICAO': desc,
+                    'EENTR': valor,
+                    'LOCAL': 'B',
+                    'SGRUPO': 'Recebimentos de Clientes',
+                    'GRUPO': 'Actividades Operacionais',
+                    'ORIGEM': 'OW',
+                    'CONTADO': 1,
+                    'OLLOCAL': 'Santander  DO',
+                    'OLCODIGO': 'R10001',
+                    'DOCNO': 15
+                })
+                inserted += 1
+
+            db.session.commit()
+            return jsonify({
+                'ok': True,
+                'inserted': inserted,
+                'skipped_exists': skipped_exists,
+                'skipped_reconciled': skipped_reconciled,
+                'skipped_invalid': skipped_invalid
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/extratos/import', methods=['POST'])
     @login_required
     def api_extratos_import():
@@ -3392,6 +3576,229 @@ OPTION (MAXRECURSION 32767);
                 for r in rows_in[:50]
             ]
             return jsonify({'ok': True, 'EXTSTAMP': extstamp, 'inserted': len(rows_in), 'skipped': skipped, 'sample': sample})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/fr/import', methods=['POST'])
+    @login_required
+    def api_fr_import():
+        """
+        Importa linhas para dbo.FR a partir de Excel.
+
+        Excel:
+          - 1ª linha: títulos (ignorada)
+          - Colunas:
+            A DOCUMENTO, B DATA, C CLIENTE, D CCUSTO, I BASE, J TAXAIVA, K IVA, L ANULADO, M ARTIGO
+
+        Regras:
+          - só importa ARTIGO in ('Estadia', 'Taxa de Limpeza')
+          - upsert por (DOCUMENTO, ARTIGO, CCUSTO)
+        """
+        import io
+        import uuid
+        from decimal import Decimal, InvalidOperation
+
+        # openpyxl é necessário para xlsx
+        try:
+            from openpyxl import load_workbook
+            from openpyxl.utils.datetime import from_excel as from_excel_date
+        except Exception:
+            load_workbook = None
+            from_excel_date = None
+
+        def new_stamp():
+            return uuid.uuid4().hex.upper()[:25]
+
+        def norm_txt(v, max_len=None):
+            s = ('' if v is None else str(v)).strip()
+            if max_len:
+                s = s[:max_len]
+            return s
+
+        def norm_artigo(v):
+            s = norm_txt(v, 50)
+            s2 = ' '.join(s.split()).strip().casefold()
+            return s2
+
+        def to_date(v):
+            if v is None or v == '':
+                return None
+            if isinstance(v, datetime):
+                return v.date()
+            if isinstance(v, date):
+                return v
+            if isinstance(v, (int, float)) and from_excel_date:
+                try:
+                    dt = from_excel_date(v)
+                    return dt.date() if isinstance(dt, datetime) else dt
+                except Exception:
+                    return None
+            if isinstance(v, str):
+                s = v.strip()
+                if not s:
+                    return None
+                for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y'):
+                    try:
+                        return datetime.strptime(s, fmt).date()
+                    except Exception:
+                        pass
+            return None
+
+        def to_dec(v):
+            if v is None or v == '':
+                return Decimal('0')
+            if isinstance(v, Decimal):
+                return v
+            if isinstance(v, (int, float)):
+                return Decimal(str(v))
+            if isinstance(v, str):
+                s = v.strip().replace('.', '').replace(',', '.')
+                if s in ('', '-', '+'):
+                    return Decimal('0')
+                try:
+                    return Decimal(s)
+                except InvalidOperation:
+                    return Decimal('0')
+            try:
+                return Decimal(str(v))
+            except Exception:
+                return Decimal('0')
+
+        def to_bit(v):
+            if v is None or v == '':
+                return 0
+            if isinstance(v, bool):
+                return 1 if v else 0
+            if isinstance(v, (int, float)):
+                try:
+                    return 1 if float(v) != 0 else 0
+                except Exception:
+                    return 0
+            s = str(v).strip().casefold()
+            return 1 if s in ('1', 'true', 'sim', 's', 'yes', 'y', 'anulado') else 0
+
+        try:
+            f = request.files.get('file')
+            if not f or not getattr(f, 'filename', ''):
+                return jsonify({'error': 'Ficheiro em falta.'}), 400
+            filename = (getattr(f, 'filename', '') or '').lower()
+            if not filename.endswith('.xlsx'):
+                return jsonify({'error': 'Formato inválido. Use .xlsx'}), 400
+            if not load_workbook:
+                return jsonify({'error': 'openpyxl não está disponível no servidor.'}), 500
+
+            # validar tabela/colunas mínimas
+            cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'FR'")
+                ).fetchall()
+            )
+            need = {'FRSTAMP', 'DOCUMENTO', 'DATA', 'CLIENTE', 'CCUSTO', 'ARTIGO', 'BASE', 'TAXAIVA', 'IVA', 'ANULADO'}
+            missing = sorted(list(need - cols))
+            if missing:
+                return jsonify({'error': f"Campos em falta na FR: {', '.join(missing)}"}), 400
+
+            raw = f.read()
+            wb = load_workbook(io.BytesIO(raw), data_only=True)
+            ws = wb.active
+
+            allowed = {'estadia', 'taxa de limpeza'}
+            inserted = 0
+            updated = 0
+            skipped = 0
+            sample = []
+
+            # cache de existentes por key (DOCUMENTO, ARTIGO, CCUSTO) -> FRSTAMP
+            existing_rows = db.session.execute(text("""
+                SELECT FRSTAMP, DOCUMENTO, ARTIGO, CCUSTO
+                FROM dbo.FR
+            """)).mappings().all()
+            existing = {}
+            for r in existing_rows:
+                k = (
+                    norm_txt(r.get('DOCUMENTO'), 100),
+                    norm_txt(r.get('ARTIGO'), 25),
+                    norm_txt(r.get('CCUSTO'), 50),
+                )
+                if all(k):
+                    existing[k] = norm_txt(r.get('FRSTAMP'), 25)
+
+            ins_sql = text("""
+                INSERT INTO dbo.FR
+                (FRSTAMP, DOCUMENTO, DATA, CLIENTE, CCUSTO, ARTIGO, BASE, TAXAIVA, IVA, ANULADO)
+                VALUES
+                (:FRSTAMP, :DOCUMENTO, :DATA, :CLIENTE, :CCUSTO, :ARTIGO, :BASE, :TAXAIVA, :IVA, :ANULADO)
+            """)
+            upd_sql = text("""
+                UPDATE dbo.FR
+                SET DATA = :DATA,
+                    CLIENTE = :CLIENTE,
+                    BASE = :BASE,
+                    TAXAIVA = :TAXAIVA,
+                    IVA = :IVA,
+                    ANULADO = :ANULADO
+                WHERE FRSTAMP = :FRSTAMP
+            """)
+
+            # iterar a partir da linha 2 (1 = títulos)
+            for row_idx in range(2, ws.max_row + 1):
+                doc = norm_txt(ws.cell(row=row_idx, column=1).value, 100)   # A
+                dt = to_date(ws.cell(row=row_idx, column=2).value)          # B
+                cliente = norm_txt(ws.cell(row=row_idx, column=3).value, 100)  # C
+                ccusto = norm_txt(ws.cell(row=row_idx, column=4).value, 50) # D
+                base = to_dec(ws.cell(row=row_idx, column=9).value)         # I
+                taxaiva = to_dec(ws.cell(row=row_idx, column=10).value)     # J
+                iva = to_dec(ws.cell(row=row_idx, column=11).value)         # K
+                anulado = to_bit(ws.cell(row=row_idx, column=12).value)     # L
+                artigo = norm_txt(ws.cell(row=row_idx, column=13).value, 25)  # M
+
+                if not doc or not artigo or not ccusto or not dt:
+                    skipped += 1
+                    continue
+                if norm_artigo(artigo) not in allowed:
+                    skipped += 1
+                    continue
+
+                k = (doc, artigo, ccusto)
+                frstamp = existing.get(k)
+                params = {
+                    'FRSTAMP': frstamp or new_stamp(),
+                    'DOCUMENTO': doc,
+                    'DATA': dt,
+                    'CLIENTE': cliente,
+                    'CCUSTO': ccusto,
+                    'ARTIGO': artigo,
+                    'BASE': base,
+                    'TAXAIVA': taxaiva,
+                    'IVA': iva,
+                    'ANULADO': anulado,
+                }
+
+                if frstamp:
+                    db.session.execute(upd_sql, params)
+                    updated += 1
+                else:
+                    db.session.execute(ins_sql, params)
+                    inserted += 1
+                    existing[k] = params['FRSTAMP']
+
+                if len(sample) < 50:
+                    sample.append({
+                        'DOCUMENTO': doc,
+                        'DATA': dt.strftime('%Y-%m-%d') if dt else '',
+                        'CLIENTE': cliente,
+                        'CCUSTO': ccusto,
+                        'ARTIGO': artigo,
+                        'BASE': float(base),
+                        'TAXAIVA': float(taxaiva),
+                        'IVA': float(iva),
+                        'ANULADO': int(anulado),
+                        'MODE': 'U' if frstamp else 'I',
+                    })
+
+            db.session.commit()
+            return jsonify({'ok': True, 'inserted': inserted, 'updated': updated, 'skipped': skipped, 'sample': sample})
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
@@ -3813,13 +4220,13 @@ OPTION (MAXRECURSION 32767);
         Query:
           - q (opcional): pesquisa por NO/NOME/ADOC/CMDESC
 
-        Nota: considera pendente apenas ABERTO > 0 (dívida) para pagamento.
+        Nota: inclui também ABERTO < 0 (créditos) para permitir compensação no pagamento.
         """
         try:
             q = (request.args.get('q') or '').strip()
 
             open_expr = "(ISNULL(ECRED,0) - ISNULL(ECREDF,0)) - (ISNULL(EDEB,0) - ISNULL(EDEBF,0))"
-            where = [f"({open_expr}) > 0.005"]
+            where = [f"ABS(({open_expr})) > 0.005"]
             params = {}
             if q:
                 where.append("(CAST(NO AS varchar(50)) LIKE :q OR NOME LIKE :q OR ADOC LIKE :q OR CMDESC LIKE :q)")
@@ -4337,16 +4744,26 @@ OPTION (MAXRECURSION 32767);
                     aberto = float(it.get('ABERTO') or 0)
                 except Exception:
                     aberto = 0.0
-                if aberto <= 0:
+                if abs(aberto) <= 0.005:
                     continue
                 try:
                     payval = float(it.get('PAYVAL') if it.get('PAYVAL') is not None else it.get('EVAL') or aberto)
                 except Exception:
                     payval = aberto
-                if payval <= 0:
+                # permitir valores negativos (créditos), mas sempre com o mesmo sinal do "aberto"
+                if abs(payval) <= 0.005:
                     continue
-                if payval > aberto:
-                    payval = aberto
+                if aberto > 0:
+                    if payval < 0:
+                        continue
+                    if payval > aberto:
+                        payval = aberto
+                else:
+                    # aberto < 0: payval deve ser negativo e entre [aberto, 0]
+                    if payval > 0:
+                        continue
+                    if payval < aberto:
+                        payval = aberto
                 cleaned.append({
                     'NO': no,
                     'NOME': nome,

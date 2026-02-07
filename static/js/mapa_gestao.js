@@ -4,6 +4,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const anoInput = document.getElementById('mapAno');
   const diffEnableEl = document.getElementById('mapDiffEnable');
   const diffPctEl = document.getElementById('mapDiffPct');
+  const showBudgetEl = document.getElementById('mapShowBudget');
+  const btnViewTable = document.getElementById('mapViewTable');
+  const btnViewCharts = document.getElementById('mapViewCharts');
+  const tableViewEl = document.getElementById('mapTableView');
+  const chartViewEl = document.getElementById('mapChartView');
+  const treeControlsEl = document.getElementById('mapTreeControls');
   const ccModalEl = document.getElementById('mapCcustoModal');
   const ccList = document.getElementById('mapCcList');
   const ccLabel = document.getElementById('mapCcustoLabel');
@@ -35,6 +41,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let treeExpanded = new Set(); // refs abertos (por defeito vazio: apenas nivel 1 visivel)
   let levelOneRefs = [];
   let allRefs = [];
+  let currentView = 'table'; // table | charts
+  let chartSalesVsGoal = null;
+  let chartCostsVsBudget = null;
+  let chartMarginRealVsForecast = null;
 
   const fmtNum = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 0, useGrouping: true });
   const fmtPct = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: true });
@@ -53,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Por defeito: não evidenciar (sem visto), independentemente de preferências anteriores
   if (diffEnableEl) diffEnableEl.checked = false;
   if (diffPctEl && (!diffPctEl.value || diffPctEl.value === '0')) diffPctEl.value = '3';
+  if (showBudgetEl) showBudgetEl.checked = false;
 
   function escapeHtml(str) {
     return String(str == null ? '' : str)
@@ -61,6 +72,329 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  function setView(view) {
+    const v = (view || '').toString().trim().toLowerCase();
+    currentView = (v === 'charts') ? 'charts' : 'table';
+    if (tableViewEl) tableViewEl.style.display = currentView === 'table' ? '' : 'none';
+    if (chartViewEl) chartViewEl.style.display = currentView === 'charts' ? '' : 'none';
+    if (treeControlsEl) treeControlsEl.style.display = currentView === 'table' ? '' : 'none';
+    btnViewTable?.classList.toggle('active', currentView === 'table');
+    btnViewCharts?.classList.toggle('active', currentView === 'charts');
+    if (currentView === 'charts') renderCharts();
+  }
+
+  function findRow(ref) {
+    const key = String(ref || '').trim();
+    if (!key) return null;
+    return lastRows.find(r => String(r.ref || '').trim() === key) || null;
+  }
+
+  function renderCharts() {
+    if (typeof Chart === 'undefined') return;
+
+    // KPIs (Totais do ano)
+    {
+      const salesMain = document.getElementById('mapKpiSalesMain');
+      const salesSub = document.getElementById('mapKpiSalesSub');
+      const salesDelta = document.getElementById('mapKpiSalesDelta');
+      const costsMain = document.getElementById('mapKpiCostsMain');
+      const costsSub = document.getElementById('mapKpiCostsSub');
+      const costsDelta = document.getElementById('mapKpiCostsDelta');
+      const marginMain = document.getElementById('mapKpiMarginMain');
+      const marginSub = document.getElementById('mapKpiMarginSub');
+      const marginDelta = document.getElementById('mapKpiMarginDelta');
+
+      const safePct = (num) => {
+        if (!isFinite(num)) return '--';
+        return `${fmtPct.format(num)}%`;
+      };
+
+      const setDeltaBadge = (el, pct, goodWhenPositive) => {
+        if (!el) return;
+        const clsGood = 'bg-success-subtle text-success';
+        const clsBad = 'bg-danger-subtle text-danger';
+        const clsNeutral = 'bg-secondary-subtle text-secondary';
+        el.className = `badge rounded-pill ${clsNeutral}`;
+        if (!isFinite(pct)) {
+          el.textContent = '--';
+          return;
+        }
+        el.textContent = safePct(pct);
+        const isGood = goodWhenPositive ? pct >= 0 : pct <= 0;
+        el.className = `badge rounded-pill ${isGood ? clsGood : clsBad}`;
+      };
+
+      // Proveitos (famílias 9): preferir a linha agregada "9", senão somar nível 1 começadas por 9
+      let salesActualTotal = 0;
+      let salesGoalTotal = 0;
+      const r9 = findRow('9');
+      if (r9) {
+        salesActualTotal = Number(r9.total || 0);
+        salesGoalTotal = Number(r9.orc_total || 0);
+      } else {
+        lastRows
+          .filter(r => Number(r.nivel || 1) === 1 && String(r.ref || '').trim().startsWith('9'))
+          .forEach(r => {
+            salesActualTotal += Number(r.total || 0);
+            salesGoalTotal += Number(r.orc_total || 0);
+          });
+      }
+
+      // Custos (exceto 9): somar apenas nível 1
+      let costsActualTotal = 0;
+      let costsBudgetTotal = 0;
+      lastRows
+        .filter(r => Number(r.nivel || 1) === 1 && !String(r.ref || '').trim().startsWith('9'))
+        .forEach(r => {
+          costsActualTotal += Number(r.total || 0);
+          costsBudgetTotal += Number(r.orc_total || 0);
+        });
+
+      const marginActualTotal = salesActualTotal - costsActualTotal;
+      const marginForecastTotal = salesGoalTotal - costsBudgetTotal;
+
+      if (salesMain) salesMain.textContent = fmtCur.format(salesActualTotal);
+      if (salesSub) salesSub.textContent = `Objetivo: ${fmtCur.format(salesGoalTotal)}`;
+      setDeltaBadge(salesDelta, salesGoalTotal ? ((salesActualTotal - salesGoalTotal) / salesGoalTotal) * 100 : NaN, true);
+
+      if (costsMain) costsMain.textContent = fmtCur.format(costsActualTotal);
+      if (costsSub) costsSub.textContent = `Orçamento: ${fmtCur.format(costsBudgetTotal)}`;
+      // custos: bom quando Real <= Orçamento
+      setDeltaBadge(costsDelta, costsBudgetTotal ? ((costsActualTotal - costsBudgetTotal) / costsBudgetTotal) * 100 : NaN, false);
+
+      if (marginMain) marginMain.textContent = fmtCur.format(marginActualTotal);
+      if (marginSub) marginSub.textContent = `Previsão: ${fmtCur.format(marginForecastTotal)}`;
+      setDeltaBadge(marginDelta, marginForecastTotal ? ((marginActualTotal - marginForecastTotal) / marginForecastTotal) * 100 : NaN, true);
+    }
+    // 1) Vendas vs Objetivo (Famílias 9)
+    {
+      const canvas = document.getElementById('mapChartSalesVsGoal');
+      if (canvas) {
+        const r9 = findRow('9') || findRow('9.1') || null;
+        const actual = (r9?.meses || Array(12).fill(0)).slice(0, 12).map(v => Number(v || 0));
+        const goal = (r9?.orc_meses || Array(12).fill(0)).slice(0, 12).map(v => Number(v || 0));
+
+        try { chartSalesVsGoal?.destroy?.(); } catch (_) {}
+        chartSalesVsGoal = new Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: monthNames,
+            datasets: [
+              {
+                label: 'Real',
+                data: actual,
+                backgroundColor: 'rgba(14, 165, 233, 0.35)',
+                borderColor: 'rgba(14, 165, 233, 0.85)',
+                borderWidth: 1,
+                borderRadius: 6,
+                borderSkipped: false
+              },
+              {
+                label: 'Objetivo',
+                data: goal,
+                backgroundColor: 'rgba(124, 58, 237, 0.25)',
+                borderColor: 'rgba(124, 58, 237, 0.85)',
+                borderWidth: 1,
+                borderRadius: 6,
+                borderSkipped: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true, position: 'bottom' },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    const v = Number(ctx.parsed?.y || 0);
+                    return `${ctx.dataset.label}: ${fmtCur.format(v)}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: { grid: { display: false } },
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: (v) => {
+                    try { return fmtNum.format(Number(v || 0)); } catch (_) { return v; }
+                  }
+                },
+                grid: { display: true, color: '#e5e7eb' }
+              }
+            }
+          }
+        });
+      }
+    }
+
+    // 2) Custos vs Orçamento (Famílias exceto 9) - somar apenas nível 1 para evitar duplicações
+    {
+      const canvas = document.getElementById('mapChartCostsVsBudget');
+      if (canvas) {
+        const costActual = Array(12).fill(0);
+        const costBudget = Array(12).fill(0);
+        lastRows
+          .filter(r => Number(r.nivel || 1) === 1 && !String(r.ref || '').trim().startsWith('9'))
+          .forEach(r => {
+            const a = (r.meses || Array(12).fill(0)).slice(0, 12);
+            const b = (r.orc_meses || Array(12).fill(0)).slice(0, 12);
+            for (let i = 0; i < 12; i++) {
+              costActual[i] += Number(a[i] || 0);
+              costBudget[i] += Number(b[i] || 0);
+            }
+          });
+
+        try { chartCostsVsBudget?.destroy?.(); } catch (_) {}
+        chartCostsVsBudget = new Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: monthNames,
+            datasets: [
+              {
+                label: 'Real',
+                data: costActual,
+                backgroundColor: 'rgba(244, 63, 94, 0.25)',
+                borderColor: 'rgba(244, 63, 94, 0.85)',
+                borderWidth: 1,
+                borderRadius: 6,
+                borderSkipped: false
+              },
+              {
+                label: 'Orçamento',
+                data: costBudget,
+                backgroundColor: 'rgba(107, 114, 128, 0.18)',
+                borderColor: 'rgba(107, 114, 128, 0.75)',
+                borderWidth: 1,
+                borderRadius: 6,
+                borderSkipped: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true, position: 'bottom' },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    const v = Number(ctx.parsed?.y || 0);
+                    return `${ctx.dataset.label}: ${fmtCur.format(v)}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: { grid: { display: false } },
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: (v) => {
+                    try { return fmtNum.format(Number(v || 0)); } catch (_) { return v; }
+                  }
+                },
+                grid: { display: true, color: '#e5e7eb' }
+              }
+            }
+          }
+        });
+      }
+    }
+
+    // 3) Margem Real vs Previsional (Proveitos 9 - Custos exceto 9) - nível 1
+    {
+      const canvas = document.getElementById('mapChartMarginRealVsForecast');
+      if (canvas) {
+        const provActual = Array(12).fill(0);
+        const provForecast = Array(12).fill(0);
+        const costActual = Array(12).fill(0);
+        const costForecast = Array(12).fill(0);
+
+        lastRows
+          .filter(r => Number(r.nivel || 1) === 1)
+          .forEach(r => {
+            const ref = String(r.ref || '').trim();
+            const isProv = ref.startsWith('9');
+            const a = (r.meses || Array(12).fill(0)).slice(0, 12);
+            const b = (r.orc_meses || Array(12).fill(0)).slice(0, 12);
+            for (let i = 0; i < 12; i++) {
+              if (isProv) {
+                provActual[i] += Number(a[i] || 0);
+                provForecast[i] += Number(b[i] || 0);
+              } else {
+                costActual[i] += Number(a[i] || 0);
+                costForecast[i] += Number(b[i] || 0);
+              }
+            }
+          });
+
+        const marginActual = provActual.map((v, i) => Number(v || 0) - Number(costActual[i] || 0));
+        const marginForecast = provForecast.map((v, i) => Number(v || 0) - Number(costForecast[i] || 0));
+
+        try { chartMarginRealVsForecast?.destroy?.(); } catch (_) {}
+        chartMarginRealVsForecast = new Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: monthNames,
+            datasets: [
+              {
+                label: 'Real',
+                data: marginActual,
+                backgroundColor: 'rgba(34, 197, 94, 0.25)',
+                borderColor: 'rgba(34, 197, 94, 0.85)',
+                borderWidth: 1,
+                borderRadius: 6,
+                borderSkipped: false
+              },
+              {
+                label: 'Previsional',
+                data: marginForecast,
+                backgroundColor: 'rgba(59, 130, 246, 0.18)',
+                borderColor: 'rgba(59, 130, 246, 0.80)',
+                borderWidth: 1,
+                borderRadius: 6,
+                borderSkipped: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true, position: 'bottom' },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    const v = Number(ctx.parsed?.y || 0);
+                    return `${ctx.dataset.label}: ${fmtCur.format(v)}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: { grid: { display: false } },
+              y: {
+                ticks: {
+                  callback: (v) => {
+                    try { return fmtNum.format(Number(v || 0)); } catch (_) { return v; }
+                  }
+                },
+                grid: {
+                  color: (ctx) => (Number(ctx.tick?.value) === 0 ? '#94a3b8' : '#e5e7eb'),
+                  lineWidth: (ctx) => (Number(ctx.tick?.value) === 0 ? 2 : 1)
+                }
+              }
+            }
+          }
+        });
+      }
+    }
   }
 
   function getSelectedCcustos() {
@@ -76,12 +410,23 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateDiffAvailability() {
     if (!diffEnableEl || !diffPctEl) return;
     const all = isAllCentersSelected();
+    if (showBudgetEl?.checked) diffEnableEl.checked = false;
     if (!all) diffEnableEl.checked = false;
-    diffEnableEl.disabled = !all;
-    diffPctEl.disabled = !all || !diffEnableEl.checked;
+    diffEnableEl.disabled = !all || !!showBudgetEl?.checked;
+    diffPctEl.disabled = !all || !diffEnableEl.checked || !!showBudgetEl?.checked;
     const title = all ? '' : 'Disponível apenas com Todos os centros selecionados';
     diffEnableEl.title = title;
     diffPctEl.title = title;
+  }
+
+  function updateBudgetAvailability() {
+    if (!showBudgetEl) return;
+    const all = isAllCentersSelected();
+    if (!all) showBudgetEl.checked = false;
+    showBudgetEl.disabled = !all;
+    showBudgetEl.title = all ? '' : 'Disponível apenas com Todos os centros selecionados';
+    if (showBudgetEl.checked && diffEnableEl) diffEnableEl.checked = false;
+    updateDiffAvailability();
   }
 
   function setLoading(message) {
@@ -114,7 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const label = !sel || sel === total ? 'Todos os centros' : `${sel} selecionado(s)`;
     if (ccLabel) ccLabel.textContent = label;
     if (ccCount) ccCount.textContent = `${sel || total} selecionados${sel ? '' : ' (todos)'}`;
-    updateDiffAvailability();
+    updateBudgetAvailability();
   }
 
   async function loadCcustos() {
@@ -132,16 +477,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return { ccusto: '', tipo: '' };
       }).filter(o => o.ccusto);
+
+      // garantir unicidade (vistas/joins podem devolver duplicados)
+      const byCc = new Map();
+      ccOptions.forEach(o => {
+        const k = String(o.ccusto || '').trim();
+        if (!k) return;
+        if (!byCc.has(k)) byCc.set(k, { ccusto: k, tipo: o.tipo || '' });
+      });
+      ccOptions = Array.from(byCc.values());
+
       ccSelected = new Set(ccOptions.map(o => o.ccusto)); // default = todos
       renderCcList();
-      updateDiffAvailability();
+      updateBudgetAvailability();
     } catch (err) {
       console.error(err);
       ccOptions = [];
       ccSelected = new Set();
       if (ccList) ccList.innerHTML = '<div class="text-danger">Erro ao carregar centros de custo.</div>';
       setLoading('Erro ao carregar centros de custo');
-      updateDiffAvailability();
+      updateBudgetAvailability();
     }
   }
 
@@ -170,7 +525,9 @@ document.addEventListener('DOMContentLoaded', () => {
       levelOneRefs = lastRows.filter(r => Number(r.nivel || 1) === 1).map(r => String(r.ref || '').trim());
       allRefs = lastRows.map(r => String(r.ref || '').trim());
       treeExpanded = new Set(); // por defeito: apenas nivel 1 visivel; restantes fechados
+      updateBudgetAvailability();
       renderTabela();
+      if (currentView === 'charts') renderCharts();
     } catch (err) {
       console.error(err);
       setLoading(err.message || 'Erro ao carregar dados');
@@ -207,16 +564,30 @@ document.addEventListener('DOMContentLoaded', () => {
       return true;
     };
 
+    const showBudget = !!showBudgetEl?.checked;
+    const baseForPctCosts = lastRows
+      .filter(r => Number(r.nivel || 1) === 1 && !String(r.ref || '').trim().startsWith('9'))
+      .reduce((acc, r) => acc + Number((showBudget ? r.orc_total : r.total) || 0), 0);
+
     const rowsHtml = lastRows
       .filter(r => isVisible(r.ref))
       .map(r => {
         const nivel = Number(r.nivel || 1);
         const ref = String(r.ref || '');
         const isProveito = ref.trim().startsWith('9');
-        const diffEnabled = isAllCentersSelected() && !!diffEnableEl?.checked;
+        const diffEnabled = !showBudget && isAllCentersSelected() && !!diffEnableEl?.checked;
         const diffPct = Math.abs(Number(diffPctEl?.value || 3) || 3);
-        const percVal = (r.percent === '' || r.percent == null) ? '' : `${fmtPct.format(Number(r.percent || 0))}%`;
-        const mesesHtml = r.meses.map((v, idx) => {
+        const displayArr = showBudget ? (r.orc_meses || []) : (r.meses || []);
+        const displayTotal = Number((showBudget ? r.orc_total : r.total) || 0);
+        let percVal = '';
+        if (!isProveito) {
+          if (showBudget) {
+            percVal = baseForPctCosts > 0 ? `${fmtPct.format((displayTotal / baseForPctCosts) * 100)}%` : '';
+          } else {
+            percVal = (r.percent === '' || r.percent == null) ? '' : `${fmtPct.format(Number(r.percent || 0))}%`;
+          }
+        }
+        const mesesHtml = (displayArr || []).map((v, idx) => {
           const mesNum = idx + 1;
           let diffClass = '';
           if (diffEnabled) {
@@ -235,6 +606,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (pct <= -diffPct) diffClass = ' diff-over';
               }
             }
+          }
+          if (showBudget) {
+            return `<td class="text-end${diffClass}">${fmtNum.format(Number(v || 0))}</td>`;
           }
           return `<td class="text-end cell-drill${diffClass}" data-level="${nivel}" data-ref="${attrEscape(ref)}" data-nome="${attrEscape(r.nome || '')}" data-mes="${mesNum}">${fmtNum.format(Number(v || 0))}</td>`;
         }).join('');
@@ -260,11 +634,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
         }
+        const totalCell = showBudget
+          ? `<td class="text-end fw-semibold${totalDiffClass}">${fmtNum.format(displayTotal)}</td>`
+          : `<td class="text-end fw-semibold cell-drill${totalDiffClass}" data-level="${nivel}" data-ref="${attrEscape(ref)}" data-nome="${attrEscape(r.nome || '')}" data-mes="all">${fmtNum.format(Number(r.total || 0))}</td>`;
         return `
           <tr class="${rowClass}" data-level="${nivel}">
             <td class="fam-cell level-${nivel} d-flex align-items-center gap-1">${toggle}<span>${escapeHtml(ref)} - ${escapeHtml(r.nome || '')}</span></td>
             ${mesesHtml}
-            <td class="text-end fw-semibold cell-drill${totalDiffClass}" data-level="${nivel}" data-ref="${attrEscape(ref)}" data-nome="${attrEscape(r.nome || '')}" data-mes="all">${fmtNum.format(Number(r.total || 0))}</td>
+            ${totalCell}
             <td class="text-end text-muted">${percVal}</td>
           </tr>
         `;
@@ -278,15 +655,21 @@ document.addEventListener('DOMContentLoaded', () => {
     lastRows.filter(r => Number(r.nivel || 1) === 1).forEach(r => {
       const ref = String(r.ref || '').trim();
       const isProv = ref.startsWith('9');
-      (r.meses || []).forEach((v, idx) => {
+      const arr = showBudget ? (r.orc_meses || []) : (r.meses || []);
+      (arr || []).forEach((v, idx) => {
         if (isProv) provMeses[idx] += Number(v || 0);
         else custoMeses[idx] += Number(v || 0);
       });
-      if (isProv) totalProv += Number(r.total || 0);
-      else totalCustos += Number(r.total || 0);
+      if (isProv) totalProv += Number((showBudget ? r.orc_total : r.total) || 0);
+      else totalCustos += Number((showBudget ? r.orc_total : r.total) || 0);
     });
     const saldoMeses = custoMeses.map((c, i) => provMeses[i] - c);
     const totalSaldo = totalProv - totalCustos;
+    let runSaldo = 0;
+    const acumuladoMeses = saldoMeses.map(v => {
+      runSaldo += Number(v || 0);
+      return runSaldo;
+    });
     const rowResumo = (label, arr, total, extraClass='') => `
       <tr class="mapa-row total-row ${extraClass}">
         <td class="fam-cell level-1 d-flex align-items-center gap-1"><span class="fw-semibold">${label}</span></td>
@@ -298,7 +681,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalRowHtml = [
       rowResumo('Custos', custoMeses, totalCustos, 'total-custos'),
       rowResumo('Proveitos', provMeses, totalProv, 'total-proveitos'),
-      rowResumo('Saldo', saldoMeses, totalSaldo, 'total-saldo')
+      rowResumo('Saldo', saldoMeses, totalSaldo, 'total-saldo'),
+      rowResumo('Acumulado', acumuladoMeses, runSaldo, 'total-acumulado')
     ].join('');
 
     tbody.innerHTML = rowsHtml
@@ -414,6 +798,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // live update, but avoid spamming storage
     renderTabela();
   });
+  showBudgetEl?.addEventListener('change', () => {
+    updateBudgetAvailability();
+    renderTabela();
+  });
   if (btnLimpar) btnLimpar.addEventListener('click', () => {
     ccSelected = new Set(ccOptions.map(o => o.ccusto)); // todos
     if (anoInput) anoInput.value = defaultYear;
@@ -464,6 +852,10 @@ document.addEventListener('DOMContentLoaded', () => {
     treeExpanded = new Set(); // apenas nivel 1 visivel
     renderTabela();
   });
+
+  btnViewTable?.addEventListener('click', () => setView('table'));
+  btnViewCharts?.addEventListener('click', () => setView('charts'));
+  setView('table');
 
   loadCcustos().then(loadMapa).catch(err => console.error(err));
 });

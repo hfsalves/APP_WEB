@@ -130,8 +130,13 @@ function renderPayRows(rows) {
     const fc = (r.FCSTAMP || '').toString().trim();
     const selected = paySelected.get(fc);
     const checked = !!selected;
-    const max = Number(r.ABERTO || 0);
-    const payVal = checked ? Number(selected.pay || 0) : max;
+    const aberto = Number(r.ABERTO || 0);
+    const minVal = Math.min(0, aberto);
+    const maxVal = Math.max(0, aberto);
+    const payValRaw = checked ? Number(selected.pay ?? 0) : aberto;
+    let payVal = Number.isFinite(payValRaw) ? payValRaw : 0;
+    if (payVal < minVal) payVal = minVal;
+    if (payVal > maxVal) payVal = maxVal;
     const tr = document.createElement('tr');
     tr.dataset.fcstamp = fc;
     tr.innerHTML = `
@@ -143,9 +148,9 @@ function renderPayRows(rows) {
       <td>${escapeHtml(r.DATAVEN || '')}</td>
       <td>${escapeHtml((r.CMDESC ?? '').toString())}</td>
       <td>${escapeHtml((r.ADOC ?? '').toString())}</td>
-      <td class="text-end">${escapeHtml(fmtMoney(max))}</td>
+      <td class="text-end ${aberto < 0 ? 'cc-badge-neg' : ''}">${escapeHtml(fmtMoney(aberto))}</td>
       <td class="text-end">
-        <input type="number" step="0.01" min="0" max="${escapeHtml(max)}"
+        <input type="number" step="0.01" min="${escapeHtml(minVal)}" max="${escapeHtml(maxVal)}"
                class="form-control form-control-sm text-end"
                data-field="payval"
                value="${escapeHtml((Number.isFinite(payVal) ? payVal : 0).toFixed(2))}">
@@ -390,8 +395,8 @@ document.addEventListener('DOMContentLoaded', () => {
     (payRows || []).forEach(r => {
       const fc = (r.FCSTAMP || '').toString().trim();
       if (!fc) return;
-      const max = Number(r.ABERTO || 0);
-      paySelected.set(fc, { row: r, pay: Number.isFinite(max) ? max : 0 });
+      const aberto = Number(r.ABERTO || 0);
+      paySelected.set(fc, { row: r, pay: Number.isFinite(aberto) ? aberto : 0 });
     });
     applyPaySortAndRender();
   });
@@ -409,11 +414,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const fc = (tr.dataset.fcstamp || '').toString().trim();
     const row = (payRows || []).find(x => (x.FCSTAMP || '').toString().trim() === fc);
     if (!row) return;
-    const max = Number(row.ABERTO || 0);
+    const aberto = Number(row.ABERTO || 0);
+    const minVal = Math.min(0, aberto);
+    const maxVal = Math.max(0, aberto);
     let val = Number(input.value || 0);
     if (!Number.isFinite(val)) val = 0;
-    if (val < 0) val = 0;
-    if (Number.isFinite(max) && val > max) val = max;
+    if (val < minVal) val = minVal;
+    if (val > maxVal) val = maxVal;
     // normalizar visualmente sem forçar caret a cada tecla
     if (val !== Number(input.value || 0)) input.value = String(val);
     const selected = paySelected.get(fc);
@@ -438,12 +445,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const row = (payRows || []).find(x => (x.FCSTAMP || '').toString().trim() === fc);
       if (row) {
         const payInput = tr.querySelector('input[data-field="payval"]');
-        const max = Number(row.ABERTO || 0);
-        let val = payInput ? Number(payInput.value || 0) : max;
+        const aberto = Number(row.ABERTO || 0);
+        const minVal = Math.min(0, aberto);
+        const maxVal = Math.max(0, aberto);
+        let val = payInput ? Number(payInput.value || 0) : aberto;
         if (!Number.isFinite(val)) val = 0;
-        if (val < 0) val = 0;
-        if (Number.isFinite(max) && val > max) val = max;
-        if (val <= 0) val = Number.isFinite(max) ? max : 0;
+        if (val < minVal) val = minVal;
+        if (val > maxVal) val = maxVal;
+        if (Math.abs(val) <= 0.005) val = Number.isFinite(aberto) ? aberto : 0;
+        if (val < minVal) val = minVal;
+        if (val > maxVal) val = maxVal;
         if (payInput) payInput.value = (Number.isFinite(val) ? val : 0).toFixed(2);
         paySelected.set(fc, { row, pay: val });
       }

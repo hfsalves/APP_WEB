@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% set page_title = "Importar Faturas de Reservas" %}
+{% set page_name = "Importar Faturas de Reservas" %}
+
+{% block title %}Importar Faturas de Reservas{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="row g-3">
+    <div class="col-12 col-lg-5">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+            <div>
+              <div class="h5 mb-0">Importar faturas (Talkguest)</div>
+              <div class="text-muted small">Excel <span class="badge bg-light text-dark">.xlsx</span></div>
+            </div>
+          </div>
+
+          <form id="frForm" enctype="multipart/form-data">
+            <div class="mt-2">
+              <label class="form-label" for="frFile">Ficheiro Excel</label>
+              <input class="form-control" type="file" id="frFile" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+              <div class="form-text text-muted">
+                Primeira linha com títulos. Importa apenas ARTIGO = <b>Estadia</b> ou <b>Taxa de Limpeza</b>.
+                Se o documento já existir, faz update.
+              </div>
+            </div>
+
+            <div class="mt-3 d-flex align-items-center justify-content-between gap-2">
+              <div class="text-muted small" id="frStatus"></div>
+              <button type="submit" class="btn btn-primary" id="frSubmit">
+                <i class="fa-solid fa-file-import me-1"></i> Importar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-7">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="h6 mb-0">Resultado</div>
+            <span class="badge bg-light text-dark" id="frCount">0</span>
+          </div>
+          <div class="text-muted small mb-2" id="frMeta">Sem importações.</div>
+
+          <div class="table-responsive fr-table-wrap">
+            <table class="table table-sm align-middle mb-0" id="frPreview">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width:54px;">Op.</th>
+                  <th style="width:170px;">Documento</th>
+                  <th style="width:110px;">Data</th>
+                  <th>Cliente</th>
+                  <th style="width:150px;">C. Custo</th>
+                  <th style="width:160px;">Artigo</th>
+                  <th class="text-end" style="width:120px;">Base</th>
+                  <th class="text-end" style="width:90px;">IVA%</th>
+                  <th class="text-end" style="width:120px;">IVA</th>
+                  <th style="width:90px;">Anulado</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="10" class="text-muted">Sem dados.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .fr-table-wrap{ max-height: calc(100vh - 220px); overflow:auto; border:1px solid #e5e7eb; border-radius: 12px; }
+  #frPreview thead th{ position: sticky; top: 0; z-index: 2; }
+  #frPreview td.op-pill{ font-weight: 900; font-size: 11px; }
+  #frPreview td.op-pill .badge{ font-weight: 900; }
+</style>
+<script src="{{ url_for('static', filename='js/fr_import.js') }}?v={{ static_version }}"></script>
+{% endblock %}
+

@@ -165,7 +165,9 @@ function getFoPayload() {
       payload[f] = el.value;
     }
   });
-  if (!payload.DOCDATA && payload.DATA) {
+  const docVal = (payload.DOCDATA || '').toString().trim();
+  const docIsEmptyOrSentinel = !docVal || docVal === '1900-01-01';
+  if (docIsEmptyOrSentinel && payload.DATA) {
     payload.DOCDATA = payload.DATA;
   }
   if (!payload.FOSTAMP) payload.FOSTAMP = currentFoStamp || randomStamp();
@@ -218,7 +220,9 @@ function syncDocdataFromDataIfEmpty() {
   const dataEl = document.getElementById('DATA');
   const docEl = document.getElementById('DOCDATA');
   if (!dataEl || !docEl) return;
-  if (docEl.value) return;
+  const docVal = (docEl.value || '').toString().trim();
+  const isEmptyOrSentinel = !docVal || docVal === '1900-01-01';
+  if (!isEmptyOrSentinel) return;
   if (!dataEl.value) return;
   docEl.value = dataEl.value;
 }

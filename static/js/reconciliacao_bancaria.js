@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const diffEl = document.getElementById('rbDiff');
   const btnRec = document.getElementById('rbReconciliar');
   const btnRemove = document.getElementById('rbRemoveRec');
+  const btnCreateOw = document.getElementById('rbCreateOW');
   const onlyOpen = document.getElementById('rbOnlyOpen');
 
   const searchEl = document.getElementById('rbSearchEl');
@@ -64,6 +65,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnRec) btnRec.disabled = !ok;
     const canRemove = !onlyOpen?.checked && Number(state.activeGroupId || 0) > 0;
     if (btnRemove) btnRemove.disabled = !canRemove;
+
+    let eligibleOw = 0;
+    for (const stamp of state.selEl) {
+      const row = (state.elRows || []).find(x => (x.STAMP || '').toString() === stamp);
+      if (!row) continue;
+      const valor = Number(row.VALOR || 0) || 0;
+      const rec = Number(row.RECONCILIADO || 0) === 1;
+      if (!rec && valor > 0.005) eligibleOw += 1;
+    }
+    if (btnCreateOw) btnCreateOw.disabled = eligibleOw <= 0;
   }
 
   function setActiveGroupFromRow(tr) {
@@ -240,6 +251,36 @@ document.addEventListener('DOMContentLoaded', () => {
       const js = await r.json().catch(() => ({}));
       if (!r.ok || js.error) throw new Error(js.error || r.statusText);
       setStatus(`Reconciliação removida (grupo ${gid}).`, 'ok');
+      await loadForExt(extstamp);
+    } catch (e) {
+      setStatus(e?.message || String(e), 'err');
+      computeSums();
+    }
+  });
+
+  btnCreateOw?.addEventListener('click', async () => {
+    const extstamp = (selExt?.value || '').trim();
+    if (!extstamp) return;
+    const elStamps = Array.from(state.selEl);
+    if (!elStamps.length) return;
+    const eligible = elStamps.filter(st => {
+      const row = (state.elRows || []).find(x => (x.STAMP || '').toString() === st);
+      if (!row) return false;
+      return Number(row.RECONCILIADO || 0) !== 1 && (Number(row.VALOR || 0) || 0) > 0.005;
+    });
+    if (!eligible.length) return;
+    if (!confirm(`Gerar movimentos OW no ERP para ${eligible.length} entrada(s)?`)) return;
+    try {
+      btnCreateOw.disabled = true;
+      setStatus('A gerar OW...', '');
+      const r = await fetch('/api/reconciliacao/ow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ EXTSTAMP: extstamp, EL: eligible })
+      });
+      const js = await r.json().catch(() => ({}));
+      if (!r.ok || js.error) throw new Error(js.error || r.statusText);
+      setStatus(`OW gerado(s): ${js.inserted || 0}.`, 'ok');
       await loadForExt(extstamp);
     } catch (e) {
       setStatus(e?.message || String(e), 'err');
