@@ -185,6 +185,8 @@ document.addEventListener('DOMContentLoaded', () => {
     margin: { item: 6, axis: 10 },
     selectable: true,
     multiselect: false,
+    groupHeightMode: 'fixed',
+    groupHeight: 32,
     start: windowStart,
     end: addDays(windowEnd, 1),
     min: windowStart,
