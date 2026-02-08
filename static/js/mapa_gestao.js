@@ -45,10 +45,27 @@ document.addEventListener('DOMContentLoaded', () => {
   let chartSalesVsGoal = null;
   let chartCostsVsBudget = null;
   let chartMarginRealVsForecast = null;
+  let chartResDaily = null;
+  let resDailyYear = null;
+  let resDailyMonth = null; // 1..12
+  let chartAdrDaily = null;
+  let adrDailyYear = null;
+  let adrDailyMonth = null; // 1..12
+  let chartCostsRubrics = null;
+  let costsRubricsYear = null;
+  let costsRubricsMonth = null; // 1..12
+  let chartSalesAloj = null;
+  let salesAlojYear = null;
+  let salesAlojMonth = null; // 1..12
+  let chartMarginAloj = null;
+  let marginAlojYear = null;
+  let marginAlojMonth = null; // 1..12
+  let lastKpis = {};
 
   const fmtNum = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 0, useGrouping: true });
   const fmtPct = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: true });
   const fmtCur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0, useGrouping: true });
+  const fmtCur2 = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true });
   const fmtNum2 = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true });
   const attrEscape = (str) => String(str == null ? '' : str).replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -105,6 +122,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const marginMain = document.getElementById('mapKpiMarginMain');
       const marginSub = document.getElementById('mapKpiMarginSub');
       const marginDelta = document.getElementById('mapKpiMarginDelta');
+      const adrMain = document.getElementById('mapKpiAdrMain');
+      const adrSub = document.getElementById('mapKpiAdrSub');
+      const resMain = document.getElementById('mapKpiResMain');
+      const resSub = document.getElementById('mapKpiResSub');
+      const kpi6Main = document.getElementById('mapKpi6Main');
+      const kpi6Sub = document.getElementById('mapKpi6Sub');
 
       const safePct = (num) => {
         if (!isFinite(num)) return '--';
@@ -167,6 +190,59 @@ document.addEventListener('DOMContentLoaded', () => {
       if (marginMain) marginMain.textContent = fmtCur.format(marginActualTotal);
       if (marginSub) marginSub.textContent = `Previsão: ${fmtCur.format(marginForecastTotal)}`;
       setDeltaBadge(marginDelta, marginForecastTotal ? ((marginActualTotal - marginForecastTotal) / marginForecastTotal) * 100 : NaN, true);
+
+      if (adrMain) {
+        const rawAdr = lastKpis?.preco_medio_noite;
+        if (rawAdr === null || rawAdr === undefined || rawAdr === '') {
+          adrMain.textContent = '--';
+        } else {
+          const adr = Number(rawAdr);
+          adrMain.textContent = isFinite(adr) ? fmtCur2.format(adr) : '--';
+        }
+      }
+      if (adrSub) {
+        const rawNoites = lastKpis?.preco_medio_noite_noites;
+        if (rawNoites === null || rawNoites === undefined || rawNoites === '') {
+          adrSub.textContent = 'Noites: --';
+        } else {
+          const noites = Number(rawNoites);
+          adrSub.textContent = isFinite(noites) ? `Noites: ${fmtNum.format(noites)}` : 'Noites: --';
+        }
+      }
+
+      if (resMain) {
+        const rawRes = lastKpis?.numero_reservas;
+        if (rawRes === null || rawRes === undefined || rawRes === '') resMain.textContent = '--';
+        else {
+          const n = Number(rawRes);
+          resMain.textContent = isFinite(n) ? fmtNum.format(n) : '--';
+        }
+      }
+      if (resSub) {
+        const rawHosp = lastKpis?.numero_hospedes;
+        if (rawHosp === null || rawHosp === undefined || rawHosp === '') resSub.textContent = 'Hospedes: --';
+        else {
+          const n = Number(rawHosp);
+          resSub.textContent = isFinite(n) ? `Hospedes: ${fmtNum.format(n)}` : 'Hospedes: --';
+        }
+      }
+
+      if (kpi6Main) {
+        const rawAvg = lastKpis?.reservas_ano_media_dia;
+        if (rawAvg === null || rawAvg === undefined || rawAvg === '') kpi6Main.textContent = '--';
+        else {
+          const n = Number(rawAvg);
+          kpi6Main.textContent = isFinite(n) ? fmtCur2.format(n) : '--';
+        }
+      }
+      if (kpi6Sub) {
+        const rawTot = lastKpis?.reservas_ano_total;
+        if (rawTot === null || rawTot === undefined || rawTot === '') kpi6Sub.textContent = 'Total ano: --';
+        else {
+          const n = Number(rawTot);
+          kpi6Sub.textContent = isFinite(n) ? `Total ano: ${fmtCur.format(n)}` : 'Total ano: --';
+        }
+      }
     }
     // 1) Vendas vs Objetivo (Famílias 9)
     {
@@ -397,6 +473,836 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  const resDailyModalEl = document.getElementById('mapResDailyModal');
+  const resDailyModal = resDailyModalEl ? new bootstrap.Modal(resDailyModalEl) : null;
+  const resPrevBtn = document.getElementById('mapResPrev');
+  const resNextBtn = document.getElementById('mapResNext');
+  const resMonthLabelEl = document.getElementById('mapResMonthLabel');
+  const resTotalEl = document.getElementById('mapResDailyTotal');
+
+  const adrDailyModalEl = document.getElementById('mapAdrDailyModal');
+  const adrDailyModal = adrDailyModalEl ? new bootstrap.Modal(adrDailyModalEl) : null;
+  const adrPrevBtn = document.getElementById('mapAdrPrev');
+  const adrNextBtn = document.getElementById('mapAdrNext');
+  const adrMonthLabelEl = document.getElementById('mapAdrMonthLabel');
+  const adrTotalEl = document.getElementById('mapAdrDailyTotal');
+
+  const costsRubricModalEl = document.getElementById('mapCostsRubricModal');
+  const costsRubricModal = costsRubricModalEl ? new bootstrap.Modal(costsRubricModalEl) : null;
+  const costsPrevBtn = document.getElementById('mapCostsPrev');
+  const costsNextBtn = document.getElementById('mapCostsNext');
+  const costsMonthLabelEl = document.getElementById('mapCostsMonthLabel');
+  const costsTotalEl = document.getElementById('mapCostsRubricTotal');
+
+  const salesAlojModalEl = document.getElementById('mapSalesAlojModal');
+  const salesAlojModal = salesAlojModalEl ? new bootstrap.Modal(salesAlojModalEl) : null;
+  const salesPrevBtn = document.getElementById('mapSalesPrev');
+  const salesNextBtn = document.getElementById('mapSalesNext');
+  const salesMonthLabelEl = document.getElementById('mapSalesMonthLabel');
+  const salesTotalEl = document.getElementById('mapSalesAlojTotal');
+
+  const marginAlojModalEl = document.getElementById('mapMarginAlojModal');
+  const marginAlojModal = marginAlojModalEl ? new bootstrap.Modal(marginAlojModalEl) : null;
+  const marginPrevBtn = document.getElementById('mapMarginPrev');
+  const marginNextBtn = document.getElementById('mapMarginNext');
+  const marginMonthLabelEl = document.getElementById('mapMarginMonthLabel');
+  const marginTotalEl = document.getElementById('mapMarginAlojTotal');
+
+  const countryModalEl = document.getElementById('mapResCountryModal');
+  const countryModal = countryModalEl ? new bootstrap.Modal(countryModalEl) : null;
+  const countryPrevBtn = document.getElementById('mapCountryPrev');
+  const countryNextBtn = document.getElementById('mapCountryNext');
+  const countryMonthLabelEl = document.getElementById('mapCountryMonthLabel');
+  const countryBodyEl = document.getElementById('mapCountryBody');
+  const countryTotalEl = document.getElementById('mapCountryTotal');
+  let countryYear = null;
+  let countryRowsCache = [];
+  let countryTotalValCache = 0;
+  let countrySort = { key: 'valor', dir: 'desc' }; // default: maior valor
+
+  function monthLabel(ano, mes) {
+    const m = Number(mes);
+    const y = Number(ano);
+    if (!isFinite(m) || !isFinite(y) || m < 1 || m > 12) return '--';
+    return `${monthNames[m - 1]} ${y}`;
+  }
+
+  async function loadResDaily() {
+    if (!resDailyModalEl) return;
+    const ano = Number(resDailyYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
+    const mes = Number(resDailyMonth || (new Date().getMonth() + 1));
+    if (resMonthLabelEl) resMonthLabelEl.textContent = monthLabel(ano, mes);
+    if (resTotalEl) resTotalEl.textContent = 'Total: --';
+
+    const ccustos = getSelectedCcustos();
+    const qs = new URLSearchParams({ ano: String(ano), mes: String(mes) });
+    if (ccustos.length) qs.set('ccustos', ccustos.join(','));
+
+    let data;
+    try {
+      const res = await fetch(`/api/mapa_gestao/reservas_diarias?${qs.toString()}`);
+      data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao obter reservas diárias');
+    } catch (err) {
+      console.error(err);
+      if (resTotalEl) resTotalEl.textContent = `Erro: ${err.message || err}`;
+      return;
+    }
+
+    const canvas = document.getElementById('mapResDailyChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const labels = (Array.isArray(data.labels) ? data.labels : []).map(n => String(n));
+    const values = (Array.isArray(data.values) ? data.values : []).map(v => Number(v || 0));
+    const total = Number(data.total || 0);
+    if (resTotalEl) resTotalEl.textContent = `Total: ${fmtCur.format(total)}`;
+
+    const dayNums = (Array.isArray(data.labels) ? data.labels : []).map(n => Number(n));
+    const bgColors = dayNums.map((d) => {
+      const day = Number(d);
+      const wd = new Date(ano, mes - 1, day).getDay(); // 0=Dom,6=Sáb
+      const weekend = (wd === 0 || wd === 6);
+      return weekend ? 'rgba(59, 130, 246, 0.38)' : 'rgba(59, 130, 246, 0.22)';
+    });
+    const borderColors = dayNums.map((d) => {
+      const day = Number(d);
+      const wd = new Date(ano, mes - 1, day).getDay();
+      const weekend = (wd === 0 || wd === 6);
+      return weekend ? 'rgba(30, 64, 175, 0.95)' : 'rgba(59, 130, 246, 0.85)';
+    });
+
+    try { chartResDaily?.destroy?.(); } catch (_) {}
+    chartResDaily = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Reservas recebidas',
+            data: values,
+            backgroundColor: bgColors,
+            borderColor: borderColors,
+            borderWidth: 1,
+            borderRadius: 6,
+            borderSkipped: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const v = Number(ctx.parsed?.y || 0);
+                return fmtCur.format(v);
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: (v) => {
+                try { return fmtNum.format(Number(v || 0)); } catch (_) { return v; }
+              }
+            },
+            grid: { display: true, color: '#e5e7eb' }
+          }
+        }
+      }
+    });
+  }
+
+  async function loadAdrDaily() {
+    if (!adrDailyModalEl) return;
+    const ano = Number(adrDailyYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
+    const mes = Number(adrDailyMonth || (new Date().getMonth() + 1));
+    if (adrMonthLabelEl) adrMonthLabelEl.textContent = monthLabel(ano, mes);
+    if (adrTotalEl) adrTotalEl.textContent = 'ADR: --';
+
+    const ccustos = getSelectedCcustos();
+    const qs = new URLSearchParams({ ano: String(ano), mes: String(mes) });
+    if (ccustos.length) qs.set('ccustos', ccustos.join(','));
+
+    let data;
+    try {
+      const res = await fetch(`/api/mapa_gestao/adr_diario?${qs.toString()}`);
+      data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao obter ADR diário');
+    } catch (err) {
+      console.error(err);
+      if (adrTotalEl) adrTotalEl.textContent = `Erro: ${err.message || err}`;
+      return;
+    }
+
+    const canvas = document.getElementById('mapAdrDailyChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const labels = (Array.isArray(data.labels) ? data.labels : []).map(n => String(n));
+    const values = (Array.isArray(data.values) ? data.values : []).map(v => (v === null || v === undefined || v === '' ? null : Number(v)));
+    const adr = (data.adr === null || data.adr === undefined || data.adr === '' ? null : Number(data.adr));
+    const noites = Number(data.noites || 0);
+    const noitesByDay = (Array.isArray(data.noites_by_day) ? data.noites_by_day : []).map(v => Number(v || 0));
+    const netByDay = (Array.isArray(data.net_by_day) ? data.net_by_day : []).map(v => Number(v || 0));
+    if (adrTotalEl) {
+      const adrTxt = (adr !== null && isFinite(adr)) ? fmtCur2.format(adr) : '--';
+      adrTotalEl.textContent = `ADR: ${adrTxt}  •  Noites: ${fmtNum.format(noites)}`;
+    }
+
+    const dayNums = (Array.isArray(data.labels) ? data.labels : []).map(n => Number(n));
+    const bgColors = dayNums.map((d) => {
+      const day = Number(d);
+      const wd = new Date(ano, mes - 1, day).getDay();
+      const weekend = (wd === 0 || wd === 6);
+      return weekend ? 'rgba(14, 165, 233, 0.35)' : 'rgba(14, 165, 233, 0.18)';
+    });
+    const borderColors = dayNums.map((d) => {
+      const day = Number(d);
+      const wd = new Date(ano, mes - 1, day).getDay();
+      const weekend = (wd === 0 || wd === 6);
+      return weekend ? 'rgba(12, 74, 110, 0.95)' : 'rgba(14, 165, 233, 0.80)';
+    });
+
+    try { chartAdrDaily?.destroy?.(); } catch (_) {}
+    chartAdrDaily = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'ADR',
+            data: values,
+            _noitesByDay: noitesByDay,
+            _netByDay: netByDay,
+            backgroundColor: bgColors,
+            borderColor: borderColors,
+            borderWidth: 1,
+            borderRadius: 6,
+            borderSkipped: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const v = ctx.parsed?.y;
+                if (v === null || v === undefined || !isFinite(Number(v))) return 'Sem dados';
+                const idx = Number(ctx.dataIndex || 0);
+                const ds = ctx.dataset || {};
+                const n = Array.isArray(ds._noitesByDay) ? Number(ds._noitesByDay[idx] || 0) : 0;
+                const net = Array.isArray(ds._netByDay) ? Number(ds._netByDay[idx] || 0) : 0;
+                return `${fmtCur2.format(Number(v))}  •  Noites: ${fmtNum.format(n)}  •  Net: ${fmtCur.format(net)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: (v) => {
+                try { return fmtNum2.format(Number(v || 0)); } catch (_) { return v; }
+              }
+            },
+            grid: { display: true, color: '#e5e7eb' }
+          }
+        }
+      }
+    });
+  }
+
+  function getCostRubricsForMonth(mes) {
+    const mIdx = Number(mes) - 1;
+    if (!isFinite(mIdx) || mIdx < 0 || mIdx > 11) return [];
+
+    const level1NameByRef = new Map(
+      lastRows
+        .filter(r => Number(r.nivel || 1) === 1)
+        .map(r => [String(r.ref || '').trim(), String(r.nome || '').trim()])
+        .filter(([ref]) => !!ref)
+    );
+
+    const sortKey = (ref) => {
+      const parts = String(ref || '').trim().split('.').map(p => parseInt(p, 10));
+      const a = (isFinite(parts[0]) ? parts[0] : 0);
+      const b = (isFinite(parts[1]) ? parts[1] : 0);
+      return [a, b];
+    };
+
+    return lastRows
+      .filter(r => Number(r.nivel || 1) === 2)
+      .filter(r => {
+        const ref = String(r.ref || '').trim();
+        // apenas familias 1 a 3, nivel 2 (ex: 1.1, 2.3, 3.2), excluir nivel 3 (1.1.1)
+        return /^[1-3]\.\d+$/.test(ref);
+      })
+      .map(r => {
+        const ref = String(r.ref || '').trim();
+        const nome = String(r.nome || '').trim();
+        const parentRef = ref.split('.')[0];
+        const parentNome = String(level1NameByRef.get(parentRef) || '').trim();
+        const real = Number((r.meses || [])[mIdx] || 0);
+        const orc = Number((r.orc_meses || [])[mIdx] || 0);
+        return { ref, nome, parentNome, real, orc };
+      })
+      .filter(x => Math.abs(Number(x.real || 0)) > 0.005 || Math.abs(Number(x.orc || 0)) > 0.005)
+      .sort((a, b) => {
+        const [a1, a2] = sortKey(a.ref);
+        const [b1, b2] = sortKey(b.ref);
+        if (a1 !== b1) return a1 - b1;
+        return a2 - b2;
+      });
+  }
+
+  function renderCostsRubricsChart(ano, mes) {
+    if (!costsRubricModalEl || typeof Chart === 'undefined') return;
+    const canvas = document.getElementById('mapCostsRubricChart');
+    if (!canvas) return;
+
+    const items = getCostRubricsForMonth(mes);
+    const labels = items.map(x => {
+      const left = String(x.ref || '').trim();
+      const p = String(x.parentNome || '').trim();
+      const n = String(x.nome || '').trim();
+      if (p && n) return `${left} ${p} - ${n}`;
+      if (n) return `${left} - ${n}`;
+      return left;
+    });
+    const actual = items.map(x => Number(x.real || 0));
+    const budget = items.map(x => Number(x.orc || 0));
+
+    const totalActual = actual.reduce((a, v) => a + Number(v || 0), 0);
+    const totalBudget = budget.reduce((a, v) => a + Number(v || 0), 0);
+    if (costsTotalEl) costsTotalEl.textContent = `Total: ${fmtCur.format(totalActual)}  •  Orçamento: ${fmtCur.format(totalBudget)}`;
+    if (costsMonthLabelEl) costsMonthLabelEl.textContent = monthLabel(ano, mes);
+
+    try { chartCostsRubrics?.destroy?.(); } catch (_) {}
+    chartCostsRubrics = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Real',
+            data: actual,
+            backgroundColor: 'rgba(244, 63, 94, 0.25)',
+            borderColor: 'rgba(244, 63, 94, 0.85)',
+            borderWidth: 1,
+            borderRadius: 6,
+            borderSkipped: false
+          },
+          {
+            label: 'Orçamento',
+            data: budget,
+            backgroundColor: 'rgba(107, 114, 128, 0.18)',
+            borderColor: 'rgba(107, 114, 128, 0.75)',
+            borderWidth: 1,
+            borderRadius: 6,
+            borderSkipped: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: true, position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `${ctx.dataset.label}: ${fmtCur.format(Number(ctx.parsed?.x || 0))}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            ticks: {
+              callback: (v) => {
+                try { return fmtNum.format(Number(v || 0)); } catch (_) { return v; }
+              }
+            },
+            grid: { display: true, color: '#e5e7eb' }
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              align: 'start',
+              autoSkip: false,
+              maxTicksLimit: 50,
+              padding: 6
+            }
+          }
+        }
+      }
+    });
+  }
+
+  async function loadSalesAloj(ano, mes) {
+    if (!salesAlojModalEl) return;
+    if (salesMonthLabelEl) salesMonthLabelEl.textContent = monthLabel(ano, mes);
+    if (salesTotalEl) salesTotalEl.textContent = 'Total: --';
+
+    const ccustos = getSelectedCcustos();
+    const qs = new URLSearchParams({ ano: String(ano), mes: String(mes) });
+    if (ccustos.length) qs.set('ccustos', ccustos.join(','));
+
+    let data;
+    try {
+      const res = await fetch(`/api/mapa_gestao/vendas_alojamentos?${qs.toString()}`);
+      data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao obter vendas por alojamento');
+    } catch (err) {
+      console.error(err);
+      if (salesTotalEl) salesTotalEl.textContent = `Erro: ${err.message || err}`;
+      return;
+    }
+
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    const labels = rows.map(r => String(r.alojamento || '').trim());
+    const actual = rows.map(r => Number(r.real || 0));
+    const goal = rows.map(r => Number(r.objetivo || 0));
+    const totalReal = Number(data.total_real || 0);
+    const totalObj = Number(data.total_objetivo || 0);
+    if (salesTotalEl) salesTotalEl.textContent = `Total: ${fmtCur.format(totalReal)}  •  Objetivo: ${fmtCur.format(totalObj)}`;
+
+    const canvas = document.getElementById('mapSalesAlojChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    // ajustar altura do canvas para muitos alojamentos (barras horizontais)
+    const minH = 420;
+    const h = Math.max(minH, labels.length * 22 + 120);
+    canvas.style.width = '100%';
+    canvas.style.height = `${h}px`;
+    canvas.height = h;
+
+    try { chartSalesAloj?.destroy?.(); } catch (_) {}
+    chartSalesAloj = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Faturado',
+            data: actual,
+            backgroundColor: 'rgba(14, 165, 233, 0.35)',
+            borderColor: 'rgba(14, 165, 233, 0.85)',
+            borderWidth: 1,
+            borderRadius: 6,
+            borderSkipped: false
+          },
+          {
+            label: 'Objetivo',
+            data: goal,
+            backgroundColor: 'rgba(124, 58, 237, 0.25)',
+            borderColor: 'rgba(124, 58, 237, 0.85)',
+            borderWidth: 1,
+            borderRadius: 6,
+            borderSkipped: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: true, position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `${ctx.dataset.label}: ${fmtCur.format(Number(ctx.parsed?.x || 0))}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            ticks: {
+              callback: (v) => {
+                try { return fmtNum.format(Number(v || 0)); } catch (_) { return v; }
+              }
+            }
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              align: 'start',
+              autoSkip: false,
+              padding: 6
+            }
+          }
+        }
+      }
+    });
+  }
+
+  async function loadMarginAloj(ano, mes) {
+    if (!marginAlojModalEl) return;
+    if (marginMonthLabelEl) marginMonthLabelEl.textContent = monthLabel(ano, mes);
+    if (marginTotalEl) marginTotalEl.textContent = 'Total: --';
+
+    const ccustos = getSelectedCcustos();
+    const qs = new URLSearchParams({ ano: String(ano), mes: String(mes) });
+    if (ccustos.length) qs.set('ccustos', ccustos.join(','));
+
+    let data;
+    try {
+      const res = await fetch(`/api/mapa_gestao/margem_alojamentos?${qs.toString()}`);
+      data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao obter margem por alojamento');
+    } catch (err) {
+      console.error(err);
+      if (marginTotalEl) marginTotalEl.textContent = `Erro: ${err.message || err}`;
+      return;
+    }
+
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    const labels = rows.map(r => String(r.alojamento || '').trim());
+    const marginVals = rows.map(r => Number(r.margem || 0));
+    const salesVals = rows.map(r => Number(r.vendas || 0));
+    const costVals = rows.map(r => Number(r.custos || 0));
+
+    const totalSales = Number(data.total_vendas || 0);
+    const totalCosts = Number(data.total_custos || 0);
+    const totalMargin = Number(data.total_margem || 0);
+    if (marginTotalEl) {
+      marginTotalEl.textContent = `Total: ${fmtCur.format(totalMargin)}  •  Vendas: ${fmtCur.format(totalSales)}  •  Custos: ${fmtCur.format(totalCosts)}`;
+    }
+
+    const canvas = document.getElementById('mapMarginAlojChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const minH = 420;
+    const h = Math.max(minH, labels.length * 22 + 120);
+    canvas.style.width = '100%';
+    canvas.style.height = `${h}px`;
+    canvas.height = h;
+
+    const bg = marginVals.map(v => (Number(v || 0) < 0 ? 'rgba(239, 68, 68, 0.25)' : 'rgba(34, 197, 94, 0.22)'));
+    const border = marginVals.map(v => (Number(v || 0) < 0 ? 'rgba(239, 68, 68, 0.85)' : 'rgba(34, 197, 94, 0.85)'));
+
+    try { chartMarginAloj?.destroy?.(); } catch (_) {}
+    chartMarginAloj = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Margem',
+            data: marginVals,
+            _sales: salesVals,
+            _costs: costVals,
+            backgroundColor: bg,
+            borderColor: border,
+            borderWidth: 1,
+            borderRadius: 6,
+            borderSkipped: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const idx = Number(ctx.dataIndex || 0);
+                const ds = ctx.dataset || {};
+                const v = Number(ctx.parsed?.x || 0);
+                const s = Array.isArray(ds._sales) ? Number(ds._sales[idx] || 0) : 0;
+                const c = Array.isArray(ds._costs) ? Number(ds._costs[idx] || 0) : 0;
+                return `Margem: ${fmtCur.format(v)}  •  Vendas: ${fmtCur.format(s)}  •  Custos: ${fmtCur.format(c)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              callback: (v) => {
+                try { return fmtNum.format(Number(v || 0)); } catch (_) { return v; }
+              }
+            },
+            grid: {
+              color: (ctx) => (Number(ctx.tick?.value) === 0 ? '#94a3b8' : '#e5e7eb'),
+              lineWidth: (ctx) => (Number(ctx.tick?.value) === 0 ? 2 : 1)
+            }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { align: 'start', autoSkip: false, padding: 6 }
+          }
+        }
+      }
+    });
+  }
+
+  function flagFromPais(pais) {
+    const p = String(pais || '').trim();
+    if (p.length === 2 && /^[a-zA-Z]{2}$/.test(p)) {
+      const code = p.toUpperCase();
+      const A = 0x1F1E6;
+      const first = code.charCodeAt(0) - 65 + A;
+      const second = code.charCodeAt(1) - 65 + A;
+      try { return String.fromCodePoint(first, second); } catch (_) { return ''; }
+    }
+    return '';
+  }
+
+  async function loadCountryStats(ano) {
+    if (!countryModalEl || !countryBodyEl) return;
+    if (countryMonthLabelEl) countryMonthLabelEl.textContent = `Ano ${ano}`;
+    countryBodyEl.innerHTML = '<tr><td colspan="8" class="text-center text-muted">A carregar...</td></tr>';
+    if (countryTotalEl) countryTotalEl.textContent = 'Total: --';
+
+    const ccustos = getSelectedCcustos();
+    const qs = new URLSearchParams({ ano: String(ano) });
+    if (ccustos.length) qs.set('ccustos', ccustos.join(','));
+
+    let data;
+    try {
+      const res = await fetch(`/api/mapa_gestao/reservas_paises?${qs.toString()}`);
+      data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao obter reservas por país');
+    } catch (err) {
+      console.error(err);
+      countryBodyEl.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(err.message || String(err))}</td></tr>`;
+      return;
+    }
+
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    const totalVal = Number(data.total_valor || 0);
+    const totalRes = Number(data.total_reservas || 0);
+    if (countryTotalEl) countryTotalEl.textContent = `Total: ${fmtCur.format(totalVal)}  •  Reservas: ${fmtNum.format(totalRes)}`;
+
+    countryRowsCache = rows;
+    countryTotalValCache = totalVal;
+    renderCountryRows();
+  }
+
+  function getCountrySortVal(r, key) {
+    const k = String(key || '').trim();
+    if (k === 'pais') return String(r.pais || '').trim().toUpperCase();
+    if (k === 'pct') {
+      const v = Number(r.valor || 0);
+      return countryTotalValCache ? (v / countryTotalValCache) * 100 : 0;
+    }
+    const raw = r[k];
+    if (raw === null || raw === undefined || raw === '') return 0;
+    const n = Number(raw);
+    return isFinite(n) ? n : 0;
+  }
+
+  function setCountrySortIndicators() {
+    document.querySelectorAll('#mapCountryTable thead th.country-sort').forEach(th => {
+      const key = th.getAttribute('data-key') || '';
+      const ind = th.querySelector('.sort-ind');
+      if (!ind) return;
+      if (key === countrySort.key) ind.textContent = countrySort.dir === 'asc' ? '▲' : '▼';
+      else ind.textContent = '';
+    });
+  }
+
+  function renderCountryRows() {
+    if (!countryBodyEl) return;
+    const rows = Array.isArray(countryRowsCache) ? [...countryRowsCache] : [];
+    if (!rows.length) {
+      countryBodyEl.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Sem dados.</td></tr>';
+      setCountrySortIndicators();
+      return;
+    }
+
+    const dirMul = countrySort.dir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      const av = getCountrySortVal(a, countrySort.key);
+      const bv = getCountrySortVal(b, countrySort.key);
+      if (countrySort.key === 'pais') return String(av).localeCompare(String(bv), 'pt-PT') * dirMul;
+      return (Number(av) - Number(bv)) * dirMul;
+    });
+
+    countryBodyEl.innerHTML = rows.map(r => {
+      const pais = String(r.pais || '').trim() || '(Sem país)';
+      const flag = flagFromPais(pais);
+      const valor = Number(r.valor || 0);
+      const pct = countryTotalValCache ? (valor / countryTotalValCache) * 100 : 0;
+      const reservas = Number(r.reservas || 0);
+      const mn = Number(r.media_noites || 0);
+      const adr = (r.media_noite === null || r.media_noite === undefined) ? null : Number(r.media_noite);
+      const mh = Number(r.media_hospedes || 0);
+      const ant = Number(r.media_antecip || 0);
+      const paisTxt = flag ? `${flag} ${pais}` : pais;
+      return `
+        <tr>
+          <td>${escapeHtml(paisTxt)}</td>
+          <td class="text-end">${fmtNum.format(reservas)}</td>
+          <td class="text-end">${fmtPct.format(pct)}%</td>
+          <td class="text-end">${fmtCur.format(valor)}</td>
+          <td class="text-end">${fmtNum2.format(mn)}</td>
+          <td class="text-end">${(adr === null || !isFinite(adr)) ? '--' : fmtCur2.format(adr)}</td>
+          <td class="text-end">${fmtNum2.format(mh)}</td>
+          <td class="text-end">${fmtNum2.format(ant)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    setCountrySortIndicators();
+  }
+
+  function shiftMonth(delta) {
+    const baseYear = Number(resDailyYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
+    const baseMonth = Number(resDailyMonth || (new Date().getMonth() + 1));
+    let y = baseYear;
+    let m = baseMonth + Number(delta || 0);
+    while (m < 1) { m += 12; y -= 1; }
+    while (m > 12) { m -= 12; y += 1; }
+    resDailyYear = y;
+    resDailyMonth = m;
+    loadResDaily();
+  }
+
+  document.getElementById('mapKpi6Card')?.addEventListener('click', () => {
+    const now = new Date();
+    resDailyYear = parseInt(anoInput?.value, 10) || now.getFullYear();
+    resDailyMonth = now.getMonth() + 1;
+    resDailyModal?.show();
+    // esperar a animação do modal para garantir canvas com tamanho
+    setTimeout(loadResDaily, 150);
+  });
+  resPrevBtn?.addEventListener('click', () => shiftMonth(-1));
+  resNextBtn?.addEventListener('click', () => shiftMonth(1));
+
+  function shiftAdrMonth(delta) {
+    const baseYear = Number(adrDailyYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
+    const baseMonth = Number(adrDailyMonth || (new Date().getMonth() + 1));
+    let y = baseYear;
+    let m = baseMonth + Number(delta || 0);
+    while (m < 1) { m += 12; y -= 1; }
+    while (m > 12) { m -= 12; y += 1; }
+    adrDailyYear = y;
+    adrDailyMonth = m;
+    loadAdrDaily();
+  }
+
+  document.getElementById('mapKpiAdrCard')?.addEventListener('click', () => {
+    const now = new Date();
+    adrDailyYear = parseInt(anoInput?.value, 10) || now.getFullYear();
+    adrDailyMonth = now.getMonth() + 1;
+    adrDailyModal?.show();
+    setTimeout(loadAdrDaily, 150);
+  });
+  adrPrevBtn?.addEventListener('click', () => shiftAdrMonth(-1));
+  adrNextBtn?.addEventListener('click', () => shiftAdrMonth(1));
+
+  function shiftCostsMonth(delta) {
+    const baseYear = Number(costsRubricsYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
+    const baseMonth = Number(costsRubricsMonth || (new Date().getMonth() + 1));
+    let y = baseYear;
+    let m = baseMonth + Number(delta || 0);
+    while (m < 1) { m += 12; y -= 1; }
+    while (m > 12) { m -= 12; y += 1; }
+    costsRubricsYear = y;
+    costsRubricsMonth = m;
+    renderCostsRubricsChart(y, m);
+  }
+
+  document.getElementById('mapKpiCostsCard')?.addEventListener('click', () => {
+    const now = new Date();
+    costsRubricsYear = parseInt(anoInput?.value, 10) || now.getFullYear();
+    costsRubricsMonth = now.getMonth() + 1;
+    costsRubricModal?.show();
+    setTimeout(() => renderCostsRubricsChart(costsRubricsYear, costsRubricsMonth), 150);
+  });
+  costsPrevBtn?.addEventListener('click', () => shiftCostsMonth(-1));
+  costsNextBtn?.addEventListener('click', () => shiftCostsMonth(1));
+
+  function shiftSalesMonth(delta) {
+    const baseYear = Number(salesAlojYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
+    const baseMonth = Number(salesAlojMonth || (new Date().getMonth() + 1));
+    let y = baseYear;
+    let m = baseMonth + Number(delta || 0);
+    while (m < 1) { m += 12; y -= 1; }
+    while (m > 12) { m -= 12; y += 1; }
+    salesAlojYear = y;
+    salesAlojMonth = m;
+    loadSalesAloj(y, m);
+  }
+
+  document.getElementById('mapKpiSalesCard')?.addEventListener('click', () => {
+    const now = new Date();
+    salesAlojYear = parseInt(anoInput?.value, 10) || now.getFullYear();
+    salesAlojMonth = now.getMonth() + 1;
+    salesAlojModal?.show();
+    setTimeout(() => loadSalesAloj(salesAlojYear, salesAlojMonth), 150);
+  });
+  salesPrevBtn?.addEventListener('click', () => shiftSalesMonth(-1));
+  salesNextBtn?.addEventListener('click', () => shiftSalesMonth(1));
+
+  function shiftMarginMonth(delta) {
+    const baseYear = Number(marginAlojYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
+    const baseMonth = Number(marginAlojMonth || (new Date().getMonth() + 1));
+    let y = baseYear;
+    let m = baseMonth + Number(delta || 0);
+    while (m < 1) { m += 12; y -= 1; }
+    while (m > 12) { m -= 12; y += 1; }
+    marginAlojYear = y;
+    marginAlojMonth = m;
+    loadMarginAloj(y, m);
+  }
+
+  document.getElementById('mapKpiMarginCard')?.addEventListener('click', () => {
+    const now = new Date();
+    marginAlojYear = parseInt(anoInput?.value, 10) || now.getFullYear();
+    marginAlojMonth = now.getMonth() + 1;
+    marginAlojModal?.show();
+    setTimeout(() => loadMarginAloj(marginAlojYear, marginAlojMonth), 150);
+  });
+  marginPrevBtn?.addEventListener('click', () => shiftMarginMonth(-1));
+  marginNextBtn?.addEventListener('click', () => shiftMarginMonth(1));
+
+  function shiftCountryYear(delta) {
+    const baseYear = Number(countryYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
+    const y = baseYear + Number(delta || 0);
+    countryYear = y;
+    loadCountryStats(y);
+  }
+
+  document.getElementById('mapKpiResCard')?.addEventListener('click', () => {
+    const now = new Date();
+    countryYear = parseInt(anoInput?.value, 10) || now.getFullYear();
+    countryModal?.show();
+    setTimeout(() => loadCountryStats(countryYear), 150);
+  });
+  countryPrevBtn?.addEventListener('click', () => shiftCountryYear(-1));
+  countryNextBtn?.addEventListener('click', () => shiftCountryYear(1));
+
+  document.querySelectorAll('#mapCountryTable thead th.country-sort').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.getAttribute('data-key') || '';
+      if (!key) return;
+      if (countrySort.key === key) {
+        countrySort.dir = countrySort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        countrySort.key = key;
+        countrySort.dir = (key === 'pais') ? 'asc' : 'desc';
+      }
+      renderCountryRows();
+    });
+  });
+
   function getSelectedCcustos() {
     return Array.from(ccSelected);
   }
@@ -521,6 +1427,7 @@ document.addEventListener('DOMContentLoaded', () => {
         while (orc_meses.length < 12) orc_meses.push(0);
         return { ...r, meses, orc_meses };
       });
+      lastKpis = (data && typeof data === 'object' && data.kpis && typeof data.kpis === 'object') ? data.kpis : {};
       lastRows = normalized;
       levelOneRefs = lastRows.filter(r => Number(r.nivel || 1) === 1).map(r => String(r.ref || '').trim());
       allRefs = lastRows.map(r => String(r.ref || '').trim());

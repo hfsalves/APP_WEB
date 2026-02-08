@@ -6,6 +6,7 @@ import pyodbc
 import json
 import time
 import uuid
+import unicodedata
 from decimal import Decimal
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -1728,10 +1729,169 @@ OPTION (MAXRECURSION 32767);
                 'orc_total': orc_total,
             })
 
+        # KPI: preco medio por noite (reservas RS) = SUM((ESTADIA+LIMPEZA) - COMISSAO) / SUM(NOITES)
+        kpi_adr_valor = None
+        kpi_adr_noites = 0
+        kpi_adr_net = 0.0
+        kpi_rs_reservas = 0
+        kpi_rs_hospedes = 0
+        try:
+            where_rs = [
+                "YEAR(ISNULL(RS.DATAOUT, RS.DATAIN)) = :ano",
+                "ISNULL(RS.CANCELADA,0) = 0",
+                "ISNULL(RS.NOITES,0) > 0",
+                # excluir reservas do proprietario (valor medio/noite = 0)
+                "ABS(((ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0)) - ISNULL(RS.COMISSAO,0))) > 0.005",
+            ]
+            params_rs = {'ano': ano}
+            if ccustos:
+                keys = []
+                for idx, cc in enumerate(ccustos):
+                    k = f"cc{idx}"
+                    params_rs[k] = cc
+                    keys.append(f":{k}")
+                where_rs.append(
+                    "LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI IN ("
+                    + ",".join(keys)
+                    + ")"
+                )
+            sql_rs = f"""
+                SELECT
+                    SUM((ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0)) - ISNULL(RS.COMISSAO,0)) AS NET_TOTAL,
+                    SUM(ISNULL(RS.NOITES,0)) AS NOITES_TOTAL
+                FROM RS
+                LEFT JOIN AL a
+                  ON LTRIM(RTRIM(a.NOME)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                   = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                WHERE {" AND ".join(where_rs)}
+            """
+            r = db.session.execute(text(sql_rs), params_rs).fetchone()
+            if r:
+                kpi_adr_net = float((r[0] or 0) if len(r) > 0 else 0)
+                kpi_adr_noites = int((r[1] or 0) if len(r) > 1 else 0)
+                if kpi_adr_noites > 0:
+                    kpi_adr_valor = round(kpi_adr_net / kpi_adr_noites, 2)
+        except Exception:
+            try:
+                app.logger.exception("Erro ao calcular KPI preco medio/noite (RS)")
+            except Exception:
+                pass
+            kpi_adr_valor = None
+
+        # KPI: numero de reservas + numero de hospedes (adultos+criancas)
+        try:
+            where_rs2 = ["YEAR(ISNULL(RS.DATAOUT, RS.DATAIN)) = :ano", "ISNULL(RS.CANCELADA,0) = 0"]
+            params_rs2 = {'ano': ano}
+            if ccustos:
+                keys = []
+                for idx, cc in enumerate(ccustos):
+                    k = f"ccx{idx}"
+                    params_rs2[k] = cc
+                    keys.append(f":{k}")
+                where_rs2.append(
+                    "LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI IN ("
+                    + ",".join(keys)
+                    + ")"
+                )
+            sql_rs2 = f"""
+                SELECT
+                    COUNT(1) AS RESERVAS,
+                    SUM(ISNULL(RS.ADULTOS,0) + ISNULL(RS.CRIANCAS,0)) AS HOSPEDES
+                FROM RS
+                LEFT JOIN AL a
+                  ON LTRIM(RTRIM(a.NOME)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                   = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                WHERE {" AND ".join(where_rs2)}
+            """
+            r2 = db.session.execute(text(sql_rs2), params_rs2).fetchone()
+            if r2:
+                kpi_rs_reservas = int((r2[0] or 0) if len(r2) > 0 else 0)
+                kpi_rs_hospedes = int((r2[1] or 0) if len(r2) > 1 else 0)
+        except Exception:
+            try:
+                app.logger.exception("Erro ao calcular KPI reservas/hospedes (RS)")
+            except Exception:
+                pass
+
+        # KPI: media por dia do ano (reservas recebidas por RDATA, mesma formula do grafico diario)
+        kpi_res_ano_total = 0.0
+        kpi_res_ano_media_dia = None
+        try:
+            start_y = date(ano, 1, 1)
+            end_y = date(ano + 1, 1, 1)
+            today_d = date.today()
+            if ano == today_d.year:
+                end_window = min(end_y, today_d + timedelta(days=1))  # até hoje (inclui hoje)
+            else:
+                end_window = end_y
+            days_in_year = (end_window - start_y).days or 365
+
+            where_rsy = ["RS.RDATA >= :start", "RS.RDATA < :end"]
+            params_rsy = {'start': start_y, 'end': end_window}
+            if ccustos:
+                keys = []
+                for idx, cc in enumerate(ccustos):
+                    k = f"ccy{idx}"
+                    params_rsy[k] = cc
+                    keys.append(f":{k}")
+                where_rsy.append(
+                    "LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI IN ("
+                    + ",".join(keys)
+                    + ")"
+                )
+
+            sql_rsy = f"""
+                SELECT
+                    SUM(
+                        CASE
+                            WHEN UPPER(LTRIM(RTRIM(ISNULL(a.TIPO,'')))) = 'GESTAO' THEN
+                                CASE WHEN ISNULL(a.FTLIMPEZA,0) = 0 THEN
+                                    (CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                                          ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2) - ISNULL(RS.COMISSAO,0)
+                                     END) * (ISNULL(a.COMISSAO,0) / 100.0)
+                                ELSE
+                                    (CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                                          ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) - ISNULL(RS.COMISSAO,0)
+                                     END) * (ISNULL(a.COMISSAO,0) / 100.0)
+                                    + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2)
+                                END
+                            ELSE
+                                CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                                     ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2) - ISNULL(RS.COMISSAO,0)
+                                END
+                        END
+                    ) AS TOTAL
+                FROM RS
+                LEFT JOIN AL a
+                  ON LTRIM(RTRIM(a.NOME)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                   = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                WHERE {" AND ".join(where_rsy)}
+            """
+            ry = db.session.execute(text(sql_rsy), params_rsy).fetchone()
+            if ry:
+                kpi_res_ano_total = float((ry[0] or 0) if len(ry) > 0 else 0)
+                kpi_res_ano_media_dia = round(kpi_res_ano_total / float(days_in_year), 2) if days_in_year else None
+        except Exception:
+            try:
+                app.logger.exception("Erro ao calcular KPI media/dia reservas (RS)")
+            except Exception:
+                pass
+            kpi_res_ano_total = 0.0
+            kpi_res_ano_media_dia = None
+
         return jsonify({
             'ano': ano,
             'ccustos': ccustos,
             'total_geral': round(float(total_base or 0), 2),
+            'kpis': {
+                'preco_medio_noite': kpi_adr_valor,
+                'preco_medio_noite_noites': kpi_adr_noites,
+                'preco_medio_noite_net': round(float(kpi_adr_net or 0), 2),
+                'numero_reservas': kpi_rs_reservas,
+                'numero_hospedes': kpi_rs_hospedes,
+                'reservas_ano_total': round(float(kpi_res_ano_total or 0), 2),
+                'reservas_ano_media_dia': kpi_res_ano_media_dia,
+            },
             'familias': familias_lista
         })
 
@@ -1946,6 +2106,578 @@ OPTION (MAXRECURSION 32767);
             'orc_total': round(float(orc_total or 0), 2),
             'desvio': round(float(desvio or 0), 2),
             'desvio_pct': (None if desvio_pct is None else round(float(desvio_pct), 2))
+        })
+
+    @app.route('/api/mapa_gestao/reservas_diarias')
+    @login_required
+    def api_mapa_gestao_reservas_diarias():
+        from datetime import timedelta
+
+        try:
+            ano = request.args.get('ano', type=int) or date.today().year
+        except Exception:
+            ano = date.today().year
+        try:
+            mes = request.args.get('mes', type=int) or date.today().month
+        except Exception:
+            mes = date.today().month
+        if mes < 1 or mes > 12:
+            return jsonify({'error': 'mes invalido'}), 400
+
+        ccustos_raw = (request.args.get('ccustos') or '').strip()
+        ccustos = [c.strip() for c in ccustos_raw.split(',') if c.strip()]
+
+        try:
+            start = date(ano, mes, 1)
+            end = (date(ano + 1, 1, 1) if mes == 12 else date(ano, mes + 1, 1))
+        except Exception:
+            return jsonify({'error': 'ano/mes invalidos'}), 400
+
+        where_parts = [
+            "RS.RDATA >= :start",
+            "RS.RDATA < :end",
+        ]
+        params = {'start': start, 'end': end}
+        if ccustos:
+            keys = []
+            for idx, cc in enumerate(ccustos):
+                k = f"cc{idx}"
+                params[k] = cc
+                keys.append(f":{k}")
+            where_parts.append(
+                "LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI IN ("
+                + ",".join(keys)
+                + ")"
+            )
+
+        sql = f"""
+            SELECT
+                CAST(RS.RDATA AS date) AS DIA,
+                SUM(
+                    CASE
+                        WHEN UPPER(LTRIM(RTRIM(ISNULL(a.TIPO,'')))) = 'GESTAO' THEN
+                            CASE WHEN ISNULL(a.FTLIMPEZA,0) = 0 THEN
+                                (CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                                      ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2) - ISNULL(RS.COMISSAO,0)
+                                 END) * (ISNULL(a.COMISSAO,0) / 100.0)
+                            ELSE
+                                (CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                                      ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) - ISNULL(RS.COMISSAO,0)
+                                 END) * (ISNULL(a.COMISSAO,0) / 100.0)
+                                + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2)
+                            END
+                        ELSE
+                            CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                                 ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2) - ISNULL(RS.COMISSAO,0)
+                            END
+                    END
+                ) AS VALOR
+            FROM RS
+            LEFT JOIN AL a
+              ON LTRIM(RTRIM(a.NOME)) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE {" AND ".join(where_parts)}
+            GROUP BY CAST(RS.RDATA AS date)
+            ORDER BY CAST(RS.RDATA AS date)
+        """
+
+        try:
+            rows = db.session.execute(text(sql), params).fetchall()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter reservas diarias: {e}'}), 500
+
+        values_by_day = {}
+        for r in rows:
+            d = r[0]
+            v = float(r[1] or 0)
+            try:
+                day_num = int(d.day)
+            except Exception:
+                continue
+            values_by_day[day_num] = values_by_day.get(day_num, 0.0) + v
+
+        last_day = (end - timedelta(days=1)).day
+        labels = list(range(1, last_day + 1))
+        values = [round(float(values_by_day.get(i, 0.0)), 2) for i in labels]
+        return jsonify({
+            'ano': ano,
+            'mes': mes,
+            'labels': labels,
+            'values': values,
+            'total': round(sum(values), 2)
+        })
+
+    @app.route('/api/mapa_gestao/adr_diario')
+    @login_required
+    def api_mapa_gestao_adr_diario():
+        from datetime import timedelta
+
+        try:
+            ano = request.args.get('ano', type=int) or date.today().year
+        except Exception:
+            ano = date.today().year
+        try:
+            mes = request.args.get('mes', type=int) or date.today().month
+        except Exception:
+            mes = date.today().month
+        if mes < 1 or mes > 12:
+            return jsonify({'error': 'mes invalido'}), 400
+
+        ccustos_raw = (request.args.get('ccustos') or '').strip()
+        ccustos = [c.strip() for c in ccustos_raw.split(',') if c.strip()]
+
+        try:
+            start = date(ano, mes, 1)
+            end = (date(ano + 1, 1, 1) if mes == 12 else date(ano, mes + 1, 1))
+        except Exception:
+            return jsonify({'error': 'ano/mes invalidos'}), 400
+
+        where_parts = [
+            "ISNULL(RS.CANCELADA,0) = 0",
+            "ISNULL(RS.NOITES,0) > 0",
+            "RS.DATAIN IS NOT NULL",
+            # excluir reservas do proprietario (valor medio/noite = 0)
+            "ABS(((ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0)) - ISNULL(RS.COMISSAO,0))) > 0.005",
+        ]
+        params = {'start': start, 'end': end}
+        if ccustos:
+            keys = []
+            for idx, cc in enumerate(ccustos):
+                k = f"cc{idx}"
+                params[k] = cc
+                keys.append(f":{k}")
+            where_parts.append(
+                "LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI IN ("
+                + ",".join(keys)
+                + ")"
+            )
+
+        sql = f"""
+            WITH nums AS (
+                SELECT TOP (60) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 AS n
+                FROM sys.all_objects
+            ),
+            exp AS (
+                SELECT
+                    CAST(DATEADD(day, nums.n, CAST(RS.DATAIN AS date)) AS date) AS DIA,
+                    (
+                        (ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0)) - ISNULL(RS.COMISSAO,0)
+                    ) / NULLIF(CAST(ISNULL(RS.NOITES,0) AS float), 0) AS PER_NOITE
+                FROM RS
+                LEFT JOIN AL a
+                  ON LTRIM(RTRIM(a.NOME)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                   = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                INNER JOIN nums
+                  ON nums.n < ISNULL(RS.NOITES,0)
+                WHERE {" AND ".join(where_parts)}
+            )
+            SELECT
+                DIA,
+                AVG(PER_NOITE) AS ADR,
+                COUNT(1) AS NOITES,
+                SUM(PER_NOITE) AS NET
+            FROM exp
+            WHERE DIA >= :start AND DIA < :end
+            GROUP BY DIA
+            ORDER BY DIA
+        """
+
+        try:
+            rows = db.session.execute(text(sql), params).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter ADR diario: {e}'}), 500
+
+        adr_by_day = {}
+        net_by_day = {}
+        nights_by_day = {}
+        total_net = 0.0
+        total_nights = 0
+        for r in rows:
+            d = r.get('DIA')
+            adr = float(r.get('ADR') or 0)
+            nights = int(r.get('NOITES') or 0)
+            net = float(r.get('NET') or 0)
+            try:
+                day_num = int(d.day)
+            except Exception:
+                continue
+            adr_by_day[day_num] = adr
+            net_by_day[day_num] = net
+            nights_by_day[day_num] = nights
+            total_net += net
+            total_nights += nights
+
+        last_day = (end - timedelta(days=1)).day
+        labels = list(range(1, last_day + 1))
+        values = []
+        noites_arr = []
+        net_arr = []
+        for i in labels:
+            k = int(nights_by_day.get(i, 0))
+            n = float(net_by_day.get(i, 0.0))
+            a = adr_by_day.get(i)
+            values.append(None if a is None or k <= 0 else round(float(a), 2))
+            noites_arr.append(k)
+            net_arr.append(round(float(n), 2))
+
+        adr_total = (round(total_net / float(total_nights), 2) if total_nights else None)
+        return jsonify({
+            'ano': ano,
+            'mes': mes,
+            'labels': labels,
+            'values': values,
+            'noites_by_day': noites_arr,
+            'net_by_day': net_arr,
+            'noites': int(total_nights or 0),
+            'net': round(float(total_net or 0), 2),
+            'adr': adr_total
+        })
+
+    @app.route('/api/mapa_gestao/vendas_alojamentos')
+    @login_required
+    def api_mapa_gestao_vendas_alojamentos():
+        try:
+            ano = request.args.get('ano', type=int) or date.today().year
+        except Exception:
+            ano = date.today().year
+        try:
+            mes = request.args.get('mes', type=int) or date.today().month
+        except Exception:
+            mes = date.today().month
+        if mes < 1 or mes > 12:
+            return jsonify({'error': 'mes invalido'}), 400
+
+        ccustos_raw = (request.args.get('ccustos') or '').strip()
+        ccustos = [c.strip() for c in ccustos_raw.split(',') if c.strip()]
+
+        where_parts = [
+            "ISNULL(a.INATIVO,0) = 0",
+            "UPPER(LTRIM(RTRIM(ISNULL(a.TIPO,'')))) = 'EXPLORACAO'",
+        ]
+        params = {'ano': ano, 'mes': mes}
+        if ccustos:
+            keys = []
+            for idx, cc in enumerate(ccustos):
+                k = f"cc{idx}"
+                params[k] = cc
+                keys.append(f":{k}")
+            where_parts.append(
+                "LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI IN ("
+                + ",".join(keys)
+                + ")"
+            )
+
+        sql = f"""
+            WITH vc AS (
+                SELECT
+                    LTRIM(RTRIM(CCUSTO)) AS CCUSTO,
+                    SUM(ISNULL(TOTAL,0)) AS REAL
+                FROM v_custo
+                WHERE YEAR(DATA) = :ano
+                  AND MONTH(DATA) = :mes
+                  AND FAMILIA LIKE '9%'
+                GROUP BY LTRIM(RTRIM(CCUSTO))
+            ),
+            ovm AS (
+                SELECT
+                    LTRIM(RTRIM(CCUSTO)) AS CCUSTO,
+                    SUM(
+                        CASE :mes
+                          WHEN 1 THEN ISNULL(JANEIRO,0)
+                          WHEN 2 THEN ISNULL(FEVEREIRO,0)
+                          WHEN 3 THEN ISNULL(MARCO,0)
+                          WHEN 4 THEN ISNULL(ABRIL,0)
+                          WHEN 5 THEN ISNULL(MAIO,0)
+                          WHEN 6 THEN ISNULL(JUNHO,0)
+                          WHEN 7 THEN ISNULL(JULHO,0)
+                          WHEN 8 THEN ISNULL(AGOSTO,0)
+                          WHEN 9 THEN ISNULL(SETEMBRO,0)
+                          WHEN 10 THEN ISNULL(OUTUBRO,0)
+                          WHEN 11 THEN ISNULL(NOVEMBRO,0)
+                          WHEN 12 THEN ISNULL(DEZEMBRO,0)
+                          ELSE 0
+                        END
+                    ) AS OBJETIVO
+                FROM OV
+                WHERE ANO = :ano
+                GROUP BY LTRIM(RTRIM(CCUSTO))
+            )
+            SELECT
+                LTRIM(RTRIM(ISNULL(a.NOME,''))) AS ALOJAMENTO,
+                LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) AS CCUSTO,
+                ISNULL(vc.REAL,0) AS REAL,
+                ISNULL(ovm.OBJETIVO,0) AS OBJETIVO
+            FROM AL a
+            LEFT JOIN vc
+              ON LTRIM(RTRIM(vc.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(a.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+            LEFT JOIN ovm
+              ON LTRIM(RTRIM(ovm.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(a.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE {" AND ".join(where_parts)}
+            ORDER BY LTRIM(RTRIM(ISNULL(a.NOME,'')))
+        """
+
+        try:
+            rows = db.session.execute(text(sql), params).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter vendas por alojamento: {e}'}), 500
+
+        out = []
+        total_real = 0.0
+        total_obj = 0.0
+        for r in rows:
+            aloj = str(r.get('ALOJAMENTO') or '').strip()
+            cc = str(r.get('CCUSTO') or '').strip()
+            real = float(r.get('REAL') or 0)
+            obj = float(r.get('OBJETIVO') or 0)
+            total_real += real
+            total_obj += obj
+            out.append({
+                'alojamento': aloj,
+                'ccusto': cc,
+                'real': round(real, 2),
+                'objetivo': round(obj, 2),
+            })
+
+        return jsonify({
+            'ano': ano,
+            'mes': mes,
+            'rows': out,
+            'total_real': round(total_real, 2),
+            'total_objetivo': round(total_obj, 2),
+        })
+
+    @app.route('/api/mapa_gestao/margem_alojamentos')
+    @login_required
+    def api_mapa_gestao_margem_alojamentos():
+        try:
+            ano = request.args.get('ano', type=int) or date.today().year
+        except Exception:
+            ano = date.today().year
+        try:
+            mes = request.args.get('mes', type=int) or date.today().month
+        except Exception:
+            mes = date.today().month
+        if mes < 1 or mes > 12:
+            return jsonify({'error': 'mes invalido'}), 400
+
+        ccustos_raw = (request.args.get('ccustos') or '').strip()
+        ccustos = [c.strip() for c in ccustos_raw.split(',') if c.strip()]
+
+        where_parts = [
+            "ISNULL(a.INATIVO,0) = 0",
+            "UPPER(LTRIM(RTRIM(ISNULL(a.TIPO,'')))) = 'EXPLORACAO'",
+        ]
+        params = {'ano': ano, 'mes': mes}
+        if ccustos:
+            keys = []
+            for idx, cc in enumerate(ccustos):
+                k = f"cc{idx}"
+                params[k] = cc
+                keys.append(f":{k}")
+            where_parts.append(
+                "LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI IN ("
+                + ",".join(keys)
+                + ")"
+            )
+
+        sql = f"""
+            WITH sales AS (
+                SELECT
+                    LTRIM(RTRIM(CCUSTO)) AS CCUSTO,
+                    SUM(ISNULL(TOTAL,0)) AS VENDAS
+                FROM v_custo
+                WHERE YEAR(DATA) = :ano
+                  AND MONTH(DATA) = :mes
+                  AND FAMILIA LIKE '9%'
+                GROUP BY LTRIM(RTRIM(CCUSTO))
+            ),
+            costs AS (
+                SELECT
+                    LTRIM(RTRIM(CCUSTO)) AS CCUSTO,
+                    SUM(ISNULL(TOTAL,0)) AS CUSTOS
+                FROM v_custo
+                WHERE YEAR(DATA) = :ano
+                  AND MONTH(DATA) = :mes
+                  AND (FAMILIA NOT LIKE '9%')
+                GROUP BY LTRIM(RTRIM(CCUSTO))
+            )
+            SELECT
+                LTRIM(RTRIM(ISNULL(a.NOME,''))) AS ALOJAMENTO,
+                LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) AS CCUSTO,
+                ISNULL(sales.VENDAS,0) AS VENDAS,
+                ISNULL(costs.CUSTOS,0) AS CUSTOS,
+                ISNULL(sales.VENDAS,0) - ISNULL(costs.CUSTOS,0) AS MARGEM
+            FROM AL a
+            LEFT JOIN sales
+              ON LTRIM(RTRIM(sales.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(a.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+            LEFT JOIN costs
+              ON LTRIM(RTRIM(costs.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(a.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE {" AND ".join(where_parts)}
+            ORDER BY LTRIM(RTRIM(ISNULL(a.NOME,'')))
+        """
+
+        try:
+            rows = db.session.execute(text(sql), params).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter margem por alojamento: {e}'}), 500
+
+        out = []
+        total_sales = 0.0
+        total_costs = 0.0
+        total_margin = 0.0
+        for r in rows:
+            aloj = str(r.get('ALOJAMENTO') or '').strip()
+            cc = str(r.get('CCUSTO') or '').strip()
+            vendas = float(r.get('VENDAS') or 0)
+            custos = float(r.get('CUSTOS') or 0)
+            margem = float(r.get('MARGEM') or 0)
+            total_sales += vendas
+            total_costs += custos
+            total_margin += margem
+            out.append({
+                'alojamento': aloj,
+                'ccusto': cc,
+                'vendas': round(vendas, 2),
+                'custos': round(custos, 2),
+                'margem': round(margem, 2),
+            })
+
+        return jsonify({
+            'ano': ano,
+            'mes': mes,
+            'rows': out,
+            'total_vendas': round(total_sales, 2),
+            'total_custos': round(total_costs, 2),
+            'total_margem': round(total_margin, 2),
+        })
+
+    @app.route('/api/mapa_gestao/reservas_paises')
+    @login_required
+    def api_mapa_gestao_reservas_paises():
+        from datetime import timedelta
+
+        try:
+            ano = request.args.get('ano', type=int) or date.today().year
+        except Exception:
+            ano = date.today().year
+
+        ccustos_raw = (request.args.get('ccustos') or '').strip()
+        ccustos = [c.strip() for c in ccustos_raw.split(',') if c.strip()]
+
+        try:
+            start = date(ano, 1, 1)
+            end = date(ano + 1, 1, 1)
+        except Exception:
+            return jsonify({'error': 'ano invalido'}), 400
+
+        where_parts = [
+            "RS.DATAIN >= :start",
+            "RS.DATAIN < :end",
+            "ISNULL(RS.NOITES,0) > 0",
+            "ISNULL(RS.CANCELADA,0) = 0",
+        ]
+        params = {'start': start, 'end': end}
+        if ccustos:
+            keys = []
+            for idx, cc in enumerate(ccustos):
+                k = f"cc{idx}"
+                params[k] = cc
+                keys.append(f":{k}")
+            where_parts.append(
+                "LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI IN ("
+                + ",".join(keys)
+                + ")"
+            )
+
+        sql = f"""
+            SELECT
+                LTRIM(RTRIM(ISNULL(RS.PAIS,''))) AS PAIS,
+                COUNT(1) AS RESERVAS,
+                SUM(ISNULL(RS.NOITES,0)) AS NOITES,
+                SUM(ISNULL(RS.ADULTOS,0) + ISNULL(RS.CRIANCAS,0)) AS HOSPEDES,
+                AVG(CAST(ISNULL(RS.NOITES,0) AS float)) AS MEDIA_NOITES,
+                AVG(CAST((ISNULL(RS.ADULTOS,0) + ISNULL(RS.CRIANCAS,0)) AS float)) AS MEDIA_HOSPEDES,
+                AVG(CAST(DATEDIFF(day, CAST(ISNULL(RS.RDATA, RS.DATAIN) AS date), CAST(RS.DATAIN AS date)) AS float)) AS MEDIA_ANTECIP,
+                SUM(
+                    CASE
+                        WHEN UPPER(LTRIM(RTRIM(ISNULL(a.TIPO,'')))) = 'GESTAO' THEN
+                            CASE WHEN ISNULL(a.FTLIMPEZA,0) = 0 THEN
+                                (CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                                      ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2) - ISNULL(RS.COMISSAO,0)
+                                 END) * (ISNULL(a.COMISSAO,0) / 100.0)
+                            ELSE
+                                (CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                                      ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) - ISNULL(RS.COMISSAO,0)
+                                 END) * (ISNULL(a.COMISSAO,0) / 100.0)
+                                + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2)
+                            END
+                        ELSE
+                            CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                                 ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2) - ISNULL(RS.COMISSAO,0)
+                            END
+                    END
+                ) AS VALOR
+            FROM RS
+            LEFT JOIN AL a
+              ON LTRIM(RTRIM(a.NOME)) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE {" AND ".join(where_parts)}
+            GROUP BY LTRIM(RTRIM(ISNULL(RS.PAIS,'')))
+            ORDER BY SUM(
+                CASE
+                    WHEN UPPER(LTRIM(RTRIM(ISNULL(a.TIPO,'')))) = 'GESTAO' THEN
+                        CASE WHEN ISNULL(a.FTLIMPEZA,0) = 0 THEN
+                            (CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                                  ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2) - ISNULL(RS.COMISSAO,0)
+                             END) * (ISNULL(a.COMISSAO,0) / 100.0)
+                        ELSE
+                            (CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                                  ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) - ISNULL(RS.COMISSAO,0)
+                             END) * (ISNULL(a.COMISSAO,0) / 100.0)
+                            + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2)
+                        END
+                    ELSE
+                        CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN ISNULL(RS.PCANCEL,0)
+                             ELSE ROUND(ISNULL(RS.ESTADIA,0)/1.06,2) + ROUND(ISNULL(RS.LIMPEZA,0)/1.23,2) - ISNULL(RS.COMISSAO,0)
+                        END
+                END
+            ) DESC, LTRIM(RTRIM(ISNULL(RS.PAIS,'')))
+        """
+
+        try:
+            rows = db.session.execute(text(sql), params).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter reservas por pais: {e}'}), 500
+
+        out = []
+        total_valor = 0.0
+        total_res = 0
+        for r in rows:
+            pais = str(r.get('PAIS') or '').strip()
+            valor = float(r.get('VALOR') or 0)
+            noites = int(r.get('NOITES') or 0)
+            reservas = int(r.get('RESERVAS') or 0)
+            total_valor += valor
+            total_res += reservas
+            out.append({
+                'pais': pais,
+                'reservas': reservas,
+                'valor': round(valor, 2),
+                'media_noites': round(float(r.get('MEDIA_NOITES') or 0), 2),
+                'media_noite': (None if noites <= 0 else round(valor / float(noites), 2)),
+                'media_hospedes': round(float(r.get('MEDIA_HOSPEDES') or 0), 2),
+                'media_antecip': round(float(r.get('MEDIA_ANTECIP') or 0), 1),
+            })
+
+        return jsonify({
+            'ano': ano,
+            'total_valor': round(total_valor, 2),
+            'total_reservas': total_res,
+            'rows': out
         })
 
     @app.route('/turnover')
@@ -5259,6 +5991,367 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def recebimentos_page():
         return render_template('recebimentos.html', page_title='Recebimentos')
+
+    # -----------------------------
+    # Calendário de Reservas (Timeline/Gantt-like)
+    # -----------------------------
+    @app.route('/calendario_reservas')
+    @login_required
+    def calendario_reservas_page():
+        return render_template('calendario_reservas.html', page_title='Calendário de Reservas')
+
+    @app.route('/api/calendario_reservas')
+    @login_required
+    def api_calendario_reservas():
+        # Janela: por defeito hoje-5 até +60 dias (inclusive)
+        try:
+            start_str = (request.args.get('start') or '').strip()
+            end_str = (request.args.get('end') or '').strip()
+            if start_str:
+                start_d = datetime.strptime(start_str, '%Y-%m-%d').date()
+            else:
+                start_d = date.today() - timedelta(days=5)
+            if end_str:
+                end_d = datetime.strptime(end_str, '%Y-%m-%d').date()
+            else:
+                end_d = start_d + timedelta(days=119)
+        except Exception:
+            start_d = date.today() - timedelta(days=5)
+            end_d = start_d + timedelta(days=119)
+
+        if end_d < start_d:
+            end_d = start_d
+
+        end_excl = end_d + timedelta(days=1)
+
+        try:
+            al_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(NOME,''))) AS NOME,
+                    ISNULL(PBASE,0) AS PBASE
+                FROM AL
+                WHERE ISNULL(INATIVO,0) = 0
+                ORDER BY LTRIM(RTRIM(ISNULL(NOME,'')))
+            """)).mappings().all()
+            alojamentos = [str(r.get('NOME') or '').strip() for r in al_rows if str(r.get('NOME') or '').strip()]
+            def _norm_key(v: str) -> str:
+                s = str(v or '').strip()
+                if not s:
+                    return ''
+                s = unicodedata.normalize('NFD', s)
+                s = ''.join(ch for ch in s if not unicodedata.combining(ch))
+                return s.upper()
+
+            pbase_by_name = {}
+            for r in al_rows:
+                nome = str(r.get('NOME') or '').strip()
+                if not nome:
+                    continue
+                pbase_by_name[_norm_key(nome)] = float(r.get('PBASE') or 0)
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter alojamentos: {e}'}), 500
+
+        # detetar colunas disponíveis em RS (nome do hóspede e stamp)
+        try:
+            cols = db.session.execute(text("""
+                SELECT UPPER(COLUMN_NAME) AS COL
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'RS'
+            """)).fetchall()
+            rs_cols = {str(r[0] or '').strip().upper() for r in cols if r and r[0]}
+        except Exception:
+            rs_cols = set()
+
+        stamp_expr = "LEFT(NEWID(),25) AS RSSTAMP"
+        if 'RSSTAMP' in rs_cols:
+            stamp_expr = "RS.RSSTAMP AS RSSTAMP"
+
+        # nome do hóspede: tentar várias colunas comuns
+        guest_col = None
+        for c in ('NOME', 'HOSPEDE', 'NOMEHOSPEDE', 'CLIENTE', 'NOMECLIENTE'):
+            if c in rs_cols:
+                guest_col = c
+                break
+        guest_expr = "'' AS HOSPEDE"
+        if guest_col:
+            guest_expr = f"ISNULL(RS.[{guest_col}], '') AS HOSPEDE"
+
+        # Reservas que intersectam a janela (start..end)
+        try:
+            sql_rs = f"""
+                SELECT
+                    {stamp_expr},
+                    {guest_expr},
+                    LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) AS ALOJAMENTO,
+                    -- offsets dentro do dia para evitar barras "coladas" (start ~25%, end ~20%)
+                    DATEADD(hour, 6, CAST(CAST(RS.DATAIN AS date) AS datetime)) AS STARTDT,
+                    DATEADD(minute, 48, DATEADD(hour, 4, CAST(CAST(RS.DATAOUT AS date) AS datetime))) AS ENDDT,
+                    CAST(RS.DATAIN AS date) AS DATAIN,
+                    CAST(RS.DATAOUT AS date) AS DATAOUT,
+                    ISNULL(RS.NOITES,0) AS NOITES,
+                    ISNULL(RS.ADULTOS,0) AS ADULTOS,
+                    ISNULL(RS.CRIANCAS,0) AS CRIANCAS,
+                    (ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0) - ISNULL(RS.COMISSAO,0)) AS VALOR
+                FROM RS
+                WHERE RS.DATAIN IS NOT NULL
+                  AND RS.DATAOUT IS NOT NULL
+                  AND ISNULL(RS.CANCELADA,0) = 0
+                  AND CAST(RS.DATAOUT AS date) >= :start
+                  AND CAST(RS.DATAIN AS date) < :end_excl
+            """
+            rs_rows = db.session.execute(text(sql_rs), {'start': start_d, 'end_excl': end_excl}).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter reservas: {e}'}), 500
+
+        # grupos únicos (por alojamento) - evitar duplicados e normalizar por case/trim
+        groups_by_key = {}
+        for a in alojamentos:
+            name = str(a or '').strip()
+            if not name:
+                continue
+            k = _norm_key(name)
+            if k not in groups_by_key:
+                groups_by_key[k] = name
+
+        items = []
+        seen_item_ids = set()
+        occupied_by_group = {}
+        for r in rs_rows:
+            aloj = str(r.get('ALOJAMENTO') or '').strip()
+            if not aloj:
+                continue
+
+            aloj_key = _norm_key(aloj)
+            if aloj_key not in groups_by_key:
+                groups_by_key[aloj_key] = aloj
+            group_id = groups_by_key[aloj_key]
+
+            # Marcar noites ocupadas para esconder cadeados quando existe reserva
+            try:
+                din = r.get('DATAIN')
+                dout = r.get('DATAOUT')
+                if isinstance(din, date) and isinstance(dout, date) and din < dout:
+                    occ = occupied_by_group.setdefault(group_id, set())
+                    d0 = max(din, start_d)
+                    d1 = min(dout, end_excl)  # exclusivo
+                    dcur = d0
+                    while dcur < d1:
+                        occ.add(dcur.isoformat())
+                        dcur = dcur + timedelta(days=1)
+            except Exception:
+                pass
+
+            rsstamp_base = str(r.get('RSSTAMP') or '').strip() or f"RS-{aloj}-{r.get('DATAIN')}-{r.get('DATAOUT')}"
+            rsstamp = rsstamp_base
+            if rsstamp in seen_item_ids:
+                # garantir unicidade caso existam duplicados na origem
+                n = 2
+                while f"{rsstamp_base}-{n}" in seen_item_ids:
+                    n += 1
+                rsstamp = f"{rsstamp_base}-{n}"
+            seen_item_ids.add(rsstamp)
+            startdt = r.get('STARTDT')
+            enddt = r.get('ENDDT')
+            if not startdt or not enddt:
+                continue
+            hosp = str(r.get('HOSPEDE') or '').strip()
+            noites = int(r.get('NOITES') or 0)
+            ad = int(r.get('ADULTOS') or 0)
+            cr = int(r.get('CRIANCAS') or 0)
+            valor = float(r.get('VALOR') or 0)
+            title = f"{hosp or aloj} | {noites} noites | {ad+cr} hóspedes | {valor:.2f}"
+            items.append({
+                'id': rsstamp,
+                'group': group_id,
+                'start': startdt.isoformat(sep=' '),
+                'end': enddt.isoformat(sep=' '),
+                'hospede': hosp,
+                'valor': round(valor, 2),
+                'noites': noites,
+                'title': title,
+                'className': 'rs-item'
+            })
+
+        groups = []
+        for v in sorted(groups_by_key.values(), key=lambda x: str(x).upper()):
+            name = str(v or '').strip()
+            groups.append({
+                'id': v,
+                'content': v,
+                'pbase': float(pbase_by_name.get(_norm_key(name), 0) or 0),
+            })
+
+        # Noites bloqueadas (BQ) na janela (start..end) - cadeado por célula
+        try:
+            bq_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(BQ.ALOJAMENTO,''))) AS ALOJAMENTO,
+                    LTRIM(RTRIM(ISNULL(BQ.NMAIRBNB,''))) AS NMAIRBNB,
+                    CAST(BQ.[DATA] AS date) AS [DATA],
+                    ISNULL(BQ.TRATADO,0) AS TRATADO
+                FROM dbo.BQ AS BQ
+                WHERE CAST(BQ.[DATA] AS date) >= :start
+                  AND CAST(BQ.[DATA] AS date) <= :end
+            """), {'start': start_d, 'end': end_d}).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter BQ: {e}'}), 500
+
+        blocked_map = {}  # (group_id, YYYY-MM-DD) -> tratado(0/1)
+        for r in bq_rows:
+            d = r.get('DATA')
+            if not d:
+                continue
+
+            cand1 = _norm_key(r.get('ALOJAMENTO'))
+            cand2 = _norm_key(r.get('NMAIRBNB'))
+            group_id = None
+            if cand1 and cand1 in groups_by_key:
+                group_id = groups_by_key[cand1]
+            elif cand2 and cand2 in groups_by_key:
+                group_id = groups_by_key[cand2]
+
+            if not group_id:
+                continue
+
+            # Se a noite estiver ocupada, não mostrar cadeado para evitar sobreposição
+            try:
+                if d.isoformat() in occupied_by_group.get(group_id, set()):
+                    continue
+            except Exception:
+                pass
+
+            key = (group_id, d.isoformat())
+            tratado = 1 if int(r.get('TRATADO') or 0) else 0
+            prev = blocked_map.get(key, 0)
+            blocked_map[key] = 1 if (prev or tratado) else 0
+
+        blocked = [
+            {'group': k[0], 'date': k[1], 'tratado': v}
+            for k, v in blocked_map.items()
+        ]
+
+        # Preços por data (PRECOS) - para mostrar nas células (noites vazias)
+        try:
+            pr_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(P.ALOJAMENTO,''))) AS ALOJAMENTO,
+                    CAST(P.[DATA] AS date) AS [DATA],
+                    ISNULL(P.PBASE,0) AS PBASE,
+                    ISNULL(P.DESCONTO,0) AS DESCONTO,
+                    ISNULL(P.PRECO,0) AS PRECO,
+                    ISNULL(P.TRATADO,0) AS TRATADO
+                FROM dbo.PRECOS AS P
+                WHERE CAST(P.[DATA] AS date) >= :start
+                  AND CAST(P.[DATA] AS date) <= :end
+                ORDER BY ISNULL(P.TRATADO,0) DESC, CAST(P.[DATA] AS date) DESC
+            """), {'start': start_d, 'end': end_d}).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter PRECOS: {e}'}), 500
+
+        price_map = {}  # (group_id, YYYY-MM-DD) -> {pbase, desconto, preco, tratado}
+        for r in pr_rows:
+            d = r.get('DATA')
+            if not d:
+                continue
+            aloj = _norm_key(r.get('ALOJAMENTO'))
+            if not aloj or aloj not in groups_by_key:
+                continue
+            group_id = groups_by_key[aloj]
+            key = (group_id, d.isoformat())
+            if key in price_map:
+                continue
+            try:
+                price_map[key] = {
+                    'pbase': float(r.get('PBASE') or 0),
+                    'desconto': float(r.get('DESCONTO') or 0),
+                    'preco': float(r.get('PRECO') or 0),
+                    'tratado': 1 if int(r.get('TRATADO') or 0) else 0,
+                }
+            except Exception:
+                price_map[key] = {'pbase': 0.0, 'desconto': 0.0, 'preco': 0.0, 'tratado': 0}
+
+        prices = [
+            {'group': k[0], 'date': k[1], **v}
+            for k, v in price_map.items()
+        ]
+
+        return jsonify({
+            'start': start_d.isoformat(),
+            'end': end_d.isoformat(),
+            'groups': groups,
+            'items': items,
+            'blocked': blocked,
+            'prices': prices,
+        })
+
+    @app.route('/api/precos_bulk', methods=['POST'])
+    @login_required
+    def api_precos_bulk():
+        """
+        Insere/atualiza preços na tabela PRECOS para um conjunto de células (ALOJAMENTO + DATA).
+        Body:
+          {
+            "cells": [{"group":"...", "date":"YYYY-MM-DD"}, ...],
+            "pbase": number,
+            "desconto": number,
+            "preco": number
+          }
+        """
+        try:
+            payload = request.get_json(silent=True) or {}
+            cells = payload.get('cells') or []
+            pbase = float(payload.get('pbase') or 0)
+            desconto = float(payload.get('desconto') or 0)
+            preco = float(payload.get('preco') or 0)
+        except Exception:
+            return jsonify({'error': 'Payload inválido'}), 400
+
+        if not isinstance(cells, list) or not cells:
+            return jsonify({'error': 'Sem células selecionadas'}), 400
+
+        # normalizar desconto para 0..60
+        if desconto not in (0, 10, 20, 30, 40, 50, 60):
+            return jsonify({'error': 'Desconto inválido'}), 400
+
+        try:
+            updated = 0
+            inserted = 0
+            for c in cells:
+                aloj = str((c or {}).get('group') or '').strip()
+                d = str((c or {}).get('date') or '').strip()
+                if not aloj or not d:
+                    continue
+
+                existing = db.session.execute(text("""
+                    SELECT TOP 1 PRECOSSTAMP
+                    FROM dbo.PRECOS
+                    WHERE LTRIM(RTRIM(ALOJAMENTO)) = LTRIM(RTRIM(:aloj))
+                      AND CAST([DATA] AS date) = CAST(:d AS date)
+                """), {'aloj': aloj, 'd': d}).scalar()
+
+                if existing:
+                    db.session.execute(text("""
+                        UPDATE dbo.PRECOS
+                        SET PBASE = :pbase,
+                            DESCONTO = :desconto,
+                            PRECO = :preco,
+                            TRATADO = 0
+                        WHERE PRECOSSTAMP = :stamp
+                    """), {'pbase': pbase, 'desconto': desconto, 'preco': preco, 'stamp': existing})
+                    updated += 1
+                else:
+                    stamp = new_stamp()
+                    db.session.execute(text("""
+                        INSERT INTO dbo.PRECOS (PRECOSSTAMP, ALOJAMENTO, [DATA], PBASE, DESCONTO, PRECO, TRATADO)
+                        VALUES (:stamp, :aloj, CAST(:d AS date), :pbase, :desconto, :preco, 0)
+                    """), {'stamp': stamp, 'aloj': aloj, 'd': d, 'pbase': pbase, 'desconto': desconto, 'preco': preco})
+                    inserted += 1
+
+            db.session.commit()
+            return jsonify({'ok': True, 'inserted': inserted, 'updated': updated})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/api/recebimentos')
     @login_required

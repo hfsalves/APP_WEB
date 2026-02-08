@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid p-0 rescal-page">
+  <div class="card shadow-sm border-0 rescal-card">
+    <div class="card-body d-flex flex-column gap-2 rescal-body">
+      <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-primary-subtle text-primary">Timeline</span>
+          <div class="text-muted small" id="rescalRange">--</div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <input class="form-control form-control-sm" id="rescalFilter" placeholder="Filtrar alojamento..." style="width: 240px;">
+          <button class="btn btn-sm btn-outline-secondary" id="rescalPrev30" title="Recuar 30 dias">
+            <i class="fa-solid fa-arrow-left"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" id="rescalNext30" title="Avançar 30 dias">
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" id="rescalToday"><i class="fa-solid fa-location-crosshairs me-1"></i>Hoje</button>
+          <button class="btn btn-sm btn-outline-primary" id="rescalReload"><i class="fa-solid fa-rotate me-1"></i>Atualizar</button>
+        </div>
+      </div>
+
+      <div class="rescal-timeline-wrap">
+        <div id="rescalTimeline" class="rescal-timeline"></div>
+        <div class="rescal-loading d-none" id="rescalLoading">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="text-muted small mt-2">A carregar reservas...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: edição de preços -->
+<div class="modal fade" id="rescalPriceModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-md">
+    <div class="modal-content border-0 shadow rescal-modal">
+      <div class="modal-header border-0 pb-0 rescal-modal-header">
+        <h5 class="modal-title">Preço por noite</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-3">
+        <div class="mb-3">
+          <div class="text-muted small">Alojamento(s)</div>
+          <div id="rescalSelAloj" class="fw-semibold"></div>
+        </div>
+        <div class="mb-3">
+          <div class="text-muted small">Data / Período</div>
+          <div id="rescalSelPeriodo" class="fw-semibold"></div>
+        </div>
+
+        <div class="row g-2 align-items-end rescal-modal-fields">
+          <div class="col-4">
+            <label class="form-label small mb-1">Preço base</label>
+            <input type="number" class="form-control form-control-sm" id="rescalPBase" min="0" step="1" placeholder="--">
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-1">Desconto</label>
+            <select class="form-select form-select-sm" id="rescalDesc">
+              <option value="">--</option>
+              <option value="0">0%</option>
+              <option value="10">10%</option>
+              <option value="20">20%</option>
+              <option value="30">30%</option>
+              <option value="40">40%</option>
+              <option value="50">50%</option>
+              <option value="60">60%</option>
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-1">Preço final</label>
+            <input type="number" class="form-control form-control-sm" id="rescalPrecoFinal" readonly>
+          </div>
+        </div>
+        <div class="text-muted small mt-2" id="rescalPriceHint"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-sm btn-light" id="rescalCancelSel">Cancelar</button>
+        <button type="button" class="btn btn-sm btn-primary px-3" id="rescalSavePrices">
+          <i class="fa-solid fa-check me-1"></i>Gravar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .rescal-page { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+  .rescal-card { flex: 1 1 auto; min-height: 0; }
+  .rescal-body { height: 100%; min-height: 0; }
+  .rescal-timeline-wrap { position: relative; flex: 1 1 auto; min-height: 0; }
+  .rescal-timeline { height: 100%; border: 1px solid #e2e8f0; border-radius: 16px; background: #fff; overflow: hidden; display: flex; flex-direction: column; }
+  .rescal-timeline .vis-timeline { flex: 1 1 auto; min-height: 0; }
+  .rescal-loading {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(248, 250, 252, 0.85);
+    backdrop-filter: blur(6px);
+    z-index: 5;
+  }
+
+  /* vis-timeline tweaks */
+  .vis-timeline { border: none !important; }
+  .vis-panel.vis-left { background: #fbfdff; border-right: 1px solid #e2e8f0; }
+  .vis-panel.vis-left { overflow: hidden; }
+  .vis-panel.vis-center { overflow: auto; }
+
+  /* largura fixa da coluna de alojamentos */
+  .rescal-timeline .vis-panel.vis-left { width: 240px !important; }
+  .rescal-timeline .vis-panel.vis-center { left: 240px !important; }
+  .rescal-timeline .vis-panel.vis-top.vis-center { width: calc(100% - 240px) !important; }
+
+  /* Scrollbars do vis-timeline (discretas, sem mexer no layout/overflow do vis) */
+  .vis-panel.vis-center,
+  .vis-panel.vis-bottom,
+  .vis-panel.vis-right,
+  .vis-panel.vis-center .vis-content,
+  .vis-panel.vis-bottom .vis-content,
+  .vis-panel.vis-right .vis-content {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+    scrollbar-gutter: stable;
+  }
+  .vis-panel.vis-center::-webkit-scrollbar,
+  .vis-panel.vis-bottom::-webkit-scrollbar,
+  .vis-panel.vis-right::-webkit-scrollbar,
+  .vis-panel.vis-center .vis-content::-webkit-scrollbar,
+  .vis-panel.vis-bottom .vis-content::-webkit-scrollbar,
+  .vis-panel.vis-right .vis-content::-webkit-scrollbar { height: 10px; width: 10px; }
+  .vis-panel.vis-center::-webkit-scrollbar-track,
+  .vis-panel.vis-bottom::-webkit-scrollbar-track,
+  .vis-panel.vis-right::-webkit-scrollbar-track,
+  .vis-panel.vis-center .vis-content::-webkit-scrollbar-track,
+  .vis-panel.vis-bottom .vis-content::-webkit-scrollbar-track,
+  .vis-panel.vis-right .vis-content::-webkit-scrollbar-track { background: transparent; }
+  .vis-panel.vis-center::-webkit-scrollbar-thumb,
+  .vis-panel.vis-bottom::-webkit-scrollbar-thumb,
+  .vis-panel.vis-right::-webkit-scrollbar-thumb,
+  .vis-panel.vis-center .vis-content::-webkit-scrollbar-thumb,
+  .vis-panel.vis-bottom .vis-content::-webkit-scrollbar-thumb,
+  .vis-panel.vis-right .vis-content::-webkit-scrollbar-thumb {
+    background-color: rgba(100, 116, 139, 0.35);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .vis-panel.vis-center::-webkit-scrollbar-thumb:hover,
+  .vis-panel.vis-bottom::-webkit-scrollbar-thumb:hover,
+  .vis-panel.vis-right::-webkit-scrollbar-thumb:hover,
+  .vis-panel.vis-center .vis-content::-webkit-scrollbar-thumb:hover,
+  .vis-panel.vis-bottom .vis-content::-webkit-scrollbar-thumb:hover,
+  .vis-panel.vis-right .vis-content::-webkit-scrollbar-thumb:hover { background-color: rgba(100, 116, 139, 0.55); }
+  .vis-labelset .vis-label { border-bottom: 1px solid #eef2f7; min-height: 32px !important; }
+  .vis-itemset .vis-group { min-height: 32px !important; }
+  .vis-panel.vis-left .vis-labelset .vis-label .vis-inner {
+    font-size: 11px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .vis-time-axis .vis-grid.vis-minor { border-color: #eef2f7; }
+  .vis-time-axis .vis-grid.vis-major { border-color: #e2e8f0; }
+  .vis-time-axis .vis-text.vis-minor {
+    color: #0f172a;
+    font-size: 12px;
+    line-height: 1.05;
+    text-align: center;
+  }
+  .vis-time-axis .vis-text.vis-minor .rescal-dow {
+    font-size: 10px;
+    color: #94a3b8;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .vis-time-axis .vis-text.vis-minor .rescal-dom {
+    font-size: 12px;
+    color: #0f172a;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .vis-time-axis .vis-text.vis-major { color: #0f172a; font-weight: 700; font-size: 12px; }
+  .vis-current-time { background-color: rgba(239, 68, 68, 0.35) !important; width: 1px !important; }
+  .weekend-bg { background: rgba(148, 163, 184, 0.12) !important; }
+  .vis-item.vis-background.weekend-bg { pointer-events: none; }
+  .vis-item.vis-background.cell-sel {
+    background: rgba(59, 130, 246, 0.18) !important;
+    box-shadow: none !important;
+  }
+  .vis-item.vis-background.cell-sel { z-index: 1; pointer-events: none; }
+
+  /* Cadeados (noites bloqueadas) */
+  .vis-item.vis-background.bq-lock { background: transparent !important; z-index: 2; pointer-events: auto; }
+  .vis-item.vis-background.bq-lock .bq-lock-icon {
+    position: absolute;
+    right: 4px;
+    bottom: 2px;
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0.8;
+    pointer-events: none;
+  }
+  .vis-item.vis-background.bq-lock.bq-treated .bq-lock-icon { color: #60a5fa; }
+  .vis-item.vis-background.bq-lock.bq-pending .bq-lock-icon { color: #f87171; }
+
+  /* Preços por célula (PRECOS/AL.PBASE) */
+  .vis-item.pbase-item {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    z-index: 1;
+    pointer-events: none;
+    font-size: 10px !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+  .vis-item.pbase-item .vis-item-overflow {
+    overflow: visible !important;
+    position: relative;
+    height: 0 !important;
+  }
+  .vis-item.pbase-item .vis-item-content {
+    padding: 0 !important;
+    width: 100% !important;
+    height: 0 !important;
+    position: relative !important;
+    display: block !important;
+    font-size: 10px !important;
+    overflow: visible !important;
+  }
+  .vis-item.pbase-item .pbase-wrap { position: relative; width: 100%; height: 100%; }
+  .vis-item.pbase-item .pbase-price {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    color: rgba(51, 65, 85, 0.92) !important;
+    line-height: 1 !important;
+  }
+  .vis-item.pbase-item .pbase-discount {
+    position: absolute;
+    left: 9px;
+    bottom: 2px;
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    color: rgba(185, 28, 28, 0.95) !important; /* vermelho */
+    line-height: 1 !important;
+  }
+
+  /* Fallback mais permissivo (caso o className fique noutro nível do DOM do vis) */
+  .pbase-item { pointer-events: none !important; }
+  .pbase-item .vis-item-content { position: relative !important; }
+  .pbase-wrap { position: relative !important; width: 100% !important; height: 100% !important; }
+  .pbase-price {
+    position: absolute !important;
+    top: 2px !important;
+    right: 4px !important;
+    left: auto !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    color: rgba(51, 65, 85, 0.92) !important;
+    line-height: 1 !important;
+  }
+  .pbase-discount {
+    position: absolute !important;
+    left: 9px !important;
+    bottom: 0px !important; /* mais em baixo */
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    color: rgba(185, 28, 28, 0.95) !important;
+    line-height: 1 !important;
+  }
+  .vis-item.rs-item {
+    background: linear-gradient(90deg, rgba(14,165,233,0.35), rgba(124,58,237,0.25));
+    border: 1px solid rgba(124,58,237,0.65);
+    border-radius: 8px;
+    color: #0f172a;
+    z-index: 5; /* garantir acima de backgrounds (cadeados/seleção/fins-de-semana) */
+  }
+  .vis-item.rs-item .vis-item-overflow {
+    border-radius: 8px;
+  }
+  .vis-item.rs-item.vis-range {
+    border-radius: 8px;
+  }
+  .vis-item.rs-item .vis-item-content { padding: 0 10px; font-weight: 800; font-size: 11px; }
+  .vis-item.rs-item .rs-label { display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .vis-item.vis-selected.rs-item {
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+    border-color: rgba(14,165,233,0.95);
+  }
+
+  /* Modal preços */
+  .rescal-modal {
+    border-radius: 16px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  }
+  .rescal-modal-header .modal-title {
+    font-weight: 700;
+  }
+  .rescal-modal-header .modal-title::after {
+    content: "Definir preco e desconto";
+    display: block;
+    font-weight: 500;
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 4px;
+  }
+  .rescal-modal .modal-body { padding: 1.25rem 1.5rem; }
+  .rescal-modal .modal-footer { padding: 0 1.5rem 1.25rem; }
+  .rescal-modal-fields .form-control,
+  .rescal-modal-fields .form-select {
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.3);
+  }
+  .rescal-modal-fields .form-control:focus,
+  .rescal-modal-fields .form-select:focus {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://unpkg.com/vis-timeline@7.7.3/styles/vis-timeline-graph2d.min.css">
+<script src="https://unpkg.com/vis-timeline@7.7.3/standalone/umd/vis-timeline-graph2d.min.js"></script>
+<script src="{{ url_for('static', filename='js/calendario_reservas.js') }}"></script>
+{% endblock %}
