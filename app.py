@@ -6706,6 +6706,80 @@ OPTION (MAXRECURSION 32767);
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/historico_reservas')
+    @login_required
+    def historico_reservas_page():
+        current_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        return render_template(
+            'historico_reservas.html',
+            page_title='Histórico de Reservas',
+            current_login=current_login,
+        )
+
+    @app.route('/api/historico_reservas')
+    @login_required
+    def api_historico_reservas():
+        """
+        Lista tarefas (ORIGEM='LP') por data para o utilizador autenticado.
+        """
+        try:
+            user = (getattr(current_user, 'LOGIN', '') or '').strip()
+            if not user:
+                return jsonify({'error': 'Utilizador inválido.'}), 400
+
+            date_str = (request.args.get('data') or '').strip()
+            if not date_str:
+                date_str = datetime.now().strftime('%Y-%m-%d')
+            try:
+                dt = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except Exception:
+                return jsonify({'error': 'Data inválida.'}), 400
+
+            cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'TAREFAS'")
+                ).fetchall()
+            )
+            need = {'HORAINI', 'HORAFIM'}
+            missing = sorted(list(need - cols))
+            if missing:
+                return jsonify({'error': f"Campos em falta na TAREFAS: {', '.join(missing)}"}), 400
+
+            sql = text("""
+                SELECT
+                    T.TAREFASSTAMP,
+                    CAST(T.DATA AS date) AS DATA,
+                    ISNULL(T.HORA,'') AS HORA,
+                    ISNULL(T.ALOJAMENTO,'') AS ALOJAMENTO,
+                    ISNULL(T.TAREFA,'') AS TAREFA,
+                    ISNULL(T.TRATADO,0) AS TRATADO,
+                    ISNULL(T.HORAINI,'') AS HORAINI,
+                    ISNULL(T.HORAFIM,'') AS HORAFIM
+                FROM dbo.TAREFAS AS T
+                WHERE LTRIM(RTRIM(ISNULL(T.ORIGEM,''))) = 'LP'
+                  AND CAST(T.DATA AS date) = :d
+                  AND ISNULL(T.UTILIZADOR,'') = :u
+                ORDER BY ISNULL(T.HORA,''), ISNULL(T.ALOJAMENTO,''), T.TAREFASSTAMP
+            """)
+            rows = db.session.execute(sql, {'u': user, 'd': dt}).mappings().all()
+            out = []
+            for r in rows:
+                d = r.get('DATA')
+                d = d.strftime('%Y-%m-%d') if isinstance(d, (date, datetime)) else (str(d) if d is not None else '')
+                out.append({
+                    'TAREFASSTAMP': r.get('TAREFASSTAMP') or '',
+                    'DATA': d,
+                    'HORA': r.get('HORA') or '',
+                    'ALOJAMENTO': r.get('ALOJAMENTO') or '',
+                    'TAREFA': r.get('TAREFA') or '',
+                    'TRATADO': int(r.get('TRATADO') or 0),
+                    'HORAINI': (r.get('HORAINI') or '').strip(),
+                    'HORAFIM': (r.get('HORAFIM') or '').strip(),
+                })
+            return jsonify({'rows': out, 'count': len(out), 'user': user, 'data': dt.strftime('%Y-%m-%d')})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/tempos_limpeza/start', methods=['POST'])
     @login_required
     def api_tempos_limpeza_start():

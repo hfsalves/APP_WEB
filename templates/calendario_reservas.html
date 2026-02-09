@@ -24,6 +24,9 @@
 
       <div class="rescal-timeline-wrap">
         <div id="rescalTimeline" class="rescal-timeline"></div>
+        <div class="rescal-hscroll" id="rescalHScroll">
+          <div class="rescal-hscroll-inner" id="rescalHScrollInner"></div>
+        </div>
         <div class="rescal-loading d-none" id="rescalLoading">
           <div class="spinner-border text-primary" role="status"></div>
           <div class="text-muted small mt-2">A carregar reservas...</div>
@@ -90,8 +93,8 @@
   .rescal-page { height: 100%; display: flex; flex-direction: column; min-height: 0; }
   .rescal-card { flex: 1 1 auto; min-height: 0; }
   .rescal-body { height: 100%; min-height: 0; }
-  .rescal-timeline-wrap { position: relative; flex: 1 1 auto; min-height: 0; }
-  .rescal-timeline { height: 100%; border: 1px solid #e2e8f0; border-radius: 16px; background: #fff; overflow: hidden; display: flex; flex-direction: column; }
+  .rescal-timeline-wrap { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .rescal-timeline { flex: 1 1 auto; min-height: 0; border: 1px solid #e2e8f0; border-radius: 16px; background: #fff; overflow: hidden; display: flex; flex-direction: column; }
   .rescal-timeline .vis-timeline { flex: 1 1 auto; min-height: 0; }
   .rescal-loading {
     position: absolute; inset: 0;
@@ -100,18 +103,45 @@
     background: rgba(248, 250, 252, 0.85);
     backdrop-filter: blur(6px);
     z-index: 5;
+    height: 19px !important;
+    margin-top: 4px !important;
+    margin-bottom: 4px !important;
+    height: 19px !important;
   }
 
   /* vis-timeline tweaks */
   .vis-timeline { border: none !important; }
-  .vis-panel.vis-left { background: #fbfdff; border-right: 1px solid #e2e8f0; }
-  .vis-panel.vis-left { overflow: hidden; }
-  .vis-panel.vis-center { overflow: auto; }
+  .vis-panel.vis-left { background: #fbfdff; border-right: 1px solid #e2e8f0; overflow: hidden; }
+  .vis-panel.vis-center { overflow-y: hidden; overflow-x: hidden; scrollbar-gutter: auto !important; scrollbar-width: none; padding-left: 0 !important; }
+  .vis-panel.vis-center::-webkit-scrollbar { height: 0 !important; }
+  .vis-panel.vis-center .vis-content { overflow-x: hidden !important; overflow-y: hidden !important; scrollbar-gutter: auto !important; padding-right: 0 !important; margin-right: 0 !important; padding-left: 0 !important; margin-left: 0 !important; scrollbar-width: none; }
+  .vis-panel.vis-center .vis-content::-webkit-scrollbar { height: 0 !important; }
+
+  .rescal-hscroll {
+    margin-top: 6px;
+    margin-left: 160px;
+    height: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+  }
+  .rescal-hscroll::-webkit-scrollbar { height: 12px; }
+  .rescal-hscroll::-webkit-scrollbar-track { background: transparent; }
+  .rescal-hscroll::-webkit-scrollbar-thumb {
+    background-color: rgba(100, 116, 139, 0.35);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .rescal-hscroll-inner { height: 1px; }
+
 
   /* largura fixa da coluna de alojamentos */
-  .rescal-timeline .vis-panel.vis-left { width: 240px !important; }
-  .rescal-timeline .vis-panel.vis-center { left: 240px !important; }
-  .rescal-timeline .vis-panel.vis-top.vis-center { width: calc(100% - 240px) !important; }
+  .rescal-timeline .vis-panel.vis-left { width: 160px !important; }
+  .rescal-timeline .vis-panel.vis-center { left: 160px !important; width: calc(100% - 160px) !important; }
+  .rescal-timeline .vis-panel.vis-top.vis-center { width: calc(100% - 160px) !important; }
+  .rescal-timeline .vis-panel.vis-top.vis-center .vis-time-axis { margin-left: 0 !important; padding-left: 0 !important; }
 
   /* Scrollbars do vis-timeline (discretas, sem mexer no layout/overflow do vis) */
   .vis-panel.vis-center,
@@ -153,7 +183,8 @@
   .vis-panel.vis-center .vis-content::-webkit-scrollbar-thumb:hover,
   .vis-panel.vis-bottom .vis-content::-webkit-scrollbar-thumb:hover,
   .vis-panel.vis-right .vis-content::-webkit-scrollbar-thumb:hover { background-color: rgba(100, 116, 139, 0.55); }
-  .vis-labelset .vis-label { border-bottom: 1px solid #eef2f7; }
+  .vis-labelset .vis-label { border-bottom: 1px solid #eef2f7; height: 27px !important; }
+  .vis-itemset .vis-group { height: 27px !important; }
   .vis-panel.vis-left .vis-labelset .vis-label .vis-inner {
     font-size: 11px;
     font-weight: 700;
@@ -181,7 +212,7 @@
   }
   .vis-time-axis .vis-text.vis-major { color: #0f172a; font-weight: 700; font-size: 12px; }
   .vis-current-time { background-color: rgba(239, 68, 68, 0.35) !important; width: 1px !important; }
-  .weekend-bg { background: rgba(148, 163, 184, 0.12) !important; }
+  .weekend-bg { background: rgba(148, 163, 184, 0.2) !important; }
   .vis-item.vis-background.weekend-bg { pointer-events: none; }
   .vis-item.vis-background.cell-sel {
     background: rgba(59, 130, 246, 0.18) !important;
@@ -279,14 +310,28 @@
     color: #0f172a;
     z-index: 5; /* garantir acima de backgrounds (cadeados/seleção/fins-de-semana) */
   }
+  .vis-item.rs-item { height: 19px !important; transform: translateY(4px); }
+  .vis-item.rs-item.vis-range { top: 4px !important; }
   .vis-item.rs-item .vis-item-overflow {
     border-radius: 8px;
+    height: 19px !important;
   }
   .vis-item.rs-item.vis-range {
     border-radius: 8px;
+    height: 19px !important;
   }
-  .vis-item.rs-item .vis-item-content { padding: 0 10px; font-weight: 800; font-size: 11px; }
-  .vis-item.rs-item .rs-label { display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .vis-item.rs-item .vis-item-content {
+    padding: 0 8px;
+    font-weight: 700;
+    font-size: 10px;
+    height: 19px !important;
+    line-height: 1.1 !important;
+    display: flex;
+    align-items: center;
+    position: relative;
+    top: -4px !important;
+  }
+  .vis-item.rs-item .rs-label { display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; position: relative; top: -4px !important; }
   .vis-item.vis-selected.rs-item {
     box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
     border-color: rgba(14,165,233,0.95);

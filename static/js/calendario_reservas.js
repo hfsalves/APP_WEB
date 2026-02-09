@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnToday = document.getElementById('rescalToday');
   const btnPrev30 = document.getElementById('rescalPrev30');
   const btnNext30 = document.getElementById('rescalNext30');
+  const hScrollEl = document.getElementById('rescalHScroll');
+  const hScrollInnerEl = document.getElementById('rescalHScrollInner');
 
   const priceModalEl = document.getElementById('rescalPriceModal');
   const selAlojEl = document.getElementById('rescalSelAloj');
@@ -169,7 +171,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const MS_DAY = 24 * 60 * 60 * 1000;
   const DAY_PX = 36; // largura por dia (fixa)
   const GROUP_W_PX = 240;
+  const ROW_HEIGHT = 27;
   const MIN_DAYS_VISIBLE = 12; // mínimo de dias visíveis
+  let currentVisibleDays = MIN_DAYS_VISIBLE;
 
   const options = {
     width: '100%',
@@ -182,11 +186,9 @@ document.addEventListener('DOMContentLoaded', () => {
     autoResize: true,
     zoomable: false,
     moveable: false, // drag do rato fica disponível para seleção
-    margin: { item: 6, axis: 10 },
+    margin: { item: 1, axis: 10 },
     selectable: true,
     multiselect: false,
-    groupHeightMode: 'fixed',
-    groupHeight: 32,
     start: windowStart,
     end: addDays(windowEnd, 1),
     min: windowStart,
@@ -199,6 +201,50 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const timeline = new vis.Timeline(el, items, groups, options);
+  let hScrollBound = false;
+  let syncingHScroll = false;
+  let syncingWindow = false;
+  function totalDaysInRange() {
+    return Math.max(1, Math.round((windowEnd.getTime() - windowStart.getTime()) / MS_DAY) + 1);
+  }
+  function windowStartOffsetDays() {
+    const w = timeline.getWindow();
+    const s = floorToDay(new Date(w.start));
+    return Math.max(0, Math.round((s.getTime() - windowStart.getTime()) / MS_DAY));
+  }
+  function syncHScrollWidth() {
+    if (!hScrollEl || !hScrollInnerEl) return;
+    const totalDays = totalDaysInRange();
+    const hScrollWidth = totalDays * DAY_PX;
+    hScrollInnerEl.style.width = `${hScrollWidth}px`;
+    if (!syncingHScroll) {
+      syncingHScroll = true;
+      const barMax = Math.max(1, hScrollEl.scrollWidth - hScrollEl.clientWidth);
+      const maxOffsetDays = Math.max(0, totalDays - currentVisibleDays);
+      const offset = Math.min(maxOffsetDays, windowStartOffsetDays());
+      hScrollEl.scrollLeft = (maxOffsetDays > 0) ? (offset / maxOffsetDays) * barMax : 0;
+      syncingHScroll = false;
+    }
+  }
+  function bindHScroll() {
+    if (hScrollBound || !hScrollEl || !hScrollInnerEl) return false;
+    hScrollBound = true;
+    hScrollEl.addEventListener('scroll', () => {
+      if (syncingHScroll || syncingWindow) return;
+      syncingWindow = true;
+      const totalDays = totalDaysInRange();
+      const maxOffsetDays = Math.max(0, totalDays - currentVisibleDays);
+      const barMax = Math.max(1, hScrollEl.scrollWidth - hScrollEl.clientWidth);
+      const ratio = (barMax > 0) ? (hScrollEl.scrollLeft / barMax) : 0;
+      const offsetDays = Math.round(ratio * maxOffsetDays);
+      const start = addDays(windowStart, offsetDays);
+      const end = addDays(start, currentVisibleDays);
+      timeline.setWindow(start, end, { animation: false });
+      syncingWindow = false;
+    });
+    syncHScrollWidth();
+    return true;
+  }
   function decorateAxisLabels() {
     const nodes = el.querySelectorAll?.('.vis-time-axis .vis-text.vis-minor');
     if (!nodes || !nodes.length) return;
@@ -220,13 +266,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // manter cadeados visíveis após scroll/redraw
     scheduleDecorations();
     decorateAxisLabels();
+    syncHScrollWidth();
   });
   timeline.on('rangechanged', () => {
-    renderPricesForVisibleRange(150);
+    syncHScrollWidth();
   });
   requestAnimationFrame(() => {
     try { timeline.redraw(); } catch (_) {}
     applyFixedDayWidth();
+    bindHScroll();
+    syncHScrollWidth();
   });
 
   function encGroupId(groupId) {
@@ -284,7 +333,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     groups.update(upd);
     rebuildGroupOrderCache();
-    renderPricesForVisibleRange(120);
+    renderPricesForVisibleRange(0);
+    syncRowHeights();
   }
 
   function clearSelectionItems() {
@@ -398,28 +448,29 @@ document.addEventListener('DOMContentLoaded', () => {
     pbaseItemIds = ids;
   }
 
-  function getVisibleRange() {
-    try {
-      const w = timeline.getWindow();
-      const s = floorToDay(new Date(w.start));
-      let e = floorToDay(new Date(w.end));
-      e = addDays(e, -1);
-      if (e < s) e = new Date(s.getTime());
-      return { start: s, end: e };
-    } catch (_) {
-      return { start: windowStart, end: windowEnd };
-    }
-  }
-
   let priceRenderTimer = null;
   function renderPricesForVisibleRange(delayMs = 0) {
     if (priceRenderTimer) clearTimeout(priceRenderTimer);
     const ms = Number(delayMs || 0);
     priceRenderTimer = setTimeout(() => {
       priceRenderTimer = null;
-      const { start, end } = getVisibleRange();
-      addPbaseItems(lastOccupiedByGroup, lastPriceByKey, start, end);
+      addPbaseItems(lastOccupiedByGroup, lastPriceByKey, windowStart, windowEnd);
     }, ms);
+  }
+
+  function syncRowHeights() {
+    const visibleCount = groups.get().filter(g => g && g.visible !== false).length;
+    const totalH = visibleCount * ROW_HEIGHT;
+    if (!isFinite(totalH) || totalH <= 0) return;
+    const centerContent = el.querySelector('.vis-panel.vis-center .vis-content');
+    const leftContent = el.querySelector('.vis-panel.vis-left .vis-content');
+    const labelset = el.querySelector('.vis-labelset');
+    const itemset = el.querySelector('.vis-itemset');
+    [centerContent, leftContent, labelset, itemset].forEach((node) => {
+      if (!node) return;
+      node.style.height = `${totalH}px`;
+      node.style.minHeight = `${totalH}px`;
+    });
   }
 
   function renderSelection() {
@@ -701,6 +752,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const centerW = Math.max(320, totalW - GROUP_W_PX - 24);
     const totalDays = Math.max(1, Math.round((windowEnd.getTime() - windowStart.getTime()) / MS_DAY) + 1);
     const visibleDays = Math.max(MIN_DAYS_VISIBLE, Math.min(totalDays, Math.floor(centerW / DAY_PX)));
+    currentVisibleDays = visibleDays;
     const interval = visibleDays * MS_DAY;
 
     const min = windowStart;
@@ -814,8 +866,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // garantir que o layout do timeline já foi calculado antes de medir larguras
       try { timeline.redraw(); } catch (_) {}
       scheduleDecorations();
+      syncRowHeights();
       requestAnimationFrame(() => applyFixedDayWidth());
-      renderPricesForVisibleRange(200);
+      renderPricesForVisibleRange(0);
       setTimeout(applyFixedDayWidth, 80);
       setTimeout(applyFixedDayWidth, 220);
       setRangeLabel();
