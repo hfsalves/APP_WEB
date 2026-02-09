@@ -78,6 +78,8 @@
       if (btnNR && !window.CAN_OPEN_RS) btnNR.style.display = 'none';
       const btnNT = document.getElementById('openNotaTarefa');
       if (btnNT && !window.CAN_OPEN_TAREFAS) btnNT.style.display = 'none';
+      const btnHist = document.getElementById('openHistoricoTarefas');
+      if (btnHist) btnHist.style.display = '';
       const btnLS = document.getElementById('openLuggageStorage');
       if (btnLS && !window.IS_LS_ADMIN) btnLS.style.display = 'none';
     } catch(_) {}
@@ -520,6 +522,7 @@
   <div class="fab-menu" id="fabMenu" style="display: none;">
     <button class="fab-menu-item" id="openNovaMn">Nova Incid&ecirc;ncia</button>
     <button class="fab-menu-item" id="openNovaFalta">Nova Falta</button>
+    <button class="fab-menu-item" id="openHistoricoTarefas">Hist&oacute;rico de Tarefas</button>
     <button class="fab-menu-item" id="openNotasReserva">Notas de Reserva</button>
     <button class="fab-menu-item" id="openAlojamentos">Alojamentos</button>
     <button class="fab-menu-item" id="openNotaTarefa">Nova Tarefa</button>
@@ -1181,6 +1184,13 @@
   <script>
     // Nova Falta (FS): abrir modal, preencher combos, defaults e submeter
     document.addEventListener('DOMContentLoaded', () => {
+      const btnHist = document.getElementById('openHistoricoTarefas');
+      if (btnHist) {
+        btnHist.addEventListener('click', () => {
+          window.location.href = '/historico_reservas';
+        });
+      }
+
       const btn = document.getElementById('openNovaFalta');
       if (!btn) return;
       btn.addEventListener('click', async () => {
