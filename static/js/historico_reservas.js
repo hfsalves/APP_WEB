@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnPrev = document.getElementById('histPrev');
   const btnNext = document.getElementById('histNext');
   const infoEl = document.getElementById('histInfo');
+  const userSelect = document.getElementById('histUser');
 
   const escapeHtml = (s) => (s ?? '').toString()
     .replaceAll('&', '&amp;')
@@ -18,10 +19,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const ini = (t.HORAINI || '').trim();
     const fim = (t.HORAFIM || '').trim();
     const tratado = !!t.TRATADO;
-    if (fim) return { key: 'done', label: `Conclu&iacute;da ${escapeHtml(ini)} - ${escapeHtml(fim)}` };
-    if (ini && !fim) return { key: 'run', label: `Em execu&ccedil;&atilde;o desde ${escapeHtml(ini)}` };
+    if (fim) return { key: 'done', label: 'Conclu&iacute;da' };
+    if (ini && !fim) return { key: 'run', label: 'Em curso' };
     if (tratado) return { key: 'done', label: 'Conclu&iacute;da' };
-    return { key: 'todo', label: 'Por iniciar' };
+    return { key: 'todo', label: 'Planeada' };
+  }
+
+  function tipologiaMinutes(tip) {
+    const v = (tip || '').toString().trim().toUpperCase();
+    if (v === 'T0' || v === 'T1') return 60;
+    if (v === 'T2') return 90;
+    if (v === 'T3') return 120;
+    if (v === 'T4') return 150;
+    return null;
+  }
+
+  function timeToMin(hhmm) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec((hhmm || '').trim());
+    if (!m) return null;
+    const h = Math.min(23, Math.max(0, Number(m[1])));
+    const mm = Math.min(59, Math.max(0, Number(m[2])));
+    return h * 60 + mm;
+  }
+
+  function minToTime(min) {
+    if (min == null || !isFinite(min)) return '';
+    let m = Math.round(min);
+    if (m < 0) m = 0;
+    m = m % (24 * 60);
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
   }
 
   function render(rows) {
@@ -30,32 +58,75 @@ document.addEventListener('DOMContentLoaded', () => {
       grid.innerHTML = '<div class="text-muted">Sem tarefas para este dia.</div>';
       return;
     }
-    grid.innerHTML = rows.map(t => {
+    const sorted = [...rows].sort((a, b) => {
+      const am = timeToMin(a.HORAINI) ?? timeToMin(a.HORA) ?? 0;
+      const bm = timeToMin(b.HORAINI) ?? timeToMin(b.HORA) ?? 0;
+      if (am !== bm) return am - bm;
+      return String(a.ALOJAMENTO || '').localeCompare(String(b.ALOJAMENTO || ''), 'pt', { sensitivity: 'base' });
+    });
+
+    const parts = [];
+    let prevEndMin = null;
+    let prevPlanEndMin = null;
+    sorted.forEach((t, idx) => {
       const alo = (t.ALOJAMENTO || '').toString();
       const hora = (t.HORA || '').toString();
-      const tarefa = (t.TAREFA || '').toString();
+      const horaini = (t.HORAINI || '').toString().trim();
+      const horafim = (t.HORAFIM || '').toString().trim();
       const st = statusFor(t);
       const id = (t.TAREFASSTAMP || '').toString().trim();
-      return `
+      const mins = tipologiaMinutes(t.TIPOLOGIA);
+      const planStartMin = timeToMin(hora);
+      const planEndMin = (planStartMin != null && mins != null) ? (planStartMin + mins) : null;
+      const planEnd = (planEndMin != null) ? minToTime(planEndMin) : '';
+      const planLabel = (planStartMin != null && mins != null)
+        ? `${minToTime(planStartMin)} - ${planEnd} (${mins}m)`
+        : (hora || '--:--');
+
+      const startMin = timeToMin(horaini);
+      const endMin = timeToMin(horafim);
+      const dur = (startMin != null && endMin != null) ? Math.max(0, endMin - startMin) : null;
+      const realLabel = `${horaini || '--:--'} - ${horafim || '--:--'}${dur != null ? ` (${dur}m)` : ''}`;
+      let realClass = '';
+      if (dur != null && mins != null) {
+        realClass = dur > mins ? 'bad' : 'good';
+      }
+
+      if (idx > 0 && prevEndMin != null && startMin != null) {
+        const gapReal = Math.max(0, startMin - prevEndMin);
+        let gapPlan = null;
+        if (prevPlanEndMin != null && planStartMin != null) {
+          gapPlan = Math.max(0, planStartMin - prevPlanEndMin);
+        }
+        const gapClass = (gapPlan != null) ? (gapReal > gapPlan ? 'bad' : 'good') : '';
+        const prevTxt = (gapPlan != null) ? `(${gapPlan}m)` : '(--m)';
+        parts.push(`<div class="tcard-gap ${gapClass}">${prevTxt} ${gapReal}m</div>`);
+      }
+
+      if (endMin != null) prevEndMin = endMin;
+      if (planEndMin != null) prevPlanEndMin = planEndMin;
+
+      parts.push(`
         <div class="tcard" data-id="${escapeHtml(id)}">
           <div class="tcard-head">
             <div class="tcard-title">
               <div class="tcard-alo" title="${escapeHtml(alo)}">${escapeHtml(alo || '(sem alojamento)')}</div>
-              <div class="tcard-time">${escapeHtml(hora || '--:--')}</div>
+              <div class="tcard-time">${escapeHtml(planLabel)}</div>
             </div>
           </div>
           <div class="tcard-body">
-            <div class="tcard-sub" title="${escapeHtml(tarefa)}">${escapeHtml(tarefa || 'Limpeza')}</div>
             <div class="tcard-meta">
               <span class="tbadge ${st.key}">${st.label}</span>
+              <span class="tbadge real ${realClass}">${escapeHtml(realLabel)}</span>
             </div>
           </div>
           <div class="tcard-anexos js-anexos">
             <div class="anx-empty">A carregar anexos...</div>
           </div>
         </div>
-      `;
-    }).join('');
+      `);
+    });
+    grid.innerHTML = parts.join('');
   }
 
   async function loadAnexosForTask(tid) {
@@ -109,7 +180,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!grid) return;
     const d = (dateInput?.value || '').trim();
     grid.innerHTML = '<div class="text-muted">A carregar...</div>';
-    const res = await fetch(`/api/historico_reservas?data=${encodeURIComponent(d)}`);
+    const u = (userSelect?.value || '').trim();
+    const qs = new URLSearchParams();
+    qs.set('data', d);
+    if (u) qs.set('user', u);
+    const res = await fetch(`/api/historico_reservas?${qs.toString()}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.error) {
       grid.innerHTML = `<div class="text-danger">Erro: ${escapeHtml(data.error || res.statusText)}</div>`;
@@ -152,6 +227,20 @@ document.addEventListener('DOMContentLoaded', () => {
     setDate(d);
   });
   dateInput?.addEventListener('change', load);
+  userSelect?.addEventListener('change', load);
 
-  load();
+  async function loadUsers() {
+    if (!userSelect) return;
+    const res = await fetch('/api/historico_reservas_users');
+    const data = await res.json().catch(() => ({}));
+    const users = Array.isArray(data.users) ? data.users : [];
+    userSelect.innerHTML = '<option value="">Utilizador...</option>' + users
+      .map(u => `<option value="${escapeHtml(u.login)}">${escapeHtml(u.nome || u.login)}</option>`)
+      .join('');
+    if (users.length && window.currentLogin) {
+      userSelect.value = String(window.currentLogin);
+    }
+  }
+
+  loadUsers().finally(load);
 });

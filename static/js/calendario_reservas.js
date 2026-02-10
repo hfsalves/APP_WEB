@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const hintEl = document.getElementById('rescalPriceHint');
   const btnCancelSel = document.getElementById('rescalCancelSel');
   const btnSavePrices = document.getElementById('rescalSavePrices');
+  const btnBqToggle = document.getElementById('rescalBqToggleBtn');
 
   if (!el || typeof vis === 'undefined') return;
 
@@ -86,16 +87,41 @@ document.addEventListener('DOMContentLoaded', () => {
       const title = `${groupId} | ${fmtDate.format(d)}`;
       const id = `bq:${encGroupId(groupId)}|${dateKey}`;
       if (items.get(id)) return;
+      try {
+        if (lastOccupiedByGroup?.get?.(String(groupId))?.has?.(dateKey)) return;
+      } catch (_) {}
+      const isUnlock = Number(b?.desbloq || 0) === 1 && Number(b?.tratado || 0) === 0;
       items.add({
         id,
         type: 'background',
         group: groupId,
         start: `${dateKey} 00:00:00`,
         end: `${toIsoDate(addDays(new Date(dateKey + 'T00:00:00'), 1))} 00:00:00`,
-        className: (Number(b?.tratado || 0) ? 'bq-lock bq-treated' : 'bq-lock bq-pending'),
+        className: isUnlock ? 'bq-lock bq-unlock' : (Number(b?.tratado || 0) ? 'bq-lock bq-treated' : 'bq-lock bq-pending'),
         title,
       });
     });
+  }
+
+  function upsertBlockedItem(groupId, dateKey, tratado, desbloq) {
+    if (!groupId || !dateKey) return;
+    const id = `bq:${encGroupId(groupId)}|${dateKey}`;
+    const isUnlock = Number(desbloq || 0) === 1 && Number(tratado || 0) === 0;
+    const cls = isUnlock ? 'bq-lock bq-unlock' : (Number(tratado || 0) ? 'bq-lock bq-treated' : 'bq-lock bq-pending');
+    const d = new Date(dateKey + 'T00:00:00');
+    const title = `${groupId} | ${fmtDate.format(d)}`;
+    const payload = {
+      id,
+      type: 'background',
+      group: groupId,
+      start: `${dateKey} 00:00:00`,
+      end: `${toIsoDate(addDays(new Date(dateKey + 'T00:00:00'), 1))} 00:00:00`,
+      className: cls,
+      title,
+    };
+    if (items.get(id)) items.update(payload);
+    else items.add(payload);
+    scheduleDecorations();
   }
 
   function decorateBlockedDom() {
@@ -107,9 +133,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!icon) {
           icon = document.createElement('span');
           icon.className = 'bq-lock-icon';
-          icon.innerHTML = '<i class="fa-solid fa-lock"></i>';
           node.appendChild(icon);
         }
+        icon.innerHTML = node.classList.contains('bq-unlock')
+          ? '<i class="fa-solid fa-lock-open"></i>'
+          : '<i class="fa-solid fa-lock"></i>';
 
         const hasTitle = !!(node.getAttribute && node.getAttribute('title'));
         if (!hasTitle) {
@@ -167,6 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastPriceRecByKey = new Map(); // group|date -> {pbase,desconto,preco,tratado}
   let lastOccupiedByGroup = new Map(); // groupId -> Set(YYYY-MM-DD)
   let lastPriceByKey = new Map(); // group|date -> {preco,desconto}
+  let lastBqByKey = new Map(); // group|date -> {tratado,desbloq}
 
   const MS_DAY = 24 * 60 * 60 * 1000;
   const DAY_PX = 36; // largura por dia (fixa)
@@ -223,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const maxOffsetDays = Math.max(0, totalDays - currentVisibleDays);
       const offset = Math.min(maxOffsetDays, windowStartOffsetDays());
       hScrollEl.scrollLeft = (maxOffsetDays > 0) ? (offset / maxOffsetDays) * barMax : 0;
-      syncingHScroll = false;
+      requestAnimationFrame(() => { syncingHScroll = false; });
     }
   }
   function bindHScroll() {
@@ -596,6 +625,57 @@ document.addEventListener('DOMContentLoaded', () => {
       hintEl.textContent = hasCommon ? '' : 'Valores diferentes na seleção; ao gravar aplica-se a todas as células.';
     }
 
+    if (btnBqToggle) {
+      if (selectedCells.size === 1) {
+        btnBqToggle.classList.remove('d-none');
+        const key = Array.from(selectedCells)[0];
+        const { groupId, dateKey } = keyToParts(key);
+        const mapKey = `${String(groupId)}|${dateKey}`;
+        const st = lastBqByKey.get(mapKey);
+        let isBlocked = false;
+        if (st) {
+          const tratado = Number(st.tratado || 0);
+          const desbloq = Number(st.desbloq || 0);
+          isBlocked = (tratado === 0 && desbloq === 0);
+          if (tratado === 1) isBlocked = true;
+        } else {
+          isBlocked = false;
+        }
+
+        btnBqToggle.classList.toggle('btn-outline-danger', !isBlocked);
+        btnBqToggle.classList.toggle('btn-outline-warning', isBlocked);
+        btnBqToggle.innerHTML = isBlocked
+          ? '<i class="fa-solid fa-lock-open me-1"></i> Desbloquear'
+          : '<i class="fa-solid fa-lock me-1"></i> Bloquear';
+
+        btnBqToggle.onclick = async () => {
+          if (!groupId || !dateKey) return;
+          const action = isBlocked ? 'unblock' : 'block';
+          try {
+            const r = await fetch('/api/bq_toggle', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ alojamento: groupId, date: dateKey, action })
+            });
+            const js = await r.json().catch(() => ({}));
+            if (!r.ok || js.error) throw new Error(js.error || r.statusText);
+            if (action === 'block') {
+              lastBqByKey.set(mapKey, { tratado: 0, desbloq: 0 });
+              upsertBlockedItem(groupId, dateKey, 0, 0);
+            } else {
+              lastBqByKey.set(mapKey, { tratado: 0, desbloq: 1 });
+              upsertBlockedItem(groupId, dateKey, 0, 1);
+            }
+            modal.hide();
+          } catch (e) {
+            alert(`Erro: ${e.message || e}`);
+          }
+        };
+      } else {
+        btnBqToggle.classList.add('d-none');
+      }
+    }
+
     const modal = bootstrap.Modal.getOrCreateInstance(priceModalEl);
     modal.show();
 
@@ -833,6 +913,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // evidenciar fins de semana (Sáb/Dom) no background
       addWeekendBackgroundItems(windowStart, windowEnd);
 
+      lastOccupiedByGroup = occupiedByGroup;
+
       // noites bloqueadas (cadeados)
       addBlockedItems(data.blocked);
 
@@ -852,10 +934,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
       lastPriceByKey = priceByKey;
+      lastBqByKey = new Map();
+      (Array.isArray(data.blocked) ? data.blocked : []).forEach(b => {
+        const groupId = b?.group;
+        const dateKey = b?.date;
+        if (!groupId || !dateKey) return;
+        const key = `${String(groupId)}|${dateKey}`;
+        lastBqByKey.set(key, { tratado: Number(b?.tratado || 0), desbloq: Number(b?.desbloq || 0) });
+      });
 
       // preço por data (PRECOS.PRECO) com fallback para AL.PBASE
-      lastOccupiedByGroup = occupiedByGroup;
-
       pruneSelectionToRange();
       renderSelection();
 

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% set page_title = "Histórico de Reservas" %}
-{% set page_name = "Histórico de Reservas" %}
+{% set page_title = "Histórico de Tarefas" %}
+{% set page_name = "Histórico de Tarefas" %}
 
-{% block title %}Histórico de Reservas{% endblock %}
+{% block title %}Histórico de Tarefas{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-3">
@@ -10,6 +10,11 @@
     <button class="btn btn-sm btn-outline-secondary" id="histPrev"><i class="fa-solid fa-chevron-left"></i></button>
     <input type="date" class="form-control form-control-sm" id="histDate" style="max-width: 160px;">
     <button class="btn btn-sm btn-outline-secondary" id="histNext"><i class="fa-solid fa-chevron-right"></i></button>
+    {% if can_filter %}
+    <select class="form-select form-select-sm" id="histUser" style="max-width: 220px;">
+      <option value="">Utilizador...</option>
+    </select>
+    {% endif %}
     <div class="text-muted small ms-2" id="histInfo"></div>
   </div>
 
@@ -20,9 +25,15 @@
 
 <style>
   .tempos-grid{
-    display:grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 14px;
+    display:flex;
+    flex-direction:column;
+    gap: 12px;
+  }
+  @media (min-width: 992px){
+    .tempos-grid{
+      max-width: 500px;
+      align-items: stretch;
+    }
   }
   .tcard{
     background:#fff;
@@ -74,6 +85,23 @@
     overflow:hidden;
     text-overflow:ellipsis;
   }
+  .tbadge.real{
+    background:#f1f5f9;
+    border-color:#e2e8f0;
+    color:#0f172a;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-weight: 700;
+  }
+  .tbadge.real.good{
+    background:#dcfce7;
+    border-color:#bbf7d0;
+    color:#166534;
+  }
+  .tbadge.real.bad{
+    background:#fee2e2;
+    border-color:#fecaca;
+    color:#991b1b;
+  }
   .tcard-meta{
     margin-top: 8px;
     display:flex;
@@ -104,6 +132,26 @@
     flex-wrap:wrap;
     align-items:center;
   }
+  .tcard-gap{
+    background: #fee2e2;
+    border: 1px dashed #fecaca;
+    color: #991b1b;
+    border-radius: 12px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    text-align:center;
+  }
+  .tcard-gap.good{
+    background:#dcfce7;
+    border-color:#bbf7d0;
+    color:#166534;
+  }
+  .tcard-gap.bad{
+    background:#fee2e2;
+    border-color:#fecaca;
+    color:#991b1b;
+  }
   .anx{
     position:relative;
     width:52px;
@@ -127,5 +175,8 @@
   }
 </style>
 
+<script>
+  window.currentLogin = "{{ current_login|e }}";
+</script>
 <script src="{{ url_for('static', filename='js/historico_reservas.js') }}?v={{ static_version }}"></script>
 {% endblock %}

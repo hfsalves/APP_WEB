@@ -80,6 +80,11 @@
         <div class="text-muted small mt-2" id="rescalPriceHint"></div>
       </div>
       <div class="modal-footer border-0 pt-0">
+        <div class="me-auto d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-sm btn-outline-danger d-none" id="rescalBqToggleBtn">
+            <i class="fa-solid fa-lock me-1"></i> Bloquear
+          </button>
+        </div>
         <button type="button" class="btn btn-sm btn-light" id="rescalCancelSel">Cancelar</button>
         <button type="button" class="btn btn-sm btn-primary px-3" id="rescalSavePrices">
           <i class="fa-solid fa-check me-1"></i>Gravar
@@ -119,7 +124,7 @@
 
   .rescal-hscroll {
     margin-top: 6px;
-    margin-left: 160px;
+    margin-left: 240px;
     height: 12px;
     overflow-x: auto;
     overflow-y: hidden;
@@ -138,9 +143,9 @@
 
 
   /* largura fixa da coluna de alojamentos */
-  .rescal-timeline .vis-panel.vis-left { width: 160px !important; }
-  .rescal-timeline .vis-panel.vis-center { left: 160px !important; width: calc(100% - 160px) !important; }
-  .rescal-timeline .vis-panel.vis-top.vis-center { width: calc(100% - 160px) !important; }
+  .rescal-timeline .vis-panel.vis-left { width: 240px !important; }
+  .rescal-timeline .vis-panel.vis-center { left: 240px !important; width: calc(100% - 240px) !important; }
+  .rescal-timeline .vis-panel.vis-top.vis-center { width: calc(100% - 240px) !important; }
   .rescal-timeline .vis-panel.vis-top.vis-center .vis-time-axis { margin-left: 0 !important; padding-left: 0 !important; }
 
   /* Scrollbars do vis-timeline (discretas, sem mexer no layout/overflow do vis) */
@@ -233,6 +238,7 @@
   }
   .vis-item.vis-background.bq-lock.bq-treated .bq-lock-icon { color: #60a5fa; }
   .vis-item.vis-background.bq-lock.bq-pending .bq-lock-icon { color: #f87171; }
+  .vis-item.vis-background.bq-lock.bq-unlock .bq-lock-icon { color: #f59e0b; }
 
   /* Preços por célula (PRECOS/AL.PBASE) */
   .vis-item.pbase-item {

@@ -6188,15 +6188,18 @@ OPTION (MAXRECURSION 32767);
                     LTRIM(RTRIM(ISNULL(BQ.ALOJAMENTO,''))) AS ALOJAMENTO,
                     LTRIM(RTRIM(ISNULL(BQ.NMAIRBNB,''))) AS NMAIRBNB,
                     CAST(BQ.[DATA] AS date) AS [DATA],
-                    ISNULL(BQ.TRATADO,0) AS TRATADO
+                    ISNULL(BQ.TRATADO,0) AS TRATADO,
+                    ISNULL(BQ.DESBLOQ,0) AS DESBLOQ,
+                    ISNULL(BQ.ANULADO,0) AS ANULADO
                 FROM dbo.BQ AS BQ
                 WHERE CAST(BQ.[DATA] AS date) >= :start
                   AND CAST(BQ.[DATA] AS date) <= :end
+                  AND ISNULL(BQ.ANULADO,0) = 0
             """), {'start': start_d, 'end': end_d}).mappings().all()
         except Exception as e:
             return jsonify({'error': f'Erro ao obter BQ: {e}'}), 500
 
-        blocked_map = {}  # (group_id, YYYY-MM-DD) -> tratado(0/1)
+        blocked_map = {}  # (group_id, YYYY-MM-DD) -> flags
         for r in bq_rows:
             d = r.get('DATA')
             if not d:
@@ -6213,22 +6216,28 @@ OPTION (MAXRECURSION 32767);
             if not group_id:
                 continue
 
-            # Se a noite estiver ocupada, não mostrar cadeado para evitar sobreposição
-            try:
-                if d.isoformat() in occupied_by_group.get(group_id, set()):
-                    continue
-            except Exception:
-                pass
-
             key = (group_id, d.isoformat())
             tratado = 1 if int(r.get('TRATADO') or 0) else 0
-            prev = blocked_map.get(key, 0)
-            blocked_map[key] = 1 if (prev or tratado) else 0
+            desbloq = 1 if int(r.get('DESBLOQ') or 0) else 0
+            if int(r.get('ANULADO') or 0):
+                continue
+            flags = blocked_map.get(key, {'has_block': False, 'has_block_treated': False, 'has_unblock': False})
+            if desbloq == 1 and tratado == 0:
+                flags['has_unblock'] = True
+            elif desbloq == 0 and tratado == 0:
+                flags['has_block'] = True
+            elif desbloq == 0 and tratado == 1:
+                flags['has_block_treated'] = True
+            blocked_map[key] = flags
 
-        blocked = [
-            {'group': k[0], 'date': k[1], 'tratado': v}
-            for k, v in blocked_map.items()
-        ]
+        blocked = []
+        for k, v in blocked_map.items():
+            if v.get('has_unblock'):
+                blocked.append({'group': k[0], 'date': k[1], 'tratado': 0, 'desbloq': 1})
+            elif v.get('has_block'):
+                blocked.append({'group': k[0], 'date': k[1], 'tratado': 0, 'desbloq': 0})
+            elif v.get('has_block_treated'):
+                blocked.append({'group': k[0], 'date': k[1], 'tratado': 1, 'desbloq': 0})
 
         # Preços por data (PRECOS) - para mostrar nas células (noites vazias)
         try:
@@ -6710,11 +6719,34 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def historico_reservas_page():
         current_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        can_filter = bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'LPADMIN', False))
         return render_template(
             'historico_reservas.html',
-            page_title='Histórico de Reservas',
+            page_title='Histórico de Tarefas',
             current_login=current_login,
+            can_filter=can_filter,
         )
+
+    @app.route('/api/historico_reservas_users')
+    @login_required
+    def api_historico_reservas_users():
+        try:
+            is_admin = bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'LPADMIN', False))
+            if not is_admin:
+                return jsonify({'users': []})
+
+            sql = text("""
+                SELECT LOGIN, NOME
+                FROM US
+                WHERE ISNULL(INATIVO,0)=0
+                  AND LTRIM(RTRIM(ISNULL(EQUIPA,''))) <> ''
+                ORDER BY NOME
+            """)
+            rows = db.session.execute(sql).fetchall()
+            users = [{'login': r[0], 'nome': r[1]} for r in rows]
+            return jsonify({'users': users})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/api/historico_reservas')
     @login_required
@@ -6726,6 +6758,10 @@ OPTION (MAXRECURSION 32767);
             user = (getattr(current_user, 'LOGIN', '') or '').strip()
             if not user:
                 return jsonify({'error': 'Utilizador inválido.'}), 400
+            req_user = (request.args.get('user') or '').strip()
+            is_admin = bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'LPADMIN', False))
+            if is_admin and req_user:
+                user = req_user
 
             date_str = (request.args.get('data') or '').strip()
             if not date_str:
@@ -6754,8 +6790,10 @@ OPTION (MAXRECURSION 32767);
                     ISNULL(T.TAREFA,'') AS TAREFA,
                     ISNULL(T.TRATADO,0) AS TRATADO,
                     ISNULL(T.HORAINI,'') AS HORAINI,
-                    ISNULL(T.HORAFIM,'') AS HORAFIM
+                    ISNULL(T.HORAFIM,'') AS HORAFIM,
+                    ISNULL(AL.TIPOLOGIA,'') AS TIPOLOGIA
                 FROM dbo.TAREFAS AS T
+                LEFT JOIN dbo.AL AS AL ON LTRIM(RTRIM(AL.NOME)) = LTRIM(RTRIM(T.ALOJAMENTO))
                 WHERE LTRIM(RTRIM(ISNULL(T.ORIGEM,''))) = 'LP'
                   AND CAST(T.DATA AS date) = :d
                   AND ISNULL(T.UTILIZADOR,'') = :u
@@ -6775,9 +6813,70 @@ OPTION (MAXRECURSION 32767);
                     'TRATADO': int(r.get('TRATADO') or 0),
                     'HORAINI': (r.get('HORAINI') or '').strip(),
                     'HORAFIM': (r.get('HORAFIM') or '').strip(),
+                    'TIPOLOGIA': (r.get('TIPOLOGIA') or '').strip(),
                 })
             return jsonify({'rows': out, 'count': len(out), 'user': user, 'data': dt.strftime('%Y-%m-%d')})
         except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/bq_toggle', methods=['POST'])
+    @login_required
+    def api_bq_toggle():
+        """
+        Bloquear/desbloquear noite (BQ) para um alojamento e data.
+        Body: { "alojamento": "...", "date": "YYYY-MM-DD", "action": "block|unblock" }
+        """
+        try:
+            data = request.get_json(silent=True) or {}
+            aloj = (data.get('alojamento') or '').strip()
+            date_str = (data.get('date') or '').strip()
+            action = (data.get('action') or '').strip().lower()
+            if not aloj or not date_str or action not in ('block', 'unblock'):
+                return jsonify({'error': 'Parâmetros inválidos.'}), 400
+            try:
+                dt = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except Exception:
+                return jsonify({'error': 'Data inválida.'}), 400
+
+            # Trata bloqueio existente quando desbloqueia
+            if action == 'unblock':
+                db.session.execute(text("""
+                    UPDATE dbo.BQ
+                    SET TRATADO = 1,
+                        ANULADO = 1
+                    WHERE (
+                        LTRIM(RTRIM(ISNULL(ALOJAMENTO,''))) COLLATE Latin1_General_CI_AI = :a
+                        OR LTRIM(RTRIM(ISNULL(NMAIRBNB,''))) COLLATE Latin1_General_CI_AI = :a
+                    )
+                      AND CAST([DATA] AS date) = :d
+                      AND ISNULL(DESBLOQ,0) = 0
+                """), {'a': aloj, 'd': dt})
+
+                db.session.execute(text("""
+                    INSERT INTO dbo.BQ (BQSTAMP, ALOJAMENTO, NMAIRBNB, [DATA], TRATADO, DESBLOQ)
+                    VALUES (LEFT(CONVERT(varchar(36), NEWID()),25), :a, :a, :d, 0, 1)
+                """), {'a': aloj, 'd': dt})
+            else:
+                # Se já existir bloqueio pendente, não duplica
+                exists = db.session.execute(text("""
+                    SELECT TOP 1 1
+                    FROM dbo.BQ
+                    WHERE LTRIM(RTRIM(ISNULL(ALOJAMENTO,''))) = :a
+                      AND CAST([DATA] AS date) = :d
+                      AND ISNULL(DESBLOQ,0) = 0
+                      AND ISNULL(TRATADO,0) = 0
+                      AND ISNULL(ANULADO,0) = 0
+                """), {'a': aloj, 'd': dt}).fetchone()
+                if not exists:
+                    db.session.execute(text("""
+                        INSERT INTO dbo.BQ (BQSTAMP, ALOJAMENTO, NMAIRBNB, [DATA], TRATADO, DESBLOQ)
+                        VALUES (LEFT(CONVERT(varchar(36), NEWID()),25), :a, :a, :d, 0, 0)
+                    """), {'a': aloj, 'd': dt})
+
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/tempos_limpeza/start', methods=['POST'])
