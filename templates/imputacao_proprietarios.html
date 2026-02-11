@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% set page_title = "Imputação a Proprietários" %}
+{% set page_name = "Imputação a Proprietários" %}
+{% block title %}Imputação a Proprietários{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 imput-page">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3 imput-toolbar">
+    <button class="btn btn-sm btn-outline-secondary" id="btnReloadImput"><i class="fa-solid fa-rotate"></i> Atualizar</button>
+    <div class="imput-search">
+      <input type="text" class="form-control form-control-sm" id="imputSearch" placeholder="Pesquisar..." style="max-width: 240px;">
+      <button type="button" class="btn btn-sm btn-light imput-clear" id="imputClear" aria-label="Limpar filtro">×</button>
+    </div>
+    <select class="form-select form-select-sm" id="imputStatus" style="max-width: 200px;">
+      <option value="pending">Por decidir</option>
+      <option value="all">Todos</option>
+      <option value="yes">Imputar</option>
+      <option value="no">Não imputar</option>
+    </select>
+    <div class="ms-auto">
+      <button class="btn btn-sm btn-primary" id="btnSaveImput"><i class="fa-solid fa-floppy-disk"></i> Gravar</button>
+    </div>
+  </div>
+
+  <div class="card shadow-sm imput-card">
+    <div class="card-body p-0 imput-body">
+      <div class="table-responsive imput-grid-wrap">
+        <table class="table table-sm mb-0 imput-table">
+          <thead class="table-light">
+            <tr>
+              <th data-key="ORIGEM">Origem</th>
+              <th data-key="DATA">Data</th>
+              <th data-key="DOC">Doc/Incidência</th>
+              <th data-key="NOME">Fornecedor</th>
+              <th data-key="ALOJAMENTO">Alojamento</th>
+              <th class="text-end" data-key="TOTAL">Total</th>
+              <th>Imputação</th>
+              <th data-key="IMPUTANO">Mês/Ano</th>
+              <th class="text-end" data-key="IMPUTVALOR">Valor</th>
+              <th data-key="IMPUTDESIGN">Descrição</th>
+            </tr>
+          </thead>
+          <tbody id="imputBody">
+            <tr><td colspan="11" class="text-muted p-3">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .imput-page{
+    height: calc(100vh - 120px);
+    display:flex;
+    flex-direction:column;
+  }
+  .imput-toolbar{ flex: 0 0 auto; }
+  .imput-card{ flex: 1 1 auto; overflow:hidden; }
+  .imput-body{ height:100%; }
+  .imput-grid-wrap{ max-height:100%; overflow-y:auto; }
+  .imput-search{ position:relative; display:inline-flex; align-items:center; }
+  .imput-search input{ padding-right: 28px; }
+  .imput-clear{
+    position:absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    line-height: 18px;
+    padding: 0;
+    color: #64748b;
+    background: #f1f5f9;
+  }
+  .imput-table{
+    border-collapse: separate;
+    border-spacing: 0 6px;
+    width: 100%;
+    min-width: 920px;
+    font-size: 12px;
+    color: #0f172a;
+  }
+  .imput-table th, .imput-table td { vertical-align: middle; }
+  .imput-table td .form-control,
+  .imput-table td .form-select { min-width: 90px; }
+  .imput-table td .form-control.small { min-width: 70px; }
+  .imput-table td .form-control.wide { min-width: 220px; }
+  .imput-table td .text-muted { font-size: 12px; }
+  .imput-badge{ display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; }
+  .imput-badge.fo{ background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+  .imput-badge.mn{ background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+  .imput-toggle{
+    border-radius: 999px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 2px;
+  }
+  .imput-pill{
+    border: none;
+    border-radius: 999px !important;
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+    background: transparent;
+    padding: 4px 10px;
+  }
+  .imput-pill.active{
+    background: #0ea5e9;
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(14,165,233,.35);
+  }
+  .imput-pill[data-value="N"].active{ background:#ef4444; box-shadow:0 6px 16px rgba(239,68,68,.35); }
+  .imput-pill[data-value="S"].active{ background:#10b981; box-shadow:0 6px 16px rgba(16,185,129,.35); }
+  .imput-table thead th{
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 11px;
+    color: #334155;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    padding: 0.55rem 0.75rem;
+  }
+  .imput-table thead th::after{
+    content: "  \2195";
+    opacity: 0.35;
+    font-weight: 900;
+  }
+  .imput-table thead th.sort-asc::after{
+    content: "  \2191";
+    opacity: 0.9;
+  }
+  .imput-table thead th.sort-desc::after{
+    content: "  \2193";
+    opacity: 0.9;
+  }
+  .imput-table tbody tr{
+    background:#fff;
+    border:1px solid #e5e7eb;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+  }
+  .imput-table tbody tr td{
+    padding: 0.5rem 0.75rem;
+    border: none;
+  }
+  .imput-table tbody tr td:first-child{
+    border-top-left-radius: 12px;
+    border-bottom-left-radius: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-weight: 700;
+  }
+  .imput-table tbody tr td:last-child{
+    border-top-right-radius: 12px;
+    border-bottom-right-radius: 12px;
+  }
+  .imput-table thead th:nth-child(2),
+  .imput-table tbody td:nth-child(2){
+    width: 120px;
+    min-width: 120px;
+    white-space: nowrap;
+  }
+  .imput-table tbody tr:hover{
+    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
+  }
+  .imput-child td{
+    background:#eef2ff;
+    border-top:1px dashed #c7d2fe;
+    border-bottom:1px dashed #c7d2fe;
+  }
+</style>
+
+<script src="{{ url_for('static', filename='js/imputacao_proprietarios.js') }}?v={{ static_version }}"></script>
+{% endblock %}

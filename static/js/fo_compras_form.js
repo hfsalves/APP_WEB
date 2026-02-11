@@ -18,6 +18,7 @@ let tabivaOptions = [];
 let ccustoOptions = [];
 let tabivaLoaded = false;
 let linesLoaded = false;
+const foIsAdmin = Number(window.FO_IS_ADMIN || 0) === 1;
 
 function normalizeLineOrder() {
   const toNum = (v) => {
@@ -75,6 +76,10 @@ const anexoPreviewModal = anexoPreviewModalEl ? new bootstrap.Modal(anexoPreview
 
 function isFoLocked() {
   return Number(foPlanoValue) === 1 || foPagoLocked === true;
+}
+
+function canDeleteSynced() {
+  return foIsAdmin && Number(foSyncValue) === 1 && Number(foPlanoValue) === 0 && foPagoStatus === 'none';
 }
 
 const foFields = [
@@ -390,7 +395,7 @@ function renderFoStatusBadges() {
 
 function applyEditLocks() {
   const locked = isFoLocked();
-  const disableDelete = locked || Number(foSyncValue) === 1;
+  const disableDelete = locked || (Number(foSyncValue) === 1 && !canDeleteSynced());
   if (btnSaveFo) {
     btnSaveFo.disabled = locked;
     btnSaveFo.classList.toggle('disabled', locked);
@@ -1518,7 +1523,7 @@ async function deleteFo() {
     alert('Documento incluído em pagamento. Não pode ser eliminado.');
     return;
   }
-  if (Number(foSyncValue) === 1) {
+  if (Number(foSyncValue) === 1 && !canDeleteSynced()) {
     alert('Documento sincronizado. Não pode ser eliminado.');
     return;
   }
@@ -1715,26 +1720,34 @@ function recalcTotals() {
   if (etotalEl) etotalEl.value = total.toFixed(2);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  if (currentFoStamp) {
-    loadDocnomeOptions();
-    loadCcustOptions();
-    loadTpOptions();
-    loadTaxaOptions();
-    loadColabOptions();
+document.addEventListener('DOMContentLoaded', async () => {
+  if (overlay) {
+    overlay.style.display = 'flex';
+    if (overlayText) overlayText.textContent = 'A carregar...';
+    requestAnimationFrame(() => overlay.style.opacity = '1');
+  }
+  try {
+    const loaders = [
+      loadDocnomeOptions(),
+      loadCcustOptions(),
+      loadTpOptions(),
+      loadTaxaOptions(),
+      loadColabOptions()
+    ];
     bindTabivaListener();
     bindNomeAutocomplete();
-    loadFo();
-    loadLines();
-  } else {
-    loadDocnomeOptions();
-    loadCcustOptions();
-    loadTpOptions();
-    loadTaxaOptions();
-    loadColabOptions();
-    bindTabivaListener();
-    bindNomeAutocomplete();
-    renderLines();
+    if (currentFoStamp) {
+      loaders.push(loadFo(), loadLines());
+      await Promise.all(loaders);
+    } else {
+      await Promise.all(loaders);
+      renderLines();
+    }
+  } finally {
+    if (overlay) {
+      overlay.style.opacity = '0';
+      setTimeout(() => overlay.style.display = 'none', 250);
+    }
   }
 
   // defaults de datas para novo registo

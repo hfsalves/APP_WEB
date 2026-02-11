@@ -17,6 +17,7 @@ html, body {
   grid-template-columns: 240px 1fr;
   height: 100vh;
   overflow: hidden;
+  transition: grid-template-columns .25s ease;
 }
 
 /* Sidebar */
@@ -32,7 +33,7 @@ html, body {
   flex-direction: column;
   padding: 0rem;
   overflow-y: auto;
-  transition: left .3s ease;
+  transition: left .3s ease, width .25s ease;
   scrollbar-width: none; /* Firefox */
 }
 .sidebar::-webkit-scrollbar { display: none; }
@@ -52,6 +53,7 @@ html, body {
   border-radius: 0px;
   text-align: left;          /* garante alinhamento à esquerda */
   position: relative;        /* base para posicionar o ícone */
+  transition: background-color .32s ease, color .32s ease;
 }
 /* Garante a cor do texto do menu em todos os estados relevantes */
 .sidebar a:visited,
@@ -93,7 +95,7 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  transition: margin-left .3s ease;
+  transition: margin-left .25s ease;
   margin-left: 240px;
 }
 
@@ -1641,12 +1643,20 @@ body:not(.authenticated) .main-content {
 .sidebar-head {
   padding: 1.5rem 1rem 1rem;
   border-bottom: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 78px;
+  position: relative;
 }
 .sidebar-brand {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
   color: #fff;
+  flex: 1;
+  transition: opacity .32s ease;
 }
 .sidebar-app {
   font-weight: 700;
@@ -1660,6 +1670,195 @@ body:not(.authenticated) .main-content {
   align-items: center;
   gap: 0.35rem;
   font-weight: 600;
+}
+.sidebar-collapse-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(203, 209, 219, 0.7);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  opacity: 1;
+}
+@media (max-width: 768px) {
+  .sidebar-collapse-btn {
+    display: none !important;
+  }
+}
+body:not(.sidebar-collapsed) .sidebar-collapse-btn {
+  margin-top: -48px;
+}
+.sidebar-collapse-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #e3e7ef;
+}
+
+body.sidebar-collapsed .app-container {
+  grid-template-columns: 48px 1fr;
+}
+body.sidebar-collapsed .sidebar {
+  width: 48px;
+}
+body.sidebar-collapsed .main-content {
+  margin-left: 48px;
+}
+@media (min-width: 769px) {
+  body.sidebar-collapsed .app-header {
+    margin-left: 48px;
+    width: calc(100% - 48px);
+  }
+}
+body.sidebar-collapsed .sidebar-head {
+  padding: 0.6rem 0.4rem;
+  justify-content: center;
+  min-height: 78px;
+}
+body.sidebar-collapsed .sidebar-collapse-btn {
+  position: absolute;
+  right: 8px;
+  top: calc(50% - 20px);
+  transform: translateY(-50%);
+  margin-top: 0;
+}
+body.sidebar-collapsed .sidebar-brand {
+  opacity: 0;
+  visibility: hidden;
+}
+body.sidebar-collapsed .sidebar-footer {
+  opacity: 1;
+  display: flex;
+}
+body.sidebar-collapsed .sidebar-label {
+  opacity: 0;
+}
+.sidebar-label {
+  transition: opacity .32s ease;
+}
+.sidebar a i {
+  transition: opacity .32s ease;
+}
+.sidebar-footer {
+  transition: opacity .32s ease;
+}
+
+body.sidebar-fading .sidebar-brand,
+body.sidebar-fading .sidebar-label,
+body.sidebar-fading .sidebar-footer,
+body.sidebar-fading .sidebar a i {
+  opacity: 0;
+}
+body.sidebar-icons-hidden .sidebar a i {
+  opacity: 0;
+}
+body.sidebar-menu-hidden .sidebar-brand,
+body.sidebar-menu-hidden .sidebar-label,
+body.sidebar-menu-hidden .sidebar-footer {
+  opacity: 0;
+}
+body.sidebar-menu-hidden .sidebar a.active {
+  background: transparent !important;
+  color: #cbd1db !important;
+}
+body.sidebar-menu-hidden .sidebar a.active span,
+body.sidebar-menu-hidden .sidebar a.active i {
+  color: #cbd1db !important;
+}
+body.sidebar-fading .sidebar-collapse-btn {
+  opacity: 0;
+  transition: opacity .32s ease;
+}
+body.sidebar-collapsed .sidebar a {
+  padding: 0.55rem 0;
+  font-size: 0;
+  text-align: center;
+}
+body.sidebar-collapsed .sidebar-footer-link {
+  padding: 0.45rem 0;
+  justify-content: center;
+}
+body.sidebar-collapsed .sidebar-footer-link i {
+  margin-right: 0 !important;
+}
+body.sidebar-collapsed .sidebar a i {
+  font-size: 14px;
+}
+body.sidebar-collapsed .sidebar nav ul li a > i:first-child,
+body.sidebar-collapsed .sidebar nav ul li a span > i:first-child {
+  position: static;
+  transform: none;
+  width: auto;
+  margin-right: 0 !important;
+}
+body.sidebar-collapsed .sidebar .sidebar-label,
+body.sidebar-collapsed .sidebar .sidebar-group .fa-chevron-down {
+  display: none;
+}
+body.sidebar-collapsed .sidebar .collapse {
+  display: none !important;
+}
+body.sidebar-collapsed .sidebar a:hover,
+body.sidebar-collapsed .sidebar a.active {
+  background: transparent;
+  color: #cbd1db;
+}
+@media (min-width: 769px) {
+  .app-header {
+    transition: margin-left .25s ease, width .25s ease;
+  }
+}
+body.sidebar-collapsed .sidebar-flyout {
+  display: block;
+}
+.sidebar-flyout {
+  position: fixed;
+  z-index: 2100;
+  min-width: 190px;
+  max-width: 260px;
+  background: #152131;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 0.35rem;
+  box-shadow: 0 18px 36px rgba(5, 10, 20, 0.4);
+  display: none;
+  opacity: 0;
+  transition: opacity .32s ease;
+}
+.sidebar-flyout.sidebar-flyout-show {
+  opacity: 1;
+}
+.sidebar-flyout .flyout-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.6);
+  padding: 0.4rem 0.6rem 0.2rem;
+}
+.sidebar-flyout a {
+  display: block;
+  color: #cbd1db;
+  text-decoration: none;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.sidebar-flyout a i {
+  width: 18px;
+  text-align: center;
+  flex: 0 0 18px;
+  margin-right: 0 !important;
+}
+.sidebar-flyout a:hover {
+  background: rgba(81, 111, 144, 0.45);
+  color: #fff;
 }
 .sidebar-nav {
   padding: 1rem;

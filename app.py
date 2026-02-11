@@ -6879,6 +6879,710 @@ OPTION (MAXRECURSION 32767);
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
+    # -----------------------------
+    # Imputação a proprietários (FO/MN)
+    # -----------------------------
+    @app.route('/imputacao_proprietarios')
+    @login_required
+    def imputacao_proprietarios_page():
+        return render_template('imputacao_proprietarios.html', page_title='Imputação a Proprietários')
+
+    @app.route('/api/imputacao_proprietarios')
+    @login_required
+    def api_imputacao_proprietarios():
+        try:
+            # FN (linhas) com CCUSTO de gestão
+            fn_rows = db.session.execute(text("""
+                SELECT
+                    FN.FNSTAMP,
+                    FN.FOSTAMP,
+                    FN.REF,
+                    FN.DESIGN,
+                    FN.FNCCUSTO,
+                    FN.ETILIQUIDO,
+                    FN.EPV,
+                    FN.IMPUTAR,
+                    FN.IMPUTMES,
+                    FN.IMPUTANO,
+                    FN.IMPUTVALOR,
+                    FN.IMPUTDESIGN,
+                    FN.NIMPUTAR,
+                    F.DATA AS DATA,
+                    F.DOCNOME,
+                    F.ADOC,
+                    F.NOME AS NOME_FORN
+                FROM dbo.FN AS FN
+                JOIN dbo.FO AS F ON F.FOSTAMP = FN.FOSTAMP
+                JOIN dbo.AL AS A ON LTRIM(RTRIM(A.NOME)) = LTRIM(RTRIM(FN.FNCCUSTO))
+                WHERE ISNULL(A.TIPO,'') = 'GESTAO'
+            """)).mappings().all()
+
+            fn_by_fo = {}
+            for r in fn_rows:
+                fn_by_fo.setdefault(r.get('FOSTAMP'), []).append(r)
+
+            # FO: incluir cabeçalho quando o CCUSTO é gestão OU tem linhas FN gestão
+            fo_params = {}
+            fo_filter = "ISNULL(A.TIPO,'') = 'GESTAO'"
+            if fn_by_fo:
+                keys = []
+                for i, k in enumerate(fn_by_fo.keys()):
+                    key = f"f{i}"
+                    keys.append(f":{key}")
+                    fo_params[key] = k
+                fo_filter = f"({fo_filter} OR F.FOSTAMP IN ({','.join(keys)}))"
+
+            fo_sql = text(f"""
+                SELECT
+                    F.FOSTAMP AS STAMP,
+                    CAST(F.DATA AS date) AS DATA,
+                    CONCAT(ISNULL(F.DOCNOME,''), ' ', ISNULL(F.ADOC,'')) AS DOC,
+                    ISNULL(F.NOME,'') AS NOME,
+                    ISNULL(F.CCUSTO,'') AS ALOJAMENTO,
+                    ISNULL(F.ETOTAL,0) AS TOTAL,
+                    ISNULL(F.ETTILIQ,0) AS BASE,
+                    ISNULL(F.IMPUTAR,0) AS IMPUTAR,
+                    ISNULL(F.IMPUTMES,0) AS IMPUTMES,
+                    ISNULL(F.IMPUTANO,0) AS IMPUTANO,
+                    ISNULL(F.IMPUTVALOR,0) AS IMPUTVALOR,
+                    ISNULL(F.IMPUTDESIGN,'') AS IMPUTDESIGN,
+                    ISNULL(F.NIMPUTAR,0) AS NIMPUTAR
+                FROM dbo.FO AS F
+                LEFT JOIN dbo.AL AS A
+                  ON LTRIM(RTRIM(A.NOME)) = LTRIM(RTRIM(F.CCUSTO))
+                WHERE {fo_filter}
+            """)
+            fo_rows = db.session.execute(fo_sql, fo_params).mappings().all()
+
+            out = []
+            for fo in fo_rows:
+                fostamp = fo.get('STAMP')
+                lines = fn_by_fo.get(fostamp, [])
+                distinct_cc = {str(l.get('FNCCUSTO') or '').strip() for l in lines if (l.get('FNCCUSTO') or '').strip()}
+                fo_cc = str(fo.get('ALOJAMENTO') or '').strip()
+                show_lines = False
+                if lines:
+                    if len(distinct_cc) > 1 or (distinct_cc and (fo_cc not in distinct_cc)):
+                        show_lines = True
+                out.append({
+                    'ORIGEM': 'FO',
+                    'STAMP': fostamp,
+                    'DATA': fo.get('DATA'),
+                    'DOC': fo.get('DOC') or '',
+                    'NOME': fo.get('NOME') or '',
+                    'ALOJAMENTO': fo_cc,
+                    'TOTAL': float(fo.get('TOTAL') or 0),
+                    'BASE': float(fo.get('BASE') or 0),
+                    'IMPUTAR': int(fo.get('IMPUTAR') or 0),
+                    'IMPUTMES': int(fo.get('IMPUTMES') or 0),
+                    'IMPUTANO': int(fo.get('IMPUTANO') or 0),
+                    'IMPUTVALOR': float(fo.get('IMPUTVALOR') or 0),
+                    'IMPUTDESIGN': fo.get('IMPUTDESIGN') or '',
+                    'NIMPUTAR': int(fo.get('NIMPUTAR') or 0),
+                })
+                if show_lines:
+                    for l in lines:
+                        base = l.get('EPV')
+                        if base is None:
+                            base = l.get('ETILIQUIDO') or 0
+                        out.append({
+                            'ORIGEM': 'FN',
+                            'STAMP': l.get('FNSTAMP'),
+                            'FOSTAMP': fostamp,
+                            'DATA': l.get('DATA'),
+                            'DOC': f"Linha: {l.get('REF') or ''} - {l.get('DESIGN') or ''}",
+                            'NOME': l.get('NOME_FORN') or '',
+                            'ALOJAMENTO': l.get('FNCCUSTO') or '',
+                            'TOTAL': float(base or 0),
+                            'BASE': float(base or 0),
+                            'IMPUTAR': int(l.get('IMPUTAR') or 0),
+                            'IMPUTMES': int(l.get('IMPUTMES') or 0),
+                            'IMPUTANO': int(l.get('IMPUTANO') or 0),
+                            'IMPUTVALOR': float(l.get('IMPUTVALOR') or 0),
+                            'IMPUTDESIGN': l.get('IMPUTDESIGN') or '',
+                            'NIMPUTAR': int(l.get('NIMPUTAR') or 0),
+                        })
+
+            # MN (manutenções) gestão
+            mn_rows = db.session.execute(text("""
+                SELECT
+                    M.MNSTAMP AS STAMP,
+                    CAST(M.DATA AS date) AS DATA,
+                    ISNULL(M.INCIDENCIA,'') AS DOC,
+                    ISNULL(M.NOME,'') AS NOME,
+                    ISNULL(M.ALOJAMENTO,'') AS ALOJAMENTO,
+                    ISNULL(M.IMPUTAR,0) AS IMPUTAR,
+                    ISNULL(M.IMPUTMES,0) AS IMPUTMES,
+                    ISNULL(M.IMPUTANO,0) AS IMPUTANO,
+                    ISNULL(M.IMPUTVALOR,0) AS IMPUTVALOR,
+                    ISNULL(M.IMPUTDESIGN,'') AS IMPUTDESIGN,
+                    ISNULL(M.NIMPUTAR,0) AS NIMPUTAR
+                FROM dbo.MN AS M
+                JOIN dbo.AL AS A
+                  ON LTRIM(RTRIM(A.NOME)) = LTRIM(RTRIM(M.ALOJAMENTO))
+                WHERE ISNULL(A.TIPO,'') = 'GESTAO'
+            """)).mappings().all()
+            for r in mn_rows:
+                out.append({
+                    'ORIGEM': 'MN',
+                    'STAMP': r.get('STAMP'),
+                    'DATA': r.get('DATA'),
+                    'DOC': r.get('DOC') or '',
+                    'NOME': r.get('NOME') or '',
+                    'ALOJAMENTO': r.get('ALOJAMENTO') or '',
+                    'TOTAL': 0.0,
+                    'BASE': 0.0,
+                    'IMPUTAR': int(r.get('IMPUTAR') or 0),
+                    'IMPUTMES': int(r.get('IMPUTMES') or 0),
+                    'IMPUTANO': int(r.get('IMPUTANO') or 0),
+                    'IMPUTVALOR': float(r.get('IMPUTVALOR') or 0),
+                    'IMPUTDESIGN': r.get('IMPUTDESIGN') or '',
+                    'NIMPUTAR': int(r.get('NIMPUTAR') or 0),
+                })
+
+            return jsonify({'rows': out})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/imputacao_proprietarios/save', methods=['POST'])
+    @login_required
+    def api_imputacao_proprietarios_save():
+        try:
+            payload = request.get_json(silent=True) or {}
+            rows = payload.get('rows') or []
+            if not isinstance(rows, list):
+                return jsonify({'error': 'Formato inválido.'}), 400
+
+            for r in rows:
+                origem = (r.get('origem') or r.get('ORIGEM') or '').upper()
+                stamp = (r.get('stamp') or r.get('STAMP') or '').strip()
+                if not origem or not stamp:
+                    continue
+                data = {
+                    'IMPUTAR': 1 if int(r.get('imputar') or 0) else 0,
+                    'NIMPUTAR': 1 if int(r.get('nimputar') or 0) else 0,
+                    'IMPUTMES': int(r.get('imputmes') or 0),
+                    'IMPUTANO': int(r.get('imputano') or 0),
+                    'IMPUTVALOR': float(r.get('imputvalor') or 0),
+                    'IMPUTDESIGN': (r.get('imputdesign') or '').strip()[:60],
+                    'STAMP': stamp
+                }
+                if origem == 'FO':
+                    db.session.execute(text("""
+                        UPDATE dbo.FO
+                        SET IMPUTAR = :IMPUTAR,
+                            NIMPUTAR = :NIMPUTAR,
+                            IMPUTMES = :IMPUTMES,
+                            IMPUTANO = :IMPUTANO,
+                            IMPUTVALOR = :IMPUTVALOR,
+                            IMPUTDESIGN = :IMPUTDESIGN
+                        WHERE FOSTAMP = :STAMP
+                    """), data)
+                elif origem == 'FN':
+                    db.session.execute(text("""
+                        UPDATE dbo.FN
+                        SET IMPUTAR = :IMPUTAR,
+                            NIMPUTAR = :NIMPUTAR,
+                            IMPUTMES = :IMPUTMES,
+                            IMPUTANO = :IMPUTANO,
+                            IMPUTVALOR = :IMPUTVALOR,
+                            IMPUTDESIGN = :IMPUTDESIGN
+                        WHERE FNSTAMP = :STAMP
+                    """), data)
+                elif origem == 'MN':
+                    db.session.execute(text("""
+                        UPDATE dbo.MN
+                        SET IMPUTAR = :IMPUTAR,
+                            NIMPUTAR = :NIMPUTAR,
+                            IMPUTMES = :IMPUTMES,
+                            IMPUTANO = :IMPUTANO,
+                            IMPUTVALOR = :IMPUTVALOR,
+                            IMPUTDESIGN = :IMPUTDESIGN
+                        WHERE MNSTAMP = :STAMP
+                    """), data)
+
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    # -----------------------------
+    # Processamento Mensal (DM)
+    # -----------------------------
+    @app.route('/processamento_mensal')
+    @login_required
+    def processamento_mensal_page():
+        return render_template('processamento_mensal.html', page_title='Processamento Mensal')
+
+    @app.route('/api/processamento_mensal')
+    @login_required
+    def api_processamento_mensal():
+        try:
+            ano = int(request.args.get('ano') or datetime.now().year)
+            mes = int(request.args.get('mes') or (datetime.now().month))
+            dm_cols = set(r[0] for r in db.session.execute(
+                text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='DM'")
+            ).fetchall())
+            has_com = 'COMISSOES' in dm_cols
+            has_imp = 'IMPUTACOES' in dm_cols
+            has_tot = 'TOTAL' in dm_cols
+            sql = text("""
+                SELECT
+                    DMSTAMP, ANO, MES, NO, NOME, FATURATG, FTVALOR, FDATA,
+                    DOSSIER, BOVALOR, DATAOBRA, FTFILE, ENVIADO
+                    {extra_cols}
+                FROM dbo.DM
+                WHERE ANO = :ano AND MES = :mes
+                ORDER BY NOME, NO, DOSSIER
+            """.format(extra_cols=(
+                (", COMISSOES" if has_com else "") +
+                (", IMPUTACOES" if has_imp else "") +
+                (", TOTAL" if has_tot else "")
+            )))
+            rows = db.session.execute(sql, {'ano': ano, 'mes': mes}).mappings().all()
+            out = []
+            for r in rows:
+                out.append({
+                    'DMSTAMP': r.get('DMSTAMP') or '',
+                    'ANO': int(r.get('ANO') or 0),
+                    'MES': int(r.get('MES') or 0),
+                    'NO': r.get('NO') or '',
+                    'NOME': r.get('NOME') or '',
+                    'FATURATG': r.get('FATURATG') or '',
+                    'FTVALOR': float(r.get('FTVALOR') or 0),
+                    'FDATA': r.get('FDATA'),
+                    'DOSSIER': r.get('DOSSIER') or '',
+                    'BOVALOR': float(r.get('BOVALOR') or 0),
+                    'DATAOBRA': r.get('DATAOBRA'),
+                    'FTFILE': r.get('FTFILE') or '',
+                    'ENVIADO': int(r.get('ENVIADO') or 0),
+                    'COMISSOES': float(r.get('COMISSOES') or 0) if has_com else 0,
+                    'IMPUTACOES': float(r.get('IMPUTACOES') or 0) if has_imp else 0,
+                    'TOTAL': float(r.get('TOTAL') or 0) if has_tot else 0,
+                })
+            return jsonify({'rows': out})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/fatura_info')
+    @login_required
+    def api_processamento_mensal_fatura_info():
+        try:
+            stamp = (request.args.get('stamp') or '').strip()
+            if not stamp:
+                return jsonify({'error': 'DMSTAMP obrigatório'}), 400
+            dm = db.session.execute(text("""
+                SELECT DMSTAMP, ANO, MES, NO, FATURATG, FTVALOR
+                FROM dbo.DM
+                WHERE DMSTAMP = :s
+            """), {'s': stamp}).mappings().first()
+            if not dm:
+                return jsonify({'error': 'Registo DM não encontrado'}), 404
+
+            targets = db.session.execute(text("""
+                SELECT DMSTAMP, ANO, MES
+                FROM dbo.DM
+                WHERE NO = :no
+                  AND (LTRIM(RTRIM(ISNULL(FATURATG,''))) = '')
+                  AND DMSTAMP <> :s
+                ORDER BY ANO, MES
+            """), {'no': dm['NO'], 's': stamp}).mappings().all()
+            t = [{'stamp': r['DMSTAMP'], 'label': f"{int(r['MES']):02d}/{int(r['ANO'])}"} for r in targets]
+            periodo = f"{int(dm['MES']):02d}/{int(dm['ANO'])}"
+            return jsonify({
+                'fatura': dm.get('FATURATG') or '',
+                'valor': float(dm.get('FTVALOR') or 0),
+                'periodo': periodo,
+                'targets': t
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/mover_fatura', methods=['POST'])
+    @login_required
+    def api_processamento_mensal_mover_fatura():
+        try:
+            payload = request.get_json(silent=True) or {}
+            from_stamp = (payload.get('from_stamp') or '').strip()
+            to_stamp = (payload.get('to_stamp') or '').strip()
+            if not from_stamp or not to_stamp:
+                return jsonify({'error': 'Parâmetros inválidos'}), 400
+
+            src = db.session.execute(text("""
+                SELECT DMSTAMP, FATURATG, FTVALOR, FDATA, FTFILE, ENVIADO
+                FROM dbo.DM
+                WHERE DMSTAMP = :s
+            """), {'s': from_stamp}).mappings().first()
+            if not src:
+                return jsonify({'error': 'Registo origem não encontrado'}), 404
+
+            db.session.execute(text("""
+                UPDATE dbo.DM
+                SET FATURATG = :fat, FTVALOR = :val, FDATA = :fdata, FTFILE = :file, ENVIADO = :env
+                WHERE DMSTAMP = :s
+            """), {
+                'fat': src.get('FATURATG') or '',
+                'val': float(src.get('FTVALOR') or 0),
+                'fdata': src.get('FDATA') or datetime(1900, 1, 1),
+                'file': src.get('FTFILE') or '',
+                'env': int(src.get('ENVIADO') or 0),
+                's': to_stamp
+            })
+
+            db.session.execute(text("""
+                UPDATE dbo.DM
+                SET FATURATG = '', FTVALOR = 0, FDATA = :fdata, FTFILE = '', ENVIADO = 0
+                WHERE DMSTAMP = :s
+            """), {'fdata': datetime(1900, 1, 1), 's': from_stamp})
+
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/clientes_disponiveis')
+    @login_required
+    def api_processamento_mensal_clientes_disponiveis():
+        try:
+            ano = int(request.args.get('ano') or datetime.now().year)
+            mes = int(request.args.get('mes') or datetime.now().month)
+            rows = db.session.execute(text("""
+                SELECT CL.NO, CL.NOME
+                FROM dbo.CL AS CL
+                WHERE ISNULL(CL.INATIVO,0)=0
+                  AND NOT EXISTS (
+                    SELECT 1 FROM dbo.DM
+                    WHERE ANO = :ano AND MES = :mes AND NO = CL.NO
+                  )
+                ORDER BY CL.NOME
+            """), {'ano': ano, 'mes': mes}).mappings().all()
+            out = [{'NO': r.get('NO'), 'NOME': r.get('NOME') or ''} for r in rows]
+            return jsonify({'rows': out})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/add_clientes', methods=['POST'])
+    @login_required
+    def api_processamento_mensal_add_clientes():
+        try:
+            payload = request.get_json(silent=True) or {}
+            ano = int(payload.get('ano') or datetime.now().year)
+            mes = int(payload.get('mes') or datetime.now().month)
+            items = payload.get('items') or []
+            if not isinstance(items, list):
+                return jsonify({'error': 'Formato inválido'}), 400
+
+            added = []
+            for it in items:
+                no = int(it.get('no') or 0)
+                nome = (it.get('nome') or '').strip()[:60]
+                if not no or not nome:
+                    continue
+                exists = db.session.execute(text("""
+                    SELECT 1 FROM dbo.DM WHERE ANO = :ano AND MES = :mes AND NO = :no
+                """), {'ano': ano, 'mes': mes, 'no': no}).fetchone()
+                if exists:
+                    continue
+                stamp = db.session.execute(text("SELECT LEFT(CONVERT(varchar(36), NEWID()),25)")).scalar()
+                db.session.execute(text("""
+                    INSERT INTO dbo.DM
+                    (DMSTAMP, ANO, MES, NO, NOME, FATURATG, FTVALOR, FDATA, DOSSIER, BOVALOR, DATAOBRA, FTFILE, ENVIADO)
+                    VALUES
+                    (:stamp, :ano, :mes, :no, :nome, '', 0, :fdata, '', 0, :fdata, '', 0)
+                """), {'stamp': stamp, 'ano': ano, 'mes': mes, 'no': no, 'nome': nome, 'fdata': datetime(1900,1,1)})
+                added.append({
+                    'DMSTAMP': stamp,
+                    'ANO': ano,
+                    'MES': mes,
+                    'NO': no,
+                    'NOME': nome,
+                    'FATURATG': '',
+                    'FTVALOR': 0,
+                    'FDATA': datetime(1900,1,1),
+                    'DOSSIER': '',
+                    'BOVALOR': 0,
+                    'DATAOBRA': datetime(1900,1,1),
+                    'FTFILE': '',
+                    'ENVIADO': 0
+                })
+            db.session.commit()
+            return jsonify({'ok': True, 'rows': added})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/delete', methods=['POST'])
+    @login_required
+    def api_processamento_mensal_delete():
+        try:
+            payload = request.get_json(silent=True) or {}
+            stamp = (payload.get('stamp') or '').strip()
+            if not stamp:
+                return jsonify({'error': 'DMSTAMP obrigatório'}), 400
+            row = db.session.execute(text("""
+                SELECT DMSTAMP, FATURATG, DOSSIER
+                FROM dbo.DM
+                WHERE DMSTAMP = :s
+            """), {'s': stamp}).mappings().first()
+            if not row:
+                return jsonify({'error': 'Registo não encontrado'}), 404
+            if (row.get('FATURATG') or '').strip() or (row.get('DOSSIER') or '').strip():
+                return jsonify({'error': 'Só é possível eliminar registos sem fatura e sem dossier.'}), 400
+            db.session.execute(text("DELETE FROM dbo.DM WHERE DMSTAMP = :s"), {'s': stamp})
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/drilldown')
+    @login_required
+    def api_processamento_mensal_drilldown():
+        try:
+            stamp = (request.args.get('stamp') or '').strip()
+            dtype = (request.args.get('type') or '').strip().lower()
+            if not stamp or dtype not in ('comissoes', 'imputacoes'):
+                return jsonify({'error': 'Parâmetros inválidos'}), 400
+            dm = db.session.execute(text("""
+                SELECT ANO, MES, NO, NOME
+                FROM dbo.DM
+                WHERE DMSTAMP = :s
+            """), {'s': stamp}).mappings().first()
+            if not dm:
+                return jsonify({'error': 'Registo DM não encontrado'}), 404
+
+            ano = int(dm['ANO'])
+            mes = int(dm['MES'])
+            no = int(dm['NO'])
+
+            if dtype == 'comissoes':
+                rows = db.session.execute(text("""
+                    SELECT
+                        RS.ALOJAMENTO AS ALOJAMENTO,
+                        CAST(RS.DATAOUT AS date) AS DATAOUT,
+                        CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN 'Cancelada' ELSE '' END AS ESTADO,
+                        ISNULL(RS.ESTADIA,0) AS ESTADIA,
+                        ISNULL(RS.LIMPEZA,0) AS LIMPEZA,
+                        ISNULL(RS.COMISSAO,0) AS COMISSAO,
+                        ISNULL(RS.PCANCEL,0) AS PCANCEL,
+                        ISNULL(AL.COMISSAO,0) AS COMISSAO_PERC,
+                        ROUND(CASE WHEN ISNULL(AL.FTLIMPEZA,0) = 0 THEN
+                          CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                            THEN ISNULL(RS.PCANCEL,0)
+                            ELSE ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0) - ISNULL(RS.COMISSAO,0)
+                          END * (ISNULL(AL.COMISSAO,0) / 100.0)
+                        ELSE
+                          CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                            THEN ISNULL(RS.PCANCEL,0)
+                            ELSE ISNULL(RS.ESTADIA,0) - ISNULL(RS.COMISSAO,0)
+                          END * (ISNULL(AL.COMISSAO,0) / 100.0) + ISNULL(RS.LIMPEZA,0)
+                        END, 2) AS VALOR
+                    FROM dbo.CL
+                    JOIN dbo.AL ON LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) = LTRIM(RTRIM(ISNULL(CL.NOME,'')))
+                    JOIN dbo.RS ON LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) = LTRIM(RTRIM(ISNULL(AL.NOME,'')))
+                    WHERE CL.NO = :no
+                      AND YEAR(RS.DATAOUT) = :ano AND MONTH(RS.DATAOUT) = :mes
+                    ORDER BY RS.DATAOUT, RS.ALOJAMENTO
+                """), {'no': no, 'ano': ano, 'mes': mes}).mappings().all()
+                cols = ['ALOJAMENTO', 'DATAOUT', 'ESTADO', 'ESTADIA', 'LIMPEZA', 'COMISSAO', 'PCANCEL', 'COMISSAO_PERC', 'VALOR']
+                out = [{c: r.get(c) for c in cols} for r in rows]
+                return jsonify({'columns': cols, 'rows': out})
+
+            # imputações
+            im_cols = set(r[0] for r in db.session.execute(
+                text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='IM'")
+            ).fetchall())
+            value_col = 'VALOR' if 'VALOR' in im_cols else ('IMPUTVALOR' if 'IMPUTVALOR' in im_cols else ('TOTAL' if 'TOTAL' in im_cols else None))
+            ano_col = 'ANO' if 'ANO' in im_cols else None
+            mes_col = 'MES' if 'MES' in im_cols else None
+            no_col = 'NO' if 'NO' in im_cols else ('CLIENTE' if 'CLIENTE' in im_cols else None)
+
+            if not (value_col and ano_col and mes_col and no_col):
+                return jsonify({'columns': [], 'rows': []})
+
+            if no_col == 'NO':
+                sql = text(f"""
+                    SELECT {no_col} AS NO, {value_col} AS VALOR
+                    FROM dbo.IM
+                    WHERE {ano_col} = :ano AND {mes_col} = :mes AND {no_col} = :no
+                    ORDER BY {no_col}
+                """)
+                rows = db.session.execute(sql, {'ano': ano, 'mes': mes, 'no': no}).mappings().all()
+                cols = ['NO', 'VALOR']
+                out = [{c: r.get(c) for c in cols} for r in rows]
+                return jsonify({'columns': cols, 'rows': out})
+            else:
+                sql = text(f"""
+                    SELECT IM.{no_col} AS CLIENTE, IM.{value_col} AS VALOR
+                    FROM dbo.IM AS IM
+                    JOIN dbo.CL AS CL ON LTRIM(RTRIM(ISNULL(CL.NOME,''))) = LTRIM(RTRIM(ISNULL(IM.{no_col},'')))
+                    WHERE IM.{ano_col} = :ano AND IM.{mes_col} = :mes AND CL.NO = :no
+                    ORDER BY IM.{no_col}
+                """)
+                rows = db.session.execute(sql, {'ano': ano, 'mes': mes, 'no': no}).mappings().all()
+                cols = ['CLIENTE', 'VALOR']
+                out = [{c: r.get(c) for c in cols} for r in rows]
+                return jsonify({'columns': cols, 'rows': out})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/calcular', methods=['POST'])
+    @login_required
+    def api_processamento_mensal_calcular():
+        try:
+            payload = request.get_json(silent=True) or {}
+            ano = int(payload.get('ano') or datetime.now().year)
+            mes = int(payload.get('mes') or datetime.now().month)
+
+            # Comissões por cliente
+            com_rows = db.session.execute(text("""
+                SELECT DM.NO,
+                       SUM(
+                         CASE WHEN ISNULL(AL.FTLIMPEZA,0) = 0 THEN
+                           CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                             THEN ISNULL(RS.PCANCEL,0)
+                             ELSE ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0) - ISNULL(RS.COMISSAO,0)
+                           END * (ISNULL(AL.COMISSAO,0) / 100.0)
+                         ELSE
+                           CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                             THEN ISNULL(RS.PCANCEL,0)
+                             ELSE ISNULL(RS.ESTADIA,0) - ISNULL(RS.COMISSAO,0)
+                           END * (ISNULL(AL.COMISSAO,0) / 100.0) + ISNULL(RS.LIMPEZA,0)
+                         END
+                       ) AS COMISSOES
+                FROM dbo.DM
+                JOIN dbo.CL ON CL.NO = DM.NO
+                JOIN dbo.AL ON LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) = LTRIM(RTRIM(ISNULL(CL.NOME,'')))
+                JOIN dbo.RS ON LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) = LTRIM(RTRIM(ISNULL(AL.NOME,'')))
+                WHERE DM.ANO = :ano AND DM.MES = :mes
+                  AND YEAR(RS.DATAOUT) = :ano AND MONTH(RS.DATAOUT) = :mes
+                GROUP BY DM.NO
+            """), {'ano': ano, 'mes': mes}).mappings().all()
+            com_map = {int(r['NO']): float(r.get('COMISSOES') or 0) for r in com_rows if r.get('NO') is not None}
+
+            # Imputações por cliente (tabela IM)
+            im_cols = set(r[0] for r in db.session.execute(
+                text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='IM'")
+            ).fetchall())
+            value_col = 'VALOR' if 'VALOR' in im_cols else ('IMPUTVALOR' if 'IMPUTVALOR' in im_cols else ('TOTAL' if 'TOTAL' in im_cols else None))
+            ano_col = 'ANO' if 'ANO' in im_cols else None
+            mes_col = 'MES' if 'MES' in im_cols else None
+            no_col = 'NO' if 'NO' in im_cols else ('CLIENTE' if 'CLIENTE' in im_cols else None)
+
+            imp_map = {}
+            if value_col and ano_col and mes_col and no_col:
+                if no_col == 'NO':
+                    sql_im = text(f"""
+                        SELECT NO, SUM(ISNULL({value_col},0)) AS IMPUTACOES
+                        FROM dbo.IM
+                        WHERE {ano_col} = :ano AND {mes_col} = :mes
+                        GROUP BY NO
+                    """)
+                    im_rows = db.session.execute(sql_im, {'ano': ano, 'mes': mes}).mappings().all()
+                    imp_map = {int(r['NO']): float(r.get('IMPUTACOES') or 0) for r in im_rows if r.get('NO') is not None}
+                else:
+                    sql_im = text(f"""
+                        SELECT CL.NO AS NO, SUM(ISNULL(IM.{value_col},0)) AS IMPUTACOES
+                        FROM dbo.IM AS IM
+                        JOIN dbo.CL AS CL ON LTRIM(RTRIM(ISNULL(CL.NOME,''))) = LTRIM(RTRIM(ISNULL(IM.{no_col},'')))
+                        WHERE IM.{ano_col} = :ano AND IM.{mes_col} = :mes
+                        GROUP BY CL.NO
+                    """)
+                    im_rows = db.session.execute(sql_im, {'ano': ano, 'mes': mes}).mappings().all()
+                    imp_map = {int(r['NO']): float(r.get('IMPUTACOES') or 0) for r in im_rows if r.get('NO') is not None}
+
+            rows = db.session.execute(text("""
+                SELECT DMSTAMP, NO FROM dbo.DM WHERE ANO = :ano AND MES = :mes
+            """), {'ano': ano, 'mes': mes}).mappings().all()
+
+            dm_cols = set(r[0] for r in db.session.execute(
+                text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='DM'")
+            ).fetchall())
+            has_com = 'COMISSOES' in dm_cols
+            has_imp = 'IMPUTACOES' in dm_cols
+            has_tot = 'TOTAL' in dm_cols
+
+            out = []
+            for r in rows:
+                no = int(r.get('NO') or 0)
+                com = float(com_map.get(no, 0))
+                imp = float(imp_map.get(no, 0))
+                total = com + imp
+                if has_com or has_imp or has_tot:
+                    db.session.execute(text("""
+                        UPDATE dbo.DM
+                        SET {set_cols}
+                        WHERE DMSTAMP = :s
+                    """.format(set_cols=",".join(
+                        [c for c in [
+                            ("COMISSOES = :com" if has_com else None),
+                            ("IMPUTACOES = :imp" if has_imp else None),
+                            ("TOTAL = :tot" if has_tot else None)
+                        ] if c]
+                    ))), {'com': com, 'imp': imp, 'tot': total, 's': r['DMSTAMP']})
+                out.append({
+                    'DMSTAMP': r['DMSTAMP'],
+                    'COMISSOES': com,
+                    'IMPUTACOES': imp,
+                    'TOTAL': total
+                })
+            db.session.commit()
+            return jsonify({'rows': out})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+    @app.route('/api/processamento_mensal/fetch_dossier', methods=['POST'])
+    @login_required
+    def api_processamento_mensal_fetch_dossier():
+        try:
+            payload = request.get_json(silent=True) or {}
+            ano = int(payload.get('ano') or datetime.now().year)
+            mes = int(payload.get('mes') or datetime.now().month)
+
+            dms = db.session.execute(text("""
+                SELECT DMSTAMP, ANO, MES, NO
+                FROM dbo.DM
+                WHERE ANO = :ano AND MES = :mes
+            """), {'ano': ano, 'mes': mes}).mappings().all()
+
+            updated = 0
+            for dm in dms:
+                row = db.session.execute(text("""
+                    SELECT TOP 1
+                        NMDOS, OBRANO, DATAOBRA,
+                        ROUND(ETOTALDEB * 1.23, 2) AS VALOR
+                    FROM guest_spa_tur..BO
+                    WHERE YEAR(DATAOBRA) = :ano
+                      AND MONTH(DATAOBRA) = :mes
+                      AND NDOS = 15
+                      AND NO = :no
+                    ORDER BY DATAOBRA DESC, OBRANO DESC
+                """), {'ano': dm['ANO'], 'mes': dm['MES'], 'no': dm['NO']}).mappings().first()
+                if not row:
+                    continue
+                dossier = f"{row.get('NMDOS') or ''} nº {int(row.get('OBRANO') or 0)}"
+                db.session.execute(text("""
+                    UPDATE dbo.DM
+                    SET DOSSIER = :dos,
+                        DATAOBRA = :dataobra,
+                        BOVALOR = :valor
+                    WHERE DMSTAMP = :s
+                """), {
+                    'dos': dossier,
+                    'dataobra': row.get('DATAOBRA'),
+                    'valor': float(row.get('VALOR') or 0),
+                    's': dm['DMSTAMP']
+                })
+                updated += 1
+
+            db.session.commit()
+            return jsonify({'updated': updated})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/tempos_limpeza/start', methods=['POST'])
     @login_required
     def api_tempos_limpeza_start():

@@ -617,6 +617,7 @@
   window.FO_STAMP = {{ record_stamp|tojson }};
   window.RETURN_TO = "{{ request.args.get('return_to', url_for('generic.view_table', table_name='FO')) }}";
   window.SAVE_OVERLAY_TEXT = "A gravar...";
+  window.FO_IS_ADMIN = {{ 1 if current_user.ADMIN else 0 }};
 </script>
 <script type="module" src="{{ url_for('static', filename='js/fo_compras_form.js') }}"></script>
 {% endblock %}
