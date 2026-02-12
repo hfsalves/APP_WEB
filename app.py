@@ -4,6 +4,7 @@ import subprocess
 import shutil
 import pyodbc
 import json
+import threading
 import time
 import uuid
 import unicodedata
@@ -212,6 +213,7 @@ def create_app():
                     current_group = {
                         'name': m.nome,
                         'icon': m.icone,
+                        'novo': bool(getattr(m, 'novo', False)),
                         'children': [],
                         'mostrar': False,  # SÃ³ serÃ¡ True se algum filho for mostrado
                     }
@@ -220,7 +222,8 @@ def create_app():
                     child = {
                         'name': m.nome,
                         'url': m.url,
-                        'icon': m.icone
+                        'icon': m.icone,
+                        'novo': bool(getattr(m, 'novo', False))
                     }
                     if current_group:
                         if mostrar:
@@ -8614,6 +8617,460 @@ OPTION (MAXRECURSION 32767);
             except Exception:
                 continue
         return jsonify({'results': results})
+
+
+    rotas_workers = {}
+
+    def _rotas_worker_alive(job_id: str) -> bool:
+        t = rotas_workers.get(str(job_id))
+        return bool(t and t.is_alive())
+
+    def ensure_rotas_job_table():
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.ROTAS_JOB', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.ROTAS_JOB(
+                    JobId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                    State VARCHAR(20) NOT NULL,
+                    Stage VARCHAR(20) NOT NULL,
+                    Total INT NOT NULL,
+                    Processed INT NOT NULL,
+                    Ok INT NOT NULL,
+                    Errors INT NOT NULL,
+                    Pending INT NOT NULL,
+                    StartedAt DATETIME NULL,
+                    UpdatedAt DATETIME NULL,
+                    FinishedAt DATETIME NULL,
+                    Message VARCHAR(255) NULL,
+                    RequestedBy VARCHAR(50) NULL
+                )
+            END
+        """))
+        db.session.commit()
+
+
+    def rotas_job_update(job_id, **fields):
+        if not fields:
+            return
+        sets = []
+        params = { 'JobId': job_id }
+        for key, value in fields.items():
+            sets.append(f"{key} = :{key}")
+            params[key] = value
+        sql = f"UPDATE dbo.ROTAS_JOB SET {', '.join(sets)} WHERE JobId = :JobId"
+        db.session.execute(text(sql), params)
+        db.session.commit()
+
+
+    def rotas_job_get(job_id):
+        row = db.session.execute(text("""
+            SELECT *
+            FROM dbo.ROTAS_JOB
+            WHERE JobId = :JobId
+        """), {'JobId': job_id}).mappings().first()
+        return dict(row) if row else None
+
+
+    def rotas_job_get_running():
+        row = db.session.execute(text("""
+            SELECT TOP 1 *
+            FROM dbo.ROTAS_JOB
+            WHERE State IN ('running','stopping')
+            ORDER BY StartedAt DESC
+        """)).mappings().first()
+        return dict(row) if row else None
+
+
+    def _rotas_job_is_stale(job_row, seconds=300):
+        if not job_row:
+            return False
+        ts = job_row.get('UpdatedAt') or job_row.get('StartedAt')
+        if not ts:
+            return False
+        if isinstance(ts, str):
+            try:
+                ts = datetime.fromisoformat(ts)
+            except Exception:
+                return False
+        return (datetime.now() - ts).total_seconds() > seconds
+
+
+    def run_rotas_rebuild(job_id, full_rebuild=True):
+        with app.app_context():
+            try:
+                if full_rebuild:
+                    rotas_job_update(
+                        job_id,
+                        State='running',
+                        Stage='truncate',
+                        Message='A limpar...',
+                        UpdatedAt=datetime.now()
+                    )
+                    try:
+                        db.session.execute(text("TRUNCATE TABLE dbo.ROTAS"))
+                    except Exception:
+                        db.session.execute(text("DELETE FROM dbo.ROTAS"))
+                    db.session.commit()
+
+                    rotas_job_update(
+                        job_id,
+                        Stage='generate',
+                        Message='A gerar pares...',
+                        UpdatedAt=datetime.now()
+                    )
+                aloj_rows = db.session.execute(text("""
+                    SELECT ALSTAMP, LAT, LON
+                    FROM AL
+                    WHERE LAT IS NOT NULL AND LON IS NOT NULL
+                """)).mappings().all()
+                aloj = []
+                coords = {}
+                for r in aloj_rows:
+                    try:
+                        lat = float(r['LAT'])
+                        lon = float(r['LON'])
+                    except Exception:
+                        continue
+                    coords[str(r['ALSTAMP'])] = (lat, lon)
+                    aloj.append(str(r['ALSTAMP']))
+
+                aloj = sorted(set(aloj))
+                if full_rebuild:
+                    total = int(len(aloj) * (len(aloj) - 1) / 2)
+                    rotas_job_update(
+                        job_id,
+                        Total=total,
+                        Processed=0,
+                        Ok=0,
+                        Errors=0,
+                        Pending=total,
+                        UpdatedAt=datetime.now()
+                    )
+
+                    batch = []
+                    for i in range(len(aloj)):
+                        for j in range(i + 1, len(aloj)):
+                            batch.append({
+                                'orig': aloj[i],
+                                'dest': aloj[j]
+                            })
+                            if len(batch) >= 1000:
+                                db.session.execute(text("""
+                                    INSERT INTO dbo.ROTAS
+                                    (OrigemStamp, DestinoStamp, Km, Segundos, Perfil, Provider, Status, Tentativas, Erro, UpdatedAt)
+                                    VALUES (:orig, :dest, 0, 0, 'driving', 'OSRM', 0, 0, '', GETDATE())
+                                """), batch)
+                                db.session.commit()
+                                batch = []
+                    if batch:
+                        db.session.execute(text("""
+                            INSERT INTO dbo.ROTAS
+                            (OrigemStamp, DestinoStamp, Km, Segundos, Perfil, Provider, Status, Tentativas, Erro, UpdatedAt)
+                            VALUES (:orig, :dest, 0, 0, 'driving', 'OSRM', 0, 0, '', GETDATE())
+                        """), batch)
+                        db.session.commit()
+
+                    rotas_job_update(
+                        job_id,
+                        Stage='compute',
+                        Message='A calcular rotas...',
+                        UpdatedAt=datetime.now()
+                    )
+
+                    processed = 0
+                    ok = 0
+                    errors = 0
+                    pending = total
+                else:
+                    total = db.session.execute(text("""
+                        SELECT COUNT(*) AS C
+                        FROM dbo.ROTAS
+                        WHERE Status = 0
+                    """)).scalar() or 0
+                    rotas_job_update(
+                        job_id,
+                        Stage='compute',
+                        Message='A retomar pendentes...',
+                        Total=total,
+                        Processed=0,
+                        Ok=0,
+                        Errors=0,
+                        Pending=total,
+                        UpdatedAt=datetime.now()
+                    )
+                    processed = 0
+                    ok = 0
+                    errors = 0
+                    pending = total
+                    if total == 0:
+                        rotas_job_update(
+                            job_id,
+                            State='done',
+                            Message='Nada pendente',
+                            FinishedAt=datetime.now(),
+                            UpdatedAt=datetime.now()
+                        )
+                        return
+
+                last_job_update = datetime.now()
+                while True:
+                    state_row = rotas_job_get(job_id)
+                    if not state_row:
+                        return
+                    if state_row.get('State') == 'stopping':
+                        rotas_job_update(
+                            job_id,
+                            State='stopped',
+                            Message='Parado',
+                            FinishedAt=datetime.now(),
+                            UpdatedAt=datetime.now()
+                        )
+                        return
+
+                    rows = db.session.execute(text("""
+                        SELECT TOP 200 OrigemStamp, DestinoStamp, Tentativas
+                        FROM dbo.ROTAS
+                        WHERE Status = 0
+                        ORDER BY OrigemStamp, DestinoStamp
+                    """)).mappings().all()
+                    if not rows:
+                        break
+
+                    stop_now = False
+                    for r in rows:
+                        state_row = rotas_job_get(job_id)
+                        if state_row and state_row.get('State') == 'stopping':
+                            stop_now = True
+                            break
+                        orig = str(r['OrigemStamp'])
+                        dest = str(r['DestinoStamp'])
+                        lat1, lon1 = coords.get(orig, (None, None))
+                        lat2, lon2 = coords.get(dest, (None, None))
+                        status = 2
+                        km = 0
+                        segundos = 0
+                        err = ''
+                        if lat1 is None or lat2 is None:
+                            status = 2
+                            err = 'Sem coordenadas'
+                        else:
+                            url = f"https://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
+                            try:
+                                data = _geo_fetch_json(url)
+                                if data.get('code') == 'Ok' and data.get('routes'):
+                                    route = data['routes'][0]
+                                    km = round(float(route.get('distance', 0)) / 1000.0, 2)
+                                    segundos = int(route.get('duration', 0))
+                                    status = 1
+                                elif data.get('code') == 'NoRoute':
+                                    status = 3
+                                    err = 'Sem rota'
+                                else:
+                                    status = 2
+                                    err = str(data.get('code') or 'Erro')
+                            except Exception as e:
+                                status = 2
+                                err = str(e)[:255]
+
+                        db.session.execute(text("""
+                            UPDATE dbo.ROTAS
+                            SET Km = :km,
+                                Segundos = :segundos,
+                                Status = :status,
+                                Tentativas = :tent,
+                                Erro = :erro,
+                                UpdatedAt = GETDATE()
+                            WHERE OrigemStamp = :orig AND DestinoStamp = :dest
+                        """), {
+                            'km': km,
+                            'segundos': segundos,
+                            'status': status,
+                            'tent': int(r['Tentativas'] or 0) + 1,
+                            'erro': err[:255],
+                            'orig': orig,
+                            'dest': dest
+                        })
+                        processed += 1
+                        pending = max(0, pending - 1)
+                        if status == 1:
+                            ok += 1
+                        else:
+                            errors += 1
+                        now_dt = datetime.now()
+                        if processed % 10 == 0 or (now_dt - last_job_update).total_seconds() >= 2:
+                            rotas_job_update(
+                                job_id,
+                                Processed=processed,
+                                Ok=ok,
+                                Errors=errors,
+                                Pending=pending,
+                                UpdatedAt=now_dt
+                            )
+                            last_job_update = now_dt
+
+                    if stop_now:
+                        db.session.commit()
+                        rotas_job_update(
+                            job_id,
+                            State='stopped',
+                            Message='Parado',
+                            FinishedAt=datetime.now(),
+                            UpdatedAt=datetime.now()
+                        )
+                        return
+
+                    db.session.commit()
+                    rotas_job_update(
+                        job_id,
+                        Processed=processed,
+                        Ok=ok,
+                        Errors=errors,
+                        Pending=pending,
+                        UpdatedAt=datetime.now()
+                    )
+
+                rotas_job_update(
+                    job_id,
+                    State='done',
+                    Message='Concluído',
+                    FinishedAt=datetime.now(),
+                    UpdatedAt=datetime.now()
+                )
+            except Exception as e:
+                rotas_job_update(
+                    job_id,
+                    State='error',
+                    Message=str(e)[:255],
+                    UpdatedAt=datetime.now(),
+                    FinishedAt=datetime.now()
+                )
+            finally:
+                rotas_workers.pop(str(job_id), None)
+
+
+    @app.route('/api/rotas/rebuild/start', methods=['POST'])
+    @login_required
+    def api_rotas_rebuild_start():
+        ensure_rotas_job_table()
+        running = rotas_job_get_running()
+        if running and not _rotas_worker_alive(str(running['JobId'])):
+            rotas_job_update(
+                running['JobId'],
+                State='stopped',
+                Message='Parado (sem worker)',
+                FinishedAt=datetime.now(),
+                UpdatedAt=datetime.now()
+            )
+            running = None
+        if running and _rotas_job_is_stale(running, seconds=300):
+            rotas_job_update(
+                running['JobId'],
+                State='stopped',
+                Message='Parado (servidor reiniciado)',
+                FinishedAt=datetime.now(),
+                UpdatedAt=datetime.now()
+            )
+            running = None
+        if running:
+            return jsonify({'job_id': str(running['JobId']), 'state': running['State']}), 409
+        job_id = str(uuid.uuid4())
+        db.session.execute(text("""
+            INSERT INTO dbo.ROTAS_JOB
+            (JobId, State, Stage, Total, Processed, Ok, Errors, Pending, StartedAt, UpdatedAt, Message, RequestedBy)
+            VALUES (:job_id, 'running', 'truncate', 0, 0, 0, 0, 0, GETDATE(), GETDATE(), 'A iniciar...', :user)
+        """), { 'job_id': job_id, 'user': getattr(current_user, 'LOGIN', '') })
+        db.session.commit()
+        t = threading.Thread(target=run_rotas_rebuild, args=(job_id, True), daemon=True)
+        rotas_workers[str(job_id)] = t
+        t.start()
+        return jsonify({'job_id': job_id})
+
+
+    @app.route('/api/rotas/rebuild/stop', methods=['POST'])
+    @login_required
+    def api_rotas_rebuild_stop():
+        data = request.get_json() or {}
+        job_id = data.get('job_id')
+        if not job_id:
+            running = rotas_job_get_running()
+            if not running:
+                return jsonify({'error': 'Sem job ativo'}), 404
+            job_id = running['JobId']
+        rotas_job_update(job_id, State='stopping', Message='A parar...', UpdatedAt=datetime.now())
+        return jsonify({'ok': True})
+
+
+    @app.route('/api/rotas/rebuild/resume', methods=['POST'])
+    @login_required
+    def api_rotas_rebuild_resume():
+        ensure_rotas_job_table()
+        running = rotas_job_get_running()
+        if running and not _rotas_worker_alive(str(running['JobId'])):
+            rotas_job_update(
+                running['JobId'],
+                State='stopped',
+                Message='Parado (sem worker)',
+                FinishedAt=datetime.now(),
+                UpdatedAt=datetime.now()
+            )
+            running = None
+        if running and _rotas_job_is_stale(running, seconds=300):
+            rotas_job_update(
+                running['JobId'],
+                State='stopped',
+                Message='Parado (servidor reiniciado)',
+                FinishedAt=datetime.now(),
+                UpdatedAt=datetime.now()
+            )
+            running = None
+        if running:
+            return jsonify({'job_id': str(running['JobId']), 'state': running['State']}), 409
+        job_id = str(uuid.uuid4())
+        db.session.execute(text("""
+            INSERT INTO dbo.ROTAS_JOB
+            (JobId, State, Stage, Total, Processed, Ok, Errors, Pending, StartedAt, UpdatedAt, Message, RequestedBy)
+            VALUES (:job_id, 'running', 'compute', 0, 0, 0, 0, 0, GETDATE(), GETDATE(), 'A retomar...', :user)
+        """), { 'job_id': job_id, 'user': getattr(current_user, 'LOGIN', '') })
+        db.session.commit()
+        t = threading.Thread(target=run_rotas_rebuild, args=(job_id, False), daemon=True)
+        rotas_workers[str(job_id)] = t
+        t.start()
+        return jsonify({'job_id': job_id})
+
+
+    @app.route('/api/rotas/rebuild/status', methods=['GET'])
+    @login_required
+    def api_rotas_rebuild_status():
+        job_id = request.args.get('job_id')
+        if not job_id:
+            running = rotas_job_get_running()
+            if not running:
+                return jsonify({'state': 'idle'})
+            job_id = running['JobId']
+        job = rotas_job_get(job_id)
+        if not job:
+            return jsonify({'state': 'idle'})
+        if job.get('State') in ('running', 'stopping'):
+            if not _rotas_worker_alive(str(job_id)):
+                rotas_job_update(
+                    job_id,
+                    State='stopped',
+                    Message='Parado (sem worker)',
+                    FinishedAt=datetime.now(),
+                    UpdatedAt=datetime.now()
+                )
+                job = rotas_job_get(job_id) or job
+            elif _rotas_job_is_stale(job, seconds=300):
+                rotas_job_update(
+                    job_id,
+                    State='stopped',
+                    Message='Parado (timeout)',
+                    FinishedAt=datetime.now(),
+                    UpdatedAt=datetime.now()
+                )
+                job = rotas_job_get(job_id) or job
+        job['JobId'] = str(job['JobId'])
+        return jsonify(job)
 
 
     # Report per client/month (HTML)

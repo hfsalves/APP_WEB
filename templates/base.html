@@ -115,11 +115,12 @@
                     href="#submenu-{{ loop.index }}" 
                     data-bs-toggle="collapse" 
                     aria-expanded="false"
-                    class="d-flex justify-content-between align-items-center sidebar-group"
+                    class="d-flex justify-content-between align-items-center sidebar-group {% if item.novo %}menu-has-new{% endif %}"
                     title="{{ item.name }}">
                     <span>
                       {% if item.icon %}<i class="fa-solid {{ item.icon }} me-2"></i>{% endif %}
                       <span class="sidebar-label">{{ item.name }}</span>
+                      {% if item.novo %}<span class="menu-new-badge">NEW</span>{% endif %}
                     </span>
                     <i class="fa-solid fa-chevron-down small"></i>
                   </a>
@@ -130,11 +131,12 @@
                       <li class="mb-1">
                         <a 
                           href="{{ child.url }}" 
-                          class="d-flex align-items-center {% if request.path.startswith(child.url) %}active{% endif %}"
+                          class="d-flex align-items-center {% if request.path.startswith(child.url) %}active{% endif %} {% if child.novo %}menu-has-new{% endif %}"
                           title="{{ child.name }}"
                           data-icon="{{ child.icon or '' }}">
                           {% if child.icon %}<i class="fa-solid {{ child.icon }} me-2"></i>{% endif %}
                           <span class="sidebar-label">{{ child.name }}</span>
+                          {% if child.novo %}<span class="menu-new-badge">NEW</span>{% endif %}
                         </a>
                       </li>
                     {% endfor %}
@@ -143,10 +145,11 @@
                   {# Item unico (sem filhos) #}
                   <a 
                     href="{{ item.url }}" 
-                    class="d-flex align-items-center {% if item.url and request.path.startswith(item.url) %}active{% endif %}"
+                    class="d-flex align-items-center {% if item.url and request.path.startswith(item.url) %}active{% endif %} {% if item.novo %}menu-has-new{% endif %}"
                     title="{{ item.name }}">
                     {% if item.icon %}<i class="fa-solid {{ item.icon }} me-2"></i>{% endif %}
                     <span class="sidebar-label">{{ item.name }}</span>
+                    {% if item.novo %}<span class="menu-new-badge">NEW</span>{% endif %}
                   </a>
                 {% endif %}
               </li>

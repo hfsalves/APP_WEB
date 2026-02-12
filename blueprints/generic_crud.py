@@ -1618,6 +1618,7 @@ def api_cleaning_plan():
 
     sql = text(f"""
         SELECT
+          al.ALSTAMP             AS al_stamp,
           al.NOME                 AS lodging,
           al.TIPOLOGIA            AS typology,
           al.ZONA                 AS zone,
@@ -1853,11 +1854,11 @@ def _osm_geocode(address: str):
         return None
 
 
-def _osm_distance_km(addr_from: str, addr_to: str):
+def _osm_distance(addr_from: str, addr_to: str):
     if not addr_from or not addr_to:
         return None
     if addr_from.strip().lower() == addr_to.strip().lower():
-        return 0.0
+        return {"km": 0.0, "seconds": 0}
     key = f"{addr_from}|||{addr_to}".lower().strip()
     if key in _osm_distance_cache:
         return _osm_distance_cache[key]
@@ -1874,12 +1875,46 @@ def _osm_distance_km(addr_from: str, addr_to: str):
         if not data or not data.get("routes"):
             _osm_distance_cache[key] = None
             return None
-        meters = data["routes"][0].get("distance", 0) or 0
+        route = data["routes"][0] or {}
+        meters = route.get("distance", 0) or 0
+        seconds = route.get("duration", 0) or 0
         km = round(float(meters) / 1000.0, 2)
-        _osm_distance_cache[key] = km
-        return km
+        res = {"km": km, "seconds": int(seconds)}
+        _osm_distance_cache[key] = res
+        return res
     except Exception:
         _osm_distance_cache[key] = None
+        return None
+
+
+def _rotas_distance(orig_stamp: str, dest_stamp: str):
+    if not orig_stamp or not dest_stamp:
+        return None
+    o = str(orig_stamp).strip()
+    d = str(dest_stamp).strip()
+    if not o or not d:
+        return None
+    if o == d:
+        return {"km": 0.0, "seconds": 0}
+    if o > d:
+        o, d = d, o
+    try:
+        row = db.session.execute(text("""
+            SELECT TOP 1 Km, Segundos
+            FROM dbo.ROTAS
+            WHERE OrigemStamp = :o AND DestinoStamp = :d
+        """), {'o': o, 'd': d}).mappings().first()
+        if not row:
+            return None
+        km = row.get("Km")
+        seconds = row.get("Segundos")
+        if km is None and seconds is None:
+            return None
+        return {
+            "km": float(km or 0),
+            "seconds": int(seconds or 0)
+        }
+    except Exception:
         return None
 
 
@@ -1891,12 +1926,21 @@ def api_osm_distances():
     results = {}
     for p in pairs:
         key = p.get("key") or ""
+        from_stamp = (p.get("from_stamp") or p.get("fromStamp") or "").strip()
+        to_stamp = (p.get("to_stamp") or p.get("toStamp") or "").strip()
+        if from_stamp or to_stamp:
+            if not key:
+                a = from_stamp.lower().strip()
+                b = to_stamp.lower().strip()
+                key = f"{a}|||{b}" if a <= b else f"{b}|||{a}"
+            rotas = _rotas_distance(from_stamp, to_stamp)
+            results[key] = rotas
+            continue
         addr_from = (p.get("from") or "").strip()
         addr_to = (p.get("to") or "").strip()
         if not key:
             key = f"{addr_from}|||{addr_to}".strip()
-        km = _osm_distance_km(addr_from, addr_to)
-        results[key] = km
+        results[key] = _osm_distance(addr_from, addr_to)
     return jsonify(results)
 
 @bp.route('/api/update_campo', methods=['POST'])

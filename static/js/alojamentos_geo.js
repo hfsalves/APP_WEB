@@ -33,6 +33,20 @@ const geoEls = {
   alt: document.getElementById('geoAlt')
 };
 
+const isInputEl = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT');
+const getFieldValue = (el) => {
+  if (!el) return '';
+  return isInputEl(el) ? el.value : (el.textContent || '');
+};
+const setFieldValue = (el, value) => {
+  if (!el) return;
+  if (isInputEl(el)) {
+    el.value = value || '';
+  } else {
+    el.textContent = value || '—';
+  }
+};
+
 const setDirty = (dirty) => {
   geoState.dirty = !!dirty;
   if (geoEls.dirty) {
@@ -44,8 +58,8 @@ const setDirty = (dirty) => {
 };
 
 const updateLatLon = (lat, lon, markDirty = true) => {
-  if (geoEls.lat) geoEls.lat.value = lat != null ? Number(lat).toFixed(6) : '';
-  if (geoEls.lon) geoEls.lon.value = lon != null ? Number(lon).toFixed(6) : '';
+  setFieldValue(geoEls.lat, lat != null ? Number(lat).toFixed(6) : '');
+  setFieldValue(geoEls.lon, lon != null ? Number(lon).toFixed(6) : '');
   if (markDirty) setDirty(true);
 };
 
@@ -146,13 +160,13 @@ const loadList = async () => {
 
 const fillForm = (item) => {
   geoEls.name.textContent = item.NOME || 'Seleciona um alojamento';
-  geoEls.morada.value = item.MORADA || '';
-  geoEls.codpost.value = item.CODPOST || '';
-  geoEls.local.value = item.LOCAL || '';
+  setFieldValue(geoEls.morada, item.MORADA || '');
+  setFieldValue(geoEls.codpost, item.CODPOST || '');
+  setFieldValue(geoEls.local, item.LOCAL || '');
   updateLatLon(item.LAT, item.LON, false);
   const readonly = geoState.mode === 'all';
   [geoEls.morada, geoEls.codpost, geoEls.local].forEach(el => {
-    el.readOnly = readonly;
+    if (isInputEl(el)) el.readOnly = readonly;
   });
 };
 
@@ -186,9 +200,9 @@ const locateOnMap = async () => {
   }
   geoEls.alt.innerHTML = '<div class="geo-alt-loading">A localizar...</div>';
   const payload = {
-    morada: geoEls.morada.value,
-    codpost: geoEls.codpost.value,
-    local: geoEls.local.value,
+    morada: getFieldValue(geoEls.morada),
+    codpost: getFieldValue(geoEls.codpost),
+    local: getFieldValue(geoEls.local),
     limit: 5
   };
   const res = await fetch('/api/alojamentos_geo/geocode', {
@@ -320,8 +334,8 @@ const saveCoords = async () => {
     showToast('Seleciona um alojamento primeiro.', 'warning');
     return;
   }
-  const lat = parseFloat(geoEls.lat.value);
-  const lon = parseFloat(geoEls.lon.value);
+  const lat = parseFloat(getFieldValue(geoEls.lat));
+  const lon = parseFloat(getFieldValue(geoEls.lon));
   if (Number.isNaN(lat) || Number.isNaN(lon)) {
     showToast('Latitude/Longitude inválidas.', 'danger');
     return;
@@ -329,9 +343,9 @@ const saveCoords = async () => {
   const payload = {
     lat,
     lon,
-    morada: geoEls.morada.value,
-    codpost: geoEls.codpost.value,
-    local: geoEls.local.value
+    morada: getFieldValue(geoEls.morada),
+    codpost: getFieldValue(geoEls.codpost),
+    local: getFieldValue(geoEls.local)
   };
   const res = await fetch(`/api/alojamentos_geo/${geoState.selected.ALSTAMP}/coords`, {
     method: 'PUT',
@@ -356,7 +370,9 @@ const saveCoords = async () => {
 
 const bindFormEvents = () => {
   [geoEls.morada, geoEls.codpost, geoEls.local].forEach(el => {
-    el.addEventListener('input', () => setDirty(true));
+    if (isInputEl(el)) {
+      el.addEventListener('input', () => setDirty(true));
+    }
   });
   geoEls.locate.addEventListener('click', locateOnMap);
   geoEls.reset.addEventListener('click', resetToDb);
@@ -371,9 +387,134 @@ const bindFormEvents = () => {
   });
 };
 
+const rotasEls = {
+  start: document.getElementById('rotasStart'),
+  resume: document.getElementById('rotasResume'),
+  stop: document.getElementById('rotasStop'),
+  bar: document.getElementById('rotasProgress'),
+  text: document.getElementById('rotasText'),
+  counts: document.getElementById('rotasCounts')
+};
+
+let rotasPollTimer = null;
+let rotasJobId = null;
+
+const updateRotasUI = (data) => {
+  if (!data) return;
+  const state = data.State || data.state || '';
+  const total = Number(data.Total || 0);
+  const processed = Number(data.Processed || 0);
+  const ok = Number(data.Ok || 0);
+  const errors = Number(data.Errors || 0);
+  const pending = Number(data.Pending || 0);
+  const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+  if (rotasEls.bar) rotasEls.bar.style.width = `${percent}%`;
+  if (rotasEls.text) rotasEls.text.textContent = data.Message || data.Stage || state || '';
+  if (rotasEls.counts) {
+    rotasEls.counts.textContent = `${processed}/${total} · OK ${ok} · Erros ${errors} · Pendentes ${pending}`;
+  }
+  if (rotasEls.start) {
+    rotasEls.start.disabled = (state === 'running' || state === 'stopping');
+  }
+  if (rotasEls.resume) {
+    rotasEls.resume.disabled = (state === 'running' || state === 'stopping');
+  }
+  if (rotasEls.stop) {
+    rotasEls.stop.disabled = !(state === 'running' || state === 'stopping');
+  }
+};
+
+const stopRotasPolling = () => {
+  if (rotasPollTimer) {
+    clearInterval(rotasPollTimer);
+    rotasPollTimer = null;
+  }
+};
+
+const pollRotasStatus = async () => {
+  if (!rotasJobId) return;
+  const res = await fetch(`/api/rotas/rebuild/status?job_id=${encodeURIComponent(rotasJobId)}`);
+  const data = await res.json();
+  updateRotasUI(data);
+  const state = data.State || data.state || '';
+  if (state === 'done' || state === 'error' || state === 'stopped') {
+    stopRotasPolling();
+  }
+};
+
+const startRotasPolling = () => {
+  stopRotasPolling();
+  rotasPollTimer = setInterval(pollRotasStatus, 1500);
+};
+
+const startRotasJob = async () => {
+  if (!confirm('Isto pode demorar; vai recalcular todas as rotas. Continuar?')) return;
+  const res = await fetch('/api/rotas/rebuild/start', { method: 'POST' });
+  const data = await res.json();
+  if (res.status === 409 && data.job_id) {
+    rotasJobId = data.job_id;
+    startRotasPolling();
+    return;
+  }
+  if (!data.job_id) {
+    showToast(data.error || 'Não foi possível iniciar', 'danger');
+    return;
+  }
+  rotasJobId = data.job_id;
+  startRotasPolling();
+};
+
+const resumeRotasJob = async () => {
+  if (!confirm('Retomar apenas as rotas pendentes?')) return;
+  const res = await fetch('/api/rotas/rebuild/resume', { method: 'POST' });
+  const data = await res.json();
+  if (res.status === 409 && data.job_id) {
+    rotasJobId = data.job_id;
+    startRotasPolling();
+    return;
+  }
+  if (!data.job_id) {
+    showToast(data.error || 'NÃ£o foi possÃ­vel retomar', 'danger');
+    return;
+  }
+  rotasJobId = data.job_id;
+  startRotasPolling();
+};
+
+const stopRotasJob = async () => {
+  if (!rotasJobId) return;
+  await fetch('/api/rotas/rebuild/stop', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_id: rotasJobId })
+  });
+  pollRotasStatus();
+};
+
+const initRotas = () => {
+  if (!rotasEls.start) return;
+  rotasEls.start.addEventListener('click', startRotasJob);
+  if (rotasEls.resume) {
+    rotasEls.resume.addEventListener('click', resumeRotasJob);
+  }
+  rotasEls.stop.addEventListener('click', stopRotasJob);
+  fetch('/api/rotas/rebuild/status')
+    .then(r => r.json())
+    .then(data => {
+      if (data.JobId) rotasJobId = data.JobId;
+      updateRotasUI(data);
+      const state = data.State || data.state || '';
+      if (state === 'running' || state === 'stopping') {
+        startRotasPolling();
+      }
+    })
+    .catch(() => {});
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   createMap();
   bindFormEvents();
+  initRotas();
   loadList().catch(() => {
     geoEls.status.textContent = 'Erro ao carregar.';
   });

@@ -23,42 +23,59 @@
   </div>
 
   <div class="geo-right">
-    <div class="geo-form card">
-      <div class="card-body">
-        <div class="geo-form-header">
-          <div>
-            <div id="geoSelectedName" class="geo-selected-name">Seleciona um alojamento</div>
-            <div id="geoDirty" class="geo-dirty">Alterações por guardar</div>
+    <div class="geo-right-top">
+      <div class="geo-form card">
+        <div class="card-body">
+          <div class="geo-form-header">
+            <div>
+              <div id="geoSelectedName" class="geo-selected-name">Seleciona um alojamento</div>
+              <div id="geoDirty" class="geo-dirty">Alterações por guardar</div>
+            </div>
+            <div class="geo-actions">
+              <button id="geoLocate" class="btn btn-outline-primary btn-sm" type="button">Localizar no mapa</button>
+              <button id="geoReset" class="btn btn-outline-secondary btn-sm" type="button">Repor para BD</button>
+              <button id="geoSave" class="btn btn-primary btn-sm" type="button" disabled>Guardar coordenadas</button>
+            </div>
           </div>
-          <div class="geo-actions">
-            <button id="geoLocate" class="btn btn-outline-primary btn-sm" type="button">Localizar no mapa</button>
-            <button id="geoReset" class="btn btn-outline-secondary btn-sm" type="button">Repor para BD</button>
-            <button id="geoSave" class="btn btn-primary btn-sm" type="button" disabled>Guardar coordenadas</button>
+          <div class="row g-2 mt-2 geo-fields">
+            <div class="col-md-6">
+              <label class="form-label">Morada</label>
+              <div id="geoMorada" class="geo-field-value">—</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Código Postal</label>
+              <div id="geoCodpost" class="geo-field-value">—</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Localidade</label>
+              <div id="geoLocal" class="geo-field-value">—</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Latitude</label>
+              <div id="geoLat" class="geo-field-value">—</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Longitude</label>
+              <div id="geoLon" class="geo-field-value">—</div>
+            </div>
           </div>
+          <div id="geoAlt" class="geo-alt"></div>
         </div>
-        <div class="row g-2 mt-2">
-          <div class="col-md-6">
-            <label class="form-label">Morada</label>
-            <input id="geoMorada" class="form-control" />
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Código Postal</label>
-            <input id="geoCodpost" class="form-control" />
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Localidade</label>
-            <input id="geoLocal" class="form-control" />
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Latitude</label>
-            <input id="geoLat" class="form-control" readonly />
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Longitude</label>
-            <input id="geoLon" class="form-control" readonly />
-          </div>
+      </div>
+      <div class="geo-rotas">
+        <div class="geo-rotas-title">ROTAS</div>
+        <div class="geo-rotas-actions">
+          <button id="rotasStart" class="btn btn-primary btn-sm" type="button">Recalcular ROTAS</button>
+          <button id="rotasResume" class="btn btn-outline-primary btn-sm" type="button">Retomar pendentes</button>
+          <button id="rotasStop" class="btn btn-outline-secondary btn-sm" type="button" disabled>Parar</button>
         </div>
-        <div id="geoAlt" class="geo-alt"></div>
+        <div class="geo-rotas-progress">
+          <div class="geo-rotas-bar">
+            <div id="rotasProgress" class="geo-rotas-bar-fill" style="width:0%"></div>
+          </div>
+          <div id="rotasText" class="geo-rotas-text">Idle</div>
+          <div id="rotasCounts" class="geo-rotas-counts">0/0 · OK 0 · Erros 0 · Pendentes 0</div>
+        </div>
       </div>
     </div>
 

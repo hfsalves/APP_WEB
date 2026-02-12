@@ -186,9 +186,17 @@ const minutesToTime = (mins) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
-const getDistanceKey = (fromAddr, toAddr) => {
-  if (!fromAddr || !toAddr) return '';
-  return `${fromAddr}|||${toAddr}`.toLowerCase().trim();
+const roundUpToSlot = (mins, slot = 30) => {
+  if (!Number.isFinite(mins)) return mins;
+  return Math.ceil(mins / slot) * slot;
+};
+
+const getDistanceKey = (fromStamp, toStamp) => {
+  const a = String(fromStamp || '').trim().toLowerCase();
+  const b = String(toStamp || '').trim().toLowerCase();
+  if (!a || !b) return '';
+  if (a === b) return `${a}|||${b}`;
+  return a < b ? `${a}|||${b}` : `${b}|||${a}`;
 };
 
 const buildAddress = (codpost, local, morada) => {
@@ -209,8 +217,10 @@ const fetchPlanner2Distances = async (pairs) => {
     });
     if (!res.ok) throw new Error(res.statusText);
     const data = await res.json();
-    Object.entries(data || {}).forEach(([key, km]) => {
-      planner2DistanceCache.set(key, km);
+    Object.entries(data || {}).forEach(([key, val]) => {
+      const km = typeof val === 'number' ? val : Number(val?.km || 0);
+      const seconds = typeof val === 'number' ? 0 : Number(val?.seconds || 0);
+      planner2DistanceCache.set(key, { km, seconds });
       planner2DistancePending.delete(key);
     });
     renderPlanner2TeamCards();
@@ -230,17 +240,27 @@ const renderPlanner2TeamCards = () => {
       const typology = String(cl.typology || row.typology || row.tp || '').trim() || '-';
       const duration = getCleaningDuration(cl.typology || row.typology || row.tp);
       const startMinutes = timeToMinutes(cl.time || '');
-      const address = buildAddress(row.al_codpost, row.al_local, row.al_morada);
+      const lodgingStamp = String(row.al_stamp || '').trim();
+      const lodgingName = row.lodging || '';
+      const hasCheckout = String(row.checkout_reservation || '').trim() || String(row.checkout_time || '').trim();
+      const hasCheckin = String(row.checkin_reservation || '').trim() || String(row.checkin_time || '').trim();
+      const checkoutTime = parseTime(row.checkout_time, '11:00');
+      const checkinTime = parseTime(row.checkin_time, '15:00');
+      const earliestStart = hasCheckout ? (checkoutTime.h * 60 + checkoutTime.m) : null;
+      const latestFinish = hasCheckin ? (checkinTime.h * 60 + checkinTime.m) : null;
       if (!teamsMap.has(teamName)) {
         teamsMap.set(teamName, { items: [], totalMinutes: 0 });
       }
       const entry = teamsMap.get(teamName);
       entry.items.push({
-        lodging: row.lodging || '',
+        lodging: lodgingName,
+        stamp: lodgingStamp,
         typology,
         startMinutes,
         duration,
-        address,
+        address: lodgingName,
+        earliestStart,
+        latestFinish,
         cleaning: cl
       });
       entry.totalMinutes += duration;
@@ -250,20 +270,20 @@ const renderPlanner2TeamCards = () => {
   const names = Array.from(teamsMap.keys()).sort((a, b) => a.localeCompare(b));
   container.innerHTML = '';
   const missingPairs = [];
-  const addDistancePair = (fromAddr, toAddr) => {
-    const key = getDistanceKey(fromAddr, toAddr);
+  const addDistancePair = (fromStamp, toStamp) => {
+    const key = getDistanceKey(fromStamp, toStamp);
     if (!key) return;
     if (!planner2DistanceCache.has(key) && !planner2DistancePending.has(key)) {
       planner2DistancePending.add(key);
-      missingPairs.push({ key, from: fromAddr, to: toAddr });
+      missingPairs.push({ key, from_stamp: fromStamp, to_stamp: toStamp });
     }
   };
   names.forEach((name) => {
     const meta = teamsMap.get(name);
-    const addresses = Array.from(new Set(meta.items.map(i => i.address).filter(Boolean)));
-    addresses.forEach((fromAddr) => {
-      addresses.forEach((toAddr) => {
-        if (fromAddr !== toAddr) addDistancePair(fromAddr, toAddr);
+    const stamps = Array.from(new Set(meta.items.map(i => i.stamp).filter(Boolean)));
+    stamps.forEach((fromStamp) => {
+      stamps.forEach((toStamp) => {
+        if (fromStamp !== toStamp) addDistancePair(fromStamp, toStamp);
       });
     });
   });
@@ -283,7 +303,7 @@ const renderPlanner2TeamCards = () => {
       </div>
     `;
 
-    const buildSequence = (items, times) => {
+    const buildSequence = (items, times, lunchInfo) => {
       const list = document.createElement('div');
       list.className = 'planner2-team-schedule';
       let lastEnd = null;
@@ -293,18 +313,20 @@ const renderPlanner2TeamCards = () => {
         const endMinutes = startMinutes + item.duration;
         if (lastEnd !== null) {
           const prev = entries[entries.length - 1];
-          const fromAddr = prev && prev.address ? prev.address : '';
-          const toAddr = item.address || '';
-          const key = getDistanceKey(fromAddr, toAddr);
+          const fromStamp = prev && prev.stamp ? prev.stamp : '';
+          const toStamp = item.stamp || '';
+          const key = getDistanceKey(fromStamp, toStamp);
           const gapMinutes = Math.max(0, startMinutes - lastEnd);
           const hasGap = gapMinutes > 0;
-          if (hasGap || (fromAddr && toAddr && fromAddr !== toAddr)) {
+          if (hasGap || (fromStamp && toStamp && fromStamp !== toStamp)) {
             entries.push({
               type: 'gap',
               duration: gapMinutes,
               distanceKey: key,
-              fromAddr,
-              toAddr
+              fromName: prev ? prev.lodging : '',
+              toName: item.lodging || '',
+              start: lastEnd,
+              end: startMinutes
             });
           }
         }
@@ -312,20 +334,67 @@ const renderPlanner2TeamCards = () => {
           type: 'clean',
           label: `${item.lodging}`,
           meta: `${minutesToTime(startMinutes)} · ${item.typology} · ${formatMinutes(item.duration)}`,
-          address: item.address
+          address: item.address,
+          stamp: item.stamp,
+          lodging: item.lodging,
+          start: startMinutes,
+          end: endMinutes
         });
         lastEnd = endMinutes;
       });
+      const lunchStart = lunchInfo && typeof lunchInfo.lunchStart === 'number' ? lunchInfo.lunchStart : null;
+      const lunchMinutes = lunchInfo && typeof lunchInfo.lunchMinutes === 'number' ? lunchInfo.lunchMinutes : 0;
+      if (lunchStart != null && lunchMinutes) {
+        let inserted = false;
+        for (let i = 0; i < entries.length; i += 1) {
+          const entry = entries[i];
+          if (entry.start != null && entry.end != null && lunchStart >= entry.start && lunchStart <= entry.end) {
+            entries.splice(i + 1, 0, {
+              type: 'lunch',
+              label: `Almoço ${minutesToTime(entry.end)}`,
+              start: entry.end,
+              end: entry.end + lunchMinutes
+            });
+            inserted = true;
+            break;
+          }
+        }
+        if (!inserted) {
+          entries.push({
+            type: 'lunch',
+            label: `Almoço ${minutesToTime(lunchStart)}`,
+            start: lunchStart,
+            end: lunchStart + lunchMinutes
+          });
+        }
+      }
       entries.forEach((entry, idx) => {
         const tag = document.createElement('div');
         if (entry.type === 'gap') {
           tag.className = 'planner2-team-tag planner2-team-gap';
           const distance = entry.distanceKey ? planner2DistanceCache.get(entry.distanceKey) : null;
-          const distanceText = typeof distance === 'number' ? `${distance} km` : (entry.distanceKey && planner2DistancePending.has(entry.distanceKey) ? '...' : '—');
-          tag.innerHTML = `<span>${formatMinutes(entry.duration)}</span><span class="planner2-team-tag-meta">${distanceText}</span>`;
-          const fromText = entry.fromAddr || '-';
-          const toText = entry.toAddr || '-';
+          const kmVal = distance ? Number(distance.km || 0) : 0;
+          let travelMin = 0;
+          if (distance && distance.seconds) {
+            travelMin = Math.ceil(Number(distance.seconds || 0) / 60);
+          } else if (kmVal > 0) {
+            travelMin = 30;
+          }
+          if (kmVal > 0) {
+            travelMin = Math.max(30, Math.ceil(travelMin / 30) * 30);
+          }
+          const distanceText = entry.distanceKey && planner2DistancePending.has(entry.distanceKey)
+            ? '...'
+            : `${kmVal} km`;
+          tag.innerHTML = `<span>${formatMinutes(travelMin)}</span><span class="planner2-team-tag-meta">${distanceText}</span>`;
+          const fromText = entry.fromName || '-';
+          const toText = entry.toName || '-';
           tag.title = `De: ${fromText}\nPara: ${toText}\nKey: ${entry.distanceKey || '-'}`;
+        } else if (entry.type === 'lunch') {
+          tag.className = 'planner2-team-tag planner2-team-lunch';
+          const lunchStartText = entry.start != null ? minutesToTime(entry.start) : '';
+          const lunchDuration = entry.end != null && entry.start != null ? formatMinutes(entry.end - entry.start) : '';
+          tag.innerHTML = `<span><i class="fa-solid fa-utensils"></i> ${lunchStartText}</span><span class="planner2-team-tag-meta">${lunchDuration}</span>`;
         } else {
           tag.className = 'planner2-team-tag';
           tag.innerHTML = `<span>${entry.label}</span><span class="planner2-team-tag-meta">${entry.meta}</span>`;
@@ -347,101 +416,291 @@ const renderPlanner2TeamCards = () => {
     plannedTitle.className = 'planner2-team-section-title';
     plannedTitle.textContent = 'Planeado';
     plannedWrap.appendChild(plannedTitle);
-    plannedWrap.appendChild(buildSequence(plannedItems, plannedTimes));
 
-    const buildSuggestionOrder = () => {
-      if (plannedItems.length <= 1) return plannedItems.slice();
-      const allDistancesReady = plannedItems.every((a) => plannedItems.every((b) => {
-        if (a === b) return true;
-        const addrA = String(a.address || '').trim().toLowerCase();
-        const addrB = String(b.address || '').trim().toLowerCase();
-        if (addrA && addrA === addrB) return true;
-        const key = getDistanceKey(a.address, b.address);
-        return !!key && planner2DistanceCache.has(key);
-      }));
-      if (!allDistancesReady) return plannedItems.slice();
-
-      const dist = (a, b) => {
-        const addrA = String(a.address || '').trim().toLowerCase();
-        const addrB = String(b.address || '').trim().toLowerCase();
-        if (addrA && addrA === addrB) return 0;
-        const key = getDistanceKey(a.address, b.address);
-        const v = planner2DistanceCache.get(key);
-        return typeof v === 'number' ? v : 9999;
-      };
-
-      const routeDistance = (seq) => seq.reduce((sum, item, idx) => {
-        if (idx === 0) return 0;
-        return sum + dist(seq[idx - 1], item);
-      }, 0);
-
-      const start = plannedItems[0];
-      const rest = plannedItems.slice(1);
-      if (plannedItems.length <= 7) {
-        let best = null;
-        let bestCost = Infinity;
-        const permute = (prefix, remaining) => {
-          if (!remaining.length) {
-            const seq = [start, ...prefix];
-            const cost = routeDistance(seq);
-            if (cost < bestCost) {
-              bestCost = cost;
-              best = seq;
-            }
-            return;
-          }
-          for (let i = 0; i < remaining.length; i += 1) {
-            const next = remaining[i];
-            const newPrefix = prefix.concat(next);
-            const newRemaining = remaining.slice(0, i).concat(remaining.slice(i + 1));
-            permute(newPrefix, newRemaining);
-          }
-        };
-        permute([], rest);
-        return best || plannedItems.slice();
+    const getTeamField = (team, keys) => {
+      for (let i = 0; i < keys.length; i += 1) {
+        const k = keys[i];
+        if (team && team[k] != null) return team[k];
       }
-
-      const order = [start];
-      const remaining = rest.slice();
-      while (remaining.length) {
-        const current = order[order.length - 1];
-        let bestIdx = 0;
-        let bestDist = dist(current, remaining[0]);
-        for (let i = 1; i < remaining.length; i += 1) {
-          const d = dist(current, remaining[i]);
-          if (d < bestDist) {
-            bestDist = d;
-            bestIdx = i;
-          }
-        }
-        order.push(remaining.splice(bestIdx, 1)[0]);
-      }
-
-      let best = order.slice();
-      let bestCost = routeDistance(best);
-      let improved = true;
-      let loops = 0;
-      while (improved && loops < 50) {
-        improved = false;
-        loops += 1;
-        for (let i = 1; i < best.length - 2; i += 1) {
-          for (let k = i + 1; k < best.length - 1; k += 1) {
-            const newOrder = best.slice(0, i)
-              .concat(best.slice(i, k + 1).reverse())
-              .concat(best.slice(k + 1));
-            const newCost = routeDistance(newOrder);
-            if (newCost + 0.001 < bestCost) {
-              best = newOrder;
-              bestCost = newCost;
-              improved = true;
-            }
-          }
-        }
-      }
-      return best;
+      return '';
     };
 
-    const suggestedItems = buildSuggestionOrder();
+    const team = planner2Teams.find(t => String(t.NOME || '').trim() === name) || {};
+    const teamStartStr = String(getTeamField(team, ['HORAINI', 'horaini', 'HoraIni']) || '09:00');
+    const teamEndStr = String(getTeamField(team, ['HORAFIM', 'horafim', 'HoraFim']) || '18:00');
+    const teamStartMin = timeToMinutes(teamStartStr);
+    const teamEndMin = timeToMinutes(teamEndStr);
+    const lunchMinutes = (teamStartMin === 570 || teamEndMin === 1050) ? 30 : 60;
+    const LUNCH_START = 12 * 60;
+    const LUNCH_END = 14 * 60;
+
+    const getTravelInfo = (fromStamp, toStamp) => {
+      const key = getDistanceKey(fromStamp, toStamp);
+      if (!key) return { km: 0, seconds: 0, missing: true };
+      if (!planner2DistanceCache.has(key)) return { km: 0, seconds: 0, missing: true };
+      const v = planner2DistanceCache.get(key) || {};
+      return {
+        km: Number(v.km || 0),
+        seconds: Number(v.seconds || 0),
+        missing: false
+      };
+    };
+
+    const permutations = (items) => {
+      const out = [];
+      const permute = (prefix, rest) => {
+        if (!rest.length) {
+          out.push(prefix);
+          return;
+        }
+        for (let i = 0; i < rest.length; i += 1) {
+          const next = rest[i];
+          const newPrefix = prefix.concat(next);
+          const newRest = rest.slice(0, i).concat(rest.slice(i + 1));
+          permute(newPrefix, newRest);
+        }
+      };
+      permute([], items);
+      return out;
+    };
+
+      const simulatePermutation = (order, lunchIndex, allowViolations) => {
+        let current = teamStartMin;
+        let travelSeconds = 0;
+        let totalKm = 0;
+        let waitMinutes = 0;
+        let lunchTaken = false;
+        let lunchStart = null;
+        let penalty = 0;
+        const alerts = [];
+        const scheduleTimes = [];
+
+      const insertLunch = () => {
+        if (lunchTaken) return true;
+        const latestStart = LUNCH_END - lunchMinutes;
+        if (current > latestStart) {
+          if (allowViolations) {
+            penalty += 100000;
+            alerts.push('Sem tempo para almoço');
+            lunchTaken = true;
+            lunchStart = current;
+            return true;
+          }
+          return false;
+        }
+        const lunchAt = Math.max(current, LUNCH_START);
+        if (lunchAt > latestStart) {
+          if (allowViolations) {
+            penalty += 100000;
+            alerts.push('Almoço fora da janela');
+            lunchTaken = true;
+            lunchStart = lunchAt;
+            return true;
+          }
+          return false;
+        }
+        if (lunchAt > current) {
+          waitMinutes += lunchAt - current;
+        }
+        current = lunchAt + lunchMinutes;
+        lunchTaken = true;
+        lunchStart = lunchAt;
+        return true;
+      };
+
+      for (let i = 0; i <= order.length; i += 1) {
+        if (i === lunchIndex) {
+          if (!insertLunch()) return { valid: false, penalty: Infinity, alerts: ['Sem almoço'] };
+        }
+        if (i === order.length) break;
+        const item = order[i];
+
+        if (i > 0) {
+          const prev = order[i - 1];
+          const travel = getTravelInfo(prev.stamp, item.stamp);
+          if (travel.missing) {
+            penalty += 2000;
+            alerts.push(`Sem rota entre ${prev.lodging} e ${item.lodging}`);
+          }
+          travelSeconds += travel.seconds;
+          totalKm += travel.km;
+          current += Math.ceil(travel.seconds / 60);
+        }
+
+          if (item.earliestStart != null && current < item.earliestStart) {
+            waitMinutes += item.earliestStart - current;
+            current = item.earliestStart;
+          }
+
+          current = roundUpToSlot(current, 30);
+          scheduleTimes.push(current);
+          const endTime = current + item.duration;
+        if (item.latestFinish != null && endTime > item.latestFinish) {
+          const late = endTime - item.latestFinish;
+          if (allowViolations) {
+            penalty += late * 1000;
+            alerts.push(`Falha check-in (${item.lodging})`);
+          } else {
+            return { valid: false, penalty: Infinity, alerts: [`Falha check-in (${item.lodging})`] };
+          }
+        }
+        current = endTime;
+      }
+
+      if (!lunchTaken) {
+        if (!insertLunch()) return { valid: false, penalty: Infinity, alerts: ['Sem almoço'] };
+      }
+
+      if (current > teamEndMin) {
+        const overtime = current - teamEndMin;
+        if (allowViolations) {
+          penalty += overtime * 500;
+          alerts.push('Fim após horário');
+        } else {
+          return { valid: false, penalty: Infinity, alerts: ['Fim após horário'] };
+        }
+      }
+
+        return {
+          valid: penalty === 0,
+          penalty,
+          order,
+          scheduleTimes,
+          travelSeconds,
+          totalKm,
+          waitMinutes,
+          endTime: current,
+          lunchMinutes,
+        lunchStart,
+        alerts
+      };
+    };
+
+    const buildSuggestionOrder = () => {
+      if (plannedItems.length <= 1) {
+        return {
+          items: plannedItems.slice(),
+          times: plannedItems.length ? [plannedItems[0].startMinutes] : [],
+          metrics: {
+            totalKm: 0,
+            travelSeconds: 0,
+            waitMinutes: 0,
+            endTime: teamStartMin,
+            lunchMinutes,
+            lunchStart: null,
+            alerts: [],
+            valid: true
+          }
+        };
+      }
+
+      const orders = permutations(plannedItems);
+      let bestValid = null;
+      let bestFallback = null;
+
+      orders.forEach((order) => {
+        for (let lunchIndex = 0; lunchIndex <= order.length; lunchIndex += 1) {
+          const res = simulatePermutation(order, lunchIndex, false);
+          if (res.valid) {
+            const resStart = Array.isArray(res.scheduleTimes) && res.scheduleTimes.length ? res.scheduleTimes[0] : teamStartMin;
+            const bestStart = bestValid && Array.isArray(bestValid.scheduleTimes) && bestValid.scheduleTimes.length
+              ? bestValid.scheduleTimes[0]
+              : teamStartMin;
+            if (
+              !bestValid
+              || res.endTime < bestValid.endTime
+              || (res.endTime === bestValid.endTime && resStart < bestStart)
+              || (res.endTime === bestValid.endTime && resStart === bestStart && res.totalKm < bestValid.totalKm)
+              || (res.endTime === bestValid.endTime && resStart === bestStart && res.totalKm === bestValid.totalKm && res.waitMinutes < bestValid.waitMinutes)
+              || (res.endTime === bestValid.endTime && resStart === bestStart && res.totalKm === bestValid.totalKm && res.waitMinutes === bestValid.waitMinutes && res.travelSeconds < bestValid.travelSeconds)
+            ) {
+              bestValid = res;
+            }
+          }
+          const fallback = simulatePermutation(order, lunchIndex, true);
+          if (!bestFallback || fallback.penalty < bestFallback.penalty) {
+            bestFallback = fallback;
+          }
+        }
+      });
+
+      const chosen = bestValid || bestFallback;
+      return {
+        items: chosen ? chosen.order : plannedItems.slice(),
+        times: chosen ? chosen.scheduleTimes : plannedItems.map(i => i.startMinutes),
+        metrics: {
+          totalKm: chosen ? chosen.totalKm : 0,
+          travelSeconds: chosen ? chosen.travelSeconds : 0,
+          waitMinutes: chosen ? chosen.waitMinutes : 0,
+          endTime: chosen ? chosen.endTime : teamStartMin,
+          startTime: chosen && Array.isArray(chosen.scheduleTimes) && chosen.scheduleTimes.length ? chosen.scheduleTimes[0] : teamStartMin,
+          lunchMinutes,
+          lunchStart: chosen ? chosen.lunchStart : null,
+          alerts: chosen ? chosen.alerts : ['Sem solução válida'],
+          valid: !!(chosen && chosen.valid)
+        }
+      };
+    };
+
+    const plannedOrder = plannedItems.slice().sort((a, b) => a.startMinutes - b.startMinutes);
+    let plannedMetrics = null;
+    if (plannedOrder.length) {
+      let totalKm = 0;
+      let travelSeconds = 0;
+      let waitMinutes = 0;
+      for (let i = 0; i < plannedOrder.length - 1; i += 1) {
+        const cur = plannedOrder[i];
+        const next = plannedOrder[i + 1];
+        const endCur = cur.startMinutes + cur.duration;
+        const gap = Math.max(0, next.startMinutes - endCur);
+        waitMinutes += gap;
+        const travel = getTravelInfo(cur.stamp, next.stamp);
+        travelSeconds += travel.seconds;
+        totalKm += travel.km;
+      }
+      const endTime = plannedOrder[plannedOrder.length - 1].startMinutes + plannedOrder[plannedOrder.length - 1].duration;
+      let lunchStart = null;
+      for (let i = 0; i < plannedOrder.length - 1; i += 1) {
+        const endCur = plannedOrder[i].startMinutes + plannedOrder[i].duration;
+        const nextStart = plannedOrder[i + 1].startMinutes;
+        const gapStart = Math.max(endCur, LUNCH_START);
+        const gapEnd = Math.min(nextStart, LUNCH_END);
+        if (gapEnd - gapStart >= lunchMinutes) {
+          lunchStart = gapStart;
+          break;
+        }
+      }
+      if (lunchStart == null) {
+        const gapStart = Math.max(endTime, LUNCH_START);
+        if (LUNCH_END - gapStart >= lunchMinutes) {
+          lunchStart = gapStart;
+        }
+      }
+      plannedMetrics = {
+        totalKm,
+        travelSeconds,
+        waitMinutes,
+        endTime,
+        lunchMinutes,
+        lunchStart
+      };
+    }
+
+    if (plannedMetrics) {
+      const plannedMeta = document.createElement('div');
+      plannedMeta.className = 'planner2-team-section-meta';
+      const travelMinutes = Math.round((plannedMetrics.travelSeconds || 0) / 60);
+      const endText = minutesToTime(plannedMetrics.endTime || teamStartMin);
+      plannedMeta.textContent = `${Number(plannedMetrics.totalKm || 0).toFixed(2)} km · Desloc. ${formatMinutes(travelMinutes)} · Espera ${formatMinutes(plannedMetrics.waitMinutes || 0)} · Fim ${endText} · Almoço ${plannedMetrics.lunchMinutes || 0}m`;
+      plannedWrap.appendChild(plannedMeta);
+    }
+
+    plannedWrap.appendChild(buildSequence(plannedItems, plannedTimes, plannedMetrics));
+
+    const suggestion = buildSuggestionOrder();
+    const suggestedItems = suggestion.items || [];
+    const suggestionTimes = suggestion.times || plannedTimes;
+    const suggestionMetrics = suggestion.metrics || {};
     const suggestedWrap = document.createElement('div');
     suggestedWrap.className = 'planner2-team-section planner2-team-section-suggested';
     const suggestedHeader = document.createElement('div');
@@ -450,8 +709,27 @@ const renderPlanner2TeamCards = () => {
     suggestedTitle.className = 'planner2-team-section-title';
     const sameOrder = suggestedItems.length === plannedItems.length
       && suggestedItems.every((item, idx) => item === plannedItems[idx]);
+    const plannedScore = plannedMetrics ? (
+      (plannedMetrics.endTime || 0) * 1000000
+      + (plannedMetrics.waitMinutes || 0) * 1000
+      + (plannedMetrics.travelSeconds || 0)
+      + (plannedMetrics.totalKm || 0)
+    ) : null;
+    const suggestedScore = suggestionMetrics ? (
+      (suggestionMetrics.endTime || 0) * 1000000
+      + (suggestionMetrics.waitMinutes || 0) * 1000
+      + (suggestionMetrics.travelSeconds || 0)
+      + (suggestionMetrics.totalKm || 0)
+    ) : null;
+    const suggestionWorseOrEqual = plannedScore != null && suggestedScore != null && suggestedScore >= plannedScore;
     suggestedTitle.textContent = 'Sugestão';
-    if (!sameOrder) {
+    if (!sameOrder && !suggestionWorseOrEqual) {
+      const metaLine = document.createElement('div');
+      metaLine.className = 'planner2-team-section-meta';
+      const travelMinutes = Math.round((suggestionMetrics.travelSeconds || 0) / 60);
+      const fallbackStart = plannedTimes.length ? plannedTimes[0] : 0;
+      const endText = minutesToTime(suggestionMetrics.endTime || fallbackStart);
+      metaLine.textContent = `${Number(suggestionMetrics.totalKm || 0).toFixed(2)} km · Desloc. ${formatMinutes(travelMinutes)} · Espera ${formatMinutes(suggestionMetrics.waitMinutes || 0)} · Fim ${endText} · Almoço ${suggestionMetrics.lunchMinutes || 0}m`;
       const applyBtn = document.createElement('button');
       applyBtn.type = 'button';
       applyBtn.className = 'btn btn-sm btn-outline-primary planner2-team-apply';
@@ -474,7 +752,14 @@ const renderPlanner2TeamCards = () => {
       suggestedHeader.appendChild(suggestedTitle);
       suggestedHeader.appendChild(applyBtn);
       suggestedWrap.appendChild(suggestedHeader);
-      suggestedWrap.appendChild(buildSequence(suggestedItems, plannedTimes));
+      suggestedWrap.appendChild(metaLine);
+      if (Array.isArray(suggestionMetrics.alerts) && suggestionMetrics.alerts.length) {
+        const alertLine = document.createElement('div');
+        alertLine.className = 'planner2-team-section-alerts';
+        alertLine.textContent = suggestionMetrics.alerts.join(' | ');
+        suggestedWrap.appendChild(alertLine);
+      }
+      suggestedWrap.appendChild(buildSequence(suggestedItems, suggestionTimes, suggestionMetrics));
       card.appendChild(plannedWrap);
       card.appendChild(suggestedWrap);
     } else {

@@ -16,6 +16,8 @@ class Menu(db.Model):
     icone     = db.Column(db.String(100), nullable=False)
     form      = db.Column(db.String(200), nullable=True)  # rota de form específico (opcional)
 
+    novo      = db.Column(db.Boolean, nullable=False, default=False)
+
 class Campo(db.Model):
     __tablename__ = 'CAMPOS'
     camposstamp       = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
