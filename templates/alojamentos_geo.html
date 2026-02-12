@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Geolocalização de Alojamentos{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+<div class="geo-topbar">
+  <button id="geoToggleAll" class="btn btn-outline-primary btn-sm" type="button">
+    Mostra Todos <span id="geoCount" class="geo-count">(0 no mapa)</span>
+  </button>
+</div>
+
+<div class="geo-page">
+  <div class="geo-left">
+    <div class="geo-list-header">
+      <input id="geoSearch" class="form-control" placeholder="Pesquisar alojamento..." />
+      <div id="geoListStatus" class="geo-status">A carregar...</div>
+    </div>
+    <div id="geoList" class="geo-list"></div>
+  </div>
+
+  <div class="geo-right">
+    <div class="geo-form card">
+      <div class="card-body">
+        <div class="geo-form-header">
+          <div>
+            <div id="geoSelectedName" class="geo-selected-name">Seleciona um alojamento</div>
+            <div id="geoDirty" class="geo-dirty">Alterações por guardar</div>
+          </div>
+          <div class="geo-actions">
+            <button id="geoLocate" class="btn btn-outline-primary btn-sm" type="button">Localizar no mapa</button>
+            <button id="geoReset" class="btn btn-outline-secondary btn-sm" type="button">Repor para BD</button>
+            <button id="geoSave" class="btn btn-primary btn-sm" type="button" disabled>Guardar coordenadas</button>
+          </div>
+        </div>
+        <div class="row g-2 mt-2">
+          <div class="col-md-6">
+            <label class="form-label">Morada</label>
+            <input id="geoMorada" class="form-control" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Código Postal</label>
+            <input id="geoCodpost" class="form-control" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Localidade</label>
+            <input id="geoLocal" class="form-control" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Latitude</label>
+            <input id="geoLat" class="form-control" readonly />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Longitude</label>
+            <input id="geoLon" class="form-control" readonly />
+          </div>
+        </div>
+        <div id="geoAlt" class="geo-alt"></div>
+      </div>
+    </div>
+
+    <div class="geo-map card">
+      <div class="card-body p-0">
+        <div id="geoMap"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="{{ url_for('static', filename='js/alojamentos_geo.js') }}"></script>
+{% endblock %}

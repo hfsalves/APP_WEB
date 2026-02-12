@@ -7,6 +7,7 @@ from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
 import uuid
 from datetime import date
+import json
 import re
 
 bp = Blueprint('generic', __name__, url_prefix='/generic')
@@ -1539,6 +1540,21 @@ def view_planner(planner_date):
     return render_template('planner.html', planner_date=planner_date)
 
 
+@bp.route('/planeamento_limpezas/', defaults={'planner_date': None})
+@bp.route('/planeamento_limpezas/<planner_date>')
+@login_required
+def view_planeamento_limpezas(planner_date):
+    try:
+        if planner_date:
+            datetime.strptime(planner_date, '%Y-%m-%d')
+        else:
+            planner_date = date.today().isoformat()
+    except ValueError:
+        return "Formato de data inválido (usa YYYY-MM-DD)", 400
+
+    return render_template('planeamento_limpezas.html', planner_date=planner_date, page_title='Planeamento de Limpezas')
+
+
 
 @bp.route('/api/cleaning_plan')
 def api_cleaning_plan():
@@ -1548,11 +1564,66 @@ def api_cleaning_plan():
       - date: 'YYYY-MM-DD'
     """
     date = request.args.get('date')
-    sql = text("""
+    try:
+        cols = db.session.execute(text("""
+            SELECT UPPER(COLUMN_NAME) AS COL
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'RS'
+        """)).fetchall()
+        rs_cols = {str(r[0] or '').strip().upper() for r in cols if r and r[0]}
+    except Exception:
+        rs_cols = set()
+
+    try:
+        al_cols = db.session.execute(text("""
+            SELECT UPPER(COLUMN_NAME) AS COL
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'AL'
+        """)).fetchall()
+        al_cols = {str(r[0] or '').strip().upper() for r in al_cols if r and r[0]}
+    except Exception:
+        al_cols = set()
+
+    def build_guest_expr(alias: str, field_name: str) -> str:
+        candidates = ['NOME', 'HOSPEDE', 'NOMEHOSPEDE', 'CLIENTE', 'NOMECLIENTE', 'NMAIRBNB', 'HOSPEDE_NOME']
+        cols = [c for c in candidates if c in rs_cols]
+        if not cols:
+            return f"'' AS {field_name}"
+        parts = [f"NULLIF(LTRIM(RTRIM({alias}.[{c}])), '')" for c in cols]
+        return f"COALESCE({', '.join(parts)}, '') AS {field_name}"
+
+    def build_country_expr(alias: str, field_name: str) -> str:
+        candidates = ['PAIS', 'NACIONALIDADE', 'NACAO']
+        cols = [c for c in candidates if c in rs_cols]
+        if not cols:
+            return f"'' AS {field_name}"
+        parts = [f"NULLIF(LTRIM(RTRIM({alias}.[{c}])), '')" for c in cols]
+        return f"COALESCE({', '.join(parts)}, '') AS {field_name}"
+
+    def build_al_expr(column: str, field_name: str) -> str:
+        if column not in al_cols:
+            return f"'' AS {field_name}"
+        return f"NULLIF(LTRIM(RTRIM(al.[{column}])), '') AS {field_name}"
+
+    guest_expr = build_guest_expr('co', 'checkout_guest')
+    guest_in_expr = build_guest_expr('ci', 'checkin_guest')
+    guest_occ_expr = build_guest_expr('oc_r', 'occupied_guest')
+    country_expr = build_country_expr('co', 'checkout_country')
+    country_in_expr = build_country_expr('ci', 'checkin_country')
+    country_occ_expr = build_country_expr('oc_r', 'occupied_country')
+
+    al_codpost_expr = build_al_expr('CODPOST', 'al_codpost')
+    al_local_expr = build_al_expr('LOCAL', 'al_local')
+    al_morada_expr = build_al_expr('MORADA', 'al_morada')
+
+    sql = text(f"""
         SELECT
           al.NOME                 AS lodging,
           al.TIPOLOGIA            AS typology,
           al.ZONA                 AS zone,
+          {al_codpost_expr},
+          {al_local_expr},
+          {al_morada_expr},
           -- Última equipa que limpou
           lc.last_team            AS last_team,
           -- Check-out do dia
@@ -1560,11 +1631,19 @@ def api_cleaning_plan():
           co.RESERVA              AS checkout_reservation,
           co.ADULTOS + co.CRIANCAS AS checkout_people,
           co.NOITES               AS checkout_nights,
+          {guest_expr},
+          {country_expr},
           -- Check-in do dia
           ci.HORAIN               AS checkin_time,
           ci.RESERVA              AS checkin_reservation,
           ci.ADULTOS + ci.CRIANCAS AS checkin_people,
           ci.NOITES               AS checkin_nights,
+          {guest_in_expr},
+          {country_in_expr},
+          ISNULL(oc_r.ADULTOS,0) + ISNULL(oc_r.CRIANCAS,0) AS occupied_people,
+          ISNULL(oc_r.NOITES,0) AS occupied_nights,
+          {guest_occ_expr},
+          {country_occ_expr},
           -- Limpezas já agendadas no dia
           pl_day.LPSTAMP          AS cleaning_id,
           pl_day.HORA             AS cleaning_time,
@@ -1638,11 +1717,11 @@ def api_cleaning_plan():
           WHERE CANCELADA = 0
             AND DATAIN < :date AND DATAOUT > :date
         ) oc ON oc.ALOJAMENTO = al.NOME
+        LEFT JOIN RS oc_r ON oc_r.RSSTAMP = oc.RSSTAMP
         LEFT JOIN LP pl_day ON pl_day.ALOJAMENTO = al.NOME AND pl_day.DATA = :date
         
         ORDER BY planner_status, al.ZONA, al.NOME
-    """,
-    )
+    """)
     # Execute and fetch mappings
     rows = db.session.execute(sql, {'date': date}).mappings().all()
 
@@ -1656,6 +1735,27 @@ def api_gravar_limpezas():
     if not limpezas:
         return jsonify(success=False, message="Nenhum dado recebido"), 400
     for lp in limpezas:
+        lpstamp = lp.get("LPSTAMP") or lp.get("lpstamp")
+        if lpstamp:
+            res = db.session.execute(
+                text("""
+                UPDATE LP
+                SET ALOJAMENTO = :alojamento,
+                    DATA = :data,
+                    HORA = :hora,
+                    EQUIPA = :equipa
+                WHERE LPSTAMP = :lpstamp
+                """),
+                dict(
+                    lpstamp=lpstamp,
+                    alojamento=lp["ALOJAMENTO"],
+                    data=lp["DATA"],
+                    hora=lp["HORA"],
+                    equipa=lp["EQUIPA"]
+                )
+            )
+            if res.rowcount:
+                continue
         # Verifica se jÃ¡ existe (mesmo ALOJAMENTO, DATA, HORA, EQUIPA)
         reg = db.session.execute(
             text("""
@@ -1689,6 +1789,115 @@ def api_gravar_limpezas():
         )
     db.session.commit()
     return jsonify(success=True)
+
+
+_osm_geocode_cache = {}
+_osm_distance_cache = {}
+
+
+def _osm_fetch_json(url: str):
+    from urllib.request import Request, urlopen
+    req = Request(
+        url,
+        headers={
+            "User-Agent": "APP_WEB/1.0 (planner)"
+        }
+    )
+    with urlopen(req, timeout=12) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _osm_geocode(address: str):
+    if not address:
+        return None
+    addr = address.strip()
+    if "portugal" not in addr.lower():
+        addr = f"{addr}, Portugal"
+    key = addr.lower().strip()
+    if key in _osm_geocode_cache:
+        return _osm_geocode_cache[key]
+    from urllib.parse import quote
+    postcode_match = re.search(r"\b\d{4}-\d{3}\b", addr)
+    city = ''
+    if ',' in addr:
+        parts = [p.strip() for p in addr.split(',') if p.strip()]
+        parts = [p for p in parts if p.lower() != 'portugal']
+        if parts:
+            city = parts[-1]
+            if postcode_match:
+                city = city.replace(postcode_match.group(0), '').strip()
+    if postcode_match and city:
+        postalcode = postcode_match.group(0)
+        primary = f"{postalcode} {city}, Portugal"
+        url = f"https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=pt&q={quote(primary)}"
+    elif postcode_match:
+        postalcode = postcode_match.group(0)
+        primary = f"{postalcode}, Portugal"
+        url = f"https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=pt&q={quote(primary)}"
+    else:
+        url = f"https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=pt&q={quote(addr)}"
+    try:
+        data = _osm_fetch_json(url)
+        if not data:
+            fallback_url = f"https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=pt&q={quote(addr)}"
+            data = _osm_fetch_json(fallback_url)
+        if not data:
+            _osm_geocode_cache[key] = None
+            return None
+        lat = float(data[0]["lat"])
+        lon = float(data[0]["lon"])
+        _osm_geocode_cache[key] = (lat, lon)
+        return lat, lon
+    except Exception:
+        _osm_geocode_cache[key] = None
+        return None
+
+
+def _osm_distance_km(addr_from: str, addr_to: str):
+    if not addr_from or not addr_to:
+        return None
+    if addr_from.strip().lower() == addr_to.strip().lower():
+        return 0.0
+    key = f"{addr_from}|||{addr_to}".lower().strip()
+    if key in _osm_distance_cache:
+        return _osm_distance_cache[key]
+    coords_from = _osm_geocode(addr_from)
+    coords_to = _osm_geocode(addr_to)
+    if not coords_from or not coords_to:
+        _osm_distance_cache[key] = None
+        return None
+    lat1, lon1 = coords_from
+    lat2, lon2 = coords_to
+    url = f"https://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
+    try:
+        data = _osm_fetch_json(url)
+        if not data or not data.get("routes"):
+            _osm_distance_cache[key] = None
+            return None
+        meters = data["routes"][0].get("distance", 0) or 0
+        km = round(float(meters) / 1000.0, 2)
+        _osm_distance_cache[key] = km
+        return km
+    except Exception:
+        _osm_distance_cache[key] = None
+        return None
+
+
+@bp.route("/api/osm_distances", methods=["POST"])
+@login_required
+def api_osm_distances():
+    payload = request.get_json() or {}
+    pairs = payload.get("pairs") or []
+    results = {}
+    for p in pairs:
+        key = p.get("key") or ""
+        addr_from = (p.get("from") or "").strip()
+        addr_to = (p.get("to") or "").strip()
+        if not key:
+            key = f"{addr_from}|||{addr_to}".strip()
+        km = _osm_distance_km(addr_from, addr_to)
+        results[key] = km
+    return jsonify(results)
 
 @bp.route('/api/update_campo', methods=['POST'])
 @login_required

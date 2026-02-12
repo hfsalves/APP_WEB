@@ -12,6 +12,8 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date, timedelta, time as dtime
 from sqlalchemy import text
+from urllib.request import Request, urlopen
+from urllib.parse import quote
 
 # Importa a instÃ¢ncia db e modelos
 from models import db, US, Menu, Acessos, Widget, UsWidget, MenuBotoes, Linhas
@@ -76,6 +78,12 @@ def create_app():
 
     from blueprints.anexos import bp as anexos_bp
     app.register_blueprint(anexos_bp)
+
+    @app.route('/planeamento_limpezas')
+    @app.route('/planeamento_limpezas/')
+    @login_required
+    def planeamento_limpezas_redirect():
+        return redirect(url_for('generic.view_planeamento_limpezas'))
 
     # Favicon at root path
     @app.route('/favicon.ico')
@@ -8502,6 +8510,112 @@ OPTION (MAXRECURSION 32767);
             return jsonify({ 'error': str(e) }), 500
 
 
+    @app.route('/alojamentos/geo')
+    @app.route('/alojamentos_geo')
+    @login_required
+    def alojamentos_geo_page():
+        return render_template('alojamentos_geo.html', page_title='Geolocalização de Alojamentos')
+
+
+    @app.route('/api/alojamentos_geo', methods=['GET'])
+    @login_required
+    def api_alojamentos_geo_list():
+        rows = db.session.execute(text("""
+            SELECT ALSTAMP, NOME, MORADA, CODPOST, LOCAL, LAT, LON
+            FROM AL
+            ORDER BY NOME
+        """)).mappings().all()
+        return jsonify([dict(r) for r in rows])
+
+
+    @app.route('/api/alojamentos_geo/<alstamp>', methods=['GET'])
+    @login_required
+    def api_alojamentos_geo_detail(alstamp):
+        row = db.session.execute(text("""
+            SELECT ALSTAMP, NOME, MORADA, CODPOST, LOCAL, LAT, LON
+            FROM AL
+            WHERE ALSTAMP = :alstamp
+        """), {'alstamp': alstamp}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Alojamento não encontrado'}), 404
+        return jsonify(dict(row))
+
+
+    @app.route('/api/alojamentos_geo/<alstamp>/coords', methods=['PUT'])
+    @login_required
+    def api_alojamentos_geo_update_coords(alstamp):
+        data = request.get_json() or {}
+        try:
+            lat = data.get('lat', None)
+            lon = data.get('lon', None)
+            if lat is None or lon is None:
+                return jsonify({'error': 'Latitude/Longitude em falta'}), 400
+            lat = round(float(lat), 6)
+            lon = round(float(lon), 6)
+        except Exception:
+            return jsonify({'error': 'Latitude/Longitude inválidas'}), 400
+
+        current = db.session.execute(text("""
+            SELECT MORADA, CODPOST, LOCAL
+            FROM AL
+            WHERE ALSTAMP = :alstamp
+        """), {'alstamp': alstamp}).mappings().first()
+        if not current:
+            return jsonify({'error': 'Alojamento não encontrado'}), 404
+
+        morada = data.get('morada', current.get('MORADA'))
+        codpost = data.get('codpost', current.get('CODPOST'))
+        local = data.get('local', current.get('LOCAL'))
+
+        db.session.execute(text("""
+            UPDATE AL
+            SET LAT = :lat,
+                LON = :lon,
+                MORADA = :morada,
+                CODPOST = :codpost,
+                LOCAL = :local
+            WHERE ALSTAMP = :alstamp
+        """), {
+            'lat': lat,
+            'lon': lon,
+            'morada': morada or '',
+            'codpost': codpost or '',
+            'local': local or '',
+            'alstamp': alstamp
+        })
+        db.session.commit()
+        return jsonify({'success': True})
+
+
+    @app.route('/api/alojamentos_geo/geocode', methods=['POST'])
+    @login_required
+    def api_alojamentos_geo_geocode():
+        payload = request.get_json() or {}
+        morada = (payload.get('morada') or '').strip()
+        codpost = (payload.get('codpost') or '').strip()
+        local = (payload.get('local') or '').strip()
+        limit = int(payload.get('limit') or 5)
+        query = _geo_build_query(morada, codpost, local)
+        if not query:
+            return jsonify({'error': 'Morada em falta'}), 400
+        url = f"https://nominatim.openstreetmap.org/search?format=json&limit={limit}&countrycodes=pt&q={quote(query)}"
+        try:
+            data = _geo_fetch_json(url)
+        except Exception:
+            return jsonify({'error': 'Falha ao contactar o serviço de geocoding'}), 502
+        results = []
+        for item in data or []:
+            try:
+                results.append({
+                    'display_name': item.get('display_name', ''),
+                    'lat': float(item.get('lat')),
+                    'lon': float(item.get('lon'))
+                })
+            except Exception:
+                continue
+        return jsonify({'results': results})
+
+
     # Report per client/month (HTML)
     @app.route('/report/<cliente_id>/<int:ano>/<int:mes>')
     @login_required
@@ -8677,6 +8791,30 @@ OPTION (MAXRECURSION 32767);
 
 
     return app
+
+
+def _geo_fetch_json(url: str):
+    req = Request(
+        url,
+        headers={
+            "User-Agent": "APP_WEB/1.0 (geo)"
+        }
+    )
+    with urlopen(req, timeout=12) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _geo_build_query(morada: str, codpost: str, local: str) -> str:
+    parts = [morada, codpost, local]
+    parts = [p.strip() for p in parts if p and str(p).strip()]
+    base = ", ".join(parts)
+    if not base:
+        return ""
+    if "portugal" not in base.lower():
+        base = f"{base}, Portugal"
+    return base
+
+
 
 
 app = create_app()
