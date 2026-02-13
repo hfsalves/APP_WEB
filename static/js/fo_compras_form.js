@@ -66,6 +66,7 @@ if (foStampInput && !foStampInput.value) {
 }
 // anexos
 const btnAddAnexo = document.getElementById('btnAddAnexo');
+const btnAnalyzeDoc = document.getElementById('btnAnalyzeDoc');
 const inputAnexoFile = document.getElementById('inputAnexoFile');
 const inputAnexoCamera = document.getElementById('inputAnexoCamera');
 const anexosList = document.getElementById('anexosList');
@@ -73,6 +74,14 @@ const anexoPreviewModalEl = document.getElementById('anexoPreviewModal');
 const anexoPreviewBody = document.getElementById('anexoPreviewBody');
 const anexoPreviewTitle = document.getElementById('anexoPreviewTitle');
 const anexoPreviewModal = anexoPreviewModalEl ? new bootstrap.Modal(anexoPreviewModalEl) : null;
+const docAnalyzeModalEl = document.getElementById('docAnalyzeModal');
+const docAnalyzeModal = docAnalyzeModalEl ? new bootstrap.Modal(docAnalyzeModalEl) : null;
+const docAnalyzeMeta = document.getElementById('docAnalyzeMeta');
+const docAnalyzeProbe = document.getElementById('docAnalyzeProbe');
+const docAnalyzeBody = document.getElementById('docAnalyzeBody');
+const btnImportDocData = document.getElementById('btnImportDocData');
+let foAnexosRows = [];
+let lastDocAnalyzeResult = null;
 
 function isFoLocked() {
   return Number(foPlanoValue) === 1 || foPagoLocked === true;
@@ -269,10 +278,13 @@ async function refreshAnexos() {
     const res = await fetch(`/api/anexos?table=${FO_TABLE}&rec=${currentFoStamp}`);
     if (!res.ok) throw new Error(res.statusText);
     const arr = await res.json();
+    foAnexosRows = Array.isArray(arr) ? arr : [];
     if (!arr.length) {
       anexosList.innerHTML = '<span class="text-muted small">Sem anexos.</span>';
+      if (btnAnalyzeDoc) btnAnalyzeDoc.disabled = true;
       return;
     }
+    if (btnAnalyzeDoc) btnAnalyzeDoc.disabled = false;
     anexosList.innerHTML = arr.map(a => `
       <div class="d-inline-flex align-items-center p-2 rounded-pill bg-light border">
         <a href="${a.CAMINHO}" target="_blank" class="text-decoration-none me-2">
@@ -297,7 +309,385 @@ async function refreshAnexos() {
       });
     });
   } catch (e) {
+    foAnexosRows = [];
     anexosList.innerHTML = '<span class="text-danger small">Erro ao carregar anexos.</span>';
+    if (btnAnalyzeDoc) btnAnalyzeDoc.disabled = true;
+  }
+}
+
+function getDefaultPdfAnexoId() {
+  const rows = Array.isArray(foAnexosRows) ? foAnexosRows : [];
+  if (!rows.length) return null;
+  const byPdf = rows.find(a => {
+    const tipo = (a.TIPO || '').toString().trim().toLowerCase();
+    const file = (a.FICHEIRO || '').toString().trim().toLowerCase();
+    return tipo === 'pdf' || file.endsWith('.pdf');
+  });
+  return (byPdf?.ANEXOSSTAMP || rows[0]?.ANEXOSSTAMP || null);
+}
+
+function renderDocAnalyzeResult(data) {
+  if (!docAnalyzeBody || !docAnalyzeMeta) return;
+  lastDocAnalyzeResult = data || null;
+  if (btnImportDocData) btnImportDocData.disabled = !(data && data.status === 'ok' && data.found);
+  const found = data?.found || {};
+  const fields = [
+    { label: 'ATCUD', key: 'atcud' },
+    { label: 'CPE', key: 'cpe' },
+    { label: 'Local Consumo', key: 'local_consumo' },
+    { label: 'Nº Documento', key: 'doc_no' },
+    { label: 'NIF Emitente', key: 'nif_emitente' },
+    { label: 'NIF Receptor', key: 'nif_receptor' },
+    { label: 'Data', key: 'data' },
+    { label: 'Total', key: 'total' },
+    { label: 'IVA', key: 'iva' },
+    { label: 'AT C (País Receptor)', key: 'at_c_pais_receptor' },
+    { label: 'AT D (Tipo Documento)', key: 'at_d_tipo_documento' },
+    { label: 'AT E (Estado Documento)', key: 'at_e_estado_documento' },
+    { label: 'AT F (Data Documento)', key: 'at_f_data_documento' },
+    { label: 'AT G (Número Documento)', key: 'at_g_numero_documento' },
+    { label: 'AT Q (Hash)', key: 'at_q_hash' },
+    { label: 'AT R (Software Cert.)', key: 'at_r_software_certificado' },
+    { label: 'AT I1', key: 'at_i1' },
+    { label: 'AT I2', key: 'at_i2' },
+    { label: 'AT I3', key: 'at_i3' },
+    { label: 'AT I4', key: 'at_i4' },
+    { label: 'AT I5', key: 'at_i5' },
+    { label: 'AT I6', key: 'at_i6' },
+    { label: 'AT I7', key: 'at_i7' },
+    { label: 'AT I8', key: 'at_i8' },
+    { label: 'QR (raw)', key: 'qr_raw', raw: true }
+  ];
+  const page = found?.page;
+  const method = found?.method;
+  docAnalyzeMeta.textContent = (page || method)
+    ? `Encontrado na página ${page ?? '-'} (método ${method ?? '-'})`
+    : (data?.message || '');
+
+  const probeText = (found?.first_text || '').toString().trim();
+  if (docAnalyzeProbe) {
+    const dbg = data?.debug || {};
+    const fileName = (data?.file?.name || '').toString().trim();
+    const filePath = (data?.file?.path || '').toString().trim();
+    const probePage = found?.first_text_page;
+    const pages = Number(dbg.pages_total || 0);
+    const attempts = Number(dbg.render_attempts || 0);
+    const textChars = Number(dbg.text_chars || 0);
+    const fileExists = !!dbg.file_exists;
+    const fileSize = Number(dbg.file_size || 0);
+    const deps = dbg.deps || {};
+    const depTxt = Object.keys(deps).length
+      ? Object.entries(deps).map(([k, v]) => `${k}:${v ? 'ok' : 'falta'}`).join(' · ')
+      : '-';
+    docAnalyzeProbe.style.display = '';
+    docAnalyzeProbe.innerHTML = `
+      <div class="fw-semibold mb-1">Diagnóstico da análise</div>
+      <div><strong>Ficheiro:</strong> ${escapeHtml(fileName || '-')}</div>
+      <div><strong>Caminho:</strong> ${escapeHtml(filePath || '-')}</div>
+      <div><strong>Existe no servidor:</strong> ${fileExists ? 'Sim' : 'Não'} · <strong>Tamanho:</strong> ${Number.isFinite(fileSize) ? fileSize : 0} bytes</div>
+      <div><strong>Páginas:</strong> ${Number.isFinite(pages) ? pages : 0} · <strong>Tentativas QR:</strong> ${Number.isFinite(attempts) ? attempts : 0} · <strong>Texto extraído (chars):</strong> ${Number.isFinite(textChars) ? textChars : 0}</div>
+      <div><strong>Dependências:</strong> ${escapeHtml(depTxt)}</div>
+      <div class="mt-2 fw-semibold">Primeiro texto lido${probePage ? ` (página ${probePage})` : ''}</div>
+      <div>${probeText ? escapeHtml(probeText) : '<span class="text-muted">Sem texto extraído.</span>'}</div>
+    `;
+  }
+
+  const rows = [];
+  fields.forEach(f => {
+    const v = found[f.key];
+    if (v == null || v === '') return;
+    const val = (typeof v === 'number') ? String(v) : (v || '').toString();
+    rows.push(`
+      <tr>
+        <td class="fw-semibold">${f.label}</td>
+        <td class="${f.raw ? 'qr-raw' : ''}">${escapeHtml(val)}</td>
+      </tr>
+    `);
+  });
+  if (!rows.length) {
+    rows.push('<tr><td colspan="2" class="text-muted">Não foram encontrados campos úteis.</td></tr>');
+  }
+  docAnalyzeBody.innerHTML = rows.join('');
+}
+
+function parseDocDateFromFound(found = {}) {
+  const v = (found.data || found.at_f_data_documento || '').toString().trim();
+  if (!v) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  if (/^\d{8}$/.test(v)) return `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`;
+  const m = v.match(/^(\d{2})[\/.-](\d{2})[\/.-](\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return '';
+}
+
+function parseNum(v) {
+  if (v == null) return 0;
+  const s = v.toString().trim();
+  if (!s) return 0;
+  let t = s.replace(/\s/g, '');
+  if (t.includes(',') && t.includes('.')) {
+    if (t.lastIndexOf(',') > t.lastIndexOf('.')) {
+      t = t.replace(/\./g, '').replace(',', '.');
+    } else {
+      t = t.replace(/,/g, '');
+    }
+  } else if (t.includes(',')) {
+    t = t.replace(/\./g, '').replace(',', '.');
+  } else {
+    t = t.replace(/,/g, '');
+  }
+  const n = Number(t);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function buildImportedLinesFromFound(found = {}) {
+  const pairs = [['at_i1', 'at_i2'], ['at_i3', 'at_i4'], ['at_i5', 'at_i6'], ['at_i7', 'at_i8']];
+  const out = [];
+  const headerCcusto = (document.getElementById('CCUSTO')?.value || '').toString().trim();
+  const dt = parseDocDateFromFound(found) || (document.getElementById('DATA')?.value || '');
+  pairs.forEach(([bKey, iKey], idx) => {
+    const base = parseNum(found[bKey]);
+    const iva = parseNum(found[iKey]);
+    if (base <= 0.000001 && iva <= 0.000001) return;
+    const taxa = base > 0 ? ((iva / base) * 100) : 0;
+    let tab = '';
+    if (Array.isArray(tabivaOptions) && tabivaOptions.length) {
+      let best = null;
+      let bestDiff = Number.POSITIVE_INFINITY;
+      tabivaOptions.forEach(o => {
+        const t = Number((o?.taxa ?? '').toString().replace(',', '.'));
+        if (!Number.isFinite(t)) return;
+        const diff = Math.abs(t - taxa);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          best = o;
+        }
+      });
+      if (best) tab = (best.tab ?? '').toString().trim();
+    }
+    out.push({
+      FNSTAMP: randomStamp(),
+      FOSTAMP: currentFoStamp,
+      REF: '',
+      DESIGN: `Importação QR AT ${idx + 1}`,
+      QTT: 1,
+      UNIDADE: '',
+      EPV: base.toFixed(2),
+      ETILIQUIDO: base.toFixed(2),
+      TABIVA: tab,
+      TAXAIVA: taxa.toFixed(2),
+      IVAINCL: 0,
+      FNCCUSTO: headerCcusto,
+      DTCUSTO: dt,
+      FAMILIA: '',
+      LORDEM: out.length + 1,
+      __new: true
+    });
+  });
+  return out;
+}
+
+async function fillFornecedorByNif(nif) {
+  const nifDigits = (nif || '').toString().replace(/\D+/g, '');
+  if (nifDigits.length < 9) return null;
+  try {
+    const res = await fetch(`/api/fo_compras/fornecedor_por_nif?nif=${encodeURIComponent(nifDigits)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok || !data?.found) return null;
+    const f = data.found;
+    const noEl = document.getElementById('NO');
+    const nomeEl = document.getElementById('NOME');
+    const ncontEl = document.getElementById('NCONT');
+    const moradaEl = document.getElementById('MORADA');
+    const localEl = document.getElementById('LOCAL');
+    const codpostEl = document.getElementById('CODPOST');
+    if (noEl) noEl.value = (f.NO ?? '').toString().trim();
+    if (nomeEl) nomeEl.value = (f.NOME ?? '').toString().trim();
+    if (ncontEl) ncontEl.value = (f.NCONT ?? '').toString().trim();
+    if (moradaEl) moradaEl.value = (f.MORADA ?? '').toString().trim();
+    if (localEl) localEl.value = (f.LOCAL ?? '').toString().trim();
+    if (codpostEl) codpostEl.value = (f.CODPOST ?? '').toString().trim();
+    return f;
+  } catch (_) {}
+  return null;
+}
+
+async function fetchRefsByFornecedor(no) {
+  const noTxt = (no ?? '').toString().trim();
+  if (!noTxt) return new Map();
+  try {
+    const res = await fetch(`/api/fo_compras/refs_por_fornecedor?no=${encodeURIComponent(noTxt)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok || !Array.isArray(data?.items)) return new Map();
+    const m = new Map();
+    data.items.forEach(it => {
+      const tab = (it.TABIVA ?? '').toString().trim();
+      const ref = (it.REF ?? '').toString().trim();
+      if (!tab || !ref) return;
+      if (!m.has(tab)) m.set(tab, ref);
+    });
+    return m;
+  } catch (_) {
+    return new Map();
+  }
+}
+
+async function fetchCcustoByConsumo(cpe, lconsumo) {
+  const cpeTxt = (cpe || '').toString().trim();
+  const lcTxt = (lconsumo || '').toString().trim();
+  if (!cpeTxt && !lcTxt) return null;
+  try {
+    const qs = new URLSearchParams();
+    if (cpeTxt) qs.set('cpe', cpeTxt);
+    if (lcTxt) qs.set('lconsumo', lcTxt);
+    const res = await fetch(`/api/fo_compras/ccusto_por_consumo?${qs.toString()}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok || !data?.found) return null;
+    return data.found;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function fetchArtigoByRef(ref, preferTabiva = '') {
+  const refTxt = (ref || '').toString().trim();
+  if (!refTxt) return null;
+  try {
+    const res = await fetch(`/generic/api/fo/search_artigos?q=${encodeURIComponent(refTxt)}`);
+    const arr = await res.json().catch(() => []);
+    if (!res.ok || !Array.isArray(arr) || !arr.length) return null;
+    const prefer = (preferTabiva || '').toString().trim();
+    const exact = arr.filter(x => (x.REF || '').toString().trim().toUpperCase() === refTxt.toUpperCase());
+    if (!exact.length) return null;
+    if (prefer) {
+      const m = exact.find(x => (x.TABIVA || '').toString().trim() === prefer);
+      if (m) return m;
+    }
+    return exact[0];
+  } catch (_) {
+    return null;
+  }
+}
+
+async function enrichImportedLinesByRef(importedLines = []) {
+  const refs = Array.from(new Set((importedLines || []).map(l => (l.REF || '').toString().trim()).filter(Boolean)));
+  if (!refs.length) return importedLines;
+  const artigoCache = new Map();
+  for (const line of importedLines) {
+    const ref = (line.REF || '').toString().trim();
+    if (!ref) continue;
+    const key = `${ref}||${(line.TABIVA || '').toString().trim()}`;
+    if (!artigoCache.has(key)) {
+      const item = await fetchArtigoByRef(ref, line.TABIVA || '');
+      artigoCache.set(key, item || null);
+    }
+    const artigo = artigoCache.get(key);
+    if (!artigo) continue;
+    line.REF = (artigo.REF || line.REF || '').toString().trim();
+    line.DESIGN = (artigo.DESIGN || line.DESIGN || '').toString().trim();
+    line.FAMILIA = (artigo.FAMILIA || line.FAMILIA || '').toString().trim();
+    const tab = (artigo.TABIVA || '').toString().trim();
+    if (tab) {
+      line.TABIVA = tab;
+      line.TAXAIVA = getTaxaForTabiva(tab) || line.TAXAIVA;
+    }
+  }
+  return importedLines;
+}
+
+async function importDocAnalyzeToForm() {
+  const found = lastDocAnalyzeResult?.found || null;
+  if (!found) return;
+  const docDate = parseDocDateFromFound(found);
+  const adoc = (found.doc_no || found.at_g_numero_documento || '').toString().trim();
+  if (docDate) {
+    const dataEl = document.getElementById('DATA');
+    const docEl = document.getElementById('DOCDATA');
+    if (dataEl) dataEl.value = docDate;
+    if (docEl) docEl.value = docDate;
+  }
+  if (adoc) {
+    const adocEl = document.getElementById('ADOC');
+    if (adocEl) adocEl.value = adoc;
+  }
+  const fornecedorFound = await fillFornecedorByNif(found.nif_emitente || found.at_a_nif_emitente || '');
+
+  // Se vier CPE ou Local Consumo no PDF, tenta mapear para alojamento/CCUSTO
+  const ccByConsumo = await fetchCcustoByConsumo(found.cpe || '', found.local_consumo || '');
+  if (ccByConsumo?.CCUSTO) {
+    const ccEl = document.getElementById('CCUSTO');
+    if (ccEl) {
+      const ccVal = (ccByConsumo.CCUSTO || '').toString().trim();
+      if (ccVal) {
+        let opt = Array.from(ccEl.options || []).find(o => (o.value || '').toString().trim() === ccVal);
+        if (!opt) {
+          opt = document.createElement('option');
+          opt.value = ccVal;
+          opt.textContent = ccVal;
+          ccEl.appendChild(opt);
+        }
+        ccEl.value = ccVal;
+      }
+    }
+  }
+
+  const importedLines = buildImportedLinesFromFound(found);
+  if (importedLines.length) {
+    const noAtual = (document.getElementById('NO')?.value || fornecedorFound?.NO || '').toString().trim();
+    const refsMap = await fetchRefsByFornecedor(noAtual);
+    if (refsMap.size) {
+      importedLines.forEach(l => {
+        const tab = (l.TABIVA ?? '').toString().trim();
+        if (!tab) return;
+        const ref = refsMap.get(tab);
+        if (ref) l.REF = ref;
+      });
+    }
+    await enrichImportedLinesByRef(importedLines);
+    if (linesData.length) {
+      const okReplace = confirm('Substituir as linhas atuais pelas linhas importadas do QR?');
+      if (!okReplace) return;
+    }
+    linesData = importedLines;
+    deletedLineIds = [];
+    normalizeLineOrder();
+    renderLines();
+    recalcTotals();
+  }
+  docAnalyzeModal?.hide();
+}
+
+async function analyzeDocumento() {
+  if (!currentFoStamp) {
+    alert('Guarda primeiro a compra para poder analisar anexos.');
+    return;
+  }
+  const anexoId = getDefaultPdfAnexoId();
+  const oldText = btnAnalyzeDoc?.innerHTML;
+  if (btnAnalyzeDoc) {
+    btnAnalyzeDoc.disabled = true;
+    btnAnalyzeDoc.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>A analisar...';
+  }
+  try {
+    const res = await fetch(`/api/fo_compras/${encodeURIComponent(currentFoStamp)}/analisar_documento`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(anexoId ? { anexo_id: anexoId } : {})
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.status === 'error') {
+      alert(data.error || data.message || 'Erro ao analisar documento.');
+      return;
+    }
+    renderDocAnalyzeResult(data);
+    docAnalyzeModal?.show();
+  } catch (e) {
+    alert('Erro ao analisar documento.');
+  } finally {
+    if (btnAnalyzeDoc) {
+      btnAnalyzeDoc.disabled = false;
+      btnAnalyzeDoc.innerHTML = oldText || '<i class="fa-solid fa-qrcode"></i> Ler documento (QR/ATCUD)';
+    }
   }
 }
 
@@ -1879,6 +2269,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     inputAnexoCamera.value = '';
   });
   refreshAnexos();
+  btnAnalyzeDoc?.addEventListener('click', analyzeDocumento);
+  btnImportDocData?.addEventListener('click', importDocAnalyzeToForm);
 
   linesTableBody?.addEventListener('click', e => {
     const btn = e.target.closest('button[data-action]');

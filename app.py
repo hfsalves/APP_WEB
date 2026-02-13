@@ -8,6 +8,9 @@ import threading
 import time
 import uuid
 import unicodedata
+import re
+import io
+import importlib.util
 from decimal import Decimal
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -5082,6 +5085,618 @@ OPTION (MAXRECURSION 32767);
         if record_stamp:
             return redirect(url_for('generic.fo_compras_form', record_stamp=record_stamp))
         return redirect(url_for('generic.fo_compras_form'))
+
+    fo_doc_extract_cache = {}
+
+    def _fo_pick_pdf_anexo(fostamp, anexo_id=None):
+        params = {'fostamp': (fostamp or '').strip()}
+        if anexo_id:
+            row = db.session.execute(text("""
+                SELECT TOP 1 ANEXOSSTAMP, RECSTAMP, FICHEIRO, CAMINHO, TIPO, DATA
+                FROM dbo.ANEXOS
+                WHERE LTRIM(RTRIM(ANEXOSSTAMP)) = :anx
+                  AND UPPER(LTRIM(RTRIM(TABELA))) = 'FO'
+                  AND LTRIM(RTRIM(RECSTAMP)) = :fostamp
+            """), {'anx': anexo_id.strip(), **params}).mappings().first()
+            if row:
+                return dict(row)
+
+        row = db.session.execute(text("""
+            SELECT TOP 1 ANEXOSSTAMP, RECSTAMP, FICHEIRO, CAMINHO, TIPO, DATA
+            FROM dbo.ANEXOS
+            WHERE UPPER(LTRIM(RTRIM(TABELA))) = 'FO'
+              AND LTRIM(RTRIM(RECSTAMP)) = :fostamp
+              AND (
+                    LOWER(LTRIM(RTRIM(ISNULL(TIPO,'')))) = 'pdf'
+                 OR LOWER(ISNULL(FICHEIRO,'')) LIKE '%.pdf'
+              )
+            ORDER BY DATA DESC, ANEXOSSTAMP DESC
+        """), params).mappings().first()
+        return dict(row) if row else None
+
+    def _fo_resolve_local_path(caminho: str):
+        p = (caminho or '').strip()
+        if not p:
+            return None
+        if p.startswith('http://') or p.startswith('https://'):
+            return None
+        if p.startswith('/'):
+            rel = p.lstrip('/').replace('/', os.sep)
+            return os.path.join(app.root_path, rel)
+        if os.path.isabs(p):
+            return p
+        return os.path.join(app.root_path, p.replace('/', os.sep))
+
+    def _fo_decode_qr_from_png_bytes(png_bytes: bytes, use_opencv=True):
+        def _qr_score(raw_val):
+            s = (raw_val or '').strip()
+            if not s:
+                return -999
+            su = s.upper()
+            score = 0
+            # QR fiscal AT costuma conter pares tipo A:, B:, H:... ou ATCUD explícito
+            if 'ATCUD' in su:
+                score += 50
+            if re.search(r'(^|[\*\|;])H:', su):
+                score += 40
+            if re.search(r'(^|[\*\|;])[A-Z]:', su):
+                score += 25
+            if '*' in s or ';' in s or '|' in s:
+                score += 10
+            # URL pura tende a não ser QR fiscal da AT
+            if su.startswith('HTTP://') or su.startswith('HTTPS://'):
+                score -= 30
+            # dimensão mínima útil
+            score += min(len(s) // 20, 10)
+            return score
+
+        best_raw = None
+        best_method = None
+        best_conf = None
+        best_score = -9999
+
+        # 1) pyzbar (principal) com pré-processamento e rotações
+        try:
+            from PIL import Image, ImageOps, ImageEnhance
+            from pyzbar.pyzbar import decode as zdecode, ZBarSymbol
+            img0 = Image.open(io.BytesIO(png_bytes)).convert('L')
+            variants = []
+            variants.append(img0)
+            variants.append(ImageOps.autocontrast(img0))
+            variants.append(ImageEnhance.Contrast(img0).enhance(1.8))
+            for base in list(variants):
+                variants.append(base.resize((int(base.width * 1.5), int(base.height * 1.5))))
+            tried = []
+            for v in variants:
+                for ang in (0, 90, 180, 270):
+                    vv = v.rotate(ang, expand=True) if ang else v
+                    key = (vv.width, vv.height, ang)
+                    if key in tried:
+                        continue
+                    tried.append(key)
+                    dec = zdecode(vv, symbols=[ZBarSymbol.QRCODE])
+                    for d in dec or []:
+                        raw = (d.data or b'').decode('utf-8', errors='ignore').strip()
+                        if raw:
+                            sc = _qr_score(raw)
+                            if sc > best_score:
+                                best_score = sc
+                                best_raw = raw
+                                best_method = 'pyzbar'
+                                best_conf = 0.95
+        except Exception:
+            pass
+        # 2) OpenCV fallback com grayscale/threshold e rotações
+        try:
+            if not use_opencv:
+                return best_raw, best_method, best_conf, best_score
+            import cv2
+            import numpy as np
+            try:
+                cv2.setLogLevel(0)
+            except Exception:
+                try:
+                    cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
+                except Exception:
+                    pass
+            arr = np.frombuffer(png_bytes, dtype=np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is not None:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                _, th = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                variants = [img, cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(th, cv2.COLOR_GRAY2BGR)]
+                detector = cv2.QRCodeDetector()
+                for v in variants:
+                    for k in range(4):
+                        vv = np.rot90(v, k).copy() if k else v
+                        val, _, _ = detector.detectAndDecode(vv)
+                        val = (val or '').strip()
+                        if val:
+                            sc = _qr_score(val)
+                            if sc > best_score:
+                                best_score = sc
+                                best_raw = val
+                                best_method = 'opencv'
+                                best_conf = 0.75
+        except Exception:
+            pass
+        return best_raw, best_method, best_conf, best_score
+
+    def _fo_parse_found_fields(text_all, qr_raw=None):
+        found = {}
+        src = '\n'.join([qr_raw or '', text_all or ''])
+
+        def _parse_pt_num(s):
+            try:
+                raw = (s or '').strip().replace(' ', '')
+                if not raw:
+                    return None
+                # Suporta 137.80, 137,80, 1.234,56 e 1,234.56
+                if ',' in raw and '.' in raw:
+                    if raw.rfind(',') > raw.rfind('.'):
+                        # decimal = vírgula
+                        raw = raw.replace('.', '').replace(',', '.')
+                    else:
+                        # decimal = ponto
+                        raw = raw.replace(',', '')
+                elif ',' in raw:
+                    raw = raw.replace('.', '').replace(',', '.')
+                else:
+                    raw = raw.replace(',', '')
+                return float(raw)
+            except Exception:
+                return None
+
+        qr_map = {}
+        if qr_raw:
+            # Formato AT típico: A:...*B:...*C:... (ou ; como separador)
+            parts = re.split(r'[\*;]', qr_raw)
+            for p in parts:
+                if ':' not in p:
+                    continue
+                k, v = p.split(':', 1)
+                k = (k or '').strip().upper()
+                v = (v or '').strip()
+                if k:
+                    qr_map[k] = v
+
+        if qr_raw:
+            found['qr_raw'] = qr_raw
+
+        m_atcud = re.search(r'\bATCUD\s*[:=]?\s*([A-Z0-9\-/\.]+)', src, re.IGNORECASE)
+        if not m_atcud and qr_raw:
+            m_atcud = re.search(r'(?:^|[\*\|;])H:([^*\|;\r\n]+)', qr_raw, re.IGNORECASE)
+        if m_atcud:
+            found['atcud'] = (m_atcud.group(1) or '').strip()
+        elif qr_map.get('H'):
+            found['atcud'] = qr_map.get('H')
+
+        m_doc = re.search(r'(?:N[ºO]\s*DOC(?:UMENTO)?|DOC(?:UMENTO)?|FATURA|FACTURA|RECIBO)\s*[:#]?\s*([A-Z0-9][A-Z0-9/\-\. ]{2,50})', text_all or '', re.IGNORECASE)
+        if m_doc:
+            doc_candidate = (m_doc.group(1) or '').strip()
+            # Evitar capturar datas por engano (ex.: "11 fev 2026")
+            if not re.search(r'\b(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\b', doc_candidate.upper()):
+                found['doc_no'] = doc_candidate
+
+        # No QR AT: A = NIF emitente, B = NIF adquirente/receptor
+        if qr_map.get('A'):
+            found['nif_emitente'] = qr_map.get('A')
+        if qr_map.get('B'):
+            found['nif_receptor'] = qr_map.get('B')
+        if not found.get('nif_emitente'):
+            m_nif = re.search(r'NIF(?:\s+EMITENTE)?\s*[:#]?\s*(\d{9})', src, re.IGNORECASE)
+            if not m_nif:
+                m_nif = re.search(r'\b(\d{9})\b', src or '')
+            if m_nif:
+                found['nif_emitente'] = (m_nif.group(1) or '').strip()
+
+        m_date = re.search(r'\b(\d{2}[\/\-.]\d{2}[\/\-.]\d{4})\b', src or '')
+        if m_date:
+            d = (m_date.group(1) or '').replace('.', '-').replace('/', '-')
+            parts = d.split('-')
+            if len(parts) == 3:
+                found['data'] = f"{parts[2]}-{parts[1]}-{parts[0]}"
+        if qr_map.get('F') and re.match(r'^\d{8}$', qr_map.get('F') or ''):
+            f = qr_map.get('F')
+            found['data'] = f"{f[0:4]}-{f[4:6]}-{f[6:8]}"
+
+        m_total = re.search(r'(?:TOTAL(?:\s+A\s+PAGAR)?|VALOR\s+TOTAL)\s*[:=]?\s*([0-9\.\s]+,[0-9]{2})', text_all or '', re.IGNORECASE)
+        if m_total:
+            n = _parse_pt_num(m_total.group(1))
+            if n is not None:
+                found['total'] = round(n, 2)
+        if qr_map.get('O'):
+            n = _parse_pt_num(qr_map.get('O'))
+            if n is not None:
+                found['total'] = round(n, 2)
+
+        m_iva = re.search(r'\bIVA\b\s*[:=]?\s*([0-9\.\s]+,[0-9]{2})', text_all or '', re.IGNORECASE)
+        if m_iva:
+            n = _parse_pt_num(m_iva.group(1))
+            if n is not None:
+                found['iva'] = round(n, 2)
+        if qr_map.get('N'):
+            n = _parse_pt_num(qr_map.get('N'))
+            if n is not None:
+                found['iva'] = round(n, 2)
+
+        if qr_map.get('G'):
+            found['doc_no'] = qr_map.get('G')
+
+        # CPE (Código de Ponto de Entrega) - ex.: PT 0002 0000 3165 4577 TW
+        cpe_match = re.search(
+            r'\b(PT\s*\d{4}\s*\d{4}\s*\d{4}\s*\d{4}\s*[A-Z]{2})\b',
+            src or '',
+            re.IGNORECASE
+        )
+        if cpe_match:
+            cpe_raw = (cpe_match.group(1) or '').upper()
+            cpe_norm = re.sub(r'\s+', ' ', cpe_raw).strip()
+            found['cpe'] = cpe_norm
+
+        # Água - "Local Consumo: 79699"
+        m_local_consumo = re.search(r'\bLOCAL\s+CONSUMO\s*[:\-]?\s*([0-9]{3,20})\b', src or '', re.IGNORECASE)
+        if m_local_consumo:
+            found['local_consumo'] = (m_local_consumo.group(1) or '').strip()
+
+        # Desdobramento AT (principais variáveis)
+        if qr_map:
+            known = {
+                'A': 'at_a_nif_emitente',
+                'B': 'at_b_nif_receptor',
+                'C': 'at_c_pais_receptor',
+                'D': 'at_d_tipo_documento',
+                'E': 'at_e_estado_documento',
+                'F': 'at_f_data_documento',
+                'G': 'at_g_numero_documento',
+                'H': 'at_h_atcud',
+                'N': 'at_n_iva_total',
+                'O': 'at_o_total_documento',
+                'Q': 'at_q_hash',
+                'R': 'at_r_software_certificado'
+            }
+            for k, out_key in known.items():
+                if qr_map.get(k):
+                    found[out_key] = qr_map.get(k)
+            for k in sorted(qr_map.keys()):
+                if re.match(r'^I\d+$', k):
+                    found[f'at_{k.lower()}'] = qr_map.get(k)
+
+        return found
+
+    def _fo_analyze_pdf_document(local_pdf_path: str):
+        # Resultado base
+        out = {
+            'status': 'not_found',
+            'found': {},
+            'message': 'Não foi possível encontrar QR/ATCUD no documento.',
+            'debug': {
+                'pages_total': 0,
+                'render_attempts': 0,
+                'text_chars': 0,
+                'file_exists': False,
+                'file_size': 0,
+                'deps': {}
+            }
+        }
+        out['debug']['file_exists'] = bool(local_pdf_path and os.path.isfile(local_pdf_path))
+        if local_pdf_path and os.path.isfile(local_pdf_path):
+            try:
+                out['debug']['file_size'] = int(os.path.getsize(local_pdf_path) or 0)
+            except Exception:
+                out['debug']['file_size'] = 0
+        if not local_pdf_path or not os.path.isfile(local_pdf_path):
+            out['status'] = 'error'
+            out['message'] = 'Ficheiro não encontrado no servidor.'
+            return out
+
+        deps = {
+            'fitz': bool(importlib.util.find_spec('fitz')),
+            'pypdf': bool(importlib.util.find_spec('pypdf')),
+            'PIL': bool(importlib.util.find_spec('PIL')),
+            'pyzbar': bool(importlib.util.find_spec('pyzbar')),
+            'cv2': bool(importlib.util.find_spec('cv2')),
+        }
+        out['debug']['deps'] = deps
+        if not deps.get('fitz') and not deps.get('pypdf'):
+            out['status'] = 'error'
+            out['message'] = 'Dependências em falta para ler PDF (fitz/pypdf).'
+            return out
+
+        text_pages = []
+        first_text = ''
+        first_text_page = None
+        qr_raw = None
+        qr_page = None
+        qr_method = None
+        qr_conf = None
+        qr_score = -9999
+        render_attempts = 0
+
+        # PyMuPDF path (preferencial, por render+texto por página)
+        try:
+            import fitz
+            doc = fitz.open(local_pdf_path)
+            out['debug']['pages_total'] = int(doc.page_count or 0)
+            text_pages = [((p.get_text('text') or '')) for p in doc]
+            for idx_txt, t in enumerate(text_pages):
+                s = ' '.join((t or '').split())
+                if s:
+                    first_text = s[:600]
+                    first_text_page = idx_txt + 1
+                    break
+            fast_passes = [
+                {'dpi': 170, 'crop_mode': 'br'},
+                {'dpi': 240, 'crop_mode': 'br'},
+                {'dpi': 260, 'crop_mode': 'full'},
+            ]
+            fallback_passes = [
+                {'dpi': 320, 'crop_mode': 'full'},
+                {'dpi': 300, 'crop_mode': 'bl'},
+                {'dpi': 300, 'crop_mode': 'tr'},
+            ]
+            max_attempts = 80
+            for cfg in fast_passes:
+                for i, page in enumerate(doc):
+                    if render_attempts >= max_attempts:
+                        break
+                    rect = page.rect
+                    clip = None
+                    mode = (cfg.get('crop_mode') or 'full')
+                    if mode == 'br':
+                        clip = fitz.Rect(rect.width * 0.45, rect.height * 0.45, rect.width, rect.height)
+                    elif mode == 'bl':
+                        clip = fitz.Rect(0, rect.height * 0.45, rect.width * 0.55, rect.height)
+                    elif mode == 'tr':
+                        clip = fitz.Rect(rect.width * 0.45, 0, rect.width, rect.height * 0.55)
+                    render_attempts += 1
+                    pix = page.get_pixmap(dpi=cfg['dpi'], clip=clip, alpha=False)
+                    raw, method, conf, sc = _fo_decode_qr_from_png_bytes(pix.tobytes('png'), use_opencv=False)
+                    if raw and sc > qr_score:
+                        qr_raw = raw
+                        qr_page = i + 1
+                        qr_method = method
+                        qr_conf = conf
+                        qr_score = sc
+                if render_attempts >= max_attempts:
+                    break
+            # fallback com OpenCV apenas se pyzbar não encontrou nada útil
+            if not qr_raw:
+                for cfg in fallback_passes:
+                    for i, page in enumerate(doc):
+                        if render_attempts >= max_attempts:
+                            break
+                        rect = page.rect
+                        clip = None
+                        mode = (cfg.get('crop_mode') or 'full')
+                        if mode == 'br':
+                            clip = fitz.Rect(rect.width * 0.45, rect.height * 0.45, rect.width, rect.height)
+                        elif mode == 'bl':
+                            clip = fitz.Rect(0, rect.height * 0.45, rect.width * 0.55, rect.height)
+                        elif mode == 'tr':
+                            clip = fitz.Rect(rect.width * 0.45, 0, rect.width, rect.height * 0.55)
+                        render_attempts += 1
+                        pix = page.get_pixmap(dpi=cfg['dpi'], clip=clip, alpha=False)
+                        raw, method, conf, sc = _fo_decode_qr_from_png_bytes(pix.tobytes('png'), use_opencv=True)
+                        if raw and sc > qr_score:
+                            qr_raw = raw
+                            qr_page = i + 1
+                            qr_method = method
+                            qr_conf = conf
+                            qr_score = sc
+                    if render_attempts >= max_attempts:
+                        break
+            doc.close()
+        except Exception:
+            text_pages = []
+
+        # fallback texto sem fitz
+        if not text_pages:
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(local_pdf_path)
+                text_pages = [((p.extract_text() or '')) for p in reader.pages]
+                out['debug']['pages_total'] = max(int(out['debug'].get('pages_total') or 0), len(text_pages))
+                for idx_txt, t in enumerate(text_pages):
+                    s = ' '.join((t or '').split())
+                    if s:
+                        first_text = s[:600]
+                        first_text_page = idx_txt + 1
+                        break
+            except Exception:
+                text_pages = []
+
+        text_all = '\n'.join(text_pages or [])
+        out['debug']['render_attempts'] = int(render_attempts)
+        out['debug']['text_chars'] = int(len(text_all or ''))
+        out['debug']['attempts_limited'] = bool(render_attempts >= 80)
+        found = _fo_parse_found_fields(text_all=text_all, qr_raw=qr_raw)
+        if qr_page:
+            found['page'] = qr_page
+        if qr_method:
+            found['method'] = qr_method
+        if qr_conf is not None:
+            found['confidence'] = round(float(qr_conf), 2)
+        if qr_score > -9999:
+            found['qr_score'] = int(qr_score)
+        if first_text:
+            found['first_text'] = first_text
+            if first_text_page:
+                found['first_text_page'] = first_text_page
+
+        if found:
+            out['status'] = 'ok'
+            out['found'] = found
+            out['message'] = 'Documento analisado com sucesso.'
+        else:
+            # mensagem de fallback mais explícita quando falta stack de QR
+            if (not deps.get('pyzbar')) and (not deps.get('cv2')):
+                out['message'] = 'PDF lido, mas sem motor de QR instalado (pyzbar/cv2).'
+        return out
+
+    @app.route('/api/fo_compras/<fostamp>/analisar_documento', methods=['GET'])
+    @login_required
+    def api_fo_compras_analisar_documento_get(fostamp):
+        key = (fostamp or '').strip()
+        if not key:
+            return jsonify({'status': 'error', 'message': 'FOSTAMP inválido.'}), 400
+        cached = fo_doc_extract_cache.get(key)
+        if not cached:
+            return jsonify({'status': 'not_found', 'message': 'Sem resultado em cache.'})
+        return jsonify(cached)
+
+    @app.route('/api/fo_compras/<fostamp>/analisar_documento', methods=['POST'])
+    @login_required
+    def api_fo_compras_analisar_documento(fostamp):
+        try:
+            key = (fostamp or '').strip()
+            if not key:
+                return jsonify({'status': 'error', 'message': 'FOSTAMP inválido.'}), 400
+            payload = request.get_json(silent=True) or {}
+            anexo_id = (payload.get('anexo_id') or '').strip() or None
+
+            anx = _fo_pick_pdf_anexo(key, anexo_id=anexo_id)
+            if not anx:
+                result = {
+                    'status': 'not_found',
+                    'file': None,
+                    'found': {},
+                    'message': 'Não existe anexo PDF associado a esta compra.'
+                }
+                fo_doc_extract_cache[key] = result
+                return jsonify(result)
+
+            local_path = _fo_resolve_local_path(anx.get('CAMINHO'))
+            file_obj = {
+                'name': (anx.get('FICHEIRO') or '').strip(),
+                'path': local_path or (anx.get('CAMINHO') or '').strip()
+            }
+            ana = _fo_analyze_pdf_document(local_path)
+            result = {
+                'status': ana.get('status', 'error'),
+                'file': file_obj,
+                'found': ana.get('found') or {},
+                'message': ana.get('message') or '',
+                'debug': ana.get('debug') or {}
+            }
+            fo_doc_extract_cache[key] = result
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'file': None,
+                'found': {},
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/fo_compras/fornecedor_por_nif', methods=['GET'])
+    @login_required
+    def api_fo_compras_fornecedor_por_nif():
+        try:
+            nif = (request.args.get('nif') or '').strip()
+            nif_digits = re.sub(r'\D+', '', nif or '')
+            if len(nif_digits) < 9:
+                return jsonify({'ok': False, 'error': 'NIF inválido.'}), 400
+            row = db.session.execute(text("""
+                SELECT TOP 1
+                    NO,
+                    NOME,
+                    NCONT,
+                    ISNULL(MORADA,'') AS MORADA,
+                    ISNULL(LOCAL,'') AS LOCAL,
+                    ISNULL(CODPOST,'') AS CODPOST
+                FROM dbo.V_FL
+                WHERE REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(NCONT,''))), ' ', ''), '-', ''), '.', '') = :nif
+                ORDER BY NOME
+            """), {'nif': nif_digits}).mappings().first()
+            if not row:
+                return jsonify({'ok': False, 'found': None, 'message': 'Fornecedor não encontrado para o NIF indicado.'})
+            return jsonify({'ok': True, 'found': dict(row)})
+        except Exception as e:
+            return jsonify({'ok': False, 'error': str(e)}), 500
+
+    @app.route('/api/fo_compras/refs_por_fornecedor', methods=['GET'])
+    @login_required
+    def api_fo_compras_refs_por_fornecedor():
+        try:
+            no_raw = (request.args.get('no') or '').strip()
+            try:
+                no_val = int(float(no_raw))
+            except Exception:
+                return jsonify({'ok': False, 'error': 'NO inválido.'}), 400
+
+            rows = db.session.execute(text("""
+                SELECT
+                    CAST(NO AS int) AS NO,
+                    LTRIM(RTRIM(ISNULL(REF,''))) AS REF,
+                    LTRIM(RTRIM(CAST(ISNULL(TABIVA,'') AS varchar(20)))) AS TABIVA
+                FROM dbo.V_REFS
+                WHERE CAST(NO AS int) = :no
+            """), {'no': no_val}).mappings().all()
+
+            out = []
+            for r in rows:
+                ref = (r.get('REF') or '').strip()
+                tab = (r.get('TABIVA') or '').strip()
+                if not ref or not tab:
+                    continue
+                out.append({
+                    'NO': int(r.get('NO') or no_val),
+                    'REF': ref,
+                    'TABIVA': tab
+                })
+            return jsonify({'ok': True, 'items': out})
+        except Exception as e:
+            return jsonify({'ok': False, 'error': str(e)}), 500
+
+    @app.route('/api/fo_compras/ccusto_por_consumo', methods=['GET'])
+    @login_required
+    def api_fo_compras_ccusto_por_consumo():
+        try:
+            cpe = (request.args.get('cpe') or '').strip()
+            lconsumo = (request.args.get('lconsumo') or '').strip()
+            cpe_norm = re.sub(r'[\s\-]+', '', cpe.upper())
+            lconsumo_norm = re.sub(r'\s+', '', lconsumo)
+            if not cpe_norm and not lconsumo_norm:
+                return jsonify({'ok': False, 'error': 'Parâmetros em falta (cpe/lconsumo).'}), 400
+
+            row = db.session.execute(text("""
+                SELECT TOP 1
+                    LTRIM(RTRIM(ISNULL(CCUSTO,''))) AS CCUSTO,
+                    LTRIM(RTRIM(ISNULL(NOME,''))) AS NOME,
+                    LTRIM(RTRIM(ISNULL(CPE,''))) AS CPE,
+                    LTRIM(RTRIM(ISNULL(LCONSUMO,''))) AS LCONSUMO
+                FROM dbo.AL
+                WHERE (
+                        :cpe_norm <> ''
+                        AND REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(CPE,'')))), ' ', ''), '-', '') = :cpe_norm
+                      )
+                   OR (
+                        :lconsumo_norm <> ''
+                        AND REPLACE(LTRIM(RTRIM(ISNULL(LCONSUMO,''))), ' ', '') = :lconsumo_norm
+                      )
+                ORDER BY
+                    CASE
+                        WHEN :cpe_norm <> '' AND REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(CPE,'')))), ' ', ''), '-', '') = :cpe_norm
+                             AND :lconsumo_norm <> '' AND REPLACE(LTRIM(RTRIM(ISNULL(LCONSUMO,''))), ' ', '') = :lconsumo_norm
+                            THEN 0
+                        WHEN :cpe_norm <> '' AND REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(CPE,'')))), ' ', ''), '-', '') = :cpe_norm
+                            THEN 1
+                        WHEN :lconsumo_norm <> '' AND REPLACE(LTRIM(RTRIM(ISNULL(LCONSUMO,''))), ' ', '') = :lconsumo_norm
+                            THEN 2
+                        ELSE 9
+                    END,
+                    NOME
+            """), {
+                'cpe_norm': cpe_norm,
+                'lconsumo_norm': lconsumo_norm
+            }).mappings().first()
+
+            if not row:
+                return jsonify({'ok': False, 'found': None, 'message': 'Sem alojamento para CPE/Local Consumo.'})
+            return jsonify({'ok': True, 'found': dict(row)})
+        except Exception as e:
+            return jsonify({'ok': False, 'error': str(e)}), 500
 
     @app.route('/api/cc_fornecedores/resumo')
     @login_required

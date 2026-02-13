@@ -150,6 +150,9 @@
         <button type="button" class="btn btn-outline-primary btn-sm" id="btnAddAnexo">
           <i class="fa fa-paperclip"></i> Anexar
         </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAnalyzeDoc">
+          <i class="fa-solid fa-qrcode"></i> Ler documento (QR/ATCUD)
+        </button>
       </div>
     </div>
     <input type="file" id="inputAnexoFile" style="display:none" />
@@ -184,6 +187,37 @@
       </div>
       <div class="modal-body p-0 anexo-modal-body" id="anexoPreviewBody">
         <div class="text-muted small p-3">Selecione um anexo para visualizar.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal análise documento -->
+<div class="modal fade" id="docAnalyzeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Dados encontrados no documento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="docAnalyzeMeta" class="small text-muted mb-2"></div>
+        <div id="docAnalyzeProbe" class="alert alert-light border small mb-3" style="display:none;"></div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="width: 200px;">Campo</th>
+                <th>Valor encontrado</th>
+              </tr>
+            </thead>
+            <tbody id="docAnalyzeBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="btnImportDocData">Importar para documento</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>
@@ -778,6 +812,15 @@
     background: #198754 !important;
     color: #fff !important;
     border-color: #146c43 !important;
+  }
+  #docAnalyzeBody td {
+    font-size: 0.88rem;
+  }
+  #docAnalyzeBody td.qr-raw {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
   }
 </style>
 {% endblock %}
