@@ -672,7 +672,11 @@ async function analyzeDocumento() {
     const res = await fetch(`/api/fo_compras/${encodeURIComponent(currentFoStamp)}/analisar_documento`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(anexoId ? { anexo_id: anexoId } : {})
+      body: JSON.stringify({
+        ...(anexoId ? { anexo_id: anexoId } : {}),
+        fast_mode: true,
+        allow_opencv_fallback: false
+      })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.status === 'error') {

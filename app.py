@@ -5367,8 +5367,9 @@ OPTION (MAXRECURSION 32767);
 
         return found
 
-    def _fo_analyze_pdf_document(local_pdf_path: str):
+    def _fo_analyze_pdf_document(local_pdf_path: str, fast_mode=True, allow_opencv_fallback=False):
         # Resultado base
+        t0 = time.time()
         out = {
             'status': 'not_found',
             'found': {},
@@ -5379,7 +5380,11 @@ OPTION (MAXRECURSION 32767);
                 'text_chars': 0,
                 'file_exists': False,
                 'file_size': 0,
-                'deps': {}
+                'deps': {},
+                'fast_mode': bool(fast_mode),
+                'allow_opencv_fallback': bool(allow_opencv_fallback),
+                'elapsed_ms': 0,
+                'pages_scanned': 0
             }
         }
         out['debug']['file_exists'] = bool(local_pdf_path and os.path.isfile(local_pdf_path))
@@ -5420,9 +5425,16 @@ OPTION (MAXRECURSION 32767);
         try:
             import fitz
             doc = fitz.open(local_pdf_path)
-            out['debug']['pages_total'] = int(doc.page_count or 0)
-            text_pages = [((p.get_text('text') or '')) for p in doc]
-            for idx_txt, t in enumerate(text_pages):
+            total_pages = int(doc.page_count or 0)
+            out['debug']['pages_total'] = total_pages
+            max_pages_scan = min(total_pages, 4 if fast_mode else total_pages)
+            page_indexes = list(range(max_pages_scan))
+            out['debug']['pages_scanned'] = len(page_indexes)
+
+            text_pages = []
+            for idx_txt in page_indexes:
+                t = (doc[idx_txt].get_text('text') or '')
+                text_pages.append(t)
                 s = ' '.join((t or '').split())
                 if s:
                     first_text = s[:600]
@@ -5438,11 +5450,12 @@ OPTION (MAXRECURSION 32767);
                 {'dpi': 300, 'crop_mode': 'bl'},
                 {'dpi': 300, 'crop_mode': 'tr'},
             ]
-            max_attempts = 42
+            max_attempts = 18 if fast_mode else 42
             for cfg in fast_passes:
-                for i, page in enumerate(doc):
+                for i in page_indexes:
                     if render_attempts >= max_attempts:
                         break
+                    page = doc[i]
                     rect = page.rect
                     clip = None
                     mode = (cfg.get('crop_mode') or 'full')
@@ -5472,11 +5485,12 @@ OPTION (MAXRECURSION 32767);
                 if qr_score >= 70:
                     break
             # fallback com OpenCV apenas se pyzbar não encontrou nada útil
-            if not qr_raw or qr_score < 60:
+            if allow_opencv_fallback and (not qr_raw or qr_score < 60):
                 for cfg in fallback_passes:
-                    for i, page in enumerate(doc):
+                    for i in page_indexes:
                         if render_attempts >= max_attempts:
                             break
+                        page = doc[i]
                         rect = page.rect
                         clip = None
                         mode = (cfg.get('crop_mode') or 'full')
@@ -5514,7 +5528,11 @@ OPTION (MAXRECURSION 32767);
             try:
                 from pypdf import PdfReader
                 reader = PdfReader(local_pdf_path)
-                text_pages = [((p.extract_text() or '')) for p in reader.pages]
+                total = len(reader.pages)
+                max_pages_scan = min(total, 4 if fast_mode else total)
+                out['debug']['pages_total'] = max(int(out['debug'].get('pages_total') or 0), total)
+                out['debug']['pages_scanned'] = max(int(out['debug'].get('pages_scanned') or 0), max_pages_scan)
+                text_pages = [((reader.pages[i].extract_text() or '')) for i in range(max_pages_scan)]
                 out['debug']['pages_total'] = max(int(out['debug'].get('pages_total') or 0), len(text_pages))
                 for idx_txt, t in enumerate(text_pages):
                     s = ' '.join((t or '').split())
@@ -5551,6 +5569,7 @@ OPTION (MAXRECURSION 32767);
             # mensagem de fallback mais explícita quando falta stack de QR
             if (not deps.get('pyzbar')) and (not deps.get('cv2')):
                 out['message'] = 'PDF lido, mas sem motor de QR instalado (pyzbar/cv2).'
+        out['debug']['elapsed_ms'] = int((time.time() - t0) * 1000)
         return out
 
     @app.route('/api/fo_compras/<fostamp>/analisar_documento', methods=['GET'])
@@ -5605,7 +5624,29 @@ OPTION (MAXRECURSION 32767);
                 'name': (anx.get('FICHEIRO') or '').strip(),
                 'path': local_path or (anx.get('CAMINHO') or '').strip()
             }
-            ana = _fo_analyze_pdf_document(local_path)
+            fast_mode = True
+            allow_opencv_fallback = False
+            try:
+                fast_mode = bool((payload.get('fast_mode', True)))
+            except Exception:
+                fast_mode = True
+            try:
+                allow_opencv_fallback = bool((payload.get('allow_opencv_fallback', False)))
+            except Exception:
+                allow_opencv_fallback = False
+            # defaults por env/config para servidor
+            env_fast = os.environ.get('FO_QR_FAST_DEFAULT')
+            if env_fast is not None:
+                fast_mode = str(env_fast).strip() not in ('0', 'false', 'False', '')
+            env_cv = os.environ.get('FO_QR_ENABLE_OPENCV_FALLBACK')
+            if env_cv is not None:
+                allow_opencv_fallback = str(env_cv).strip() in ('1', 'true', 'True')
+
+            ana = _fo_analyze_pdf_document(
+                local_path,
+                fast_mode=fast_mode,
+                allow_opencv_fallback=allow_opencv_fallback
+            )
             result = {
                 'status': ana.get('status', 'error'),
                 'file': file_obj,
