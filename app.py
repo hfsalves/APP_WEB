@@ -5155,6 +5155,41 @@ OPTION (MAXRECURSION 32767);
         best_conf = None
         best_score = -9999
 
+        # 0) OpenCV first (mais rápido no servidor)
+        if use_opencv:
+            try:
+                import cv2
+                import numpy as np
+                try:
+                    cv2.setLogLevel(0)
+                except Exception:
+                    try:
+                        cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
+                    except Exception:
+                        pass
+                arr = np.frombuffer(png_bytes, dtype=np.uint8)
+                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                if img is not None:
+                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                    detector = cv2.QRCodeDetector()
+                    variants0 = [img, cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)]
+                    for v in variants0:
+                        for k in range(2):
+                            vv = np.rot90(v, k).copy() if k else v
+                            val, _, _ = detector.detectAndDecode(vv)
+                            val = (val or '').strip()
+                            if val:
+                                sc = _qr_score(val)
+                                if sc >= 25:
+                                    return val, 'opencv', 0.80, sc
+                                if sc > best_score:
+                                    best_score = sc
+                                    best_raw = val
+                                    best_method = 'opencv'
+                                    best_conf = 0.80
+            except Exception:
+                pass
+
         # 1) pyzbar (principal) com pré-processamento e rotações
         try:
             from PIL import Image, ImageOps, ImageEnhance
@@ -5469,7 +5504,7 @@ OPTION (MAXRECURSION 32767);
                     pix = page.get_pixmap(dpi=cfg['dpi'], clip=clip, alpha=False)
                     raw, method, conf, sc = _fo_decode_qr_from_png_bytes(
                         pix.tobytes('png'),
-                        use_opencv=False,
+                        use_opencv=True,
                         aggressive=False
                     )
                     if raw and sc > qr_score:
@@ -5512,7 +5547,7 @@ OPTION (MAXRECURSION 32767);
                         pix = page.get_pixmap(dpi=cfg['dpi'], clip=clip, alpha=False)
                         raw, method, conf, sc = _fo_decode_qr_from_png_bytes(
                             pix.tobytes('png'),
-                            use_opencv=False,
+                            use_opencv=True,
                             aggressive=False
                         )
                         if raw and sc > qr_score:
