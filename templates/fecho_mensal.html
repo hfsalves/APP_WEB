@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% set page_title = "Fecho Mensal" %}
+{% set page_name = "Fecho Mensal" %}
+{% block title %}Fecho Mensal{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 fecho-page">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3 fecho-toolbar">
+    <button class="btn btn-sm btn-outline-secondary" id="fechoPrev"><i class="fa-solid fa-chevron-left"></i></button>
+    <input type="number" class="form-control form-control-sm" id="fechoAno" value="{{ fecho_ano }}" style="width:90px;">
+    <select class="form-select form-select-sm" id="fechoMes" style="width:120px;">
+      <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+      <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+      <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+      <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+    </select>
+    <button class="btn btn-sm btn-outline-secondary" id="fechoNext"><i class="fa-solid fa-chevron-right"></i></button>
+    <button class="btn btn-sm btn-outline-secondary" id="fechoReload"><i class="fa-solid fa-rotate"></i> Atualizar</button>
+    <button class="btn btn-sm btn-outline-success" id="fechoExport"><i class="fa-solid fa-file-excel"></i> Exportar</button>
+
+    <div class="ms-auto d-flex flex-wrap gap-2">
+      <button class="btn btn-sm btn-outline-primary fecho-imp-btn" id="btnImpSede">SEDE</button>
+      <button class="btn btn-sm btn-outline-primary fecho-imp-btn" id="btnImpLimp">LIMPEZA</button>
+      <button class="btn btn-sm btn-outline-primary fecho-imp-btn" id="btnImpLav">LAVANDARIA</button>
+      <button class="btn btn-sm btn-outline-primary fecho-imp-btn" id="btnImpHelp">HELPDESK</button>
+      <button class="btn btn-sm btn-outline-danger" id="btnDelImpMes"><i class="fa-solid fa-trash-can"></i> Eliminar imputações do mês</button>
+    </div>
+  </div>
+
+  <div class="card shadow-sm fecho-card">
+    <div class="card-body p-0 fecho-body">
+      <div class="table-responsive fecho-grid-wrap">
+        <table class="table table-sm mb-0 fecho-table">
+          <colgroup>
+            <col class="fecho-col-cc">
+            <col class="fecho-col-tip">
+            <col class="fecho-col-limp">
+            <col class="fecho-col-val">
+            <col class="fecho-col-val">
+            <col class="fecho-col-val">
+            <col class="fecho-col-val">
+            <col class="fecho-col-val">
+            <col class="fecho-col-val">
+          </colgroup>
+          <thead class="table-light">
+            <tr>
+              <th class="fecho-col-cc">Centro de Custo</th>
+              <th>Tipologia</th>
+              <th class="text-end">Limpezas</th>
+              <th class="text-end" id="fechoFam1">Fam. 1</th>
+              <th class="text-end" id="fechoFam2">Fam. 2</th>
+              <th class="text-end" id="fechoFam3">Fam. 3</th>
+              <th class="text-end" id="fechoFam4">Fam. 4</th>
+              <th class="text-end" id="fechoFam9">Fam. 9</th>
+              <th class="text-end">Saldo Mensal</th>
+            </tr>
+          </thead>
+          <tbody id="fechoBody">
+            <tr><td colspan="7" class="text-muted p-3">A carregar...</td></tr>
+          </tbody>
+          <tfoot>
+            <tr id="fechoTotals"></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .fecho-page{ height: calc(100vh - 120px); display:flex; flex-direction:column; }
+  .fecho-toolbar{ flex:0 0 auto; }
+  .fecho-card{ flex:1 1 auto; overflow:hidden; }
+  .fecho-body{ height:100%; }
+  .fecho-grid-wrap{ max-height:100%; overflow:auto; }
+  .fecho-table{ border-collapse: separate; border-spacing: 0; font-size: 12.5px; min-width: 920px; color:#0f172a; }
+  .fecho-col-cc{ min-width: 320px; width: 320px; }
+  .fecho-col-tip{ min-width: 84px; width: 84px; }
+  .fecho-col-limp{ min-width: 76px; width: 76px; }
+  .fecho-col-val{ min-width: 98px; width: 98px; }
+  .fecho-table thead th{
+    position: sticky; top: 0; z-index: 2;
+    background: linear-gradient(180deg,#fff 0%,#f8fafc 100%);
+    border-bottom:1px solid rgba(148,163,184,.35);
+    font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#334155; font-weight:800;
+    padding:.55rem .75rem;
+  }
+  .fecho-table thead th:first-child,
+  .fecho-table tbody td:first-child,
+  .fecho-table tfoot td:first-child{
+    text-align: left !important;
+  }
+  .fecho-table tbody td{ padding:.5rem .75rem; border-bottom:1px solid #edf2f7; vertical-align:middle; }
+  .fecho-table tbody tr:nth-child(even) td{ background:#fbfdff; }
+  .fecho-table tbody tr:hover td{ background:#f1f5f9; }
+  .fecho-group td{ background:#eaf2ff !important; font-weight:700; border-top:1px solid #d4e3ff; border-bottom:1px solid #d4e3ff; }
+  .fecho-child td:first-child{ padding-left: 30px; }
+  .fecho-col-proveitos{ color:#0f766e; font-weight:700; background:rgba(20,184,166,.08); }
+  .fecho-col-total{ color:#312e81; font-weight:800; background:rgba(99,102,241,.10); }
+  .fecho-col-total.fecho-neg{ color:#b91c1c !important; }
+  .fecho-imp-btn.done{
+    background: #10b981;
+    border-color: #10b981;
+    color: #fff;
+    box-shadow: 0 6px 14px rgba(16,185,129,.28);
+  }
+  .fecho-expand-btn{
+    width: 18px;
+    height: 18px;
+    line-height: 14px;
+    padding: 0;
+    margin-right: 6px;
+    border-radius: 4px;
+    border: 1px solid #93c5fd;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 800;
+    font-size: 12px;
+  }
+  .fecho-table tfoot td{
+    position: sticky; bottom:0; z-index:1;
+    background:#eef2ff; font-weight:800; border-top:1px solid #dbe3ee; padding:.55rem .75rem;
+  }
+</style>
+
+<script>
+  window.FECHO_ANO_INICIAL = Number("{{ fecho_ano }}");
+  window.FECHO_MES_INICIAL = Number("{{ fecho_mes }}");
+</script>
+<script src="{{ url_for('static', filename='js/fecho_mensal.js') }}?v={{ static_version }}"></script>
+{% endblock %}

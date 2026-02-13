@@ -189,6 +189,10 @@ function renderAnalise(body, data) {
     body.innerHTML = `<span class="error-msg">${data.error}</span>`;
     return;
   }
+  if (!Array.isArray(data.rows) || data.rows.length === 0) {
+    body.innerHTML = `<div class="dashboard-grid-empty">Sem dados</div>`;
+    return;
+  }
 
   const numericCols = data.columns.filter(c =>
     data.rows.every(row => {
@@ -214,7 +218,7 @@ function renderAnalise(body, data) {
   numericCols.forEach(c => totals[c] = 0);
   data.rows.forEach(row => numericCols.forEach(c => { totals[c] += parseNumber(row[c]); }));
 
-  let html = '<table>';
+  let html = '<div class="dashboard-grid-wrap"><table class="dashboard-grid">';
   html += '<thead><tr>' +
     data.columns.map(c =>
       `<th${numericCols.includes(c) ? ' class="num"' : ''}>${c}</th>`
@@ -251,7 +255,7 @@ function renderAnalise(body, data) {
     '</tr></tfoot>';
   }
 
-  html += '</table>';
+  html += '</table></div>';
   body.innerHTML = html;
 }
 
@@ -266,6 +270,34 @@ function renderGrafico(body, widget, data) {
   const labelCol = cfg.label_col || data.columns[0];
   const dataCol = cfg.data_col || data.columns[1];
   const stackCol = cfg.stack_col || null;
+  const uiMode = String(cfg.ui_style || '').toLowerCase();
+  const useGanttLook = uiMode === 'gantt' || uiMode === 'modern';
+  const showLegend = (cfg.legend ?? (stackCol ? true : false)) === true;
+  const gridColor = cfg.grid_color || (useGanttLook ? 'rgba(148,163,184,0.22)' : '#e0e0e0');
+  const tickColor = cfg.tick_color || (useGanttLook ? '#334155' : '#64748b');
+  const barRadius = 0;
+  const barThickness = Number.isFinite(+cfg.bar_thickness) ? +cfg.bar_thickness : undefined;
+  const barAlpha = Number.isFinite(+cfg.bar_alpha) ? Math.max(0, Math.min(1, +cfg.bar_alpha)) : (useGanttLook ? 0.34 : 0.6);
+  const radiusValue = 0;
+
+  const hexToRgba = (hex, alpha = 1) => {
+    if (!hex || typeof hex !== 'string') return `rgba(59,130,246,${alpha})`;
+    const h = hex.replace('#', '').trim();
+    if (h.length !== 3 && h.length !== 6) return hex;
+    const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+    const num = parseInt(full, 16);
+    if (Number.isNaN(num)) return hex;
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return `rgba(${r},${g},${b},${alpha})`;
+  };
+
+  const borderFromColor = (color) => {
+    if (typeof color === 'string' && color.startsWith('#')) return hexToRgba(color, 0.95);
+    if (typeof color === 'string' && color.startsWith('rgba(')) return color.replace(/,\s*([0-9.]+)\)/, ',0.95)');
+    return color;
+  };
 
   const labels = stackCol
     ? Array.from(new Map(data.rows.map(r => [r[labelCol], r[labelCol]])).values())
@@ -278,7 +310,12 @@ function renderGrafico(body, widget, data) {
     const palette = cfg.stack_colors || {};
     datasets = stacks.map((stack, idx) => {
       const baseHue = Math.round(idx * 360 / Math.max(stacks.length,1));
-      const color = palette[stack] || `hsla(${baseHue}, 65%, 68%, 0.6)`;
+      const baseColor = palette[stack] || `hsl(${baseHue}, 65%, 55%)`;
+      const fillColor = String(baseColor).startsWith('#')
+        ? hexToRgba(baseColor, barAlpha)
+        : String(baseColor).startsWith('hsl(')
+          ? baseColor.replace('hsl(', 'hsla(').replace(')', `, ${barAlpha})`)
+          : baseColor;
       const vals = labels.map(label =>
         data.rows
           .filter(r => r[labelCol] === label && r[stackCol] === stack)
@@ -287,22 +324,26 @@ function renderGrafico(body, widget, data) {
       return {
         label: stack,
         data: vals,
-        backgroundColor: color,
-        borderColor: color,
-        borderWidth: 1,
-        borderRadius: 4
+        backgroundColor: fillColor,
+        borderColor: borderFromColor(baseColor),
+        borderWidth: useGanttLook ? 1.6 : 1,
+        borderRadius: radiusValue,
+        borderSkipped: false,
+        barThickness
       };
     });
   } else {
     const values = data.rows.map(r => parseNumber(r[dataCol]));
     const dataset = { label: widget.titulo || widget.nome, data: values };
     if (chartType === 'bar' || chartType === 'line') {
+      const baseColor = cfg.color || '#38bdf8';
       Object.assign(dataset, {
-        backgroundColor: 'rgba(56, 189, 248, 0.35)',
-        borderColor: 'rgba(56, 189, 248, 0.8)',
-        borderWidth: 1,
-        borderRadius: 5,
-        borderSkipped: false
+        backgroundColor: String(baseColor).startsWith('#') ? hexToRgba(baseColor, barAlpha) : baseColor,
+        borderColor: borderFromColor(baseColor),
+        borderWidth: useGanttLook ? 1.6 : 1,
+        borderRadius: radiusValue,
+        borderSkipped: false,
+        barThickness
       });
     } else {
       dataset.backgroundColor = labels.map((_,i) => `hsl(${Math.round(i*360/labels.length)},70%,60%)`);
@@ -319,10 +360,38 @@ function renderGrafico(body, widget, data) {
     data: { labels, datasets },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: showLegend,
+          labels: {
+            color: tickColor,
+            boxWidth: 10,
+            boxHeight: 10,
+            useBorderRadius: true,
+            borderRadius: 3
+          }
+        },
+        tooltip: {
+          backgroundColor: useGanttLook ? 'rgba(255,251,235,0.98)' : 'rgba(15,23,42,0.92)',
+          titleColor: useGanttLook ? '#111827' : '#fff',
+          bodyColor: useGanttLook ? '#111827' : '#fff',
+          borderColor: useGanttLook ? '#e5e7eb' : 'rgba(15,23,42,0.92)',
+          borderWidth: 1
+        }
+      },
       scales: (chartType === 'bar' || chartType === 'line') ? {
-        x: { stacked: !!stackCol, grid: { display: false } },
-        y: { stacked: !!stackCol, beginAtZero: true, grid: { display: true, color: '#e0e0e0' } }
+        x: {
+          stacked: !!stackCol,
+          grid: { display: false },
+          ticks: { color: tickColor, font: { size: useGanttLook ? 11 : 10, weight: useGanttLook ? 600 : 400 } }
+        },
+        y: {
+          stacked: !!stackCol,
+          beginAtZero: true,
+          grid: { display: true, color: gridColor, borderDash: useGanttLook ? [4, 4] : [] },
+          ticks: { color: tickColor, font: { size: useGanttLook ? 11 : 10 } }
+        }
       } : {}
     }
   });

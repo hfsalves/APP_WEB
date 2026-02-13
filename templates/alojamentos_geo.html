@@ -35,6 +35,7 @@
               <button id="geoLocate" class="btn btn-outline-primary btn-sm" type="button">Localizar no mapa</button>
               <button id="geoReset" class="btn btn-outline-secondary btn-sm" type="button">Repor para BD</button>
               <button id="geoSave" class="btn btn-primary btn-sm" type="button" disabled>Guardar coordenadas</button>
+              <button id="geoRouteBtn" class="btn btn-outline-secondary btn-sm" type="button">Percurso</button>
             </div>
           </div>
           <div class="row g-2 mt-2 geo-fields">
@@ -59,6 +60,7 @@
               <div id="geoLon" class="geo-field-value">—</div>
             </div>
           </div>
+          <div id="geoRouteInfo" class="geo-route-info" style="display:none;"></div>
           <div id="geoAlt" class="geo-alt"></div>
         </div>
       </div>
@@ -66,6 +68,7 @@
         <div class="geo-rotas-title">ROTAS</div>
         <div class="geo-rotas-actions">
           <button id="rotasStart" class="btn btn-primary btn-sm" type="button">Recalcular ROTAS</button>
+          <button id="rotasMissing" class="btn btn-outline-secondary btn-sm" type="button">Gerar em falta</button>
           <button id="rotasResume" class="btn btn-outline-primary btn-sm" type="button">Retomar pendentes</button>
           <button id="rotasStop" class="btn btn-outline-secondary btn-sm" type="button" disabled>Parar</button>
         </div>
@@ -82,6 +85,34 @@
     <div class="geo-map card">
       <div class="card-body p-0">
         <div id="geoMap"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="geoRouteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Melhor percurso entre locais</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2 small text-muted">Origem fixa: <strong id="geoRouteFrom">—</strong></div>
+        <div class="small text-muted mb-2">Seleciona um ou mais destinos adicionais.</div>
+        <div id="geoRouteCards" class="geo-route-cards"></div>
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" id="geoRouteReturn">
+          <label class="form-check-label" for="geoRouteReturn">Volta à origem</label>
+        </div>
+        <div id="geoRouteLoading" class="geo-route-loading">
+          <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+          <span>A calcular...</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="geoRouteApply">OK</button>
       </div>
     </div>
   </div>

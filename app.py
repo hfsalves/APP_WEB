@@ -9,7 +9,7 @@ import time
 import uuid
 import unicodedata
 from decimal import Decimal
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date, timedelta, time as dtime
 from sqlalchemy import text
@@ -79,6 +79,35 @@ def create_app():
 
     from blueprints.anexos import bp as anexos_bp
     app.register_blueprint(anexos_bp)
+
+    def _para_value_from_row(row):
+        tipo = (row.get('TIPO') or '').strip().upper()
+        if tipo == 'N':
+            try:
+                return float(row.get('NVALOR') or 0)
+            except Exception:
+                return 0.0
+        if tipo == 'D':
+            d = row.get('DVALOR')
+            if isinstance(d, (date, datetime)):
+                return d.strftime('%Y-%m-%d')
+            return str(d or '')
+        if tipo == 'L':
+            return bool(row.get('LVALOR') or 0)
+        return str(row.get('CVALOR') or '')
+
+    def _load_para_map():
+        rows = db.session.execute(text("""
+            SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+            FROM dbo.PARA
+        """)).mappings().all()
+        out = {}
+        for r in rows:
+            key = (r.get('PARAMETRO') or '').strip()
+            if not key:
+                continue
+            out[key] = _para_value_from_row(r)
+        return out
 
     @app.route('/planeamento_limpezas')
     @app.route('/planeamento_limpezas/')
@@ -251,7 +280,8 @@ def create_app():
             'is_dev'         : getattr(current_user, 'DEV', False) if current_user.is_authenticated else False,
             'can_open_mn'    : can_open_mn if current_user.is_authenticated else False,
             'can_open_fs'    : can_open_fs if current_user.is_authenticated else False,
-            'static_version' : app.config.get('STATIC_VERSION', 1)
+            'static_version' : app.config.get('STATIC_VERSION', 1),
+            'app_params'     : session.get('APP_PARAMS', {}) if current_user.is_authenticated else {}
         }
 
     from sqlalchemy.sql import text
@@ -290,6 +320,12 @@ def create_app():
                 for k, v in row.items():
                     setattr(user, k, v)
                 login_user(user)
+                try:
+                    para_map = _load_para_map()
+                    session['APP_PARAMS'] = para_map
+                    app.config['PARA_VALUES'] = para_map
+                except Exception:
+                    session['APP_PARAMS'] = {}
                 return redirect(request.args.get('next') or url_for('home_page'))
 
             return render_template('login.html', error='Credenciais invÃ¡lidas')
@@ -298,6 +334,7 @@ def create_app():
     @app.route('/logout')
     @login_required
     def logout():
+        session.pop('APP_PARAMS', None)
         logout_user()
         return redirect(url_for('login'))
 
@@ -504,6 +541,230 @@ def create_app():
         except Exception as e:
             current_app.logger.exception('Erro ao executar widget_run')
             return jsonify({'error': f'Erro ao executar query: {e}'}), 500
+
+    # -----------------------------
+    # Parâmetros
+    # -----------------------------
+    @app.route('/parametros')
+    @login_required
+    def parametros_page():
+        return render_template('parametros.html', page_title='Parâmetros')
+
+    @app.route('/api/parametros')
+    @login_required
+    def api_parametros():
+        try:
+            groups = db.session.execute(text("""
+                SELECT DISTINCT LTRIM(RTRIM(ISNULL(GRUPO,''))) AS GRUPO
+                FROM dbo.PARAG
+                WHERE LTRIM(RTRIM(ISNULL(GRUPO,''))) <> ''
+                ORDER BY LTRIM(RTRIM(ISNULL(GRUPO,'')))
+            """)).fetchall()
+            group_list = [str(g[0]).strip() for g in groups if g and g[0] is not None]
+
+            rows = db.session.execute(text("""
+                SELECT
+                    PARASTAMP, PARAMETRO, DESCRICAO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR, GRUPO
+                FROM dbo.PARA
+                ORDER BY LTRIM(RTRIM(ISNULL(GRUPO,''))), LTRIM(RTRIM(ISNULL(PARAMETRO,'')))
+            """)).mappings().all()
+
+            out = []
+            for r in rows:
+                tipo = (r.get('TIPO') or '').strip().upper()
+                out.append({
+                    'PARASTAMP': r.get('PARASTAMP'),
+                    'PARAMETRO': (r.get('PARAMETRO') or '').strip(),
+                    'DESCRICAO': (r.get('DESCRICAO') or '').strip(),
+                    'TIPO': tipo,
+                    'GRUPO': (r.get('GRUPO') or '').strip(),
+                    'CVALOR': r.get('CVALOR') or '',
+                    'DVALOR': (r.get('DVALOR').strftime('%Y-%m-%d') if isinstance(r.get('DVALOR'), (date, datetime)) else ''),
+                    'NVALOR': float(r.get('NVALOR') or 0),
+                    'LVALOR': 1 if int(r.get('LVALOR') or 0) else 0,
+                    'VALOR': _para_value_from_row(r)
+                })
+            return jsonify({'groups': group_list, 'rows': out})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/parametros/save', methods=['POST'])
+    @login_required
+    def api_parametros_save():
+        try:
+            payload = request.get_json(silent=True) or {}
+            rows = payload.get('rows') or []
+            if not isinstance(rows, list):
+                return jsonify({'error': 'Formato inválido'}), 400
+            for r in rows:
+                stamp = (r.get('PARASTAMP') or '').strip()
+                tipo = (r.get('TIPO') or '').strip().upper()
+                if not stamp:
+                    continue
+                if tipo == 'N':
+                    db.session.execute(text("""
+                        UPDATE dbo.PARA
+                        SET NVALOR = :v
+                        WHERE PARASTAMP = :s
+                    """), {'v': float(r.get('NVALOR') or 0), 's': stamp})
+                elif tipo == 'D':
+                    d = (r.get('DVALOR') or '').strip()
+                    db.session.execute(text("""
+                        UPDATE dbo.PARA
+                        SET DVALOR = CASE WHEN :d = '' THEN DVALOR ELSE CAST(:d AS date) END
+                        WHERE PARASTAMP = :s
+                    """), {'d': d, 's': stamp})
+                elif tipo == 'L':
+                    db.session.execute(text("""
+                        UPDATE dbo.PARA
+                        SET LVALOR = :v
+                        WHERE PARASTAMP = :s
+                    """), {'v': 1 if int(r.get('LVALOR') or 0) else 0, 's': stamp})
+                else:
+                    db.session.execute(text("""
+                        UPDATE dbo.PARA
+                        SET CVALOR = :v
+                        WHERE PARASTAMP = :s
+                    """), {'v': str(r.get('CVALOR') or '')[:200], 's': stamp})
+            db.session.commit()
+            para_map = _load_para_map()
+            session['APP_PARAMS'] = para_map
+            app.config['PARA_VALUES'] = para_map
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/parametros/new', methods=['POST'])
+    @login_required
+    def api_parametros_new():
+        try:
+            payload = request.get_json(silent=True) or {}
+            parametro = (payload.get('PARAMETRO') or '').strip()
+            descricao = (payload.get('DESCRICAO') or '').strip()
+            tipo = (payload.get('TIPO') or '').strip().upper()
+            grupo = (payload.get('GRUPO') or '').strip()
+            if not parametro or not descricao or tipo not in ('C', 'N', 'D', 'L') or not grupo:
+                return jsonify({'error': 'Dados obrigatórios em falta.'}), 400
+
+            exists = db.session.execute(text("""
+                SELECT TOP 1 1
+                FROM dbo.PARA
+                WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) = UPPER(LTRIM(RTRIM(:p)))
+            """), {'p': parametro}).fetchone()
+            if exists:
+                return jsonify({'error': 'Parâmetro já existe.'}), 400
+
+            stamp = new_stamp()
+            cvalor = str(payload.get('CVALOR') or '')
+            dvalor = (payload.get('DVALOR') or '').strip()
+            nvalor = float(payload.get('NVALOR') or 0)
+            lvalor = 1 if int(payload.get('LVALOR') or 0) else 0
+
+            db.session.execute(text("""
+                INSERT INTO dbo.PARA
+                (PARASTAMP, PARAMETRO, DESCRICAO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR, GRUPO)
+                VALUES
+                (:s, :p, :d, :t, :cv, CASE WHEN :dv = '' THEN CAST(GETDATE() AS date) ELSE CAST(:dv AS date) END, :nv, :lv, :g)
+            """), {
+                's': stamp,
+                'p': parametro[:50],
+                'd': descricao[:100],
+                't': tipo,
+                'cv': cvalor[:200],
+                'dv': dvalor,
+                'nv': nvalor,
+                'lv': lvalor,
+                'g': grupo[:50]
+            })
+            db.session.commit()
+            para_map = _load_para_map()
+            session['APP_PARAMS'] = para_map
+            app.config['PARA_VALUES'] = para_map
+            return jsonify({'ok': True, 'PARASTAMP': stamp})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/parametros/edit_meta', methods=['POST'])
+    @login_required
+    def api_parametros_edit_meta():
+        try:
+            payload = request.get_json(silent=True) or {}
+            stamp = (payload.get('PARASTAMP') or '').strip()
+            parametro = (payload.get('PARAMETRO') or '').strip()
+            descricao = (payload.get('DESCRICAO') or '').strip()
+            if not stamp or not parametro or not descricao:
+                return jsonify({'error': 'Dados obrigatórios em falta.'}), 400
+
+            dup = db.session.execute(text("""
+                SELECT TOP 1 1
+                FROM dbo.PARA
+                WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) = UPPER(LTRIM(RTRIM(:p)))
+                  AND PARASTAMP <> :s
+            """), {'p': parametro, 's': stamp}).fetchone()
+            if dup:
+                return jsonify({'error': 'Já existe outro parâmetro com esse código.'}), 400
+
+            db.session.execute(text("""
+                UPDATE dbo.PARA
+                SET PARAMETRO = :p,
+                    DESCRICAO = :d
+                WHERE PARASTAMP = :s
+            """), {'p': parametro[:50], 'd': descricao[:100], 's': stamp})
+            db.session.commit()
+
+            para_map = _load_para_map()
+            session['APP_PARAMS'] = para_map
+            app.config['PARA_VALUES'] = para_map
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/parametros/delete', methods=['POST'])
+    @login_required
+    def api_parametros_delete():
+        try:
+            payload = request.get_json(silent=True) or {}
+            stamp = (payload.get('PARASTAMP') or '').strip()
+            if not stamp:
+                return jsonify({'error': 'Parâmetro inválido.'}), 400
+            db.session.execute(text("""
+                DELETE FROM dbo.PARA
+                WHERE PARASTAMP = :s
+            """), {'s': stamp})
+            db.session.commit()
+            para_map = _load_para_map()
+            session['APP_PARAMS'] = para_map
+            app.config['PARA_VALUES'] = para_map
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/parametros/group/new', methods=['POST'])
+    @login_required
+    def api_parametros_group_new():
+        try:
+            payload = request.get_json(silent=True) or {}
+            grupo = (payload.get('GRUPO') or '').strip()
+            if not grupo:
+                return jsonify({'error': 'Grupo obrigatório.'}), 400
+            exists = db.session.execute(text("""
+                SELECT TOP 1 1
+                FROM dbo.PARAG
+                WHERE UPPER(LTRIM(RTRIM(GRUPO))) = UPPER(LTRIM(RTRIM(:g)))
+            """), {'g': grupo}).fetchone()
+            if not exists:
+                db.session.execute(text("""
+                    INSERT INTO dbo.PARAG (GRUPO) VALUES (:g)
+                """), {'g': grupo[:50]})
+                db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/modals/<acao>')
     @login_required
@@ -6891,6 +7152,361 @@ OPTION (MAXRECURSION 32767);
             return jsonify({'error': str(e)}), 500
 
     # -----------------------------
+    # Fecho Mensal
+    # -----------------------------
+    @app.route('/fecho_mensal')
+    @login_required
+    def fecho_mensal_page():
+        today = date.today()
+        if today.month == 1:
+            default_ano = today.year - 1
+            default_mes = 12
+        else:
+            default_ano = today.year
+            default_mes = today.month - 1
+        return render_template(
+            'fecho_mensal.html',
+            page_title='Fecho Mensal',
+            fecho_ano=default_ano,
+            fecho_mes=default_mes
+        )
+
+    @app.route('/api/fecho_mensal')
+    @login_required
+    def api_fecho_mensal():
+        try:
+            ano = int(request.args.get('ano') or date.today().year)
+            mes = int(request.args.get('mes') or date.today().month)
+            if mes < 1 or mes > 12:
+                return jsonify({'error': 'Mês inválido'}), 400
+            def _norm_cc(value):
+                try:
+                    return ''.join(str(value or '').strip().upper().split())
+                except Exception:
+                    return ''
+            def _norm_sort(value):
+                s = _norm_cc(value)
+                return (s
+                        .replace('Á', 'A').replace('À', 'A').replace('Â', 'A').replace('Ã', 'A')
+                        .replace('É', 'E').replace('Ê', 'E')
+                        .replace('Í', 'I')
+                        .replace('Ó', 'O').replace('Ô', 'O').replace('Õ', 'O')
+                        .replace('Ú', 'U')
+                        .replace('Ç', 'C'))
+            excluded_cc = {'ADMIN', 'CAIXAAB'}
+            base_cc_rows = db.session.execute(text("""
+                SELECT DISTINCT LTRIM(RTRIM(ISNULL(CCUSTO,''))) AS CCUSTO
+                FROM v_cct
+                WHERE LTRIM(RTRIM(ISNULL(CCUSTO,''))) <> ''
+            """)).mappings().all()
+            fam_name_rows = db.session.execute(text("""
+                SELECT LTRIM(RTRIM(ref)) AS REF, MAX(ISNULL(nome,'')) AS NOME
+                FROM v_stfami
+                WHERE LTRIM(RTRIM(ref)) IN ('1','2','3','4','9')
+                GROUP BY LTRIM(RTRIM(ref))
+            """)).mappings().all()
+            fam_labels = {str(r.get('REF') or '').strip(): str(r.get('NOME') or '').strip() for r in fam_name_rows}
+
+            custos_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(CCUSTO,''))) AS CCUSTO,
+                    LEFT(LTRIM(RTRIM(ISNULL(FAMILIA,''))),1) AS FAM1,
+                    SUM(ISNULL(TOTAL,0)) AS VALOR
+                FROM v_custo
+                WHERE YEAR([DATA]) = :ano
+                  AND MONTH([DATA]) = :mes
+                  AND LEFT(LTRIM(RTRIM(ISNULL(FAMILIA,''))),1) IN ('1','2','3','4','9')
+                GROUP BY
+                    LTRIM(RTRIM(ISNULL(CCUSTO,''))),
+                    LEFT(LTRIM(RTRIM(ISNULL(FAMILIA,''))),1)
+            """), {'ano': ano, 'mes': mes}).mappings().all()
+
+            cc_map = {}
+            for r in base_cc_rows:
+                cc = (r.get('CCUSTO') or '').strip()
+                cc_key = _norm_cc(cc)
+                if (not cc_key) or cc_key in excluded_cc:
+                    continue
+                cc_map.setdefault(cc_key, {'CCUSTO': cc, '1': 0.0, '2': 0.0, '3': 0.0, '4': 0.0, '9': 0.0})
+            for r in custos_rows:
+                cc = (r.get('CCUSTO') or '').strip()
+                cc_key = _norm_cc(cc)
+                fam = (r.get('FAM1') or '').strip()
+                if not cc_key or fam not in ('1', '2', '3', '4', '9'):
+                    continue
+                node = cc_map.setdefault(cc_key, {'CCUSTO': cc, '1': 0.0, '2': 0.0, '3': 0.0, '4': 0.0, '9': 0.0})
+                node[fam] += float(r.get('VALOR') or 0)
+
+            tipo_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(CCUSTO,''))) AS CCUSTO,
+                    UPPER(LTRIM(RTRIM(ISNULL(TIPO,'')))) AS TIPO,
+                    MAX(LTRIM(RTRIM(ISNULL(TIPOLOGIA,'')))) AS TIPOLOGIA
+                FROM dbo.AL
+                WHERE LTRIM(RTRIM(ISNULL(CCUSTO,''))) <> ''
+                  AND UPPER(LTRIM(RTRIM(ISNULL(TIPO,'')))) IN ('EXPLORACAO','GESTAO')
+                GROUP BY LTRIM(RTRIM(ISNULL(CCUSTO,''))), UPPER(LTRIM(RTRIM(ISNULL(TIPO,''))))
+            """)).mappings().all()
+            tipo_map = {_norm_cc(r.get('CCUSTO')): (r.get('TIPO') or '').strip() for r in tipo_rows}
+            tipologia_map = {_norm_cc(r.get('CCUSTO')): (r.get('TIPOLOGIA') or '').strip() for r in tipo_rows}
+
+            limpezas_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) AS CCUSTO,
+                    COUNT(1) AS LIMPEZAS
+                FROM RS rs
+                JOIN AL a
+                  ON LTRIM(RTRIM(ISNULL(a.NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                   = LTRIM(RTRIM(ISNULL(rs.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                WHERE YEAR(ISNULL(rs.DATAOUT, rs.DATAIN)) = :ano
+                  AND MONTH(ISNULL(rs.DATAOUT, rs.DATAIN)) = :mes
+                GROUP BY LTRIM(RTRIM(ISNULL(a.CCUSTO,'')))
+            """), {'ano': ano, 'mes': mes}).mappings().all()
+            limpezas_map = {_norm_cc(r.get('CCUSTO')): int(r.get('LIMPEZAS') or 0) for r in limpezas_rows}
+
+            rows = []
+            for cc_key, node in cc_map.items():
+                if cc_key in excluded_cc:
+                    continue
+                row = {
+                    'CCUSTO': node.get('CCUSTO') or '',
+                    'TIPO': tipo_map.get(cc_key, ''),
+                    'TIPOLOGIA': tipologia_map.get(cc_key, ''),
+                    'LIMPEZAS': limpezas_map.get(cc_key, 0),
+                    'F1': round(float(node['1'] or 0), 2),
+                    'F2': round(float(node['2'] or 0), 2),
+                    'F3': round(float(node['3'] or 0), 2),
+                    'F4': round(float(node['4'] or 0), 2),
+                    'F9': round(float(node['9'] or 0), 2),
+                }
+                row['TOTAL_MES'] = round(row['F1'] + row['F2'] + row['F3'] + row['F4'] - row['F9'], 2)
+                rows.append(row)
+
+            estrutura_order = {
+                'SEDE': 0,
+                'LIMPEZA': 1,
+                'LIMPEAZ': 1,
+                'LAVANDARIA': 2,
+                'HELPDESK': 3,
+                'MANUTENCAO': 4,
+                'MENUTENCAO': 4
+            }
+            rows.sort(key=lambda x: (
+                0 if x.get('TIPO') not in ('EXPLORACAO', 'GESTAO') else 1,
+                estrutura_order.get(_norm_sort(x.get('CCUSTO')), 999),
+                (x.get('TIPO') or ''),
+                (x.get('CCUSTO') or '')
+            ))
+
+            totals = {
+                'F1': round(sum(float(r['F1']) for r in rows), 2),
+                'F2': round(sum(float(r['F2']) for r in rows), 2),
+                'F3': round(sum(float(r['F3']) for r in rows), 2),
+                'F4': round(sum(float(r['F4']) for r in rows), 2),
+                'F9': round(sum(float(r['F9']) for r in rows), 2),
+                'TOTAL_MES': round(
+                    sum(float(r['F1']) + float(r['F2']) + float(r['F3']) + float(r['F4']) - float(r['F9']) for r in rows),
+                    2
+                ),
+            }
+            imp_rows = db.session.execute(text("""
+                SELECT
+                    UPPER(LTRIM(RTRIM(ISNULL(CCUSTOORI,'')))) AS CCUSTOORI,
+                    LTRIM(RTRIM(ISNULL(FAMILIA,''))) AS FAMILIA,
+                    COUNT(1) AS N
+                FROM dbo.TXADM
+                WHERE ANO = :ano
+                  AND MES = :mes
+                  AND LTRIM(RTRIM(ISNULL(FAMILIA,''))) IN ('4.1','4.2','4.3','4.4')
+                GROUP BY UPPER(LTRIM(RTRIM(ISNULL(CCUSTOORI,'')))), LTRIM(RTRIM(ISNULL(FAMILIA,'')))
+            """), {'ano': ano, 'mes': mes}).mappings().all()
+            imp_status = {'SEDE': False, 'LIMPEZA': False, 'LAVANDARIA': False, 'HELPDESK': False}
+            family_to_cc = {'4.1': 'SEDE', '4.2': 'LIMPEZA', '4.3': 'LAVANDARIA', '4.4': 'HELPDESK'}
+            for r in imp_rows:
+                fam = (r.get('FAMILIA') or '').strip()
+                cc = (r.get('CCUSTOORI') or '').strip().upper()
+                expected_cc = family_to_cc.get(fam)
+                if expected_cc and cc == expected_cc and int(r.get('N') or 0) > 0:
+                    imp_status[expected_cc] = True
+
+            return jsonify({
+                'ano': ano,
+                'mes': mes,
+                'rows': rows,
+                'totals': totals,
+                'fam_labels': fam_labels,
+                'imput_status': imp_status
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/fecho_mensal/imputar', methods=['POST'])
+    @login_required
+    def api_fecho_mensal_imputar():
+        try:
+            payload = request.get_json(silent=True) or {}
+            ano = int(payload.get('ano') or date.today().year)
+            mes = int(payload.get('mes') or date.today().month)
+            ccusto_ori = (payload.get('ccusto_ori') or '').strip().upper()
+            familia = (payload.get('familia') or '').strip()
+            if mes < 1 or mes > 12:
+                return jsonify({'error': 'Mês inválido'}), 400
+            if not ccusto_ori or not familia:
+                return jsonify({'error': 'Parâmetros inválidos'}), 400
+
+            ccusto_norm = ''.join(ccusto_ori.upper().split())
+            ccusto_norm_sql = """
+                UPPER(
+                    REPLACE(
+                        REPLACE(
+                            REPLACE(LTRIM(RTRIM(ISNULL(CCUSTO,''))), ' ', ''),
+                            CHAR(9), ''
+                        ),
+                        CHAR(160), ''
+                    )
+                )
+            """
+            total_origem = db.session.execute(text("""
+                SELECT SUM(ISNULL(TOTAL,0))
+                FROM v_custo
+                WHERE YEAR([DATA]) = :ano
+                  AND MONTH([DATA]) = :mes
+                  AND LEFT(REPLACE(LTRIM(RTRIM(ISNULL(FAMILIA,''))), ' ', ''), 1) = '4'
+                  AND """ + ccusto_norm_sql + """ = :ccusto_norm
+            """), {
+                'ano': ano,
+                'mes': mes,
+                'ccusto_norm': ccusto_norm
+            }).scalar() or 0
+            total_origem = float(total_origem or 0)
+
+            # Fallback: usa o total de custos (famílias 1..4) do centro no mês.
+            # Mantém alinhamento com o que o utilizador vê na grelha (saldo/colunas).
+            if abs(total_origem) < 0.005:
+                total_origem = db.session.execute(text("""
+                    SELECT SUM(ISNULL(TOTAL,0))
+                    FROM v_custo
+                    WHERE YEAR([DATA]) = :ano
+                      AND MONTH([DATA]) = :mes
+                      AND LEFT(REPLACE(LTRIM(RTRIM(ISNULL(FAMILIA,''))), ' ', ''), 1) IN ('1','2','3','4')
+                      AND """ + ccusto_norm_sql + """ = :ccusto_norm
+                """), {
+                    'ano': ano,
+                    'mes': mes,
+                    'ccusto_norm': ccusto_norm
+                }).scalar() or 0
+                total_origem = float(total_origem or 0)
+
+            if abs(total_origem) < 0.005:
+                return jsonify({'ok': True, 'inserted': 0, 'message': 'Sem valor a imputar no centro de custo origem.'})
+
+            base_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(a.CCUSTO,''))) AS CCUSTO_DEST,
+                    SUM(
+                        CASE UPPER(LTRIM(RTRIM(ISNULL(a.TIPOLOGIA,''))))
+                            WHEN 'T2' THEN 90
+                            WHEN 'T3' THEN 120
+                            WHEN 'T4' THEN 150
+                            ELSE 60
+                        END
+                    ) AS BASE_QTD
+                FROM RS rs
+                JOIN AL a
+                  ON LTRIM(RTRIM(ISNULL(a.NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                   = LTRIM(RTRIM(ISNULL(rs.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                WHERE YEAR(ISNULL(rs.DATAOUT, rs.DATAIN)) = :ano
+                  AND MONTH(ISNULL(rs.DATAOUT, rs.DATAIN)) = :mes
+                  AND UPPER(LTRIM(RTRIM(ISNULL(a.TIPO,'')))) IN ('GESTAO','EXPLORACAO')
+                GROUP BY LTRIM(RTRIM(ISNULL(a.CCUSTO,'')))
+                HAVING SUM(
+                    CASE UPPER(LTRIM(RTRIM(ISNULL(a.TIPOLOGIA,''))))
+                        WHEN 'T2' THEN 90
+                        WHEN 'T3' THEN 120
+                        WHEN 'T4' THEN 150
+                        ELSE 60
+                    END
+                ) > 0
+            """), {'ano': ano, 'mes': mes}).mappings().all()
+
+            if not base_rows:
+                return jsonify({'error': 'Sem base de checkouts/tipologia para imputar.'}), 400
+
+            base_total = float(sum(float(r.get('BASE_QTD') or 0) for r in base_rows))
+            if base_total <= 0:
+                return jsonify({'error': 'Base total inválida para imputação.'}), 400
+
+            # Recriar apenas a imputação deste botão (família/centro)
+            db.session.execute(text("""
+                DELETE FROM dbo.TXADM
+                WHERE ANO = :ano AND MES = :mes
+                  AND LTRIM(RTRIM(ISNULL(FAMILIA,''))) = :familia
+                  AND UPPER(REPLACE(LTRIM(RTRIM(ISNULL(CCUSTOORI,''))), ' ', '')) = :ccusto_norm
+            """), {
+                'ano': ano,
+                'mes': mes,
+                'familia': familia,
+                'ccusto_norm': ccusto_norm
+            })
+
+            values = []
+            running = 0.0
+            for idx, r in enumerate(base_rows):
+                qtd = float(r.get('BASE_QTD') or 0)
+                pct = (qtd / base_total) if base_total else 0.0
+                if idx < len(base_rows) - 1:
+                    valor = round(total_origem * pct, 2)
+                    running += valor
+                else:
+                    valor = round(total_origem - running, 2)
+                values.append({
+                    'ano': ano,
+                    'mes': mes,
+                    'familia': familia,
+                    'ccusto_ori': ccusto_ori,
+                    'ccusto_dest': (r.get('CCUSTO_DEST') or '').strip(),
+                    'valor': valor,
+                    'base_qtd': qtd,
+                    'base_total': base_total,
+                    'percentagem': round(pct * 100.0, 6),
+                    'gerado_por': getattr(current_user, 'LOGIN', '') or ''
+                })
+
+            db.session.execute(text("""
+                INSERT INTO dbo.TXADM
+                (ANO, MES, DATA_FECHO, FAMILIA, CCUSTOORI, CCUSTODEST, VALOR, CRITERIO, BASE_QTD, BASE_TOTAL, PERCENTAGEM, GERADO_EM, GERADO_POR)
+                VALUES
+                (:ano, :mes, CAST(GETDATE() AS date), :familia, :ccusto_ori, :ccusto_dest, :valor, 'CHECKOUT_TIPOLOGIA', :base_qtd, :base_total, :percentagem, GETDATE(), :gerado_por)
+            """), values)
+
+            db.session.commit()
+            return jsonify({'ok': True, 'inserted': len(values), 'total_origem': round(total_origem, 2)})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/fecho_mensal/imputacoes_mes', methods=['DELETE', 'POST'])
+    @login_required
+    def api_fecho_mensal_imputacoes_mes():
+        try:
+            payload = request.get_json(silent=True) or {}
+            ano = int(payload.get('ano') or date.today().year)
+            mes = int(payload.get('mes') or date.today().month)
+            if mes < 1 or mes > 12:
+                return jsonify({'error': 'Mês inválido'}), 400
+            result = db.session.execute(text("""
+                DELETE FROM dbo.TXADM
+                WHERE ANO = :ano
+                  AND MES = :mes
+                  AND LTRIM(RTRIM(ISNULL(FAMILIA,''))) LIKE '4.%'
+            """), {'ano': ano, 'mes': mes})
+            db.session.commit()
+            return jsonify({'ok': True, 'deleted': int(result.rowcount or 0)})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    # -----------------------------
     # Imputação a proprietários (FO/MN)
     # -----------------------------
     @app.route('/imputacao_proprietarios')
@@ -8528,12 +9144,75 @@ OPTION (MAXRECURSION 32767);
             FROM AL
             ORDER BY NOME
         """)).mappings().all()
-        return jsonify([dict(r) for r in rows])
+        para_rows = db.session.execute(text("""
+            SELECT PARAMETRO, CVALOR, NVALOR, DVALOR, LVALOR, TIPO
+            FROM dbo.PARA
+            WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) IN ('EMP_LAT','EMP_LON','EMP_MORADA','EMP_CODPOST','EMP_LOCAL')
+        """)).mappings().all()
+        para = {}
+        for p in para_rows:
+            k = (p.get('PARAMETRO') or '').strip().upper()
+            t = (p.get('TIPO') or '').strip().upper()
+            if t == 'N':
+                try:
+                    para[k] = float(p.get('NVALOR') or 0)
+                except Exception:
+                    para[k] = 0.0
+            else:
+                para[k] = (p.get('CVALOR') or '').strip()
+
+        out = []
+        emp_lat = para.get('EMP_LAT')
+        emp_lon = para.get('EMP_LON')
+        try:
+            if emp_lat is not None and emp_lon is not None:
+                out.append({
+                    'ALSTAMP': '__SEDE__',
+                    'NOME': 'SEDE',
+                    'MORADA': para.get('EMP_MORADA', ''),
+                    'CODPOST': para.get('EMP_CODPOST', ''),
+                    'LOCAL': para.get('EMP_LOCAL', ''),
+                    'LAT': float(emp_lat),
+                    'LON': float(emp_lon),
+                    'IS_SEDE': 1
+                })
+        except Exception:
+            pass
+
+        out.extend([dict(r) for r in rows])
+        return jsonify(out)
 
 
     @app.route('/api/alojamentos_geo/<alstamp>', methods=['GET'])
     @login_required
     def api_alojamentos_geo_detail(alstamp):
+        if str(alstamp or '').strip() == '__SEDE__':
+            para_rows = db.session.execute(text("""
+                SELECT PARAMETRO, CVALOR, NVALOR, TIPO
+                FROM dbo.PARA
+                WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) IN ('EMP_LAT','EMP_LON','EMP_MORADA','EMP_CODPOST','EMP_LOCAL')
+            """)).mappings().all()
+            para = {}
+            for p in para_rows:
+                k = (p.get('PARAMETRO') or '').strip().upper()
+                t = (p.get('TIPO') or '').strip().upper()
+                if t == 'N':
+                    try:
+                        para[k] = float(p.get('NVALOR') or 0)
+                    except Exception:
+                        para[k] = 0.0
+                else:
+                    para[k] = (p.get('CVALOR') or '').strip()
+            return jsonify({
+                'ALSTAMP': '__SEDE__',
+                'NOME': 'SEDE',
+                'MORADA': para.get('EMP_MORADA', ''),
+                'CODPOST': para.get('EMP_CODPOST', ''),
+                'LOCAL': para.get('EMP_LOCAL', ''),
+                'LAT': para.get('EMP_LAT', None),
+                'LON': para.get('EMP_LON', None),
+                'IS_SEDE': 1
+            })
         row = db.session.execute(text("""
             SELECT ALSTAMP, NOME, MORADA, CODPOST, LOCAL, LAT, LON
             FROM AL
@@ -8547,6 +9226,8 @@ OPTION (MAXRECURSION 32767);
     @app.route('/api/alojamentos_geo/<alstamp>/coords', methods=['PUT'])
     @login_required
     def api_alojamentos_geo_update_coords(alstamp):
+        if str(alstamp or '').strip() == '__SEDE__':
+            return jsonify({'error': 'A geolocalização da sede não é editável neste ecrã.'}), 400
         data = request.get_json() or {}
         try:
             lat = data.get('lat', None)
@@ -8617,6 +9298,260 @@ OPTION (MAXRECURSION 32767);
             except Exception:
                 continue
         return jsonify({'results': results})
+
+    @app.route('/api/alojamentos_geo/rota', methods=['POST'])
+    @login_required
+    def api_alojamentos_geo_rota():
+        from itertools import permutations
+        payload = request.get_json(silent=True) or {}
+        from_stamp = (payload.get('from_stamp') or '').strip()
+        to_stamp = (payload.get('to_stamp') or '').strip()
+        to_stamps = payload.get('to_stamps') or []
+        return_to_origin = bool(payload.get('return_to_origin') or False)
+        if not isinstance(to_stamps, list):
+            to_stamps = []
+        if to_stamp and to_stamp not in to_stamps:
+            to_stamps.append(to_stamp)
+        to_stamps = [str(x).strip() for x in to_stamps if str(x).strip()]
+        if not from_stamp or not to_stamps:
+            return jsonify({'error': 'Origem e destinos são obrigatórios.'}), 400
+
+        def _loc_by_stamp(stamp):
+            if stamp == '__SEDE__':
+                para_rows = db.session.execute(text("""
+                    SELECT PARAMETRO, CVALOR, NVALOR, TIPO
+                    FROM dbo.PARA
+                    WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) IN ('EMP_LAT','EMP_LON')
+                """)).mappings().all()
+                vals = {}
+                for r in para_rows:
+                    k = (r.get('PARAMETRO') or '').strip().upper()
+                    if (r.get('TIPO') or '').strip().upper() == 'N':
+                        vals[k] = float(r.get('NVALOR') or 0)
+                    else:
+                        vals[k] = float(r.get('CVALOR') or 0)
+                return {'NOME': 'SEDE', 'LAT': vals.get('EMP_LAT'), 'LON': vals.get('EMP_LON')}
+            row = db.session.execute(text("""
+                SELECT NOME, LAT, LON
+                FROM AL
+                WHERE ALSTAMP = :s
+            """), {'s': stamp}).mappings().first()
+            return dict(row) if row else None
+
+        requested = [from_stamp] + to_stamps
+        requested_unique = []
+        seen = set()
+        for s in requested:
+            if s in seen:
+                continue
+            seen.add(s)
+            requested_unique.append(s)
+        if len(requested_unique) < 2:
+            return jsonify({'error': 'Seleciona pelo menos dois locais diferentes.'}), 400
+
+        locs = {}
+        for s in requested_unique:
+            loc = _loc_by_stamp(s)
+            if not loc:
+                return jsonify({'error': f'Local não encontrado: {s}'}), 404
+            try:
+                loc['LAT'] = float(loc.get('LAT'))
+                loc['LON'] = float(loc.get('LON'))
+            except Exception:
+                return jsonify({'error': f'O local "{loc.get("NOME") or s}" não tem coordenadas válidas.'}), 400
+            locs[s] = loc
+
+        dests = [s for s in requested_unique if s != from_stamp]
+
+        all_for_matrix = [from_stamp] + dests
+        matrix_idx = {s: i for i, s in enumerate(all_for_matrix)}
+        matrix_dur = []
+        matrix_dist = []
+        try:
+            matrix_coords = ";".join([f"{locs[x]['LON']},{locs[x]['LAT']}" for x in all_for_matrix])
+            table_url = f"https://router.project-osrm.org/table/v1/driving/{matrix_coords}?annotations=duration,distance"
+            table_data = _geo_fetch_json(table_url)
+            matrix_dur = table_data.get('durations') or []
+            matrix_dist = table_data.get('distances') or []
+        except Exception:
+            matrix_dur = []
+            matrix_dist = []
+
+        def _leg_duration(a_stamp, b_stamp):
+            try:
+                ai = matrix_idx[a_stamp]
+                bi = matrix_idx[b_stamp]
+                val = float(matrix_dur[ai][bi])
+                return val if val > 0 else None
+            except Exception:
+                return None
+
+        def _leg_distance(a_stamp, b_stamp):
+            try:
+                ai = matrix_idx[a_stamp]
+                bi = matrix_idx[b_stamp]
+                val = float(matrix_dist[ai][bi])
+                return val if val >= 0 else None
+            except Exception:
+                return None
+
+        def _coord_key(stamp):
+            loc = locs.get(stamp) or {}
+            try:
+                lat = round(float(loc.get('LAT')), 5)
+                lon = round(float(loc.get('LON')), 5)
+                return (lat, lon)
+            except Exception:
+                return ('STAMP', stamp)
+
+        def _coord_split_penalty(order):
+            # Penaliza quando o mesmo ponto (coordenadas) aparece em blocos separados:
+            # ex.: A(1) -> B -> A(2). O ideal é A(1),A(2) juntos.
+            seq = [_coord_key(s) for s in order[1:]]
+            pos = {}
+            for i, key in enumerate(seq):
+                pos.setdefault(key, []).append(i)
+            penalty = 0
+            for _, idxs in pos.items():
+                if len(idxs) <= 1:
+                    continue
+                span = (idxs[-1] - idxs[0] + 1)
+                gaps = span - len(idxs)
+                if gaps > 0:
+                    penalty += gaps + 1
+            return penalty
+
+        best_order = None
+        best_duration = None
+        best_distance = None
+        best_penalty = None
+        combinations = []
+        if len(dests) <= 8 and matrix_dur:
+            for perm in permutations(dests):
+                order = [from_stamp] + list(perm)
+                total_duration = 0.0
+                total_distance = 0.0
+                valid = True
+                for i in range(len(order) - 1):
+                    d = _leg_duration(order[i], order[i + 1])
+                    km = _leg_distance(order[i], order[i + 1])
+                    if d is None:
+                        valid = False
+                        break
+                    total_duration += d
+                    if km is not None:
+                        total_distance += km
+                if valid and return_to_origin:
+                    d_back = _leg_duration(order[-1], from_stamp)
+                    km_back = _leg_distance(order[-1], from_stamp)
+                    if d_back is None:
+                        valid = False
+                    else:
+                        total_duration += d_back
+                        if km_back is not None:
+                            total_distance += km_back
+                combo_order = list(order)
+                if return_to_origin and combo_order[-1] != from_stamp:
+                    combo_order.append(from_stamp)
+                combo_names = [(locs[s].get('NOME') or s) for s in combo_order]
+                if not valid:
+                    combinations.append({
+                        'route_names': combo_names,
+                        'distance_km': None,
+                        'duration_min': None,
+                        'status': 'sem_rota'
+                    })
+                    continue
+                penalty = _coord_split_penalty(order)
+                if penalty > 0:
+                    # Regra rígida: locais com mesmas coordenadas têm de ficar contíguos.
+                    combinations.append({
+                        'route_names': combo_names,
+                        'distance_km': round(total_distance / 1000.0, 2),
+                        'duration_min': int(round(total_duration / 60.0)),
+                        'status': 'coords_separadas'
+                    })
+                    continue
+                combinations.append({
+                    'route_names': combo_names,
+                    'distance_km': round(total_distance / 1000.0, 2),
+                    'duration_min': int(round(total_duration / 60.0)),
+                    'status': 'ok'
+                })
+                better = False
+                if best_duration is None:
+                    better = True
+                else:
+                    # 1) menor duração; 2) menor distância
+                    if total_duration < (best_duration - 0.5):
+                        better = True
+                    elif abs(total_duration - best_duration) <= 0.5:
+                        if (best_distance is None) or (total_distance < best_distance):
+                            better = True
+                if better:
+                    best_duration = total_duration
+                    best_distance = total_distance
+                    best_penalty = penalty
+                    best_order = order
+        if not best_order:
+            best_order = [from_stamp] + dests
+
+        full_order = list(best_order)
+        if return_to_origin and full_order[-1] != from_stamp:
+            full_order.append(from_stamp)
+
+        legs = []
+        polyline_coords = []
+        total_distance_m = 0.0
+        total_duration_s = 0.0
+        for i in range(len(full_order) - 1):
+            a = full_order[i]
+            b = full_order[i + 1]
+            la = locs[a]
+            lb = locs[b]
+            leg_url = f"https://router.project-osrm.org/route/v1/driving/{la['LON']},{la['LAT']};{lb['LON']},{lb['LAT']}?overview=full&geometries=geojson"
+            try:
+                leg_data = _geo_fetch_json(leg_url)
+            except Exception:
+                return jsonify({'error': 'Falha ao contactar o serviço de rotas.'}), 502
+            if leg_data.get('code') != 'Ok' or not leg_data.get('routes'):
+                return jsonify({'error': f'Não foi possível calcular o percurso entre {la.get("NOME")} e {lb.get("NOME")}.'}), 400
+            route = leg_data['routes'][0]
+            total_distance_m += float(route.get('distance') or 0)
+            total_duration_s += float(route.get('duration') or 0)
+            geom = (route.get('geometry') or {}).get('coordinates') or []
+            if geom:
+                if polyline_coords and geom[0] == polyline_coords[-1]:
+                    polyline_coords.extend(geom[1:])
+                else:
+                    polyline_coords.extend(geom)
+            legs.append({
+                'from_stamp': a,
+                'to_stamp': b,
+                'from_name': la.get('NOME') or a,
+                'to_name': lb.get('NOME') or b,
+                'distance_km': round(float(route.get('distance') or 0) / 1000.0, 2),
+                'duration_min': int(round(float(route.get('duration') or 0) / 60.0))
+            })
+
+        return jsonify({
+            'ok': True,
+            'from_name': locs[from_stamp].get('NOME') or 'Origem',
+            'to_name': locs[full_order[-1]].get('NOME') or 'Destino',
+            'route_stamps': full_order,
+            'route_names': [(locs[s].get('NOME') or s) for s in full_order],
+            'route_points': [{
+                'stamp': s,
+                'name': locs[s].get('NOME') or s,
+                'lat': locs[s].get('LAT'),
+                'lon': locs[s].get('LON')
+            } for s in full_order],
+            'distance_km': round(total_distance_m / 1000.0, 2),
+            'duration_min': int(round(total_duration_s / 60.0)),
+            'geometry': {'type': 'LineString', 'coordinates': polyline_coords},
+            'legs': legs,
+            'combinations': combinations
+        })
 
 
     rotas_workers = {}
@@ -9036,6 +9971,31 @@ OPTION (MAXRECURSION 32767);
         rotas_workers[str(job_id)] = t
         t.start()
         return jsonify({'job_id': job_id})
+
+
+    @app.route('/api/rotas/rebuild/generate_missing', methods=['POST'])
+    @login_required
+    def api_rotas_rebuild_generate_missing():
+        inserted = db.session.execute(text("""
+            ;WITH coords AS (
+                SELECT ALSTAMP
+                FROM AL
+                WHERE LAT IS NOT NULL AND LON IS NOT NULL
+            )
+            INSERT INTO dbo.ROTAS
+            (OrigemStamp, DestinoStamp, Km, Segundos, Perfil, Provider, Status, Tentativas, Erro, UpdatedAt)
+            SELECT a.ALSTAMP, b.ALSTAMP, 0, 0, 'driving', 'OSRM', 0, 0, '', GETDATE()
+            FROM coords a
+            JOIN coords b ON a.ALSTAMP < b.ALSTAMP
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM dbo.ROTAS r
+                WHERE (r.OrigemStamp = a.ALSTAMP AND r.DestinoStamp = b.ALSTAMP)
+                   OR (r.OrigemStamp = b.ALSTAMP AND r.DestinoStamp = a.ALSTAMP)
+            )
+        """)).rowcount
+        db.session.commit()
+        return jsonify({'ok': True, 'inserted': inserted})
 
 
     @app.route('/api/rotas/rebuild/status', methods=['GET'])

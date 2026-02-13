@@ -1129,6 +1129,7 @@ const setupPlanner2 = () => {
   const prevBtn = document.getElementById('planner2-prev');
   const nextBtn = document.getElementById('planner2-next');
   const sortBtn = document.getElementById('planner2-sort-cleaning');
+  const printBtn = document.getElementById('planner2-print-labels');
   planner2SaveBtn = document.getElementById('planner2-save');
   if (planner2SaveBtn) {
     planner2SaveBtn.classList.add('btn-secondary');
@@ -1171,6 +1172,32 @@ const setupPlanner2 = () => {
     sortBtn.classList.toggle('btn-outline-secondary', !planner2SortMode);
     sortBtn.classList.toggle('btn-outline-primary', planner2SortMode);
     rerender();
+  });
+
+  printBtn?.addEventListener('click', async () => {
+    const date = dateInput?.value || currentDate;
+    if (!date) {
+      alert('Seleciona uma data primeiro!');
+      return;
+    }
+    printBtn.disabled = true;
+    printBtn.innerHTML = '<i class="fa-solid fa-spinner fa-print"></i>';
+    try {
+      const res = await fetch(`/planner/api/imprimir_etiquetas?date=${encodeURIComponent(date)}`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Etiquetas criadas!');
+      } else {
+        alert(`Erro: ${data.error || 'Erro desconhecido.'}`);
+      }
+    } catch (err) {
+      alert(`Erro ao criar etiquetas: ${err.message || err}`);
+    } finally {
+      printBtn.disabled = false;
+      printBtn.innerHTML = '<i class="fa-solid fa-print"></i>';
+    }
   });
 
   planner2SaveBtn?.addEventListener('click', async () => {

@@ -9,7 +9,10 @@ const geoState = {
   alternatives: [],
   mode: 'single',
   allLayer: null,
-  lastSelected: null
+  lastSelected: null,
+  routeLayer: null,
+  routeStopsLayer: null,
+  routeSelectedStamps: new Set()
 };
 
 const geoEls = {
@@ -30,7 +33,15 @@ const geoEls = {
   locate: document.getElementById('geoLocate'),
   save: document.getElementById('geoSave'),
   reset: document.getElementById('geoReset'),
-  alt: document.getElementById('geoAlt')
+  alt: document.getElementById('geoAlt'),
+  routeBtn: document.getElementById('geoRouteBtn'),
+  routeInfo: document.getElementById('geoRouteInfo'),
+  routeModal: document.getElementById('geoRouteModal'),
+  routeFrom: document.getElementById('geoRouteFrom'),
+  routeCards: document.getElementById('geoRouteCards'),
+  routeReturn: document.getElementById('geoRouteReturn'),
+  routeLoading: document.getElementById('geoRouteLoading'),
+  routeApply: document.getElementById('geoRouteApply')
 };
 
 const isInputEl = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT');
@@ -46,8 +57,15 @@ const setFieldValue = (el, value) => {
     el.textContent = value || '—';
   }
 };
+const isSedeSelected = () => !!(geoState.selected && Number(geoState.selected.IS_SEDE || 0) === 1);
 
 const setDirty = (dirty) => {
+  if (isSedeSelected()) {
+    geoState.dirty = false;
+    if (geoEls.dirty) geoEls.dirty.classList.remove('visible');
+    if (geoEls.save) geoEls.save.disabled = true;
+    return;
+  }
   geoState.dirty = !!dirty;
   if (geoEls.dirty) {
     geoEls.dirty.classList.toggle('visible', geoState.dirty);
@@ -76,6 +94,7 @@ const createMap = () => {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map);
   map.on('click', (e) => {
+    if (isSedeSelected() || geoState.mode === 'all') return;
     setMarker(e.latlng.lat, e.latlng.lng);
     updateLatLon(e.latlng.lat, e.latlng.lng, true);
   });
@@ -85,14 +104,20 @@ const createMap = () => {
 
 const setMarker = (lat, lon) => {
   if (!geoState.map) return;
+  const canEditMarker = geoState.mode !== 'all' && !isSedeSelected();
   if (!geoState.marker) {
-    geoState.marker = L.marker([lat, lon], { draggable: true }).addTo(geoState.map);
+    geoState.marker = L.marker([lat, lon], { draggable: canEditMarker }).addTo(geoState.map);
     geoState.marker.on('dragend', () => {
+      if (!canEditMarker) return;
       const pos = geoState.marker.getLatLng();
       updateLatLon(pos.lat, pos.lng, true);
     });
   } else {
     geoState.marker.setLatLng([lat, lon]);
+    if (geoState.marker.dragging) {
+      if (canEditMarker) geoState.marker.dragging.enable();
+      else geoState.marker.dragging.disable();
+    }
   }
   geoState.map.setView([lat, lon], 16);
 };
@@ -101,6 +126,22 @@ const clearMarker = () => {
   if (geoState.marker) {
     geoState.map.removeLayer(geoState.marker);
     geoState.marker = null;
+  }
+};
+
+const clearRoute = () => {
+  if (!geoState.map) return;
+  if (geoState.routeLayer) {
+    geoState.map.removeLayer(geoState.routeLayer);
+    geoState.routeLayer = null;
+  }
+  if (geoState.routeStopsLayer) {
+    geoState.map.removeLayer(geoState.routeStopsLayer);
+    geoState.routeStopsLayer = null;
+  }
+  if (geoEls.routeInfo) {
+    geoEls.routeInfo.style.display = 'none';
+    geoEls.routeInfo.textContent = '';
   }
 };
 
@@ -165,9 +206,14 @@ const fillForm = (item) => {
   setFieldValue(geoEls.local, item.LOCAL || '');
   updateLatLon(item.LAT, item.LON, false);
   const readonly = geoState.mode === 'all';
+  const locked = readonly || Number(item.IS_SEDE || 0) === 1;
   [geoEls.morada, geoEls.codpost, geoEls.local].forEach(el => {
-    if (isInputEl(el)) el.readOnly = readonly;
+    if (isInputEl(el)) el.readOnly = locked;
   });
+  geoEls.locate.disabled = locked;
+  geoEls.save.disabled = locked || !geoState.dirty;
+  geoEls.reset.disabled = locked;
+  if (geoEls.routeBtn) geoEls.routeBtn.disabled = (geoState.mode === 'all' || !item.ALSTAMP);
 };
 
 const selectItem = async (alstamp) => {
@@ -182,6 +228,7 @@ const selectItem = async (alstamp) => {
   geoState.lastSelected = data.ALSTAMP;
   geoState.original = { ...data };
   setDirty(false);
+  clearRoute();
   fillForm(data);
   geoEls.alt.innerHTML = '';
   if (data.LAT != null && data.LON != null) {
@@ -198,6 +245,7 @@ const locateOnMap = async () => {
     showToast('Seleciona um alojamento primeiro.', 'warning');
     return;
   }
+  if (isSedeSelected()) return;
   geoEls.alt.innerHTML = '<div class="geo-alt-loading">A localizar...</div>';
   const payload = {
     morada: getFieldValue(geoEls.morada),
@@ -249,6 +297,7 @@ const renderAlternatives = () => {
 };
 
 const resetToDb = () => {
+  if (isSedeSelected()) return;
   if (!geoState.original) return;
   fillForm(geoState.original);
   geoEls.alt.innerHTML = '';
@@ -268,6 +317,7 @@ const setAllModeUI = (enabled) => {
   geoEls.locate.disabled = enabled;
   geoEls.save.disabled = enabled || !geoState.dirty;
   geoEls.reset.disabled = enabled;
+  geoEls.routeBtn.disabled = enabled || !geoState.selected;
   if (geoEls.toggleAll) {
     geoEls.toggleAll.classList.toggle('btn-outline-primary', !enabled);
     geoEls.toggleAll.classList.toggle('btn-primary', enabled);
@@ -313,6 +363,7 @@ const enterAllMode = () => {
   geoState.lastSelected = geoState.selected ? geoState.selected.ALSTAMP : geoState.lastSelected;
   clearMarker();
   geoEls.alt.innerHTML = '';
+  clearRoute();
   setAllModeUI(true);
   if (!geoState.list.length) {
     loadList().then(renderAllMarkers).catch(() => renderAllMarkers());
@@ -330,6 +381,10 @@ const exitAllMode = () => {
 };
 
 const saveCoords = async () => {
+  if (isSedeSelected()) {
+    showToast('A geolocalização da sede não é editável neste ecrã.', 'warning');
+    return;
+  }
   if (!geoState.selected) {
     showToast('Seleciona um alojamento primeiro.', 'warning');
     return;
@@ -368,7 +423,128 @@ const saveCoords = async () => {
   applySearch();
 };
 
+const openRouteModal = () => {
+  if (!geoState.selected) {
+    showToast('Seleciona um local primeiro.', 'warning');
+    return;
+  }
+  if (geoState.mode === 'all') return;
+  if (geoEls.routeFrom) geoEls.routeFrom.textContent = geoState.selected.NOME || '—';
+  geoState.routeSelectedStamps = new Set();
+  if (geoEls.routeReturn) geoEls.routeReturn.checked = false;
+  const selectedStamp = String(geoState.selected.ALSTAMP || '').trim();
+  const opts = geoState.list.filter(x => String(x.ALSTAMP || '').trim() !== selectedStamp);
+  if (geoEls.routeCards) {
+    geoEls.routeCards.innerHTML = '';
+    opts.forEach(item => {
+      const stamp = String(item.ALSTAMP || '').trim();
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'geo-route-card';
+      card.dataset.stamp = stamp;
+      const hasCoords = Number.isFinite(Number(item.LAT)) && Number.isFinite(Number(item.LON));
+      card.innerHTML = `
+        <div class="geo-route-card-title">${item.NOME || stamp}</div>
+        <div class="geo-route-card-sub">${hasCoords ? `${Number(item.LAT).toFixed(4)}, ${Number(item.LON).toFixed(4)}` : 'Sem coordenadas'}</div>
+      `;
+      card.addEventListener('click', () => {
+        if (geoState.routeSelectedStamps.has(stamp)) {
+          geoState.routeSelectedStamps.delete(stamp);
+          card.classList.remove('active');
+        } else {
+          geoState.routeSelectedStamps.add(stamp);
+          card.classList.add('active');
+        }
+      });
+      geoEls.routeCards.appendChild(card);
+    });
+  }
+  bootstrap.Modal.getOrCreateInstance(geoEls.routeModal).show();
+};
+
+const drawRoute = async () => {
+  if (!geoState.selected) return;
+  const fromStamp = String(geoState.selected.ALSTAMP || '').trim();
+  const destinations = Array.from(geoState.routeSelectedStamps || []);
+  if (!destinations.length) {
+    showToast('Seleciona pelo menos um destino.', 'warning');
+    return;
+  }
+  if (geoEls.routeLoading) geoEls.routeLoading.classList.add('visible');
+  if (geoEls.routeApply) geoEls.routeApply.disabled = true;
+  if (geoEls.routeCards) geoEls.routeCards.style.pointerEvents = 'none';
+  let res, data;
+  try {
+    res = await fetch('/api/alojamentos_geo/rota', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from_stamp: fromStamp,
+        to_stamps: destinations,
+        return_to_origin: !!geoEls.routeReturn?.checked
+      })
+    });
+    data = await res.json().catch(() => ({}));
+  } finally {
+    if (geoEls.routeLoading) geoEls.routeLoading.classList.remove('visible');
+    if (geoEls.routeApply) geoEls.routeApply.disabled = false;
+    if (geoEls.routeCards) geoEls.routeCards.style.pointerEvents = '';
+  }
+  if (!res?.ok || data?.error) {
+    showToast(data?.error || 'Não foi possível calcular o percurso.', 'danger');
+    return;
+  }
+  const coords = (data.geometry && Array.isArray(data.geometry.coordinates)) ? data.geometry.coordinates : [];
+  if (!coords.length) {
+    showToast('Sem geometria de percurso.', 'warning');
+    return;
+  }
+  clearRoute();
+  const latlngs = coords.map(c => [Number(c[1]), Number(c[0])]);
+  geoState.routeLayer = L.polyline(latlngs, { color: '#2563eb', weight: 4, opacity: 0.9 }).addTo(geoState.map);
+  geoState.routeStopsLayer = L.layerGroup().addTo(geoState.map);
+  if (Array.isArray(data.route_points)) {
+    data.route_points.forEach((pt, idx) => {
+      const lat = Number(pt.lat);
+      const lon = Number(pt.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      const marker = L.marker([lat, lon], {
+        icon: L.divIcon({
+          className: 'geo-route-stop-icon',
+          html: `<span>${idx + 1}</span>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        })
+      });
+      marker.bindTooltip(`${idx + 1}. ${pt.name || ''}`, { direction: 'top', offset: [0, -8] });
+      geoState.routeStopsLayer.addLayer(marker);
+    });
+  }
+  geoState.map.fitBounds(geoState.routeLayer.getBounds(), { padding: [24, 24] });
+  if (geoEls.routeInfo) {
+    geoEls.routeInfo.style.display = 'block';
+    const routeNames = Array.isArray(data.route_names) ? data.route_names.join(' → ') : '';
+    geoEls.routeInfo.textContent = `${routeNames || `${data.from_name} → ${data.to_name || ''}`} • ${Number(data.distance_km || 0).toFixed(2)} km • ${Number(data.duration_min || 0)} min`;
+    if (Array.isArray(data.combinations) && data.combinations.length) {
+      const tooltip = data.combinations.map((c, idx) => {
+        const names = Array.isArray(c.route_names) ? c.route_names.join(' → ') : '';
+        const km = (c.distance_km == null) ? '-' : `${Number(c.distance_km).toFixed(2)} km`;
+        const mins = (c.duration_min == null) ? '-' : `${Number(c.duration_min)} min`;
+        let extra = '';
+        if (c.status === 'coords_separadas') extra = ' [coords separadas]';
+        if (c.status === 'sem_rota') extra = ' [sem rota]';
+        return `${idx + 1}. ${names} • ${km} • ${mins}${extra}`;
+      }).join('\n');
+      geoEls.routeInfo.title = tooltip;
+    } else {
+      geoEls.routeInfo.title = '';
+    }
+  }
+  bootstrap.Modal.getInstance(geoEls.routeModal)?.hide();
+};
+
 const bindFormEvents = () => {
+  if (geoEls.routeBtn) geoEls.routeBtn.disabled = true;
   [geoEls.morada, geoEls.codpost, geoEls.local].forEach(el => {
     if (isInputEl(el)) {
       el.addEventListener('input', () => setDirty(true));
@@ -377,6 +553,8 @@ const bindFormEvents = () => {
   geoEls.locate.addEventListener('click', locateOnMap);
   geoEls.reset.addEventListener('click', resetToDb);
   geoEls.save.addEventListener('click', saveCoords);
+  geoEls.routeBtn.addEventListener('click', openRouteModal);
+  geoEls.routeApply.addEventListener('click', drawRoute);
   geoEls.search.addEventListener('input', applySearch);
   geoEls.toggleAll.addEventListener('click', () => {
     if (geoState.mode === 'single') {
@@ -390,6 +568,7 @@ const bindFormEvents = () => {
 const rotasEls = {
   start: document.getElementById('rotasStart'),
   resume: document.getElementById('rotasResume'),
+  missing: document.getElementById('rotasMissing'),
   stop: document.getElementById('rotasStop'),
   bar: document.getElementById('rotasProgress'),
   text: document.getElementById('rotasText'),
@@ -418,6 +597,9 @@ const updateRotasUI = (data) => {
   }
   if (rotasEls.resume) {
     rotasEls.resume.disabled = (state === 'running' || state === 'stopping');
+  }
+  if (rotasEls.missing) {
+    rotasEls.missing.disabled = (state === 'running' || state === 'stopping');
   }
   if (rotasEls.stop) {
     rotasEls.stop.disabled = !(state === 'running' || state === 'stopping');
@@ -491,11 +673,31 @@ const stopRotasJob = async () => {
   pollRotasStatus();
 };
 
+const generateMissingRotas = async () => {
+  let data = {};
+  let res;
+  try {
+    res = await fetch('/api/rotas/rebuild/generate_missing', { method: 'POST' });
+    data = await res.json();
+  } catch (e) {
+    showToast('Erro ao gerar pares', 'danger');
+    return;
+  }
+  if (!res.ok || !(data.ok || data.success)) {
+    showToast(data.error || 'Erro ao gerar pares', 'danger');
+    return;
+  }
+  showToast(`Pares gerados: ${data.inserted || 0}`);
+};
+
 const initRotas = () => {
   if (!rotasEls.start) return;
   rotasEls.start.addEventListener('click', startRotasJob);
   if (rotasEls.resume) {
     rotasEls.resume.addEventListener('click', resumeRotasJob);
+  }
+  if (rotasEls.missing) {
+    rotasEls.missing.addEventListener('click', generateMissingRotas);
   }
   rotasEls.stop.addEventListener('click', stopRotasJob);
   fetch('/api/rotas/rebuild/status')
