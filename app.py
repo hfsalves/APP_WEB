@@ -5590,6 +5590,26 @@ OPTION (MAXRECURSION 32767);
         out['debug']['render_attempts'] = int(render_attempts)
         out['debug']['text_chars'] = int(len(text_all or ''))
         out['debug']['attempts_limited'] = bool(render_attempts >= 80)
+
+        # Fallback textual: alguns PDFs trazem o payload AT como texto extraível.
+        if not qr_raw and text_all:
+            txt_norm = re.sub(r'[\r\n\t]+', ' ', text_all)
+            txt_norm = re.sub(r'\s+', ' ', txt_norm).strip()
+            m_qr_text = re.search(
+                r'(A:\d{9}\*B:\d{9}\*C:[A-Z]{2}\*D:[A-Z]{1,3}\*E:[A-Z0-9]+\*F:\d{8}\*G:[^*]{3,120}\*H:[^*]{3,80}(?:\*[A-Z]\d?:[^*]{0,60})*)',
+                txt_norm,
+                re.IGNORECASE
+            )
+            if m_qr_text:
+                qr_raw = (m_qr_text.group(1) or '').strip()
+                qr_method = 'regex'
+                qr_conf = 0.55
+                for pi, pt in enumerate(text_pages):
+                    pnorm = re.sub(r'[\r\n\t]+', ' ', (pt or ''))
+                    if qr_raw[:24] in pnorm:
+                        qr_page = pi + 1
+                        break
+
         found = _fo_parse_found_fields(text_all=text_all, qr_raw=qr_raw)
         if qr_page:
             found['page'] = qr_page
@@ -5604,14 +5624,21 @@ OPTION (MAXRECURSION 32767);
             if first_text_page:
                 found['first_text_page'] = first_text_page
 
-        if found:
+        fiscal_keys = ('qr_raw', 'atcud', 'at_h_atcud', 'doc_no', 'nif_emitente', 'nif_receptor', 'total', 'iva', 'at_g_numero_documento')
+        has_fiscal = any(found.get(k) not in (None, '') for k in fiscal_keys)
+
+        if has_fiscal:
             out['status'] = 'ok'
             out['found'] = found
             out['message'] = 'Documento analisado com sucesso.'
         else:
+            out['status'] = 'not_found'
+            out['found'] = found
             # mensagem de fallback mais explícita quando falta stack de QR
             if (not deps.get('pyzbar')) and (not deps.get('cv2')):
                 out['message'] = 'PDF lido, mas sem motor de QR instalado (pyzbar/cv2).'
+            else:
+                out['message'] = 'Documento lido, mas sem QR/ATCUD fiscal identificado.'
         out['debug']['elapsed_ms'] = int((time.time() - t0) * 1000)
         return out
 
