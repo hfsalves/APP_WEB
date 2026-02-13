@@ -5127,7 +5127,7 @@ OPTION (MAXRECURSION 32767);
             return p
         return os.path.join(app.root_path, p.replace('/', os.sep))
 
-    def _fo_decode_qr_from_png_bytes(png_bytes: bytes, use_opencv=True):
+    def _fo_decode_qr_from_png_bytes(png_bytes: bytes, use_opencv=True, aggressive=False):
         def _qr_score(raw_val):
             s = (raw_val or '').strip()
             if not s:
@@ -5160,15 +5160,15 @@ OPTION (MAXRECURSION 32767);
             from PIL import Image, ImageOps, ImageEnhance
             from pyzbar.pyzbar import decode as zdecode, ZBarSymbol
             img0 = Image.open(io.BytesIO(png_bytes)).convert('L')
-            variants = []
-            variants.append(img0)
-            variants.append(ImageOps.autocontrast(img0))
-            variants.append(ImageEnhance.Contrast(img0).enhance(1.8))
-            for base in list(variants):
-                variants.append(base.resize((int(base.width * 1.5), int(base.height * 1.5))))
+            variants = [img0, ImageOps.autocontrast(img0)]
+            if aggressive:
+                variants.append(ImageEnhance.Contrast(img0).enhance(1.8))
+                for base in list(variants):
+                    variants.append(base.resize((int(base.width * 1.5), int(base.height * 1.5))))
             tried = []
+            angles = (0, 90, 180, 270) if aggressive else (0, 180)
             for v in variants:
-                for ang in (0, 90, 180, 270):
+                for ang in angles:
                     vv = v.rotate(ang, expand=True) if ang else v
                     key = (vv.width, vv.height, ang)
                     if key in tried:
@@ -5204,10 +5204,13 @@ OPTION (MAXRECURSION 32767);
             if img is not None:
                 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                 _, th = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-                variants = [img, cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(th, cv2.COLOR_GRAY2BGR)]
+                variants = [img, cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)]
+                if aggressive:
+                    variants.append(cv2.cvtColor(th, cv2.COLOR_GRAY2BGR))
                 detector = cv2.QRCodeDetector()
                 for v in variants:
-                    for k in range(4):
+                    max_rot = 4 if aggressive else 2
+                    for k in range(max_rot):
                         vv = np.rot90(v, k).copy() if k else v
                         val, _, _ = detector.detectAndDecode(vv)
                         val = (val or '').strip()
@@ -5427,15 +5430,15 @@ OPTION (MAXRECURSION 32767);
                     break
             fast_passes = [
                 {'dpi': 170, 'crop_mode': 'br'},
-                {'dpi': 240, 'crop_mode': 'br'},
-                {'dpi': 260, 'crop_mode': 'full'},
+                {'dpi': 220, 'crop_mode': 'br'},
+                {'dpi': 240, 'crop_mode': 'full'},
             ]
             fallback_passes = [
                 {'dpi': 320, 'crop_mode': 'full'},
                 {'dpi': 300, 'crop_mode': 'bl'},
                 {'dpi': 300, 'crop_mode': 'tr'},
             ]
-            max_attempts = 80
+            max_attempts = 42
             for cfg in fast_passes:
                 for i, page in enumerate(doc):
                     if render_attempts >= max_attempts:
@@ -5451,17 +5454,25 @@ OPTION (MAXRECURSION 32767);
                         clip = fitz.Rect(rect.width * 0.45, 0, rect.width, rect.height * 0.55)
                     render_attempts += 1
                     pix = page.get_pixmap(dpi=cfg['dpi'], clip=clip, alpha=False)
-                    raw, method, conf, sc = _fo_decode_qr_from_png_bytes(pix.tobytes('png'), use_opencv=False)
+                    raw, method, conf, sc = _fo_decode_qr_from_png_bytes(
+                        pix.tobytes('png'),
+                        use_opencv=False,
+                        aggressive=False
+                    )
                     if raw and sc > qr_score:
                         qr_raw = raw
                         qr_page = i + 1
                         qr_method = method
                         qr_conf = conf
                         qr_score = sc
+                        if qr_score >= 70:
+                            break
                 if render_attempts >= max_attempts:
                     break
+                if qr_score >= 70:
+                    break
             # fallback com OpenCV apenas se pyzbar não encontrou nada útil
-            if not qr_raw:
+            if not qr_raw or qr_score < 60:
                 for cfg in fallback_passes:
                     for i, page in enumerate(doc):
                         if render_attempts >= max_attempts:
@@ -5477,14 +5488,22 @@ OPTION (MAXRECURSION 32767);
                             clip = fitz.Rect(rect.width * 0.45, 0, rect.width, rect.height * 0.55)
                         render_attempts += 1
                         pix = page.get_pixmap(dpi=cfg['dpi'], clip=clip, alpha=False)
-                        raw, method, conf, sc = _fo_decode_qr_from_png_bytes(pix.tobytes('png'), use_opencv=True)
+                        raw, method, conf, sc = _fo_decode_qr_from_png_bytes(
+                            pix.tobytes('png'),
+                            use_opencv=True,
+                            aggressive=True
+                        )
                         if raw and sc > qr_score:
                             qr_raw = raw
                             qr_page = i + 1
                             qr_method = method
                             qr_conf = conf
                             qr_score = sc
+                            if qr_score >= 70:
+                                break
                     if render_attempts >= max_attempts:
+                        break
+                    if qr_score >= 70:
                         break
             doc.close()
         except Exception:
@@ -5567,6 +5586,21 @@ OPTION (MAXRECURSION 32767);
                 return jsonify(result)
 
             local_path = _fo_resolve_local_path(anx.get('CAMINHO'))
+            try:
+                file_mtime = os.path.getmtime(local_path) if local_path and os.path.isfile(local_path) else None
+                file_size = os.path.getsize(local_path) if local_path and os.path.isfile(local_path) else None
+            except Exception:
+                file_mtime = None
+                file_size = None
+            cache_sig = {
+                'anexo_id': (anx.get('ANEXOSSTAMP') or '').strip(),
+                'path': local_path or '',
+                'mtime': file_mtime,
+                'size': file_size
+            }
+            cached = fo_doc_extract_cache.get(key)
+            if cached and isinstance(cached, dict) and (cached.get('_sig') == cache_sig):
+                return jsonify({k: v for k, v in cached.items() if k != '_sig'})
             file_obj = {
                 'name': (anx.get('FICHEIRO') or '').strip(),
                 'path': local_path or (anx.get('CAMINHO') or '').strip()
@@ -5579,7 +5613,7 @@ OPTION (MAXRECURSION 32767);
                 'message': ana.get('message') or '',
                 'debug': ana.get('debug') or {}
             }
-            fo_doc_extract_cache[key] = result
+            fo_doc_extract_cache[key] = {**result, '_sig': cache_sig}
             return jsonify(result)
         except Exception as e:
             return jsonify({
