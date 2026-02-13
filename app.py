@@ -5484,6 +5484,49 @@ OPTION (MAXRECURSION 32767);
                     break
                 if qr_score >= 70:
                     break
+
+            # Recovery pass: em fast_mode, se não encontrou QR nas primeiras páginas,
+            # varre as restantes com poucos passes pyzbar para não perder QR em páginas mais à frente.
+            if fast_mode and (not qr_raw) and total_pages > len(page_indexes):
+                recovery_indexes = list(range(len(page_indexes), total_pages))
+                recovery_passes = [
+                    {'dpi': 170, 'crop_mode': 'br'},
+                    {'dpi': 220, 'crop_mode': 'full'},
+                ]
+                recovery_attempts_cap = max_attempts + 24
+                for cfg in recovery_passes:
+                    for i in recovery_indexes:
+                        if render_attempts >= recovery_attempts_cap:
+                            break
+                        page = doc[i]
+                        rect = page.rect
+                        clip = None
+                        mode = (cfg.get('crop_mode') or 'full')
+                        if mode == 'br':
+                            clip = fitz.Rect(rect.width * 0.45, rect.height * 0.45, rect.width, rect.height)
+                        elif mode == 'bl':
+                            clip = fitz.Rect(0, rect.height * 0.45, rect.width * 0.55, rect.height)
+                        elif mode == 'tr':
+                            clip = fitz.Rect(rect.width * 0.45, 0, rect.width, rect.height * 0.55)
+                        render_attempts += 1
+                        pix = page.get_pixmap(dpi=cfg['dpi'], clip=clip, alpha=False)
+                        raw, method, conf, sc = _fo_decode_qr_from_png_bytes(
+                            pix.tobytes('png'),
+                            use_opencv=False,
+                            aggressive=False
+                        )
+                        if raw and sc > qr_score:
+                            qr_raw = raw
+                            qr_page = i + 1
+                            qr_method = method
+                            qr_conf = conf
+                            qr_score = sc
+                            if qr_score >= 70:
+                                break
+                    if render_attempts >= recovery_attempts_cap:
+                        break
+                    if qr_score >= 70:
+                        break
             # fallback com OpenCV apenas se pyzbar não encontrou nada útil
             if allow_opencv_fallback and (not qr_raw or qr_score < 60):
                 for cfg in fallback_passes:
