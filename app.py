@@ -5684,6 +5684,12 @@ OPTION (MAXRECURSION 32767);
             env_cv = os.environ.get('FO_QR_ENABLE_OPENCV_FALLBACK')
             if env_cv is not None:
                 allow_opencv_fallback = str(env_cv).strip() in ('1', 'true', 'True')
+            # Em ambientes não-Windows (tipicamente servidor Linux), forçar fallback OpenCV
+            # para compensar diferenças do zbar/pyzbar entre hosts.
+            if not allow_opencv_fallback:
+                force_server_cv = os.environ.get('FO_QR_SERVER_FORCE_OPENCV', '1')
+                if os.name != 'nt' and str(force_server_cv).strip() in ('1', 'true', 'True'):
+                    allow_opencv_fallback = True
 
             ana = _fo_analyze_pdf_document(
                 local_path,
