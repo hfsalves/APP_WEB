@@ -2091,6 +2091,8 @@ OPTION (MAXRECURSION 32767);
         # KPI: media por dia do ano (reservas recebidas por RDATA, mesma formula do grafico diario)
         kpi_res_ano_total = 0.0
         kpi_res_ano_media_dia = None
+        kpi_fat_ano_total = 0.0
+        kpi_fat_ano_media_dia = None
         try:
             start_y = date(ano, 1, 1)
             end_y = date(ano + 1, 1, 1)
@@ -2146,6 +2148,34 @@ OPTION (MAXRECURSION 32767);
             if ry:
                 kpi_res_ano_total = float((ry[0] or 0) if len(ry) > 0 else 0)
                 kpi_res_ano_media_dia = round(kpi_res_ano_total / float(days_in_year), 2) if days_in_year else None
+
+            # KPI 7: Faturado líquido até hoje / dia (v_diario_all)
+            where_fat = [
+                "V.DATA >= :start",
+                "V.DATA < :end",
+                "ISNULL(V.VALOR,0) <> 0",
+            ]
+            params_fat = {'start': start_y, 'end': end_window}
+            if ccustos:
+                keys = []
+                for idx, cc in enumerate(ccustos):
+                    k = f"ccf{idx}"
+                    params_fat[k] = cc
+                    keys.append(f":{k}")
+                where_fat.append(
+                    "LTRIM(RTRIM(ISNULL(V.CCUSTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI IN ("
+                    + ",".join(keys)
+                    + ")"
+                )
+            sql_fat = f"""
+                SELECT SUM(ISNULL(V.VALOR,0)) AS TOTAL
+                FROM v_diario_all V
+                WHERE {" AND ".join(where_fat)}
+            """
+            rf = db.session.execute(text(sql_fat), params_fat).fetchone()
+            if rf:
+                kpi_fat_ano_total = float((rf[0] or 0) if len(rf) > 0 else 0)
+                kpi_fat_ano_media_dia = round(kpi_fat_ano_total / float(days_in_year), 2) if days_in_year else None
         except Exception:
             try:
                 app.logger.exception("Erro ao calcular KPI media/dia reservas (RS)")
@@ -2153,6 +2183,8 @@ OPTION (MAXRECURSION 32767);
                 pass
             kpi_res_ano_total = 0.0
             kpi_res_ano_media_dia = None
+            kpi_fat_ano_total = 0.0
+            kpi_fat_ano_media_dia = None
 
         return jsonify({
             'ano': ano,
@@ -2166,6 +2198,8 @@ OPTION (MAXRECURSION 32767);
                 'numero_hospedes': kpi_rs_hospedes,
                 'reservas_ano_total': round(float(kpi_res_ano_total or 0), 2),
                 'reservas_ano_media_dia': kpi_res_ano_media_dia,
+                'faturado_ano_total': round(float(kpi_fat_ano_total or 0), 2),
+                'faturado_ano_media_dia': kpi_fat_ano_media_dia,
             },
             'familias': familias_lista
         })
@@ -2460,6 +2494,85 @@ OPTION (MAXRECURSION 32767);
             rows = db.session.execute(text(sql), params).fetchall()
         except Exception as e:
             return jsonify({'error': f'Erro ao obter reservas diarias: {e}'}), 500
+
+        values_by_day = {}
+        for r in rows:
+            d = r[0]
+            v = float(r[1] or 0)
+            try:
+                day_num = int(d.day)
+            except Exception:
+                continue
+            values_by_day[day_num] = values_by_day.get(day_num, 0.0) + v
+
+        last_day = (end - timedelta(days=1)).day
+        labels = list(range(1, last_day + 1))
+        values = [round(float(values_by_day.get(i, 0.0)), 2) for i in labels]
+        return jsonify({
+            'ano': ano,
+            'mes': mes,
+            'labels': labels,
+            'values': values,
+            'total': round(sum(values), 2)
+        })
+
+    @app.route('/api/mapa_gestao/faturacao_diaria')
+    @login_required
+    def api_mapa_gestao_faturacao_diaria():
+        from datetime import timedelta
+
+        try:
+            ano = request.args.get('ano', type=int) or date.today().year
+        except Exception:
+            ano = date.today().year
+        try:
+            mes = request.args.get('mes', type=int) or date.today().month
+        except Exception:
+            mes = date.today().month
+        if mes < 1 or mes > 12:
+            return jsonify({'error': 'mes invalido'}), 400
+
+        ccustos_raw = (request.args.get('ccustos') or '').strip()
+        ccustos = [c.strip() for c in ccustos_raw.split(',') if c.strip()]
+
+        try:
+            start = date(ano, mes, 1)
+            end = (date(ano + 1, 1, 1) if mes == 12 else date(ano, mes + 1, 1))
+        except Exception:
+            return jsonify({'error': 'ano/mes invalidos'}), 400
+
+        where_parts = [
+            "V.DATA >= :start",
+            "V.DATA < :end",
+            "ISNULL(V.VALOR,0) <> 0",
+        ]
+        params = {'start': start, 'end': end}
+        if ccustos:
+            keys = []
+            for idx, cc in enumerate(ccustos):
+                k = f"cc{idx}"
+                params[k] = cc
+                keys.append(f":{k}")
+            where_parts.append(
+                "LTRIM(RTRIM(ISNULL(V.CCUSTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI IN ("
+                + ",".join(keys)
+                + ")"
+            )
+
+        sql = f"""
+            SELECT
+                CAST(V.DATA AS date) AS DIA,
+                SUM(ISNULL(V.VALOR,0)) AS VALOR
+            FROM v_diario_all V
+            WHERE {" AND ".join(where_parts)}
+            GROUP BY CAST(V.DATA AS date)
+            ORDER BY CAST(V.DATA AS date)
+        """
+
+        try:
+            rows = db.session.execute(text(sql), params).fetchall()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter faturacao diaria: {e}'}), 500
 
         values_by_day = {}
         for r in rows:

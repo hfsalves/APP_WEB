@@ -1342,6 +1342,11 @@ document.addEventListener('mouseup', () => {
   if (!planner2Drag) return;
   const { bar, row, key } = planner2Drag;
   bar.classList.remove('planner2-bar-dragging');
+  const wasDragged = String(bar.dataset.dragged || '0') === '1';
+  if (!wasDragged) {
+    planner2Drag = null;
+    return;
+  }
   const idx = parseInt(bar.dataset.startIdx || '0', 10);
   bar.dataset.newTime = timeFromIndex(idx);
   if (row && Array.isArray(row.cleanings)) {

@@ -48,6 +48,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let chartResDaily = null;
   let resDailyYear = null;
   let resDailyMonth = null; // 1..12
+  let chartFatDaily = null;
+  let fatDailyYear = null;
+  let fatDailyMonth = null; // 1..12
   let chartAdrDaily = null;
   let adrDailyYear = null;
   let adrDailyMonth = null; // 1..12
@@ -128,6 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const resSub = document.getElementById('mapKpiResSub');
       const kpi6Main = document.getElementById('mapKpi6Main');
       const kpi6Sub = document.getElementById('mapKpi6Sub');
+      const kpi7Main = document.getElementById('mapKpi7Main');
+      const kpi7Sub = document.getElementById('mapKpi7Sub');
 
       const safePct = (num) => {
         if (!isFinite(num)) return '--';
@@ -241,6 +246,23 @@ document.addEventListener('DOMContentLoaded', () => {
         else {
           const n = Number(rawTot);
           kpi6Sub.textContent = isFinite(n) ? `Total ano: ${fmtCur.format(n)}` : 'Total ano: --';
+        }
+      }
+
+      if (kpi7Main) {
+        const rawAvg = lastKpis?.faturado_ano_media_dia;
+        if (rawAvg === null || rawAvg === undefined || rawAvg === '') kpi7Main.textContent = '--';
+        else {
+          const n = Number(rawAvg);
+          kpi7Main.textContent = isFinite(n) ? fmtCur2.format(n) : '--';
+        }
+      }
+      if (kpi7Sub) {
+        const rawTot = lastKpis?.faturado_ano_total;
+        if (rawTot === null || rawTot === undefined || rawTot === '') kpi7Sub.textContent = 'Total até hoje: --';
+        else {
+          const n = Number(rawTot);
+          kpi7Sub.textContent = isFinite(n) ? `Total até hoje: ${fmtCur.format(n)}` : 'Total até hoje: --';
         }
       }
     }
@@ -480,6 +502,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const resMonthLabelEl = document.getElementById('mapResMonthLabel');
   const resTotalEl = document.getElementById('mapResDailyTotal');
 
+  const fatDailyModalEl = document.getElementById('mapFatDailyModal');
+  const fatDailyModal = fatDailyModalEl ? new bootstrap.Modal(fatDailyModalEl) : null;
+  const fatPrevBtn = document.getElementById('mapFatPrev');
+  const fatNextBtn = document.getElementById('mapFatNext');
+  const fatMonthLabelEl = document.getElementById('mapFatMonthLabel');
+  const fatTotalEl = document.getElementById('mapFatDailyTotal');
+
   const adrDailyModalEl = document.getElementById('mapAdrDailyModal');
   const adrDailyModal = adrDailyModalEl ? new bootstrap.Modal(adrDailyModalEl) : null;
   const adrPrevBtn = document.getElementById('mapAdrPrev');
@@ -579,6 +608,97 @@ document.addEventListener('DOMContentLoaded', () => {
         datasets: [
           {
             label: 'Reservas recebidas',
+            data: values,
+            backgroundColor: bgColors,
+            borderColor: borderColors,
+            borderWidth: 1,
+            borderRadius: 6,
+            borderSkipped: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const v = Number(ctx.parsed?.y || 0);
+                return fmtCur.format(v);
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: (v) => {
+                try { return fmtNum.format(Number(v || 0)); } catch (_) { return v; }
+              }
+            },
+            grid: { display: true, color: '#e5e7eb' }
+          }
+        }
+      }
+    });
+  }
+
+  async function loadFatDaily() {
+    if (!fatDailyModalEl) return;
+    const ano = Number(fatDailyYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
+    const mes = Number(fatDailyMonth || (new Date().getMonth() + 1));
+    if (fatMonthLabelEl) fatMonthLabelEl.textContent = monthLabel(ano, mes);
+    if (fatTotalEl) fatTotalEl.textContent = 'Total: --';
+
+    const ccustos = getSelectedCcustos();
+    const qs = new URLSearchParams({ ano: String(ano), mes: String(mes) });
+    if (ccustos.length) qs.set('ccustos', ccustos.join(','));
+
+    let data;
+    try {
+      const res = await fetch(`/api/mapa_gestao/faturacao_diaria?${qs.toString()}`);
+      data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao obter faturação diária');
+    } catch (err) {
+      console.error(err);
+      if (fatTotalEl) fatTotalEl.textContent = `Erro: ${err.message || err}`;
+      return;
+    }
+
+    const canvas = document.getElementById('mapFatDailyChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const labels = (Array.isArray(data.labels) ? data.labels : []).map(n => String(n));
+    const values = (Array.isArray(data.values) ? data.values : []).map(v => Number(v || 0));
+    const total = Number(data.total || 0);
+    if (fatTotalEl) fatTotalEl.textContent = `Total: ${fmtCur.format(total)}`;
+
+    const dayNums = (Array.isArray(data.labels) ? data.labels : []).map(n => Number(n));
+    const bgColors = dayNums.map((d) => {
+      const day = Number(d);
+      const wd = new Date(ano, mes - 1, day).getDay();
+      const weekend = (wd === 0 || wd === 6);
+      return weekend ? 'rgba(124, 58, 237, 0.35)' : 'rgba(124, 58, 237, 0.22)';
+    });
+    const borderColors = dayNums.map((d) => {
+      const day = Number(d);
+      const wd = new Date(ano, mes - 1, day).getDay();
+      const weekend = (wd === 0 || wd === 6);
+      return weekend ? 'rgba(88, 28, 135, 0.95)' : 'rgba(124, 58, 237, 0.85)';
+    });
+
+    try { chartFatDaily?.destroy?.(); } catch (_) {}
+    chartFatDaily = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Faturação',
             data: values,
             backgroundColor: bgColors,
             borderColor: borderColors,
@@ -1184,6 +1304,28 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   resPrevBtn?.addEventListener('click', () => shiftMonth(-1));
   resNextBtn?.addEventListener('click', () => shiftMonth(1));
+
+  function shiftFatMonth(delta) {
+    const baseYear = Number(fatDailyYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
+    const baseMonth = Number(fatDailyMonth || (new Date().getMonth() + 1));
+    let y = baseYear;
+    let m = baseMonth + Number(delta || 0);
+    while (m < 1) { m += 12; y -= 1; }
+    while (m > 12) { m -= 12; y += 1; }
+    fatDailyYear = y;
+    fatDailyMonth = m;
+    loadFatDaily();
+  }
+
+  document.getElementById('mapKpi7Card')?.addEventListener('click', () => {
+    const now = new Date();
+    fatDailyYear = parseInt(anoInput?.value, 10) || now.getFullYear();
+    fatDailyMonth = now.getMonth() + 1;
+    fatDailyModal?.show();
+    setTimeout(loadFatDaily, 150);
+  });
+  fatPrevBtn?.addEventListener('click', () => shiftFatMonth(-1));
+  fatNextBtn?.addEventListener('click', () => shiftFatMonth(1));
 
   function shiftAdrMonth(delta) {
     const baseYear = Number(adrDailyYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
