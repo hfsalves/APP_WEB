@@ -209,6 +209,12 @@ def generate_ft_pdf_bytes(html: str) -> bytes:
                 with tempfile.TemporaryDirectory() as td:
                     html_path = os.path.join(td, "ft.html")
                     pdf_path = os.path.join(td, f"ft_{os.path.basename(chrome)}.pdf")
+                    profile_base = os.environ.get("CHROME_USER_DATA_DIR", "").strip() or os.path.join(current_app.root_path, ".chrome-pdf-profile")
+                    profile_dir = os.path.join(profile_base, f"p_{int(time.time() * 1000)}")
+                    try:
+                        os.makedirs(profile_dir, exist_ok=True)
+                    except Exception:
+                        profile_dir = ""
                     with open(html_path, "w", encoding="utf-8") as f:
                         f.write(html or "")
                     uri = "file:///" + html_path.replace("\\", "/")
@@ -218,7 +224,10 @@ def generate_ft_pdf_bytes(html: str) -> bytes:
                         "--allow-file-access-from-files",
                         "--run-all-compositor-stages-before-draw", "--virtual-time-budget=15000",
                         "--no-sandbox", "--disable-extensions", "--disable-sync",
+                        "--disable-dev-shm-usage",
                     ]
+                    if profile_dir:
+                        base_args.append(f"--user-data-dir={profile_dir}")
                     cmd_variants = [
                         [chrome, "--headless=new", *base_args, f"--print-to-pdf={pdf_path}", "--print-to-pdf-no-header", "--no-pdf-header-footer", uri],
                         [chrome, "--headless", *base_args, f"--print-to-pdf={pdf_path}", "--print-to-pdf-no-header", "--no-pdf-header-footer", uri],
