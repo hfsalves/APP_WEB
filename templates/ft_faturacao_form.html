@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% block title %}Faturação{% endblock %}
+{% block content %}
+<div class="fo-layout">
+<div class="dynamic-form dynamic-form-card" id="ftFormRoot" data-ftstamp="{{ ftstamp }}">
+  <section class="dynamic-form-body dynamic-form-body-modern">
+      <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start">
+        <div>
+          <div class="small text-muted">Documento FT</div>
+          <h5 class="mb-0" id="ftTitulo">Rascunho</h5>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <button id="ftBtnAnular" class="btn btn-outline-danger btn-sm">Anular</button>
+          <button id="ftBtnDuplicar" class="btn btn-outline-primary btn-sm">Duplicar</button>
+          <button id="ftBtnImprimir" class="btn btn-outline-secondary btn-sm">Imprimir</button>
+          <button id="ftBtnVerHtml" class="btn btn-outline-secondary btn-sm">Ver HTML</button>
+        </div>
+      </div>
+      <hr>
+      <div class="row g-3">
+        <div class="col-12">
+          <div class="row g-2">
+            <div class="col-md-3"><label class="form-label">Entidade emissora</label><select id="FT_FESTAMP" class="form-select"></select></div>
+            <div class="col-md-3"><label class="form-label">Tipo documento</label><select id="FT_NDOC" class="form-select"></select></div>
+            <div class="col-md-1"><label class="form-label">Série (auto)</label><input id="FT_SERIE" class="form-control" readonly></div>
+            <div class="col-md-1"><label class="form-label">Nº Documento</label><input id="FT_FNO" class="form-control" readonly></div>
+            <div class="col-md-2"><label class="form-label">Data emissão</label><input id="FT_FDATA" type="date" class="form-control"></div>
+            <div class="col-md-2"><label class="form-label">Vencimento</label><input id="FT_PDATA" type="date" class="form-control"></div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="row g-2">
+            <div class="col-md-4 position-relative">
+              <label class="form-label">Nome</label>
+              <input id="FT_NOME" class="form-control" autocomplete="off">
+              <div id="FT_CLIENT_SUGG" class="list-group position-absolute w-100 shadow-sm" style="z-index:30; display:none; max-height:220px; overflow:auto;"></div>
+            </div>
+            <div class="col-md-1"><label class="form-label">No</label><input id="FT_NO" class="form-control" readonly></div>
+            <div class="col-md-2"><label class="form-label">NIF</label><input id="FT_NCONT" class="form-control" readonly></div>
+            <div class="col-md-1 d-flex align-items-end"><button id="FT_CLIENT_DETAIL" type="button" class="btn btn-outline-secondary btn-sm w-100">Detalhes</button></div>
+            <div class="col-md-4"><label class="form-label">Centro Custo</label><select id="FT_CCUSTO" class="form-select"><option value="">---</option></select></div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="row g-2 justify-content-end">
+            <div class="col-md-2"><label class="form-label">Total Líquido</label><input id="FT_ETTILIQ" class="form-control text-end" readonly></div>
+            <div class="col-md-2"><label class="form-label">Total IVA</label><input id="FT_ETTIVA" class="form-control text-end" readonly></div>
+            <div class="col-md-2"><label class="form-label">Total</label><input id="FT_ETOTAL" class="form-control text-end fw-semibold" readonly></div>
+            <div class="col-md-1"><label class="form-label">Moeda</label><input id="FT_MOEDA" class="form-control text-end" value="EUR" readonly></div>
+          </div>
+        </div>
+      </div>
+  </section>
+
+  <section class="dynamic-form-panels mt-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0">Linhas</h6>
+        <button id="ftAddLinha" class="btn btn-sm btn-outline-primary">Adicionar Linha</button>
+      </div>
+      <div class="table-responsive fo-lines">
+        <table class="table table-sm table-hover align-middle fo-lines-table fo-lines-compact" id="ftLinesTable">
+          <thead>
+            <tr>
+              <th>REFERÊNCIA</th><th>DESIGNAÇÃO</th><th class="text-end">QTD.</th><th>UN.</th><th class="text-end">PREÇO</th>
+              <th class="text-end">TOTAL</th><th>IVA</th><th class="text-center">INCL.</th>
+              <th>FAMÍLIA</th><th>C. CUSTO</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="ftLinesBody"></tbody>
+        </table>
+      </div>
+  </section>
+
+  <div class="form-actions mt-3">
+    <a class="btn btn-outline-secondary btn-sm" href="/generic/view/FT/">Voltar</a>
+    <button id="ftBtnGuardar" class="btn btn-outline-primary btn-save"><i class="fa-solid fa-save"></i><span class="btn-text">Gravar</span></button>
+    <button id="ftBtnEmitir" class="btn btn-outline-success btn-save"><i class="fa-solid fa-check"></i><span class="btn-text">Emitir</span></button>
+    <button id="ftBtnCancelar" class="btn btn-outline-secondary btn-cancel"><i class="fa-solid fa-ban"></i><span class="btn-text">Cancelar</span></button>
+  </div>
+</div>
+<style>
+  .fo-lines {
+    background: linear-gradient(145deg, #f8fafc 0%, #eef2f7 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 0.75rem;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  }
+  .fo-lines-table tbody tr td:nth-child(1),
+  .fo-lines-table thead th:nth-child(1) {
+    text-align: left !important;
+  }
+  .fo-lines-table {
+    width: 100%;
+    font-size: 12px;
+    color: #0f172a;
+    border-collapse: separate;
+    border-spacing: 0 4px;
+  }
+  .fo-lines-table thead th {
+    font-weight: 700;
+    color: #1f2937;
+    border: none;
+    padding: 0.28rem 0.45rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: transparent;
+    font-size: 12px;
+  }
+  .fo-lines-table tbody tr {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+  }
+  .fo-lines-table tbody td {
+    border-top: 1px solid #eef2f7;
+    border-bottom: 1px solid #eef2f7;
+    padding: 0.32rem 0.40rem;
+    vertical-align: middle;
+  }
+  .fo-lines-table tbody tr td:first-child {
+    border-left: 1px solid #eef2f7;
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
+  }
+  .fo-lines-table tbody tr td:last-child {
+    border-right: 1px solid #eef2f7;
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+  }
+  .fo-lines-table tbody tr:hover{
+    background: #f8fbff;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.10);
+  }
+  .fo-lines-table .form-control,
+  .fo-lines-table .form-check-input {
+    font-size: 12px;
+  }
+  .fo-lines-table thead th:nth-child(1),
+  .fo-lines-table tbody td:nth-child(1) { width: 170px; min-width: 170px; }
+  .fo-lines-table thead th:nth-child(2),
+  .fo-lines-table tbody td:nth-child(2) { width: 320px; min-width: 320px; }
+  .fo-lines-table thead th:nth-child(3),
+  .fo-lines-table tbody td:nth-child(3) { width: 82px; min-width: 82px; }
+  .fo-lines-table thead th:nth-child(4),
+  .fo-lines-table tbody td:nth-child(4) { width: 55px; min-width: 55px; }
+  .fo-lines-table thead th:nth-child(5),
+  .fo-lines-table tbody td:nth-child(5) { width: 98px; min-width: 98px; }
+  .fo-lines-table thead th:nth-child(6),
+  .fo-lines-table tbody td:nth-child(6) { width: 95px; min-width: 95px; }
+
+  #ftArtigoModal .modal-body {
+    padding-top: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #ftArtigoModal .modal-dialog {
+    height: 80vh;
+    max-height: 80vh;
+  }
+  #ftArtigoModal .modal-content {
+    height: 80vh;
+    max-height: 80vh;
+  }
+  .artigo-modal-header {
+    background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+    color: #fff;
+    border-bottom: none;
+  }
+  .artigo-modal-header .btn-close {
+    filter: invert(1) grayscale(1) brightness(2);
+    opacity: 0.9;
+  }
+  .artigo-sticky {
+    z-index: 2;
+    background: #fff;
+    margin: 0 -1rem;
+    padding: 1rem 1rem 0.5rem 1rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  }
+  .artigo-table thead th {
+    position: static;
+    top: auto;
+    background: #fff;
+    z-index: auto;
+  }
+  .artigo-table tbody tr { cursor: pointer; }
+  .artigo-table tbody tr:hover { background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%); }
+  .artigo-ref {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-align: left;
+  }
+  .artigo-table thead th:nth-child(1),
+  .artigo-table tbody td:nth-child(1) { text-align: left !important; }
+  .artigo-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 12px;
+    position: relative;
+    background: #fff;
+  }
+  .artigo-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    min-width: 680px;
+  }
+  .artigo-table thead th {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 3;
+    box-shadow: 0 1px 0 rgba(148, 163, 184, 0.45);
+  }
+  .artigo-sortable {
+    cursor: pointer;
+    user-select: none;
+  }
+  .artigo-sortable::after {
+    content: "  \2195";
+    opacity: 0.35;
+    font-weight: 700;
+  }
+  .artigo-sortable.sort-asc::after {
+    content: "  \2191";
+    opacity: 0.9;
+  }
+  .artigo-sortable.sort-desc::after {
+    content: "  \2193";
+    opacity: 0.9;
+  }
+  #loadingOverlay.ft-signing .loading-panel {
+    border-color: rgba(59, 130, 246, 0.45);
+    box-shadow: 0 20px 45px rgba(30, 64, 175, 0.28);
+  }
+  #loadingOverlay.ft-signing .loading-text {
+    color: #ffffff;
+    font-weight: 700;
+  }
+  #loadingOverlay.ft-signing .ft-lock-wrap {
+    position: relative;
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    margin-right: 6px;
+    vertical-align: -2px;
+  }
+  #loadingOverlay.ft-signing .ft-lock-wrap i {
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: #ffffff;
+  }
+  #loadingOverlay.ft-signing .ft-lock-open {
+    opacity: 1;
+    animation: ft-lock-open 1.1s ease-in-out infinite;
+  }
+  #loadingOverlay.ft-signing .ft-lock-close {
+    opacity: 0;
+    animation: ft-lock-close 1.1s ease-in-out infinite;
+  }
+  @keyframes ft-lock-open {
+    0%, 35% { opacity: 1; transform: scale(1); }
+    55%, 100% { opacity: 0; transform: scale(0.92); }
+  }
+  @keyframes ft-lock-close {
+    0%, 40% { opacity: 0; transform: scale(0.92); }
+    55%, 100% { opacity: 1; transform: scale(1); }
+  }
+
+</style>
+
+<div class="modal fade" id="ftClienteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Detalhes do Cliente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-md-2"><label class="form-label">No</label><input id="FTM_NO" class="form-control" readonly></div>
+          <div class="col-md-6"><label class="form-label">Nome</label><input id="FTM_NOME" class="form-control" readonly></div>
+          <div class="col-md-4"><label class="form-label">NIF</label><input id="FTM_NIF" class="form-control" readonly></div>
+          <div class="col-md-6"><label class="form-label">Morada</label><input id="FTM_MORADA" class="form-control" readonly></div>
+          <div class="col-md-2"><label class="form-label">Cod. Postal</label><input id="FTM_CODPOST" class="form-control" readonly></div>
+          <div class="col-md-3"><label class="form-label">Local</label><input id="FTM_LOCAL" class="form-control" readonly></div>
+          <div class="col-md-1"><label class="form-label">Pa?s</label><input id="FTM_PAIS" class="form-control" readonly></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="ftArtigoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header artigo-modal-header">
+        <h5 class="modal-title">Escolher Refer?ncia</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="artigo-sticky">
+          <div class="mb-2">
+            <label class="form-label mb-1" for="ftArtigoSearch">Pesquisar</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light"><i class="fa fa-search"></i></span>
+              <input id="ftArtigoSearch" class="form-control" placeholder="Refer?ncia, descri??o ou fam?lia...">
+            </div>
+          </div>
+        </div>
+        <div class="artigo-table-wrap mt-2">
+          <table class="table table-sm table-hover align-middle artigo-table mb-0" id="ftArtigoTable">
+            <thead>
+              <tr>
+                <th class="artigo-sortable" data-sort="REF">Refer?ncia</th>
+                <th class="artigo-sortable" data-sort="DESIGN">Descri??o</th>
+                <th class="artigo-sortable" data-sort="FAMILIA">Fam?lia</th>
+              </tr>
+            </thead>
+            <tbody id="ftArtigoTableBody">
+              <tr><td colspan="3" class="text-muted">A carregar...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+<script>
+  window.FT_STAMP = {{ ftstamp|tojson }};
+</script>
+<script type="module" src="{{ url_for('static', filename='js/ft_faturacao_form.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Informação da Reserva</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f3f5f9;
+      --card:#ffffff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --border:#e2e8f0;
+      --accent:#2563eb;
+    }
+    body{
+      background: var(--bg);
+      color:var(--text);
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      min-height:100vh;
+    }
+    .public-wrap{max-width:1280px; margin:0 auto; padding:104px 18px 18px;}
+    .public-header{
+      margin-bottom:0;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      background:#fff;
+      border:1px solid #e2e8f0;
+      border-radius:16px;
+      padding:12px 14px;
+      box-shadow:0 8px 20px rgba(15,23,42,.08);
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(1280px, calc(100% - 24px));
+      z-index: 40;
+    }
+    .public-brand{
+      font-size:.9rem;
+      letter-spacing:.08em;
+      font-weight:800;
+      color:#1e293b;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
+    .public-title{font-size:1.4rem; font-weight:800; margin:0;}
+    .public-sub{font-size:.88rem; color:var(--muted);}
+    .public-meta{
+      margin-bottom:14px;
+      background:#fff;
+      border:1px solid #e2e8f0;
+      border-radius:16px;
+      padding:12px 14px;
+      box-shadow:0 8px 22px rgba(15,23,42,.08);
+    }
+    .cards-grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:14px;
+    }
+    @media (max-width:1100px){ .cards-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+    @media (max-width:700px){ .cards-grid{grid-template-columns:1fr;} .public-wrap{padding:12px;} }
+    .r-card{
+      background:var(--card);
+      border:1px solid rgba(148,163,184,.20);
+      border-radius:16px;
+      padding:15px;
+      min-height:180px;
+      box-shadow:0 10px 24px rgba(15,23,42,.08);
+      position:relative;
+      overflow:hidden;
+    }
+    .r-card::before{
+      content:'';
+      position:absolute;
+      inset:0 auto auto 0;
+      width:100%;
+      height:3px;
+      background:linear-gradient(90deg, rgba(37,99,235,.9), rgba(14,165,233,.75));
+      opacity:.75;
+    }
+    .r-card h3{font-size:1rem; margin:0 0 10px 0; font-weight:700;}
+    .r-card .muted{color:var(--muted);}
+    .kv{display:grid; grid-template-columns:120px 1fr; gap:6px 8px; font-size:.9rem;}
+    .kv .k{color:var(--muted);}
+    .placeholder{color:#94a3b8; font-style:italic;}
+    .badge-soft{font-weight:700; font-size:.74rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;}
+    .invalid-box{
+      max-width:620px; margin:9vh auto 0; background:#fff; border:1px solid #fecaca; color:#991b1b;
+      border-radius:14px; padding:18px; text-align:center; box-shadow:0 8px 26px rgba(15,23,42,.06);
+    }
+    .lang-switch{display:flex; align-items:center; justify-content:flex-end;}
+    .lang-menu{position:relative;}
+    .lang-menu-btn{
+      border:1px solid rgba(148,163,184,.35);
+      background:#fff;
+      color:#334155;
+      border-radius:999px;
+      padding:6px 10px;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      font-size:.82rem;
+      font-weight:700;
+      box-shadow:0 4px 10px rgba(15,23,42,.08);
+    }
+    .lang-menu-btn .fi{font-size:.92rem; border-radius:2px;}
+    .lang-menu-list{
+      position:absolute;
+      right:0;
+      top:calc(100% + 6px);
+      min-width:210px;
+      background:#fff;
+      border:1px solid rgba(148,163,184,.30);
+      border-radius:12px;
+      box-shadow:0 10px 26px rgba(15,23,42,.16);
+      padding:6px;
+      display:none;
+      z-index: 50;
+    }
+    .lang-menu-list.open{display:block;}
+    .lang-option{
+      width:100%;
+      border:0;
+      background:transparent;
+      border-radius:8px;
+      padding:8px 10px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:.84rem;
+      color:#334155;
+      text-align:left;
+      font-weight:600;
+    }
+    .lang-option:hover{background:#f1f5f9;}
+    .lang-option.active{
+      background:#dbeafe;
+      color:#1d4ed8;
+    }
+    .lang-option .fi{font-size:.92rem; border-radius:2px;}
+    .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    .form-grid .full{grid-column:1/-1;}
+    @media (max-width:560px){ .form-grid{grid-template-columns:1fr;} }
+    @media (max-width:700px){
+      .public-wrap{padding:92px 12px 12px;}
+      .public-header{width:calc(100% - 16px); top:8px;}
+    }
+  </style>
+</head>
+<body>
+  {% if invalid %}
+    <div class="invalid-box">
+      <h1 style="font-size:1.1rem; margin-bottom:8px;" data-i18n="invalid_title">Link inválido ou expirado</h1>
+      <div class="small" data-i18n="invalid_sub">Confirma o link ou pede um novo acesso.</div>
+    </div>
+  {% else %}
+    <main class="public-wrap">
+      <header class="public-header">
+        <div class="public-brand">STATIONZERO</div>
+        <div class="lang-switch">
+          <div class="lang-menu">
+            <button id="langMenuBtn" type="button" class="lang-menu-btn" aria-label="Idioma">
+              <span id="langMenuFlag" class="fi fi-pt"></span>
+              <span id="langMenuCode">PT</span>
+            </button>
+            <div id="langMenuList" class="lang-menu-list">
+              <button type="button" class="lang-option" data-lang="pt"><span class="fi fi-pt"></span><span>Português</span></button>
+              <button type="button" class="lang-option" data-lang="en"><span class="fi fi-gb"></span><span>English</span></button>
+              <button type="button" class="lang-option" data-lang="fr"><span class="fi fi-fr"></span><span>Français</span></button>
+              <button type="button" class="lang-option" data-lang="es"><span class="fi fi-es"></span><span>Español</span></button>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="public-meta">
+        <h1 class="public-title"><span data-i18n="title_reservation">Reserva</span> · {{ page_data.alojamento or 'Alojamento' }}</h1>
+        <div class="public-sub">
+          {% if page_data.reserva %}<span data-i18n="label_reservation">Reserva</span> {{ page_data.reserva }} · {% endif %}
+          {{ page_data.checkin_data or '—' }} → {{ page_data.checkout_data or '—' }}
+        </div>
+      </div>
+
+      <section class="cards-grid">
+        <article class="r-card">
+          <h3 data-i18n="card_mandatory">Dados Obrigatórios</h3>
+          <div class="placeholder" data-i18n="placeholder_mandatory_disabled">Temporariamente indisponível. Este formulário será ativado numa fase seguinte.</div>
+        </article>
+
+        <article class="r-card">
+          <h3 data-i18n="card_checkin">Check-in</h3>
+          <div class="kv">
+            <div class="k" data-i18n="label_property">Alojamento</div><div><strong>{{ page_data.alojamento or '—' }}</strong></div>
+            <div class="k" data-i18n="label_checkin">Check-in</div><div>{{ page_data.checkin_data or '—' }} {% if page_data.checkin_hora %}<span class="badge badge-soft ms-1">{{ page_data.checkin_hora }}</span>{% endif %}</div>
+            <div class="k" data-i18n="label_checkout">Check-out</div><div>{{ page_data.checkout_data or '—' }} {% if page_data.checkout_hora %}<span class="badge badge-soft ms-1">{{ page_data.checkout_hora }}</span>{% endif %}</div>
+            <div class="k" data-i18n="label_guests">Hóspedes</div><div>{{ page_data.hospedes or 0 }} {% if page_data.noites %}<span class="muted">· {{ page_data.noites }} <span data-i18n="label_nights">noite(s)</span></span>{% endif %}</div>
+            <div class="k" data-i18n="label_address">Morada</div><div>{{ page_data.address_text or '—' }}</div>
+          </div>
+        </article>
+
+        <article class="r-card">
+          <h3 data-i18n="card_how_to_get">Como Chegar</h3>
+          <div class="mb-2 muted">{{ page_data.address_text or '' }}{% if not page_data.address_text %}<span data-i18n="placeholder_no_address">Morada não disponível</span>{% endif %}</div>
+          {% if page_data.maps_url %}
+            <a class="btn btn-sm btn-primary" href="{{ page_data.maps_url }}" target="_blank" rel="noopener" data-i18n="btn_open_maps">Abrir no Google Maps</a>
+          {% else %}
+            <div class="placeholder" data-i18n="placeholder_no_nav">Sem morada/coordenadas para navegação.</div>
+          {% endif %}
+        </article>
+
+        {% for grp in (page_data.poi_groups or []) %}
+          <article class="r-card">
+            <h3>{{ grp['name'] }}</h3>
+            {% if grp['items'] %}
+              <div class="vstack gap-2">
+                {% for p in grp['items'] %}
+                  <div class="border rounded-3 p-2">
+                    <div><strong>{{ p.name }}</strong>{% if p.type %} <span class="muted">&middot; {{ p.type }}</span>{% endif %}</div>
+                    {% if p.descr %}<div class="muted small">{{ p.descr }}</div>{% endif %}
+                    {% if p.address %}<div class="small">{{ p.address }}</div>{% endif %}
+                    {% if p.horario %}<div class="small"><span class="muted">Hor&aacute;rio:</span> {{ p.horario }}</div>{% endif %}
+                    {% if p.preco %}<div class="small"><span class="muted">Pre&ccedil;o:</span> {{ p.preco }}</div>{% endif %}
+                    {% if p.nota %}<div class="small"><span class="muted">Nota:</span> {{ p.nota }}</div>{% endif %}
+                    <div class="d-flex flex-wrap gap-2 mt-1">
+                      {% if p.phone %}
+                        <a class="btn btn-sm btn-outline-secondary" href="tel:{{ p.phone }}">? {{ p.phone }}</a>
+                      {% endif %}
+                      {% if p.url %}
+                        <a class="btn btn-sm btn-outline-secondary" href="{{ p.url }}" target="_blank" rel="noopener">Website</a>
+                      {% endif %}
+                      {% if p.maps_url %}
+                        <a class="btn btn-sm btn-outline-primary" href="{{ p.maps_url }}" target="_blank" rel="noopener">Maps</a>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="placeholder" data-i18n="placeholder_content">Conte&uacute;do em prepara&ccedil;&atilde;o.</div>
+            {% endif %}
+          </article>
+        {% endfor %}
+        <article class="r-card"><h3 data-i18n="card_emergency">Emergência e Contactos</h3><div class="placeholder" data-i18n="placeholder_content">Conteúdo em preparação.</div></article>
+        <article class="r-card"><h3 data-i18n="card_rules">Regras Essenciais</h3><div class="placeholder" data-i18n="placeholder_content">Conteúdo em preparação.</div></article>
+      </section>
+    </main>
+  {% endif %}
+
+  <script>
+    (function () {
+      const I18N = {
+        pt: {
+          label_language: 'Idioma',
+          invalid_title: 'Link inválido ou expirado',
+          invalid_sub: 'Confirma o link ou pede um novo acesso.',
+          title_reservation: 'Reserva',
+          label_reservation: 'Reserva',
+          card_mandatory: 'Dados Obrigatórios',
+          placeholder_mandatory_disabled: 'Temporariamente indisponível. Este formulário será ativado numa fase seguinte.',
+          card_checkin: 'Check-in',
+          label_property: 'Alojamento',
+          label_checkin: 'Check-in',
+          label_checkout: 'Check-out',
+          label_guests: 'Hóspedes',
+          label_nights: 'noite(s)',
+          label_address: 'Morada',
+          card_how_to_get: 'Como Chegar',
+          placeholder_no_address: 'Morada não disponível',
+          btn_open_maps: 'Abrir no Google Maps',
+          placeholder_no_nav: 'Sem morada/coordenadas para navegação.',
+          card_parking: 'Estacionamento',
+          card_wifi: 'Wi-Fi',
+          card_supermarkets: 'Supermercados',
+          card_restaurants: 'Restaurantes',
+          card_laundries: 'Lavandarias',
+          card_emergency: 'Emergência e Contactos',
+          card_rules: 'Regras Essenciais',
+          placeholder_content: 'Conteúdo em preparação.'
+        },
+        en: {
+          label_language: 'Language',
+          invalid_title: 'Invalid or expired link',
+          invalid_sub: 'Please verify the link or request a new one.',
+          title_reservation: 'Reservation',
+          label_reservation: 'Reservation',
+          card_mandatory: 'Required Information',
+          placeholder_mandatory_disabled: 'Temporarily unavailable. This form will be enabled in a later phase.',
+          card_checkin: 'Check-in',
+          label_property: 'Property',
+          label_checkin: 'Check-in',
+          label_checkout: 'Check-out',
+          label_guests: 'Guests',
+          label_nights: 'night(s)',
+          label_address: 'Address',
+          card_how_to_get: 'How to Get There',
+          placeholder_no_address: 'Address unavailable',
+          btn_open_maps: 'Open in Google Maps',
+          placeholder_no_nav: 'No address/coordinates available for navigation.',
+          card_parking: 'Parking',
+          card_wifi: 'Wi-Fi',
+          card_supermarkets: 'Supermarkets',
+          card_restaurants: 'Restaurants',
+          card_laundries: 'Laundries',
+          card_emergency: 'Emergency & Contacts',
+          card_rules: 'Essential Rules',
+          placeholder_content: 'Content in preparation.'
+        },
+        fr: {
+          label_language: 'Langue',
+          invalid_title: 'Lien invalide ou expiré',
+          invalid_sub: 'Vérifiez le lien ou demandez-en un nouveau.',
+          title_reservation: 'Réservation',
+          label_reservation: 'Réservation',
+          card_mandatory: 'Données obligatoires',
+          placeholder_mandatory_disabled: 'Temporairement indisponible. Ce formulaire sera activé dans une phase suivante.',
+          card_checkin: 'Arrivée',
+          label_property: 'Logement',
+          label_checkin: 'Arrivée',
+          label_checkout: 'Départ',
+          label_guests: 'Voyageurs',
+          label_nights: 'nuit(s)',
+          label_address: 'Adresse',
+          card_how_to_get: 'Comment y aller',
+          placeholder_no_address: 'Adresse indisponible',
+          btn_open_maps: 'Ouvrir dans Google Maps',
+          placeholder_no_nav: 'Pas d’adresse/coordonnées pour la navigation.',
+          card_parking: 'Stationnement',
+          card_wifi: 'Wi-Fi',
+          card_supermarkets: 'Supermarchés',
+          card_restaurants: 'Restaurants',
+          card_laundries: 'Laveries',
+          card_emergency: 'Urgence et contacts',
+          card_rules: 'Règles essentielles',
+          placeholder_content: 'Contenu en préparation.'
+        },
+        es: {
+          label_language: 'Idioma',
+          invalid_title: 'Enlace inválido o caducado',
+          invalid_sub: 'Verifica el enlace o solicita uno nuevo.',
+          title_reservation: 'Reserva',
+          label_reservation: 'Reserva',
+          card_mandatory: 'Datos obligatorios',
+          placeholder_mandatory_disabled: 'Temporalmente no disponible. Este formulario se activará en una fase posterior.',
+          card_checkin: 'Check-in',
+          label_property: 'Alojamiento',
+          label_checkin: 'Check-in',
+          label_checkout: 'Check-out',
+          label_guests: 'Huéspedes',
+          label_nights: 'noche(s)',
+          label_address: 'Dirección',
+          card_how_to_get: 'Cómo llegar',
+          placeholder_no_address: 'Dirección no disponible',
+          btn_open_maps: 'Abrir en Google Maps',
+          placeholder_no_nav: 'Sin dirección/coordenadas para navegación.',
+          card_parking: 'Aparcamiento',
+          card_wifi: 'Wi-Fi',
+          card_supermarkets: 'Supermercados',
+          card_restaurants: 'Restaurantes',
+          card_laundries: 'Lavanderías',
+          card_emergency: 'Emergencia y contactos',
+          card_rules: 'Reglas esenciales',
+          placeholder_content: 'Contenido en preparación.'
+        }
+      };
+
+      const buttons = Array.from(document.querySelectorAll('.lang-option[data-lang]'));
+      const menuBtn = document.getElementById('langMenuBtn');
+      const menuList = document.getElementById('langMenuList');
+      const menuFlag = document.getElementById('langMenuFlag');
+      const menuCode = document.getElementById('langMenuCode');
+      const key = 'r_public_lang';
+      const meta = {
+        pt: { flagClass: 'fi fi-pt', code: 'PT' },
+        en: { flagClass: 'fi fi-gb', code: 'EN' },
+        fr: { flagClass: 'fi fi-fr', code: 'FR' },
+        es: { flagClass: 'fi fi-es', code: 'ES' }
+      };
+      const getDict = (lang) => I18N[lang] || I18N.pt;
+      const apply = (lang) => {
+        const dict = getDict(lang);
+        document.documentElement.lang = lang;
+        document.querySelectorAll('[data-i18n]').forEach((el) => {
+          const i18nKey = el.getAttribute('data-i18n');
+          if (dict[i18nKey]) el.textContent = dict[i18nKey];
+        });
+        buttons.forEach((btn) => {
+          btn.classList.toggle('active', (btn.getAttribute('data-lang') || '').toLowerCase() === lang);
+        });
+        const m = meta[lang] || meta.pt;
+        if (menuFlag) menuFlag.className = m.flagClass;
+        if (menuCode) menuCode.textContent = m.code;
+        localStorage.setItem(key, lang);
+      };
+
+      const initial = (localStorage.getItem(key) || 'pt').toLowerCase();
+      buttons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          apply((btn.getAttribute('data-lang') || 'pt').toLowerCase());
+          menuList?.classList.remove('open');
+        });
+      });
+      menuBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menuList?.classList.toggle('open');
+      });
+      document.addEventListener('click', (e) => {
+        if (!menuList || !menuBtn) return;
+        if (menuList.contains(e.target) || menuBtn.contains(e.target)) return;
+        menuList.classList.remove('open');
+      });
+      apply(I18N[initial] ? initial : 'pt');
+    })();
+  </script>
+</body>
+</html>

@@ -12,12 +12,28 @@ import re
 import io
 import importlib.util
 from decimal import Decimal
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date, timedelta, time as dtime
 from sqlalchemy import text
 from urllib.request import Request, urlopen
 from urllib.parse import quote
+from services.assinatura_service import sign_ft_document
+from services.qr_atcud_service import (
+    get_param as qr_get_param,
+    get_serie_validation_code,
+    validate_requirements as qr_validate_requirements,
+    build_atcud,
+    build_qr_payload,
+)
+from services.ft_pdf_service import (
+    get_ft_data as get_ft_pdf_data,
+    build_qr_base64 as build_ft_qr_base64,
+    render_ft_pdf_html,
+    generate_ft_pdf_bytes,
+    generate_ft_pdf_bytes_xhtml2pdf,
+    discover_pdf_engines,
+)
 
 # Importa a instÃ¢ncia db e modelos
 from models import db, US, Menu, Acessos, Widget, UsWidget, MenuBotoes, Linhas
@@ -334,12 +350,1016 @@ def create_app():
             return render_template('login.html', error='Credenciais invÃ¡lidas')
         return render_template('login.html')
 
+    @app.route('/r/<token>')
+    @app.route('/r/<token>/')
+    def public_reserva_page(token):
+        tok = (token or '').strip()
+        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
+            return render_template('r_public.html', invalid=True, page_data={})
+
+        sql = text("""
+            SELECT TOP 1
+                RS.RSSTAMP,
+                RS.RESERVA,
+                RS.ALOJAMENTO,
+                RS.DATAIN,
+                RS.DATAOUT,
+                RS.HORAIN,
+                RS.HORAOUT,
+                RS.ADULTOS,
+                RS.CRIANCAS,
+                RS.NOITES,
+                RS.GUIDE_TOKEN,
+                RS.GUIDE_TOKEN_EXPIRES,
+                RS.GUIDE_TOKEN_REVOKED,
+                AL.MORADA,
+                AL.CODPOST,
+                AL.LOCAL,
+                AL.LAT,
+                AL.LON
+            FROM dbo.RS RS
+            LEFT JOIN dbo.AL AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE
+              LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
+            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
+        """)
+        row = db.session.execute(sql, {'t': tok}).mappings().first()
+        if not row:
+            return render_template('r_public.html', invalid=True, page_data={})
+
+        # Validade básica do token
+        is_revoked = bool(row.get('GUIDE_TOKEN_REVOKED') or 0)
+        exp = row.get('GUIDE_TOKEN_EXPIRES')
+        if is_revoked:
+            return render_template('r_public.html', invalid=True, page_data={})
+        if isinstance(exp, datetime):
+            if exp < datetime.now():
+                return render_template('r_public.html', invalid=True, page_data={})
+        elif isinstance(exp, date):
+            if exp < date.today():
+                return render_template('r_public.html', invalid=True, page_data={})
+
+        def _fmt_date(v):
+            if isinstance(v, datetime):
+                return v.strftime('%d/%m/%Y')
+            if isinstance(v, date):
+                return v.strftime('%d/%m/%Y')
+            s = str(v or '').strip()
+            if not s:
+                return ''
+            try:
+                return datetime.fromisoformat(s[:10]).strftime('%d/%m/%Y')
+            except Exception:
+                return s
+
+        lat = row.get('LAT')
+        lon = row.get('LON')
+        try:
+            lat = float(lat) if lat is not None else None
+            lon = float(lon) if lon is not None else None
+        except Exception:
+            lat, lon = None, None
+        has_coords = (lat is not None and lon is not None and not (abs(lat) < 0.000001 and abs(lon) < 0.000001))
+
+        morada = (row.get('MORADA') or '').strip()
+        codpost = (row.get('CODPOST') or '').strip()
+        local = (row.get('LOCAL') or '').strip()
+        address_parts = [morada, codpost, local]
+        address_text = ', '.join([p for p in address_parts if p])
+
+        maps_query = f"{lat},{lon}" if has_coords else address_text
+        maps_url = ''
+        if maps_query:
+            maps_url = f"https://www.google.com/maps/search/?api=1&query={quote(maps_query)}"
+
+        adultos = int(row.get('ADULTOS') or 0)
+        criancas = int(row.get('CRIANCAS') or 0)
+        hospedes = adultos + criancas
+
+        page_data = {
+            'token': tok,
+            'reserva': (row.get('RESERVA') or '').strip(),
+            'alojamento': (row.get('ALOJAMENTO') or '').strip(),
+            'checkin_data': _fmt_date(row.get('DATAIN')),
+            'checkout_data': _fmt_date(row.get('DATAOUT')),
+            'checkin_hora': (row.get('HORAIN') or '').strip(),
+            'checkout_hora': (row.get('HORAOUT') or '').strip(),
+            'adultos': adultos,
+            'criancas': criancas,
+            'hospedes': hospedes,
+            'noites': int(row.get('NOITES') or 0),
+            'morada': morada,
+            'codpost': codpost,
+            'local': local,
+            'address_text': address_text,
+            'lat': lat,
+            'lon': lon,
+            'maps_url': maps_url
+        }
+
+        # POI associados ao alojamento (agrupados por grupo)
+        poi_rows = []
+        try:
+            poi_rows = db.session.execute(text("""
+                SELECT
+                    ISNULL(G.POIGSTAMP, '') AS POIGSTAMP,
+                    ISNULL(G.NOME, 'Outros') AS GRUPO_NOME,
+                    ISNULL(G.ORDEM, 9999) AS GRUPO_ORDEM,
+                    P.POISTAMP,
+                    ISNULL(P.NOME, '') AS POI_NOME,
+                    ISNULL(P.TIPO, '') AS POI_TIPO,
+                    ISNULL(P.DESCR, '') AS POI_DESCR,
+                    ISNULL(P.MORADA, '') AS POI_MORADA,
+                    ISNULL(P.CODPOSTAL, '') AS POI_CODPOSTAL,
+                    ISNULL(P.CIDADE, '') AS POI_CIDADE,
+                    ISNULL(P.PAIS, '') AS POI_PAIS,
+                    P.LAT AS POI_LAT,
+                    P.LNG AS POI_LNG,
+                    ISNULL(P.TELEFONE, '') AS POI_TELEFONE,
+                    ISNULL(P.URL, '') AS POI_URL,
+                    ISNULL(P.URL_MAPS, '') AS POI_URL_MAPS,
+                    ISNULL(P.HORARIO, '') AS POI_HORARIO,
+                    ISNULL(P.PRECO_INFO, '') AS POI_PRECO,
+                    ISNULL(X.ORDEM, 9999) AS ASSOC_ORDEM,
+                    ISNULL(X.NOTA, '') AS ASSOC_NOTA
+                FROM dbo.POIAL X
+                INNER JOIN dbo.POI P
+                  ON P.POISTAMP = X.POISTAMP
+                LEFT JOIN dbo.POIG G
+                  ON G.POIGSTAMP = P.POIGSTAMP
+                WHERE
+                  LTRIM(RTRIM(ISNULL(X.AL_NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                    = LTRIM(RTRIM(:aloj)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                  AND ISNULL(X.ATIVO, 1) = 1
+                  AND ISNULL(P.ATIVO, 1) = 1
+                  AND ISNULL(G.ATIVO, 1) = 1
+                ORDER BY
+                  ISNULL(G.ORDEM, 9999),
+                  ISNULL(G.NOME, 'Outros'),
+                  ISNULL(X.ORDEM, 9999),
+                  ISNULL(P.ORDEM_GLOBAL, 9999),
+                  P.NOME
+            """), {'aloj': page_data['alojamento']}).mappings().all()
+        except Exception:
+            poi_rows = []
+
+        poi_groups_map = {}
+        poi_groups_order = []
+        for r in poi_rows:
+            gkey = str(r.get('POIGSTAMP') or '').strip() or '__OUTROS__'
+            if gkey not in poi_groups_map:
+                poi_groups_map[gkey] = {
+                    'name': str(r.get('GRUPO_NOME') or 'Outros').strip() or 'Outros',
+                    'items': []
+                }
+                poi_groups_order.append(gkey)
+
+            poi_lat = r.get('POI_LAT')
+            poi_lng = r.get('POI_LNG')
+            try:
+                poi_lat = float(poi_lat) if poi_lat is not None else None
+                poi_lng = float(poi_lng) if poi_lng is not None else None
+            except Exception:
+                poi_lat, poi_lng = None, None
+            has_poi_coords = (poi_lat is not None and poi_lng is not None and not (abs(poi_lat) < 0.000001 and abs(poi_lng) < 0.000001))
+
+            poi_morada = str(r.get('POI_MORADA') or '').strip()
+            poi_cp = str(r.get('POI_CODPOSTAL') or '').strip()
+            poi_city = str(r.get('POI_CIDADE') or '').strip()
+            poi_country = str(r.get('POI_PAIS') or '').strip()
+            poi_address = ', '.join([p for p in [poi_morada, poi_cp, poi_city, poi_country] if p])
+
+            poi_maps_url = str(r.get('POI_URL_MAPS') or '').strip()
+            if not poi_maps_url:
+                q = f"{poi_lat},{poi_lng}" if has_poi_coords else poi_address
+                if q:
+                    poi_maps_url = f"https://www.google.com/maps/search/?api=1&query={quote(q)}"
+
+            poi_groups_map[gkey]['items'].append({
+                'name': str(r.get('POI_NOME') or '').strip(),
+                'type': str(r.get('POI_TIPO') or '').strip(),
+                'descr': str(r.get('POI_DESCR') or '').strip(),
+                'address': poi_address,
+                'phone': str(r.get('POI_TELEFONE') or '').strip(),
+                'url': str(r.get('POI_URL') or '').strip(),
+                'maps_url': poi_maps_url,
+                'horario': str(r.get('POI_HORARIO') or '').strip(),
+                'preco': str(r.get('POI_PRECO') or '').strip(),
+                'nota': str(r.get('ASSOC_NOTA') or '').strip()
+            })
+
+        page_data['poi_groups'] = [poi_groups_map[k] for k in poi_groups_order]
+        return render_template('r_public.html', invalid=False, page_data=page_data)
+
     @app.route('/logout')
     @login_required
     def logout():
         session.pop('APP_PARAMS', None)
         logout_user()
         return redirect(url_for('login'))
+
+    # ---------------------------
+    # FATURAÇÃO (FT/FI)
+    # ---------------------------
+    def _new_stamp_25() -> str:
+        return str(uuid.uuid4()).replace('-', '')[:25].upper()
+
+    def _num(v, default=0.0):
+        try:
+            if v is None or str(v).strip() == '':
+                return float(default)
+            s = str(v).replace(',', '.')
+            return float(s)
+        except Exception:
+            return float(default)
+
+    def _to_int(v, default=0):
+        try:
+            if v is None or str(v).strip() == '':
+                return int(default)
+            return int(float(str(v).replace(',', '.')))
+        except Exception:
+            return int(default)
+
+    def _default_ft_payload(user_login: str):
+        today = date.today()
+        return {
+            'FTSTAMP': _new_stamp_25(),
+            'NDOC': 0,
+            'NMDOC': '',
+            'FNO': 0,
+            'TIPO': 'FT',
+            'NO': 0,
+            'NOME': '',
+            'MORADA': '',
+            'CODPOST': '',
+            'PAIS': 0,
+            'LOCAL': '',
+            'NCONT': '',
+            'MOEDA': 'EUR',
+            'FDATA': today,
+            'FTANO': today.year,
+            'PDATA': today,
+            'PLANO': 0,
+            'TPSTAMP': '',
+            'TPDESC': '',
+            'FESTAMP': '',
+            'ETTILIQ': 0,
+            'ETTIVA': 0,
+            'ETOTAL': 0,
+            'CCUSTO': '',
+            'SERIE': '',
+            'ESTADO': 0,
+            'BLOQUEADO': 0,
+            'ANULADA': 0,
+            'USERCRIACAO': user_login or '',
+            'USERALTERACAO': user_login or ''
+        }
+
+    def _calc_totals_and_breakdown(lines):
+        normalized = []
+        total_base = 0.0
+        total_vat = 0.0
+        buckets = {}
+        for idx, line in enumerate(lines or []):
+            qtt = round(_num((line or {}).get('QTT'), 0), 2)
+            epv = round(_num((line or {}).get('EPV'), 0), 2)
+            rate = _num((line or {}).get('IVA'), 0)
+            ivaincl = 1 if int(_num((line or {}).get('IVAINCL'), 0)) == 1 else 0
+            # ETILIQUIDO da linha = TOTAL da linha (QTT * EPV), independentemente de IVA incluído.
+            # O IVAINCL só afeta os totais de cabeçalho (mesma lógica do ecrã de compras).
+            line_total = qtt * epv
+            if rate > 0:
+                if ivaincl:
+                    vat = line_total * (rate / (100.0 + rate))
+                    base = line_total - vat
+                else:
+                    base = line_total
+                    vat = line_total * (rate / 100.0)
+            else:
+                base = line_total
+                vat = 0.0
+            line_total = round(line_total, 2)
+            base = round(base, 2)
+            vat = round(vat, 2)
+            total_base += base
+            total_vat += vat
+            tabiva = _to_int((line or {}).get('TABIVA'), 0)
+            row = dict(line or {})
+            row['LORDEM'] = _to_int(row.get('LORDEM'), (idx + 1) * 10)
+            row['QTT'] = round(qtt, 2)
+            row['EPV'] = round(epv, 2)
+            row['IVA'] = round(rate, 2)
+            row['IVAINCL'] = ivaincl
+            row['TABIVA'] = tabiva
+            row['ETILIQUIDO'] = round(line_total, 2)
+            normalized.append(row)
+            if rate not in buckets:
+                buckets[rate] = {'base': 0.0, 'vat': 0.0}
+            buckets[rate]['base'] += base
+            buckets[rate]['vat'] += vat
+
+        total_base = round(total_base, 6)
+        total_vat = round(total_vat, 6)
+        total = round(total_base + total_vat, 6)
+        breakdown = sorted(buckets.items(), key=lambda x: x[0])[:9]
+        ivatx = [0.0] * 9
+        eivain = [0.0] * 9
+        eivav = [0.0] * 9
+        for idx, (tx, vals) in enumerate(breakdown):
+            ivatx[idx] = round(float(tx), 2)
+            eivain[idx] = round(float(vals.get('base', 0.0)), 6)
+            eivav[idx] = round(float(vals.get('vat', 0.0)), 6)
+        return normalized, total_base, total_vat, total, ivatx, eivain, eivav
+
+    def _get_ft(ftstamp):
+        ft = db.session.execute(text("""
+            SELECT *
+            FROM dbo.FT
+            WHERE FTSTAMP = :s
+        """), {'s': ftstamp}).mappings().first()
+        if not ft:
+            return None, []
+        fi = db.session.execute(text("""
+            SELECT *
+            FROM dbo.FI
+            WHERE FTSTAMP = :s
+            ORDER BY ISNULL(LORDEM,0), FISTAMP
+        """), {'s': ftstamp}).mappings().all()
+        return dict(ft), [dict(r) for r in fi]
+
+    @app.route('/faturacao/ft')
+    @login_required
+    def faturacao_ft_list():
+        return render_template('ft_faturacao_list.html')
+
+    @app.route('/faturacao/ft/new')
+    @login_required
+    def faturacao_ft_new():
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        payload = _default_ft_payload(user_login)
+        db.session.execute(text("""
+            INSERT INTO dbo.FT
+            (FTSTAMP, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA,
+             FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
+             IVATX1, IVATX2, IVATX3, IVATX4, IVATX5, IVATX6, IVATX7, IVATX8, IVATX9,
+             EIVAIN1, EIVAIN2, EIVAIN3, EIVAIN4, EIVAIN5, EIVAIN6, EIVAIN7, EIVAIN8, EIVAIN9,
+             TIPODOC, EIVAV1, EIVAV2, EIVAV3, EIVAV4, EIVAV5, EIVAV6, EIVAV7, EIVAV8, EIVAV9,
+             FESTAMP, SERIE, ESTADO, BLOQUEADO, DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO,
+             HASHVER, HASHANT, HASH, ASSINATURA, KEYID, ATCUD, CODIGOQR,
+             ANULADA, ANULDATA, ANULUSER, ANULMOTIVO,
+             FTREFSTAMP, AT_ENVIO_ESTADO, AT_ENVIO_DATA, AT_ENVIO_MSG)
+            VALUES
+            (:FTSTAMP, :NDOC, :NMDOC, :FNO, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA,
+             :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
+             0,0,0,0,0,0,0,0,0,
+             0,0,0,0,0,0,0,0,0,
+             0,0,0,0,0,0,0,0,0,0,
+             '', :SERIE, :ESTADO, :BLOQUEADO, GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO,
+             '', '', '', '', '', '', '',
+             :ANULADA, CAST('19000101' AS datetime2(0)), '', '',
+             '', 0, CAST('19000101' AS datetime2(0)), '')
+        """), payload)
+        db.session.commit()
+        return redirect(url_for('faturacao_ft_form', ftstamp=payload['FTSTAMP']))
+
+    @app.route('/faturacao/ft/<ftstamp>')
+    @login_required
+    def faturacao_ft_form(ftstamp):
+        return render_template('ft_faturacao_form.html', ftstamp=ftstamp)
+
+    # Alias compatível com padrão antigo
+    @app.route('/ft_faturacao_form/', defaults={'ftstamp': None})
+    @app.route('/ft_faturacao_form/<ftstamp>')
+    @login_required
+    def ft_faturacao_form_alias(ftstamp):
+        if ftstamp:
+            return redirect(url_for('faturacao_ft_form', ftstamp=ftstamp))
+        return redirect(url_for('faturacao_ft_new'))
+
+    @app.route('/api/lookups/td', methods=['GET'])
+    @login_required
+    def api_lookup_td():
+        rows = db.session.execute(text("""
+            SELECT NDOC, NMDOC
+            FROM dbo.V_TD
+            ORDER BY NMDOC
+        """)).mappings().all()
+        return jsonify([dict(r) for r in rows])
+
+    @app.route('/api/lookups/fe', methods=['GET'])
+    @login_required
+    def api_lookup_fe():
+        rows = db.session.execute(text("""
+            SELECT FESTAMP, NIF, NOME
+            FROM dbo.FE
+            WHERE ISNULL(ATIVA, 1) = 1
+            ORDER BY NOME
+        """)).mappings().all()
+        return jsonify([dict(r) for r in rows])
+
+    @app.route('/api/lookups/fts', methods=['GET'])
+    @login_required
+    def api_lookup_fts():
+        festamp = (request.args.get('festamp') or '').strip()
+        ano = _to_int(request.args.get('ano'), 0)
+        if not festamp:
+            return jsonify([])
+        rows = db.session.execute(text("""
+            SELECT
+                S.FTSSTAMP,
+                S.FESTAMP,
+                S.NDOC,
+                ISNULL(T.NMDOC, '') AS NMDOC,
+                S.SERIE,
+                S.DESCR,
+                S.ANO,
+                S.ESTADO,
+                S.ULTIMO_FNO
+            FROM dbo.FTS S
+            LEFT JOIN dbo.V_TD T ON T.NDOC = S.NDOC
+            WHERE
+                S.FESTAMP = :festamp
+                AND ISNULL(S.ATIVA, 0) = 1
+                AND (:ano = 0 OR S.ANO = :ano)
+            ORDER BY S.NDOC, S.SERIE
+        """), {'festamp': festamp, 'ano': ano}).mappings().all()
+        return jsonify([dict(r) for r in rows])
+
+    @app.route('/api/faturacao/ft/list', methods=['GET'])
+    @login_required
+    def api_faturacao_ft_list():
+        ano = _to_int(request.args.get('ano'), 0)
+        mes = _to_int(request.args.get('mes'), 0)
+        q = (request.args.get('q') or '').strip()
+        sql = """
+            SELECT TOP 300
+                FTSTAMP, NDOC, NMDOC, FNO, SERIE, FDATA, PDATA, NO, NOME, ETTILIQ, ETTIVA, ETOTAL, ESTADO, ANULADA
+            FROM dbo.FT
+            WHERE 1=1
+        """
+        params = {}
+        if ano > 0:
+            sql += " AND YEAR(FDATA) = :ano"
+            params['ano'] = ano
+        if 1 <= mes <= 12:
+            sql += " AND MONTH(FDATA) = :mes"
+            params['mes'] = mes
+        if q:
+            sql += " AND (ISNULL(NOME,'') LIKE :q OR ISNULL(NMDOC,'') LIKE :q OR ISNULL(SERIE,'') LIKE :q OR CONVERT(varchar(20), ISNULL(FNO,0)) LIKE :q)"
+            params['q'] = f"%{q}%"
+        sql += " ORDER BY ISNULL(FDATA,'19000101') DESC, ISNULL(FNO,0) DESC"
+        rows = db.session.execute(text(sql), params).mappings().all()
+        return jsonify([dict(r) for r in rows])
+
+    @app.route('/api/faturacao/clientes', methods=['GET'])
+    @login_required
+    def api_faturacao_clientes():
+        q = (request.args.get('q') or '').strip()
+        if len(q) < 1:
+            return jsonify([])
+        try:
+            cols = db.session.execute(text("""
+                SELECT UPPER(COLUMN_NAME) AS CN
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME='CL'
+            """)).mappings().all()
+            colset = {str(r.get('CN') or '').upper() for r in cols}
+        except Exception:
+            colset = set()
+
+        nif_expr = "''"
+        if 'NIF' in colset:
+            nif_expr = "CONVERT(varchar(20), ISNULL(NIF,0))"
+        elif 'NCONT' in colset:
+            nif_expr = "CONVERT(varchar(20), ISNULL(NCONT,''))"
+
+        where = """
+            (
+              ISNULL(NOME,'') LIKE :q
+              OR CONVERT(varchar(30), ISNULL(NO,0)) LIKE :q
+            )
+        """
+        rows = db.session.execute(text(f"""
+            SELECT TOP 20
+                ISNULL(NO,0) AS NO,
+                ISNULL(NOME,'') AS NOME,
+                {nif_expr} AS NIF,
+                ISNULL(MORADA,'') AS MORADA,
+                ISNULL(LOCAL,'') AS LOCAL,
+                ISNULL(CODPOST,'') AS CODPOST
+            FROM dbo.CL
+            WHERE {where}
+            ORDER BY NOME
+        """), {'q': f'%{q}%'}).mappings().all()
+        return jsonify([dict(r) for r in rows])
+
+    @app.route('/api/faturacao/clientes/<int:no>', methods=['GET'])
+    @login_required
+    def api_faturacao_cliente_detail(no):
+        cols = db.session.execute(text("""
+            SELECT UPPER(COLUMN_NAME) AS CN
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME='CL'
+        """)).mappings().all()
+        colset = {str(r.get('CN') or '').upper() for r in cols}
+        nif_expr = "'' AS NIF"
+        if 'NIF' in colset:
+            nif_expr = "CONVERT(varchar(20), ISNULL(NIF,0)) AS NIF"
+        elif 'NCONT' in colset:
+            nif_expr = "CONVERT(varchar(20), ISNULL(NCONT,'')) AS NIF"
+        pais_expr = "'' AS PAIS"
+        if 'PAIS' in colset:
+            pais_expr = "CONVERT(varchar(30), ISNULL(PAIS,'')) AS PAIS"
+        row = db.session.execute(text(f"""
+            SELECT TOP 1
+                ISNULL(NO,0) AS NO,
+                ISNULL(NOME,'') AS NOME,
+                {nif_expr},
+                ISNULL(MORADA,'') AS MORADA,
+                ISNULL(LOCAL,'') AS LOCAL,
+                ISNULL(CODPOST,'') AS CODPOST,
+                {pais_expr}
+            FROM dbo.CL
+            WHERE ISNULL(NO,0)=:no
+        """), {'no': no}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Cliente não encontrado'}), 404
+        return jsonify(dict(row))
+
+    @app.route('/api/faturacao/ft/<ftstamp>', methods=['GET'])
+    @login_required
+    def api_faturacao_ft_get(ftstamp):
+        ft, fi = _get_ft(ftstamp)
+        if not ft:
+            return jsonify({'error': 'Documento não encontrado'}), 404
+        return jsonify({'header': ft, 'lines': fi})
+
+    @app.route('/api/faturacao/ft/<ftstamp>/pdf', methods=['GET'])
+    @login_required
+    def api_faturacao_ft_pdf(ftstamp):
+        ft, fi_rows, fe = get_ft_pdf_data(db.session, ftstamp)
+        if not ft:
+            return jsonify({'error': 'Documento não encontrado'}), 404
+        modo_teste_raw = str(qr_get_param(db.session, 'MODO_TESTE_AT', '0') or '0').strip().lower()
+        modo_teste = modo_teste_raw in ('1', 'true', 'sim', 'yes')
+        at_certificado = str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
+        qr_b64 = ''
+        pdf_engine = 'weasy/chrome'
+        force_html = str(request.args.get('force_html', '1')).strip().lower() in ('1', 'true', 'yes', 'sim')
+        html = ''
+        try:
+            qr_b64 = build_ft_qr_base64(ft.get('CODIGOQR') or '')
+            html = render_ft_pdf_html(ft, fi_rows, fe or {}, qr_b64, at_certificado=at_certificado, modo_teste=modo_teste)
+            pdf_bytes = generate_ft_pdf_bytes(html)
+        except Exception as e:
+            try:
+                pdf_bytes = generate_ft_pdf_bytes_xhtml2pdf(html)
+                pdf_engine = 'xhtml2pdf-fallback'
+            except Exception as e_fb:
+                msg = (
+                    f"Erro a gerar PDF (html={e}; xhtml2pdf={e_fb})\n"
+                    "Hint: instale/ative um motor HTML->PDF no servidor (CHROME_PATH ou runtime GTK)."
+                )
+                return Response(msg, status=500, content_type='text/plain; charset=utf-8')
+
+        def _safe_name(v):
+            txt = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(v or '').strip())
+            return txt.strip('_')
+
+        nmdoc = _safe_name(ft.get('NMDOC') or 'Fatura')
+        serie = (ft.get('SERIE') or '').strip()
+        fno = _to_int(ft.get('FNO'), 0)
+        if serie and fno > 0:
+            filename = f"{nmdoc}_{_safe_name(serie)}_{fno}.pdf"
+        else:
+            filename = f"{nmdoc}_{_safe_name(ft.get('FTSTAMP') or ftstamp)}.pdf"
+        headers = {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': f'inline; filename="{filename}"',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'X-PDF-Engine': pdf_engine
+        }
+        return Response(pdf_bytes, headers=headers)
+
+    @app.route('/api/faturacao/ft/<ftstamp>/pdf/html', methods=['GET'])
+    @login_required
+    def api_faturacao_ft_pdf_html(ftstamp):
+        ft, fi_rows, fe = get_ft_pdf_data(db.session, ftstamp)
+        if not ft:
+            return jsonify({'error': 'Documento não encontrado'}), 404
+        modo_teste_raw = str(qr_get_param(db.session, 'MODO_TESTE_AT', '0') or '0').strip().lower()
+        modo_teste = modo_teste_raw in ('1', 'true', 'sim', 'yes')
+        at_certificado = str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
+        qr_b64 = build_ft_qr_base64(ft.get('CODIGOQR') or '')
+        html = render_ft_pdf_html(ft, fi_rows, fe or {}, qr_b64, at_certificado=at_certificado, modo_teste=modo_teste)
+        headers = {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+        }
+        return Response(html, headers=headers)
+
+    @app.route('/api/diag/pdf', methods=['GET'])
+    @login_required
+    def api_diag_pdf():
+        diag = discover_pdf_engines()
+        result = {'ok': True, **diag}
+        try:
+            sample = "<html><body><h1>PDF Engine Test</h1></body></html>"
+            _ = generate_ft_pdf_bytes(sample)
+            result['engine_test'] = 'ok'
+        except Exception as e:
+            result['engine_test'] = 'error'
+            result['engine_error'] = str(e)
+        return jsonify(result)
+
+    @app.route('/api/faturacao/ft/<ftstamp>/save', methods=['POST'])
+    @login_required
+    def api_faturacao_ft_save(ftstamp):
+        body = request.get_json(silent=True) or {}
+        header = dict(body.get('header') or {})
+        lines = list(body.get('lines') or [])
+
+        curr = db.session.execute(text("SELECT BLOQUEADO FROM dbo.FT WHERE FTSTAMP=:s"), {'s': ftstamp}).mappings().first()
+        if not curr:
+            return jsonify({'error': 'Documento não encontrado'}), 404
+        if int(curr.get('BLOQUEADO') or 0) == 1:
+            return jsonify({'error': 'Documento bloqueado'}), 400
+
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        normalized, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown(lines)
+        fdata = header.get('FDATA') or date.today().isoformat()
+        ftano = _to_int(header.get('FTANO'), _to_int(str(fdata)[:4], date.today().year))
+
+        db.session.execute(text("""
+            UPDATE dbo.FT
+            SET
+                NDOC=:NDOC, NMDOC=:NMDOC, NO=:NO, NOME=:NOME, MORADA=:MORADA, CODPOST=:CODPOST, PAIS=:PAIS,
+                LOCAL=:LOCAL, NCONT=:NCONT, MOEDA=:MOEDA, FDATA=:FDATA, FTANO=:FTANO, PDATA=:PDATA, FESTAMP=:FESTAMP,
+                CCUSTO=:CCUSTO, TPSTAMP=:TPSTAMP, TPDESC=:TPDESC, SERIE=:SERIE,
+                ETTILIQ=:ETTILIQ, ETTIVA=:ETTIVA, ETOTAL=:ETOTAL,
+                IVATX1=:IVATX1, IVATX2=:IVATX2, IVATX3=:IVATX3, IVATX4=:IVATX4, IVATX5=:IVATX5, IVATX6=:IVATX6, IVATX7=:IVATX7, IVATX8=:IVATX8, IVATX9=:IVATX9,
+                EIVAIN1=:EIVAIN1, EIVAIN2=:EIVAIN2, EIVAIN3=:EIVAIN3, EIVAIN4=:EIVAIN4, EIVAIN5=:EIVAIN5, EIVAIN6=:EIVAIN6, EIVAIN7=:EIVAIN7, EIVAIN8=:EIVAIN8, EIVAIN9=:EIVAIN9,
+                EIVAV1=:EIVAV1, EIVAV2=:EIVAV2, EIVAV3=:EIVAV3, EIVAV4=:EIVAV4, EIVAV5=:EIVAV5, EIVAV6=:EIVAV6, EIVAV7=:EIVAV7, EIVAV8=:EIVAV8, EIVAV9=:EIVAV9,
+                DTAlteracao=GETDATE(), USERALTERACAO=:USERALTERACAO
+            WHERE FTSTAMP=:FTSTAMP
+        """), {
+            'FTSTAMP': ftstamp,
+            'NDOC': _to_int(header.get('NDOC'), 0),
+            'NMDOC': (header.get('NMDOC') or '').strip(),
+            'NO': _to_int(header.get('NO'), 0),
+            'NOME': (header.get('NOME') or '').strip(),
+            'MORADA': (header.get('MORADA') or '').strip(),
+            'CODPOST': (header.get('CODPOST') or '').strip(),
+            'PAIS': _to_int(header.get('PAIS'), 0),
+            'LOCAL': (header.get('LOCAL') or '').strip(),
+            'NCONT': (header.get('NCONT') or '').strip(),
+            'MOEDA': (header.get('MOEDA') or 'EUR').strip(),
+            'FDATA': fdata,
+            'FTANO': ftano,
+            'PDATA': (header.get('PDATA') or fdata),
+            'FESTAMP': (header.get('FESTAMP') or '').strip(),
+            'CCUSTO': (header.get('CCUSTO') or '').strip(),
+            'TPSTAMP': (header.get('TPSTAMP') or '').strip(),
+            'TPDESC': (header.get('TPDESC') or '').strip(),
+            'SERIE': (header.get('SERIE') or '').strip(),
+            'ETTILIQ': ettiliq,
+            'ETTIVA': ettiva,
+            'ETOTAL': etotal,
+            'IVATX1': ivatx[0], 'IVATX2': ivatx[1], 'IVATX3': ivatx[2], 'IVATX4': ivatx[3], 'IVATX5': ivatx[4], 'IVATX6': ivatx[5], 'IVATX7': ivatx[6], 'IVATX8': ivatx[7], 'IVATX9': ivatx[8],
+            'EIVAIN1': eivain[0], 'EIVAIN2': eivain[1], 'EIVAIN3': eivain[2], 'EIVAIN4': eivain[3], 'EIVAIN5': eivain[4], 'EIVAIN6': eivain[5], 'EIVAIN7': eivain[6], 'EIVAIN8': eivain[7], 'EIVAIN9': eivain[8],
+            'EIVAV1': eivav[0], 'EIVAV2': eivav[1], 'EIVAV3': eivav[2], 'EIVAV4': eivav[3], 'EIVAV5': eivav[4], 'EIVAV6': eivav[5], 'EIVAV7': eivav[6], 'EIVAV8': eivav[7], 'EIVAV9': eivav[8],
+            'USERALTERACAO': user_login
+        })
+
+        db.session.execute(text("DELETE FROM dbo.FI WHERE FTSTAMP=:s"), {'s': ftstamp})
+        for idx, line in enumerate(normalized):
+            fistamp = (line.get('FISTAMP') or '').strip() or _new_stamp_25()
+            ndoc = _to_int(header.get('NDOC'), 0)
+            nmdoc = (header.get('NMDOC') or '').strip()
+            db.session.execute(text("""
+                INSERT INTO dbo.FI
+                (FISTAMP, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA)
+                VALUES
+                (:FISTAMP, :NMDOC, :FNO, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA)
+            """), {
+                'FISTAMP': fistamp,
+                'NMDOC': nmdoc,
+                'FNO': _to_int(header.get('FNO'), 0),
+                'REF': (line.get('REF') or '').strip(),
+                'DESIGN': (line.get('DESIGN') or '').strip(),
+                'QTT': _num(line.get('QTT'), 0),
+                'ETILIQUIDO': _num(line.get('ETILIQUIDO'), 0),
+                'UNIDADE': (line.get('UNIDADE') or '').strip(),
+                'IVA': _num(line.get('IVA'), 0),
+                'IVAINCL': 1 if int(_num(line.get('IVAINCL'), 0)) == 1 else 0,
+                'TABIVA': _to_int(line.get('TABIVA'), 0),
+                'NDOC': ndoc,
+                'LORDEM': _to_int(line.get('LORDEM'), (idx + 1) * 10),
+                'FTSTAMP': ftstamp,
+                'FICCUSTO': (line.get('FICCUSTO') or header.get('CCUSTO') or '').strip(),
+                'EPV': _num(line.get('EPV'), 0),
+                'FAMILIA': (line.get('FAMILIA') or '').strip()
+            })
+
+        db.session.commit()
+        return jsonify({'ok': True, 'totals': {'ETTILIQ': ettiliq, 'ETTIVA': ettiva, 'ETOTAL': etotal}})
+
+    @app.route('/api/faturacao/ft/<ftstamp>/emitir', methods=['POST'])
+    @login_required
+    def api_faturacao_ft_emitir(ftstamp):
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        try:
+            row = db.session.execute(text("""
+                SELECT TOP 1 FTSTAMP, NDOC, NMDOC, SERIE, FDATA, FTANO, FESTAMP, NO, NOME, BLOQUEADO, ESTADO, ANULADA
+                FROM dbo.FT WITH (UPDLOCK, ROWLOCK)
+                WHERE FTSTAMP=:s
+            """), {'s': ftstamp}).mappings().first()
+            if not row:
+                db.session.rollback()
+                return jsonify({'error': 'Documento não encontrado'}), 404
+
+            if int(row.get('BLOQUEADO') or 0) == 1:
+                db.session.rollback()
+                return jsonify({'error': 'Documento já bloqueado'}), 400
+            if int(row.get('ESTADO') or 0) != 0:
+                db.session.rollback()
+                return jsonify({'error': 'Documento não está em rascunho.'}), 400
+            if int(row.get('ANULADA') or 0) == 1:
+                db.session.rollback()
+                return jsonify({'error': 'Documento anulado não pode ser emitido.'}), 400
+
+            ndoc = _to_int(row.get('NDOC'), 0)
+            serie = (row.get('SERIE') or '').strip()
+            festamp = (row.get('FESTAMP') or '').strip()
+            fdata = row.get('FDATA')
+            no = _to_int(row.get('NO'), 0)
+            nome = (row.get('NOME') or '').strip()
+            ftano = _to_int(row.get('FTANO'), _to_int(str(fdata)[:4], date.today().year))
+            if ndoc <= 0 or not serie or not fdata or not festamp or no <= 0 or not nome:
+                db.session.rollback()
+                return jsonify({'error': 'Preenche entidade emissora, tipo doc, série, data e entidade antes de emitir.'}), 400
+
+            c = db.session.execute(text("""
+                SELECT COUNT(1) AS C
+                FROM dbo.FI WITH (UPDLOCK, ROWLOCK)
+                WHERE FTSTAMP=:s AND ISNULL(QTT,0) > 0
+            """), {'s': ftstamp}).mappings().first()
+            if _to_int(c.get('C'), 0) <= 0:
+                db.session.rollback()
+                return jsonify({'error': 'Documento sem linhas válidas.'}), 400
+
+            srow = db.session.execute(text("""
+                SELECT TOP 1 FTSSTAMP, ISNULL(ULTIMO_FNO,0) AS ULTIMO_FNO
+                FROM dbo.FTS WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
+                WHERE
+                    FESTAMP=:festamp
+                    AND NDOC=:ndoc
+                    AND ISNULL(SERIE,'')=:serie
+                    AND ANO=:ano
+                    AND ISNULL(ATIVA,0)=1
+            """), {'festamp': festamp, 'ndoc': ndoc, 'serie': serie, 'ano': ftano}).mappings().first()
+            if not srow:
+                db.session.rollback()
+                return jsonify({'error': 'Série não certificada/ativa para esta entidade e ano.'}), 400
+
+            fi_rows = db.session.execute(text("""
+                SELECT *
+                FROM dbo.FI WITH (UPDLOCK, ROWLOCK)
+                WHERE FTSTAMP=:s
+                ORDER BY ISNULL(LORDEM,0), FISTAMP
+            """), {'s': ftstamp}).mappings().all()
+            normalized, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown([dict(r) for r in fi_rows])
+            new_fno = _to_int(srow.get('ULTIMO_FNO'), 0) + 1
+
+            db.session.execute(text("""
+                UPDATE dbo.FT
+                SET
+                    FNO=:fno,
+                    FTANO=:ano,
+                    ETTILIQ=:ETTILIQ, ETTIVA=:ETTIVA, ETOTAL=:ETOTAL,
+                    IVATX1=:IVATX1, IVATX2=:IVATX2, IVATX3=:IVATX3, IVATX4=:IVATX4, IVATX5=:IVATX5, IVATX6=:IVATX6, IVATX7=:IVATX7, IVATX8=:IVATX8, IVATX9=:IVATX9,
+                    EIVAIN1=:EIVAIN1, EIVAIN2=:EIVAIN2, EIVAIN3=:EIVAIN3, EIVAIN4=:EIVAIN4, EIVAIN5=:EIVAIN5, EIVAIN6=:EIVAIN6, EIVAIN7=:EIVAIN7, EIVAIN8=:EIVAIN8, EIVAIN9=:EIVAIN9,
+                    EIVAV1=:EIVAV1, EIVAV2=:EIVAV2, EIVAV3=:EIVAV3, EIVAV4=:EIVAV4, EIVAV5=:EIVAV5, EIVAV6=:EIVAV6, EIVAV7=:EIVAV7, EIVAV8=:EIVAV8, EIVAV9=:EIVAV9,
+                    DTAlteracao=GETDATE(), USERALTERACAO=:u
+                WHERE FTSTAMP=:s
+            """), {
+                'fno': new_fno, 'ano': ftano, 's': ftstamp, 'u': user_login,
+                'ETTILIQ': ettiliq, 'ETTIVA': ettiva, 'ETOTAL': etotal,
+                'IVATX1': ivatx[0], 'IVATX2': ivatx[1], 'IVATX3': ivatx[2], 'IVATX4': ivatx[3], 'IVATX5': ivatx[4], 'IVATX6': ivatx[5], 'IVATX7': ivatx[6], 'IVATX8': ivatx[7], 'IVATX9': ivatx[8],
+                'EIVAIN1': eivain[0], 'EIVAIN2': eivain[1], 'EIVAIN3': eivain[2], 'EIVAIN4': eivain[3], 'EIVAIN5': eivain[4], 'EIVAIN6': eivain[5], 'EIVAIN7': eivain[6], 'EIVAIN8': eivain[7], 'EIVAIN9': eivain[8],
+                'EIVAV1': eivav[0], 'EIVAV2': eivav[1], 'EIVAV3': eivav[2], 'EIVAV4': eivav[3], 'EIVAV5': eivav[4], 'EIVAV6': eivav[5], 'EIVAV7': eivav[6], 'EIVAV8': eivav[7], 'EIVAV9': eivav[8],
+            })
+
+            db.session.execute(text("""
+                UPDATE dbo.FI
+                SET FNO=:fno
+                WHERE FTSTAMP=:s
+            """), {'fno': new_fno, 's': ftstamp})
+
+            signed = sign_ft_document(db.session, ftstamp, user_login)
+
+            ft_emit = db.session.execute(text("""
+                SELECT TOP 1 *
+                FROM dbo.FT WITH (UPDLOCK, ROWLOCK)
+                WHERE FTSTAMP=:s
+            """), {'s': ftstamp}).mappings().first()
+            if not ft_emit:
+                raise ValueError('Documento não encontrado após assinatura.')
+            ft_emit = dict(ft_emit)
+
+            fe_row = db.session.execute(text("""
+                SELECT TOP 1 FESTAMP, NIF, ISNULL(KEYID,'') AS KEYID
+                FROM dbo.FE
+                WHERE FESTAMP=:f
+            """), {'f': (ft_emit.get('FESTAMP') or '').strip()}).mappings().first()
+            if not fe_row:
+                raise ValueError('Emitente FE não encontrado.')
+            fe_row = dict(fe_row)
+
+            modo_teste_raw = str(qr_get_param(db.session, 'MODO_TESTE_AT', '0') or '0').strip().lower()
+            modo_teste = modo_teste_raw in ('1', 'true', 'sim', 'yes')
+            certificado = str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
+            qr_version = str(qr_get_param(db.session, 'QR_VERSION', '') or '').strip()
+
+            cod_validacao, ftsstamp_for_qr = get_serie_validation_code(db.session, ft_emit)
+            if modo_teste and not cod_validacao:
+                cod_validacao = 'TESTE'
+            if modo_teste and not certificado:
+                certificado = '12345'
+            qr_validate_requirements(modo_teste, cod_validacao, certificado, bool(ftsstamp_for_qr))
+            atcud = build_atcud(cod_validacao, _to_int(ft_emit.get('FNO'), 0))
+
+            ft_for_qr = dict(ft_emit)
+            ft_for_qr['HASH'] = signed.get('HASH') or ''
+            ft_for_qr['_QR_VERSION'] = qr_version
+            codigo_qr = build_qr_payload(ft_for_qr, fe_row, atcud, certificado, modo_teste)
+
+            db.session.execute(text("""
+                UPDATE dbo.FT
+                SET
+                    HASHVER=:HASHVER,
+                    HASHANT=:HASHANT,
+                    HASH=:HASH,
+                    ASSINATURA=:ASSINATURA,
+                    KEYID=:KEYID,
+                    ATCUD=:ATCUD,
+                    CODIGOQR=:CODIGOQR,
+                    ESTADO=1,
+                    BLOQUEADO=1,
+                    DTAlteracao=GETDATE(),
+                    USERALTERACAO=:u
+                WHERE FTSTAMP=:s
+            """), {
+                'HASHVER': signed.get('HASHVER') or '1',
+                'HASHANT': signed.get('HASHANT') or '',
+                'HASH': signed.get('HASH') or '',
+                'ASSINATURA': signed.get('ASSINATURA') or '',
+                'KEYID': signed.get('KEYID') or '',
+                'ATCUD': atcud,
+                'CODIGOQR': codigo_qr,
+                'u': user_login,
+                's': ftstamp
+            })
+
+            db.session.execute(text("""
+                UPDATE dbo.FTS
+                SET ULTIMO_FNO=:fno, DTAlteracao=GETDATE(), USERALTERACAO=:u
+                WHERE FTSSTAMP=:s
+            """), {'fno': new_fno, 'u': user_login, 's': srow.get('FTSSTAMP')})
+
+            try:
+                db.session.execute(text("""
+                    UPDATE dbo.FTSX
+                    SET LAST_HASH=:h
+                    WHERE FTSSTAMP=:s
+                """), {'h': signed.get('HASH') or '', 's': srow.get('FTSSTAMP')})
+            except Exception:
+                pass
+
+            db.session.commit()
+            return jsonify({
+                'ok': True,
+                'FNO': new_fno,
+                'HASH': signed.get('HASH') or '',
+                'ATCUD': atcud,
+                'ESTADO': 1
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao emitir: {e}'}), 500
+
+    @app.route('/api/faturacao/ft/<ftstamp>/anular', methods=['POST'])
+    @login_required
+    def api_faturacao_ft_anular(ftstamp):
+        body = request.get_json(silent=True) or {}
+        motivo = (body.get('motivo') or '').strip()
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        db.session.execute(text("""
+            UPDATE dbo.FT
+            SET ANULADA=1, ESTADO=2, BLOQUEADO=1, ANULDATA=GETDATE(), ANULUSER=:u, ANULMOTIVO=:m,
+                DTAlteracao=GETDATE(), USERALTERACAO=:u
+            WHERE FTSTAMP=:s
+        """), {'u': user_login, 'm': motivo[:255], 's': ftstamp})
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    @app.route('/api/faturacao/ft/<ftstamp>/duplicar', methods=['POST'])
+    @login_required
+    def api_faturacao_ft_duplicar(ftstamp):
+        ft, fi = _get_ft(ftstamp)
+        if not ft:
+            return jsonify({'error': 'Documento não encontrado'}), 404
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        new_ft = _new_stamp_25()
+        today = date.today()
+        db.session.execute(text("""
+            INSERT INTO dbo.FT
+            (FTSTAMP, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA,
+             FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
+             IVATX1, IVATX2, IVATX3, IVATX4, IVATX5, IVATX6, IVATX7, IVATX8, IVATX9,
+             EIVAIN1, EIVAIN2, EIVAIN3, EIVAIN4, EIVAIN5, EIVAIN6, EIVAIN7, EIVAIN8, EIVAIN9,
+             TIPODOC, EIVAV1, EIVAV2, EIVAV3, EIVAV4, EIVAV5, EIVAV6, EIVAV7, EIVAV8, EIVAV9,
+             FESTAMP, SERIE, ESTADO, BLOQUEADO, DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO,
+             HASHVER, HASHANT, HASH, ASSINATURA, KEYID, ATCUD, CODIGOQR,
+             ANULADA, ANULDATA, ANULUSER, ANULMOTIVO,
+             FTREFSTAMP, AT_ENVIO_ESTADO, AT_ENVIO_DATA, AT_ENVIO_MSG)
+            VALUES
+            (:new, :NDOC, :NMDOC, 0, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA,
+             :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
+             :IVATX1, :IVATX2, :IVATX3, :IVATX4, :IVATX5, :IVATX6, :IVATX7, :IVATX8, :IVATX9,
+             :EIVAIN1, :EIVAIN2, :EIVAIN3, :EIVAIN4, :EIVAIN5, :EIVAIN6, :EIVAIN7, :EIVAIN8, :EIVAIN9,
+             :TIPODOC, :EIVAV1, :EIVAV2, :EIVAV3, :EIVAV4, :EIVAV5, :EIVAV6, :EIVAV7, :EIVAV8, :EIVAV9,
+             :FESTAMP, :SERIE, 0, 0, GETDATE(), GETDATE(), :U, :U,
+             '', '', '', '', '', '', '',
+             0, CAST('19000101' AS datetime2(0)), '', '',
+             :old, 0, CAST('19000101' AS datetime2(0)), '')
+        """), {
+            'new': new_ft, 'old': ftstamp,
+            'NDOC': _to_int(ft.get('NDOC'), 0), 'NMDOC': (ft.get('NMDOC') or '').strip(), 'TIPO': (ft.get('TIPO') or 'FT').strip(),
+            'NO': _to_int(ft.get('NO'), 0), 'NOME': (ft.get('NOME') or '').strip(), 'MORADA': (ft.get('MORADA') or '').strip(),
+            'CODPOST': (ft.get('CODPOST') or '').strip(), 'PAIS': _to_int(ft.get('PAIS'), 0), 'LOCAL': (ft.get('LOCAL') or '').strip(),
+            'NCONT': (ft.get('NCONT') or '').strip(), 'MOEDA': (ft.get('MOEDA') or 'EUR').strip(),
+            'FDATA': ft.get('FDATA') or today.isoformat(), 'FTANO': _to_int(ft.get('FTANO'), today.year), 'PDATA': ft.get('PDATA') or today.isoformat(),
+            'PLANO': _to_int(ft.get('PLANO'), 0), 'TPSTAMP': (ft.get('TPSTAMP') or '').strip(), 'TPDESC': (ft.get('TPDESC') or '').strip(),
+            'ETTILIQ': _num(ft.get('ETTILIQ'), 0), 'ETTIVA': _num(ft.get('ETTIVA'), 0), 'ETOTAL': _num(ft.get('ETOTAL'), 0),
+            'CCUSTO': (ft.get('CCUSTO') or '').strip(), 'FESTAMP': (ft.get('FESTAMP') or '').strip(), 'SERIE': (ft.get('SERIE') or '').strip(),
+            'IVATX1': _num(ft.get('IVATX1'), 0), 'IVATX2': _num(ft.get('IVATX2'), 0), 'IVATX3': _num(ft.get('IVATX3'), 0), 'IVATX4': _num(ft.get('IVATX4'), 0), 'IVATX5': _num(ft.get('IVATX5'), 0), 'IVATX6': _num(ft.get('IVATX6'), 0), 'IVATX7': _num(ft.get('IVATX7'), 0), 'IVATX8': _num(ft.get('IVATX8'), 0), 'IVATX9': _num(ft.get('IVATX9'), 0),
+            'EIVAIN1': _num(ft.get('EIVAIN1'), 0), 'EIVAIN2': _num(ft.get('EIVAIN2'), 0), 'EIVAIN3': _num(ft.get('EIVAIN3'), 0), 'EIVAIN4': _num(ft.get('EIVAIN4'), 0), 'EIVAIN5': _num(ft.get('EIVAIN5'), 0), 'EIVAIN6': _num(ft.get('EIVAIN6'), 0), 'EIVAIN7': _num(ft.get('EIVAIN7'), 0), 'EIVAIN8': _num(ft.get('EIVAIN8'), 0), 'EIVAIN9': _num(ft.get('EIVAIN9'), 0),
+            'TIPODOC': _to_int(ft.get('TIPODOC'), 0),
+            'EIVAV1': _num(ft.get('EIVAV1'), 0), 'EIVAV2': _num(ft.get('EIVAV2'), 0), 'EIVAV3': _num(ft.get('EIVAV3'), 0), 'EIVAV4': _num(ft.get('EIVAV4'), 0), 'EIVAV5': _num(ft.get('EIVAV5'), 0), 'EIVAV6': _num(ft.get('EIVAV6'), 0), 'EIVAV7': _num(ft.get('EIVAV7'), 0), 'EIVAV8': _num(ft.get('EIVAV8'), 0), 'EIVAV9': _num(ft.get('EIVAV9'), 0),
+            'U': user_login
+        })
+        for row in fi:
+            db.session.execute(text("""
+                INSERT INTO dbo.FI
+                (FISTAMP, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA)
+                VALUES
+                (:FISTAMP, :NMDOC, 0, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA)
+            """), {
+                'FISTAMP': _new_stamp_25(),
+                'NMDOC': (row.get('NMDOC') or '').strip(),
+                'REF': (row.get('REF') or '').strip(),
+                'DESIGN': (row.get('DESIGN') or '').strip(),
+                'QTT': _num(row.get('QTT'), 0),
+                'ETILIQUIDO': _num(row.get('ETILIQUIDO'), 0),
+                'UNIDADE': (row.get('UNIDADE') or '').strip(),
+                'IVA': _num(row.get('IVA'), 0),
+                'IVAINCL': _to_int(row.get('IVAINCL'), 0),
+                'TABIVA': _to_int(row.get('TABIVA'), 0),
+                'NDOC': _to_int(row.get('NDOC'), 0),
+                'LORDEM': _to_int(row.get('LORDEM'), 0),
+                'FTSTAMP': new_ft,
+                'FICCUSTO': (row.get('FICCUSTO') or '').strip(),
+                'EPV': _num(row.get('EPV'), 0),
+                'FAMILIA': (row.get('FAMILIA') or '').strip()
+            })
+        db.session.commit()
+        return jsonify({'ok': True, 'FTSTAMP': new_ft})
+
+    @app.route('/api/faturacao/ft/<ftstamp>/cancelar', methods=['POST'])
+    @login_required
+    def api_faturacao_ft_cancelar(ftstamp):
+        row = db.session.execute(text("""
+            SELECT ISNULL(ESTADO,0) AS ESTADO
+            FROM dbo.FT
+            WHERE FTSTAMP=:s
+        """), {'s': ftstamp}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Documento não encontrado'}), 404
+        if int(row.get('ESTADO') or 0) != 0:
+            return jsonify({'ok': True, 'deleted': False, 'message': 'Documento não é rascunho.'})
+
+        db.session.execute(text("DELETE FROM dbo.FI WHERE FTSTAMP=:s"), {'s': ftstamp})
+        db.session.execute(text("DELETE FROM dbo.FT WHERE FTSTAMP=:s"), {'s': ftstamp})
+        db.session.commit()
+        return jsonify({'ok': True, 'deleted': True})
 
     @app.route('/')
     @login_required
@@ -10466,6 +11486,397 @@ OPTION (MAXRECURSION 32767);
             'legs': legs,
             'combinations': combinations
         })
+
+    @app.route('/api/poig', methods=['GET', 'POST'])
+    @login_required
+    def api_poig_list_create():
+        if request.method == 'GET':
+            rows = db.session.execute(text("""
+                SELECT POIGSTAMP, NOME, SLUG, DESCR, ORDEM, ATIVO
+                FROM dbo.POIG
+                ORDER BY ISNULL(ORDEM,0), NOME
+            """)).mappings().all()
+            return jsonify([dict(r) for r in rows])
+
+        body = request.get_json(silent=True) or {}
+        nome = (body.get('NOME') or '').strip()
+        slug = (body.get('SLUG') or '').strip()
+        descr = (body.get('DESCR') or '').strip()
+        ordem = int(body.get('ORDEM') or 0)
+        ativo = 1 if bool(body.get('ATIVO', True)) else 0
+        if not nome:
+            return jsonify({'error': 'NOME obrigatório'}), 400
+        stamp = new_stamp()
+        db.session.execute(text("""
+            INSERT INTO dbo.POIG
+            (POIGSTAMP, NOME, SLUG, DESCR, ORDEM, ATIVO, DTCRI, DTALT)
+            VALUES
+            (:s, :n, :sl, :d, :o, :a, GETDATE(), GETDATE())
+        """), {'s': stamp, 'n': nome, 'sl': slug, 'd': descr, 'o': ordem, 'a': ativo})
+        db.session.commit()
+        return jsonify({'ok': True, 'POIGSTAMP': stamp})
+
+    @app.route('/api/poig/<poigstamp>', methods=['PUT', 'DELETE'])
+    @login_required
+    def api_poig_update_delete(poigstamp):
+        if request.method == 'PUT':
+            body = request.get_json(silent=True) or {}
+            nome = (body.get('NOME') or '').strip()
+            slug = (body.get('SLUG') or '').strip()
+            descr = (body.get('DESCR') or '').strip()
+            ordem = int(body.get('ORDEM') or 0)
+            ativo = 1 if bool(body.get('ATIVO', True)) else 0
+            if not nome:
+                return jsonify({'error': 'NOME obrigatório'}), 400
+            db.session.execute(text("""
+                UPDATE dbo.POIG
+                SET NOME=:n, SLUG=:sl, DESCR=:d, ORDEM=:o, ATIVO=:a, DTALT=GETDATE()
+                WHERE POIGSTAMP=:s
+            """), {'s': poigstamp, 'n': nome, 'sl': slug, 'd': descr, 'o': ordem, 'a': ativo})
+            db.session.commit()
+            return jsonify({'ok': True})
+
+        dep = db.session.execute(text("""
+            SELECT COUNT(1) AS N FROM dbo.POI WHERE POIGSTAMP = :s
+        """), {'s': poigstamp}).scalar() or 0
+        if int(dep) > 0:
+            return jsonify({'error': 'Não é possível apagar: existem POI neste grupo.'}), 400
+        db.session.execute(text("DELETE FROM dbo.POIG WHERE POIGSTAMP = :s"), {'s': poigstamp})
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    @app.route('/api/poi/list', methods=['GET'])
+    @login_required
+    def api_poi_list():
+        q = (request.args.get('q') or '').strip()
+        where = []
+        params = {}
+        if q:
+            where.append("(P.NOME LIKE :q OR ISNULL(P.MORADA,'') LIKE :q OR ISNULL(P.TIPO,'') LIKE :q)")
+            params['q'] = f"%{q}%"
+        where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+        rows = db.session.execute(text(f"""
+            SELECT
+                P.POISTAMP,
+                P.NOME,
+                P.TIPO,
+                P.ATIVO,
+                P.POIGSTAMP,
+                G.NOME AS GRUPO_NOME,
+                ISNULL(A.CNT,0) AS ALOJ_CNT
+            FROM dbo.POI P
+            LEFT JOIN dbo.POIG G ON G.POIGSTAMP = P.POIGSTAMP
+            OUTER APPLY (
+                SELECT COUNT(1) AS CNT
+                FROM dbo.POIAL X
+                WHERE X.POISTAMP = P.POISTAMP
+            ) A
+            {where_sql}
+            ORDER BY ISNULL(P.ORDEM_GLOBAL,0), P.NOME
+        """), params).mappings().all()
+        return jsonify([dict(r) for r in rows])
+
+    @app.route('/api/poi/search', methods=['GET'])
+    @login_required
+    def api_poi_search():
+        q = (request.args.get('q') or '').strip()
+        if not q:
+            return jsonify([])
+        rows = db.session.execute(text("""
+            SELECT TOP 30
+                POISTAMP, NOME, TIPO, MORADA, LAT, LNG, ATIVO
+            FROM dbo.POI
+            WHERE NOME LIKE :q OR ISNULL(MORADA,'') LIKE :q
+            ORDER BY NOME
+        """), {'q': f'%{q}%'}).mappings().all()
+        return jsonify([dict(r) for r in rows])
+
+    @app.route('/api/poi/search_places', methods=['GET'])
+    @login_required
+    def api_poi_search_places():
+        q = (request.args.get('q') or '').strip()
+        limit = int(request.args.get('limit') or 12)
+        if limit < 1:
+            limit = 12
+        if limit > 30:
+            limit = 30
+        if not q:
+            return jsonify([])
+        try:
+            url = (
+                "https://nominatim.openstreetmap.org/search"
+                f"?format=json&addressdetails=1&limit={limit}&countrycodes=pt&q={quote(q)}"
+            )
+            items = _geo_fetch_json(url) or []
+        except Exception:
+            return jsonify({'error': 'Falha ao contactar serviço de pesquisa de locais.'}), 502
+
+        out = []
+        for it in items:
+            try:
+                lat = float(it.get('lat'))
+                lon = float(it.get('lon'))
+            except Exception:
+                continue
+            display = str(it.get('display_name') or '').strip()
+            nm = str(it.get('name') or '').strip()
+            if not nm and display:
+                nm = display.split(',')[0].strip()
+            out.append({
+                'name': nm or 'Local',
+                'display_name': display,
+                'lat': round(lat, 6),
+                'lng': round(lon, 6),
+                'osm_type': it.get('osm_type') or '',
+                'osm_id': it.get('osm_id') or '',
+                'type': it.get('type') or '',
+                'class': it.get('class') or '',
+                'url_maps': f"https://www.google.com/maps/search/?api=1&query={quote(f'{lat},{lon}')}"
+            })
+        return jsonify(out)
+
+    @app.route('/api/poi', methods=['POST'])
+    @login_required
+    def api_poi_create():
+        body = request.get_json(silent=True) or {}
+        nome = (body.get('NOME') or '').strip()
+        tipo = (body.get('TIPO') or '').strip()
+        poigstamp = (body.get('POIGSTAMP') or '').strip()
+        morada = (body.get('MORADA') or '').strip()
+        cidade = (body.get('CIDADE') or '').strip()
+        codpostal = (body.get('CODPOSTAL') or '').strip()
+        pais = (body.get('PAIS') or '').strip()
+        telefone = (body.get('TELEFONE') or '').strip()
+        url = (body.get('URL') or '').strip()
+        url_maps = (body.get('URL_MAPS') or '').strip()
+        descr = (body.get('DESCR') or '').strip()
+        if not nome:
+            return jsonify({'error': 'NOME obrigatório'}), 400
+        try:
+            lat = float(body.get('LAT')) if body.get('LAT') not in (None, '') else None
+            lng = float(body.get('LNG')) if body.get('LNG') not in (None, '') else None
+        except Exception:
+            return jsonify({'error': 'LAT/LNG inválidos'}), 400
+        stamp = new_stamp()
+        db.session.execute(text("""
+            INSERT INTO dbo.POI
+            (POISTAMP, POIGSTAMP, NOME, TIPO, DESCR, MORADA, CIDADE, CODPOSTAL, PAIS,
+             LAT, LNG, TELEFONE, URL, URL_MAPS, HORARIO, PRECO_INFO, TAGS, ATIVO, ORDEM_GLOBAL, DTCRI, DTALT)
+            VALUES
+            (:s, :g, :n, :t, :d, :m, :c, :cp, :p, :lat, :lng, :tel, :u, :um, '', '', '', 1, 0, GETDATE(), GETDATE())
+        """), {
+            's': stamp, 'g': poigstamp or None, 'n': nome, 't': tipo, 'd': descr,
+            'm': morada, 'c': cidade, 'cp': codpostal, 'p': pais, 'lat': lat, 'lng': lng,
+            'tel': telefone, 'u': url, 'um': url_maps
+        })
+        db.session.commit()
+        return jsonify({'ok': True, 'POISTAMP': stamp})
+
+    @app.route('/api/poi/<poistamp>', methods=['GET', 'PUT'])
+    @login_required
+    def api_poi_detail(poistamp):
+        if request.method == 'PUT':
+            body = request.get_json(silent=True) or {}
+            nome = (body.get('NOME') or '').strip()
+            tipo = (body.get('TIPO') or '').strip()
+            poigstamp = (body.get('POIGSTAMP') or '').strip()
+            morada = (body.get('MORADA') or '').strip()
+            cidade = (body.get('CIDADE') or '').strip()
+            codpostal = (body.get('CODPOSTAL') or '').strip()
+            pais = (body.get('PAIS') or '').strip()
+            telefone = (body.get('TELEFONE') or '').strip()
+            url = (body.get('URL') or '').strip()
+            url_maps = (body.get('URL_MAPS') or '').strip()
+            descr = (body.get('DESCR') or '').strip()
+            if not nome:
+                return jsonify({'error': 'NOME obrigatório'}), 400
+            try:
+                lat = float(body.get('LAT')) if body.get('LAT') not in (None, '') else None
+                lng = float(body.get('LNG')) if body.get('LNG') not in (None, '') else None
+            except Exception:
+                return jsonify({'error': 'LAT/LNG inválidos'}), 400
+            db.session.execute(text("""
+                UPDATE dbo.POI
+                SET POIGSTAMP=:g, NOME=:n, TIPO=:t, DESCR=:d, MORADA=:m, CIDADE=:c, CODPOSTAL=:cp, PAIS=:p,
+                    LAT=:lat, LNG=:lng, TELEFONE=:tel, URL=:u, URL_MAPS=:um, DTALT=GETDATE()
+                WHERE POISTAMP=:s
+            """), {
+                's': poistamp, 'g': (poigstamp or None), 'n': nome, 't': tipo, 'd': descr,
+                'm': morada, 'c': cidade, 'cp': codpostal, 'p': pais, 'lat': lat, 'lng': lng,
+                'tel': telefone, 'u': url, 'um': url_maps
+            })
+            db.session.commit()
+            return jsonify({'ok': True})
+
+        poi = db.session.execute(text("""
+            SELECT P.*, G.NOME AS GRUPO_NOME
+            FROM dbo.POI P
+            LEFT JOIN dbo.POIG G ON G.POIGSTAMP = P.POIGSTAMP
+            WHERE P.POISTAMP = :s
+        """), {'s': poistamp}).mappings().first()
+        if not poi:
+            return jsonify({'error': 'POI não encontrado'}), 404
+        assoc = db.session.execute(text("""
+            SELECT X.POIALSTAMP, X.AL_NOME, X.ORDEM, X.DIST_METROS, X.NOTA, X.DESTAQUE, X.ATIVO,
+                   AL.LAT, AL.LON
+            FROM dbo.POIAL X
+            LEFT JOIN dbo.AL AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(ISNULL(X.AL_NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE X.POISTAMP = :s
+            ORDER BY ISNULL(X.ORDEM,0), X.AL_NOME
+        """), {'s': poistamp}).mappings().all()
+        return jsonify({'poi': dict(poi), 'assoc': [dict(a) for a in assoc]})
+
+    @app.route('/api/poi/<poistamp>/nearby', methods=['GET'])
+    @login_required
+    def api_poi_nearby(poistamp):
+        try:
+            try:
+                limit = int(request.args.get('limit') or 20)
+            except Exception:
+                limit = 20
+            if limit < 1:
+                limit = 20
+            if limit > 200:
+                limit = 200
+
+            poi = db.session.execute(text("""
+                SELECT POISTAMP, NOME, LAT, LNG
+                FROM dbo.POI
+                WHERE POISTAMP = :s
+            """), {'s': poistamp}).mappings().first()
+            if not poi:
+                return jsonify({'error': 'POI não encontrado'}), 404
+            try:
+                lat = float(poi.get('LAT'))
+                lng = float(poi.get('LNG'))
+            except Exception:
+                return jsonify({'error': 'POI sem coordenadas válidas'}), 400
+
+            import math
+
+            try:
+                rows = db.session.execute(text("""
+                    SELECT
+                        ALSTAMP,
+                        NOME,
+                        TRY_CONVERT(float, NULLIF(LTRIM(RTRIM(CONVERT(varchar(50), LAT))), '')) AS LAT,
+                        TRY_CONVERT(float, NULLIF(LTRIM(RTRIM(CONVERT(varchar(50), LON))), '')) AS LON
+                    FROM dbo.AL
+                    WHERE TRY_CONVERT(float, NULLIF(LTRIM(RTRIM(CONVERT(varchar(50), LAT))), '')) IS NOT NULL
+                      AND TRY_CONVERT(float, NULLIF(LTRIM(RTRIM(CONVERT(varchar(50), LON))), '')) IS NOT NULL
+                """)).mappings().all()
+            except Exception as ex:
+                return jsonify({'error': f'Erro a ler alojamentos (coords): {ex}'}), 500
+
+            def _haversine_m(lat1, lon1, lat2, lon2):
+                r = 6371000.0
+                p1 = math.radians(lat1)
+                p2 = math.radians(lat2)
+                dp = math.radians(lat2 - lat1)
+                dl = math.radians(lon2 - lon1)
+                a = math.sin(dp / 2.0) ** 2 + math.cos(p1) * math.cos(p2) * (math.sin(dl / 2.0) ** 2)
+                a = max(0.0, min(1.0, a))
+                return int(round(r * (2.0 * math.asin(math.sqrt(a)))))
+
+            out = []
+            for r in rows:
+                try:
+                    al_lat = float(r.get('LAT'))
+                    al_lon = float(r.get('LON'))
+                except Exception:
+                    continue
+                if abs(al_lat) < 0.000001 and abs(al_lon) < 0.000001:
+                    continue
+                out.append({
+                    'ALSTAMP': r.get('ALSTAMP'),
+                    'NOME': r.get('NOME'),
+                    'LAT': al_lat,
+                    'LON': al_lon,
+                    'DIST_METROS': _haversine_m(lat, lng, al_lat, al_lon)
+                })
+
+            out.sort(key=lambda x: (x.get('DIST_METROS', 0), str(x.get('NOME') or '')))
+            return jsonify(out[:limit])
+        except Exception as ex:
+            return jsonify({'error': f'Erro a calcular alojamentos próximos: {ex}'}), 500
+
+    @app.route('/api/poi/<poistamp>/associacoes', methods=['POST'])
+    @login_required
+    def api_poi_assoc_create(poistamp):
+        body = request.get_json(silent=True) or {}
+        alojs = body.get('alojamentos') or []
+        if not isinstance(alojs, list) or not alojs:
+            return jsonify({'error': 'Lista de alojamentos obrigatória'}), 400
+
+        inserted = 0
+        updated = 0
+        for a in alojs:
+            if isinstance(a, dict):
+                al_nome = str(a.get('AL_NOME') or a.get('NOME') or '').strip()
+                dist = a.get('DIST_METROS')
+            else:
+                al_nome = str(a).strip()
+                dist = None
+            if not al_nome:
+                continue
+            try:
+                dist_v = int(dist) if dist not in (None, '') else None
+            except Exception:
+                dist_v = None
+            ex = db.session.execute(text("""
+                SELECT TOP 1 POIALSTAMP
+                FROM dbo.POIAL
+                WHERE LTRIM(RTRIM(ISNULL(AL_NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                    = LTRIM(RTRIM(:n)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                  AND POISTAMP = :p
+            """), {'n': al_nome, 'p': poistamp}).mappings().first()
+            if ex:
+                db.session.execute(text("""
+                    UPDATE dbo.POIAL
+                    SET DIST_METROS = COALESCE(:d, DIST_METROS),
+                        ATIVO = 1,
+                        DTALT = GETDATE()
+                    WHERE POIALSTAMP = :s
+                """), {'d': dist_v, 's': ex.get('POIALSTAMP')})
+                updated += 1
+            else:
+                db.session.execute(text("""
+                    INSERT INTO dbo.POIAL
+                    (POIALSTAMP, AL_NOME, POISTAMP, ORDEM, DIST_METROS, NOTA, DESTAQUE, ATIVO, DTCRI, DTALT)
+                    VALUES
+                    (:s, :n, :p, 0, :d, '', 0, 1, GETDATE(), GETDATE())
+                """), {'s': new_stamp(), 'n': al_nome, 'p': poistamp, 'd': dist_v})
+                inserted += 1
+        db.session.commit()
+        return jsonify({'ok': True, 'inserted': inserted, 'updated': updated})
+
+    @app.route('/api/poi/associacao/<poialstamp>', methods=['PUT', 'DELETE'])
+    @login_required
+    def api_poi_assoc_update_delete(poialstamp):
+        if request.method == 'DELETE':
+            db.session.execute(text("DELETE FROM dbo.POIAL WHERE POIALSTAMP = :s"), {'s': poialstamp})
+            db.session.commit()
+            return jsonify({'ok': True})
+
+        body = request.get_json(silent=True) or {}
+        ordem = int(body.get('ORDEM') or 0)
+        nota = str(body.get('NOTA') or '').strip()
+        destaque = 1 if bool(body.get('DESTAQUE')) else 0
+        ativo = 1 if bool(body.get('ATIVO', True)) else 0
+        dist = body.get('DIST_METROS')
+        try:
+            dist_v = int(dist) if dist not in (None, '') else None
+        except Exception:
+            dist_v = None
+        db.session.execute(text("""
+            UPDATE dbo.POIAL
+            SET ORDEM=:o, NOTA=:n, DESTAQUE=:d, ATIVO=:a, DIST_METROS=:dm, DTALT=GETDATE()
+            WHERE POIALSTAMP=:s
+        """), {'o': ordem, 'n': nota, 'd': destaque, 'a': ativo, 'dm': dist_v, 's': poialstamp})
+        db.session.commit()
+        return jsonify({'ok': True})
 
 
     rotas_workers = {}

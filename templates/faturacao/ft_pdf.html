@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <title>{{ (ft.NMDOC or 'Fatura') }} {{ ft.SERIE or '' }}/{{ ft.FNO or ft.FTSTAMP or '' }}</title>
+  <style>
+    @page { size: A4; margin: 12mm 10mm; }
+    body { font-family: "Segoe UI", "Inter", "Roboto", "Helvetica Neue", Arial, sans-serif; font-size: 8.2pt; color: #1f2937; background: #ffffff; }
+    .doc { width: 100%; }
+    .section-gap { margin-top: 10px; }
+    .box-pad { padding: 2px 0; }
+    .title { font-size: 10.2pt; font-weight: bold; color: #111827; }
+    .small { font-size: 8pt; }
+    .line { margin: 1px 0; }
+    .label { font-weight: bold; }
+    .tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .tbl th, .tbl td { border: 1px solid #d7dce4; padding: 5px 6px; vertical-align: top; }
+    .tbl th { background: #eef2f7; color: #0f172a; font-weight: bold; text-align: left; }
+    .num { text-align: right; white-space: nowrap; }
+
+    .items tr:nth-child(even) td { background: #fcfdff; }
+    .items th, .items td { overflow: hidden; }
+    .items td { padding-top: 7px; padding-bottom: 7px; }
+    .items .row-fill td { height: 20px; color: transparent; }
+    .items tbody td { border-top: 0; border-bottom: 0; }
+    .items tbody tr:first-child td { border-top: 1px solid #d7dce4; }
+    .items tbody tr:last-child td { border-bottom: 1px solid #d7dce4; }
+    .items .first-data-row td { padding-top: 16px !important; }
+    .items .w-ref { width: 15%; }
+    .items .w-design { width: 40%; }
+    .items .w-qtd { width: 10%; white-space: nowrap; }
+    .items .w-un { width: 5%; white-space: nowrap; text-align: center; }
+    .items .w-preco { width: 10%; white-space: nowrap; }
+    .items .w-total { width: 10%; white-space: nowrap; }
+    .items .w-iva { width: 10%; white-space: nowrap; }
+
+    .totals td:first-child { font-weight: bold; }
+    .totals tr:last-child td { background: #e8eefc; font-weight: bold; }
+    .iva-box { margin-bottom: 0; }
+    .iva-box th, .iva-box td { padding: 4px 6px; }
+    .footer-block {
+      position: fixed;
+      left: 10mm;
+      right: 10mm;
+      bottom: 20mm;
+      width: auto;
+    }
+    .cert-line {
+      margin-top: 8px;
+      font-size: 7.8pt;
+      line-height: 1.25;
+      color: #475569;
+    }
+    .qr-wrap { margin-top: 6px; }
+    .atcud-line { margin-bottom: 6px; }
+    .watermark {
+      position: fixed; top: 45%; left: 15%;
+      font-size: 64pt; color: #d1d5db;
+      transform: rotate(-24deg);
+    }
+  </style>
+</head>
+<body>
+  {% if is_draft %}<div class="watermark">RASCUNHO</div>{% endif %}
+  {% if is_annulled %}<div class="watermark">ANULADO</div>{% endif %}
+
+  <table class="doc" style="border:0; border-collapse:separate; border-spacing:0; width:100%;">
+    <tr>
+      <td style="width:52%; border:0; padding:0 6px 0 0; vertical-align:top;">
+        <table style="width:100%; border-collapse:collapse;">
+          <tr><td class="box-pad" style="border:0;">
+            {% if logo_b64 %}
+            <img alt="GuestSpa" src="data:image/png;base64,{{ logo_b64 }}" style="width:140px; height:auto; margin-bottom:16px;">
+            {% else %}
+            <div class="title">GuestSpa</div>
+            {% endif %}
+            <div style="height:8px;"></div>
+            <div class="line"><strong>{{ fe.NOMEFISCAL or fe.NOME or '' }}</strong></div>
+            <div class="line">{{ fe.MORADA or '' }} {{ fe.MORADA2 or '' }}</div>
+            <div class="line">{{ fe.CODPOST or '' }} {{ fe.LOCAL or '' }}</div>
+            <div class="line">NIF: {{ fe.NIF or '' }}</div>
+          </td></tr>
+        </table>
+      </td>
+      <td style="width:48%; border:0; padding:0 0 0 6px; vertical-align:top;">
+        <table style="width:100%; border-collapse:collapse;">
+          <tr><td class="box-pad" style="border:0; text-align:right; vertical-align:top; padding-top:0;">
+            <div class="title" style="font-size:14pt;">{{ ft.NMDOC or 'Documento' }} <span style="font-size:11pt; font-weight:bold;">{{ ft.SERIE or '' }}/{{ ft.FNO or '-' }}</span></div>
+            <div class="line">{{ ft.FDATA or '' }}</div>
+          </td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <table class="tbl section-gap" style="border:0;">
+    <tr>
+      <td style="width:42%; border:0;"></td>
+      <td class="box-pad" style="width:58%; border:0; padding-top:6px;">
+        <div class="line"><strong>{{ ft.NOME or '' }}</strong></div>
+        <div class="line">NIF: {{ ft.NCONT or '' }}</div>
+        <div class="line">{{ ft.MORADA or '' }}</div>
+        <div class="line">{{ ft.CODPOST or '' }} {{ ft.LOCAL or '' }}</div>
+      </td>
+    </tr>
+  </table>
+
+  <table class="tbl section-gap items">
+    <thead>
+      <tr>
+        <th class="w-ref">Ref.</th>
+        <th class="w-design">Designação</th>
+        <th class="num w-qtd">Qtd.</th>
+        <th class="w-un">Un.</th>
+        <th class="num w-preco">Preço</th>
+        <th class="num w-total">Total</th>
+        <th class="num w-iva">IVA %</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="row-fill">
+        <td class="w-ref">&nbsp;</td>
+        <td class="w-design">&nbsp;</td>
+        <td class="num w-qtd">&nbsp;</td>
+        <td class="w-un">&nbsp;</td>
+        <td class="num w-preco">&nbsp;</td>
+        <td class="num w-total">&nbsp;</td>
+        <td class="num w-iva">&nbsp;</td>
+      </tr>
+      {% for ln in lines %}
+      <tr{% if loop.first %} class="first-data-row"{% endif %}>
+        <td class="w-ref">{{ ln.REF or '' }}</td>
+        <td class="w-design">{{ ln.DESIGN or '' }}</td>
+        <td class="num w-qtd">{{ ln._QTT }}</td>
+        <td class="w-un">{{ ln.UNIDADE or '' }}</td>
+        <td class="num w-preco">{{ ln._EPV }}</td>
+        <td class="num w-total">{{ ln._TOTAL }}</td>
+        <td class="num w-iva">{{ ln._IVA_TX }}</td>
+      </tr>
+      {% endfor %}
+      {% set fill_count = 24 - (lines|length) %}
+      {% if fill_count > 0 %}
+        {% for _ in range(fill_count) %}
+        <tr class="row-fill">
+          <td class="w-ref">&nbsp;</td>
+          <td class="w-design">&nbsp;</td>
+          <td class="num w-qtd">&nbsp;</td>
+          <td class="w-un">&nbsp;</td>
+          <td class="num w-preco">&nbsp;</td>
+          <td class="num w-total">&nbsp;</td>
+          <td class="num w-iva">&nbsp;</td>
+        </tr>
+        {% endfor %}
+      {% endif %}
+    </tbody>
+  </table>
+  <div class="cert-line">{{ (hash4 or '----') }}-Processado por programa certificado nº {{ at_cert_no_dec or '' }}/AT</div>
+
+  <div style="height:170px;"></div>
+  <table class="doc tbl footer-block" style="border:0; border-collapse:separate; border-spacing:0;">
+    <tr>
+      <td style="width:25%; border:0; padding:8px 8px 0 0; vertical-align:top;">
+        <div class="atcud-line"><span class="label">ATCUD:</span> {{ ft.ATCUD or 'n/a' }}</div>
+        {% if qr_b64 %}
+        <div class="qr-wrap">
+          <img alt="QR Code" src="data:image/png;base64,{{ qr_b64 }}" style="width:130px; height:130px; border:1px solid #d7dce4; padding:6px; background:#fff;">
+        </div>
+        {% endif %}
+      </td>
+      <td style="width:40%; border:0; padding:8px 8px 0 8px; vertical-align:top;">
+        <table class="tbl iva-box">
+          <thead>
+            <tr>
+              <th>Imposto</th>
+              <th class="num">Incidência</th>
+              <th class="num">IVA</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for iv in iva_breakdown %}
+            <tr>
+              <td>{{ iv.taxa }}%</td>
+              <td class="num">{{ iv.incidencia }}</td>
+              <td class="num">{{ iv.iva }}</td>
+            </tr>
+            {% endfor %}
+            {% if not iva_breakdown %}
+            <tr><td>-</td><td class="num">0,00</td><td class="num">0,00</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </td>
+      <td style="width:35%; border:0; padding:8px 0 0 8px; vertical-align:top;">
+        <table class="tbl totals">
+          <tr><td>Total líquido</td><td class="num">{{ fmt_money(ft.ETTILIQ, 2) }}</td></tr>
+          <tr><td>Total IVA</td><td class="num">{{ fmt_money(ft.ETTIVA, 2) }}</td></tr>
+          <tr><td>Total documento</td><td class="num">{{ fmt_money(ft.ETOTAL, 2) }}</td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

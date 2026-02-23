@@ -11,6 +11,9 @@
   <button id="geoToggleAll" class="btn btn-outline-primary btn-sm" type="button">
     Mostra Todos <span id="geoCount" class="geo-count">(0 no mapa)</span>
   </button>
+  <button id="geoToggleMetro" class="btn btn-outline-secondary btn-sm" type="button">
+    Metro
+  </button>
 </div>
 
 <div class="geo-page">
@@ -88,6 +91,19 @@
       </div>
     </div>
   </div>
+
+  <div class="geo-poi">
+    <div class="geo-list-header">
+      <input id="geoPoiSearch" class="form-control" placeholder="Pesquisar POI..." />
+      <div class="d-flex gap-2">
+        <button id="geoPoiAddBtn" class="btn btn-sm btn-primary" type="button">Adicionar POI</button>
+        <button id="geoPoiGroupsBtn" class="btn btn-sm btn-outline-secondary" type="button">Grupos</button>
+      </div>
+      <div id="geoPoiStatus" class="geo-status">A carregar...</div>
+    </div>
+    <div id="geoPoiList" class="geo-list"></div>
+    <div id="geoPoiDetail" class="geo-poi-detail mt-2"></div>
+  </div>
 </div>
 
 <div class="modal fade" id="geoRouteModal" tabindex="-1" aria-hidden="true">
@@ -113,6 +129,85 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="geoRouteApply">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="geoPoiModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Adicionar POI</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="geoPoiStepSearch">
+          <div class="row g-2">
+            <div class="col-md-8">
+              <input id="geoPoiModalSearch" class="form-control" placeholder="Pesquisar por nome ou morada..." />
+            </div>
+            <div class="col-md-4 text-md-end">
+              <button id="geoPoiShowCreate" class="btn btn-outline-primary btn-sm" type="button">Criar novo POI</button>
+            </div>
+          </div>
+          <div id="geoPoiModalResults" class="geo-poi-modal-results mt-2"></div>
+        </div>
+
+        <div id="geoPoiStepCreate" style="display:none;">
+          <div class="row g-2">
+            <div class="col-md-6"><label class="form-label">Nome</label><input id="geoPoiCreateNome" class="form-control form-control-sm"></div>
+            <div class="col-md-3"><label class="form-label">Tipo</label><input id="geoPoiCreateTipo" class="form-control form-control-sm"></div>
+            <div class="col-md-3"><label class="form-label">Grupo</label><select id="geoPoiCreateGrupo" class="form-select form-select-sm"></select></div>
+            <div class="col-md-6"><label class="form-label">Morada</label><input id="geoPoiCreateMorada" class="form-control form-control-sm"></div>
+            <div class="col-md-3"><label class="form-label">Lat</label><input id="geoPoiCreateLat" class="form-control form-control-sm"></div>
+            <div class="col-md-3"><label class="form-label">Lng</label><input id="geoPoiCreateLng" class="form-control form-control-sm"></div>
+            <div class="col-md-6"><label class="form-label">URL</label><input id="geoPoiCreateUrl" class="form-control form-control-sm"></div>
+            <div class="col-md-6"><label class="form-label">Google Maps URL</label><input id="geoPoiCreateUrlMaps" class="form-control form-control-sm"></div>
+          </div>
+          <div class="mt-2 d-flex gap-2">
+            <button id="geoPoiCreateSave" class="btn btn-primary btn-sm" type="button">Criar POI</button>
+            <button id="geoPoiCreateCancel" class="btn btn-outline-secondary btn-sm" type="button">Voltar</button>
+          </div>
+        </div>
+
+        <div id="geoPoiStepAssoc" style="display:none;">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="small text-muted">Associar alojamentos mais próximos a <strong id="geoPoiAssocName">—</strong></div>
+            <button id="geoPoiAssocBack" class="btn btn-outline-secondary btn-sm" type="button">Voltar</button>
+          </div>
+          <div id="geoPoiAssocList" class="geo-poi-modal-results mt-2"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="geoPoiAssocConfirm" class="btn btn-primary" type="button" style="display:none;">Confirmar associações</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="geoPoigModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Grupos de POI</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <input type="hidden" id="geoPoigStamp">
+          <div class="col-md-5"><label class="form-label">Nome</label><input id="geoPoigNome" class="form-control form-control-sm"></div>
+          <div class="col-md-3"><label class="form-label">Slug</label><input id="geoPoigSlug" class="form-control form-control-sm"></div>
+          <div class="col-md-2"><label class="form-label">Ordem</label><input id="geoPoigOrdem" class="form-control form-control-sm" type="number" value="0"></div>
+          <div class="col-md-2 d-flex align-items-end"><div class="form-check"><input class="form-check-input" id="geoPoigAtivo" type="checkbox" checked><label class="form-check-label" for="geoPoigAtivo">Ativo</label></div></div>
+          <div class="col-12"><label class="form-label">Descrição</label><input id="geoPoigDescr" class="form-control form-control-sm"></div>
+        </div>
+        <div class="mt-2 d-flex gap-2">
+          <button id="geoPoigSave" class="btn btn-primary btn-sm" type="button">Guardar</button>
+          <button id="geoPoigClear" class="btn btn-outline-secondary btn-sm" type="button">Novo</button>
+        </div>
+        <hr>
+        <div id="geoPoigList" class="geo-poi-modal-results"></div>
       </div>
     </div>
   </div>

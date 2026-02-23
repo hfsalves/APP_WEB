@@ -2915,7 +2915,7 @@ body:not(.authenticated) .main-content {
 
 .geo-page {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 340px 1fr 360px;
   gap: 1rem;
   height: calc(100vh - 140px);
 }
@@ -2980,11 +2980,29 @@ body:not(.authenticated) .main-content {
   color: #64748b;
 }
 .geo-left,
-.geo-right {
+.geo-right,
+.geo-poi {
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
+.geo-poi-detail .card{
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  box-shadow:0 8px 18px rgba(15,23,42,0.06);
+}
+.geo-poi-modal-results{
+  max-height: 360px;
+  overflow:auto;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  background:#fff;
+}
+.geo-poi-modal-row{
+  padding:.55rem .65rem;
+  border-bottom:1px solid #f1f5f9;
+}
+.geo-poi-modal-row:last-child{border-bottom:0;}
 .geo-right-top {
   display: flex;
   gap: 1rem;
@@ -3026,29 +3044,71 @@ body:not(.authenticated) .main-content {
   flex: 1;
   overflow-y: auto;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
-  padding: 0.4rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  padding: 0.5rem;
 }
 .geo-item {
-  padding: 0.5rem 0.6rem;
-  border-radius: 10px;
+  padding: 0.58rem 0.7rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,0.25);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.05);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.geo-item + .geo-item {
+  margin-top: 0.45rem;
+}
+.geo-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.geo-item-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 999px;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid transparent;
+  letter-spacing: 0.02em;
+}
+.geo-item-badge.ok {
+  color: #065f46;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+.geo-item-badge.warn {
+  color: #9a3412;
+  background: #fff7ed;
+  border-color: #fdba74;
+}
+.geo-item.geo-item-no-coords .geo-item-title {
+  color: #334155;
 }
 .geo-item:hover {
-  background: #f1f5f9;
+  background: #f8fbff;
+  border-color: rgba(59,130,246,0.35);
+  box-shadow: 0 8px 18px rgba(37,99,235,0.12);
+  transform: translateY(-1px);
 }
 .geo-item.active {
-  background: rgba(59,130,246,0.12);
-  border: 1px solid rgba(59,130,246,0.4);
+  background: linear-gradient(180deg, rgba(219,234,254,0.72) 0%, rgba(239,246,255,0.92) 100%);
+  border: 1px solid rgba(59,130,246,0.55);
+  box-shadow: 0 10px 24px rgba(37,99,235,0.14);
 }
 .geo-item-title {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 .geo-item-sub {
-  font-size: 0.75rem;
+  margin-top: 0.16rem;
+  font-size: 0.73rem;
   color: #64748b;
 }
 .geo-empty {
@@ -3117,21 +3177,24 @@ body:not(.authenticated) .main-content {
   overflow: auto;
 }
 .geo-route-card {
-  border: 1px solid #dbeafe;
-  background: #f8fafc;
-  border-radius: 10px;
-  padding: 0.45rem 0.55rem;
+  border: 1px solid rgba(148,163,184,0.3);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 12px;
+  padding: 0.5rem 0.6rem;
   text-align: left;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.05);
   transition: all 0.15s ease;
 }
 .geo-route-card:hover {
-  border-color: #93c5fd;
+  border-color: rgba(59,130,246,0.45);
   background: #eff6ff;
+  box-shadow: 0 8px 18px rgba(37,99,235,0.12);
+  transform: translateY(-1px);
 }
 .geo-route-card.active {
   border-color: #2563eb;
-  background: #dbeafe;
-  box-shadow: inset 0 0 0 1px rgba(37,99,235,0.35);
+  background: linear-gradient(180deg, #dbeafe 0%, #eff6ff 100%);
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,0.35), 0 8px 18px rgba(37,99,235,0.16);
 }
 .geo-route-card-title {
   font-size: 0.84rem;
@@ -3375,6 +3438,13 @@ body:not(.authenticated) .main-content {
   pointer-events: none;
 }
 @media (max-width: 1024px) {
+  .geo-page{
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .geo-left, .geo-right, .geo-poi{
+    min-height: 420px;
+  }
   .planner2-body {
     flex-direction: column;
   }

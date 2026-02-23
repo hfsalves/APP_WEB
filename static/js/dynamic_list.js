@@ -49,6 +49,10 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const resolveFormUrl = (stamp = '') => {
+    const upperTable = (tableName || '').toUpperCase();
+    if (upperTable === 'FT') {
+      return stamp ? `/faturacao/ft/${stamp}` : '/faturacao/ft/new';
+    }
     if (tableForm) {
       const pref = tableForm.startsWith('/') ? tableForm : `/generic/${tableForm}`;
       const base = sanitizeBaseForm(pref).toLowerCase(); // rotas registadas em minúsculas
@@ -490,4 +494,3 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 });
-
