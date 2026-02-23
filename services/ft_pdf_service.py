@@ -206,7 +206,9 @@ def generate_ft_pdf_bytes(html: str) -> bytes:
     if browsers:
         for chrome in browsers:
             try:
-                with tempfile.TemporaryDirectory() as td:
+                work_base = os.environ.get("PDF_TMP_DIR", "").strip() or os.path.join(current_app.root_path, ".pdf-tmp")
+                os.makedirs(work_base, exist_ok=True)
+                with tempfile.TemporaryDirectory(dir=work_base, prefix="ftpdf_") as td:
                     html_path = os.path.join(td, "ft.html")
                     pdf_path = os.path.join(td, f"ft_{os.path.basename(chrome)}.pdf")
                     profile_base = os.environ.get("CHROME_USER_DATA_DIR", "").strip() or os.path.join(current_app.root_path, ".chrome-pdf-profile")
@@ -231,6 +233,8 @@ def generate_ft_pdf_bytes(html: str) -> bytes:
                     cmd_variants = [
                         [chrome, "--headless=new", *base_args, f"--print-to-pdf={pdf_path}", "--print-to-pdf-no-header", "--no-pdf-header-footer", uri],
                         [chrome, "--headless", *base_args, f"--print-to-pdf={pdf_path}", "--print-to-pdf-no-header", "--no-pdf-header-footer", uri],
+                        [chrome, "--headless=new", *base_args, f"--print-to-pdf={pdf_path}", uri],
+                        [chrome, "--headless", *base_args, f"--print-to-pdf={pdf_path}", uri],
                         [chrome, "--headless=new", *base_args, f"--print-to-pdf={pdf_path}", "--print-to-pdf-no-header", "--no-pdf-header-footer", data_uri],
                         [chrome, "--headless", *base_args, f"--print-to-pdf={pdf_path}", "--print-to-pdf-no-header", "--no-pdf-header-footer", data_uri],
                     ]
