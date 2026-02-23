@@ -98,7 +98,10 @@ def build_qr_base64(payload: str) -> str:
     data = (payload or "").strip()
     if not data:
         return ""
-    import qrcode
+    try:
+        import qrcode
+    except Exception:
+        return ""
 
     qr = qrcode.QRCode(version=None, box_size=5, border=2)
     qr.add_data(data)
