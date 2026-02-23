@@ -209,17 +209,15 @@ def generate_ft_pdf_bytes(html: str) -> bytes:
                 with tempfile.TemporaryDirectory() as td:
                     html_path = os.path.join(td, "ft.html")
                     pdf_path = os.path.join(td, f"ft_{os.path.basename(chrome)}.pdf")
-                    profile_dir = os.path.join(td, "chrome-profile")
-                    os.makedirs(profile_dir, exist_ok=True)
                     with open(html_path, "w", encoding="utf-8") as f:
                         f.write(html or "")
                     uri = "file:///" + html_path.replace("\\", "/")
                     data_uri = "data:text/html;charset=utf-8," + quote(html or "")
                     base_args = [
                         "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-                        f"--user-data-dir={profile_dir}", "--allow-file-access-from-files",
+                        "--allow-file-access-from-files",
                         "--run-all-compositor-stages-before-draw", "--virtual-time-budget=15000",
-                        "--no-sandbox",
+                        "--no-sandbox", "--disable-extensions", "--disable-sync",
                     ]
                     cmd_variants = [
                         [chrome, "--headless=new", *base_args, f"--print-to-pdf={pdf_path}", "--print-to-pdf-no-header", "--no-pdf-header-footer", uri],
