@@ -1,0 +1,17 @@
+Info	2026-02-23 17:03:27.433	default_logger_delegate.cpp:238	msedge (3704)	"Logger initialized with default format:%level	%datetime{%Y-%M-%d %H:%m:%s.%g}	%fbase:%line	msedge (3704)	""%msg""	%func	%thread"	mipns::DefaultLoggerDelegate::InitHelper	15056
+Info	2026-02-23 17:03:27.433	default_logger_delegate.cpp:239	msedge (3704)	"Logger initialized with cached log format:%level	%msg"	mipns::DefaultLoggerDelegate::InitHelper	15056
+Info	2026-02-23 17:03:27.433	default_logger_delegate.cpp:240	msedge (3704)	"Log file:C:\APP_WEB\.chrome-pdf-profile\p_1771866203294\Default\Sync Data\mip\logs\mip_sdk.miplog"	mipns::DefaultLoggerDelegate::InitHelper	15056
+Info	2026-02-23 17:03:27.433	default_logger_delegate.cpp:241	msedge (3704)	"Machine name: [SURF-HALVES], User name: [hugo_alves]"	mipns::DefaultLoggerDelegate::InitHelper	15056
+Warning	2026-02-23 17:03:27.435	diagnostic_factory.cpp:203	msedge (3704)	"CreateEventContext: Provided Cloud type is invalid - using the default cloud and databoundary"	mipns::CreateEventContextInternal	15056
+Info	2026-02-23 17:03:27.437	mip_core_context_impl.cpp:123	msedge (3704)	"Loading context for application: [Microsoft Edge (stable) (RustyMIP=0)], Application version: [145.0.3800.70], Application ID: [ecd6b820-32c2-49b6-98a6-444530e5a77a], Process name: [msedge], MIP SDK version: [1.14.146], Path: [C:\APP_WEB\.chrome-pdf-profile\p_1771866203294\Default\Sync Data\mip]"	mipns::MipCoreContextImpl::MipCoreContextImpl	15056
+Warning	2026-02-23 17:03:27.437	protection_profile_impl_cc.cpp:98	msedge (3704)	"Deprecated API call - please provide the auth delegate when creating the protection engine instead"	MIP_CC_CreateProtectionProfileSettings	15056
+Info	2026-02-23 17:03:27.437	protection_profile_impl.cpp:62	msedge (3704)	"Starting API call: protection_profile_pre_initialize"	mipns::PreInitializeProtection	15056
+Info	2026-02-23 17:03:27.437	protection_profile_impl.cpp:55	msedge (3704)	"Loading protection profile. EUL caching state: [1]"	mipns::PreInitializeProtection::<lambda_e4df632cb0049f7208c3a3ba1a1a7beb>::operator ()	15056
+Info	2026-02-23 17:03:27.437	protection_profile_impl.cpp:62	msedge (3704)	"Ended API call: protection_profile_pre_initialize"	mipns::PreInitializeProtection	15056
+Info	2026-02-23 17:03:27.437	protection_profile_impl.cpp:170	msedge (3704)	"Starting API call: protection_profile_load"	mipns::ProtectionProfile::Load	15056
+Info	2026-02-23 17:03:27.441	openssl_crypto_delegate_impl.cpp:118	msedge (3704)	"OpenSSL provider loaded: [default]"	mipns::OpenSslCryptoDelegateImpl::{ctor}::<lambda_510f5669650f4951dde3c1e2ca18d128>::operator ()	15056
+Info	2026-02-23 17:03:27.444	storage_manager.cpp:86	msedge (3704)	"StorageManager configured to use in-memory caching."	mipns::StorageManager::StorageManager	15056
+Info	2026-02-23 17:03:27.444	storage_manager.cpp:95	msedge (3704)	"Protection storage path: :memory:"	mipns::StorageManager::StorageManager	15056
+Info	2026-02-23 17:03:27.444	protection_profile_impl.cpp:195	msedge (3704)	"Protection API configured to use default HttpDelegate"	mipns::ProtectionProfileImpl::ProtectionProfileImpl	15056
+Info	2026-02-23 17:03:27.444	protection_profile_impl.cpp:201	msedge (3704)	"Protection API configured to use default TaskDispatcherDelegate"	mipns::ProtectionProfileImpl::ProtectionProfileImpl	15056
+Info	2026-02-23 17:03:27.444	protection_profile_impl.cpp:170	msedge (3704)	"Ended API call: protection_profile_load"	mipns::ProtectionProfile::Load	15056

@@ -1,0 +1,987 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="pricing-shell">
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-lg-4">
+          <label for="pricingAlojamento" class="form-label">Alojamento</label>
+          <div class="d-flex gap-2">
+            <select id="pricingAlojamento" class="form-select">
+              {% for alojamento in alojamentos %}
+                <option value="{{ alojamento }}">{{ alojamento }}</option>
+              {% endfor %}
+            </select>
+            <button
+              id="pricingAlojamentoEdit"
+              type="button"
+              class="btn btn-outline-secondary"
+              title="Editar configuracao do alojamento"
+              {% if not alojamentos %}disabled{% endif %}>
+              <i class="fa-solid fa-building"></i>
+            </button>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <label for="pricingStart" class="form-label">Mes inicial</label>
+          <input id="pricingStart" class="form-control" type="month">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label for="pricingDays" class="form-label">Horizonte</label>
+          <input id="pricingDays" class="form-control" type="number" min="1" value="400">
+        </div>
+        <div class="col-6 col-lg-1 d-grid">
+          <button id="pricingLoad" class="btn btn-outline-secondary">Ler</button>
+        </div>
+        <div class="col-6 col-lg-2 d-grid">
+          <button id="pricingRecalc" class="btn btn-primary">Recalcular</button>
+        </div>
+      </div>
+      <div id="pricingStatus" class="small text-muted mt-3"></div>
+    </div>
+  </div>
+
+  {% if not alojamentos %}
+    <div class="alert alert-warning mb-0">
+      Nao ha alojamentos ativos em <code>PR_ALOJAMENTO</code>. Configure a tabela e execute <code>flask pricing:recalc</code>.
+    </div>
+  {% else %}
+    <div id="pricingGrid" class="pricing-grid"></div>
+  {% endif %}
+</section>
+
+<div class="modal fade" id="pricingAlojamentoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">PR_ALOJAMENTO</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="pricingAlojamentoSummary" class="small text-muted mb-3"></div>
+        <form id="pricingAlojamentoForm" class="row g-2">
+          <div class="col-12">
+            <label for="cfgPerfilId" class="form-label small mb-1">Perfil</label>
+            <select id="cfgPerfilId" class="form-select"></select>
+          </div>
+          <div class="col-12">
+            <label for="cfgRegime" class="form-label small mb-1">Regime</label>
+            <input id="cfgRegime" class="form-control" type="text" maxlength="20">
+          </div>
+          <div class="col-4">
+            <label for="cfgPrecoMin" class="form-label small mb-1">Preco min</label>
+            <input id="cfgPrecoMin" class="form-control" type="number" step="1">
+          </div>
+          <div class="col-4">
+            <label for="cfgPrecoBase" class="form-label small mb-1">Preco base</label>
+            <div class="input-group">
+              <input id="cfgPrecoBase" class="form-control" type="number" step="1">
+              <button type="button" id="pricingSuggestBase" class="btn btn-outline-secondary" title="Sugerir preco base">
+                Sugerir
+              </button>
+            </div>
+          </div>
+          <div class="col-4">
+            <label for="cfgPrecoMax" class="form-label small mb-1">Preco max</label>
+            <input id="cfgPrecoMax" class="form-control" type="number" step="1">
+          </div>
+          <div class="col-12">
+            <label class="form-check">
+              <input id="cfgSync" class="form-check-input" type="checkbox">
+              <span class="form-check-label">SYNC (sincronizar precos)</span>
+            </label>
+          </div>
+          <div class="col-12">
+            <label class="form-check">
+              <input id="cfgAtivo" class="form-check-input" type="checkbox">
+              <span class="form-check-label">Ativo</span>
+            </label>
+          </div>
+        </form>
+        <div id="pricingAlojamentoStatus" class="small mt-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="pricingAlojamentoSave" class="btn btn-primary">Gravar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="pricingDayModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Detalhe do dia</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="pricingDaySummary" class="mb-3"></div>
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <h6 class="mb-2">Breakdown</h6>
+            <div id="pricingFlagsCards" class="pricing-info-stack mb-2"></div>
+            <details class="pricing-raw">
+              <summary>Ver JSON bruto</summary>
+              <pre id="pricingFlags" class="pricing-pre mb-0 mt-2"></pre>
+            </details>
+          </div>
+          <div class="col-12 col-lg-6">
+            <h6 class="mb-2">Overrides ativos</h6>
+            <div id="pricingOverridesCards" class="pricing-info-stack mb-2"></div>
+            <details class="pricing-raw mb-3">
+              <summary>Ver JSON bruto</summary>
+              <pre id="pricingOverrides" class="pricing-pre mb-0 mt-2"></pre>
+            </details>
+            <h6 class="mb-2">Criar override</h6>
+            <form id="pricingOverrideForm" class="row g-2">
+              <div class="col-12 col-md-6">
+                <select id="overrideTipo" class="form-select">
+                  <option value="PRECO_FIXO">PRECO_FIXO</option>
+                  <option value="DESCONTO_PCT">DESCONTO_PCT</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-6">
+                <input id="overrideValor" class="form-control" type="number" step="0.01" placeholder="Valor">
+              </div>
+              <div class="col-6">
+                <input id="overrideDataIni" class="form-control" type="date">
+              </div>
+              <div class="col-6">
+                <input id="overrideDataFim" class="form-control" type="date">
+              </div>
+              <div class="col-12">
+                <input id="overrideMotivo" class="form-control" type="text" placeholder="Motivo">
+              </div>
+              <div class="col-12">
+                <label class="form-check">
+                  <input id="overrideAbaixoMin" class="form-check-input" type="checkbox">
+                  <span class="form-check-label">Permitir abaixo do minimo</span>
+                </label>
+              </div>
+              <div class="col-12 d-grid">
+                <button type="submit" class="btn btn-primary">Guardar override</button>
+              </div>
+            </form>
+            <div id="pricingOverrideStatus" class="small mt-2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+  .pricing-month {
+    background: linear-gradient(180deg, #f6f8fb 0%, #ffffff 100%);
+    border: 1px solid rgba(28, 56, 92, 0.12);
+    border-radius: 16px;
+    padding: 0.9rem;
+  }
+  .pricing-month-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .pricing-month h6 {
+    margin-bottom: 0;
+    font-weight: 700;
+  }
+  .pricing-month-total {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #38516d;
+    text-align: right;
+  }
+  .pricing-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.35rem;
+  }
+  .pricing-dow {
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #607089;
+  }
+  .pricing-cell {
+    min-height: 40px;
+    border: 1px solid rgba(28, 56, 92, 0.10);
+    border-radius: 12px;
+    padding: 0.35rem;
+    background: #fff;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+  .pricing-cell.empty {
+    background: rgba(235, 239, 245, 0.65);
+    cursor: default;
+  }
+  .pricing-cell.has-data {
+    box-shadow: inset 0 0 0 1px rgba(30, 80, 150, 0.05);
+  }
+  .pricing-cell.occupied {
+    background: linear-gradient(180deg, rgba(34, 99, 181, 0.24) 0%, rgba(34, 99, 181, 0.14) 100%);
+    border-color: rgba(34, 99, 181, 0.34);
+    box-shadow:
+      inset 0 0 0 1px rgba(34, 99, 181, 0.14),
+      inset 0 -2px 0 rgba(34, 99, 181, 0.3);
+  }
+  .pricing-cell.event-day {
+    position: relative;
+  }
+  .pricing-cell.event-day::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #e0a106;
+    box-shadow: 0 0 0 1px rgba(224, 161, 6, 0.16);
+  }
+  .pricing-day-num {
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #5f6b7a;
+    line-height: 1;
+  }
+  .pricing-cell.unsynced-day:not(.occupied) .pricing-day-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0.92rem;
+    height: 0.92rem;
+    padding: 0 0.12rem;
+    border-radius: 999px;
+    background: #b0353e;
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  }
+  .pricing-day-price {
+    margin-top: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #0b5ed7;
+    line-height: 1.05;
+  }
+  .pricing-day-price.is-occupied {
+    margin-top: 0.12rem;
+    font-size: 0.56rem;
+    color: #48627a;
+  }
+  .pricing-day-effective {
+    margin-top: auto;
+    font-size: 0.56rem;
+    font-weight: 700;
+    color: #9b2e35;
+    line-height: 1;
+  }
+  .pricing-pre {
+    min-height: 120px;
+    max-height: 260px;
+    padding: 0.75rem;
+    border-radius: 12px;
+    background: #f5f7fb;
+    border: 1px solid rgba(28, 56, 92, 0.08);
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.78rem;
+  }
+  .pricing-info-stack {
+    display: grid;
+    gap: 0.6rem;
+  }
+  .pricing-info-card {
+    border: 1px solid rgba(28, 56, 92, 0.10);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    padding: 0.75rem;
+  }
+  .pricing-info-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.45rem;
+  }
+  .pricing-info-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #21324a;
+    margin-bottom: 0;
+  }
+  .pricing-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .pricing-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.2rem 0.45rem;
+    border-radius: 999px;
+    background: #eef3f9;
+    color: #4c5c70;
+    font-size: 0.72rem;
+    line-height: 1.15;
+  }
+  .pricing-chip strong {
+    color: #21324a;
+  }
+  .pricing-raw summary {
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: #5e6d80;
+  }
+  .pricing-inline-btn {
+    border: 1px solid rgba(176, 53, 62, 0.18);
+    background: #fff5f5;
+    color: #9b2e35;
+    border-radius: 999px;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.68rem;
+    line-height: 1.15;
+  }
+</style>
+<script>
+(() => {
+  const alojamentoInput = document.getElementById('pricingAlojamento');
+  if (!alojamentoInput) return;
+
+  const startInput = document.getElementById('pricingStart');
+  const daysInput = document.getElementById('pricingDays');
+  const loadBtn = document.getElementById('pricingLoad');
+  const recalcBtn = document.getElementById('pricingRecalc');
+  const alojamentoEditBtn = document.getElementById('pricingAlojamentoEdit');
+  const statusEl = document.getElementById('pricingStatus');
+  const gridEl = document.getElementById('pricingGrid');
+  const alojamentoModalEl = document.getElementById('pricingAlojamentoModal');
+  const alojamentoModal = alojamentoModalEl ? new bootstrap.Modal(alojamentoModalEl) : null;
+  const alojamentoSummaryEl = document.getElementById('pricingAlojamentoSummary');
+  const alojamentoStatusEl = document.getElementById('pricingAlojamentoStatus');
+  const cfgPerfilId = document.getElementById('cfgPerfilId');
+  const cfgRegime = document.getElementById('cfgRegime');
+  const cfgPrecoMin = document.getElementById('cfgPrecoMin');
+  const cfgPrecoBase = document.getElementById('cfgPrecoBase');
+  const cfgPrecoMax = document.getElementById('cfgPrecoMax');
+  const cfgSync = document.getElementById('cfgSync');
+  const cfgAtivo = document.getElementById('cfgAtivo');
+  const suggestBaseBtn = document.getElementById('pricingSuggestBase');
+  const alojamentoSaveBtn = document.getElementById('pricingAlojamentoSave');
+  const modalEl = document.getElementById('pricingDayModal');
+  const modal = new bootstrap.Modal(modalEl);
+  const daySummaryEl = document.getElementById('pricingDaySummary');
+  const flagsCardsEl = document.getElementById('pricingFlagsCards');
+  const flagsEl = document.getElementById('pricingFlags');
+  const overridesCardsEl = document.getElementById('pricingOverridesCards');
+  const overridesEl = document.getElementById('pricingOverrides');
+  const overrideForm = document.getElementById('pricingOverrideForm');
+  const overrideStatusEl = document.getElementById('pricingOverrideStatus');
+
+  let dayMap = new Map();
+  let selectedDay = null;
+  const LAST_ALOJAMENTO_KEY = 'pricing:lastAlojamento';
+  let plannerBusyCount = 0;
+  let plannerLoading = false;
+  let syncPollInFlight = false;
+  let syncPollTimer = null;
+
+  function fmtMoney(value) {
+    if (value == null || Number.isNaN(Number(value))) return '-';
+    return new Intl.NumberFormat('pt-PT', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Number(value));
+  }
+
+  function defaultMonth() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  function restoreLastAlojamento() {
+    try {
+      const saved = localStorage.getItem(LAST_ALOJAMENTO_KEY);
+      if (!saved) return;
+      const hasOption = Array.from(alojamentoInput.options).some((opt) => opt.value === saved);
+      if (hasOption) {
+        alojamentoInput.value = saved;
+      }
+    } catch (_) {}
+  }
+
+  function persistCurrentAlojamento() {
+    try {
+      if (alojamentoInput.value) {
+        localStorage.setItem(LAST_ALOJAMENTO_KEY, alojamentoInput.value);
+      }
+    } catch (_) {}
+  }
+
+  function setStatus(text, isError = false) {
+    statusEl.textContent = text || '';
+    statusEl.className = `small mt-3 ${isError ? 'text-danger' : 'text-muted'}`;
+  }
+
+  function setAlojamentoStatus(text, isError = false) {
+    if (!alojamentoStatusEl) return;
+    alojamentoStatusEl.textContent = text || '';
+    alojamentoStatusEl.className = `small mt-2 ${isError ? 'text-danger' : 'text-muted'}`;
+  }
+
+  function buildAlojamentoMetaText(config) {
+    if (!config) return '';
+    return [
+      `Min ${fmtMoney(config.preco_min)}`,
+      `Base ${fmtMoney(config.preco_base)}`,
+      `Max ${fmtMoney(config.preco_max)}`,
+      `Perfil ${config.perfil_nome || config.perfil_id || '-'}`,
+      `Regime ${config.regime || '-'}`,
+      `Sync ${config.sync ? 'Sim' : 'Nao'}`,
+      `Tipologia ${config.tipologia || '-'}`,
+    ].join(' • ');
+  }
+
+  function getLoadingOverlayRefs() {
+    const overlay = document.getElementById('loadingOverlay');
+    return {
+      overlay,
+      text: overlay ? overlay.querySelector('.loading-text') : null,
+    };
+  }
+
+  function showPlannerOverlay() {
+    const { overlay, text } = getLoadingOverlayRefs();
+    if (!overlay) return;
+    plannerBusyCount += 1;
+    if (text) text.textContent = 'A calcular...';
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => {
+      overlay.style.opacity = '1';
+    });
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+
+  function hidePlannerOverlay() {
+    const { overlay, text } = getLoadingOverlayRefs();
+    if (!overlay) return;
+    plannerBusyCount = Math.max(0, plannerBusyCount - 1);
+    if (plannerBusyCount > 0) return;
+    overlay.style.opacity = '0';
+    overlay.setAttribute('aria-hidden', 'true');
+    setTimeout(() => {
+      if (plannerBusyCount === 0) {
+        overlay.style.display = 'none';
+        if (text) text.textContent = 'A carregar…';
+      }
+    }, 250);
+  }
+
+  function mergeSyncState(items) {
+    let changed = false;
+    (items || []).forEach((item) => {
+      const current = dayMap.get(item.date);
+      if (!current) return;
+      const nextSynced = Boolean(item.synced);
+      const nextSyncedAt = item.synced_at || '';
+      if (Boolean(current.synced) === nextSynced && (current.synced_at || '') === nextSyncedAt) {
+        return;
+      }
+      dayMap.set(item.date, {
+        ...current,
+        synced: nextSynced,
+        synced_at: nextSyncedAt,
+      });
+      changed = true;
+    });
+    return changed;
+  }
+
+  async function refreshSyncStateSilently() {
+    const alojamento = alojamentoInput.value;
+    if (!alojamento || !dayMap.size || plannerLoading || syncPollInFlight) return;
+    syncPollInFlight = true;
+    try {
+      const response = await fetch(
+        `/pricing/api/planner-sync?alojamento=${encodeURIComponent(alojamento)}&start=${startInput.value}-01`
+      );
+      const payload = await response.json();
+      if (!response.ok) return;
+      if (mergeSyncState(payload.days || [])) {
+        renderPlanner(startInput.value);
+        if (selectedDay) {
+          const selected = dayMap.get(selectedDay);
+          const syncLine = daySummaryEl.querySelector('[data-sync-state]');
+          if (selected && syncLine) {
+            const syncText = selected.synced ? 'Sim' : 'Nao';
+            const syncedAtText = selected.synced_at || '-';
+            syncLine.textContent = `Sincronizado: ${syncText} | Ultima sincronizacao: ${syncedAtText}`;
+          }
+        }
+      }
+    } catch (_) {
+    } finally {
+      syncPollInFlight = false;
+    }
+  }
+
+  function ensureSyncPolling() {
+    if (syncPollTimer) return;
+    syncPollTimer = window.setInterval(refreshSyncStateSilently, 15000);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function chip(label, value) {
+    return `<span class="pricing-chip"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`;
+  }
+
+  function infoCard(title, chips, actions = '') {
+    if (!chips.length) return '';
+    return `
+      <section class="pricing-info-card">
+        <div class="pricing-info-head">
+          <div class="pricing-info-title">${escapeHtml(title)}</div>
+          ${actions}
+        </div>
+        <div class="pricing-chip-row">${chips.join('')}</div>
+      </section>
+    `;
+  }
+
+  async function fetchAlojamentoConfig() {
+    const alojamento = alojamentoInput.value;
+    if (!alojamento) return null;
+    const response = await fetch(`/pricing/api/alojamento-config?alojamento=${encodeURIComponent(alojamento)}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Erro ao ler PR_ALOJAMENTO');
+    return payload;
+  }
+
+  async function openAlojamentoModal() {
+    if (!alojamentoModal || !alojamentoInput.value) return;
+    setAlojamentoStatus('A carregar...');
+    try {
+      const payload = await fetchAlojamentoConfig();
+
+      alojamentoSummaryEl.textContent = payload.alojamento || '';
+      cfgPerfilId.innerHTML = (payload.profiles || []).map((item) =>
+        `<option value="${item.perfil_id}">${escapeHtml(item.nome)}</option>`
+      ).join('');
+      cfgPerfilId.value = String(payload.perfil_id);
+      cfgRegime.value = payload.regime || 'GESTAO';
+      cfgPrecoMin.value = payload.preco_min ?? '';
+      cfgPrecoBase.value = payload.preco_base ?? '';
+      cfgPrecoMax.value = payload.preco_max ?? '';
+      cfgSync.checked = Boolean(payload.sync);
+      cfgAtivo.checked = Boolean(payload.ativo);
+      setAlojamentoStatus('');
+      alojamentoModal.show();
+    } catch (error) {
+      setAlojamentoStatus(error.message, true);
+      setStatus(error.message, true);
+    }
+  }
+
+  async function saveAlojamentoConfig() {
+    if (!alojamentoInput.value) return;
+    setAlojamentoStatus('A gravar...');
+    try {
+      const response = await fetch('/pricing/api/alojamento-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alojamento: alojamentoInput.value,
+          perfil_id: cfgPerfilId.value,
+          regime: cfgRegime.value,
+          preco_min: cfgPrecoMin.value,
+          preco_base: cfgPrecoBase.value,
+          preco_max: cfgPrecoMax.value,
+          sync: cfgSync.checked,
+          ativo: cfgAtivo.checked,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro ao gravar PR_ALOJAMENTO');
+      setAlojamentoStatus('Configuracao gravada.');
+      alojamentoModal.hide();
+      await loadPlanner();
+    } catch (error) {
+      setAlojamentoStatus(error.message, true);
+    }
+  }
+
+  async function suggestBasePrice() {
+    if (!alojamentoInput.value) return;
+    setAlojamentoStatus('A calcular sugestao...');
+    try {
+      const response = await fetch(`/pricing/api/alojamento-config/suggested-base?alojamento=${encodeURIComponent(alojamentoInput.value)}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro ao sugerir preco base');
+      cfgPrecoBase.value = payload.suggested_preco_base ?? '';
+      setAlojamentoStatus(`Sugestao aplicada ao campo. Baseada em ${payload.source_nights} noites dos ultimos 12 meses.`);
+    } catch (error) {
+      setAlojamentoStatus(error.message, true);
+    }
+  }
+
+  function renderFlagsCards(flags) {
+    const sections = [];
+    if (!flags || typeof flags !== 'object') {
+      flagsCardsEl.innerHTML = '<div class="small text-muted">Sem breakdown.</div>';
+      return;
+    }
+
+    sections.push(infoCard('Base e Resultado', [
+      chip('Base', fmtMoney(flags.base)),
+      chip('Calculado', fmtMoney(flags.result?.preco_calc)),
+      chip('Final', fmtMoney(flags.result?.preco_final)),
+      chip('Disponivel', flags.availability?.available ? 'Sim' : 'Nao'),
+    ]));
+
+    sections.push(infoCard('Sazonalidade', [
+      chip('Mes', flags.month?.mes ?? '-'),
+      chip('Indice', flags.month?.indice ?? '-'),
+      chip('Fator', flags.month?.fator ?? '-'),
+    ]));
+
+    sections.push(infoCard('Dia da Semana', [
+      chip('DOW', flags.dow?.dow ?? '-'),
+      chip('Fator', flags.dow?.fator ?? '-'),
+    ]));
+
+    if (flags.event) {
+      sections.push(infoCard('Evento', [
+        chip('Nome', flags.event?.nome || '-'),
+        chip('Prioridade', flags.event?.prioridade ?? '-'),
+        chip('Fator', flags.event?.factor ?? '-'),
+      ]));
+    }
+
+    sections.push(infoCard('Pickup', [
+      chip('Aplicado', flags.pickup?.applied ? 'Sim' : 'Nao'),
+      chip('Lead', flags.pickup?.lead_days ?? '-'),
+      chip('Ocup alvo', flags.pickup?.target_occ ?? '-'),
+      chip('Ocup real', flags.pickup?.real_occ ?? '-'),
+      chip('Ajuste %', flags.pickup?.adjustment_pct ?? '-'),
+    ]));
+
+    sections.push(infoCard('Clamp e Suavizacao', [
+      chip('Min', fmtMoney(flags.clamp?.min)),
+      chip('Max', fmtMoney(flags.clamp?.max)),
+      chip('Suavizado', flags.smooth?.applied ? 'Sim' : 'Nao'),
+      ...(flags.smooth?.applied ? [chip('Para', fmtMoney(flags.smooth?.to))] : []),
+    ]));
+
+    flagsCardsEl.innerHTML = sections.filter(Boolean).join('') || '<div class="small text-muted">Sem breakdown.</div>';
+  }
+
+  function renderOverrideCards(overrides, flags) {
+    const active = Array.isArray(overrides) ? overrides : [];
+    if (!active.length) {
+      overridesCardsEl.innerHTML = '<div class="small text-muted">Sem overrides ativos neste dia.</div>';
+      return;
+    }
+
+    overridesCardsEl.innerHTML = active.map((item) => {
+      const fromFlags = flags?.override && Number(flags.override.ovr_id) === Number(item.ovr_id) ? flags.override : null;
+      const chips = [
+        chip('Tipo', item.tipo || '-'),
+        chip('Valor', item.tipo === 'DESCONTO_PCT' ? `${item.valor}%` : fmtMoney(item.valor)),
+        chip('Intervalo', `${item.data_ini} ate ${item.data_fim}`),
+        chip('Abaixo min', item.permitir_abaixo_min ? 'Sim' : 'Nao'),
+      ];
+      if (item.motivo) chips.push(chip('Motivo', item.motivo));
+      if (item.criado_por) chips.push(chip('Criado por', item.criado_por));
+      if (fromFlags?.clamped_by_regime) chips.push(chip('Clamp regime', 'Aplicado'));
+
+      const actions = `<button type="button" class="pricing-inline-btn js-delete-override" data-ovr-id="${item.ovr_id}">Remover</button>`;
+      return infoCard(`Override #${item.ovr_id}`, chips, actions);
+    }).join('');
+  }
+
+  function buildMonths(startMonthValue) {
+    const [year, month] = startMonthValue.split('-').map(Number);
+    return Array.from({ length: 12 }, (_, idx) => new Date(year, month - 1 + idx, 1));
+  }
+
+  function monthTitle(dateObj) {
+    return dateObj.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+  }
+
+  function getMonthlyPotential(monthDate) {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    let total = 0;
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const data = dayMap.get(iso);
+      if (!data) continue;
+      const value = data.occupied && data.occupied_price != null ? Number(data.occupied_price) : Number(data.preco_final);
+      if (!Number.isNaN(value)) total += value;
+    }
+
+    return total;
+  }
+
+  function renderPlanner(startMonthValue) {
+    const months = buildMonths(startMonthValue);
+    const dow = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+    gridEl.innerHTML = '';
+
+    months.forEach((monthDate) => {
+      const card = document.createElement('article');
+      card.className = 'pricing-month';
+
+      const head = document.createElement('div');
+      head.className = 'pricing-month-head';
+
+      const title = document.createElement('h6');
+      title.textContent = monthTitle(monthDate);
+      head.appendChild(title);
+
+      const total = document.createElement('div');
+      total.className = 'pricing-month-total';
+      total.textContent = fmtMoney(getMonthlyPotential(monthDate));
+      head.appendChild(total);
+
+      card.appendChild(head);
+
+      const cal = document.createElement('div');
+      cal.className = 'pricing-calendar';
+
+      dow.forEach((label) => {
+        const el = document.createElement('div');
+        el.className = 'pricing-dow';
+        el.textContent = label;
+        cal.appendChild(el);
+      });
+
+      const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+      const jsOffset = (firstDay.getDay() + 6) % 7;
+      const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+
+      for (let i = 0; i < jsOffset; i += 1) {
+        const blank = document.createElement('div');
+        blank.className = 'pricing-cell empty';
+        cal.appendChild(blank);
+      }
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const current = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
+        const iso = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const data = dayMap.get(iso);
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = `pricing-cell ${data ? 'has-data' : 'empty'} ${data && data.occupied ? 'occupied' : ''} ${data && data.synced ? 'synced-day' : ''} ${data && !data.synced ? 'unsynced-day' : ''} ${data && data.has_event ? 'event-day' : ''}`;
+        if (data) {
+          const titleParts = [];
+          if (data.has_event && data.event_name) {
+            titleParts.push(`Evento: ${data.event_name}`);
+          }
+          if (data.synced) {
+            titleParts.push(`Sincronizado${data.synced_at ? `: ${data.synced_at}` : ''}`);
+          }
+          if (titleParts.length) {
+            cell.title = titleParts.join(' | ');
+          }
+        }
+        const plannedPriceClass = data && data.occupied ? 'pricing-day-price is-occupied' : 'pricing-day-price';
+        cell.innerHTML = `
+          <div class="pricing-day-num">${day}</div>
+          <div class="${plannedPriceClass}">${data ? fmtMoney(data.preco_final) : ''}</div>
+          ${data && data.occupied && data.occupied_price != null ? `<div class="pricing-day-effective">${fmtMoney(data.occupied_price)}</div>` : ''}
+        `;
+        if (data) {
+          cell.addEventListener('click', () => openDay(iso));
+        } else {
+          cell.disabled = true;
+        }
+        cal.appendChild(cell);
+      }
+
+      card.appendChild(cal);
+      gridEl.appendChild(card);
+    });
+  }
+
+  async function loadPlanner() {
+    const alojamento = alojamentoInput.value;
+    if (!alojamento) return;
+    persistCurrentAlojamento();
+    plannerLoading = true;
+    showPlannerOverlay();
+    setStatus('A carregar...');
+    try {
+      const [response, config] = await Promise.all([
+        fetch(`/pricing/api/planner?alojamento=${encodeURIComponent(alojamento)}&start=${startInput.value}-01`),
+        fetchAlojamentoConfig(),
+      ]);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro ao ler planner');
+      dayMap = new Map((payload.days || []).map((item) => [item.date, item]));
+      renderPlanner(startInput.value);
+      const metaText = buildAlojamentoMetaText(config);
+      setStatus(`${payload.days.length} dias carregados para ${alojamento}.${metaText ? ` • ${metaText}` : ''}`);
+    } catch (error) {
+      gridEl.innerHTML = '';
+      setStatus(error.message, true);
+    } finally {
+      plannerLoading = false;
+      hidePlannerOverlay();
+    }
+  }
+
+  async function openDay(isoDate) {
+    selectedDay = isoDate;
+    overrideStatusEl.textContent = '';
+    document.getElementById('overrideDataIni').value = isoDate;
+    document.getElementById('overrideDataFim').value = isoDate;
+    try {
+      const response = await fetch(`/pricing/api/day?alojamento=${encodeURIComponent(alojamentoInput.value)}&date=${isoDate}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro ao ler detalhe');
+      const syncText = payload.synced ? 'Sim' : 'Nao';
+      const syncedAtText = payload.synced_at || '-';
+      daySummaryEl.innerHTML = `
+        <div><strong>${payload.alojamento}</strong> - ${payload.date}</div>
+        <div>${fmtMoney(payload.preco_calc)} calculado | ${fmtMoney(payload.preco_final)} final</div>
+        <div class="small text-muted" data-sync-state>Sincronizado: ${syncText} | Ultima sincronizacao: ${syncedAtText}</div>
+        <div class="small text-muted">Atualizado em ${payload.updated_at || '-'}</div>
+      `;
+      renderFlagsCards(payload.flags || {});
+      renderOverrideCards(payload.overrides || [], payload.flags || {});
+      flagsEl.textContent = JSON.stringify(payload.flags || {}, null, 2);
+      overridesEl.textContent = JSON.stringify(payload.overrides || [], null, 2);
+      modal.show();
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
+  async function runRecalc() {
+    const alojamento = alojamentoInput.value;
+    if (!alojamento) return;
+    showPlannerOverlay();
+    setStatus('A recalcular...');
+    try {
+      const response = await fetch('/pricing/api/recalc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alojamento,
+          from: `${startInput.value}-01`,
+          days: Number(daysInput.value || 400),
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro no recalculo');
+      setStatus(`Recalculado: ${payload.result.changed_rows} linhas alteradas, ${payload.result.skipped_threshold} abaixo do threshold.`);
+      await loadPlanner();
+    } catch (error) {
+      setStatus(error.message, true);
+    } finally {
+      hidePlannerOverlay();
+    }
+  }
+
+  async function deleteOverride(ovrId) {
+    overrideStatusEl.className = 'small mt-2 text-muted';
+    overrideStatusEl.textContent = 'A remover override...';
+    try {
+      const response = await fetch(`/pricing/api/override/${ovrId}`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro ao remover override');
+      overrideStatusEl.textContent = payload.recalc
+        ? `Override removido. ${payload.recalc.changed_rows} linhas recalculadas.`
+        : 'Override removido.';
+      await loadPlanner();
+      if (selectedDay) await openDay(selectedDay);
+    } catch (error) {
+      overrideStatusEl.className = 'small mt-2 text-danger';
+      overrideStatusEl.textContent = error.message;
+    }
+  }
+
+  overrideForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    overrideStatusEl.className = 'small mt-2 text-muted';
+    overrideStatusEl.textContent = 'A guardar override...';
+    try {
+      const response = await fetch('/pricing/api/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alojamento: alojamentoInput.value,
+          tipo: document.getElementById('overrideTipo').value,
+          valor: document.getElementById('overrideValor').value,
+          data_ini: document.getElementById('overrideDataIni').value,
+          data_fim: document.getElementById('overrideDataFim').value,
+          motivo: document.getElementById('overrideMotivo').value,
+          permitir_abaixo_min: document.getElementById('overrideAbaixoMin').checked,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro ao criar override');
+      overrideStatusEl.textContent = `Override gravado. ${payload.recalc.changed_rows} linhas recalculadas.`;
+      await loadPlanner();
+      if (selectedDay) await openDay(selectedDay);
+    } catch (error) {
+      overrideStatusEl.className = 'small mt-2 text-danger';
+      overrideStatusEl.textContent = error.message;
+    }
+  });
+
+  overridesCardsEl.addEventListener('click', async (event) => {
+    const btn = event.target.closest('.js-delete-override');
+    if (!btn) return;
+    const ovrId = Number(btn.dataset.ovrId);
+    if (!ovrId) return;
+    await deleteOverride(ovrId);
+  });
+
+  loadBtn.addEventListener('click', loadPlanner);
+  recalcBtn.addEventListener('click', runRecalc);
+  alojamentoInput.addEventListener('change', loadPlanner);
+  if (alojamentoEditBtn) {
+    alojamentoEditBtn.addEventListener('click', openAlojamentoModal);
+  }
+  if (alojamentoSaveBtn) {
+    alojamentoSaveBtn.addEventListener('click', saveAlojamentoConfig);
+  }
+  if (suggestBaseBtn) {
+    suggestBaseBtn.addEventListener('click', suggestBasePrice);
+  }
+
+  startInput.value = defaultMonth();
+  restoreLastAlojamento();
+  ensureSyncPolling();
+  loadPlanner();
+})();
+</script>
+{% endblock %}

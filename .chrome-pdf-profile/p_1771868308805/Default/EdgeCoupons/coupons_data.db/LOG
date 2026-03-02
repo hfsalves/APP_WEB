@@ -1,0 +1,4 @@
+2026/02/23-17:38:33.916 95fc Creating DB C:\APP_WEB\.chrome-pdf-profile\p_1771868308805\Default\EdgeCoupons/coupons_data.db since it was missing.
+2026/02/23-17:38:33.923 95fc Reusing MANIFEST C:\APP_WEB\.chrome-pdf-profile\p_1771868308805\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
+2026/02/23-17:38:33.930 70c0 Level-0 table #5: started
+2026/02/23-17:38:33.941 70c0 Level-0 table #5: 681577 bytes OK

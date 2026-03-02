@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="pricing-events-shell">
+  <div class="row g-3">
+    <div class="col-12 col-xl-5">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h5 class="mb-0">Eventos Base</h5>
+              <div class="small text-muted">Tabela PR_EVENTO</div>
+            </div>
+            <button id="eventNewBtn" class="btn btn-outline-secondary btn-sm">Novo</button>
+          </div>
+
+          <div id="eventList" class="pricing-event-list mb-3"></div>
+
+          <div class="border-top pt-3">
+            <div class="row g-2">
+              <div class="col-12">
+                <label for="eventNome" class="form-label small mb-1">Nome</label>
+                <input id="eventNome" class="form-control" type="text" maxlength="120">
+              </div>
+              <div class="col-6">
+                <label for="eventMmddIni" class="form-label small mb-1">MMDD ini</label>
+                <input id="eventMmddIni" class="form-control" type="text" maxlength="4" placeholder="0101">
+              </div>
+              <div class="col-6">
+                <label for="eventMmddFim" class="form-label small mb-1">MMDD fim</label>
+                <input id="eventMmddFim" class="form-control" type="text" maxlength="4" placeholder="1231">
+              </div>
+              <div class="col-6">
+                <label for="eventFator" class="form-label small mb-1">Fator</label>
+                <input id="eventFator" class="form-control" type="number" step="0.01">
+              </div>
+              <div class="col-6">
+                <label for="eventPrioridade" class="form-label small mb-1">Prioridade</label>
+                <input id="eventPrioridade" class="form-control" type="number" step="1">
+              </div>
+              <div class="col-12">
+                <label class="form-check">
+                  <input id="eventAtivo" class="form-check-input" type="checkbox" checked>
+                  <span class="form-check-label">Ativo</span>
+                </label>
+              </div>
+              <div class="col-6 d-grid">
+                <button id="eventSaveBtn" class="btn btn-primary">Gravar</button>
+              </div>
+              <div class="col-6 d-grid">
+                <button id="eventDeleteBtn" class="btn btn-outline-danger">Remover</button>
+              </div>
+            </div>
+            <div id="eventStatus" class="small text-muted mt-2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-7">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h5 class="mb-0">Overrides Anuais</h5>
+              <div class="small text-muted">Tabela PR_EVENTO_ANO do evento selecionado</div>
+            </div>
+          </div>
+
+          <div id="annualEmpty" class="small text-muted mb-3">Selecione um evento para editar overrides anuais.</div>
+
+          <div id="annualWrap" class="d-none">
+            <div id="annualList" class="pricing-annual-list mb-3"></div>
+
+            <div class="border-top pt-3">
+              <div class="row g-2">
+                <div class="col-6 col-md-3">
+                  <label for="annualAno" class="form-label small mb-1">Ano</label>
+                  <input id="annualAno" class="form-control" type="number" step="1">
+                </div>
+                <div class="col-6 col-md-3">
+                  <label for="annualFator" class="form-label small mb-1">Fator override</label>
+                  <input id="annualFator" class="form-control" type="number" step="0.01" placeholder="opcional">
+                </div>
+                <div class="col-6 col-md-3">
+                  <label for="annualDataIni" class="form-label small mb-1">Data ini</label>
+                  <input id="annualDataIni" class="form-control" type="date">
+                </div>
+                <div class="col-6 col-md-3">
+                  <label for="annualDataFim" class="form-label small mb-1">Data fim</label>
+                  <input id="annualDataFim" class="form-control" type="date">
+                </div>
+                <div class="col-12 col-md-8">
+                  <label for="annualNota" class="form-label small mb-1">Nota</label>
+                  <input id="annualNota" class="form-control" type="text" maxlength="200">
+                </div>
+                <div class="col-12 col-md-4 d-flex align-items-end">
+                  <label class="form-check mb-2">
+                    <input id="annualAtivo" class="form-check-input" type="checkbox" checked>
+                    <span class="form-check-label">Ativo</span>
+                  </label>
+                </div>
+                <div class="col-6 d-grid">
+                  <button id="annualSaveBtn" class="btn btn-primary">Gravar override</button>
+                </div>
+                <div class="col-6 d-grid">
+                  <button id="annualDeleteBtn" class="btn btn-outline-danger">Remover override</button>
+                </div>
+              </div>
+              <div id="annualStatus" class="small text-muted mt-2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .pricing-event-list,
+  .pricing-annual-list {
+    display: grid;
+    gap: 0.5rem;
+    max-height: 430px;
+    overflow: auto;
+  }
+  .pricing-event-item,
+  .pricing-annual-item {
+    border: 1px solid rgba(28, 56, 92, 0.10);
+    border-radius: 14px;
+    padding: 0.75rem;
+    background: linear-gradient(180deg, #f7f9fc 0%, #ffffff 100%);
+    cursor: pointer;
+  }
+  .pricing-event-item.active,
+  .pricing-annual-item.active {
+    border-color: rgba(11, 94, 215, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(11, 94, 215, 0.15);
+    background: linear-gradient(180deg, #eef5ff 0%, #ffffff 100%);
+  }
+  .pricing-item-title {
+    font-weight: 700;
+    color: #223249;
+  }
+  .pricing-item-meta {
+    font-size: 0.78rem;
+    color: #6a7b92;
+  }
+</style>
+<script>
+(() => {
+  const seed = {{ initial_state|tojson }};
+
+  const eventList = document.getElementById('eventList');
+  const eventNome = document.getElementById('eventNome');
+  const eventMmddIni = document.getElementById('eventMmddIni');
+  const eventMmddFim = document.getElementById('eventMmddFim');
+  const eventFator = document.getElementById('eventFator');
+  const eventPrioridade = document.getElementById('eventPrioridade');
+  const eventAtivo = document.getElementById('eventAtivo');
+  const eventStatus = document.getElementById('eventStatus');
+
+  const annualEmpty = document.getElementById('annualEmpty');
+  const annualWrap = document.getElementById('annualWrap');
+  const annualList = document.getElementById('annualList');
+  const annualAno = document.getElementById('annualAno');
+  const annualFator = document.getElementById('annualFator');
+  const annualDataIni = document.getElementById('annualDataIni');
+  const annualDataFim = document.getElementById('annualDataFim');
+  const annualNota = document.getElementById('annualNota');
+  const annualAtivo = document.getElementById('annualAtivo');
+  const annualStatus = document.getElementById('annualStatus');
+
+  let state = seed;
+  let selectedEventId = null;
+  let selectedAnnualYear = null;
+
+  function setStatus(el, text, isError = false) {
+    el.textContent = text || '';
+    el.className = `small mt-2 ${isError ? 'text-danger' : 'text-muted'}`;
+  }
+
+  function currentYear() {
+    return new Date().getFullYear();
+  }
+
+  function resetEventForm() {
+    selectedEventId = null;
+    eventNome.value = '';
+    eventMmddIni.value = '';
+    eventMmddFim.value = '';
+    eventFator.value = '1';
+    eventPrioridade.value = '0';
+    eventAtivo.checked = true;
+    selectedAnnualYear = null;
+    renderEvents();
+    renderAnnualPanel();
+  }
+
+  function resetAnnualForm() {
+    selectedAnnualYear = null;
+    const year = currentYear();
+    annualAno.value = String(year);
+    annualFator.value = '';
+    annualDataIni.value = `${year}-01-01`;
+    annualDataFim.value = `${year}-12-31`;
+    annualNota.value = '';
+    annualAtivo.checked = true;
+    renderAnnualList();
+  }
+
+  function getSelectedEvent() {
+    return state.events.find((item) => item.evento_id === selectedEventId) || null;
+  }
+
+  function selectEvent(eventoId) {
+    const item = state.events.find((event) => event.evento_id === eventoId);
+    if (!item) return;
+    selectedEventId = eventoId;
+    selectedAnnualYear = null;
+    eventNome.value = item.nome || '';
+    eventMmddIni.value = item.mmdd_ini || '';
+    eventMmddFim.value = item.mmdd_fim || '';
+    eventFator.value = String(item.fator ?? 1);
+    eventPrioridade.value = String(item.prioridade ?? 0);
+    eventAtivo.checked = Boolean(item.ativo);
+    renderEvents();
+    renderAnnualPanel();
+    resetAnnualForm();
+  }
+
+  function selectAnnualYear(year) {
+    const event = getSelectedEvent();
+    if (!event) return;
+    const item = (event.anos || []).find((row) => row.ano === year);
+    if (!item) return;
+    selectedAnnualYear = year;
+    annualAno.value = String(item.ano);
+    annualFator.value = item.fator_override == null ? '' : String(item.fator_override);
+    annualDataIni.value = item.data_ini || '';
+    annualDataFim.value = item.data_fim || '';
+    annualNota.value = item.nota || '';
+    annualAtivo.checked = Boolean(item.ativo);
+    renderAnnualList();
+  }
+
+  function renderEvents() {
+    eventList.innerHTML = '';
+    if (!state.events.length) {
+      eventList.innerHTML = '<div class="small text-muted">Sem eventos.</div>';
+      return;
+    }
+    state.events.forEach((item) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `pricing-event-item text-start ${selectedEventId === item.evento_id ? 'active' : ''}`;
+      btn.innerHTML = `
+        <div class="pricing-item-title">${item.nome}</div>
+        <div class="pricing-item-meta">ID ${item.evento_id} | ${item.mmdd_ini} ate ${item.mmdd_fim}</div>
+        <div class="pricing-item-meta">Fator ${item.fator} | Prioridade ${item.prioridade}</div>
+        <div class="pricing-item-meta">${item.ativo ? 'Ativo' : 'Inativo'} | ${item.anos.length} override(s) anual(is)</div>
+      `;
+      btn.addEventListener('click', () => selectEvent(item.evento_id));
+      eventList.appendChild(btn);
+    });
+  }
+
+  function renderAnnualList() {
+    const event = getSelectedEvent();
+    annualList.innerHTML = '';
+    if (!event) return;
+    if (!(event.anos || []).length) {
+      annualList.innerHTML = '<div class="small text-muted">Sem overrides anuais.</div>';
+      return;
+    }
+    event.anos.forEach((item) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `pricing-annual-item text-start ${selectedAnnualYear === item.ano ? 'active' : ''}`;
+      btn.innerHTML = `
+        <div class="pricing-item-title">${item.ano}</div>
+        <div class="pricing-item-meta">${item.data_ini} ate ${item.data_fim}</div>
+        <div class="pricing-item-meta">Fator override ${item.fator_override == null ? 'base' : item.fator_override}</div>
+        <div class="pricing-item-meta">${item.ativo ? 'Ativo' : 'Inativo'}${item.nota ? ` | ${item.nota}` : ''}</div>
+      `;
+      btn.addEventListener('click', () => selectAnnualYear(item.ano));
+      annualList.appendChild(btn);
+    });
+  }
+
+  function renderAnnualPanel() {
+    if (!selectedEventId) {
+      annualEmpty.classList.remove('d-none');
+      annualWrap.classList.add('d-none');
+      annualList.innerHTML = '';
+      return;
+    }
+    annualEmpty.classList.add('d-none');
+    annualWrap.classList.remove('d-none');
+    renderAnnualList();
+  }
+
+  async function refreshState({ keepEvent = true } = {}) {
+    const oldEventId = keepEvent ? selectedEventId : null;
+    const oldYear = keepEvent ? selectedAnnualYear : null;
+    try {
+      const response = await fetch('/pricing/api/events/state');
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro ao ler eventos');
+      state = payload;
+      renderEvents();
+
+      if (oldEventId && state.events.some((item) => item.evento_id === oldEventId)) {
+        selectedEventId = oldEventId;
+        const event = getSelectedEvent();
+        eventNome.value = event.nome || '';
+        eventMmddIni.value = event.mmdd_ini || '';
+        eventMmddFim.value = event.mmdd_fim || '';
+        eventFator.value = String(event.fator ?? 1);
+        eventPrioridade.value = String(event.prioridade ?? 0);
+        eventAtivo.checked = Boolean(event.ativo);
+        renderEvents();
+        renderAnnualPanel();
+
+        if (oldYear && (event.anos || []).some((item) => item.ano === oldYear)) {
+          selectAnnualYear(oldYear);
+        } else {
+          resetAnnualForm();
+        }
+      } else if (state.events.length) {
+        selectEvent(state.events[0].evento_id);
+      } else {
+        resetEventForm();
+      }
+    } catch (error) {
+      setStatus(eventStatus, error.message, true);
+    }
+  }
+
+  async function saveEvent() {
+    setStatus(eventStatus, 'A gravar evento...');
+    try {
+      const response = await fetch('/pricing/api/events/base', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          evento_id: selectedEventId,
+          nome: eventNome.value,
+          mmdd_ini: eventMmddIni.value,
+          mmdd_fim: eventMmddFim.value,
+          fator: eventFator.value,
+          prioridade: eventPrioridade.value,
+          ativo: eventAtivo.checked,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a gravar evento');
+      selectedEventId = payload.evento_id;
+      await refreshState({ keepEvent: true });
+      setStatus(eventStatus, 'Evento gravado.');
+    } catch (error) {
+      setStatus(eventStatus, error.message, true);
+    }
+  }
+
+  async function deleteEvent() {
+    if (!selectedEventId) {
+      setStatus(eventStatus, 'Selecione um evento para remover.', true);
+      return;
+    }
+    setStatus(eventStatus, 'A remover evento...');
+    try {
+      const response = await fetch(`/pricing/api/events/base/${selectedEventId}`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a remover evento');
+      await refreshState({ keepEvent: false });
+      setStatus(eventStatus, 'Evento removido.');
+    } catch (error) {
+      setStatus(eventStatus, error.message, true);
+    }
+  }
+
+  async function saveAnnual() {
+    const event = getSelectedEvent();
+    if (!event) {
+      setStatus(annualStatus, 'Selecione um evento primeiro.', true);
+      return;
+    }
+    setStatus(annualStatus, 'A gravar override anual...');
+    try {
+      const response = await fetch('/pricing/api/events/year', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          evento_id: event.evento_id,
+          ano: annualAno.value,
+          data_ini: annualDataIni.value,
+          data_fim: annualDataFim.value,
+          fator_override: annualFator.value,
+          ativo: annualAtivo.checked,
+          nota: annualNota.value,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a gravar override anual');
+      selectedAnnualYear = Number(payload.ano);
+      await refreshState({ keepEvent: true });
+      setStatus(annualStatus, 'Override anual gravado.');
+    } catch (error) {
+      setStatus(annualStatus, error.message, true);
+    }
+  }
+
+  async function deleteAnnual() {
+    const event = getSelectedEvent();
+    if (!event || !selectedAnnualYear) {
+      setStatus(annualStatus, 'Selecione um override anual para remover.', true);
+      return;
+    }
+    setStatus(annualStatus, 'A remover override anual...');
+    try {
+      const response = await fetch(`/pricing/api/events/year/${event.evento_id}/${selectedAnnualYear}`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a remover override anual');
+      selectedAnnualYear = null;
+      await refreshState({ keepEvent: true });
+      setStatus(annualStatus, 'Override anual removido.');
+    } catch (error) {
+      setStatus(annualStatus, error.message, true);
+    }
+  }
+
+  document.getElementById('eventNewBtn').addEventListener('click', resetEventForm);
+  document.getElementById('eventSaveBtn').addEventListener('click', saveEvent);
+  document.getElementById('eventDeleteBtn').addEventListener('click', deleteEvent);
+  document.getElementById('annualSaveBtn').addEventListener('click', saveAnnual);
+  document.getElementById('annualDeleteBtn').addEventListener('click', deleteAnnual);
+
+  renderEvents();
+  if (state.events.length) {
+    selectEvent(state.events[0].evento_id);
+  } else {
+    resetEventForm();
+  }
+})();
+</script>
+{% endblock %}

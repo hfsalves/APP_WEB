@@ -146,6 +146,30 @@
     .lang-option .fi{font-size:.92rem; border-radius:2px;}
     .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
     .form-grid .full{grid-column:1/-1;}
+    .guest-modal{position:fixed; inset:0; display:none; z-index:120;}
+    .guest-modal.open{display:block;}
+    .guest-modal-backdrop{position:absolute; inset:0; background:rgba(15,23,42,.5);}
+    .guest-modal-panel{
+      position:relative;
+      width:min(900px,94vw);
+      max-height:86vh;
+      overflow:auto;
+      margin:7vh auto 0;
+      background:#fff;
+      border:1px solid #dbe5f3;
+      border-radius:14px;
+      box-shadow:0 28px 60px rgba(2,6,23,.28);
+      padding:14px;
+    }
+    .guest-modal-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+      padding-bottom:8px;
+      border-bottom:1px solid #e2e8f0;
+    }
     @media (max-width:560px){ .form-grid{grid-template-columns:1fr;} }
     @media (max-width:700px){
       .public-wrap{padding:92px 12px 12px;}
@@ -188,9 +212,100 @@
 
       <section class="cards-grid">
         <article class="r-card">
-          <h3 data-i18n="card_mandatory">Dados Obrigatórios</h3>
-          <div class="placeholder" data-i18n="placeholder_mandatory_disabled">Temporariamente indisponível. Este formulário será ativado numa fase seguinte.</div>
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <h3 class="mb-0" data-i18n="card_mandatory">Dados Obrigat?rios</h3>
+            <span id="guestCardStatus" class="badge bg-warning-subtle text-warning-emphasis border" data-i18n="mandatory_status_pending">Pendente</span>
+          </div>
+          <div class="small text-muted mb-3" data-i18n="mandatory_modal_hint">Preenche os dados no formul?rio passo a passo.</div>
+          <div class="d-flex align-items-center justify-content-between">
+            <div id="guestCardProgress" class="small fw-semibold text-primary">1/1</div>
+            <button id="guestOpenBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_open_mandatory_modal">Preencher</button>
+          </div>
         </article>
+
+        <div id="guestModal" class="guest-modal" aria-hidden="true">
+          <div class="guest-modal-backdrop" id="guestModalBackdrop"></div>
+          <div class="guest-modal-panel">
+            <div class="guest-modal-header">
+              <div>
+                <div class="fw-bold" data-i18n="card_mandatory">Dados Obrigat?rios</div>
+                <div id="guestStepLabel" class="small fw-semibold text-primary">1/1</div>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <div id="guestSaveMsg" class="small text-success d-none" data-i18n="mandatory_saved">Gravado.</div>
+                <button id="guestCloseBtn" type="button" class="btn btn-sm btn-outline-secondary">X</button>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div>
+                <label class="form-label small mb-1" data-i18n="guest_name">Nome</label>
+                <input id="g_nome" class="form-control form-control-sm" maxlength="100">
+              </div>
+              <div>
+                <label class="form-label small mb-1" data-i18n="guest_surname">Apelido</label>
+                <input id="g_apelido" class="form-control form-control-sm" maxlength="100">
+              </div>
+              <div>
+                <label class="form-label small mb-1" data-i18n="guest_birthdate">Data nascimento*</label>
+                <input id="g_dtnasc" type="date" class="form-control form-control-sm">
+              </div>
+              <div>
+                <label class="form-label small mb-1" data-i18n="guest_nationality">Nacionalidade*</label>
+                <select id="g_nacionalidade" class="form-select form-select-sm"></select>
+              </div>
+              <div>
+                <label class="form-label small mb-1" data-i18n="guest_doc_type">Tipo documento*</label>
+                <input id="g_tipo_doc" class="form-control form-control-sm" maxlength="30" placeholder="CC / Passaporte">
+              </div>
+              <div>
+                <label class="form-label small mb-1" data-i18n="guest_doc_num">N? documento*</label>
+                <input id="g_num_doc" class="form-control form-control-sm" maxlength="40">
+              </div>
+              <div>
+                <label class="form-label small mb-1" data-i18n="guest_doc_country">Pa?s emissor doc.*</label>
+                <select id="g_pais_emissor_doc" class="form-select form-select-sm"></select>
+              </div>
+              <div>
+                <label class="form-label small mb-1" data-i18n="guest_residence_country">Pa?s resid?ncia</label>
+                <select id="g_pais_residencia" class="form-select form-select-sm"></select>
+              </div>
+              <div id="guestSupportFields" class="full">
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="form-label small mb-1" data-i18n="guest_horain">Hora check-in prev.</label>
+                    <input id="g_horain" class="form-control form-control-sm" maxlength="5" placeholder="HH:MM">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small mb-1" data-i18n="guest_horaout">Hora check-out prev.</label>
+                    <input id="g_horaout" class="form-control form-control-sm" maxlength="5" placeholder="HH:MM">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small mb-1" data-i18n="guest_transport">Transporte</label>
+                    <input id="g_transporte" class="form-control form-control-sm" maxlength="30">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small mb-1" data-i18n="guest_flight">Voo</label>
+                    <input id="g_voo" class="form-control form-control-sm" maxlength="20">
+                  </div>
+                  <div class="col-md-6 d-flex align-items-end" id="guestBercoWrap">
+                    <div class="form-check mb-2">
+                      <input class="form-check-input" type="checkbox" id="g_berco">
+                      <label class="form-check-label small" for="g_berco" data-i18n="guest_crib">Pretende ber?o</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="full d-flex align-items-center justify-content-between mt-1">
+                <div></div>
+                <div class="d-flex gap-2">
+                  <button id="guestPrevBtn" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="btn_prev_guest">Anterior</button>
+                  <button id="guestSaveBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_save_guest">Gravar</button>
+                  <button id="guestNextBtn" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="btn_next_guest">Seguinte</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <article class="r-card">
           <h3 data-i18n="card_checkin">Check-in</h3>
@@ -253,6 +368,8 @@
 
   <script>
     (function () {
+      const PUBLIC_TOKEN = {{ (page_data.token if page_data is defined else '')|tojson }};
+      const RES_CRIANCAS = Number({{ (page_data.criancas if page_data is defined else 0)|tojson }} || 0);
       const I18N = {
         pt: {
           label_language: 'Idioma',
@@ -261,6 +378,27 @@
           title_reservation: 'Reserva',
           label_reservation: 'Reserva',
           card_mandatory: 'Dados Obrigatórios',
+          mandatory_modal_hint: 'Preenche os dados no formul?rio passo a passo.',
+          btn_open_mandatory_modal: 'Preencher',
+          mandatory_status_pending: 'Pendente',
+          mandatory_status_complete: 'Completo',
+          mandatory_saved: 'Gravado.',
+          guest_name: 'Nome*',
+          guest_surname: 'Apelido*',
+          guest_birthdate: 'Data nascimento*',
+          guest_nationality: 'Nacionalidade*',
+          guest_doc_type: 'Tipo documento*',
+          guest_doc_num: 'N? documento*',
+          guest_doc_country: 'Pa?s emissor doc.*',
+          guest_residence_country: 'Pa?s resid?ncia',
+          guest_horain: 'Hora check-in prev.',
+          guest_horaout: 'Hora check-out prev.',
+          guest_transport: 'Transporte',
+          guest_flight: 'Voo',
+          guest_crib: 'Pretende ber?o',
+          btn_prev_guest: 'Anterior',
+          btn_save_guest: 'Gravar',
+          btn_next_guest: 'Seguinte',
           placeholder_mandatory_disabled: 'Temporariamente indisponível. Este formulário será ativado numa fase seguinte.',
           card_checkin: 'Check-in',
           label_property: 'Alojamento',
@@ -289,6 +427,28 @@
           title_reservation: 'Reservation',
           label_reservation: 'Reservation',
           card_mandatory: 'Required Information',
+          mandatory_modal_hint: 'Fill in the guest data step by step.',
+          btn_open_mandatory_modal: 'Fill in',
+          mandatory_status_pending: 'Pending',
+          mandatory_status_complete: 'Complete',
+          mandatory_saved: 'Saved.',
+          guest_fullname: 'Full name*',
+          guest_name: 'First name*',
+          guest_surname: 'Last name*',
+          guest_birthdate: 'Birth date*',
+          guest_nationality: 'Nationality*',
+          guest_doc_type: 'Document type*',
+          guest_doc_num: 'Document no.*',
+          guest_doc_country: 'Issuer country*',
+          guest_residence_country: 'Residence country',
+          guest_horain: 'Expected check-in',
+          guest_horaout: 'Expected check-out',
+          guest_transport: 'Transport',
+          guest_flight: 'Flight',
+          guest_crib: 'Need crib',
+          btn_prev_guest: 'Previous',
+          btn_save_guest: 'Save',
+          btn_next_guest: 'Next',
           placeholder_mandatory_disabled: 'Temporarily unavailable. This form will be enabled in a later phase.',
           card_checkin: 'Check-in',
           label_property: 'Property',
@@ -317,6 +477,27 @@
           title_reservation: 'Réservation',
           label_reservation: 'Réservation',
           card_mandatory: 'Données obligatoires',
+          mandatory_modal_hint: 'Remplissez les donn?es ?tape par ?tape.',
+          btn_open_mandatory_modal: 'Remplir',
+          mandatory_status_pending: 'En attente',
+          mandatory_status_complete: 'Complet',
+          mandatory_saved: 'Enregistr?.',
+          guest_name: 'Pr?nom*',
+          guest_surname: 'Nom*',
+          guest_birthdate: 'Date de naissance*',
+          guest_nationality: 'Nationalit?*',
+          guest_doc_type: 'Type document*',
+          guest_doc_num: 'N? document*',
+          guest_doc_country: 'Pays ?metteur*',
+          guest_residence_country: 'Pays de r?sidence',
+          guest_horain: 'Heure arriv?e pr?vue',
+          guest_horaout: 'Heure d?part pr?vue',
+          guest_transport: 'Transport',
+          guest_flight: 'Vol',
+          guest_crib: 'Lit b?b?',
+          btn_prev_guest: 'Pr?c?dent',
+          btn_save_guest: 'Enregistrer',
+          btn_next_guest: 'Suivant',
           placeholder_mandatory_disabled: 'Temporairement indisponible. Ce formulaire sera activé dans une phase suivante.',
           card_checkin: 'Arrivée',
           label_property: 'Logement',
@@ -345,6 +526,28 @@
           title_reservation: 'Reserva',
           label_reservation: 'Reserva',
           card_mandatory: 'Datos obligatorios',
+          mandatory_modal_hint: 'Rellena los datos paso a paso.',
+          btn_open_mandatory_modal: 'Rellenar',
+          mandatory_status_pending: 'Pendiente',
+          mandatory_status_complete: 'Completo',
+          mandatory_saved: 'Guardado.',
+          guest_fullname: 'Nombre completo*',
+          guest_name: 'Nombre*',
+          guest_surname: 'Apellidos*',
+          guest_birthdate: 'Fecha nacimiento*',
+          guest_nationality: 'Nacionalidad*',
+          guest_doc_type: 'Tipo documento*',
+          guest_doc_num: 'N? documento*',
+          guest_doc_country: 'Pa?s emisor doc.*',
+          guest_residence_country: 'Pa?s residencia',
+          guest_horain: 'Hora check-in prev.',
+          guest_horaout: 'Hora check-out prev.',
+          guest_transport: 'Transporte',
+          guest_flight: 'Vuelo',
+          guest_crib: 'Necesita cuna',
+          btn_prev_guest: 'Anterior',
+          btn_save_guest: 'Guardar',
+          btn_next_guest: 'Siguiente',
           placeholder_mandatory_disabled: 'Temporalmente no disponible. Este formulario se activará en una fase posterior.',
           card_checkin: 'Check-in',
           label_property: 'Alojamiento',
@@ -395,9 +598,215 @@
         if (menuFlag) menuFlag.className = m.flagClass;
         if (menuCode) menuCode.textContent = m.code;
         localStorage.setItem(key, lang);
+        if (typeof renderGuestUi === 'function') renderGuestUi();
       };
 
+      const guestEls = {
+        status: document.getElementById('guestCardStatus'),
+        cardProgress: document.getElementById('guestCardProgress'),
+        openBtn: document.getElementById('guestOpenBtn'),
+        modal: document.getElementById('guestModal'),
+        modalBackdrop: document.getElementById('guestModalBackdrop'),
+        modalClose: document.getElementById('guestCloseBtn'),
+        step: document.getElementById('guestStepLabel'),
+        msg: document.getElementById('guestSaveMsg'),
+        nome: document.getElementById('g_nome'),
+        apelido: document.getElementById('g_apelido'),
+        dtnasc: document.getElementById('g_dtnasc'),
+        nacionalidade: document.getElementById('g_nacionalidade'),
+        tipoDoc: document.getElementById('g_tipo_doc'),
+        numDoc: document.getElementById('g_num_doc'),
+        paisEmissor: document.getElementById('g_pais_emissor_doc'),
+        paisResidencia: document.getElementById('g_pais_residencia'),
+        horain: document.getElementById('g_horain'),
+        horaout: document.getElementById('g_horaout'),
+        transporte: document.getElementById('g_transporte'),
+        voo: document.getElementById('g_voo'),
+        berco: document.getElementById('g_berco'),
+        supportFields: document.getElementById('guestSupportFields'),
+        bercoWrap: document.getElementById('guestBercoWrap'),
+        prev: document.getElementById('guestPrevBtn'),
+        next: document.getElementById('guestNextBtn'),
+        save: document.getElementById('guestSaveBtn')
+      };
+      const COUNTRY_OPTIONS = [
+        'Portugal','Espanha','França','Reino Unido','Irlanda','Alemanha','Itália','Países Baixos','Bélgica','Suíça','Áustria','Luxemburgo',
+        'Estados Unidos','Canadá','Brasil','México','Argentina','Chile','Colômbia','Peru',
+        'Angola','Moçambique','Cabo Verde','Guiné-Bissau','São Tomé e Príncipe',
+        'Marrocos','Argélia','Tunísia','África do Sul',
+        'China','Japão','Coreia do Sul','Índia','Emirados Árabes Unidos','Arábia Saudita',
+        'Austrália','Nova Zelândia','Rússia','Ucrânia','Polónia','Roménia','República Checa','Hungria','Dinamarca','Suécia','Noruega','Finlândia','Islândia','Turquia','Grécia'
+      ];
+
+      const mandatoryState = {
+        total: 1,
+        index: 1,
+        guests: [],
+        complete: false
+      };
+
+      const guestDictFallback = {
+        mandatory_status_pending: 'Pendente',
+        mandatory_status_complete: 'Completo',
+        mandatory_saved: 'Gravado.'
+      };
+      const tGuest = (k) => (getDict((localStorage.getItem(key) || 'pt').toLowerCase())?.[k] || guestDictFallback[k] || k);
+
+      function guestIsComplete(g) {
+        const dtn = String(g?.dtnasc || '').trim();
+        return !!(
+          String(g?.nome || '').trim() &&
+          String(g?.apelido || '').trim() &&
+          dtn && dtn !== '1900-01-01' && dtn !== '0001-01-01' &&
+          String(g?.nacionalidade || '').trim() &&
+          String(g?.tipo_doc || '').trim() &&
+          String(g?.num_doc || '').trim() &&
+          String(g?.pais_emissor_doc || '').trim()
+        );
+      }
+
+      function readGuestFromForm() {
+        const isFinal = mandatoryState.index === mandatoryState.total;
+        const nome = String(guestEls.nome?.value || '').trim();
+        const apelido = String(guestEls.apelido?.value || '').trim();
+        return {
+          nome_completo: `${nome} ${apelido}`.trim(),
+          nome,
+          apelido,
+          dtnasc: String(guestEls.dtnasc?.value || '').trim(),
+          nacionalidade: String(guestEls.nacionalidade?.value || '').trim(),
+          tipo_doc: String(guestEls.tipoDoc?.value || '').trim(),
+          num_doc: String(guestEls.numDoc?.value || '').trim(),
+          pais_emissor_doc: String(guestEls.paisEmissor?.value || '').trim(),
+          pais_residencia: isFinal ? String(guestEls.paisResidencia?.value || '').trim() : '',
+          horain: isFinal ? String(guestEls.horain?.value || '').trim() : '',
+          horaout: isFinal ? String(guestEls.horaout?.value || '').trim() : '',
+          transporte: isFinal ? String(guestEls.transporte?.value || '').trim() : '',
+          voo: isFinal ? String(guestEls.voo?.value || '').trim() : '',
+          berco: isFinal ? !!guestEls.berco?.checked : false
+        };
+      }
+
+      function writeGuestToForm(g) {
+        if (!guestEls.nome) return;
+        const guest = g || {};
+        guestEls.nome.value = guest.nome || '';
+        guestEls.apelido.value = guest.apelido || '';
+        guestEls.dtnasc.value = (guest.dtnasc && guest.dtnasc !== '1900-01-01' && guest.dtnasc !== '0001-01-01') ? guest.dtnasc : '';
+        guestEls.nacionalidade.value = guest.nacionalidade || '';
+        guestEls.tipoDoc.value = guest.tipo_doc || '';
+        guestEls.numDoc.value = guest.num_doc || '';
+        guestEls.paisEmissor.value = guest.pais_emissor_doc || '';
+        guestEls.paisResidencia.value = guest.pais_residencia || '';
+        guestEls.horain.value = guest.horain || '';
+        guestEls.horaout.value = guest.horaout || '';
+        guestEls.transporte.value = guest.transporte || '';
+        guestEls.voo.value = guest.voo || '';
+        guestEls.berco.checked = !!guest.berco;
+      }
+
+      function renderGuestUi() {
+        if (!guestEls.step) return;
+        const progressTxt = `${mandatoryState.index}/${mandatoryState.total}`;
+        guestEls.step.textContent = progressTxt;
+        if (guestEls.cardProgress) guestEls.cardProgress.textContent = progressTxt;
+        guestEls.prev.style.display = mandatoryState.index <= 1 ? 'none' : '';
+        guestEls.next.style.display = mandatoryState.index >= mandatoryState.total ? 'none' : '';
+        guestEls.save.style.display = mandatoryState.index >= mandatoryState.total ? '' : 'none';
+        guestEls.prev.disabled = mandatoryState.index <= 1;
+        guestEls.next.disabled = mandatoryState.index >= mandatoryState.total;
+        if (guestEls.supportFields) guestEls.supportFields.style.display = (mandatoryState.index === mandatoryState.total ? '' : 'none');
+        if (guestEls.bercoWrap) guestEls.bercoWrap.style.display = (RES_CRIANCAS > 0 ? '' : 'none');
+        const idx = mandatoryState.index - 1;
+        writeGuestToForm(mandatoryState.guests[idx] || {});
+        const allOk = mandatoryState.guests.length >= mandatoryState.total && mandatoryState.guests.slice(0, mandatoryState.total).every(guestIsComplete);
+        mandatoryState.complete = allOk;
+        if (guestEls.status) {
+          guestEls.status.textContent = allOk ? tGuest('mandatory_status_complete') : tGuest('mandatory_status_pending');
+          guestEls.status.className = allOk
+            ? 'badge bg-success-subtle text-success-emphasis border'
+            : 'badge bg-warning-subtle text-warning-emphasis border';
+        }
+      }
+
+      function openGuestModal() {
+        if (!guestEls.modal) return;
+        guestEls.modal.classList.add('open');
+        guestEls.modal.setAttribute('aria-hidden', 'false');
+      }
+
+      function initCountrySelect(el) {
+        if (!el) return;
+        const current = String(el.value || '').trim();
+        const opts = ['<option value=\"\"></option>']
+          .concat(COUNTRY_OPTIONS.map(c => `<option value=\"${c.replace(/\"/g, '&quot;')}\">${c}</option>`));
+        el.innerHTML = opts.join('');
+        if (current) el.value = current;
+      }
+
+      function closeGuestModal() {
+        if (!guestEls.modal) return;
+        guestEls.modal.classList.remove('open');
+        guestEls.modal.setAttribute('aria-hidden', 'true');
+      }
+
+      async function loadGuestData() {
+        if (!PUBLIC_TOKEN || !guestEls.save) return;
+        try {
+          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/guests`);
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.error) return;
+          mandatoryState.total = Math.max(1, Number(data.total_guests || 1));
+          mandatoryState.guests = Array.isArray(data.guests) ? data.guests : [];
+          while (mandatoryState.guests.length < mandatoryState.total) mandatoryState.guests.push({});
+          if (mandatoryState.index > mandatoryState.total) mandatoryState.index = mandatoryState.total;
+          renderGuestUi();
+        } catch (_) {}
+      }
+
+      async function saveCurrentGuest() {
+        if (!PUBLIC_TOKEN || !guestEls.save) return;
+        const idx = mandatoryState.index - 1;
+        mandatoryState.guests[idx] = readGuestFromForm();
+        guestEls.save.disabled = true;
+        guestEls.prev.disabled = true;
+        guestEls.next.disabled = true;
+        if (guestEls.msg) {
+          guestEls.msg.classList.add('d-none');
+        }
+        try {
+          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/guests`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              index: mandatoryState.index,
+              guest: mandatoryState.guests[idx]
+            })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.error) throw new Error(data.error || 'Erro ao gravar');
+          mandatoryState.total = Math.max(1, Number(data.total_guests || mandatoryState.total));
+          mandatoryState.guests = Array.isArray(data.guests) ? data.guests : mandatoryState.guests;
+          if (guestEls.msg) {
+            guestEls.msg.textContent = tGuest('mandatory_saved');
+            guestEls.msg.classList.remove('d-none');
+            setTimeout(() => guestEls.msg?.classList.add('d-none'), 1200);
+          }
+          renderGuestUi();
+          return true;
+        } catch (e) {
+          alert(e.message || 'Erro ao gravar');
+          return false;
+        } finally {
+          guestEls.save.disabled = false;
+          renderGuestUi();
+        }
+      }
+
       const initial = (localStorage.getItem(key) || 'pt').toLowerCase();
+      initCountrySelect(guestEls.nacionalidade);
+      initCountrySelect(guestEls.paisEmissor);
+      initCountrySelect(guestEls.paisResidencia);
       buttons.forEach((btn) => {
         btn.addEventListener('click', () => {
           apply((btn.getAttribute('data-lang') || 'pt').toLowerCase());
@@ -413,7 +822,27 @@
         if (menuList.contains(e.target) || menuBtn.contains(e.target)) return;
         menuList.classList.remove('open');
       });
+      guestEls.prev?.addEventListener('click', async () => {
+        const okSave = await saveCurrentGuest();
+        if (!okSave) return;
+        mandatoryState.index = Math.max(1, mandatoryState.index - 1);
+        renderGuestUi();
+      });
+      guestEls.next?.addEventListener('click', async () => {
+        const okSave = await saveCurrentGuest();
+        if (!okSave) return;
+        mandatoryState.index = Math.min(mandatoryState.total, mandatoryState.index + 1);
+        renderGuestUi();
+      });
+      guestEls.save?.addEventListener('click', saveCurrentGuest);
+      guestEls.openBtn?.addEventListener('click', openGuestModal);
+      guestEls.modalClose?.addEventListener('click', closeGuestModal);
+      guestEls.modalBackdrop?.addEventListener('click', closeGuestModal);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && guestEls.modal?.classList.contains('open')) closeGuestModal();
+      });
       apply(I18N[initial] ? initial : 'pt');
+      loadGuestData();
     })();
   </script>
 </body>

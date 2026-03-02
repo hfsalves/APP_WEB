@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="pricing-config-shell">
+  <div class="row g-3">
+    <div class="col-12 col-xl-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h5 class="mb-0">Perfis</h5>
+              <div class="small text-muted">CRUD de PR_PERFIL</div>
+            </div>
+            <button id="profileNewBtn" class="btn btn-outline-secondary btn-sm">Novo</button>
+          </div>
+          <div id="profileList" class="pricing-config-list mb-3"></div>
+          <div class="border-top pt-3">
+            <div class="row g-2">
+              <div class="col-12">
+                <label for="profileNome" class="form-label small mb-1">Nome</label>
+                <input id="profileNome" class="form-control" type="text" maxlength="120">
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="profileKPickup" class="form-label small mb-1">K pickup</label>
+                <input id="profileKPickup" class="form-control" type="number" step="0.0001">
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="profileLimMin" class="form-label small mb-1">Lim min</label>
+                <input id="profileLimMin" class="form-control" type="number" step="0.01">
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="profileLimMax" class="form-label small mb-1">Lim max</label>
+                <input id="profileLimMax" class="form-control" type="number" step="0.01">
+              </div>
+              <div class="col-6 d-grid">
+                <button id="profileSaveBtn" class="btn btn-primary">Gravar</button>
+              </div>
+              <div class="col-6 d-grid">
+                <button id="profileDeleteBtn" class="btn btn-outline-danger">Remover</button>
+              </div>
+            </div>
+            <div id="profileStatus" class="small text-muted mt-2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h5 class="mb-0">Sazonalidade</h5>
+              <div class="small text-muted">PR_SAZONAL_MES por mes</div>
+            </div>
+            <button id="seasonalitySaveBtn" class="btn btn-primary btn-sm">Gravar meses</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Mes</th>
+                  <th>Indice</th>
+                  <th>Nota</th>
+                </tr>
+              </thead>
+              <tbody id="seasonalityBody"></tbody>
+            </table>
+          </div>
+          <div id="seasonalityStatus" class="small text-muted mt-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h5 class="mb-0">Dias da semana</h5>
+              <div class="small text-muted">Matriz PR_DIA_SEMANA_FATOR</div>
+            </div>
+            <button id="dowSaveBtn" class="btn btn-primary btn-sm">Gravar matriz</button>
+          </div>
+          <div id="dowWrap" class="table-responsive"></div>
+          <div id="dowStatus" class="small text-muted mt-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .pricing-config-list {
+    max-height: 420px;
+    overflow: auto;
+    display: grid;
+    gap: 0.5rem;
+  }
+  .pricing-profile-item {
+    border: 1px solid rgba(28, 56, 92, 0.10);
+    border-radius: 14px;
+    padding: 0.75rem;
+    background: linear-gradient(180deg, #f7f9fc 0%, #ffffff 100%);
+    cursor: pointer;
+  }
+  .pricing-profile-item.active {
+    border-color: rgba(11, 94, 215, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(11, 94, 215, 0.15);
+    background: linear-gradient(180deg, #eef5ff 0%, #ffffff 100%);
+  }
+  .pricing-profile-name {
+    font-weight: 700;
+    color: #223249;
+  }
+  .pricing-profile-meta {
+    font-size: 0.78rem;
+    color: #6a7b92;
+  }
+  .pricing-dow-table input,
+  #seasonalityBody input {
+    min-width: 84px;
+  }
+</style>
+<script>
+(() => {
+  const seed = {{ initial_state|tojson }};
+  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+  const profileList = document.getElementById('profileList');
+  const profileNome = document.getElementById('profileNome');
+  const profileKPickup = document.getElementById('profileKPickup');
+  const profileLimMin = document.getElementById('profileLimMin');
+  const profileLimMax = document.getElementById('profileLimMax');
+  const profileStatus = document.getElementById('profileStatus');
+  const seasonalityBody = document.getElementById('seasonalityBody');
+  const seasonalityStatus = document.getElementById('seasonalityStatus');
+  const dowWrap = document.getElementById('dowWrap');
+  const dowStatus = document.getElementById('dowStatus');
+
+  let state = seed;
+  let selectedProfileId = null;
+
+  function setStatus(el, text, isError = false) {
+    el.textContent = text || '';
+    el.className = `small mt-2 ${isError ? 'text-danger' : 'text-muted'}`;
+  }
+
+  function fmtNumber(value, digits = 2) {
+    const num = Number(value);
+    if (Number.isNaN(num)) return '';
+    return String(num);
+  }
+
+  function resetProfileForm() {
+    selectedProfileId = null;
+    profileNome.value = '';
+    profileKPickup.value = '0.01';
+    profileLimMin.value = '-0.2';
+    profileLimMax.value = '0.2';
+    renderProfiles();
+  }
+
+  function selectProfile(perfilId) {
+    const profile = state.profiles.find((item) => item.perfil_id === perfilId);
+    if (!profile) return;
+    selectedProfileId = perfilId;
+    profileNome.value = profile.nome || '';
+    profileKPickup.value = fmtNumber(profile.k_pickup, 4);
+    profileLimMin.value = fmtNumber(profile.lim_ajuste_min, 4);
+    profileLimMax.value = fmtNumber(profile.lim_ajuste_max, 4);
+    renderProfiles();
+  }
+
+  function renderProfiles() {
+    profileList.innerHTML = '';
+    if (!state.profiles.length) {
+      profileList.innerHTML = '<div class="small text-muted">Sem perfis.</div>';
+      return;
+    }
+    state.profiles.forEach((profile) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = `pricing-profile-item text-start ${selectedProfileId === profile.perfil_id ? 'active' : ''}`;
+      item.innerHTML = `
+        <div class="pricing-profile-name">${profile.nome}</div>
+        <div class="pricing-profile-meta">ID ${profile.perfil_id} | K ${profile.k_pickup}</div>
+        <div class="pricing-profile-meta">Lim ${profile.lim_ajuste_min} ate ${profile.lim_ajuste_max}</div>
+        <div class="pricing-profile-meta">${profile.linked_alojamentos} alojamentos ligados</div>
+      `;
+      item.addEventListener('click', () => selectProfile(profile.perfil_id));
+      profileList.appendChild(item);
+    });
+  }
+
+  function renderSeasonality() {
+    seasonalityBody.innerHTML = '';
+    state.seasonality.forEach((row) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-semibold">${monthNames[row.mes - 1] || row.mes}</td>
+        <td><input class="form-control form-control-sm" type="number" step="0.01" data-mes="${row.mes}" data-field="indice" value="${fmtNumber(row.indice)}"></td>
+        <td><input class="form-control form-control-sm" type="text" maxlength="200" data-mes="${row.mes}" data-field="nota" value="${row.nota || ''}"></td>
+      `;
+      seasonalityBody.appendChild(tr);
+    });
+  }
+
+  function renderDowMatrix() {
+    const profiles = state.profiles;
+    if (!profiles.length) {
+      dowWrap.innerHTML = '<div class="small text-muted">Crie um perfil para editar a matriz.</div>';
+      return;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'table table-sm align-middle pricing-dow-table mb-0';
+
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    headRow.innerHTML = '<th>Dia</th>';
+    profiles.forEach((profile) => {
+      const th = document.createElement('th');
+      th.textContent = profile.nome;
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    state.dow_matrix.forEach((row) => {
+      const tr = document.createElement('tr');
+      const label = document.createElement('td');
+      label.className = 'fw-semibold';
+      label.textContent = row.label;
+      tr.appendChild(label);
+
+      profiles.forEach((profile) => {
+        const td = document.createElement('td');
+        td.innerHTML = `
+          <input
+            class="form-control form-control-sm"
+            type="number"
+            step="0.01"
+            data-perfil-id="${profile.perfil_id}"
+            data-dow="${row.dow}"
+            value="${fmtNumber(row.values[String(profile.perfil_id)] ?? 1)}"
+          >
+        `;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    dowWrap.innerHTML = '';
+    dowWrap.appendChild(table);
+  }
+
+  async function refreshState(selectLastProfile = false) {
+    try {
+      const response = await fetch('/pricing/api/settings/state');
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro ao ler configuracao');
+      state = payload;
+      renderProfiles();
+      renderSeasonality();
+      renderDowMatrix();
+
+      if (selectLastProfile && state.profiles.length) {
+        selectProfile(state.profiles[state.profiles.length - 1].perfil_id);
+      } else if (selectedProfileId && state.profiles.some((item) => item.perfil_id === selectedProfileId)) {
+        selectProfile(selectedProfileId);
+      } else if (!selectedProfileId) {
+        resetProfileForm();
+      } else {
+        resetProfileForm();
+      }
+    } catch (error) {
+      setStatus(profileStatus, error.message, true);
+    }
+  }
+
+  async function saveProfile() {
+    setStatus(profileStatus, 'A gravar perfil...');
+    try {
+      const response = await fetch('/pricing/api/settings/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          perfil_id: selectedProfileId,
+          nome: profileNome.value,
+          k_pickup: profileKPickup.value,
+          lim_ajuste_min: profileLimMin.value,
+          lim_ajuste_max: profileLimMax.value,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a gravar perfil');
+      selectedProfileId = payload.perfil_id;
+      await refreshState(false);
+      setStatus(profileStatus, 'Perfil gravado.');
+    } catch (error) {
+      setStatus(profileStatus, error.message, true);
+    }
+  }
+
+  async function deleteProfile() {
+    if (!selectedProfileId) {
+      setStatus(profileStatus, 'Selecione um perfil para remover.', true);
+      return;
+    }
+    setStatus(profileStatus, 'A remover perfil...');
+    try {
+      const response = await fetch(`/pricing/api/settings/profile/${selectedProfileId}`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a remover perfil');
+      resetProfileForm();
+      await refreshState(false);
+      setStatus(profileStatus, 'Perfil removido.');
+    } catch (error) {
+      setStatus(profileStatus, error.message, true);
+    }
+  }
+
+  async function saveSeasonality() {
+    setStatus(seasonalityStatus, 'A gravar meses...');
+    const rows = Array.from(seasonalityBody.querySelectorAll('tr')).map((tr) => {
+      const indiceInput = tr.querySelector('input[data-field="indice"]');
+      const notaInput = tr.querySelector('input[data-field="nota"]');
+      return {
+        mes: Number(indiceInput.dataset.mes),
+        indice: indiceInput.value,
+        nota: notaInput.value,
+      };
+    });
+    try {
+      const response = await fetch('/pricing/api/settings/seasonality', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a gravar sazonalidade');
+      await refreshState(false);
+      setStatus(seasonalityStatus, 'Meses gravados.');
+    } catch (error) {
+      setStatus(seasonalityStatus, error.message, true);
+    }
+  }
+
+  async function saveDowMatrix() {
+    setStatus(dowStatus, 'A gravar matriz...');
+    const rows = Array.from(dowWrap.querySelectorAll('input[data-perfil-id]')).map((input) => ({
+      perfil_id: Number(input.dataset.perfilId),
+      dow: Number(input.dataset.dow),
+      fator: input.value,
+    }));
+    try {
+      const response = await fetch('/pricing/api/settings/dow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a gravar matriz');
+      await refreshState(false);
+      setStatus(dowStatus, 'Matriz gravada.');
+    } catch (error) {
+      setStatus(dowStatus, error.message, true);
+    }
+  }
+
+  document.getElementById('profileNewBtn').addEventListener('click', resetProfileForm);
+  document.getElementById('profileSaveBtn').addEventListener('click', saveProfile);
+  document.getElementById('profileDeleteBtn').addEventListener('click', deleteProfile);
+  document.getElementById('seasonalitySaveBtn').addEventListener('click', saveSeasonality);
+  document.getElementById('dowSaveBtn').addEventListener('click', saveDowMatrix);
+
+  renderProfiles();
+  renderSeasonality();
+  renderDowMatrix();
+  if (state.profiles.length) {
+    selectProfile(state.profiles[0].perfil_id);
+  } else {
+    resetProfileForm();
+  }
+})();
+</script>
+{% endblock %}

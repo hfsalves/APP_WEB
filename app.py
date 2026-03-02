@@ -34,6 +34,7 @@ from services.ft_pdf_service import (
     generate_ft_pdf_bytes_xhtml2pdf,
     discover_pdf_engines,
 )
+from price_engine import register_pricing
 
 # Importa a instÃ¢ncia db e modelos
 from models import db, US, Menu, Acessos, Widget, UsWidget, MenuBotoes, Linhas
@@ -98,6 +99,7 @@ def create_app():
 
     from blueprints.anexos import bp as anexos_bp
     app.register_blueprint(anexos_bp)
+    register_pricing(app)
 
     def _para_value_from_row(row):
         tipo = (row.get('TIPO') or '').strip().upper()
@@ -127,6 +129,24 @@ def create_app():
                 continue
             out[key] = _para_value_from_row(r)
         return out
+
+    def _token_expired(exp_value) -> bool:
+        if exp_value is None:
+            return False
+        try:
+            if isinstance(exp_value, datetime):
+                return exp_value.date() < date.today()
+            if isinstance(exp_value, date):
+                return exp_value < date.today()
+            txt = str(exp_value or '').strip()
+            if not txt:
+                return False
+            try:
+                return datetime.fromisoformat(txt[:19]).date() < date.today()
+            except Exception:
+                return date.fromisoformat(txt[:10]) < date.today()
+        except Exception:
+            return False
 
     @app.route('/planeamento_limpezas')
     @app.route('/planeamento_limpezas/')
@@ -357,7 +377,8 @@ def create_app():
         if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
             return render_template('r_public.html', invalid=True, page_data={})
 
-        sql = text("""
+        def _public_reserva_from_token(token_value: str):
+            sql = text("""
             SELECT TOP 1
                 RS.RSSTAMP,
                 RS.RESERVA,
@@ -385,21 +406,20 @@ def create_app():
               LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
             ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
         """)
-        row = db.session.execute(sql, {'t': tok}).mappings().first()
+            rowx = db.session.execute(sql, {'t': token_value}).mappings().first()
+            if not rowx:
+                return None
+            is_revoked = bool(rowx.get('GUIDE_TOKEN_REVOKED') or 0)
+            expx = rowx.get('GUIDE_TOKEN_EXPIRES')
+            if is_revoked:
+                return None
+            if _token_expired(expx):
+                return None
+            return dict(rowx)
+
+        row = _public_reserva_from_token(tok)
         if not row:
             return render_template('r_public.html', invalid=True, page_data={})
-
-        # Validade básica do token
-        is_revoked = bool(row.get('GUIDE_TOKEN_REVOKED') or 0)
-        exp = row.get('GUIDE_TOKEN_EXPIRES')
-        if is_revoked:
-            return render_template('r_public.html', invalid=True, page_data={})
-        if isinstance(exp, datetime):
-            if exp < datetime.now():
-                return render_template('r_public.html', invalid=True, page_data={})
-        elif isinstance(exp, date):
-            if exp < date.today():
-                return render_template('r_public.html', invalid=True, page_data={})
 
         def _fmt_date(v):
             if isinstance(v, datetime):
@@ -553,6 +573,235 @@ def create_app():
         page_data['poi_groups'] = [poi_groups_map[k] for k in poi_groups_order]
         return render_template('r_public.html', invalid=False, page_data=page_data)
 
+    @app.route('/api/r/<token>/guests', methods=['GET'])
+    def public_reserva_guests_get(token):
+        tok = (token or '').strip()
+        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                RS.RSSTAMP,
+                RS.ADULTOS,
+                RS.CRIANCAS,
+                RS.GUIDE_TOKEN_EXPIRES,
+                RS.GUIDE_TOKEN_REVOKED
+            FROM dbo.RS RS
+            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
+            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
+        """), {'t': tok}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+        exp = row.get('GUIDE_TOKEN_EXPIRES')
+        if _token_expired(exp):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+
+        rsstamp = (row.get('RSSTAMP') or '').strip()
+        total_guests = max(1, int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0))
+
+        g_rows = db.session.execute(text("""
+            SELECT
+              RSGUESTSTAMP,
+              RSSTAMP,
+              ISNULL(NOME_COMPLETO,'') AS NOME_COMPLETO,
+              ISNULL(NOME,'') AS NOME,
+              ISNULL(APELIDO,'') AS APELIDO,
+              DTNASC,
+              ISNULL(NACIONALIDADE,'') AS NACIONALIDADE,
+              ISNULL(PAIS_RESIDENCIA,'') AS PAIS_RESIDENCIA,
+              ISNULL(TIPO_DOC,'') AS TIPO_DOC,
+              ISNULL(NUM_DOC,'') AS NUM_DOC,
+              ISNULL(PAIS_EMISSOR_DOC,'') AS PAIS_EMISSOR_DOC,
+              ISNULL(HORAIN,'') AS HORAIN,
+              ISNULL(HORAOUT,'') AS HORAOUT,
+              ISNULL(TRANSPORTE,'') AS TRANSPORTE,
+              ISNULL(VOO,'') AS VOO,
+              ISNULL(BERCO,0) AS BERCO
+            FROM dbo.RSGUESTS
+            WHERE RSSTAMP=:r AND ISNULL(ATIVO,1)=1
+            ORDER BY ISNULL(DTCRI,'19000101'), RSGUESTSTAMP
+        """), {'r': rsstamp}).mappings().all()
+
+        guests = []
+        for gr in g_rows[:total_guests]:
+            dtn = gr.get('DTNASC')
+            dtn_str = ''
+            if isinstance(dtn, datetime):
+                dtn_str = dtn.date().isoformat()
+            elif isinstance(dtn, date):
+                dtn_str = dtn.isoformat()
+            guests.append({
+                'rsgueststamp': (gr.get('RSGUESTSTAMP') or '').strip(),
+                'nome_completo': (gr.get('NOME_COMPLETO') or '').strip(),
+                'nome': (gr.get('NOME') or '').strip(),
+                'apelido': (gr.get('APELIDO') or '').strip(),
+                'dtnasc': dtn_str,
+                'nacionalidade': (gr.get('NACIONALIDADE') or '').strip(),
+                'pais_residencia': (gr.get('PAIS_RESIDENCIA') or '').strip(),
+                'tipo_doc': (gr.get('TIPO_DOC') or '').strip(),
+                'num_doc': (gr.get('NUM_DOC') or '').strip(),
+                'pais_emissor_doc': (gr.get('PAIS_EMISSOR_DOC') or '').strip(),
+                'horain': (gr.get('HORAIN') or '').strip(),
+                'horaout': (gr.get('HORAOUT') or '').strip(),
+                'transporte': (gr.get('TRANSPORTE') or '').strip(),
+                'voo': (gr.get('VOO') or '').strip(),
+                'berco': bool(gr.get('BERCO') or 0),
+            })
+        while len(guests) < total_guests:
+            guests.append({
+                'rsgueststamp': '',
+                'nome_completo': '',
+                'nome': '',
+                'apelido': '',
+                'dtnasc': '',
+                'nacionalidade': '',
+                'pais_residencia': '',
+                'tipo_doc': '',
+                'num_doc': '',
+                'pais_emissor_doc': '',
+                'horain': '',
+                'horaout': '',
+                'transporte': '',
+                'voo': '',
+                'berco': False,
+            })
+
+        def _is_complete(g):
+            if not str(g.get('nome_completo') or '').strip():
+                return False
+            dtn = str(g.get('dtnasc') or '').strip()
+            if not dtn or dtn in ('1900-01-01', '0001-01-01'):
+                return False
+            if not str(g.get('nacionalidade') or '').strip():
+                return False
+            if not str(g.get('tipo_doc') or '').strip():
+                return False
+            if not str(g.get('num_doc') or '').strip():
+                return False
+            if not str(g.get('pais_emissor_doc') or '').strip():
+                return False
+            return True
+
+        return jsonify({
+            'ok': True,
+            'rsstamp': rsstamp,
+            'total_guests': total_guests,
+            'guests': guests,
+            'complete': all(_is_complete(g) for g in guests),
+        })
+
+    @app.route('/api/r/<token>/guests', methods=['POST'])
+    def public_reserva_guests_save(token):
+        tok = (token or '').strip()
+        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                RS.RSSTAMP,
+                RS.ADULTOS,
+                RS.CRIANCAS,
+                RS.GUIDE_TOKEN_EXPIRES,
+                RS.GUIDE_TOKEN_REVOKED
+            FROM dbo.RS RS
+            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
+            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
+        """), {'t': tok}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+        exp = row.get('GUIDE_TOKEN_EXPIRES')
+        if _token_expired(exp):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+
+        rsstamp = (row.get('RSSTAMP') or '').strip()
+        total_guests = max(1, int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0))
+        body = request.get_json(silent=True) or {}
+        try:
+            index = int(body.get('index') or 1)
+        except Exception:
+            index = 1
+        index = max(1, min(total_guests, index))
+        guest = body.get('guest') or {}
+
+        existing = db.session.execute(text("""
+            SELECT RSGUESTSTAMP
+            FROM dbo.RSGUESTS
+            WHERE RSSTAMP=:r AND ISNULL(ATIVO,1)=1
+            ORDER BY ISNULL(DTCRI,'19000101'), RSGUESTSTAMP
+        """), {'r': rsstamp}).mappings().all()
+        target = None
+        if len(existing) >= index:
+            target = (existing[index - 1].get('RSGUESTSTAMP') or '').strip()
+
+        nome_completo = str(guest.get('nome_completo') or '').strip()[:200]
+        nome = str(guest.get('nome') or '').strip()[:100]
+        apelido = str(guest.get('apelido') or '').strip()[:100]
+        if not nome and not apelido and nome_completo:
+            parts = [p for p in nome_completo.split() if p]
+            if parts:
+                nome = parts[0][:100]
+                if len(parts) > 1:
+                    apelido = ' '.join(parts[1:])[:100]
+
+        dtn_raw = str(guest.get('dtnasc') or '').strip()
+        dtn_val = '1900-01-01'
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', dtn_raw):
+            dtn_val = dtn_raw
+
+        vals = {
+            'nome_completo': nome_completo,
+            'nome': nome,
+            'apelido': apelido,
+            'dtnasc': dtn_val,
+            'nacionalidade': str(guest.get('nacionalidade') or '').strip()[:60],
+            'pais_residencia': str(guest.get('pais_residencia') or '').strip()[:60],
+            'tipo_doc': str(guest.get('tipo_doc') or '').strip()[:30],
+            'num_doc': str(guest.get('num_doc') or '').strip()[:40],
+            'pais_emissor_doc': str(guest.get('pais_emissor_doc') or '').strip()[:60],
+            'horain': str(guest.get('horain') or '').strip()[:5],
+            'horaout': str(guest.get('horaout') or '').strip()[:5],
+            'transporte': str(guest.get('transporte') or '').strip()[:30],
+            'voo': str(guest.get('voo') or '').strip()[:20],
+            'berco': 1 if bool(guest.get('berco')) else 0,
+        }
+
+        if target:
+            db.session.execute(text("""
+                UPDATE dbo.RSGUESTS
+                SET
+                  NOME_COMPLETO=:nome_completo,
+                  NOME=:nome,
+                  APELIDO=:apelido,
+                  DTNASC=:dtnasc,
+                  NACIONALIDADE=:nacionalidade,
+                  PAIS_RESIDENCIA=:pais_residencia,
+                  TIPO_DOC=:tipo_doc,
+                  NUM_DOC=:num_doc,
+                  PAIS_EMISSOR_DOC=:pais_emissor_doc,
+                  HORAIN=:horain,
+                  HORAOUT=:horaout,
+                  TRANSPORTE=:transporte,
+                  VOO=:voo,
+                  BERCO=:berco,
+                  DTALT=GETDATE()
+                WHERE RSGUESTSTAMP=:s
+            """), {**vals, 's': target})
+        else:
+            db.session.execute(text("""
+                INSERT INTO dbo.RSGUESTS
+                (RSGUESTSTAMP, RSSTAMP, NOME_COMPLETO, NOME, APELIDO, DTNASC, NACIONALIDADE, PAIS_RESIDENCIA,
+                 TIPO_DOC, NUM_DOC, PAIS_EMISSOR_DOC, ATIVO, DTCRI, DTALT, HORAIN, HORAOUT, TRANSPORTE, VOO, BERCO)
+                VALUES
+                (:s, :r, :nome_completo, :nome, :apelido, :dtnasc, :nacionalidade, :pais_residencia,
+                 :tipo_doc, :num_doc, :pais_emissor_doc, 1, GETDATE(), NULL, :horain, :horaout, :transporte, :voo, :berco)
+            """), {**vals, 's': _new_stamp_25(), 'r': rsstamp})
+        db.session.commit()
+        return public_reserva_guests_get(token)
+
     @app.route('/logout')
     @login_required
     def logout():
@@ -695,6 +944,17 @@ def create_app():
     def faturacao_ft_list():
         return render_template('ft_faturacao_list.html')
 
+    @app.route('/faturacao/reservas')
+    @app.route('/faturacao_reservas')
+    @login_required
+    def faturacao_reservas_page():
+        today = date.today()
+        return render_template(
+            'faturacao_reservas.html',
+            ano_inicial=today.year,
+            mes_inicial=today.month,
+        )
+
     @app.route('/faturacao/ft/new')
     @login_required
     def faturacao_ft_new():
@@ -814,6 +1074,141 @@ def create_app():
         rows = db.session.execute(text(sql), params).mappings().all()
         return jsonify([dict(r) for r in rows])
 
+    @app.route('/api/faturacao/reservas', methods=['GET'])
+    @login_required
+    def api_faturacao_reservas():
+        today = date.today()
+        try:
+            ano = int(request.args.get('ano') or today.year)
+        except Exception:
+            ano = today.year
+        try:
+            mes = int(request.args.get('mes') or today.month)
+        except Exception:
+            mes = today.month
+        mes = max(1, min(12, mes))
+
+        if (ano > today.year) or (ano == today.year and mes > today.month):
+            return jsonify({'ano': ano, 'mes': mes, 'rows': []})
+
+        try:
+            rs_cols = db.session.execute(text("""
+                SELECT UPPER(COLUMN_NAME) AS CN
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME='RS'
+            """)).mappings().all()
+            rs_colset = {str(r.get('CN') or '').upper() for r in rs_cols}
+        except Exception:
+            rs_colset = set()
+
+        try:
+            ft_cols = db.session.execute(text("""
+                SELECT UPPER(COLUMN_NAME) AS CN
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME='FT'
+            """)).mappings().all()
+            ft_colset = {str(r.get('CN') or '').upper() for r in ft_cols}
+        except Exception:
+            ft_colset = set()
+
+        adultos_expr = "ISNULL(RS.ADULTOS,0)" if 'ADULTOS' in rs_colset else "0"
+        criancas_expr = "ISNULL(RS.CRIANCAS,0)" if 'CRIANCAS' in rs_colset else "0"
+        noites_expr = "ISNULL(RS.NOITES,0)" if 'NOITES' in rs_colset else "0"
+        nome_hospede_expr = "ISNULL(RS.NOME,'')" if 'NOME' in rs_colset else "''"
+        reserva_expr = "ISNULL(RS.RESERVA,'')" if 'RESERVA' in rs_colset else "''"
+
+        faturado_expr = "0"
+        reserva_match_expr = "1=0"
+        if 'RESERVA' in ft_colset and 'RESERVA' in rs_colset:
+            reserva_match_expr = "LTRIM(RTRIM(ISNULL(FT.RESERVA,''))) = LTRIM(RTRIM(ISNULL(RS.RESERVA,'')))"
+            faturado_expr = """
+              CASE WHEN EXISTS(
+                 SELECT 1
+                 FROM dbo.FT FT
+                 WHERE ISNULL(FT.ANULADA,0)=0
+                   AND ISNULL(FT.ESTADO,0)=1
+                   AND LTRIM(RTRIM(ISNULL(FT.RESERVA,''))) = LTRIM(RTRIM(ISNULL(RS.RESERVA,'')))
+              ) THEN 1 ELSE 0 END
+            """
+
+        sql = f"""
+            SELECT
+              RS.RSSTAMP,
+              {reserva_expr} AS RESERVA,
+              ISNULL(RS.ALOJAMENTO, AL.NOME) AS ALOJAMENTO,
+              {nome_hospede_expr} AS HOSPEDE,
+              CAST(RS.DATAIN AS date) AS DATAIN,
+              CAST(RS.DATAOUT AS date) AS DATAOUT,
+              {noites_expr} AS NOITES,
+              ({adultos_expr} + {criancas_expr}) AS PAX,
+              ISNULL(RS.ESTADIA, 0) AS ESTADIA,
+              ISNULL(RS.LIMPEZA, 0) AS LIMPEZA,
+              {faturado_expr} AS FATURADO,
+              ISNULL((
+                 SELECT TOP 1
+                   CASE
+                     WHEN ISNULL(FT.SERIE,'')='' THEN CONVERT(varchar(20), ISNULL(FT.FNO,0))
+                     ELSE ISNULL(FT.SERIE,'') + '/' + CONVERT(varchar(20), ISNULL(FT.FNO,0))
+                   END
+                 FROM dbo.FT FT
+                 WHERE ISNULL(FT.ANULADA,0)=0
+                   AND ISNULL(FT.ESTADO,0)=1
+                   AND ({reserva_match_expr})
+                 ORDER BY ISNULL(FT.FNO,0) DESC
+              ), '') AS FATURA_LABEL,
+              ISNULL((
+                 SELECT TOP 1 FT.FTSTAMP
+                 FROM dbo.FT FT
+                 WHERE ISNULL(FT.ANULADA,0)=0
+                   AND ISNULL(FT.ESTADO,0)=1
+                   AND ({reserva_match_expr})
+                 ORDER BY ISNULL(FT.FNO,0) DESC
+              ), '') AS FTSTAMP_FATURA
+            FROM dbo.RS RS
+            INNER JOIN dbo.AL AL
+              ON LTRIM(RTRIM(AL.NOME)) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+            WHERE
+              UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) = 'EXPLORACAO'
+              AND RS.DATAOUT IS NOT NULL
+              AND YEAR(CAST(RS.DATAOUT AS date)) = :ano
+              AND MONTH(CAST(RS.DATAOUT AS date)) = :mes
+              AND CAST(RS.DATAOUT AS date) <= CAST(GETDATE() AS date)
+              AND ISNULL(RS.CANCELADA,0) = 0
+            ORDER BY CAST(RS.DATAOUT AS date), ISNULL(RS.ALOJAMENTO, AL.NOME), ISNULL(RS.RESERVA,'')
+        """
+
+        rows = db.session.execute(text(sql), {'ano': ano, 'mes': mes}).mappings().all()
+
+        out = []
+        pdf_base = os.environ.get('FT_PDF_DIR', '').strip() or os.path.join(app.root_path, 'storage', 'pdf', 'ft')
+        for r in rows:
+            ftstamp_fat = (r.get('FTSTAMP_FATURA') or '').strip()
+            pdf_ok = 0
+            if ftstamp_fat:
+                try:
+                    safe = re.sub(r'[^A-Za-z0-9_\\-]+', '', ftstamp_fat)[:25] or 'unknown'
+                    p = os.path.join(pdf_base, f'{safe}.pdf')
+                    pdf_ok = 1 if (os.path.isfile(p) and os.path.getsize(p) > 0) else 0
+                except Exception:
+                    pdf_ok = 0
+            out.append({
+                'RSSTAMP': (r.get('RSSTAMP') or '').strip(),
+                'RESERVA': (r.get('RESERVA') or '').strip(),
+                'ALOJAMENTO': (r.get('ALOJAMENTO') or '').strip(),
+                'HOSPEDE': (r.get('HOSPEDE') or '').strip(),
+                'DATAIN': (r.get('DATAIN').strftime('%Y-%m-%d') if r.get('DATAIN') else ''),
+                'DATAOUT': (r.get('DATAOUT').strftime('%Y-%m-%d') if r.get('DATAOUT') else ''),
+                'NOITES': int(r.get('NOITES') or 0),
+                'PAX': int(r.get('PAX') or 0),
+                'ESTADIA': float(r.get('ESTADIA') or 0),
+                'LIMPEZA': float(r.get('LIMPEZA') or 0),
+                'FATURADO': int(r.get('FATURADO') or 0),
+                'FATURA_LABEL': (r.get('FATURA_LABEL') or '').strip(),
+                'FTSTAMP_FATURA': (r.get('FTSTAMP_FATURA') or '').strip(),
+                'PDF_OK': pdf_ok,
+            })
+        return jsonify({'ano': ano, 'mes': mes, 'rows': out})
+
     @app.route('/api/faturacao/clientes', methods=['GET'])
     @login_required
     def api_faturacao_clientes():
@@ -897,33 +1292,151 @@ def create_app():
             return jsonify({'error': 'Documento não encontrado'}), 404
         return jsonify({'header': ft, 'lines': fi})
 
+    def _ft_pdf_dir() -> str:
+        base = os.environ.get('FT_PDF_DIR', '').strip()
+        if not base:
+            base = os.path.join(app.root_path, 'storage', 'pdf', 'ft')
+        os.makedirs(base, exist_ok=True)
+        return base
+
+    def _ft_pdf_cache_path(stamp: str) -> str:
+        safe = re.sub(r'[^A-Za-z0-9_\-]+', '', str(stamp or '').strip())[:25]
+        if not safe:
+            safe = 'unknown'
+        return os.path.join(_ft_pdf_dir(), f'{safe}.pdf')
+
+    def _ft_pdf_lock_path(stamp: str) -> str:
+        return _ft_pdf_cache_path(stamp) + '.lock'
+
+    def _ft_pdf_read_cached(stamp: str):
+        path = _ft_pdf_cache_path(stamp)
+        if os.path.isfile(path) and os.path.getsize(path) > 0:
+            with open(path, 'rb') as fh:
+                return fh.read()
+        return None
+
+    def _ft_pdf_write_cached(stamp: str, pdf_bytes: bytes):
+        path = _ft_pdf_cache_path(stamp)
+        tmp = f"{path}.tmp"
+        with open(tmp, 'wb') as fh:
+            fh.write(pdf_bytes or b'')
+        os.replace(tmp, path)
+
+    def _ft_pdf_generate_once(ftstamp: str):
+        ft, fi_rows, fe = get_ft_pdf_data(db.session, ftstamp)
+        if not ft:
+            raise ValueError('Documento não encontrado')
+        modo_teste_raw = str(qr_get_param(db.session, 'MODO_TESTE_AT', '0') or '0').strip().lower()
+        modo_teste = modo_teste_raw in ('1', 'true', 'sim', 'yes')
+        at_certificado = str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
+        qr_b64 = build_ft_qr_base64(ft.get('CODIGOQR') or '')
+        html = render_ft_pdf_html(ft, fi_rows, fe or {}, qr_b64, at_certificado=at_certificado, modo_teste=modo_teste)
+        try:
+            return generate_ft_pdf_bytes(html), 'weasy/chrome'
+        except Exception as e:
+            try:
+                return generate_ft_pdf_bytes_xhtml2pdf(html), 'xhtml2pdf-fallback'
+            except Exception as e_fb:
+                raise RuntimeError(
+                    f"Erro a gerar PDF (html={e}; xhtml2pdf={e_fb})\n"
+                    "Hint: instale/ative um motor HTML->PDF no servidor (CHROME_PATH ou runtime GTK)."
+                )
+
+    def _ft_pdf_ensure_cached(ftstamp: str, wait_if_busy: bool = True, wait_timeout: float = 45.0):
+        cached = _ft_pdf_read_cached(ftstamp)
+        if cached:
+            return cached, 'cached-file'
+
+        lock_path = _ft_pdf_lock_path(ftstamp)
+        lock_fd = None
+        own_lock = False
+
+        try:
+            try:
+                lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(lock_fd, f"{time.time()}".encode('ascii', errors='ignore'))
+                os.close(lock_fd)
+                lock_fd = None
+                own_lock = True
+                acquired = True
+            except FileExistsError:
+                acquired = False
+
+            if not acquired and wait_if_busy:
+                deadline = time.time() + max(1.0, float(wait_timeout or 0))
+                while time.time() < deadline:
+                    cached = _ft_pdf_read_cached(ftstamp)
+                    if cached:
+                        return cached, 'cached-after-wait'
+                    if not os.path.exists(lock_path):
+                        break
+                    time.sleep(0.35)
+
+            if not acquired:
+                try:
+                    if os.path.exists(lock_path):
+                        age = time.time() - os.path.getmtime(lock_path)
+                        if age > 180:
+                            os.remove(lock_path)
+                except Exception:
+                    pass
+                try:
+                    lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                    os.write(lock_fd, f"{time.time()}".encode('ascii', errors='ignore'))
+                    os.close(lock_fd)
+                    lock_fd = None
+                    own_lock = True
+                    acquired = True
+                except FileExistsError:
+                    acquired = False
+
+            if not acquired:
+                cached = _ft_pdf_read_cached(ftstamp)
+                if cached:
+                    return cached, 'cached-file'
+                raise RuntimeError('PDF em geração. Tente novamente em instantes.')
+
+            pdf_bytes, engine = _ft_pdf_generate_once(ftstamp)
+            _ft_pdf_write_cached(ftstamp, pdf_bytes)
+            return pdf_bytes, engine
+        finally:
+            try:
+                if lock_fd is not None:
+                    os.close(lock_fd)
+            except Exception:
+                pass
+            try:
+                if own_lock and os.path.exists(lock_path):
+                    os.remove(lock_path)
+            except Exception:
+                pass
+
+    def _spawn_ft_pdf_cache_job(ftstamp: str):
+        def _worker():
+            with app.app_context():
+                try:
+                    _ft_pdf_ensure_cached(ftstamp, wait_if_busy=False, wait_timeout=0)
+                except Exception as e:
+                    try:
+                        app.logger.warning(f'Falha a pré-gerar PDF FT {ftstamp}: {e}')
+                    except Exception:
+                        pass
+        th = threading.Thread(target=_worker, name=f'ft-pdf-cache-{ftstamp[:8]}', daemon=True)
+        th.start()
+
     @app.route('/api/faturacao/ft/<ftstamp>/pdf', methods=['GET'])
     @login_required
     def api_faturacao_ft_pdf(ftstamp):
         ft, fi_rows, fe = get_ft_pdf_data(db.session, ftstamp)
         if not ft:
             return jsonify({'error': 'Documento não encontrado'}), 404
-        modo_teste_raw = str(qr_get_param(db.session, 'MODO_TESTE_AT', '0') or '0').strip().lower()
-        modo_teste = modo_teste_raw in ('1', 'true', 'sim', 'yes')
-        at_certificado = str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
-        qr_b64 = ''
-        pdf_engine = 'weasy/chrome'
-        force_html = str(request.args.get('force_html', '1')).strip().lower() in ('1', 'true', 'yes', 'sim')
-        html = ''
         try:
-            qr_b64 = build_ft_qr_base64(ft.get('CODIGOQR') or '')
-            html = render_ft_pdf_html(ft, fi_rows, fe or {}, qr_b64, at_certificado=at_certificado, modo_teste=modo_teste)
-            pdf_bytes = generate_ft_pdf_bytes(html)
+            if int(ft.get('ESTADO') or 0) == 1:
+                pdf_bytes, pdf_engine = _ft_pdf_ensure_cached(ftstamp, wait_if_busy=True, wait_timeout=45)
+            else:
+                pdf_bytes, pdf_engine = _ft_pdf_generate_once(ftstamp)
         except Exception as e:
-            try:
-                pdf_bytes = generate_ft_pdf_bytes_xhtml2pdf(html)
-                pdf_engine = 'xhtml2pdf-fallback'
-            except Exception as e_fb:
-                msg = (
-                    f"Erro a gerar PDF (html={e}; xhtml2pdf={e_fb})\n"
-                    "Hint: instale/ative um motor HTML->PDF no servidor (CHROME_PATH ou runtime GTK)."
-                )
-                return Response(msg, status=500, content_type='text/plain; charset=utf-8')
+            return Response(str(e), status=500, content_type='text/plain; charset=utf-8')
 
         def _safe_name(v):
             txt = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(v or '').strip())
@@ -945,6 +1458,26 @@ def create_app():
             'X-PDF-Engine': pdf_engine
         }
         return Response(pdf_bytes, headers=headers)
+
+    @app.route('/api/faturacao/ft/<ftstamp>/pdf/cache', methods=['POST'])
+    @login_required
+    def api_faturacao_ft_pdf_cache(ftstamp):
+        ft, _, _ = get_ft_pdf_data(db.session, ftstamp)
+        if not ft:
+            return jsonify({'error': 'Documento não encontrado'}), 404
+        try:
+            if int(ft.get('ESTADO') or 0) != 1:
+                return jsonify({'error': 'Só é possível gerar cache de PDF para documentos emitidos.'}), 400
+            _, engine = _ft_pdf_ensure_cached(ftstamp, wait_if_busy=True, wait_timeout=45)
+            path = _ft_pdf_cache_path(ftstamp)
+            return jsonify({
+                'ok': True,
+                'ftstamp': ftstamp,
+                'engine': engine,
+                'cached': bool(os.path.isfile(path) and os.path.getsize(path) > 0)
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/api/faturacao/ft/<ftstamp>/pdf/html', methods=['GET'])
     @login_required
@@ -1071,29 +1604,146 @@ def create_app():
         db.session.commit()
         return jsonify({'ok': True, 'totals': {'ETTILIQ': ettiliq, 'ETTIVA': ettiva, 'ETOTAL': etotal}})
 
+    def _emit_ft_core_global(ftstamp_emit: str, user_login_emit: str):
+        row = db.session.execute(text("""
+            SELECT TOP 1 FTSTAMP, NDOC, NMDOC, SERIE, FDATA, FTANO, FESTAMP, NO, NOME, BLOQUEADO, ESTADO, ANULADA
+            FROM dbo.FT WITH (UPDLOCK, ROWLOCK)
+            WHERE FTSTAMP=:s
+        """), {'s': ftstamp_emit}).mappings().first()
+        if not row:
+            raise ValueError('Documento não encontrado')
+        if int(row.get('BLOQUEADO') or 0) == 1:
+            raise ValueError('Documento já bloqueado')
+        if int(row.get('ESTADO') or 0) != 0:
+            raise ValueError('Documento não está em rascunho.')
+        if int(row.get('ANULADA') or 0) == 1:
+            raise ValueError('Documento anulado não pode ser emitido.')
+
+        ndoc = _to_int(row.get('NDOC'), 0)
+        serie = (row.get('SERIE') or '').strip()
+        festamp = (row.get('FESTAMP') or '').strip()
+        fdata = row.get('FDATA')
+        no = _to_int(row.get('NO'), 0)
+        nome = (row.get('NOME') or '').strip()
+        ftano = _to_int(row.get('FTANO'), _to_int(str(fdata)[:4], date.today().year))
+        if ndoc <= 0 or not serie or not fdata or not festamp or not nome:
+            raise ValueError('Preenche entidade emissora, tipo doc, série, data e entidade antes de emitir.')
+
+        c = db.session.execute(text("""
+            SELECT COUNT(1) AS C
+            FROM dbo.FI WITH (UPDLOCK, ROWLOCK)
+            WHERE FTSTAMP=:s AND ISNULL(QTT,0) > 0
+        """), {'s': ftstamp_emit}).mappings().first()
+        if _to_int(c.get('C'), 0) <= 0:
+            raise ValueError('Documento sem linhas válidas.')
+
+        srow = db.session.execute(text("""
+            SELECT TOP 1 FTSSTAMP, ISNULL(ULTIMO_FNO,0) AS ULTIMO_FNO, ISNULL(NO_SAFT,0) AS NO_SAFT
+            FROM dbo.FTS WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
+            WHERE FESTAMP=:festamp AND NDOC=:ndoc AND ISNULL(SERIE,'')=:serie AND ANO=:ano AND ISNULL(ATIVA,0)=1
+        """), {'festamp': festamp, 'ndoc': ndoc, 'serie': serie, 'ano': ftano}).mappings().first()
+        if not srow:
+            raise ValueError('Série não certificada/ativa para esta entidade e ano.')
+        if int(srow.get('NO_SAFT') or 0) != 1:
+            if isinstance(fdata, datetime):
+                fdata_date = fdata.date()
+            elif isinstance(fdata, date):
+                fdata_date = fdata
+            else:
+                fdata_date = datetime.fromisoformat(str(fdata)[:10]).date()
+            if fdata_date < (date.today() - timedelta(days=5)):
+                raise ValueError('Séries SAFT não permitem emissão com data anterior a 5 dias.')
+
+        fi_rows = db.session.execute(text("""
+            SELECT * FROM dbo.FI WITH (UPDLOCK, ROWLOCK)
+            WHERE FTSTAMP=:s ORDER BY ISNULL(LORDEM,0), FISTAMP
+        """), {'s': ftstamp_emit}).mappings().all()
+        _, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown([dict(r) for r in fi_rows])
+        new_fno = _to_int(srow.get('ULTIMO_FNO'), 0) + 1
+
+        db.session.execute(text("""
+            UPDATE dbo.FT SET
+              FNO=:fno, FTANO=:ano, ETTILIQ=:ETTILIQ, ETTIVA=:ETTIVA, ETOTAL=:ETOTAL,
+              IVATX1=:IVATX1, IVATX2=:IVATX2, IVATX3=:IVATX3, IVATX4=:IVATX4, IVATX5=:IVATX5, IVATX6=:IVATX6, IVATX7=:IVATX7, IVATX8=:IVATX8, IVATX9=:IVATX9,
+              EIVAIN1=:EIVAIN1, EIVAIN2=:EIVAIN2, EIVAIN3=:EIVAIN3, EIVAIN4=:EIVAIN4, EIVAIN5=:EIVAIN5, EIVAIN6=:EIVAIN6, EIVAIN7=:EIVAIN7, EIVAIN8=:EIVAIN8, EIVAIN9=:EIVAIN9,
+              EIVAV1=:EIVAV1, EIVAV2=:EIVAV2, EIVAV3=:EIVAV3, EIVAV4=:EIVAV4, EIVAV5=:EIVAV5, EIVAV6=:EIVAV6, EIVAV7=:EIVAV7, EIVAV8=:EIVAV8, EIVAV9=:EIVAV9,
+              DTAlteracao=GETDATE(), USERALTERACAO=:u
+            WHERE FTSTAMP=:s
+        """), {
+            'fno': new_fno, 'ano': ftano, 's': ftstamp_emit, 'u': user_login_emit,
+            'ETTILIQ': ettiliq, 'ETTIVA': ettiva, 'ETOTAL': etotal,
+            'IVATX1': ivatx[0], 'IVATX2': ivatx[1], 'IVATX3': ivatx[2], 'IVATX4': ivatx[3], 'IVATX5': ivatx[4], 'IVATX6': ivatx[5], 'IVATX7': ivatx[6], 'IVATX8': ivatx[7], 'IVATX9': ivatx[8],
+            'EIVAIN1': eivain[0], 'EIVAIN2': eivain[1], 'EIVAIN3': eivain[2], 'EIVAIN4': eivain[3], 'EIVAIN5': eivain[4], 'EIVAIN6': eivain[5], 'EIVAIN7': eivain[6], 'EIVAIN8': eivain[7], 'EIVAIN9': eivain[8],
+            'EIVAV1': eivav[0], 'EIVAV2': eivav[1], 'EIVAV3': eivav[2], 'EIVAV4': eivav[3], 'EIVAV5': eivav[4], 'EIVAV6': eivav[5], 'EIVAV7': eivav[6], 'EIVAV8': eivav[7], 'EIVAV9': eivav[8],
+        })
+        db.session.execute(text("UPDATE dbo.FI SET FNO=:fno WHERE FTSTAMP=:s"), {'fno': new_fno, 's': ftstamp_emit})
+
+        signed = sign_ft_document(db.session, ftstamp_emit, user_login_emit)
+        ft_emit = db.session.execute(text("SELECT TOP 1 * FROM dbo.FT WITH (UPDLOCK, ROWLOCK) WHERE FTSTAMP=:s"), {'s': ftstamp_emit}).mappings().first()
+        if not ft_emit:
+            raise ValueError('Documento não encontrado após assinatura.')
+        ft_emit = dict(ft_emit)
+        fe_row = db.session.execute(text("SELECT TOP 1 FESTAMP, NIF, ISNULL(KEYID,'') AS KEYID FROM dbo.FE WHERE FESTAMP=:f"), {'f': (ft_emit.get('FESTAMP') or '').strip()}).mappings().first()
+        if not fe_row:
+            raise ValueError('Emitente FE não encontrado.')
+        fe_row = dict(fe_row)
+
+        modo_teste_raw = str(qr_get_param(db.session, 'MODO_TESTE_AT', '0') or '0').strip().lower()
+        modo_teste = modo_teste_raw in ('1', 'true', 'sim', 'yes')
+        certificado = str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
+        qr_version = str(qr_get_param(db.session, 'QR_VERSION', '') or '').strip()
+        cod_validacao, ftsstamp_for_qr = get_serie_validation_code(db.session, ft_emit)
+        if modo_teste and not cod_validacao:
+            cod_validacao = 'TESTE'
+        if modo_teste and not certificado:
+            certificado = '12345'
+        qr_validate_requirements(modo_teste, cod_validacao, certificado, bool(ftsstamp_for_qr))
+        atcud = build_atcud(cod_validacao, _to_int(ft_emit.get('FNO'), 0))
+        ft_for_qr = dict(ft_emit); ft_for_qr['HASH'] = signed.get('HASH') or ''; ft_for_qr['_QR_VERSION'] = qr_version
+        codigo_qr = build_qr_payload(ft_for_qr, fe_row, atcud, certificado, modo_teste)
+
+        db.session.execute(text("""
+            UPDATE dbo.FT
+            SET HASHVER=:HASHVER, HASHANT=:HASHANT, HASH=:HASH, ASSINATURA=:ASSINATURA, KEYID=:KEYID,
+                ATCUD=:ATCUD, CODIGOQR=:CODIGOQR, ESTADO=1, BLOQUEADO=1, DTAlteracao=GETDATE(), USERALTERACAO=:u
+            WHERE FTSTAMP=:s
+        """), {
+            'HASHVER': signed.get('HASHVER') or '1', 'HASHANT': signed.get('HASHANT') or '', 'HASH': signed.get('HASH') or '',
+            'ASSINATURA': signed.get('ASSINATURA') or '', 'KEYID': signed.get('KEYID') or '', 'ATCUD': atcud, 'CODIGOQR': codigo_qr,
+            'u': user_login_emit, 's': ftstamp_emit
+        })
+        db.session.execute(text("UPDATE dbo.FTS SET ULTIMO_FNO=:fno, DTAlteracao=GETDATE(), USERALTERACAO=:u WHERE FTSSTAMP=:s"),
+                           {'fno': new_fno, 'u': user_login_emit, 's': srow.get('FTSSTAMP')})
+        try:
+            db.session.execute(text("UPDATE dbo.FTSX SET LAST_HASH=:h WHERE FTSSTAMP=:s"),
+                               {'h': signed.get('HASH') or '', 's': srow.get('FTSSTAMP')})
+        except Exception:
+            pass
+        db.session.commit()
+        try:
+            _spawn_ft_pdf_cache_job(ftstamp_emit)
+        except Exception:
+            pass
+        return {'ok': True, 'FNO': new_fno, 'HASH': signed.get('HASH') or '', 'ATCUD': atcud, 'ESTADO': 1}
+
     @app.route('/api/faturacao/ft/<ftstamp>/emitir', methods=['POST'])
     @login_required
     def api_faturacao_ft_emitir(ftstamp):
-        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
-        try:
+        def _emit_ft_core(ftstamp_emit: str, user_login_emit: str):
             row = db.session.execute(text("""
                 SELECT TOP 1 FTSTAMP, NDOC, NMDOC, SERIE, FDATA, FTANO, FESTAMP, NO, NOME, BLOQUEADO, ESTADO, ANULADA
                 FROM dbo.FT WITH (UPDLOCK, ROWLOCK)
                 WHERE FTSTAMP=:s
-            """), {'s': ftstamp}).mappings().first()
+            """), {'s': ftstamp_emit}).mappings().first()
             if not row:
-                db.session.rollback()
-                return jsonify({'error': 'Documento não encontrado'}), 404
+                raise ValueError('Documento não encontrado')
 
             if int(row.get('BLOQUEADO') or 0) == 1:
-                db.session.rollback()
-                return jsonify({'error': 'Documento já bloqueado'}), 400
+                raise ValueError('Documento já bloqueado')
             if int(row.get('ESTADO') or 0) != 0:
-                db.session.rollback()
-                return jsonify({'error': 'Documento não está em rascunho.'}), 400
+                raise ValueError('Documento não está em rascunho.')
             if int(row.get('ANULADA') or 0) == 1:
-                db.session.rollback()
-                return jsonify({'error': 'Documento anulado não pode ser emitido.'}), 400
+                raise ValueError('Documento anulado não pode ser emitido.')
 
             ndoc = _to_int(row.get('NDOC'), 0)
             serie = (row.get('SERIE') or '').strip()
@@ -1102,21 +1752,19 @@ def create_app():
             no = _to_int(row.get('NO'), 0)
             nome = (row.get('NOME') or '').strip()
             ftano = _to_int(row.get('FTANO'), _to_int(str(fdata)[:4], date.today().year))
-            if ndoc <= 0 or not serie or not fdata or not festamp or no <= 0 or not nome:
-                db.session.rollback()
-                return jsonify({'error': 'Preenche entidade emissora, tipo doc, série, data e entidade antes de emitir.'}), 400
+            if ndoc <= 0 or not serie or not fdata or not festamp or not nome:
+                raise ValueError('Preenche entidade emissora, tipo doc, série, data e entidade antes de emitir.')
 
             c = db.session.execute(text("""
                 SELECT COUNT(1) AS C
                 FROM dbo.FI WITH (UPDLOCK, ROWLOCK)
                 WHERE FTSTAMP=:s AND ISNULL(QTT,0) > 0
-            """), {'s': ftstamp}).mappings().first()
+            """), {'s': ftstamp_emit}).mappings().first()
             if _to_int(c.get('C'), 0) <= 0:
-                db.session.rollback()
-                return jsonify({'error': 'Documento sem linhas válidas.'}), 400
+                raise ValueError('Documento sem linhas válidas.')
 
             srow = db.session.execute(text("""
-                SELECT TOP 1 FTSSTAMP, ISNULL(ULTIMO_FNO,0) AS ULTIMO_FNO
+                SELECT TOP 1 FTSSTAMP, ISNULL(ULTIMO_FNO,0) AS ULTIMO_FNO, ISNULL(NO_SAFT,0) AS NO_SAFT
                 FROM dbo.FTS WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
                 WHERE
                     FESTAMP=:festamp
@@ -1128,13 +1776,22 @@ def create_app():
             if not srow:
                 db.session.rollback()
                 return jsonify({'error': 'Série não certificada/ativa para esta entidade e ano.'}), 400
+            if int(srow.get('NO_SAFT') or 0) != 1:
+                if isinstance(fdata, datetime):
+                    fdata_date = fdata.date()
+                elif isinstance(fdata, date):
+                    fdata_date = fdata
+                else:
+                    fdata_date = datetime.fromisoformat(str(fdata)[:10]).date()
+                if fdata_date < (date.today() - timedelta(days=5)):
+                    raise ValueError('Séries SAFT não permitem emissão com data anterior a 5 dias.')
 
             fi_rows = db.session.execute(text("""
                 SELECT *
                 FROM dbo.FI WITH (UPDLOCK, ROWLOCK)
                 WHERE FTSTAMP=:s
                 ORDER BY ISNULL(LORDEM,0), FISTAMP
-            """), {'s': ftstamp}).mappings().all()
+            """), {'s': ftstamp_emit}).mappings().all()
             normalized, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown([dict(r) for r in fi_rows])
             new_fno = _to_int(srow.get('ULTIMO_FNO'), 0) + 1
 
@@ -1150,7 +1807,7 @@ def create_app():
                     DTAlteracao=GETDATE(), USERALTERACAO=:u
                 WHERE FTSTAMP=:s
             """), {
-                'fno': new_fno, 'ano': ftano, 's': ftstamp, 'u': user_login,
+                'fno': new_fno, 'ano': ftano, 's': ftstamp_emit, 'u': user_login_emit,
                 'ETTILIQ': ettiliq, 'ETTIVA': ettiva, 'ETOTAL': etotal,
                 'IVATX1': ivatx[0], 'IVATX2': ivatx[1], 'IVATX3': ivatx[2], 'IVATX4': ivatx[3], 'IVATX5': ivatx[4], 'IVATX6': ivatx[5], 'IVATX7': ivatx[6], 'IVATX8': ivatx[7], 'IVATX9': ivatx[8],
                 'EIVAIN1': eivain[0], 'EIVAIN2': eivain[1], 'EIVAIN3': eivain[2], 'EIVAIN4': eivain[3], 'EIVAIN5': eivain[4], 'EIVAIN6': eivain[5], 'EIVAIN7': eivain[6], 'EIVAIN8': eivain[7], 'EIVAIN9': eivain[8],
@@ -1161,15 +1818,15 @@ def create_app():
                 UPDATE dbo.FI
                 SET FNO=:fno
                 WHERE FTSTAMP=:s
-            """), {'fno': new_fno, 's': ftstamp})
+            """), {'fno': new_fno, 's': ftstamp_emit})
 
-            signed = sign_ft_document(db.session, ftstamp, user_login)
+            signed = sign_ft_document(db.session, ftstamp_emit, user_login_emit)
 
             ft_emit = db.session.execute(text("""
                 SELECT TOP 1 *
                 FROM dbo.FT WITH (UPDLOCK, ROWLOCK)
                 WHERE FTSTAMP=:s
-            """), {'s': ftstamp}).mappings().first()
+            """), {'s': ftstamp_emit}).mappings().first()
             if not ft_emit:
                 raise ValueError('Documento não encontrado após assinatura.')
             ft_emit = dict(ft_emit)
@@ -1224,15 +1881,15 @@ def create_app():
                 'KEYID': signed.get('KEYID') or '',
                 'ATCUD': atcud,
                 'CODIGOQR': codigo_qr,
-                'u': user_login,
-                's': ftstamp
+                'u': user_login_emit,
+                's': ftstamp_emit
             })
 
             db.session.execute(text("""
                 UPDATE dbo.FTS
                 SET ULTIMO_FNO=:fno, DTAlteracao=GETDATE(), USERALTERACAO=:u
                 WHERE FTSSTAMP=:s
-            """), {'fno': new_fno, 'u': user_login, 's': srow.get('FTSSTAMP')})
+            """), {'fno': new_fno, 'u': user_login_emit, 's': srow.get('FTSSTAMP')})
 
             try:
                 db.session.execute(text("""
@@ -1244,16 +1901,405 @@ def create_app():
                 pass
 
             db.session.commit()
-            return jsonify({
+            try:
+                _spawn_ft_pdf_cache_job(ftstamp_emit)
+            except Exception:
+                pass
+            return {
                 'ok': True,
                 'FNO': new_fno,
                 'HASH': signed.get('HASH') or '',
                 'ATCUD': atcud,
                 'ESTADO': 1
-            })
+            }
+
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        try:
+            result = _emit_ft_core(ftstamp, user_login)
+            return jsonify(result)
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': f'Erro ao emitir: {e}'}), 500
+
+    @app.route('/api/faturacao/reservas/config', methods=['GET'])
+    @login_required
+    def api_faturacao_reservas_config():
+        try:
+            ano = int(request.args.get('ano') or date.today().year)
+        except Exception:
+            ano = date.today().year
+
+        ent_ncont = str(qr_get_param(db.session, 'ENT_NCONT', '') or '').strip()
+        fe_sql = """
+            SELECT FESTAMP, NOME, NIF
+            FROM dbo.FE
+            WHERE ISNULL(ATIVA,1)=1
+        """
+        params = {}
+        if ent_ncont:
+            fe_sql += " AND CONVERT(varchar(20), ISNULL(NIF,0)) = :nif"
+            params['nif'] = ent_ncont
+        fe_sql += " ORDER BY NOME"
+        fe_rows = db.session.execute(text(fe_sql), params).mappings().all()
+        return jsonify({'ano': ano, 'ent_ncont': ent_ncont, 'emissores': [dict(r) for r in fe_rows]})
+
+    @app.route('/api/faturacao/reservas/series', methods=['GET'])
+    @login_required
+    def api_faturacao_reservas_series():
+        festamp = (request.args.get('festamp') or '').strip()
+        ano = _to_int(request.args.get('ano'), date.today().year)
+        if not festamp:
+            return jsonify([])
+        rows = db.session.execute(text("""
+            SELECT
+              S.FTSSTAMP,
+              S.NDOC,
+              ISNULL(T.NMDOC,'') AS NMDOC,
+              ISNULL(S.SERIE,'') AS SERIE,
+              ISNULL(S.NO_SAFT,0) AS NO_SAFT
+            FROM dbo.FTS S
+            LEFT JOIN dbo.V_TD T ON T.NDOC = S.NDOC
+            WHERE
+              S.FESTAMP=:f
+              AND S.ANO=:a
+              AND ISNULL(S.ATIVA,0)=1
+              AND UPPER(LTRIM(RTRIM(ISNULL(S.TIPOSAFT,'')))) = 'FR'
+            ORDER BY S.NDOC, S.SERIE
+        """), {'f': festamp, 'a': ano}).mappings().all()
+        return jsonify([dict(r) for r in rows])
+
+    fatres_emit_jobs = {}
+    fatres_emit_jobs_lock = threading.Lock()
+
+    def _fatres_job_set(job_id: str, **fields):
+        jid = str(job_id or '').strip()
+        if not jid:
+            return
+        with fatres_emit_jobs_lock:
+            base = fatres_emit_jobs.get(jid, {}) or {}
+            base.update(fields)
+            base['updated_at'] = datetime.now().isoformat(timespec='seconds')
+            fatres_emit_jobs[jid] = base
+
+    def _fatres_job_get(job_id: str):
+        jid = str(job_id or '').strip()
+        if not jid:
+            return None
+        with fatres_emit_jobs_lock:
+            row = fatres_emit_jobs.get(jid)
+            return dict(row) if row else None
+
+    def _faturacao_reservas_emit_logic(body: dict, user_login: str, progress_cb=None):
+        festamp = str(body.get('festamp') or '').strip()
+        ftsstamp = str(body.get('ftsstamp') or '').strip()
+        rsstamps = [str(x or '').strip() for x in (body.get('rsstamps') or []) if str(x or '').strip()]
+        try:
+            ano = int(body.get('ano') or date.today().year)
+        except Exception:
+            ano = date.today().year
+        try:
+            mes = int(body.get('mes') or date.today().month)
+        except Exception:
+            mes = date.today().month
+        mes = max(1, min(12, mes))
+
+        if not festamp or not ftsstamp:
+            raise ValueError('Seleciona entidade emissora e série.')
+        if not rsstamps:
+            raise ValueError('Sem reservas selecionadas.')
+
+        srow = db.session.execute(text("""
+            SELECT TOP 1
+              S.FTSSTAMP, S.FESTAMP, S.NDOC, ISNULL(T.NMDOC,'') AS NMDOC,
+              ISNULL(S.SERIE,'') AS SERIE, ISNULL(S.NO_SAFT,0) AS NO_SAFT
+            FROM dbo.FTS S
+            LEFT JOIN dbo.V_TD T ON T.NDOC = S.NDOC
+            WHERE S.FTSSTAMP=:s
+              AND S.FESTAMP=:f
+              AND ISNULL(S.ATIVA,0)=1
+              AND UPPER(LTRIM(RTRIM(ISNULL(S.TIPOSAFT,'')))) = 'FR'
+        """), {'s': ftsstamp, 'f': festamp}).mappings().first()
+        if not srow:
+            raise ValueError('Série inválida/inativa (TIPOSAFT deve ser FR) para a entidade emissora.')
+        srow = dict(srow)
+
+        ft_cols = db.session.execute(text("""
+            SELECT UPPER(COLUMN_NAME) AS CN
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME='FT'
+        """)).mappings().all()
+        ft_colset = {str(r.get('CN') or '').upper() for r in ft_cols}
+
+        rs_cols = db.session.execute(text("""
+            SELECT UPPER(COLUMN_NAME) AS CN
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME='RS'
+        """)).mappings().all()
+        rs_colset = {str(c.get('CN') or '').upper() for c in rs_cols}
+
+        placeholder = ",".join([f":r{i}" for i, _ in enumerate(rsstamps)])
+        params = {'ano': ano, 'mes': mes}
+        for i, v in enumerate(rsstamps):
+            params[f"r{i}"] = v
+
+        reserva_col = "ISNULL(RS.RESERVA,'')" if 'RESERVA' in rs_colset else "''"
+        rs_rows = db.session.execute(text(f"""
+            SELECT
+              RS.RSSTAMP,
+              {reserva_col} AS RESERVA,
+              ISNULL(AL.CCUSTO,'') AS AL_CCUSTO,
+              ISNULL(RS.NOME,'') AS HOSPEDE,
+              CAST(RS.DATAIN AS date) AS DATAIN,
+              CAST(RS.DATAOUT AS date) AS DATAOUT,
+              ISNULL(RS.NOITES,0) AS NOITES,
+              ISNULL(RS.ESTADIA,0) AS ESTADIA,
+              ISNULL(RS.LIMPEZA,0) AS LIMPEZA
+            FROM dbo.RS RS
+            INNER JOIN dbo.AL AL
+              ON LTRIM(RTRIM(AL.NOME)) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
+            WHERE RS.RSSTAMP IN ({placeholder})
+              AND UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,''))))='EXPLORACAO'
+              AND RS.DATAOUT IS NOT NULL
+              AND YEAR(CAST(RS.DATAOUT AS date))=:ano
+              AND MONTH(CAST(RS.DATAOUT AS date))=:mes
+              AND ISNULL(RS.CANCELADA,0)=0
+            ORDER BY CAST(RS.DATAOUT AS date), RS.RSSTAMP
+        """), params).mappings().all()
+
+        rs_map = {str(r.get('RSSTAMP') or '').strip(): dict(r) for r in rs_rows}
+        created = []
+        errors = []
+        total = len(rsstamps)
+        processed = 0
+
+        if callable(progress_cb):
+            progress_cb(processed=processed, total=total, message='A iniciar emissão...', created=0, errors=0)
+
+        for rsstamp in rsstamps:
+            row = rs_map.get(str(rsstamp).strip())
+            try:
+                if not row:
+                    errors.append({'RSSTAMP': rsstamp, 'error': 'Reserva não elegível para emissão neste período.'})
+                else:
+                    if 'RESERVA' in ft_colset:
+                        exists_ft = db.session.execute(text("""
+                            SELECT TOP 1 FTSTAMP
+                            FROM dbo.FT
+                            WHERE ISNULL(ANULADA,0)=0
+                              AND ISNULL(ESTADO,0)=1
+                              AND LTRIM(RTRIM(ISNULL(RESERVA,''))) = LTRIM(RTRIM(:r))
+                        """), {'r': (row.get('RESERVA') or '').strip()}).mappings().first()
+                        if exists_ft:
+                            errors.append({'RSSTAMP': rsstamp, 'error': 'Reserva já faturada.'})
+                            processed += 1
+                            if callable(progress_cb):
+                                progress_cb(
+                                    processed=processed,
+                                    total=total,
+                                    message=f"A emitir... {processed}/{total}",
+                                    created=len(created),
+                                    errors=len(errors),
+                                )
+                            continue
+
+                    total_global = round(_num(row.get('ESTADIA'), 0) + _num(row.get('LIMPEZA'), 0), 2)
+                    if total_global <= 0:
+                        errors.append({'RSSTAMP': row.get('RSSTAMP'), 'error': 'Valor total da reserva sem montante faturável.'})
+                        processed += 1
+                        if callable(progress_cb):
+                            progress_cb(
+                                processed=processed,
+                                total=total,
+                                message=f"A emitir... {processed}/{total}",
+                                created=len(created),
+                                errors=len(errors),
+                            )
+                        continue
+
+                    dataout = row.get('DATAOUT') or date.today()
+                    datain = row.get('DATAIN') or dataout
+                    fdata = dataout if int(srow.get('NO_SAFT') or 0) == 1 else date.today()
+                    desc = f"Estadia {_to_int(row.get('NOITES'), 0)} noites de {datain.strftime('%d.%m.%Y')} a {dataout.strftime('%d.%m.%Y')}"
+
+                    payload = _default_ft_payload(user_login)
+                    payload.update({
+                        'NDOC': _to_int(srow.get('NDOC'), 0),
+                        'NMDOC': (srow.get('NMDOC') or '').strip(),
+                        'FESTAMP': festamp,
+                        'SERIE': (srow.get('SERIE') or '').strip(),
+                        'FDATA': fdata,
+                        'FTANO': fdata.year,
+                        'PDATA': fdata,
+                        'NO': 0,
+                        'NOME': (row.get('HOSPEDE') or '').strip()[:55],
+                        'NCONT': '999999990',
+                        'MORADA': '',
+                        'CODPOST': '',
+                        'LOCAL': '',
+                        'PAIS': 0,
+                        'CCUSTO': (row.get('AL_CCUSTO') or '').strip(),
+                        'ETTILIQ': 0,
+                        'ETTIVA': 0,
+                        'ETOTAL': 0,
+                    })
+
+                    db.session.execute(text("""
+                        INSERT INTO dbo.FT
+                        (FTSTAMP, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA,
+                         FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
+                         IVATX1, IVATX2, IVATX3, IVATX4, IVATX5, IVATX6, IVATX7, IVATX8, IVATX9,
+                         EIVAIN1, EIVAIN2, EIVAIN3, EIVAIN4, EIVAIN5, EIVAIN6, EIVAIN7, EIVAIN8, EIVAIN9,
+                         TIPODOC, EIVAV1, EIVAV2, EIVAV3, EIVAV4, EIVAV5, EIVAV6, EIVAV7, EIVAV8, EIVAV9,
+                         FESTAMP, SERIE, ESTADO, BLOQUEADO, DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO,
+                         HASHVER, HASHANT, HASH, ASSINATURA, KEYID, ATCUD, CODIGOQR,
+                         ANULADA, ANULDATA, ANULUSER, ANULMOTIVO,
+                         FTREFSTAMP, AT_ENVIO_ESTADO, AT_ENVIO_DATA, AT_ENVIO_MSG)
+                        VALUES
+                        (:FTSTAMP, :NDOC, :NMDOC, :FNO, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA,
+                         :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
+                         0,0,0,0,0,0,0,0,0,
+                         0,0,0,0,0,0,0,0,0,
+                         0,0,0,0,0,0,0,0,0,0,
+                         :FESTAMP, :SERIE, :ESTADO, :BLOQUEADO, GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO,
+                         '', '', '', '', '', '', '',
+                         :ANULADA, CAST('19000101' AS datetime2(0)), '', '',
+                         '', 0, CAST('19000101' AS datetime2(0)), '')
+                    """), payload)
+
+                    if 'RESERVA' in ft_colset:
+                        db.session.execute(text("UPDATE dbo.FT SET RESERVA=:r WHERE FTSTAMP=:s"), {
+                            'r': (row.get('RESERVA') or '').strip(),
+                            's': payload['FTSTAMP']
+                        })
+
+                    db.session.execute(text("""
+                        INSERT INTO dbo.FI
+                        (FISTAMP, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA)
+                        VALUES
+                        (:FISTAMP, :NMDOC, 0, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA)
+                    """), {
+                        'FISTAMP': _new_stamp_25(),
+                        'NMDOC': payload['NMDOC'],
+                        'REF': 'ESTADIAS',
+                        'DESIGN': desc[:60],
+                        'QTT': 1,
+                        'ETILIQUIDO': total_global,
+                        'UNIDADE': 'UN',
+                        'IVA': 23,
+                        'IVAINCL': 1,
+                        'TABIVA': 2,
+                        'NDOC': payload['NDOC'],
+                        'LORDEM': 10,
+                        'FTSTAMP': payload['FTSTAMP'],
+                        'FICCUSTO': '',
+                        'EPV': total_global,
+                        'FAMILIA': ''
+                    })
+
+                    db.session.commit()
+                    res_emit = _emit_ft_core_global(payload['FTSTAMP'], user_login)
+                    created.append({
+                        'RSSTAMP': row.get('RSSTAMP'),
+                        'RESERVA': (row.get('RESERVA') or '').strip(),
+                        'FTSTAMP': payload['FTSTAMP'],
+                        'FNO': res_emit.get('FNO'),
+                        'SERIE': payload.get('SERIE') or '',
+                        'SERIE_LABEL': f"{(payload.get('SERIE') or '').strip()}/{res_emit.get('FNO')}"
+                    })
+            except Exception as e:
+                db.session.rollback()
+                errors.append({'RSSTAMP': rsstamp, 'error': str(e)})
+            finally:
+                processed += 1
+                if callable(progress_cb):
+                    progress_cb(
+                        processed=processed,
+                        total=total,
+                        message=f"A emitir... {processed}/{total}",
+                        created=len(created),
+                        errors=len(errors),
+                    )
+
+        return {'ok': True, 'created': created, 'errors': errors, 'total_selected': len(rsstamps)}
+
+    def _faturacao_reservas_emit_worker(job_id: str, body: dict, user_login: str):
+        with app.app_context():
+            try:
+                def _on_progress(processed, total, message, created, errors):
+                    pct = int(round((processed / total) * 100)) if total else 100
+                    _fatres_job_set(
+                        job_id,
+                        state='running',
+                        processed=processed,
+                        total=total,
+                        percent=max(0, min(100, pct)),
+                        message=message,
+                        created_count=created,
+                        errors_count=errors,
+                    )
+
+                result = _faturacao_reservas_emit_logic(body or {}, user_login, progress_cb=_on_progress)
+                _fatres_job_set(
+                    job_id,
+                    state='done',
+                    percent=100,
+                    message='Concluído.',
+                    result=result,
+                )
+            except Exception as e:
+                _fatres_job_set(
+                    job_id,
+                    state='error',
+                    message=str(e),
+                    error=str(e),
+                )
+
+    @app.route('/api/faturacao/reservas/emitir/start', methods=['POST'])
+    @login_required
+    def api_faturacao_reservas_emitir_start():
+        body = request.get_json(silent=True) or {}
+        rsstamps = [str(x or '').strip() for x in (body.get('rsstamps') or []) if str(x or '').strip()]
+        if not rsstamps:
+            return jsonify({'error': 'Sem reservas selecionadas.'}), 400
+
+        job_id = uuid.uuid4().hex
+        _fatres_job_set(
+            job_id,
+            state='running',
+            processed=0,
+            total=len(rsstamps),
+            percent=0,
+            message='A preparar emissão...',
+            created_count=0,
+            errors_count=0,
+            result=None,
+            started_at=datetime.now().isoformat(timespec='seconds'),
+        )
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        th = threading.Thread(target=_faturacao_reservas_emit_worker, args=(job_id, body, user_login), daemon=True, name=f'fatres-emit-{job_id[:8]}')
+        th.start()
+        return jsonify({'ok': True, 'job_id': job_id})
+
+    @app.route('/api/faturacao/reservas/emitir/status', methods=['GET'])
+    @login_required
+    def api_faturacao_reservas_emitir_status():
+        job_id = str(request.args.get('job_id') or '').strip()
+        if not job_id:
+            return jsonify({'error': 'job_id em falta'}), 400
+        row = _fatres_job_get(job_id)
+        if not row:
+            return jsonify({'error': 'Job não encontrado'}), 404
+        return jsonify(row)
+
+    @app.route('/api/faturacao/reservas/emitir', methods=['POST'])
+    @login_required
+    def api_faturacao_reservas_emitir():
+        try:
+            body = request.get_json(silent=True) or {}
+            user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+            return jsonify(_faturacao_reservas_emit_logic(body, user_login))
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/api/faturacao/ft/<ftstamp>/anular', methods=['POST'])
     @login_required

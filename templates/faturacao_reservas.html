@@ -1,0 +1,231 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Emissão Faturação Reservas{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 fatres-page">
+  <div class="fatres-header mb-3">
+    <div class="fatres-title-wrap">
+      <h1 class="fatres-title mb-0">Faturação de Reservas</h1>
+      <div class="fatres-subtitle">Emissão mensal de reservas de exploração</div>
+    </div>
+  </div>
+
+  <div class="fatres-toolbar card shadow-sm mb-3">
+    <div class="card-body py-2 px-3 fatres-toolbar-body">
+      <div class="fatres-nav-group">
+        <button class="btn btn-sm btn-outline-secondary" id="fatresPrev"><i class="fa-solid fa-chevron-left"></i></button>
+        <input type="number" class="form-control form-control-sm" id="fatresAno" value="{{ ano_inicial }}" style="width:90px;">
+        <select class="form-select form-select-sm" id="fatresMes" style="width:140px;">
+          <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+          <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+          <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+          <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+        </select>
+        <button class="btn btn-sm btn-outline-secondary" id="fatresNext"><i class="fa-solid fa-chevron-right"></i></button>
+        <button class="btn btn-sm btn-outline-secondary" id="fatresRefresh"><i class="fa-solid fa-rotate"></i> Atualizar</button>
+      </div>
+
+      <div class="fatres-config-group">
+        <select class="form-select form-select-sm" id="fatresFestamp" style="width:280px;">
+          <option value="">Entidade emissora...</option>
+        </select>
+        <select class="form-select form-select-sm" id="fatresFts" style="width:330px;">
+          <option value="">Série de faturação...</option>
+        </select>
+      </div>
+
+      <div class="fatres-actions-group">
+        <button class="btn btn-sm btn-success" id="fatresEmitir"><i class="fa-solid fa-file-invoice"></i> Emitir selecionadas</button>
+        <span class="fatres-stats" id="fatresStats">0 selecionadas</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm fatres-main-card">
+    <div class="card-body p-0 fatres-body">
+      <div class="table-responsive fatres-grid-wrap">
+        <table class="table table-sm mb-0 fatres-table">
+          <thead class="table-light">
+            <tr>
+              <th style="width:42px;" class="text-center"><input type="checkbox" id="fatresCheckAll"></th>
+              <th>Reserva</th>
+              <th>Alojamento</th>
+              <th>Hóspede</th>
+              <th class="text-center">Check-in</th>
+              <th class="text-center">Checkout</th>
+              <th class="text-end">Noites</th>
+              <th class="text-end">Pax</th>
+              <th class="text-end">Estadia</th>
+              <th class="text-end">Limpeza</th>
+              <th class="text-center">Faturado</th>
+              <th class="text-center">PDF</th>
+            </tr>
+          </thead>
+          <tbody id="fatresBody">
+            <tr><td colspan="12" class="text-muted p-3">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="fatresOverlay" class="fatres-overlay" aria-hidden="true">
+  <div class="fatres-overlay-card">
+    <div class="fatres-overlay-title"><i class="fa-solid fa-file-signature me-2"></i>A emitir faturas...</div>
+    <div class="fatres-overlay-sub" id="fatresOverlaySub">A processar</div>
+    <div class="progress fatres-progress">
+      <div id="fatresOverlayBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .fatres-page{
+    min-height: calc(100vh - 120px);
+    display:flex;
+    flex-direction:column;
+    background:
+      radial-gradient(900px 460px at -6% -12%, rgba(59,130,246,.10) 0%, rgba(59,130,246,0) 60%),
+      radial-gradient(900px 460px at 106% -14%, rgba(14,165,233,.10) 0%, rgba(14,165,233,0) 60%);
+  }
+  .fatres-header{ display:flex; align-items:center; justify-content:space-between; }
+  .fatres-title{
+    font-size:1.15rem;
+    font-weight:800;
+    color:#0f172a;
+    letter-spacing:.01em;
+  }
+  .fatres-subtitle{ font-size:.82rem; color:#64748b; margin-top:2px; }
+  .fatres-toolbar{
+    border:1px solid #dbe5f3;
+    border-radius:16px;
+    background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+    box-shadow:0 16px 38px rgba(15,23,42,.08);
+  }
+  .fatres-toolbar-body{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:.55rem .65rem;
+  }
+  .fatres-nav-group,
+  .fatres-config-group,
+  .fatres-actions-group{
+    display:flex;
+    align-items:center;
+    gap:.5rem;
+    flex-wrap:wrap;
+  }
+  .fatres-actions-group{ margin-left:auto; }
+  .fatres-main-card{
+    flex:1 1 auto;
+    min-height:0;
+    border:1px solid #dbe5f3;
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:0 18px 44px rgba(15,23,42,.07);
+    backdrop-filter: blur(3px);
+  }
+  .fatres-stats{
+    font-size:12px;
+    color:#0f172a;
+    font-weight:700;
+    background:#eff6ff;
+    border:1px solid #bfdbfe;
+    border-radius:999px;
+    padding:5px 11px;
+  }
+  #fatresFestamp,#fatresFts,#fatresAno,#fatresMes{
+    border-radius:10px;
+    border-color:#d0ddee;
+    background:#fff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+  }
+  #fatresPrev,#fatresNext,#fatresRefresh,#fatresEmitir{ border-radius:10px; }
+  #fatresPrev,#fatresNext,#fatresRefresh{
+    border-color:#d1d9e6;
+    color:#334155;
+    background:#fff;
+  }
+  #fatresPrev:hover,#fatresNext:hover,#fatresRefresh:hover{ background:#f3f7fd; color:#0f172a; }
+  #fatresEmitir{
+    background:linear-gradient(90deg,#16a34a 0%,#22c55e 100%);
+    border-color:#16a34a; color:#fff; font-weight:700;
+    box-shadow:0 8px 20px rgba(22,163,74,.28);
+  }
+  #fatresEmitir:hover{ filter:brightness(.96); color:#fff; }
+  #fatresEmitir:disabled{ opacity:.7; box-shadow:none; }
+  .fatres-body{
+    height:100%;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+  }
+  .fatres-grid-wrap{
+    flex:1 1 auto;
+    min-height:0;
+    overflow:auto;
+  }
+  .fatres-table{ font-size:12.5px; min-width:1150px; border-collapse:separate; border-spacing:0; color:#0f172a; }
+  .fatres-table thead th{
+    position: sticky; top: 0; z-index: 2;
+    background: linear-gradient(180deg,#f8fbff 0%,#ecf4ff 100%);
+    border-bottom:1px solid rgba(148,163,184,.38);
+    font-size:10.8px; text-transform:uppercase; letter-spacing:.06em; color:#334155; font-weight:800;
+    padding:.55rem .65rem;
+  }
+  .fatres-table tbody td{
+    padding:.56rem .65rem;
+    border-bottom:1px solid #edf2f7;
+    vertical-align:middle;
+  }
+  .fatres-table tbody tr:nth-child(even) td{ background:#fcfdff; }
+  .fatres-table tbody tr:hover td{ background:#eef6ff; }
+  .fatres-table tbody tr:has(.fatres-check:checked) td{
+    background:linear-gradient(90deg,#ecf5ff 0%, #f0f8ff 100%);
+  }
+  .fatres-table .fatres-check{ width:16px; height:16px; cursor:pointer; }
+  .fatres-badge-ok{ color:#15803d; font-weight:700; }
+  .fatres-badge-no{ color:#b45309; font-weight:700; }
+  .fatres-fatura-link{ color:#0f766e; font-weight:700; text-decoration:none; }
+  .fatres-fatura-link:hover{ text-decoration:underline; }
+  .fatres-pdf-link{ color:#dc2626; font-size:16px; line-height:1; text-decoration:none; }
+  .fatres-pdf-link:hover{ color:#b91c1c; }
+  .fatres-pdf-gen{
+    color:#0ea5e9;
+    font-size:16px;
+    line-height:1;
+    text-decoration:none;
+    border:0;
+    background:transparent;
+  }
+  .fatres-pdf-gen:hover{ color:#0284c7; }
+  .fatres-pdf-gen:disabled{ color:#94a3b8; cursor:wait; }
+  .fatres-table input[type="checkbox"]:disabled{ opacity:.35; }
+  .fatres-overlay{
+    position: fixed; inset:0; background: rgba(15,23,42,.45); z-index: 3000;
+    display:none; align-items:center; justify-content:center;
+  }
+  .fatres-overlay.show{ display:flex; }
+  .fatres-overlay-card{
+    width:min(520px,92vw); background:#fff; border-radius:14px; padding:16px 18px;
+    box-shadow: 0 20px 48px rgba(2,6,23,.32); border:1px solid #dbe3ee;
+  }
+  .fatres-overlay-title{ font-weight:800; color:#0f172a; margin-bottom:4px; }
+  .fatres-overlay-sub{ font-size:13px; color:#475569; margin-bottom:10px; }
+  .fatres-progress{ height:12px; border-radius:99px; background:#e2e8f0; }
+  .fatres-progress .progress-bar{ background:linear-gradient(90deg,#2563eb 0%,#0ea5e9 100%); }
+
+  @media (max-width: 1180px){
+    .fatres-actions-group{ margin-left:0; }
+  }
+</style>
+
+<script>
+  window.FATRES_ANO_INICIAL = Number("{{ ano_inicial }}");
+  window.FATRES_MES_INICIAL = Number("{{ mes_inicial }}");
+</script>
+<script src="{{ url_for('static', filename='js/faturacao_reservas.js') }}?v={{ static_version }}"></script>
+{% endblock %}
