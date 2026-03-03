@@ -4,110 +4,364 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Informação da Reserva</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css" rel="stylesheet">
   <style>
     :root{
-      --bg:#f3f5f9;
-      --card:#ffffff;
-      --text:#0f172a;
-      --muted:#64748b;
-      --border:#e2e8f0;
-      --accent:#2563eb;
+      --bg:#07111f;
+      --bg-soft:#0d1a2b;
+      --card:rgba(255,255,255,.94);
+      --card-strong:#ffffff;
+      --text:#e5eefb;
+      --text-dark:#0f172a;
+      --muted:#9cb0cb;
+      --muted-dark:#64748b;
+      --border:rgba(148,163,184,.22);
+      --accent:#38bdf8;
+      --accent-strong:#2563eb;
     }
     body{
-      background: var(--bg);
+      background:
+        radial-gradient(circle at top left, rgba(56,189,248,.18), transparent 34%),
+        radial-gradient(circle at top right, rgba(37,99,235,.2), transparent 30%),
+        radial-gradient(circle at 20% 80%, rgba(14,165,233,.12), transparent 24%),
+        linear-gradient(180deg, #09111d 0%, #0b1524 44%, #0e1a2d 100%);
       color:var(--text);
-      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      font-family:"Manrope","Segoe UI",sans-serif;
       min-height:100vh;
+      position:relative;
+      overflow-x:hidden;
     }
-    .public-wrap{max-width:1280px; margin:0 auto; padding:104px 18px 18px;}
+    body::before,
+    body::after{
+      content:'';
+      position:fixed;
+      width:42vw;
+      height:42vw;
+      border-radius:50%;
+      filter:blur(70px);
+      pointer-events:none;
+      z-index:0;
+      opacity:.45;
+    }
+    body::before{
+      top:-10vw;
+      left:-8vw;
+      background:rgba(37,99,235,.22);
+    }
+    body::after{
+      right:-12vw;
+      bottom:-12vw;
+      background:rgba(14,165,233,.16);
+    }
+    .public-wrap{
+      position:relative;
+      z-index:1;
+      max-width:1320px;
+      margin:0 auto;
+      padding:112px 18px 24px;
+    }
     .public-header{
       margin-bottom:0;
       display:flex;
       align-items:center;
       justify-content:space-between;
       gap:12px;
-      background:#fff;
-      border:1px solid #e2e8f0;
-      border-radius:16px;
+      background:rgba(9,17,29,.72);
+      border:1px solid rgba(148,163,184,.16);
+      border-radius:20px;
       padding:12px 14px;
-      box-shadow:0 8px 20px rgba(15,23,42,.08);
+      box-shadow:0 20px 50px rgba(2,6,23,.28);
+      backdrop-filter:blur(16px);
       position: fixed;
       top: 10px;
       left: 50%;
       transform: translateX(-50%);
-      width: min(1280px, calc(100% - 24px));
+      width: min(1320px, calc(100% - 24px));
       z-index: 40;
     }
+    .public-header::after{
+      content:'';
+      position:absolute;
+      inset:auto 18px 0 18px;
+      height:1px;
+      background:linear-gradient(90deg, rgba(255,255,255,0), rgba(125,211,252,.34), rgba(255,255,255,0));
+      pointer-events:none;
+    }
     .public-brand{
-      font-size:.9rem;
-      letter-spacing:.08em;
+      font-family:"Space Grotesk","Manrope",sans-serif;
+      font-size:.82rem;
+      letter-spacing:.14em;
       font-weight:800;
-      color:#1e293b;
+      color:#dbeafe;
       text-transform:uppercase;
       white-space:nowrap;
+      padding:8px 12px;
+      border-radius:999px;
+      background:linear-gradient(135deg, rgba(37,99,235,.24), rgba(56,189,248,.14));
+      border:1px solid rgba(125,211,252,.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
     }
-    .public-title{font-size:1.4rem; font-weight:800; margin:0;}
-    .public-sub{font-size:.88rem; color:var(--muted);}
+    .public-title{
+      font-family:"Space Grotesk","Manrope",sans-serif;
+      font-size:clamp(1.45rem, 2vw, 2rem);
+      font-weight:700;
+      letter-spacing:-.03em;
+      margin:0;
+      color:#f8fbff;
+    }
+    .public-sub{font-size:.9rem; color:var(--muted); margin-top:4px;}
     .public-meta{
-      margin-bottom:14px;
-      background:#fff;
-      border:1px solid #e2e8f0;
-      border-radius:16px;
-      padding:12px 14px;
-      box-shadow:0 8px 22px rgba(15,23,42,.08);
+      margin-bottom:16px;
+      background:
+        linear-gradient(135deg, rgba(11,21,36,.88), rgba(11,26,45,.78)),
+        linear-gradient(135deg, rgba(37,99,235,.18), rgba(56,189,248,.08));
+      border:1px solid rgba(148,163,184,.14);
+      border-radius:24px;
+      padding:18px 18px 16px;
+      box-shadow:0 26px 60px rgba(2,6,23,.22);
+      position:relative;
+      overflow:hidden;
+    }
+    .public-meta::before{
+      content:'';
+      position:absolute;
+      inset:0;
+      background:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+      background-size:22px 22px;
+      mask-image:linear-gradient(180deg, rgba(0,0,0,.32), transparent 72%);
+      pointer-events:none;
+    }
+    .public-meta::after{
+      content:'';
+      position:absolute;
+      inset:auto -12% -45% auto;
+      width:240px;
+      height:240px;
+      border-radius:50%;
+      background:radial-gradient(circle, rgba(56,189,248,.22) 0%, rgba(56,189,248,0) 70%);
+      pointer-events:none;
     }
     .cards-grid{
       display:grid;
       grid-template-columns:repeat(3,minmax(0,1fr));
-      gap:14px;
+      gap:16px;
     }
     @media (max-width:1100px){ .cards-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
-    @media (max-width:700px){ .cards-grid{grid-template-columns:1fr;} .public-wrap{padding:12px;} }
+    @media (max-width:700px){ .cards-grid{grid-template-columns:1fr;} .public-wrap{padding:96px 12px 16px;} }
+    .public-footer{
+      position:relative;
+      z-index:1;
+      max-width:1320px;
+      margin:18px auto 24px;
+      padding:0 18px;
+    }
+    .public-footer-card{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+      padding:16px 18px;
+      border-radius:20px;
+      border:1px solid rgba(148,163,184,.14);
+      background:
+        linear-gradient(145deg, rgba(9,17,29,.9) 0%, rgba(11,27,47,.88) 54%, rgba(14,50,84,.82) 100%);
+      box-shadow:0 22px 50px rgba(2,6,23,.2);
+    }
+    .public-footer-copy{
+      display:grid;
+      gap:5px;
+      min-width:0;
+    }
+    .public-footer-title{
+      font-family:"Space Grotesk","Manrope",sans-serif;
+      font-size:.88rem;
+      font-weight:700;
+      letter-spacing:-.02em;
+      color:#f8fbff;
+    }
+    .public-footer-line{
+      color:#b9d4ea;
+      font-size:.82rem;
+      line-height:1.45;
+    }
+    .public-footer-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      justify-content:flex-end;
+      flex-shrink:0;
+    }
+    @media (max-width:700px){
+      .public-footer{padding:0 12px 18px;}
+      .public-footer-card{flex-direction:column; gap:12px;}
+      .public-footer-actions{justify-content:flex-start;}
+    }
     .r-card{
-      background:var(--card);
-      border:1px solid rgba(148,163,184,.20);
-      border-radius:16px;
-      padding:15px;
+      background:
+        radial-gradient(circle at top right, rgba(56,189,248,.18), transparent 34%),
+        linear-gradient(145deg, rgba(11,24,48,.96) 0%, rgba(18,38,74,.94) 48%, rgba(15,76,129,.9) 100%);
+      border:1px solid rgba(125,211,252,.2);
+      border-radius:22px;
+      padding:16px;
       min-height:180px;
-      box-shadow:0 10px 24px rgba(15,23,42,.08);
+      box-shadow:0 24px 58px rgba(2,6,23,.24), inset 0 1px 0 rgba(255,255,255,.08);
       position:relative;
       overflow:hidden;
+      color:#eaf6ff;
+      transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease;
     }
     .r-card::before{
       content:'';
       position:absolute;
-      inset:0 auto auto 0;
-      width:100%;
-      height:3px;
-      background:linear-gradient(90deg, rgba(37,99,235,.9), rgba(14,165,233,.75));
-      opacity:.75;
+      inset:0 auto 0 0;
+      width:5px;
+      height:100%;
+      background:linear-gradient(180deg, rgba(56,189,248,.95), rgba(14,165,233,.62), rgba(255,255,255,0));
+      opacity:1;
     }
-    .r-card h3{font-size:1rem; margin:0 0 10px 0; font-weight:700;}
-    .r-card .muted{color:var(--muted);}
+    .r-card::after{
+      content:'';
+      position:absolute;
+      right:-48px;
+      top:-48px;
+      width:160px;
+      height:160px;
+      border-radius:50%;
+      background:radial-gradient(circle, rgba(56,189,248,.28) 0%, rgba(56,189,248,0) 72%);
+      pointer-events:none;
+    }
+    .r-card:hover{
+      transform:translateY(-4px);
+      box-shadow:0 28px 60px rgba(2,6,23,.3), inset 0 1px 0 rgba(255,255,255,.12);
+      border-color:rgba(125,211,252,.34);
+    }
+    .r-card h3{
+      font-family:"Space Grotesk","Manrope",sans-serif;
+      font-size:1rem;
+      margin:0 0 10px 0;
+      font-weight:700;
+      letter-spacing:-.02em;
+      color:#eaf6ff;
+    }
+    .r-card .muted{color:#b9d4ea !important;}
+    .r-card .text-muted{color:#b9d4ea !important;}
+    .r-card .small{color:inherit;}
+    .r-card h3,
+    .r-card .small,
+    .r-card .fw-semibold{
+      color:#eaf6ff !important;
+    }
+    .r-card .btn.btn-primary{
+      background:linear-gradient(135deg, #f8fbff, #dbeafe);
+      color:#12315a;
+      box-shadow:0 12px 24px rgba(2,6,23,.2);
+    }
+    .r-card .btn.btn-outline-secondary,
+    .r-card .btn.btn-outline-primary{
+      border-color:rgba(191,219,254,.24);
+      color:#eaf6ff;
+      background:rgba(255,255,255,.04);
+    }
+    .r-card .btn.btn-outline-secondary:hover,
+    .r-card .btn.btn-outline-primary:hover{
+      border-color:rgba(191,219,254,.34);
+      color:#ffffff;
+      background:rgba(255,255,255,.1);
+    }
+    .whs-badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width:42px;
+      height:28px;
+      padding:0 10px;
+      border-radius:999px;
+      border:1px solid rgba(191,219,254,.28);
+      background:linear-gradient(135deg, rgba(248,250,252,.18), rgba(125,211,252,.12));
+      color:#f8fbff;
+      font-family:"Space Grotesk","Manrope",sans-serif;
+      font-size:.76rem;
+      font-weight:700;
+      letter-spacing:.08em;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    #guestCardProgress{
+      font-family:"Space Grotesk","Manrope",sans-serif;
+      font-size:1rem;
+      letter-spacing:-.02em;
+    }
+    #guestCardMissing{
+      max-width:28ch;
+      line-height:1.35;
+    }
     .kv{display:grid; grid-template-columns:120px 1fr; gap:6px 8px; font-size:.9rem;}
-    .kv .k{color:var(--muted);}
-    .placeholder{color:#94a3b8; font-style:italic;}
-    .badge-soft{font-weight:700; font-size:.74rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;}
+    .kv .k{color:var(--muted-dark);}
+    .placeholder{color:#8fa5c0; font-style:italic;}
+    .badge-soft{
+      font-weight:700;
+      font-size:.74rem;
+      background:linear-gradient(135deg, rgba(248,250,252,.14), rgba(219,234,254,.24));
+      color:#eaf6ff;
+      border:1px solid rgba(191,219,254,.26);
+      border-radius:999px;
+      padding:.28rem .48rem;
+    }
+    .plan-summary{
+      display:grid;
+      gap:6px;
+      line-height:1.4;
+    }
+    .plan-summary .small{
+      color:#eaf6ff !important;
+    }
+    .plan-inline-note{
+      color:#b9d4ea !important;
+      font-size:.82rem;
+    }
+    .plan-checkbox-row{
+      display:flex;
+      align-items:flex-start;
+      gap:10px;
+      padding:10px 12px;
+      border:1px solid rgba(191,219,254,.18);
+      border-radius:14px;
+      background:rgba(255,255,255,.04);
+    }
+    .plan-checkbox-row input{
+      margin-top:.25rem;
+    }
+    .split-action-row{
+      display:flex;
+      gap:10px;
+      width:100%;
+    }
+    .split-action-row .split-primary{flex:7 1 0;}
+    .split-action-row .split-secondary{flex:3 1 0;}
     .invalid-box{
-      max-width:620px; margin:9vh auto 0; background:#fff; border:1px solid #fecaca; color:#991b1b;
-      border-radius:14px; padding:18px; text-align:center; box-shadow:0 8px 26px rgba(15,23,42,.06);
+      max-width:620px; margin:9vh auto 0; background:rgba(255,255,255,.96); border:1px solid #fecaca; color:#991b1b;
+      border-radius:20px; padding:20px; text-align:center; box-shadow:0 24px 50px rgba(2,6,23,.16);
     }
     .lang-switch{display:flex; align-items:center; justify-content:flex-end;}
     .lang-menu{position:relative;}
     .lang-menu-btn{
-      border:1px solid rgba(148,163,184,.35);
-      background:#fff;
-      color:#334155;
+      border:1px solid rgba(148,163,184,.18);
+      background:rgba(255,255,255,.08);
+      color:#dbeafe;
       border-radius:999px;
-      padding:6px 10px;
+      padding:7px 11px;
       display:inline-flex;
       align-items:center;
       gap:6px;
       font-size:.82rem;
       font-weight:700;
-      box-shadow:0 4px 10px rgba(15,23,42,.08);
+      box-shadow:0 8px 18px rgba(2,6,23,.2);
+      backdrop-filter:blur(12px);
     }
     .lang-menu-btn .fi{font-size:.92rem; border-radius:2px;}
     .lang-menu-list{
@@ -115,13 +369,14 @@
       right:0;
       top:calc(100% + 6px);
       min-width:210px;
-      background:#fff;
-      border:1px solid rgba(148,163,184,.30);
-      border-radius:12px;
-      box-shadow:0 10px 26px rgba(15,23,42,.16);
+      background:rgba(9,17,29,.94);
+      border:1px solid rgba(148,163,184,.16);
+      border-radius:16px;
+      box-shadow:0 18px 34px rgba(2,6,23,.26);
       padding:6px;
       display:none;
       z-index: 50;
+      backdrop-filter:blur(16px);
     }
     .lang-menu-list.open{display:block;}
     .lang-option{
@@ -134,43 +389,263 @@
       align-items:center;
       gap:8px;
       font-size:.84rem;
-      color:#334155;
+      color:#dbeafe;
       text-align:left;
       font-weight:600;
     }
-    .lang-option:hover{background:#f1f5f9;}
+    .lang-option:hover{background:rgba(148,163,184,.12);}
     .lang-option.active{
-      background:#dbeafe;
-      color:#1d4ed8;
+      background:linear-gradient(135deg, rgba(37,99,235,.26), rgba(56,189,248,.16));
+      color:#dbeafe;
     }
     .lang-option .fi{font-size:.92rem; border-radius:2px;}
     .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
     .form-grid .full{grid-column:1/-1;}
+    .form-control.form-control-sm,
+    .form-select.form-select-sm{
+      border-radius:14px;
+      border:1px solid rgba(191,219,254,.42);
+      background:rgba(255,255,255,.96);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.7);
+      padding-top:.58rem;
+      padding-bottom:.58rem;
+    }
+    .form-control.form-control-sm:focus,
+    .form-select.form-select-sm:focus{
+      border-color:rgba(56,189,248,.7);
+      box-shadow:0 0 0 .22rem rgba(56,189,248,.14);
+    }
+    .btn.btn-primary{
+      border:0;
+      border-radius:14px;
+      background:linear-gradient(135deg, #2563eb, #0ea5e9);
+      box-shadow:0 14px 26px rgba(37,99,235,.24);
+    }
+    .btn.btn-outline-secondary,
+    .btn.btn-outline-primary{
+      border-radius:14px;
+    }
     .guest-modal{position:fixed; inset:0; display:none; z-index:120;}
     .guest-modal.open{display:block;}
-    .guest-modal-backdrop{position:absolute; inset:0; background:rgba(15,23,42,.5);}
+    .guest-modal-backdrop{
+      position:absolute;
+      inset:0;
+      background:
+        radial-gradient(circle at top, rgba(56,189,248,.08), transparent 30%),
+        rgba(2,6,23,.68);
+      backdrop-filter:blur(10px);
+    }
     .guest-modal-panel{
       position:relative;
       width:min(900px,94vw);
       max-height:86vh;
       overflow:auto;
       margin:7vh auto 0;
-      background:#fff;
-      border:1px solid #dbe5f3;
-      border-radius:14px;
-      box-shadow:0 28px 60px rgba(2,6,23,.28);
-      padding:14px;
+      background:
+        radial-gradient(circle at top right, rgba(56,189,248,.12), transparent 30%),
+        linear-gradient(145deg, rgba(10,20,37,.96) 0%, rgba(11,27,47,.94) 54%, rgba(14,50,84,.9) 100%);
+      border:1px solid rgba(125,211,252,.18);
+      border-radius:24px;
+      box-shadow:0 34px 80px rgba(2,6,23,.34);
+      padding:16px;
+      color:#eaf6ff;
     }
     .guest-modal-header{
       display:flex;
       align-items:center;
       justify-content:space-between;
       gap:10px;
-      margin-bottom:10px;
-      padding-bottom:8px;
-      border-bottom:1px solid #e2e8f0;
+      margin-bottom:14px;
+      padding-bottom:12px;
+      border-bottom:1px solid rgba(148,163,184,.18);
     }
-    @media (max-width:560px){ .form-grid{grid-template-columns:1fr;} }
+    .guest-menu-view{
+      display:grid;
+      gap:12px;
+    }
+    .guest-form-view.is-hidden,
+    .guest-menu-view.is-hidden{
+      display:none;
+    }
+    .guest-menu-box{
+      border:1px solid rgba(125,211,252,.18);
+      border-radius:18px;
+      background:linear-gradient(180deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,.03) 100%);
+      padding:12px;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+    }
+    .guest-menu-head{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:8px;
+      margin-bottom:10px;
+    }
+    .guest-menu-title{
+      font-size:.74rem;
+      font-weight:800;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      color:#b9d4ea;
+    }
+    .guest-nav-list{
+      display:grid;
+      gap:8px;
+    }
+    .guest-nav-btn{
+      width:100%;
+      border:1px solid rgba(125,211,252,.14);
+      background:rgba(255,255,255,.05);
+      border-radius:16px;
+      padding:12px;
+      text-align:left;
+      display:grid;
+      gap:6px;
+      color:#eaf6ff;
+      box-shadow:0 12px 22px rgba(2,6,23,.14);
+      position:relative;
+      overflow:hidden;
+    }
+    .guest-nav-btn::before{
+      content:'';
+      position:absolute;
+      inset:10px auto 10px 0;
+      width:3px;
+      border-radius:999px;
+      background:linear-gradient(180deg, rgba(148,163,184,.34), rgba(148,163,184,.08));
+    }
+    .guest-nav-btn.active{
+      border-color:#7dd3fc;
+      box-shadow:0 0 0 4px rgba(56,189,248,.12), 0 14px 26px rgba(37,99,235,.12);
+      background:linear-gradient(135deg, rgba(37,99,235,.26), rgba(56,189,248,.12));
+    }
+    .guest-nav-btn.active::before{
+      background:linear-gradient(180deg, rgba(37,99,235,.92), rgba(56,189,248,.78));
+    }
+    .guest-nav-top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
+    .guest-nav-name{
+      font-size:.84rem;
+      font-weight:700;
+    }
+    .guest-nav-state{
+      font-size:.68rem;
+      font-weight:800;
+      border-radius:999px;
+      padding:2px 8px;
+      border:1px solid transparent;
+      white-space:nowrap;
+    }
+    .guest-nav-state.is-complete{
+      background:#ecfdf3;
+      color:#047857;
+      border-color:#a7f3d0;
+    }
+    .guest-nav-state.is-pending{
+      background:#fff7ed;
+      color:#c2410c;
+      border-color:#fed7aa;
+    }
+    .guest-nav-sub{
+      font-size:.74rem;
+      color:#b9d4ea;
+      line-height:1.3;
+    }
+    .guest-main{
+      border:1px solid rgba(125,211,252,.18);
+      border-radius:20px;
+      background:linear-gradient(180deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,.03) 100%);
+      padding:16px;
+      box-shadow:0 18px 40px rgba(2,6,23,.16), inset 0 1px 0 rgba(255,255,255,.04);
+      color:#eaf6ff;
+    }
+    .guest-back-btn{
+      border:1px solid rgba(191,219,254,.55);
+      background:linear-gradient(135deg, rgba(248,250,252,.14), rgba(219,234,254,.22));
+      color:#eaf6ff;
+      border-radius:999px;
+      padding:4px 10px;
+      font-size:.74rem;
+      font-weight:700;
+      margin-bottom:8px;
+    }
+    .guest-current-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:12px;
+      padding-bottom:10px;
+      border-bottom:1px solid rgba(148,163,184,.18);
+    }
+    .guest-current-title{
+      font-size:1rem;
+      font-weight:800;
+      color:#f8fbff;
+      margin-bottom:2px;
+    }
+    .guest-current-sub{
+      font-size:.78rem;
+      color:#b9d4ea;
+      font-weight:600;
+    }
+    .guest-missing-box{
+      min-width:min(340px, 100%);
+      max-width:420px;
+      border:1px solid rgba(191,219,254,.28);
+      border-radius:16px;
+      background:linear-gradient(135deg, #f8fafc, #f0f7ff);
+      padding:10px 12px;
+    }
+    .guest-missing-label{
+      font-size:.7rem;
+      font-weight:800;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      color:#64748b;
+      margin-bottom:4px;
+    }
+    .guest-missing-text{
+      font-size:.8rem;
+      color:#334155;
+      line-height:1.35;
+    }
+    .guest-section-title{
+      font-size:.78rem;
+      font-weight:800;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      color:#cfe3f6;
+      margin:14px 0 8px;
+    }
+    .guest-actions{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-top:14px;
+      padding-top:12px;
+      border-top:1px solid rgba(148,163,184,.18);
+    }
+    .guest-actions-nav{
+      display:flex;
+      gap:8px;
+    }
+    @media (max-width:900px){
+      .guest-current-head{flex-direction:column;}
+      .guest-missing-box{min-width:0; width:100%; max-width:none;}
+    }
+    @media (max-width:560px){
+      .form-grid{grid-template-columns:1fr;}
+      .guest-actions{flex-direction:column; align-items:stretch;}
+      .guest-actions-nav{width:100%;}
+      .guest-actions-nav .btn,
+      .guest-actions .btn{width:100%;}
+    }
     @media (max-width:700px){
       .public-wrap{padding:92px 12px 12px;}
       .public-header{width:calc(100% - 16px); top:8px;}
@@ -180,7 +655,7 @@
 <body>
   {% if invalid %}
     <div class="invalid-box">
-      <h1 style="font-size:1.1rem; margin-bottom:8px;" data-i18n="invalid_title">Link inválido ou expirado</h1>
+      <h1 style="font-size:1.1rem; margin-bottom:8px;" data-i18n="invalid_title">Link inv&aacute;lido ou expirado</h1>
       <div class="small" data-i18n="invalid_sub">Confirma o link ou pede um novo acesso.</div>
     </div>
   {% else %}
@@ -194,41 +669,131 @@
               <span id="langMenuCode">PT</span>
             </button>
             <div id="langMenuList" class="lang-menu-list">
-              <button type="button" class="lang-option" data-lang="pt"><span class="fi fi-pt"></span><span>Português</span></button>
+              <button type="button" class="lang-option" data-lang="pt"><span class="fi fi-pt"></span><span>Portugu&ecirc;s</span></button>
               <button type="button" class="lang-option" data-lang="en"><span class="fi fi-gb"></span><span>English</span></button>
-              <button type="button" class="lang-option" data-lang="fr"><span class="fi fi-fr"></span><span>Français</span></button>
-              <button type="button" class="lang-option" data-lang="es"><span class="fi fi-es"></span><span>Español</span></button>
+              <button type="button" class="lang-option" data-lang="fr"><span class="fi fi-fr"></span><span>Fran&ccedil;ais</span></button>
+              <button type="button" class="lang-option" data-lang="es"><span class="fi fi-es"></span><span>Espa&ntilde;ol</span></button>
             </div>
           </div>
         </div>
       </header>
       <div class="public-meta">
-        <h1 class="public-title"><span data-i18n="title_reservation">Reserva</span> · {{ page_data.alojamento or 'Alojamento' }}</h1>
+        <h1 class="public-title"><span data-i18n="title_reservation">Reserva</span> &middot; {{ page_data.alojamento or 'Alojamento' }}</h1>
         <div class="public-sub">
-          {% if page_data.reserva %}<span data-i18n="label_reservation">Reserva</span> {{ page_data.reserva }} · {% endif %}
-          {{ page_data.checkin_data or '—' }} → {{ page_data.checkout_data or '—' }}
+          {% if page_data.reserva %}<span data-i18n="label_reservation">Reserva</span> {{ page_data.reserva }} &middot; {% endif %}
+          {{ page_data.checkin_data or '&mdash;'|safe }} &rarr; {{ page_data.checkout_data or '&mdash;'|safe }}
         </div>
       </div>
 
       <section class="cards-grid">
         <article class="r-card">
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <h3 class="mb-0" data-i18n="card_mandatory">Dados Obrigat?rios</h3>
+            <h3 class="mb-0" data-i18n="card_mandatory">Dados Obrigat&oacute;rios</h3>
             <span id="guestCardStatus" class="badge bg-warning-subtle text-warning-emphasis border" data-i18n="mandatory_status_pending">Pendente</span>
           </div>
-          <div class="small text-muted mb-3" data-i18n="mandatory_modal_hint">Preenche os dados no formul?rio passo a passo.</div>
-          <div class="d-flex align-items-center justify-content-between">
-            <div id="guestCardProgress" class="small fw-semibold text-primary">1/1</div>
-            <button id="guestOpenBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_open_mandatory_modal">Preencher</button>
+          <div class="small text-muted mb-3" data-i18n="mandatory_modal_hint">Preenche os dados no formul&aacute;rio passo a passo.</div>
+          <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
+            <div>
+              <div id="guestCardProgress" class="small fw-semibold text-primary">0/1</div>
+              <div id="guestCardMissing" class="small text-muted">...</div>
+            </div>
+            <div class="split-action-row">
+              <button id="guestOpenBtn" type="button" class="btn btn-sm btn-primary split-primary" data-i18n="btn_open_mandatory_modal">Preencher</button>
+              <button id="guestWhyBtn" type="button" class="btn btn-sm btn-outline-secondary split-secondary" data-i18n="btn_why_guest_data">Porqu&ecirc;?</button>
+            </div>
           </div>
         </article>
+
+        <div id="guestWhyModal" class="guest-modal" aria-hidden="true">
+          <div class="guest-modal-backdrop" id="guestWhyBackdrop"></div>
+          <div class="guest-modal-panel">
+            <div class="guest-modal-header">
+              <div>
+                <div class="fw-bold" data-i18n="guest_why_title">Porque pedimos estes dados</div>
+                <div class="small text-muted" data-i18n="guest_why_subtitle">Esta informa&ccedil;&atilde;o &eacute; exigida por lei e usada apenas para cumprir as obriga&ccedil;&otilde;es da reserva.</div>
+              </div>
+              <button id="guestWhyCloseBtn" type="button" class="btn btn-sm btn-outline-secondary">X</button>
+            </div>
+            <section class="guest-main">
+              <div class="vstack gap-3">
+                <div class="small" data-i18n="guest_why_body_1">Em Portugal, a comunica&ccedil;&atilde;o do alojamento de cidad&atilde;os estrangeiros &eacute; uma obriga&ccedil;&atilde;o legal. O boletim eletr&oacute;nico &eacute; feito atrav&eacute;s do sistema SIBA.</div>
+                <div class="small" data-i18n="guest_why_body_2">O SIBA foi criado pela Portaria n.&ordm; 287/07, de 16 de mar&ccedil;o, e a comunica&ccedil;&atilde;o eletr&oacute;nica dos dados de alojamento est&aacute; prevista na Lei n.&ordm; 23/2007, de 4 de julho.</div>
+                <div class="small" data-i18n="guest_why_body_3">Pedimos estes dados antes da chegada para agilizar o check-in, cumprir os prazos legais e garantir que a reserva fica corretamente preparada.</div>
+              </div>
+              <div class="guest-actions mt-3">
+                <div class="guest-actions-nav"></div>
+                <button id="guestWhyDismissBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_close_info">Fechar</button>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <article class="r-card">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <h3 class="mb-0" data-i18n="card_stay_plan">Ajuda-nos a preparar a tua chegada e sa&iacute;da</h3>
+            <span id="stayPlanStatus" class="badge bg-info-subtle text-info-emphasis border" data-i18n="stay_plan_status_empty">Opcional</span>
+          </div>
+          <div class="small text-muted mb-3" data-i18n="stay_plan_hint">Partilha os hor&aacute;rios previstos de check-in e check-out para prepararmos melhor a tua reserva.</div>
+          <div class="plan-summary mb-3">
+            <div id="stayPlanSummary" class="small">Sem hor&aacute;rios definidos.</div>
+            {% if page_data.criancas %}
+              <div id="stayPlanCribSummary" class="plan-inline-note">Ber&ccedil;o: n&atilde;o pedido.</div>
+            {% endif %}
+          </div>
+          <button id="stayPlanOpenBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_open_stay_plan">Indicar hor&aacute;rios</button>
+        </article>
+
+        <div id="stayPlanModal" class="guest-modal" aria-hidden="true">
+          <div class="guest-modal-backdrop" id="stayPlanBackdrop"></div>
+          <div class="guest-modal-panel">
+            <div class="guest-modal-header">
+              <div>
+                <div class="fw-bold" data-i18n="stay_plan_modal_title">Ajuda-nos a preparar melhor o teu check-in e check-out</div>
+                <div class="small text-muted" data-i18n="stay_plan_modal_hint">Esta informa&ccedil;&atilde;o &eacute; opcional, mas ajuda a equipa a organizar a tua reserva.</div>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <div id="stayPlanSaveMsg" class="small text-success d-none" data-i18n="mandatory_saved">Gravado.</div>
+                <button id="stayPlanCloseBtn" type="button" class="btn btn-sm btn-outline-secondary">X</button>
+              </div>
+            </div>
+            <section class="guest-main">
+              <div class="form-grid">
+                <div>
+                  <label class="form-label small mb-1" for="stayPlanHoraIn" data-i18n="stay_plan_checkin_label">Hora prevista de check-in</label>
+                  <input id="stayPlanHoraIn" type="time" class="form-control form-control-sm">
+                </div>
+                <div>
+                  <label class="form-label small mb-1" for="stayPlanHoraOut" data-i18n="stay_plan_checkout_label">Hora prevista de check-out</label>
+                  <input id="stayPlanHoraOut" type="time" class="form-control form-control-sm">
+                </div>
+                {% if page_data.criancas %}
+                  <div class="full">
+                    <label class="plan-checkbox-row">
+                      <input id="stayPlanBerco" type="checkbox">
+                      <span>
+                        <strong data-i18n="stay_plan_crib_label">Precisamos de ber&ccedil;o</strong>
+                        <span class="d-block small text-muted" data-i18n="stay_plan_crib_hint">Ativa apenas se vais precisar de ber&ccedil;o para uma crian&ccedil;a.</span>
+                      </span>
+                    </label>
+                  </div>
+                {% endif %}
+              </div>
+              <div class="guest-actions mt-3">
+                <div class="guest-actions-nav">
+                  <button id="stayPlanCancelBtn" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="btn_cancel">Cancelar</button>
+                </div>
+                <button id="stayPlanSaveBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_save_stay_plan">Guardar</button>
+              </div>
+            </section>
+          </div>
+        </div>
 
         <div id="guestModal" class="guest-modal" aria-hidden="true">
           <div class="guest-modal-backdrop" id="guestModalBackdrop"></div>
           <div class="guest-modal-panel">
             <div class="guest-modal-header">
               <div>
-                <div class="fw-bold" data-i18n="card_mandatory">Dados Obrigat?rios</div>
+                <div class="fw-bold" data-i18n="card_mandatory">Dados Obrigat&oacute;rios</div>
                 <div id="guestStepLabel" class="small fw-semibold text-primary">1/1</div>
               </div>
               <div class="d-flex align-items-center gap-2">
@@ -236,95 +801,96 @@
                 <button id="guestCloseBtn" type="button" class="btn btn-sm btn-outline-secondary">X</button>
               </div>
             </div>
-            <div class="form-grid">
-              <div>
-                <label class="form-label small mb-1" data-i18n="guest_name">Nome</label>
-                <input id="g_nome" class="form-control form-control-sm" maxlength="100">
-              </div>
-              <div>
-                <label class="form-label small mb-1" data-i18n="guest_surname">Apelido</label>
-                <input id="g_apelido" class="form-control form-control-sm" maxlength="100">
-              </div>
-              <div>
-                <label class="form-label small mb-1" data-i18n="guest_birthdate">Data nascimento*</label>
-                <input id="g_dtnasc" type="date" class="form-control form-control-sm">
-              </div>
-              <div>
-                <label class="form-label small mb-1" data-i18n="guest_nationality">Nacionalidade*</label>
-                <select id="g_nacionalidade" class="form-select form-select-sm"></select>
-              </div>
-              <div>
-                <label class="form-label small mb-1" data-i18n="guest_doc_type">Tipo documento*</label>
-                <input id="g_tipo_doc" class="form-control form-control-sm" maxlength="30" placeholder="CC / Passaporte">
-              </div>
-              <div>
-                <label class="form-label small mb-1" data-i18n="guest_doc_num">N? documento*</label>
-                <input id="g_num_doc" class="form-control form-control-sm" maxlength="40">
-              </div>
-              <div>
-                <label class="form-label small mb-1" data-i18n="guest_doc_country">Pa?s emissor doc.*</label>
-                <select id="g_pais_emissor_doc" class="form-select form-select-sm"></select>
-              </div>
-              <div>
-                <label class="form-label small mb-1" data-i18n="guest_residence_country">Pa?s resid?ncia</label>
-                <select id="g_pais_residencia" class="form-select form-select-sm"></select>
-              </div>
-              <div id="guestSupportFields" class="full">
-                <div class="row g-2">
-                  <div class="col-md-6">
-                    <label class="form-label small mb-1" data-i18n="guest_horain">Hora check-in prev.</label>
-                    <input id="g_horain" class="form-control form-control-sm" maxlength="5" placeholder="HH:MM">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label small mb-1" data-i18n="guest_horaout">Hora check-out prev.</label>
-                    <input id="g_horaout" class="form-control form-control-sm" maxlength="5" placeholder="HH:MM">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label small mb-1" data-i18n="guest_transport">Transporte</label>
-                    <input id="g_transporte" class="form-control form-control-sm" maxlength="30">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label small mb-1" data-i18n="guest_flight">Voo</label>
-                    <input id="g_voo" class="form-control form-control-sm" maxlength="20">
-                  </div>
-                  <div class="col-md-6 d-flex align-items-end" id="guestBercoWrap">
-                    <div class="form-check mb-2">
-                      <input class="form-check-input" type="checkbox" id="g_berco">
-                      <label class="form-check-label small" for="g_berco" data-i18n="guest_crib">Pretende ber?o</label>
-                    </div>
-                  </div>
+            <div id="guestMenuView" class="guest-menu-view">
+              <div class="guest-menu-box">
+                <div class="guest-menu-head">
+                  <div class="guest-menu-title" data-i18n="guest_menu_title">H&oacute;spedes</div>
+                  <div id="guestOverallSummary" class="small fw-semibold text-primary">0/1</div>
                 </div>
-              </div>
-              <div class="full d-flex align-items-center justify-content-between mt-1">
-                <div></div>
-                <div class="d-flex gap-2">
-                  <button id="guestPrevBtn" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="btn_prev_guest">Anterior</button>
-                  <button id="guestSaveBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_save_guest">Gravar</button>
-                  <button id="guestNextBtn" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="btn_next_guest">Seguinte</button>
-                </div>
+                <div id="guestNavList" class="guest-nav-list"></div>
               </div>
             </div>
+            <section id="guestFormView" class="guest-main guest-form-view is-hidden">
+                <button id="guestBackBtn" type="button" class="guest-back-btn" data-i18n="btn_back_guest_menu">Voltar aos h&oacute;spedes</button>
+                <div class="guest-current-head">
+                  <div>
+                    <div id="guestCurrentTitle" class="guest-current-title">H&oacute;spede 1</div>
+                    <div id="guestCurrentSub" class="guest-current-sub">1/1</div>
+                  </div>
+                  <div class="guest-missing-box">
+                    <div class="guest-missing-label" data-i18n="guest_status_label">Estado</div>
+                    <div id="guestMissingSummary" class="guest-missing-text">...</div>
+                  </div>
+                </div>
+
+                <div class="guest-section-title" data-i18n="guest_section_identity">Identifica&ccedil;&atilde;o</div>
+                <div class="form-grid">
+                  <div>
+                    <label class="form-label small mb-1" data-i18n="guest_name">Nome</label>
+                    <input id="g_nome" class="form-control form-control-sm" maxlength="100">
+                  </div>
+                  <div>
+                    <label class="form-label small mb-1" data-i18n="guest_surname">Apelido</label>
+                    <input id="g_apelido" class="form-control form-control-sm" maxlength="100">
+                  </div>
+                  <div>
+                    <label class="form-label small mb-1" data-i18n="guest_birthdate">Data de nascimento*</label>
+                    <input id="g_dtnasc" type="date" class="form-control form-control-sm">
+                  </div>
+                  <div>
+                    <label class="form-label small mb-1" data-i18n="guest_nationality">Nacionalidade*</label>
+                    <select id="g_nacionalidade" class="form-select form-select-sm"></select>
+                  </div>
+                  <div class="full">
+                    <label class="form-label small mb-1" data-i18n="guest_residence_country">Pa&iacute;s de resid&ecirc;ncia</label>
+                    <select id="g_pais_residencia" class="form-select form-select-sm"></select>
+                  </div>
+                </div>
+
+                <div class="guest-section-title" data-i18n="guest_section_document">Documento</div>
+                <div class="form-grid">
+                  <div>
+                    <label class="form-label small mb-1" data-i18n="guest_doc_type">Tipo de documento*</label>
+                    <select id="g_tipo_doc" class="form-select form-select-sm"></select>
+                  </div>
+                  <div>
+                    <label class="form-label small mb-1" data-i18n="guest_doc_num">N.&ordm; documento*</label>
+                    <input id="g_num_doc" class="form-control form-control-sm" maxlength="40">
+                  </div>
+                  <div class="full">
+                    <label class="form-label small mb-1" data-i18n="guest_doc_country">Pa&iacute;s emissor do documento*</label>
+                    <select id="g_pais_emissor_doc" class="form-select form-select-sm"></select>
+                  </div>
+                </div>
+
+                <div class="guest-actions">
+                  <div class="guest-actions-nav">
+                    <button id="guestNextBtn" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="btn_next_guest">Seguinte</button>
+                  </div>
+                  <button id="guestSaveBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_save_guest">Gravar</button>
+                </div>
+              </section>
           </div>
         </div>
 
         <article class="r-card">
           <h3 data-i18n="card_checkin">Check-in</h3>
           <div class="kv">
-            <div class="k" data-i18n="label_property">Alojamento</div><div><strong>{{ page_data.alojamento or '—' }}</strong></div>
-            <div class="k" data-i18n="label_checkin">Check-in</div><div>{{ page_data.checkin_data or '—' }} {% if page_data.checkin_hora %}<span class="badge badge-soft ms-1">{{ page_data.checkin_hora }}</span>{% endif %}</div>
-            <div class="k" data-i18n="label_checkout">Check-out</div><div>{{ page_data.checkout_data or '—' }} {% if page_data.checkout_hora %}<span class="badge badge-soft ms-1">{{ page_data.checkout_hora }}</span>{% endif %}</div>
-            <div class="k" data-i18n="label_guests">Hóspedes</div><div>{{ page_data.hospedes or 0 }} {% if page_data.noites %}<span class="muted">· {{ page_data.noites }} <span data-i18n="label_nights">noite(s)</span></span>{% endif %}</div>
-            <div class="k" data-i18n="label_address">Morada</div><div>{{ page_data.address_text or '—' }}</div>
+            <div class="k" data-i18n="label_property">Alojamento</div><div><strong>{{ page_data.alojamento or '&mdash;'|safe }}</strong></div>
+            <div class="k" data-i18n="label_checkin">Check-in</div><div>{{ page_data.checkin_data or '&mdash;'|safe }} {% if page_data.checkin_hora %}<span class="badge badge-soft ms-1">{{ page_data.checkin_hora }}</span>{% endif %}</div>
+            <div class="k" data-i18n="label_checkout">Check-out</div><div>{{ page_data.checkout_data or '&mdash;'|safe }} {% if page_data.checkout_hora %}<span class="badge badge-soft ms-1">{{ page_data.checkout_hora }}</span>{% endif %}</div>
+            <div class="k" data-i18n="label_guests">H&oacute;spedes</div><div>{{ page_data.hospedes or 0 }} {% if page_data.noites %}<span class="muted">&middot; {{ page_data.noites }} <span data-i18n="label_nights">noite(s)</span></span>{% endif %}</div>
+            <div class="k" data-i18n="label_address">Morada</div><div>{{ page_data.address_text or '&mdash;'|safe }}</div>
           </div>
         </article>
 
         <article class="r-card">
           <h3 data-i18n="card_how_to_get">Como Chegar</h3>
-          <div class="mb-2 muted">{{ page_data.address_text or '' }}{% if not page_data.address_text %}<span data-i18n="placeholder_no_address">Morada não disponível</span>{% endif %}</div>
+          <div class="mb-2 muted">{{ page_data.address_text or "" }}{% if not page_data.address_text %}<span data-i18n="placeholder_no_address">Morada n&atilde;o dispon&iacute;vel</span>{% endif %}</div>
           {% if page_data.maps_url %}
             <a class="btn btn-sm btn-primary" href="{{ page_data.maps_url }}" target="_blank" rel="noopener" data-i18n="btn_open_maps">Abrir no Google Maps</a>
           {% else %}
-            <div class="placeholder" data-i18n="placeholder_no_nav">Sem morada/coordenadas para navegação.</div>
+            <div class="placeholder" data-i18n="placeholder_no_nav">Sem morada/coordenadas para navega&ccedil;&atilde;o.</div>
           {% endif %}
         </article>
 
@@ -338,18 +904,18 @@
                     <div><strong>{{ p.name }}</strong>{% if p.type %} <span class="muted">&middot; {{ p.type }}</span>{% endif %}</div>
                     {% if p.descr %}<div class="muted small">{{ p.descr }}</div>{% endif %}
                     {% if p.address %}<div class="small">{{ p.address }}</div>{% endif %}
-                    {% if p.horario %}<div class="small"><span class="muted">Hor&aacute;rio:</span> {{ p.horario }}</div>{% endif %}
-                    {% if p.preco %}<div class="small"><span class="muted">Pre&ccedil;o:</span> {{ p.preco }}</div>{% endif %}
-                    {% if p.nota %}<div class="small"><span class="muted">Nota:</span> {{ p.nota }}</div>{% endif %}
+                    {% if p.horario %}<div class="small"><span class="muted" data-i18n="label_hours">Hor&aacute;rio</span>: {{ p.horario }}</div>{% endif %}
+                    {% if p.preco %}<div class="small"><span class="muted" data-i18n="label_price">Pre&ccedil;o</span>: {{ p.preco }}</div>{% endif %}
+                    {% if p.nota %}<div class="small"><span class="muted" data-i18n="label_notes">Nota</span>: {{ p.nota }}</div>{% endif %}
                     <div class="d-flex flex-wrap gap-2 mt-1">
                       {% if p.phone %}
-                        <a class="btn btn-sm btn-outline-secondary" href="tel:{{ p.phone }}">? {{ p.phone }}</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="tel:{{ p.phone }}"><span data-i18n="btn_call">Tel</span> {{ p.phone }}</a>
                       {% endif %}
                       {% if p.url %}
-                        <a class="btn btn-sm btn-outline-secondary" href="{{ p.url }}" target="_blank" rel="noopener">Website</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="{{ p.url }}" target="_blank" rel="noopener" data-i18n="btn_website">Website</a>
                       {% endif %}
                       {% if p.maps_url %}
-                        <a class="btn btn-sm btn-outline-primary" href="{{ p.maps_url }}" target="_blank" rel="noopener">Maps</a>
+                        <a class="btn btn-sm btn-outline-primary" href="{{ p.maps_url }}" target="_blank" rel="noopener" data-i18n="btn_maps">Maps</a>
                       {% endif %}
                     </div>
                   </div>
@@ -360,65 +926,206 @@
             {% endif %}
           </article>
         {% endfor %}
-        <article class="r-card"><h3 data-i18n="card_emergency">Emergência e Contactos</h3><div class="placeholder" data-i18n="placeholder_content">Conteúdo em preparação.</div></article>
-        <article class="r-card"><h3 data-i18n="card_rules">Regras Essenciais</h3><div class="placeholder" data-i18n="placeholder_content">Conteúdo em preparação.</div></article>
+        <article class="r-card">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <h3 class="mb-0" data-i18n="card_tourism">Posto de Turismo</h3>
+            <span class="whs-badge" aria-label="WHS">WHS</span>
+          </div>
+          <div class="vstack gap-3">
+            <div>
+              <div class="small muted" data-i18n="tourism_trindade_label">iPoint Trindade</div>
+              <div class="small">Esta&ccedil;&atilde;o da Trindade (Galerias da Trindade), 4000-057 Porto</div>
+              <div class="small">+351 93 555 7024</div>
+              <div class="small muted" data-i18n="tourism_trindade_note">A fonte oficial Visit Porto coloca este posto na Esta&ccedil;&atilde;o da Trindade. Confirma hor&aacute;rios antes de ir.</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-sm btn-outline-secondary" href="tel:+351935557024"><span data-i18n="btn_call">Tel</span> +351 93 555 7024</a>
+              <a class="btn btn-sm btn-outline-primary" href="https://visitporto.travel/pt-PT/contactos" target="_blank" rel="noopener" data-i18n="btn_official_site">Site oficial</a>
+              <a class="btn btn-sm btn-outline-primary" href="https://www.google.com/maps/search/?api=1&amp;query=Esta%C3%A7%C3%A3o+da+Trindade%2C+4000-057+Porto" target="_blank" rel="noopener" data-i18n="btn_open_maps">Abrir no Google Maps</a>
+            </div>
+          </div>
+        </article>
+        <article class="r-card">
+          <h3 data-i18n="card_emergency">Emerg&ecirc;ncia e Contactos</h3>
+          <div class="vstack gap-3">
+            <div>
+              <div class="small muted" data-i18n="emergency_national_label">N&uacute;mero nacional de emerg&ecirc;ncia</div>
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <strong>112</strong>
+                <a class="btn btn-sm btn-outline-secondary" href="tel:112"><span data-i18n="btn_call">Tel</span> 112</a>
+              </div>
+            </div>
+            <div>
+              <div class="small muted" data-i18n="emergency_psp_porto_label">PSP Porto (Comando Metropolitano)</div>
+              <div class="small">+351 222 092 000</div>
+              <div class="d-flex flex-wrap gap-2 mt-2">
+                <a class="btn btn-sm btn-outline-secondary" href="tel:+351222092000"><span data-i18n="btn_call">Tel</span> +351 222 092 000</a>
+                <a class="btn btn-sm btn-outline-primary" href="https://www.psp.pt/Pages/onde-estamos.aspx?d=Porto" target="_blank" rel="noopener" data-i18n="btn_more_info">Mais info</a>
+              </div>
+            </div>
+            <div>
+              <div class="small muted" data-i18n="emergency_hospital_sjoao_label">Hospital de S&atilde;o Jo&atilde;o</div>
+              <div class="d-flex flex-wrap gap-2 mt-2">
+                <a class="btn btn-sm btn-outline-primary" href="https://www.google.com/maps/search/?api=1&amp;query=Hospital+de+S%C3%A3o+Jo%C3%A3o+Porto" target="_blank" rel="noopener" data-i18n="btn_open_maps">Abrir no Google Maps</a>
+              </div>
+            </div>
+            <div>
+              <div class="small muted" data-i18n="emergency_hospital_santonio_label">Hospital de Santo Ant&oacute;nio</div>
+              <div class="d-flex flex-wrap gap-2 mt-2">
+                <a class="btn btn-sm btn-outline-primary" href="https://www.google.com/maps/search/?api=1&amp;query=Hospital+de+Santo+Ant%C3%B3nio+Porto" target="_blank" rel="noopener" data-i18n="btn_open_maps">Abrir no Google Maps</a>
+              </div>
+            </div>
+          </div>
+        </article>
+        <article class="r-card"><h3 data-i18n="card_rules">Regras Essenciais</h3><div class="placeholder" data-i18n="placeholder_content">Conte&uacute;do em prepara&ccedil;&atilde;o.</div></article>
       </section>
     </main>
+  {% endif %}
+
+  {% if not invalid %}
+    <footer class="public-footer">
+      <div class="public-footer-card">
+        <div class="public-footer-copy">
+          <div class="public-footer-title" data-i18n="footer_company_name">GuestSpaTur Habita&ccedil;&atilde;o e Turismo, Lda.</div>
+          <div class="public-footer-line" data-i18n="footer_company_address">Rua R&eacute;gulo Magauanha, 102, 4000-413 Porto, Portugal</div>
+          <div class="public-footer-line" data-i18n="footer_company_phone">Telefone: contacto telef&oacute;nico partilhado na comunica&ccedil;&atilde;o da reserva</div>
+          <div class="public-footer-line" data-i18n="footer_company_nif">NIF 518401057</div>
+          <div class="public-footer-line" data-i18n="footer_gdpr_note">Os dados partilhados nesta p&aacute;gina s&atilde;o usados apenas para gerir a tua reserva, em conformidade com o RGPD.</div>
+          <div class="public-footer-line" data-i18n="footer_company_copy">&copy; 2026 GuestSpaTur Habita&ccedil;&atilde;o e Turismo, Lda. Todos os direitos reservados.</div>
+        </div>
+        <div class="public-footer-actions">
+          <a class="btn btn-sm btn-outline-primary" href="https://www.google.com/maps/search/?api=1&amp;query=Rua+R%C3%A9gulo+Magauanha%2C+102%2C+4000-413+Porto" target="_blank" rel="noopener" data-i18n="btn_open_maps">Abrir no Google Maps</a>
+        </div>
+      </div>
+    </footer>
   {% endif %}
 
   <script>
     (function () {
       const PUBLIC_TOKEN = {{ (page_data.token if page_data is defined else '')|tojson }};
       const RES_CRIANCAS = Number({{ (page_data.criancas if page_data is defined else 0)|tojson }} || 0);
+      const INITIAL_STAY_PLAN = {
+        horain: {{ (page_data.checkin_hora if page_data is defined else '')|tojson }},
+        horaout: {{ (page_data.checkout_hora if page_data is defined else '')|tojson }},
+        berco: Boolean({{ (1 if (page_data.berco if page_data is defined else False) else 0)|tojson }})
+      };
       const I18N = {
         pt: {
           label_language: 'Idioma',
-          invalid_title: 'Link inválido ou expirado',
+          invalid_title: 'Link inv\u00e1lido ou expirado',
           invalid_sub: 'Confirma o link ou pede um novo acesso.',
           title_reservation: 'Reserva',
           label_reservation: 'Reserva',
-          card_mandatory: 'Dados Obrigatórios',
-          mandatory_modal_hint: 'Preenche os dados no formul?rio passo a passo.',
+          card_mandatory: 'Dados Obrigat\u00f3rios',
+          mandatory_modal_hint: 'Preenche os dados no formul\u00e1rio passo a passo.',
           btn_open_mandatory_modal: 'Preencher',
+          btn_why_guest_data: 'Porqu\u00ea?',
+          guest_why_title: 'Porque pedimos estes dados',
+          guest_why_subtitle: 'Esta informa\u00e7\u00e3o \u00e9 exigida por lei e usada apenas para cumprir as obriga\u00e7\u00f5es da reserva.',
+          guest_why_body_1: 'Em Portugal, a comunica\u00e7\u00e3o do alojamento de cidad\u00e3os estrangeiros \u00e9 uma obriga\u00e7\u00e3o legal. O boletim eletr\u00f3nico \u00e9 feito atrav\u00e9s do sistema SIBA.',
+          guest_why_body_2: 'O SIBA foi criado pela Portaria n.\u00ba 287/07, de 16 de mar\u00e7o, e a comunica\u00e7\u00e3o eletr\u00f3nica dos dados de alojamento est\u00e1 prevista na Lei n.\u00ba 23/2007, de 4 de julho.',
+          guest_why_body_3: 'Pedimos estes dados antes da chegada para agilizar o check-in, cumprir os prazos legais e garantir que a reserva fica corretamente preparada.',
+          btn_close_info: 'Fechar',
           mandatory_status_pending: 'Pendente',
           mandatory_status_complete: 'Completo',
           mandatory_saved: 'Gravado.',
+          card_stay_plan: 'Ajuda-nos a preparar a tua chegada e sa\u00edda',
+          stay_plan_modal_title: 'Ajuda-nos a preparar melhor o teu check-in e check-out',
+          stay_plan_modal_hint: 'Esta informa\u00e7\u00e3o \u00e9 opcional, mas ajuda a equipa a organizar a tua reserva.',
+          stay_plan_hint: 'Partilha os hor\u00e1rios previstos de check-in e check-out para prepararmos melhor a tua reserva.',
+          stay_plan_status_empty: 'Opcional',
+          stay_plan_status_ready: 'Atualizado',
+          stay_plan_summary_empty: 'Sem hor\u00e1rios definidos.',
+          stay_plan_summary_checkin: 'Check-in previsto: {value}',
+          stay_plan_summary_checkout: 'Check-out previsto: {value}',
+          stay_plan_summary_crib_yes: 'Ber\u00e7o: pedido.',
+          stay_plan_summary_crib_no: 'Ber\u00e7o: n\u00e3o pedido.',
+          stay_plan_checkin_label: 'Hora prevista de check-in',
+          stay_plan_checkout_label: 'Hora prevista de check-out',
+          stay_plan_crib_label: 'Precisamos de ber\u00e7o',
+          stay_plan_crib_hint: 'Ativa apenas se vais precisar de ber\u00e7o para uma crian\u00e7a.',
+          btn_open_stay_plan: 'Indicar hor\u00e1rios',
+          btn_save_stay_plan: 'Guardar',
+          btn_cancel: 'Cancelar',
+          guest_status_complete: 'Completo',
+          guest_status_pending: 'Em falta',
+          guest_missing_none: 'Todos os campos obrigat\u00f3rios deste h\u00f3spede est\u00e3o completos.',
+          guest_missing_prefix: 'Em falta: ',
+          guest_card_missing: 'Existem campos obrigat\u00f3rios por preencher.',
+          guest_card_complete: 'Todos os h\u00f3spedes obrigat\u00f3rios est\u00e3o completos.',
+          guest_required_done_short: 'Dados obrigat\u00f3rios completos.',
+          guest_menu_title: 'H\u00f3spedes',
+          guest_status_label: 'Estado',
+          guest_section_identity: 'Identifica\u00e7\u00e3o',
+          guest_section_document: 'Documento',
+          guest_default_name: 'H\u00f3spede',
+          guest_progress_pattern: '{completed}/{total} completos',
+          guest_of_total_pattern: 'H\u00f3spede {index} de {total}',
+          guest_field_name: 'Nome',
+          guest_field_surname: 'Apelido',
+          guest_field_birthdate: 'Data de nascimento',
+          guest_field_nationality: 'Nacionalidade',
+          guest_field_doc_type: 'Tipo de documento',
+          guest_field_doc_num: 'N.\u00ba do documento',
+          guest_field_doc_country: 'Pa\u00eds emissor do documento',
           guest_name: 'Nome*',
           guest_surname: 'Apelido*',
-          guest_birthdate: 'Data nascimento*',
+          guest_birthdate: 'Data de nascimento*',
           guest_nationality: 'Nacionalidade*',
-          guest_doc_type: 'Tipo documento*',
-          guest_doc_num: 'N? documento*',
-          guest_doc_country: 'Pa?s emissor doc.*',
-          guest_residence_country: 'Pa?s resid?ncia',
-          guest_horain: 'Hora check-in prev.',
-          guest_horaout: 'Hora check-out prev.',
-          guest_transport: 'Transporte',
-          guest_flight: 'Voo',
-          guest_crib: 'Pretende ber?o',
+          guest_doc_type: 'Tipo de documento*',
+          guest_doc_type_placeholder: 'Selecionar',
+          guest_doc_type_id: 'Documento de identifica\u00e7\u00e3o nacional',
+          guest_doc_type_passport: 'Passaporte',
+          guest_doc_type_other: 'Outro',
+          guest_doc_num: 'N.\u00ba do documento*',
+          guest_doc_country: 'Pa\u00eds emissor do documento*',
+          guest_residence_country: 'Pa\u00eds de resid\u00eancia',
+          btn_back_guest_menu: 'Voltar aos h\u00f3spedes',
           btn_prev_guest: 'Anterior',
           btn_save_guest: 'Gravar',
           btn_next_guest: 'Seguinte',
-          placeholder_mandatory_disabled: 'Temporariamente indisponível. Este formulário será ativado numa fase seguinte.',
+          placeholder_mandatory_disabled: 'Temporariamente indispon\u00edvel. Este formul\u00e1rio ser\u00e1 ativado numa fase seguinte.',
           card_checkin: 'Check-in',
           label_property: 'Alojamento',
           label_checkin: 'Check-in',
           label_checkout: 'Check-out',
-          label_guests: 'Hóspedes',
+          label_guests: 'H\u00f3spedes',
           label_nights: 'noite(s)',
           label_address: 'Morada',
           card_how_to_get: 'Como Chegar',
-          placeholder_no_address: 'Morada não disponível',
+          placeholder_no_address: 'Morada n\u00e3o dispon\u00edvel',
           btn_open_maps: 'Abrir no Google Maps',
-          placeholder_no_nav: 'Sem morada/coordenadas para navegação.',
+          placeholder_no_nav: 'Sem morada/coordenadas para navega\u00e7\u00e3o.',
           card_parking: 'Estacionamento',
           card_wifi: 'Wi-Fi',
           card_supermarkets: 'Supermercados',
           card_restaurants: 'Restaurantes',
           card_laundries: 'Lavandarias',
-          card_emergency: 'Emergência e Contactos',
+          card_emergency: 'Emerg\u00eancia e Contactos',
           card_rules: 'Regras Essenciais',
-          placeholder_content: 'Conteúdo em preparação.'
+          label_hours: 'Hor\u00e1rio',
+          label_price: 'Pre\u00e7o',
+          label_notes: 'Nota',
+          btn_call: 'Tel',
+          btn_website: 'Website',
+          btn_maps: 'Maps',
+          btn_more_info: 'Mais info',
+          btn_official_site: 'Site oficial',
+          footer_company_name: 'GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda.',
+          footer_company_address: 'Rua R\u00e9gulo Magauanha, 102, 4000-413 Porto, Portugal',
+          footer_company_phone: 'Telefone: contacto telef\u00f3nico partilhado na comunica\u00e7\u00e3o da reserva',
+          footer_company_nif: 'NIF 518401057',
+          footer_gdpr_note: 'Os dados partilhados nesta p\u00e1gina s\u00e3o usados apenas para gerir a tua reserva, em conformidade com o RGPD.',
+          footer_company_copy: '\u00a9 2026 GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda. Todos os direitos reservados.',
+          card_tourism: 'Posto de Turismo',
+          tourism_trindade_label: 'iPoint Trindade',
+          tourism_trindade_note: 'A fonte oficial Visit Porto coloca este posto na Esta\u00e7\u00e3o da Trindade. Confirma hor\u00e1rios antes de ir.',
+          tourism_uwh_note: 'Se recebeste um link UWH com a tua reserva, usa-o tamb\u00e9m para dicas locais e apoio r\u00e1pido.',
+          emergency_national_label: 'N\u00famero nacional de emerg\u00eancia',
+          emergency_psp_porto_label: 'PSP Porto (Comando Metropolitano)',
+          emergency_hospital_sjoao_label: 'Hospital de S\u00e3o Jo\u00e3o',
+          emergency_hospital_santonio_label: 'Hospital de Santo Ant\u00f3nio',
+          placeholder_content: 'Conte\u00fado em prepara\u00e7\u00e3o.'
         },
         en: {
           label_language: 'Language',
@@ -427,25 +1134,70 @@
           title_reservation: 'Reservation',
           label_reservation: 'Reservation',
           card_mandatory: 'Required Information',
-          mandatory_modal_hint: 'Fill in the guest data step by step.',
+          mandatory_modal_hint: 'Fill in the guest details step by step.',
           btn_open_mandatory_modal: 'Fill in',
+          btn_why_guest_data: 'Why?',
+          guest_why_title: 'Why we ask for these details',
+          guest_why_subtitle: 'This information is legally required and is used only to fulfil booking obligations.',
+          guest_why_body_1: 'In Portugal, reporting the accommodation of foreign citizens is a legal obligation. The electronic bulletin is submitted through the SIBA system.',
+          guest_why_body_2: 'SIBA was created by Ordinance no. 287/07 of 16 March, and the electronic reporting of accommodation data is provided for in Law no. 23/2007 of 4 July.',
+          guest_why_body_3: 'We ask for these details before arrival to speed up check-in, meet legal deadlines and make sure your booking is properly prepared.',
+          btn_close_info: 'Close',
           mandatory_status_pending: 'Pending',
           mandatory_status_complete: 'Complete',
           mandatory_saved: 'Saved.',
-          guest_fullname: 'Full name*',
+          card_stay_plan: 'Help us prepare your arrival and departure',
+          stay_plan_modal_title: 'Help us prepare your check-in and check-out',
+          stay_plan_modal_hint: 'This information is optional, but it helps the team organise your stay.',
+          stay_plan_hint: 'Share your expected check-in and check-out times so we can better prepare your reservation.',
+          stay_plan_status_empty: 'Optional',
+          stay_plan_status_ready: 'Updated',
+          stay_plan_summary_empty: 'No times defined yet.',
+          stay_plan_summary_checkin: 'Expected check-in: {value}',
+          stay_plan_summary_checkout: 'Expected check-out: {value}',
+          stay_plan_summary_crib_yes: 'Crib: requested.',
+          stay_plan_summary_crib_no: 'Crib: not requested.',
+          stay_plan_checkin_label: 'Expected check-in time',
+          stay_plan_checkout_label: 'Expected check-out time',
+          stay_plan_crib_label: 'We need a crib',
+          stay_plan_crib_hint: 'Turn this on only if you need a crib for a child.',
+          btn_open_stay_plan: 'Set times',
+          btn_save_stay_plan: 'Save',
+          btn_cancel: 'Cancel',
+          guest_status_complete: 'Complete',
+          guest_status_pending: 'Missing',
+          guest_missing_none: 'All required fields for this guest are complete.',
+          guest_missing_prefix: 'Missing: ',
+          guest_card_missing: 'There are required fields still missing.',
+          guest_card_complete: 'All required guests are complete.',
+          guest_required_done_short: 'Required fields complete.',
+          guest_menu_title: 'Guests',
+          guest_status_label: 'Status',
+          guest_section_identity: 'Identity',
+          guest_section_document: 'Document',
+          guest_default_name: 'Guest',
+          guest_progress_pattern: '{completed}/{total} complete',
+          guest_of_total_pattern: 'Guest {index} of {total}',
+          guest_field_name: 'First name',
+          guest_field_surname: 'Last name',
+          guest_field_birthdate: 'Birth date',
+          guest_field_nationality: 'Nationality',
+          guest_field_doc_type: 'Document type',
+          guest_field_doc_num: 'Document number',
+          guest_field_doc_country: 'Document issuer country',
           guest_name: 'First name*',
           guest_surname: 'Last name*',
           guest_birthdate: 'Birth date*',
           guest_nationality: 'Nationality*',
           guest_doc_type: 'Document type*',
-          guest_doc_num: 'Document no.*',
-          guest_doc_country: 'Issuer country*',
-          guest_residence_country: 'Residence country',
-          guest_horain: 'Expected check-in',
-          guest_horaout: 'Expected check-out',
-          guest_transport: 'Transport',
-          guest_flight: 'Flight',
-          guest_crib: 'Need crib',
+          guest_doc_type_placeholder: 'Select',
+          guest_doc_type_id: 'National identity document',
+          guest_doc_type_passport: 'Passport',
+          guest_doc_type_other: 'Other',
+          guest_doc_num: 'Document number*',
+          guest_doc_country: 'Document issuer country*',
+          guest_residence_country: 'Country of residence',
+          btn_back_guest_menu: 'Back to guests',
           btn_prev_guest: 'Previous',
           btn_save_guest: 'Save',
           btn_next_guest: 'Next',
@@ -468,106 +1220,263 @@
           card_laundries: 'Laundries',
           card_emergency: 'Emergency & Contacts',
           card_rules: 'Essential Rules',
+          label_hours: 'Hours',
+          label_price: 'Price',
+          label_notes: 'Notes',
+          btn_call: 'Call',
+          btn_website: 'Website',
+          btn_maps: 'Maps',
+          btn_more_info: 'More info',
+          btn_official_site: 'Official site',
+          footer_company_name: 'GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda.',
+          footer_company_address: 'Rua R\u00e9gulo Magauanha, 102, 4000-413 Porto, Portugal',
+          footer_company_phone: 'Phone: phone contact shared in your booking communication',
+          footer_company_nif: 'VAT 518401057',
+          footer_gdpr_note: 'The data shared on this page is used only to manage your booking, in compliance with the GDPR.',
+          footer_company_copy: '\u00a9 2026 GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda. All rights reserved.',
+          card_tourism: 'Tourist Office',
+          tourism_trindade_label: 'Trindade iPoint',
+          tourism_trindade_note: 'The official Visit Porto source lists this desk at Trindade Station. Please confirm opening hours before going.',
+          tourism_uwh_note: 'If you received a UWH link with your reservation, use it as well for local tips and quick support.',
+          emergency_national_label: 'National emergency number',
+          emergency_psp_porto_label: 'Porto Police (Metropolitan Command)',
+          emergency_hospital_sjoao_label: 'S\u00e3o Jo\u00e3o Hospital',
+          emergency_hospital_santonio_label: 'Santo Ant\u00f3nio Hospital',
           placeholder_content: 'Content in preparation.'
         },
         fr: {
           label_language: 'Langue',
-          invalid_title: 'Lien invalide ou expiré',
-          invalid_sub: 'Vérifiez le lien ou demandez-en un nouveau.',
-          title_reservation: 'Réservation',
-          label_reservation: 'Réservation',
-          card_mandatory: 'Données obligatoires',
-          mandatory_modal_hint: 'Remplissez les donn?es ?tape par ?tape.',
+          invalid_title: 'Lien invalide ou expir\u00e9',
+          invalid_sub: 'V\u00e9rifiez le lien ou demandez-en un nouveau.',
+          title_reservation: 'R\u00e9servation',
+          label_reservation: 'R\u00e9servation',
+          card_mandatory: 'Informations obligatoires',
+          mandatory_modal_hint: 'Renseignez les donn\u00e9es des voyageurs \u00e9tape par \u00e9tape.',
           btn_open_mandatory_modal: 'Remplir',
+          btn_why_guest_data: 'Pourquoi ?',
+          guest_why_title: 'Pourquoi nous demandons ces donn\u00e9es',
+          guest_why_subtitle: 'Ces informations sont exig\u00e9es par la loi et utilis\u00e9es uniquement pour respecter les obligations de la r\u00e9servation.',
+          guest_why_body_1: 'Au Portugal, la communication de l\u2019h\u00e9bergement de citoyens \u00e9trangers est une obligation l\u00e9gale. Le bulletin \u00e9lectronique est transmis via le syst\u00e8me SIBA.',
+          guest_why_body_2: 'Le SIBA a \u00e9t\u00e9 cr\u00e9\u00e9 par l\u2019Ordonnance n\u00b0 287/07 du 16 mars, et la communication \u00e9lectronique des donn\u00e9es d\u2019h\u00e9bergement est pr\u00e9vue par la Loi n\u00b0 23/2007 du 4 juillet.',
+          guest_why_body_3: 'Nous demandons ces donn\u00e9es avant votre arriv\u00e9e afin d\u2019acc\u00e9l\u00e9rer le check-in, de respecter les d\u00e9lais l\u00e9gaux et de pr\u00e9parer correctement votre r\u00e9servation.',
+          btn_close_info: 'Fermer',
           mandatory_status_pending: 'En attente',
           mandatory_status_complete: 'Complet',
-          mandatory_saved: 'Enregistr?.',
-          guest_name: 'Pr?nom*',
+          mandatory_saved: 'Enregistr\u00e9.',
+          card_stay_plan: 'Aidez-nous \u00e0 pr\u00e9parer votre arriv\u00e9e et votre d\u00e9part',
+          stay_plan_modal_title: 'Aidez-nous \u00e0 mieux pr\u00e9parer votre arriv\u00e9e et votre d\u00e9part',
+          stay_plan_modal_hint: 'Cette information est facultative, mais elle aide l\u2019\u00e9quipe \u00e0 organiser votre s\u00e9jour.',
+          stay_plan_hint: 'Indiquez vos horaires pr\u00e9vus d\u2019arriv\u00e9e et de d\u00e9part afin que nous puissions mieux pr\u00e9parer votre r\u00e9servation.',
+          stay_plan_status_empty: 'Optionnel',
+          stay_plan_status_ready: 'Mis \u00e0 jour',
+          stay_plan_summary_empty: 'Aucun horaire d\u00e9fini.',
+          stay_plan_summary_checkin: 'Arriv\u00e9e pr\u00e9vue : {value}',
+          stay_plan_summary_checkout: 'D\u00e9part pr\u00e9vu : {value}',
+          stay_plan_summary_crib_yes: 'Lit b\u00e9b\u00e9 : demand\u00e9.',
+          stay_plan_summary_crib_no: 'Lit b\u00e9b\u00e9 : non demand\u00e9.',
+          stay_plan_checkin_label: 'Heure pr\u00e9vue d\u2019arriv\u00e9e',
+          stay_plan_checkout_label: 'Heure pr\u00e9vue de d\u00e9part',
+          stay_plan_crib_label: 'Nous avons besoin d\u2019un lit b\u00e9b\u00e9',
+          stay_plan_crib_hint: 'Activez uniquement si vous avez besoin d\u2019un lit b\u00e9b\u00e9 pour un enfant.',
+          btn_open_stay_plan: 'Indiquer les horaires',
+          btn_save_stay_plan: 'Enregistrer',
+          btn_cancel: 'Annuler',
+          guest_status_complete: 'Complet',
+          guest_status_pending: 'Incomplet',
+          guest_missing_none: 'Tous les champs obligatoires de ce voyageur sont compl\u00e9t\u00e9s.',
+          guest_missing_prefix: 'Manque : ',
+          guest_card_missing: 'Il reste des champs obligatoires \u00e0 remplir.',
+          guest_card_complete: 'Tous les voyageurs obligatoires sont complets.',
+          guest_required_done_short: 'Champs obligatoires compl\u00e9t\u00e9s.',
+          guest_menu_title: 'Voyageurs',
+          guest_status_label: '\u00c9tat',
+          guest_section_identity: 'Identit\u00e9',
+          guest_section_document: 'Document',
+          guest_default_name: 'Voyageur',
+          guest_progress_pattern: '{completed}/{total} complets',
+          guest_of_total_pattern: 'Voyageur {index} sur {total}',
+          guest_field_name: 'Pr\u00e9nom',
+          guest_field_surname: 'Nom',
+          guest_field_birthdate: 'Date de naissance',
+          guest_field_nationality: 'Nationalit\u00e9',
+          guest_field_doc_type: 'Type de document',
+          guest_field_doc_num: 'Num\u00e9ro du document',
+          guest_field_doc_country: 'Pays \u00e9metteur du document',
+          guest_name: 'Pr\u00e9nom*',
           guest_surname: 'Nom*',
           guest_birthdate: 'Date de naissance*',
-          guest_nationality: 'Nationalit?*',
-          guest_doc_type: 'Type document*',
-          guest_doc_num: 'N? document*',
-          guest_doc_country: 'Pays ?metteur*',
-          guest_residence_country: 'Pays de r?sidence',
-          guest_horain: 'Heure arriv?e pr?vue',
-          guest_horaout: 'Heure d?part pr?vue',
-          guest_transport: 'Transport',
-          guest_flight: 'Vol',
-          guest_crib: 'Lit b?b?',
-          btn_prev_guest: 'Pr?c?dent',
+          guest_nationality: 'Nationalit\u00e9*',
+          guest_doc_type: 'Type de document*',
+          guest_doc_type_placeholder: 'S\u00e9lectionner',
+          guest_doc_type_id: 'Document national d\u2019identit\u00e9',
+          guest_doc_type_passport: 'Passeport',
+          guest_doc_type_other: 'Autre',
+          guest_doc_num: 'Num\u00e9ro du document*',
+          guest_doc_country: 'Pays \u00e9metteur du document*',
+          guest_residence_country: 'Pays de r\u00e9sidence',
+          btn_back_guest_menu: 'Retour aux voyageurs',
+          btn_prev_guest: 'Pr\u00e9c\u00e9dent',
           btn_save_guest: 'Enregistrer',
           btn_next_guest: 'Suivant',
-          placeholder_mandatory_disabled: 'Temporairement indisponible. Ce formulaire sera activé dans une phase suivante.',
-          card_checkin: 'Arrivée',
+          placeholder_mandatory_disabled: 'Temporairement indisponible. Ce formulaire sera activ\u00e9 dans une phase suivante.',
+          card_checkin: 'Arriv\u00e9e',
           label_property: 'Logement',
-          label_checkin: 'Arrivée',
-          label_checkout: 'Départ',
+          label_checkin: 'Arriv\u00e9e',
+          label_checkout: 'D\u00e9part',
           label_guests: 'Voyageurs',
           label_nights: 'nuit(s)',
           label_address: 'Adresse',
           card_how_to_get: 'Comment y aller',
           placeholder_no_address: 'Adresse indisponible',
           btn_open_maps: 'Ouvrir dans Google Maps',
-          placeholder_no_nav: 'Pas d’adresse/coordonnées pour la navigation.',
+          placeholder_no_nav: 'Aucune adresse ou coordonn\u00e9e disponible pour la navigation.',
           card_parking: 'Stationnement',
           card_wifi: 'Wi-Fi',
-          card_supermarkets: 'Supermarchés',
+          card_supermarkets: 'Supermarch\u00e9s',
           card_restaurants: 'Restaurants',
           card_laundries: 'Laveries',
           card_emergency: 'Urgence et contacts',
-          card_rules: 'Règles essentielles',
-          placeholder_content: 'Contenu en préparation.'
+          card_rules: 'R\u00e8gles essentielles',
+          label_hours: 'Horaires',
+          label_price: 'Prix',
+          label_notes: 'Note',
+          btn_call: 'T\u00e9l',
+          btn_website: 'Site web',
+          btn_maps: 'Carte',
+          btn_more_info: 'Plus d\u2019infos',
+          btn_official_site: 'Site officiel',
+          footer_company_name: 'GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda.',
+          footer_company_address: 'Rua R\u00e9gulo Magauanha, 102, 4000-413 Porto, Portugal',
+          footer_company_phone: 'T\u00e9l\u00e9phone : contact t\u00e9l\u00e9phonique partag\u00e9 dans votre communication de r\u00e9servation',
+          footer_company_nif: 'TVA 518401057',
+          footer_gdpr_note: 'Les donn\u00e9es partag\u00e9es sur cette page sont utilis\u00e9es uniquement pour g\u00e9rer votre r\u00e9servation, conform\u00e9ment au RGPD.',
+          footer_company_copy: '\u00a9 2026 GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda. Tous droits r\u00e9serv\u00e9s.',
+          card_tourism: 'Office de tourisme',
+          tourism_trindade_label: 'iPoint Trindade',
+          tourism_trindade_note: 'La source officielle Visit Porto place ce point \u00e0 la station Trindade. V\u00e9rifiez les horaires avant de vous y rendre.',
+          tourism_uwh_note: 'Si vous avez re\u00e7u un lien UWH avec votre r\u00e9servation, utilisez-le aussi pour des conseils locaux et une aide rapide.',
+          emergency_national_label: 'Num\u00e9ro national d\u2019urgence',
+          emergency_psp_porto_label: 'Police de Porto (commandement m\u00e9tropolitain)',
+          emergency_hospital_sjoao_label: 'H\u00f4pital S\u00e3o Jo\u00e3o',
+          emergency_hospital_santonio_label: 'H\u00f4pital Santo Ant\u00f3nio',
+          placeholder_content: 'Contenu en pr\u00e9paration.'
         },
         es: {
           label_language: 'Idioma',
-          invalid_title: 'Enlace inválido o caducado',
+          invalid_title: 'Enlace inv\u00e1lido o caducado',
           invalid_sub: 'Verifica el enlace o solicita uno nuevo.',
           title_reservation: 'Reserva',
           label_reservation: 'Reserva',
-          card_mandatory: 'Datos obligatorios',
-          mandatory_modal_hint: 'Rellena los datos paso a paso.',
-          btn_open_mandatory_modal: 'Rellenar',
+          card_mandatory: 'Informaci\u00f3n obligatoria',
+          mandatory_modal_hint: 'Completa los datos de los hu\u00e9spedes paso a paso.',
+          btn_open_mandatory_modal: 'Completar',
+          btn_why_guest_data: '\u00bfPor qu\u00e9?',
+          guest_why_title: 'Por qu\u00e9 pedimos estos datos',
+          guest_why_subtitle: 'Esta informaci\u00f3n es obligatoria por ley y se usa solo para cumplir las obligaciones de la reserva.',
+          guest_why_body_1: 'En Portugal, comunicar el alojamiento de ciudadanos extranjeros es una obligaci\u00f3n legal. El bolet\u00edn electr\u00f3nico se env\u00eda a trav\u00e9s del sistema SIBA.',
+          guest_why_body_2: 'El SIBA fue creado por la Ordenanza n.\u00ba 287/07, de 16 de marzo, y la comunicaci\u00f3n electr\u00f3nica de los datos de alojamiento est\u00e1 prevista en la Ley n.\u00ba 23/2007, de 4 de julio.',
+          guest_why_body_3: 'Pedimos estos datos antes de la llegada para agilizar el check-in, cumplir los plazos legales y garantizar que la reserva quede correctamente preparada.',
+          btn_close_info: 'Cerrar',
           mandatory_status_pending: 'Pendiente',
           mandatory_status_complete: 'Completo',
           mandatory_saved: 'Guardado.',
-          guest_fullname: 'Nombre completo*',
+          card_stay_plan: 'Ay\u00fadanos a preparar tu llegada y salida',
+          stay_plan_modal_title: 'Ay\u00fadanos a preparar mejor tu check-in y check-out',
+          stay_plan_modal_hint: 'Esta informaci\u00f3n es opcional, pero ayuda al equipo a organizar tu reserva.',
+          stay_plan_hint: 'Comparte tus horarios previstos de check-in y check-out para preparar mejor tu reserva.',
+          stay_plan_status_empty: 'Opcional',
+          stay_plan_status_ready: 'Actualizado',
+          stay_plan_summary_empty: 'Todav\u00eda no hay horarios definidos.',
+          stay_plan_summary_checkin: 'Check-in previsto: {value}',
+          stay_plan_summary_checkout: 'Check-out previsto: {value}',
+          stay_plan_summary_crib_yes: 'Cuna: solicitada.',
+          stay_plan_summary_crib_no: 'Cuna: no solicitada.',
+          stay_plan_checkin_label: 'Hora prevista de check-in',
+          stay_plan_checkout_label: 'Hora prevista de check-out',
+          stay_plan_crib_label: 'Necesitamos cuna',
+          stay_plan_crib_hint: 'Act\u00edvalo solo si vas a necesitar una cuna para un ni\u00f1o.',
+          btn_open_stay_plan: 'Indicar horarios',
+          btn_save_stay_plan: 'Guardar',
+          btn_cancel: 'Cancelar',
+          guest_status_complete: 'Completo',
+          guest_status_pending: 'Incompleto',
+          guest_missing_none: 'Todos los campos obligatorios de este hu\u00e9sped est\u00e1n completos.',
+          guest_missing_prefix: 'Falta: ',
+          guest_card_missing: 'Todav\u00eda hay campos obligatorios por completar.',
+          guest_card_complete: 'Todos los hu\u00e9spedes obligatorios est\u00e1n completos.',
+          guest_required_done_short: 'Campos obligatorios completos.',
+          guest_menu_title: 'Hu\u00e9spedes',
+          guest_status_label: 'Estado',
+          guest_section_identity: 'Identidad',
+          guest_section_document: 'Documento',
+          guest_default_name: 'Hu\u00e9sped',
+          guest_progress_pattern: '{completed}/{total} completos',
+          guest_of_total_pattern: 'Hu\u00e9sped {index} de {total}',
+          guest_field_name: 'Nombre',
+          guest_field_surname: 'Apellidos',
+          guest_field_birthdate: 'Fecha de nacimiento',
+          guest_field_nationality: 'Nacionalidad',
+          guest_field_doc_type: 'Tipo de documento',
+          guest_field_doc_num: 'N\u00famero del documento',
+          guest_field_doc_country: 'Pa\u00eds emisor del documento',
           guest_name: 'Nombre*',
           guest_surname: 'Apellidos*',
-          guest_birthdate: 'Fecha nacimiento*',
+          guest_birthdate: 'Fecha de nacimiento*',
           guest_nationality: 'Nacionalidad*',
-          guest_doc_type: 'Tipo documento*',
-          guest_doc_num: 'N? documento*',
-          guest_doc_country: 'Pa?s emisor doc.*',
-          guest_residence_country: 'Pa?s residencia',
-          guest_horain: 'Hora check-in prev.',
-          guest_horaout: 'Hora check-out prev.',
-          guest_transport: 'Transporte',
-          guest_flight: 'Vuelo',
-          guest_crib: 'Necesita cuna',
+          guest_doc_type: 'Tipo de documento*',
+          guest_doc_type_placeholder: 'Seleccionar',
+          guest_doc_type_id: 'Documento nacional de identidad',
+          guest_doc_type_passport: 'Pasaporte',
+          guest_doc_type_other: 'Otro',
+          guest_doc_num: 'N\u00famero del documento*',
+          guest_doc_country: 'Pa\u00eds emisor del documento*',
+          guest_residence_country: 'Pa\u00eds de residencia',
+          btn_back_guest_menu: 'Volver a los hu\u00e9spedes',
           btn_prev_guest: 'Anterior',
           btn_save_guest: 'Guardar',
           btn_next_guest: 'Siguiente',
-          placeholder_mandatory_disabled: 'Temporalmente no disponible. Este formulario se activará en una fase posterior.',
+          placeholder_mandatory_disabled: 'Temporalmente no disponible. Este formulario se activar\u00e1 en una fase posterior.',
           card_checkin: 'Check-in',
           label_property: 'Alojamiento',
           label_checkin: 'Check-in',
           label_checkout: 'Check-out',
-          label_guests: 'Huéspedes',
+          label_guests: 'Hu\u00e9spedes',
           label_nights: 'noche(s)',
-          label_address: 'Dirección',
-          card_how_to_get: 'Cómo llegar',
-          placeholder_no_address: 'Dirección no disponible',
+          label_address: 'Direcci\u00f3n',
+          card_how_to_get: 'C\u00f3mo llegar',
+          placeholder_no_address: 'Direcci\u00f3n no disponible',
           btn_open_maps: 'Abrir en Google Maps',
-          placeholder_no_nav: 'Sin dirección/coordenadas para navegación.',
+          placeholder_no_nav: 'Sin direcci\u00f3n ni coordenadas para la navegaci\u00f3n.',
           card_parking: 'Aparcamiento',
           card_wifi: 'Wi-Fi',
           card_supermarkets: 'Supermercados',
           card_restaurants: 'Restaurantes',
-          card_laundries: 'Lavanderías',
+          card_laundries: 'Lavander\u00edas',
           card_emergency: 'Emergencia y contactos',
           card_rules: 'Reglas esenciales',
-          placeholder_content: 'Contenido en preparación.'
+          label_hours: 'Horario',
+          label_price: 'Precio',
+          label_notes: 'Nota',
+          btn_call: 'Tel',
+          btn_website: 'Web',
+          btn_maps: 'Mapa',
+          btn_more_info: 'M\u00e1s info',
+          btn_official_site: 'Sitio oficial',
+          footer_company_name: 'GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda.',
+          footer_company_address: 'Rua R\u00e9gulo Magauanha, 102, 4000-413 Porto, Portugal',
+          footer_company_phone: 'Tel\u00e9fono: contacto telef\u00f3nico compartido en la comunicaci\u00f3n de tu reserva',
+          footer_company_nif: 'NIF 518401057',
+          footer_gdpr_note: 'Los datos compartidos en esta p\u00e1gina se usan solo para gestionar tu reserva, de conformidad con el RGPD.',
+          footer_company_copy: '\u00a9 2026 GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda. Todos los derechos reservados.',
+          card_tourism: 'Oficina de turismo',
+          tourism_trindade_label: 'iPoint Trindade',
+          tourism_trindade_note: 'La fuente oficial de Visit Porto sit\u00faa este punto en la estaci\u00f3n de Trindade. Confirma el horario antes de ir.',
+          tourism_uwh_note: 'Si recibiste un enlace UWH con tu reserva, \u00fasalo tambi\u00e9n para consejos locales y ayuda r\u00e1pida.',
+          emergency_national_label: 'N\u00famero nacional de emergencia',
+          emergency_psp_porto_label: 'Polic\u00eda de Oporto (mando metropolitano)',
+          emergency_hospital_sjoao_label: 'Hospital de S\u00e3o Jo\u00e3o',
+          emergency_hospital_santonio_label: 'Hospital de Santo Ant\u00f3nio',
+          placeholder_content: 'Contenido en preparaci\u00f3n.'
         }
       };
 
@@ -584,6 +1493,35 @@
         es: { flagClass: 'fi fi-es', code: 'ES' }
       };
       const getDict = (lang) => I18N[lang] || I18N.pt;
+      function normalizeDocTypeValue(value) {
+        const raw = String(value || '').trim().toUpperCase();
+        if (!raw) return '';
+        if (['ID_NACIONAL', 'ID', 'CC', 'BI', 'CARTAO DE CIDADAO', 'CARTÃO DE CIDADÃO', 'DOCUMENTO DE IDENTIFICACAO NACIONAL', 'DOCUMENTO DE IDENTIFICAÇÃO NACIONAL'].includes(raw)) {
+          return 'ID_NACIONAL';
+        }
+        if (['PASSAPORTE', 'PASSPORT'].includes(raw)) {
+          return 'PASSAPORTE';
+        }
+        if (raw === 'OUTRO' || raw === 'OTHER' || raw === 'AUTRE') {
+          return 'OUTRO';
+        }
+        return 'OUTRO';
+      }
+      function renderDocTypeOptions(lang) {
+        if (!guestEls.tipoDoc) return;
+        const dict = getDict(lang);
+        const current = normalizeDocTypeValue(guestEls.tipoDoc.value);
+        const options = [
+          { value: '', label: dict.guest_doc_type_placeholder || 'Select' },
+          { value: 'ID_NACIONAL', label: dict.guest_doc_type_id || 'National identity document' },
+          { value: 'PASSAPORTE', label: dict.guest_doc_type_passport || 'Passport' },
+          { value: 'OUTRO', label: dict.guest_doc_type_other || 'Other' }
+        ];
+        guestEls.tipoDoc.innerHTML = options
+          .map((item) => `<option value="${item.value}">${item.label}</option>`)
+          .join('');
+        guestEls.tipoDoc.value = options.some((item) => item.value === current) ? current : '';
+      }
       const apply = (lang) => {
         const dict = getDict(lang);
         document.documentElement.lang = lang;
@@ -591,6 +1529,7 @@
           const i18nKey = el.getAttribute('data-i18n');
           if (dict[i18nKey]) el.textContent = dict[i18nKey];
         });
+        renderDocTypeOptions(lang);
         buttons.forEach((btn) => {
           btn.classList.toggle('active', (btn.getAttribute('data-lang') || '').toLowerCase() === lang);
         });
@@ -599,16 +1538,26 @@
         if (menuCode) menuCode.textContent = m.code;
         localStorage.setItem(key, lang);
         if (typeof renderGuestUi === 'function') renderGuestUi();
+        if (typeof renderStayPlanUi === 'function') renderStayPlanUi();
       };
 
       const guestEls = {
         status: document.getElementById('guestCardStatus'),
         cardProgress: document.getElementById('guestCardProgress'),
+        cardMissing: document.getElementById('guestCardMissing'),
         openBtn: document.getElementById('guestOpenBtn'),
         modal: document.getElementById('guestModal'),
         modalBackdrop: document.getElementById('guestModalBackdrop'),
         modalClose: document.getElementById('guestCloseBtn'),
         step: document.getElementById('guestStepLabel'),
+        menuView: document.getElementById('guestMenuView'),
+        formView: document.getElementById('guestFormView'),
+        overallSummary: document.getElementById('guestOverallSummary'),
+        navList: document.getElementById('guestNavList'),
+        back: document.getElementById('guestBackBtn'),
+        currentTitle: document.getElementById('guestCurrentTitle'),
+        currentSub: document.getElementById('guestCurrentSub'),
+        missingSummary: document.getElementById('guestMissingSummary'),
         msg: document.getElementById('guestSaveMsg'),
         nome: document.getElementById('g_nome'),
         apelido: document.getElementById('g_apelido'),
@@ -618,24 +1567,43 @@
         numDoc: document.getElementById('g_num_doc'),
         paisEmissor: document.getElementById('g_pais_emissor_doc'),
         paisResidencia: document.getElementById('g_pais_residencia'),
-        horain: document.getElementById('g_horain'),
-        horaout: document.getElementById('g_horaout'),
-        transporte: document.getElementById('g_transporte'),
-        voo: document.getElementById('g_voo'),
-        berco: document.getElementById('g_berco'),
-        supportFields: document.getElementById('guestSupportFields'),
-        bercoWrap: document.getElementById('guestBercoWrap'),
-        prev: document.getElementById('guestPrevBtn'),
         next: document.getElementById('guestNextBtn'),
         save: document.getElementById('guestSaveBtn')
       };
+      const guestWhyEls = {
+        openBtn: document.getElementById('guestWhyBtn'),
+        modal: document.getElementById('guestWhyModal'),
+        backdrop: document.getElementById('guestWhyBackdrop'),
+        close: document.getElementById('guestWhyCloseBtn'),
+        dismiss: document.getElementById('guestWhyDismissBtn')
+      };
+      const stayEls = {
+        status: document.getElementById('stayPlanStatus'),
+        summary: document.getElementById('stayPlanSummary'),
+        cribSummary: document.getElementById('stayPlanCribSummary'),
+        openBtn: document.getElementById('stayPlanOpenBtn'),
+        modal: document.getElementById('stayPlanModal'),
+        backdrop: document.getElementById('stayPlanBackdrop'),
+        close: document.getElementById('stayPlanCloseBtn'),
+        cancel: document.getElementById('stayPlanCancelBtn'),
+        save: document.getElementById('stayPlanSaveBtn'),
+        msg: document.getElementById('stayPlanSaveMsg'),
+        horain: document.getElementById('stayPlanHoraIn'),
+        horaout: document.getElementById('stayPlanHoraOut'),
+        berco: document.getElementById('stayPlanBerco')
+      };
+      const stayPlanState = {
+        horain: String(INITIAL_STAY_PLAN.horain || '').trim(),
+        horaout: String(INITIAL_STAY_PLAN.horaout || '').trim(),
+        berco: !!INITIAL_STAY_PLAN.berco
+      };
       const COUNTRY_OPTIONS = [
-        'Portugal','Espanha','França','Reino Unido','Irlanda','Alemanha','Itália','Países Baixos','Bélgica','Suíça','Áustria','Luxemburgo',
-        'Estados Unidos','Canadá','Brasil','México','Argentina','Chile','Colômbia','Peru',
-        'Angola','Moçambique','Cabo Verde','Guiné-Bissau','São Tomé e Príncipe',
-        'Marrocos','Argélia','Tunísia','África do Sul',
-        'China','Japão','Coreia do Sul','Índia','Emirados Árabes Unidos','Arábia Saudita',
-        'Austrália','Nova Zelândia','Rússia','Ucrânia','Polónia','Roménia','República Checa','Hungria','Dinamarca','Suécia','Noruega','Finlândia','Islândia','Turquia','Grécia'
+        'Portugal','Espanha','Fran\u00e7a','Reino Unido','Irlanda','Alemanha','It\u00e1lia','Pa\u00edses Baixos','B\u00e9lgica','Su\u00ed\u00e7a','\u00c1ustria','Luxemburgo',
+        'Estados Unidos','Canad\u00e1','Brasil','M\u00e9xico','Argentina','Chile','Col\u00f4mbia','Peru',
+        'Angola','Mo\u00e7ambique','Cabo Verde','Guin\u00e9-Bissau','S\u00e3o Tom\u00e9 e Pr\u00edncipe',
+        'Marrocos','Arg\u00e9lia','Tun\u00edsia','\u00c1frica do Sul',
+        'China','Jap\u00e3o','Coreia do Sul','\u00cdndia','Emirados \u00c1rabes Unidos','Ar\u00e1bia Saudita',
+        'Austr\u00e1lia','Nova Zel\u00e2ndia','R\u00fassia','Ucr\u00e2nia','Pol\u00f3nia','Rom\u00e9nia','Rep\u00fablica Checa','Hungria','Dinamarca','Su\u00e9cia','Noruega','Finl\u00e2ndia','Isl\u00e2ndia','Turquia','Gr\u00e9cia'
       ];
 
       const mandatoryState = {
@@ -644,29 +1612,201 @@
         guests: [],
         complete: false
       };
+      let guestView = 'menu';
 
       const guestDictFallback = {
         mandatory_status_pending: 'Pendente',
         mandatory_status_complete: 'Completo',
-        mandatory_saved: 'Gravado.'
+        mandatory_saved: 'Gravado.',
+        guest_status_complete: 'Completo',
+        guest_status_pending: 'Em falta',
+        guest_missing_none: 'Todos os campos obrigatorios deste hospede estao completos.',
+        guest_missing_prefix: 'Em falta: ',
+        guest_card_missing: 'Existem campos obrigatorios por preencher.',
+        guest_card_complete: 'Todos os hospedes obrigatorios estao completos.',
+        guest_required_done_short: 'Dados obrigatorios completos.',
+        guest_menu_title: 'Hospedes',
+        guest_status_label: 'Estado',
+        guest_section_identity: 'Identificacao',
+        guest_section_document: 'Documento',
+        guest_default_name: 'Hospede',
+        guest_progress_pattern: '{completed}/{total} completos',
+        guest_of_total_pattern: 'Hospede {index} de {total}',
+        guest_field_name: 'Nome',
+        guest_field_surname: 'Apelido',
+        guest_field_birthdate: 'Data de nascimento',
+        guest_field_nationality: 'Nacionalidade',
+        guest_field_doc_type: 'Tipo de documento',
+        guest_field_doc_num: 'N. do documento',
+        guest_field_doc_country: 'Pais emissor do documento',
+        card_stay_plan: 'Ajuda-nos a preparar a tua chegada e saida',
+        stay_plan_modal_title: 'Ajuda-nos a preparar melhor o teu check-in e check-out',
+        stay_plan_modal_hint: 'Esta informacao e opcional, mas ajuda a equipa a organizar a tua reserva.',
+        stay_plan_hint: 'Partilha os horarios previstos de check-in e check-out para prepararmos melhor a tua reserva.',
+        stay_plan_status_empty: 'Opcional',
+        stay_plan_status_ready: 'Atualizado',
+        stay_plan_summary_empty: 'Sem horarios definidos.',
+        stay_plan_summary_checkin: 'Check-in previsto: {value}',
+        stay_plan_summary_checkout: 'Check-out previsto: {value}',
+        stay_plan_summary_crib_yes: 'Berco: pedido.',
+        stay_plan_summary_crib_no: 'Berco: nao pedido.',
+        stay_plan_checkin_label: 'Hora prevista de check-in',
+        stay_plan_checkout_label: 'Hora prevista de check-out',
+        stay_plan_crib_label: 'Precisamos de berco',
+        stay_plan_crib_hint: 'Ativa apenas se vais precisar de berco para uma crianca.',
+        btn_open_stay_plan: 'Indicar horarios',
+        btn_save_stay_plan: 'Guardar',
+        btn_cancel: 'Cancelar'
       };
       const tGuest = (k) => (getDict((localStorage.getItem(key) || 'pt').toLowerCase())?.[k] || guestDictFallback[k] || k);
+      function formatGuestText(keyName, values) {
+        const vars = values || {};
+        return String(tGuest(keyName)).replace(/\{(\w+)\}/g, (_, token) => String(vars[token] ?? ''));
+      }
+      const REQUIRED_GUEST_FIELDS = [
+        { key: 'nome', labelKey: 'guest_field_name' },
+        { key: 'apelido', labelKey: 'guest_field_surname' },
+        { key: 'dtnasc', labelKey: 'guest_field_birthdate' },
+        { key: 'nacionalidade', labelKey: 'guest_field_nationality' },
+        { key: 'tipo_doc', labelKey: 'guest_field_doc_type' },
+        { key: 'num_doc', labelKey: 'guest_field_doc_num' },
+        { key: 'pais_emissor_doc', labelKey: 'guest_field_doc_country' }
+      ];
+
+      function escapeGuestHtml(value) {
+        return String(value || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
 
       function guestIsComplete(g) {
-        const dtn = String(g?.dtnasc || '').trim();
-        return !!(
-          String(g?.nome || '').trim() &&
-          String(g?.apelido || '').trim() &&
-          dtn && dtn !== '1900-01-01' && dtn !== '0001-01-01' &&
-          String(g?.nacionalidade || '').trim() &&
-          String(g?.tipo_doc || '').trim() &&
-          String(g?.num_doc || '').trim() &&
-          String(g?.pais_emissor_doc || '').trim()
-        );
+        return guestMissingKeys(g).length === 0;
+      }
+
+      function guestMissingKeys(g) {
+        const guest = g || {};
+        return REQUIRED_GUEST_FIELDS
+          .filter((field) => {
+            const raw = String(guest[field.key] || '').trim();
+            if (field.key === 'dtnasc') {
+              return !raw || raw === '1900-01-01' || raw === '0001-01-01';
+            }
+            return !raw;
+          })
+          .map((field) => field.key);
+      }
+
+      function guestMissingLabels(g) {
+        const missing = new Set(guestMissingKeys(g));
+        return REQUIRED_GUEST_FIELDS
+          .filter((field) => missing.has(field.key))
+          .map((field) => tGuest(field.labelKey));
+      }
+
+      function getGuestDisplayName(index, guest) {
+        const nome = String(guest?.nome || '').trim();
+        const apelido = String(guest?.apelido || '').trim();
+        const full = `${nome} ${apelido}`.trim();
+        return full || `${tGuest('guest_default_name')} ${index}`;
+      }
+
+      function buildOverallProgressText() {
+        const completed = mandatoryState.guests.slice(0, mandatoryState.total).filter(guestIsComplete).length;
+        return formatGuestText('guest_progress_pattern', { completed, total: mandatoryState.total });
+      }
+
+      function syncCurrentGuestDraft() {
+        if (!guestEls.nome) return;
+        const idx = Math.max(0, mandatoryState.index - 1);
+        mandatoryState.guests[idx] = readGuestFromForm();
+      }
+
+      function renderGuestNavigator() {
+        if (!guestEls.navList) return;
+        const items = [];
+        for (let idx = 1; idx <= mandatoryState.total; idx += 1) {
+          const guest = mandatoryState.guests[idx - 1] || {};
+          const complete = guestIsComplete(guest);
+          const missingLabels = guestMissingLabels(guest);
+          const subText = complete
+            ? tGuest('guest_required_done_short')
+            : (missingLabels.length ? `${tGuest('guest_missing_prefix')}${missingLabels.slice(0, 3).join(', ')}${missingLabels.length > 3 ? '...' : ''}` : tGuest('guest_card_missing'));
+          items.push(`
+            <button type="button" class="guest-nav-btn ${idx === mandatoryState.index ? 'active' : ''}" data-guest-index="${idx}">
+              <div class="guest-nav-top">
+                <div class="guest-nav-name">${escapeGuestHtml(getGuestDisplayName(idx, guest))}</div>
+                <span class="guest-nav-state ${complete ? 'is-complete' : 'is-pending'}">${escapeGuestHtml(complete ? tGuest('guest_status_complete') : tGuest('guest_status_pending'))}</span>
+              </div>
+              <div class="guest-nav-sub">${escapeGuestHtml(subText)}</div>
+            </button>
+          `);
+        }
+        guestEls.navList.innerHTML = items.join('');
+      }
+
+      function applyGuestView() {
+        if (guestEls.menuView) guestEls.menuView.classList.toggle('is-hidden', guestView !== 'menu');
+        if (guestEls.formView) guestEls.formView.classList.toggle('is-hidden', guestView !== 'form');
+      }
+
+      function showGuestMenu() {
+        guestView = 'menu';
+        renderGuestStatusUi();
+        applyGuestView();
+      }
+
+      function showGuestForm(targetIndex) {
+        if (targetIndex) {
+          mandatoryState.index = Math.max(1, Math.min(mandatoryState.total, Number(targetIndex) || 1));
+        }
+        guestView = 'form';
+        renderGuestUi();
+        applyGuestView();
+      }
+
+      function renderGuestStatusUi() {
+        const progressTxt = buildOverallProgressText();
+        const currentGuest = mandatoryState.guests[mandatoryState.index - 1] || {};
+        const missingLabels = guestMissingLabels(currentGuest);
+        const currentComplete = missingLabels.length === 0;
+
+        if (guestEls.step) {
+          guestEls.step.textContent = guestView === 'form'
+            ? formatGuestText('guest_of_total_pattern', { index: mandatoryState.index, total: mandatoryState.total })
+            : progressTxt;
+        }
+        if (guestEls.cardProgress) guestEls.cardProgress.textContent = progressTxt;
+        if (guestEls.overallSummary) guestEls.overallSummary.textContent = progressTxt;
+        if (guestEls.currentTitle) guestEls.currentTitle.textContent = getGuestDisplayName(mandatoryState.index, currentGuest);
+        if (guestEls.currentSub) guestEls.currentSub.textContent = formatGuestText('guest_of_total_pattern', { index: mandatoryState.index, total: mandatoryState.total });
+
+        if (guestEls.missingSummary) {
+          guestEls.missingSummary.textContent = currentComplete
+            ? tGuest('guest_missing_none')
+            : `${tGuest('guest_missing_prefix')}${missingLabels.join(', ')}`;
+        }
+
+        const allOk = mandatoryState.guests.length >= mandatoryState.total && mandatoryState.guests.slice(0, mandatoryState.total).every(guestIsComplete);
+        mandatoryState.complete = allOk;
+
+        if (guestEls.status) {
+          guestEls.status.textContent = allOk ? tGuest('mandatory_status_complete') : tGuest('mandatory_status_pending');
+          guestEls.status.className = allOk
+            ? 'badge bg-success-subtle text-success-emphasis border'
+            : 'badge bg-warning-subtle text-warning-emphasis border';
+        }
+        if (guestEls.cardMissing) {
+          guestEls.cardMissing.textContent = allOk ? tGuest('guest_card_complete') : tGuest('guest_card_missing');
+        }
+
+        guestEls.next.disabled = mandatoryState.index >= mandatoryState.total;
+        renderGuestNavigator();
       }
 
       function readGuestFromForm() {
-        const isFinal = mandatoryState.index === mandatoryState.total;
         const nome = String(guestEls.nome?.value || '').trim();
         const apelido = String(guestEls.apelido?.value || '').trim();
         return {
@@ -678,12 +1818,7 @@
           tipo_doc: String(guestEls.tipoDoc?.value || '').trim(),
           num_doc: String(guestEls.numDoc?.value || '').trim(),
           pais_emissor_doc: String(guestEls.paisEmissor?.value || '').trim(),
-          pais_residencia: isFinal ? String(guestEls.paisResidencia?.value || '').trim() : '',
-          horain: isFinal ? String(guestEls.horain?.value || '').trim() : '',
-          horaout: isFinal ? String(guestEls.horaout?.value || '').trim() : '',
-          transporte: isFinal ? String(guestEls.transporte?.value || '').trim() : '',
-          voo: isFinal ? String(guestEls.voo?.value || '').trim() : '',
-          berco: isFinal ? !!guestEls.berco?.checked : false
+          pais_residencia: String(guestEls.paisResidencia?.value || '').trim()
         };
       }
 
@@ -694,43 +1829,24 @@
         guestEls.apelido.value = guest.apelido || '';
         guestEls.dtnasc.value = (guest.dtnasc && guest.dtnasc !== '1900-01-01' && guest.dtnasc !== '0001-01-01') ? guest.dtnasc : '';
         guestEls.nacionalidade.value = guest.nacionalidade || '';
-        guestEls.tipoDoc.value = guest.tipo_doc || '';
+        guestEls.tipoDoc.value = normalizeDocTypeValue(guest.tipo_doc);
         guestEls.numDoc.value = guest.num_doc || '';
         guestEls.paisEmissor.value = guest.pais_emissor_doc || '';
         guestEls.paisResidencia.value = guest.pais_residencia || '';
-        guestEls.horain.value = guest.horain || '';
-        guestEls.horaout.value = guest.horaout || '';
-        guestEls.transporte.value = guest.transporte || '';
-        guestEls.voo.value = guest.voo || '';
-        guestEls.berco.checked = !!guest.berco;
       }
 
       function renderGuestUi() {
         if (!guestEls.step) return;
-        const progressTxt = `${mandatoryState.index}/${mandatoryState.total}`;
-        guestEls.step.textContent = progressTxt;
-        if (guestEls.cardProgress) guestEls.cardProgress.textContent = progressTxt;
-        guestEls.prev.style.display = mandatoryState.index <= 1 ? 'none' : '';
-        guestEls.next.style.display = mandatoryState.index >= mandatoryState.total ? 'none' : '';
-        guestEls.save.style.display = mandatoryState.index >= mandatoryState.total ? '' : 'none';
-        guestEls.prev.disabled = mandatoryState.index <= 1;
-        guestEls.next.disabled = mandatoryState.index >= mandatoryState.total;
-        if (guestEls.supportFields) guestEls.supportFields.style.display = (mandatoryState.index === mandatoryState.total ? '' : 'none');
-        if (guestEls.bercoWrap) guestEls.bercoWrap.style.display = (RES_CRIANCAS > 0 ? '' : 'none');
         const idx = mandatoryState.index - 1;
         writeGuestToForm(mandatoryState.guests[idx] || {});
-        const allOk = mandatoryState.guests.length >= mandatoryState.total && mandatoryState.guests.slice(0, mandatoryState.total).every(guestIsComplete);
-        mandatoryState.complete = allOk;
-        if (guestEls.status) {
-          guestEls.status.textContent = allOk ? tGuest('mandatory_status_complete') : tGuest('mandatory_status_pending');
-          guestEls.status.className = allOk
-            ? 'badge bg-success-subtle text-success-emphasis border'
-            : 'badge bg-warning-subtle text-warning-emphasis border';
-        }
+        renderGuestStatusUi();
       }
 
       function openGuestModal() {
         if (!guestEls.modal) return;
+        renderGuestUi();
+        guestView = 'menu';
+        applyGuestView();
         guestEls.modal.classList.add('open');
         guestEls.modal.setAttribute('aria-hidden', 'false');
       }
@@ -746,8 +1862,119 @@
 
       function closeGuestModal() {
         if (!guestEls.modal) return;
+        guestView = 'menu';
+        applyGuestView();
         guestEls.modal.classList.remove('open');
         guestEls.modal.setAttribute('aria-hidden', 'true');
+      }
+
+      function openGuestWhyModal() {
+        if (!guestWhyEls.modal) return;
+        guestWhyEls.modal.classList.add('open');
+        guestWhyEls.modal.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeGuestWhyModal() {
+        if (!guestWhyEls.modal) return;
+        guestWhyEls.modal.classList.remove('open');
+        guestWhyEls.modal.setAttribute('aria-hidden', 'true');
+      }
+
+      function renderStayPlanUi() {
+        if (!stayEls.summary) return;
+        const lines = [];
+        if (stayPlanState.horain) {
+          lines.push(formatGuestText('stay_plan_summary_checkin', { value: stayPlanState.horain }));
+        }
+        if (stayPlanState.horaout) {
+          lines.push(formatGuestText('stay_plan_summary_checkout', { value: stayPlanState.horaout }));
+        }
+        stayEls.summary.textContent = lines.length ? lines.join(' • ') : tGuest('stay_plan_summary_empty');
+        if (stayEls.cribSummary) {
+          stayEls.cribSummary.textContent = stayPlanState.berco
+            ? tGuest('stay_plan_summary_crib_yes')
+            : tGuest('stay_plan_summary_crib_no');
+        }
+        if (stayEls.status) {
+          const hasData = !!(stayPlanState.horain || stayPlanState.horaout || stayPlanState.berco);
+          stayEls.status.textContent = hasData ? tGuest('stay_plan_status_ready') : tGuest('stay_plan_status_empty');
+          stayEls.status.className = hasData
+            ? 'badge bg-success-subtle text-success-emphasis border'
+            : 'badge bg-info-subtle text-info-emphasis border';
+        }
+      }
+
+      function fillStayPlanForm() {
+        if (stayEls.horain) stayEls.horain.value = stayPlanState.horain || '';
+        if (stayEls.horaout) stayEls.horaout.value = stayPlanState.horaout || '';
+        if (stayEls.berco) stayEls.berco.checked = !!stayPlanState.berco;
+      }
+
+      function openStayPlanModal() {
+        if (!stayEls.modal) return;
+        fillStayPlanForm();
+        stayEls.modal.classList.add('open');
+        stayEls.modal.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeStayPlanModal() {
+        if (!stayEls.modal) return;
+        stayEls.modal.classList.remove('open');
+        stayEls.modal.setAttribute('aria-hidden', 'true');
+      }
+
+      async function loadStayPlanData() {
+        if (!PUBLIC_TOKEN || !stayEls.summary) return;
+        try {
+          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/stay-plan`);
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.error) {
+            renderStayPlanUi();
+            return;
+          }
+          stayPlanState.horain = String(data.horain || '').trim();
+          stayPlanState.horaout = String(data.horaout || '').trim();
+          stayPlanState.berco = !!data.berco;
+          renderStayPlanUi();
+        } catch (_) {
+          renderStayPlanUi();
+        }
+      }
+
+      async function saveStayPlan() {
+        if (!PUBLIC_TOKEN || !stayEls.save) return;
+        const payload = {
+          horain: String(stayEls.horain?.value || '').trim(),
+          horaout: String(stayEls.horaout?.value || '').trim(),
+          berco: !!stayEls.berco?.checked
+        };
+        stayEls.save.disabled = true;
+        if (stayEls.msg) stayEls.msg.classList.add('d-none');
+        try {
+          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/stay-plan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.error) throw new Error(data.error || 'Erro ao gravar');
+          stayPlanState.horain = String(data.horain || '').trim();
+          stayPlanState.horaout = String(data.horaout || '').trim();
+          stayPlanState.berco = !!data.berco;
+          if (stayEls.msg) {
+            stayEls.msg.textContent = tGuest('mandatory_saved');
+            stayEls.msg.classList.remove('d-none');
+          }
+          renderStayPlanUi();
+          closeStayPlanModal();
+          return true;
+        } catch (e) {
+          alert(e.message || 'Erro ao gravar');
+          return false;
+        } finally {
+          stayEls.save.disabled = false;
+          if (stayEls.msg) setTimeout(() => stayEls.msg?.classList.add('d-none'), 1200);
+        }
       }
 
       async function loadGuestData() {
@@ -769,7 +1996,6 @@
         const idx = mandatoryState.index - 1;
         mandatoryState.guests[idx] = readGuestFromForm();
         guestEls.save.disabled = true;
-        guestEls.prev.disabled = true;
         guestEls.next.disabled = true;
         if (guestEls.msg) {
           guestEls.msg.classList.add('d-none');
@@ -822,26 +2048,72 @@
         if (menuList.contains(e.target) || menuBtn.contains(e.target)) return;
         menuList.classList.remove('open');
       });
-      guestEls.prev?.addEventListener('click', async () => {
-        const okSave = await saveCurrentGuest();
-        if (!okSave) return;
-        mandatoryState.index = Math.max(1, mandatoryState.index - 1);
-        renderGuestUi();
-      });
       guestEls.next?.addEventListener('click', async () => {
         const okSave = await saveCurrentGuest();
         if (!okSave) return;
+        if (mandatoryState.index >= mandatoryState.total) {
+          showGuestMenu();
+          return;
+        }
         mandatoryState.index = Math.min(mandatoryState.total, mandatoryState.index + 1);
-        renderGuestUi();
+        showGuestForm(mandatoryState.index);
       });
-      guestEls.save?.addEventListener('click', saveCurrentGuest);
+      guestEls.navList?.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-guest-index]');
+        if (!btn) return;
+        const targetIndex = Number(btn.getAttribute('data-guest-index') || 0);
+        if (!targetIndex) return;
+        showGuestForm(targetIndex);
+      });
+      [
+        guestEls.nome,
+        guestEls.apelido,
+        guestEls.dtnasc,
+        guestEls.nacionalidade,
+        guestEls.tipoDoc,
+        guestEls.numDoc,
+        guestEls.paisEmissor,
+        guestEls.paisResidencia
+      ].forEach((el) => {
+        if (!el) return;
+        el.addEventListener('input', () => {
+          syncCurrentGuestDraft();
+          renderGuestStatusUi();
+        });
+        el.addEventListener('change', () => {
+          syncCurrentGuestDraft();
+          renderGuestStatusUi();
+        });
+      });
+      guestEls.save?.addEventListener('click', async () => {
+        const okSave = await saveCurrentGuest();
+        if (!okSave) return;
+        showGuestMenu();
+      });
+      guestWhyEls.openBtn?.addEventListener('click', openGuestWhyModal);
+      guestWhyEls.close?.addEventListener('click', closeGuestWhyModal);
+      guestWhyEls.dismiss?.addEventListener('click', closeGuestWhyModal);
+      guestWhyEls.backdrop?.addEventListener('click', closeGuestWhyModal);
+      stayEls.openBtn?.addEventListener('click', openStayPlanModal);
+      stayEls.close?.addEventListener('click', closeStayPlanModal);
+      stayEls.cancel?.addEventListener('click', closeStayPlanModal);
+      stayEls.backdrop?.addEventListener('click', closeStayPlanModal);
+      stayEls.save?.addEventListener('click', saveStayPlan);
+      guestEls.back?.addEventListener('click', () => {
+        syncCurrentGuestDraft();
+        showGuestMenu();
+      });
       guestEls.openBtn?.addEventListener('click', openGuestModal);
       guestEls.modalClose?.addEventListener('click', closeGuestModal);
       guestEls.modalBackdrop?.addEventListener('click', closeGuestModal);
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && guestEls.modal?.classList.contains('open')) closeGuestModal();
+        if (e.key === 'Escape' && guestWhyEls.modal?.classList.contains('open')) closeGuestWhyModal();
+        if (e.key === 'Escape' && stayEls.modal?.classList.contains('open')) closeStayPlanModal();
       });
       apply(I18N[initial] ? initial : 'pt');
+      renderStayPlanUi();
+      loadStayPlanData();
       loadGuestData();
     })();
   </script>

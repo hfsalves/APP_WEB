@@ -86,6 +86,14 @@
             <label for="cfgPrecoMax" class="form-label small mb-1">Preco max</label>
             <input id="cfgPrecoMax" class="form-control" type="number" step="1">
           </div>
+          <div class="col-6">
+            <label for="cfgLastMinDisc" class="form-label small mb-1">Last min disc %</label>
+            <input id="cfgLastMinDisc" class="form-control" type="number" step="0.01" min="0">
+          </div>
+          <div class="col-6">
+            <label for="cfgLastMinDays" class="form-label small mb-1">Last min days</label>
+            <input id="cfgLastMinDays" class="form-control" type="number" step="1" min="0">
+          </div>
           <div class="col-12">
             <label class="form-check">
               <input id="cfgSync" class="form-check-input" type="checkbox">
@@ -179,20 +187,20 @@
   .pricing-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 1rem;
+    gap: 0.85rem;
   }
   .pricing-month {
     background: linear-gradient(180deg, #f6f8fb 0%, #ffffff 100%);
     border: 1px solid rgba(28, 56, 92, 0.12);
     border-radius: 16px;
-    padding: 0.9rem;
+    padding: 0.72rem;
   }
   .pricing-month-head {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    gap: 0.6rem;
+    margin-bottom: 0.55rem;
   }
   .pricing-month h6 {
     margin-bottom: 0;
@@ -207,7 +215,7 @@
   .pricing-calendar {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 0.35rem;
+    gap: 0.28rem;
   }
   .pricing-dow {
     text-align: center;
@@ -216,10 +224,10 @@
     color: #607089;
   }
   .pricing-cell {
-    min-height: 40px;
+    min-height: 36px;
     border: 1px solid rgba(28, 56, 92, 0.10);
     border-radius: 12px;
-    padding: 0.35rem;
+    padding: 0.28rem;
     background: #fff;
     cursor: pointer;
     display: flex;
@@ -325,6 +333,25 @@
     color: #21324a;
     margin-bottom: 0;
   }
+  .pricing-info-head-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-left: auto;
+  }
+  .pricing-info-result {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.14rem 0.45rem;
+    border-radius: 999px;
+    background: #e9f1fb;
+    color: #184a8b;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
   .pricing-chip-row {
     display: flex;
     flex-wrap: wrap;
@@ -380,6 +407,8 @@
   const cfgPrecoMin = document.getElementById('cfgPrecoMin');
   const cfgPrecoBase = document.getElementById('cfgPrecoBase');
   const cfgPrecoMax = document.getElementById('cfgPrecoMax');
+  const cfgLastMinDisc = document.getElementById('cfgLastMinDisc');
+  const cfgLastMinDays = document.getElementById('cfgLastMinDays');
   const cfgSync = document.getElementById('cfgSync');
   const cfgAtivo = document.getElementById('cfgAtivo');
   const suggestBaseBtn = document.getElementById('pricingSuggestBase');
@@ -408,6 +437,27 @@
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(Number(value));
+  }
+
+  function fmtStageMoney(value) {
+    if (value == null || Number.isNaN(Number(value))) return '';
+    return new Intl.NumberFormat('pt-PT', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
+  }
+
+  function numOrNull(value) {
+    if (value == null || value === '') return null;
+    const numeric = Number(value);
+    return Number.isNaN(numeric) ? null : numeric;
+  }
+
+  function clampNumber(value, min, max) {
+    if (value == null) return null;
+    if (min != null && value < min) return min;
+    if (max != null && value > max) return max;
+    return value;
   }
 
   function defaultMonth() {
@@ -559,13 +609,83 @@
     return `<span class="pricing-chip"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`;
   }
 
-  function infoCard(title, chips, actions = '') {
+  function stageResult(value) {
+    const formatted = fmtStageMoney(value);
+    if (!formatted) return '';
+    return `<div class="pricing-info-result">${escapeHtml(formatted)}</div>`;
+  }
+
+  function computeStageValues(flags) {
+    const values = { ...(flags?.stages || {}) };
+    let current = numOrNull(values.base ?? flags?.base);
+
+    values.base = current;
+
+    if (values.after_month == null) {
+      const monthFactor = numOrNull(flags?.month?.fator);
+      values.after_month = current != null && monthFactor != null
+        ? current * monthFactor
+        : numOrNull(flags?.month?.result);
+    }
+    if (values.after_month != null) current = values.after_month;
+
+    if (values.after_dow == null) {
+      const dowFactor = numOrNull(flags?.dow?.fator);
+      values.after_dow = current != null && dowFactor != null
+        ? current * dowFactor
+        : numOrNull(flags?.dow?.result);
+    }
+    if (values.after_dow != null) current = values.after_dow;
+
+    if (values.after_event == null) {
+      const eventFactor = numOrNull(flags?.event?.factor);
+      values.after_event = current != null && eventFactor != null
+        ? current * eventFactor
+        : numOrNull(flags?.event?.result);
+    }
+    if (values.after_event != null) current = values.after_event;
+
+    if (values.after_pickup == null) {
+      const pickupAdjPct = numOrNull(flags?.pickup?.adjustment_pct);
+      values.after_pickup = current != null && flags?.pickup?.applied && pickupAdjPct != null
+        ? current * (1 + (pickupAdjPct / 100))
+        : numOrNull(flags?.pickup?.result) ?? current;
+    }
+    if (values.after_pickup != null) current = values.after_pickup;
+
+    if (values.after_last_min == null) {
+      const lastMinPct = numOrNull(flags?.last_min?.discount_pct);
+      values.after_last_min = current != null && flags?.last_min?.applied && lastMinPct != null
+        ? current * (1 - (lastMinPct / 100))
+        : numOrNull(flags?.last_min?.result) ?? current;
+    }
+    if (values.after_last_min != null) current = values.after_last_min;
+
+    if (values.after_clamp == null) {
+      values.after_clamp = clampNumber(
+        current,
+        numOrNull(flags?.clamp?.min),
+        numOrNull(flags?.clamp?.max)
+      );
+    }
+    if (values.after_clamp != null) current = values.after_clamp;
+
+    if (values.after_smooth == null) {
+      values.after_smooth = numOrNull(flags?.smooth?.to)
+        ?? numOrNull(flags?.smooth?.result)
+        ?? current;
+    }
+
+    return values;
+  }
+
+  function infoCard(title, chips, actions = '', result = '') {
     if (!chips.length) return '';
     return `
       <section class="pricing-info-card">
         <div class="pricing-info-head">
           <div class="pricing-info-title">${escapeHtml(title)}</div>
-          ${actions}
+          ${(actions || result) ? `<div class="pricing-info-head-right">${result || ''}${actions || ''}</div>` : ''}
         </div>
         <div class="pricing-chip-row">${chips.join('')}</div>
       </section>
@@ -596,6 +716,8 @@
       cfgPrecoMin.value = payload.preco_min ?? '';
       cfgPrecoBase.value = payload.preco_base ?? '';
       cfgPrecoMax.value = payload.preco_max ?? '';
+      cfgLastMinDisc.value = payload.last_min_disc ?? '';
+      cfgLastMinDays.value = payload.last_min_days ?? '';
       cfgSync.checked = Boolean(payload.sync);
       cfgAtivo.checked = Boolean(payload.ativo);
       setAlojamentoStatus('');
@@ -620,6 +742,8 @@
           preco_min: cfgPrecoMin.value,
           preco_base: cfgPrecoBase.value,
           preco_max: cfgPrecoMax.value,
+          last_min_disc: cfgLastMinDisc.value,
+          last_min_days: cfgLastMinDays.value,
           sync: cfgSync.checked,
           ativo: cfgAtivo.checked,
         }),
@@ -654,31 +778,32 @@
       flagsCardsEl.innerHTML = '<div class="small text-muted">Sem breakdown.</div>';
       return;
     }
+    const stageValues = computeStageValues(flags);
 
     sections.push(infoCard('Base e Resultado', [
       chip('Base', fmtMoney(flags.base)),
       chip('Calculado', fmtMoney(flags.result?.preco_calc)),
       chip('Final', fmtMoney(flags.result?.preco_final)),
       chip('Disponivel', flags.availability?.available ? 'Sim' : 'Nao'),
-    ]));
+    ], '', stageResult(stageValues.base ?? flags.base)));
 
     sections.push(infoCard('Sazonalidade', [
       chip('Mes', flags.month?.mes ?? '-'),
       chip('Indice', flags.month?.indice ?? '-'),
       chip('Fator', flags.month?.fator ?? '-'),
-    ]));
+    ], '', stageResult(flags.month?.result ?? stageValues.after_month)));
 
     sections.push(infoCard('Dia da Semana', [
       chip('DOW', flags.dow?.dow ?? '-'),
       chip('Fator', flags.dow?.fator ?? '-'),
-    ]));
+    ], '', stageResult(flags.dow?.result ?? stageValues.after_dow)));
 
     if (flags.event) {
       sections.push(infoCard('Evento', [
         chip('Nome', flags.event?.nome || '-'),
         chip('Prioridade', flags.event?.prioridade ?? '-'),
         chip('Fator', flags.event?.factor ?? '-'),
-      ]));
+      ], '', stageResult(flags.event?.result ?? stageValues.after_event)));
     }
 
     sections.push(infoCard('Pickup', [
@@ -687,14 +812,22 @@
       chip('Ocup alvo', flags.pickup?.target_occ ?? '-'),
       chip('Ocup real', flags.pickup?.real_occ ?? '-'),
       chip('Ajuste %', flags.pickup?.adjustment_pct ?? '-'),
-    ]));
+    ], '', stageResult(flags.pickup?.result ?? stageValues.after_pickup)));
+
+    sections.push(infoCard('Ultima Hora', [
+      chip('Configurado %', flags.last_min?.configured_pct ?? '-'),
+      chip('Janela dias', flags.last_min?.window_days ?? '-'),
+      chip('Lead dia', flags.last_min?.stay_lead_days ?? '-'),
+      chip('Aplicado', flags.last_min?.applied ? 'Sim' : 'Nao'),
+      chip('Desconto %', flags.last_min?.discount_pct ?? '-'),
+    ], '', stageResult(flags.last_min?.result ?? stageValues.after_last_min)));
 
     sections.push(infoCard('Clamp e Suavizacao', [
       chip('Min', fmtMoney(flags.clamp?.min)),
       chip('Max', fmtMoney(flags.clamp?.max)),
       chip('Suavizado', flags.smooth?.applied ? 'Sim' : 'Nao'),
       ...(flags.smooth?.applied ? [chip('Para', fmtMoney(flags.smooth?.to))] : []),
-    ]));
+    ], '', stageResult(flags.smooth?.result ?? flags.clamp?.result ?? stageValues.after_smooth ?? stageValues.after_clamp)));
 
     flagsCardsEl.innerHTML = sections.filter(Boolean).join('') || '<div class="small text-muted">Sem breakdown.</div>';
   }

@@ -387,6 +387,7 @@ def create_app():
                 RS.DATAOUT,
                 RS.HORAIN,
                 RS.HORAOUT,
+                ISNULL(RS.BERCO,0) AS BERCO,
                 RS.ADULTOS,
                 RS.CRIANCAS,
                 RS.NOITES,
@@ -466,6 +467,7 @@ def create_app():
             'checkout_data': _fmt_date(row.get('DATAOUT')),
             'checkin_hora': (row.get('HORAIN') or '').strip(),
             'checkout_hora': (row.get('HORAOUT') or '').strip(),
+            'berco': bool(row.get('BERCO') or 0),
             'adultos': adultos,
             'criancas': criancas,
             'hospedes': hospedes,
@@ -801,6 +803,101 @@ def create_app():
             """), {**vals, 's': _new_stamp_25(), 'r': rsstamp})
         db.session.commit()
         return public_reserva_guests_get(token)
+
+    @app.route('/api/r/<token>/stay-plan', methods=['GET'])
+    def public_reserva_stay_plan_get(token):
+        tok = (token or '').strip()
+        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                RS.RSSTAMP,
+                RS.CRIANCAS,
+                ISNULL(RS.HORAIN,'') AS HORAIN,
+                ISNULL(RS.HORAOUT,'') AS HORAOUT,
+                ISNULL(RS.BERCO,0) AS BERCO,
+                RS.GUIDE_TOKEN_EXPIRES,
+                RS.GUIDE_TOKEN_REVOKED
+            FROM dbo.RS RS
+            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
+            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
+        """), {'t': tok}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+        if _token_expired(row.get('GUIDE_TOKEN_EXPIRES')):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+
+        return jsonify({
+            'ok': True,
+            'rsstamp': (row.get('RSSTAMP') or '').strip(),
+            'horain': (row.get('HORAIN') or '').strip(),
+            'horaout': (row.get('HORAOUT') or '').strip(),
+            'berco': bool(row.get('BERCO') or 0),
+            'has_children': int(row.get('CRIANCAS') or 0) > 0,
+        })
+
+    @app.route('/api/r/<token>/stay-plan', methods=['POST'])
+    def public_reserva_stay_plan_save(token):
+        tok = (token or '').strip()
+        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                RS.RSSTAMP,
+                RS.CRIANCAS,
+                RS.GUIDE_TOKEN_EXPIRES,
+                RS.GUIDE_TOKEN_REVOKED
+            FROM dbo.RS RS
+            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
+            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
+        """), {'t': tok}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+        if _token_expired(row.get('GUIDE_TOKEN_EXPIRES')):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+
+        def _norm_hm(v):
+            s = str(v or '').strip()
+            if not s:
+                return ''
+            if not re.match(r'^\d{2}:\d{2}$', s):
+                return None
+            hh = int(s[:2])
+            mm = int(s[3:5])
+            if hh < 0 or hh > 23 or mm < 0 or mm > 59:
+                return None
+            return s
+
+        body = request.get_json(silent=True) or {}
+        horain = _norm_hm(body.get('horain'))
+        horaout = _norm_hm(body.get('horaout'))
+        if horain is None or horaout is None:
+            return jsonify({'error': 'Hora inválida. Usa o formato HH:MM.'}), 400
+
+        has_children = int(row.get('CRIANCAS') or 0) > 0
+        berco = 1 if (has_children and bool(body.get('berco'))) else 0
+
+        db.session.execute(text("""
+            UPDATE dbo.RS
+            SET
+              HORAIN = :horain,
+              HORAOUT = :horaout,
+              BERCO = :berco
+            WHERE RSSTAMP = :r
+        """), {
+            'horain': horain or '',
+            'horaout': horaout or '',
+            'berco': berco,
+            'r': (row.get('RSSTAMP') or '').strip(),
+        })
+        db.session.commit()
+        return public_reserva_stay_plan_get(token)
 
     @app.route('/logout')
     @login_required

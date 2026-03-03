@@ -151,6 +151,8 @@ def _load_existing_prices(session, start_date, end_date, alojamento=None):
             CAST([DATA] AS date) AS DIA,
             PRECO_CALC,
             PRECO_FINAL,
+            ISNULL([SYNC], 0) AS [SYNC],
+            SYNCED_AT,
             FLAGS
         FROM dbo.PR_CALC_DAY
         WHERE CAST([DATA] AS date) BETWEEN :start_date AND :end_date
@@ -166,6 +168,8 @@ def _load_existing_prices(session, start_date, end_date, alojamento=None):
         existing[(_aloj_cache_key(row.get("AL_NOME")), row.get("DIA"))] = {
             "preco_calc": _quantize_money(row.get("PRECO_CALC") or 0),
             "preco_final": _quantize_money(row.get("PRECO_FINAL") or 0),
+            "sync": bool(row.get("SYNC")),
+            "synced_at": row.get("SYNCED_AT"),
             "flags": row.get("FLAGS") or "",
         }
     return existing
@@ -281,6 +285,8 @@ def ensure_pricing_schema(session):
                 PRECO_MIN DECIMAL(10,2) NOT NULL,
                 PRECO_BASE DECIMAL(10,2) NOT NULL,
                 PRECO_MAX DECIMAL(10,2) NOT NULL,
+                LAST_MIN_DISC DECIMAL(9,2) NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_LAST_MIN_DISC DEFAULT (0),
+                LAST_MIN_DAYS INT NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_LAST_MIN_DAYS DEFAULT (0),
                 SYNC BIT NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_SYNC DEFAULT (0),
                 ATIVO BIT NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_ATIVO DEFAULT (1),
                 CONSTRAINT FK_PR_ALOJAMENTO_AL FOREIGN KEY (AL_NOME) REFERENCES dbo.AL (NOME),
@@ -300,6 +306,20 @@ def ensure_pricing_schema(session):
         BEGIN
             ALTER TABLE dbo.PR_ALOJAMENTO
             ADD SYNC BIT NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_SYNC DEFAULT (0);
+        END
+        """,
+        """
+        IF COL_LENGTH('dbo.PR_ALOJAMENTO', 'LAST_MIN_DISC') IS NULL
+        BEGIN
+            ALTER TABLE dbo.PR_ALOJAMENTO
+            ADD LAST_MIN_DISC DECIMAL(9,2) NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_LAST_MIN_DISC DEFAULT (0);
+        END
+        """,
+        """
+        IF COL_LENGTH('dbo.PR_ALOJAMENTO', 'LAST_MIN_DAYS') IS NULL
+        BEGIN
+            ALTER TABLE dbo.PR_ALOJAMENTO
+            ADD LAST_MIN_DAYS INT NOT NULL CONSTRAINT DF_PR_ALOJAMENTO_LAST_MIN_DAYS DEFAULT (0);
         END
         """,
         """
@@ -490,7 +510,9 @@ def _load_pricing_inputs(session, start_date, end_date, alojamento=None):
             LTRIM(RTRIM(ISNULL(pa.REGIME, 'GESTAO'))) AS REGIME,
             pa.PRECO_MIN,
             pa.PRECO_BASE,
-            pa.PRECO_MAX
+            pa.PRECO_MAX,
+            ISNULL(pa.LAST_MIN_DISC, 0) AS LAST_MIN_DISC,
+            ISNULL(pa.LAST_MIN_DAYS, 0) AS LAST_MIN_DAYS
         FROM dbo.PR_ALOJAMENTO pa
         WHERE ISNULL(pa.ATIVO, 0) = 1
     """
@@ -807,6 +829,8 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
         price_min = _round_price(aloj.get("PRECO_MIN"))
         price_base = _round_price(aloj.get("PRECO_BASE"))
         price_max = _round_price(aloj.get("PRECO_MAX"))
+        last_min_disc = _safe_decimal(aloj.get("LAST_MIN_DISC"), "0")
+        last_min_days = max(int(aloj.get("LAST_MIN_DAYS") or 0), 0)
         reserved = inputs["reserved_days"].get(aloj_cache_key, set())
         previous_calc = None
 
@@ -820,9 +844,11 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
             dow_factor = inputs["dow_factors"].get((profile_id, day_value.isoweekday()), Decimal("1"))
             event_factor, event_info = _resolve_event_factor(day_value, inputs["events"], inputs["event_years"])
 
-            preco = price_base * month_factor
-            preco *= dow_factor
-            preco *= event_factor
+            price_after_base = price_base
+            price_after_month = price_after_base * month_factor
+            price_after_dow = price_after_month * dow_factor
+            price_after_event = price_after_dow * event_factor
+            preco = price_after_event
 
             is_available = day_value not in reserved
             lead_days = (week_start - today).days
@@ -833,8 +859,31 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
             pickup_adjustment = _clamp(pickup_adjustment, profile["lim_min"], profile["lim_max"])
             if is_available:
                 preco *= Decimal("1") + pickup_adjustment
+            price_after_pickup = preco
+
+            stay_lead_days = (day_value - today).days
+            last_min_info = {
+                "configured_pct": _to_float(last_min_disc.quantize(Decimal("0.01"))),
+                "window_days": last_min_days,
+                "stay_lead_days": stay_lead_days,
+                "applied": False,
+                "discount_pct": 0.0,
+            }
+            if is_available and last_min_disc > 0 and last_min_days > 0 and 0 <= stay_lead_days <= last_min_days:
+                step_discount = last_min_disc / Decimal(last_min_days)
+                progress_step = (last_min_days - stay_lead_days) + 1
+                applied_discount_pct = min(last_min_disc, step_discount * Decimal(progress_step))
+                preco *= Decimal("1") - (applied_discount_pct / Decimal("100"))
+                last_min_info.update(
+                    {
+                        "applied": True,
+                        "discount_pct": _to_float(applied_discount_pct.quantize(Decimal("0.01"))),
+                    }
+                )
+            price_after_last_min = preco
 
             preco = _clamp(preco, price_min, price_max)
+            price_after_clamp = preco
 
             smooth_info = {"applied": False}
             if previous_calc is not None and daily_variation_limit > 0:
@@ -850,6 +899,7 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                     }
                 preco = smoothed
                 preco = _clamp(preco, price_min, price_max)
+            price_after_smooth = preco
 
             preco_calc = _round_price(preco)
             preco_final = preco_calc
@@ -881,9 +931,35 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
             flags = _build_flags(
                 {
                     "base": _to_float(price_base),
-                    "month": {"mes": day_value.month, "indice": _to_float(month_index), "fator": _to_float(month_factor)},
-                    "dow": {"dow": day_value.isoweekday(), "fator": _to_float(dow_factor)},
-                    "event": event_info,
+                    "stages": {
+                        "base": _to_float(_quantize_money(price_after_base)),
+                        "after_month": _to_float(_quantize_money(price_after_month)),
+                        "after_dow": _to_float(_quantize_money(price_after_dow)),
+                        "after_event": _to_float(_quantize_money(price_after_event)),
+                        "after_pickup": _to_float(_quantize_money(price_after_pickup)),
+                        "after_last_min": _to_float(_quantize_money(price_after_last_min)),
+                        "after_clamp": _to_float(_quantize_money(price_after_clamp)),
+                        "after_smooth": _to_float(_quantize_money(price_after_smooth)),
+                    },
+                    "month": {
+                        "mes": day_value.month,
+                        "indice": _to_float(month_index),
+                        "fator": _to_float(month_factor),
+                        "result": _to_float(_quantize_money(price_after_month)),
+                    },
+                    "dow": {
+                        "dow": day_value.isoweekday(),
+                        "fator": _to_float(dow_factor),
+                        "result": _to_float(_quantize_money(price_after_dow)),
+                    },
+                    "event": (
+                        {
+                            **event_info,
+                            "result": _to_float(_quantize_money(price_after_event)),
+                        }
+                        if event_info
+                        else None
+                    ),
                     "pickup": {
                         "applied": bool(is_available),
                         "lead_days": lead_days,
@@ -894,10 +970,22 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                         "adjustment_pct": _to_float((pickup_adjustment * Decimal("100")).quantize(Decimal("0.01"))),
                         "week_start": week_start.isoformat(),
                         "week_end": week_end.isoformat(),
+                        "result": _to_float(_quantize_money(price_after_pickup)),
+                    },
+                    "last_min": {
+                        **last_min_info,
+                        "result": _to_float(_quantize_money(price_after_last_min)),
                     },
                     "availability": {"available": bool(is_available)},
-                    "clamp": {"min": _to_float(price_min), "max": _to_float(price_max)},
-                    "smooth": smooth_info,
+                    "clamp": {
+                        "min": _to_float(price_min),
+                        "max": _to_float(price_max),
+                        "result": _to_float(_quantize_money(price_after_clamp)),
+                    },
+                    "smooth": {
+                        **smooth_info,
+                        "result": _to_float(_quantize_money(price_after_smooth)),
+                    },
                     "override": override_info,
                     "result": {
                         "preco_calc": _to_float(preco_calc),
@@ -918,6 +1006,7 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                     previous_calc = existing_row["preco_calc"]
                     continue
 
+            preserve_sync = bool(existing_row) and preco_final == existing_row["preco_final"]
             rows_to_upsert.append(
                 {
                     "AL_NOME": aloj_name,
@@ -925,8 +1014,8 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                     "ISO_WEEK": iso_week,
                     "PRECO_CALC": preco_calc,
                     "PRECO_FINAL": preco_final,
-                    "SYNC": 0,
-                    "SYNCED_AT": None,
+                    "SYNC": 1 if preserve_sync and existing_row.get("sync") else 0,
+                    "SYNCED_AT": existing_row.get("synced_at") if preserve_sync and existing_row else None,
                     "FLAGS": flags,
                     "UPDATED_AT": run_ts,
                 }
@@ -1008,6 +1097,8 @@ def _load_alojamento_config(alojamento):
                 pa.PRECO_MIN,
                 pa.PRECO_BASE,
                 pa.PRECO_MAX,
+                ISNULL(pa.LAST_MIN_DISC, 0) AS LAST_MIN_DISC,
+                ISNULL(pa.LAST_MIN_DAYS, 0) AS LAST_MIN_DAYS,
                 ISNULL(pa.SYNC, 0) AS SYNC,
                 ISNULL(pa.ATIVO, 0) AS ATIVO,
                 ISNULL(pp.NOME, '') AS PERFIL_NOME,
@@ -1042,6 +1133,8 @@ def _load_alojamento_config(alojamento):
         "preco_min": _to_float(row.get("PRECO_MIN")),
         "preco_base": _to_float(row.get("PRECO_BASE")),
         "preco_max": _to_float(row.get("PRECO_MAX")),
+        "last_min_disc": _to_float(row.get("LAST_MIN_DISC")),
+        "last_min_days": int(row.get("LAST_MIN_DAYS") or 0),
         "sync": bool(row.get("SYNC")),
         "ativo": bool(row.get("ATIVO")),
         "profiles": [
@@ -1408,11 +1501,20 @@ def pricing_api_alojamento_config_save():
     preco_min = _safe_decimal(payload.get("preco_min"), "0")
     preco_base = _safe_decimal(payload.get("preco_base"), "0")
     preco_max = _safe_decimal(payload.get("preco_max"), "0")
+    last_min_disc = _safe_decimal(payload.get("last_min_disc"), "0")
+    try:
+        last_min_days = int(payload.get("last_min_days") or 0)
+    except Exception:
+        return jsonify({"error": "LAST_MIN_DAYS invalido."}), 400
     sync = 1 if _as_bool(payload.get("sync")) else 0
     ativo = 1 if _as_bool(payload.get("ativo")) else 0
 
     if preco_min > preco_base or preco_base > preco_max:
         return jsonify({"error": "A regra PRECO_MIN <= PRECO_BASE <= PRECO_MAX tem de ser respeitada."}), 400
+    if last_min_disc < 0:
+        return jsonify({"error": "LAST_MIN_DISC nao pode ser negativo."}), 400
+    if last_min_days < 0:
+        return jsonify({"error": "LAST_MIN_DAYS nao pode ser negativo."}), 400
 
     exists = db.session.execute(
         text("SELECT COUNT(*) FROM dbo.PR_ALOJAMENTO WHERE AL_NOME = :alojamento"),
@@ -1430,6 +1532,8 @@ def pricing_api_alojamento_config_save():
                 PRECO_MIN = :preco_min,
                 PRECO_BASE = :preco_base,
                 PRECO_MAX = :preco_max,
+                LAST_MIN_DISC = :last_min_disc,
+                LAST_MIN_DAYS = :last_min_days,
                 SYNC = :sync,
                 ATIVO = :ativo
             WHERE AL_NOME = :alojamento
@@ -1442,6 +1546,8 @@ def pricing_api_alojamento_config_save():
             "preco_min": preco_min,
             "preco_base": preco_base,
             "preco_max": preco_max,
+            "last_min_disc": last_min_disc,
+            "last_min_days": last_min_days,
             "sync": sync,
             "ativo": ativo,
         },
