@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
       grupo: String(grupo || ''),
     });
 
-    detailBody.innerHTML = `<tr><td colspan="12" class="text-center text-muted">A carregar...</td></tr>`;
+    detailBody.innerHTML = `<tr><td colspan="13" class="text-center text-muted">A carregar...</td></tr>`;
     if (detailTitle) detailTitle.textContent = `Detalhe ${ccusto} - ${groupLabels[grupo] || grupo}`;
     if (detailTotal) detailTotal.textContent = 'Total: --';
     detailModal.show();
@@ -106,10 +106,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar detalhe');
       const rows = Array.isArray(data.rows) ? data.rows : [];
       if (!rows.length) {
-        detailBody.innerHTML = '<tr><td colspan="12" class="text-center text-muted">Sem registos.</td></tr>';
+        detailBody.innerHTML = '<tr><td colspan="13" class="text-center text-muted">Sem registos.</td></tr>';
       } else {
         detailBody.innerHTML = rows.map((r) => {
           const url = r.anexo_url || '';
+          const cabstamp = String(r.cabstamp || '').trim();
+          const compraBtn = cabstamp
+            ? `<a class="btn btn-outline-secondary btn-sm" target="_blank" href="/generic/fo_compras_form/${encodeURIComponent(cabstamp)}">Abrir</a>`
+            : '';
           const btn = url ? `<a class="btn btn-outline-primary btn-sm" target="_blank" href="${escapeHtml(url)}">Abrir</a>` : '';
           return `
             <tr>
@@ -124,6 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <td class="text-end">${fmtNum2.format(Number(r.quantidade || 0))}</td>
               <td class="text-end">${fmtNum2.format(Number(r.preco || 0))}</td>
               <td class="text-end fw-semibold">${fmtNum2.format(Number(r.total || 0))}</td>
+              <td class="text-center">${compraBtn}</td>
               <td class="text-center">${btn}</td>
             </tr>
           `;
@@ -132,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (detailTotal) detailTotal.textContent = `Total: ${fmtNum2.format(Number(data.total || 0))}`;
     } catch (err) {
       console.error(err);
-      detailBody.innerHTML = `<tr><td colspan="12" class="text-center text-danger">${escapeHtml(err.message || 'Erro ao carregar detalhe')}</td></tr>`;
+      detailBody.innerHTML = `<tr><td colspan="13" class="text-center text-danger">${escapeHtml(err.message || 'Erro ao carregar detalhe')}</td></tr>`;
       if (detailTotal) detailTotal.textContent = 'Total: --';
     }
   }
