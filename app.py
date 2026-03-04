@@ -4464,14 +4464,14 @@ OPTION (MAXRECURSION 32767);
                 SUM(CASE WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) = '9' THEN ISNULL(C.TOTAL,0) ELSE 0 END) AS PROVEITO,
                 SUM(CASE WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) = 'RENDA' THEN ISNULL(C.TOTAL,0) ELSE 0 END) AS RENDAS,
                 SUM(CASE WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) IN ('LUZ-6','LUZ-23') THEN ISNULL(C.TOTAL,0) ELSE 0 END) AS LUZ,
-                SUM(CASE WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) IN ('AGUA','SANEAMENTO') THEN ISNULL(C.TOTAL,0) ELSE 0 END) AS AGUA,
+                SUM(CASE WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) IN ('AGUA-6','AGUA-23','AGUA-ISENT') THEN ISNULL(C.TOTAL,0) ELSE 0 END) AS AGUA,
                 SUM(CASE WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) = 'COMUNICACOES' THEN ISNULL(C.TOTAL,0) ELSE 0 END) AS COMUNICACOES,
                 SUM(CASE
                       WHEN LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9'
                        AND NOT (
                           LTRIM(RTRIM(C.REF)) = 'RENDA'
                           OR LTRIM(RTRIM(C.REF)) IN ('LUZ-6','LUZ-23')
-                          OR LTRIM(RTRIM(C.REF)) IN ('AGUA','SANEAMENTO')
+                          OR LTRIM(RTRIM(C.REF)) IN ('AGUA-6','AGUA-23','AGUA-ISENT')
                           OR LTRIM(RTRIM(C.REF)) = 'COMUNICACOES'
                        )
                       THEN ISNULL(C.TOTAL,0)
@@ -4567,12 +4567,12 @@ OPTION (MAXRECURSION 32767);
             'proveito': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) = '9'",
             'rendas': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) = 'RENDA'",
             'luz': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) IN ('LUZ-6','LUZ-23')",
-            'agua': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) IN ('AGUA','SANEAMENTO')",
+            'agua': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) IN ('AGUA-6','AGUA-23','AGUA-ISENT')",
             'comunicacoes': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) = 'COMUNICACOES'",
             'outros': """LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND NOT (
                             LTRIM(RTRIM(C.REF)) = 'RENDA'
                             OR LTRIM(RTRIM(C.REF)) IN ('LUZ-6','LUZ-23')
-                            OR LTRIM(RTRIM(C.REF)) IN ('AGUA','SANEAMENTO')
+                            OR LTRIM(RTRIM(C.REF)) IN ('AGUA-6','AGUA-23','AGUA-ISENT')
                             OR LTRIM(RTRIM(C.REF)) = 'COMUNICACOES'
                          )""",
             'total_custos': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9'",
