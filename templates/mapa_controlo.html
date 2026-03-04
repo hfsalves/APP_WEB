@@ -77,6 +77,46 @@
   </div>
 </div>
 
+<div class="modal fade" id="mcDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mcDetailTitle">Detalhe</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-table-wrap">
+          <table class="table table-sm align-middle mb-0 detail-table">
+            <thead>
+              <tr>
+                <th>Documento</th>
+                <th>Número</th>
+                <th>Data</th>
+                <th>Nome</th>
+                <th>Centro Custo</th>
+                <th>Família</th>
+                <th>Referência</th>
+                <th>Designação</th>
+                <th class="text-end">Qtd.</th>
+                <th class="text-end">Preço</th>
+                <th class="text-end">Total</th>
+                <th class="text-center">Anexo</th>
+              </tr>
+            </thead>
+            <tbody id="mcDetailBody">
+              <tr><td colspan="12" class="text-center text-muted">A carregar...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mcDetailTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
   #mcTabela { font-size: 12px; }
   #mcTabela td, #mcTabela th { padding: 0.35rem 0.5rem; }
@@ -97,6 +137,28 @@
   .mc-negative { color: #b91c1c; font-weight: 700; }
   .mc-positive { color: #0f766e; font-weight: 700; }
   .mc-zero { color: #b91c1c !important; font-weight: inherit; }
+  .mc-cell-drill { cursor: pointer; }
+  .mc-cell-drill:hover { text-decoration: underline; text-decoration-style: dotted; }
+  .detail-card {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 22px 70px rgba(15,23,42,0.22);
+    overflow: hidden;
+    background: linear-gradient(180deg, #f8fafc 0%, #ffffff 35%, #f8fafc 100%);
+  }
+  .detail-card .modal-header { background: linear-gradient(90deg, #0ea5e9 0%, #7c3aed 100%); color: #fff; }
+  .detail-card .modal-header .btn-close { filter: invert(1); }
+  .detail-card .modal-body { background: #f8fafc; }
+  .detail-table-wrap { max-height: 60vh; overflow: auto; }
+  .detail-table { border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; margin-top: 4px; }
+  .detail-table thead { background: linear-gradient(90deg, #0ea5e9, #7c3aed); color: #fff; position: sticky; top: 0; z-index: 2; }
+  .detail-table th { border: none; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .detail-table td { font-size: 12px; vertical-align: middle; }
+  .detail-table tbody tr:nth-child(odd) { background-color: #f8fafc; }
+  .detail-table tbody tr:nth-child(even) { background-color: #eef2ff; }
+  .detail-table tbody tr:hover { background-color: #dbeafe; }
+  #mcDetailTotal { font-size: 14px; color: #0f172a; }
+  #mcDetailTitle { color: #fff; font-weight: 700; }
 </style>
 {% endblock %}
 

@@ -4544,6 +4544,137 @@ OPTION (MAXRECURSION 32767);
             'totals': totals
         })
 
+    @app.route('/api/mapa_controlo/detalhe')
+    @login_required
+    def api_mapa_controlo_detalhe():
+        try:
+            ano = request.args.get('ano', type=int) or date.today().year
+        except Exception:
+            ano = date.today().year
+        try:
+            mes = request.args.get('mes', type=int) or date.today().month
+        except Exception:
+            mes = date.today().month
+
+        ccusto = str(request.args.get('ccusto') or '').strip()
+        grupo = str(request.args.get('grupo') or '').strip().lower()
+        if not ccusto:
+            return jsonify({'error': 'ccusto obrigatorio'}), 400
+        if not grupo:
+            return jsonify({'error': 'grupo obrigatorio'}), 400
+
+        filtros = {
+            'proveito': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) = '9'",
+            'rendas': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) = 'RENDA'",
+            'luz': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) IN ('LUZ-6','LUZ-23')",
+            'agua': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) IN ('AGUA','SANEAMENTO')",
+            'comunicacoes': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND LTRIM(RTRIM(C.REF)) = 'COMUNICACOES'",
+            'outros': """LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9' AND NOT (
+                            LTRIM(RTRIM(C.REF)) = 'RENDA'
+                            OR LTRIM(RTRIM(C.REF)) IN ('LUZ-6','LUZ-23')
+                            OR LTRIM(RTRIM(C.REF)) IN ('AGUA','SANEAMENTO')
+                            OR LTRIM(RTRIM(C.REF)) = 'COMUNICACOES'
+                         )""",
+            'total_custos': "LEFT(LTRIM(RTRIM(C.FAMILIA)), 1) <> '9'",
+            'saldo': "1=1",
+        }
+        where_group = filtros.get(grupo)
+        if not where_group:
+            return jsonify({'error': 'grupo invalido'}), 400
+
+        sql = text(f"""
+            SELECT
+                C.NMDOC AS documento,
+                C.NRDOC AS numero,
+                C.DATA AS data,
+                C.NOME AS nome,
+                LTRIM(RTRIM(C.CCUSTO)) AS ccusto,
+                LTRIM(RTRIM(ISNULL(C.FAMILIA,''))) AS familia,
+                LTRIM(RTRIM(ISNULL(C.REF,''))) AS referencia,
+                ISNULL(C.DESIGN,'') AS designacao,
+                ISNULL(C.QTT,0) AS quantidade,
+                ISNULL(C.EPV,0) AS preco,
+                ISNULL(C.TOTAL,0) AS total,
+                C.CABSTAMP AS cabstamp
+            FROM dbo.v_custo AS C
+            INNER JOIN dbo.AL AS A
+              ON LTRIM(RTRIM(A.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(C.CCUSTO)) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE YEAR(C.DATA) = :ano
+              AND MONTH(C.DATA) = :mes
+              AND UPPER(LTRIM(RTRIM(ISNULL(A.TIPO,'')))) = 'EXPLORACAO'
+              AND LTRIM(RTRIM(C.CCUSTO)) = :ccusto
+              AND ({where_group})
+            ORDER BY C.DATA, C.NMDOC, C.NRDOC, C.CABSTAMP
+        """)
+        try:
+            rows = db.session.execute(sql, {'ano': ano, 'mes': mes, 'ccusto': ccusto}).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter detalhe: {e}'}), 500
+
+        out = []
+        total_sum = 0.0
+        cabstamps = []
+        for r in rows:
+            total_val = float(r.get('total') or 0)
+            total_sum += total_val
+            data_val = r.get('data')
+            if isinstance(data_val, (datetime, date)):
+                data_val = data_val.strftime('%Y-%m-%d')
+            cabstamp = r.get('cabstamp')
+            if cabstamp:
+                cabstamps.append(str(cabstamp))
+            out.append({
+                'documento': r.get('documento'),
+                'numero': r.get('numero'),
+                'data': data_val,
+                'nome': r.get('nome'),
+                'ccusto': r.get('ccusto'),
+                'familia': r.get('familia'),
+                'referencia': r.get('referencia'),
+                'designacao': r.get('designacao'),
+                'quantidade': r.get('quantidade'),
+                'preco': r.get('preco'),
+                'total': round(total_val, 2),
+                'cabstamp': cabstamp
+            })
+
+        anexo_map = {}
+        if cabstamps:
+            placeholders = []
+            params_anx = {}
+            for idx, cab in enumerate(cabstamps):
+                key = f"c{idx}"
+                params_anx[key] = cab
+                placeholders.append(f":{key}")
+            sql_anx = f"""
+                SELECT RECSTAMP, CAMINHO, FICHEIRO
+                FROM dbo.ANEXOS
+                WHERE RECSTAMP IN ({",".join(placeholders)})
+                ORDER BY RECSTAMP
+            """
+            try:
+                rows_anx = db.session.execute(text(sql_anx), params_anx).fetchall()
+                for ra in rows_anx:
+                    rec = str(ra[0])
+                    if rec and rec not in anexo_map:
+                        caminho = ra[1] if len(ra) > 1 else None
+                        ficheiro = ra[2] if len(ra) > 2 else None
+                        anexo_map[rec] = caminho or ficheiro or None
+            except Exception:
+                anexo_map = {}
+
+        for item in out:
+            cab = item.get('cabstamp')
+            item['anexo_url'] = anexo_map.get(str(cab)) if cab else None
+
+        return jsonify({
+            'rows': out,
+            'total': round(total_sum, 2),
+            'ccusto': ccusto,
+            'grupo': grupo
+        })
+
     @app.route('/api/mapa_gestao/ccustos')
     @login_required
     def api_mapa_gestao_ccustos():
