@@ -654,5 +654,5 @@
   window.RS_STAMP = {{ rsstamp|tojson }};
   window.RS_RETURN_TO = {{ return_to|tojson }};
 </script>
-<script type="module" src="{{ url_for('static', filename='js/rs_reservas_form.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/rs_reservas_form.js') }}?v={{ static_version }}"></script>
 {% endblock %}
