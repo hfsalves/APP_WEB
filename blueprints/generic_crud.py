@@ -6,7 +6,7 @@ from sqlalchemy import MetaData, Table, select, text, String, or_, bindparam
 from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
 import uuid
-from datetime import date
+from datetime import date, timedelta
 import json
 import re
 
@@ -449,6 +449,7 @@ def list_or_describe(table_name):
                 'tipo':             c.tipo,
                 'lista':            bool(c.lista),
                 'filtro':           bool(c.filtro) if c.tipo != 'VIRTUAL' else False,
+                'filtrodefault':    (c.filtrodefault or '').strip() if bool(c.filtro) and c.tipo != 'VIRTUAL' else '',
                 'admin':            bool(c.admin),
                 'primary_key':      (c.nmcampo == pk_name),
                 'readonly':         True if c.tipo == 'VIRTUAL' else bool(c.ronly),
@@ -472,10 +473,94 @@ def list_or_describe(table_name):
 
     table = get_table(table_name)
     stmt  = select(table)
+    campos_filtro = Campo.query.filter_by(tabela=table_name, filtro=True).all()
+
+    def resolve_default_token(raw_value: str):
+        token = (raw_value or '').strip()
+        if not token:
+            return ''
+        lower = token.lower()
+        today = date.today()
+        if lower == 'today':
+            return today.isoformat()
+        if lower == 'month_start':
+            return today.replace(day=1).isoformat()
+        if lower == 'month_end':
+            next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
+            return (next_month - timedelta(days=1)).isoformat()
+        if lower == 'year_start':
+            return today.replace(month=1, day=1).isoformat()
+        if lower == 'year_end':
+            return today.replace(month=12, day=31).isoformat()
+        match = re.fullmatch(r'today\s*([+-])\s*(\d+)', lower)
+        if match:
+            delta = int(match.group(2))
+            if match.group(1) == '-':
+                delta *= -1
+            return (today + timedelta(days=delta)).isoformat()
+        return token
+
+    def apply_default_filters(base_stmt):
+        stmt_local = base_stmt
+        for campo in campos_filtro:
+            default_raw = (campo.filtrodefault or '').strip()
+            if not default_raw:
+                continue
+
+            field_name = (campo.nmcampo or '').strip()
+            if not field_name or not hasattr(table.c, field_name):
+                continue
+            col = getattr(table.c, field_name)
+
+            if campo.tipo == 'DATE':
+                if (
+                    f'{field_name}_from' in request.args or
+                    f'{field_name}_to' in request.args or
+                    f'__clear_default__{field_name}_from' in request.args or
+                    f'__clear_default__{field_name}_to' in request.args
+                ):
+                    continue
+                start_raw, end_raw = (default_raw.split('|', 1) + [''])[:2] if '|' in default_raw else (default_raw, '')
+                start_val = resolve_default_token(start_raw)
+                end_val = resolve_default_token(end_raw)
+                if start_val:
+                    stmt_local = stmt_local.where(col >= start_val)
+                if end_val:
+                    stmt_local = stmt_local.where(col <= end_val)
+                continue
+
+            if field_name in request.args or f'__clear_default__{field_name}' in request.args:
+                continue
+
+            match = re.match(r'^(>=|<=|=|>|<|like)\s*:(.*)$', default_raw, re.IGNORECASE)
+            explicit_operator = bool(match)
+            operator = match.group(1).lower() if match else '='
+            value = resolve_default_token(match.group(2) if match else default_raw)
+            if value == '':
+                continue
+
+            if operator == 'like':
+                stmt_local = stmt_local.where(col.like(f"%{value}%"))
+            elif operator == '>':
+                stmt_local = stmt_local.where(col > value)
+            elif operator == '<':
+                stmt_local = stmt_local.where(col < value)
+            elif operator == '>=':
+                stmt_local = stmt_local.where(col >= value)
+            elif operator == '<=':
+                stmt_local = stmt_local.where(col <= value)
+            else:
+                if not explicit_operator and isinstance(col.type, String):
+                    stmt_local = stmt_local.where(col.like(f"%{value}%"))
+                else:
+                    stmt_local = stmt_local.where(col == value)
+        return stmt_local
+
+    stmt = apply_default_filters(stmt)
 
     # 3) FILTROS via query string
     for key, value in request.args.items():
-        if key == 'action':
+        if key == 'action' or key.startswith('__clear_default__'):
             continue
 
         # intervalo de datas: campo_from e campo_to
@@ -500,17 +585,34 @@ def list_or_describe(table_name):
             else:
                 stmt = stmt.where(col == value)
 
-    # 4) ordenaÃ§Ã£o automÃ¡tica por ORDEM â†’ DATA â†’ HORA
-    order_cols = []
-    for cn in ('ORDEM', 'DATA', 'HORA', 'NOME'):
-        if hasattr(table.c, cn):
-            order_cols.append(getattr(table.c, cn))
-    if order_cols:
-        stmt = stmt.order_by(*order_cols)
+    menu_item = Menu.query.filter_by(tabela=table_name).first()
+    menu_orderby = ((getattr(menu_item, 'orderby', '') or '').strip() if menu_item else '')
+
+    def apply_default_order(base_stmt):
+        order_cols = []
+        for cn in ('ORDEM', 'DATA', 'HORA', 'NOME'):
+            if hasattr(table.c, cn):
+                order_cols.append(getattr(table.c, cn))
+        return base_stmt.order_by(*order_cols) if order_cols else base_stmt
+
+    if menu_orderby:
+        stmt = stmt.order_by(text(menu_orderby))
+    else:
+        stmt = apply_default_order(stmt)
 
     # 5) executa e retorna JSON
     try:
-        rows    = db.session.execute(stmt).fetchall()
+        try:
+            rows = db.session.execute(stmt).fetchall()
+        except Exception:
+            if not menu_orderby:
+                raise
+            current_app.logger.exception(
+                "Falha ao aplicar MENU.ORDERBY em %s: %s",
+                table_name,
+                menu_orderby
+            )
+            rows = db.session.execute(apply_default_order(stmt.order_by(None))).fetchall()
         records = [dict(r._mapping) for r in rows]
         # 1. Recolhe os campos VIRTUAL para esta tabela
         virtual_fields = (

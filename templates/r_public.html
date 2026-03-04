@@ -1522,6 +1522,66 @@
           .join('');
         guestEls.tipoDoc.value = options.some((item) => item.value === current) ? current : '';
       }
+      function currentLang() {
+        const lang = (localStorage.getItem(key) || 'pt').toLowerCase();
+        return I18N[lang] ? lang : 'pt';
+      }
+      function normalizeCountryText(value) {
+        return String(value || '')
+          .trim()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .toUpperCase();
+      }
+      function countryDisplayName(code, lang) {
+        const codeKey = String(code || '').toUpperCase();
+        const langKey = I18N[lang] ? lang : 'pt';
+        const custom = COUNTRY_CUSTOM_LABELS[codeKey]?.[langKey];
+        if (custom) return custom;
+        try {
+          const locale = COUNTRY_LOCALE_MAP[langKey] || COUNTRY_LOCALE_MAP.pt;
+          const display = new Intl.DisplayNames([locale], { type: 'region' });
+          return display.of(codeKey) || codeKey;
+        } catch (_) {
+          return codeKey;
+        }
+      }
+      function countryCanonicalName(code) {
+        return countryDisplayName(code, 'pt');
+      }
+      function findCountryCode(rawValue) {
+        const value = normalizeCountryText(rawValue);
+        if (!value) return '';
+        for (const code of COUNTRY_CODE_LIST) {
+          if (value === code) return code;
+          if (normalizeCountryText(countryCanonicalName(code)) === value) return code;
+          if (normalizeCountryText(countryDisplayName(code, 'en')) === value) return code;
+          if (normalizeCountryText(countryDisplayName(code, 'fr')) === value) return code;
+          if (normalizeCountryText(countryDisplayName(code, 'es')) === value) return code;
+        }
+        return '';
+      }
+      function renderCountrySelect(el, lang) {
+        if (!el) return;
+        const activeLang = I18N[lang] ? lang : currentLang();
+        const currentValue = String(el.dataset.countryRaw || el.value || '').trim();
+        const currentCode = findCountryCode(currentValue);
+        const options = ['<option value=""></option>']
+          .concat(COUNTRY_CODE_LIST.map((code) => `<option value="${code}">${countryDisplayName(code, activeLang)}</option>`));
+        el.innerHTML = options.join('');
+        el.value = currentCode || '';
+      }
+      function setCountrySelectValue(el, rawValue) {
+        if (!el) return;
+        el.dataset.countryRaw = String(rawValue || '').trim();
+        renderCountrySelect(el, currentLang());
+      }
+      function getCountryStoredValue(el) {
+        if (!el) return '';
+        const code = String(el.value || '').trim();
+        return code ? countryCanonicalName(code) : '';
+      }
       const apply = (lang) => {
         const dict = getDict(lang);
         document.documentElement.lang = lang;
@@ -1530,6 +1590,9 @@
           if (dict[i18nKey]) el.textContent = dict[i18nKey];
         });
         renderDocTypeOptions(lang);
+        renderCountrySelect(guestEls.nacionalidade, lang);
+        renderCountrySelect(guestEls.paisEmissor, lang);
+        renderCountrySelect(guestEls.paisResidencia, lang);
         buttons.forEach((btn) => {
           btn.classList.toggle('active', (btn.getAttribute('data-lang') || '').toLowerCase() === lang);
         });
@@ -1597,14 +1660,42 @@
         horaout: String(INITIAL_STAY_PLAN.horaout || '').trim(),
         berco: !!INITIAL_STAY_PLAN.berco
       };
-      const COUNTRY_OPTIONS = [
-        'Portugal','Espanha','Fran\u00e7a','Reino Unido','Irlanda','Alemanha','It\u00e1lia','Pa\u00edses Baixos','B\u00e9lgica','Su\u00ed\u00e7a','\u00c1ustria','Luxemburgo',
-        'Estados Unidos','Canad\u00e1','Brasil','M\u00e9xico','Argentina','Chile','Col\u00f4mbia','Peru',
-        'Angola','Mo\u00e7ambique','Cabo Verde','Guin\u00e9-Bissau','S\u00e3o Tom\u00e9 e Pr\u00edncipe',
-        'Marrocos','Arg\u00e9lia','Tun\u00edsia','\u00c1frica do Sul',
-        'China','Jap\u00e3o','Coreia do Sul','\u00cdndia','Emirados \u00c1rabes Unidos','Ar\u00e1bia Saudita',
-        'Austr\u00e1lia','Nova Zel\u00e2ndia','R\u00fassia','Ucr\u00e2nia','Pol\u00f3nia','Rom\u00e9nia','Rep\u00fablica Checa','Hungria','Dinamarca','Su\u00e9cia','Noruega','Finl\u00e2ndia','Isl\u00e2ndia','Turquia','Gr\u00e9cia'
+      const COUNTRY_PRIORITY_CODES = [
+        'PT','ES','FR','GB','IE','DE','IT','NL','BE','CH','AT','LU',
+        'US','CA','BR','MX','AO','MZ','CV'
       ];
+      const COUNTRY_ALL_CODES = [
+        'AF','AX','AL','DZ','AS','AD','AO','AI','AQ','AG','AR','AM','AW','AU','AT','AZ',
+        'BS','BH','BD','BB','BY','BE','BZ','BJ','BM','BT','BO','BQ','BA','BW','BV','BR','IO','BN','BG','BF','BI',
+        'CV','KH','CM','CA','KY','CF','TD','CL','CN','CX','CC','CO','KM','CG','CD','CK','CR','CI','HR','CU','CW','CY','CZ',
+        'DK','DJ','DM','DO','EC','EG','SV','GQ','ER','EE','SZ','ET',
+        'FK','FO','FJ','FI','FR','GF','PF','TF',
+        'GA','GM','GE','DE','GH','GI','GR','GL','GD','GP','GU','GT','GG','GN','GW','GY',
+        'HT','HM','VA','HN','HK','HU',
+        'IS','IN','ID','IR','IQ','IE','IM','IL','IT',
+        'JM','JP','JE','JO',
+        'KZ','KE','KI','KP','KR','KW','KG',
+        'LA','LV','LB','LS','LR','LY','LI','LT','LU',
+        'MO','MG','MW','MY','MV','ML','MT','MQ','MR','MU','YT','MX','FM','MD','MC','MN','ME','MS','MA','MZ','MM',
+        'NA','NR','NP','NL','NC','NZ','NI','NE','NG','NU','NF','MK','MP','NO',
+        'OM',
+        'PK','PW','PS','PA','PG','PY','PE','PH','PN','PL','PT','PR',
+        'QA',
+        'RE','RO','RU','RW',
+        'BL','SH','KN','LC','MF','PM','VC','WS','SM','ST','SA','SN','RS','SC','SL','SG','SX','SK','SI','SB','SO','ZA','GS','SS','ES','LK','SD','SR','SJ','SE','CH','SY',
+        'TW','TJ','TZ','TH','TL','TG','TK','TO','TT','TN','TR','TM','TC','TV',
+        'UG','UA','AE','GB','US','UM','UY','UZ',
+        'VU','VE','VN','VG','VI',
+        'WF','EH',
+        'YE',
+        'ZM','ZW',
+        'XK'
+      ];
+      const COUNTRY_CODE_LIST = [...new Set([...COUNTRY_PRIORITY_CODES, ...COUNTRY_ALL_CODES])];
+      const COUNTRY_LOCALE_MAP = { pt: 'pt-PT', en: 'en', fr: 'fr-FR', es: 'es-ES' };
+      const COUNTRY_CUSTOM_LABELS = {
+        XK: { pt: 'Kosovo', en: 'Kosovo', fr: 'Kosovo', es: 'Kosovo' }
+      };
 
       const mandatoryState = {
         total: 1,
@@ -1814,11 +1905,11 @@
           nome,
           apelido,
           dtnasc: String(guestEls.dtnasc?.value || '').trim(),
-          nacionalidade: String(guestEls.nacionalidade?.value || '').trim(),
+          nacionalidade: getCountryStoredValue(guestEls.nacionalidade),
           tipo_doc: String(guestEls.tipoDoc?.value || '').trim(),
           num_doc: String(guestEls.numDoc?.value || '').trim(),
-          pais_emissor_doc: String(guestEls.paisEmissor?.value || '').trim(),
-          pais_residencia: String(guestEls.paisResidencia?.value || '').trim()
+          pais_emissor_doc: getCountryStoredValue(guestEls.paisEmissor),
+          pais_residencia: getCountryStoredValue(guestEls.paisResidencia)
         };
       }
 
@@ -1828,11 +1919,11 @@
         guestEls.nome.value = guest.nome || '';
         guestEls.apelido.value = guest.apelido || '';
         guestEls.dtnasc.value = (guest.dtnasc && guest.dtnasc !== '1900-01-01' && guest.dtnasc !== '0001-01-01') ? guest.dtnasc : '';
-        guestEls.nacionalidade.value = guest.nacionalidade || '';
+        setCountrySelectValue(guestEls.nacionalidade, guest.nacionalidade || '');
         guestEls.tipoDoc.value = normalizeDocTypeValue(guest.tipo_doc);
         guestEls.numDoc.value = guest.num_doc || '';
-        guestEls.paisEmissor.value = guest.pais_emissor_doc || '';
-        guestEls.paisResidencia.value = guest.pais_residencia || '';
+        setCountrySelectValue(guestEls.paisEmissor, guest.pais_emissor_doc || '');
+        setCountrySelectValue(guestEls.paisResidencia, guest.pais_residencia || '');
       }
 
       function renderGuestUi() {
@@ -1853,11 +1944,8 @@
 
       function initCountrySelect(el) {
         if (!el) return;
-        const current = String(el.value || '').trim();
-        const opts = ['<option value=\"\"></option>']
-          .concat(COUNTRY_OPTIONS.map(c => `<option value=\"${c.replace(/\"/g, '&quot;')}\">${c}</option>`));
-        el.innerHTML = opts.join('');
-        if (current) el.value = current;
+        el.dataset.countryRaw = String(el.value || '').trim();
+        renderCountrySelect(el, currentLang());
       }
 
       function closeGuestModal() {

@@ -15,6 +15,7 @@ class Menu(db.Model):
     admin     = db.Column(db.Boolean, nullable=False, default=False)
     icone     = db.Column(db.String(100), nullable=False)
     form      = db.Column(db.String(200), nullable=True)  # rota de form específico (opcional)
+    orderby   = db.Column('ORDERBY', db.String(200), nullable=True)
 
     novo      = db.Column(db.Boolean, nullable=False, default=False)
 
@@ -28,6 +29,7 @@ class Campo(db.Model):
     tabela            = db.Column(db.String(18), nullable=False)
     lista             = db.Column(db.Boolean, default=False, nullable=False)
     filtro            = db.Column(db.Boolean, default=False, nullable=False)
+    filtrodefault     = db.Column('FILTRODEFAULT', db.String(100), nullable=True)
     admin             = db.Column(db.Boolean, default=False, nullable=False)
     ronly             = db.Column(db.Boolean, default=False, nullable=False)
     combo             = db.Column(db.String(200), nullable=True)

@@ -89,6 +89,48 @@ def create_app():
             pass
         return resp
 
+    def _normalized_request_host():
+        forwarded = (request.headers.get('X-Forwarded-Host') or '').split(',')[0].strip()
+        raw_host = forwarded or (request.host or '')
+        host = raw_host.split(':', 1)[0].strip().lower()
+        return host
+
+    def _is_local_dev_host(hostname: str) -> bool:
+        host = (hostname or '').strip().lower()
+        return host in {'localhost', '127.0.0.1'} or host.startswith('192.168.') or host.startswith('10.')
+
+    def _guest_host_invalid_response():
+        return render_template('r_public.html', invalid=True, page_data={}), 404
+
+    @app.before_request
+    def _enforce_host_rules():
+        host = _normalized_request_host()
+        if not host or _is_local_dev_host(host):
+            return None
+
+        guest_hosts = {'szeroguests.com', 'www.szeroguests.com'}
+        app_hosts = {'szeroapp.com', 'www.szeroapp.com', 'hfsalves.mooo.com'}
+
+        path = (request.path or '/').strip() or '/'
+        is_guest_public_path = (
+            path.startswith('/r/') or
+            path.startswith('/api/r/') or
+            path.startswith('/static/') or
+            path == '/favicon.ico'
+        )
+
+        if host in guest_hosts:
+            if is_guest_public_path:
+                return None
+            return _guest_host_invalid_response()
+
+        if host in app_hosts:
+            return None
+
+        if is_guest_public_path:
+            return _guest_host_invalid_response()
+        return ('Not Found', 404)
+
     db.init_app(app)
     login_manager.init_app(app)
     login_manager.login_view = 'login'
@@ -1036,6 +1078,100 @@ def create_app():
         """), {'s': ftstamp}).mappings().all()
         return dict(ft), [dict(r) for r in fi]
 
+    def _default_rs_payload(user_login=''):
+        today = date.today()
+        tomorrow = today + timedelta(days=1)
+        token = f"{uuid.uuid4().hex}{uuid.uuid4().hex}"[:64]
+        return {
+            'RSSTAMP': _new_stamp_25(),
+            'ALOJAMENTO': '',
+            'RDATA': today,
+            'ORIGEM': '',
+            'RESERVA': '',
+            'DATAIN': today,
+            'DATAOUT': tomorrow,
+            'HORAIN': '15:00',
+            'HORAOUT': '11:00',
+            'NOITES': 1,
+            'NOME': '',
+            'PAIS': '',
+            'ADULTOS': 1,
+            'CRIANCAS': 0,
+            'BEBES': 0,
+            'ESTADIA': 0,
+            'LIMPEZA': 0,
+            'COMISSAO': 0,
+            'READY': 0,
+            'ENTROU': 0,
+            'SAIU': 0,
+            'ALERTA': 0,
+            'OBS': '',
+            'CANCELADA': 0,
+            'DTCANCEL': date(1900, 1, 1),
+            'DIASCANCEL': 0,
+            'NOTIF': 0,
+            'NOTIF2': 0,
+            'PCANCEL': 0,
+            'BERCO': 0,
+            'SOFACAMA': 0,
+            'RTOTAL': 0,
+            'USRCHECKIN': '',
+            'PRESENCIAL': 0,
+            'SEF': 0,
+            'USRSEF': '',
+            'USRINSRT': user_login,
+            'INSTR': 0,
+            'USRINSTR': '',
+            'GUIDE_TOKEN': token,
+            'GUIDE_TOKEN_EXPIRES': None,
+            'GUIDE_TOKEN_REVOKED': 0,
+            'FTNOME': '',
+            'FTMORADA': '',
+            'FTLOCAL': '',
+            'FTCODPOST': '',
+            'FTNCONT': '',
+        }
+
+    def _get_rs_bundle(rsstamp):
+        rs = db.session.execute(text("""
+            SELECT *
+            FROM dbo.RS
+            WHERE RSSTAMP = :s
+        """), {'s': rsstamp}).mappings().first()
+        if not rs:
+            return None, []
+        guests = db.session.execute(text("""
+            SELECT *
+            FROM dbo.RSGUESTS
+            WHERE RSSTAMP = :s
+            ORDER BY ISNULL(DTCRI, '19000101'), RSGUESTSTAMP
+        """), {'s': rsstamp}).mappings().all()
+        return dict(rs), [dict(r) for r in guests]
+
+    def _fmt_rs_date(value, allow_blank=False):
+        if value in (None, ''):
+            return '' if allow_blank else date.today().isoformat()
+        if isinstance(value, datetime):
+            value = value.date()
+        if isinstance(value, date):
+            if allow_blank and value == date(1900, 1, 1):
+                return ''
+            return value.isoformat()
+        raw = str(value).strip()
+        if not raw:
+            return '' if allow_blank else date.today().isoformat()
+        return raw[:10]
+
+    def _fmt_rs_datetime(value):
+        if not value:
+            return ''
+        if isinstance(value, datetime):
+            return value.strftime('%Y-%m-%dT%H:%M')
+        raw = str(value).strip()
+        if not raw:
+            return ''
+        return raw[:16].replace(' ', 'T')
+
     @app.route('/faturacao/ft')
     @login_required
     def faturacao_ft_list():
@@ -1087,6 +1223,49 @@ def create_app():
     def faturacao_ft_form(ftstamp):
         return render_template('ft_faturacao_form.html', ftstamp=ftstamp)
 
+    @app.route('/reservas/rs/new')
+    @login_required
+    def reservas_rs_new():
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        payload = _default_rs_payload(user_login)
+        db.session.execute(text("""
+            INSERT INTO dbo.RS
+            (RSSTAMP, ALOJAMENTO, RDATA, ORIGEM, RESERVA, DATAIN, DATAOUT, HORAIN, HORAOUT, NOITES,
+             NOME, PAIS, ADULTOS, CRIANCAS, BEBES, ESTADIA, LIMPEZA, COMISSAO, READY, ENTROU, SAIU,
+             ALERTA, OBS, CANCELADA, DTCANCEL, DIASCANCEL, NOTIF, NOTIF2, PCANCEL, BERCO, SOFACAMA,
+             RTOTAL, USRCHECKIN, PRESENCIAL, SEF, USRSEF, USRINSRT, INSTR, USRINSTR, GUIDE_TOKEN,
+             GUIDE_TOKEN_EXPIRES, GUIDE_TOKEN_REVOKED, FTNOME, FTMORADA, FTLOCAL, FTCODPOST, FTNCONT)
+            VALUES
+            (:RSSTAMP, :ALOJAMENTO, :RDATA, :ORIGEM, :RESERVA, :DATAIN, :DATAOUT, :HORAIN, :HORAOUT, :NOITES,
+             :NOME, :PAIS, :ADULTOS, :CRIANCAS, :BEBES, :ESTADIA, :LIMPEZA, :COMISSAO, :READY, :ENTROU, :SAIU,
+             :ALERTA, :OBS, :CANCELADA, :DTCANCEL, :DIASCANCEL, :NOTIF, :NOTIF2, :PCANCEL, :BERCO, :SOFACAMA,
+             :RTOTAL, :USRCHECKIN, :PRESENCIAL, :SEF, :USRSEF, :USRINSRT, :INSTR, :USRINSTR, :GUIDE_TOKEN,
+             :GUIDE_TOKEN_EXPIRES, :GUIDE_TOKEN_REVOKED, :FTNOME, :FTMORADA, :FTLOCAL, :FTCODPOST, :FTNCONT)
+        """), payload)
+        db.session.commit()
+        return redirect(url_for(
+            'reservas_rs_form',
+            rsstamp=payload['RSSTAMP'],
+            return_to=(request.args.get('return_to') or '/generic/view/RS/')
+        ))
+
+    @app.route('/reservas/rs/<rsstamp>')
+    @login_required
+    def reservas_rs_form(rsstamp):
+        return render_template(
+            'rs_reservas_form.html',
+            rsstamp=rsstamp,
+            return_to=(request.args.get('return_to') or '/generic/view/RS/')
+        )
+
+    @app.route('/rs_reservas_form/', defaults={'rsstamp': None})
+    @app.route('/rs_reservas_form/<rsstamp>')
+    @login_required
+    def rs_reservas_form_alias(rsstamp):
+        if rsstamp:
+            return redirect(url_for('reservas_rs_form', rsstamp=rsstamp, return_to=(request.args.get('return_to') or '/generic/view/RS/')))
+        return redirect(url_for('reservas_rs_new', return_to=(request.args.get('return_to') or '/generic/view/RS/')))
+
     # Alias compatível com padrão antigo
     @app.route('/ft_faturacao_form/', defaults={'ftstamp': None})
     @app.route('/ft_faturacao_form/<ftstamp>')
@@ -1105,6 +1284,260 @@ def create_app():
             ORDER BY NMDOC
         """)).mappings().all()
         return jsonify([dict(r) for r in rows])
+
+    @app.route('/api/reservas/rs/config', methods=['GET'])
+    @login_required
+    def api_reservas_rs_config():
+        aloj_rows = db.session.execute(text("""
+            SELECT ISNULL(NOME,'') AS NOME
+            FROM dbo.AL
+            WHERE ISNULL(NOME,'') <> ''
+            ORDER BY NOME
+        """)).mappings().all()
+        origem_rows = db.session.execute(text("""
+            SELECT DISTINCT ISNULL(ORIGEM,'') AS ORIGEM
+            FROM dbo.RS
+            WHERE ISNULL(ORIGEM,'') <> ''
+            ORDER BY ORIGEM
+        """)).mappings().all()
+        return jsonify({
+            'alojamentos': [str(r.get('NOME') or '').strip() for r in aloj_rows if str(r.get('NOME') or '').strip()],
+            'origens': [str(r.get('ORIGEM') or '').strip() for r in origem_rows if str(r.get('ORIGEM') or '').strip()],
+        })
+
+    @app.route('/api/reservas/rs/<rsstamp>', methods=['GET'])
+    @login_required
+    def api_reservas_rs_get(rsstamp):
+        rs, guests = _get_rs_bundle(rsstamp)
+        if not rs:
+            return jsonify({'error': 'Reserva não encontrada'}), 404
+
+        header = dict(rs)
+        for key in ('RDATA', 'DATAIN', 'DATAOUT'):
+            header[key] = _fmt_rs_date(header.get(key))
+        header['DTCANCEL'] = _fmt_rs_date(header.get('DTCANCEL'), allow_blank=True)
+        header['GUIDE_TOKEN_EXPIRES'] = _fmt_rs_datetime(header.get('GUIDE_TOKEN_EXPIRES'))
+
+        out_guests = []
+        for row in guests:
+            item = dict(row)
+            item['DTNASC'] = _fmt_rs_date(item.get('DTNASC'), allow_blank=True)
+            item['DTCRI'] = _fmt_rs_datetime(item.get('DTCRI'))
+            item['DTALT'] = _fmt_rs_datetime(item.get('DTALT'))
+            out_guests.append(item)
+
+        return jsonify({'header': header, 'guests': out_guests})
+
+    @app.route('/api/reservas/rs/<rsstamp>/save', methods=['POST'])
+    @login_required
+    def api_reservas_rs_save(rsstamp):
+        body = request.get_json(silent=True) or {}
+        header = dict(body.get('header') or {})
+        guests = list(body.get('guests') or [])
+
+        current = db.session.execute(text("""
+            SELECT *
+            FROM dbo.RS
+            WHERE RSSTAMP = :s
+        """), {'s': rsstamp}).mappings().first()
+        if not current:
+            return jsonify({'error': 'Reserva não encontrada'}), 404
+        current = dict(current)
+
+        today = date.today()
+        try:
+            rdata = datetime.fromisoformat((header.get('RDATA') or current.get('RDATA') or today.isoformat()).replace('Z', '')).date()
+        except Exception:
+            rdata = today
+        try:
+            datain = datetime.fromisoformat((header.get('DATAIN') or current.get('DATAIN') or rdata.isoformat()).replace('Z', '')).date()
+        except Exception:
+            datain = rdata
+        try:
+            dataout = datetime.fromisoformat((header.get('DATAOUT') or current.get('DATAOUT') or (datain + timedelta(days=1)).isoformat()).replace('Z', '')).date()
+        except Exception:
+            dataout = datain + timedelta(days=1)
+        if dataout < datain:
+            dataout = datain
+        noites_calc = max(0, (dataout - datain).days)
+        noites = _to_int(header.get('NOITES'), noites_calc)
+        if noites <= 0 and dataout > datain:
+            noites = noites_calc
+
+        dtcancel_raw = str(header.get('DTCANCEL') or '').strip()
+        if dtcancel_raw:
+            try:
+                dtcancel = datetime.fromisoformat(dtcancel_raw.replace('Z', '')).date()
+            except Exception:
+                dtcancel = date(1900, 1, 1)
+        else:
+            dtcancel = date(1900, 1, 1)
+
+        def _h(name, default=''):
+            if name in header:
+                return header.get(name)
+            return current.get(name, default)
+
+        db.session.execute(text("""
+            UPDATE dbo.RS
+            SET
+                ALOJAMENTO=:ALOJAMENTO,
+                RDATA=:RDATA,
+                ORIGEM=:ORIGEM,
+                RESERVA=:RESERVA,
+                DATAIN=:DATAIN,
+                DATAOUT=:DATAOUT,
+                HORAIN=:HORAIN,
+                HORAOUT=:HORAOUT,
+                NOITES=:NOITES,
+                NOME=:NOME,
+                PAIS=:PAIS,
+                ADULTOS=:ADULTOS,
+                CRIANCAS=:CRIANCAS,
+                BEBES=:BEBES,
+                ESTADIA=:ESTADIA,
+                LIMPEZA=:LIMPEZA,
+                COMISSAO=:COMISSAO,
+                READY=:READY,
+                ENTROU=:ENTROU,
+                SAIU=:SAIU,
+                ALERTA=:ALERTA,
+                OBS=:OBS,
+                CANCELADA=:CANCELADA,
+                DTCANCEL=:DTCANCEL,
+                DIASCANCEL=:DIASCANCEL,
+                NOTIF=:NOTIF,
+                NOTIF2=:NOTIF2,
+                PCANCEL=:PCANCEL,
+                BERCO=:BERCO,
+                SOFACAMA=:SOFACAMA,
+                RTOTAL=:RTOTAL,
+                USRCHECKIN=:USRCHECKIN,
+                PRESENCIAL=:PRESENCIAL,
+                SEF=:SEF,
+                USRSEF=:USRSEF,
+                USRINSRT=:USRINSRT,
+                INSTR=:INSTR,
+                USRINSTR=:USRINSTR,
+                FTNOME=:FTNOME,
+                FTMORADA=:FTMORADA,
+                FTLOCAL=:FTLOCAL,
+                FTCODPOST=:FTCODPOST,
+                FTNCONT=:FTNCONT
+            WHERE RSSTAMP=:RSSTAMP
+        """), {
+            'RSSTAMP': rsstamp,
+            'ALOJAMENTO': str(_h('ALOJAMENTO') or '').strip(),
+            'RDATA': rdata,
+            'ORIGEM': str(_h('ORIGEM') or '').strip(),
+            'RESERVA': str(_h('RESERVA') or '').strip(),
+            'DATAIN': datain,
+            'DATAOUT': dataout,
+            'HORAIN': str(_h('HORAIN') or '').strip()[:5],
+            'HORAOUT': str(_h('HORAOUT') or '').strip()[:5],
+            'NOITES': noites,
+            'NOME': str(_h('NOME') or '').strip(),
+            'PAIS': str(_h('PAIS') or '').strip(),
+            'ADULTOS': _to_int(_h('ADULTOS', 0), 0),
+            'CRIANCAS': _to_int(_h('CRIANCAS', 0), 0),
+            'BEBES': _to_int(_h('BEBES', 0), 0),
+            'ESTADIA': _num(_h('ESTADIA', 0), 0),
+            'LIMPEZA': _num(_h('LIMPEZA', 0), 0),
+            'COMISSAO': _num(_h('COMISSAO', 0), 0),
+            'READY': 1 if _to_int(_h('READY', 0), 0) == 1 else 0,
+            'ENTROU': 1 if _to_int(_h('ENTROU', 0), 0) == 1 else 0,
+            'SAIU': 1 if _to_int(_h('SAIU', 0), 0) == 1 else 0,
+            'ALERTA': 1 if _to_int(_h('ALERTA', 0), 0) == 1 else 0,
+            'OBS': str(_h('OBS') or '').strip(),
+            'CANCELADA': 1 if _to_int(_h('CANCELADA', 0), 0) == 1 else 0,
+            'DTCANCEL': dtcancel,
+            'DIASCANCEL': _to_int(_h('DIASCANCEL', 0), 0),
+            'NOTIF': 1 if _to_int(_h('NOTIF', 0), 0) == 1 else 0,
+            'NOTIF2': 1 if _to_int(_h('NOTIF2', 0), 0) == 1 else 0,
+            'PCANCEL': _num(_h('PCANCEL', 0), 0),
+            'BERCO': 1 if _to_int(_h('BERCO', 0), 0) == 1 else 0,
+            'SOFACAMA': 1 if _to_int(_h('SOFACAMA', 0), 0) == 1 else 0,
+            'RTOTAL': 1 if _to_int(_h('RTOTAL', 0), 0) == 1 else 0,
+            'USRCHECKIN': str(_h('USRCHECKIN') or '').strip(),
+            'PRESENCIAL': 1 if _to_int(_h('PRESENCIAL', 0), 0) == 1 else 0,
+            'SEF': 1 if _to_int(_h('SEF', 0), 0) == 1 else 0,
+            'USRSEF': str(_h('USRSEF') or '').strip(),
+            'USRINSRT': str(_h('USRINSRT') or '').strip(),
+            'INSTR': 1 if _to_int(_h('INSTR', 0), 0) == 1 else 0,
+            'USRINSTR': str(_h('USRINSTR') or '').strip(),
+            'FTNOME': str(_h('FTNOME') or '').strip(),
+            'FTMORADA': str(_h('FTMORADA') or '').strip(),
+            'FTLOCAL': str(_h('FTLOCAL') or '').strip(),
+            'FTCODPOST': str(_h('FTCODPOST') or '').strip(),
+            'FTNCONT': str(_h('FTNCONT') or '').strip(),
+        })
+
+        db.session.execute(text("DELETE FROM dbo.RSGUESTS WHERE RSSTAMP = :s"), {'s': rsstamp})
+        for idx, guest in enumerate(guests):
+            if not isinstance(guest, dict):
+                continue
+            birth_raw = str(guest.get('DTNASC') or '').strip()
+            if birth_raw:
+                try:
+                    birth = datetime.fromisoformat(birth_raw.replace('Z', '')).date()
+                except Exception:
+                    birth = date(1900, 1, 1)
+            else:
+                birth = date(1900, 1, 1)
+
+            dtcri_raw = str(guest.get('DTCRI') or '').strip()
+            dtalt_raw = str(guest.get('DTALT') or '').strip()
+            try:
+                dtcri = datetime.fromisoformat(dtcri_raw.replace('Z', '')) if dtcri_raw else datetime.now()
+            except Exception:
+                dtcri = datetime.now()
+            try:
+                dtalt = datetime.fromisoformat(dtalt_raw.replace('Z', '')) if dtalt_raw else datetime.now()
+            except Exception:
+                dtalt = datetime.now()
+
+            db.session.execute(text("""
+                INSERT INTO dbo.RSGUESTS
+                (RSGUESTSTAMP, RSSTAMP, NOME_COMPLETO, NOME, APELIDO, DTNASC, NACIONALIDADE, PAIS_RESIDENCIA,
+                 TIPO_DOC, NUM_DOC, PAIS_EMISSOR_DOC, ATIVO, DTCRI, DTALT, HORAIN, HORAOUT, TRANSPORTE, VOO, BERCO)
+                VALUES
+                (:RSGUESTSTAMP, :RSSTAMP, :NOME_COMPLETO, :NOME, :APELIDO, :DTNASC, :NACIONALIDADE, :PAIS_RESIDENCIA,
+                 :TIPO_DOC, :NUM_DOC, :PAIS_EMISSOR_DOC, :ATIVO, :DTCRI, :DTALT, :HORAIN, :HORAOUT, :TRANSPORTE, :VOO, :BERCO)
+            """), {
+                'RSGUESTSTAMP': str(guest.get('RSGUESTSTAMP') or '').strip() or _new_stamp_25(),
+                'RSSTAMP': rsstamp,
+                'NOME_COMPLETO': str(guest.get('NOME_COMPLETO') or f"{str(guest.get('NOME') or '').strip()} {str(guest.get('APELIDO') or '').strip()}").strip(),
+                'NOME': str(guest.get('NOME') or '').strip()[:100],
+                'APELIDO': str(guest.get('APELIDO') or '').strip()[:100],
+                'DTNASC': birth,
+                'NACIONALIDADE': str(guest.get('NACIONALIDADE') or '').strip()[:60],
+                'PAIS_RESIDENCIA': str(guest.get('PAIS_RESIDENCIA') or '').strip()[:60],
+                'TIPO_DOC': str(guest.get('TIPO_DOC') or '').strip()[:30],
+                'NUM_DOC': str(guest.get('NUM_DOC') or '').strip()[:40],
+                'PAIS_EMISSOR_DOC': str(guest.get('PAIS_EMISSOR_DOC') or '').strip()[:60],
+                'ATIVO': 1 if _to_int(guest.get('ATIVO'), 1) == 1 else 0,
+                'DTCRI': dtcri,
+                'DTALT': dtalt,
+                'HORAIN': str(guest.get('HORAIN') or '').strip()[:5],
+                'HORAOUT': str(guest.get('HORAOUT') or '').strip()[:5],
+                'TRANSPORTE': str(guest.get('TRANSPORTE') or '').strip()[:30],
+                'VOO': str(guest.get('VOO') or '').strip()[:20],
+                'BERCO': 1 if _to_int(guest.get('BERCO'), 0) == 1 else 0,
+            })
+
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    @app.route('/api/reservas/rs/<rsstamp>/delete', methods=['POST'])
+    @login_required
+    def api_reservas_rs_delete(rsstamp):
+        exists = db.session.execute(text("SELECT RSSTAMP FROM dbo.RS WHERE RSSTAMP=:s"), {'s': rsstamp}).mappings().first()
+        if not exists:
+            return jsonify({'error': 'Reserva não encontrada'}), 404
+        db.session.execute(text("DELETE FROM dbo.RSGUESTS WHERE RSSTAMP=:s"), {'s': rsstamp})
+        db.session.execute(text("DELETE FROM dbo.RS WHERE RSSTAMP=:s"), {'s': rsstamp})
+        db.session.commit()
+        return jsonify({'ok': True})
 
     @app.route('/api/lookups/fe', methods=['GET'])
     @login_required

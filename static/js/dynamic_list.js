@@ -53,6 +53,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (upperTable === 'FT') {
       return stamp ? `/faturacao/ft/${stamp}` : '/faturacao/ft/new';
     }
+    if (upperTable === 'RS') {
+      return stamp ? `/reservas/rs/${stamp}` : '/reservas/rs/new';
+    }
     if (tableForm) {
       const pref = tableForm.startsWith('/') ? tableForm : `/generic/${tableForm}`;
       const base = sanitizeBaseForm(pref).toLowerCase(); // rotas registadas em minúsculas
@@ -282,11 +285,69 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
 
+  function resolveFilterDefaultToken(rawValue) {
+    const token = String(rawValue || '').trim();
+    if (!token) return '';
+    const lower = token.toLowerCase();
+    const today = new Date();
+    const toIso = (dt) => {
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, '0');
+      const d = String(dt.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+    if (lower === 'today') return toIso(today);
+    if (lower === 'month_start') return toIso(new Date(today.getFullYear(), today.getMonth(), 1));
+    if (lower === 'month_end') return toIso(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+    if (lower === 'year_start') return `${today.getFullYear()}-01-01`;
+    if (lower === 'year_end') return `${today.getFullYear()}-12-31`;
+    const m = lower.match(/^today\s*([+-])\s*(\d+)$/);
+    if (m) {
+      const dt = new Date(today);
+      const delta = Number(m[2] || 0) * (m[1] === '-' ? -1 : 1);
+      dt.setDate(dt.getDate() + delta);
+      return toIso(dt);
+    }
+    return token;
+  }
+
+  function parseDefaultFilter(col) {
+    const raw = String(col?.filtrodefault || '').trim();
+    if (!raw) return null;
+    if (col.tipo === 'DATE') {
+      const parts = raw.split('|');
+      return {
+        from: resolveFilterDefaultToken(parts[0] || ''),
+        to: resolveFilterDefaultToken(parts[1] || '')
+      };
+    }
+    const match = raw.match(/^(>=|<=|=|>|<|like)\s*:(.*)$/i);
+    return {
+      operator: match ? match[1].toLowerCase() : '=',
+      value: resolveFilterDefaultToken(match ? match[2] : raw)
+    };
+  }
+
+  function markDefaultControl(el, value) {
+    if (!el || value === null || value === undefined || value === '') return;
+    const defaultValue = String(value);
+    el.value = defaultValue;
+    el.dataset.defaultValue = defaultValue;
+    el.dataset.defaultApplied = '1';
+    el.dataset.hasDefaultFilter = '1';
+    const syncState = () => {
+      el.dataset.defaultApplied = (String(el.value || '') === defaultValue) ? '1' : '0';
+    };
+    el.addEventListener('input', syncState);
+    el.addEventListener('change', syncState);
+  }
+
   function renderFilters(cols) {
     filterForm.innerHTML = '';
     filterForm.className = 'row g-3';
 
     cols.forEach(col => {
+      const defaultFilter = parseDefaultFilter(col);
       if (col.tipo === 'DATE') {
         const wrapRow = document.createElement('div');
         wrapRow.classList.add('col-12');
@@ -305,8 +366,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const inp = document.createElement('input');
           inp.type = 'date';
           inp.name = `${col.name}_${dir}`;
+          inp.dataset.isDateRange = '1';
           inp.classList.add('form-control');
           inp.placeholder = dir === 'from' ? 'De' : 'Até';
+          if (defaultFilter && defaultFilter[dir]) markDefaultControl(inp, defaultFilter[dir]);
           wrap.append(inp);
           row.append(wrap);
         });
@@ -347,6 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
             opt.textContent = v;
             sel.append(opt);
           });
+          if (defaultFilter && defaultFilter.value !== '') markDefaultControl(sel, defaultFilter.value);
         })();
       } else if (col.tipo === 'BIT') {
         const wrap = document.createElement('div');
@@ -362,6 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <option value="1">Sim</option>
           <option value="0">Não</option>
         `;
+        if (defaultFilter && defaultFilter.value !== '') markDefaultControl(sel, defaultFilter.value);
         wrap.append(lbl, sel);
         filterForm.append(wrap);
       } else {
@@ -388,6 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
           default:
             inp.type = 'text';
         }
+        if (defaultFilter && defaultFilter.value !== '') markDefaultControl(inp, defaultFilter.value);
         wrap.append(lbl, inp);
         filterForm.append(wrap);
       }
@@ -396,6 +462,13 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadData() {
     const params = new URLSearchParams();
     filterForm.querySelectorAll('[name]').forEach(el => {
+      if (el.dataset.defaultApplied === '1' && el.dataset.isDateRange !== '1') {
+        return;
+      }
+      if (el.dataset.hasDefaultFilter === '1' && !el.value && el.type !== 'checkbox') {
+        params.append(`__clear_default__${el.name}`, '1');
+        return;
+      }
       if (el.type === 'checkbox') {
         if (el.checked) params.append(el.name, '1');
       } else if (el.value) {

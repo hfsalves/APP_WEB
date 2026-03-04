@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% block title %}Reserva{% endblock %}
+{% block content %}
+<div class="fo-layout">
+  <div class="dynamic-form dynamic-form-card rsf-root" id="rsFormRoot" data-rsstamp="{{ rsstamp }}">
+    <section class="dynamic-form-body dynamic-form-body-modern">
+      <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start">
+        <div>
+          <div class="small text-muted">Documento RS</div>
+          <h5 class="mb-0" id="rsTitulo">Reserva</h5>
+        </div>
+      </div>
+      <hr>
+
+      <div class="row g-3 rsf-columns">
+        <div class="col-12 col-xl-8">
+          <div class="rsf-section mt-0">
+            <div class="rsf-section-title">Reserva</div>
+            <div class="row g-2">
+              <div class="col-md-4">
+                <label class="form-label">Alojamento</label>
+                <input id="RS_ALOJAMENTO" class="form-control" list="RS_ALOJAMENTO_LIST">
+                <datalist id="RS_ALOJAMENTO_LIST"></datalist>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Data Reserva</label>
+                <input id="RS_RDATA" type="date" class="form-control">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Reserva</label>
+                <input id="RS_RESERVA" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Cliente</label>
+                <input id="RS_NOME" class="form-control">
+              </div>
+              <div class="col-12">
+                <div class="rsf-reserva-line">
+                  <div>
+                    <label class="form-label">Check-in</label>
+                    <input id="RS_DATAIN" type="date" class="form-control">
+                  </div>
+                  <div>
+                    <label class="form-label">Hora In</label>
+                    <input id="RS_HORAIN" class="form-control" maxlength="5" placeholder="15:00">
+                  </div>
+                  <div>
+                    <label class="form-label">Check-out</label>
+                    <input id="RS_DATAOUT" type="date" class="form-control">
+                  </div>
+                  <div>
+                    <label class="form-label">Hora Out</label>
+                    <input id="RS_HORAOUT" class="form-control" maxlength="5" placeholder="11:00">
+                  </div>
+                  <div>
+                    <label class="form-label">Noites</label>
+                    <input id="RS_NOITES" type="number" min="0" class="form-control text-end">
+                  </div>
+                  <div>
+                    <label class="form-label">Pa?s</label>
+                    <input id="RS_PAIS" class="form-control">
+                  </div>
+                  <div>
+                    <label class="form-label">Adultos</label>
+                    <input id="RS_ADULTOS" type="number" min="0" class="form-control text-end">
+                  </div>
+                  <div>
+                    <label class="form-label">Crian?as</label>
+                    <input id="RS_CRIANCAS" type="number" min="0" class="form-control text-end">
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Estadia</label>
+                <input id="RS_ESTADIA" type="number" min="0" step="0.01" class="form-control text-end">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Limpeza</label>
+                <input id="RS_LIMPEZA" type="number" min="0" step="0.01" class="form-control text-end">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Comissão</label>
+                <input id="RS_COMISSAO" type="number" min="0" step="0.01" class="form-control text-end">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Observações</label>
+                <textarea id="RS_OBS" class="form-control" rows="2"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="rsf-section">
+            <div class="rsf-section-title">Outros Dados</div>
+            <div class="row g-2">
+              <div class="col-12">
+                <div class="rsf-check-grid">
+                  <label class="form-check"><input id="RS_CANCELADA" type="checkbox" class="form-check-input"><span class="form-check-label">Cancelada</span></label>
+                  <label class="form-check"><input id="RS_BERCO" type="checkbox" class="form-check-input"><span class="form-check-label">Berço</span></label>
+                  <label class="form-check"><input id="RS_SOFACAMA" type="checkbox" class="form-check-input"><span class="form-check-label">Sofá-cama</span></label>
+                  <label class="form-check"><input id="RS_PRESENCIAL" type="checkbox" class="form-check-input"><span class="form-check-label">Presencial</span></label>
+                  <label class="form-check"><input id="RS_SEF" type="checkbox" class="form-check-input"><span class="form-check-label">SEF</span></label>
+                  <label class="form-check"><input id="RS_INSTR" type="checkbox" class="form-check-input"><span class="form-check-label">Instruções</span></label>
+                </div>
+              </div>
+              <div id="rsCancelFields" class="row g-2">
+                <div class="col-md-4">
+                  <label class="form-label">Data Cancel.</label>
+                  <input id="RS_DTCANCEL" type="date" class="form-control">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Dias Cancel.</label>
+                  <input id="RS_DIASCANCEL" type="number" min="0" class="form-control text-end">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Valor Cancel.</label>
+                  <input id="RS_PCANCEL" type="number" min="0" step="0.01" class="form-control text-end">
+                </div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Origem</label>
+                <input id="RS_ORIGEM" class="form-control" list="RS_ORIGEM_LIST">
+                <datalist id="RS_ORIGEM_LIST"></datalist>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Usr. Check-in</label>
+                <input id="RS_USRCHECKIN" class="form-control">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+          <div class="rsf-section mt-0">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="rsf-section-title mb-0">Hóspedes / SEF</div>
+              <button id="rsAddGuest" class="btn btn-sm btn-outline-primary">Adicionar Hóspede</button>
+            </div>
+            <div id="rsGuestsBody" class="rsf-guest-cards">
+              <div class="text-muted p-3">A carregar...</div>
+            </div>
+          </div>
+
+          <div class="rsf-section">
+            <div class="rsf-section-title">Faturação</div>
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label">Nome</label>
+                <input id="RS_FTNOME" class="form-control">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Morada</label>
+                <input id="RS_FTMORADA" class="form-control">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Localidade</label>
+                <input id="RS_FTLOCAL" class="form-control">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Código Postal</label>
+                <input id="RS_FTCODPOST" class="form-control">
+              </div>
+              <div class="col-12">
+                <label class="form-label">NIF</label>
+                <input id="RS_FTNCONT" class="form-control">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="form-actions mt-3">
+      <button id="rsBtnCancel" class="btn btn-cancel">Cancelar</button>
+      <a id="rsBtnVoltarBottom" class="btn btn-back" href="{{ return_to }}">Voltar</a>
+      <button id="rsBtnDeleteBottom" class="btn btn-delete">Eliminar</button>
+      <button id="rsBtnSave" class="btn btn-outline-primary btn-save"><i class="fa-solid fa-save"></i><span class="btn-text">Gravar</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="rsGuestModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rsf-modal-content">
+      <div class="modal-header rsf-modal-header">
+        <h5 class="modal-title" id="rsGuestModalTitle">Hóspede</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body rsf-modal-body">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label">Nome</label>
+            <input id="RSG_NOME" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Apelido</label>
+            <input id="RSG_APELIDO" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Nascimento</label>
+            <input id="RSG_DTNASC" type="date" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Nacionalidade</label>
+            <select id="RSG_NACIONALIDADE" class="form-select"></select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">País Resid.</label>
+            <select id="RSG_PAIS_RESIDENCIA" class="form-select"></select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Tipo Doc.</label>
+            <select id="RSG_TIPO_DOC" class="form-select">
+              <option value="">---</option>
+              <option value="Doc. Identificação Nacional">Doc. Identificação Nacional</option>
+              <option value="Passaporte">Passaporte</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Nº Doc.</label>
+            <input id="RSG_NUM_DOC" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">País Emissor</label>
+            <select id="RSG_PAIS_EMISSOR_DOC" class="form-select"></select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between rsf-modal-footer">
+        <button type="button" class="btn btn-outline-danger btn-sm" id="rsGuestDeleteBtn">Eliminar hóspede</button>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary btn-sm" id="rsGuestSaveBtn">Gravar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .rsf-root {
+    width: 100%;
+    max-width: none;
+  }
+  .rsf-columns > [class*="col-"] {
+    display: flex;
+    flex-direction: column;
+  }
+  .rsf-section {
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+  }
+  .rsf-section-title {
+    font-size: 0.96rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.9rem;
+  }
+  .rsf-check-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.45rem 0.85rem;
+    padding: 0.15rem 0;
+  }
+  .rsf-check-grid .form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+  }
+  .rsf-reserva-line {
+    display: grid;
+    grid-template-columns: minmax(150px, 1.5fr) minmax(92px, 0.75fr) minmax(150px, 1.5fr) minmax(92px, 0.75fr) minmax(90px, 0.7fr) minmax(190px, 1.9fr) minmax(100px, 0.8fr) minmax(100px, 0.8fr);
+    gap: 0.5rem;
+    width: 100%;
+  }
+  .rsf-reserva-line > div {
+    min-width: 0;
+  }
+  #rsCancelFields {
+    width: 100%;
+    margin: 0;
+  }
+  .rsf-guest-cards {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .rsf-guest-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+    padding: 0.8rem;
+    cursor: pointer;
+  }
+  .rsf-guest-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.7rem;
+  }
+  .rsf-guest-card-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .rsf-guest-card-meta {
+    font-size: 0.82rem;
+    color: #475569;
+    line-height: 1.45;
+  }
+  #rsGuestModal .modal-dialog {
+    max-width: 760px;
+  }
+  .rsf-modal-content {
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 30px 70px rgba(15, 23, 42, 0.24);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  }
+  .rsf-modal-header {
+    background: linear-gradient(135deg, #223247 0%, #1a2535 55%, #111b2a 100%);
+    color: #f8fafc;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 1rem 1.15rem;
+  }
+  .rsf-modal-header .modal-title {
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .rsf-modal-header .btn-close {
+    filter: invert(1) grayscale(1) brightness(2);
+    opacity: 0.9;
+  }
+  .rsf-modal-body {
+    padding: 1.15rem;
+    background:
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.06), transparent 30%),
+      linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98));
+  }
+  .rsf-modal-body .form-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+    margin-bottom: 0.35rem;
+  }
+  .rsf-modal-body .form-control,
+  .rsf-modal-body .form-select {
+    min-height: 42px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  }
+  .rsf-modal-body .form-control:focus,
+  .rsf-modal-body .form-select:focus {
+    border-color: rgba(37, 99, 235, 0.45);
+    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.12), 0 10px 24px rgba(37, 99, 235, 0.10);
+  }
+  .rsf-modal-footer {
+    padding: 0.95rem 1.15rem 1.1rem;
+    border-top: 1px solid rgba(226, 232, 240, 0.9);
+    background: rgba(248, 250, 252, 0.88);
+  }
+  .rsf-modal-footer .btn {
+    border-radius: 999px;
+    padding-inline: 1rem;
+    min-width: 92px;
+  }
+  @media (max-width: 767.98px) {
+    .rsf-reserva-line {
+      grid-template-columns: 1fr;
+    }
+    #rsGuestModal .modal-dialog {
+      margin: 0.75rem;
+    }
+  }
+</style>
+
+<script>
+  window.RS_STAMP = {{ rsstamp|tojson }};
+  window.RS_RETURN_TO = {{ return_to|tojson }};
+</script>
+<script type="module" src="{{ url_for('static', filename='js/rs_reservas_form.js') }}"></script>
+{% endblock %}

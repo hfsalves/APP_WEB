@@ -2003,6 +2003,19 @@ body.sidebar-collapsed .sidebar-flyout {
   padding: 1rem;
 }
 
+@media (min-width: 769px) {
+  body.authenticated:not(.no-sidebar) .main-content {
+    flex: 0 0 calc(100% - 240px);
+    width: calc(100% - 240px) !important;
+    max-width: calc(100% - 240px) !important;
+  }
+  body.authenticated.sidebar-collapsed:not(.no-sidebar) .main-content {
+    flex-basis: calc(100% - 48px);
+    width: calc(100% - 48px) !important;
+    max-width: calc(100% - 48px) !important;
+  }
+}
+
 /* 5) Em mobile, podes fazer o reset do margin e largura da sidebar se quiseres */
 @media (max-width: 768px) {
   .app-header {
