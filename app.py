@@ -436,6 +436,12 @@ def create_app():
                 RS.GUIDE_TOKEN,
                 RS.GUIDE_TOKEN_EXPIRES,
                 RS.GUIDE_TOKEN_REVOKED,
+                ISNULL(RS.FTNOME,'') AS FTNOME,
+                ISNULL(RS.FTMORADA,'') AS FTMORADA,
+                ISNULL(RS.FTLOCAL,'') AS FTLOCAL,
+                ISNULL(RS.FTCODPOST,'') AS FTCODPOST,
+                ISNULL(RS.FTNCONT,'') AS FTNCONT,
+                ISNULL(RS.FTEMAIL,'') AS FTEMAIL,
                 AL.MORADA,
                 AL.CODPOST,
                 AL.LOCAL,
@@ -517,6 +523,12 @@ def create_app():
             'morada': morada,
             'codpost': codpost,
             'local': local,
+            'ftnome': (row.get('FTNOME') or '').strip(),
+            'ftmorada': (row.get('FTMORADA') or '').strip(),
+            'ftlocal': (row.get('FTLOCAL') or '').strip(),
+            'ftcodpost': (row.get('FTCODPOST') or '').strip(),
+            'ftncont': (row.get('FTNCONT') or '').strip(),
+            'ftemail': (row.get('FTEMAIL') or '').strip(),
             'address_text': address_text,
             'lat': lat,
             'lon': lon,
@@ -941,6 +953,62 @@ def create_app():
         db.session.commit()
         return public_reserva_stay_plan_get(token)
 
+    @app.route('/api/r/<token>/billing', methods=['POST'])
+    def public_reserva_billing_save(token):
+        tok = (token or '').strip()
+        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                RS.RSSTAMP,
+                RS.GUIDE_TOKEN_EXPIRES,
+                RS.GUIDE_TOKEN_REVOKED
+            FROM dbo.RS RS
+            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
+            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
+        """), {'t': tok}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+        if _token_expired(row.get('GUIDE_TOKEN_EXPIRES')):
+            return jsonify({'error': 'Link inválido ou expirado'}), 404
+
+        body = request.get_json(silent=True) or {}
+        payload = {
+            'r': (row.get('RSSTAMP') or '').strip(),
+            'ftnome': str(body.get('ftnome') or '').strip()[:55],
+            'ftmorada': str(body.get('ftmorada') or '').strip()[:55],
+            'ftlocal': str(body.get('ftlocal') or '').strip()[:43],
+            'ftcodpost': str(body.get('ftcodpost') or '').strip()[:45],
+            'ftncont': str(body.get('ftncont') or '').strip()[:20],
+            'ftemail': str(body.get('ftemail') or '').strip()[:120],
+        }
+
+        db.session.execute(text("""
+            UPDATE dbo.RS
+            SET
+              FTNOME = :ftnome,
+              FTMORADA = :ftmorada,
+              FTLOCAL = :ftlocal,
+              FTCODPOST = :ftcodpost,
+              FTNCONT = :ftncont,
+              FTEMAIL = :ftemail
+            WHERE RSSTAMP = :r
+        """), payload)
+        db.session.commit()
+
+        return jsonify({
+            'ok': True,
+            'ftnome': payload['ftnome'],
+            'ftmorada': payload['ftmorada'],
+            'ftlocal': payload['ftlocal'],
+            'ftcodpost': payload['ftcodpost'],
+            'ftncont': payload['ftncont'],
+            'ftemail': payload['ftemail'],
+        })
+
     @app.route('/logout')
     @login_required
     def logout():
@@ -1130,6 +1198,7 @@ def create_app():
             'FTLOCAL': '',
             'FTCODPOST': '',
             'FTNCONT': '',
+            'FTEMAIL': '',
         }
 
     def _get_rs_bundle(rsstamp):
@@ -1234,13 +1303,13 @@ def create_app():
              NOME, PAIS, ADULTOS, CRIANCAS, BEBES, ESTADIA, LIMPEZA, COMISSAO, READY, ENTROU, SAIU,
              ALERTA, OBS, CANCELADA, DTCANCEL, DIASCANCEL, NOTIF, NOTIF2, PCANCEL, BERCO, SOFACAMA,
              RTOTAL, USRCHECKIN, PRESENCIAL, SEF, USRSEF, USRINSRT, INSTR, USRINSTR, GUIDE_TOKEN,
-             GUIDE_TOKEN_EXPIRES, GUIDE_TOKEN_REVOKED, FTNOME, FTMORADA, FTLOCAL, FTCODPOST, FTNCONT)
+             GUIDE_TOKEN_EXPIRES, GUIDE_TOKEN_REVOKED, FTNOME, FTMORADA, FTLOCAL, FTCODPOST, FTNCONT, FTEMAIL)
             VALUES
             (:RSSTAMP, :ALOJAMENTO, :RDATA, :ORIGEM, :RESERVA, :DATAIN, :DATAOUT, :HORAIN, :HORAOUT, :NOITES,
              :NOME, :PAIS, :ADULTOS, :CRIANCAS, :BEBES, :ESTADIA, :LIMPEZA, :COMISSAO, :READY, :ENTROU, :SAIU,
              :ALERTA, :OBS, :CANCELADA, :DTCANCEL, :DIASCANCEL, :NOTIF, :NOTIF2, :PCANCEL, :BERCO, :SOFACAMA,
              :RTOTAL, :USRCHECKIN, :PRESENCIAL, :SEF, :USRSEF, :USRINSRT, :INSTR, :USRINSTR, :GUIDE_TOKEN,
-             :GUIDE_TOKEN_EXPIRES, :GUIDE_TOKEN_REVOKED, :FTNOME, :FTMORADA, :FTLOCAL, :FTCODPOST, :FTNCONT)
+             :GUIDE_TOKEN_EXPIRES, :GUIDE_TOKEN_REVOKED, :FTNOME, :FTMORADA, :FTLOCAL, :FTCODPOST, :FTNCONT, :FTEMAIL)
         """), payload)
         db.session.commit()
         return redirect(url_for(
@@ -1255,6 +1324,7 @@ def create_app():
         return render_template(
             'rs_reservas_form.html',
             rsstamp=rsstamp,
+            page_title='Reservas',
             return_to=(request.args.get('return_to') or '/generic/view/RS/')
         )
 
@@ -1329,6 +1399,147 @@ def create_app():
             out_guests.append(item)
 
         return jsonify({'header': header, 'guests': out_guests})
+
+    @app.route('/api/reservas/rs/<rsstamp>/limpezas', methods=['GET'])
+    @login_required
+    def api_reservas_rs_limpezas(rsstamp):
+        rs = db.session.execute(text("""
+            SELECT
+                RS.RSSTAMP,
+                LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) AS ALOJAMENTO,
+                CAST(RS.DATAIN AS date) AS DATAIN,
+                CAST(RS.DATAOUT AS date) AS DATAOUT,
+                ISNULL(RS.HORAIN,'') AS HORAIN,
+                ISNULL(RS.HORAOUT,'') AS HORAOUT,
+                ISNULL(AL.TIPOLOGIA,'') AS TIPOLOGIA
+            FROM dbo.RS AS RS
+            LEFT JOIN dbo.AL AS AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
+            WHERE RS.RSSTAMP = :s
+        """), {'s': rsstamp}).mappings().first()
+        if not rs:
+            return jsonify({'error': 'Reserva não encontrada'}), 404
+
+        alojamento = str(rs.get('ALOJAMENTO') or '').strip()
+        if not alojamento:
+            return jsonify({'before': None, 'after': None})
+
+        def _time_to_min(value):
+            raw = str(value or '').strip()
+            if not raw:
+                return None
+            try:
+                hh, mm = raw.split(':', 1)
+                hh_i = max(0, min(23, int(hh)))
+                mm_i = max(0, min(59, int(mm[:2])))
+                return hh_i * 60 + mm_i
+            except Exception:
+                return None
+
+        def _duration_for_tipologia(tipologia):
+            tip = str(tipologia or '').strip().upper()
+            if tip in ('T0', 'T1'):
+                return 60
+            if tip == 'T2':
+                return 90
+            if tip == 'T3':
+                return 120
+            if tip == 'T4':
+                return 150
+            return None
+
+        def _task_start_min(task):
+            return _time_to_min(task.get('HORA')) or _time_to_min(task.get('HORAINI')) or _time_to_min(task.get('HORAFIM'))
+
+        def _task_end_min(task):
+            return _time_to_min(task.get('HORAFIM')) or _time_to_min(task.get('HORAINI')) or _time_to_min(task.get('HORA'))
+
+        def _serialize_task(task, planned_minutes):
+            if not task:
+                return None
+            start_min = _time_to_min(task.get('HORAINI'))
+            end_min = _time_to_min(task.get('HORAFIM'))
+            actual_minutes = None
+            if start_min is not None and end_min is not None:
+                actual_minutes = max(0, end_min - start_min)
+            return {
+                'TAREFASSTAMP': str(task.get('TAREFASSTAMP') or '').strip(),
+                'DATA': _fmt_rs_date(task.get('DATA')),
+                'HORA': str(task.get('HORA') or '').strip(),
+                'HORAINI': str(task.get('HORAINI') or '').strip(),
+                'HORAFIM': str(task.get('HORAFIM') or '').strip(),
+                'TRATADO': 1 if int(task.get('TRATADO') or 0) else 0,
+                'UTILIZADOR': str(task.get('UTILIZADOR') or '').strip(),
+                'UTILIZADOR_NOME': str(task.get('UTILIZADOR_NOME') or task.get('UTILIZADOR') or '').strip(),
+                'PLANNED_MINUTES': planned_minutes,
+                'ACTUAL_MINUTES': actual_minutes,
+            }
+
+        tasks = db.session.execute(text("""
+            SELECT
+                T.TAREFASSTAMP,
+                CAST(T.DATA AS date) AS DATA,
+                ISNULL(T.HORA,'') AS HORA,
+                ISNULL(T.HORAINI,'') AS HORAINI,
+                ISNULL(T.HORAFIM,'') AS HORAFIM,
+                ISNULL(T.TRATADO,0) AS TRATADO,
+                ISNULL(T.UTILIZADOR,'') AS UTILIZADOR,
+                ISNULL(U.NOME, T.UTILIZADOR) AS UTILIZADOR_NOME
+            FROM dbo.TAREFAS AS T
+            LEFT JOIN dbo.US AS U
+              ON U.LOGIN = T.UTILIZADOR
+            WHERE LTRIM(RTRIM(ISNULL(T.ORIGEM,''))) = 'LP'
+              AND LTRIM(RTRIM(ISNULL(T.ALOJAMENTO,''))) = LTRIM(RTRIM(:aloj))
+            ORDER BY CAST(T.DATA AS date) DESC, ISNULL(T.HORA,'') DESC, T.TAREFASSTAMP DESC
+        """), {'aloj': alojamento}).mappings().all()
+
+        datain = rs.get('DATAIN')
+        dataout = rs.get('DATAOUT')
+        checkin_min = _time_to_min(rs.get('HORAIN'))
+        checkout_min = _time_to_min(rs.get('HORAOUT'))
+        planned_minutes = _duration_for_tipologia(rs.get('TIPOLOGIA'))
+
+        before_task = None
+        after_task = None
+        before_key = None
+        after_key = None
+
+        for task in tasks:
+            task_date = task.get('DATA')
+            if not task_date:
+                continue
+
+            start_min = _task_start_min(task)
+            end_min = _task_end_min(task)
+
+            if datain:
+                qualifies_before = task_date < datain
+                if task_date == datain:
+                    compare_end = end_min if end_min is not None else (start_min if start_min is not None else 0)
+                    limit_end = checkin_min if checkin_min is not None else 1439
+                    qualifies_before = compare_end <= limit_end
+                if qualifies_before:
+                    candidate_key = (task_date.toordinal(), end_min if end_min is not None else (start_min if start_min is not None else 0))
+                    if before_key is None or candidate_key > before_key:
+                        before_key = candidate_key
+                        before_task = task
+
+            if dataout:
+                qualifies_after = task_date > dataout
+                if task_date == dataout:
+                    compare_start = start_min if start_min is not None else (end_min if end_min is not None else 0)
+                    limit_start = checkout_min if checkout_min is not None else 0
+                    qualifies_after = compare_start >= limit_start
+                if qualifies_after:
+                    candidate_key = (task_date.toordinal(), start_min if start_min is not None else (end_min if end_min is not None else 0))
+                    if after_key is None or candidate_key < after_key:
+                        after_key = candidate_key
+                        after_task = task
+
+        return jsonify({
+            'before': _serialize_task(before_task, planned_minutes),
+            'after': _serialize_task(after_task, planned_minutes),
+        })
 
     @app.route('/api/reservas/rs/<rsstamp>/save', methods=['POST'])
     @login_required
@@ -1425,7 +1636,8 @@ def create_app():
                 FTMORADA=:FTMORADA,
                 FTLOCAL=:FTLOCAL,
                 FTCODPOST=:FTCODPOST,
-                FTNCONT=:FTNCONT
+                FTNCONT=:FTNCONT,
+                FTEMAIL=:FTEMAIL
             WHERE RSSTAMP=:RSSTAMP
         """), {
             'RSSTAMP': rsstamp,
@@ -1472,6 +1684,7 @@ def create_app():
             'FTLOCAL': str(_h('FTLOCAL') or '').strip(),
             'FTCODPOST': str(_h('FTCODPOST') or '').strip(),
             'FTNCONT': str(_h('FTNCONT') or '').strip(),
+            'FTEMAIL': str(_h('FTEMAIL') or '').strip(),
         })
 
         db.session.execute(text("DELETE FROM dbo.RSGUESTS WHERE RSSTAMP = :s"), {'s': rsstamp})

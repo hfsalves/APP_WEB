@@ -5,22 +5,34 @@ const overlay = document.getElementById('loadingOverlay');
 const overlayText = overlay?.querySelector('.loading-text');
 const titleEl = document.getElementById('rsTitulo');
 const guestsBody = document.getElementById('rsGuestsBody');
+const guestsStatusEl = document.getElementById('rsGuestsStatus');
+const openPublicLinkBtn = document.getElementById('rsOpenPublicLink');
+const copyPublicLinkBtn = document.getElementById('rsCopyPublicLink');
 const alojamentoList = document.getElementById('RS_ALOJAMENTO_LIST');
 const origemList = document.getElementById('RS_ORIGEM_LIST');
 const cancelFieldsWrap = document.getElementById('rsCancelFields');
+const cleaningBeforeEl = document.getElementById('rsCleaningBefore');
+const cleaningAfterEl = document.getElementById('rsCleaningAfter');
 
 const guestModalEl = document.getElementById('rsGuestModal');
 const guestModal = guestModalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(guestModalEl) : null;
 const guestModalTitle = document.getElementById('rsGuestModalTitle');
 const guestSaveBtn = document.getElementById('rsGuestSaveBtn');
 const guestDeleteBtn = document.getElementById('rsGuestDeleteBtn');
+const billingBody = document.getElementById('rsBillingBody');
+const addBillingBtn = document.getElementById('rsAddBilling');
+const billingModalEl = document.getElementById('rsBillingModal');
+const billingModal = billingModalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(billingModalEl) : null;
+const billingSaveBtn = document.getElementById('rsBillingSaveBtn');
+const billingFieldIds = ['FTNOME', 'FTMORADA', 'FTLOCAL', 'FTCODPOST', 'FTNCONT', 'FTEMAIL'];
+const billingInputMap = Object.fromEntries(billingFieldIds.map((name) => [name, document.getElementById(`RSB_${name}`)]));
 
 const fieldIds = [
   'ALOJAMENTO', 'RDATA', 'ORIGEM', 'RESERVA', 'DATAIN', 'DATAOUT', 'HORAIN', 'HORAOUT', 'NOITES', 'NOME', 'PAIS',
   'ADULTOS', 'CRIANCAS', 'ESTADIA', 'LIMPEZA', 'COMISSAO', 'OBS',
   'READY', 'ENTROU', 'SAIU', 'ALERTA', 'CANCELADA', 'DTCANCEL', 'DIASCANCEL', 'NOTIF', 'NOTIF2', 'PCANCEL',
   'BERCO', 'SOFACAMA', 'RTOTAL', 'USRCHECKIN', 'PRESENCIAL', 'SEF', 'USRSEF', 'INSTR', 'USRINSTR',
-  'FTNOME', 'FTMORADA', 'FTLOCAL', 'FTCODPOST', 'FTNCONT'
+  'FTNOME', 'FTMORADA', 'FTLOCAL', 'FTCODPOST', 'FTNCONT', 'FTEMAIL'
 ];
 const inputMap = Object.fromEntries(fieldIds.map((name) => [name, document.getElementById(`RS_${name}`)]));
 
@@ -113,6 +125,7 @@ function escapeHtml(value) {
 }
 
 function updateTitle() {
+  if (!titleEl) return;
   const ref = String(header.RESERVA || '').trim();
   const aloj = String(header.ALOJAMENTO || '').trim();
   titleEl.textContent = ref ? `Reserva ${ref}${aloj ? ` · ${aloj}` : ''}` : (aloj ? `Reserva · ${aloj}` : 'Reserva');
@@ -181,6 +194,126 @@ function guestFullName(guest) {
   return `${String(guest.NOME || '').trim()} ${String(guest.APELIDO || '').trim()}`.trim();
 }
 
+function expectedGuestCount() {
+  return Math.max(0, n(header.ADULTOS, 0) + n(header.CRIANCAS, 0));
+}
+
+function isGuestComplete(guest) {
+  const item = guest || {};
+  return Boolean(
+    guestFullName(item) &&
+    String(item.DTNASC || '').trim() &&
+    String(item.NACIONALIDADE || '').trim() &&
+    String(item.TIPO_DOC || '').trim() &&
+    String(item.NUM_DOC || '').trim() &&
+    String(item.PAIS_EMISSOR_DOC || '').trim()
+  );
+}
+
+function updateGuestsStatus() {
+  if (!guestsStatusEl) return;
+  const total = expectedGuestCount();
+  const complete = (Array.isArray(guests) ? guests : []).filter(isGuestComplete).length;
+  guestsStatusEl.textContent = `Completos ${complete}/${total}`;
+}
+
+function buildPublicGuideUrl() {
+  const token = String(header.GUIDE_TOKEN || '').trim();
+  if (!token) return '';
+  return `https://szeroguests.com/r/${encodeURIComponent(token)}`;
+}
+
+function updatePublicLinkUi() {
+  const url = buildPublicGuideUrl();
+  if (openPublicLinkBtn) openPublicLinkBtn.disabled = !url;
+  if (copyPublicLinkBtn) copyPublicLinkBtn.disabled = !url;
+}
+
+function billingHasData() {
+  return billingFieldIds.some((name) => String(header?.[name] || '').trim() !== '');
+}
+
+function clearBillingData() {
+  billingFieldIds.forEach((name) => {
+    header[name] = '';
+  });
+}
+
+function writeBillingToModal() {
+  billingFieldIds.forEach((name) => {
+    const el = billingInputMap[name];
+    if (!el) return;
+    el.value = header?.[name] == null ? '' : header[name];
+  });
+}
+
+function readBillingFromModal() {
+  const out = {};
+  billingFieldIds.forEach((name) => {
+    const el = billingInputMap[name];
+    if (!el) return;
+    out[name] = String(el.value || '').trim();
+  });
+  return out;
+}
+
+function openBillingModal() {
+  writeBillingToModal();
+  billingModal?.show();
+}
+
+function saveBillingModal() {
+  header = { ...header, ...readBillingFromModal() };
+  renderBillingCard();
+  billingModal?.hide();
+}
+
+function deleteBillingData() {
+  clearBillingData();
+  renderBillingCard();
+  billingModal?.hide();
+}
+
+function renderBillingCard() {
+  if (!billingBody) return;
+  if (addBillingBtn) addBillingBtn.style.display = billingHasData() ? 'none' : '';
+  if (!billingHasData()) {
+    billingBody.innerHTML = `<div class="text-muted p-3">Sem dados de fatura&ccedil;&atilde;o.</div>`;
+    return;
+  }
+
+  billingBody.innerHTML = `
+    <div class="rsf-billing-card" id="rsBillingCard">
+      <div class="rsf-billing-card-head">
+        <div class="rsf-billing-card-title">Dados de Fatura&ccedil;&atilde;o</div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-primary btn-sm" data-action="edit">Abrir</button>
+          <button type="button" class="btn btn-outline-danger btn-sm" data-action="delete">Eliminar</button>
+        </div>
+      </div>
+      <div class="rsf-billing-card-meta">
+        <div><strong>${escapeHtml(header.FTNOME || 'Sem nome')}</strong></div>
+        <div>${escapeHtml(header.FTMORADA || '')}</div>
+        <div>${escapeHtml(header.FTCODPOST || '')}${header.FTCODPOST && header.FTLOCAL ? ' ' : ''}${escapeHtml(header.FTLOCAL || '')}</div>
+        <div>${escapeHtml(header.FTNCONT || '')}${header.FTNCONT && header.FTEMAIL ? ' · ' : ''}${escapeHtml(header.FTEMAIL || '')}</div>
+      </div>
+    </div>
+  `;
+
+  const card = document.getElementById('rsBillingCard');
+  card?.addEventListener('click', openBillingModal);
+  card?.querySelector('[data-action="edit"]')?.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    openBillingModal();
+  });
+  card?.querySelector('[data-action="delete"]')?.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    deleteBillingData();
+  });
+}
+
 function writeGuestToModal(guest) {
   const current = guest || defaultGuest();
   guestFieldIds.forEach((name) => {
@@ -231,8 +364,9 @@ function deleteGuestModal() {
 
 function renderGuests() {
   if (!guestsBody) return;
+  updateGuestsStatus();
   if (!Array.isArray(guests) || !guests.length) {
-    guestsBody.innerHTML = '<div class="text-muted p-3">Sem hóspedes. Adicione pelo menos um.</div>';
+    guestsBody.innerHTML = `<div class="text-muted p-3">Completos 0/${expectedGuestCount()}</div>`;
     return;
   }
 
@@ -263,6 +397,191 @@ function renderGuests() {
   });
 }
 
+function timeToMin(value) {
+  const raw = String(value || '').trim();
+  const m = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (!m) return null;
+  const hh = Math.max(0, Math.min(23, Number(m[1])));
+  const mm = Math.max(0, Math.min(59, Number(m[2])));
+  return hh * 60 + mm;
+}
+
+function minToTime(total) {
+  if (total == null || !Number.isFinite(total)) return '';
+  let v = Math.round(total);
+  if (v < 0) v = 0;
+  const hh = Math.floor(v / 60);
+  const mm = v % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+function formatDuration(total) {
+  const mins = Number(total);
+  if (!Number.isFinite(mins) || mins <= 0) return '--';
+  if (mins < 60) return `${mins}m`;
+  const hh = Math.floor(mins / 60);
+  const mm = mins % 60;
+  if (!mm) return `${hh}h`;
+  return `${hh}h${String(mm).padStart(2, '0')}`;
+}
+
+function formatDatePt(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const bits = raw.slice(0, 10).split('-');
+  if (bits.length !== 3) return raw;
+  return `${bits[2]}/${bits[1]}/${bits[0]}`;
+}
+
+function isImageType(ext) {
+  return /^(png|jpg|jpeg|gif|webp)$/i.test(String(ext || ''));
+}
+
+function isVideoType(ext) {
+  return /^(mp4|webm|ogg|mov|m4v)$/i.test(String(ext || ''));
+}
+
+function renderCleaningCard(container, task) {
+  if (!container) return;
+  if (!task) {
+    container.innerHTML = `<div class="rsf-clean-card-empty">Sem limpeza associada.</div>`;
+    return;
+  }
+
+  const plannedStart = String(task.HORA || '').trim();
+  const plannedMins = n(task.PLANNED_MINUTES, 0);
+  const plannedEnd = plannedStart && plannedMins > 0 ? minToTime((timeToMin(plannedStart) ?? 0) + plannedMins) : '';
+  const plannedLabel = plannedStart
+    ? `${escapeHtml(plannedStart)}${plannedEnd ? ` - ${escapeHtml(plannedEnd)}` : ''} &middot; ${escapeHtml(formatDuration(plannedMins))}`
+    : (plannedMins > 0 ? escapeHtml(formatDuration(plannedMins)) : '--');
+  const realStart = String(task.HORAINI || '').trim();
+  const realEnd = String(task.HORAFIM || '').trim();
+  const realDur = formatDuration(task.ACTUAL_MINUTES);
+  const who = String(task.UTILIZADOR_NOME || task.UTILIZADOR || '').trim() || 'Sem equipa';
+  const when = formatDatePt(task.DATA);
+  const status = (() => {
+    if (n(task.TRATADO, 0) === 1 || (realStart && realEnd)) {
+      return { key: 'done', label: 'Concluída' };
+    }
+    const taskDate = String(task.DATA || '').trim();
+    const plannedMin = timeToMin(plannedStart);
+    if (taskDate) {
+      const compare = new Date(`${taskDate}T${plannedStart || '00:00'}:00`);
+      if (!Number.isNaN(compare.getTime())) {
+        if (compare.getTime() < Date.now() && plannedMin != null) {
+          return { key: 'late', label: 'Atrasada' };
+        }
+      }
+    }
+    return { key: 'todo', label: 'Planeada' };
+  })();
+  const realLabel = realStart || realEnd
+    ? `${escapeHtml(realStart || '--:--')}${realEnd ? ` - ${escapeHtml(realEnd)}` : ''} &middot; ${escapeHtml(realDur)}`
+    : '--';
+
+  container.innerHTML = `
+    <div class="rsf-clean-card" data-id="${escapeHtml(task.TAREFASSTAMP || '')}">
+      <div class="rsf-clean-card-head">
+        <div class="rsf-clean-card-who">${escapeHtml(who)}</div>
+        <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+          <span class="rsf-clean-status ${status.key}">${status.label}</span>
+          <div class="rsf-clean-card-date">${escapeHtml(when || '--/--/----')}</div>
+        </div>
+      </div>
+      <div class="rsf-clean-card-body">
+        <div class="rsf-clean-card-split">
+          <div class="rsf-clean-card-meta-box">
+            <div class="rsf-clean-card-label">Planeado</div>
+            <div class="rsf-clean-card-value">${plannedLabel}</div>
+          </div>
+          <div class="rsf-clean-card-meta-box">
+            <div class="rsf-clean-card-label">Real</div>
+            <div class="rsf-clean-card-value">${realLabel}</div>
+          </div>
+        </div>
+      </div>
+      <div class="rsf-clean-anexos js-clean-anexos">
+        <div class="rsf-clean-anexos-empty">${task.TAREFASSTAMP ? 'A carregar anexos...' : 'Sem anexos.'}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCleaningAttachments(container, rows) {
+  if (!container) return;
+  if (!Array.isArray(rows) || !rows.length) {
+    container.innerHTML = '<div class="rsf-clean-anexos-empty">Sem anexos.</div>';
+    return;
+  }
+  container.innerHTML = rows.map((item) => {
+    const url = String(item.CAMINHO || '').trim();
+    const typ = String(item.TIPO || '').trim();
+    const name = String(item.FICHEIRO || item.TIPO || '').trim();
+    let media = '<div class="d-flex align-items-center justify-content-center h-100 text-muted"><i class="fa-regular fa-file-lines fa-lg"></i></div>';
+    if (url && isImageType(typ)) media = `<img src="${escapeHtml(url)}" alt="">`;
+    else if (url && isVideoType(typ)) media = `<video src="${escapeHtml(url)}" muted playsinline></video>`;
+    const href = url ? `href="${escapeHtml(url)}" target="_blank" rel="noopener"` : '';
+    return `
+      <div class="rsf-clean-anexo" title="${escapeHtml(name)}">
+        <a ${href} class="d-block h-100 w-100" style="text-decoration:none;color:inherit;">
+          ${media}
+        </a>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadCleaningAttachments(taskId) {
+  const id = String(taskId || '').trim();
+  if (!id) return [];
+  const resp = await fetch(`/api/anexos?table=TAREFAS&rec=${encodeURIComponent(id)}`);
+  if (!resp.ok) throw new Error('Erro ao carregar anexos');
+  const rows = await resp.json().catch(() => ([]));
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function loadCleaningInfo() {
+  if (!cleaningBeforeEl || !cleaningAfterEl) return;
+  cleaningBeforeEl.innerHTML = '<div class="text-muted p-3">A carregar...</div>';
+  cleaningAfterEl.innerHTML = '<div class="text-muted p-3">A carregar...</div>';
+
+  try {
+    const resp = await fetch(`/api/reservas/rs/${encodeURIComponent(rsStamp)}/limpezas`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || 'Erro ao carregar limpezas');
+
+    const before = data.before || null;
+    const after = data.after || null;
+
+    renderCleaningCard(cleaningBeforeEl, before);
+    renderCleaningCard(cleaningAfterEl, after);
+
+    await Promise.all([
+      (async () => {
+        if (!before?.TAREFASSTAMP) return;
+        try {
+          const rows = await loadCleaningAttachments(before.TAREFASSTAMP);
+          renderCleaningAttachments(cleaningBeforeEl.querySelector('.js-clean-anexos'), rows);
+        } catch (_) {
+          renderCleaningAttachments(cleaningBeforeEl.querySelector('.js-clean-anexos'), []);
+        }
+      })(),
+      (async () => {
+        if (!after?.TAREFASSTAMP) return;
+        try {
+          const rows = await loadCleaningAttachments(after.TAREFASSTAMP);
+          renderCleaningAttachments(cleaningAfterEl.querySelector('.js-clean-anexos'), rows);
+        } catch (_) {
+          renderCleaningAttachments(cleaningAfterEl.querySelector('.js-clean-anexos'), []);
+        }
+      })(),
+    ]);
+  } catch (_) {
+    cleaningBeforeEl.innerHTML = '<div class="rsf-clean-card-empty">Erro ao carregar.</div>';
+    cleaningAfterEl.innerHTML = '<div class="rsf-clean-card-empty">Erro ao carregar.</div>';
+  }
+}
+
 async function loadConfig() {
   const resp = await fetch('/api/reservas/rs/config');
   if (!resp.ok) throw new Error('Erro ao carregar configuração');
@@ -278,7 +597,10 @@ async function loadDocument() {
   header = data.header || {};
   guests = Array.isArray(data.guests) ? data.guests : [];
   writeHeaderToForm();
+  updatePublicLinkUi();
+  renderBillingCard();
   renderGuests();
+  await loadCleaningInfo();
 }
 
 async function saveDocument() {
@@ -299,6 +621,10 @@ async function saveDocument() {
     if (!resp.ok) throw new Error(data.error || 'Erro ao gravar reserva');
     header = { ...header, ...readHeaderFromForm() };
     updateTitle();
+    updateGuestsStatus();
+    updatePublicLinkUi();
+    renderBillingCard();
+    await loadCleaningInfo();
   } finally {
     hideOverlay();
   }
@@ -325,6 +651,10 @@ function bindHeaderEvents() {
   ['DATAIN', 'DATAOUT'].forEach((key) => {
     inputMap[key]?.addEventListener('change', syncNights);
   });
+  ['ADULTOS', 'CRIANCAS'].forEach((key) => {
+    inputMap[key]?.addEventListener('input', updateGuestsStatus);
+    inputMap[key]?.addEventListener('change', updateGuestsStatus);
+  });
   inputMap.CANCELADA?.addEventListener('change', toggleCancelFields);
 }
 
@@ -337,9 +667,39 @@ async function init() {
       ev.preventDefault();
       openGuestModal(-1);
     });
+    document.getElementById('rsAddBilling')?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      openBillingModal();
+    });
     ['NACIONALIDADE', 'PAIS_RESIDENCIA', 'PAIS_EMISSOR_DOC'].forEach((name) => fillCountrySelect(guestInputMap[name]));
     guestSaveBtn?.addEventListener('click', saveGuestModal);
     guestDeleteBtn?.addEventListener('click', deleteGuestModal);
+    billingSaveBtn?.addEventListener('click', saveBillingModal);
+    openPublicLinkBtn?.addEventListener('click', () => {
+      const url = buildPublicGuideUrl();
+      if (url) window.open(url, '_blank', 'noopener');
+    });
+    copyPublicLinkBtn?.addEventListener('click', async () => {
+      const url = buildPublicGuideUrl();
+      if (!url) return;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(url);
+        } else {
+          const tmp = document.createElement('textarea');
+          tmp.value = url;
+          tmp.setAttribute('readonly', '');
+          tmp.style.position = 'absolute';
+          tmp.style.left = '-9999px';
+          document.body.appendChild(tmp);
+          tmp.select();
+          document.execCommand('copy');
+          tmp.remove();
+        }
+      } catch (_) {
+        window.alert('Erro ao copiar link');
+      }
+    });
 
     document.getElementById('rsBtnSave')?.addEventListener('click', async () => {
       try {
