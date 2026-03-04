@@ -1260,6 +1260,8 @@ def create_app():
 
     @app.route('/rs_reservas_form/', defaults={'rsstamp': None})
     @app.route('/rs_reservas_form/<rsstamp>')
+    @app.route('/generic/rs_reservas_form/', defaults={'rsstamp': None})
+    @app.route('/generic/rs_reservas_form/<rsstamp>')
     @login_required
     def rs_reservas_form_alias(rsstamp):
         if rsstamp:
