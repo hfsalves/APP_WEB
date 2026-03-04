@@ -167,5 +167,5 @@
   window.MC_ANO_PADRAO = {{ ano_atual }};
   window.MC_MES_PADRAO = {{ mes_atual }};
 </script>
-<script src="{{ url_for('static', filename='js/mapa_controlo.js') }}"></script>
+<script src="{{ url_for('static', filename='js/mapa_controlo.js') }}?v={{ static_version }}"></script>
 {% endblock %}
