@@ -11,12 +11,13 @@ import unicodedata
 import re
 import io
 import importlib.util
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date, timedelta, time as dtime
 from sqlalchemy import text
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from services.assinatura_service import sign_ft_document
 from services.qr_atcud_service import (
@@ -1024,6 +1025,8 @@ def create_app():
 
     def _num(v, default=0.0):
         try:
+            if isinstance(v, bool):
+                return 1.0 if v else 0.0
             if v is None or str(v).strip() == '':
                 return float(default)
             s = str(v).replace(',', '.')
@@ -1033,6 +1036,8 @@ def create_app():
 
     def _to_int(v, default=0):
         try:
+            if isinstance(v, bool):
+                return 1 if v else 0
             if v is None or str(v).strip() == '':
                 return int(default)
             return int(float(str(v).replace(',', '.')))
@@ -1075,60 +1080,79 @@ def create_app():
         }
 
     def _calc_totals_and_breakdown(lines):
+        dec2 = Decimal('0.01')
+
+        def _to_dec(val, default='0'):
+            if val is None:
+                return Decimal(default)
+            txt = str(val).strip().replace(',', '.')
+            if txt == '':
+                return Decimal(default)
+            try:
+                return Decimal(txt)
+            except Exception:
+                return Decimal(default)
+
         normalized = []
-        total_base = 0.0
-        total_vat = 0.0
+        total_base = Decimal('0.00')
+        total_vat = Decimal('0.00')
         buckets = {}
         for idx, line in enumerate(lines or []):
-            qtt = round(_num((line or {}).get('QTT'), 0), 2)
-            epv = round(_num((line or {}).get('EPV'), 0), 2)
-            rate = _num((line or {}).get('IVA'), 0)
+            qtt = _to_dec((line or {}).get('QTT'), '0').quantize(dec2, rounding=ROUND_HALF_UP)
+            epv = _to_dec((line or {}).get('EPV'), '0').quantize(dec2, rounding=ROUND_HALF_UP)
+            rate = _to_dec((line or {}).get('IVA'), '0').quantize(dec2, rounding=ROUND_HALF_UP)
             ivaincl = 1 if int(_num((line or {}).get('IVAINCL'), 0)) == 1 else 0
-            # ETILIQUIDO da linha = TOTAL da linha (QTT * EPV), independentemente de IVA incluído.
-            # O IVAINCL só afeta os totais de cabeçalho (mesma lógica do ecrã de compras).
-            line_total = qtt * epv
+            # ETILIQUIDO da linha é tratado como total bruto de linha (com IVA quando IVAINCL=1).
+            # Se vier vazio, usa QTT*EPV.
+            raw_line_total = (line or {}).get('ETILIQUIDO')
+            if raw_line_total is None or str(raw_line_total).strip() == '':
+                line_total = (qtt * epv).quantize(dec2, rounding=ROUND_HALF_UP)
+            else:
+                line_total = _to_dec(raw_line_total, '0').quantize(dec2, rounding=ROUND_HALF_UP)
+
             if rate > 0:
                 if ivaincl:
-                    vat = line_total * (rate / (100.0 + rate))
+                    vat = (line_total * rate / (Decimal('100.00') + rate)).quantize(dec2, rounding=ROUND_HALF_UP)
                     base = line_total - vat
                 else:
                     base = line_total
-                    vat = line_total * (rate / 100.0)
+                    vat = (line_total * rate / Decimal('100.00')).quantize(dec2, rounding=ROUND_HALF_UP)
             else:
                 base = line_total
-                vat = 0.0
-            line_total = round(line_total, 2)
-            base = round(base, 2)
-            vat = round(vat, 2)
+                vat = Decimal('0.00')
+            line_total = line_total.quantize(dec2, rounding=ROUND_HALF_UP)
+            base = base.quantize(dec2, rounding=ROUND_HALF_UP)
+            vat = vat.quantize(dec2, rounding=ROUND_HALF_UP)
             total_base += base
             total_vat += vat
             tabiva = _to_int((line or {}).get('TABIVA'), 0)
             row = dict(line or {})
             row['LORDEM'] = _to_int(row.get('LORDEM'), (idx + 1) * 10)
-            row['QTT'] = round(qtt, 2)
-            row['EPV'] = round(epv, 2)
-            row['IVA'] = round(rate, 2)
+            row['QTT'] = float(qtt)
+            row['EPV'] = float(epv)
+            row['IVA'] = float(rate)
             row['IVAINCL'] = ivaincl
             row['TABIVA'] = tabiva
-            row['ETILIQUIDO'] = round(line_total, 2)
+            row['ETILIQUIDO'] = float(line_total)
             normalized.append(row)
-            if rate not in buckets:
-                buckets[rate] = {'base': 0.0, 'vat': 0.0}
-            buckets[rate]['base'] += base
-            buckets[rate]['vat'] += vat
+            rate_key = float(rate)
+            if rate_key not in buckets:
+                buckets[rate_key] = {'base': Decimal('0.00'), 'vat': Decimal('0.00')}
+            buckets[rate_key]['base'] += base
+            buckets[rate_key]['vat'] += vat
 
-        total_base = round(total_base, 6)
-        total_vat = round(total_vat, 6)
-        total = round(total_base + total_vat, 6)
+        total_base = total_base.quantize(dec2, rounding=ROUND_HALF_UP)
+        total_vat = total_vat.quantize(dec2, rounding=ROUND_HALF_UP)
+        total = (total_base + total_vat).quantize(dec2, rounding=ROUND_HALF_UP)
         breakdown = sorted(buckets.items(), key=lambda x: x[0])[:9]
         ivatx = [0.0] * 9
         eivain = [0.0] * 9
         eivav = [0.0] * 9
         for idx, (tx, vals) in enumerate(breakdown):
             ivatx[idx] = round(float(tx), 2)
-            eivain[idx] = round(float(vals.get('base', 0.0)), 6)
-            eivav[idx] = round(float(vals.get('vat', 0.0)), 6)
-        return normalized, total_base, total_vat, total, ivatx, eivain, eivav
+            eivain[idx] = round(float(vals.get('base', Decimal('0.00'))), 2)
+            eivav[idx] = round(float(vals.get('vat', Decimal('0.00'))), 2)
+        return normalized, float(total_base), float(total_vat), float(total), ivatx, eivain, eivav
 
     def _get_ft(ftstamp):
         ft = db.session.execute(text("""
@@ -1253,6 +1277,39 @@ def create_app():
         today = date.today()
         return render_template(
             'faturacao_reservas.html',
+            ano_inicial=today.year,
+            mes_inicial=today.month,
+        )
+
+    @app.route('/cancelamentos')
+    @app.route('/reservas_canceladas')
+    @login_required
+    def reservas_canceladas_page():
+        return render_template(
+            'reservas_canceladas.html',
+            page_title='Cancelamentos',
+        )
+
+    @app.route('/investimentos')
+    @login_required
+    def investimentos_page():
+        today = date.today()
+        return render_template(
+            'investimentos.html',
+            page_title='Investimentos',
+            ano_inicial=today.year,
+            mes_inicial=today.month,
+        )
+
+    @app.route('/investimentos_lista')
+    @app.route('/investimentos/manage')
+    @app.route('/investimentos_manage')
+    @login_required
+    def investimentos_manage_page():
+        today = date.today()
+        return render_template(
+            'investimentos_manage.html',
+            page_title='Investimentos',
             ano_inicial=today.year,
             mes_inicial=today.month,
         )
@@ -1541,6 +1598,131 @@ def create_app():
             'after': _serialize_task(after_task, planned_minutes),
         })
 
+    @app.route('/api/reservas/cancelamentos', methods=['GET'])
+    @login_required
+    def api_reservas_cancelamentos():
+        def _date_or_none(raw):
+            s = str(raw or '').strip()
+            if not s:
+                return None
+            try:
+                return datetime.fromisoformat(s[:10]).date()
+            except Exception:
+                return None
+
+        datain_from = _date_or_none(request.args.get('datain_from'))
+        datain_to = _date_or_none(request.args.get('datain_to'))
+        dataout_from = _date_or_none(request.args.get('dataout_from'))
+        dataout_to = _date_or_none(request.args.get('dataout_to'))
+        dias_cancel_max = _to_int(request.args.get('dias_cancel_max'), -1)
+        dias_cancel_min = _to_int(request.args.get('dias_cancel_min'), -1)
+        sem_pagamento = str(request.args.get('sem_pagamento') or '0').strip().lower() in ('1', 'true', 'yes', 'on')
+
+        where = ["ISNULL(RS.CANCELADA,0)=1"]
+        params = {}
+        if datain_from:
+            where.append("CAST(RS.DATAIN AS date) >= :datain_from")
+            params['datain_from'] = datain_from
+        if datain_to:
+            where.append("CAST(RS.DATAIN AS date) <= :datain_to")
+            params['datain_to'] = datain_to
+        if dataout_from:
+            where.append("CAST(RS.DATAOUT AS date) >= :dataout_from")
+            params['dataout_from'] = dataout_from
+        if dataout_to:
+            where.append("CAST(RS.DATAOUT AS date) <= :dataout_to")
+            params['dataout_to'] = dataout_to
+        if dias_cancel_max >= 0:
+            where.append("ISNULL(RS.DIASCANCEL,0) <= :dias_cancel_max")
+            params['dias_cancel_max'] = dias_cancel_max
+        if dias_cancel_min >= 0:
+            where.append("ISNULL(RS.DIASCANCEL,0) >= :dias_cancel_min")
+            params['dias_cancel_min'] = dias_cancel_min
+        if sem_pagamento:
+            where.append("CAST(ISNULL(RS.PCANCEL,0) AS decimal(18,2)) = 0")
+
+        rows = db.session.execute(text(f"""
+            SELECT
+                ISNULL(RS.RSSTAMP,'') AS RSSTAMP,
+                ISNULL(RS.RESERVA,'') AS RESERVA,
+                ISNULL(RS.ALOJAMENTO,'') AS ALOJAMENTO,
+                ISNULL(RS.NOME,'') AS NOME,
+                ISNULL(RS.ORIGEM,'') AS ORIGEM,
+                CAST(RS.RDATA AS date) AS RDATA,
+                CAST(RS.DATAIN AS date) AS DATAIN,
+                CAST(RS.DATAOUT AS date) AS DATAOUT,
+                ISNULL(RS.NOITES,0) AS NOITES,
+                ISNULL(RS.ADULTOS,0) AS ADULTOS,
+                ISNULL(RS.CRIANCAS,0) AS CRIANCAS,
+                ISNULL(RS.ESTADIA,0) AS ESTADIA,
+                ISNULL(RS.LIMPEZA,0) AS LIMPEZA,
+                ISNULL(RS.COMISSAO,0) AS COMISSAO,
+                ISNULL(RS.DIASCANCEL,0) AS DIASCANCEL,
+                CAST(RS.DTCANCEL AS date) AS DTCANCEL,
+                CAST(ISNULL(RS.PCANCEL,0) AS decimal(18,2)) AS PCANCEL
+            FROM dbo.RS RS
+            WHERE {' AND '.join(where)}
+            ORDER BY CAST(RS.DATAIN AS date) DESC, CAST(RS.DATAOUT AS date) DESC, ISNULL(RS.RESERVA,'')
+        """), params).mappings().all()
+
+        out = []
+        for r in rows:
+            reserva_code = str(r.get('RESERVA') or '').strip()
+            out.append({
+                'RSSTAMP': str(r.get('RSSTAMP') or '').strip(),
+                'RESERVA': reserva_code,
+                'ALOJAMENTO': str(r.get('ALOJAMENTO') or '').strip(),
+                'NOME': str(r.get('NOME') or '').strip(),
+                'ORIGEM': str(r.get('ORIGEM') or '').strip(),
+                'RDATA': (r.get('RDATA').isoformat() if r.get('RDATA') else ''),
+                'DATAIN': (r.get('DATAIN').isoformat() if r.get('DATAIN') else ''),
+                'DATAOUT': (r.get('DATAOUT').isoformat() if r.get('DATAOUT') else ''),
+                'NOITES': int(r.get('NOITES') or 0),
+                'ADULTOS': int(r.get('ADULTOS') or 0),
+                'CRIANCAS': int(r.get('CRIANCAS') or 0),
+                'ESTADIA': round(float(r.get('ESTADIA') or 0), 2),
+                'LIMPEZA': round(float(r.get('LIMPEZA') or 0), 2),
+                'COMISSAO': round(float(r.get('COMISSAO') or 0), 2),
+                'DIASCANCEL': int(r.get('DIASCANCEL') or 0),
+                'DTCANCEL': (r.get('DTCANCEL').isoformat() if r.get('DTCANCEL') else ''),
+                'PCANCEL': round(float(r.get('PCANCEL') or 0), 2),
+                'ITINERARIO_URL': (f'https://www.airbnb.pt/hosting/stay/{reserva_code}' if reserva_code else ''),
+            })
+        return jsonify({'rows': out})
+
+    @app.route('/api/reservas/cancelamentos/<rsstamp>/pcancel', methods=['POST'])
+    @login_required
+    def api_reservas_cancelamentos_set_pcancel(rsstamp):
+        body = request.get_json(silent=True) or {}
+        try:
+            value = round(float(body.get('pcancel') or 0), 2)
+        except Exception:
+            return jsonify({'error': 'Valor inválido.'}), 400
+        if value < 0:
+            return jsonify({'error': 'Valor não pode ser negativo.'}), 400
+
+        row = db.session.execute(text("""
+            SELECT ISNULL(CANCELADA,0) AS CANCELADA
+            FROM dbo.RS
+            WHERE RSSTAMP=:s
+        """), {'s': rsstamp}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Reserva não encontrada'}), 404
+        if int(row.get('CANCELADA') or 0) != 1:
+            return jsonify({'error': 'A reserva não está cancelada.'}), 400
+
+        try:
+            db.session.execute(text("""
+                UPDATE dbo.RS
+                SET PCANCEL=:v
+                WHERE RSSTAMP=:s
+            """), {'v': value, 's': rsstamp})
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao gravar valor de cancelamento: {e}'}), 500
+        return jsonify({'ok': True, 'pcancel': value})
+
     @app.route('/api/reservas/rs/<rsstamp>/save', methods=['POST'])
     @login_required
     def api_reservas_rs_save(rsstamp):
@@ -1754,6 +1936,220 @@ def create_app():
         db.session.commit()
         return jsonify({'ok': True})
 
+    def _rs_reservation_code(rsstamp):
+        row = db.session.execute(text("""
+            SELECT TOP 1 LTRIM(RTRIM(ISNULL(RESERVA,''))) AS RESERVA
+            FROM dbo.RS
+            WHERE RSSTAMP = :s
+        """), {'s': rsstamp}).mappings().first()
+        if not row:
+            return None
+        return str(row.get('RESERVA') or '').strip()
+
+    def _sync_config():
+        base = (
+            os.environ.get('SYNC_ENGINE_BASE_URL')
+            or os.environ.get('INTEGRATION_API_BASE_URL')
+            or 'http://sync.szeroapp.com:8000'
+        ).strip().rstrip('/')
+        if base and not re.match(r'^https?://', base, flags=re.I):
+            base = f"http://{base}"
+        token = (
+            os.environ.get('SYNC_ENGINE_TOKEN')
+            or os.environ.get('INTEGRATION_API_TOKEN')
+            or 'w2QBCh_4pNBvznHUTLngsQLWbICbnGeD7o2llLZP_oi1LywZSnVNj5UPByWsL6UC'
+        ).strip()
+        return base, token
+
+    def _sync_call(path, method='GET', body=None, timeout=25):
+        base, token = _sync_config()
+        if not token:
+            return 500, {'error': 'Token de integração não configurado'}, base, None
+        url = f"{base}{path}"
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Accept': 'application/json',
+            'User-Agent': 'SZEROAPP/1.0',
+        }
+        data = None
+        if body is not None:
+            headers['Content-Type'] = 'application/json'
+            data = json.dumps(body).encode('utf-8')
+        req = Request(url, headers=headers, data=data, method=method)
+
+        try:
+            with urlopen(req, timeout=timeout) as resp:
+                status = int(getattr(resp, 'status', 200) or 200)
+                raw = resp.read()
+                try:
+                    payload = json.loads(raw.decode('utf-8', errors='ignore')) if raw else {}
+                except Exception:
+                    payload = {}
+                return status, payload, base, url
+        except HTTPError as e:
+            status = int(getattr(e, 'code', 500) or 500)
+            raw = b''
+            try:
+                raw = e.read() or b''
+            except Exception:
+                raw = b''
+            try:
+                payload = json.loads(raw.decode('utf-8', errors='ignore')) if raw else {}
+            except Exception:
+                payload = {'error': raw.decode('utf-8', errors='ignore') if raw else ''}
+            return status, payload, base, url
+        except (URLError, ConnectionResetError, TimeoutError, OSError) as e:
+            try:
+                app.logger.warning('Falha ao contactar sync_engine (%s): %s', url, e)
+            except Exception:
+                pass
+            return 502, {'error': f'Falha de rede para {base}: {e}'}, base, url
+        except Exception as e:
+            try:
+                app.logger.exception('Erro inesperado no sync_engine (%s): %s', url, e)
+            except Exception:
+                pass
+            return 502, {'error': f'Erro inesperado: {e}'}, base, url
+
+    def _normalize_chat_messages(payload):
+        if isinstance(payload, dict):
+            msg_list = payload.get('messages')
+            if not isinstance(msg_list, list):
+                msg_list = payload.get('data') if isinstance(payload.get('data'), list) else []
+        elif isinstance(payload, list):
+            msg_list = payload
+        else:
+            msg_list = []
+
+        def _s(v):
+            return str(v or '').strip()
+
+        out = []
+        for idx, item in enumerate(msg_list):
+            if not isinstance(item, dict):
+                continue
+            sender_obj = item.get('sender') if isinstance(item.get('sender'), dict) else {}
+            sender_role_raw = _s(
+                item.get('sender_role')
+                or item.get('role')
+                or item.get('direction')
+                or item.get('sender_type')
+                or sender_obj.get('role')
+            ).lower()
+            sender_name = _s(
+                item.get('sender_name')
+                or item.get('author_name')
+                or item.get('from_name')
+                or item.get('author')
+                or item.get('sender')
+                or sender_obj.get('name')
+            )
+            text_msg = _s(
+                item.get('message')
+                or item.get('body')
+                or item.get('content')
+                or item.get('text')
+            )
+            created_at = _s(
+                item.get('created_at')
+                or item.get('createdAt')
+                or item.get('date')
+                or item.get('sent_at')
+                or item.get('timestamp')
+            )
+            direction = 'guest'
+            if sender_role_raw:
+                if any(k in sender_role_raw for k in ('host', 'owner', 'team', 'admin', 'out', 'sent', 'agent')):
+                    direction = 'host'
+                elif any(k in sender_role_raw for k in ('guest', 'traveler', 'client', 'in', 'recv', 'received')):
+                    direction = 'guest'
+            out.append({
+                'id': _s(item.get('id') or item.get('message_id') or item.get('uuid') or idx),
+                'sender_name': sender_name or ('Nós' if direction == 'host' else 'Hóspede'),
+                'sender_role': sender_role_raw,
+                'direction': direction,
+                'text': text_msg,
+                'created_at': created_at,
+            })
+        return out
+
+    @app.route('/api/reservas/rs/<rsstamp>/chat', methods=['GET'])
+    @login_required
+    def api_reservas_rs_chat(rsstamp):
+        reservation_code = _rs_reservation_code(rsstamp)
+        if reservation_code is None:
+            return jsonify({'error': 'Reserva não encontrada'}), 404
+        if not reservation_code:
+            return jsonify({'reservation_code': '', 'messages': [], 'count': 0})
+
+        path = f"/api/integrations/reservations/{quote(reservation_code)}/messages"
+        status, payload, sync_base, _ = _sync_call(path, method='GET', timeout=25)
+        if status != 200:
+            msg = (payload or {}).get('error') if isinstance(payload, dict) else ''
+            return jsonify({'error': msg or f'Erro de integração ({status})', 'sync_base': sync_base}), (status if status in (400, 401, 403, 404, 429, 503) else 502)
+
+        out = _normalize_chat_messages(payload)
+        return jsonify({
+            'reservation_code': reservation_code,
+            'messages': out,
+            'count': len(out),
+            'sync_base': sync_base,
+        })
+
+    @app.route('/api/reservas/rs/<rsstamp>/chat/refresh', methods=['POST'])
+    @login_required
+    def api_reservas_rs_chat_refresh(rsstamp):
+        reservation_code = _rs_reservation_code(rsstamp)
+        if reservation_code is None:
+            return jsonify({'error': 'Reserva não encontrada'}), 404
+        if not reservation_code:
+            return jsonify({'error': 'Código de reserva vazio'}), 400
+
+        path = f"/api/integrations/reservations/{quote(reservation_code)}/refresh-chat"
+        body = {
+            'max_threads': 50,
+            'headless': True,
+            'profile_code': 'airbnb_hd',
+        }
+        status, payload, sync_base, _ = _sync_call(path, method='POST', body=body, timeout=30)
+        if status not in (200, 202):
+            msg = (payload or {}).get('error') if isinstance(payload, dict) else ''
+            return jsonify({'error': msg or f'Erro de integração ({status})', 'sync_base': sync_base}), (status if status in (400, 401, 403, 404, 429, 503) else 502)
+
+        job = payload.get('job') if isinstance(payload, dict) else None
+        if not isinstance(job, dict):
+            job = payload if isinstance(payload, dict) else {}
+        return jsonify({
+            'reservation_code': reservation_code,
+            'job': job,
+            'sync_base': sync_base,
+        }), 202
+
+    @app.route('/api/reservas/rs/<rsstamp>/chat/refresh/jobs/<job_id>', methods=['GET'])
+    @login_required
+    def api_reservas_rs_chat_refresh_job(rsstamp, job_id):
+        reservation_code = _rs_reservation_code(rsstamp)
+        if reservation_code is None:
+            return jsonify({'error': 'Reserva não encontrada'}), 404
+        job_id = str(job_id or '').strip()
+        if not job_id:
+            return jsonify({'error': 'job_id obrigatório'}), 400
+
+        path = f"/api/integrations/reservations/refresh-chat/jobs/{quote(job_id)}"
+        status, payload, sync_base, _ = _sync_call(path, method='GET', timeout=20)
+        if status != 200:
+            msg = (payload or {}).get('error') if isinstance(payload, dict) else ''
+            return jsonify({'error': msg or f'Erro de integração ({status})', 'sync_base': sync_base}), (status if status in (400, 401, 403, 404, 429, 503) else 502)
+
+        job = payload.get('job') if isinstance(payload, dict) else None
+        if not isinstance(job, dict):
+            job = payload if isinstance(payload, dict) else {}
+        return jsonify({
+            'reservation_code': reservation_code or '',
+            'job': job,
+            'sync_base': sync_base,
+        })
+
     @app.route('/api/lookups/fe', methods=['GET'])
     @login_required
     def api_lookup_fe():
@@ -1953,6 +2349,651 @@ def create_app():
                 'PDF_OK': pdf_ok,
             })
         return jsonify({'ano': ano, 'mes': mes, 'rows': out})
+
+    def _month_bounds(ano: int, mes: int):
+        try:
+            start = date(int(ano), int(mes), 1)
+        except Exception:
+            today = date.today()
+            start = date(today.year, today.month, 1)
+        if start.month == 12:
+            nxt = date(start.year + 1, 1, 1)
+        else:
+            nxt = date(start.year, start.month + 1, 1)
+        return start, nxt
+
+    def _add_months_first_day(d: date, months_to_add: int):
+        base = d if isinstance(d, date) else date.today()
+        total_months = (base.year * 12 + (base.month - 1)) + int(months_to_add or 0)
+        year = total_months // 12
+        month = (total_months % 12) + 1
+        return date(year, month, 1)
+
+    def _generate_investment_lines(dataini: date, meses: int, valortotal: float, ccusto: str, descr: str):
+        meses_i = max(1, int(meses or 1))
+        total_cents = int(round(float(valortotal or 0) * 100))
+        base_cents = total_cents // meses_i
+        remainder = total_cents - (base_cents * meses_i)
+        lines = []
+        for idx in range(meses_i):
+            cents = base_cents
+            if idx == (meses_i - 1):
+                cents += remainder
+            dataref = _add_months_first_day(dataini, idx)
+            lines.append({
+                'NUM': idx + 1,
+                'DATAREF': dataref,
+                'CCUSTO': ccusto,
+                'DESCR': descr,
+                'VALOR': round(cents / 100.0, 2),
+            })
+        return lines
+
+    def _parse_iso_date(raw, fallback=None):
+        s = str(raw or '').strip()
+        if not s:
+            return fallback
+        try:
+            return datetime.fromisoformat(s[:10]).date()
+        except Exception:
+            return fallback
+
+    @app.route('/api/investimentos/custos', methods=['GET'])
+    @login_required
+    def api_investimentos_custos():
+        today = date.today()
+        ano = _to_int(request.args.get('ano'), today.year)
+        mes = _to_int(request.args.get('mes'), today.month)
+        exclude_gestao = str(request.args.get('exclude_gestao') or '0').strip().lower() in ('1', 'true', 'yes', 'on')
+        mes = max(1, min(12, mes))
+        start, nxt = _month_bounds(ano, mes)
+
+        gestao_filter = ""
+        if exclude_gestao:
+            gestao_filter = """
+              AND NOT EXISTS (
+                SELECT 1
+                FROM dbo.AL A
+                WHERE
+                  LTRIM(RTRIM(ISNULL(A.CCUSTO,''))) = LTRIM(RTRIM(ISNULL(C.ccusto,'')))
+                  AND UPPER(LTRIM(RTRIM(ISNULL(A.TIPO,'')))) = 'GESTAO'
+              )
+            """
+
+        rows = db.session.execute(text(f"""
+            SELECT
+              ISNULL(C.origem,'') AS ORIGEM,
+              ISNULL(C.cabstamp,'') AS CABSTAMP,
+              ISNULL(C.stamp,'') AS STAMP,
+              CAST(C.[data] AS date) AS [DATA],
+              ISNULL(C.ccusto,'') AS CCUSTO,
+              ISNULL(C.familia,'') AS FAMILIA,
+              ISNULL(C.design,'') AS DESCR,
+              CAST(ISNULL(C.total,0) AS decimal(18,2)) AS VALOR
+            FROM dbo.v_custo C
+            LEFT JOIN dbo.INVMAP M
+              ON LTRIM(RTRIM(ISNULL(M.CUSTOSTAMP,''))) = LTRIM(RTRIM(ISNULL(C.stamp,'')))
+            WHERE
+              (
+                LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.1' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.1.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.2' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.2.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.3' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.3.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.4' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.4.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.5' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.5.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.6' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.6.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.7' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.7.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.8' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.8.%'
+              )
+              AND C.[data] >= :dini
+              AND C.[data] < :dfim
+              AND M.CUSTOSTAMP IS NULL
+              {gestao_filter}
+            ORDER BY ISNULL(C.ccusto,''), CAST(C.[data] AS date), ISNULL(C.design,'')
+        """), {'dini': start, 'dfim': nxt}).mappings().all()
+
+        out = []
+        for r in rows:
+            origem = str(r.get('ORIGEM') or '').strip()
+            cab = str(r.get('CABSTAMP') or '').strip()
+            stamp = str(r.get('STAMP') or '').strip()
+            out.append({
+                'ROWKEY': f'{origem}|{cab}|{stamp}',
+                'ORIGEM': origem,
+                'CABSTAMP': cab,
+                'STAMP': stamp,
+                'DATA': (r.get('DATA').isoformat() if r.get('DATA') else ''),
+                'CCUSTO': str(r.get('CCUSTO') or '').strip(),
+                'FAMILIA': str(r.get('FAMILIA') or '').strip(),
+                'DESCR': str(r.get('DESCR') or '').strip(),
+                'VALOR': round(float(r.get('VALOR') or 0), 2),
+            })
+        return jsonify({
+            'ano': ano,
+            'mes': mes,
+            'dini': start.isoformat(),
+            'dfim': nxt.isoformat(),
+            'rows': out,
+        })
+
+    @app.route('/api/investimentos/criar', methods=['POST'])
+    @login_required
+    def api_investimentos_criar():
+        body = request.get_json(silent=True) or {}
+        header = body.get('header') or {}
+        selected = body.get('selected') or []
+        exclude_gestao = str(body.get('exclude_gestao') or '0').strip().lower() in ('1', 'true', 'yes', 'on')
+
+        if not isinstance(selected, list) or not selected:
+            return jsonify({'error': 'Seleciona pelo menos um custo.'}), 400
+
+        today = date.today()
+        ano = _to_int(body.get('ano'), today.year)
+        mes = _to_int(body.get('mes'), today.month)
+        mes = max(1, min(12, mes))
+        start, nxt = _month_bounds(ano, mes)
+
+        gestao_filter = ""
+        if exclude_gestao:
+            gestao_filter = """
+              AND NOT EXISTS (
+                SELECT 1
+                FROM dbo.AL A
+                WHERE
+                  LTRIM(RTRIM(ISNULL(A.CCUSTO,''))) = LTRIM(RTRIM(ISNULL(C.ccusto,'')))
+                  AND UPPER(LTRIM(RTRIM(ISNULL(A.TIPO,'')))) = 'GESTAO'
+              )
+            """
+
+        selected_keys = set()
+        for item in selected:
+            if not isinstance(item, dict):
+                continue
+            origem = str(item.get('ORIGEM') or item.get('origem') or '').strip()
+            cab = str(item.get('CABSTAMP') or item.get('cabstamp') or '').strip()
+            stamp = str(item.get('STAMP') or item.get('stamp') or '').strip()
+            if origem and cab and stamp:
+                selected_keys.add((origem, cab, stamp))
+
+        if not selected_keys:
+            return jsonify({'error': 'Seleção inválida.'}), 400
+
+        month_rows = db.session.execute(text(f"""
+            SELECT
+              ISNULL(C.origem,'') AS ORIGEM,
+              ISNULL(C.cabstamp,'') AS CABSTAMP,
+              ISNULL(C.stamp,'') AS STAMP,
+              CAST(C.[data] AS date) AS [DATA],
+              ISNULL(C.ccusto,'') AS CCUSTO,
+              ISNULL(C.familia,'') AS FAMILIA,
+              ISNULL(C.design,'') AS DESCR,
+              CAST(ISNULL(C.total,0) AS decimal(18,2)) AS VALOR
+            FROM dbo.v_custo C
+            LEFT JOIN dbo.INVMAP M
+              ON LTRIM(RTRIM(ISNULL(M.CUSTOSTAMP,''))) = LTRIM(RTRIM(ISNULL(C.stamp,'')))
+            WHERE
+              (
+                LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.1' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.1.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.2' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.2.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.3' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.3.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.4' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.4.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.5' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.5.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.6' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.6.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.7' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.7.%'
+                OR LTRIM(RTRIM(ISNULL(C.familia,''))) = '3.8' OR LTRIM(RTRIM(ISNULL(C.familia,''))) LIKE '3.8.%'
+              )
+              AND C.[data] >= :dini
+              AND C.[data] < :dfim
+              AND M.CUSTOSTAMP IS NULL
+              {gestao_filter}
+        """), {'dini': start, 'dfim': nxt}).mappings().all()
+
+        by_key = {}
+        for r in month_rows:
+            key = (
+                str(r.get('ORIGEM') or '').strip(),
+                str(r.get('CABSTAMP') or '').strip(),
+                str(r.get('STAMP') or '').strip(),
+            )
+            by_key[key] = dict(r)
+
+        selected_rows = [by_key[k] for k in selected_keys if k in by_key]
+        if len(selected_rows) != len(selected_keys):
+            return jsonify({'error': 'Alguns custos selecionados não são elegíveis para o mês/família atual.'}), 400
+
+        ccustos = {str(r.get('CCUSTO') or '').strip() for r in selected_rows}
+        if len(ccustos) != 1:
+            return jsonify({'error': 'Os custos selecionados têm de pertencer ao mesmo CCUSTO.'}), 400
+        ccusto_sel = next(iter(ccustos))
+        if not ccusto_sel:
+            return jsonify({'error': 'CCUSTO inválido na seleção.'}), 400
+
+        descr = str(header.get('DESCR') or '').strip()
+        if not descr:
+            return jsonify({'error': 'Descrição do investimento é obrigatória.'}), 400
+
+        ccusto_hdr = str(header.get('CCUSTO') or '').strip()
+        if ccusto_hdr and ccusto_hdr != ccusto_sel:
+            return jsonify({'error': 'CCUSTO do cabeçalho não coincide com os custos selecionados.'}), 400
+
+        data_inv_raw = str(header.get('DATAINV') or '').strip()
+        data_ini_raw = str(header.get('DATAINI') or '').strip()
+        try:
+            datainv = datetime.fromisoformat(data_inv_raw[:10]).date() if data_inv_raw else today
+        except Exception:
+            return jsonify({'error': 'DATAINV inválida.'}), 400
+        try:
+            dataini = datetime.fromisoformat(data_ini_raw[:10]).date() if data_ini_raw else start
+        except Exception:
+            return jsonify({'error': 'DATAINI inválida.'}), 400
+        dataini = date(dataini.year, dataini.month, 1)
+
+        meses = _to_int(header.get('MESES'), 0)
+        if meses <= 0:
+            return jsonify({'error': 'MESES tem de ser maior que zero.'}), 400
+
+        valortotal = round(sum(float(r.get('VALOR') or 0) for r in selected_rows), 2)
+        if valortotal <= 0:
+            return jsonify({'error': 'VALORTOTAL tem de ser maior que zero.'}), 400
+
+        obs = str(header.get('OBS') or '').strip()
+        invstamp = _new_stamp_25()
+        linhas = _generate_investment_lines(dataini, meses, valortotal, ccusto_sel, descr)
+        datafim = linhas[-1]['DATAREF'] if linhas else dataini
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+
+        try:
+            db.session.execute(text("""
+                INSERT INTO dbo.INV
+                (INVSTAMP, DESCR, CCUSTO, DATAINV, MESES, VALORTOTAL, DATAINI, DATAFIM, OBS, CRIADOEM, CRIADOPOR, ANULADO)
+                VALUES
+                (:INVSTAMP, :DESCR, :CCUSTO, :DATAINV, :MESES, :VALORTOTAL, :DATAINI, :DATAFIM, :OBS, GETDATE(), :CRIADOPOR, 0)
+            """), {
+                'INVSTAMP': invstamp,
+                'DESCR': descr[:200],
+                'CCUSTO': ccusto_sel[:25],
+                'DATAINV': datainv,
+                'MESES': meses,
+                'VALORTOTAL': valortotal,
+                'DATAINI': dataini,
+                'DATAFIM': datafim,
+                'OBS': (obs[:500] if obs else None),
+                'CRIADOPOR': user_login[:50],
+            })
+
+            for ln in linhas:
+                db.session.execute(text("""
+                    INSERT INTO dbo.INVL
+                    (INVLSTAMP, INVSTAMP, DATAREF, CCUSTO, DESCR, VALOR, CRIADOEM)
+                    VALUES
+                    (:INVLSTAMP, :INVSTAMP, :DATAREF, :CCUSTO, :DESCR, :VALOR, GETDATE())
+                """), {
+                    'INVLSTAMP': _new_stamp_25(),
+                    'INVSTAMP': invstamp,
+                    'DATAREF': ln['DATAREF'],
+                    'CCUSTO': ccusto_sel[:25],
+                    'DESCR': descr[:200],
+                    'VALOR': round(float(ln['VALOR']), 2),
+                })
+
+            for src in selected_rows:
+                custo_stamp = str(src.get('STAMP') or '').strip()
+                if not custo_stamp:
+                    raise ValueError('Seleção inválida: custo sem STAMP.')
+
+                exists = db.session.execute(text("""
+                    SELECT TOP 1 1
+                    FROM dbo.INVMAP WITH (UPDLOCK, HOLDLOCK)
+                    WHERE LTRIM(RTRIM(ISNULL(CUSTOSTAMP,''))) = :stamp
+                """), {'stamp': custo_stamp}).scalar()
+                if exists:
+                    raise ValueError('Este custo já foi utilizado num investimento.')
+
+                db.session.execute(text("""
+                    INSERT INTO dbo.INVMAP
+                    (INVMAPSTAMP, INVSTAMP, CUSTOSTAMP, [DATA], CCUSTO, FAMILIA, DESCR, VALOR, CRIADOEM)
+                    VALUES
+                    (:INVMAPSTAMP, :INVSTAMP, :CUSTOSTAMP, :DATA, :CCUSTO, :FAMILIA, :DESCR, :VALOR, GETDATE())
+                """), {
+                    'INVMAPSTAMP': _new_stamp_25(),
+                    'INVSTAMP': invstamp,
+                    'CUSTOSTAMP': custo_stamp[:25],
+                    'DATA': src.get('DATA'),
+                    'CCUSTO': str(src.get('CCUSTO') or '').strip()[:25] or None,
+                    'FAMILIA': str(src.get('FAMILIA') or '').strip()[:25] or None,
+                    'DESCR': str(src.get('DESCR') or '').strip()[:200] or None,
+                    'VALOR': round(float(src.get('VALOR') or 0), 2),
+                })
+
+            db.session.commit()
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao gravar investimento: {e}'}), 500
+
+        return jsonify({
+            'ok': True,
+            'invstamp': invstamp,
+            'ccusto': ccusto_sel,
+            'valortotal': valortotal,
+            'linhas': [
+                {
+                    'NUM': ln['NUM'],
+                    'DATAREF': ln['DATAREF'].isoformat(),
+                    'CCUSTO': ln['CCUSTO'],
+                    'DESCR': ln['DESCR'],
+                    'VALOR': round(float(ln['VALOR']), 2),
+                }
+                for ln in linhas
+            ],
+            'selected_count': len(selected_rows),
+        })
+
+    @app.route('/api/investimentos/lista', methods=['GET'])
+    @login_required
+    def api_investimentos_lista():
+        ano_raw = str(request.args.get('ano') or '').strip()
+        mes_raw = str(request.args.get('mes') or '').strip()
+        ccusto = str(request.args.get('ccusto') or '').strip()
+        q = str(request.args.get('q') or '').strip()
+
+        ano = _to_int(ano_raw, 0) if ano_raw else 0
+        mes = _to_int(mes_raw, 0) if mes_raw else 0
+        mes = mes if 1 <= mes <= 12 else 0
+
+        where = ["1=1"]
+        params = {}
+        if ano > 0 and mes > 0:
+            dini, dfim = _month_bounds(ano, mes)
+            where.append("I.DATAINV >= :dini AND I.DATAINV < :dfim")
+            params['dini'] = dini
+            params['dfim'] = dfim
+        elif ano > 0:
+            where.append("YEAR(I.DATAINV) = :ano")
+            params['ano'] = ano
+
+        if ccusto:
+            where.append("LTRIM(RTRIM(ISNULL(I.CCUSTO,''))) LIKE :ccusto")
+            params['ccusto'] = f'%{ccusto}%'
+        if q:
+            where.append("""
+                (
+                    LTRIM(RTRIM(ISNULL(I.DESCR,''))) LIKE :q
+                    OR LTRIM(RTRIM(ISNULL(I.INVSTAMP,''))) LIKE :q
+                    OR LTRIM(RTRIM(ISNULL(I.CCUSTO,''))) LIKE :q
+                )
+            """)
+            params['q'] = f'%{q}%'
+
+        sql = f"""
+            SELECT
+                ISNULL(I.INVSTAMP,'') AS INVSTAMP,
+                CAST(I.DATAINV AS date) AS DATAINV,
+                CAST(I.DATAINI AS date) AS DATAINI,
+                ISNULL(I.CCUSTO,'') AS CCUSTO,
+                ISNULL(I.DESCR,'') AS DESCR,
+                ISNULL(I.MESES,0) AS MESES,
+                CAST(ISNULL(I.VALORTOTAL,0) AS decimal(18,2)) AS VALORTOTAL,
+                I.CRIADOEM
+            FROM dbo.INV I
+            WHERE {' AND '.join(where)}
+            ORDER BY I.DATAINV DESC, I.CRIADOEM DESC
+        """
+        rows = db.session.execute(text(sql), params).mappings().all()
+        out = []
+        for r in rows:
+            out.append({
+                'INVSTAMP': str(r.get('INVSTAMP') or '').strip(),
+                'DATAINV': (r.get('DATAINV').isoformat() if r.get('DATAINV') else ''),
+                'DATAINI': (r.get('DATAINI').isoformat() if r.get('DATAINI') else ''),
+                'CCUSTO': str(r.get('CCUSTO') or '').strip(),
+                'DESCR': str(r.get('DESCR') or '').strip(),
+                'MESES': int(r.get('MESES') or 0),
+                'VALORTOTAL': round(float(r.get('VALORTOTAL') or 0), 2),
+                'CRIADOEM': (r.get('CRIADOEM').strftime('%Y-%m-%d %H:%M:%S') if r.get('CRIADOEM') else ''),
+            })
+        return jsonify({'rows': out})
+
+    @app.route('/api/investimentos/<invstamp>', methods=['GET'])
+    @login_required
+    def api_investimentos_detail(invstamp):
+        header = db.session.execute(text("""
+            SELECT
+                ISNULL(INVSTAMP,'') AS INVSTAMP,
+                ISNULL(DESCR,'') AS DESCR,
+                ISNULL(CCUSTO,'') AS CCUSTO,
+                CAST(DATAINV AS date) AS DATAINV,
+                CAST(DATAINI AS date) AS DATAINI,
+                CAST(DATAFIM AS date) AS DATAFIM,
+                ISNULL(MESES,0) AS MESES,
+                CAST(ISNULL(VALORTOTAL,0) AS decimal(18,2)) AS VALORTOTAL,
+                ISNULL(OBS,'') AS OBS,
+                ISNULL(ANULADO,0) AS ANULADO,
+                CRIADOEM,
+                ISNULL(CRIADOPOR,'') AS CRIADOPOR
+            FROM dbo.INV
+            WHERE INVSTAMP=:s
+        """), {'s': invstamp}).mappings().first()
+        if not header:
+            return jsonify({'error': 'Investimento não encontrado'}), 404
+
+        linhas = db.session.execute(text("""
+            SELECT
+                ISNULL(INVLSTAMP,'') AS INVLSTAMP,
+                CAST(DATAREF AS date) AS DATAREF,
+                ISNULL(CCUSTO,'') AS CCUSTO,
+                ISNULL(DESCR,'') AS DESCR,
+                CAST(ISNULL(VALOR,0) AS decimal(18,2)) AS VALOR
+            FROM dbo.INVL
+            WHERE INVSTAMP=:s
+            ORDER BY DATAREF, INVLSTAMP
+        """), {'s': invstamp}).mappings().all()
+
+        origem = db.session.execute(text("""
+            SELECT
+                ISNULL(INVMAPSTAMP,'') AS INVMAPSTAMP,
+                ISNULL(CUSTOSTAMP,'') AS CUSTOSTAMP,
+                CAST([DATA] AS date) AS [DATA],
+                ISNULL(CCUSTO,'') AS CCUSTO,
+                ISNULL(FAMILIA,'') AS FAMILIA,
+                ISNULL(DESCR,'') AS DESCR,
+                CAST(ISNULL(VALOR,0) AS decimal(18,2)) AS VALOR
+            FROM dbo.INVMAP
+            WHERE INVSTAMP=:s
+            ORDER BY [DATA], CUSTOSTAMP
+        """), {'s': invstamp}).mappings().all()
+
+        sum_linhas = round(sum(float(r.get('VALOR') or 0) for r in linhas), 2)
+        sum_origem = round(sum(float(r.get('VALOR') or 0) for r in origem), 2)
+        valortotal = round(float(header.get('VALORTOTAL') or 0), 2)
+        meses = int(header.get('MESES') or 0)
+
+        return jsonify({
+            'header': {
+                'INVSTAMP': str(header.get('INVSTAMP') or '').strip(),
+                'DESCR': str(header.get('DESCR') or '').strip(),
+                'CCUSTO': str(header.get('CCUSTO') or '').strip(),
+                'DATAINV': (header.get('DATAINV').isoformat() if header.get('DATAINV') else ''),
+                'DATAINI': (header.get('DATAINI').isoformat() if header.get('DATAINI') else ''),
+                'DATAFIM': (header.get('DATAFIM').isoformat() if header.get('DATAFIM') else ''),
+                'MESES': meses,
+                'VALORTOTAL': valortotal,
+                'OBS': str(header.get('OBS') or '').strip(),
+                'ANULADO': 1 if int(header.get('ANULADO') or 0) else 0,
+                'CRIADOEM': (header.get('CRIADOEM').strftime('%Y-%m-%d %H:%M:%S') if header.get('CRIADOEM') else ''),
+                'CRIADOPOR': str(header.get('CRIADOPOR') or '').strip(),
+            },
+            'linhas': [
+                {
+                    'INVLSTAMP': str(r.get('INVLSTAMP') or '').strip(),
+                    'DATAREF': (r.get('DATAREF').isoformat() if r.get('DATAREF') else ''),
+                    'CCUSTO': str(r.get('CCUSTO') or '').strip(),
+                    'DESCR': str(r.get('DESCR') or '').strip(),
+                    'VALOR': round(float(r.get('VALOR') or 0), 2),
+                }
+                for r in linhas
+            ],
+            'origem': [
+                {
+                    'INVMAPSTAMP': str(r.get('INVMAPSTAMP') or '').strip(),
+                    'CUSTOSTAMP': str(r.get('CUSTOSTAMP') or '').strip(),
+                    'DATA': (r.get('DATA').isoformat() if r.get('DATA') else ''),
+                    'CCUSTO': str(r.get('CCUSTO') or '').strip(),
+                    'FAMILIA': str(r.get('FAMILIA') or '').strip(),
+                    'DESCR': str(r.get('DESCR') or '').strip(),
+                    'VALOR': round(float(r.get('VALOR') or 0), 2),
+                }
+                for r in origem
+            ],
+            'consistencia': {
+                'sum_linhas': sum_linhas,
+                'sum_origem': sum_origem,
+                'valortotal': valortotal,
+                'linhas_ok': (abs(sum_linhas - valortotal) <= 0.01 and len(linhas) == meses),
+                'origem_ok': abs(sum_origem - valortotal) <= 0.01,
+            }
+        })
+
+    @app.route('/api/investimentos/<invstamp>/save', methods=['POST'])
+    @login_required
+    def api_investimentos_save(invstamp):
+        body = request.get_json(silent=True) or {}
+        header = body.get('header') if isinstance(body.get('header'), dict) else {}
+        recalc_lines = bool(body.get('recalc_lines'))
+
+        inv = db.session.execute(text("""
+            SELECT
+                INVSTAMP, DESCR, CCUSTO, DATAINV, DATAINI, DATAFIM, MESES,
+                CAST(ISNULL(VALORTOTAL,0) AS decimal(18,2)) AS VALORTOTAL,
+                ISNULL(OBS,'') AS OBS,
+                ISNULL(ANULADO,0) AS ANULADO
+            FROM dbo.INV WITH (UPDLOCK, ROWLOCK)
+            WHERE INVSTAMP=:s
+        """), {'s': invstamp}).mappings().first()
+        if not inv:
+            return jsonify({'error': 'Investimento não encontrado'}), 404
+        inv = dict(inv)
+
+        descr = str(header.get('DESCR') or inv.get('DESCR') or '').strip()
+        if not descr:
+            return jsonify({'error': 'DESCR é obrigatória.'}), 400
+        ccusto = str(inv.get('CCUSTO') or '').strip()
+        if not ccusto:
+            return jsonify({'error': 'CCUSTO inválido.'}), 400
+
+        datainv = _parse_iso_date(header.get('DATAINV'), inv.get('DATAINV'))
+        dataini = _parse_iso_date(header.get('DATAINI'), inv.get('DATAINI'))
+        if not datainv or not dataini:
+            return jsonify({'error': 'DATAINV e DATAINI são obrigatórias.'}), 400
+        dataini = date(dataini.year, dataini.month, 1)
+
+        meses = _to_int(header.get('MESES'), int(inv.get('MESES') or 0))
+        if meses <= 0:
+            return jsonify({'error': 'MESES tem de ser maior que zero.'}), 400
+
+        valortotal = round(float(inv.get('VALORTOTAL') or 0), 2)
+        if valortotal <= 0:
+            return jsonify({'error': 'VALORTOTAL tem de ser maior que zero.'}), 400
+
+        obs = str(header.get('OBS') if 'OBS' in header else inv.get('OBS') or '').strip()
+        linhas_calc = _generate_investment_lines(dataini, meses, valortotal, ccusto, descr)
+        datafim = linhas_calc[-1]['DATAREF'] if linhas_calc else dataini
+
+        try:
+            db.session.execute(text("""
+                UPDATE dbo.INV
+                SET DESCR=:DESCR,
+                    DATAINV=:DATAINV,
+                    DATAINI=:DATAINI,
+                    DATAFIM=:DATAFIM,
+                    MESES=:MESES,
+                    OBS=:OBS
+                WHERE INVSTAMP=:INVSTAMP
+            """), {
+                'INVSTAMP': invstamp,
+                'DESCR': descr[:200],
+                'DATAINV': datainv,
+                'DATAINI': dataini,
+                'DATAFIM': datafim,
+                'MESES': meses,
+                'OBS': (obs[:500] if obs else None),
+            })
+
+            if recalc_lines:
+                db.session.execute(text("DELETE FROM dbo.INVL WHERE INVSTAMP=:s"), {'s': invstamp})
+                for ln in linhas_calc:
+                    db.session.execute(text("""
+                        INSERT INTO dbo.INVL
+                        (INVLSTAMP, INVSTAMP, DATAREF, CCUSTO, DESCR, VALOR, CRIADOEM)
+                        VALUES
+                        (:INVLSTAMP, :INVSTAMP, :DATAREF, :CCUSTO, :DESCR, :VALOR, GETDATE())
+                    """), {
+                        'INVLSTAMP': _new_stamp_25(),
+                        'INVSTAMP': invstamp,
+                        'DATAREF': ln['DATAREF'],
+                        'CCUSTO': ccusto[:25],
+                        'DESCR': descr[:200],
+                        'VALOR': round(float(ln['VALOR']), 2),
+                    })
+            else:
+                db.session.execute(text("""
+                    UPDATE dbo.INVL
+                    SET DESCR=:DESCR
+                    WHERE INVSTAMP=:s
+                """), {'DESCR': descr[:200], 's': invstamp})
+
+            linha_stats = db.session.execute(text("""
+                SELECT
+                    COUNT(1) AS N,
+                    CAST(ISNULL(SUM(CAST(ISNULL(VALOR,0) AS decimal(18,2))),0) AS decimal(18,2)) AS TOTAL
+                FROM dbo.INVL
+                WHERE INVSTAMP=:s
+            """), {'s': invstamp}).mappings().first()
+            n_linhas = int((linha_stats or {}).get('N') or 0)
+            sum_linhas = round(float((linha_stats or {}).get('TOTAL') or 0), 2)
+            if n_linhas != meses:
+                raise ValueError('Número de linhas INVL diferente de MESES. Use "Recalcular linhas".')
+            if abs(sum_linhas - valortotal) > 0.01:
+                raise ValueError('Soma de INVL diferente de VALORTOTAL.')
+
+            map_total = db.session.execute(text("""
+                SELECT CAST(ISNULL(SUM(CAST(ISNULL(VALOR,0) AS decimal(18,2))),0) AS decimal(18,2)) AS TOTAL
+                FROM dbo.INVMAP
+                WHERE INVSTAMP=:s
+            """), {'s': invstamp}).scalar()
+            sum_map = round(float(map_total or 0), 2)
+            if abs(sum_map - valortotal) > 0.01:
+                raise ValueError('Divergência entre INVMAP e VALORTOTAL.')
+
+            db.session.commit()
+            return jsonify({'ok': True, 'invstamp': invstamp})
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao gravar investimento: {e}'}), 500
+
+    @app.route('/api/investimentos/<invstamp>/delete', methods=['POST'])
+    @login_required
+    def api_investimentos_delete(invstamp):
+        row = db.session.execute(text("""
+            SELECT INVSTAMP
+            FROM dbo.INV WITH (UPDLOCK, ROWLOCK)
+            WHERE INVSTAMP=:s
+        """), {'s': invstamp}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Investimento não encontrado'}), 404
+        try:
+            db.session.execute(text("DELETE FROM dbo.INVL WHERE INVSTAMP=:s"), {'s': invstamp})
+            db.session.execute(text("DELETE FROM dbo.INVMAP WHERE INVSTAMP=:s"), {'s': invstamp})
+            db.session.execute(text("DELETE FROM dbo.INV WHERE INVSTAMP=:s"), {'s': invstamp})
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao eliminar investimento: {e}'}), 500
 
     @app.route('/api/faturacao/clientes', methods=['GET'])
     @login_required
@@ -2847,9 +3888,21 @@ def create_app():
                                 )
                             continue
 
-                    total_global = round(_num(row.get('ESTADIA'), 0) + _num(row.get('LIMPEZA'), 0), 2)
+                    dataout = row.get('DATAOUT') or date.today()
+                    datain = row.get('DATAIN') or dataout
+                    fdata = dataout if int(srow.get('NO_SAFT') or 0) == 1 else date.today()
+                    desc = f"Estadia {_to_int(row.get('NOITES'), 0)} noites de {datain.strftime('%d.%m.%Y')} a {dataout.strftime('%d.%m.%Y')}"
+                    cutoff_split_lines = date(2026, 3, 2)
+                    estadia_val = round(_num(row.get('ESTADIA'), 0), 2)
+                    limpeza_val = round(_num(row.get('LIMPEZA'), 0), 2)
+                    estadia_plus_limpeza = round(estadia_val + limpeza_val, 2)
+                    use_split_lines = fdata <= cutoff_split_lines
+                    total_global = estadia_plus_limpeza
                     if total_global <= 0:
-                        errors.append({'RSSTAMP': row.get('RSSTAMP'), 'error': 'Valor total da reserva sem montante faturável.'})
+                        errors.append({
+                            'RSSTAMP': row.get('RSSTAMP'),
+                            'error': 'Valor da reserva sem montante faturável para a regra de IVA/data aplicada.'
+                        })
                         processed += 1
                         if callable(progress_cb):
                             progress_cb(
@@ -2860,11 +3913,6 @@ def create_app():
                                 errors=len(errors),
                             )
                         continue
-
-                    dataout = row.get('DATAOUT') or date.today()
-                    datain = row.get('DATAIN') or dataout
-                    fdata = dataout if int(srow.get('NO_SAFT') or 0) == 1 else date.today()
-                    desc = f"Estadia {_to_int(row.get('NOITES'), 0)} noites de {datain.strftime('%d.%m.%Y')} a {dataout.strftime('%d.%m.%Y')}"
 
                     payload = _default_ft_payload(user_login)
                     payload.update({
@@ -2917,29 +3965,73 @@ def create_app():
                             's': payload['FTSTAMP']
                         })
 
-                    db.session.execute(text("""
+                    fi_insert_sql = text("""
                         INSERT INTO dbo.FI
                         (FISTAMP, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA)
                         VALUES
                         (:FISTAMP, :NMDOC, 0, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA)
-                    """), {
-                        'FISTAMP': _new_stamp_25(),
-                        'NMDOC': payload['NMDOC'],
-                        'REF': 'ESTADIAS',
-                        'DESIGN': desc[:60],
-                        'QTT': 1,
-                        'ETILIQUIDO': total_global,
-                        'UNIDADE': 'UN',
-                        'IVA': 23,
-                        'IVAINCL': 1,
-                        'TABIVA': 2,
-                        'NDOC': payload['NDOC'],
-                        'LORDEM': 10,
-                        'FTSTAMP': payload['FTSTAMP'],
-                        'FICCUSTO': '',
-                        'EPV': total_global,
-                        'FAMILIA': ''
-                    })
+                    """)
+
+                    # Até 2026-03-02 (inclusive): 2 linhas (ESTADIA 6% + LIMPEZA 23%).
+                    # Desde 2026-03-03: linha única de ESTADIA a 6%.
+                    if use_split_lines:
+                        if estadia_val > 0:
+                            db.session.execute(fi_insert_sql, {
+                                'FISTAMP': _new_stamp_25(),
+                                'NMDOC': payload['NMDOC'],
+                                'REF': 'ESTADIA',
+                                'DESIGN': desc[:60],
+                                'QTT': 1,
+                                'ETILIQUIDO': estadia_val,
+                                'UNIDADE': 'UN',
+                                'IVA': 6,
+                                'IVAINCL': 1,
+                                'TABIVA': 1,
+                                'NDOC': payload['NDOC'],
+                                'LORDEM': 10,
+                                'FTSTAMP': payload['FTSTAMP'],
+                                'FICCUSTO': '',
+                                'EPV': estadia_val,
+                                'FAMILIA': ''
+                            })
+                        if limpeza_val > 0:
+                            db.session.execute(fi_insert_sql, {
+                                'FISTAMP': _new_stamp_25(),
+                                'NMDOC': payload['NMDOC'],
+                                'REF': 'LIMPEZA',
+                                'DESIGN': 'Taxa de Limpeza',
+                                'QTT': 1,
+                                'ETILIQUIDO': limpeza_val,
+                                'UNIDADE': 'UN',
+                                'IVA': 23,
+                                'IVAINCL': 1,
+                                'TABIVA': 2,
+                                'NDOC': payload['NDOC'],
+                                'LORDEM': 20,
+                                'FTSTAMP': payload['FTSTAMP'],
+                                'FICCUSTO': '',
+                                'EPV': limpeza_val,
+                                'FAMILIA': ''
+                            })
+                    else:
+                        db.session.execute(fi_insert_sql, {
+                            'FISTAMP': _new_stamp_25(),
+                            'NMDOC': payload['NMDOC'],
+                            'REF': 'ESTADIA',
+                            'DESIGN': desc[:60],
+                            'QTT': 1,
+                            'ETILIQUIDO': estadia_plus_limpeza,
+                            'UNIDADE': 'UN',
+                            'IVA': 6,
+                            'IVAINCL': 1,
+                            'TABIVA': 1,
+                            'NDOC': payload['NDOC'],
+                            'LORDEM': 10,
+                            'FTSTAMP': payload['FTSTAMP'],
+                            'FICCUSTO': '',
+                            'EPV': estadia_plus_limpeza,
+                            'FAMILIA': ''
+                        })
 
                     db.session.commit()
                     res_emit = _emit_ft_core_global(payload['FTSTAMP'], user_login)

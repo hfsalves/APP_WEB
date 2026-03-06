@@ -24,6 +24,12 @@ const addBillingBtn = document.getElementById('rsAddBilling');
 const billingModalEl = document.getElementById('rsBillingModal');
 const billingModal = billingModalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(billingModalEl) : null;
 const billingSaveBtn = document.getElementById('rsBillingSaveBtn');
+const openGuestChatBtn = document.getElementById('rsOpenGuestChat');
+const chatModalEl = document.getElementById('rsChatModal');
+const chatModal = chatModalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(chatModalEl) : null;
+const chatMetaEl = document.getElementById('rsChatMeta');
+const chatBodyEl = document.getElementById('rsChatBody');
+const chatRefreshBtn = document.getElementById('rsChatRefreshBtn');
 const billingFieldIds = ['FTNOME', 'FTMORADA', 'FTLOCAL', 'FTCODPOST', 'FTNCONT', 'FTEMAIL'];
 const billingInputMap = Object.fromEntries(billingFieldIds.map((name) => [name, document.getElementById(`RSB_${name}`)]));
 
@@ -71,6 +77,7 @@ let header = {};
 let guests = [];
 let config = { alojamentos: [], origens: [] };
 let guestEditIndex = -1;
+let chatRefreshRunning = false;
 
 const n = (value, fallback = 0) => {
   if (typeof value === 'boolean') return value ? 1 : 0;
@@ -227,6 +234,11 @@ function updatePublicLinkUi() {
   const url = buildPublicGuideUrl();
   if (openPublicLinkBtn) openPublicLinkBtn.disabled = !url;
   if (copyPublicLinkBtn) copyPublicLinkBtn.disabled = !url;
+}
+
+function updateChatUi() {
+  const code = String(header.RESERVA || '').trim();
+  if (openGuestChatBtn) openGuestChatBtn.disabled = !code;
 }
 
 function billingHasData() {
@@ -433,6 +445,26 @@ function formatDatePt(value) {
   return `${bits[2]}/${bits[1]}/${bits[0]}`;
 }
 
+function formatDateTime(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) {
+    try {
+      return new Intl.DateTimeFormat('pt-PT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(d);
+    } catch (_) {
+      return raw;
+    }
+  }
+  return raw;
+}
+
 function isImageType(ext) {
   return /^(png|jpg|jpeg|gif|webp)$/i.test(String(ext || ''));
 }
@@ -582,6 +614,196 @@ async function loadCleaningInfo() {
   }
 }
 
+function renderChat(messages, reservationCode) {
+  if (!chatBodyEl || !chatMetaEl) return;
+  const list = Array.isArray(messages) ? messages : [];
+  chatMetaEl.textContent = reservationCode
+    ? `Reserva ${reservationCode} · ${list.length} mensagem(ns)`
+    : `${list.length} mensagem(ns)`;
+  if (!list.length) {
+    chatBodyEl.innerHTML = '<div class="rsf-chat-empty">Sem mensagens para esta reserva.</div>';
+    return;
+  }
+
+  const sorted = [...list].sort((a, b) => {
+    const da = new Date(String(a.created_at || ''));
+    const db = new Date(String(b.created_at || ''));
+    const va = Number.isNaN(da.getTime()) ? 0 : da.getTime();
+    const vb = Number.isNaN(db.getTime()) ? 0 : db.getTime();
+    return va - vb;
+  });
+
+  chatBodyEl.innerHTML = sorted.map((msg) => {
+    const dir = String(msg.direction || '').toLowerCase() === 'host' ? 'host' : 'guest';
+    const sender = String(msg.sender_name || '').trim() || (dir === 'host' ? 'Nós' : 'Hóspede');
+    const textMsg = String(msg.text || '').trim() || '(sem texto)';
+    const timeTxt = formatDateTime(msg.created_at || '');
+    return `
+      <div class="rsf-chat-row ${dir}">
+        <div class="rsf-chat-bubble">
+          <div class="rsf-chat-sender">${escapeHtml(sender)}</div>
+          <div class="rsf-chat-text">${escapeHtml(textMsg)}</div>
+          <div class="rsf-chat-time">${escapeHtml(timeTxt || '')}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  requestAnimationFrame(() => {
+    chatBodyEl.scrollTop = chatBodyEl.scrollHeight;
+  });
+}
+
+async function _openGuestChatModalLegacy() {
+  if (!chatModal || !chatMetaEl || !chatBodyEl) return;
+  chatMetaEl.textContent = 'A carregar...';
+  chatBodyEl.innerHTML = '<div class="rsf-chat-empty">A carregar mensagens...</div>';
+  chatModal.show();
+
+  try {
+    const resp = await fetch(`/api/reservas/rs/${encodeURIComponent(rsStamp)}/chat`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || 'Erro ao carregar chat');
+    renderChat(data.messages || [], data.reservation_code || '');
+  } catch (err) {
+    chatMetaEl.textContent = 'Chat do hóspede';
+    chatBodyEl.innerHTML = `<div class="rsf-chat-empty text-danger">${escapeHtml(err.message || 'Erro ao carregar chat')}</div>`;
+  }
+}
+
+function chatErrorMessage(status, payload, fallback = 'Erro ao carregar chat') {
+  const msg = String((payload && (payload.error || payload.message)) || '').trim();
+  if (status === 401 || status === 403) return msg || 'Token invÃ¡lido para integraÃ§Ã£o do chat.';
+  if (status === 404) return msg || 'Chat/reserva ainda nÃ£o importados.';
+  if (status === 503) return msg || 'sync_engine temporariamente indisponÃ­vel.';
+  return msg || fallback;
+}
+
+function setChatRefreshing(on, label = '') {
+  chatRefreshRunning = !!on;
+  if (chatRefreshBtn) {
+    chatRefreshBtn.disabled = chatRefreshRunning;
+    chatRefreshBtn.innerHTML = chatRefreshRunning
+      ? '<i class="fa-solid fa-spinner fa-spin me-1"></i> A atualizar...'
+      : '<i class="fa-solid fa-rotate me-1"></i> Atualizar Chat';
+  }
+  if (label && chatMetaEl) chatMetaEl.textContent = label;
+}
+
+async function loadGuestChatMessages(showLoading = true) {
+  if (!chatMetaEl || !chatBodyEl) return { reservation_code: '', messages: [] };
+  if (showLoading) {
+    chatMetaEl.textContent = 'A carregar...';
+    chatBodyEl.innerHTML = '<div class="rsf-chat-empty">A carregar mensagens...</div>';
+  }
+  const resp = await fetch(`/api/reservas/rs/${encodeURIComponent(rsStamp)}/chat`);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const err = new Error(chatErrorMessage(resp.status, data, 'Erro ao carregar chat'));
+    err.status = resp.status;
+    throw err;
+  }
+  renderChat(data.messages || [], data.reservation_code || '');
+  return data;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeJobStatus(job) {
+  return String((job && (job.status || job.state)) || '').trim().toLowerCase();
+}
+
+function formatJobFailure(job) {
+  const parts = [];
+  const msg = String((job && (job.error_message || job.error || job.message)) || '').trim();
+  const stdoutTail = String((job && job.stdout_tail) || '').trim();
+  const stderrTail = String((job && job.stderr_tail) || '').trim();
+  if (msg) parts.push(msg);
+  if (stdoutTail) parts.push(`stdout: ${stdoutTail}`);
+  if (stderrTail) parts.push(`stderr: ${stderrTail}`);
+  return parts.join('\n');
+}
+
+async function pollChatRefreshJob(jobId) {
+  const timeoutMs = 180000;
+  const intervalMs = 2500;
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const resp = await fetch(`/api/reservas/rs/${encodeURIComponent(rsStamp)}/chat/refresh/jobs/${encodeURIComponent(jobId)}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(chatErrorMessage(resp.status, data, 'Erro a consultar estado de atualizaÃ§Ã£o'));
+
+    const job = (data && typeof data === 'object' ? data.job : null) || {};
+    const status = normalizeJobStatus(job);
+    if (chatMetaEl) chatMetaEl.textContent = `A atualizar chat... (${status || 'running'})`;
+
+    if (status === 'success' || status === 'done' || status === 'completed') return job;
+    if (status === 'failed' || status === 'error' || status === 'stopped' || status === 'cancelled' || status === 'canceled') {
+      throw new Error(formatJobFailure(job) || 'AtualizaÃ§Ã£o de chat falhou.');
+    }
+    await sleep(intervalMs);
+  }
+
+  throw new Error('Timeout ao atualizar chat (180s).');
+}
+
+async function refreshGuestChat() {
+  if (chatRefreshRunning || !chatMetaEl || !chatBodyEl) return;
+  const reservationCode = String(header.RESERVA || '').trim();
+  if (!reservationCode) {
+    chatMetaEl.textContent = 'Chat do hÃ³spede';
+    chatBodyEl.innerHTML = '<div class="rsf-chat-empty text-danger">Reserva sem cÃ³digo Airbnb.</div>';
+    return;
+  }
+
+  try {
+    setChatRefreshing(true, 'A atualizar chat...');
+    const resp = await fetch(`/api/reservas/rs/${encodeURIComponent(rsStamp)}/chat/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(chatErrorMessage(resp.status, data, 'Erro ao pedir atualizaÃ§Ã£o do chat'));
+
+    const jobId = String((data && data.job && (data.job.job_id || data.job.id)) || '').trim();
+    if (!jobId) throw new Error('Resposta de refresh sem job_id.');
+
+    await pollChatRefreshJob(jobId);
+    setChatRefreshing(true, 'Chat atualizado. A carregar mensagens...');
+    await loadGuestChatMessages(false);
+  } catch (err) {
+    if (chatMetaEl) chatMetaEl.textContent = 'Falha ao atualizar chat';
+    if (chatBodyEl && String(chatBodyEl.innerHTML || '').trim() === '') {
+      chatBodyEl.innerHTML = '<div class="rsf-chat-empty">Sem mensagens.</div>';
+    }
+    chatBodyEl?.insertAdjacentHTML('beforeend', `<div class="rsf-chat-empty text-danger">${escapeHtml((err && err.message) || 'Erro ao atualizar chat')}</div>`);
+  } finally {
+    setChatRefreshing(false);
+  }
+}
+
+async function openGuestChatModal() {
+  if (!chatModal || !chatMetaEl || !chatBodyEl) return;
+  chatModal.show();
+  try {
+    await loadGuestChatMessages(true);
+  } catch (err) {
+    const status = Number(err?.status || 0);
+    const msg = String(err?.message || '');
+    const shouldAutoRefresh = status === 404 || /nao importados|n.o importados|ainda/i.test(msg);
+    if (shouldAutoRefresh) {
+      chatMetaEl.textContent = 'Sem mensagens importadas. A iniciar atualizacao...';
+      chatBodyEl.innerHTML = '<div class="rsf-chat-empty">A iniciar atualizacao do chat...</div>';
+      await refreshGuestChat();
+      return;
+    }
+    chatMetaEl.textContent = 'Chat do hospede';
+    chatBodyEl.innerHTML = `<div class="rsf-chat-empty text-danger">${escapeHtml(msg || 'Erro ao carregar chat')}</div>`;
+  }
+}
+
 async function loadConfig() {
   const resp = await fetch('/api/reservas/rs/config');
   if (!resp.ok) throw new Error('Erro ao carregar configuração');
@@ -598,6 +820,7 @@ async function loadDocument() {
   guests = Array.isArray(data.guests) ? data.guests : [];
   writeHeaderToForm();
   updatePublicLinkUi();
+  updateChatUi();
   renderBillingCard();
   renderGuests();
   await loadCleaningInfo();
@@ -623,6 +846,7 @@ async function saveDocument() {
     updateTitle();
     updateGuestsStatus();
     updatePublicLinkUi();
+    updateChatUi();
     renderBillingCard();
     await loadCleaningInfo();
   } finally {
@@ -675,6 +899,14 @@ async function init() {
     guestSaveBtn?.addEventListener('click', saveGuestModal);
     guestDeleteBtn?.addEventListener('click', deleteGuestModal);
     billingSaveBtn?.addEventListener('click', saveBillingModal);
+    openGuestChatBtn?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      openGuestChatModal();
+    });
+    chatRefreshBtn?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      refreshGuestChat();
+    });
     openPublicLinkBtn?.addEventListener('click', () => {
       const url = buildPublicGuideUrl();
       if (url) window.open(url, '_blank', 'noopener');

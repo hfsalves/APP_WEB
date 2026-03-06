@@ -1,0 +1,10 @@
+2026/03/05-14:28:55.749 3068 Reusing MANIFEST C:\APP_WEB\.chrome-pdf-profile\p_1772720931167\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
+2026/03/05-14:28:55.751 3068 Recovering log #3
+2026/03/05-14:28:55.752 3068 Level-0 table #3: started
+2026/03/05-14:28:55.763 3068 Level-0 table #3: 681597 bytes OK
+2026/03/05-14:28:55.764 3068 Recovering log #4
+2026/03/05-14:28:55.765 3068 Reusing old log C:\APP_WEB\.chrome-pdf-profile\p_1772720931167\Default\EdgeCoupons/coupons_data.db/000004.log 
+2026/03/05-14:28:55.767 3068 Delete type=0 #3
+2026/03/05-14:28:55.768 3068 Delete type=2 #5
+2026/03/05-14:28:55.776 8028 Level-0 table #6: started
+2026/03/05-14:28:55.792 8028 Level-0 table #6: 681700 bytes OK

@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block title %}Investimentos{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 invp-page">
+  <div class="invp-header mb-3">
+    <h1 class="invp-title mb-0">Investimentos Internos</h1>
+    <div class="invp-subtitle">Custos amortizados por CCUSTO (família 3)</div>
+  </div>
+
+  <div class="card shadow-sm invp-toolbar mb-3">
+    <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-2">
+      <label class="small text-muted mb-0">Ano</label>
+      <input id="invAno" type="number" class="form-control form-control-sm" style="width:96px;" value="{{ ano_inicial }}">
+      <label class="small text-muted mb-0">Mês</label>
+      <select id="invMes" class="form-select form-select-sm" style="width:150px;">
+        <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+        <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+        <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+        <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+      </select>
+      <div class="form-check form-switch mb-0 ms-1">
+        <input class="form-check-input" type="checkbox" id="invExcluiGestao" checked>
+        <label class="form-check-label small text-muted" for="invExcluiGestao">Excluir Gestão</label>
+      </div>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <span id="invResumoSel" class="invp-summary">0 custos selecionados — Total: 0,00 €</span>
+        <button id="invCriarBtn" class="btn btn-sm btn-primary" disabled><i class="fa-solid fa-plus"></i> Criar investimento</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm invp-grid-card">
+    <div class="card-body p-0">
+      <div class="table-responsive invp-grid-wrap">
+        <table class="table table-sm mb-0 invp-table">
+          <thead>
+            <tr>
+              <th style="width:42px;" class="text-center"></th>
+              <th style="width:130px;">DATA</th>
+              <th style="width:130px;">CCUSTO</th>
+              <th style="width:120px;">FAMILIA</th>
+              <th>DESCR</th>
+              <th style="width:140px;" class="text-end">VALOR</th>
+            </tr>
+          </thead>
+          <tbody id="invBody">
+            <tr><td colspan="6" class="text-muted p-3">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="invCreateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Criar investimento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body invp-modal-body">
+        <div class="invp-panel invp-modal-head">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="invp-panel-title mb-0">Cabeçalho (INV)</div>
+            <div id="invSelInfo" class="small text-muted"></div>
+          </div>
+          <div class="row g-2">
+            <div class="col-12 col-lg-6">
+              <label class="form-label">DESCR</label>
+              <input id="invDescr" class="form-control">
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label">CCUSTO</label>
+              <input id="invCcusto" class="form-control" readonly>
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label">DATAINV</label>
+              <input id="invDataInv" type="date" class="form-control">
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label">DATAINI</label>
+              <input id="invDataIni" type="date" class="form-control">
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label">MESES</label>
+              <input id="invMeses" type="number" min="1" class="form-control text-end" value="12">
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label">VALORTOTAL</label>
+              <input id="invValorTotal" class="form-control text-end" readonly>
+            </div>
+            <div class="col-12 col-lg-8">
+              <label class="form-label">OBS</label>
+              <textarea id="invObs" class="form-control" rows="2"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="invp-panel invp-modal-lines mt-3">
+          <div class="invp-panel-title">Pré-visualização das linhas (INVL)</div>
+          <div class="table-responsive invp-preview-wrap">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th style="width:60px;">Nº</th>
+                  <th style="width:120px;">DATAREF</th>
+                  <th style="width:120px;">CCUSTO</th>
+                  <th>DESCR</th>
+                  <th style="width:130px;" class="text-end">VALOR</th>
+                </tr>
+              </thead>
+              <tbody id="invPreviewBody">
+                <tr><td colspan="5" class="text-muted p-2">Sem linhas.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="btn btn-outline-primary" id="invRecalcBtn">Recalcular linhas</button>
+        <button type="button" class="btn btn-primary" id="invSaveBtn">Gravar investimento</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .invp-page{
+    min-height:calc(100vh - 120px);
+    background:
+      radial-gradient(900px 480px at -8% -18%, rgba(59,130,246,.12) 0%, rgba(59,130,246,0) 62%),
+      radial-gradient(920px 480px at 108% -14%, rgba(14,165,233,.10) 0%, rgba(14,165,233,0) 62%);
+  }
+  .invp-header{ display:flex; flex-direction:column; gap:2px; }
+  .invp-title{
+    font-size:1.24rem;
+    font-weight:800;
+    color:#0b1220;
+    letter-spacing:.01em;
+  }
+  .invp-subtitle{
+    font-size:.86rem;
+    color:#5b6b82;
+  }
+
+  .invp-toolbar,.invp-grid-card{
+    border:1px solid rgba(187,205,230,.9);
+    border-radius:18px;
+    background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+    box-shadow:0 18px 44px rgba(15,23,42,.08);
+    overflow:hidden;
+  }
+  .invp-toolbar .card-body{ background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%); }
+  .invp-grid-wrap{ max-height:calc(100vh - 275px); overflow:auto; }
+
+  .invp-toolbar .form-control,
+  .invp-toolbar .form-select{
+    border:1px solid #d3deed;
+    border-radius:12px;
+    background:#fff;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+    color:#0f172a;
+  }
+  .invp-toolbar .form-control:focus,
+  .invp-toolbar .form-select:focus{
+    border-color:#7db2ff;
+    box-shadow:0 0 0 .2rem rgba(59,130,246,.16);
+  }
+
+  #invCriarBtn{
+    border-radius:12px;
+    border:0;
+    color:#fff;
+    font-weight:700;
+    background:linear-gradient(90deg,#2563eb 0%,#0ea5e9 100%);
+    box-shadow:0 10px 24px rgba(37,99,235,.28);
+  }
+  #invCriarBtn:hover{ filter:brightness(.96); color:#fff; }
+  #invCriarBtn:disabled{
+    opacity:.55;
+    box-shadow:none;
+  }
+
+  .invp-summary{
+    font-size:.82rem;
+    font-weight:700;
+    color:#0f172a;
+    background:#eff6ff;
+    border:1px solid #bfdbfe;
+    border-radius:999px;
+    padding:5px 12px;
+  }
+
+  .invp-table{
+    min-width:900px;
+    color:#0f172a;
+    font-size:.84rem;
+    line-height:1.28;
+  }
+  .invp-table thead th{
+    position:sticky;
+    top:0;
+    z-index:3;
+    background:linear-gradient(180deg,#f8fbff 0%,#ecf4ff 100%);
+    border-bottom:1px solid rgba(148,163,184,.45);
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:#334155;
+    font-weight:800;
+    padding:.58rem .65rem;
+  }
+  .invp-table tbody td{
+    border-bottom:1px solid #edf2f7;
+    vertical-align:middle;
+    padding:.55rem .65rem;
+    font-size:.83rem;
+  }
+  .invp-table tbody tr:nth-child(even) td{ background:#fcfdff; }
+  .invp-table tbody tr:hover td{ background:#eef6ff; }
+  .invp-row-selected td{
+    background:linear-gradient(90deg,#e8f2ff 0%, #f0f8ff 100%) !important;
+  }
+
+  .invp-panel{
+    border:1px solid #e2e8f0;
+    border-radius:14px;
+    padding:13px;
+    background:linear-gradient(145deg,#ffffff 0%,#f8fbff 100%);
+    box-shadow:0 8px 20px rgba(15,23,42,.04);
+  }
+  .invp-panel-title{
+    font-size:.92rem;
+    font-weight:800;
+    color:#0f172a;
+    margin-bottom:.65rem;
+  }
+  #invSelInfo{
+    font-weight:600;
+    color:#64748b !important;
+  }
+
+  #invCreateModal .modal-dialog{
+    max-width:min(1280px,96vw);
+  }
+  #invCreateModal .modal-content{
+    height:min(88vh,920px);
+    border-radius:18px;
+    border:1px solid #d7e3f3;
+    overflow:hidden;
+    box-shadow:0 28px 62px rgba(15,23,42,.34);
+  }
+  #invCreateModal .modal-header{
+    border-bottom:1px solid rgba(255,255,255,.12);
+    background:linear-gradient(90deg,#0f172a 0%,#1e3a8a 52%,#0ea5e9 100%);
+    color:#fff;
+    padding:.85rem 1rem;
+  }
+  #invCreateModal .modal-title{
+    font-size:1rem;
+    font-weight:800;
+    letter-spacing:.01em;
+  }
+  #invCreateModal .btn-close{ filter:invert(1) saturate(0) brightness(2); }
+  #invCreateModal .modal-body{
+    background:#f5f9ff;
+    padding:1rem;
+  }
+  #invCreateModal .modal-footer{
+    border-top:1px solid #dbe5f3;
+    background:#f8fbff;
+    padding:.75rem 1rem;
+  }
+  #invRecalcBtn{
+    border-radius:12px;
+    border-color:#c5d8f7;
+    color:#1d4ed8;
+    font-weight:600;
+    background:#fff;
+  }
+  #invRecalcBtn:hover{ background:#eef5ff; }
+  #invSaveBtn{
+    border-radius:12px;
+    border:0;
+    font-weight:700;
+    background:linear-gradient(90deg,#2563eb 0%,#0ea5e9 100%);
+    box-shadow:0 10px 22px rgba(37,99,235,.25);
+  }
+
+  #invCreateModal .form-label{
+    margin-bottom:.26rem;
+    font-size:.72rem;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:#5b6b82;
+    font-weight:700;
+  }
+  #invCreateModal .form-control,
+  #invCreateModal .form-select{
+    border:1px solid #cfdaea;
+    border-radius:11px;
+    background:#fff;
+    color:#0f172a;
+  }
+  #invCreateModal .form-control:focus,
+  #invCreateModal .form-select:focus{
+    border-color:#7db2ff;
+    box-shadow:0 0 0 .2rem rgba(59,130,246,.16);
+  }
+
+  .invp-modal-body{
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+    overflow:hidden;
+    gap:0;
+  }
+  .invp-modal-head{
+    flex:0 0 auto;
+  }
+  .invp-modal-lines{
+    flex:1 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+  }
+  .invp-preview-wrap{
+    flex:1 1 auto;
+    min-height:0;
+    overflow:auto;
+    border-radius:10px;
+    border:1px solid #e2e8f0;
+    background:#fff;
+  }
+  .invp-preview-wrap table{ margin-bottom:0; }
+  .invp-preview-wrap{
+    font-size:.83rem;
+    line-height:1.26;
+  }
+  .invp-preview-wrap thead th{
+    position:sticky;
+    top:0;
+    z-index:2;
+    background:linear-gradient(180deg,#f8fbff 0%,#eef4ff 100%);
+    border-bottom:1px solid #dbe5f3;
+    text-transform:uppercase;
+    font-size:9.8px;
+    letter-spacing:.05em;
+    color:#334155;
+    font-weight:800;
+  }
+  .invp-preview-wrap tbody td{
+    border-bottom:1px solid #edf2f7;
+    padding:.48rem .55rem;
+    vertical-align:middle;
+    font-size:.81rem;
+  }
+  .invp-preview-wrap tbody tr:nth-child(even) td{ background:#fcfdff; }
+
+  .invp-grid-wrap::-webkit-scrollbar,
+  .invp-preview-wrap::-webkit-scrollbar{ width:10px; height:10px; }
+  .invp-grid-wrap::-webkit-scrollbar-thumb,
+  .invp-preview-wrap::-webkit-scrollbar-thumb{
+    background:#c6d5ea;
+    border-radius:999px;
+    border:2px solid transparent;
+    background-clip:padding-box;
+  }
+  .invp-grid-wrap::-webkit-scrollbar-track,
+  .invp-preview-wrap::-webkit-scrollbar-track{
+    background:#eef3fb;
+    border-radius:999px;
+  }
+
+  @media (max-width: 992px){
+    .invp-grid-wrap{ max-height:calc(100vh - 320px); }
+    #invCreateModal .modal-content{ height:min(90vh,960px); }
+  }
+</style>
+
+<script>
+  window.INV_ANO_INICIAL = Number("{{ ano_inicial }}");
+  window.INV_MES_INICIAL = Number("{{ mes_inicial }}");
+</script>
+<script src="{{ url_for('static', filename='js/investimentos.js') }}?v={{ static_version }}"></script>
+{% endblock %}

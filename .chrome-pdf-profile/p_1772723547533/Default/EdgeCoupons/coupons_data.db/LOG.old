@@ -1,0 +1,4 @@
+2026/03/05-15:12:29.815 aa64 Creating DB C:\APP_WEB\.chrome-pdf-profile\p_1772723547533\Default\EdgeCoupons/coupons_data.db since it was missing.
+2026/03/05-15:12:29.846 aa64 Reusing MANIFEST C:\APP_WEB\.chrome-pdf-profile\p_1772723547533\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
+2026/03/05-15:12:29.856 543c Level-0 table #5: started
+2026/03/05-15:12:29.868 543c Level-0 table #5: 681597 bytes OK

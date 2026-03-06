@@ -160,6 +160,12 @@
                 <button id="rsCopyPublicLink" type="button" class="btn btn-outline-secondary btn-sm">Copiar</button>
               </div>
             </div>
+            <div class="rsf-public-link">
+              <div class="rsf-public-link-label">Chat do H&oacute;spede</div>
+              <div class="rsf-public-link-row">
+                <button id="rsOpenGuestChat" type="button" class="btn btn-outline-primary btn-sm">Consultar Chat</button>
+              </div>
+            </div>
           </div>
 
         <div class="rsf-section">
@@ -236,6 +242,31 @@
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
           <button type="button" class="btn btn-primary btn-sm" id="rsGuestSaveBtn">Gravar</button>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="rsChatModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rsf-modal-content">
+      <div class="modal-header rsf-modal-header">
+        <h5 class="modal-title" id="rsChatModalTitle">Chat do H&oacute;spede</h5>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-outline-light btn-sm" id="rsChatRefreshBtn">
+            <i class="fa-solid fa-rotate me-1"></i> Atualizar Chat
+          </button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+      </div>
+      <div class="modal-body rsf-modal-body">
+        <div id="rsChatMeta" class="rsf-chat-meta">A carregar...</div>
+        <div id="rsChatBody" class="rsf-chat-body">
+          <div class="rsf-chat-empty">A carregar mensagens...</div>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-end rsf-modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>
@@ -579,6 +610,74 @@
   }
   #rsBillingModal .modal-dialog {
     max-width: 760px;
+  }
+  #rsChatModal .modal-dialog {
+    max-width: 820px;
+  }
+  .rsf-chat-meta {
+    font-size: 0.78rem;
+    color: #64748b;
+    font-weight: 700;
+    margin-bottom: 0.6rem;
+    white-space: pre-line;
+  }
+  .rsf-chat-body {
+    max-height: 52vh;
+    overflow: auto;
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.2rem;
+  }
+  .rsf-chat-empty {
+    text-align: center;
+    color: #64748b;
+    font-weight: 600;
+    padding: 1rem;
+  }
+  .rsf-chat-row {
+    display: flex;
+    width: 100%;
+  }
+  .rsf-chat-row.guest {
+    justify-content: flex-start;
+  }
+  .rsf-chat-row.host {
+    justify-content: flex-end;
+  }
+  .rsf-chat-bubble {
+    max-width: 80%;
+    border-radius: 14px;
+    padding: 0.58rem 0.72rem;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+    background: #fff;
+  }
+  .rsf-chat-row.guest .rsf-chat-bubble {
+    background: #ffffff;
+    border-color: rgba(148, 163, 184, 0.35);
+  }
+  .rsf-chat-row.host .rsf-chat-bubble {
+    background: #eff6ff;
+    border-color: rgba(96, 165, 250, 0.35);
+  }
+  .rsf-chat-sender {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 0.2rem;
+  }
+  .rsf-chat-text {
+    font-size: 0.84rem;
+    color: #0f172a;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.35;
+  }
+  .rsf-chat-time {
+    margin-top: 0.3rem;
+    font-size: 0.7rem;
+    color: #64748b;
+    text-align: right;
   }
   .rsf-modal-content {
     border: 1px solid rgba(148, 163, 184, 0.25);

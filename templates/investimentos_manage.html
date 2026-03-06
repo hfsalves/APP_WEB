@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+
+{% block title %}Investimentos - Gestão{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 invm-page">
+  <div class="invm-head mb-3">
+    <h1 class="invm-title mb-0">Investimentos Internos</h1>
+    <div class="invm-subtitle">Gestão, edição e controlo de investimentos amortizados</div>
+  </div>
+
+  <div class="card shadow-sm invm-toolbar mb-3">
+    <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-2">
+      <label class="small text-muted mb-0">Ano</label>
+      <input id="invmAno" type="number" class="form-control form-control-sm" style="width:96px;" value="{{ ano_inicial }}">
+
+      <label class="small text-muted mb-0">Mês</label>
+      <select id="invmMes" class="form-select form-select-sm" style="width:150px;">
+        <option value="">Todos</option>
+        <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+        <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+        <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+        <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+      </select>
+
+      <label class="small text-muted mb-0">CCUSTO</label>
+      <input id="invmCcusto" class="form-control form-control-sm" style="width:120px;" placeholder="CCUSTO">
+
+      <input id="invmQ" class="form-control form-control-sm ms-1" style="min-width:220px;max-width:340px;" placeholder="Pesquisar DESCR / INVSTAMP / CCUSTO">
+
+      <button id="invmPesquisar" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-magnifying-glass"></i> Pesquisar</button>
+      <button id="invmLimpar" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-rotate-left"></i> Limpar</button>
+
+      <span id="invmResumo" class="invm-summary ms-auto">0 investimentos</span>
+    </div>
+  </div>
+
+  <div class="card shadow-sm invm-grid-card">
+    <div class="card-body p-0">
+      <div class="table-responsive invm-grid-wrap">
+        <table class="table table-sm mb-0 invm-table">
+          <thead>
+            <tr>
+              <th style="width:230px;">INVSTAMP</th>
+              <th style="width:110px;">DATAINV</th>
+              <th style="width:110px;">DATAINI</th>
+              <th style="width:110px;">CCUSTO</th>
+              <th>DESCR</th>
+              <th style="width:90px;" class="text-end">MESES</th>
+              <th style="width:130px;" class="text-end">VALORTOTAL</th>
+              <th style="width:160px;">CRIADOEM</th>
+            </tr>
+          </thead>
+          <tbody id="invmBody">
+            <tr><td colspan="8" class="text-muted p-3">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="invmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Investimento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body invm-modal-body">
+        <div id="invmWarn" class="alert alert-warning py-2 px-3 small mb-2 d-none"></div>
+
+        <div class="invm-panel invm-head-panel">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="invm-panel-title mb-0">Cabeçalho (INV)</div>
+          </div>
+          <div class="row g-2">
+            <div class="col-12 col-lg-4">
+              <label class="form-label">INVSTAMP</label>
+              <input id="invmInvstamp" class="form-control" readonly>
+            </div>
+            <div class="col-12 col-lg-4">
+              <label class="form-label">DESCR</label>
+              <input id="invmDescr" class="form-control">
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label">CCUSTO</label>
+              <input id="invmCCUSTO" class="form-control" readonly>
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label">VALORTOTAL</label>
+              <input id="invmValorTotal" class="form-control text-end" readonly>
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label">DATAINV</label>
+              <input id="invmDataInv" type="date" class="form-control">
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label">DATAINI</label>
+              <input id="invmDataIni" type="date" class="form-control">
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label">MESES</label>
+              <input id="invmMeses" type="number" min="1" class="form-control text-end">
+            </div>
+            <div class="col-12 col-lg-6">
+              <label class="form-label">OBS</label>
+              <textarea id="invmObs" rows="2" class="form-control"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mt-0 invm-bottom-row">
+          <div class="col-12 col-lg-7">
+            <div class="invm-panel h-100 d-flex flex-column">
+              <div class="invm-panel-title">Linhas de amortização (INVL)</div>
+              <div class="table-responsive invm-lines-wrap">
+                <table class="table table-sm mb-0">
+                  <thead>
+                    <tr>
+                      <th style="width:60px;">Nº</th>
+                      <th style="width:120px;">DATAREF</th>
+                      <th style="width:120px;">CCUSTO</th>
+                      <th>DESCR</th>
+                      <th style="width:120px;" class="text-end">VALOR</th>
+                    </tr>
+                  </thead>
+                  <tbody id="invmLinesBody">
+                    <tr><td colspan="5" class="text-muted p-2">Sem linhas.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-lg-5">
+            <div class="invm-panel h-100 d-flex flex-column">
+              <div class="invm-panel-title">Custos de origem (INVMAP)</div>
+              <div class="table-responsive invm-map-wrap">
+                <table class="table table-sm mb-0">
+                  <thead>
+                    <tr>
+                      <th style="width:110px;">DATA</th>
+                      <th style="width:90px;">CCUSTO</th>
+                      <th style="width:80px;">FAM.</th>
+                      <th>DESCR</th>
+                      <th style="width:110px;" class="text-end">VALOR</th>
+                      <th style="width:150px;">CUSTOSTAMP</th>
+                    </tr>
+                  </thead>
+                  <tbody id="invmMapBody">
+                    <tr><td colspan="6" class="text-muted p-2">Sem custos de origem.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="invmClose" type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+        <button id="invmRecalc" type="button" class="btn btn-outline-primary">Recalcular linhas</button>
+        <button id="invmSave" type="button" class="btn btn-primary">Gravar</button>
+        <button id="invmDelete" type="button" class="btn btn-outline-danger">Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .invm-page{
+    min-height:calc(100vh - 120px);
+    background:
+      radial-gradient(860px 450px at -8% -18%, rgba(59,130,246,.12) 0%, rgba(59,130,246,0) 62%),
+      radial-gradient(900px 460px at 108% -14%, rgba(14,165,233,.10) 0%, rgba(14,165,233,0) 62%);
+  }
+  .invm-title{ font-size:1.24rem; font-weight:800; color:#0b1220; }
+  .invm-subtitle{ font-size:.86rem; color:#5b6b82; }
+
+  .invm-toolbar,.invm-grid-card{
+    border:1px solid rgba(187,205,230,.9);
+    border-radius:18px;
+    background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+    box-shadow:0 18px 44px rgba(15,23,42,.08);
+    overflow:hidden;
+  }
+  .invm-toolbar .form-control,.invm-toolbar .form-select{
+    border:1px solid #d3deed;
+    border-radius:12px;
+  }
+  .invm-toolbar .form-control:focus,.invm-toolbar .form-select:focus{
+    border-color:#7db2ff;
+    box-shadow:0 0 0 .2rem rgba(59,130,246,.16);
+  }
+  .invm-summary{
+    font-size:.82rem;
+    font-weight:700;
+    color:#0f172a;
+    background:#eff6ff;
+    border:1px solid #bfdbfe;
+    border-radius:999px;
+    padding:5px 12px;
+  }
+
+  .invm-grid-wrap{ max-height:calc(100vh - 280px); overflow:auto; }
+  .invm-table{ min-width:1200px; font-size:.84rem; line-height:1.28; }
+  .invm-table thead th{
+    position:sticky;
+    top:0;
+    z-index:3;
+    background:linear-gradient(180deg,#f8fbff 0%,#ecf4ff 100%);
+    border-bottom:1px solid rgba(148,163,184,.45);
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:#334155;
+    font-weight:800;
+    padding:.58rem .65rem;
+  }
+  .invm-table tbody td{
+    border-bottom:1px solid #edf2f7;
+    vertical-align:middle;
+    padding:.55rem .65rem;
+    font-size:.83rem;
+  }
+  .invm-table tbody tr:nth-child(even) td{ background:#fcfdff; }
+  .invm-table tbody tr:hover td{ background:#eef6ff; cursor:pointer; }
+
+  #invmModal .modal-dialog{ max-width:min(1380px,97vw); }
+  #invmModal .modal-content{
+    height:min(90vh,960px);
+    border-radius:18px;
+    border:1px solid #d7e3f3;
+    overflow:hidden;
+    box-shadow:0 28px 62px rgba(15,23,42,.34);
+  }
+  #invmModal .modal-header{
+    border-bottom:1px solid rgba(255,255,255,.12);
+    background:linear-gradient(90deg,#0f172a 0%,#1e3a8a 52%,#0ea5e9 100%);
+    color:#fff;
+    padding:.85rem 1rem;
+  }
+  #invmModal .btn-close{ filter:invert(1) saturate(0) brightness(2); }
+  #invmModal .modal-body{
+    background:#f5f9ff;
+    padding:1rem;
+  }
+  #invmModal .modal-footer{
+    border-top:1px solid #dbe5f3;
+    background:#f8fbff;
+    padding:.75rem 1rem;
+  }
+  #invmModal .form-label{
+    margin-bottom:.26rem;
+    font-size:.72rem;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:#5b6b82;
+    font-weight:700;
+  }
+  #invmModal .form-control,#invmModal .form-select{
+    border:1px solid #cfdaea;
+    border-radius:11px;
+  }
+  #invmModal .form-control:focus,#invmModal .form-select:focus{
+    border-color:#7db2ff;
+    box-shadow:0 0 0 .2rem rgba(59,130,246,.16);
+  }
+  .invm-modal-body{
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+    overflow:hidden;
+    gap:0;
+  }
+  .invm-head-panel{ flex:0 0 auto; }
+  .invm-bottom-row{ min-height:0; flex:1 1 auto; }
+  .invm-panel{
+    border:1px solid #e2e8f0;
+    border-radius:14px;
+    padding:12px;
+    background:linear-gradient(145deg,#ffffff 0%,#f8fbff 100%);
+    box-shadow:0 8px 20px rgba(15,23,42,.04);
+  }
+  .invm-panel-title{ font-size:.92rem; font-weight:800; color:#0f172a; margin-bottom:.6rem; }
+  .invm-lines-wrap,.invm-map-wrap{
+    min-height:0;
+    flex:1 1 auto;
+    overflow:auto;
+    border:1px solid #e2e8f0;
+    border-radius:10px;
+    background:#fff;
+  }
+  .invm-lines-wrap thead th,.invm-map-wrap thead th{
+    position:sticky;
+    top:0;
+    z-index:2;
+    background:linear-gradient(180deg,#f8fbff 0%,#eef4ff 100%);
+    border-bottom:1px solid #dbe5f3;
+    text-transform:uppercase;
+    font-size:9.8px;
+    letter-spacing:.05em;
+    color:#334155;
+    font-weight:800;
+  }
+  .invm-lines-wrap tbody td,.invm-map-wrap tbody td{
+    border-bottom:1px solid #edf2f7;
+    padding:.45rem .52rem;
+    vertical-align:middle;
+    font-size:.81rem;
+  }
+  .invm-lines-wrap tbody tr:nth-child(even) td,.invm-map-wrap tbody tr:nth-child(even) td{ background:#fcfdff; }
+
+  @media (max-width: 992px){
+    .invm-grid-wrap{ max-height:calc(100vh - 320px); }
+    #invmModal .modal-content{ height:min(94vh,980px); }
+  }
+</style>
+
+<script>
+  window.INVM_ANO_INICIAL = Number("{{ ano_inicial }}");
+  window.INVM_MES_INICIAL = Number("{{ mes_inicial }}");
+</script>
+<script src="{{ url_for('static', filename='js/investimentos_manage.js') }}?v={{ static_version }}"></script>
+{% endblock %}

@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Cancelamentos{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 rsc-page">
+  <div class="rsc-header mb-3">
+    <h1 class="rsc-title mb-0">Cancelamentos de Reservas</h1>
+    <div class="rsc-subtitle">Gestão de reservas canceladas e valor recebido (PCANCEL)</div>
+  </div>
+
+  <div class="card shadow-sm rsc-toolbar mb-3">
+    <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-2">
+      <label class="small text-muted mb-0">Check-in de</label>
+      <input id="rscDatainFrom" type="date" class="form-control form-control-sm" style="width:150px;">
+
+      <label class="small text-muted mb-0">até</label>
+      <input id="rscDatainTo" type="date" class="form-control form-control-sm" style="width:150px;">
+
+      <label class="small text-muted mb-0 ms-2">Check-out de</label>
+      <input id="rscDataoutFrom" type="date" class="form-control form-control-sm" style="width:150px;">
+
+      <label class="small text-muted mb-0">até</label>
+      <input id="rscDataoutTo" type="date" class="form-control form-control-sm" style="width:150px;">
+
+      <label class="small text-muted mb-0 ms-2">Dias cancel. ≤</label>
+      <input id="rscDiasCancelMax" type="number" min="0" class="form-control form-control-sm" style="width:90px;" placeholder="ex: 5">
+
+      <div class="form-check form-switch mb-0 ms-2">
+        <input class="form-check-input" type="checkbox" id="rscSemPagamento">
+        <label class="form-check-label small text-muted" for="rscSemPagamento">Sem Pagamento</label>
+      </div>
+
+      <button id="rscPesquisar" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-magnifying-glass"></i> Pesquisar</button>
+      <button id="rscLimpar" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-rotate-left"></i> Limpar</button>
+
+      <span id="rscResumo" class="rsc-summary ms-auto">0 reservas</span>
+    </div>
+  </div>
+
+  <div class="card shadow-sm rsc-grid-card">
+    <div class="card-body p-0">
+      <div class="table-responsive rsc-grid-wrap">
+        <table class="table table-sm mb-0 rsc-table">
+          <thead>
+            <tr>
+              <th style="width:140px;" class="rsc-sortable" data-sort="RESERVA">Reserva</th>
+              <th style="width:180px;" class="rsc-sortable" data-sort="ALOJAMENTO">Alojamento</th>
+              <th class="rsc-sortable" data-sort="NOME">Hóspede</th>
+              <th style="width:120px;" class="rsc-sortable" data-sort="ORIGEM">Origem</th>
+              <th style="width:110px;" class="rsc-sortable" data-sort="DATAIN">Check-in</th>
+              <th style="width:110px;" class="rsc-sortable" data-sort="DATAOUT">Check-out</th>
+              <th style="width:70px;" class="text-end rsc-sortable" data-sort="NOITES">Noites</th>
+              <th style="width:90px;" class="text-end rsc-sortable" data-sort="DIASCANCEL">Dias Canc.</th>
+              <th style="width:120px;" class="text-end rsc-sortable" data-sort="ESTADIA">Estadia</th>
+              <th style="width:120px;" class="text-end rsc-sortable" data-sort="LIMPEZA">Limpeza</th>
+              <th style="width:130px;" class="text-end rsc-sortable" data-sort="PCANCEL">PCANCEL</th>
+              <th style="width:100px;" class="text-center">Itinerário</th>
+              <th style="width:140px;" class="text-center">Ação</th>
+            </tr>
+          </thead>
+          <tbody id="rscBody">
+            <tr><td colspan="13" class="text-muted p-3">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="rscModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Atribuir valor de cancelamento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2" id="rscModalInfo"></div>
+        <label class="form-label">Valor recebido (PCANCEL)</label>
+        <input id="rscModalValor" type="number" min="0" step="0.01" class="form-control text-end" placeholder="0,00">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+        <button id="rscModalGuardar" type="button" class="btn btn-primary">Gravar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .rsc-page{
+    min-height:calc(100vh - 120px);
+    background:
+      radial-gradient(860px 450px at -8% -18%, rgba(59,130,246,.12) 0%, rgba(59,130,246,0) 62%),
+      radial-gradient(900px 460px at 108% -14%, rgba(14,165,233,.10) 0%, rgba(14,165,233,0) 62%);
+  }
+  .rsc-title{ font-size:1.24rem; font-weight:800; color:#0b1220; }
+  .rsc-subtitle{ font-size:.86rem; color:#5b6b82; }
+  .rsc-toolbar,.rsc-grid-card{
+    border:1px solid rgba(187,205,230,.9);
+    border-radius:18px;
+    background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+    box-shadow:0 18px 44px rgba(15,23,42,.08);
+    overflow:hidden;
+  }
+  .rsc-toolbar .form-control{ border:1px solid #d3deed; border-radius:12px; }
+  .rsc-toolbar .form-control:focus{
+    border-color:#7db2ff;
+    box-shadow:0 0 0 .2rem rgba(59,130,246,.16);
+  }
+  .rsc-summary{
+    font-size:.82rem;
+    font-weight:700;
+    color:#0f172a;
+    background:#eff6ff;
+    border:1px solid #bfdbfe;
+    border-radius:999px;
+    padding:5px 12px;
+  }
+  .rsc-grid-wrap{ max-height:calc(100vh - 280px); overflow:auto; }
+  .rsc-table{ min-width:1550px; font-size:.84rem; line-height:1.28; }
+  .rsc-table thead th{
+    position:sticky;
+    top:0;
+    z-index:3;
+    background:linear-gradient(180deg,#f8fbff 0%,#ecf4ff 100%);
+    border-bottom:1px solid rgba(148,163,184,.45);
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:#334155;
+    font-weight:800;
+    padding:.58rem .65rem;
+  }
+  .rsc-table tbody td{
+    border-bottom:1px solid #edf2f7;
+    vertical-align:middle;
+    padding:.55rem .65rem;
+    font-size:.83rem;
+  }
+  .rsc-table tbody tr:nth-child(even) td{ background:#fcfdff; }
+  .rsc-table tbody tr:hover td{ background:#eef6ff; }
+  .rsc-table thead th.rsc-sortable{
+    cursor:pointer;
+    user-select:none;
+    transition:color .15s ease, background .15s ease;
+  }
+  .rsc-table thead th.rsc-sortable:hover{
+    color:#1d4ed8;
+    background:linear-gradient(180deg,#f2f8ff 0%,#e8f2ff 100%);
+  }
+  .rsc-table thead th.rsc-sortable.rsc-sort-active{
+    color:#1e40af;
+  }
+  .rsc-table tbody tr.rsc-row-highlight td{
+    background:linear-gradient(180deg, rgba(37,99,235,.09) 0%, rgba(14,165,233,.07) 100%) !important;
+    box-shadow:
+      inset 3px 0 0 rgba(37,99,235,.75),
+      inset 0 0 0 1px rgba(37,99,235,.16);
+  }
+  #rscModal .modal-content{
+    border-radius:16px;
+    border:1px solid #d7e3f3;
+    box-shadow:0 20px 52px rgba(15,23,42,.25);
+  }
+  #rscModal .modal-header{
+    border-bottom:1px solid rgba(255,255,255,.12);
+    background:linear-gradient(90deg,#0f172a 0%,#1e3a8a 52%,#0ea5e9 100%);
+    color:#fff;
+  }
+  #rscModal .btn-close{ filter:invert(1) saturate(0) brightness(2); }
+</style>
+
+<script src="{{ url_for('static', filename='js/reservas_canceladas.js') }}?v={{ static_version }}"></script>
+{% endblock %}
