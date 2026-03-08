@@ -56,6 +56,7 @@ class US(UserMixin, db.Model):
     FOTO     = db.Column(db.String(255), nullable=True)  # caminho relativo sob /static
     LPADMIN  = db.Column(db.Boolean, default=False, nullable=False)
     HOME     = db.Column(db.String(200), unique=True, nullable=False)
+    VIEWMODE = db.Column(db.String(20), nullable=False, default='LIGHT MODE')
 
     def check_password(self, plaintext):
         return self.PASSWORD == plaintext

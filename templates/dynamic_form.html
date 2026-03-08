@@ -3,46 +3,54 @@
 {% block title %}{{ table_name|capitalize }} - Lista{% endblock %}
 
 {% block content %}
-<div class="dynamic-form dynamic-form-card">
-  {% if botoes %}
-  <div class="dynamic-form-toolbar text-end mb-3">
-    <div class="dropdown d-inline-block">
-      <button
-        class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2"
-        type="button"
-        id="dropdownExemplo"
-        data-bs-toggle="dropdown"
-        aria-expanded="false">
-        <i class="fa fa-bolt"></i>
-        <span>Ações</span>
-      </button>
-      <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownExemplo">
-        {% for botao in botoes %}
-          <li>
-            {% if botao.TIPO == 'MODAL' %}
-              <a class="dropdown-item btn-custom" data-tipo="MODAL" data-acao="{{ botao.ACAO }}" href="#">
-                <i class="fa {{ botao.ICONE }} me-2"></i>
-                {{ botao.TEXTO }}
-              </a>
-            {% elif botao.TIPO == 'ACAO' %}
-              <a class="dropdown-item btn-custom" data-tipo="ACAO" data-acao="{{ botao.ACAO }}" href="#">
-                <i class="fa {{ botao.ICONE }} me-2"></i>
-                {{ botao.TEXTO }}
-              </a>
-            {% endif %}
-          </li>
-        {% endfor %}
-      </ul>
+<div class="sz_dynamic_form_page">
+  <header class="sz_contextbar sz_dynamic_form_contextbar">
+    <div class="sz_contextbar_left">
+      <div class="sz_page_title">{{ menu_label or table_name|capitalize }}</div>
+      <div class="sz_breadcrumbs">GENERIC / FORM / {{ table_name|upper }}</div>
+      <div class="sz_page_subtitle">{% if record_stamp %}EdiÃ§Ã£o de registo{% else %}Novo registo{% endif %}</div>
     </div>
-  </div>
-  {% endif %}
+    <div class="sz_contextbar_right">
+      {% if botoes %}
+      <div class="dropdown d-inline-block">
+        <button
+          class="sz_button sz_button_ghost d-inline-flex align-items-center gap-2"
+          type="button"
+          id="dropdownExemplo"
+          data-bs-toggle="dropdown"
+          aria-expanded="false">
+          <i class="fa fa-bolt"></i>
+          <span>Acoes</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownExemplo">
+          {% for botao in botoes %}
+            <li>
+              {% if botao.TIPO == 'MODAL' %}
+                <a class="dropdown-item btn-custom" data-tipo="MODAL" data-acao="{{ botao.ACAO }}" href="#">
+                  <i class="fa {{ botao.ICONE }} me-2"></i>
+                  {{ botao.TEXTO }}
+                </a>
+              {% elif botao.TIPO == 'ACAO' %}
+                <a class="dropdown-item btn-custom" data-tipo="ACAO" data-acao="{{ botao.ACAO }}" href="#">
+                  <i class="fa {{ botao.ICONE }} me-2"></i>
+                  {{ botao.TEXTO }}
+                </a>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </header>
 
-  <section class="dynamic-form-body dynamic-form-body-modern">
-    <form id="editForm" class="row g-2" style="--bs-gutter-y:0">
-    </form>
-  </section>
+  <section class="sz_dynamic_form_scroll">
+    <section class="sz_dynamic_form_body">
+      <form id="editForm" class="row g-2" style="--bs-gutter-y:0">
+      </form>
+    </section>
 
-    <section class="dynamic-form-panels">
+    <section class="sz_dynamic_form_panels">
       <div class="accordion" id="accordionExtras">
         {% if linhas_exist %}
         <div class="accordion-item">
@@ -73,13 +81,12 @@
           <div id="collapseAnexos"
               class="accordion-collapse collapse"
               aria-labelledby="headingAnexos">
-            <div class="accordion-body">
-              <div id="anexos-list" class="mb-3"></div>
+            <div class="accordion-body sz_dynamic_anexos_section">
+              <div id="anexos-list" class="sz_dynamic_anexos_list"></div>
               <input type="file" id="inputAnexo" style="display:none" />
               <button type="button"
                       id="btnAddAnexo"
-                      class="btn btn-outline-secondary"
-                      style="width:200px">
+                      class="sz_button sz_button_ghost sz_dynamic_anexos_add">
                 <i class="fa fa-paperclip"></i> Anexar
               </button>
             </div>
@@ -87,28 +94,33 @@
         </div>
       </div>
     </section>
+  </section>
 
-  <div class="form-actions mt-3">
-    <button type="submit" form="editForm" class="btn btn-outline-primary btn-save">
+
+
+  <div class="sz_actionbar sz_dynamic_form_actionbar">
+    <div class="sz_actionbar_right">
+    <button type="submit" form="editForm" class="sz_button sz_button_primary btn-save">
       <i class="fa-solid fa-save"></i>
       <span class="btn-text">Gravar</span>
     </button>
-    <button type="button" id="btnCancel" class="btn btn-outline-secondary btn-cancel">
+    <button type="button" id="btnCancel" class="sz_button sz_button_ghost btn-cancel">
       <i class="fa-solid fa-ban"></i>
       <span class="btn-text">Cancelar</span>
     </button>
-    <button type="button" id="btnDelete" class="btn btn-outline-secondary btn-delete">
+    <button type="button" id="btnDelete" class="sz_button sz_button_danger btn-delete">
       <i class="fa-solid fa-trash-alt"></i>
       <span class="btn-text">Eliminar</span>
     </button>
-    <button type="button" id="btnBack" class="btn btn-outline-secondary btn-back">
+    <button type="button" id="btnBack" class="sz_button sz_button_secondary btn-back">
       <i class="fa-solid fa-arrow-left"></i>
       <span class="btn-text">Voltar</span>
     </button>
+    </div>
   </div>
 </div>
 
-<!-- Modal Dinâmico -->
+<!-- Modal Dinamico -->
 <div class="modal fade" id="genericModal" tabindex="-1" aria-labelledby="genericModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -212,3 +224,5 @@
 
 {% endblock %}
 {% endblock %}
+
+

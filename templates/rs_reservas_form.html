@@ -1,11 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Reservas{% endblock %}
 {% block content %}
-<div class="fo-layout">
-  <div class="dynamic-form dynamic-form-card dynamic-form-body dynamic-form-body-modern rsf-root" id="rsFormRoot" data-rsstamp="{{ rsstamp }}">
-    <div class="row g-3 rsf-columns">
-      <div class="col-12 col-xl-8">
-        <div class="rsf-section mt-0">
+<div class="sz_dynamic_form_page rsf-page rsf-root" id="rsFormRoot" data-rsstamp="{{ rsstamp }}">
+  <header class="sz_contextbar sz_dynamic_form_contextbar rsf-contextbar">
+    <div class="sz_contextbar_left">
+      <div id="rsTitulo" class="sz_page_title">Reserva</div>
+      <div class="sz_breadcrumbs">RESERVAS / FORM / RS</div>
+      <div class="sz_page_subtitle">Gest&atilde;o da reserva, h&oacute;spedes e fatura&ccedil;&atilde;o</div>
+    </div>
+  </header>
+
+  <section class="sz_dynamic_form_scroll rsf-scroll">
+    <div class="sz_sidebar_layout rsf-layout">
+      <div class="rsf-main-col">
+        <div class="rsf-section rsf-section-top">
             <div class="rsf-section-title">Reserva</div>
             <div class="row g-2">
               <div class="col-md-4">
@@ -70,11 +78,11 @@
                 <input id="RS_LIMPEZA" type="number" min="0" step="0.01" class="form-control text-end">
               </div>
               <div class="col-md-4">
-                <label class="form-label">Comissão</label>
+                <label class="form-label">Comiss&atilde;o</label>
                 <input id="RS_COMISSAO" type="number" min="0" step="0.01" class="form-control text-end">
               </div>
               <div class="col-12">
-                <label class="form-label">Observações</label>
+                <label class="form-label">Observa&ccedil;&otilde;es</label>
                 <textarea id="RS_OBS" class="form-control" rows="2"></textarea>
               </div>
             </div>
@@ -86,11 +94,11 @@
               <div class="col-12">
                 <div class="rsf-check-grid">
                   <label class="form-check"><input id="RS_CANCELADA" type="checkbox" class="form-check-input"><span class="form-check-label">Cancelada</span></label>
-                  <label class="form-check"><input id="RS_BERCO" type="checkbox" class="form-check-input"><span class="form-check-label">Berço</span></label>
-                  <label class="form-check"><input id="RS_SOFACAMA" type="checkbox" class="form-check-input"><span class="form-check-label">Sofá-cama</span></label>
+                  <label class="form-check"><input id="RS_BERCO" type="checkbox" class="form-check-input"><span class="form-check-label">Ber&ccedil;o</span></label>
+                  <label class="form-check"><input id="RS_SOFACAMA" type="checkbox" class="form-check-input"><span class="form-check-label">Sof&aacute;-cama</span></label>
                   <label class="form-check"><input id="RS_PRESENCIAL" type="checkbox" class="form-check-input"><span class="form-check-label">Presencial</span></label>
                   <label class="form-check"><input id="RS_SEF" type="checkbox" class="form-check-input"><span class="form-check-label">SEF</span></label>
-                  <label class="form-check"><input id="RS_INSTR" type="checkbox" class="form-check-input"><span class="form-check-label">Instruções</span></label>
+                  <label class="form-check"><input id="RS_INSTR" type="checkbox" class="form-check-input"><span class="form-check-label">Instru&ccedil;&otilde;es</span></label>
                 </div>
               </div>
               <div id="rsCancelFields" class="row g-2">
@@ -141,14 +149,14 @@
         </div>
       </div>
 
-      <div class="col-12 col-xl-4">
-        <div class="rsf-section mt-0">
+      <aside class="sz_page_sidebar rsf-sidebar-col">
+        <div class="rsf-section rsf-section-top">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <div>
                 <div class="rsf-section-title mb-0">H&oacute;spedes / SEF</div>
                 <div id="rsGuestsStatus" class="rsf-section-subtitle">Completos 0/0</div>
               </div>
-              <button id="rsAddGuest" class="btn btn-sm btn-outline-primary">Adicionar H&oacute;spede</button>
+              <button id="rsAddGuest" class="sz_button sz_button_ghost rsf-btn-sm">Adicionar H&oacute;spede</button>
             </div>
             <div id="rsGuestsBody" class="rsf-guest-cards">
               <div class="text-muted p-3">A carregar...</div>
@@ -156,34 +164,38 @@
             <div class="rsf-public-link">
               <div class="rsf-public-link-label">Guia do H&oacute;spede</div>
               <div class="rsf-public-link-row">
-                <button id="rsOpenPublicLink" type="button" class="btn btn-outline-primary btn-sm">Abrir</button>
-                <button id="rsCopyPublicLink" type="button" class="btn btn-outline-secondary btn-sm">Copiar</button>
+                <button id="rsOpenPublicLink" type="button" class="sz_button sz_button_ghost rsf-btn-sm">Abrir</button>
+                <button id="rsCopyPublicLink" type="button" class="sz_button sz_button_secondary rsf-btn-sm">Copiar</button>
               </div>
             </div>
             <div class="rsf-public-link">
               <div class="rsf-public-link-label">Chat do H&oacute;spede</div>
               <div class="rsf-public-link-row">
-                <button id="rsOpenGuestChat" type="button" class="btn btn-outline-primary btn-sm">Consultar Chat</button>
+                <button id="rsOpenGuestChat" type="button" class="sz_button sz_button_ghost rsf-btn-sm">Consultar Chat</button>
               </div>
             </div>
-          </div>
+        </div>
 
         <div class="rsf-section">
           <div class="mb-2">
-            <button id="rsAddBilling" class="btn btn-sm btn-outline-primary">Adicionar dados de Fatura&ccedil;&atilde;o</button>
+            <button id="rsAddBilling" class="sz_button sz_button_ghost rsf-btn-sm">Adicionar dados de Fatura&ccedil;&atilde;o</button>
           </div>
           <div id="rsBillingBody" class="rsf-billing-cards">
             <div class="text-muted p-3">Sem dados de fatura&ccedil;&atilde;o.</div>
           </div>
         </div>
-      </div>
-    </div>
+      </aside>
+    </div>    
+  </section>
 
-    <div class="form-actions mt-3">
-      <button id="rsBtnCancel" class="btn btn-cancel">Cancelar</button>
-      <a id="rsBtnVoltarBottom" class="btn btn-back" href="{{ return_to }}">Voltar</a>
-      <button id="rsBtnDeleteBottom" class="btn btn-delete">Eliminar</button>
-      <button id="rsBtnSave" class="btn btn-outline-primary btn-save"><i class="fa-solid fa-save"></i><span class="btn-text">Gravar</span></button>
+  <div class="sz_actionbar sz_dynamic_form_actionbar rsf-actionbar">
+    <div class="sz_actionbar_right">
+      <button id="rsBtnSave" class="sz_button sz_button_primary btn-save">
+        <i class="fa-solid fa-save"></i><span class="btn-text">Gravar</span>
+      </button>
+      <button id="rsBtnCancel" class="sz_button sz_button_ghost btn-cancel">Cancelar</button>
+      <button id="rsBtnDeleteBottom" class="sz_button sz_button_danger btn-delete">Eliminar</button>
+      <a id="rsBtnVoltarBottom" class="sz_button sz_button_secondary btn-back" href="{{ return_to }}">Voltar</a>
     </div>
   </div>
 </div>
@@ -192,7 +204,7 @@
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content rsf-modal-content">
       <div class="modal-header rsf-modal-header">
-        <h5 class="modal-title" id="rsGuestModalTitle">Hóspede</h5>
+        <h5 class="modal-title" id="rsGuestModalTitle">H&oacute;spede</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body rsf-modal-body">
@@ -214,33 +226,33 @@
             <select id="RSG_NACIONALIDADE" class="form-select"></select>
           </div>
           <div class="col-md-4">
-            <label class="form-label">País Resid.</label>
+            <label class="form-label">Pa&iacute;s Resid.</label>
             <select id="RSG_PAIS_RESIDENCIA" class="form-select"></select>
           </div>
           <div class="col-md-4">
             <label class="form-label">Tipo Doc.</label>
             <select id="RSG_TIPO_DOC" class="form-select">
               <option value="">---</option>
-              <option value="Doc. Identificação Nacional">Doc. Identificação Nacional</option>
+              <option value="Doc. Identifica&ccedil;&atilde;o Nacional">Doc. Identifica&ccedil;&atilde;o Nacional</option>
               <option value="Passaporte">Passaporte</option>
               <option value="Outro">Outro</option>
             </select>
           </div>
           <div class="col-md-4">
-            <label class="form-label">Nº Doc.</label>
+            <label class="form-label">N&ordm; Doc.</label>
             <input id="RSG_NUM_DOC" class="form-control">
           </div>
           <div class="col-md-4">
-            <label class="form-label">País Emissor</label>
+            <label class="form-label">Pa&iacute;s Emissor</label>
             <select id="RSG_PAIS_EMISSOR_DOC" class="form-select"></select>
           </div>
         </div>
       </div>
       <div class="modal-footer justify-content-between rsf-modal-footer">
-        <button type="button" class="btn btn-outline-danger btn-sm" id="rsGuestDeleteBtn">Eliminar hóspede</button>
+        <button type="button" class="sz_button sz_button_danger" id="rsGuestDeleteBtn">Eliminar h&oacute;spede</button>
         <div class="d-flex gap-2">
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary btn-sm" id="rsGuestSaveBtn">Gravar</button>
+          <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="sz_button sz_button_primary" id="rsGuestSaveBtn">Gravar</button>
         </div>
       </div>
     </div>
@@ -266,7 +278,7 @@
         </div>
       </div>
       <div class="modal-footer justify-content-end rsf-modal-footer">
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>
@@ -310,8 +322,8 @@
       </div>
       <div class="modal-footer justify-content-end rsf-modal-footer">
         <div class="d-flex gap-2">
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary btn-sm" id="rsBillingSaveBtn">Gravar</button>
+          <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="sz_button sz_button_primary" id="rsBillingSaveBtn">Gravar</button>
         </div>
       </div>
     </div>
@@ -319,33 +331,124 @@
 </div>
 
 <style>
+  .rsf-page {
+    padding-inline: var(--sz-space-4);
+    padding-block: var(--sz-space-2);
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: var(--sz-color-bg-main) !important;
+  }
+  .rsf-scroll {
+    overflow: auto;
+  }
+  .rsf-layout {
+    align-items: start;
+  }
+  .rsf-main-col,
+  .rsf-sidebar-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    min-height: 0;
+  }
+  .rsf-sidebar-col {
+    max-width: none;
+  }
+  .rsf-actionbar .sz_actionbar_right {
+    margin-left: auto;
+  }
+  .rsf-btn-sm {
+    min-height: 2rem;
+    padding: 0 0.7rem;
+    font-size: var(--sz-font-size-xs);
+  }
   .rsf-root {
     width: 100%;
     max-width: none;
   }
-  .rsf-columns > [class*="col-"] {
-    display: flex;
-    flex-direction: column;
+  .rsf-page .row {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .rsf-page .row.g-2 {
+    --bs-gutter-x: var(--sz-space-4);
+    --bs-gutter-y: var(--sz-space-4);
+  }
+  .rsf-page .row.g-3 {
+    --bs-gutter-x: var(--sz-space-5);
+    --bs-gutter-y: var(--sz-space-5);
+  }
+  .rsf-page .form-label {
+    font-family: var(--sz-font-family);
+    font-size: var(--sz-font-size-sm);
+    line-height: var(--sz-line-normal);
+    color: var(--sz-color-text-secondary) !important;
+    font-weight: var(--sz-font-weight-semibold);
+    margin-bottom: var(--sz-space-2);
+  }
+  .rsf-page .form-control,
+  .rsf-page .form-select,
+  .rsf-page textarea {
+    font-family: var(--sz-font-family);
+    font-size: var(--sz-font-size-sm);
+    line-height: var(--sz-line-normal);
+    font-weight: var(--sz-font-weight-normal);
+    min-height: var(--sz-input-height);
+    border-radius: var(--sz-radius-sm) !important;
+    padding: 0 var(--sz-space-3) !important;
+    background: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    color: var(--sz-color-text) !important;
+    box-shadow: none !important;
+  }
+  .rsf-page .form-select {
+    padding-right: 2rem !important;
+  }
+  .rsf-page textarea.form-control {
+    min-height: 5.25rem;
+    height: auto;
+    padding-top: var(--sz-space-2) !important;
+    padding-bottom: var(--sz-space-2) !important;
+  }
+  .rsf-page .form-control::placeholder,
+  .rsf-page textarea::placeholder {
+    color: var(--sz-color-text-muted) !important;
+    opacity: 1;
+  }
+  .rsf-page .form-control:focus,
+  .rsf-page .form-select:focus,
+  .rsf-page textarea:focus {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 70%, var(--sz-color-border)) !important;
+    box-shadow: 0 0 0 0.16rem color-mix(in srgb, var(--sz-color-primary) 20%, transparent) !important;
+  }
+  .rsf-section-top {
+    margin-top: 0;
   }
   .rsf-section {
-    margin-top: 1rem;
+    margin-top: 0;
     padding: 1rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    box-shadow: var(--sz-shadow-1);
   }
   .rsf-section-title {
     font-size: 0.96rem;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--sz-color-text);
     margin-bottom: 0.9rem;
   }
   .rsf-section-subtitle {
     margin-top: 0.2rem;
     font-size: 0.82rem;
-    color: #64748b;
+    color: var(--sz-color-text-secondary);
     font-weight: 600;
+  }
+  .rsf-empty-state {
+    color: var(--sz-color-text-muted) !important;
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-medium);
   }
   .rsf-check-grid {
     display: grid;
@@ -368,13 +471,13 @@
   }
   .rsf-check-grid .form-check-label {
     margin: 0;
-    color: #334155;
+    color: var(--sz-color-text-secondary);
     font-weight: 600;
   }
   .rsf-reserva-line {
     display: grid;
     grid-template-columns: minmax(150px, 1.5fr) minmax(92px, 0.75fr) minmax(150px, 1.5fr) minmax(92px, 0.75fr) minmax(90px, 0.7fr) minmax(190px, 1.9fr) minmax(100px, 0.8fr) minmax(100px, 0.8fr);
-    gap: 0.5rem;
+    gap: var(--sz-space-3);
     width: 100%;
   }
   .rsf-reserva-line > div {
@@ -395,14 +498,14 @@
   .rsf-public-link {
     margin-top: 0.9rem;
     padding-top: 0.9rem;
-    border-top: 1px solid rgba(148, 163, 184, 0.18);
+    border-top: 1px solid color-mix(in srgb, var(--sz-color-border) 90%, transparent);
   }
   .rsf-public-link-label {
     font-size: 0.78rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #64748b;
+    color: var(--sz-color-text-muted);
     margin-bottom: 0.45rem;
   }
   .rsf-public-link-row {
@@ -413,10 +516,10 @@
     align-items: center;
   }
   .rsf-guest-card {
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface-alt);
+    box-shadow: var(--sz-shadow-1);
     padding: 0.8rem;
     cursor: pointer;
   }
@@ -430,18 +533,18 @@
   .rsf-guest-card-title {
     font-size: 0.88rem;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--sz-color-text);
   }
   .rsf-guest-card-meta {
     font-size: 0.82rem;
-    color: #475569;
+    color: var(--sz-color-text-secondary);
     line-height: 1.45;
   }
   .rsf-billing-card {
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface-alt);
+    box-shadow: var(--sz-shadow-1);
     padding: 0.8rem;
     cursor: pointer;
   }
@@ -455,11 +558,11 @@
   .rsf-billing-card-title {
     font-size: 0.88rem;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--sz-color-text);
   }
   .rsf-billing-card-meta {
     font-size: 0.82rem;
-    color: #475569;
+    color: var(--sz-color-text-secondary);
     line-height: 1.45;
   }
   .rsf-clean-card-slot {
@@ -469,17 +572,17 @@
   .rsf-clean-card-slot-title {
     font-size: 0.78rem;
     font-weight: 700;
-    color: #475569;
+    color: var(--sz-color-text-secondary);
     margin-bottom: -0.1rem;
   }
   .rsf-clean-card-wrap {
     min-height: 138px;
   }
   .rsf-clean-card {
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface-alt);
+    box-shadow: var(--sz-shadow-1);
     overflow: hidden;
     min-height: 138px;
     display: flex;
@@ -488,53 +591,59 @@
   .rsf-clean-card-head {
     padding: 0.5rem 0.65rem 0.45rem;
     background: linear-gradient(135deg, rgba(14,165,233,.10) 0%, rgba(37,99,235,.10) 100%);
-    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    border-bottom: 1px solid color-mix(in srgb, var(--sz-color-border) 90%, transparent);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
   }
   .rsf-clean-card-date {
-    font-size: 0.68rem;
-    font-weight: 700;
-    color: #1d4ed8;
-    background: rgba(29, 78, 216, 0.12);
-    border: 1px solid rgba(29, 78, 216, 0.18);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 999px;
-    padding: 0.15rem 0.55rem;
+    border: 1px solid transparent;
+    padding: 0.22rem 0.6rem;
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+    background: color-mix(in srgb, var(--sz-color-info) 16%, transparent);
+    border-color: color-mix(in srgb, var(--sz-color-info) 45%, transparent);
+    color: var(--sz-color-info);
     white-space: nowrap;
   }
   .rsf-clean-card-who {
     font-size: 0.8rem;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--sz-color-text);
   }
   .rsf-clean-status {
     display: inline-flex;
     align-items: center;
-    padding: 0.1rem 0.42rem;
+    justify-content: center;
     border-radius: 999px;
-    font-size: 0.66rem;
-    font-weight: 700;
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    background: #f8fafc;
-    color: #334155;
+    border: 1px solid transparent;
+    padding: 0.22rem 0.6rem;
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+    border-color: color-mix(in srgb, var(--sz-color-info) 45%, transparent);
+    background: color-mix(in srgb, var(--sz-color-info) 16%, transparent);
+    color: var(--sz-color-info);
     white-space: nowrap;
   }
   .rsf-clean-status.done {
-    background: #dcfce7;
-    border-color: #bbf7d0;
-    color: #166534;
+    background: color-mix(in srgb, var(--sz-color-success) 16%, transparent);
+    border-color: color-mix(in srgb, var(--sz-color-success) 45%, transparent);
+    color: var(--sz-color-success);
   }
   .rsf-clean-status.late {
-    background: #fee2e2;
-    border-color: #fecaca;
-    color: #991b1b;
+    background: color-mix(in srgb, var(--sz-color-danger) 16%, transparent);
+    border-color: color-mix(in srgb, var(--sz-color-danger) 45%, transparent);
+    color: var(--sz-color-danger);
   }
   .rsf-clean-status.todo {
-    background: #eff6ff;
-    border-color: #bfdbfe;
-    color: #1d4ed8;
+    background: color-mix(in srgb, var(--sz-color-warning) 18%, transparent);
+    border-color: color-mix(in srgb, var(--sz-color-warning) 45%, transparent);
+    color: var(--sz-color-warning);
   }
   .rsf-clean-card-body {
     padding: 0.5rem 0.65rem 0;
@@ -550,21 +659,21 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #64748b;
+    color: var(--sz-color-text-muted);
   }
   .rsf-clean-card-value {
     font-size: 0.74rem;
     font-weight: 600;
-    color: #334155;
+    color: var(--sz-color-text-secondary);
   }
   .rsf-clean-card-meta-box {
-    border: 1px solid rgba(148, 163, 184, 0.22);
+    border: 1px solid color-mix(in srgb, var(--sz-color-border) 90%, transparent);
     border-radius: 12px;
     padding: 0.36rem 0.42rem;
-    background: rgba(255,255,255,0.82);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 92%, transparent);
   }
   .rsf-clean-card-empty {
-    border: 1px dashed rgba(148, 163, 184, 0.45);
+    border: 1px dashed color-mix(in srgb, var(--sz-color-border) 75%, transparent);
     border-radius: 14px;
     padding: 1rem;
     min-height: 138px;
@@ -574,8 +683,8 @@
     text-align: center;
     font-size: 0.8rem;
     font-weight: 600;
-    color: #64748b;
-    background: rgba(248, 250, 252, 0.65);
+    color: var(--sz-color-text-muted);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 70%, transparent);
   }
   .rsf-clean-anexos {
     padding: 0.4rem 0.65rem 0.6rem;
@@ -601,9 +710,9 @@
     display: block;
   }
   .rsf-clean-anexos-empty {
-    color: #64748b;
+    color: var(--sz-color-text-muted);
     font-size: 0.78rem;
-    font-weight: 600;
+    font-weight: var(--sz-font-weight-semibold);
   }
   #rsGuestModal .modal-dialog {
     max-width: 760px;
@@ -680,63 +789,83 @@
     text-align: right;
   }
   .rsf-modal-content {
-    border: 1px solid rgba(148, 163, 184, 0.25);
-    border-radius: 22px;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
     overflow: hidden;
-    box-shadow: 0 30px 70px rgba(15, 23, 42, 0.24);
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: var(--sz-shadow-3);
+    background: var(--sz-color-surface);
   }
   .rsf-modal-header {
-    background: linear-gradient(135deg, #223247 0%, #1a2535 55%, #111b2a 100%);
-    color: #f8fafc;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    padding: 1rem 1.15rem;
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+    border-bottom: 1px solid var(--sz-color-border);
+    padding: var(--sz-space-4) var(--sz-space-5) var(--sz-space-3);
   }
   .rsf-modal-header .modal-title {
-    font-weight: 700;
-    letter-spacing: 0.01em;
+    margin: 0;
+    font-family: var(--sz-font-family);
+    font-size: 0.9375rem;
+    line-height: var(--sz-line-normal);
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
   }
   .rsf-modal-header .btn-close {
-    filter: invert(1) grayscale(1) brightness(2);
-    opacity: 0.9;
+    opacity: 0.85;
   }
   .rsf-modal-body {
-    padding: 1.15rem;
-    background:
-      radial-gradient(circle at top right, rgba(37, 99, 235, 0.06), transparent 30%),
-      linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98));
+    padding: var(--sz-space-4) var(--sz-space-5) var(--sz-space-3);
+    background: var(--sz-color-surface);
+  }
+  .rsf-modal-body .row.g-2 {
+    --bs-gutter-x: var(--sz-space-4);
+    --bs-gutter-y: var(--sz-space-4);
   }
   .rsf-modal-body .form-label {
-    font-size: 0.78rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #475569;
-    margin-bottom: 0.35rem;
+    font-family: var(--sz-font-family);
+    font-size: var(--sz-font-size-sm);
+    line-height: var(--sz-line-normal);
+    color: var(--sz-color-text-secondary);
+    font-weight: var(--sz-font-weight-semibold);
+    margin-bottom: var(--sz-space-2);
   }
   .rsf-modal-body .form-control,
   .rsf-modal-body .form-select {
-    min-height: 42px;
-    border-radius: 12px;
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+    min-height: var(--sz-input-height);
+    border-radius: var(--sz-radius-sm);
+    border: 1px solid var(--sz-color-border);
+    box-shadow: none;
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    font-family: var(--sz-font-family);
+    font-size: var(--sz-font-size-sm);
+    padding: 0 var(--sz-space-3);
   }
   .rsf-modal-body .form-control:focus,
   .rsf-modal-body .form-select:focus {
-    border-color: rgba(37, 99, 235, 0.45);
-    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.12), 0 10px 24px rgba(37, 99, 235, 0.10);
+    border-color: var(--sz-color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sz-color-primary) 18%, transparent);
   }
   .rsf-modal-footer {
-    padding: 0.95rem 1.15rem 1.1rem;
-    border-top: 1px solid rgba(226, 232, 240, 0.9);
-    background: rgba(248, 250, 252, 0.88);
+    padding: var(--sz-space-3) var(--sz-space-5) var(--sz-space-4);
+    border-top: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface-alt);
+  }
+  .rsf-modal-footer .sz_button {
+    border-radius: var(--sz-radius-sm);
+    min-width: 96px;
   }
   .rsf-modal-footer .btn {
     border-radius: 999px;
-    padding-inline: 1rem;
-    min-width: 92px;
+    min-width: 96px;
+  }
+  [data-sz-theme="dark"] .rsf-modal-header .btn-close,
+  [data-sz-theme="geek"] .rsf-modal-header .btn-close {
+    filter: invert(1) grayscale(1);
   }
   @media (max-width: 767.98px) {
+    .rsf-page {
+      padding-inline: var(--sz-space-3);
+    }
     .rsf-reserva-line {
       grid-template-columns: 1fr;
     }

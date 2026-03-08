@@ -115,7 +115,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         const input = camposByName[col.name];
         if (!input) return;
 
-        const wrapper = input.closest('.col-12') || input.closest('.form-check') || input.closest('.mb-3');
+        const wrapper = input.closest('.col-12') || input.closest('.sz_field') || input.closest('.sz_checkbox') || input.closest('.mb-3');
         const visivel = avaliarExpressao(col.condicao_visivel, formState);
 
         if (wrapper) {
@@ -392,7 +392,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         if ((col.tipo || '').toUpperCase() === 'COLOR') {
           let input = document.createElement('input');
           input.type = 'color';
-          input.className = 'form-control-color';
+          input.className = 'sz_input';
           input.name = col.name;
           input.id = col.name;
           input.value = col.valor || col.valorAtual || col.VALORDEFAULT || '#000000';
@@ -404,10 +404,10 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
           });
 
           const wrapper = document.createElement('div');
-          wrapper.className = 'mb-3';
+          wrapper.className = 'mb-3 sz_field';
           const label = document.createElement('label');
           label.setAttribute('for', col.name);
-          label.className = 'form-label';
+          label.className = 'sz_label';
           label.innerHTML = `${col.descricao || col.name}`;
           wrapper.appendChild(label);
           wrapper.appendChild(input);
@@ -417,18 +417,24 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         }
                 
         const wrapper = document.createElement('div');
-        wrapper.className = col.tipo === 'BIT' ? 'form-check mb-3' : 'mb-3';
+        wrapper.className = 'mb-3 sz_field';
 
         if (col.tipo === 'BIT') {
-              wrapper.innerHTML = `
-                <input class="form-check-input" type="checkbox"
-                      id="${col.name}" name="${col.name}">
-                <label class="form-check-label" for="${col.name}">
-                  ${col.descricao || col.name}
-                </label>
-              `;
+              const label = document.createElement('label');
+              label.className = 'sz_checkbox';
+              label.setAttribute('for', col.name);
 
-              const input = wrapper.querySelector('input');
+              const input = document.createElement('input');
+              input.type = 'checkbox';
+              input.id = col.name;
+              input.name = col.name;
+
+              const text = document.createElement('span');
+              text.textContent = col.descricao || col.name;
+
+              label.append(input, text);
+              wrapper.appendChild(label);
+
               formState[col.name] = false;
               camposByName[col.name] = input;
 
@@ -436,7 +442,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
             } else {
               const label = document.createElement('label');
               label.setAttribute('for', col.name);
-              label.className = 'form-label';
+              label.className = 'sz_label';
               label.innerHTML = `${col.descricao || col.name}`;
               if (col.obrigatorio) {
                 label.innerHTML += ' <span style="color:red">*</span>';
@@ -515,7 +521,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
                   input.required = true;
                 }
               camposByName[col.name] = input;
-              input.className = 'form-select';
+              input.className = 'sz_select';
               input.name = col.name;
               input.innerHTML = '<option value="">---</option>';
 
@@ -529,7 +535,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
                   input.required = true;
                 }
               camposByName[col.name] = input;
-              input.className = 'form-control';
+              input.className = 'sz_textarea';
               input.name = col.name;
               input.rows = 4;
 
@@ -542,7 +548,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
                   input.required = true;
                 }
               camposByName[col.name] = input;
-              input.className = 'form-control';
+              input.className = 'sz_input';
               input.name = col.name;
               input.dataset.tipoCampo = (col.tipo || '').toUpperCase();
 
@@ -552,6 +558,8 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
 
               if (col.tipo === 'DATE') {
                 input.type = 'text';
+                input.classList.remove('sz_input');
+                input.classList.add('sz_date');
                 input.classList.add('flatpickr-date');
               } else if (col.tipo === 'HOUR') {
                 input.type = 'time';
@@ -567,18 +575,11 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
 
               if (col.readonly) {
                 input.readOnly = true;
-                input.classList.add('bg-light');
+                input.classList.add('sz_surface_alt');
               }
 
-              if (col.tipo === 'BIT') {
-                formState[col.name] = false;
-                input.type = 'checkbox';
-                input.className = 'form-check-input';
-                input.addEventListener('change', handleFieldChange);
-              } else {
-                formState[col.name] = '';
-                input.addEventListener('change', handleFieldChange);
-              }
+              formState[col.name] = '';
+              input.addEventListener('change', handleFieldChange);
             }
 
             wrapper.appendChild(input);
@@ -768,34 +769,40 @@ hideLoading()
           detalhes.forEach(det => {
             // 1) Card de detalhe
             const card = document.createElement('div');
-            card.className = 'card p-3 mb-4';
+            card.className = 'sz_panel sz_dynamic_detail_panel mb-4';
 
             // 2) Título
             const title = document.createElement('h5');
+            title.className = 'sz_h4 sz_mb_2';
             title.textContent = det.tabela;
             card.appendChild(title);
 
             // 3) Wrapper responsivo e tabela
             const wrapper = document.createElement('div');
-            wrapper.className = 'table-responsive mb-3';
+            wrapper.className = 'sz_table_wrap sz_dynamic_detail_table_wrap mb-3';
             const tbl = document.createElement('table');
-            tbl.className = 'table table-striped table-sm';
+            tbl.className = 'sz_table';
             wrapper.appendChild(tbl);
             card.appendChild(wrapper);
 
             // 4) Cabeçalho da tabela (checkbox como primeira coluna)
             const thead = tbl.createTHead();
+            thead.className = 'sz_table_head';
             const hr    = thead.insertRow();
+            hr.className = 'sz_table_row';
 
             // inserimos a célula de seleção NA POSIÇÃO 0
-            const thSel = hr.insertCell(0);
+            const thSel = document.createElement('th');
+            thSel.className = 'sz_table_cell';
             thSel.innerHTML = '';        // fica em branco, mas força a coluna
             thSel.style.width = '2rem';  // largura fixa para o checkbox
+            hr.appendChild(thSel);
 
             // agora as colunas normais (iniciam em índice 1)
             det.campos.forEach(c => {
               if (c.VISIVEL === false) return;  // ignora colunas invisíveis
               const th = document.createElement('th');
+              th.className = 'sz_table_cell';
               th.textContent = c.LABEL;
               hr.appendChild(th);
             });
@@ -804,13 +811,14 @@ hideLoading()
             const tbody = tbl.createTBody();
             det.rows.forEach(row => {
               const tr = tbody.insertRow();
+              tr.className = 'sz_table_row';
 
               // 5.1) checkbox na célula 0
               const tdSel = tr.insertCell(0);
+              tdSel.className = 'sz_table_cell';
               const chk   = document.createElement('input');
               chk.type    = 'checkbox';
-              chk.className = 'form-check-input detail-select';
-              chk.style.transform = 'scale(1.1'; // opcional: aumenta o tamanho
+              chk.className = 'detail-select sz_detail_select';
               const pk    = row[det.campos[0].CAMPODESTINO];
               chk.value   = pk;
               tdSel.appendChild(chk);
@@ -819,6 +827,7 @@ hideLoading()
               det.campos.forEach(c => {
                 if (c.VISIVEL === false) return;  // ignora colunas invisíveis
                 const td = tr.insertCell();
+                td.className = 'sz_table_cell';
                 let val = row[c.CAMPODESTINO] ?? '';
                 td.textContent = val;
               });
@@ -849,11 +858,12 @@ hideLoading()
 
             // 6) Botões de ação (Inserir / Editar / Eliminar)
             const btnGroup = document.createElement('div');
-            btnGroup.className = 'btn-group';
+            btnGroup.className = 'sz_table_actions';
 
             // Inserir
             const btnInsert = document.createElement('button');
-            btnInsert.className = 'btn btn-sm btn-primary';
+            btnInsert.type = 'button';
+            btnInsert.className = 'sz_button sz_button_primary';
             btnInsert.title = 'Inserir';
             btnInsert.innerHTML = '<i class="fa fa-plus"></i>';
 
@@ -899,7 +909,8 @@ hideLoading()
             // Eliminar
             // Eliminar (tanto single como múltiplos via checkbox)
             const btnDelete = document.createElement('button');
-            btnDelete.className = 'btn btn-sm btn-danger';
+            btnDelete.type = 'button';
+            btnDelete.className = 'sz_button sz_button_danger';
             btnDelete.title = 'Eliminar';
             btnDelete.innerHTML = '<i class="fa fa-trash"></i>';
             btnDelete.addEventListener('click', async e => {
@@ -985,29 +996,38 @@ hideLoading()
       const arr = await res.json();
 
       if (!arr.length) {
-        listaAnx.innerHTML = '<p class="text-muted">Ainda não há anexos.</p>';
+        listaAnx.innerHTML = '<p class="sz_text_muted sz_dynamic_anexos_empty">Ainda não há anexos.</p>';
         return;
       }
 
       listaAnx.innerHTML = arr.map(a => `
-        <div class="d-inline-flex align-items-center me-2 mb-2 p-2 rounded-pill bg-light">
-          <i class="fa fa-info-circle text-primary me-2" 
-            data-id="${a.ANEXOSSTAMP}" title="Ver detalhes"
-            style="cursor: pointer;"></i>
+        <div class="sz_dynamic_anexo_item">
+          <button type="button"
+                  class="sz_dynamic_anexo_icon sz_dynamic_anexo_info"
+                  data-anexo-action="info"
+                  data-id="${a.ANEXOSSTAMP}"
+                  title="Ver detalhes"
+                  aria-label="Ver detalhes">
+            <i class="fa fa-info-circle"></i>
+          </button>
 
-          <!-- O link do ficheiro volta aqui: -->
-          <a href="${a.CAMINHO}" target="_blank" class="text-decoration-none text-body">
+          <a href="${a.CAMINHO}" target="_blank" class="sz_dynamic_anexo_link">
             ${a.FICHEIRO}
           </a>
 
-          <i class="fa fa-times text-danger ms-2" 
-            data-id="${a.ANEXOSSTAMP}" title="Eliminar anexo" 
-            style="cursor: pointer;"></i>
+          <button type="button"
+                  class="sz_dynamic_anexo_icon sz_dynamic_anexo_delete"
+                  data-anexo-action="delete"
+                  data-id="${a.ANEXOSSTAMP}"
+                  title="Eliminar anexo"
+                  aria-label="Eliminar anexo">
+            <i class="fa fa-times"></i>
+          </button>
         </div>
       `).join('');
 
       // info → abre dynamic_form da tabela ANEXOS
-      listaAnx.querySelectorAll('.fa-info-circle').forEach(el => {
+      listaAnx.querySelectorAll('[data-anexo-action="info"]').forEach(el => {
         el.addEventListener('click', () => {
           const id = el.dataset.id;
           window.location.href = `/generic/form/ANEXOS/${id}`;
@@ -1015,7 +1035,7 @@ hideLoading()
       });
 
       // × → apagar
-      listaAnx.querySelectorAll('.fa-times').forEach(el => {
+      listaAnx.querySelectorAll('[data-anexo-action="delete"]').forEach(el => {
         el.addEventListener('click', async () => {
           const id = el.dataset.id;
           if (!confirm('Eliminar este anexo?')) return;
@@ -1283,16 +1303,16 @@ document.addEventListener('click', e => {
 function criarInputPadrao(campo, valorAtual = '') {
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'form-control';
+  input.className = 'sz_input';
   input.value = valorAtual;
   return input;
 }
 
 function renderCampo(campo, valorAtual = '') {
   const div = document.createElement('div');
-  div.className = 'col-12 mb-3';
+  div.className = 'col-12 mb-3 sz_field';
   const label = document.createElement('label');
-  label.className = 'form-label';
+  label.className = 'sz_label';
   label.textContent = campo.descricao || campo.name;
   div.appendChild(label);
 
@@ -1302,19 +1322,20 @@ function renderCampo(campo, valorAtual = '') {
   if (tipo === 'COLOR') {
     input = document.createElement('input');
     input.type = 'color';
-    input.className = 'form-control form-control-color';
+    input.className = 'sz_input';
     input.value = valorAtual || '#000000';
   }
   else if (tipo === 'LINK') {
     const wrapper = document.createElement('div');
-    wrapper.className = 'input-group';
+    wrapper.className = 'sz_inline sz_gap_1 sz_w_full';
     input = document.createElement('input');
     input.type = 'text';
-    input.className = 'form-control';
+    input.className = 'sz_input';
+    input.style.flex = '1 1 auto';
     input.placeholder = 'https://...';
     input.value = valorAtual || '';
     const button = document.createElement('a');
-    button.className = 'btn btn-outline-secondary';
+    button.className = 'sz_button sz_button_ghost';
     button.target = '_blank';
     button.href   = input.value || '#';
     button.innerHTML = '<i class="fa fa-link"></i>';
@@ -1340,100 +1361,107 @@ function renderCampo(campo, valorAtual = '') {
 function renderModalFields(campos) {
   const container = document.getElementById('modalBody');
   if (!container) {
-    console.error('❌ Container #modalBody não encontrado!');
+    console.error('Container #modalBody nao encontrado!');
     return;
   }
+
   container.innerHTML = '';
 
   campos
     .sort((a, b) => a.ORDEM - b.ORDEM)
     .forEach(col => {
-      // Cria wrapper e label
       const wrapper = document.createElement('div');
-      wrapper.className = 'form-group';
-      if (col.TIPO === 'BIT') wrapper.classList.add('checkbox');
-
-      const label = document.createElement('label');
-      label.setAttribute('for', col.CAMPO);
-      label.textContent = col.LABEL || col.CAMPO;
-      wrapper.appendChild(label);
+      wrapper.className = 'sz_field';
 
       let input;
-      
-      // ── 1) COMBO ─────────────────────────────────────────────
-      if (col.TIPO === 'COMBO') {
-        input = document.createElement('select');
-        input.name = col.CAMPO;
-        input.id   = col.CAMPO;
-        input.className = 'form-control';
-        // opção vazia
-        input.innerHTML = '<option value="">---</option>';
-        // popula com OPCOES vindas do servidor
-        if (Array.isArray(col.OPCOES)) {
-          col.OPCOES.forEach(opt => {
-            const o = document.createElement('option');
-            o.value = opt[0];
-            o.textContent = opt[1];
-            input.appendChild(o);
-          });
-        }
-        // aplica default só depois das opções existirem
-        if (col.VALORDEFAULT) {
-          let def = col.VALORDEFAULT.trim();
-          // strip de aspas, se houver
-          if (/^".*"$/.test(def)) def = def.slice(1, -1);
-          input.value = def;
-        }
+      const tipo = (col.TIPO || '').toUpperCase();
 
-      // ── 2) INPUTS (TEXT, DATE, HOUR, INT, DECIMAL, BIT) ───────
-      } else {
+      if (tipo === 'BIT') {
+        const checkLabel = document.createElement('label');
+        checkLabel.className = 'sz_checkbox';
+        checkLabel.setAttribute('for', col.CAMPO);
+
         input = document.createElement('input');
+        input.type = 'checkbox';
         input.name = col.CAMPO;
-        input.id   = col.CAMPO;
-        input.className = 'form-control';
+        input.id = col.CAMPO;
 
-        switch (col.TIPO) {
-          case 'DATE':
-            input.type = 'text';
-            input.classList.add('flatpickr-date');
-            break;
-          case 'HOUR':
-            input.type = 'time';
-            break;
-          case 'INT':
-            input.type = 'number';
-            input.step = '1';
-            break;
-          case 'DECIMAL':
-            input.type = 'number';
-            input.step = '0.01';
-            break;
-          case 'BIT':
-            input.type = 'checkbox';
-            break;
-          default:
-            input.type = 'text';
+        const text = document.createElement('span');
+        text.textContent = col.LABEL || col.CAMPO;
+        checkLabel.append(input, text);
+        wrapper.appendChild(checkLabel);
+      } else {
+        const label = document.createElement('label');
+        label.setAttribute('for', col.CAMPO);
+        label.className = 'sz_label';
+        label.textContent = col.LABEL || col.CAMPO;
+        wrapper.appendChild(label);
+
+        if (tipo === 'COMBO') {
+          input = document.createElement('select');
+          input.className = 'sz_select';
+          input.innerHTML = '<option value="">---</option>';
+          if (Array.isArray(col.OPCOES)) {
+            col.OPCOES.forEach(opt => {
+              const o = document.createElement('option');
+              o.value = opt[0];
+              o.textContent = opt[1];
+              input.appendChild(o);
+            });
+          }
+        } else if (tipo === 'MEMO') {
+          input = document.createElement('textarea');
+          input.className = 'sz_textarea';
+          input.rows = 3;
+        } else {
+          input = document.createElement('input');
+          input.className = 'sz_input';
+
+          switch (tipo) {
+            case 'DATE':
+              input.type = 'text';
+              input.classList.remove('sz_input');
+              input.classList.add('sz_date', 'flatpickr-date');
+              break;
+            case 'HOUR':
+              input.type = 'time';
+              break;
+            case 'INT':
+              input.type = 'number';
+              input.step = '1';
+              break;
+            case 'DECIMAL':
+              input.type = 'number';
+              input.step = '0.01';
+              break;
+            case 'COLOR':
+              input.type = 'color';
+              break;
+            default:
+              input.type = 'text';
+          }
         }
 
-        if (col.VALORDEFAULT) {
-          let def = col.VALORDEFAULT.trim();
-          // macro RECORD_STAMP
-          if (/^\{\s*RECORD_STAMP\s*\}$/.test(def)) {
-            def = window.RECORD_STAMP || '';
-          }
-          // strip de aspas
-          else if (/^".*"$/.test(def)) {
-            def = def.slice(1, -1);
-          }
-          if (input.type === 'checkbox') {
-            input.checked = ['1','true','True'].includes(def);
-          } else {
-            input.value = def;
-          }
+        input.name = col.CAMPO;
+        input.id = col.CAMPO;
+        wrapper.appendChild(input);
+      }
+
+      if (col.VALORDEFAULT) {
+        let def = col.VALORDEFAULT.trim();
+        if (/^\{\s*RECORD_STAMP\s*\}$/.test(def)) {
+          def = window.RECORD_STAMP || '';
+        } else if (/^".*"$/.test(def)) {
+          def = def.slice(1, -1);
+        }
+
+        if (input.type === 'checkbox') {
+          input.checked = ['1', 'true', 'True'].includes(def);
+        } else {
+          input.value = def;
         }
       }
 
-      wrapper.appendChild(input);
       container.appendChild(wrapper);
     });
 }
@@ -1443,7 +1471,7 @@ function gravarModal() {
   const container = document.getElementById('modalBody');
   if (!container) return console.error('❌ Container #modalBody não encontrado');
 
-  const inputs = container.querySelectorAll('input[name], select[name]');
+  const inputs = container.querySelectorAll('input[name], select[name], textarea[name]');
   const dados = { __modal__: currentModalName };
 
   inputs.forEach(i => {

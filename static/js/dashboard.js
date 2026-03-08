@@ -55,7 +55,7 @@ async function fetchOptions(widgetId, field) {
     body: JSON.stringify({ options_query: field.options_query })
   });
   const js = await resp.json();
-  if (!resp.ok || js.error) throw new Error(js.error || 'Erro ao carregar opções');
+  if (!resp.ok || js.error) throw new Error(js.error || 'Erro ao carregar opcoes');
   return Array.isArray(js.options) ? js.options : [];
 }
 
@@ -63,22 +63,22 @@ function ensureFiltersModal(widget, fields) {
   const modalId = `widget-filters-${widget.nome}`;
   if (document.getElementById(modalId)) return modalId;
   const modal = document.createElement('div');
-  modal.className = 'modal fade';
+  modal.className = 'modal fade sz_dashboard_filters_modal';
   modal.id = modalId;
   modal.tabIndex = -1;
   modal.innerHTML = `
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><i class="fa-solid fa-filter me-2"></i>Filtros - ${widget.titulo || widget.nome}</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content sz_panel">
+        <div class="modal-header sz_modal_header sz_dynamic_filters_header">
+          <h3 class="sz_h4 sz_modal_title"><i class="fa-solid fa-filter me-2"></i>Filtros - ${widget.titulo || widget.nome}</h3>
+          <button type="button" class="btn-close sz_dashboard_filters_close" data-bs-dismiss="modal" aria-label="Fechar"></button>
         </div>
-        <div class="modal-body">
-          <form id="${modalId}-form" class="row g-2"></form>
+        <div class="modal-body sz_modal_body">
+          <form id="${modalId}-form" class="sz_dynamic_filters_form"></form>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="${modalId}-apply">Aplicar</button>
+        <div class="modal-footer sz_modal_footer">
+          <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="sz_button sz_button_primary" id="${modalId}-apply">Aplicar</button>
         </div>
       </div>
     </div>`;
@@ -87,9 +87,9 @@ function ensureFiltersModal(widget, fields) {
   const form = modal.querySelector('form');
   fields.forEach(f => {
     const wrap = document.createElement('div');
-    wrap.className = 'col-12';
+    wrap.className = 'sz_field';
     const label = document.createElement('label');
-    label.className = 'form-label';
+    label.className = 'sz_label';
     label.textContent = f.label || f.key;
     label.htmlFor = `${modalId}-${f.key}`;
     wrap.appendChild(label);
@@ -97,7 +97,7 @@ function ensureFiltersModal(widget, fields) {
     let input;
     if (f.input_type === 'select') {
       input = document.createElement('select');
-      input.className = 'form-select';
+      input.className = 'sz_select';
       input.innerHTML = '<option value="">---</option>';
       if (f.options_source !== 'query' && Array.isArray(f.options)) {
         f.options.forEach(opt => {
@@ -120,7 +120,7 @@ function ensureFiltersModal(widget, fields) {
     } else {
       input = document.createElement('input');
       input.type = f.input_type || 'text';
-      input.className = 'form-control';
+      input.className = (f.input_type === 'number') ? 'sz_input_number' : 'sz_input';
     }
     input.id = `${modalId}-${f.key}`;
     input.dataset.key = f.key;
@@ -181,16 +181,24 @@ function renderDataIntoWidget(state, data) {
   const { widget, body } = state;
   if (widget.tipo === 'ANALISE') renderAnalise(body, data);
   else if (widget.tipo === 'GRAFICO') renderGrafico(body, widget, data);
+  applyWidgetTableClass(body);
 }
 
 // Render -------------------------------------------------
+function applyWidgetTableClass(body) {
+  if (!body) return;
+  body.querySelectorAll('table').forEach((table) => {
+    table.classList.add('sz_dashboard_widget_table');
+  });
+}
+
 function renderAnalise(body, data) {
   if (data.error) {
     body.innerHTML = `<span class="error-msg">${data.error}</span>`;
     return;
   }
   if (!Array.isArray(data.rows) || data.rows.length === 0) {
-    body.innerHTML = `<div class="dashboard-grid-empty">Sem dados</div>`;
+    body.innerHTML = `<div class="sz_dashboard_grid_empty">Sem dados</div>`;
     return;
   }
 
@@ -218,7 +226,7 @@ function renderAnalise(body, data) {
   numericCols.forEach(c => totals[c] = 0);
   data.rows.forEach(row => numericCols.forEach(c => { totals[c] += parseNumber(row[c]); }));
 
-  let html = '<div class="dashboard-grid-wrap"><table class="dashboard-grid">';
+  let html = '<div class="sz_dashboard_grid_wrap"><table class="sz_dashboard_grid_table sz_dashboard_widget_table">';
   html += '<thead><tr>' +
     data.columns.map(c =>
       `<th${numericCols.includes(c) ? ' class="num"' : ''}>${c}</th>`
@@ -354,6 +362,8 @@ function renderGrafico(body, widget, data) {
 
   body.innerHTML = '';
   const canvas = document.createElement('canvas');
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
   body.appendChild(canvas);
   new Chart(canvas.getContext('2d'), {
     type: chartType,
@@ -403,22 +413,24 @@ async function renderWidget(widget, colDiv) {
   const hasFilters = filtersDef.length > 0;
 
   const wDiv = document.createElement('div');
-  wDiv.className = 'widget widget-' + widget.tipo.toLowerCase();
-  const filterBtn = hasFilters ? `<button class="btn btn-outline-secondary btn-sm widget-filter-btn" data-widget="${widget.nome}" title="Filtros"><i class="fa fa-filter"></i></button>` : '';
+  wDiv.className = 'sz_dashboard_widget sz_dashboard_widget_' + widget.tipo.toLowerCase();
+  const filterBtn = hasFilters
+    ? `<button class="sz_button sz_button_ghost sz_dashboard_filter_btn widget-filter-btn" data-widget="${widget.nome}" title="Filtros"><i class="fa fa-filter"></i></button>`
+    : '';
   wDiv.innerHTML = `
-    <div class="widget-header">
-      <h3>${widget.titulo || formatTitle(widget.nome)}</h3>
-      <div class="d-flex align-items-center gap-2">
+    <div class="sz_dashboard_widget_header">
+      <h3 class="sz_h2 sz_dashboard_widget_title">${widget.titulo || formatTitle(widget.nome)}</h3>
+      <div class="sz_dashboard_widget_tools">
         ${filterBtn}
-        <button class="expand-btn" title="Expandir">⇵</button>
+        <button class="sz_dashboard_expand_btn" title="Expandir">&#8693;</button>
       </div>
     </div>
-    <div class="widget-body"></div>
+    <div class="sz_dashboard_widget_body"></div>
   `;
   colDiv.appendChild(wDiv);
 
-  const body = wDiv.querySelector('.widget-body');
-  const expandBtn = wDiv.querySelector('.expand-btn');
+  const body = wDiv.querySelector('.sz_dashboard_widget_body');
+  const expandBtn = wDiv.querySelector('.sz_dashboard_expand_btn');
   expandBtn.style.display = 'none';
 
   let maxH = widget.maxheight;
@@ -427,8 +439,17 @@ async function renderWidget(widget, colDiv) {
     if (!maxH && cfg.maxheight) maxH = cfg.maxheight;
   } catch {}
   if (maxH) {
-    body.style.maxHeight = maxH + 'px';
-    body.style.overflowY = 'auto';
+    if (widget.tipo === 'GRAFICO') {
+      body.style.height = maxH + 'px';
+      body.style.maxHeight = maxH + 'px';
+      body.style.overflowY = 'hidden';
+    } else {
+      body.style.maxHeight = maxH + 'px';
+      body.style.overflowY = 'auto';
+    }
+  } else if (widget.tipo === 'GRAFICO') {
+    body.style.minHeight = '240px';
+    body.style.overflowY = 'hidden';
   }
 
   const toggleExpandBtn = () => {
@@ -451,7 +472,8 @@ async function renderWidget(widget, colDiv) {
       widgetState.set(widget.nome, { widget, body, filtersDef, currentFilters: filters });
       renderDataIntoWidget(widgetState.get(widget.nome), data);
     } else if (widget.tipo === 'HTML') {
-      body.innerHTML = widget.config || '<em>(sem conteúdo)</em>';
+      body.innerHTML = widget.config || '<em>(sem conteudo)</em>';
+      applyWidgetTableClass(body);
     }
   } catch (err) {
     body.innerHTML = `<span class="error-msg">Erro: ${err.message}</span>`;
@@ -479,3 +501,4 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     .finally(hideLoading);
 });
+

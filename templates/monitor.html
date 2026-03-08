@@ -3,56 +3,61 @@
 {% block title %}Monitor de Trabalho{% endblock %}
 
 {% block content %}
-<!-- Barra de aÃ§Ãµes superior -->
-<div class="monitor-toolbar mb-2 d-flex align-items-center justify-content-between">
-  <div class="d-flex align-items-center gap-2">
-    <button class="btn btn-outline-secondary btn-sm" id="openFilters">
-      <i class="fa-solid fa-filter me-1"></i>
+<div class="sz_monitor_page">
+<!-- Barra superior de contexto -->
+<div class="sz_contextbar sz_monitor_contextbar mb-2">
+  <div class="sz_contextbar_left">
+    <div class="sz_page_title">Monitor de Trabalho</div>
+    <div class="sz_page_subtitle" id="filtersSummary"></div>
+  </div>
+  <div class="sz_contextbar_right">
+    <button class="btn sz_button sz_button_ghost" id="openFilters">
+      <i class="fa-solid fa-filter"></i>
       Filtros
     </button>
   </div>
-  <small class="text-muted" id="filtersSummary"></small>
 </div>
 
 <!-- layout: 5 colunas quando existir a coluna de MN -->
-<div class="monitor-board row gx-3 gy-3 row-cols-1 row-cols-md-5">
+<div class="monitor-board sz_monitor_board row gx-3 gy-3 row-cols-1 row-cols-md-5">
   <!-- Coluna nova: ManutenÃ§Ãµes nÃ£o agendadas (mostrada sÃ³ para MNADMIN) -->
-    <div id="col-mn-nao-agendadas" class="col">
-    <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
+    <div id="col-mn-nao-agendadas" class="col sz_monitor_col">
+    <div class="col-header sz_monitor_col_header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
       <span class="fw-semibold">Pendentes</span>
       <span class="badge bg-secondary" id="count-mn">0</span>
     </div>
-    <div id="mn-nao-agendadas" class="tarefa-coluna"></div>
+    <div id="mn-nao-agendadas" class="tarefa-coluna sz_monitor_lane"></div>
   </div>
 
-  <div class="col">
-    <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
+  <div class="col sz_monitor_col">
+    <div class="col-header sz_monitor_col_header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
       <span class="fw-semibold text-danger">Atrasadas</span>
       <span class="badge bg-secondary" id="count-atrasadas">0</span>
     </div>
-    <div id="tarefas-atrasadas" class="tarefa-coluna"></div>
+    <div id="tarefas-atrasadas" class="tarefa-coluna sz_monitor_lane"></div>
   </div>
-  <div class="col">
-    <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
+  <div class="col sz_monitor_col">
+    <div class="col-header sz_monitor_col_header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
       <span class="fw-semibold text-warning">Hoje</span>
       <span class="badge bg-secondary" id="count-hoje">0</span>
     </div>
-    <div id="tarefas-hoje" class="tarefa-coluna"></div>
+    <div id="tarefas-hoje" class="tarefa-coluna sz_monitor_lane"></div>
   </div>
-  <div class="col">
-    <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
+  <div class="col sz_monitor_col">
+    <div class="col-header sz_monitor_col_header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
       <span class="fw-semibold text-success">Futuras</span>
       <span class="badge bg-secondary" id="count-futuras">0</span>
     </div>
-    <div id="tarefas-futuras" class="tarefa-coluna"></div>
+    <div id="tarefas-futuras" class="tarefa-coluna sz_monitor_lane"></div>
   </div>
-  <div class="col">
-    <div class="col-header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
+  <div class="col sz_monitor_col">
+    <div class="col-header sz_monitor_col_header bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center">
       <span class="fw-semibold text-muted">Tratadas</span>
       <span class="badge bg-secondary" id="count-tratadas">0</span>
     </div>
-    <div id="tarefas-tratadas" class="tarefa-coluna"></div>
+    <div id="tarefas-tratadas" class="tarefa-coluna sz_monitor_lane"></div>
   </div>
+</div>
 </div>
 
 <!-- VariÃ¡veis globais seguras -->
@@ -87,7 +92,7 @@
 </script>
 
 <!-- Modal de Filtros -->
-<div class="modal fade" id="filtersModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade sz_monitor_filters_modal" id="filtersModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -96,9 +101,9 @@
       </div>
       <div class="modal-body">
         <div class="btn-group mb-2 filters-tabs" role="group" aria-label="Tabs filtros">
-          <button type="button" class="btn btn-outline-primary active" id="filtersTabUsers">Utilizadores</button>
-          <button type="button" class="btn btn-outline-primary" id="filtersTabAloj">Alojamentos</button>
-          <button type="button" class="btn btn-outline-primary" id="filtersTabOrigins">Origens</button>
+          <button type="button" class="btn sz_button sz_button_ghost active" id="filtersTabUsers">Utilizadores</button>
+          <button type="button" class="btn sz_button sz_button_ghost" id="filtersTabAloj">Alojamentos</button>
+          <button type="button" class="btn sz_button sz_button_ghost" id="filtersTabOrigins">Origens</button>
         </div>
 
         <div class="filters-list-wrapper">
@@ -107,13 +112,13 @@
       </div>
       <div class="modal-footer d-flex justify-content-between">
         <div class="d-flex gap-2">
-          <button type="button" class="btn btn-outline-secondary" id="filtersSelectAll">Todos</button>
-          <button type="button" class="btn btn-outline-secondary" id="filtersSelectNone">Nenhum</button>
-          <button type="button" class="btn btn-outline-secondary" id="filtersClear">Limpar filtros</button>
+          <button type="button" class="btn sz_button sz_button_ghost" id="filtersSelectAll">Todos</button>
+          <button type="button" class="btn sz_button sz_button_ghost" id="filtersSelectNone">Nenhum</button>
+          <button type="button" class="btn sz_button sz_button_ghost" id="filtersClear">Limpar filtros</button>
         </div>
         <div>
-          <button type="button" class="btn btn-cancel me-2" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="filtersApply">Aplicar</button>
+          <button type="button" class="btn sz_button sz_button_secondary me-2" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn sz_button sz_button_primary" id="filtersApply">Aplicar</button>
         </div>
       </div>
     </div>
@@ -121,59 +126,238 @@
   
 
 <style>
-  .monitor-toolbar {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 12px;
-    padding: 1.3rem 0rem;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+  .sz_monitor_page {
+    padding: var(--sz-space-3) var(--sz-space-4);
   }
-  #openFilters {
-    display: inline-flex;
+  @media (max-width: 768px) {
+    .sz_monitor_page {
+      padding: var(--sz-space-2) var(--sz-space-3);
+    }
+  }
+  .sz_monitor_contextbar .sz_contextbar_left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .sz_monitor_contextbar .sz_contextbar_right {
     align-items: center;
-    gap: 0.4rem;
-    background: linear-gradient(135deg, #2563eb, #ec4899);
-    color: #fff;
-    border: none;
-    border-radius: 999px;
-    padding: 0.4rem 0.9rem;
-    font-weight: 600;
-    font-size: 0.85rem;
-    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.2);
-    transition: transform .15s ease, box-shadow .15s ease;
   }
-  #openFilters:hover,
-  #openFilters:focus {
-    transform: translateY(-1px);
-    box-shadow: 0 8px 22px rgba(37, 99, 235, 0.26);
+  .sz_monitor_contextbar #filtersSummary {
+    margin: 0;
+  }
+  .sz_monitor_contextbar #openFilters {
+    gap: .4rem;
+  }
+  .sz_monitor_page,
+  #filtersModal,
+  #tarefaModal,
+  #lsModal,
+  #nrModal,
+  #anexoModal,
+  #novaFaltaModal,
+  #alojModal,
+  #fsModal,
+  #notaTarefaModal,
+  #agendarModal,
+  #novaMnModal {
+    font-family: var(--sz-font-family);
+  }
+  .sz_monitor_theme_modal .modal-content {
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-3);
+    color: var(--sz-color-text);
+  }
+  .sz_monitor_theme_modal .modal-header {
+    background: var(--sz-color-surface-alt);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+  .sz_monitor_theme_modal .modal-footer {
+    border-top: 1px solid var(--sz-color-border);
+  }
+  .sz_monitor_theme_modal .modal-title {
+    color: var(--sz-color-text);
+  }
+  .sz_monitor_theme_modal .form-label,
+  .sz_monitor_theme_modal .form-check-label {
+    color: var(--sz-color-text-secondary);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+  .sz_monitor_theme_modal .form-control,
+  .sz_monitor_theme_modal .form-select,
+  .sz_monitor_theme_modal textarea {
+    background: var(--sz-color-surface-alt);
+    border: 1px solid var(--sz-color-border);
+    color: var(--sz-color-text);
+  }
+  .sz_monitor_theme_modal .form-control::placeholder,
+  .sz_monitor_theme_modal textarea::placeholder {
+    color: var(--sz-color-text-muted);
+  }
+  .sz_monitor_theme_modal .form-control:focus,
+  .sz_monitor_theme_modal .form-select:focus,
+  .sz_monitor_theme_modal textarea:focus {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 70%, var(--sz-color-border));
+    box-shadow: 0 0 0 0.18rem color-mix(in srgb, var(--sz-color-primary) 24%, transparent);
+  }
+  .sz_monitor_theme_modal .form-check-input {
+    background-color: var(--sz-color-surface-alt);
+    border-color: var(--sz-color-border);
+  }
+  .sz_monitor_theme_modal .form-check-input:checked {
+    background-color: var(--sz-color-primary);
+    border-color: var(--sz-color-primary);
+  }
+  .sz_monitor_theme_modal .btn {
+    border-radius: var(--sz-radius-sm);
+    min-height: var(--sz-button-height);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+  .sz_monitor_theme_modal .btn-primary,
+  .sz_monitor_theme_modal .btn-success,
+  .sz_monitor_theme_modal .btn-warning {
+    background: var(--sz-color-primary);
+    border-color: var(--sz-color-primary);
     color: #fff;
   }
-  /* Filtros */
+  .sz_monitor_theme_modal .btn-secondary,
+  .sz_monitor_theme_modal .btn-cancel {
+    background: var(--sz-color-surface-alt);
+    border: 1px solid var(--sz-color-border);
+    color: var(--sz-color-text-secondary);
+  }
+  .sz_monitor_theme_modal .btn-primary:hover,
+  .sz_monitor_theme_modal .btn-success:hover,
+  .sz_monitor_theme_modal .btn-warning:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 86%, #fff);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 86%, #fff);
+    color: #fff;
+  }
+  .sz_monitor_theme_modal .btn-secondary:hover,
+  .sz_monitor_theme_modal .btn-cancel:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-alt));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 40%, var(--sz-color-border));
+    color: var(--sz-color-text);
+  }
+  .sz_monitor_theme_modal .text-muted,
+  .sz_monitor_theme_modal .small {
+    color: var(--sz-color-text-muted) !important;
+  }
+  [data-sz-theme="dark"] .sz_monitor_theme_modal .btn-close,
+  [data-sz-theme="geek"] .sz_monitor_theme_modal .btn-close {
+    filter: invert(1) grayscale(1);
+  }
+  [data-sz-theme="geek"] .sz_monitor_theme_modal .btn-primary,
+  [data-sz-theme="geek"] .sz_monitor_theme_modal .btn-success,
+  [data-sz-theme="geek"] .sz_monitor_theme_modal .btn-warning {
+    color: #021305;
+  }
+  #nrModal .nr-card {
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+  }
+  #nrModal .nr-card .text-muted,
+  #nrModal .nr-card .small {
+    color: var(--sz-color-text-muted) !important;
+  }
+  /* Filtros (modal com tema sz_) */
+  #filtersModal .modal-content {
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-3);
+    color: var(--sz-color-text);
+  }
+  #filtersModal .modal-header {
+    background: var(--sz-color-surface-alt);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+  #filtersModal .modal-footer {
+    border-top: 1px solid var(--sz-color-border);
+  }
+  #filtersModal .modal-title {
+    color: var(--sz-color-text);
+  }
+  #filtersModal .btn-close {
+    opacity: .86;
+  }
+  [data-sz-theme="dark"] #filtersModal .btn-close,
+  [data-sz-theme="geek"] #filtersModal .btn-close {
+    filter: invert(1) grayscale(1);
+  }
+  #filtersModal .filters-tabs .btn {
+    border-color: var(--sz-color-border) !important;
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    box-shadow: none;
+  }
+  #filtersModal .filters-tabs .btn:hover {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 46%, var(--sz-color-border)) !important;
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface-alt)) !important;
+    color: var(--sz-color-text) !important;
+  }
+  #filtersModal .filters-tabs .btn.active,
+  #filtersModal .filters-tabs .btn:active {
+    border-color: var(--sz-color-primary) !important;
+    background: color-mix(in srgb, var(--sz-color-primary) 20%, var(--sz-color-surface-alt)) !important;
+    color: var(--sz-color-text) !important;
+  }
   #filtersModal .filters-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 0.6rem;
   }
-  .select-card {
+  #filtersModal .select-card {
     cursor: pointer;
     user-select: none;
-    background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
-    border: 1px solid #e5e7eb;
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
     border-radius: 12px;
     padding: 0.75rem 0.85rem;
-    box-shadow: 0 8px 18px rgba(15,23,42,0.08);
+    box-shadow: var(--sz-shadow-1);
+    color: var(--sz-color-text);
     transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease, filter .12s ease;
   }
-  .select-card:hover {
+  #filtersModal .select-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 12px 24px rgba(15,23,42,0.12);
+    box-shadow: var(--sz-shadow-2);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
     filter: saturate(1.05);
   }
-	  .select-card.selected {
-	    border-color: #2563eb;
-	    box-shadow: 0 0 0 2px rgba(37,99,235,0.28), 0 12px 24px rgba(15,23,42,0.12);
-	    background: linear-gradient(180deg, #eef4ff 0%, #e7f0ff 100%);
-	  }
+  #filtersModal .select-card.selected {
+    border-color: var(--sz-color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--sz-color-primary) 30%, transparent), var(--sz-shadow-2);
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, var(--sz-color-surface));
+    color: var(--sz-color-text);
+  }
+  #filtersModal #filtersSelectAll,
+  #filtersModal #filtersSelectNone,
+  #filtersModal #filtersClear {
+    border-color: var(--sz-color-border) !important;
+    color: var(--sz-color-text-secondary) !important;
+    background: var(--sz-color-surface-alt) !important;
+  }
+  #filtersModal #filtersSelectAll:hover,
+  #filtersModal #filtersSelectNone:hover,
+  #filtersModal #filtersClear:hover {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border)) !important;
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-alt)) !important;
+    color: var(--sz-color-text) !important;
+  }
+  #filtersModal #filtersApply {
+    background: var(--sz-color-primary) !important;
+    border-color: var(--sz-color-primary) !important;
+    color: #fff !important;
+  }
+  [data-sz-theme="geek"] #filtersModal #filtersApply {
+    color: #021305;
+  }
 
 	  /* Card: Registo de Limpezas (TEMPOS) */
 	  a.tempos-clean-card{
@@ -256,148 +440,189 @@
 	    font-weight: 600;
 	    line-height: 1.1;
 	  }
-  /* Monitor columns com look dynamic-list-card */
-  .monitor-board {
+  /* Monitor columns + cards (theme-aware via sz tokens) */
+  .sz_monitor_board {
     display: grid !important;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 0.5rem;
-    background: #ffffff;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.65rem;
+    background: transparent;
     border: none;
     overflow: visible;
-    backdrop-filter: none;
     box-shadow: none;
     position: relative;
-    border-radius: 16px;
-    padding: 0.5rem;
+    border-radius: 0;
+    padding: 0.2rem;
   }
-  .monitor-board.row {
+  .sz_monitor_board.row {
     margin-left: 0;
     margin-right: 0;
   }
-.monitor-board > div {
+  .sz_monitor_board > .sz_monitor_col {
     display: flex;
     flex-direction: column;
-    gap: .35rem;
+    gap: .4rem;
     min-width: 0;
-    padding: 0;
     width: 100%;
+    padding: .35rem;
+    background: color-mix(in srgb, var(--sz-color-surface) 90%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sz-color-border) 90%, transparent);
+    border-radius: var(--sz-radius-md);
   }
-  @media (max-width: 1199px) {
-    .monitor-board { grid-template-columns: repeat(3, minmax(220px, 1fr)); }
-  }
-  @media (max-width: 992px) {
-    .monitor-board { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
-  }
-  @media (max-width: 768px) {
-    .monitor-board { grid-template-columns: 1fr; max-height: none; }
-  }
-  .monitor-board .col-header {
+  .sz_monitor_col_header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.35rem;
-    background: linear-gradient(135deg, #20324a, #344c6a);
-    border: 1px solid rgba(255,255,255,0.2) !important;
-    color: #f8fafc;
-    box-shadow: 0 12px 24px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.16) inset;
-    border-radius: 14px;
-    padding: 0.65rem 0.85rem;
-    letter-spacing: 0.02em;
+    background: var(--sz-color-surface-alt) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    color: var(--sz-color-text) !important;
+    box-shadow: var(--sz-shadow-1);
+    border-radius: var(--sz-radius-sm);
+    padding: 0.55rem 0.7rem;
+    letter-spacing: 0.01em;
     font-weight: 700;
   }
-  .monitor-board .col-header .text-danger,
-  .monitor-board .col-header .fw-semibold.text-danger {
-    color: #ffffff !important;
+  .sz_monitor_col_header .fw-semibold {
+    color: var(--sz-color-text) !important;
   }
-  .monitor-board .col-header .text-success,
-  .monitor-board .col-header .fw-semibold.text-success {
-    color: #ffffff !important;
-  }
-  .monitor-board .col-header .text-muted,
-  .monitor-board .col-header .fw-semibold.text-muted {
-    color: #ffffff !important;
-  }
-  .monitor-board .col-header .badge {
-    background: rgba(255,255,255,0.14);
-    color: #e5e7eb;
-    border: 1px solid rgba(255,255,255,0.12);
+  .sz_monitor_col_header .text-danger { color: var(--sz-color-danger) !important; }
+  .sz_monitor_col_header .text-warning { color: var(--sz-color-warning) !important; }
+  .sz_monitor_col_header .text-success { color: var(--sz-color-success) !important; }
+  .sz_monitor_col_header .text-muted { color: var(--sz-color-text-muted) !important; }
+  .sz_monitor_col_header .badge {
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, var(--sz-color-surface)) !important;
+    color: var(--sz-color-text) !important;
+    border: 1px solid var(--sz-color-border);
     font-weight: 700;
+  }
+  @media (max-width: 1199px) {
+    .sz_monitor_board { grid-template-columns: repeat(3, minmax(220px, 1fr)); }
+  }
+  @media (max-width: 992px) {
+    .sz_monitor_board { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+  }
+  @media (max-width: 768px) {
+    .sz_monitor_board { grid-template-columns: 1fr; max-height: none; }
   }
   /* Subtítulos (grupos) dentro das tarefas futuras */
-  #tarefas-futuras > .bg-light.border.rounded {
+  #tarefas-futuras > .sz_future_group_header {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(135deg, #e3fcec, #d6edff);
-    border: 1px solid #c3d9ef !important;
-    color: #0b1725;
+    background: color-mix(in srgb, var(--sz-color-info) 12%, var(--sz-color-surface-alt));
+    border: 1px dashed color-mix(in srgb, var(--sz-color-info) 40%, var(--sz-color-border)) !important;
+    color: var(--sz-color-text);
     border-radius: 12px;
     padding: 0.5rem 0.75rem;
-    box-shadow: 0 8px 18px rgba(15,23,42,0.18);
+    margin-bottom: .5rem;
+    box-shadow: var(--sz-shadow-1);
   }
-  #tarefas-futuras > .bg-light.border.rounded::before {
+  #tarefas-futuras > .sz_future_group_header::before {
     content: '';
     position: absolute;
     inset: 0;
-    width: 4px;
-    background: linear-gradient(180deg, #16a34a, #1d4ed8);
-    opacity: 0.9;
+    width: 3px;
+    background: linear-gradient(180deg, var(--sz-color-info), var(--sz-color-success));
+    opacity: 0.95;
   }
-  #tarefas-futuras > .bg-light.border.rounded > span {
+  #tarefas-futuras > .sz_future_group_header > span {
     position: relative;
     z-index: 1;
+    font-size: .82rem;
+    font-weight: 800;
+    letter-spacing: .02em;
+    text-transform: uppercase;
   }
-  .tarefa-coluna {
-    background: rgba(255,255,255,0.75);
+  [data-sz-theme="dark"] #tarefas-futuras > .sz_future_group_header {
+    background: color-mix(in srgb, var(--sz-color-info) 16%, var(--sz-color-surface-alt));
+    border-color: color-mix(in srgb, var(--sz-color-info) 55%, var(--sz-color-border)) !important;
+    color: var(--sz-color-text-secondary);
+  }
+  [data-sz-theme="geek"] #tarefas-futuras > .sz_future_group_header {
+    background: color-mix(in srgb, var(--sz-color-success) 14%, var(--sz-color-surface-alt));
+    border-color: color-mix(in srgb, var(--sz-color-success) 62%, var(--sz-color-border)) !important;
+    color: #8eff9b;
+    box-shadow: 0 0 0 1px rgba(117, 255, 132, 0.18), 0 0 10px rgba(117, 255, 132, 0.08);
+  }
+  [data-sz-theme="geek"] #tarefas-futuras > .sz_future_group_header::before {
+    background: linear-gradient(180deg, #8eff9b, #46d85f);
+  }
+  .sz_monitor_lane {
+    background: transparent;
     border: none;
-    border-radius: 14px;
+    border-radius: 12px;
     min-height: 64px;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+    gap: 0.55rem;
+    box-shadow: none;
   }
-  .tarefa-coluna .tarefa-card,
-  .tarefa-coluna .tarefa-bloco {
-    background: #2d3f58;
-    border: 1px solid rgba(15,23,42,0.16);
-    border-radius: 12px;
-    box-shadow: 0 10px 24px rgba(0,0,0,0.18);
-    color: #ffffff;
-    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  .sz_monitor_lane .tarefa-card:not(.tempos-clean-card),
+  .sz_monitor_lane .tarefa-bloco {
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    box-shadow: var(--sz-shadow-1);
+    color: var(--sz-color-text);
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background-color .12s ease;
   }
-  .tarefa-coluna .tarefa-card *,
-  .tarefa-coluna .tarefa-bloco * {
+  /* light mode: cards azuis (nao brancos) */
+  [data-sz-theme="light"] .sz_monitor_lane .tarefa-card:not(.tempos-clean-card),
+  [data-sz-theme="light"] .sz_monitor_lane .tarefa-bloco {
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 35%, var(--sz-color-border));
+    color: #0f2744;
+  }
+  .sz_monitor_lane .tarefa-card:not(.tempos-clean-card):hover,
+  .sz_monitor_lane .tarefa-bloco:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--sz-shadow-2);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 50%, var(--sz-color-border));
+  }
+  [data-sz-theme="light"] .sz_monitor_lane .tarefa-card:not(.tempos-clean-card):hover,
+  [data-sz-theme="light"] .sz_monitor_lane .tarefa-bloco:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 20%, var(--sz-color-surface));
+  }
+  .sz_monitor_lane .tarefa-card:not(.tempos-clean-card) *,
+  .sz_monitor_lane .tarefa-bloco * {
     color: inherit;
   }
-  .tarefa-coluna .tarefa-card i,
-  .tarefa-coluna .tarefa-bloco i {
-    color: #e5e7eb !important;
+  .sz_monitor_lane .tarefa-card:not(.tempos-clean-card) i,
+  .sz_monitor_lane .tarefa-bloco i {
+    color: var(--sz-color-text-secondary) !important;
   }
-  .tarefa-coluna .tarefa-card .text-danger i,
-  .tarefa-coluna .tarefa-bloco .text-danger i,
-  .tarefa-coluna .tarefa-card i.text-danger,
-  .tarefa-coluna .tarefa-bloco i.text-danger {
-    color: #ef4444 !important;
+  .sz_monitor_lane .tarefa-card:not(.tempos-clean-card) .text-danger i,
+  .sz_monitor_lane .tarefa-bloco .text-danger i,
+  .sz_monitor_lane .tarefa-card:not(.tempos-clean-card) i.text-danger,
+  .sz_monitor_lane .tarefa-bloco i.text-danger {
+    color: var(--sz-color-danger) !important;
   }
-  .tarefa-coluna .tarefa-card .text-success i,
-  .tarefa-coluna .tarefa-bloco .text-success i,
-  .tarefa-coluna .tarefa-card i.text-success,
-  .tarefa-coluna .tarefa-bloco i.text-success {
-    color: #22c55e !important;
+  .sz_monitor_lane .tarefa-card:not(.tempos-clean-card) .text-success i,
+  .sz_monitor_lane .tarefa-bloco .text-success i,
+  .sz_monitor_lane .tarefa-card:not(.tempos-clean-card) i.text-success,
+  .sz_monitor_lane .tarefa-bloco i.text-success {
+    color: var(--sz-color-success) !important;
   }
-  .tarefa-coluna .tarefa-card .text-muted,
-  .tarefa-coluna .tarefa-bloco .text-muted,
-  .tarefa-coluna .tarefa-card .small,
-  .tarefa-coluna .tarefa-bloco .small {
-    color: #dfe7f5 !important;
+  .sz_monitor_lane .tarefa-card:not(.tempos-clean-card) .text-muted,
+  .sz_monitor_lane .tarefa-bloco .text-muted,
+  .sz_monitor_lane .tarefa-card:not(.tempos-clean-card) .small,
+  .sz_monitor_lane .tarefa-bloco .small {
+    color: var(--sz-color-text-muted) !important;
   }
-  .tarefa-coluna .tarefa-card:hover,
-  .tarefa-coluna .tarefa-bloco:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 14px 36px rgba(0,0,0,0.36);
-    border-color: rgba(56, 189, 248, 0.35);
+  /* acentos por coluna */
+  #tarefas-atrasadas .tarefa-card:not(.tempos-clean-card),
+  #tarefas-atrasadas .tarefa-bloco { border-left: 3px solid var(--sz-color-danger); }
+  #tarefas-hoje .tarefa-card:not(.tempos-clean-card),
+  #tarefas-hoje .tarefa-bloco { border-left: 3px solid var(--sz-color-warning); }
+  #tarefas-futuras .tarefa-card:not(.tempos-clean-card),
+  #tarefas-futuras .tarefa-bloco { border-left: 3px solid var(--sz-color-success); }
+  #tarefas-tratadas .tarefa-card:not(.tempos-clean-card),
+  #tarefas-tratadas .tarefa-bloco {
+    border-left: 3px solid color-mix(in srgb, var(--sz-color-text-muted) 65%, var(--sz-color-border));
+    opacity: 0.92;
   }
+  #mn-nao-agendadas .tarefa-card:not(.tempos-clean-card),
+  #mn-nao-agendadas .tarefa-bloco { border-left: 3px solid var(--sz-color-primary); }
   .monitor-toolbar .btn {
     border-radius: 10px;
   }
@@ -445,10 +670,10 @@
   #loadingOverlay { display: none !important; opacity: 0 !important; pointer-events: none !important; }
   /* aproxima visual dos blocos MN aos cards das tarefas */
   #mn-nao-agendadas .tarefa-bloco {
-    background: #fff;
-    border: 1px solid rgba(0,0,0,.075);
-    border-radius: .5rem;
-    box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    box-shadow: var(--sz-shadow-1);
     margin-bottom: .5rem;
     padding: .5rem .6rem;
   }
@@ -457,7 +682,7 @@
     margin-bottom: .125rem;
   }
   #mn-nao-agendadas .tarefa-subtitulo {
-    color: #6c757d;
+    color: var(--sz-color-text-muted);
     font-size: .85rem;
     margin-bottom: .35rem;
   }
@@ -476,9 +701,9 @@
   .tarefa-card .tarefa-alojamento { font-size:.90rem; }
   /* seleÃ§Ã£o visual de Notas de Reserva */
   .nr-card.nr-selected {
-    border: 2px solid #0d6efd;
-    box-shadow: 0 0 0 .15rem rgba(13,110,253,.25);
-    background: #f4f8ff;
+    border: 2px solid var(--sz-color-primary);
+    box-shadow: 0 0 0 .15rem color-mix(in srgb, var(--sz-color-primary) 28%, transparent);
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, var(--sz-color-surface));
   }
   /* seleÃ§Ã£o visual de bloco de Check-Out no modal MN */
   .mn-out-option.mn-selected {
@@ -494,59 +719,137 @@
   .filter-header.active .badge { background: rgba(255,255,255,.25); color:#fff; }
   /* NÃ£o mostrar botÃ£o Abrir nas cards das tarefas (passou para o modal) */
   .tarefa-card a[href*="/generic/form/TAREFAS/"] { display:none !important; }
-  /* Headers de grupos na coluna Futuras */
-  #tarefas-futuras > .bg-light.border.rounded.px-2.py-1.mb-2.d-flex.justify-content-between.align-items-center {
-    background-color: #eef6ff; /* cor diferenciada */
-    border-color: #cfe7ff;
-    color: #0b5ed7;
-  }
-  #tarefas-futuras > .bg-light.border.rounded.px-2.py-1.mb-2.d-flex.justify-content-between.align-items-center span {
-    font-size: .85rem; /* texto mais pequeno */
-    font-weight: 700;  /* negrito */
-  }
+  /* Headers de grupos na coluna Futuras: definidos por tema em .sz_future_group_header */
   /* CartÃµes de alojamentos no modal */
-  #alojList .al-card { border:1px solid #e5e7eb; border-radius:.5rem; padding:.5rem .75rem; background:#fff; }
+  #alojList .al-card {
+    border:1px solid var(--sz-color-border);
+    border-radius:.5rem;
+    padding:.5rem .75rem;
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+  }
   #alojList .al-title { font-weight:700; }
-  #alojList .al-line { color:#6b7280; font-size:.9rem; }
+  #alojList .al-line { color: var(--sz-color-text-muted); font-size:.9rem; }
   #alojList .al-open { float:right; }
   /* Alojamentos modal: limitar altura e tornar lista scrollÃ¡vel */
   #alojModal .modal-content { max-height: 90vh; display: flex; flex-direction: column; }
   #alojModal .modal-body { flex: 1 1 auto; overflow: auto; }
+
+  /* FAB (botao + dropmenu) */
+  #fab-actions.sz_monitor_fab_shell {
+    position: fixed;
+    top: auto;
+    right: 18px;
+    bottom: 18px;
+    z-index: 3000;
+  }
+  #fab-actions .sz_monitor_fab_btn {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 40%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, var(--sz-color-surface-alt));
+    color: var(--sz-color-primary);
+    box-shadow: var(--sz-shadow-2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .14s ease, box-shadow .16s ease, border-color .16s ease, background-color .16s ease;
+  }
+  #fab-actions .sz_monitor_fab_btn:hover,
+  #fab-actions .sz_monitor_fab_btn:focus {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 62%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-primary) 20%, var(--sz-color-surface-alt));
+    color: var(--sz-color-primary);
+    box-shadow: var(--sz-shadow-3);
+  }
+  #fab-actions .sz_monitor_fab_menu {
+    position: absolute !important;
+    bottom: calc(100% + 10px);
+    right: 0;
+    top: auto;
+    left: auto;
+    z-index: 3100;
+    min-width: 220px;
+    padding: 8px;
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    box-shadow: var(--sz-shadow-3);
+  }
+  #fab-actions .sz_monitor_fab_item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    border: 1px solid transparent;
+    border-radius: var(--sz-radius-sm);
+    padding: 0.52rem 0.68rem;
+    font-size: var(--sz-font-size-sm);
+    color: var(--sz-color-text);
+    background: transparent;
+    transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+  }
+  #fab-actions .sz_monitor_fab_item:hover,
+  #fab-actions .sz_monitor_fab_item:focus {
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-alt));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 35%, var(--sz-color-border));
+    color: var(--sz-color-text);
+  }
+  [data-sz-theme="geek"] #fab-actions .sz_monitor_fab_item {
+    font-family: var(--sz-font-family-mono);
+    letter-spacing: .01em;
+  }
+  @media (max-width: 768px) {
+    #fab-actions.sz_monitor_fab_shell {
+      right: 14px;
+      bottom: 14px;
+      top: auto;
+    }
+    #fab-actions .sz_monitor_fab_menu {
+      min-width: 200px;
+    }
+  }
 </style>
 
 <!-- FAB -->
-<div id="fab-actions" style="position: absolute; top: 22px; right: 34px; z-index: 3000;">
-  <button class="fab-btn" id="openFabMenu" title="AÃ§Ãµes rÃ¡pidas">
+<div id="fab-actions" class="sz_monitor_fab_shell">
+  <button class="fab-btn sz_monitor_fab_btn" id="openFabMenu" title="AÃ§Ãµes rÃ¡pidas">
     <i class="fa-solid fa-ellipsis-vertical"></i>
   </button>
-  <div class="fab-menu" id="fabMenu" style="display: none;">
-    <button class="fab-menu-item" id="openNovaMn">Nova Incid&ecirc;ncia</button>
-    <button class="fab-menu-item" id="openNovaFalta">Nova Falta</button>
-    <button class="fab-menu-item" id="openHistoricoTarefas">Hist&oacute;rico de Tarefas</button>
-    <button class="fab-menu-item" id="openNotasReserva">Notas de Reserva</button>
-    <button class="fab-menu-item" id="openAlojamentos">Alojamentos</button>
-    <button class="fab-menu-item" id="openNotaTarefa">Nova Tarefa</button>
-    <button class="fab-menu-item" id="openLuggageStorage">Luggage Storage</button>
+  <div class="fab-menu sz_monitor_fab_menu" id="fabMenu" style="display: none;">
+    <button class="fab-menu-item sz_monitor_fab_item" id="openNovaMn">Nova Incid&ecirc;ncia</button>
+    <button class="fab-menu-item sz_monitor_fab_item" id="openNovaFalta">Nova Falta</button>
+    <button class="fab-menu-item sz_monitor_fab_item" id="openHistoricoTarefas">Hist&oacute;rico de Tarefas</button>
+    <button class="fab-menu-item sz_monitor_fab_item" id="openNotasReserva">Notas de Reserva</button>
+    <button class="fab-menu-item sz_monitor_fab_item" id="openAlojamentos">Alojamentos</button>
+    <button class="fab-menu-item sz_monitor_fab_item" id="openNotaTarefa">Nova Tarefa</button>
+    <button class="fab-menu-item sz_monitor_fab_item" id="openLuggageStorage">Luggage Storage</button>
   </div>
 </div>
 
 <!-- Modal de AÃ§Ãµes (tarefas) -->
-<div class="modal fade" id="tarefaModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade sz_task_modal" id="tarefaModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Tarefa</h5>
+        <h5 class="modal-title sz_h4">Tarefa</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
-        <p id="tarefaDescricao"></p>
-        <div id="tarefaPedidoPor" class="text-muted small mb-2" style="display:none;"></div>
+        <p id="tarefaDescricao" class="sz_text"></p>
+        <div id="tarefaPedidoPor" class="text-muted small sz_text_sm mb-2" style="display:none;"></div>
         <div id="tarefaAnexos" class="anexo-queue mt-2"></div>
-        <div id="tarefaInfo" class="mt-3" style="white-space:pre-wrap;"></div>
-        <div class="d-flex justify-content-between flex-wrap gap-2">
-          <button id="btnTratar" class="btn btn-success">Marcar como tratada</button>
-          <button id="btnReabrir" class="btn btn-warning" style="display:none;">Reabrir tarefa</button>
-          <button id="btnAbrirTarefa" class="btn btn-primary" style="display:none;">Abrir</button>
+        <div id="tarefaInfo" class="mt-3 sz_text_sm" style="white-space:pre-wrap;"></div>
+        <div class="d-flex justify-content-between flex-wrap gap-2 sz_task_modal_actions">
+          <button id="btnTratar" class="btn sz_button sz_button_primary">Marcar como tratada</button>
+          <button id="btnReabrir" class="btn sz_button sz_button_secondary" style="display:none;">Reabrir tarefa</button>
+          <button id="btnAbrirTarefa" class="btn sz_button sz_button_ghost" style="display:none;">Abrir</button>
         </div>
       </div>
     </div>
@@ -669,11 +972,11 @@
 </div>
 
 <!-- Modal: Notas de Reserva -->
-<div class="modal fade" id="nrModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade sz_monitor_theme_modal" id="nrModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Notas de Reserva</h5>
+        <h5 class="modal-title sz_h4">Notas de Reserva</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
@@ -688,7 +991,7 @@
               <input type="text" id="nrReserva" class="form-control" placeholder="C&oacute;digo da reserva" />
             </div>
             <div class="col-12 col-md-4">
-              <button type="button" id="nrBuscar" class="btn btn-primary">Procurar</button>
+              <button type="button" id="nrBuscar" class="btn sz_button sz_button_primary">Procurar</button>
             </div>
           </div>
         </form>
@@ -709,9 +1012,9 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-primary me-auto" id="nrAbrir" disabled>Abrir</button>
-        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="nrGravar">Gravar</button>
+        <button type="button" class="btn sz_button sz_button_primary me-auto" id="nrAbrir" disabled>Abrir</button>
+        <button type="button" class="btn sz_button sz_button_secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn sz_button sz_button_primary" id="nrGravar">Gravar</button>
       </div>
     </div>
   </div>
@@ -771,10 +1074,61 @@
   #agendarModal #mnOutOptions { overflow: visible; padding-right: 0; }
   #agendarModal #mnOutOptions .mn-out-option { border:1px solid #e5e7eb; border-radius:.5rem; background:#fff; }
   /* Thumbs no modal de Tarefa */
+  #tarefaModal .modal-content {
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-3);
+    color: var(--sz-color-text);
+  }
+  #tarefaModal .modal-header {
+    background: var(--sz-color-surface-alt);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+  #tarefaModal .modal-body {
+    color: var(--sz-color-text);
+  }
+  #tarefaModal .modal-title {
+    color: var(--sz-color-text);
+  }
+  #tarefaModal #tarefaDescricao,
+  #tarefaModal #tarefaInfo {
+    color: var(--sz-color-text);
+  }
+  #tarefaModal #tarefaPedidoPor,
+  #tarefaModal .text-muted,
+  #tarefaModal .small {
+    color: var(--sz-color-text-muted) !important;
+  }
+  #tarefaModal #btnTratar {
+    background: var(--sz-color-success);
+    border-color: var(--sz-color-success);
+  }
+  #tarefaModal .sz_task_modal_actions {
+    margin-top: .35rem;
+  }
   #tarefaModal .anexo-queue { display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:.5rem; }
-  #tarefaModal .anexo-item { border:1px solid #e5e7eb; border-radius:.5rem; padding:.5rem; background:#fff; position:relative; }
-  #tarefaModal .anexo-thumb { width:100%; height:100px; object-fit:cover; border-radius:.25rem; background:#f3f4f6; display:block; }
-  #tarefaModal .anexo-name { font-size:.8rem; margin-top:.25rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #tarefaModal .anexo-item {
+    border:1px solid var(--sz-color-border);
+    border-radius:.5rem;
+    padding:.5rem;
+    background: var(--sz-color-surface-alt);
+    position:relative;
+    color: var(--sz-color-text);
+  }
+  #tarefaModal .anexo-item:hover {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border));
+    box-shadow: var(--sz-shadow-1);
+  }
+  #tarefaModal .anexo-thumb { width:100%; height:100px; object-fit:cover; border-radius:.25rem; background: color-mix(in srgb, var(--sz-color-surface) 92%, transparent); display:block; }
+  #tarefaModal .anexo-name { font-size:.8rem; margin-top:.25rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color: var(--sz-color-text); }
+  [data-sz-theme="dark"] #tarefaModal .btn-close,
+  [data-sz-theme="geek"] #tarefaModal .btn-close {
+    filter: invert(1) grayscale(1);
+  }
+  [data-sz-theme="geek"] #tarefaModal #btnTratar {
+    color: #021305;
+  }
 </style>
 
 <style>
@@ -785,11 +1139,11 @@
 </style>
 
 <!-- Modal: Nova Falta (FS) -->
-<div class="modal fade" id="novaFaltaModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade sz_monitor_theme_modal" id="novaFaltaModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <form class="modal-content" id="novaFaltaForm">
       <div class="modal-header">
-        <h5 class="modal-title">Nova Falta</h5>
+        <h5 class="modal-title sz_h4">Nova Falta</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
@@ -819,26 +1173,26 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary" id="nfGravar">Gravar</button>
+        <button type="button" class="btn sz_button sz_button_secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn sz_button sz_button_primary" id="nfGravar">Gravar</button>
       </div>
     </form>
   </div>
 </div>
 
 <!-- Modal: Alojamentos -->
-<div class="modal fade" id="alojModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade sz_monitor_theme_modal" id="alojModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Alojamentos</h5>
+        <h5 class="modal-title sz_h4">Alojamentos</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
         <div id="alojList" class="row g-2"></div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="btn sz_button sz_button_secondary" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>
@@ -865,11 +1219,11 @@
 </div>
 
 <!-- Modal: Nova Tarefa -->
-<div class="modal fade" id="notaTarefaModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade sz_monitor_theme_modal" id="notaTarefaModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <form class="modal-content" id="notaTarefaForm">
       <div class="modal-header">
-        <h5 class="modal-title">Nova Tarefa</h5>
+        <h5 class="modal-title sz_h4">Nova Tarefa</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
@@ -903,8 +1257,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary" id="ntGravar">Gravar</button>
+        <button type="button" class="btn sz_button sz_button_secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn sz_button sz_button_primary" id="ntGravar">Gravar</button>
       </div>
     </form>
   </div>
@@ -951,11 +1305,11 @@
 </div>
 
 <!-- Modal: Nova IncidÃªncia (MN) -->
-<div class="modal fade" id="novaMnModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade sz_monitor_theme_modal" id="novaMnModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <form class="modal-content" id="novaMnForm">
       <div class="modal-header">
-        <h5 class="modal-title">Nova Incid&ecirc;ncia</h5>
+        <h5 class="modal-title sz_h4">Nova Incid&ecirc;ncia</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
@@ -985,8 +1339,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary" id="nmGravar">Gravar</button>
+        <button type="button" class="btn sz_button sz_button_secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn sz_button sz_button_primary" id="nmGravar">Gravar</button>
       </div>
     </form>
   </div>

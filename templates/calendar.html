@@ -1,61 +1,63 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Calendário{% endblock %}
 
 {% block content %}
-<!-- Barra superior com botão de filtros -->
-<div class="mb-2 d-flex align-items-center justify-content-between">
-  <div class="d-flex align-items-center gap-2">
-    <button class="btn btn-outline-secondary btn-sm" id="openFilters">
-      <i class="fa-solid fa-filter me-1"></i>
-      Filtros
-    </button>
+<div class="sz_calendar_page">
+  <div class="calendar-shell sz_calendar_shell">
+    <div class="sz_contextbar sz_calendar_contextbar mb-3">
+    <div class="sz_contextbar_left">
+      <div class="sz_page_title">Calendário</div>
+      <div class="sz_page_subtitle sz_calendar_summary" id="filtersSummary"></div>
+    </div>
+    <div class="sz_contextbar_right">
+      <button class="btn sz_button sz_button_ghost" id="openFilters">
+        <i class="fa-solid fa-filter"></i>
+        Filtros
+      </button>
+    </div>
   </div>
-  <small class="text-muted" id="filtersSummary"></small>
+
+  <div class="widget widget-calendar mb-4 calendar-card sz_calendar_card">
+    <div class="widget-body sz_calendar_body">
+      <div class="calendar-month-nav sz_calendar_month_nav d-flex justify-content-between align-items-center mb-3">
+        <button id="prev-month" class="btn btn-light cal-nav-btn sz_calendar_nav_btn" title="Mês anterior" aria-label="Mês anterior">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <h3 id="month-year" class="m-0 sz_calendar_month_title"></h3>
+        <button id="next-month" class="btn btn-light cal-nav-btn sz_calendar_nav_btn" title="Mês seguinte" aria-label="Mês seguinte">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+      <div class="table-responsive">
+        <table class="table calendar-table sz_calendar_table mb-0">
+          <thead>
+          <tr>
+              <th><span class="sz_calendar_day_full">Segunda</span><span class="sz_calendar_day_short">Seg</span></th>
+              <th><span class="sz_calendar_day_full">Terça</span><span class="sz_calendar_day_short">Ter</span></th>
+              <th><span class="sz_calendar_day_full">Quarta</span><span class="sz_calendar_day_short">Qua</span></th>
+              <th><span class="sz_calendar_day_full">Quinta</span><span class="sz_calendar_day_short">Qui</span></th>
+              <th><span class="sz_calendar_day_full">Sexta</span><span class="sz_calendar_day_short">Sex</span></th>
+              <th><span class="sz_calendar_day_full">Sábado</span><span class="sz_calendar_day_short">Sab</span></th>
+              <th><span class="sz_calendar_day_full">Domingo</span><span class="sz_calendar_day_short">Dom</span></th>
+          </tr>
+          </thead>
+          <tbody id="calendar-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
 </div>
 
-<div class="widget widget-calendar mb-4">
-  <!--<div class="widget-header px-4 py-2">
-    <h3 class="m-0">Calendário</h3>
-  </div> -->
-  <div class="widget-body px-4 pb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <button id="prev-month" class="btn btn-link text-decoration-none">
-        &larr;
-      </button>
-      <h3 id="month-year" class="m-0"></h3>
-      <button id="next-month" class="btn btn-link text-decoration-none">
-        &rarr;
-      </button>
-    </div>
-    <div class="table-responsive">
-      <table class="table calendar-table mb-0">
-        <thead class="table-light">
-        <tr>
-            <th>Segunda</th>
-            <th>Terça</th>
-            <th>Quarta</th>
-            <th>Quinta</th>
-            <th>Sexta</th>
-            <th>Sábado</th>
-            <th>Domingo</th>
-        </tr>
-        </thead>
-        <tbody id="calendar-body"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
-  <!-- Variáveis globais necessárias aos filtros -->
   <script>
     window.CURRENT_USER = "{{ current_user.LOGIN }}";
     window.IS_ADMIN = {{ 1 if (current_user.ADMIN if current_user.is_authenticated else False) else 0 }};
   </script>
-  
-  <!-- Modal de Filtros (reutilizado do Monitor) -->
+
   <div class="modal fade" id="filtersModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
@@ -95,11 +97,117 @@
       #filtersModal .filters-list-wrapper.loading { position: relative; }
       #filtersModal .filters-list-wrapper.loading .filters-list { filter: blur(1px); pointer-events: none; }
       #filtersModal .filters-list-wrapper.loading::before { content: ""; position: absolute; inset: 0; background: rgba(255,255,255,.6); z-index: 3; }
-      #filtersModal .filters-list-wrapper.loading::after { content: "A carregar…"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #555; font-size: .95rem; z-index: 4; }
+      #filtersModal .filters-list-wrapper.loading::after { content: "A carregar..."; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #555; font-size: .95rem; z-index: 4; }
       .select-card { cursor: pointer; user-select: none; border: 1px solid #e5e7eb; border-radius: .5rem; padding: .5rem .75rem; background: #fff; margin: 0 2px; }
       .select-card.selected { outline: 2px solid #0d6efd; outline-offset: 2px; background: #f0f7ff; }
       .select-card .badge { font-size: .75rem; }
     </style>
   </div>
+  <div class="modal fade" id="notaTarefaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form class="modal-content nt-modal-content" id="notaTarefaForm">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fa-solid fa-calendar-plus me-2"></i>Nova Tarefa</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label for="ntUser" class="form-label">Utilizador</label>
+            <select id="ntUser" class="form-select"></select>
+          </div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label for="ntData" class="form-label">Data</label>
+              <input type="date" id="ntData" class="form-control" />
+            </div>
+            <div class="col-6">
+              <label for="ntHora" class="form-label">Hora</label>
+              <input type="time" id="ntHora" class="form-control" />
+            </div>
+          </div>
+          <div class="mb-2 mt-2">
+            <label for="ntDuracao" class="form-label">Duração (min)</label>
+            <input type="number" id="ntDuracao" class="form-control" min="1" step="1" />
+          </div>
+          <div class="mb-2">
+            <label for="ntTarefa" class="form-label">Tarefa</label>
+            <input type="text" id="ntTarefa" class="form-control" placeholder="Descreve a tarefa" />
+          </div>
+          <div class="mb-2">
+            <label for="ntAloj" class="form-label">Alojamento</label>
+            <select id="ntAloj" class="form-select">
+              <option value="">(Sem alojamento)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="ntGravar">Gravar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <style>
+    #notaTarefaModal .modal-dialog{
+      max-width:560px;
+    }
+    #notaTarefaModal .nt-modal-content{
+      border:1px solid #dbe8ff;
+      border-radius:16px;
+      overflow:hidden;
+      box-shadow:0 24px 56px rgba(15,23,42,.2);
+      background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);
+    }
+    #notaTarefaModal .modal-header{
+      border-bottom:1px solid #e5eefc;
+      background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%);
+      padding:.9rem 1rem;
+    }
+    #notaTarefaModal .modal-title{
+      font-weight:800;
+      color:#0f172a;
+      letter-spacing:.01em;
+    }
+    #notaTarefaModal .modal-body{
+      padding:1rem;
+    }
+    #notaTarefaModal .form-label{
+      font-size:.78rem;
+      color:#334155;
+      font-weight:700;
+      margin-bottom:.32rem;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
+    #notaTarefaModal .form-control,
+    #notaTarefaModal .form-select{
+      border:1px solid #d5e2f5;
+      border-radius:10px;
+      min-height:40px;
+      background:#fff;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+    }
+    #notaTarefaModal .form-control:focus,
+    #notaTarefaModal .form-select:focus{
+      border-color:#93c5fd;
+      box-shadow:0 0 0 .18rem rgba(37,99,235,.16);
+    }
+    #notaTarefaModal .modal-footer{
+      border-top:1px solid #e5eefc;
+      background:#f8fbff;
+      padding:.75rem 1rem;
+      gap:.5rem;
+    }
+    #notaTarefaModal .btn-cancel{
+      border-radius:10px;
+    }
+    #notaTarefaModal #ntGravar{
+      border-radius:10px;
+      min-width:108px;
+      font-weight:700;
+    }
+  </style>
   <script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
 {% endblock %}
+
+

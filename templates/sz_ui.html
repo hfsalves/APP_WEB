@@ -1,0 +1,285 @@
+{% extends "sz_base.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sz_styles.css') }}">
+
+<div class="sz_page" data-sz-ui-page>
+  <div class="sz_page_container">
+    <header class="sz_page_header">
+      <div class="sz_contextbar sz_page_contextbar" data-sz-class="sz_contextbar sz_contextbar_left sz_contextbar_right sz_breadcrumbs sz_page_title sz_page_subtitle">
+        <div class="sz_contextbar_left">
+          <p class="sz_breadcrumbs">dev / design system / sz-ui</p>
+          <h1 class="sz_page_title">SZ Internal UI Catalog</h1>
+          <p class="sz_page_subtitle">Base visual paralela para migracao progressiva sem tocar no CSS atual.</p>
+        </div>
+      </div>
+    </header>
+
+    <div class="sz_page_body">
+      <div class="sz_sidebar_layout" data-sz-class="sz_sidebar_layout sz_page_content sz_page_sidebar">
+        <div class="sz_page_content">
+          <section class="sz_section" data-sz-class="sz_h1 sz_h2 sz_h3 sz_h4 sz_text sz_text_sm sz_text_muted sz_label sz_caption">
+            <div class="sz_section_header">
+              <h2 class="sz_h3">Tipografia</h2>
+            </div>
+            <div class="sz_section_body sz_stack">
+              <h1 class="sz_h1">.sz_h1 Heading principal</h1>
+              <h2 class="sz_h2">.sz_h2 Heading secundario</h2>
+              <h3 class="sz_h3">.sz_h3 Bloco de secao</h3>
+              <h4 class="sz_h4">.sz_h4 Subtitulo</h4>
+              <p class="sz_text">.sz_text Texto base para formularios, listas e conteudo geral.</p>
+              <p class="sz_text_sm">.sz_text_sm Texto compacto para linhas secundarias.</p>
+              <p class="sz_text_muted">.sz_text_muted Texto muted para apoio contextual.</p>
+              <p class="sz_label">.sz_label Label de campo</p>
+              <p class="sz_caption">.sz_caption legend / metadata</p>
+            </div>
+          </section>
+
+          <section class="sz_grid sz_grid_2" data-sz-class="sz_card sz_panel sz_section sz_section_header sz_section_body sz_sidebar_box">
+            <article class="sz_card sz_stack">
+              <p class="sz_caption">Container</p>
+              <h3 class="sz_h4">.sz_card</h3>
+              <p class="sz_text_sm">Superficie simples para blocos de informacao.</p>
+            </article>
+            <article class="sz_panel sz_stack">
+              <p class="sz_caption">Container</p>
+              <h3 class="sz_h4">.sz_panel</h3>
+              <p class="sz_text_sm">Painel util para formularios e resumos.</p>
+            </article>
+          </section>
+
+          <section class="sz_section" data-sz-class="sz_grid sz_grid_2 sz_grid_3 sz_grid_4 sz_col_span_2 sz_col_span_3 sz_stack sz_inline">
+            <div class="sz_section_header">
+              <h2 class="sz_h3">Grid</h2>
+            </div>
+            <div class="sz_section_body sz_stack">
+              <div class="sz_grid sz_grid_4">
+                <div class="sz_card">.sz_grid_4</div>
+                <div class="sz_card">Cell</div>
+                <div class="sz_card">Cell</div>
+                <div class="sz_card">Cell</div>
+              </div>
+              <div class="sz_grid sz_grid_3">
+                <div class="sz_card sz_col_span_2">.sz_col_span_2</div>
+                <div class="sz_card">Cell</div>
+              </div>
+              <div class="sz_grid sz_grid_3">
+                <div class="sz_card sz_col_span_3">.sz_col_span_3</div>
+              </div>
+              <div class="sz_inline">
+                <span class="sz_badge sz_badge_info">.sz_inline</span>
+                <span class="sz_badge sz_badge_success">respeita gap</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="sz_section" data-sz-class="sz_field sz_field_group sz_input sz_input_number sz_textarea sz_select sz_checkbox sz_radio sz_date sz_help sz_error">
+            <div class="sz_section_header">
+              <h2 class="sz_h3">Formularios</h2>
+            </div>
+            <div class="sz_section_body sz_stack">
+              <div class="sz_field_group">
+                <label class="sz_field">
+                  <span class="sz_label">Nome</span>
+                  <input class="sz_input" type="text" value="Alojamento Ocean View">
+                  <span class="sz_help">.sz_input estado default</span>
+                </label>
+                <label class="sz_field">
+                  <span class="sz_label">Noites</span>
+                  <input class="sz_input_number" type="number" value="5">
+                  <span class="sz_help">.sz_input_number</span>
+                </label>
+                <label class="sz_field">
+                  <span class="sz_label">Check-in</span>
+                  <input class="sz_date" type="date" value="2026-03-07">
+                  <span class="sz_help">.sz_date</span>
+                </label>
+                <label class="sz_field">
+                  <span class="sz_label">Estado</span>
+                  <select class="sz_select">
+                    <option>Confirmada</option>
+                    <option>Pendente</option>
+                    <option>Cancelada</option>
+                  </select>
+                  <span class="sz_help">.sz_select</span>
+                </label>
+              </div>
+
+              <label class="sz_field">
+                <span class="sz_label">Observacoes</span>
+                <textarea class="sz_textarea">Texto exemplo para mostrar estilo multiline.</textarea>
+                <span class="sz_help">.sz_textarea</span>
+              </label>
+
+              <div class="sz_inline">
+                <label class="sz_checkbox"><input type="checkbox" checked> .sz_checkbox</label>
+                <label class="sz_radio"><input type="radio" name="szradio" checked> .sz_radio</label>
+              </div>
+
+              <label class="sz_field">
+                <span class="sz_label">Campo invalido</span>
+                <input class="sz_input sz_is_invalid" type="text" value="">
+                <span class="sz_error">.sz_error Exemplo de validacao</span>
+              </label>
+
+              <label class="sz_field">
+                <span class="sz_label">Readonly / Disabled</span>
+                <input class="sz_input" type="text" value="Apenas leitura" readonly>
+                <input class="sz_input" type="text" value="Desativado" disabled>
+              </label>
+            </div>
+          </section>
+
+          <section class="sz_section" data-sz-class="sz_table_wrap sz_table sz_table_head sz_table_row sz_table_cell sz_table_actions">
+            <div class="sz_section_header">
+              <h2 class="sz_h3">Tabela</h2>
+            </div>
+            <div class="sz_section_body">
+              <div class="sz_table_wrap">
+                <table class="sz_table">
+                  <thead class="sz_table_head">
+                    <tr>
+                      <th class="sz_table_cell">Reserva</th>
+                      <th class="sz_table_cell">Hospede</th>
+                      <th class="sz_table_cell">Estado</th>
+                      <th class="sz_table_cell sz_text_right">Acoes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="sz_table_row">
+                      <td class="sz_table_cell">RS00041</td>
+                      <td class="sz_table_cell">Rita Sousa</td>
+                      <td class="sz_table_cell"><span class="sz_badge sz_badge_success">Confirmada</span></td>
+                      <td class="sz_table_cell sz_text_right">
+                        <span class="sz_table_actions">
+                          <button type="button" class="sz_button sz_button_ghost">Ver</button>
+                          <button type="button" class="sz_button sz_button_secondary">Editar</button>
+                        </span>
+                      </td>
+                    </tr>
+                    <tr class="sz_table_row">
+                      <td class="sz_table_cell">RS00042</td>
+                      <td class="sz_table_cell">Miguel Pires</td>
+                      <td class="sz_table_cell"><span class="sz_badge sz_badge_warning">Pendente</span></td>
+                      <td class="sz_table_cell sz_text_right">
+                        <span class="sz_table_actions">
+                          <button type="button" class="sz_button sz_button_ghost">Ver</button>
+                          <button type="button" class="sz_button sz_button_danger">Cancelar</button>
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="sz_section" data-sz-class="sz_button sz_button_primary sz_button_secondary sz_button_ghost sz_button_danger sz_badge sz_badge_success sz_badge_warning sz_badge_danger sz_badge_info">
+            <div class="sz_section_header">
+              <h2 class="sz_h3">Botoes e badges</h2>
+            </div>
+            <div class="sz_section_body sz_stack">
+              <div class="sz_inline">
+                <button type="button" class="sz_button sz_button_primary">Primary</button>
+                <button type="button" class="sz_button sz_button_secondary">Secondary</button>
+                <button type="button" class="sz_button sz_button_ghost">Ghost</button>
+                <button type="button" class="sz_button sz_button_danger">Danger</button>
+              </div>
+              <div class="sz_inline">
+                <span class="sz_badge sz_badge_success">success</span>
+                <span class="sz_badge sz_badge_warning">warning</span>
+                <span class="sz_badge sz_badge_danger">danger</span>
+                <span class="sz_badge sz_badge_info">info</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="sz_section" data-sz-class="sz_modal sz_modal_header sz_modal_body sz_modal_footer">
+            <div class="sz_section_header">
+              <h2 class="sz_h3">Modal</h2>
+            </div>
+            <div class="sz_section_body">
+              <button type="button" class="sz_button sz_button_primary" data-sz-modal-open>Open .sz_modal demo</button>
+            </div>
+          </section>
+
+          <section class="sz_section" data-sz-class="sz_mt_1 sz_mt_2 sz_mb_1 sz_mb_2 sz_gap_1 sz_gap_2 sz_w_full sz_text_right sz_hidden">
+            <div class="sz_section_header">
+              <h2 class="sz_h3">Utilitarios</h2>
+            </div>
+            <div class="sz_section_body">
+              <div class="sz_card sz_mt_2 sz_mb_2">.sz_mt_2 + .sz_mb_2</div>
+              <div class="sz_inline sz_gap_2">
+                <button type="button" class="sz_button sz_button_secondary sz_w_full">.sz_w_full</button>
+                <p class="sz_text_sm sz_text_right">.sz_text_right</p>
+              </div>
+              <p class="sz_text_sm sz_hidden">.sz_hidden</p>
+            </div>
+          </section>
+        </div>
+
+        <aside class="sz_page_sidebar" data-sz-class="sz_page_sidebar sz_sidebar sz_sidebar_section sz_sidebar_title sz_sidebar_value">
+          <div class="sz_sidebar sz_sidebar_box">
+            <h3 class="sz_h4">Sidebar contextual</h3>
+            <p class="sz_text_sm">Painel opcional de contexto (nao relacionado com o menu principal do base).</p>
+            <div class="sz_sidebar_section">
+              <p class="sz_sidebar_title">Receita prevista</p>
+              <p class="sz_sidebar_value">12 430 EUR</p>
+            </div>
+            <div class="sz_sidebar_section">
+              <p class="sz_sidebar_title">Taxa ocupacao</p>
+              <p class="sz_sidebar_value">88%</p>
+            </div>
+            <div class="sz_sidebar_section">
+              <p class="sz_sidebar_title">Historico</p>
+              <p class="sz_text_sm">3 alteracoes nas ultimas 24h</p>
+            </div>
+          </div>
+
+          <div class="sz_card" data-sz-class="sz_page_container sz_page_container_narrow sz_page_container_wide">
+            <p class="sz_caption">Containers</p>
+            <p class="sz_text_sm">.sz_page_container_narrow / .sz_page_container_wide para pages futuras.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <footer class="sz_page_footer">
+      <div class="sz_actionbar" data-sz-class="sz_actionbar sz_actionbar_left sz_actionbar_right">
+        <div class="sz_actionbar_left">
+          <span class="sz_text_sm">Barra inferior de acoes consistente para formularios.</span>
+        </div>
+        <div class="sz_actionbar_right">
+          <button type="button" class="sz_button sz_button_secondary">Cancelar</button>
+          <button type="button" class="sz_button sz_button_primary">Guardar</button>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <div id="szDemoModal" class="sz_modal" aria-hidden="true">
+    <div class="sz_panel">
+      <div class="sz_modal_header">
+        <h3 class="sz_h4">Titulo do modal</h3>
+        <p class="sz_text_sm">Componente base para confirmacoes e formulios curtos.</p>
+      </div>
+      <div class="sz_modal_body">
+        <p class="sz_text">Este e um modal de demonstracao do novo design system.</p>
+        <label class="sz_field">
+          <span class="sz_label">Motivo</span>
+          <input class="sz_input" type="text" placeholder="Escreva um motivo">
+        </label>
+      </div>
+      <div class="sz_modal_footer">
+        <button type="button" class="sz_button sz_button_secondary" data-sz-modal-close>Fechar</button>
+        <button type="button" class="sz_button sz_button_primary" data-sz-modal-close>Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/sz_ui.js') }}"></script>
+{% endblock %}
+

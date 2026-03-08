@@ -40,6 +40,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const btnClear = document.getElementById('filtersClear');
   const btnAll   = document.getElementById('filtersSelectAll');
   const btnNone  = document.getElementById('filtersSelectNone');
+  const notaTarefaModalEl = document.getElementById('notaTarefaModal');
+  const notaTarefaModal = notaTarefaModalEl ? bootstrap.Modal.getOrCreateInstance(notaTarefaModalEl) : null;
+  const notaTarefaForm = document.getElementById('notaTarefaForm');
+  const ntUser = document.getElementById('ntUser');
+  const ntData = document.getElementById('ntData');
+  const ntHora = document.getElementById('ntHora');
+  const ntDuracao = document.getElementById('ntDuracao');
+  const ntTarefa = document.getElementById('ntTarefa');
+  const ntAloj = document.getElementById('ntAloj');
+  const ntGravar = document.getElementById('ntGravar');
 
   function setFiltersLoading(isLoading) {
     try {
@@ -177,6 +187,45 @@ document.addEventListener('DOMContentLoaded', function() {
     if (filtersModal) filtersModal.show();
   }
 
+  function nextHalfHour() {
+    const dt = new Date();
+    dt.setMinutes(dt.getMinutes() < 30 ? 30 : 60, 0, 0);
+    return `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+  }
+
+  async function fillNovaTarefaCombos() {
+    if (ntUser) {
+      const users = await fetchUsersList();
+      ntUser.innerHTML = users.map(login => `<option value="${login}">${login}</option>`).join('');
+      ntUser.value = CURRENT_USER || users[0] || '';
+    }
+    if (ntAloj) {
+      const alojList = await fetchAlojList();
+      ntAloj.innerHTML =
+        '<option value="">(Sem alojamento)</option>' +
+        alojList
+          .filter(nome => nome !== '')
+          .map(nome => `<option value="${nome}">${nome}</option>`)
+          .join('');
+      ntAloj.value = '';
+    }
+  }
+
+  async function openNovaTarefaModal(dateIso) {
+    if (!notaTarefaModal) return;
+    try {
+      await fillNovaTarefaCombos();
+    } catch (_) {}
+    if (ntData) ntData.value = dateIso || toLocalIso(new Date());
+    if (ntHora) ntHora.value = nextHalfHour();
+    if (ntDuracao) ntDuracao.value = 60;
+    if (ntTarefa) ntTarefa.value = '';
+    notaTarefaModal.show();
+    setTimeout(() => {
+      try { ntTarefa?.focus(); } catch (_) {}
+    }, 120);
+  }
+
   // Tarefas carregadas para o intervalo atual
   let loadedTasks = [];
 
@@ -240,24 +289,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function renderCalendar(startDate, endDate, tasks) {
     clearError();
-    const tbl = document.querySelector('.calendar-table');
     const tbody = document.getElementById('calendar-body');
     tbody.innerHTML = '';
 
-    tbl.style.tableLayout = 'fixed';
-    tbl.style.width = '100%';
-
     let cursor = new Date(startDate);
-    for (let r = 0; r < 5; r++) {
+    const todayIso = toLocalIso(new Date());
+    const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
+    const totalRows = Math.ceil(totalDays / 7);
+    for (let r = 0; r < totalRows; r++) {
       const tr = document.createElement('tr');
       for (let c = 0; c < 7; c++) {
         // guarda data específica desta célula
         const cellDate = new Date(cursor);
+        const cellIso = toLocalIso(cellDate);
 
         const td = document.createElement('td');
-        td.className = 'align-top p-1 droppable-cell';
-        td.style.width = '14.2857%';
-        td.style.verticalAlign = 'top';
+        td.className = 'align-top p-1 droppable-cell day-cell';
+        if (cellIso === todayIso) td.classList.add('today');
+        if (cellDate.getMonth() !== currentMonth) td.classList.add('other-month');
 
         td.addEventListener('dragover', e => e.preventDefault());
         td.addEventListener('drop', e => {
@@ -270,15 +319,18 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({DATA: newDate})
           }).then(() => loadCalendar(currentYear, currentMonth));
         });
+        td.addEventListener('click', (e) => {
+          if (e.target.closest('.cal-task-chip')) return;
+          openNovaTarefaModal(cellIso);
+        });
 
         const dayDiv = document.createElement('div');
-        dayDiv.className = 'fw-bold mb-1';
+        dayDiv.className = 'day-number';
         dayDiv.textContent = cellDate.getDate();
-        dayDiv.style.color = '#aaa';
         td.appendChild(dayDiv);
 
         // filtra tasks usando data local da célula
-        const iso = toLocalIso(cellDate);
+        const iso = cellIso;
         const usersSet = state.users; // vazio => todos
         const alojSet = state.aloj;   // vazio => todos
         const origSet = state.origins; // vazio => todas
@@ -337,6 +389,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         finalTasks.forEach(t => {
           const div = document.createElement('div');
+          div.className = 'cal-task-chip';
           div.draggable = true;
           div.addEventListener('dragstart', e => {
             e.dataTransfer.setData('text/plain', t.TAREFASSTAMP);
@@ -355,13 +408,8 @@ document.addEventListener('DOMContentLoaded', function() {
           div.innerHTML = content;
 
           div.style.backgroundColor = t.COR || '#333333';
-          div.style.color = '#fff';
-          div.style.padding = '2px 4px';
-          div.style.marginBottom = '2px';
-          div.style.borderRadius = '3px';
-          div.style.fontSize = '0.8em';
-          div.style.cursor = 'pointer';
-          div.onclick = () => {
+          div.onclick = (e) => {
+            e.stopPropagation();
             window.location.href = `/generic/form/TAREFAS/${t.TAREFASSTAMP}?return_to=/generic/view/calendar/`;
           };
           td.appendChild(div);
@@ -444,6 +492,45 @@ document.addEventListener('DOMContentLoaded', function() {
     endDate.setDate(lastDay.getDate() + shiftEnd);
     renderCalendar(startDate, endDate, loadedTasks || []);
   });
+
+  if (notaTarefaForm) {
+    notaTarefaForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const user = ntUser?.value || CURRENT_USER || '';
+      const data = ntData?.value || '';
+      const hora = ntHora?.value || '';
+      const dur = parseInt(ntDuracao?.value || '60', 10);
+      const tarefa = ntTarefa?.value?.trim() || '';
+      const aloj = ntAloj?.value || '';
+
+      if (!tarefa) { alert('Indica a descrição da tarefa.'); return; }
+      if (!data || !hora || !Number.isFinite(dur) || dur <= 0) { alert('Verifica data, hora e duração.'); return; }
+
+      if (ntGravar) ntGravar.disabled = true;
+      try {
+        const resp = await fetch('/generic/api/tarefas/nova', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            UTILIZADOR: user,
+            DATA: data,
+            HORA: hora,
+            DURACAO: dur,
+            TAREFA: tarefa,
+            ALOJAMENTO: aloj
+          })
+        });
+        const js = await resp.json().catch(() => ({}));
+        if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao criar tarefa');
+        if (notaTarefaModal) notaTarefaModal.hide();
+        loadCalendar(currentYear, currentMonth);
+      } catch (err) {
+        alert(err.message || 'Erro ao criar tarefa');
+      } finally {
+        if (ntGravar) ntGravar.disabled = false;
+      }
+    });
+  }
 
   // Resumo inicial
   updateFiltersSummary();

@@ -3,173 +3,277 @@
 {% block title %}Cancelamentos{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3 rsc-page">
-  <div class="rsc-header mb-3">
-    <h1 class="rsc-title mb-0">Cancelamentos de Reservas</h1>
-    <div class="rsc-subtitle">Gestão de reservas canceladas e valor recebido (PCANCEL)</div>
-  </div>
-
-  <div class="card shadow-sm rsc-toolbar mb-3">
-    <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-2">
-      <label class="small text-muted mb-0">Check-in de</label>
-      <input id="rscDatainFrom" type="date" class="form-control form-control-sm" style="width:150px;">
-
-      <label class="small text-muted mb-0">até</label>
-      <input id="rscDatainTo" type="date" class="form-control form-control-sm" style="width:150px;">
-
-      <label class="small text-muted mb-0 ms-2">Check-out de</label>
-      <input id="rscDataoutFrom" type="date" class="form-control form-control-sm" style="width:150px;">
-
-      <label class="small text-muted mb-0">até</label>
-      <input id="rscDataoutTo" type="date" class="form-control form-control-sm" style="width:150px;">
-
-      <label class="small text-muted mb-0 ms-2">Dias cancel. ≤</label>
-      <input id="rscDiasCancelMax" type="number" min="0" class="form-control form-control-sm" style="width:90px;" placeholder="ex: 5">
-
-      <div class="form-check form-switch mb-0 ms-2">
-        <input class="form-check-input" type="checkbox" id="rscSemPagamento">
-        <label class="form-check-label small text-muted" for="rscSemPagamento">Sem Pagamento</label>
-      </div>
-
-      <button id="rscPesquisar" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-magnifying-glass"></i> Pesquisar</button>
-      <button id="rscLimpar" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-rotate-left"></i> Limpar</button>
-
-      <span id="rscResumo" class="rsc-summary ms-auto">0 reservas</span>
+<div class="rsc-page">
+  <header class="sz_contextbar rsc-contextbar">
+    <div class="sz_contextbar_left rsc-contextbar-left">
+      <div class="sz_page_title">Cancelamentos de Reservas</div>
+      <div id="rscResumo" class="sz_page_subtitle">0 reservas &middot; Total PCANCEL 0,00 &euro;</div>
     </div>
-  </div>
-
-  <div class="card shadow-sm rsc-grid-card">
-    <div class="card-body p-0">
-      <div class="table-responsive rsc-grid-wrap">
-        <table class="table table-sm mb-0 rsc-table">
-          <thead>
-            <tr>
-              <th style="width:140px;" class="rsc-sortable" data-sort="RESERVA">Reserva</th>
-              <th style="width:180px;" class="rsc-sortable" data-sort="ALOJAMENTO">Alojamento</th>
-              <th class="rsc-sortable" data-sort="NOME">Hóspede</th>
-              <th style="width:120px;" class="rsc-sortable" data-sort="ORIGEM">Origem</th>
-              <th style="width:110px;" class="rsc-sortable" data-sort="DATAIN">Check-in</th>
-              <th style="width:110px;" class="rsc-sortable" data-sort="DATAOUT">Check-out</th>
-              <th style="width:70px;" class="text-end rsc-sortable" data-sort="NOITES">Noites</th>
-              <th style="width:90px;" class="text-end rsc-sortable" data-sort="DIASCANCEL">Dias Canc.</th>
-              <th style="width:120px;" class="text-end rsc-sortable" data-sort="ESTADIA">Estadia</th>
-              <th style="width:120px;" class="text-end rsc-sortable" data-sort="LIMPEZA">Limpeza</th>
-              <th style="width:130px;" class="text-end rsc-sortable" data-sort="PCANCEL">PCANCEL</th>
-              <th style="width:100px;" class="text-center">Itinerário</th>
-              <th style="width:140px;" class="text-center">Ação</th>
-            </tr>
-          </thead>
-          <tbody id="rscBody">
-            <tr><td colspan="13" class="text-muted p-3">A carregar...</td></tr>
-          </tbody>
-        </table>
+    <div class="sz_contextbar_right rsc-filters">
+      <div class="rsc-filter-item">
+        <label class="sz_label" for="rscDatainFrom">Check-in de</label>
+        <input id="rscDatainFrom" type="date" class="sz_input rsc-input-date">
       </div>
+      <div class="rsc-filter-item">
+        <label class="sz_label" for="rscDatainTo">at&eacute;</label>
+        <input id="rscDatainTo" type="date" class="sz_input rsc-input-date">
+      </div>
+      <div class="rsc-filter-item">
+        <label class="sz_label" for="rscDataoutFrom">Check-out de</label>
+        <input id="rscDataoutFrom" type="date" class="sz_input rsc-input-date">
+      </div>
+      <div class="rsc-filter-item">
+        <label class="sz_label" for="rscDataoutTo">at&eacute;</label>
+        <input id="rscDataoutTo" type="date" class="sz_input rsc-input-date">
+      </div>
+      <div class="rsc-filter-item">
+        <label class="sz_label" for="rscDiasCancelMax">Dias &lt;=</label>
+        <input id="rscDiasCancelMax" type="number" min="0" class="sz_input rsc-input-short" placeholder="ex: 5">
+      </div>
+      <label class="sz_checkbox rsc-switch" for="rscSemPagamento">
+        <input type="checkbox" id="rscSemPagamento">
+        <span>Sem pagamento</span>
+      </label>
+      <button id="rscPesquisar" class="sz_button sz_button_primary">
+        <i class="fa-solid fa-magnifying-glass"></i><span>Pesquisar</span>
+      </button>
+      <button id="rscLimpar" class="sz_button sz_button_ghost">
+        <i class="fa-solid fa-rotate-left"></i><span>Limpar</span>
+      </button>
     </div>
-  </div>
+  </header>
+
+  <section class="sz_table_host rsc-table-host">
+    <div class="sz_table_wrap">
+      <table class="sz_table rsc-table">
+        <thead class="sz_table_head">
+          <tr>
+            <th style="width:140px;" class="rsc-sortable" data-sort="RESERVA">Reserva</th>
+            <th style="width:180px;" class="rsc-sortable" data-sort="ALOJAMENTO">Alojamento</th>
+            <th class="rsc-sortable" data-sort="NOME">H&oacute;spede</th>
+            <th style="width:120px;" class="rsc-sortable" data-sort="ORIGEM">Origem</th>
+            <th style="width:110px;" class="rsc-sortable" data-sort="DATAIN">Check-in</th>
+            <th style="width:110px;" class="rsc-sortable" data-sort="DATAOUT">Check-out</th>
+            <th style="width:70px;" class="sz_text_right rsc-sortable" data-sort="NOITES">Noites</th>
+            <th style="width:90px;" class="sz_text_right rsc-sortable" data-sort="DIASCANCEL">Dias Canc.</th>
+            <th style="width:120px;" class="sz_text_right rsc-sortable" data-sort="ESTADIA">Estadia</th>
+            <th style="width:120px;" class="sz_text_right rsc-sortable" data-sort="LIMPEZA">Limpeza</th>
+            <th style="width:130px;" class="sz_text_right rsc-sortable" data-sort="PCANCEL">PCANCEL</th>
+            <th style="width:120px;" class="sz_text_right">Itiner&aacute;rio</th>
+            <th style="width:140px;" class="sz_text_right">A&ccedil;&atilde;o</th>
+          </tr>
+        </thead>
+        <tbody id="rscBody">
+          <tr>
+            <td colspan="13" class="sz_table_cell sz_text_muted">A carregar...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 
-<div class="modal fade" id="rscModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade rsc-modal" id="rscModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Atribuir valor de cancelamento</h5>
+    <div class="modal-content rsc-modal-content">
+      <div class="modal-header rsc-modal-header">
+        <h5 class="modal-title rsc-modal-title">Atribuir valor de cancelamento</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
-      <div class="modal-body">
-        <div class="small text-muted mb-2" id="rscModalInfo"></div>
-        <label class="form-label">Valor recebido (PCANCEL)</label>
-        <input id="rscModalValor" type="number" min="0" step="0.01" class="form-control text-end" placeholder="0,00">
+      <div class="modal-body rsc-modal-body">
+        <div class="sz_text_muted sz_mb_1" id="rscModalInfo"></div>
+        <label class="sz_label" for="rscModalValor">Valor recebido (PCANCEL)</label>
+        <input id="rscModalValor" type="number" min="0" step="0.01" class="sz_input sz_text_right" placeholder="0,00">
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
-        <button id="rscModalGuardar" type="button" class="btn btn-primary">Gravar</button>
+      <div class="modal-footer rsc-modal-footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
+        <button id="rscModalGuardar" type="button" class="sz_button sz_button_primary">Gravar</button>
       </div>
     </div>
   </div>
 </div>
 
 <style>
-  .rsc-page{
-    min-height:calc(100vh - 120px);
-    background:
-      radial-gradient(860px 450px at -8% -18%, rgba(59,130,246,.12) 0%, rgba(59,130,246,0) 62%),
-      radial-gradient(900px 460px at 108% -14%, rgba(14,165,233,.10) 0%, rgba(14,165,233,0) 62%);
+  .rsc-page {
+    width: 100%;
+    min-height: 100%;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-2) var(--sz-space-4) var(--sz-space-3);
+    background: var(--sz-color-bg-main);
+    color: var(--sz-color-text);
   }
-  .rsc-title{ font-size:1.24rem; font-weight:800; color:#0b1220; }
-  .rsc-subtitle{ font-size:.86rem; color:#5b6b82; }
-  .rsc-toolbar,.rsc-grid-card{
-    border:1px solid rgba(187,205,230,.9);
-    border-radius:18px;
-    background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
-    box-shadow:0 18px 44px rgba(15,23,42,.08);
-    overflow:hidden;
+  .rsc-contextbar {
+    align-items: flex-start;
   }
-  .rsc-toolbar .form-control{ border:1px solid #d3deed; border-radius:12px; }
-  .rsc-toolbar .form-control:focus{
-    border-color:#7db2ff;
-    box-shadow:0 0 0 .2rem rgba(59,130,246,.16);
+  .rsc-contextbar-left {
+    flex: 0 1 320px;
+    min-width: 220px;
+    max-width: 320px;
+    width: auto;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "title"
+      "subtitle";
   }
-  .rsc-summary{
-    font-size:.82rem;
-    font-weight:700;
-    color:#0f172a;
-    background:#eff6ff;
-    border:1px solid #bfdbfe;
-    border-radius:999px;
-    padding:5px 12px;
+  .rsc-contextbar-left .sz_page_title,
+  .rsc-contextbar-left .sz_page_subtitle {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .rsc-grid-wrap{ max-height:calc(100vh - 280px); overflow:auto; }
-  .rsc-table{ min-width:1550px; font-size:.84rem; line-height:1.28; }
-  .rsc-table thead th{
-    position:sticky;
-    top:0;
-    z-index:3;
-    background:linear-gradient(180deg,#f8fbff 0%,#ecf4ff 100%);
-    border-bottom:1px solid rgba(148,163,184,.45);
-    font-size:10px;
-    text-transform:uppercase;
-    letter-spacing:.06em;
-    color:#334155;
-    font-weight:800;
-    padding:.58rem .65rem;
+  .rsc-filters {
+    display: flex;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    align-items: flex-end !important;
+    justify-content: flex-end;
+    gap: var(--sz-space-2) var(--sz-space-3);
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    max-width: none;
   }
-  .rsc-table tbody td{
-    border-bottom:1px solid #edf2f7;
-    vertical-align:middle;
-    padding:.55rem .65rem;
-    font-size:.83rem;
+  .rsc-filter-item {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 128px;
   }
-  .rsc-table tbody tr:nth-child(even) td{ background:#fcfdff; }
-  .rsc-table tbody tr:hover td{ background:#eef6ff; }
-  .rsc-table thead th.rsc-sortable{
-    cursor:pointer;
-    user-select:none;
-    transition:color .15s ease, background .15s ease;
+  .rsc-input-date {
+    min-width: 148px;
   }
-  .rsc-table thead th.rsc-sortable:hover{
-    color:#1d4ed8;
-    background:linear-gradient(180deg,#f2f8ff 0%,#e8f2ff 100%);
+  .rsc-input-short {
+    min-width: 88px;
+    width: 96px;
   }
-  .rsc-table thead th.rsc-sortable.rsc-sort-active{
-    color:#1e40af;
+  .rsc-switch {
+    align-self: center;
+    margin-inline: var(--sz-space-1);
   }
-  .rsc-table tbody tr.rsc-row-highlight td{
-    background:linear-gradient(180deg, rgba(37,99,235,.09) 0%, rgba(14,165,233,.07) 100%) !important;
+  .rsc-table-host {
+    height: 100%;
+  }
+  .rsc-table {
+    min-width: 1500px;
+    background: var(--sz-color-surface);
+  }
+  .rsc-table thead th {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    font-family: var(--sz-font-family);
+    font-size: var(--sz-font-size-sm);
+  }
+  .rsc-table td {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    font-family: var(--sz-font-family);
+    font-size: var(--sz-font-size-sm);
+  }
+  .rsc-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 4%, var(--sz-color-surface)) !important;
+  }
+  .rsc-table th.rsc-sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.14s ease, background-color 0.14s ease;
+  }
+  .rsc-table th.rsc-sortable:hover {
+    color: var(--sz-color-primary);
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface-alt));
+  }
+  .rsc-table th.rsc-sortable.rsc-sort-active {
+    color: var(--sz-color-primary);
+  }
+  .rsc-table tbody tr.rsc-row-highlight td {
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface)) !important;
     box-shadow:
-      inset 3px 0 0 rgba(37,99,235,.75),
-      inset 0 0 0 1px rgba(37,99,235,.16);
+      inset 3px 0 0 color-mix(in srgb, var(--sz-color-primary) 80%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 20%, transparent);
   }
-  #rscModal .modal-content{
-    border-radius:16px;
-    border:1px solid #d7e3f3;
-    box-shadow:0 20px 52px rgba(15,23,42,.25);
+  .rsc-btn-inline {
+    min-height: 2rem;
+    padding: 0 0.65rem;
+    font-size: var(--sz-font-size-xs);
   }
-  #rscModal .modal-header{
-    border-bottom:1px solid rgba(255,255,255,.12);
-    background:linear-gradient(90deg,#0f172a 0%,#1e3a8a 52%,#0ea5e9 100%);
-    color:#fff;
+  .rsc-modal .modal-dialog {
+    max-width: min(94vw, 520px);
   }
-  #rscModal .btn-close{ filter:invert(1) saturate(0) brightness(2); }
+  .rsc-modal-content {
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    box-shadow: var(--sz-shadow-3);
+    color: var(--sz-color-text);
+    overflow: hidden;
+    background-clip: padding-box;
+  }
+  .rsc-modal-header {
+    border-bottom: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface-alt);
+    padding: var(--sz-space-4) var(--sz-space-5) var(--sz-space-3);
+  }
+  .rsc-modal-title {
+    margin: 0;
+    font-size: 1rem;
+    line-height: var(--sz-line-normal);
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+  }
+  .rsc-modal-body {
+    padding: var(--sz-space-4) var(--sz-space-5) var(--sz-space-3);
+    background: var(--sz-color-surface);
+  }
+  .rsc-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    border-top: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface-alt);
+    padding: var(--sz-space-3) var(--sz-space-5) var(--sz-space-4);
+  }
+  [data-sz-theme="geek"] .rsc-modal-content {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 24%, transparent),
+      var(--sz-shadow-3);
+  }
+  [data-sz-theme="dark"] .rsc-modal .btn-close,
+  [data-sz-theme="geek"] .rsc-modal .btn-close {
+    filter: invert(1) grayscale(1);
+  }
+  @media (max-width: 900px) {
+    .rsc-contextbar-left {
+      flex-basis: 260px;
+      max-width: 260px;
+    }
+    .rsc-filters {
+      width: 100%;
+      justify-content: flex-start;
+    }
+  }
+  @media (max-width: 780px) {
+    .rsc-contextbar-left {
+      flex: 1 1 auto;
+      min-width: 0;
+      max-width: none;
+    }
+    .rsc-page {
+      padding-inline: var(--sz-space-3);
+    }
+    .rsc-input-date,
+    .rsc-input-short {
+      width: 100%;
+      min-width: 0;
+    }
+    .rsc-filter-item {
+      min-width: 0;
+      width: 100%;
+    }
+    .rsc-filters .sz_button {
+      width: auto;
+    }
+  }
 </style>
 
 <script src="{{ url_for('static', filename='js/reservas_canceladas.js') }}?v={{ static_version }}"></script>

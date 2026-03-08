@@ -142,6 +142,10 @@ def create_app():
 
     from blueprints.anexos import bp as anexos_bp
     app.register_blueprint(anexos_bp)
+
+    from blueprints.sz_dev_ui import bp as sz_dev_ui_bp
+    app.register_blueprint(sz_dev_ui_bp)
+
     register_pricing(app)
 
     def _para_value_from_row(row):
@@ -371,7 +375,7 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_stamp):
         sql = text("""
-            SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO, TEMPOS
+            SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO, TEMPOS, VIEWMODE
             FROM US
             WHERE USSTAMP = :stamp
         """)
@@ -392,7 +396,7 @@ def create_app():
             pwd = request.form['password']
 
             sql = text("""
-                SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO, TEMPOS
+                SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO, TEMPOS, VIEWMODE
                 FROM US
                 WHERE LOGIN = :login
             """)
@@ -4810,6 +4814,7 @@ def create_app():
             'NOME': current_user.NOME,
             'EMAIL': current_user.EMAIL,
             'COR': getattr(current_user, 'COR', None),
+            'VIEWMODE': getattr(current_user, 'VIEWMODE', None),
             'ADMIN': getattr(current_user, 'ADMIN', None),
             'DEV': getattr(current_user, 'DEV', None),
             'MNADMIN': getattr(current_user, 'MNADMIN', None),
@@ -13587,7 +13592,7 @@ OPTION (MAXRECURSION 32767);
         try:
             data = request.get_json(force=True) or {}
             # Campos permitidos a serem atualizados no perfil
-            allowed_fields = {'EMAIL', 'COR'}
+            allowed_fields = {'EMAIL', 'COR', 'VIEWMODE'}
 
             user = db.session.query(US).get(current_user.USSTAMP)
             if not user:
@@ -13596,14 +13601,49 @@ OPTION (MAXRECURSION 32767);
             updated = {}
             for field in allowed_fields:
                 if field in data:
-                    setattr(user, field, data[field])
-                    updated[field] = data[field]
+                    value = data[field]
+                    if field == 'VIEWMODE':
+                        raw = str(value or '').strip().upper()
+                        if raw in ('LIGHT', 'DARK', 'GEEK'):
+                            raw = f'{raw} MODE'
+                        if raw not in {'LIGHT MODE', 'DARK MODE', 'GEEK MODE'}:
+                            return {'error': 'VIEWMODE invalido'}, 400
+                        value = raw
+                    setattr(user, field, value)
+                    updated[field] = value
 
             if not updated:
                 return {'error': 'Sem alteraÃ§Ãµes vÃ¡lidas'}, 400
 
             db.session.commit()
             return jsonify({'success': True, 'updated': updated})
+        except Exception as e:
+            db.session.rollback()
+            return {'error': str(e)}, 500
+
+    @app.route('/api/profile/viewmode', methods=['POST'])
+    @login_required
+    def save_profile_viewmode():
+        try:
+            data = request.get_json(force=True) or {}
+            raw = str(data.get('viewmode') or data.get('VIEWMODE') or '').strip().upper()
+            if raw in ('LIGHT', 'DARK', 'GEEK'):
+                raw = f'{raw} MODE'
+            if raw not in {'LIGHT MODE', 'DARK MODE', 'GEEK MODE'}:
+                return {'error': 'VIEWMODE invalido'}, 400
+
+            user = db.session.query(US).get(current_user.USSTAMP)
+            if not user:
+                user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+                if user_login:
+                    user = db.session.query(US).filter_by(LOGIN=user_login).first()
+            if not user:
+                return {'error': 'Utilizador nao encontrado'}, 404
+
+            user.VIEWMODE = raw
+            setattr(current_user, 'VIEWMODE', raw)
+            db.session.commit()
+            return jsonify({'success': True, 'VIEWMODE': raw})
         except Exception as e:
             db.session.rollback()
             return {'error': str(e)}, 500

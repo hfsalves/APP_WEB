@@ -39,7 +39,7 @@
     try {
       if (rsstamp) sessionStorage.setItem('rsc_last_row', rsstamp);
       else sessionStorage.removeItem('rsc_last_row');
-    } catch (e) {}
+    } catch (_) {}
   }
 
   function getModal() {
@@ -95,9 +95,7 @@
       if (ta > tb) return 1 * m;
       return 0;
     }
-    const sa = String(va || '').toLowerCase();
-    const sb = String(vb || '').toLowerCase();
-    return sa.localeCompare(sb) * m;
+    return String(va || '').toLowerCase().localeCompare(String(vb || '').toLowerCase()) * m;
   }
 
   function getSortedRows() {
@@ -113,9 +111,7 @@
       const k = String(th.getAttribute('data-sort') || '').trim();
       th.classList.toggle('rsc-sort-active', k === state.sortKey);
       th.removeAttribute('title');
-      if (k === state.sortKey) {
-        th.setAttribute('title', state.sortDir === 'asc' ? 'Ordenado ascendente' : 'Ordenado descendente');
-      }
+      if (k === state.sortKey) th.setAttribute('title', state.sortDir === 'asc' ? 'Ordenado ascendente' : 'Ordenado descendente');
     });
   }
 
@@ -126,34 +122,38 @@
     els.resumo.textContent = `${rows.length} reservas · Total PCANCEL ${fmtMoney(total)} €`;
   }
 
+  function emptyRow(message, klass) {
+    return `<tr><td colspan="13" class="sz_table_cell ${klass || 'sz_text_muted'}">${esc(message)}</td></tr>`;
+  }
+
   function renderRows() {
     if (!els.body) return;
     const rows = getSortedRows();
     if (!rows.length) {
-      els.body.innerHTML = '<tr><td colspan="13" class="text-muted p-3">Sem reservas canceladas para os filtros aplicados.</td></tr>';
+      els.body.innerHTML = emptyRow('Sem reservas canceladas para os filtros aplicados.', 'sz_text_muted');
       applySortHeaderState();
       updateResumo();
       return;
     }
 
     els.body.innerHTML = rows.map((r) => `
-      <tr data-rsstamp="${esc(r.RSSTAMP)}" class="${state.highlightRsstamp === String(r.RSSTAMP || '').trim() ? 'rsc-row-highlight' : ''}">
-        <td>${esc(r.RESERVA || '')}</td>
-        <td>${esc(r.ALOJAMENTO || '')}</td>
-        <td>${esc(r.NOME || '')}</td>
-        <td>${esc(r.ORIGEM || '')}</td>
-        <td>${esc(fmtDate(r.DATAIN))}</td>
-        <td>${esc(fmtDate(r.DATAOUT))}</td>
-        <td class="text-end">${Number(r.NOITES || 0)}</td>
-        <td class="text-end">${Number(r.DIASCANCEL || 0)}</td>
-        <td class="text-end">${fmtMoney(r.ESTADIA)}</td>
-        <td class="text-end">${fmtMoney(r.LIMPEZA)}</td>
-        <td class="text-end fw-semibold">${fmtMoney(r.PCANCEL)}</td>
-        <td class="text-center">
-          ${r.ITINERARIO_URL ? `<a href="${esc(r.ITINERARIO_URL)}" class="btn btn-sm btn-outline-secondary rsc-itinerario" data-rsstamp="${esc(r.RSSTAMP)}" target="_blank" rel="noopener">Abrir</a>` : '<span class="text-muted">—</span>'}
+      <tr data-rsstamp="${esc(r.RSSTAMP)}" class="sz_table_row ${state.highlightRsstamp === String(r.RSSTAMP || '').trim() ? 'rsc-row-highlight' : ''}">
+        <td class="sz_table_cell">${esc(r.RESERVA || '')}</td>
+        <td class="sz_table_cell">${esc(r.ALOJAMENTO || '')}</td>
+        <td class="sz_table_cell">${esc(r.NOME || '')}</td>
+        <td class="sz_table_cell">${esc(r.ORIGEM || '')}</td>
+        <td class="sz_table_cell">${esc(fmtDate(r.DATAIN))}</td>
+        <td class="sz_table_cell">${esc(fmtDate(r.DATAOUT))}</td>
+        <td class="sz_table_cell sz_text_right">${Number(r.NOITES || 0)}</td>
+        <td class="sz_table_cell sz_text_right">${Number(r.DIASCANCEL || 0)}</td>
+        <td class="sz_table_cell sz_text_right">${fmtMoney(r.ESTADIA)}</td>
+        <td class="sz_table_cell sz_text_right">${fmtMoney(r.LIMPEZA)}</td>
+        <td class="sz_table_cell sz_text_right"><strong>${fmtMoney(r.PCANCEL)}</strong></td>
+        <td class="sz_table_cell sz_text_right">
+          ${r.ITINERARIO_URL ? `<a href="${esc(r.ITINERARIO_URL)}" class="sz_button sz_button_ghost rsc-btn-inline rsc-itinerario" data-rsstamp="${esc(r.RSSTAMP)}" target="_blank" rel="noopener">Abrir</a>` : '<span class="sz_text_muted">-</span>'}
         </td>
-        <td class="text-center">
-          <button class="btn btn-sm btn-primary rsc-btn-valor" data-rsstamp="${esc(r.RSSTAMP)}" data-reserva="${esc(r.RESERVA || '')}" data-pcancel="${Number(r.PCANCEL || 0)}">Atribuir valor</button>
+        <td class="sz_table_cell sz_text_right">
+          <button class="sz_button sz_button_primary rsc-btn-inline rsc-btn-valor" data-rsstamp="${esc(r.RSSTAMP)}" data-reserva="${esc(r.RESERVA || '')}" data-pcancel="${Number(r.PCANCEL || 0)}">Atribuir valor</button>
         </td>
       </tr>
     `).join('');
@@ -180,9 +180,7 @@
         renderRows();
         const current = Number(btn.getAttribute('data-pcancel') || 0);
         if (els.modalInfo) {
-          els.modalInfo.textContent = state.currentReserva
-            ? `Reserva ${state.currentReserva}`
-            : state.currentRsstamp;
+          els.modalInfo.textContent = state.currentReserva ? `Reserva ${state.currentReserva}` : state.currentRsstamp;
         }
         if (els.modalValor) els.modalValor.value = current.toFixed(2);
         getModal()?.show();
@@ -194,9 +192,7 @@
   }
 
   async function loadRows() {
-    if (els.body) {
-      els.body.innerHTML = '<tr><td colspan="13" class="text-muted p-3">A carregar...</td></tr>';
-    }
+    if (els.body) els.body.innerHTML = emptyRow('A carregar...', 'sz_text_muted');
     try {
       const res = await fetch(`/api/reservas/cancelamentos?${buildFilters().toString()}`);
       const data = await res.json().catch(() => ({}));
@@ -205,7 +201,7 @@
       renderRows();
     } catch (e) {
       state.rows = [];
-      if (els.body) els.body.innerHTML = `<tr><td colspan="13" class="text-danger p-3">${esc(e.message || 'Erro')}</td></tr>`;
+      if (els.body) els.body.innerHTML = emptyRow(e.message || 'Erro', 'sz_error');
       updateResumo();
     }
   }
@@ -213,14 +209,9 @@
   async function savePcancel() {
     const rsstamp = String(state.currentRsstamp || '').trim();
     if (!rsstamp) return;
-    let value = 0;
-    try {
-      value = Number(els.modalValor?.value || 0);
-    } catch (e) {
-      value = 0;
-    }
+    const value = Number(els.modalValor?.value || 0);
     if (!Number.isFinite(value) || value < 0) {
-      alert('Valor inválido.');
+      window.alert('Valor inválido.');
       return;
     }
 
@@ -236,7 +227,7 @@
       getModal()?.hide();
       await loadRows();
     } catch (e) {
-      alert(e.message || 'Erro ao gravar valor');
+      window.alert(e.message || 'Erro ao gravar valor');
     } finally {
       if (els.modalGuardar) els.modalGuardar.disabled = false;
     }

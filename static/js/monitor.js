@@ -766,7 +766,7 @@ async function fetchAlojList() {
             let grp = gruposFuturas.get(diffDays);
             if (!grp) {
               const header = document.createElement('div');
-              header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
+              header.className = 'sz_future_group_header d-flex justify-content-between align-items-center';
               const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
               header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
               const container = document.createElement('div');
@@ -1075,7 +1075,7 @@ async function fetchAlojList() {
               let grp = gruposFuturas.get(diffDays);
               if (!grp) {
                 const header = document.createElement('div');
-                header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
+                header.className = 'sz_future_group_header d-flex justify-content-between align-items-center';
                 const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
                 header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
                 const container = document.createElement('div');
@@ -1291,7 +1291,7 @@ async function fetchAlojList() {
             let grp = gruposFuturas.get(diffDays);
             if (!grp) {
               const header = document.createElement('div');
-              header.className = 'bg-light border rounded px-2 py-1 mb-2 d-flex justify-content-between align-items-center';
+              header.className = 'sz_future_group_header d-flex justify-content-between align-items-center';
               const title = diffDays === 1 ? 'Amanhã' : `Daqui a ${diffDays} dias`;
               header.innerHTML = `<span class=\"fw-semibold\">${title}</span>`;
               const container = document.createElement('div');

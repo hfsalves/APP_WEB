@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnNewAttachment= document.getElementById('btnNewAttachment');
   const btnNew          = document.getElementById('btnNew');
   const modalFiltros    = document.getElementById('modalFiltros');
+  const closeFiltersBtn = document.getElementById('closeFiltersModal');
+  const closeFiltersTopBtn = document.getElementById('closeFiltersModalTop');
   const filterForm      = document.getElementById('filter-form');
   const userPerms       = window.USER_PERMS[tableName] || {};
   const isFoList        = (tableName || '').toUpperCase() === 'FO';
@@ -20,11 +22,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Ajusta os botÃƒÆ’Ã‚Âµes do header (com guardas)
   if (btnFilterToggle) {
     btnFilterToggle.innerHTML = '<i class="fa fa-filter"></i><span>Filtrar</span>';
-    btnFilterToggle.className = 'btn btn-outline-secondary btn-sm';
+    btnFilterToggle.className = 'sz_button sz_button_ghost';
   }
   if (btnNew) {
     btnNew.innerHTML = '<i class="fa fa-plus"></i><span>Novo</span>';
-    btnNew.className = 'btn btn-primary btn-sm';
+    btnNew.className = 'sz_button sz_button_primary';
   }
   if (btnNewAttachment) {
     btnNewAttachment.innerHTML = '<i class="fa fa-paperclip"></i><span>+ Anexo</span>';
@@ -73,21 +75,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // 2) Move o modal de filtros para <body> (fora do blur)
-  // 2) Move o modal de filtros para <body> (fora do blur)
+  function openFiltersModal() {
+    if (!modalFiltros) return;
+    document.body.classList.add('modal-filtros-open');
+    modalFiltros.classList.add('sz_is_open');
+    modalFiltros.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeFiltersModal() {
+    if (!modalFiltros) return;
+    modalFiltros.classList.remove('sz_is_open');
+    modalFiltros.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-filtros-open');
+  }
+
+  // Move o modal de filtros para <body> (fora de containers com overflow)
   if (modalFiltros) { document.body.appendChild(modalFiltros); }
 
-  // 3) BotÃ£o Filtrar abre modal e aplica blur no fundo
+  // Botão Filtrar abre modal
   if (btnFilterToggle && modalFiltros) {
     btnFilterToggle.addEventListener('click', () => {
-      document.body.classList.add('modal-filtros-open');
-      const modal = bootstrap.Modal.getOrCreateInstance(modalFiltros);
-      modal.show();
-      modalFiltros.addEventListener('hidden.bs.modal', () => {
-        document.body.classList.remove('modal-filtros-open');
-      }, { once: true });
+      openFiltersModal();
     });
   }
+  if (closeFiltersBtn) {
+    closeFiltersBtn.addEventListener('click', closeFiltersModal);
+  }
+  if (closeFiltersTopBtn) {
+    closeFiltersTopBtn.addEventListener('click', closeFiltersModal);
+  }
+  if (modalFiltros) {
+    modalFiltros.addEventListener('click', (e) => {
+      if (e.target === modalFiltros) {
+        closeFiltersModal();
+      }
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modalFiltros && modalFiltros.classList.contains('sz_is_open')) {
+      closeFiltersModal();
+    }
+  });
+
   if (btnNew) {
     btnNew.addEventListener('click', () => {
       location.href = withReturnTo(resolveFormUrl());
@@ -111,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5) Ao submeter filtros, esconde modal e carrega dados
   filterForm.addEventListener('submit', e => {
     e.preventDefault();
-    bootstrap.Modal.getInstance(modalFiltros).hide();
+    closeFiltersModal();
     loadData();
   });
 
@@ -121,13 +150,6 @@ document.addEventListener('DOMContentLoaded', () => {
       filterForm.reset();
     });
   }
-
-  // 5) Submit do form de filtros
-  filterForm.addEventListener('submit', e => {
-    e.preventDefault();
-    bootstrap.Modal.getInstance(modalFiltros).hide();
-    loadData();
-  });
 
   // 6) BotÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o pequeno ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œAplicarÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â
   const applyFiltersBtn = document.getElementById('applyFilters');
@@ -344,34 +366,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderFilters(cols) {
     filterForm.innerHTML = '';
-    filterForm.className = 'row g-3';
+    filterForm.className = 'sz_dynamic_filters_form';
 
     cols.forEach(col => {
       const defaultFilter = parseDefaultFilter(col);
       if (col.tipo === 'DATE') {
         const wrapRow = document.createElement('div');
-        wrapRow.classList.add('col-12');
+        wrapRow.classList.add('sz_field');
 
         const label = document.createElement('label');
-        label.classList.add('form-label');
+        label.classList.add('sz_label');
         label.textContent = col.descricao || col.name;
         wrapRow.append(label);
 
         const row = document.createElement('div');
-        row.classList.add('row', 'g-2');
+        row.classList.add('sz_grid', 'sz_grid_2');
 
         ['from', 'to'].forEach(dir => {
-          const wrap = document.createElement('div');
-          wrap.classList.add('col-6');
           const inp = document.createElement('input');
           inp.type = 'date';
           inp.name = `${col.name}_${dir}`;
           inp.dataset.isDateRange = '1';
-          inp.classList.add('form-control');
+          inp.classList.add('sz_date');
           inp.placeholder = dir === 'from' ? 'De' : 'Até';
           if (defaultFilter && defaultFilter[dir]) markDefaultControl(inp, defaultFilter[dir]);
-          wrap.append(inp);
-          row.append(wrap);
+          row.append(inp);
         });
 
         wrapRow.append(row);
@@ -379,13 +398,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
       } else if (col.tipo === 'COMBO') {
         const wrap = document.createElement('div');
-        wrap.classList.add('col-md-6');
+        wrap.classList.add('sz_field');
         const lbl = document.createElement('label');
-        lbl.classList.add('form-label');
+        lbl.classList.add('sz_label');
         lbl.textContent = col.descricao || col.name;
         const sel = document.createElement('select');
         sel.name = col.name;
-        sel.classList.add('form-select');
+        sel.classList.add('sz_select');
         sel.innerHTML = '<option value=\"\">---</option>';
         wrap.append(lbl, sel);
         filterForm.append(wrap);
@@ -414,13 +433,13 @@ document.addEventListener('DOMContentLoaded', () => {
         })();
       } else if (col.tipo === 'BIT') {
         const wrap = document.createElement('div');
-        wrap.classList.add('col-md-6');
+        wrap.classList.add('sz_field');
         const lbl = document.createElement('label');
-        lbl.classList.add('form-label');
+        lbl.classList.add('sz_label');
         lbl.textContent = col.descricao || col.name;
         const sel = document.createElement('select');
         sel.name = col.name;
-        sel.classList.add('form-select');
+        sel.classList.add('sz_select');
         sel.innerHTML = `
           <option value="">---</option>
           <option value="1">Sim</option>
@@ -431,13 +450,13 @@ document.addEventListener('DOMContentLoaded', () => {
         filterForm.append(wrap);
       } else {
         const wrap = document.createElement('div');
-        wrap.classList.add('col-md-6');
+        wrap.classList.add('sz_field');
         const lbl = document.createElement('label');
-        lbl.classList.add('form-label');
+        lbl.classList.add('sz_label');
         lbl.textContent = col.descricao || col.name;
         const inp = document.createElement('input');
         inp.name = col.name;
-        inp.classList.add('form-control');
+        inp.classList.add('sz_input');
         switch (col.tipo) {
           case 'HOUR':
             inp.type = 'time';
@@ -495,14 +514,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderTable(cols, rows) {
     gridDiv.innerHTML = '';
+    const tableWrap = document.createElement('div');
+    tableWrap.classList.add('sz_table_wrap');
     const table = document.createElement('table');
-    table.classList.add('table','table-hover','align-middle');
+    table.classList.add('sz_table');
 
     // CabeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§alho com ordenaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o
     const thead = document.createElement('thead');
+    thead.classList.add('sz_table_head');
     const trh   = document.createElement('tr');
+    trh.classList.add('sz_table_row');
     cols.forEach((c, idx) => {
       const th = document.createElement('th');
+      th.classList.add('sz_table_cell');
       th.textContent = c.descricao || c.name;
       th.style.cursor = 'pointer';
       th.addEventListener('click', () => {
@@ -530,9 +554,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const tbody = document.createElement('tbody');
     rows.forEach(r => {
       const tr = document.createElement('tr');
+      tr.classList.add('sz_table_row');
       tr.style.cursor = 'pointer';
       cols.forEach(c => {
         const td = document.createElement('td');
+        td.classList.add('sz_table_cell');
         let v = r[c.name];
 
         // formata datas
@@ -563,7 +589,8 @@ document.addEventListener('DOMContentLoaded', () => {
       tbody.append(tr);
     });
     table.append(tbody);
-    gridDiv.append(table);
+    tableWrap.append(table);
+    gridDiv.append(tableWrap);
   }
 
 });

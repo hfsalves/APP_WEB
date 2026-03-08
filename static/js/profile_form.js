@@ -1,10 +1,38 @@
 ﻿console.warn('âœ… profile_form.js carregado');
 
 const TABLE_NAME = 'US';
-const camposEditaveis = ['EMAIL','COR']; // PASSWORD e FOTO tratadas em flows prÃ³prios
+const camposEditaveis = ['EMAIL', 'COR', 'VIEWMODE']; // PASSWORD e FOTO tratadas em flows proprios
 const camposOcultos = ['PASSWORD', 'FOTO']; // nÃ£o desenhar estes campos no formulÃ¡rio
 
 const camposMostrar = ['NOME', 'COR', 'LOGIN', 'EMAIL'];
+const THEME_KEY = 'sz_theme_mode';
+const VIEWMODE_BY_THEME = {
+  light: 'LIGHT MODE',
+  dark: 'DARK MODE',
+  geek: 'GEEK MODE'
+};
+const THEME_BY_VIEWMODE = {
+  'LIGHT MODE': 'light',
+  'DARK MODE': 'dark',
+  'GEEK MODE': 'geek'
+};
+
+function normalizeViewMode(viewMode) {
+  const raw = String(viewMode || '').trim().toUpperCase();
+  if (raw === 'LIGHT' || raw === 'DARK' || raw === 'GEEK') {
+    return `${raw} MODE`;
+  }
+  return THEME_BY_VIEWMODE[raw] ? raw : 'LIGHT MODE';
+}
+
+function applyThemeFromViewMode(viewMode) {
+  const normalized = normalizeViewMode(viewMode);
+  const theme = THEME_BY_VIEWMODE[normalized] || 'light';
+  document.documentElement.setAttribute('data-sz-theme', theme);
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch (_) {}
+}
 function showLoading() {
   const overlay = document.getElementById('loadingOverlay');
   if (overlay) {
@@ -36,6 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Vai buscar os dados do utilizador autenticado
   const userRes = await fetch('/api/whoami');
   const user = await userRes.json();
+  const viewModeSelect = document.getElementById('profileViewMode');
 
   // Limpa o form
   form.innerHTML = '';
@@ -162,13 +191,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       form.appendChild(row);
     });
 
-  hideLoading();
+  if (viewModeSelect) {
+    const currentViewMode = normalizeViewMode(user.VIEWMODE);
+    viewModeSelect.value = currentViewMode;
+    viewModeSelect.addEventListener('change', async () => {
+      const selected = normalizeViewMode(viewModeSelect.value);
+      applyThemeFromViewMode(selected);
+      try {
+        const resp = await fetch('/api/profile/viewmode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ viewmode: selected })
+        });
+        if (!resp.ok) throw new Error('Falha ao gravar VIEWMODE');
+        const msg = document.getElementById('profileMsg');
+        if (msg) {
+          msg.textContent = 'Modo de visualizacao atualizado.';
+          msg.classList.remove('text-danger');
+          msg.classList.add('text-success');
+        }
+      } catch (_) {
+        const msg = document.getElementById('profileMsg');
+        if (msg) {
+          msg.textContent = 'Erro ao atualizar o modo de visualizacao.';
+          msg.classList.remove('text-success');
+          msg.classList.add('text-danger');
+        }
+      }
+    });
+  }
 
-  // SubmissÃ£o do perfil (apenas placeholder, ainda nÃ£o grava nada)
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    document.getElementById('profileMsg').textContent = 'ðŸš§ GravaÃ§Ã£o ainda nÃ£o implementada!';
-  });
+  hideLoading();
 });
 
 // Abrir modal ao clicar no botÃ£o "Alterar Password"
@@ -230,6 +283,11 @@ document.addEventListener('DOMContentLoaded', () => {
     for (const name of (window.camposEditaveis || camposEditaveis)) {
       const el = form.querySelector(`[name="${name}"]`);
       if (el) payload[name] = el.value;
+    }
+    const viewModeSelect = document.getElementById('profileViewMode');
+    if (viewModeSelect) {
+      payload.VIEWMODE = normalizeViewMode(viewModeSelect.value);
+      applyThemeFromViewMode(payload.VIEWMODE);
     }
     const msg = document.getElementById('profileMsg');
     try {
