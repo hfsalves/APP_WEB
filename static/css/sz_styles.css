@@ -222,6 +222,17 @@ body.sz-base-shell.authenticated .main-content {
   gap: var(--sz-space-3);
 }
 
+.sz_filter_date_range_row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sz-space-3);
+  min-width: 0;
+}
+
+.sz_filter_date_range_row > * {
+  min-width: 0;
+}
+
 .sz_dynamic_filters_modal_panel {
   width: min(96vw, 760px);
   max-height: calc(100vh - 2rem);
@@ -252,15 +263,30 @@ body.sz-base-shell.authenticated .main-content {
 
   .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_range {
     grid-column: span 2;
+    min-width: 0;
   }
 
   .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_range_row {
+    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--sz-space-2);
+    min-width: 0;
+  }
+
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_range_row > * {
+    min-width: 0;
   }
 
   .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_input {
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
+    box-sizing: border-box;
+    padding-right: 1.75rem;
+  }
+
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_input::-webkit-date-and-time-value {
+    text-align: left;
   }
 }
 
@@ -380,6 +406,33 @@ body.sz-base-shell.authenticated .main-content {
 
   .sz_table_host {
     height: auto;
+  }
+
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_range {
+    grid-column: span 2 !important;
+    min-width: 0;
+  }
+
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_range_row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: var(--sz-space-2);
+    min-width: 0;
+  }
+
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_range_row > * {
+    min-width: 0;
+  }
+
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 }
 

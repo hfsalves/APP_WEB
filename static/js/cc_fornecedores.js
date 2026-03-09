@@ -122,7 +122,7 @@ function setPaySort(key) {
 function renderPayRows(rows) {
   if (!payTableBody) return;
   if (!Array.isArray(rows) || !rows.length) {
-    payTableBody.innerHTML = '<tr><td colspan="8" class="text-muted p-3">Sem pendentes.</td></tr>';
+    payTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="8" class="sz_table_cell sz_text_muted">Sem pendentes.</td></tr>';
     return;
   }
   payTableBody.innerHTML = '';
@@ -139,19 +139,20 @@ function renderPayRows(rows) {
     if (payVal > maxVal) payVal = maxVal;
     const tr = document.createElement('tr');
     tr.dataset.fcstamp = fc;
+    tr.className = 'sz_table_row';
     tr.innerHTML = `
-      <td class="text-center">
-        <input type="checkbox" class="form-check-input" data-action="pick" ${checked ? 'checked' : ''}>
+      <td class="sz_table_cell ccf_pick_cell">
+        <input type="checkbox" class="ccf_pick_checkbox" data-action="pick" ${checked ? 'checked' : ''}>
       </td>
-      <td>${escapeHtml(String(r.NO ?? ''))}</td>
-      <td>${escapeHtml((r.NOME ?? '').toString())}</td>
-      <td>${escapeHtml(r.DATAVEN || '')}</td>
-      <td>${escapeHtml((r.CMDESC ?? '').toString())}</td>
-      <td>${escapeHtml((r.ADOC ?? '').toString())}</td>
-      <td class="text-end ${aberto < 0 ? 'cc-badge-neg' : ''}">${escapeHtml(fmtMoney(aberto))}</td>
-      <td class="text-end">
+      <td class="sz_table_cell">${escapeHtml(String(r.NO ?? ''))}</td>
+      <td class="sz_table_cell">${escapeHtml((r.NOME ?? '').toString())}</td>
+      <td class="sz_table_cell">${escapeHtml(r.DATAVEN || '')}</td>
+      <td class="sz_table_cell">${escapeHtml((r.CMDESC ?? '').toString())}</td>
+      <td class="sz_table_cell">${escapeHtml((r.ADOC ?? '').toString())}</td>
+      <td class="sz_table_cell sz_text_right ${aberto < 0 ? 'ccf_negative' : 'ccf_positive'}">${escapeHtml(fmtMoney(aberto))}</td>
+      <td class="sz_table_cell sz_text_right">
         <input type="number" step="0.01" min="${escapeHtml(minVal)}" max="${escapeHtml(maxVal)}"
-               class="form-control form-control-sm text-end"
+               class="sz_input sz_input_number ccf_pay_input"
                data-field="payval"
                value="${escapeHtml((Number.isFinite(payVal) ? payVal : 0).toFixed(2))}">
       </td>
@@ -164,13 +165,13 @@ async function loadPendentesForWizard(term) {
   if (!payWizardModal) return;
   const q = (term || '').toString().trim();
   setPayStatus('A carregar...');
-  if (payTableBody) payTableBody.innerHTML = '<tr><td colspan="7" class="text-muted p-3">A carregar...</td></tr>';
+  if (payTableBody) payTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="8" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
   const res = await fetch(`/api/cc_fornecedores/pendentes?q=${encodeURIComponent(q)}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = err.error || res.statusText;
     setPayStatus('Erro: ' + msg);
-    if (payTableBody) payTableBody.innerHTML = `<tr><td colspan="7" class="text-danger p-3">Erro: ${escapeHtml(msg)}</td></tr>`;
+    if (payTableBody) payTableBody.innerHTML = `<tr class="sz_table_row"><td colspan="8" class="sz_table_cell"><span class="sz_error">Erro: ${escapeHtml(msg)}</span></td></tr>`;
     return;
   }
   const data = await res.json();
@@ -200,20 +201,21 @@ function setStatus(text) {
 function renderResumo(rows) {
   if (!ccTableBody) return;
   if (!Array.isArray(rows) || !rows.length) {
-    ccTableBody.innerHTML = '<tr><td colspan="3" class="text-muted p-3">Sem fornecedores.</td></tr>';
+    ccTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="3" class="sz_table_cell sz_text_muted">Sem fornecedores.</td></tr>';
     return;
   }
   ccTableBody.innerHTML = '';
   rows.forEach(r => {
     const tr = document.createElement('tr');
+    tr.className = 'sz_table_row ccf_clickable';
     tr.dataset.no = String(r.NO ?? '');
     tr.dataset.nome = (r.NOME ?? '').toString();
     const saldo = Number(r.SALDO_ABERTO || 0);
-    const cls = saldo > 0 ? 'cc-badge-pos' : (saldo < 0 ? 'cc-badge-neg' : '');
+    const cls = saldo > 0 ? 'ccf_positive' : (saldo < 0 ? 'ccf_negative' : '');
     tr.innerHTML = `
-      <td>${escapeHtml(String(r.NO ?? ''))}</td>
-      <td>${escapeHtml((r.NOME ?? '').toString())}</td>
-      <td class="text-end ${cls}">${escapeHtml(fmtMoney(saldo))}</td>
+      <td class="sz_table_cell">${escapeHtml(String(r.NO ?? ''))}</td>
+      <td class="sz_table_cell">${escapeHtml((r.NOME ?? '').toString())}</td>
+      <td class="sz_table_cell sz_text_right ${cls}">${escapeHtml(fmtMoney(saldo))}</td>
     `;
     ccTableBody.appendChild(tr);
   });
@@ -281,13 +283,13 @@ async function loadResumo() {
   const q = (ccSearch?.value || '').toString().trim();
   const pend = ccPendentesOnly?.checked ? '1' : '0';
   setStatus('A carregar...');
-  if (ccTableBody) ccTableBody.innerHTML = '<tr><td colspan="3" class="text-muted p-3">A carregar...</td></tr>';
+  if (ccTableBody) ccTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="3" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
   const res = await fetch(`/api/cc_fornecedores/resumo?q=${encodeURIComponent(q)}&pendentes=${pend}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = err.error || res.statusText;
     setStatus('Erro: ' + msg);
-    if (ccTableBody) ccTableBody.innerHTML = `<tr><td colspan="3" class="text-danger p-3">Erro: ${escapeHtml(msg)}</td></tr>`;
+    if (ccTableBody) ccTableBody.innerHTML = `<tr class="sz_table_row"><td colspan="3" class="sz_table_cell"><span class="sz_error">Erro: ${escapeHtml(msg)}</span></td></tr>`;
     return;
   }
   const data = await res.json();
@@ -300,18 +302,18 @@ async function loadResumo() {
 
 async function loadDetalhe(no, pendentes) {
   if (!ccModalTableBody) return;
-  ccModalTableBody.innerHTML = '<tr><td colspan="9" class="text-muted p-3">A carregar...</td></tr>';
+  ccModalTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="9" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
   const res = await fetch(`/api/cc_fornecedores/detalhe?no=${encodeURIComponent(no)}&pendentes=${pendentes ? '1' : '0'}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = err.error || res.statusText;
-    ccModalTableBody.innerHTML = `<tr><td colspan="9" class="text-danger p-3">Erro: ${escapeHtml(msg)}</td></tr>`;
+    ccModalTableBody.innerHTML = `<tr class="sz_table_row"><td colspan="9" class="sz_table_cell"><span class="sz_error">Erro: ${escapeHtml(msg)}</span></td></tr>`;
     return;
   }
   const data = await res.json();
   const rows = data.rows || [];
   if (!rows.length) {
-    ccModalTableBody.innerHTML = '<tr><td colspan="9" class="text-muted p-3">Sem movimentos.</td></tr>';
+    ccModalTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="9" class="sz_table_cell sz_text_muted">Sem movimentos.</td></tr>';
     if (ccModalTotal) ccModalTotal.textContent = fmtMoney(data.total_aberto || 0);
     return;
   }
@@ -321,28 +323,29 @@ async function loadDetalhe(no, pendentes) {
   rows.forEach(r => {
     const tr = document.createElement('tr');
     const aberto = Number(r.ABERTO || 0);
-    const cls = aberto > 0 ? 'cc-badge-pos' : (aberto < 0 ? 'cc-badge-neg' : '');
+    const cls = aberto > 0 ? 'ccf_positive' : (aberto < 0 ? 'ccf_negative' : '');
     const fostamp = (r.FOSTAMP || '').toString().trim();
     const deb = Number(r.EDEB || 0);
     const cred = Number(r.ECRED || 0);
     const delta = cred - deb;
     running += Number.isFinite(delta) ? delta : 0;
-    const runCls = running > 0 ? 'cc-badge-pos' : (running < 0 ? 'cc-badge-neg' : '');
+    const runCls = running > 0 ? 'ccf_positive' : (running < 0 ? 'ccf_negative' : '');
+    tr.className = 'sz_table_row';
     if (fostamp) {
       tr.dataset.fostamp = fostamp;
-      tr.classList.add('cc-modal-row-link');
+      tr.classList.add('ccf_modal_row_link');
       tr.title = 'Abrir compra';
     }
     tr.innerHTML = `
-      <td>${escapeHtml(r.DATALC || '')}</td>
-      <td>${escapeHtml(r.DATAVEN || '')}</td>
-      <td>${escapeHtml((r.CMDESC || '').toString())}</td>
-      <td>${escapeHtml((r.ADOC || '').toString())}</td>
-      <td class="text-end">${escapeHtml(fmtMoney(deb))}</td>
-      <td class="text-end">${escapeHtml(fmtMoney(cred))}</td>
-      <td class="text-end ${cls}">${escapeHtml(fmtMoney(aberto))}</td>
-      <td class="text-end ${runCls}">${escapeHtml(fmtMoney(running))}</td>
-      <td>${escapeHtml(r.CCUSTO || '')}</td>
+      <td class="sz_table_cell">${escapeHtml(r.DATALC || '')}</td>
+      <td class="sz_table_cell">${escapeHtml(r.DATAVEN || '')}</td>
+      <td class="sz_table_cell">${escapeHtml((r.CMDESC || '').toString())}</td>
+      <td class="sz_table_cell">${escapeHtml((r.ADOC || '').toString())}</td>
+      <td class="sz_table_cell sz_text_right">${escapeHtml(fmtMoney(deb))}</td>
+      <td class="sz_table_cell sz_text_right">${escapeHtml(fmtMoney(cred))}</td>
+      <td class="sz_table_cell sz_text_right ${cls}">${escapeHtml(fmtMoney(aberto))}</td>
+      <td class="sz_table_cell sz_text_right ${runCls}">${escapeHtml(fmtMoney(running))}</td>
+      <td class="sz_table_cell">${escapeHtml(r.CCUSTO || '')}</td>
     `;
     ccModalTableBody.appendChild(tr);
   });

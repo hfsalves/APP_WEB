@@ -16,7 +16,6 @@ const ccModalPendentesOnly = document.getElementById('ccModalPendentesOnly');
 const ccModalTotal = document.getElementById('ccModalTotal');
 const ccModalTableBody = document.querySelector('#ccModalTable tbody');
 
-// Assistente de recebimentos
 const btnAssistRecebimentos = document.getElementById('btnAssistRecebimentos');
 const recWizardModalEl = document.getElementById('recWizardModal');
 const recWizardModal = recWizardModalEl ? new bootstrap.Modal(recWizardModalEl) : null;
@@ -32,12 +31,12 @@ const recTable = document.getElementById('recTable');
 
 let ccRows = [];
 let ccDebounce = null;
-let currentCliente = null; // { no, nome }
+let currentCliente = null;
 let ccSortKey = 'SALDO_ABERTO';
 let ccSortDir = 'desc';
 
 let recRows = [];
-let recSelected = new Map(); // CCSTAMP -> { row, rec }
+let recSelected = new Map();
 let recDebounce = null;
 let recSortKey = 'DATAVEN';
 let recSortDir = 'asc';
@@ -49,14 +48,6 @@ function fmtMoney(v) {
   return fmt.format(Number.isFinite(n) ? n : 0);
 }
 
-function setStatus(text) {
-  if (ccStatus) ccStatus.textContent = text || '';
-}
-
-function setRecStatus(text) {
-  if (recStatus) recStatus.textContent = text || '';
-}
-
 function escapeHtml(s) {
   return (s ?? '').toString()
     .replaceAll('&', '&amp;')
@@ -66,23 +57,32 @@ function escapeHtml(s) {
     .replaceAll("'", '&#039;');
 }
 
+function setStatus(text) {
+  if (ccStatus) ccStatus.textContent = text || '';
+}
+
+function setRecStatus(text) {
+  if (recStatus) recStatus.textContent = text || '';
+}
+
 function renderResumo(rows) {
   if (!ccTableBody) return;
   if (!Array.isArray(rows) || !rows.length) {
-    ccTableBody.innerHTML = '<tr><td colspan="3" class="text-muted p-3">Sem clientes.</td></tr>';
+    ccTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="3" class="sz_table_cell sz_text_muted">Sem clientes.</td></tr>';
     return;
   }
   ccTableBody.innerHTML = '';
-  rows.forEach(r => {
+  rows.forEach((r) => {
     const tr = document.createElement('tr');
+    tr.className = 'sz_table_row ccc_clickable';
     tr.dataset.no = String(r.NO ?? '');
     tr.dataset.nome = (r.NOME ?? '').toString();
     const saldo = Number(r.SALDO_ABERTO || 0);
-    const cls = saldo > 0 ? 'cc-badge-pos' : (saldo < 0 ? 'cc-badge-neg' : '');
+    const cls = saldo > 0 ? 'ccc_positive' : (saldo < 0 ? 'ccc_negative' : '');
     tr.innerHTML = `
-      <td>${escapeHtml(String(r.NO ?? ''))}</td>
-      <td>${escapeHtml((r.NOME ?? '').toString())}</td>
-      <td class="text-end ${cls}">${escapeHtml(fmtMoney(saldo))}</td>
+      <td class="sz_table_cell">${escapeHtml(String(r.NO ?? ''))}</td>
+      <td class="sz_table_cell">${escapeHtml((r.NOME ?? '').toString())}</td>
+      <td class="sz_table_cell sz_text_right ${cls}">${escapeHtml(fmtMoney(saldo))}</td>
     `;
     ccTableBody.appendChild(tr);
   });
@@ -90,12 +90,10 @@ function renderResumo(rows) {
 
 function updateSortIndicators() {
   const ths = ccTable?.querySelectorAll('thead th[data-sort]');
-  ths?.forEach(th => {
+  ths?.forEach((th) => {
     th.classList.remove('sort-asc', 'sort-desc');
     const key = (th.dataset.sort || '').toString().trim().toUpperCase();
-    if (key && key === ccSortKey) {
-      th.classList.add(ccSortDir === 'desc' ? 'sort-desc' : 'sort-asc');
-    }
+    if (key && key === ccSortKey) th.classList.add(ccSortDir === 'desc' ? 'sort-desc' : 'sort-asc');
   });
 }
 
@@ -132,7 +130,7 @@ function setSort(key) {
     ccSortDir = ccSortDir === 'asc' ? 'desc' : 'asc';
   } else {
     ccSortKey = k;
-    ccSortDir = (k === 'SALDO_ABERTO') ? 'desc' : 'asc';
+    ccSortDir = k === 'SALDO_ABERTO' ? 'desc' : 'asc';
   }
   applySortAndRender();
 }
@@ -145,7 +143,7 @@ function updateRecSelectedTotal() {
 
 function updateRecSortIndicators() {
   const ths = recTable?.querySelectorAll('thead th[data-sort]');
-  ths?.forEach(th => {
+  ths?.forEach((th) => {
     th.classList.remove('sort-asc', 'sort-desc');
     const key = (th.dataset.sort || '').toString().trim().toUpperCase();
     if (key && key === recSortKey) th.classList.add(recSortDir === 'desc' ? 'sort-desc' : 'sort-asc');
@@ -202,55 +200,50 @@ function setRecSort(key) {
 function renderRecRows(rows) {
   if (!recTableBody) return;
   if (!Array.isArray(rows) || !rows.length) {
-    recTableBody.innerHTML = '<tr><td colspan="8" class="text-muted p-3">Sem pendentes.</td></tr>';
+    recTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="8" class="sz_table_cell sz_text_muted">Sem pendentes.</td></tr>';
     return;
   }
   recTableBody.innerHTML = '';
-  rows.forEach(r => {
+  rows.forEach((r) => {
     const cc = (r.CCSTAMP || '').toString().trim();
     const selected = recSelected.get(cc);
     const checked = !!selected;
     const max = Number(r.ABERTO || 0);
-    const payVal = selected ? Number(selected.rec || 0) : max;
-    const payStr = (Number.isFinite(payVal) ? payVal : 0).toFixed(2);
+    const recVal = selected ? Number(selected.rec || 0) : max;
+    const recSafe = Number.isFinite(recVal) ? recVal : 0;
     const minAllowed = max < 0 ? max : 0;
     const maxAllowed = max < 0 ? 0 : max;
-    const minStr = (Number.isFinite(minAllowed) ? minAllowed : 0).toFixed(2);
-    const maxStr = (Number.isFinite(maxAllowed) ? maxAllowed : 0).toFixed(2);
-    const safeNo = escapeHtml(String(r.NO ?? ''));
-    const safeNome = escapeHtml((r.NOME ?? '').toString());
-    const safeVen = escapeHtml((r.DATAVEN ?? '').toString());
-    const safeDoc = escapeHtml((r.CMDESC ?? '').toString());
-    const safeNr = escapeHtml(String(r.NRDOC ?? ''));
-    const abertoCls = max < 0 ? 'cc-badge-neg' : (max > 0 ? 'cc-badge-pos' : '');
-    recTableBody.innerHTML += `
-      <tr data-ccstamp="${escapeHtml(cc)}">
-        <td class="text-center">
-          <input type="checkbox" class="form-check-input" data-action="pick" ${checked ? 'checked' : ''}>
-        </td>
-        <td>${safeNo}</td>
-        <td>${safeNome}</td>
-        <td>${safeVen}</td>
-        <td>${safeDoc}</td>
-        <td>${safeNr}</td>
-        <td class="text-end fw-semibold ${abertoCls}">${escapeHtml(fmtMoney(max))}</td>
-        <td class="text-end">
-          <input type="number" class="form-control form-control-sm" data-field="recval" value="${escapeHtml(payStr)}" min="${escapeHtml(minStr)}" max="${escapeHtml(maxStr)}" step="0.01">
-        </td>
-      </tr>
+    const abertoCls = max < 0 ? 'ccc_negative' : (max > 0 ? 'ccc_positive' : '');
+    const tr = document.createElement('tr');
+    tr.className = 'sz_table_row';
+    tr.dataset.ccstamp = cc;
+    tr.innerHTML = `
+      <td class="sz_table_cell ccc_pick_cell">
+        <input type="checkbox" class="ccc_pick_checkbox" data-action="pick" ${checked ? 'checked' : ''}>
+      </td>
+      <td class="sz_table_cell">${escapeHtml(String(r.NO ?? ''))}</td>
+      <td class="sz_table_cell">${escapeHtml((r.NOME ?? '').toString())}</td>
+      <td class="sz_table_cell">${escapeHtml((r.DATAVEN ?? '').toString())}</td>
+      <td class="sz_table_cell">${escapeHtml((r.CMDESC ?? '').toString())}</td>
+      <td class="sz_table_cell">${escapeHtml(String(r.NRDOC ?? ''))}</td>
+      <td class="sz_table_cell sz_text_right ${abertoCls}">${escapeHtml(fmtMoney(max))}</td>
+      <td class="sz_table_cell sz_text_right">
+        <input type="number" class="sz_input sz_input_number ccc_rec_input" data-field="recval" value="${escapeHtml(recSafe.toFixed(2))}" min="${escapeHtml(minAllowed)}" max="${escapeHtml(maxAllowed)}" step="0.01">
+      </td>
     `;
+    recTableBody.appendChild(tr);
   });
 }
 
 async function loadPendentesForWizard(q) {
   if (!recTableBody) return;
   setRecStatus('A carregar...');
-  recTableBody.innerHTML = '<tr><td colspan="8" class="text-muted p-3">A carregar...</td></tr>';
+  recTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="8" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
   const res = await fetch(`/api/cc_clientes/pendentes?q=${encodeURIComponent(q || '')}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = err.error || res.statusText;
-    recTableBody.innerHTML = `<tr><td colspan="8" class="text-danger p-3">Erro: ${escapeHtml(msg)}</td></tr>`;
+    recTableBody.innerHTML = `<tr class="sz_table_row"><td colspan="8" class="sz_table_cell"><span class="sz_error">Erro: ${escapeHtml(msg)}</span></td></tr>`;
     setRecStatus('Erro: ' + msg);
     return;
   }
@@ -270,7 +263,7 @@ function openRecWizard() {
     if (!Number.isNaN(d)) recDate.value = d.toISOString().slice(0, 10);
   }
   recWizardModal.show();
-  loadPendentesForWizard('').catch(e => setRecStatus('Erro: ' + e.message));
+  loadPendentesForWizard('').catch((e) => setRecStatus('Erro: ' + e.message));
   setTimeout(() => recSearch?.focus(), 200);
 }
 
@@ -278,13 +271,13 @@ async function loadResumo() {
   const q = (ccSearch?.value || '').toString().trim();
   const pend = ccPendentesOnly?.checked ? '1' : '0';
   setStatus('A carregar...');
-  if (ccTableBody) ccTableBody.innerHTML = '<tr><td colspan="3" class="text-muted p-3">A carregar...</td></tr>';
+  if (ccTableBody) ccTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="3" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
   const res = await fetch(`/api/cc_clientes/resumo?q=${encodeURIComponent(q)}&pendentes=${pend}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = err.error || res.statusText;
     setStatus('Erro: ' + msg);
-    if (ccTableBody) ccTableBody.innerHTML = `<tr><td colspan="3" class="text-danger p-3">Erro: ${escapeHtml(msg)}</td></tr>`;
+    if (ccTableBody) ccTableBody.innerHTML = `<tr class="sz_table_row"><td colspan="3" class="sz_table_cell"><span class="sz_error">Erro: ${escapeHtml(msg)}</span></td></tr>`;
     return;
   }
   const data = await res.json();
@@ -297,43 +290,44 @@ async function loadResumo() {
 
 async function loadDetalhe(no, pendentes) {
   if (!ccModalTableBody) return;
-  ccModalTableBody.innerHTML = '<tr><td colspan="9" class="text-muted p-3">A carregar...</td></tr>';
+  ccModalTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="9" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
   const res = await fetch(`/api/cc_clientes/detalhe?no=${encodeURIComponent(no)}&pendentes=${pendentes ? '1' : '0'}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = err.error || res.statusText;
-    ccModalTableBody.innerHTML = `<tr><td colspan="9" class="text-danger p-3">Erro: ${escapeHtml(msg)}</td></tr>`;
+    ccModalTableBody.innerHTML = `<tr class="sz_table_row"><td colspan="9" class="sz_table_cell"><span class="sz_error">Erro: ${escapeHtml(msg)}</span></td></tr>`;
     return;
   }
   const data = await res.json();
   const rows = data.rows || [];
   if (!rows.length) {
-    ccModalTableBody.innerHTML = '<tr><td colspan="9" class="text-muted p-3">Sem movimentos.</td></tr>';
+    ccModalTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="9" class="sz_table_cell sz_text_muted">Sem movimentos.</td></tr>';
     if (ccModalTotal) ccModalTotal.textContent = fmtMoney(data.total_aberto || 0);
     return;
   }
   if (ccModalTotal) ccModalTotal.textContent = fmtMoney(data.total_aberto || 0);
   ccModalTableBody.innerHTML = '';
   let running = 0;
-  rows.forEach(r => {
+  rows.forEach((r) => {
     const tr = document.createElement('tr');
+    tr.className = 'sz_table_row ccc_modal_row_link';
     const aberto = Number(r.ABERTO || 0);
-    const cls = aberto > 0 ? 'cc-badge-pos' : (aberto < 0 ? 'cc-badge-neg' : '');
+    const cls = aberto > 0 ? 'ccc_positive' : (aberto < 0 ? 'ccc_negative' : '');
     const deb = Number(r.EDEB || 0);
     const cred = Number(r.ECRED || 0);
     const delta = deb - cred;
     running += Number.isFinite(delta) ? delta : 0;
-    const runCls = running > 0 ? 'cc-badge-pos' : (running < 0 ? 'cc-badge-neg' : '');
+    const runCls = running > 0 ? 'ccc_positive' : (running < 0 ? 'ccc_negative' : '');
     tr.innerHTML = `
-      <td>${escapeHtml(r.DATALC || '')}</td>
-      <td>${escapeHtml(r.DATAVEN || '')}</td>
-      <td>${escapeHtml((r.CMDESC || '').toString())}</td>
-      <td>${escapeHtml((r.NRDOC || '').toString())}</td>
-      <td class="text-end">${escapeHtml(fmtMoney(deb))}</td>
-      <td class="text-end">${escapeHtml(fmtMoney(cred))}</td>
-      <td class="text-end ${cls}">${escapeHtml(fmtMoney(aberto))}</td>
-      <td class="text-end ${runCls}">${escapeHtml(fmtMoney(running))}</td>
-      <td>${escapeHtml(r.CCUSTO || '')}</td>
+      <td class="sz_table_cell">${escapeHtml(r.DATALC || '')}</td>
+      <td class="sz_table_cell">${escapeHtml(r.DATAVEN || '')}</td>
+      <td class="sz_table_cell">${escapeHtml((r.CMDESC || '').toString())}</td>
+      <td class="sz_table_cell">${escapeHtml((r.NRDOC || '').toString())}</td>
+      <td class="sz_table_cell sz_text_right">${escapeHtml(fmtMoney(deb))}</td>
+      <td class="sz_table_cell sz_text_right">${escapeHtml(fmtMoney(cred))}</td>
+      <td class="sz_table_cell sz_text_right ${cls}">${escapeHtml(fmtMoney(aberto))}</td>
+      <td class="sz_table_cell sz_text_right ${runCls}">${escapeHtml(fmtMoney(running))}</td>
+      <td class="sz_table_cell">${escapeHtml(r.CCUSTO || '')}</td>
     `;
     ccModalTableBody.appendChild(tr);
   });
@@ -358,10 +352,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   ccSearch?.addEventListener('input', () => {
     clearTimeout(ccDebounce);
-    ccDebounce = setTimeout(() => loadResumo().catch(e => setStatus('Erro: ' + e.message)), 250);
+    ccDebounce = setTimeout(() => loadResumo().catch((e) => setStatus('Erro: ' + e.message)), 250);
   });
+
   ccPendentesOnly?.addEventListener('change', () => {
-    loadResumo().catch(e => setStatus('Erro: ' + e.message));
+    loadResumo().catch((e) => setStatus('Erro: ' + e.message));
   });
 
   ccTableBody?.addEventListener('click', (e) => {
@@ -388,12 +383,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   recSearch?.addEventListener('input', () => {
     clearTimeout(recDebounce);
-    recDebounce = setTimeout(() => loadPendentesForWizard(recSearch.value).catch(e => setRecStatus('Erro: ' + e.message)), 250);
+    recDebounce = setTimeout(() => loadPendentesForWizard(recSearch.value).catch((e) => setRecStatus('Erro: ' + e.message)), 250);
   });
 
   recSelectAll?.addEventListener('click', () => {
     recSelected = new Map();
-    (recRows || []).forEach(r => {
+    (recRows || []).forEach((r) => {
       const cc = (r.CCSTAMP || '').toString().trim();
       if (!cc) return;
       const max = Number(r.ABERTO || 0);
@@ -413,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tr = input.closest('tr[data-ccstamp]');
     if (!tr) return;
     const cc = (tr.dataset.ccstamp || '').toString().trim();
-    const row = (recRows || []).find(x => (x.CCSTAMP || '').toString().trim() === cc);
+    const row = (recRows || []).find((x) => (x.CCSTAMP || '').toString().trim() === cc);
     if (!row) return;
     const aberto = Number(row.ABERTO || 0);
     let val = Number(input.value || 0);
@@ -443,7 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!checkbox) return;
     if (e.target !== checkbox) checkbox.checked = !checkbox.checked;
     if (checkbox.checked) {
-      const row = (recRows || []).find(x => (x.CCSTAMP || '').toString().trim() === cc);
+      const row = (recRows || []).find((x) => (x.CCSTAMP || '').toString().trim() === cc);
       if (row) {
         const recInput = tr.querySelector('input[data-field="recval"]');
         const aberto = Number(row.ABERTO || 0);
@@ -483,10 +478,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const payload = {
         rec_date: rdate,
-        items: Array.from(recSelected.values()).map(v => ({
-          ...v.row,
-          PAYVAL: v.rec
-        }))
+        items: Array.from(recSelected.values()).map((v) => ({ ...v.row, PAYVAL: v.rec }))
       };
       const res = await fetch('/api/cc_clientes/recebimentos/criar', {
         method: 'POST',
@@ -510,5 +502,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  loadResumo().catch(e => setStatus('Erro: ' + e.message));
+  loadResumo().catch((e) => setStatus('Erro: ' + e.message));
 });

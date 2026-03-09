@@ -1,4 +1,4 @@
-// static/js/orcamento.js
+﻿// static/js/orcamento.js
 
 document.addEventListener('DOMContentLoaded', () => {
   const anoInput = document.getElementById('orcAno');
@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function setLoading(text) {
     if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="14" class="text-center text-muted">${escapeHtml(text)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" class="sz_table_cell sz_text_muted" style="text-align:center;">${escapeHtml(text)}</td></tr>`;
   }
 
   function toNumber(str) {
@@ -139,10 +139,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const num = Number(v || 0);
         if (!editable) {
           const txt = num ? fmt.format(num) : '';
-          return `<td class="text-end orc-readonly" data-ref="${escapeHtml(r.ref)}" data-mes="${mes}">${escapeHtml(txt)}</td>`;
+          return `<td class="sz_table_cell sz_text_right orc-readonly" data-ref="${escapeHtml(r.ref)}" data-mes="${mes}">${escapeHtml(txt)}</td>`;
         }
         return `
-          <td>
+          <td class="sz_table_cell">
             <input
               class="form-control form-control-sm orc-input"
               inputmode="decimal"
@@ -157,9 +157,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }).join('');
       return `
         <tr>
-          <td class="${famCls}">${escapeHtml(label)}</td>
+          <td class="sz_table_cell ${famCls}">${escapeHtml(label)}</td>
           ${cells}
-          <td class="text-end orc-readonly orc-row-total" data-ref="${escapeHtml(r.ref)}" data-total="1">${escapeHtml(rowTotal ? fmt.format(rowTotal) : '')}</td>
+          <td class="sz_table_cell sz_text_right orc-readonly orc-row-total" data-ref="${escapeHtml(r.ref)}" data-total="1">${escapeHtml(rowTotal ? fmt.format(rowTotal) : '')}</td>
         </tr>
       `;
     }).join('');
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
       buildIndex(data);
       renderTotals();
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="14" class="text-center text-danger">${escapeHtml(err.message || 'Erro')}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="14" class="sz_table_cell" style="text-align:center; color: var(--sz-color-danger);">${escapeHtml(err.message || 'Erro')}</td></tr>`;
     }
   }
 
@@ -280,3 +280,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
   load();
 });
+

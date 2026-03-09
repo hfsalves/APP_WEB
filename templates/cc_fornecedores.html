@@ -6,434 +6,461 @@
 {% block title %}Contas Correntes - Fornecedores{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3 cc-page">
-  <div class="d-flex flex-wrap align-items-center justify-content-end gap-2 mb-3">
-    <button type="button" class="btn btn-outline-primary btn-sm" id="btnAssistPagamentos">
-      <i class="fa-solid fa-wand-magic-sparkles me-1"></i> Assistente de pagamentos
-    </button>
-    <div class="form-check form-switch mb-0">
-      <input class="form-check-input" type="checkbox" id="ccPendentesOnly">
-      <label class="form-check-label" for="ccPendentesOnly">Apenas pendentes</label>
-    </div>
-  </div>
-
-  <div class="row g-3 mb-3 cc-top-row">
-    <div class="col-md-6">
-      <div class="card cc-card h-100">
-        <div class="card-body">
-          <div class="text-muted small">D&iacute;vida total em aberto (j&aacute; com cr&eacute;ditos)</div>
-          <div class="cc-kpi" id="ccTotalDivida">0</div>
-          <div class="text-muted small">Fornecedores: <span id="ccCountFornecedores">0</span></div>
+<div class="sz_page sz_cc_fornecedores_page">
+  <div class="sz_page_container sz_cc_fornecedores_container">
+    <div class="sz_page_header">
+      <div class="sz_contextbar ccf_contextbar">
+        <div class="sz_contextbar_left ccf_contextbar_left">
+          <div class="sz_page_title">Contas Correntes - Fornecedores</div>
+          <div class="sz_page_subtitle">Resumo de saldo em aberto e movimentos por fornecedor.</div>
         </div>
-      </div>
-    </div>
-    <div class="col-md-6">
-      <div class="card cc-card h-100">
-        <div class="card-body">
-          <label class="text-muted small mb-1" for="ccSearch">Pesquisar fornecedor</label>
-          <div class="input-group">
-            <span class="input-group-text bg-light"><i class="fa fa-search"></i></span>
-            <input type="text" class="form-control" id="ccSearch" placeholder="N&ordm; ou nome...">
+        <div class="sz_contextbar_right ccf_contextbar_right">
+          <div class="ccf_filters">
+            <div class="sz_field ccf_filter_search">
+              <label class="sz_label" for="ccSearch">Fornecedor</label>
+              <input type="text" class="sz_input" id="ccSearch" placeholder="N.&ordm; ou nome...">
+            </div>
+            <label class="sz_checkbox ccf_pending_toggle" for="ccPendentesOnly">
+              <input type="checkbox" id="ccPendentesOnly">
+              <span>Apenas pendentes</span>
+            </label>
           </div>
-          <div class="text-muted small mt-2" id="ccStatus"></div>
+          <div class="sz_text_muted ccf_status" id="ccStatus"></div>
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="card cc-card cc-grid-card">
-    <div class="card-body p-0 cc-grid-body">
-      <div class="cc-table-wrap">
-        <table class="table table-sm align-middle mb-0 cc-table" id="ccTable">
-          <thead>
-            <tr>
-              <th class="cc-sortable" data-sort="NO" style="width:110px;">N&ordm;</th>
-              <th class="cc-sortable" data-sort="NOME">Fornecedor</th>
-              <th class="cc-sortable text-end" data-sort="SALDO_ABERTO" style="width:190px;">Em aberto</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td colspan="3" class="text-muted p-3">A carregar...</td></tr>
-          </tbody>
-        </table>
+    <div class="sz_page_body">
+      <div class="sz_sidebar_layout ccf_layout">
+        <div class="sz_page_content ccf_main_column">
+          <div class="sz_panel ccf_table_panel">
+            <div class="sz_table_host ccf_table_host">
+              <table class="sz_table" id="ccTable">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th class="ccf_sortable" data-sort="NO" style="width: 120px;">N.&ordm;</th>
+                    <th class="ccf_sortable" data-sort="NOME">Fornecedor</th>
+                    <th class="ccf_sortable sz_text_right" data-sort="SALDO_ABERTO" style="width: 190px;">Em aberto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="sz_table_row"><td colspan="3" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <aside class="sz_page_sidebar">
+          <div class="sz_sidebar">
+            <div class="sz_sidebar_section">
+              <div class="sz_sidebar_title">Fornecedores</div>
+              <div class="sz_sidebar_value" id="ccCountFornecedores">0</div>
+            </div>
+            <div class="sz_sidebar_section">
+              <div class="sz_sidebar_title">D&iacute;vida em aberto</div>
+              <div class="sz_sidebar_value" id="ccTotalDivida">0</div>
+            </div>
+            <div class="sz_sidebar_section ccf_sidebar_actions">
+              <button type="button" class="sz_button sz_button_primary sz_w_full" id="btnAssistPagamentos">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>Assistente de pagamentos</span>
+              </button>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal Assistente de Pagamentos -->
-<div class="modal fade" id="payWizardModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered">
-    <div class="modal-content shadow-lg border-0">
-      <div class="modal-header cc-modal-header">
-        <div class="w-100">
-          <div class="d-flex flex-wrap justify-content-between align-items-end gap-2">
-            <div>
-              <h5 class="modal-title mb-0">Assistente de pagamentos</h5>
-              <div class="small opacity-75">Selecione os pendentes a pagar e confirme.</div>
-            </div>
-            <div class="d-flex align-items-end gap-3">
-              <div>
-                <div class="small opacity-75">Data</div>
-                <input type="date" class="form-control form-control-sm" id="payDate">
-              </div>
-              <div class="text-end">
-                <div class="small opacity-75">Selecionado</div>
-                <div class="fw-bold" id="paySelectedTotal">0</div>
-              </div>
-            </div>
+<div class="modal fade ccf_modal" id="payWizardModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable ccf_pay_modal_dialog">
+    <div class="modal-content ccf_modal_content">
+      <div class="modal-header sz_modal_header ccf_modal_header">
+        <div class="ccf_modal_header_main">
+          <div class="sz_modal_title">Assistente de pagamentos</div>
+          <div class="sz_text_muted">Selecione os pendentes a pagar e confirme.</div>
+        </div>
+        <div class="ccf_modal_header_side">
+          <div class="sz_field ccf_modal_date_field">
+            <label class="sz_label" for="payDate">Data</label>
+            <input type="date" class="sz_input" id="payDate">
+          </div>
+          <div class="ccf_modal_total_box">
+            <div class="sz_caption">Selecionado</div>
+            <div class="sz_h4" id="paySelectedTotal">0</div>
           </div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <button type="button" class="sz_button sz_button_ghost ccf_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
-      <div class="modal-body">
-        <div class="row g-2 align-items-end mb-2">
-          <div class="col-md-6">
-            <label class="form-label small mb-1" for="paySearch">Pesquisar</label>
-            <div class="input-group">
-              <span class="input-group-text bg-light"><i class="fa fa-search"></i></span>
-              <input type="text" id="paySearch" class="form-control" placeholder="Fornecedor, documento, n.º...">
-            </div>
+      <div class="modal-body sz_modal_body ccf_modal_body">
+        <div class="ccf_modal_filters">
+          <div class="sz_field ccf_modal_search_field">
+            <label class="sz_label" for="paySearch">Pesquisar</label>
+            <input type="text" id="paySearch" class="sz_input" placeholder="Fornecedor, documento, n.&ordm;...">
           </div>
-          <div class="col-md-6 text-md-end">
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="paySelectAll">Selecionar tudo</button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="payClearAll">Limpar</button>
+          <div class="ccf_modal_filter_actions">
+            <button type="button" class="sz_button sz_button_ghost" id="paySelectAll">Selecionar tudo</button>
+            <button type="button" class="sz_button sz_button_ghost" id="payClearAll">Limpar</button>
           </div>
         </div>
-        <div class="cc-modal-table-wrap" id="payTableWrap">
-          <table class="table table-sm align-middle mb-0" id="payTable">
-            <thead>
+        <div class="sz_table_host ccf_modal_table_host" id="payTableWrap">
+          <table class="sz_table" id="payTable">
+            <thead class="sz_table_head">
               <tr>
-                <th style="width:44px;"></th>
-                <th class="pay-sortable" data-sort="NO" style="width:90px;">No</th>
+                <th style="width: 44px;"></th>
+                <th class="pay-sortable" data-sort="NO" style="width: 90px;">No</th>
                 <th class="pay-sortable" data-sort="NOME">Fornecedor</th>
-                <th class="pay-sortable" data-sort="DATAVEN" style="width:140px;">Venc.</th>
-                <th class="pay-sortable" data-sort="CMDESC" style="width:140px;">Doc.</th>
-                <th class="pay-sortable" data-sort="ADOC" style="width:160px;">Nº</th>
-                <th class="pay-sortable text-end" data-sort="ABERTO" style="width:140px;">Aberto</th>
-                <th class="pay-sortable text-end" data-sort="PAYVAL" style="width:160px;">A pagar</th>
+                <th class="pay-sortable" data-sort="DATAVEN" style="width: 140px;">Venc.</th>
+                <th class="pay-sortable" data-sort="CMDESC" style="width: 140px;">Doc.</th>
+                <th class="pay-sortable" data-sort="ADOC" style="width: 160px;">N.&ordm;</th>
+                <th class="pay-sortable sz_text_right" data-sort="ABERTO" style="width: 140px;">Aberto</th>
+                <th class="pay-sortable sz_text_right" data-sort="PAYVAL" style="width: 170px;">A pagar</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="8" class="text-muted p-3">A carregar...</td></tr>
+              <tr class="sz_table_row"><td colspan="8" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
             </tbody>
           </table>
         </div>
-        <div class="small text-muted mt-2" id="payStatus"></div>
+        <div class="sz_text_muted" id="payStatus"></div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
-        <button type="button" class="btn btn-primary" id="payConfirm">
-          <i class="fa-solid fa-check me-1"></i> Criar pagamentos
+      <div class="modal-footer sz_modal_footer ccf_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="sz_button sz_button_primary" id="payConfirm">
+          <i class="fa-solid fa-check"></i>
+          <span>Criar pagamentos</span>
         </button>
       </div>
     </div>
   </div>
 </div>
 
-<style>
-  /* Layout: os cards ficam em cima; a grelha ocupa o resto (desktop) */
-  .cc-page {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-  }
-  .cc-top-row {
-    flex: 0 0 auto;
-  }
-  .cc-grid-card {
-    flex: 1 1 auto;
-    min-height: 0;
-  }
-  .cc-grid-body {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .cc-card {
-    border-radius: 14px;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-  }
-  .cc-kpi {
-    font-size: 28px;
-    font-weight: 800;
-    letter-spacing: 0.01em;
-    color: #0f172a;
-    margin: 2px 0 6px 0;
-  }
-
-  /* Grelha moderna + scroll interno */
-  .cc-table-wrap {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
-    border-radius: 14px;
-  }
-  .cc-table {
-    border-collapse: separate;
-    border-spacing: 0 6px;
-    width: 100%;
-    min-width: 680px;
-    font-size: 12px;
-    color: #0f172a;
-  }
-  .cc-table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 11px;
-    color: #334155;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
-    padding: 0.55rem 0.75rem;
-  }
-  .cc-sortable {
-    cursor: pointer;
-    user-select: none;
-    white-space: nowrap;
-  }
-  .cc-sortable::after {
-    content: "  \2195";
-    opacity: 0.35;
-    font-weight: 900;
-  }
-  .cc-sortable.sort-asc::after {
-    content: "  \2191";
-    opacity: 0.9;
-  }
-  .cc-sortable.sort-desc::after {
-    content: "  \2193";
-    opacity: 0.9;
-  }
-  .cc-table tbody tr {
-    cursor: pointer;
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
-  }
-  .cc-table tbody tr td {
-    padding: 0.5rem 0.75rem;
-    border: none;
-    vertical-align: middle;
-  }
-  .cc-table tbody tr td:first-child {
-    border-top-left-radius: 12px;
-    border-bottom-left-radius: 12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-weight: 700;
-    color: #0f172a;
-  }
-  .cc-table tbody tr td:last-child {
-    border-top-right-radius: 12px;
-    border-bottom-right-radius: 12px;
-  }
-  .cc-table tbody tr:hover {
-    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
-  }
-
-  .cc-badge-neg {
-    color: #991b1b;
-    font-weight: 700;
-  }
-  .cc-badge-pos {
-    color: #1f2937;
-    font-weight: 800;
-  }
-  .cc-modal-header {
-    background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
-    color: #fff;
-    border-bottom: none;
-  }
-  .cc-modal-header .btn-close {
-    filter: invert(1) grayscale(1) brightness(2);
-    opacity: 0.9;
-  }
-  .cc-modal-table-wrap {
-    max-height: 65vh;
-    overflow: auto;
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: 12px;
-    background: #fff;
-  }
-  #ccModalTable {
-    border-collapse: separate;
-    border-spacing: 0 6px;
-    width: 100%;
-    min-width: 980px;
-    font-size: 12px;
-    color: #0f172a;
-  }
-  #ccModalTable thead th {
-    position: sticky;
-    top: 0;
-    background: #fff;
-    z-index: 2;
-    box-shadow: 0 1px 0 rgba(148, 163, 184, 0.45);
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 11px;
-    color: #334155;
-    padding: 0.55rem 0.75rem;
-  }
-  #ccModalTable tbody tr {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
-  }
-  #ccModalTable tbody tr td {
-    border: none;
-    padding: 0.5rem 0.75rem;
-    vertical-align: middle;
-  }
-  #ccModalTable tbody tr td:first-child {
-    border-top-left-radius: 12px;
-    border-bottom-left-radius: 12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-weight: 700;
-  }
-  #ccModalTable tbody tr td:last-child {
-    border-top-right-radius: 12px;
-    border-bottom-right-radius: 12px;
-  }
-  #ccModalTable tbody tr:hover {
-    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
-  }
-  #ccModalTable tbody tr.cc-modal-row-link {
-    cursor: pointer;
-  }
-  #ccModalTable tbody tr.cc-modal-row-link td:nth-child(3),
-  #ccModalTable tbody tr.cc-modal-row-link td:nth-child(4) {
-    color: #1d4ed8;
-  }
-
-  /* Wizard pagamentos */
-  #payTable {
-    border-collapse: separate;
-    border-spacing: 0 6px;
-    width: 100%;
-    min-width: 980px;
-    font-size: 12px;
-    color: #0f172a;
-  }
-  #payTable thead th {
-    position: sticky;
-    top: 0;
-    background: #fff;
-    z-index: 2;
-    box-shadow: 0 1px 0 rgba(148, 163, 184, 0.45);
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 11px;
-    color: #334155;
-    padding: 0.55rem 0.75rem;
-    white-space: nowrap;
-  }
-  #payTable thead th.pay-sortable {
-    cursor: pointer;
-    user-select: none;
-  }
-  #payTable thead th.pay-sortable::after {
-    content: "  \2195";
-    opacity: 0.35;
-    font-weight: 900;
-  }
-  #payTable thead th.pay-sortable.sort-asc::after {
-    content: "  \2191";
-    opacity: 0.9;
-  }
-  #payTable thead th.pay-sortable.sort-desc::after {
-    content: "  \2193";
-    opacity: 0.9;
-  }
-  #payTable tbody tr {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
-  }
-  #payTable tbody tr td {
-    border: none;
-    padding: 0.5rem 0.75rem;
-    vertical-align: middle;
-  }
-  #payTable tbody tr td:first-child {
-    border-top-left-radius: 12px;
-    border-bottom-left-radius: 12px;
-  }
-  #payTable tbody tr td:last-child {
-    border-top-right-radius: 12px;
-    border-bottom-right-radius: 12px;
-  }
-  #payTable tbody tr:hover {
-    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
-  }
-  #payTable input[type="number"].form-control {
-    text-align: right;
-  }
-</style>
-
-<!-- Modal detalhe -->
-<div class="modal fade" id="ccModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered">
-    <div class="modal-content shadow-lg border-0">
-      <div class="modal-header cc-modal-header">
-        <div class="w-100">
-          <div class="d-flex flex-wrap justify-content-between align-items-end gap-2">
-            <div>
-              <h5 class="modal-title mb-0" id="ccModalTitle">Extrato</h5>
-              <div class="small opacity-75" id="ccModalSubtitle"></div>
-            </div>
-            <div class="d-flex align-items-center gap-3">
-              <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" id="ccModalPendentesOnly">
-                <label class="form-check-label" for="ccModalPendentesOnly">Pendentes</label>
-              </div>
-              <div class="cc-modal-total text-end">
-                <div class="small opacity-75">Saldo em aberto</div>
-                <div class="fw-bold" id="ccModalTotal">0</div>
-              </div>
-            </div>
+<div class="modal fade ccf_modal" id="ccModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable ccf_detail_modal_dialog">
+    <div class="modal-content ccf_modal_content">
+      <div class="modal-header sz_modal_header ccf_modal_header">
+        <div class="ccf_modal_header_main">
+          <div class="sz_modal_title" id="ccModalTitle">Extrato</div>
+          <div class="sz_text_muted" id="ccModalSubtitle"></div>
+        </div>
+        <div class="ccf_modal_header_side">
+          <label class="sz_checkbox" for="ccModalPendentesOnly">
+            <input type="checkbox" id="ccModalPendentesOnly">
+            <span>Pendentes</span>
+          </label>
+          <div class="ccf_modal_total_box">
+            <div class="sz_caption">Saldo em aberto</div>
+            <div class="sz_h4" id="ccModalTotal">0</div>
           </div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <button type="button" class="sz_button sz_button_ghost ccf_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
-      <div class="modal-body">
-        <div class="cc-modal-table-wrap">
-          <table class="table table-sm table-hover align-middle mb-0" id="ccModalTable">
-            <thead>
+      <div class="modal-body sz_modal_body ccf_modal_body">
+        <div class="sz_table_host ccf_modal_table_host">
+          <table class="sz_table" id="ccModalTable">
+            <thead class="sz_table_head">
               <tr>
-                <th style="width:120px;">Data</th>
-                <th style="width:120px;">Venc.</th>
-                <th style="width:160px;">Doc.</th>
-                <th style="width:160px;">N&ordm;</th>
-                <th class="text-end" style="width:120px;">D&eacute;bito</th>
-                <th class="text-end" style="width:120px;">Cr&eacute;dito</th>
-                <th class="text-end" style="width:140px;">Aberto</th>
-                <th class="text-end" style="width:140px;">Saldo</th>
-                <th style="width:140px;">C. Custo</th>
+                <th style="width: 120px;">Data</th>
+                <th style="width: 120px;">Venc.</th>
+                <th style="width: 160px;">Doc.</th>
+                <th style="width: 160px;">N.&ordm;</th>
+                <th class="sz_text_right" style="width: 120px;">D&eacute;bito</th>
+                <th class="sz_text_right" style="width: 120px;">Cr&eacute;dito</th>
+                <th class="sz_text_right" style="width: 140px;">Aberto</th>
+                <th class="sz_text_right" style="width: 140px;">Saldo</th>
+                <th style="width: 140px;">C. Custo</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="9" class="text-muted p-3">A carregar...</td></tr>
+              <tr class="sz_table_row"><td colspan="9" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
             </tbody>
           </table>
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+      <div class="modal-footer sz_modal_footer ccf_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>
 </div>
 
+<style>
+  .sz_cc_fornecedores_page {
+    overflow: hidden;
+  }
+
+  .sz_cc_fornecedores_container {
+    grid-template-rows: auto minmax(0, 1fr);
+    padding-bottom: 0;
+  }
+
+  .ccf_contextbar {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .ccf_contextbar_left {
+    flex: 0 1 340px;
+    max-width: 340px;
+  }
+
+  .ccf_contextbar_right {
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: flex-end;
+  }
+
+  .ccf_filters {
+    display: inline-flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--sz-space-3);
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+
+  .ccf_filter_search {
+    min-width: min(360px, 45vw);
+  }
+
+  .ccf_pending_toggle {
+    min-height: var(--sz-input-height);
+    white-space: nowrap;
+  }
+
+  .ccf_status {
+    width: 100%;
+    text-align: right;
+  }
+
+  .ccf_layout {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+
+  .ccf_main_column,
+  .ccf_table_panel {
+    min-height: 0;
+  }
+
+  .ccf_table_panel {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .ccf_table_host {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .ccf_sortable,
+  .pay-sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .ccf_sortable::after,
+  .pay-sortable::after {
+    content: " \2195";
+    opacity: 0.35;
+    font-weight: 700;
+  }
+
+  .ccf_sortable.sort-asc::after,
+  .pay-sortable.sort-asc::after {
+    content: " \2191";
+    opacity: 0.95;
+  }
+
+  .ccf_sortable.sort-desc::after,
+  .pay-sortable.sort-desc::after {
+    content: " \2193";
+    opacity: 0.95;
+  }
+
+  .ccf_clickable {
+    cursor: pointer;
+  }
+
+  .ccf_negative {
+    color: var(--sz-color-danger);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .ccf_positive {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .ccf_modal .modal-content {
+    --bs-modal-bg: var(--sz-color-surface);
+    --bs-modal-color: var(--sz-color-text);
+    --bs-modal-border-color: var(--sz-color-border);
+    --bs-modal-header-border-color: var(--sz-color-border);
+    --bs-modal-footer-border-color: var(--sz-color-border);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-3);
+  }
+
+  .ccf_modal .modal-header,
+  .ccf_modal .modal-body,
+  .ccf_modal .modal-footer {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+  }
+
+  .ccf_modal_header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--sz-space-4);
+    align-items: start;
+  }
+
+  .ccf_modal_header_main,
+  .ccf_modal_header_side {
+    min-width: 0;
+  }
+
+  .ccf_modal_header_side {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: var(--sz-space-4);
+  }
+
+  .ccf_modal_close {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    padding: 0;
+  }
+
+  .ccf_modal_body {
+    gap: var(--sz-space-4);
+  }
+
+  .ccf_modal_filters {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--sz-space-4);
+  }
+
+  .ccf_modal_search_field {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .ccf_modal_filter_actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    flex-wrap: wrap;
+  }
+
+  .ccf_modal_total_box {
+    min-width: 9rem;
+    text-align: right;
+  }
+
+  .ccf_modal_table_host {
+    max-height: min(65vh, 680px);
+  }
+
+  .ccf_pick_cell {
+    width: 44px;
+    text-align: center;
+  }
+
+  .ccf_pick_checkbox {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--sz-color-primary);
+  }
+
+  .ccf_pay_input {
+    text-align: right;
+  }
+
+  .ccf_modal_row_link td:nth-child(3),
+  .ccf_modal_row_link td:nth-child(4) {
+    color: var(--sz-color-primary);
+  }
+
+  .ccf_modal_row_link {
+    cursor: pointer;
+  }
+
+  .ccf_sidebar_actions .sz_button {
+    justify-content: center;
+  }
+
+  @media (max-width: 1100px) {
+    .ccf_layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .ccf_contextbar_left {
+      flex: 0 1 280px;
+      max-width: 280px;
+    }
+
+    .ccf_filter_search {
+      min-width: 240px;
+    }
+
+    .ccf_modal_header {
+      grid-template-columns: 1fr;
+    }
+
+    .ccf_modal_header_side {
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .ccf_modal_filters {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+
+  @media (max-width: 780px) {
+    .ccf_contextbar_left,
+    .ccf_contextbar_right {
+      flex: 1 1 auto;
+      max-width: none;
+      width: 100%;
+    }
+
+    .ccf_filters {
+      width: 100%;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+
+    .ccf_filter_search {
+      min-width: 100%;
+    }
+
+    .ccf_status {
+      text-align: left;
+    }
+  }
+</style>
 {% endblock %}
 
 {% block scripts %}

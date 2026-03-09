@@ -366,7 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderFilters(cols) {
     filterForm.innerHTML = '';
-    filterForm.className = 'sz_dynamic_filters_form';
+    filterForm.className = 'sz_dynamic_filters_form sz_dynamic_filters_form_mobile_2col';
 
     cols.forEach(col => {
       const defaultFilter = parseDefaultFilter(col);
@@ -380,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
         wrapRow.append(label);
 
         const row = document.createElement('div');
-        row.classList.add('sz_grid', 'sz_grid_2', 'sz_filter_date_range_row');
+        row.classList.add('sz_filter_date_range_row');
 
         ['from', 'to'].forEach(dir => {
           const inp = document.createElement('input');

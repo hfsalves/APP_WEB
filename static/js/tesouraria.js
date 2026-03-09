@@ -1,4 +1,4 @@
-// static/js/tesouraria.js
+﻿// static/js/tesouraria.js
 
 document.addEventListener('DOMContentLoaded', () => {
   const API = '/generic/api/tesouraria'; // esperado: ?start=YYYY-MM-DD&end=YYYY-MM-DD
@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderExtrato(first, last, dataRows, baseSum, baExtratoRows) {
     if (!extratoBody) return;
-    const preMap = groupByDate(dataRows); // previsões só no futuro
+    const preMap = groupByDate(dataRows); // Previsões só no futuro
     const baMap = groupBaExtratoByDate(baExtratoRows);
 
     const rows = [];
@@ -176,21 +176,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     extratoBody.innerHTML = '';
     if (!rows.length) {
-      extratoBody.innerHTML = '<tr><td colspan="5" class="text-muted text-center p-3">Sem movimentos.</td></tr>';
+      extratoBody.innerHTML = '<tr class="sz_table_row"><td colspan="5" class="sz_table_cell sz_text_muted sz_text_right">Sem movimentos.</td></tr>';
       return;
     }
     rows.forEach(r => {
       const tr = document.createElement('tr');
+      tr.className = 'sz_table_row';
       const desc = escapeHtml(r.desc || '');
       const inVal = r.in === '' ? '' : fmt(r.in);
       const outVal = r.out === '' ? '' : fmt(r.out);
-      const saldoCls = (Number(r.saldo || 0) < 0) ? 'text-danger' : '';
+      const saldoCls = (Number(r.saldo || 0) < 0) ? 'extrato-kind-out' : '';
       tr.innerHTML = `
-        <td>${escapeHtml(r.date)}</td>
-        <td class="extrato-desc ${r.cls || ''}">${desc}</td>
-        <td class="text-end ${r.cls === 'extrato-kind-in' ? 'extrato-kind-in' : ''}">${escapeHtml(inVal)}</td>
-        <td class="text-end ${r.cls === 'extrato-kind-out' ? 'extrato-kind-out' : ''}">${escapeHtml(outVal)}</td>
-        <td class="text-end fw-bold ${saldoCls}">${escapeHtml(fmt(r.saldo))}</td>
+        <td class="sz_table_cell">${escapeHtml(r.date)}</td>
+        <td class="sz_table_cell extrato-desc ${r.cls || ''}">${desc}</td>
+        <td class="sz_table_cell sz_text_right ${r.cls === 'extrato-kind-in' ? 'extrato-kind-in' : ''}">${escapeHtml(inVal)}</td>
+        <td class="sz_table_cell sz_text_right ${r.cls === 'extrato-kind-out' ? 'extrato-kind-out' : ''}">${escapeHtml(outVal)}</td>
+        <td class="sz_table_cell sz_text_right ${saldoCls}">${escapeHtml(fmt(r.saldo))}</td>
       `;
       extratoBody.appendChild(tr);
     });
@@ -201,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const kindLabel = kind === 'in' ? 'Entradas' : 'Saídas';
     if (baDetailTitle) baDetailTitle.textContent = `${kindLabel} - ${dateIso}`;
     if (baDetailTotal) baDetailTotal.textContent = 'Total: --';
-    baDetailBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">A carregar...</td></tr>`;
+    baDetailBody.innerHTML = `<tr class="sz_table_row"><td colspan="3" class="sz_table_cell sz_text_muted">A carregar...</td></tr>`;
     baDetailModal.show();
     try {
       const qs = new URLSearchParams({ date: dateIso, kind });
@@ -212,19 +213,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok || data.error) throw new Error(data.error || res.statusText);
       const rows = Array.isArray(data.rows) ? data.rows : [];
       if (!rows.length) {
-        baDetailBody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">Sem movimentos.</td></tr>`;
+        baDetailBody.innerHTML = `<tr class="sz_table_row"><td colspan="3" class="sz_table_cell sz_text_muted">Sem movimentos.</td></tr>`;
       } else {
         baDetailBody.innerHTML = rows.map(r => `
-          <tr>
-            <td>${escapeHtml(r.documento || '')}</td>
-            <td>${escapeHtml(r.descricao || '')}</td>
-            <td class="text-end fw-semibold">${fmt(r.valor || 0)}</td>
+          <tr class="sz_table_row">
+            <td class="sz_table_cell">${escapeHtml(r.documento || '')}</td>
+            <td class="sz_table_cell">${escapeHtml(r.descricao || '')}</td>
+            <td class="sz_table_cell sz_text_right">${fmt(r.valor || 0)}</td>
           </tr>
         `).join('');
       }
       if (baDetailTotal) baDetailTotal.textContent = `Total: ${fmt(data.total || 0)}`;
     } catch (err) {
-      baDetailBody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">${escapeHtml(err.message || 'Erro')}</td></tr>`;
+      baDetailBody.innerHTML = `<tr class="sz_table_row"><td colspan="3" class="sz_table_cell sz_error">${escapeHtml(err.message || 'Erro')}</td></tr>`;
       if (baDetailTotal) baDetailTotal.textContent = 'Total: --';
     }
   }
@@ -309,8 +310,8 @@ document.addEventListener('DOMContentLoaded', () => {
         wrap.className = 'd-flex flex-column gap-1 day-cards';
 
         const cashCards = [];
-        if (Number(ba.entrada || 0) !== 0) cashCards.push(`<button type="button" class="cash-card in js-ba-detail" data-date="${iso}" data-kind="in" title="Entradas">▲ ${fmt(ba.entrada)}</button>`);
-        if (Number(ba.saida || 0) !== 0) cashCards.push(`<button type="button" class="cash-card out js-ba-detail" data-date="${iso}" data-kind="out" title="Saídas">▼ ${fmt(ba.saida)}</button>`);
+        if (Number(ba.entrada || 0) !== 0) cashCards.push(`<button type="button" class="cash-card in js-ba-detail" data-date="${iso}" data-kind="in" title="Entradas"><i class="fa-solid fa-arrow-up"></i> ${fmt(ba.entrada)}</button>`);
+        if (Number(ba.saida || 0) !== 0) cashCards.push(`<button type="button" class="cash-card out js-ba-detail" data-date="${iso}" data-kind="out" title="Saídas"><i class="fa-solid fa-arrow-down"></i> ${fmt(ba.saida)}</button>`);
         if (Number(previsao || 0) !== 0) cashCards.push(`<span class="cash-card prev" title="Previsões" aria-label="Previsões"><i class="fa-regular fa-calendar"></i> ${fmt(previsao)}</span>`);
         if (cashCards.length) wrap.innerHTML += `<div class="cash-cards cash-cards-vertical">${cashCards.join('')}</div>`;
 
@@ -342,13 +343,13 @@ document.addEventListener('DOMContentLoaded', () => {
       li.className = 'list-group-item' + (wd >= 5 ? ' weekend' : '');
 
       const badges = [];
-      if (Number(ba.entrada || 0) !== 0) badges.push(`<button type="button" class="cash-card in js-ba-detail" data-date="${iso}" data-kind="in" title="Entradas">▲ ${fmt(ba.entrada)}</button>`);
-      if (Number(ba.saida || 0) !== 0) badges.push(`<button type="button" class="cash-card out js-ba-detail" data-date="${iso}" data-kind="out" title="Saídas">▼ ${fmt(ba.saida)}</button>`);
+      if (Number(ba.entrada || 0) !== 0) badges.push(`<button type="button" class="cash-card in js-ba-detail" data-date="${iso}" data-kind="in" title="Entradas"><i class="fa-solid fa-arrow-up"></i> ${fmt(ba.entrada)}</button>`);
+      if (Number(ba.saida || 0) !== 0) badges.push(`<button type="button" class="cash-card out js-ba-detail" data-date="${iso}" data-kind="out" title="Saídas"><i class="fa-solid fa-arrow-down"></i> ${fmt(ba.saida)}</button>`);
       if (Number(previsao || 0) !== 0) badges.push(`<span class="cash-card prev" title="Previsões" aria-label="Previsões"><i class="fa-regular fa-calendar"></i> ${fmt(previsao)}</span>`);
 
       li.innerHTML = `
         <div>
-          <div class="fw-semibold">${cursor.getDate().toString().padStart(2,'0')}/${(cursor.getMonth()+1).toString().padStart(2,'0')} (${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'][wd]})</div>
+          <div class="sz_treasury_agenda_date">${cursor.getDate().toString().padStart(2,'0')}/${(cursor.getMonth()+1).toString().padStart(2,'0')} (${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'][wd]})</div>
         </div>
         <div class="mov-labels">
           ${badges.join('')}
@@ -361,7 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (added === 0) {
       const empty = document.createElement('div');
-      empty.className = 'list-group-item text-muted';
+      empty.className = 'list-group-item sz_text_muted';
       empty.textContent = 'Sem movimentos no período.';
       agendaList.appendChild(empty);
     }
@@ -469,22 +470,31 @@ document.addEventListener('DOMContentLoaded', () => {
       viewCalendar.style.display = 'none';
       viewExtrato.style.display = 'none';
       btnViewAgenda?.classList.add('active');
+      btnViewAgenda?.classList.add('sz_is_active');
       btnViewCal?.classList.remove('active');
+      btnViewCal?.classList.remove('sz_is_active');
       btnViewExtrato?.classList.remove('active');
+      btnViewExtrato?.classList.remove('sz_is_active');
     } else if (view === 'extrato') {
       viewAgenda.style.display = 'none';
       viewCalendar.style.display = 'none';
       viewExtrato.style.display = '';
       btnViewExtrato?.classList.add('active');
+      btnViewExtrato?.classList.add('sz_is_active');
       btnViewCal?.classList.remove('active');
+      btnViewCal?.classList.remove('sz_is_active');
       btnViewAgenda?.classList.remove('active');
+      btnViewAgenda?.classList.remove('sz_is_active');
     } else {
       viewAgenda.style.display = 'none';
       viewCalendar.style.display = '';
       viewExtrato.style.display = 'none';
       btnViewCal?.classList.add('active');
+      btnViewCal?.classList.add('sz_is_active');
       btnViewAgenda?.classList.remove('active');
+      btnViewAgenda?.classList.remove('sz_is_active');
       btnViewExtrato?.classList.remove('active');
+      btnViewExtrato?.classList.remove('sz_is_active');
     }
   }
 
@@ -514,3 +524,4 @@ document.addEventListener('DOMContentLoaded', () => {
     openBaDetail(dateIso, kind);
   });
 });
+

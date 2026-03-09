@@ -1,120 +1,127 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% set page_title = "Reconciliação Bancária" %}
 {% set page_name = "Reconciliação Bancária" %}
 
 {% block title %}Reconciliação Bancária{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3 rb-page">
-  <div class="card border-0 shadow-sm rb-top">
-    <div class="card-body">
-      <div class="d-flex flex-wrap align-items-end justify-content-between gap-2">
-        <div class="d-flex flex-wrap align-items-end gap-2">
-          <div style="min-width: 320px;">
-            <label class="form-label mb-1" for="rbExtrato">Extrato</label>
-            <select class="form-select" id="rbExtrato"></select>
-          </div>
-          <div>
-            <label class="form-label mb-1" for="rbConta">Conta</label>
-            <input class="form-control" id="rbConta" disabled>
-          </div>
-          <div>
-            <label class="form-label mb-1" for="rbPeriodo">Per&iacute;odo</label>
-            <input class="form-control" id="rbPeriodo" disabled>
-          </div>
+<div class="sz_page rb_page">
+  <div class="sz_page_container rb_container">
+    <div class="sz_page_header sz_page_contextbar">
+      <div class="sz_contextbar rb_contextbar">
+        <div class="sz_contextbar_left rb_contextbar_left">
+          <div class="sz_page_title">Reconciliação Bancária</div>
+          <div class="sz_page_subtitle">Seleciona o extrato, revê os movimentos e executa a reconciliação.</div>
         </div>
-
-        <div class="d-flex align-items-center gap-2">
-          <div class="form-check form-switch mb-0 me-1">
-            <input class="form-check-input" type="checkbox" role="switch" id="rbOnlyOpen">
-            <label class="form-check-label small text-muted" for="rbOnlyOpen">S&oacute; n&atilde;o reconciliados</label>
+        <div class="sz_contextbar_right rb_contextbar_right">
+          <div class="rb_filters_bar">
+            <div class="sz_field rb_filter_extrato">
+              <label class="sz_label" for="rbExtrato">Extrato</label>
+              <select class="sz_select" id="rbExtrato"></select>
+            </div>
+            <div class="sz_field rb_filter_small">
+              <label class="sz_label" for="rbConta">Conta</label>
+              <input class="sz_input" id="rbConta" disabled>
+            </div>
+            <div class="sz_field rb_filter_periodo">
+              <label class="sz_label" for="rbPeriodo">Período</label>
+              <input class="sz_input" id="rbPeriodo" disabled>
+            </div>
+            <label class="sz_checkbox rb_only_open" for="rbOnlyOpen">
+              <input type="checkbox" role="switch" id="rbOnlyOpen">
+              <span>Apenas pendentes</span>
+            </label>
+            <div class="rb_diff_box">
+              <div class="sz_caption">Diferença</div>
+              <div class="sz_h4 rb-diff" id="rbDiff">0,00</div>
+            </div>
           </div>
-          <div class="text-end">
-            <div class="text-muted small">Diferen&ccedil;a</div>
-            <div class="fw-bold rb-diff" id="rbDiff">0,00</div>
+          <div class="rb_actions_bar">
+            <button type="button" class="sz_button sz_button_primary rb-btn" id="rbReconciliar" disabled>
+              <i class="fa-solid fa-link"></i> Reconciliar
+            </button>
+            <button type="button" class="sz_button sz_button_danger rb-btn" id="rbRemoveRec" disabled>
+              <i class="fa-solid fa-unlink"></i> Remover
+            </button>
+            <button type="button" class="sz_button sz_button_ghost rb-btn" id="rbCreateOW" disabled>
+              <i class="fa-solid fa-arrow-right-to-bracket"></i> Gerar OW
+            </button>
           </div>
-          <button type="button" class="btn btn-success rb-btn" id="rbReconciliar" disabled>
-            <i class="fa-solid fa-link me-1"></i> Reconciliar
-          </button>
-          <button type="button" class="btn btn-outline-danger rb-btn" id="rbRemoveRec" disabled>
-            <i class="fa-solid fa-unlink me-1"></i> Remover
-          </button>
-          <button type="button" class="btn btn-outline-primary rb-btn" id="rbCreateOW" disabled>
-            <i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Gerar OW
-          </button>
         </div>
       </div>
+    </div>
 
-      <div class="mt-2 d-flex flex-wrap align-items-center gap-3 small text-muted">
-        <div>Selecionado EL: <span class="fw-bold" id="rbSumEl">0,00</span></div>
-        <div>Selecionado BA: <span class="fw-bold" id="rbSumBa">0,00</span></div>
+    <div class="sz_page_body rb_body">
+      <div class="rb_summary sz_text_sm">
+        <div>Selecionado EL: <span class="rb_summary_value" id="rbSumEl">0,00</span></div>
+        <div>Selecionado BA: <span class="rb_summary_value" id="rbSumBa">0,00</span></div>
         <div id="rbStatus" class="ms-auto"></div>
       </div>
-    </div>
-  </div>
 
-  <div class="row g-3 rb-split">
-    <div class="col-12 col-xl-6">
-      <div class="card border-0 shadow-sm h-100 rb-panel">
-        <div class="card-body">
-          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <div class="h6 mb-0">Banco (EL)</div>
-            <div class="input-group input-group-sm rb-search">
-              <input class="form-control" id="rbSearchEl" placeholder="Pesquisar...">
-              <button class="btn btn-outline-secondary" type="button" id="rbClearEl" title="Limpar">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
+      <div class="row g-3 rb-split">
+        <div class="col-12 col-xl-6">
+          <div class="card border-0 shadow-sm h-100 rb-panel">
+            <div class="card-body">
+              <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <div class="h6 mb-0">Banco (EL)</div>
+                <div class="input-group input-group-sm rb-search">
+                  <input class="form-control" id="rbSearchEl" placeholder="Pesquisar...">
+                  <button class="btn btn-outline-secondary" type="button" id="rbClearEl" title="Limpar">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="rb-grid-wrap">
+                <table class="table table-sm table-hover align-middle mb-0 rb-table" id="rbTableEl">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width:38px;"></th>
+                      <th style="width:110px;">Data</th>
+                      <th style="width:110px;">Dt. Valor</th>
+                      <th>Descrição</th>
+                      <th class="text-end" style="width:120px;">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-          <div class="rb-grid-wrap">
-            <table class="table table-sm table-hover align-middle mb-0 rb-table" id="rbTableEl">
-              <thead class="table-light">
-                <tr>
-                  <th style="width:38px;"></th>
-                  <th style="width:110px;">Data</th>
-                  <th style="width:110px;">Dt. Valor</th>
-                  <th>Descri&ccedil;&atilde;o</th>
-                  <th class="text-end" style="width:120px;">Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>
-              </tbody>
-            </table>
           </div>
         </div>
-      </div>
-    </div>
 
-    <div class="col-12 col-xl-6">
-      <div class="card border-0 shadow-sm h-100 rb-panel">
-        <div class="card-body">
-          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <div class="h6 mb-0">Tesouraria (BA)</div>
-            <div class="input-group input-group-sm rb-search">
-              <input class="form-control" id="rbSearchBa" placeholder="Pesquisar...">
-              <button class="btn btn-outline-secondary" type="button" id="rbClearBa" title="Limpar">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
+        <div class="col-12 col-xl-6">
+          <div class="card border-0 shadow-sm h-100 rb-panel">
+            <div class="card-body">
+              <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <div class="h6 mb-0">Tesouraria (BA)</div>
+                <div class="input-group input-group-sm rb-search">
+                  <input class="form-control" id="rbSearchBa" placeholder="Pesquisar...">
+                  <button class="btn btn-outline-secondary" type="button" id="rbClearBa" title="Limpar">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="rb-grid-wrap">
+                <table class="table table-sm table-hover align-middle mb-0 rb-table" id="rbTableBa">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width:38px;"></th>
+                      <th style="width:110px;">Data</th>
+                      <th>Documento</th>
+                      <th>Descrição</th>
+                      <th class="text-end" style="width:120px;">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="text-muted small mt-2">Valor BA = EENTRADA - ESAIDA</div>
             </div>
           </div>
-          <div class="rb-grid-wrap">
-            <table class="table table-sm table-hover align-middle mb-0 rb-table" id="rbTableBa">
-              <thead class="table-light">
-                <tr>
-                  <th style="width:38px;"></th>
-                  <th style="width:110px;">Data</th>
-                  <th>Documento</th>
-                  <th>Descri&ccedil;&atilde;o</th>
-                  <th class="text-end" style="width:120px;">Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="text-muted small mt-2">Valor BA = EENTRADA - ESAIDA</div>
         </div>
       </div>
     </div>
@@ -125,74 +132,295 @@
 {% block scripts %}
 {{ super() }}
 <style>
-  /* main-content tem padding 1rem (top+bottom=2rem) e está abaixo de um header com --header-height */
-  .rb-page{
-    height: calc(100vh - var(--header-height, 3.5rem) - 2rem);
-    display:flex;
-    flex-direction:column;
-    gap: 12px;
-    overflow:hidden;
-    box-sizing: border-box;
+  .rb_page {
+    background: var(--sz-color-bg-main);
+    color: var(--sz-color-text);
+    overflow: hidden;
+  }
+
+  .rb_container {
+    grid-template-rows: auto minmax(0, 1fr);
+    padding-bottom: 0;
+  }
+
+  .rb_contextbar {
+    align-items: flex-start;
+  }
+
+  .rb_contextbar_left {
+    flex: 0 1 260px;
+    width: auto;
+    min-width: 220px;
+    max-width: 260px;
+  }
+
+  .rb_contextbar_right {
+    display: flex;
+    flex-direction: column !important;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--sz-space-3);
+  }
+
+  .rb_filters_bar,
+  .rb_actions_bar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--sz-space-3);
+    width: 100%;
+  }
+
+  .rb_filters_bar > *,
+  .rb_actions_bar > * {
+    flex: 0 0 auto;
+  }
+
+  .rb_contextbar_right .sz_field,
+  .rb_contextbar_right .sz_checkbox {
+    margin-bottom: 0;
+  }
+
+  .rb_filter_extrato { min-width: 320px; }
+  .rb_filter_small { min-width: 180px; }
+  .rb_filter_periodo { min-width: 220px; }
+
+  .rb_only_open {
+    min-height: var(--sz-input-height);
+    align-self: flex-end;
+    padding-bottom: 0.15rem;
+  }
+
+  .rb_diff_box {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    min-height: var(--sz-input-height);
+  }
+
+  .rb_diff_box .sz_caption,
+  .rb_diff_box .rb-diff {
+    margin: 0;
+  }
+
+  .rb_body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .rb_summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sz-space-4);
+    margin-bottom: var(--sz-space-2);
+    color: var(--sz-color-text-muted);
+  }
+
+  .rb_summary_value {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .rb-split {
+    flex: 1 1 0;
+    height: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .rb-split > [class*="col-"] {
+    display: flex;
     min-height: 0;
   }
-  .rb-top{ flex: 0 0 auto; }
-  /* flex-basis:0 e height:0 ajudam a impedir que o conteúdo "empurre" os containers */
-  .rb-split{ flex: 1 1 0; height: 0; min-height: 0; overflow:hidden; }
-  .rb-split > [class*="col-"]{ display:flex; min-height: 0; }
-  .rb-panel{ min-height: 0; flex: 1 1 0; display:flex; flex-direction:column; overflow:hidden; }
-  .rb-panel .card-body{ display:flex; flex-direction:column; min-height: 0; flex: 1 1 0; overflow:hidden; }
-  .rb-grid-wrap{
-    border:1px solid #e5e7eb;
-    border-radius: 12px;
+
+  .rb-panel {
+    min-height: 0;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text);
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-1) !important;
+  }
+
+  .rb-panel .card-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 0;
+    overflow: hidden;
+    background: transparent;
+    color: inherit;
+  }
+
+  .rb-grid-wrap {
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
     overflow-x: auto;
     overflow-y: auto;
     flex: 1 1 0;
     min-height: 0;
-    height: auto;
     max-height: 100%;
     overscroll-behavior: contain;
+    background: var(--sz-color-surface);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  .rb-table thead th{ position: sticky; top: 0; z-index: 2; }
-  .rb-table{ font-size: 12px; }
-  .rb-table thead th{ font-size: 11px; letter-spacing: .2px; }
-  .rb-table td{ padding-top: 6px; padding-bottom: 6px; }
-  .rb-search{ max-width: 260px; }
-  .rb-btn{ border-radius: 999px; font-weight: 900; padding: 10px 14px; }
-  .rb-diff{ font-variant-numeric: tabular-nums; }
-  .rb-money{ font-variant-numeric: tabular-nums; font-weight: 800; }
-  /* Bootstrap define a cor base via selector bem específico; por isso usamos maior especificidade aqui */
-  .rb-table td.rb-money.rb-neg{ color:#b91c1c; }
-  .rb-table td.rb-money.rb-pos{ color:#166534; }
-  /* Bootstrap aplica backgrounds via selectors nas células; por isso pintamos os TDs */
-  .rb-table tbody tr.rb-reconciled > *{
-    background-color: rgba(34,197,94,.10) !important;
+
+  .rb-grid-wrap::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
   }
-  .rb-table.table-hover tbody tr.rb-reconciled:hover > *{
-    background-color: rgba(34,197,94,.14) !important;
+
+  .rb-table {
+    font-size: 12px;
+    --bs-table-bg: var(--sz-color-surface);
+    --bs-table-color: var(--sz-color-text);
+    --bs-table-border-color: var(--sz-color-border);
+    --bs-table-hover-bg: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+    --bs-table-hover-color: var(--sz-color-text);
+    color: var(--sz-color-text);
+    margin-bottom: 0;
   }
-  .rb-table tbody tr.rb-reconciled{
-    opacity: 1;
-    filter: none;
-    border-left: 3px solid rgba(34,197,94,.85);
+
+  .rb-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    font-size: 11px;
+    letter-spacing: .2px;
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    border-bottom-color: var(--sz-color-border) !important;
   }
-  .rb-reconciled td{
-    color:#0f172a;
+
+  .rb-table tbody td {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border-bottom-color: var(--sz-color-border) !important;
+    padding-top: 6px;
+    padding-bottom: 6px;
   }
-  .rb-reconciled .rb-money{
+
+  .rb-search { max-width: 260px; }
+
+  .rb-search .form-control,
+  .rb-search .btn {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border-color: var(--sz-color-border);
+  }
+
+  .rb-search .form-control::placeholder {
+    color: var(--sz-color-text-muted);
+  }
+
+  .rb-search .form-control:focus {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border-color: var(--sz-color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sz-color-primary) 18%, transparent);
+  }
+
+  .rb-btn {
+    border-radius: 999px;
     font-weight: 900;
+    padding: 10px 14px;
   }
-  .rb-pill{
-    display:inline-flex;
-    align-items:center;
-    border-radius:999px;
+
+  .rb-diff,
+  .rb-money {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rb-money {
+    font-weight: 800;
+  }
+
+  .rb-table td.rb-money.rb-neg { color: var(--sz-color-danger) !important; }
+  .rb-table td.rb-money.rb-pos { color: var(--sz-color-success) !important; }
+
+  .rb-table tbody tr.rb-reconciled > * {
+    background-color: color-mix(in srgb, var(--sz-color-success) 12%, var(--sz-color-surface)) !important;
+  }
+
+  .rb-table.table-hover tbody tr.rb-reconciled:hover > * {
+    background-color: color-mix(in srgb, var(--sz-color-success) 18%, var(--sz-color-surface)) !important;
+  }
+
+  .rb-table tbody tr.rb-reconciled {
+    border-left: 3px solid color-mix(in srgb, var(--sz-color-success) 85%, transparent);
+  }
+
+  .rb-reconciled td {
+    color: var(--sz-color-text) !important;
+  }
+
+  .rb-reconciled .rb-money { font-weight: 900; }
+
+  .rb-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
     padding: 1px 7px;
-    border:1px solid rgba(15,23,42,.14);
-    background: rgba(15,23,42,.04);
+    border: 1px solid color-mix(in srgb, var(--sz-color-text) 18%, transparent);
+    background: color-mix(in srgb, var(--sz-color-text) 8%, transparent);
     font-size: 11px;
     font-weight: 800;
-    color:#0f172a;
+    color: var(--sz-color-text);
     margin-left: 6px;
     white-space: nowrap;
+  }
+
+  .rb-panel .h6,
+  .rb-panel .text-muted,
+  .rb-panel .small {
+    color: var(--sz-color-text-muted) !important;
+  }
+
+  .rb-panel .h6 { color: var(--sz-color-text) !important; }
+
+  @media (max-width: 1024px) {
+    .rb_contextbar {
+      align-items: flex-start;
+    }
+
+    .rb_contextbar_left {
+      flex: 0 1 220px;
+      max-width: 220px;
+    }
+
+    .rb_contextbar_right {
+      min-width: 0;
+      width: 100%;
+      justify-content: flex-start;
+      align-items: flex-start;
+    }
+
+    .rb_filters_bar,
+    .rb_actions_bar {
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 780px) {
+    .rb_contextbar_left {
+      flex: 1 1 100%;
+      width: 100%;
+      max-width: none;
+    }
   }
 </style>
 <script src="{{ url_for('static', filename='js/reconciliacao_bancaria.js') }}?v={{ static_version }}"></script>
