@@ -235,18 +235,22 @@ body.sz-base-shell.authenticated .main-content {
 
 .sz_dynamic_filters_modal_panel {
   width: min(96vw, 760px);
+  max-width: calc(100vw - 1rem);
   max-height: calc(100vh - 2rem);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .sz_dynamic_filters_modal_body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sz_dynamic_filters_modal_body::-webkit-scrollbar {
@@ -259,11 +263,15 @@ body.sz-base-shell.authenticated .main-content {
   .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--sz-space-3);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_range {
     grid-column: span 2;
     min-width: 0;
+    max-width: 100%;
   }
 
   .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_range_row {
@@ -283,10 +291,21 @@ body.sz-base-shell.authenticated .main-content {
     min-width: 0;
     box-sizing: border-box;
     padding-right: 1.75rem;
+    -webkit-appearance: none;
+    appearance: none;
   }
 
   .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_input::-webkit-date-and-time-value {
     text-align: left;
+  }
+
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_field,
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_input,
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_select,
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_date {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 }
 
@@ -410,11 +429,15 @@ body.sz-base-shell.authenticated .main-content {
 
   .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_range {
     grid-column: span 2 !important;
     min-width: 0;
+    max-width: 100%;
   }
 
   .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_filter_date_range_row {
@@ -433,6 +456,17 @@ body.sz-base-shell.authenticated .main-content {
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_field,
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_input,
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_select,
+  .sz_dynamic_filters_form.sz_dynamic_filters_form_mobile_2col .sz_date {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 }
 
