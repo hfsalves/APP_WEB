@@ -3,223 +3,341 @@
 {% block title %}Emissão Faturação Reservas{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3 fatres-page">
-  <div class="fatres-header mb-3">
-    <div class="fatres-title-wrap">
-      <h1 class="fatres-title mb-0">Faturação de Reservas</h1>
-      <div class="fatres-subtitle">Emissão mensal de reservas de exploração</div>
+<div class="fatres-page">
+  <header class="sz_contextbar fatres-contextbar">
+    <div class="sz_contextbar_left fatres-contextbar-left">
+      <h1 class="sz_page_title">Faturação de Reservas</h1>
+      <p id="fatresStats" class="sz_page_subtitle">0 selecionadas de 0 por faturar</p>
     </div>
-  </div>
 
-  <div class="fatres-toolbar card shadow-sm mb-3">
-    <div class="card-body py-2 px-3 fatres-toolbar-body">
-      <div class="fatres-nav-group">
-        <button class="btn btn-sm btn-outline-secondary" id="fatresPrev"><i class="fa-solid fa-chevron-left"></i></button>
-        <input type="number" class="form-control form-control-sm" id="fatresAno" value="{{ ano_inicial }}" style="width:90px;">
-        <select class="form-select form-select-sm" id="fatresMes" style="width:140px;">
-          <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
-          <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
-          <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
-          <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
-        </select>
-        <button class="btn btn-sm btn-outline-secondary" id="fatresNext"><i class="fa-solid fa-chevron-right"></i></button>
-        <button class="btn btn-sm btn-outline-secondary" id="fatresRefresh"><i class="fa-solid fa-rotate"></i> Atualizar</button>
-      </div>
+    <div class="sz_contextbar_right fatres-contextbar-right">
+      <div class="fatres-filters-row">
+        <div class="fatres-nav-group">
+          <button class="sz_button sz_button_ghost" id="fatresPrev" type="button" title="Mês anterior"><i class="fa-solid fa-chevron-left"></i></button>
+          <input type="number" class="sz_input fatres-input-year" id="fatresAno" value="{{ ano_inicial }}">
+          <select class="sz_select fatres-input-month" id="fatresMes">
+            <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+            <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+            <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+            <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+          </select>
+          <button class="sz_button sz_button_ghost" id="fatresNext" type="button" title="Próximo mês"><i class="fa-solid fa-chevron-right"></i></button>
+          <button class="sz_button sz_button_ghost" id="fatresRefresh" type="button"><i class="fa-solid fa-rotate"></i><span>Atualizar</span></button>
+        </div>
 
-      <div class="fatres-config-group">
-        <select class="form-select form-select-sm" id="fatresFestamp" style="width:280px;">
-          <option value="">Entidade emissora...</option>
-        </select>
-        <select class="form-select form-select-sm" id="fatresFts" style="width:330px;">
-          <option value="">Série de faturação...</option>
-        </select>
-      </div>
+        <div class="fatres-config-group">
+          <select class="sz_select fatres-input-emissor" id="fatresFestamp">
+            <option value="">Entidade emissora...</option>
+          </select>
+          <select class="sz_select fatres-input-serie" id="fatresFts">
+            <option value="">Série de faturação...</option>
+          </select>
+        </div>
 
-      <div class="fatres-actions-group">
-        <button class="btn btn-sm btn-success" id="fatresEmitir"><i class="fa-solid fa-file-invoice"></i> Emitir selecionadas</button>
-        <span class="fatres-stats" id="fatresStats">0 selecionadas</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="card shadow-sm fatres-main-card">
-    <div class="card-body p-0 fatres-body">
-      <div class="table-responsive fatres-grid-wrap">
-        <table class="table table-sm mb-0 fatres-table">
-          <thead class="table-light">
-            <tr>
-              <th style="width:42px;" class="text-center"><input type="checkbox" id="fatresCheckAll"></th>
-              <th>Reserva</th>
-              <th>Alojamento</th>
-              <th>Hóspede</th>
-              <th class="text-center">Check-in</th>
-              <th class="text-center">Checkout</th>
-              <th class="text-end">Noites</th>
-              <th class="text-end">Pax</th>
-              <th class="text-end">Estadia</th>
-              <th class="text-end">Limpeza</th>
-              <th class="text-center">Faturado</th>
-              <th class="text-center">PDF</th>
-            </tr>
-          </thead>
-          <tbody id="fatresBody">
-            <tr><td colspan="12" class="text-muted p-3">A carregar...</td></tr>
-          </tbody>
-        </table>
+        <div class="fatres-actions-group">
+          <button class="sz_button sz_button_primary" id="fatresEmitir" type="button"><i class="fa-solid fa-file-invoice"></i><span>Emitir selecionadas</span></button>
+        </div>
       </div>
     </div>
-  </div>
+  </header>
+
+  <section class="sz_table_host fatres-table-host">
+    <div class="sz_table_wrap">
+      <table class="sz_table fatres-table">
+        <thead class="sz_table_head">
+          <tr>
+            <th style="width:42px;" class="sz_text_right"><input type="checkbox" id="fatresCheckAll"></th>
+            <th>Reserva</th>
+            <th>Alojamento</th>
+            <th>Hóspede</th>
+            <th class="sz_text_right">Check-in</th>
+            <th class="sz_text_right">Checkout</th>
+            <th class="sz_text_right">Noites</th>
+            <th class="sz_text_right">Pax</th>
+            <th class="sz_text_right">Estadia</th>
+            <th class="sz_text_right">Limpeza</th>
+            <th class="sz_text_right">Faturado</th>
+            <th class="sz_text_right">PDF</th>
+          </tr>
+        </thead>
+        <tbody id="fatresBody">
+          <tr><td colspan="12" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 
 <div id="fatresOverlay" class="fatres-overlay" aria-hidden="true">
   <div class="fatres-overlay-card">
-    <div class="fatres-overlay-title"><i class="fa-solid fa-file-signature me-2"></i>A emitir faturas...</div>
+    <div class="fatres-overlay-title"><i class="fa-solid fa-file-signature"></i><span>A emitir faturas...</span></div>
     <div class="fatres-overlay-sub" id="fatresOverlaySub">A processar</div>
-    <div class="progress fatres-progress">
-      <div id="fatresOverlayBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+    <div class="fatres-progress-track">
+      <div id="fatresOverlayBar" class="fatres-progress-bar" role="progressbar" style="width: 0%"></div>
     </div>
   </div>
 </div>
 
 <style>
-  .fatres-page{
-    min-height: calc(100vh - 120px);
-    display:flex;
-    flex-direction:column;
-    background:
-      radial-gradient(900px 460px at -6% -12%, rgba(59,130,246,.10) 0%, rgba(59,130,246,0) 60%),
-      radial-gradient(900px 460px at 106% -14%, rgba(14,165,233,.10) 0%, rgba(14,165,233,0) 60%);
+  .fatres-page {
+    width: 100%;
+    min-height: 100%;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-2) var(--sz-space-4) var(--sz-space-3);
+    background: var(--sz-color-bg-main);
+    color: var(--sz-color-text);
   }
-  .fatres-header{ display:flex; align-items:center; justify-content:space-between; }
-  .fatres-title{
-    font-size:1.15rem;
-    font-weight:800;
-    color:#0f172a;
-    letter-spacing:.01em;
+
+  .fatres-contextbar-left {
+    flex: 0 1 320px;
+    min-width: 220px;
+    max-width: 320px;
+    width: auto;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "title"
+      "subtitle";
   }
-  .fatres-subtitle{ font-size:.82rem; color:#64748b; margin-top:2px; }
-  .fatres-toolbar{
-    border:1px solid #dbe5f3;
-    border-radius:16px;
-    background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
-    box-shadow:0 16px 38px rgba(15,23,42,.08);
+
+  .fatres-contextbar-left .sz_page_title,
+  .fatres-contextbar-left .sz_page_subtitle {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .fatres-toolbar-body{
-    display:flex;
-    flex-wrap:wrap;
-    align-items:center;
-    gap:.55rem .65rem;
+
+  .fatres-contextbar-right {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
   }
+
+  .fatres-filters-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+
   .fatres-nav-group,
   .fatres-config-group,
-  .fatres-actions-group{
-    display:flex;
-    align-items:center;
-    gap:.5rem;
-    flex-wrap:wrap;
+  .fatres-actions-group {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    flex-wrap: nowrap;
   }
-  .fatres-actions-group{ margin-left:auto; }
-  .fatres-main-card{
-    flex:1 1 auto;
-    min-height:0;
-    border:1px solid #dbe5f3;
-    border-radius:16px;
-    overflow:hidden;
-    box-shadow:0 18px 44px rgba(15,23,42,.07);
-    backdrop-filter: blur(3px);
-  }
-  .fatres-stats{
-    font-size:12px;
-    color:#0f172a;
-    font-weight:700;
-    background:#eff6ff;
-    border:1px solid #bfdbfe;
-    border-radius:999px;
-    padding:5px 11px;
-  }
-  #fatresFestamp,#fatresFts,#fatresAno,#fatresMes{
-    border-radius:10px;
-    border-color:#d0ddee;
-    background:#fff;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
-  }
-  #fatresPrev,#fatresNext,#fatresRefresh,#fatresEmitir{ border-radius:10px; }
-  #fatresPrev,#fatresNext,#fatresRefresh{
-    border-color:#d1d9e6;
-    color:#334155;
-    background:#fff;
-  }
-  #fatresPrev:hover,#fatresNext:hover,#fatresRefresh:hover{ background:#f3f7fd; color:#0f172a; }
-  #fatresEmitir{
-    background:linear-gradient(90deg,#16a34a 0%,#22c55e 100%);
-    border-color:#16a34a; color:#fff; font-weight:700;
-    box-shadow:0 8px 20px rgba(22,163,74,.28);
-  }
-  #fatresEmitir:hover{ filter:brightness(.96); color:#fff; }
-  #fatresEmitir:disabled{ opacity:.7; box-shadow:none; }
-  .fatres-body{
-    height:100%;
-    min-height:0;
-    display:flex;
-    flex-direction:column;
-  }
-  .fatres-grid-wrap{
-    flex:1 1 auto;
-    min-height:0;
-    overflow:auto;
-  }
-  .fatres-table{ font-size:12.5px; min-width:1150px; border-collapse:separate; border-spacing:0; color:#0f172a; }
-  .fatres-table thead th{
-    position: sticky; top: 0; z-index: 2;
-    background: linear-gradient(180deg,#f8fbff 0%,#ecf4ff 100%);
-    border-bottom:1px solid rgba(148,163,184,.38);
-    font-size:10.8px; text-transform:uppercase; letter-spacing:.06em; color:#334155; font-weight:800;
-    padding:.55rem .65rem;
-  }
-  .fatres-table tbody td{
-    padding:.56rem .65rem;
-    border-bottom:1px solid #edf2f7;
-    vertical-align:middle;
-  }
-  .fatres-table tbody tr:nth-child(even) td{ background:#fcfdff; }
-  .fatres-table tbody tr:hover td{ background:#eef6ff; }
-  .fatres-table tbody tr:has(.fatres-check:checked) td{
-    background:linear-gradient(90deg,#ecf5ff 0%, #f0f8ff 100%);
-  }
-  .fatres-table .fatres-check{ width:16px; height:16px; cursor:pointer; }
-  .fatres-badge-ok{ color:#15803d; font-weight:700; }
-  .fatres-badge-no{ color:#b45309; font-weight:700; }
-  .fatres-fatura-link{ color:#0f766e; font-weight:700; text-decoration:none; }
-  .fatres-fatura-link:hover{ text-decoration:underline; }
-  .fatres-pdf-link{ color:#dc2626; font-size:16px; line-height:1; text-decoration:none; }
-  .fatres-pdf-link:hover{ color:#b91c1c; }
-  .fatres-pdf-gen{
-    color:#0ea5e9;
-    font-size:16px;
-    line-height:1;
-    text-decoration:none;
-    border:0;
-    background:transparent;
-  }
-  .fatres-pdf-gen:hover{ color:#0284c7; }
-  .fatres-pdf-gen:disabled{ color:#94a3b8; cursor:wait; }
-  .fatres-table input[type="checkbox"]:disabled{ opacity:.35; }
-  .fatres-overlay{
-    position: fixed; inset:0; background: rgba(15,23,42,.45); z-index: 3000;
-    display:none; align-items:center; justify-content:center;
-  }
-  .fatres-overlay.show{ display:flex; }
-  .fatres-overlay-card{
-    width:min(520px,92vw); background:#fff; border-radius:14px; padding:16px 18px;
-    box-shadow: 0 20px 48px rgba(2,6,23,.32); border:1px solid #dbe3ee;
-  }
-  .fatres-overlay-title{ font-weight:800; color:#0f172a; margin-bottom:4px; }
-  .fatres-overlay-sub{ font-size:13px; color:#475569; margin-bottom:10px; }
-  .fatres-progress{ height:12px; border-radius:99px; background:#e2e8f0; }
-  .fatres-progress .progress-bar{ background:linear-gradient(90deg,#2563eb 0%,#0ea5e9 100%); }
 
-  @media (max-width: 1180px){
-    .fatres-actions-group{ margin-left:0; }
+  .fatres-input-year {
+    width: 86px;
+    min-width: 86px;
+  }
+
+  .fatres-input-month {
+    width: 126px;
+    min-width: 126px;
+  }
+
+  .fatres-input-emissor {
+    width: 240px;
+    min-width: 220px;
+  }
+
+  .fatres-input-serie {
+    width: 265px;
+    min-width: 245px;
+  }
+
+  .fatres-table-host {
+    height: 100%;
+  }
+
+  .fatres-table {
+    min-width: 1150px;
+    background: var(--sz-color-surface);
+  }
+
+  .fatres-table th,
+  .fatres-table td {
+    font-family: var(--sz-font-family);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .fatres-cell-center {
+    text-align: center;
+  }
+
+  .fatres-cell-right {
+    text-align: right;
+  }
+
+  .fatres-table thead th {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .fatres-table tbody td {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  .fatres-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 4%, var(--sz-color-surface)) !important;
+  }
+
+  .fatres-table tbody tr.fatres-row-selected td {
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface)) !important;
+  }
+
+  .fatres-table .fatres-check {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--sz-color-primary);
+  }
+
+  .fatres-badge-ok {
+    color: var(--sz-color-success);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .fatres-badge-no {
+    color: var(--sz-color-warning);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .fatres-fatura-link,
+  .fatres-pdf-link {
+    color: var(--sz-color-primary);
+    text-decoration: none;
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .fatres-fatura-link:hover,
+  .fatres-pdf-link:hover {
+    color: var(--sz-color-info);
+  }
+
+  .fatres-pdf-gen {
+    border: 0;
+    background: transparent;
+    color: var(--sz-color-primary);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .fatres-pdf-gen:hover {
+    color: var(--sz-color-info);
+  }
+
+  .fatres-pdf-gen:disabled {
+    color: var(--sz-color-text-muted);
+    cursor: wait;
+  }
+
+  .fatres-overlay {
+    position: fixed;
+    inset: 0;
+    background: color-mix(in srgb, #000 38%, transparent);
+    z-index: 3000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: var(--sz-space-4);
+  }
+
+  .fatres-overlay.show {
+    display: flex;
+  }
+
+  .fatres-overlay-card {
+    width: min(520px, 92vw);
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-3);
+    padding: var(--sz-space-4);
+    color: var(--sz-color-text);
+  }
+
+  .fatres-overlay-title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    font-size: var(--sz-font-size-md);
+    font-weight: var(--sz-font-weight-semibold);
+    margin-bottom: 0.25rem;
+  }
+
+  .fatres-overlay-sub {
+    font-size: var(--sz-font-size-sm);
+    color: var(--sz-color-text-muted);
+    margin-bottom: var(--sz-space-3);
+  }
+
+  .fatres-progress-track {
+    height: 0.75rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-border) 60%, transparent);
+    overflow: hidden;
+  }
+
+  .fatres-progress-bar {
+    height: 100%;
+    background: var(--sz-color-primary);
+    transition: width 0.2s ease;
+  }
+
+  @media (max-width: 1200px) {
+    .fatres-filters-row {
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .fatres-contextbar-left {
+      flex-basis: 260px;
+      max-width: 260px;
+    }
+
+    .fatres-filters-row {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 780px) {
+    .fatres-page {
+      padding-inline: var(--sz-space-3);
+    }
+
+    .fatres-contextbar-left {
+      flex: 1 1 auto;
+      min-width: 0;
+      max-width: none;
+    }
+
+    .fatres-nav-group,
+    .fatres-config-group,
+    .fatres-actions-group {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    .fatres-input-year,
+    .fatres-input-month,
+    .fatres-input-emissor,
+    .fatres-input-serie {
+      width: 100%;
+      min-width: 0;
+    }
   }
 </style>
 

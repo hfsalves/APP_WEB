@@ -1,15 +1,33 @@
-{% extends "base.html" %}
-{% block title %}Análise: {{ titulo }}{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Analise: {{ titulo }}{% endblock %}
 
 {% block content %}
-<div class="analise-wrapper">
-  <div class="analise-box">
-    <h2>{{ titulo }}</h2>
-    <div id="analise-body">A carregar…</div>
+<div class="sz_page sz_analysis_page">
+  <div class="sz_page_container">
+    <div class="sz_page_header sz_page_contextbar">
+      <div class="sz_contextbar sz_analysis_contextbar">
+        <div class="sz_contextbar_left">
+          <div class="sz_page_title">{{ titulo }}</div>
+          <div class="sz_page_subtitle">Resultado da analise e respetivos dados.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sz_page_body">
+      <div class="sz_page_content">
+        <div id="analise-body" class="sz_panel sz_analysis_panel">
+          <div class="sz_text_muted">A carregar...</div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
 <script src="/static/js/analise.js"></script>
 <script>
   carregarAnalise("{{ usqlstamp }}");
 </script>
 {% endblock %}
+

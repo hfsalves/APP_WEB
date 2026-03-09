@@ -1,256 +1,276 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block content %}
-<div class="container-fluid py-3 mapa-page">
-  <div class="card shadow-sm border-0 mb-3">
-    <div class="card-body bg-light rounded-3">
-      <div class="d-flex flex-wrap align-items-end gap-3">
-        <div>
-          <label for="mapAno" class="form-label text-muted small mb-1">Ano</label>
-          <input type="number" class="form-control" id="mapAno" min="2000" max="2100" value="{{ ano_atual }}" style="width:120px;">
+<div class="sz_page sz_management_map_page">
+  <div class="sz_page_container sz_management_map_container">
+    <div class="sz_page_header sz_page_contextbar">
+      <div class="sz_contextbar sz_management_map_contextbar">
+        <div class="sz_contextbar_left sz_management_map_contextbar_left">
+          <div class="sz_page_title">Mapa de Gestao</div>
+          <div class="sz_page_subtitle" id="mapTotal">Analise central por familia e meses.</div>
         </div>
-        <div class="flex-grow-1">
-          <label class="form-label text-muted small mb-1">Centro de Custo</label>
-          <div class="d-flex gap-2">
-            <button class="btn btn-outline-primary" id="mapBtnCcusto" type="button">
-              <i class="fa-solid fa-building me-1"></i><span id="mapCcustoLabel">Todos os centros</span>
-            </button>
-            <button class="btn btn-primary" id="mapBtnAplicar">
-              <i class="fa-solid fa-filter me-1"></i> Aplicar
-            </button>
-            <button class="btn btn-outline-secondary" id="mapBtnLimpar">Limpar</button>
+        <div class="sz_contextbar_right sz_management_map_contextbar_right">
+          <div class="sz_management_map_filters">
+            <div class="sz_field sz_management_map_filter_year">
+              <label for="mapAno" class="sz_label">Ano</label>
+              <input type="number" class="sz_input" id="mapAno" min="2000" max="2100" value="{{ ano_atual }}">
+            </div>
+            <div class="sz_field sz_management_map_filter_cc">
+              <label class="sz_label">Centro de Custo</label>
+              <button class="sz_button sz_button_ghost sz_management_map_cc_btn" id="mapBtnCcusto" type="button">
+                <i class="fa-solid fa-building"></i>
+                <span id="mapCcustoLabel">Todos os centros</span>
+              </button>
+            </div>
+            <div class="sz_management_map_filter_actions">
+              <button class="sz_button sz_button_primary" id="mapBtnAplicar" type="button">
+                <i class="fa-solid fa-filter"></i>
+                <span>Aplicar</span>
+              </button>
+              <button class="sz_button sz_button_ghost" id="mapBtnLimpar" type="button">
+                <span>Limpar</span>
+              </button>
+            </div>
+            <label class="sz_checkbox sz_management_map_toggle" for="mapDiffEnable">
+              <input type="checkbox" id="mapDiffEnable">
+              <span>Evidenciar diferencas superiores a</span>
+            </label>
+            <div class="sz_management_map_pct">
+              <input type="number" class="sz_input" id="mapDiffPct" min="0" max="100" step="0.5" value="3">
+              <span class="sz_text_sm">%</span>
+            </div>
+            <label class="sz_checkbox sz_management_map_toggle" for="mapShowBudget">
+              <input type="checkbox" id="mapShowBudget">
+              <span>Mostrar Orcamento</span>
+            </label>
           </div>
-        </div>
-        <div class="ms-auto d-flex align-items-end gap-2 flex-wrap justify-content-end">
-          <div class="form-check mb-1">
-            <input class="form-check-input" type="checkbox" id="mapDiffEnable">
-            <label class="form-check-label small text-muted" for="mapDiffEnable">Evidenciar diferenças superiores a</label>
-          </div>
-          <div class="d-flex align-items-center gap-1 mb-1">
-            <input type="number" class="form-control form-control-sm" id="mapDiffPct" min="0" max="100" step="0.5" value="3" style="width:90px;">
-            <span class="text-muted small">%</span>
-          </div>
-          <div class="form-check mb-1 ms-2">
-            <input class="form-check-input" type="checkbox" id="mapShowBudget">
-            <label class="form-check-label small text-muted" for="mapShowBudget">Mostrar Orçamento</label>
-          </div>
+          <div class="sz_caption sz_management_map_filters_caption" id="mapCcustoCount"></div>
+          <div class="sz_caption sz_management_map_filters_caption" id="mapFiltros"></div>
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="card shadow-sm border-0 mapa-main-card">
-    <div class="card-body mapa-main-body">
-      <div class="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
-        <div class="btn-group btn-group-sm" role="group" aria-label="Visualização">
-          <button class="btn btn-outline-primary" id="mapViewTable" type="button" title="Tabela">
-            <i class="fa-solid fa-table me-1"></i> Tabela
-          </button>
-          <button class="btn btn-outline-primary" id="mapViewCharts" type="button" title="Gráficos">
-            <i class="fa-solid fa-chart-column me-1"></i> Gráficos
-          </button>
+    <div class="sz_page_body sz_management_map_body">
+      <div class="sz_panel sz_management_map_main">
+        <div class="sz_management_map_toolbar">
+          <div class="sz_management_map_view_switch" role="group" aria-label="Visualizacao">
+            <button class="sz_button sz_button_ghost active" id="mapViewTable" type="button" title="Tabela">
+              <i class="fa-solid fa-table"></i>
+              <span>Tabela</span>
+            </button>
+            <button class="sz_button sz_button_ghost" id="mapViewCharts" type="button" title="Graficos">
+              <i class="fa-solid fa-chart-column"></i>
+              <span>Graficos</span>
+            </button>
+          </div>
+          <div class="sz_management_map_tree_controls" id="mapTreeControls">
+            <button class="sz_button sz_button_ghost" id="mapCollapseAll" type="button">
+              <i class="fa-solid fa-compress"></i>
+              <span>Fechar tudo</span>
+            </button>
+            <button class="sz_button sz_button_ghost" id="mapExpandAll" type="button">
+              <i class="fa-solid fa-expand"></i>
+              <span>Expandir tudo</span>
+            </button>
+          </div>
         </div>
-        <div class="ms-auto d-flex align-items-center gap-2" id="mapTreeControls">
-          <button class="btn btn-sm btn-outline-secondary" id="mapCollapseAll"><i class="fa-solid fa-compress"></i> Fechar tudo</button>
-          <button class="btn btn-sm btn-outline-primary" id="mapExpandAll"><i class="fa-solid fa-expand"></i> Expandir tudo</button>
-        </div>
-      </div>
 
-      <div id="mapTableView">
-        <div class="table-responsive map-table-wrap">
-          <table class="table table-sm align-middle" id="mapaTabela">
-            <thead class="table-light">
-              <tr>
-                <th>Familia</th>
-                <th class="text-end">Jan</th>
-                <th class="text-end">Fev</th>
-                <th class="text-end">Mar</th>
-                <th class="text-end">Abr</th>
-                <th class="text-end">Mai</th>
-                <th class="text-end">Jun</th>
-                <th class="text-end">Jul</th>
-                <th class="text-end">Ago</th>
-                <th class="text-end">Set</th>
-                <th class="text-end">Out</th>
-                <th class="text-end">Nov</th>
-                <th class="text-end">Dez</th>
-                <th class="text-end">Total</th>
-                <th class="text-end">Peso</th>
-              </tr>
-            </thead>
-            <tbody id="mapaBody">
-              <tr>
-                <td colspan="15" class="text-center text-muted">A carregar...</td>
-              </tr>
-            </tbody>
-          </table>
+        <div id="mapTableView" class="sz_management_map_table_view">
+          <div class="sz_table_host map-table-wrap sz_management_map_table_host">
+            <table class="sz_table sz_management_map_table" id="mapaTabela">
+              <thead class="sz_table_head">
+                <tr>
+                  <th>Familia</th>
+                  <th class="text-end">Jan</th>
+                  <th class="text-end">Fev</th>
+                  <th class="text-end">Mar</th>
+                  <th class="text-end">Abr</th>
+                  <th class="text-end">Mai</th>
+                  <th class="text-end">Jun</th>
+                  <th class="text-end">Jul</th>
+                  <th class="text-end">Ago</th>
+                  <th class="text-end">Set</th>
+                  <th class="text-end">Out</th>
+                  <th class="text-end">Nov</th>
+                  <th class="text-end">Dez</th>
+                  <th class="text-end">Total</th>
+                  <th class="text-end">Peso</th>
+                </tr>
+              </thead>
+              <tbody id="mapaBody">
+                <tr>
+                  <td colspan="15" class="sz_table_cell sz_text_muted text-center">A carregar...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      <div id="mapChartView" style="display:none;">
-        <div class="row g-3">
-          <div class="col-12 col-xl-6">
-            <div class="card border-0 shadow-sm h-100">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <div class="fw-semibold">Vendas vs Objetivo</div>
-                  <div class="text-muted small">Famílias 9</div>
-                </div>
-                <div style="height:320px;">
-                  <canvas id="mapChartSalesVsGoal"></canvas>
+        <div id="mapChartView" class="sz_management_map_chart_view" style="display:none;">
+          <div class="row g-3">
+            <div class="col-12 col-xl-6">
+              <div class="card shadow-sm h-100 sz_management_map_chart_card">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="fw-semibold">Vendas vs Objetivo</div>
+                    <div class="text-muted small">Familias 9</div>
+                  </div>
+                  <div style="height:320px;">
+                    <canvas id="mapChartSalesVsGoal"></canvas>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="col-12 col-xl-6">
-            <div class="card border-0 shadow-sm h-100">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <div class="fw-semibold">Custos vs Orçamento</div>
-                  <div class="text-muted small">Famílias (exceto 9)</div>
-                </div>
-                <div style="height:320px;">
-                  <canvas id="mapChartCostsVsBudget"></canvas>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-xl-6">
-            <div class="card border-0 shadow-sm h-100">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <div class="fw-semibold">Margem Real vs Previsional</div>
-                  <div class="text-muted small">9 - (exceto 9)</div>
-                </div>
-                <div style="height:320px;">
-                  <canvas id="mapChartMarginRealVsForecast"></canvas>
+            <div class="col-12 col-xl-6">
+              <div class="card shadow-sm h-100 sz_management_map_chart_card">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="fw-semibold">Custos vs Orcamento</div>
+                    <div class="text-muted small">Familias (exceto 9)</div>
+                  </div>
+                  <div style="height:320px;">
+                    <canvas id="mapChartCostsVsBudget"></canvas>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="col-12 col-xl-6">
-            <div class="card border-0 shadow-sm h-100">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <div class="fw-semibold">KPIs</div>
-                  <div class="text-muted small">Totais do ano</div>
+            <div class="col-12 col-xl-6">
+              <div class="card shadow-sm h-100 sz_management_map_chart_card">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="fw-semibold">Margem Real vs Previsional</div>
+                    <div class="text-muted small">9 - (exceto 9)</div>
+                  </div>
+                  <div style="height:320px;">
+                    <canvas id="mapChartMarginRealVsForecast"></canvas>
+                  </div>
                 </div>
+              </div>
+            </div>
+            <div class="col-12 col-xl-6">
+              <div class="card shadow-sm h-100 sz_management_map_chart_card">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="fw-semibold">KPIs</div>
+                    <div class="text-muted small">Totais do ano</div>
+                  </div>
 
-                <div class="row g-2 kpi-grid">
-                  <div class="col-12 col-md-6">
-                    <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpiSalesCard" title="Abrir detalhe mensal">
-                      <div class="d-flex justify-content-between align-items-start gap-2">
-                        <div>
-                          <div class="kpi-title">
-                            <i class="fa-solid fa-arrow-trend-up me-2"></i>Total de Vendas vs Objetivo
+                  <div class="row g-2 kpi-grid">
+                    <div class="col-12 col-md-6">
+                      <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpiSalesCard" title="Abrir detalhe mensal">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                          <div>
+                            <div class="kpi-title">
+                              <i class="fa-solid fa-arrow-trend-up me-2"></i>Total de Vendas vs Objetivo
+                            </div>
+                            <div class="kpi-value" id="mapKpiSalesMain">--</div>
                           </div>
-                          <div class="kpi-value" id="mapKpiSalesMain">--</div>
-                        </div>
-                        <div class="text-end">
-                          <div class="kpi-sub" id="mapKpiSalesSub">--</div>
-                          <span class="badge rounded-pill kpi-badge" id="mapKpiSalesDelta">--</span>
+                          <div class="text-end">
+                            <div class="kpi-sub" id="mapKpiSalesSub">--</div>
+                            <span class="badge rounded-pill kpi-badge" id="mapKpiSalesDelta">--</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div class="col-12 col-md-6">
-                    <div class="kpi-item kpi-costs h-100 kpi-clickable" id="mapKpiCostsCard" title="Abrir detalhe mensal">
-                      <div class="d-flex justify-content-between align-items-start gap-2">
-                        <div>
-                          <div class="kpi-title">
-                            <i class="fa-solid fa-receipt me-2"></i>Total de Custos vs Orçamento
+                    <div class="col-12 col-md-6">
+                      <div class="kpi-item kpi-costs h-100 kpi-clickable" id="mapKpiCostsCard" title="Abrir detalhe mensal">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                          <div>
+                            <div class="kpi-title">
+                              <i class="fa-solid fa-receipt me-2"></i>Total de Custos vs Orcamento
+                            </div>
+                            <div class="kpi-value" id="mapKpiCostsMain">--</div>
                           </div>
-                          <div class="kpi-value" id="mapKpiCostsMain">--</div>
-                        </div>
-                        <div class="text-end">
-                          <div class="kpi-sub" id="mapKpiCostsSub">--</div>
-                          <span class="badge rounded-pill kpi-badge" id="mapKpiCostsDelta">--</span>
+                          <div class="text-end">
+                            <div class="kpi-sub" id="mapKpiCostsSub">--</div>
+                            <span class="badge rounded-pill kpi-badge" id="mapKpiCostsDelta">--</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div class="col-12 col-md-6">
-                    <div class="kpi-item kpi-margin h-100 kpi-clickable" id="mapKpiMarginCard" title="Abrir detalhe mensal">
-                      <div class="d-flex justify-content-between align-items-start gap-2">
-                        <div>
-                          <div class="kpi-title">
-                            <i class="fa-solid fa-chart-line me-2"></i>Total de Margem vs Previsão
+                    <div class="col-12 col-md-6">
+                      <div class="kpi-item kpi-margin h-100 kpi-clickable" id="mapKpiMarginCard" title="Abrir detalhe mensal">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                          <div>
+                            <div class="kpi-title">
+                              <i class="fa-solid fa-chart-line me-2"></i>Total de Margem vs Previsao
+                            </div>
+                            <div class="kpi-value" id="mapKpiMarginMain">--</div>
                           </div>
-                          <div class="kpi-value" id="mapKpiMarginMain">--</div>
-                        </div>
-                        <div class="text-end">
-                          <div class="kpi-sub" id="mapKpiMarginSub">--</div>
-                          <span class="badge rounded-pill kpi-badge" id="mapKpiMarginDelta">--</span>
+                          <div class="text-end">
+                            <div class="kpi-sub" id="mapKpiMarginSub">--</div>
+                            <span class="badge rounded-pill kpi-badge" id="mapKpiMarginDelta">--</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div class="col-12 col-md-6">
-                    <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpiAdrCard" title="Abrir gráfico diário">
-                      <div class="d-flex justify-content-between align-items-start gap-2">
-                        <div>
-                          <div class="kpi-title">
-                            <i class="fa-solid fa-moon me-2"></i>Preco medio / noite
+                    <div class="col-12 col-md-6">
+                      <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpiAdrCard" title="Abrir grafico diario">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                          <div>
+                            <div class="kpi-title">
+                              <i class="fa-solid fa-moon me-2"></i>Preco medio / noite
+                            </div>
+                            <div class="kpi-value" id="mapKpiAdrMain">--</div>
                           </div>
-                          <div class="kpi-value" id="mapKpiAdrMain">--</div>
-                        </div>
-                        <div class="text-end">
-                          <div class="kpi-sub" id="mapKpiAdrSub">--</div>
-                          <span class="badge rounded-pill kpi-badge d-none" id="mapKpiAdrDelta">--</span>
+                          <div class="text-end">
+                            <div class="kpi-sub" id="mapKpiAdrSub">--</div>
+                            <span class="badge rounded-pill kpi-badge d-none" id="mapKpiAdrDelta">--</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div class="col-12 col-md-6">
-                    <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpiResCard" title="Abrir detalhe mensal">
-                      <div class="d-flex justify-content-between align-items-start gap-2">
-                        <div>
-                          <div class="kpi-title">
-                            <i class="fa-solid fa-calendar-check me-2"></i>Numero de Reservas
+                    <div class="col-12 col-md-6">
+                      <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpiResCard" title="Abrir detalhe mensal">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                          <div>
+                            <div class="kpi-title">
+                              <i class="fa-solid fa-calendar-check me-2"></i>Numero de Reservas
+                            </div>
+                            <div class="kpi-value" id="mapKpiResMain">--</div>
                           </div>
-                          <div class="kpi-value" id="mapKpiResMain">--</div>
-                        </div>
-                        <div class="text-end">
-                          <div class="kpi-sub" id="mapKpiResSub">--</div>
-                          <span class="badge rounded-pill kpi-badge d-none" id="mapKpiResDelta">--</span>
+                          <div class="text-end">
+                            <div class="kpi-sub" id="mapKpiResSub">--</div>
+                            <span class="badge rounded-pill kpi-badge d-none" id="mapKpiResDelta">--</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div class="col-12 col-md-6">
-                    <div class="kpi-item kpi-margin h-100 kpi-clickable" id="mapKpi6Card" title="Abrir gráfico diário">
-                      <div class="d-flex justify-content-between align-items-start gap-2">
-                        <div>
-                          <div class="kpi-title">
-                            <i class="fa-solid fa-chart-column me-2"></i>Reservas recebidas / dia
+                    <div class="col-12 col-md-6">
+                      <div class="kpi-item kpi-margin h-100 kpi-clickable" id="mapKpi6Card" title="Abrir grafico diario">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                          <div>
+                            <div class="kpi-title">
+                              <i class="fa-solid fa-chart-column me-2"></i>Reservas recebidas / dia
+                            </div>
+                            <div class="kpi-value" id="mapKpi6Main">Ver mes</div>
                           </div>
-                          <div class="kpi-value" id="mapKpi6Main">Ver mês</div>
-                        </div>
-                        <div class="text-end">
-                          <div class="kpi-sub" id="mapKpi6Sub">Clique para abrir</div>
-                          <span class="badge rounded-pill kpi-badge d-none" id="mapKpi6Delta">--</span>
+                          <div class="text-end">
+                            <div class="kpi-sub" id="mapKpi6Sub">Clique para abrir</div>
+                            <span class="badge rounded-pill kpi-badge d-none" id="mapKpi6Delta">--</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div class="col-12 col-md-6">
-                    <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpi7Card" title="Abrir gráfico diário">
-                      <div class="d-flex justify-content-between align-items-start gap-2">
-                        <div>
-                          <div class="kpi-title">
-                            <i class="fa-solid fa-file-invoice-dollar me-2"></i>Faturado até hoje / dia
+                    <div class="col-12 col-md-6">
+                      <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpi7Card" title="Abrir grafico diario">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                          <div>
+                            <div class="kpi-title">
+                              <i class="fa-solid fa-file-invoice-dollar me-2"></i>Faturado ate hoje / dia
+                            </div>
+                            <div class="kpi-value" id="mapKpi7Main">--</div>
                           </div>
-                          <div class="kpi-value" id="mapKpi7Main">--</div>
-                        </div>
-                        <div class="text-end">
-                          <div class="kpi-sub" id="mapKpi7Sub">Total até hoje: --</div>
-                          <span class="badge rounded-pill kpi-badge d-none" id="mapKpi7Delta">--</span>
+                          <div class="text-end">
+                            <div class="kpi-sub" id="mapKpi7Sub">Total ate hoje: --</div>
+                            <span class="badge rounded-pill kpi-badge d-none" id="mapKpi7Delta">--</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -265,27 +285,42 @@
   </div>
 </div>
 
-<!-- Modal Centro de Custo -->
+        <!-- Modal Centro de Custo -->
 <div class="modal fade" id="mapCcustoModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Selecionar Centros de Custo</h5>
+  <div class="modal-dialog modal-lg modal-dialog-scrollable sz_management_map_cc_modal_dialog">
+    <div class="modal-content sz_management_map_cc_modal">
+      <div class="modal-header sz_modal_header">
+        <h5 class="modal-title sz_modal_title">Selecionar Centros de Custo</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
-      <div class="modal-body">
-        <div class="d-flex flex-wrap cc-btns mb-3">
-          <button class="btn btn-sm btn-outline-primary" id="mapCcAll">Todos</button>
-          <button class="btn btn-sm btn-outline-secondary" id="mapCcNone">Nenhum</button>
-          <button class="btn btn-sm btn-outline-dark" id="mapCcEstrutura">Estrutura</button>
-          <button class="btn btn-sm btn-outline-info" id="mapCcExploracao">Exploração</button>
-          <button class="btn btn-sm btn-outline-success" id="mapCcGestao">Gestão</button>
+      <div class="modal-body sz_modal_body">
+        <div class="cc-btns">
+          <button class="sz_button sz_button_ghost" id="mapCcAll" type="button">Todos</button>
+          <button class="sz_button sz_button_ghost" id="mapCcNone" type="button">Nenhum</button>
+          <button class="sz_button sz_button_ghost" id="mapCcEstrutura" type="button">Estrutura</button>
+          <button class="sz_button sz_button_ghost" id="mapCcExploracao" type="button">Exploração</button>
+          <button class="sz_button sz_button_ghost" id="mapCcGestao" type="button">Gestão</button>
         </div>
-        <div class="list-group" id="mapCcList"></div>
+        <div class="sz_table_host sz_management_map_cc_table_host">
+          <table class="sz_table sz_management_map_cc_table">
+            <thead class="sz_table_head">
+              <tr>
+                <th class="text-center">Sel.</th>
+                <th>Centro de Custo</th>
+                <th class="text-end">Tipo</th>
+              </tr>
+            </thead>
+            <tbody id="mapCcList">
+              <tr>
+                <td colspan="3" class="sz_table_cell sz_text_muted text-center">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-        <button class="btn btn-primary" id="mapCcApply">Aplicar</button>
+      <div class="modal-footer sz_modal_footer">
+        <button class="sz_button sz_button_ghost" data-bs-dismiss="modal" type="button">Cancelar</button>
+        <button class="sz_button sz_button_primary" id="mapCcApply" type="button">Aplicar</button>
       </div>
     </div>
   </div>
@@ -305,14 +340,14 @@
             <thead>
               <tr>
                 <th>Documento</th>
-                <th>Número</th>
+                <th>N�mero</th>
                 <th>Data</th>
                 <th>Nome</th>
                 <th>C. Custo</th>
-                <th>Referência</th>
-                <th>Designação</th>
+                <th>Refer�ncia</th>
+                <th>Designa��o</th>
                 <th class="text-end">Quantidade</th>
-                <th class="text-end">Preço</th>
+                <th class="text-end">Pre�o</th>
                 <th class="text-end">Total</th>
                 <th class="text-center">Anexo</th>
               </tr>
@@ -395,13 +430,13 @@
   </div>
 </div>
 
-<!-- Modal Faturação por dia -->
+<!-- Modal Fatura��o por dia -->
 <div class="modal fade" id="mapFatDailyModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content detail-card">
       <div class="modal-header border-0 pb-1">
         <div class="d-flex align-items-center justify-content-between w-100 gap-2">
-          <h5 class="modal-title mb-0">Faturação por dia</h5>
+          <h5 class="modal-title mb-0">Fatura��o por dia</h5>
           <div class="d-flex align-items-center gap-2">
             <button class="btn btn-sm btn-outline-light" type="button" id="mapFatPrev">
               <i class="fa-solid fa-chevron-left"></i>
@@ -433,7 +468,7 @@
     <div class="modal-content detail-card">
       <div class="modal-header border-0 pb-1">
         <div class="d-flex align-items-center justify-content-between w-100 gap-2">
-          <h5 class="modal-title mb-0">Custos por rubrica (nível 2)</h5>
+          <h5 class="modal-title mb-0">Custos por rubrica (n�vel 2)</h5>
           <div class="d-flex align-items-center gap-2">
             <button class="btn btn-sm btn-outline-light" type="button" id="mapCostsPrev">
               <i class="fa-solid fa-chevron-left"></i>
@@ -523,13 +558,13 @@
   </div>
 </div>
 
-<!-- Modal Demografia por país -->
+<!-- Modal Demografia por pa�s -->
 <div class="modal fade" id="mapResCountryModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content detail-card">
       <div class="modal-header border-0 pb-1">
         <div class="d-flex align-items-center justify-content-between w-100 gap-2">
-          <h5 class="modal-title mb-0">Reservas por país</h5>
+          <h5 class="modal-title mb-0">Reservas por pa�s</h5>
           <div class="d-flex align-items-center gap-2">
             <button class="btn btn-sm btn-outline-light" type="button" id="mapCountryPrev">
               <i class="fa-solid fa-chevron-left"></i>
@@ -547,13 +582,13 @@
           <table class="table table-sm align-middle detail-table" id="mapCountryTable">
             <thead>
               <tr>
-                <th class="country-sort" data-key="pais">País <span class="sort-ind"></span></th>
+                <th class="country-sort" data-key="pais">Pa�s <span class="sort-ind"></span></th>
                 <th class="text-end country-sort" data-key="reservas">Reservas <span class="sort-ind"></span></th>
                 <th class="text-end country-sort" data-key="pct">% <span class="sort-ind"></span></th>
                 <th class="text-end country-sort" data-key="valor">Valor <span class="sort-ind"></span></th>
                 <th class="text-end country-sort" data-key="media_noites">Noites <span class="sort-ind"></span></th>
-                <th class="text-end country-sort" data-key="media_noite">Média <span class="sort-ind"></span></th>
-                <th class="text-end country-sort" data-key="media_hospedes">Hóspedes <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="media_noite">M�dia <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="media_hospedes">H�spedes <span class="sort-ind"></span></th>
                 <th class="text-end country-sort" data-key="media_antecip">Antecip. <span class="sort-ind"></span></th>
               </tr>
             </thead>
@@ -572,133 +607,651 @@
 </div>
 
 <style>
-  .mapa-page { height: 100vh; display: flex; flex-direction: column; }
-  .mapa-main-card { flex: 1 1 auto; min-height: 0; }
-  .mapa-main-body { height: 100%; display: flex; flex-direction: column; min-height: 0; }
-  #mapTableView, #mapChartView { flex: 1 1 auto; min-height: 0; }
-  #mapChartView { overflow-y: auto; overflow-x: hidden; }
+  .sz_management_map_page {
+    height: 100%;
+    min-height: 0;
+  }
 
-  #mapaTabela { font-size: 12px; }
-  #mapaTabela td, #mapaTabela th { padding: 0.35rem 0.5rem; }
-  #mapaTabela td:first-child, #mapaTabela th:first-child { text-align: left; }
-  #mapaTabela td:first-child { white-space: nowrap; min-width: 260px; padding-right: 12px; }
-  .map-table-wrap {
-    height: auto;
-    flex: 1 1 auto;
+  .sz_management_map_container {
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .sz_management_map_body {
     min-height: 0;
     overflow: auto;
-    position: relative;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  #mapaTabela thead { position: sticky; top: 0; z-index: 3; background: #f8fafc; }
-  #mapaTabela thead th { position: sticky; top: 0; z-index: 4; background: #f8fafc; }
-  .fam-cell.level-1 { font-weight: 700; padding-left: 6px !important; }
-  .fam-cell.level-2 { font-weight: 600; color: #1f2937; padding-left: 24px !important; }
-  .fam-cell.level-3 { color: #374151; padding-left: 40px !important; }
-  .mapa-row:hover { background-color: #f8fafc; }
-  .row-proveito td { color: #0ea5e9; }
-  .row-proveito .fam-cell { color: #0ea5e9 !important; }
-  .total-row { background: #eef2ff; font-weight: 700; }
-  .total-row td { border-top: 2px solid #c7d2fe; }
-  .total-custos td { color: #b91c1c; background: #fef2f2; }
-  .total-proveitos td { color: #0ea5e9; background: #e0f2fe; }
-  .total-saldo td { color: #0f172a; background: #e2e8f0; }
-  .total-acumulado td { color: #64748b; background: #f8fafc; font-weight: 600; font-size: 11px; }
-  .diff-over { background: #fee2e2 !important; color: #7f1d1d !important; font-weight: 700; }
-  .diff-under { background: #dcfce7 !important; color: #14532d !important; font-weight: 700; }
-  .cc-btns { gap: 4px; }
+
+  .sz_management_map_body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .sz_management_map_contextbar {
+    align-items: flex-start;
+  }
+
+  .sz_management_map_contextbar_left {
+    flex: 0 1 340px;
+    min-width: 240px;
+    max-width: 340px;
+  }
+
+  .sz_management_map_contextbar_right {
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: flex-end;
+  }
+
+  .sz_management_map_filters {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.65rem 0.75rem;
+    width: 100%;
+  }
+
+  .sz_management_map_filter_year {
+    width: 90px;
+  }
+
+  .sz_management_map_filter_cc {
+    min-width: 220px;
+    max-width: 320px;
+  }
+
+  .sz_management_map_cc_btn {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .sz_management_map_filter_actions {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+  }
+
+  .sz_management_map_toggle {
+    min-height: var(--sz-input-height);
+    align-self: flex-end;
+    white-space: nowrap;
+  }
+
+  .sz_management_map_pct {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 112px;
+    align-self: flex-end;
+  }
+
+  .sz_management_map_pct .sz_input {
+    width: 100%;
+  }
+
+  .sz_management_map_filters_caption {
+    width: 100%;
+    text-align: right;
+  }
+
+  .sz_management_map_main {
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.9rem;
+  }
+
+  .sz_management_map_toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .sz_management_map_view_switch,
+  .sz_management_map_tree_controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .sz_management_map_view_switch .sz_button.active {
+    background: color-mix(in srgb, var(--sz-color-primary) 18%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 75%, var(--sz-color-border));
+    color: var(--sz-color-primary);
+  }
+
+  #mapTableView,
+  #mapChartView {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  #mapChartView {
+    overflow: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  #mapChartView::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .sz_management_map_table_host {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    border-radius: var(--sz-radius-md);
+  }
+
+  .sz_management_map_table_host::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .sz_management_map_table {
+    min-width: 1480px;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  .sz_management_map_table th,
+  .sz_management_map_table td {
+    padding: 0.35rem 0.55rem;
+  }
+
+  .sz_management_map_table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary);
+  }
+
+  .sz_management_map_table td:first-child,
+  .sz_management_map_table th:first-child {
+    text-align: left;
+  }
+
+  .sz_management_map_table td:first-child {
+    white-space: nowrap;
+    min-width: 310px;
+    padding-right: 0.75rem;
+  }
+
+  .fam-cell.level-1 {
+    font-weight: var(--sz-font-weight-bold);
+    padding-left: 0.35rem !important;
+  }
+
+  .fam-cell.level-2 {
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+    padding-left: 1.35rem !important;
+  }
+
+  .fam-cell.level-3 {
+    color: var(--sz-color-text-secondary);
+    padding-left: 2.35rem !important;
+  }
+
+  .mapa-row:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
+  }
+
+  .row-proveito td {
+    color: var(--sz-color-info);
+  }
+
+  .row-proveito .fam-cell {
+    color: var(--sz-color-info) !important;
+  }
+
+  .total-row td {
+    font-weight: var(--sz-font-weight-bold);
+    border-top: 2px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
+  }
+
+  .total-custos td {
+    color: var(--sz-color-danger);
+    background: color-mix(in srgb, var(--sz-color-danger) 11%, var(--sz-color-surface));
+  }
+
+  .total-proveitos td {
+    color: var(--sz-color-info);
+    background: color-mix(in srgb, var(--sz-color-info) 11%, var(--sz-color-surface));
+  }
+
+  .total-saldo td {
+    color: var(--sz-color-text);
+    background: color-mix(in srgb, var(--sz-color-border) 30%, var(--sz-color-surface));
+  }
+
+  .total-acumulado td {
+    color: var(--sz-color-text-muted);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 85%, var(--sz-color-surface));
+    font-weight: var(--sz-font-weight-medium);
+    font-size: 11px;
+  }
+
+  .diff-over {
+    background: color-mix(in srgb, var(--sz-color-danger) 18%, var(--sz-color-surface)) !important;
+    color: var(--sz-color-danger) !important;
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .diff-under {
+    background: color-mix(in srgb, var(--sz-color-success) 18%, var(--sz-color-surface)) !important;
+    color: var(--sz-color-success) !important;
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .cc-btns {
+    gap: 0.35rem;
+  }
+
   .toggle-node {
-    width: 22px; height: 22px;
-    border: 1px solid #cbd5e1;
-    background: #f8fafc;
-    color: #475569;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
     border-radius: 6px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    transition: all 0.15s ease;
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
   }
-  .toggle-node:hover { background: #e2e8f0; color: #1f2937; }
-  .toggle-node:focus { outline: 2px solid #94a3b8; outline-offset: 2px; }
-  .toggle-spacer { display: inline-block; width: 22px; }
+
+  .toggle-node:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface-alt));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 65%, var(--sz-color-border));
+    color: var(--sz-color-primary);
+  }
+
+  .toggle-node:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--sz-color-primary) 45%, transparent);
+    outline-offset: 2px;
+  }
+
+  .toggle-spacer {
+    display: inline-block;
+    width: 22px;
+  }
+
+  .sz_management_map_chart_card,
+  .kpi-item {
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    color: var(--sz-color-text);
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-1);
+  }
+
+  .sz_management_map_chart_card .card-body {
+    color: var(--sz-color-text);
+  }
+
   .kpi-item {
     position: relative;
     overflow: hidden;
-    border: 1px solid rgba(226, 232, 240, 0.9);
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 16px;
-    padding: 14px 16px;
-    margin-bottom: 12px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    padding: 0.85rem 0.95rem 0.85rem 1.1rem;
+    margin-bottom: 0.75rem;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
-    backdrop-filter: blur(6px);
   }
-  .kpi-grid .kpi-item { margin-bottom: 0; }
-  .kpi-item:hover { transform: translateY(-1px); box-shadow: 0 14px 40px rgba(15, 23, 42, 0.12); }
+
+  .kpi-grid .kpi-item {
+    margin-bottom: 0;
+  }
+
+  .kpi-item:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--sz-shadow-2);
+  }
+
   .kpi-item::before {
-    content: "";
+    content: '';
     position: absolute;
     inset: 0 auto 0 0;
-    width: 6px;
-    background: #94a3b8;
+    width: 5px;
+    background: color-mix(in srgb, var(--sz-color-text-muted) 60%, var(--sz-color-border));
   }
-  .kpi-item.kpi-sales::before { background: linear-gradient(180deg, #0ea5e9 0%, #7c3aed 100%); }
-  .kpi-item.kpi-costs::before { background: linear-gradient(180deg, #fb7185 0%, #ef4444 100%); }
-  .kpi-item.kpi-margin::before { background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%); }
-  .kpi-item.kpi-placeholder::before { background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%); opacity: 0.6; }
+
+  .kpi-item.kpi-sales::before {
+    background: linear-gradient(180deg, var(--sz-color-info) 0%, var(--sz-color-primary) 100%);
+  }
+
+  .kpi-item.kpi-costs::before {
+    background: linear-gradient(180deg, var(--sz-color-warning) 0%, var(--sz-color-danger) 100%);
+  }
+
+  .kpi-item.kpi-margin::before {
+    background: linear-gradient(180deg, var(--sz-color-success) 0%, color-mix(in srgb, var(--sz-color-success) 70%, var(--sz-color-primary)) 100%);
+  }
+
+  .kpi-item.kpi-placeholder::before {
+    opacity: 0.65;
+  }
+
   .kpi-title {
     font-size: 12px;
-    font-weight: 700;
+    font-weight: var(--sz-font-weight-bold);
     letter-spacing: 0.02em;
-    color: #0f172a;
+    color: var(--sz-color-text-secondary);
     text-transform: uppercase;
-    opacity: 0.85;
     display: flex;
     align-items: center;
   }
+
   .kpi-value {
-    font-size: 22px;
-    font-weight: 800;
+    font-size: 1.4rem;
+    font-weight: var(--sz-font-weight-bold);
     letter-spacing: -0.02em;
-    color: #0f172a;
+    color: var(--sz-color-text);
     line-height: 1.1;
-    margin-top: 2px;
+    margin-top: 0.15rem;
   }
+
   .kpi-sub {
     font-size: 12px;
-    color: #64748b;
-    margin-top: 2px;
+    color: var(--sz-color-text-muted);
+    margin-top: 0.15rem;
   }
+
   .kpi-badge {
-    font-weight: 800;
+    font-weight: var(--sz-font-weight-bold);
     letter-spacing: 0.01em;
     padding: 0.35rem 0.55rem;
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
+    color: var(--sz-color-primary);
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
   }
-  .kpi-clickable { cursor: pointer; user-select: none; }
-  .country-sort { cursor: pointer; user-select: none; white-space: nowrap; }
-  .country-sort .sort-ind { opacity: 0.65; font-size: 11px; margin-left: 4px; }
-  .cell-drill { cursor: default; }
-  /* Modal detalhe */
-  .detail-card {
-    border: none;
-    border-radius: 16px;
-    box-shadow: 0 22px 70px rgba(15,23,42,0.22);
+
+  .kpi-clickable {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .country-sort {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .country-sort .sort-ind {
+    opacity: 0.65;
+    font-size: 11px;
+    margin-left: 4px;
+  }
+
+  .cell-drill {
+    cursor: default;
+  }
+
+  .detail-card,
+  #mapCcustoModal .modal-content {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-3);
     overflow: hidden;
-    background: linear-gradient(180deg, #f8fafc 0%, #ffffff 35%, #f8fafc 100%);
   }
-  .detail-card .modal-header { background: linear-gradient(90deg, #0ea5e9 0%, #7c3aed 100%); color: #fff; }
-  .detail-card .modal-header .btn-close { filter: invert(1); }
-  .detail-card .modal-body { background: #f8fafc; }
-  .detail-table-wrap { max-height: 60vh; overflow: auto; }
-  .detail-table { border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; margin-top: 4px; }
-  .detail-table thead { background: linear-gradient(90deg, #0ea5e9, #7c3aed); color: #fff; position: sticky; top: 0; z-index: 2; }
-  .detail-table th { border: none; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .detail-table td { font-size: 12px; vertical-align: middle; }
-  .detail-table tbody tr:nth-child(odd) { background-color: #f8fafc; }
-  .detail-table tbody tr:nth-child(even) { background-color: #eef2ff; }
-  .detail-table tbody tr:hover { background-color: #dbeafe; }
-  #mapDetailTotal { font-size: 14px; color: #0f172a; }
-  #mapDetailTitle { color: #fff; font-weight: 700; }
+
+  .detail-card .modal-header,
+  #mapCcustoModal .modal-header {
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .detail-card .modal-header .btn-close,
+  #mapCcustoModal .modal-header .btn-close {
+    filter: none;
+  }
+
+  .detail-card .modal-body,
+  .detail-card .modal-footer,
+  #mapCcustoModal .modal-body,
+  #mapCcustoModal .modal-footer {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border-top-color: var(--sz-color-border);
+  }
+
+  .detail-table-wrap {
+    max-height: 60vh;
+    overflow: auto;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .detail-table-wrap::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .detail-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    color: var(--sz-color-text);
+  }
+
+  .detail-table thead {
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .detail-table th,
+  .detail-table td {
+    border-color: var(--sz-color-border);
+    font-size: 12px;
+    vertical-align: middle;
+    padding: 0.65rem 0.8rem;
+  }
+
+  .detail-table th {
+    border: 0;
+    border-bottom: 1px solid var(--sz-color-border);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .detail-table td {
+    border: 0;
+    border-bottom: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface);
+  }
+
+  .detail-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface));
+  }
+
+  #mapDetailTotal,
+  #mapCountryTotal {
+    font-size: 14px;
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  #mapDetailTitle {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  #mapCcustoModal .modal-body .form-check-label,
+  #mapCcustoModal .modal-body,
+  #mapCcustoModal .modal-body .btn-link,
+  #mapCcustoModal .modal-body .btn,
+  #mapCcustoModal .modal-footer .btn {
+    color: var(--sz-color-text);
+  }
+
+  .sz_management_map_cc_modal_dialog {
+    max-width: 860px;
+  }
+
+  .sz_management_map_cc_modal .modal-header,
+  .sz_management_map_cc_modal .modal-body,
+  .sz_management_map_cc_modal .modal-footer {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+  }
+
+  .sz_management_map_cc_modal .modal-header {
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .sz_management_map_cc_modal .modal-footer {
+    border-top: 1px solid var(--sz-color-border);
+  }
+
+  .sz_management_map_cc_modal .cc-btns {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .sz_management_map_cc_modal .cc-btns .sz_button {
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .sz_management_map_cc_table_host {
+    max-height: min(62vh, 560px);
+  }
+
+  .sz_management_map_cc_table {
+    min-width: 0;
+  }
+
+  .sz_management_map_cc_table th,
+  .sz_management_map_cc_table td {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .sz_management_map_cc_table td:first-child,
+  .sz_management_map_cc_table th:first-child {
+    width: 64px;
+  }
+
+  .sz_management_map_cc_row_label {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin: 0;
+    color: var(--sz-color-text);
+  }
+
+  .sz_management_map_cc_row_label input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--sz-color-primary);
+    flex: 0 0 auto;
+  }
+
+  .sz_management_map_cc_name {
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+  }
+
+  .sz_management_map_cc_badge_wrap {
+    text-align: right;
+  }
+
+  #mapCcustoModal .btn-close,
+  .detail-card .btn-close {
+    opacity: 0.9;
+  }
+
+  @media (max-width: 1200px) {
+    .sz_management_map_contextbar_left {
+      flex-basis: 280px;
+      max-width: 280px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .sz_management_map_contextbar {
+      flex-direction: column;
+    }
+
+    .sz_management_map_contextbar_left,
+    .sz_management_map_contextbar_right {
+      width: 100%;
+      max-width: none;
+      flex: 1 1 auto;
+    }
+
+    .sz_management_map_contextbar_right,
+    .sz_management_map_filters_caption {
+      align-items: flex-start;
+      text-align: left;
+    }
+
+    .sz_management_map_filters {
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .sz_management_map_main {
+      padding: 0.75rem;
+    }
+
+    .sz_management_map_toolbar {
+      align-items: stretch;
+    }
+
+    .sz_management_map_view_switch,
+    .sz_management_map_tree_controls {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .sz_management_map_view_switch .sz_button,
+    .sz_management_map_tree_controls .sz_button {
+      flex: 1 1 0;
+    }
+
+    .sz_management_map_table {
+      min-width: 1320px;
+      font-size: 11px;
+    }
+
+    .sz_management_map_table td:first-child {
+      min-width: 250px;
+    }
+
+    .kpi-value {
+      font-size: 1.2rem;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -709,3 +1262,5 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{{ url_for('static', filename='js/mapa_gestao.js') }}"></script>
 {% endblock %}
+
+

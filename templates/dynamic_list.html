@@ -41,16 +41,16 @@
 
 <!-- Modal de Filtros -->
 <div id="modalFiltros" class="sz_modal" aria-labelledby="modalFiltrosLabel" aria-hidden="true">
-  <div class="sz_panel">
+  <div class="sz_panel sz_dynamic_filters_modal_panel">
     <div class="sz_modal_header sz_dynamic_filters_header">
       <h3 class="sz_h4 sz_modal_title" id="modalFiltrosLabel">Filtros</h3>
       <button type="button" id="closeFiltersModalTop" class="sz_button sz_button_ghost" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
-    <div class="sz_modal_body">
+    <div class="sz_modal_body sz_dynamic_filters_modal_body">
       <!-- O form sera injetado aqui pelo JS -->
-      <form id="filter-form" class="sz_dynamic_filters_form"></form>
+      <form id="filter-form" class="sz_dynamic_filters_form sz_dynamic_filters_form_mobile_2col"></form>
     </div>
     <div class="sz_modal_footer">
       <button type="button" id="closeFiltersModal" class="sz_button sz_button_secondary">

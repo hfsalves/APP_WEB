@@ -40,12 +40,18 @@
     }
 
     .sz-base-shell.sz-ui-layout,
+    .sz-base-shell.sz-analysis-layout,
+    .sz-base-shell.sz-performance-layout,
+    .sz-base-shell.sz-management-map-layout,
     .sz-base-shell.sz-dynamic-list-layout,
     .sz-base-shell.sz-dynamic-form-layout {
       background: var(--sz-color-bg-main);
     }
 
     .sz-base-shell.sz-ui-layout .app-container,
+    .sz-base-shell.sz-analysis-layout .app-container,
+    .sz-base-shell.sz-performance-layout .app-container,
+    .sz-base-shell.sz-management-map-layout .app-container,
     .sz-base-shell.sz-dynamic-list-layout .app-container,
     .sz-base-shell.sz-dynamic-form-layout .app-container {
       padding: 0;
@@ -54,6 +60,9 @@
     }
 
     .sz-base-shell.sz-ui-layout .main-content,
+    .sz-base-shell.sz-analysis-layout .main-content,
+    .sz-base-shell.sz-performance-layout .main-content,
+    .sz-base-shell.sz-management-map-layout .main-content,
     .sz-base-shell.sz-dynamic-list-layout .main-content,
     .sz-base-shell.sz-dynamic-form-layout .main-content {
       padding: 0 !important;
@@ -65,6 +74,9 @@
     }
 
     .sz-base-shell.sz-ui-layout .main-content > .sz_page,
+    .sz-base-shell.sz-analysis-layout .main-content > .sz_page,
+    .sz-base-shell.sz-performance-layout .main-content > .sz_page,
+    .sz-base-shell.sz-management-map-layout .main-content > .sz_page,
     .sz-base-shell.sz-dynamic-list-layout .main-content > .sz_page {
       flex: 1 1 auto;
       min-height: 0;
@@ -118,7 +130,7 @@
     window.USER_PERMS = {{ user_perms|tojson }};
   </script>
 </head>
-<body class="sz-base-shell{% if request.endpoint == 'sz_dev_ui.sz_ui_catalog' %} sz-ui-layout{% endif %}{% if request.endpoint == 'generic.view_table' %} sz-dynamic-list-layout{% endif %}{% if request.endpoint == 'generic.edit_table' or request.endpoint == 'reservas_rs_form' %} sz-dynamic-form-layout{% endif %}{% if current_user.is_authenticated %} authenticated{% endif %}">
+<body class="sz-base-shell{% if request.endpoint == 'sz_dev_ui.sz_ui_catalog' %} sz-ui-layout{% endif %}{% if request.endpoint == 'pagina_analise' %} sz-analysis-layout{% endif %}{% if request.endpoint == 'performance_page' %} sz-performance-layout{% endif %}{% if request.endpoint == 'mapa_gestao_page' %} sz-management-map-layout{% endif %}{% if request.endpoint == 'generic.view_table' %} sz-dynamic-list-layout{% endif %}{% if request.endpoint == 'generic.edit_table' or request.endpoint == 'reservas_rs_form' %} sz-dynamic-form-layout{% endif %}{% if current_user.is_authenticated %} authenticated{% endif %}">
   <script>
     try {
       if (localStorage.getItem('sidebarCollapsed') === '1' && window.matchMedia('(min-width: 769px)').matches) {

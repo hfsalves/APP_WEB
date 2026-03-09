@@ -1,0 +1,711 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-3 mapa-page">
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body bg-light rounded-3">
+      <div class="d-flex flex-wrap align-items-end gap-3">
+        <div>
+          <label for="mapAno" class="form-label text-muted small mb-1">Ano</label>
+          <input type="number" class="form-control" id="mapAno" min="2000" max="2100" value="{{ ano_atual }}" style="width:120px;">
+        </div>
+        <div class="flex-grow-1">
+          <label class="form-label text-muted small mb-1">Centro de Custo</label>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" id="mapBtnCcusto" type="button">
+              <i class="fa-solid fa-building me-1"></i><span id="mapCcustoLabel">Todos os centros</span>
+            </button>
+            <button class="btn btn-primary" id="mapBtnAplicar">
+              <i class="fa-solid fa-filter me-1"></i> Aplicar
+            </button>
+            <button class="btn btn-outline-secondary" id="mapBtnLimpar">Limpar</button>
+          </div>
+        </div>
+        <div class="ms-auto d-flex align-items-end gap-2 flex-wrap justify-content-end">
+          <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" id="mapDiffEnable">
+            <label class="form-check-label small text-muted" for="mapDiffEnable">Evidenciar diferenças superiores a</label>
+          </div>
+          <div class="d-flex align-items-center gap-1 mb-1">
+            <input type="number" class="form-control form-control-sm" id="mapDiffPct" min="0" max="100" step="0.5" value="3" style="width:90px;">
+            <span class="text-muted small">%</span>
+          </div>
+          <div class="form-check mb-1 ms-2">
+            <input class="form-check-input" type="checkbox" id="mapShowBudget">
+            <label class="form-check-label small text-muted" for="mapShowBudget">Mostrar Orçamento</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 mapa-main-card">
+    <div class="card-body mapa-main-body">
+      <div class="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Visualização">
+          <button class="btn btn-outline-primary" id="mapViewTable" type="button" title="Tabela">
+            <i class="fa-solid fa-table me-1"></i> Tabela
+          </button>
+          <button class="btn btn-outline-primary" id="mapViewCharts" type="button" title="Gráficos">
+            <i class="fa-solid fa-chart-column me-1"></i> Gráficos
+          </button>
+        </div>
+        <div class="ms-auto d-flex align-items-center gap-2" id="mapTreeControls">
+          <button class="btn btn-sm btn-outline-secondary" id="mapCollapseAll"><i class="fa-solid fa-compress"></i> Fechar tudo</button>
+          <button class="btn btn-sm btn-outline-primary" id="mapExpandAll"><i class="fa-solid fa-expand"></i> Expandir tudo</button>
+        </div>
+      </div>
+
+      <div id="mapTableView">
+        <div class="table-responsive map-table-wrap">
+          <table class="table table-sm align-middle" id="mapaTabela">
+            <thead class="table-light">
+              <tr>
+                <th>Familia</th>
+                <th class="text-end">Jan</th>
+                <th class="text-end">Fev</th>
+                <th class="text-end">Mar</th>
+                <th class="text-end">Abr</th>
+                <th class="text-end">Mai</th>
+                <th class="text-end">Jun</th>
+                <th class="text-end">Jul</th>
+                <th class="text-end">Ago</th>
+                <th class="text-end">Set</th>
+                <th class="text-end">Out</th>
+                <th class="text-end">Nov</th>
+                <th class="text-end">Dez</th>
+                <th class="text-end">Total</th>
+                <th class="text-end">Peso</th>
+              </tr>
+            </thead>
+            <tbody id="mapaBody">
+              <tr>
+                <td colspan="15" class="text-center text-muted">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="mapChartView" style="display:none;">
+        <div class="row g-3">
+          <div class="col-12 col-xl-6">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <div class="fw-semibold">Vendas vs Objetivo</div>
+                  <div class="text-muted small">Famílias 9</div>
+                </div>
+                <div style="height:320px;">
+                  <canvas id="mapChartSalesVsGoal"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <div class="fw-semibold">Custos vs Orçamento</div>
+                  <div class="text-muted small">Famílias (exceto 9)</div>
+                </div>
+                <div style="height:320px;">
+                  <canvas id="mapChartCostsVsBudget"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <div class="fw-semibold">Margem Real vs Previsional</div>
+                  <div class="text-muted small">9 - (exceto 9)</div>
+                </div>
+                <div style="height:320px;">
+                  <canvas id="mapChartMarginRealVsForecast"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-6">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <div class="fw-semibold">KPIs</div>
+                  <div class="text-muted small">Totais do ano</div>
+                </div>
+
+                <div class="row g-2 kpi-grid">
+                  <div class="col-12 col-md-6">
+                    <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpiSalesCard" title="Abrir detalhe mensal">
+                      <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                          <div class="kpi-title">
+                            <i class="fa-solid fa-arrow-trend-up me-2"></i>Total de Vendas vs Objetivo
+                          </div>
+                          <div class="kpi-value" id="mapKpiSalesMain">--</div>
+                        </div>
+                        <div class="text-end">
+                          <div class="kpi-sub" id="mapKpiSalesSub">--</div>
+                          <span class="badge rounded-pill kpi-badge" id="mapKpiSalesDelta">--</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="kpi-item kpi-costs h-100 kpi-clickable" id="mapKpiCostsCard" title="Abrir detalhe mensal">
+                      <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                          <div class="kpi-title">
+                            <i class="fa-solid fa-receipt me-2"></i>Total de Custos vs Orçamento
+                          </div>
+                          <div class="kpi-value" id="mapKpiCostsMain">--</div>
+                        </div>
+                        <div class="text-end">
+                          <div class="kpi-sub" id="mapKpiCostsSub">--</div>
+                          <span class="badge rounded-pill kpi-badge" id="mapKpiCostsDelta">--</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="kpi-item kpi-margin h-100 kpi-clickable" id="mapKpiMarginCard" title="Abrir detalhe mensal">
+                      <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                          <div class="kpi-title">
+                            <i class="fa-solid fa-chart-line me-2"></i>Total de Margem vs Previsão
+                          </div>
+                          <div class="kpi-value" id="mapKpiMarginMain">--</div>
+                        </div>
+                        <div class="text-end">
+                          <div class="kpi-sub" id="mapKpiMarginSub">--</div>
+                          <span class="badge rounded-pill kpi-badge" id="mapKpiMarginDelta">--</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpiAdrCard" title="Abrir gráfico diário">
+                      <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                          <div class="kpi-title">
+                            <i class="fa-solid fa-moon me-2"></i>Preco medio / noite
+                          </div>
+                          <div class="kpi-value" id="mapKpiAdrMain">--</div>
+                        </div>
+                        <div class="text-end">
+                          <div class="kpi-sub" id="mapKpiAdrSub">--</div>
+                          <span class="badge rounded-pill kpi-badge d-none" id="mapKpiAdrDelta">--</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpiResCard" title="Abrir detalhe mensal">
+                      <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                          <div class="kpi-title">
+                            <i class="fa-solid fa-calendar-check me-2"></i>Numero de Reservas
+                          </div>
+                          <div class="kpi-value" id="mapKpiResMain">--</div>
+                        </div>
+                        <div class="text-end">
+                          <div class="kpi-sub" id="mapKpiResSub">--</div>
+                          <span class="badge rounded-pill kpi-badge d-none" id="mapKpiResDelta">--</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="kpi-item kpi-margin h-100 kpi-clickable" id="mapKpi6Card" title="Abrir gráfico diário">
+                      <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                          <div class="kpi-title">
+                            <i class="fa-solid fa-chart-column me-2"></i>Reservas recebidas / dia
+                          </div>
+                          <div class="kpi-value" id="mapKpi6Main">Ver mês</div>
+                        </div>
+                        <div class="text-end">
+                          <div class="kpi-sub" id="mapKpi6Sub">Clique para abrir</div>
+                          <span class="badge rounded-pill kpi-badge d-none" id="mapKpi6Delta">--</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="kpi-item kpi-sales h-100 kpi-clickable" id="mapKpi7Card" title="Abrir gráfico diário">
+                      <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                          <div class="kpi-title">
+                            <i class="fa-solid fa-file-invoice-dollar me-2"></i>Faturado até hoje / dia
+                          </div>
+                          <div class="kpi-value" id="mapKpi7Main">--</div>
+                        </div>
+                        <div class="text-end">
+                          <div class="kpi-sub" id="mapKpi7Sub">Total até hoje: --</div>
+                          <span class="badge rounded-pill kpi-badge d-none" id="mapKpi7Delta">--</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Centro de Custo -->
+<div class="modal fade" id="mapCcustoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Selecionar Centros de Custo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex flex-wrap cc-btns mb-3">
+          <button class="btn btn-sm btn-outline-primary" id="mapCcAll">Todos</button>
+          <button class="btn btn-sm btn-outline-secondary" id="mapCcNone">Nenhum</button>
+          <button class="btn btn-sm btn-outline-dark" id="mapCcEstrutura">Estrutura</button>
+          <button class="btn btn-sm btn-outline-info" id="mapCcExploracao">Exploração</button>
+          <button class="btn btn-sm btn-outline-success" id="mapCcGestao">Gestão</button>
+        </div>
+        <div class="list-group" id="mapCcList"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" id="mapCcApply">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Detalhe -->
+<div class="modal fade" id="mapDetailModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <h5 class="modal-title mb-0" id="mapDetailTitle">Detalhe</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div class="table-responsive rounded-3 shadow-sm detail-table-wrap">
+          <table class="table table-sm align-middle detail-table" id="mapDetailTable">
+            <thead>
+              <tr>
+                <th>Documento</th>
+                <th>Número</th>
+                <th>Data</th>
+                <th>Nome</th>
+                <th>C. Custo</th>
+                <th>Referência</th>
+                <th>Designação</th>
+                <th class="text-end">Quantidade</th>
+                <th class="text-end">Preço</th>
+                <th class="text-end">Total</th>
+                <th class="text-center">Anexo</th>
+              </tr>
+            </thead>
+            <tbody id="mapDetailBody">
+              <tr><td colspan="11" class="text-center text-muted">Selecione um valor na grelha.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapDetailTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Reservas por dia -->
+<div class="modal fade" id="mapResDailyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Reservas recebidas por dia</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapResPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapResMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapResNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div style="height: 420px;">
+          <canvas id="mapResDailyChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapResDailyTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal ADR por dia -->
+<div class="modal fade" id="mapAdrDailyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Preco medio por noite (por dia)</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapAdrPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapAdrMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapAdrNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div style="height: 420px;">
+          <canvas id="mapAdrDailyChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapAdrDailyTotal">ADR: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Faturação por dia -->
+<div class="modal fade" id="mapFatDailyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Faturação por dia</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapFatPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapFatMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapFatNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div style="height: 420px;">
+          <canvas id="mapFatDailyChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapFatDailyTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Rubricas de Custos -->
+<div class="modal fade" id="mapCostsRubricModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Custos por rubrica (nível 2)</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapCostsPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapCostsMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapCostsNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div style="height: 520px;">
+          <canvas id="mapCostsRubricChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapCostsRubricTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Vendas por alojamento -->
+<div class="modal fade" id="mapSalesAlojModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Vendas vs Objetivo (por alojamento)</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapSalesPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapSalesMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapSalesNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div class="map-chart-scroll" style="height: 800px; overflow-y: auto; overflow-x: hidden;">
+          <canvas id="mapSalesAlojChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapSalesAlojTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Margem por alojamento -->
+<div class="modal fade" id="mapMarginAlojModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Margem (por alojamento)</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapMarginPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapMarginMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapMarginNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div class="map-chart-scroll" style="height: 800px; overflow-y: auto; overflow-x: hidden;">
+          <canvas id="mapMarginAlojChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapMarginAlojTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Demografia por país -->
+<div class="modal fade" id="mapResCountryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Reservas por país</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapCountryPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapCountryMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapCountryNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div class="table-responsive rounded-3 shadow-sm detail-table-wrap" style="max-height: 70vh;">
+          <table class="table table-sm align-middle detail-table" id="mapCountryTable">
+            <thead>
+              <tr>
+                <th class="country-sort" data-key="pais">País <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="reservas">Reservas <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="pct">% <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="valor">Valor <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="media_noites">Noites <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="media_noite">Média <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="media_hospedes">Hóspedes <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="media_antecip">Antecip. <span class="sort-ind"></span></th>
+              </tr>
+            </thead>
+            <tbody id="mapCountryBody">
+              <tr><td colspan="8" class="text-center text-muted">A carregar...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapCountryTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .mapa-page { height: 100vh; display: flex; flex-direction: column; }
+  .mapa-main-card { flex: 1 1 auto; min-height: 0; }
+  .mapa-main-body { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+  #mapTableView, #mapChartView { flex: 1 1 auto; min-height: 0; }
+  #mapChartView { overflow-y: auto; overflow-x: hidden; }
+
+  #mapaTabela { font-size: 12px; }
+  #mapaTabela td, #mapaTabela th { padding: 0.35rem 0.5rem; }
+  #mapaTabela td:first-child, #mapaTabela th:first-child { text-align: left; }
+  #mapaTabela td:first-child { white-space: nowrap; min-width: 260px; padding-right: 12px; }
+  .map-table-wrap {
+    height: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    position: relative;
+  }
+  #mapaTabela thead { position: sticky; top: 0; z-index: 3; background: #f8fafc; }
+  #mapaTabela thead th { position: sticky; top: 0; z-index: 4; background: #f8fafc; }
+  .fam-cell.level-1 { font-weight: 700; padding-left: 6px !important; }
+  .fam-cell.level-2 { font-weight: 600; color: #1f2937; padding-left: 24px !important; }
+  .fam-cell.level-3 { color: #374151; padding-left: 40px !important; }
+  .mapa-row:hover { background-color: #f8fafc; }
+  .row-proveito td { color: #0ea5e9; }
+  .row-proveito .fam-cell { color: #0ea5e9 !important; }
+  .total-row { background: #eef2ff; font-weight: 700; }
+  .total-row td { border-top: 2px solid #c7d2fe; }
+  .total-custos td { color: #b91c1c; background: #fef2f2; }
+  .total-proveitos td { color: #0ea5e9; background: #e0f2fe; }
+  .total-saldo td { color: #0f172a; background: #e2e8f0; }
+  .total-acumulado td { color: #64748b; background: #f8fafc; font-weight: 600; font-size: 11px; }
+  .diff-over { background: #fee2e2 !important; color: #7f1d1d !important; font-weight: 700; }
+  .diff-under { background: #dcfce7 !important; color: #14532d !important; font-weight: 700; }
+  .cc-btns { gap: 4px; }
+  .toggle-node {
+    width: 22px; height: 22px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #475569;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 0.15s ease;
+  }
+  .toggle-node:hover { background: #e2e8f0; color: #1f2937; }
+  .toggle-node:focus { outline: 2px solid #94a3b8; outline-offset: 2px; }
+  .toggle-spacer { display: inline-block; width: 22px; }
+  .kpi-item {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 16px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    backdrop-filter: blur(6px);
+  }
+  .kpi-grid .kpi-item { margin-bottom: 0; }
+  .kpi-item:hover { transform: translateY(-1px); box-shadow: 0 14px 40px rgba(15, 23, 42, 0.12); }
+  .kpi-item::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 6px;
+    background: #94a3b8;
+  }
+  .kpi-item.kpi-sales::before { background: linear-gradient(180deg, #0ea5e9 0%, #7c3aed 100%); }
+  .kpi-item.kpi-costs::before { background: linear-gradient(180deg, #fb7185 0%, #ef4444 100%); }
+  .kpi-item.kpi-margin::before { background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%); }
+  .kpi-item.kpi-placeholder::before { background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%); opacity: 0.6; }
+  .kpi-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #0f172a;
+    text-transform: uppercase;
+    opacity: 0.85;
+    display: flex;
+    align-items: center;
+  }
+  .kpi-value {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+    line-height: 1.1;
+    margin-top: 2px;
+  }
+  .kpi-sub {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 2px;
+  }
+  .kpi-badge {
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    padding: 0.35rem 0.55rem;
+  }
+  .kpi-clickable { cursor: pointer; user-select: none; }
+  .country-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+  .country-sort .sort-ind { opacity: 0.65; font-size: 11px; margin-left: 4px; }
+  .cell-drill { cursor: default; }
+  /* Modal detalhe */
+  .detail-card {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 22px 70px rgba(15,23,42,0.22);
+    overflow: hidden;
+    background: linear-gradient(180deg, #f8fafc 0%, #ffffff 35%, #f8fafc 100%);
+  }
+  .detail-card .modal-header { background: linear-gradient(90deg, #0ea5e9 0%, #7c3aed 100%); color: #fff; }
+  .detail-card .modal-header .btn-close { filter: invert(1); }
+  .detail-card .modal-body { background: #f8fafc; }
+  .detail-table-wrap { max-height: 60vh; overflow: auto; }
+  .detail-table { border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; margin-top: 4px; }
+  .detail-table thead { background: linear-gradient(90deg, #0ea5e9, #7c3aed); color: #fff; position: sticky; top: 0; z-index: 2; }
+  .detail-table th { border: none; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .detail-table td { font-size: 12px; vertical-align: middle; }
+  .detail-table tbody tr:nth-child(odd) { background-color: #f8fafc; }
+  .detail-table tbody tr:nth-child(even) { background-color: #eef2ff; }
+  .detail-table tbody tr:hover { background-color: #dbeafe; }
+  #mapDetailTotal { font-size: 14px; color: #0f172a; }
+  #mapDetailTitle { color: #fff; font-weight: 700; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.MAPA_ANO_PADRAO = {{ ano_atual }};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/mapa_gestao.js') }}"></script>
+{% endblock %}

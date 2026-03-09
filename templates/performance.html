@@ -1,363 +1,574 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% block title %}Performance{% endblock %}
 
 {% block content %}
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = { theme: { extend: { gridTemplateColumns: { 'auto-fit': 'repeat(auto-fit, minmax(180px, 1fr))' } } } };
-  </script>
-
-  <div class="px-2 md:px-4">
-    <div id="topSummary" class="grid grid-cols-1 md:grid-cols-5 gap-2 md:gap-3 mb-3">
-      <div class="bg-white rounded-md shadow-sm border p-2">
-        <div class="flex items-center gap-2">
-          <button id="btnPrevMonth" class="px-2 py-1 text-sm rounded border bg-gray-50 hover:bg-gray-100" title="MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âªs anterior">&lt;</button>
-          <div id="monthLabel" class="text-sm font-semibold text-gray-800 select-none"></div>
-          <button id="btnNextMonth" class="px-2 py-1 text-sm rounded border bg-gray-50 hover:bg-gray-100" title="MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âªs seguinte">&gt;</button>
-          <div class="ml-auto flex items-center gap-1">
-            <button id="btnSortName" class="px-2 py-1 text-sm rounded border bg-white text-gray-700 border-gray-300 hover:bg-gray-50" title="Ordenar por alojamento" aria-pressed="false">
-              <i class="fa-solid fa-house"></i>
-            </button>
-            <button id="btnSortOcc" class="px-2 py-1 text-sm rounded border bg-blue-600 text-white border-blue-600" title="Ordenar por ocupa&ccedil;&atilde;o" aria-pressed="true">
-              <i class="fa-solid fa-percent"></i>
-            </button>
+<div class="sz_page sz_performance_page">
+  <div class="sz_page_container">
+    <div class="sz_page_header sz_page_contextbar">
+      <div class="sz_contextbar sz_performance_contextbar">
+        <div class="sz_contextbar_left">
+          <div class="sz_page_title">Performance</div>
+          <div class="sz_page_subtitle">Indicadores de ocupação, disponibilidade, faturação e alojamentos.</div>
+        </div>
+        <div class="sz_contextbar_right">
+          <div class="sz_performance_toolbar">
+            <div class="sz_performance_month_group">
+              <button id="btnPrevMonth" type="button" class="sz_button sz_button_ghost sz_performance_icon_btn" title="Mês anterior" aria-label="Mês anterior">
+                <i class="fa-solid fa-chevron-left"></i>
+              </button>
+              <input id="monthPicker" type="month" class="sz_input sz_date sz_performance_month_input" aria-label="Selecionar mês">
+              <button id="btnNextMonth" type="button" class="sz_button sz_button_ghost sz_performance_icon_btn" title="Mês seguinte" aria-label="Mês seguinte">
+                <i class="fa-solid fa-chevron-right"></i>
+              </button>
+            </div>
+            <div class="sz_performance_sort_group" role="group" aria-label="Ordenação">
+              <button id="btnSortName" type="button" class="sz_button sz_button_ghost sz_performance_sort_btn" title="Ordenar por alojamento" aria-pressed="false">
+                <i class="fa-solid fa-house"></i>
+                <span>Nome</span>
+              </button>
+              <button id="btnSortOcc" type="button" class="sz_button sz_button_primary sz_performance_sort_btn" title="Ordenar por ocupação" aria-pressed="true">
+                <i class="fa-solid fa-percent"></i>
+                <span>Ocupação</span>
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
-      <div class="bg-white rounded-md shadow-sm border p-2 hidden">
-        <div class="flex items-center gap-2">
-          <label for="sortSelect" class="text-[11px] text-gray-500">Ordenar por</label>
-          <select id="sortSelect" class="text-sm border rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-gray-300">
-            <option value="occ" selected>Ocupa&ccedil;&atilde;o</option>
-            <option value="nome">Nome do alojamento</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-md shadow-sm border p-2">
-        <div class="text-[11px] text-gray-500 mb-1">Ocupa&ccedil;&atilde;o</div>
-        <div class="flex flex-wrap gap-4">
-          <span id="totalOccText" class="font-bold text-base">--%</span>
-          <span id="gestaoOccText" class="font-bold text-base text-green-600">--%</span>
-          <span id="exploracaoOccText" class="font-bold text-base text-blue-600">--%</span>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-md shadow-sm border p-2">
-        <div class="text-[11px] text-gray-500 mb-1">Disponibilidade</div>
-        <div class="flex flex-wrap gap-4">
-          <span id="totalDispText" class="font-semibold text-sm">--</span>
-          <span id="gestaoDispText" class="font-semibold text-sm text-green-600">--</span>
-          <span id="exploracaoDispText" class="font-semibold text-sm text-blue-600">--</span>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-md shadow-sm border p-2">
-        <div class="text-[11px] text-gray-500 mb-1">Fatura&ccedil;&atilde;o</div>
-        <div class="flex flex-wrap gap-4">
-          <span id="totalFatText" class="font-semibold text-sm">--</span>
-          <span id="gestaoFatText" class="font-semibold text-sm text-green-600">--</span>
-          <span id="exploracaoFatText" class="font-semibold text-sm text-blue-600">--</span>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-md shadow-sm border p-2">
-        <div class="text-[11px] text-gray-500 mb-1">Alojamentos</div>
-        <div class="flex flex-wrap gap-4">
-          <span id="totalCountText" class="font-semibold text-sm">--</span>
-          <span id="gestaoCountText" class="font-semibold text-sm text-green-600">--</span>
-          <span id="exploracaoCountText" class="font-semibold text-sm text-blue-600">--</span>
         </div>
       </div>
     </div>
 
-    <div id="cardsGrid" class="grid grid-cols-auto-fit gap-2"></div>
-  </div>
-
-  <script>
-    // Formatters
-    const fmtEUR0 = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
-    const fmtNum = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-    const fmtPct0 = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 });
-
-    // Date helpers
-    function toYMD(d) { const m = String(d.getMonth()+1).padStart(2,'0'); const day = String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${m}-${day}`; }
-    function firstDayOfMonth(base){ return new Date(base.getFullYear(), base.getMonth(), 1); }
-    function lastDayOfMonth(base){ return new Date(base.getFullYear(), base.getMonth()+1, 0); }
-    function monthLabelText(d){ return d.toLocaleDateString('pt-PT',{ month:'long' }) + ' ' + d.getFullYear(); }
-
-    // UI helpers
-    function normalizeTipo(t){ return (t||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase(); }
-    function barColor(p){ const clamped=Math.max(0,Math.min(100,Number(p)||0)); const hue=Math.round((clamped/100)*120); return `hsl(${hue} 85% 45%)`; }
-    function cardTintStyle(p){ const v=Number(p)||0; if(v>=99.5) return 'background-color:#f0fdf4'; if(v<=0.5) return 'background-color:#fef2f2'; return ''; }
-    function escapeHtml(s){ const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}; return String(s).replace(/[&<>"']/g,c=>m[c]||c); }
-    function badge(text, cls){ if(!text) return ''; return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}">${escapeHtml(text)}</span>`; }
-    function typeIcon(tipo){ return normalizeTipo(tipo)==='GESTAO'?`<i class="fa-solid fa-user text-gray-600 text-[12px]" title="GestÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o"></i>`:''; }
-
-    // State
-    let currentMonth = firstDayOfMonth(new Date());
-    let sortMode = 'occ';
-    let lastRows = [];
-
-    async function loadData(){
-      const ini = toYMD(firstDayOfMonth(currentMonth));
-      const fim = toYMD(lastDayOfMonth(currentMonth));
-      const res = await fetch(`/api/performance?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
-      const data = await res.json();
-      if(data.error){ document.getElementById('cardsGrid').innerHTML = '<div class="text-red-600">Erro ao carregar.</div>'; return; }
-      const rows = data.rows || [];
-      lastRows = rows.slice();
-      renderCards(lastRows);
-      renderTotals(lastRows);
-    }
-
-    function renderCards(rows){
-      const grid = document.getElementById('cardsGrid');
-      if(!rows.length){ grid.innerHTML = '<div class="text-gray-600">Sem dados para o perÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­odo selecionado.</div>'; return; }
-      if(sortMode === 'nome'){
-        rows.sort((a,b)=> (a.nome||'').localeCompare(b.nome||'', 'pt-PT', { sensitivity: 'base' }));
-      } else {
-        rows.sort((a,b)=>{
-          const ta = (Number(a.noites_ocupadas||0) / Math.max(1, Number(a.noites_totais||0)));
-          const tb = (Number(b.noites_ocupadas||0) / Math.max(1, Number(b.noites_totais||0)));
-          return ta - tb; // menor ocupaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o primeiro
-        });
-      }
-      grid.innerHTML = rows.map(r=>cardHTML(r)).join('');
-    }
-
-    function cardHTML(r){
-      const nome = r.nome||''; const tipologia=r.tipologia||''; const tipo=r.tipo||'';
-      const noitesOcup=Number(r.noites_ocupadas||0); const noitesDisp=Number(r.noites_disponiveis||0); const noitesTot=Number(r.noites_totais||0);
-      const taxa = (noitesTot > 0) ? Math.max(0, Math.min(100, (noitesOcup / noitesTot) * 100)) : 0;
-      const total=Number(r.total_liquido||0); const pm=Number(r.preco_medio_noite||0);
-      const level = (r.alert_level||'').toString();
-      const colorClass = level==='red' ? 'text-red-500' : (level==='orange' ? 'text-amber-500' : (level==='yellow' ? 'text-yellow-500' : ''));
-      const labelTitle = level==='red' ? 'Noites vazias nas prÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ximas 2 noites' : (level==='orange' ? 'Noites vazias nas prÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ximas 4 noites' : (level==='yellow' ? 'Noites vazias nas prÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ximas 7 noites' : ''));
-      const alertIcon = colorClass ? (
-        `<svg class="inline w-3 h-3 ${colorClass} mr-1" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" title="${labelTitle}">`
-        + '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.721-1.36 3.486 0l6.518 11.594c.75 1.334-.213 2.99-1.743 2.99H3.482c-1.53 0-2.493-1.656-1.743-2.99L8.257 3.1zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-1-2a1 1 0 01-1-1V8a1 1 0 112 0v3a1 1 0 01-1 1z" clip-rule="evenodd" />'
-        + '</svg>'
-      ) : '';
-      const tint = cardTintStyle(taxa);
-      return `
-        <div class="border rounded-md shadow-sm p-1 flex flex-col gap-0.5 min-h-[96px] perf-card cursor-pointer hover:shadow" style="${tint}" data-nome="${encodeURIComponent(nome)}">
-          <div class="flex items-start justify-between gap-1">
-            <div class="font-semibold text-gray-800 text-xs leading-tight truncate flex-1 min-w-0">${escapeHtml(nome)}</div>
-            <div class="flex gap-1 flex-wrap items-center justify-end">${badge(tipologia,'bg-gray-100 text-gray-700')}${typeIcon(tipo)}</div>
+    <div class="sz_page_body">
+      <div class="sz_page_content">
+        <div id="topSummary" class="sz_performance_summary_grid">
+          <div class="sz_card sz_performance_metric_card">
+            <div class="sz_caption">Ocupação</div>
+            <div class="sz_performance_metric_rows">
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Total</span>
+                <strong id="totalOccText" class="sz_h3">--%</strong>
+              </div>
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Gestão</span>
+                <strong id="gestaoOccText" class="sz_h4 sz_performance_metric_success">--%</strong>
+              </div>
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Exploração</span>
+                <strong id="exploracaoOccText" class="sz_h4 sz_performance_metric_info">--%</strong>
+              </div>
+            </div>
           </div>
-          <div class="grid grid-cols-4 gap-0.5 text-xs mt-0.5">
-            <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">Noites</span><span class="font-medium">${fmtNum.format(noitesOcup)} / ${fmtNum.format(noitesTot)}</span></div>
-            <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">Disp.</span><span class="font-medium">${fmtNum.format(noitesDisp)}</span></div>
-            <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">Total</span><span class="font-medium">${fmtEUR0.format(total)}</span></div>
-            <div class="flex flex-col leading-tight"><span class="text-gray-500 text-[10px]">PMN</span><span class="font-medium">${fmtEUR0.format(pm)}</span></div>
+
+          <div class="sz_card sz_performance_metric_card">
+            <div class="sz_caption">Disponibilidade</div>
+            <div class="sz_performance_metric_rows">
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Total</span>
+                <strong id="totalDispText" class="sz_h4">--</strong>
+              </div>
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Gestão</span>
+                <strong id="gestaoDispText" class="sz_h4 sz_performance_metric_success">--</strong>
+              </div>
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Exploração</span>
+                <strong id="exploracaoDispText" class="sz_h4 sz_performance_metric_info">--</strong>
+              </div>
+            </div>
           </div>
-          <div class="mt-auto pt-0.5">
-            <div class="flex justify-between text-[10px] text-gray-600 mb-0.5"><span>Ocupa&ccedil;&atilde;o</span><span class="font-bold text-sm">${alertIcon}${fmtNum.format(taxa)}%</span></div>
-            <div class="w-full h-1 bg-gray-200 rounded"><div class="h-1 rounded" style="width:${taxa}%; background-color:${barColor(taxa)};"></div></div>
+
+          <div class="sz_card sz_performance_metric_card">
+            <div class="sz_caption">Faturação</div>
+            <div class="sz_performance_metric_rows">
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Total</span>
+                <strong id="totalFatText" class="sz_h4">--</strong>
+              </div>
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Gestão</span>
+                <strong id="gestaoFatText" class="sz_h4 sz_performance_metric_success">--</strong>
+              </div>
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Exploração</span>
+                <strong id="exploracaoFatText" class="sz_h4 sz_performance_metric_info">--</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="sz_card sz_performance_metric_card">
+            <div class="sz_caption">Alojamentos</div>
+            <div class="sz_performance_metric_rows">
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Total</span>
+                <strong id="totalCountText" class="sz_h4">--</strong>
+              </div>
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Gestão</span>
+                <strong id="gestaoCountText" class="sz_h4 sz_performance_metric_success">--</strong>
+              </div>
+              <div class="sz_performance_metric_row">
+                <span class="sz_text_muted">Exploração</span>
+                <strong id="exploracaoCountText" class="sz_h4 sz_performance_metric_info">--</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="cardsGrid" class="sz_performance_cards_grid"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="perfDetailModal" tabindex="-1" aria-labelledby="perfDetailTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content sz_performance_modal_content">
+      <div class="modal-header sz_modal_header sz_performance_modal_header">
+        <h5 class="modal-title sz_modal_title" id="perfDetailTitle">Detalhe</h5>
+        <button type="button" class="sz_button sz_button_ghost sz_performance_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body sz_modal_body sz_performance_modal_body">
+        <div id="perfCalendar" class="sz_performance_calendar"></div>
+        <div class="sz_performance_detail_metrics">
+          <div class="sz_card sz_performance_detail_metric">
+            <span class="sz_text_muted">Faturado mês</span>
+            <strong id="perfCalTotalMonth" class="sz_h4">--</strong>
+          </div>
+          <div class="sz_card sz_performance_detail_metric">
+            <span class="sz_text_muted">Noites disp.</span>
+            <strong id="perfCalNightsAvail" class="sz_h4">--</strong>
+          </div>
+          <div class="sz_card sz_performance_detail_metric">
+            <span class="sz_text_muted">Est. restante</span>
+            <strong id="perfCalEstimate" class="sz_h4">--</strong>
+          </div>
+          <div class="sz_card sz_performance_detail_metric">
+            <span class="sz_text_muted">Total estimado</span>
+            <strong id="perfCalTotalEstimated" class="sz_h4">--</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const fmtEUR0 = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+  const fmtNum = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const fmtPct0 = new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 });
+
+  function toYMD(d) {
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${day}`;
+  }
+
+  function firstDayOfMonth(base) {
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  }
+
+  function lastDayOfMonth(base) {
+    return new Date(base.getFullYear(), base.getMonth() + 1, 0);
+  }
+
+  function monthLabelText(d) {
+    return d.toLocaleDateString('pt-PT', { month: 'long' }) + ' ' + d.getFullYear();
+  }
+
+  function monthInputValue(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  function normalizeTipo(t) {
+    return (t || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  }
+
+  function barColor(p) {
+    const clamped = Math.max(0, Math.min(100, Number(p) || 0));
+    const hue = Math.round((clamped / 100) * 120);
+    return `hsl(${hue} 85% 45%)`;
+  }
+
+  function escapeHtml(s) {
+    const m = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return String(s).replace(/[&<>"']/g, c => m[c] || c);
+  }
+
+  function badge(text, cls) {
+    if (!text) return '';
+    return `<span class="sz_badge ${cls}">${escapeHtml(text)}</span>`;
+  }
+
+  function typeBadge(tipo) {
+    return normalizeTipo(tipo) === 'GESTAO'
+      ? '<span class="sz_badge sz_badge_success">Gestão</span>'
+      : '<span class="sz_badge sz_badge_info">Exploração</span>';
+  }
+
+  let currentMonth = firstDayOfMonth(new Date());
+  let sortMode = 'occ';
+  let lastRows = [];
+
+  async function loadData() {
+    const ini = toYMD(firstDayOfMonth(currentMonth));
+    const fim = toYMD(lastDayOfMonth(currentMonth));
+    const res = await fetch(`/api/performance?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById('cardsGrid').innerHTML = '<div class="sz_panel sz_text_muted">Erro ao carregar.</div>';
+      return;
+    }
+    lastRows = (data.rows || []).slice();
+    renderCards(lastRows);
+    renderTotals(lastRows);
+  }
+
+  function renderCards(rows) {
+    const grid = document.getElementById('cardsGrid');
+    if (!rows.length) {
+      grid.innerHTML = '<div class="sz_panel sz_text_muted">Sem dados para o período selecionado.</div>';
+      return;
+    }
+
+    const ordered = rows.slice();
+    if (sortMode === 'nome') {
+      ordered.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-PT', { sensitivity: 'base' }));
+    } else {
+      ordered.sort((a, b) => {
+        const ta = (Number(a.noites_ocupadas || 0) / Math.max(1, Number(a.noites_totais || 0)));
+        const tb = (Number(b.noites_ocupadas || 0) / Math.max(1, Number(b.noites_totais || 0)));
+        return ta - tb;
+      });
+    }
+
+    grid.innerHTML = ordered.map(cardHTML).join('');
+  }
+
+  function cardHTML(r) {
+    const nome = r.nome || '';
+    const tipologia = r.tipologia || '';
+    const tipo = r.tipo || '';
+    const noitesOcup = Number(r.noites_ocupadas || 0);
+    const noitesDisp = Number(r.noites_disponiveis || 0);
+    const noitesTot = Number(r.noites_totais || 0);
+    const taxa = noitesTot > 0 ? Math.max(0, Math.min(100, (noitesOcup / noitesTot) * 100)) : 0;
+    const total = Number(r.total_liquido || 0);
+    const pm = Number(r.preco_medio_noite || 0);
+    const statusClass = taxa >= 99.5 ? 'is-full' : (taxa <= 0.5 ? 'is-empty' : '');
+
+    return `
+      <button type="button" class="sz_card sz_performance_card ${statusClass}" data-nome="${encodeURIComponent(nome)}">
+        <div class="sz_performance_card_header">
+          <div class="sz_stack sz_gap_1">
+            <div class="sz_h4 sz_performance_card_title">${escapeHtml(nome)}</div>
+            <div class="sz_inline sz_gap_1">
+              ${badge(tipologia, 'sz_badge_warning')}
+              ${typeBadge(tipo)}
+            </div>
+          </div>
+          <div class="sz_performance_card_value">
+            <span class="sz_caption">Ocupação</span>
+            <strong class="sz_h3">${fmtNum.format(taxa)}%</strong>
+          </div>
+        </div>
+
+        <div class="sz_performance_stat_grid">
+          <div class="sz_performance_stat">
+            <span class="sz_caption">Noites</span>
+            <strong>${fmtNum.format(noitesOcup)} / ${fmtNum.format(noitesTot)}</strong>
+          </div>
+          <div class="sz_performance_stat">
+            <span class="sz_caption">Disp.</span>
+            <strong>${fmtNum.format(noitesDisp)}</strong>
+          </div>
+          <div class="sz_performance_stat">
+            <span class="sz_caption">Faturação</span>
+            <strong>${fmtEUR0.format(total)}</strong>
+          </div>
+          <div class="sz_performance_stat">
+            <span class="sz_caption">PMN</span>
+            <strong>${fmtEUR0.format(pm)}</strong>
+          </div>
+        </div>
+
+        <div class="sz_performance_progress_meta">
+          <span class="sz_text_sm">Taxa do mês</span>
+          <span class="sz_text_sm">${fmtNum.format(taxa)}%</span>
+        </div>
+        <div class="sz_performance_progress_track">
+          <div class="sz_performance_progress_fill" style="width:${taxa}%; background-color:${barColor(taxa)};"></div>
+        </div>
+      </button>`;
+  }
+
+  function renderTotals(rows) {
+    const totalSpan = document.getElementById('totalOccText');
+    const gestaoSpan = document.getElementById('gestaoOccText');
+    const explSpan = document.getElementById('exploracaoOccText');
+    const totalFat = document.getElementById('totalFatText');
+    const gestaoFat = document.getElementById('gestaoFatText');
+    const explFat = document.getElementById('exploracaoFatText');
+    const totalCount = document.getElementById('totalCountText');
+    const gestaoCount = document.getElementById('gestaoCountText');
+    const explCount = document.getElementById('exploracaoCountText');
+    const totalDisp = document.getElementById('totalDispText');
+    const gestaoDisp = document.getElementById('gestaoDispText');
+    const explDisp = document.getElementById('exploracaoDispText');
+
+    function calcOcc(list) {
+      const t = list.reduce((a, r) => {
+        a.nt += Number(r.noites_totais || 0);
+        a.no += Number(r.noites_ocupadas || 0);
+        return a;
+      }, { nt: 0, no: 0 });
+      return t.nt > 0 ? (t.no / t.nt) * 100 : 0;
+    }
+
+    const gestaoRows = rows.filter(r => normalizeTipo(r.tipo) === 'GESTAO');
+    const explRows = rows.filter(r => normalizeTipo(r.tipo) !== 'GESTAO');
+    const allOcc = calcOcc(rows);
+    const gestaoOcc = calcOcc(gestaoRows);
+    const explOcc = calcOcc(explRows);
+
+    if (totalSpan) totalSpan.textContent = `${fmtPct0.format(allOcc)}%`;
+    if (gestaoSpan) gestaoSpan.textContent = `${fmtPct0.format(gestaoOcc)}%`;
+    if (explSpan) explSpan.textContent = `${fmtPct0.format(explOcc)}%`;
+
+    const sumValor = list => list.reduce((a, r) => a + Number(r.total_liquido || 0), 0);
+    const gestFatVal = sumValor(gestaoRows);
+    const explFatVal = sumValor(explRows);
+    const totalFatVal = (gestFatVal * 0.25) + explFatVal;
+
+    if (totalFat) totalFat.textContent = fmtEUR0.format(totalFatVal);
+    if (gestaoFat) gestaoFat.textContent = `${fmtEUR0.format(gestFatVal * 0.25)} (${fmtEUR0.format(gestFatVal)})`;
+    if (explFat) explFat.textContent = fmtEUR0.format(explFatVal);
+
+    const sumDisp = list => list.reduce((a, r) => a + Math.max(0, Number(r.noites_disponiveis || 0)), 0);
+    if (totalDisp) totalDisp.textContent = fmtNum.format(sumDisp(rows));
+    if (gestaoDisp) gestaoDisp.textContent = fmtNum.format(sumDisp(gestaoRows));
+    if (explDisp) explDisp.textContent = fmtNum.format(sumDisp(explRows));
+
+    if (totalCount) totalCount.textContent = String(rows.length);
+    if (gestaoCount) gestaoCount.textContent = String(gestaoRows.length);
+    if (explCount) explCount.textContent = String(explRows.length);
+  }
+
+  function updateSortButtons() {
+    const occ = document.getElementById('btnSortOcc');
+    const name = document.getElementById('btnSortName');
+    if (!occ || !name) return;
+
+    if (sortMode === 'nome') {
+      name.classList.add('sz_button_primary');
+      name.classList.remove('sz_button_ghost');
+      occ.classList.add('sz_button_ghost');
+      occ.classList.remove('sz_button_primary');
+      name.setAttribute('aria-pressed', 'true');
+      occ.setAttribute('aria-pressed', 'false');
+    } else {
+      occ.classList.add('sz_button_primary');
+      occ.classList.remove('sz_button_ghost');
+      name.classList.add('sz_button_ghost');
+      name.classList.remove('sz_button_primary');
+      occ.setAttribute('aria-pressed', 'true');
+      name.setAttribute('aria-pressed', 'false');
+    }
+  }
+
+  function syncMonthPicker() {
+    const picker = document.getElementById('monthPicker');
+    if (picker) picker.value = monthInputValue(currentMonth);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const prev = document.getElementById('btnPrevMonth');
+    const next = document.getElementById('btnNextMonth');
+    const picker = document.getElementById('monthPicker');
+    const btnName = document.getElementById('btnSortName');
+    const btnOcc = document.getElementById('btnSortOcc');
+    const cardsGrid = document.getElementById('cardsGrid');
+
+    function updateMonth(delta) {
+      if (delta) {
+        currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1);
+      }
+      syncMonthPicker();
+      loadData();
+    }
+
+    if (prev) prev.addEventListener('click', () => updateMonth(-1));
+    if (next) next.addEventListener('click', () => updateMonth(1));
+
+    if (picker) {
+      picker.addEventListener('change', (e) => {
+        const value = e.target.value || '';
+        const parts = value.split('-');
+        if (parts.length !== 2) return;
+        currentMonth = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+        loadData();
+      });
+    }
+
+    if (btnName) {
+      btnName.addEventListener('click', () => {
+        sortMode = 'nome';
+        updateSortButtons();
+        renderCards(lastRows || []);
+      });
+    }
+
+    if (btnOcc) {
+      btnOcc.addEventListener('click', () => {
+        sortMode = 'occ';
+        updateSortButtons();
+        renderCards(lastRows || []);
+      });
+    }
+
+    if (cardsGrid) {
+      cardsGrid.addEventListener('click', (ev) => {
+        const card = ev.target.closest('.sz_performance_card');
+        if (!card) return;
+        const nome = decodeURIComponent(card.dataset.nome || '');
+        openPerfDetail(nome);
+      });
+    }
+
+    syncMonthPicker();
+    updateSortButtons();
+    loadData();
+  });
+
+  async function openPerfDetail(nome) {
+    const title = document.getElementById('perfDetailTitle');
+    title.textContent = nome + ' - ' + monthLabelText(currentMonth);
+    const ini = toYMD(firstDayOfMonth(currentMonth));
+    const fim = toYMD(lastDayOfMonth(currentMonth));
+
+    try {
+      const res = await fetch(`/api/performance/ocupacao?alojamento=${encodeURIComponent(nome)}&data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
+      const data = await res.json();
+      if (data && data.error) throw new Error(data.error);
+
+      const mapa = (data && data.mapa) || {};
+      const totalMonth = Object.values(mapa).reduce((a, v) => a + Number(v || 0), 0);
+      const occupiedDays = new Set(Object.keys(mapa));
+      const occupiedCount = occupiedDays.size;
+
+      const today = new Date();
+      const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const baseStart = firstDayOfMonth(currentMonth);
+      const baseEnd = lastDayOfMonth(currentMonth);
+      const availStart = (t0 > baseStart) ? t0 : baseStart;
+
+      const keys = [];
+      for (let d = new Date(baseStart); d <= baseEnd; d.setDate(d.getDate() + 1)) {
+        keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+      }
+
+      const singles = new Set();
+      let nightsAvail = 0;
+      let i = 0;
+      while (i < keys.length) {
+        const parts = keys[i].split('-');
+        const kd = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        if (kd >= availStart) break;
+        i++;
+      }
+
+      while (i < keys.length) {
+        const k = keys[i];
+        if (occupiedDays.has(k)) {
+          i++;
+          continue;
+        }
+        let j = i;
+        while (j < keys.length && !occupiedDays.has(keys[j])) j++;
+        const runLen = j - i;
+        if (runLen === 1) singles.add(keys[i]);
+        if (runLen >= 2) nightsAvail += runLen;
+        i = j;
+      }
+
+      renderCalendar('perfCalendar', currentMonth, mapa, singles);
+      const avgPerNight = occupiedCount > 0 ? (totalMonth / occupiedCount) : 0;
+      const estimate = avgPerNight * nightsAvail * 0.8;
+      document.getElementById('perfCalTotalMonth').textContent = fmtEUR0.format(totalMonth);
+      document.getElementById('perfCalNightsAvail').textContent = fmtNum.format(nightsAvail);
+      document.getElementById('perfCalEstimate').textContent = fmtEUR0.format(estimate);
+      document.getElementById('perfCalTotalEstimated').textContent = fmtEUR0.format(totalMonth + estimate);
+    } catch (e) {
+      console.error(e);
+      renderCalendar('perfCalendar', currentMonth, {}, new Set());
+      document.getElementById('perfCalTotalMonth').textContent = '--';
+      document.getElementById('perfCalNightsAvail').textContent = '--';
+      document.getElementById('perfCalEstimate').textContent = '--';
+      document.getElementById('perfCalTotalEstimated').textContent = '--';
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('perfDetailModal'));
+    modal.show();
+  }
+
+  function renderCalendar(containerId, baseDate, dailyTotals, singleNights) {
+    const cont = document.getElementById(containerId);
+    if (!cont) return;
+
+    const year = baseDate.getFullYear();
+    const month = baseDate.getMonth();
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const firstWeekday = (first.getDay() === 0 ? 7 : first.getDay());
+    const daysInMonth = last.getDate();
+    const cells = [];
+
+    for (let i = 1; i < firstWeekday; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+    while (cells.length % 7 !== 0) cells.push(null);
+
+    const weekdays = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+    let html = '<div class="sz_performance_calendar_head">';
+    html += weekdays.map(w => `<div class="sz_performance_calendar_weekday">${w}</div>`).join('');
+    html += '</div><div class="sz_performance_calendar_grid">';
+
+    for (const cell of cells) {
+      if (cell === null) {
+        html += '<div class="sz_performance_calendar_cell is-empty"></div>';
+        continue;
+      }
+
+      const y = cell.getFullYear();
+      const m = String(cell.getMonth() + 1).padStart(2, '0');
+      const d = String(cell.getDate()).padStart(2, '0');
+      const key = `${y}-${m}-${d}`;
+      const val = Number((dailyTotals && dailyTotals[key]) || 0);
+      const occ = val > 0;
+      const isPast = cell < todayStart;
+      const isToday = cell.getFullYear() === todayStart.getFullYear() &&
+        cell.getMonth() === todayStart.getMonth() &&
+        cell.getDate() === todayStart.getDate();
+      const isSingle = singleNights && singleNights.has(key);
+      const classes = [
+        'sz_performance_calendar_cell',
+        occ ? 'is-occupied' : '',
+        isPast ? 'is-past' : '',
+        isToday ? 'is-today' : '',
+        isSingle ? 'is-single' : ''
+      ].filter(Boolean).join(' ');
+
+      html += `
+        <div class="${classes}">
+          <div class="sz_performance_calendar_day">${cell.getDate()}</div>
+          <div class="sz_performance_calendar_total">${occ ? fmtEUR0.format(val) : ''}</div>
         </div>`;
     }
 
-    function renderTotals(rows){
-      const totalSpan=document.getElementById('totalOccText'); const gestaoSpan=document.getElementById('gestaoOccText'); const explSpan=document.getElementById('exploracaoOccText');
-      const totalFat=document.getElementById('totalFatText'); const gestaoFat=document.getElementById('gestaoFatText'); const explFat=document.getElementById('exploracaoFatText');
-      const totalCount=document.getElementById('totalCountText'); const gestaoCount=document.getElementById('gestaoCountText'); const explCount=document.getElementById('exploracaoCountText');
-      const totalDisp=document.getElementById('totalDispText'); const gestaoDisp=document.getElementById('gestaoDispText'); const explDisp=document.getElementById('exploracaoDispText');
-
-      function calcOcc(list){ const t=list.reduce((a,r)=>{a.nt+=Number(r.noites_totais||0); a.no+=Number(r.noites_ocupadas||0); return a;},{nt:0,no:0}); return t.nt>0?(t.no/t.nt)*100:0 }
-      const gestaoRows=rows.filter(r=>normalizeTipo(r.tipo)==='GESTAO'); const explRows=rows.filter(r=>normalizeTipo(r.tipo)!=='GESTAO');
-      const allOcc=calcOcc(rows), gestaoOcc=calcOcc(gestaoRows), explOcc=calcOcc(explRows);
-      if(totalSpan) totalSpan.textContent = `${fmtPct0.format(allOcc)}%`; if(gestaoSpan) gestaoSpan.textContent = `${fmtPct0.format(gestaoOcc)}%`; if(explSpan) explSpan.textContent = `${fmtPct0.format(explOcc)}%`;
-
-      const sumValor=list=>list.reduce((a,r)=>a+Number(r.total_liquido||0),0);
-      const gestFatVal=sumValor(gestaoRows), explFatVal=sumValor(explRows); const totalFatVal=(gestFatVal*0.25)+explFatVal;
-      if(totalFat) totalFat.textContent = fmtEUR0.format(totalFatVal);
-      if(gestaoFat){ const gest25=gestFatVal*0.25; gestaoFat.innerHTML = `${fmtEUR0.format(gest25)} <span class="text-[11px] text-gray-500">(${fmtEUR0.format(gestFatVal)})</span>`; }
-      if(explFat) explFat.textContent = fmtEUR0.format(explFatVal);
-
-      const sumDisp=list=>list.reduce((a,r)=>a+Math.max(0,Number(r.noites_disponiveis||0)),0);
-      if(totalDisp) totalDisp.textContent = fmtNum.format(sumDisp(rows));
-      if(gestaoDisp) gestaoDisp.textContent = fmtNum.format(sumDisp(gestaoRows));
-      if(explDisp) explDisp.textContent = fmtNum.format(sumDisp(explRows));
-
-      if(totalCount) totalCount.textContent = String(rows.length);
-      if(gestaoCount) gestaoCount.textContent = String(gestaoRows.length);
-      if(explCount) explCount.textContent = String(explRows.length);
-    }
-
-    function updateSortButtons(){
-      const occ=document.getElementById('btnSortOcc');
-      const name=document.getElementById('btnSortName');
-      if(!occ||!name) return;
-      const active=['bg-blue-600','text-white','border-blue-600'];
-      const inactive=['bg-white','text-gray-700','border-gray-300','hover:bg-gray-50'];
-      function setActive(el,isActive){
-        if(!el) return;
-        const add = isActive ? active : inactive;
-        const rem = isActive ? inactive : active;
-        rem.forEach(c=>el.classList.remove(c));
-        add.forEach(c=>el.classList.add(c));
-        el.setAttribute('aria-pressed', String(isActive));
-      }
-      setActive(occ, sortMode!=='nome');
-      setActive(name, sortMode==='nome');
-    }
-
-    document.addEventListener('DOMContentLoaded',()=>{
-      const label=document.getElementById('monthLabel'); const prev=document.getElementById('btnPrevMonth'); const next=document.getElementById('btnNextMonth');
-      function updateMonth(delta){ if(delta){ currentMonth=new Date(currentMonth.getFullYear(), currentMonth.getMonth()+delta, 1); } if(label) label.textContent=monthLabelText(currentMonth); loadData(); }
-      if(prev) prev.addEventListener('click',()=>updateMonth(-1)); if(next) next.addEventListener('click',()=>updateMonth(1));
-      const btnName = document.getElementById('btnSortName');
-      const btnOcc = document.getElementById('btnSortOcc');
-      if(btnName){ btnName.addEventListener('click', ()=>{ sortMode='nome'; updateSortButtons(); renderCards(lastRows||[]); }); }
-      if(btnOcc){ btnOcc.addEventListener('click', ()=>{ sortMode='occ'; updateSortButtons(); renderCards(lastRows||[]); }); }
-      updateSortButtons();
-      const sortSel = document.getElementById('sortSelect');
-      if(sortSel){ sortSel.addEventListener('change', (e)=>{ sortMode = e.target.value || 'occ'; renderCards(lastRows||[]); }); }
-      document.getElementById('cardsGrid').addEventListener('click',ev=>{ const card=ev.target.closest('.perf-card'); if(!card) return; const nome=decodeURIComponent(card.dataset.nome||''); openPerfDetail(nome); });
-      if(label) label.textContent=monthLabelText(currentMonth);
-      loadData();
-    });
-
-    async function openPerfDetail(nome){
-      const title=document.getElementById('perfDetailTitle');
-      const monthTxt=monthLabelText(currentMonth);
-      title.textContent = nome + " - " + monthTxt;
-      const ini = toYMD(firstDayOfMonth(currentMonth));
-      const fim = toYMD(lastDayOfMonth(currentMonth));
-      try{
-        const res = await fetch(`/api/performance/ocupacao?alojamento=${encodeURIComponent(nome)}&data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
-        const data = await res.json(); if(data && data.error){ console.error(data.error); throw new Error(data.error); }
-        const mapa = (data && data.mapa) || {};
-        const totalMonth = Object.values(mapa).reduce((a,v)=>a+Number(v||0), 0);
-        const occupiedDays = new Set(Object.keys(mapa));
-        const occupiedCount = occupiedDays.size;
-        const today = new Date(); const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        const baseStart = firstDayOfMonth(currentMonth); const baseEnd = lastDayOfMonth(currentMonth);
-        const availStart = (t0 > baseStart) ? t0 : baseStart;
-        const keys = [];
-        for(let d=new Date(baseStart); d <= baseEnd; d.setDate(d.getDate()+1)){
-          keys.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
-        }
-        const singles = new Set();
-        let nightsAvail = 0;
-        let i = 0;
-        while(i < keys.length){ const parts = keys[i].split('-'); const kd = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2])); if (kd >= availStart) break; i++; }
-        while(i < keys.length){
-          const k = keys[i];
-          if (occupiedDays.has(k)) { i++; continue; }
-          let j = i;
-          while(j < keys.length && !occupiedDays.has(keys[j])) j++;
-          const runLen = j - i;
-          if (runLen === 1){ singles.add(keys[i]); }
-          if (runLen >= 2){ nightsAvail += runLen; }
-          i = j;
-        }
-        renderCalendar('perfCalendar', currentMonth, mapa, singles);
-        const avgPerNight = occupiedCount > 0 ? (totalMonth / occupiedCount) : 0;
-        const estimate = avgPerNight * nightsAvail * 0.8;
-        document.getElementById('perfCalTotalMonth').textContent = fmtEUR0.format(totalMonth);
-        document.getElementById('perfCalNightsAvail').textContent = fmtNum.format(nightsAvail);
-        document.getElementById('perfCalEstimate').textContent = fmtEUR0.format(estimate);
-        document.getElementById('perfCalTotalEstimated').textContent = fmtEUR0.format(totalMonth + estimate);
-      } catch(e){
-        console.error(e);
-        renderCalendar('perfCalendar', currentMonth, {}, new Set());
-        document.getElementById('perfCalTotalMonth').textContent = '--';
-        document.getElementById('perfCalNightsAvail').textContent = '--';
-        document.getElementById('perfCalEstimate').textContent = '--';
-        document.getElementById('perfCalTotalEstimated').textContent = '--';
-      }
-      const modal=new bootstrap.Modal(document.getElementById('perfDetailModal'));
-      modal.show();
-    }
-
-    function renderCalendar(containerId, baseDate, dailyTotals, singleNights){
-      const cont = document.getElementById(containerId);
-      if(!cont) return;
-      const year = baseDate.getFullYear();
-      const month = baseDate.getMonth();
-      const first = new Date(year, month, 1);
-      const last = new Date(year, month+1, 0);
-      const today = new Date();
-      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const firstWeekday = (first.getDay() === 0 ? 7 : first.getDay());
-      const daysInMonth = last.getDate();
-      const cells = [];
-      for(let i=1;i<firstWeekday;i++){ cells.push(null); }
-      for(let d=1; d<=daysInMonth; d++){ cells.push(new Date(year, month, d)); }
-      while(cells.length % 7 !== 0){ cells.push(null); }
-      const weekdays = ['Seg','Ter','Qua','Qui','Sex','S\u00E1b','Dom'];
-      let html = '';
-      html += '<div class="grid grid-cols-7 gap-1 text-xs mb-1">' +
-              weekdays.map(w=>`<div class="text-gray-500 text-center font-medium">${w}</div>`).join('') + '</div>';
-      html += '<div class="grid grid-cols-7 gap-1">';
-      for(const cell of cells){
-        if(cell===null){ html += '<div class="h-12 bg-gray-50 rounded"></div>'; continue; }
-        const y = cell.getFullYear();
-        const m = String(cell.getMonth()+1).padStart(2,'0');
-        const d = String(cell.getDate()).padStart(2,'0');
-        const key = `${y}-${m}-${d}`;
-        const val = Number((dailyTotals && dailyTotals[key]) || 0);
-        const occ = val > 0;
-        const isPast = cell < todayStart;
-        const isToday = (cell.getFullYear()===todayStart.getFullYear() && cell.getMonth()===todayStart.getMonth() && cell.getDate()===todayStart.getDate());
-        const isSingle = singleNights && singleNights.has(key);
-        const isBoundaryLast = (cell.getFullYear()===year && cell.getMonth()===month && cell.getDate()===daysInMonth);
-        const nextFirstDate = new Date(year, month+1, 1);
-        const nextFirstKey = `${nextFirstDate.getFullYear()}-${String(nextFirstDate.getMonth()+1).padStart(2,'0')}-${String(nextFirstDate.getDate()).padStart(2,'0')}`;
-        const nextFirstOcc = Number((dailyTotals && dailyTotals[nextFirstKey]) || 0) > 0;
-        const effectiveSingle = isSingle && !(isBoundaryLast && !nextFirstOcc);
-        let cls = occ ? 'bg-blue-500' : (isPast ? 'bg-gray-100 opacity-60' : (effectiveSingle ? 'bg-amber-100' : 'bg-white'));
-        if (isToday) { cls = occ ? 'bg-blue-600' : 'bg-gray-400'; }
-        const ring = occ ? '' : 'border border-gray-200';
-        const totalTxt = occ ? fmtEUR0.format(val) : '';
-        const dayNumCls = 'text-[10px] font-semibold text-right ' + (occ ? 'text-white' : (isPast ? 'text-gray-400' : 'text-gray-700'));
-        const valCls = 'mt-auto text-[10px] text-right ' + (occ ? 'text-white' : (isPast ? 'text-gray-400' : 'text-gray-600'));
-        const dayNum = cell.getDate();
-        const diagStyle = (!occ && effectiveSingle) ? 'background-image: repeating-linear-gradient(135deg, rgba(245,158,11,0.35) 0 3px, transparent 3px 8px);' : '';
-        html += `<div class="h-12 rounded ${cls} ${ring} p-1 flex flex-col" style="${diagStyle}">
-                   <div class="${dayNumCls}">${dayNum}</div>
-                   <div class="${valCls}">${totalTxt}</div>
-                 </div>`;
-      }
-      html += '</div>';
-      cont.innerHTML = html;
-    }
-  </script>
-
-  <div class="modal fade" id="perfDetailModal" tabindex="-1" aria-labelledby="perfDetailTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="perfDetailTitle">Detalhe</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-        </div>
-        <div class="modal-body">
-          <div id="perfCalendar" class="p-2"></div>
-          <div class="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-2 text-sm">
-            <div class="bg-gray-50 border rounded p-2 flex items-center justify-between">
-              <span class="text-gray-600">Faturado M&ecirc;s</span>
-              <span id="perfCalTotalMonth" class="font-semibold">--</span>
-            </div>
-            <div class="bg-gray-50 border rounded p-2 flex items-center justify-between">
-              <span class="text-gray-600">Noites disp.</span>
-              <span id="perfCalNightsAvail" class="font-semibold">--</span>
-            </div>
-            <div class="bg-gray-50 border rounded p-2 flex items-center justify-between">
-              <span class="text-gray-600">Est. restante</span>
-              <span id="perfCalEstimate" class="font-semibold">--</span>
-            </div>
-            <div class="bg-gray-50 border rounded p-2 flex items-center justify-between">
-              <span class="text-gray-600">Total estimado</span>
-              <span id="perfCalTotalEstimated" class="font-semibold">--</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+    html += '</div>';
+    cont.innerHTML = html;
+  }
+</script>
 {% endblock %}
-
-

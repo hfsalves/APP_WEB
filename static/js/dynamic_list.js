@@ -372,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const defaultFilter = parseDefaultFilter(col);
       if (col.tipo === 'DATE') {
         const wrapRow = document.createElement('div');
-        wrapRow.classList.add('sz_field');
+        wrapRow.classList.add('sz_field', 'sz_filter_date_range');
 
         const label = document.createElement('label');
         label.classList.add('sz_label');
@@ -380,14 +380,14 @@ document.addEventListener('DOMContentLoaded', () => {
         wrapRow.append(label);
 
         const row = document.createElement('div');
-        row.classList.add('sz_grid', 'sz_grid_2');
+        row.classList.add('sz_grid', 'sz_grid_2', 'sz_filter_date_range_row');
 
         ['from', 'to'].forEach(dir => {
           const inp = document.createElement('input');
           inp.type = 'date';
           inp.name = `${col.name}_${dir}`;
           inp.dataset.isDateRange = '1';
-          inp.classList.add('sz_date');
+          inp.classList.add('sz_date', 'sz_filter_date_input');
           inp.placeholder = dir === 'from' ? 'De' : 'Até';
           if (defaultFilter && defaultFilter[dir]) markDefaultControl(inp, defaultFilter[dir]);
           row.append(inp);

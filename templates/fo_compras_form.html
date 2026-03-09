@@ -1,21 +1,27 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% set page_title = "Compras" %}
 {% set page_name = "Compras" %}
 {% block title %}Compras{% endblock %}
 
 {% block content %}
-<div class="fo-layout">
-<div class="dynamic-form dynamic-form-card">
-  <div class="dynamic-form-toolbar d-flex justify-content-between align-items-center mb-3"></div>
-  <div class="fo-status-row d-flex gap-2 mb-2" id="foStatusRow" style="display:none;">
-    <div class="fo-status-card sync" id="foSyncBadge">Sincronizado</div>
-    <div class="fo-status-card plano" id="foPlanoBadge">Contabilizado</div>
-    <div class="fo-status-card pago" id="foPagoBadge" style="display:none;">Pago</div>
-  </div>
+<div class="sz_dynamic_form_page fo-compras-page">
+  <header class="sz_contextbar sz_dynamic_form_contextbar fo-compras-contextbar">
+    <div class="sz_contextbar_left fo-compras-contextbar-left">
+      <h1 class="sz_page_title">Compras</h1>
+      <p class="sz_page_subtitle">Gestao do documento de compra</p>
+    </div>
+    <div class="sz_contextbar_right fo-compras-contextbar-right">
+      <div class="fo-status-row" id="foStatusRow" style="display:none;">
+        <div class="fo-status-card sz_badge sz_badge_info sync" id="foSyncBadge">Sincronizado</div>
+        <div class="fo-status-card sz_badge sz_badge_success plano" id="foPlanoBadge">Contabilizado</div>
+        <div class="fo-status-card sz_badge sz_badge_warning pago" id="foPagoBadge" style="display:none;">Pago</div>
+      </div>
+    </div>
+  </header>
 
-  <section class="dynamic-form-body dynamic-form-body-modern">
-    <form id="foForm" class="row g-3" autocomplete="off">
+  <div class="sz_dynamic_form_scroll fo-compras-scroll">
+    <form id="foForm" class="fof-form" autocomplete="off" hidden>
       <input type="hidden" id="FOSTAMP" name="FOSTAMP" />
       <input type="hidden" id="MORADA" name="MORADA" />
       <input type="hidden" id="LOCAL" name="LOCAL" />
@@ -25,164 +31,265 @@
       <input type="hidden" id="SYNC" name="SYNC" />
       <input type="hidden" id="PLANO" name="PLANO" />
 
-      <div class="col-12">
         <div class="row g-2">
         <div class="col-md-3">
           <label class="form-label" for="DOCNOME">Documento <span class="text-danger">*</span></label>
-          <select id="DOCNOME" name="DOCNOME" class="form-select" required>
+          <select id="DOCNOME" name="DOCNOME" class="form-select sz_select" required>
             <option value="">---</option>
           </select>
         </div>
           <div class="col-md-3">
             <label class="form-label" for="ADOC">Numero <span class="text-danger">*</span></label>
-            <input type="text" id="ADOC" name="ADOC" class="form-control" required>
+            <input type="text" id="ADOC" name="ADOC" class="form-control sz_input" required>
           </div>
           <div class="col-md-2">
             <label class="form-label" for="DATA">Data <span class="text-danger">*</span></label>
-            <input type="date" id="DATA" name="DATA" class="form-control" required>
+            <input type="date" id="DATA" name="DATA" class="form-control sz_input" required>
           </div>
           <div class="col-md-2">
             <label class="form-label" for="DOCDATA">Data Documento <span class="text-danger">*</span></label>
-            <input type="date" id="DOCDATA" name="DOCDATA" class="form-control" required>
+            <input type="date" id="DOCDATA" name="DOCDATA" class="form-control sz_input" required>
           </div>
           <div class="col-md-2">
             <label class="form-label" for="PDATA">Vencimento <span class="text-danger">*</span></label>
-            <input type="date" id="PDATA" name="PDATA" class="form-control" required>
+            <input type="date" id="PDATA" name="PDATA" class="form-control sz_input" required>
           </div>
         </div>
-      </div>
 
-      <div class="col-12">
         <div class="row g-2">
         <div class="col-md-6">
           <label class="form-label" for="NOME">Nome <span class="text-danger">*</span></label>
           <div class="position-relative">
-            <input type="text" id="NOME" name="NOME" class="form-control" autocomplete="off" required>
+            <input type="text" id="NOME" name="NOME" class="form-control sz_input" autocomplete="off" required>
             <div id="nomeSuggestions" class="dropdown-menu w-100" style="max-height:200px; overflow-y:auto;"></div>
           </div>
         </div>
         <div class="col-md-1">
           <label class="form-label" for="NO">No. <span class="text-danger">*</span></label>
-          <input type="number" step="1" id="NO" name="NO" class="form-control" readonly required>
+          <input type="number" step="1" id="NO" name="NO" class="form-control sz_input" readonly required>
         </div>
         <div class="col-md-2">
           <label class="form-label" for="NCONT">NIF</label>
-          <input type="text" id="NCONT" name="NCONT" class="form-control" readonly>
+          <input type="text" id="NCONT" name="NCONT" class="form-control sz_input" readonly>
         </div>
         <div class="col-md-3">
           <label class="form-label" for="CCUSTO">C. Custo <span class="text-danger">*</span></label>
-          <select id="CCUSTO" name="CCUSTO" class="form-select" required>
+          <select id="CCUSTO" name="CCUSTO" class="form-select sz_select" required>
             <option value="">---</option>
           </select>
         </div>
         </div>
-      </div>
 
-      <div class="col-12">
-        <div class="fo-totals-row" id="totalsRow">
-          <div class="fo-totals-col">
+        <div class="row g-2" id="totalsRow">
+          <div class="col-md-3 fo-totals-col">
             <label class="form-label" for="TPDESC">Modo Pagamento</label>
-            <select id="TPDESC" name="TPDESC" class="form-select">
+            <select id="TPDESC" name="TPDESC" class="form-select sz_select">
               <option value="">---</option>
             </select>
           </div>
-          <div class="fo-totals-col invisible-slot" id="colabWrapper">
+          <div class="col-md-1 fo-totals-col invisible-slot" id="colabWrapper">
             <label class="form-label" for="COLAB">Colaborador</label>
-            <select id="COLAB" name="COLAB" class="form-select">
+            <select id="COLAB" name="COLAB" class="form-select sz_select">
               <option value="">---</option>
             </select>
           </div>
-        <div class="fo-totals-col">
+        <div class="col-md-2 fo-totals-col">
           <label class="form-label" for="ETTILIQ">Base</label>
-          <input type="number" step="0.01" id="ETTILIQ" name="ETTILIQ" class="form-control" readonly>
+          <input type="number" step="0.01" id="ETTILIQ" name="ETTILIQ" class="form-control sz_input" readonly>
         </div>
-        <div class="fo-totals-col">
+        <div class="col-md-2 fo-totals-col">
           <label class="form-label" for="ETTIVA">IVA</label>
-          <input type="number" step="0.01" id="ETTIVA" name="ETTIVA" class="form-control" readonly>
+          <input type="number" step="0.01" id="ETTIVA" name="ETTIVA" class="form-control sz_input" readonly>
         </div>
-        <div class="fo-totals-col">
+        <div class="col-md-2 fo-totals-col">
           <label class="form-label" for="ETOTAL">Total</label>
-          <input type="number" step="0.01" id="ETOTAL" name="ETOTAL" class="form-control" readonly>
+          <input type="number" step="0.01" id="ETOTAL" name="ETOTAL" class="form-control sz_input" readonly>
         </div>
+        <div class="col-md-2 fo-totals-col"></div>
         </div>
-      </div>
     </form>
+
+  <section class="sz_panel sz_stack fof-sz-preview">
+        <div class="sz_purchase_form_row_docs">
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_DOCNOME">Documento *</label>
+            <select id="SZ_DOCNOME" class="sz_select"></select>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_ADOC">Numero *</label>
+            <input id="SZ_ADOC" type="text" class="sz_input">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_DATA">Data *</label>
+            <input id="SZ_DATA" type="date" class="sz_input">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_DOCDATA">Data Documento *</label>
+            <input id="SZ_DOCDATA" type="date" class="sz_input">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_PDATA">Vencimento *</label>
+            <input id="SZ_PDATA" type="date" class="sz_input">
+          </div>
+        </div>
+
+        <div class="sz_purchase_form_row_entity">
+          <div class="sz_field sz_purchase_autocomplete">
+            <label class="sz_label" for="SZ_NOME">Nome *</label>
+            <input id="SZ_NOME" type="text" class="sz_input" autocomplete="off">
+            <div id="szNomeSuggestions" class="sz_purchase_suggestions"></div>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_NO">No. *</label>
+            <input id="SZ_NO" type="number" step="1" class="sz_input">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_NCONT">NIF</label>
+            <input id="SZ_NCONT" type="text" class="sz_input">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_CCUSTO">C. Custo *</label>
+            <select id="SZ_CCUSTO" class="sz_select"></select>
+          </div>
+        </div>
+
+        <div class="sz_purchase_form_row_totals">
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_TPDESC">Modo Pagamento</label>
+            <select id="SZ_TPDESC" class="sz_select"></select>
+          </div>
+          <div class="sz_field sz_field_placeholder" aria-hidden="true">
+            <label class="sz_label" for="SZ_COLAB">Colaborador</label>
+            <select id="SZ_COLAB" class="sz_select"></select>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_ETTILIQ">Base</label>
+            <input id="SZ_ETTILIQ" type="number" step="0.01" class="sz_input">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_ETTIVA">IVA</label>
+            <input id="SZ_ETTIVA" type="number" step="0.01" class="sz_input">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="SZ_ETOTAL">Total</label>
+            <input id="SZ_ETOTAL" type="number" step="0.01" class="sz_input">
+          </div>
+        </div>
   </section>
 
-  <section class="dynamic-form-panels mt-3">
-    <div class="d-flex justify-content-between align-items-center mb-2">
+  <section class="sz_section fo-lines-panel">
+    <div class="sz_section_header fo-lines-panel-header">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div class="d-flex gap-2">
-        <button id="btnAddLine" class="btn btn-outline-primary btn-sm">
+        <button id="btnAddLine" class="sz_button sz_button_primary" type="button">
           <i class="fa fa-plus"></i> Adicionar linha
         </button>
-        <button id="btnImportContrato" class="btn btn-outline-secondary btn-sm">
+        <button id="btnImportContrato" class="sz_button sz_button_ghost" type="button">
           <i class="fa fa-copy"></i> Importar contrato
         </button>
       </div>
     </div>
-  <div class="table-responsive fo-lines">
-    <table class="table table-sm table-hover align-middle fo-lines-table fo-lines-compact" id="linesTable">
-      <thead>
+    </div>
+    <div class="sz_section_body">
+  <div class="sz_table_host fo-lines">
+    <div class="sz_table_wrap">
+    <table class="sz_table sz_table_compact fo-lines-grid" id="linesTable">
+      <colgroup>
+        <col class="fo-col-search">
+        <col class="fo-col-ref">
+        <col class="fo-col-design">
+        <col class="fo-col-qtt">
+        <col class="fo-col-un">
+        <col class="fo-col-preco">
+        <col class="fo-col-total">
+        <col class="fo-col-iva">
+        <col class="fo-col-incl">
+        <col class="fo-col-ccusto">
+        <col class="fo-col-dtcusto">
+        <col class="fo-col-familia">
+        <col class="fo-col-delete">
+      </colgroup>
+      <thead class="sz_table_head">
         <tr>
-            <th>Referência</th>
-            <th>Designação</th>
-            <th>Quant.</th>
-            <th>Un.</th>
-            <th>Preço</th>
-            <th>Total</th>
-            <th>IVA</th>
-            <th>Incl.</th>
-            <th>C. Custo</th>
-            <th>DT. CUSTO</th>
-            <th>Família</th>
-            <th></th>
+            <th style="width: var(--sz-input-height); min-width: var(--sz-input-height); max-width: var(--sz-input-height);"></th>
+            <th style="width: 16ch; min-width: 16ch; max-width: 16ch;">Referencia</th>
+            <th style="width: 38ch; min-width: 38ch; max-width: 38ch;">Designacao</th>
+            <th style="width: 10ch; min-width: 10ch; max-width: 10ch;">Quant.</th>
+            <th style="width: 4ch; min-width: 4ch; max-width: 4ch;">Un.</th>
+            <th style="width: 10ch; min-width: 10ch; max-width: 10ch;">Preco</th>
+            <th style="width: 10ch; min-width: 10ch; max-width: 10ch;">Total</th>
+            <th style="width: 8ch; min-width: 8ch; max-width: 8ch;">IVA</th>
+            <th style="width: 4ch; min-width: 4ch; max-width: 4ch;">Incl.</th>
+            <th style="width: 12ch; min-width: 12ch; max-width: 12ch;">C. Custo</th>
+            <th style="width: 14ch; min-width: 14ch; max-width: 14ch;">DT. CUSTO</th>
+            <th style="width: 8ch; min-width: 8ch; max-width: 8ch;">Familia</th>
+            <th style="width: var(--sz-input-height); min-width: var(--sz-input-height); max-width: var(--sz-input-height);"></th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
     </div>
+    </div>
+    </div>
   </section>
 
-  <section class="mt-3 fo-attachments">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h6 class="mb-0 fw-semibold text-muted">Anexos</h6>
-      <div class="d-flex gap-2">
-        <button type="button" class="btn btn-outline-primary btn-sm" id="btnAddAnexo">
-          <i class="fa fa-paperclip"></i> Anexar
+  <div class="sz_dynamic_form_panels accordion fo-attachments" id="foAccordionExtras">
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="foHeadingAnexos">
+        <button class="accordion-button" type="button"
+                data-bs-toggle="collapse" data-bs-target="#foCollapseAnexos"
+                aria-expanded="true" aria-controls="foCollapseAnexos">
+          Anexos
         </button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAnalyzeDoc">
-          <i class="fa-solid fa-qrcode"></i> Ler documento (QR/ATCUD)
-        </button>
+      </h2>
+      <div id="foCollapseAnexos" class="accordion-collapse collapse show" aria-labelledby="foHeadingAnexos">
+        <div class="accordion-body sz_dynamic_anexos_section" style="padding:12px;">
+          <input type="file" id="inputAnexoFile" style="display:none" />
+          <input type="file" id="inputAnexoCamera" accept="image/*" capture="environment" style="display:none" />
+          <div id="anexosList" class="sz_dynamic_anexos_list"></div>
+          <div class="sz_inline sz_gap_1">
+            <button type="button" class="sz_button sz_button_ghost sz_dynamic_anexos_add" id="btnAddAnexo">
+              <i class="fa fa-paperclip"></i> Anexar
+            </button>
+            <button type="button" class="sz_button sz_button_ghost sz_dynamic_anexos_add" id="btnAnalyzeDoc">
+              <i class="fa-solid fa-qrcode"></i> Ler documento (QR/ATCUD)
+            </button>
+          </div>
+        </div>
       </div>
     </div>
-    <input type="file" id="inputAnexoFile" style="display:none" />
-    <input type="file" id="inputAnexoCamera" accept="image/*" capture="environment" style="display:none" />
-    <div id="anexosList" class="d-flex flex-wrap gap-2 small"></div>
-  </section>
+  </div>
+  </div>
 
-  <div class="form-actions mt-3">
-    <button type="button" id="btnSaveFo" class="btn btn-outline-primary btn-save">
+  <div class="sz_actionbar sz_dynamic_form_actionbar fo-compras-actionbar">
+    <div class="sz_actionbar_left"></div>
+    <div class="sz_actionbar_right">
+    <button type="button" id="btnSaveFo" class="sz_button sz_button_primary btn-save">
       <i class="fa-solid fa-save"></i>
       <span class="btn-text">Gravar</span>
     </button>
-    <button type="button" id="btnCancelFo" class="btn btn-outline-secondary btn-cancel">
+    <button type="button" id="btnCancelFo" class="sz_button sz_button_ghost btn-cancel">
       <i class="fa-solid fa-ban"></i>
       <span class="btn-text">Cancelar</span>
     </button>
-    <button type="button" id="btnDeleteFo" class="btn btn-outline-secondary btn-delete">
+    <button type="button" id="btnDeleteFo" class="sz_button sz_button_danger btn-delete">
       <i class="fa-solid fa-trash-alt"></i>
       <span class="btn-text">Eliminar</span>
     </button>
+    <a href="{{ request.args.get('return_to', url_for('generic.view_table', table_name='FO')) }}" class="sz_button sz_button_ghost btn-back" id="btnBackFo">
+      <i class="fa-solid fa-arrow-left"></i>
+      <span class="btn-text">Voltar</span>
+    </a>
+    </div>
   </div>
 </div>
-</div>
 
-<!-- Modal de pré-visualização de anexo -->
+<!-- Modal de prÃ©-visualizaÃ§Ã£o de anexo -->
 <div class="modal fade" id="anexoPreviewModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable anexo-modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="anexoPreviewTitle">Pré-visualização</h5>
+        <h5 class="modal-title" id="anexoPreviewTitle">PrÃ©-visualizaÃ§Ã£o</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body p-0 anexo-modal-body" id="anexoPreviewBody">
@@ -192,45 +299,45 @@
   </div>
 </div>
 
-<!-- Modal análise documento -->
+<!-- Modal anÃ¡lise documento -->
 <div class="modal fade" id="docAnalyzeModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Dados encontrados no documento</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+    <div class="modal-content sz_doc_analyze_modal_content" style="background: var(--sz-color-surface); color: var(--sz-color-text); border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); box-shadow: var(--sz-shadow-3); overflow: hidden; font-family: var(--sz-font-family);">
+      <div class="modal-header sz_modal_header sz_doc_analyze_header" style="background: var(--sz-color-surface); color: var(--sz-color-text); border-bottom: 1px solid var(--sz-color-border); font-family: var(--sz-font-family);">
+        <h5 class="modal-title sz_modal_title" style="color: var(--sz-color-text); font-family: var(--sz-font-family);">Dados encontrados no documento</h5>
+        <button type="button" class="sz_button sz_button_ghost sz_doc_analyze_close" data-bs-dismiss="modal" aria-label="Fechar">Ã—</button>
       </div>
-      <div class="modal-body">
-        <div id="docAnalyzeMeta" class="small text-muted mb-2"></div>
-        <div id="docAnalyzeProbe" class="alert alert-light border small mb-3" style="display:none;"></div>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead>
+      <div class="modal-body sz_modal_body sz_doc_analyze_body" style="background: var(--sz-color-surface); color: var(--sz-color-text); font-family: var(--sz-font-family);">
+        <div id="docAnalyzeMeta" class="sz_text_muted sz_mb_1" style="color: var(--sz-color-text-secondary); font-family: var(--sz-font-family);"></div>
+        <div id="docAnalyzeProbe" class="sz_doc_analyze_probe sz_text_sm sz_mb_2" style="display:none; background: var(--sz-color-surface-alt); color: var(--sz-color-text-secondary); border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); padding: var(--sz-space-3); font-family: var(--sz-font-family);"></div>
+        <div class="table-responsive sz_table_host sz_doc_analyze_table_host" style="background: var(--sz-color-surface); border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md);">
+          <table class="sz_table sz_doc_analyze_table mb-0" style="background: var(--sz-color-surface); color: var(--sz-color-text); min-width: 0; font-family: var(--sz-font-family);">
+            <thead class="sz_table_head">
               <tr>
-                <th style="width: 200px;">Campo</th>
-                <th>Valor encontrado</th>
+                <th class="sz_table_head" style="width: 200px;">Campo</th>
+                <th class="sz_table_head">Valor encontrado</th>
               </tr>
             </thead>
             <tbody id="docAnalyzeBody"></tbody>
           </table>
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary" id="btnImportDocData">Importar para documento</button>
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+      <div class="modal-footer sz_modal_footer sz_doc_analyze_footer" style="background: var(--sz-color-surface); color: var(--sz-color-text); border-top: 0; font-family: var(--sz-font-family);">
+        <button type="button" class="sz_button sz_button_primary" id="btnImportDocData">Importar para documento</button>
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Estilo inline dedicado à grelha de linhas -->
+<!-- Estilo inline dedicado Ã  grelha de linhas -->
 <style>
   .fo-lines {
-    background: linear-gradient(145deg, #f8fafc 0%, #eef2f7 100%);
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 0.75rem;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
   }
   .fo-lines-table tbody tr td:nth-child(1),
   .fo-lines-table thead th:nth-child(1) {
@@ -239,29 +346,31 @@
   .fo-lines-table {
     width: 100%;
     font-size: 12px;
-    color: #0f172a;
-    border-collapse: separate;
-    border-spacing: 0 4px;
+    color: var(--sz-color-text);
+    border-collapse: collapse;
+    border-spacing: 0;
   }
   .fo-lines-table thead th {
     font-weight: 700;
-    color: #1f2937;
-    border: none;
-    padding: 0.28rem 0.45rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    background: transparent;
+    color: var(--sz-color-text-secondary);
+    border: 0;
+    border-bottom: 1px solid var(--sz-color-border);
+    padding: 0.5rem 0.65rem;
+    text-transform: none;
+    letter-spacing: normal;
+    background: var(--sz-color-surface-alt);
     font-size: 12px;
   }
   .fo-lines-table tbody tr {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+    background: var(--sz-color-surface);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
   .fo-lines-table tbody tr td {
-    border: none;
-    padding: 0.2rem 0.35rem;
+    border: 0;
+    border-bottom: 1px solid var(--sz-color-border);
+    padding: 0.35rem 0.45rem;
     vertical-align: middle;
     font-size: 12px;
   }
@@ -275,8 +384,7 @@
     padding-right: 1.5rem;
   }
   .fo-lines-table tbody tr:hover {
-    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
-    border-color: #cbd5e1;
+    background: color-mix(in srgb, var(--sz-color-primary) 6%, var(--sz-color-surface));
   }
   .fo-lines-table .btn {
     padding: 0.2rem 0.35rem;
@@ -284,16 +392,10 @@
     border-radius: 8px;
   }
   .fo-attachments {
-    background: #f8f9fb;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 0.75rem;
-  }
-  .fo-attachments {
-    background: #f8f9fb;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 0.75rem;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
   }
   /* Numeric fields right-aligned; labels remain default */
   input[type="number"].form-control {
@@ -355,7 +457,7 @@
   .fo-lines-table thead th:nth-child(11),
   .fo-lines-table tbody td:nth-child(11) { width: 9%; min-width: 14ch; }  /* FAMILIA */
   .fo-lines-table thead th:nth-child(12),
-  .fo-lines-table tbody td:nth-child(12) { width: 2.5%; min-width: 6ch; } /* Ações */
+  .fo-lines-table tbody td:nth-child(12) { width: 2.5%; min-width: 6ch; } /* AÃ§Ãµes */
 </style>
 
 <style>
@@ -369,40 +471,57 @@
   #artigoModal .modal-dialog {
     height: 80vh;
     max-height: 80vh;
+    color: var(--sz-color-text);
   }
   #artigoModal .modal-content {
     height: 80vh;
     max-height: 80vh;
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-3);
+    color: var(--sz-color-text);
   }
   .artigo-modal-header {
-    background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
-    color: #fff;
-    border-bottom: none;
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+    border-bottom: 1px solid var(--sz-color-border);
   }
   .artigo-modal-header .btn-close {
-    filter: invert(1) grayscale(1) brightness(2);
+    filter: none;
     opacity: 0.9;
+  }
+  .artigo-modal-close {
+    width: 2rem;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0;
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  .artigo-modal-body {
+    padding-top: 0;
   }
   .artigo-sticky {
     z-index: 2;
-    background: #fff;
+    background: var(--sz-color-surface);
     margin: 0 -1rem;
     padding: 1rem 1rem 0.5rem 1rem;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+    border-bottom: 1px solid var(--sz-color-border);
+    box-shadow: none;
   }
-  /* Nota: cabeçalho sticky aqui causa artefactos visuais no Bootstrap modal-scrollable */
+  /* Nota: cabe??alho sticky aqui causa artefactos visuais no Bootstrap modal-scrollable */
   .artigo-table thead th {
     position: static;
     top: auto;
-    background: #fff;
+    background: var(--sz-color-surface-alt);
     z-index: auto;
   }
   .artigo-table tbody tr {
     cursor: pointer;
   }
   .artigo-table tbody tr:hover {
-    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
   }
   .artigo-ref {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -419,23 +538,51 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: 12px;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
     position: relative;
-    background: #fff;
+    background: var(--sz-color-surface);
   }
   .artigo-table {
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
     min-width: 680px;
+    color: var(--sz-color-text);
+    --bs-table-bg: var(--sz-color-surface);
+    --bs-table-color: var(--sz-color-text);
+    --bs-table-border-color: var(--sz-color-border);
+    --bs-table-hover-bg: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+    --bs-table-hover-color: var(--sz-color-text);
+  }
+  .artigo-searchbox {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .artigo-searchbox-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--sz-input-height);
+    min-width: var(--sz-input-height);
+    height: var(--sz-input-height);
+    border: 1px solid var(--sz-color-border);
+    border-right: 0;
+    border-radius: var(--sz-radius-sm) 0 0 var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+  }
+  .artigo-searchbox .sz_input {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
   }
   .artigo-table thead th {
     position: sticky;
     top: 0;
-    background: #fff;
+    background: var(--sz-color-surface-alt);
     z-index: 3;
-    box-shadow: 0 1px 0 rgba(148, 163, 184, 0.45);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--sz-color-border) 90%, transparent);
   }
   .artigo-sortable {
     cursor: pointer;
@@ -490,11 +637,11 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="FN_DESIGN">DESIGN</label>
-                <input type="text" id="FN_DESIGN" name="DESIGN" class="form-control" placeholder="Designação">
+                <input type="text" id="FN_DESIGN" name="DESIGN" class="form-control" placeholder="DesignaÃ§Ã£o">
               </div>
               <div class="col-md-3">
                 <label class="form-label" for="FN_FAMILIA">FAMILIA</label>
-                <input type="text" id="FN_FAMILIA" name="FAMILIA" class="form-control" placeholder="Família">
+                <input type="text" id="FN_FAMILIA" name="FAMILIA" class="form-control" placeholder="FamÃ­lia">
               </div>
             </div>
           </div>
@@ -511,7 +658,7 @@
               </div>
               <div class="col-md-3">
                 <label class="form-label" for="FN_EPV">EPV</label>
-                <input type="number" step="0.01" id="FN_EPV" name="EPV" class="form-control" placeholder="Preço">
+                <input type="number" step="0.01" id="FN_EPV" name="EPV" class="form-control" placeholder="PreÃ§o">
               </div>
               <div class="col-md-3">
                 <label class="form-label" for="FN_ETILIQUIDO">ETILIQUIDO</label>
@@ -559,45 +706,43 @@
 <!-- Modal Importar Contrato -->
 <div class="modal fade" id="contratoModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content shadow-lg border-0">
-      <div class="modal-header">
+    <div class="modal-content fo-contrato-modal-content" style="background:var(--sz-color-surface);color:var(--sz-color-text);border:1px solid var(--sz-color-border);border-radius:var(--sz-radius-md);box-shadow:var(--sz-shadow-3);overflow:hidden;">
+      <div class="modal-header sz_modal_header fo-contrato-modal-header" style="background:var(--sz-color-surface);color:var(--sz-color-text);border-bottom:1px solid var(--sz-color-border);">
         <div>
-          <p class="text-muted text-uppercase small mb-1">Contrato</p>
-          <h5 class="modal-title fw-semibold">Importar linhas de contrato</h5>
+          <p class="sz_caption">Contrato</p>
+          <h5 class="modal-title sz_modal_title">Importar linhas de contrato</h5>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <button type="button" class="sz_button sz_button_ghost fo-contrato-modal-close" data-bs-dismiss="modal" aria-label="Fechar">&times;</button>
       </div>
-      <div class="modal-body">
-        <div class="row g-2 align-items-end mb-2">
-          <div class="col-md-6">
-            <label class="form-label mb-1" for="contratoSearch">Pesquisar</label>
-            <input type="text" id="contratoSearch" class="form-control" placeholder="Filtrar por nome, máquina, obra, nº...">
+      <div class="modal-body sz_modal_body fo-contrato-modal-body" style="background:var(--sz-color-surface);color:var(--sz-color-text);">
+        <div class="fo-contrato-toolbar">
+          <div class="sz_field fo-contrato-search">
+            <label class="sz_label" for="contratoSearch">Pesquisar</label>
+            <input type="text" id="contratoSearch" class="sz_input" placeholder="Filtrar por nome, m&aacute;quina, obra, n&ordm;...">
           </div>
-          <div class="col-md-6 text-md-end">
-            <div id="contratoSupplierInfo" class="small text-muted"></div>
-          </div>
+          <div id="contratoSupplierInfo" class="sz_text_muted fo-contrato-supplier-info"></div>
         </div>
-        <div class="table-responsive">
-          <table class="table table-sm table-hover align-middle" id="contratoTable">
+        <div class="sz_table_host fo-contrato-table-host">
+          <table class="sz_table fo-contrato-table" id="contratoTable">
             <thead>
               <tr>
-                <th>Nº</th>
+                <th>N&ordm;</th>
                 <th>Documento</th>
                 <th>Obra</th>
-                <th>Máquina</th>
-                <th class="text-end">Total</th>
+                <th>M&aacute;quina</th>
+                <th class="sz_text_right">Total</th>
                 <th>Fornecedor</th>
-                <th class="text-end"></th>
+                <th class="sz_text_right"></th>
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="7" class="text-muted">A carregar...</td></tr>
+              <tr><td colspan="7" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
             </tbody>
           </table>
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+      <div class="modal-footer sz_modal_footer fo-contrato-modal-footer" style="background:var(--sz-color-surface);color:var(--sz-color-text);border-top:0;">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>
@@ -606,42 +751,40 @@
 <!-- Modal Escolher Artigo (V_ST) -->
 <div class="modal fade" id="artigoModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content shadow-lg border-0">
-      <div class="modal-header artigo-modal-header">
+    <div class="modal-content artigo-modal-content">
+      <div class="modal-header artigo-modal-header sz_modal_header">
         <div class="w-100">
-          <h5 class="modal-title fw-semibold mb-0">Escolher artigo</h5>
+          <h5 class="modal-title sz_modal_title mb-0">Escolher artigo</h5>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <button type="button" class="sz_button sz_button_ghost artigo-modal-close" data-bs-dismiss="modal" aria-label="Fechar">Ã—</button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body artigo-modal-body sz_modal_body">
         <div class="artigo-sticky">
-          <div class="row g-2 align-items-end">
-            <div class="col-md-12">
-              <label class="form-label mb-1" for="artigoSearch">Pesquisar</label>
-              <div class="input-group">
-                <span class="input-group-text bg-light"><i class="fa fa-search"></i></span>
-                <input type="text" id="artigoSearch" class="form-control" placeholder="Refer&ecirc;ncia, descri&ccedil;&atilde;o ou fam&iacute;lia...">
-              </div>
+          <div class="sz_field">
+            <label class="sz_label" for="artigoSearch">Pesquisar</label>
+            <div class="artigo-searchbox">
+              <span class="artigo-searchbox-icon"><i class="fa fa-search"></i></span>
+              <input type="text" id="artigoSearch" class="sz_input" placeholder="Refer&ecirc;ncia, descri&ccedil;&atilde;o ou fam&iacute;lia...">
             </div>
           </div>
         </div>
-        <div class="artigo-table-wrap mt-2">
-            <table class="table table-sm table-hover align-middle artigo-table mb-0" id="artigoTable">
+        <div class="artigo-table-wrap sz_table_host mt-2">
+            <table class="sz_table artigo-table mb-0" id="artigoTable">
             <thead>
               <tr>
-                <th class="artigo-sortable" data-sort="REF">Refer&ecirc;ncia</th>
-                <th class="artigo-sortable" data-sort="DESIGN">Descri&ccedil;&atilde;o</th>
-                <th class="artigo-sortable" data-sort="FAMILIA">Fam&iacute;lia</th>
+                <th class="artigo-sortable sz_table_head" data-sort="REF">Refer&ecirc;ncia</th>
+                <th class="artigo-sortable sz_table_head" data-sort="DESIGN">Descri&ccedil;&atilde;o</th>
+                <th class="artigo-sortable sz_table_head" data-sort="FAMILIA">Fam&iacute;lia</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="3" class="text-muted">A carregar...</td></tr>
+              <tr><td colspan="3" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
             </tbody>
           </table>
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>
@@ -659,6 +802,876 @@
 {% block styles %}
 {{ super() }}
 <style>
+  .fo-compras-page {
+    background: var(--sz-color-bg-main);
+  }
+
+  /* dropdown incremental REF / fornecedor */
+  .fo-compras-page #refSuggestions.dropdown-menu,
+  .fo-compras-page #nomeSuggestions.dropdown-menu,
+  .fo-compras-page #szNomeSuggestions {
+    background: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    box-shadow: var(--sz-shadow-2) !important;
+    padding: var(--sz-space-1) 0 !important;
+    overflow-y: auto;
+  }
+
+  .fo-compras-page #refSuggestions .dropdown-item,
+  .fo-compras-page #nomeSuggestions .dropdown-item {
+    color: var(--sz-color-text) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    font-family: var(--sz-font-family) !important;
+    padding: 0.6rem 0.8rem !important;
+  }
+
+  .fo-compras-page #refSuggestions .dropdown-item:hover,
+  .fo-compras-page #refSuggestions .dropdown-item:focus,
+  .fo-compras-page #nomeSuggestions .dropdown-item:hover,
+  .fo-compras-page #nomeSuggestions .dropdown-item:focus {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  /* modal contrato */
+  #contratoModal {
+    --bs-modal-bg: var(--sz-color-surface);
+    --bs-modal-color: var(--sz-color-text);
+    --bs-body-bg: var(--sz-color-surface);
+    --bs-body-color: var(--sz-color-text);
+    --bs-border-color: var(--sz-color-border);
+  }
+
+  #contratoModal,
+  #contratoModal .modal-dialog,
+  #contratoModal .modal-content,
+  #contratoModal .modal-header,
+  #contratoModal .modal-body,
+  #contratoModal .modal-footer,
+  #contratoModal .modal-title,
+  #contratoModal .sz_caption,
+  #contratoModal .sz_label,
+  #contratoModal .sz_text_muted,
+  #contratoModal .fo-contrato-table,
+  #contratoModal .fo-contrato-table th,
+  #contratoModal .fo-contrato-table td {
+    font-family: var(--sz-font-family) !important;
+  }
+
+  #contratoModal .fo-contrato-modal-content {
+    background: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    box-shadow: var(--sz-shadow-3) !important;
+    color: var(--sz-color-text) !important;
+    overflow: hidden !important;
+  }
+
+  #contratoModal .fo-contrato-modal-header,
+  #contratoModal .fo-contrato-modal-body,
+  #contratoModal .fo-contrato-modal-footer {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #contratoModal .sz_caption {
+    color: var(--sz-color-text-muted) !important;
+  }
+
+  #contratoModal .sz_text_muted,
+  #contratoModal .fo-contrato-supplier-info {
+    color: var(--sz-color-text-muted) !important;
+  }
+
+  #contratoModal .sz_label,
+  #contratoModal .sz_modal_title {
+    color: var(--sz-color-text) !important;
+  }
+
+  #contratoModal .fo-contrato-modal-header {
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  #contratoModal .fo-contrato-modal-footer {
+    border-top: 0 !important;
+    box-shadow: none !important;
+  }
+
+  #contratoModal .fo-contrato-modal-close {
+    width: 2rem;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0;
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+
+  #contratoModal .fo-contrato-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sz-space-3);
+    align-items: end;
+  }
+
+  #contratoModal .fo-contrato-supplier-info {
+    align-self: end;
+    text-align: right;
+  }
+
+  #contratoModal .fo-contrato-search .sz_input {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border-color: var(--sz-color-border) !important;
+  }
+
+  #contratoModal .fo-contrato-search .sz_input::placeholder {
+    color: var(--sz-color-text-muted) !important;
+  }
+
+  #contratoModal .fo-contrato-search .sz_input:focus {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border-color: var(--sz-color-primary) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sz-color-primary) 18%, transparent) !important;
+  }
+
+  #contratoModal .fo-contrato-table-host {
+    margin-top: var(--sz-space-2);
+    background: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+  }
+
+  #contratoModal .fo-contrato-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-bottom: 0 !important;
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    line-height: var(--sz-line-normal) !important;
+  }
+
+  #contratoModal .fo-contrato-table thead th {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    padding: 0.75rem 0.9rem !important;
+    font-size: var(--sz-font-size-sm) !important;
+    font-weight: var(--sz-font-weight-semibold) !important;
+  }
+
+  #contratoModal .fo-contrato-table td.sz_table_cell {
+    color: var(--sz-color-text) !important;
+    font-weight: var(--sz-font-weight-normal) !important;
+    background: var(--sz-color-surface) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    padding: 0.75rem 0.9rem !important;
+    font-size: var(--sz-font-size-sm) !important;
+  }
+
+  #contratoModal .fo-contrato-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface)) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #contratoModal .fo-contrato-pick-btn {
+    min-height: 2rem !important;
+    padding-inline: 0.7rem !important;
+  }
+
+  @media (max-width: 780px) {
+    #contratoModal .fo-contrato-toolbar {
+      grid-template-columns: 1fr;
+    }
+
+    #contratoModal .fo-contrato-supplier-info {
+      text-align: left;
+    }
+  }
+
+  /* modais artigo + qr */
+  .fo-compras-page-modal .modal-content,
+  #artigoModal .modal-content,
+  #docAnalyzeModal .modal-content {
+    background: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    box-shadow: var(--sz-shadow-3) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #artigoModal .modal-header,
+  #docAnalyzeModal .modal-header {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  #artigoModal .modal-title,
+  #docAnalyzeModal .modal-title {
+    font-size: var(--sz-font-size-lg) !important;
+    font-weight: var(--sz-font-weight-semibold) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #artigoModal .modal-body,
+  #docAnalyzeModal .modal-body,
+  #artigoModal .modal-footer,
+  #docAnalyzeModal .modal-footer {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border-color: var(--sz-color-border) !important;
+  }
+
+  #artigoModal .btn-close,
+  #docAnalyzeModal .btn-close {
+    opacity: 0.85;
+  }
+
+  [data-sz-theme="dark"] #artigoModal .btn-close,
+  [data-sz-theme="dark"] #docAnalyzeModal .btn-close,
+  [data-sz-theme="geek"] #artigoModal .btn-close,
+  [data-sz-theme="geek"] #docAnalyzeModal .btn-close {
+    filter: invert(1) grayscale(1);
+  }
+
+  #artigoModal .artigo-modal-header {
+    background: var(--sz-color-surface-alt) !important;
+  }
+
+  #artigoModal .artigo-sticky {
+    background: var(--sz-color-surface) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    box-shadow: none !important;
+  }
+
+  #artigoModal .form-label,
+  #docAnalyzeModal .form-label,
+  #artigoModal .small,
+  #docAnalyzeModal .small,
+  #docAnalyzeMeta,
+  #docAnalyzeProbe {
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  #artigoModal .form-control,
+  #artigoModal .form-select,
+  #artigoModal .input-group-text,
+  #docAnalyzeModal .form-control,
+  #docAnalyzeModal .form-select,
+  #docAnalyzeModal .input-group-text {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-sm) !important;
+    min-height: var(--sz-input-height) !important;
+    box-shadow: none !important;
+  }
+
+  #artigoModal .form-control:focus,
+  #artigoModal .form-select:focus,
+  #docAnalyzeModal .form-control:focus,
+  #docAnalyzeModal .form-select:focus {
+    border-color: var(--sz-color-primary) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sz-color-primary) 18%, transparent) !important;
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #artigoModal .input-group-text {
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  #artigoModal .artigo-table-wrap,
+  #docAnalyzeModal .table-responsive {
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    background: var(--sz-color-surface) !important;
+  }
+
+  #artigoModal .artigo-table,
+  #docAnalyzeModal table.table {
+    color: var(--sz-color-text) !important;
+    --bs-table-bg: var(--sz-color-surface);
+    --bs-table-color: var(--sz-color-text);
+    --bs-table-border-color: var(--sz-color-border);
+    --bs-table-striped-bg: var(--sz-color-surface);
+    --bs-table-striped-color: var(--sz-color-text);
+    --bs-table-hover-bg: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+    --bs-table-hover-color: var(--sz-color-text);
+    margin-bottom: 0 !important;
+  }
+
+  #artigoModal .artigo-table thead th,
+  #docAnalyzeModal table.table thead th {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  #artigoModal .artigo-table tbody td,
+  #docAnalyzeModal table.table tbody td {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  #artigoModal .artigo-table tbody tr:hover td,
+  #docAnalyzeModal table.table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface)) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #docAnalyzeModal #docAnalyzeProbe {
+    background: var(--sz-color-surface-alt) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  #artigoModal .modal-footer .btn,
+  #docAnalyzeModal .modal-footer .btn {
+    min-height: var(--sz-button-height) !important;
+    border-radius: var(--sz-radius-sm) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    font-weight: var(--sz-font-weight-semibold) !important;
+    box-shadow: none !important;
+  }
+
+  #artigoModal .modal-footer .btn-outline-secondary,
+  #docAnalyzeModal .modal-footer .btn-outline-secondary {
+    background: transparent !important;
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border)) !important;
+    color: var(--sz-color-primary) !important;
+  }
+
+  #artigoModal .modal-footer .btn-outline-secondary:hover,
+  #docAnalyzeModal .modal-footer .btn-outline-secondary:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, transparent) !important;
+    border-color: color-mix(in srgb, var(--sz-color-primary) 62%, var(--sz-color-border)) !important;
+    color: var(--sz-color-primary) !important;
+  }
+
+  #docAnalyzeModal .modal-footer .btn-primary {
+    background: var(--sz-color-primary) !important;
+    border-color: var(--sz-color-primary) !important;
+    color: #fff !important;
+  }
+
+  #docAnalyzeModal,
+  #docAnalyzeModal .modal-content,
+  #docAnalyzeModal .modal-header,
+  #docAnalyzeModal .modal-body,
+  #docAnalyzeModal .modal-footer,
+  #docAnalyzeModal .modal-title,
+  #docAnalyzeModal .sz_text_muted,
+  #docAnalyzeModal .sz_doc_analyze_probe,
+  #docAnalyzeModal .sz_doc_analyze_table,
+  #docAnalyzeModal .sz_doc_analyze_table th,
+  #docAnalyzeModal .sz_doc_analyze_table td {
+    font-family: var(--sz-font-family) !important;
+  }
+
+  #docAnalyzeModal .sz_doc_analyze_modal_content {
+    background: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    box-shadow: var(--sz-shadow-3) !important;
+    overflow: hidden !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #docAnalyzeModal .sz_doc_analyze_header,
+  #docAnalyzeModal .sz_doc_analyze_body,
+  #docAnalyzeModal .sz_doc_analyze_footer {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #docAnalyzeModal .sz_doc_analyze_header {
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  #docAnalyzeModal .sz_doc_analyze_footer {
+    border-top: 0 !important;
+    box-shadow: none !important;
+  }
+
+  #docAnalyzeModal .sz_doc_analyze_close {
+    width: 2rem;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0;
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+
+  #docAnalyzeModal .sz_doc_analyze_probe {
+    background: var(--sz-color-surface-alt) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-sm) !important;
+    color: var(--sz-color-text-secondary) !important;
+    padding: var(--sz-space-3) !important;
+  }
+
+  #docAnalyzeModal .sz_doc_analyze_table_host {
+    background: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    box-shadow: none !important;
+  }
+
+  #docAnalyzeModal .sz_doc_analyze_table {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #docAnalyzeModal .sz_doc_analyze_table thead th {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    font-weight: var(--sz-font-weight-semibold) !important;
+    padding: 0.75rem 0.9rem !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  #docAnalyzeModal .sz_doc_analyze_table tbody td {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    font-weight: var(--sz-font-weight-normal) !important;
+    padding: 0.75rem 0.9rem !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    vertical-align: top !important;
+  }
+
+  /* final hard override for bootstrap modal variables/state */
+  #docAnalyzeModal .modal-dialog,
+  #docAnalyzeModal .modal-content,
+  #docAnalyzeModal .modal-header,
+  #docAnalyzeModal .modal-body,
+  #docAnalyzeModal .modal-footer {
+    --bs-modal-bg: var(--sz-color-surface) !important;
+    --bs-modal-color: var(--sz-color-text) !important;
+    --bs-body-bg: var(--sz-color-surface) !important;
+    --bs-body-color: var(--sz-color-text) !important;
+    background: var(--sz-color-surface) !important;
+    background-color: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #docAnalyzeModal .modal-content *,
+  #docAnalyzeModal .modal-body *,
+  #docAnalyzeModal .modal-header *,
+  #docAnalyzeModal .modal-footer * {
+    font-family: var(--sz-font-family) !important;
+  }
+
+  #docAnalyzeModal .modal-title,
+  #docAnalyzeModal .modal-body,
+  #docAnalyzeModal .modal-body div,
+  #docAnalyzeModal .modal-body strong,
+  #docAnalyzeModal #docAnalyzeMeta,
+  #docAnalyzeModal #docAnalyzeProbe,
+  #docAnalyzeModal #docAnalyzeBody,
+  #docAnalyzeModal #docAnalyzeBody td,
+  #docAnalyzeModal #docAnalyzeBody th {
+    color: var(--sz-color-text) !important;
+  }
+
+  #docAnalyzeModal .sz_text_muted,
+  #docAnalyzeModal #docAnalyzeMeta,
+  #docAnalyzeModal #docAnalyzeProbe {
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  #docAnalyzeModal .modal-footer {
+    border-top: 0 !important;
+  }
+
+  /* final: artigo modal fully aligned with sz_styles contract */
+  #artigoModal,
+  #artigoModal .modal-content,
+  #artigoModal .modal-header,
+  #artigoModal .modal-body,
+  #artigoModal .modal-footer,
+  #artigoModal .modal-title,
+  #artigoModal .sz_label,
+  #artigoModal .artigo-table,
+  #artigoModal .artigo-table th,
+  #artigoModal .artigo-table td,
+  #artigoModal .artigo-searchbox,
+  #artigoModal .artigo-searchbox-icon,
+  #artigoModal .artigo-searchbox .sz_input {
+    font-family: var(--sz-font-family) !important;
+  }
+
+  #artigoModal .modal-content,
+  #artigoModal .artigo-modal-content {
+    background: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    box-shadow: var(--sz-shadow-3) !important;
+    overflow: hidden !important;
+  }
+
+  #artigoModal .modal-header,
+  #artigoModal .artigo-modal-header,
+  #artigoModal .modal-body,
+  #artigoModal .artigo-modal-body,
+  #artigoModal .modal-footer,
+  #artigoModal .sz_modal_footer {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #artigoModal .modal-header,
+  #artigoModal .artigo-modal-header {
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  #artigoModal .modal-footer,
+  #artigoModal .sz_modal_footer {
+    padding-top: var(--sz-space-3) !important;
+    border-top: 0 !important;
+    box-shadow: none !important;
+    background-image: none !important;
+  }
+
+  #artigoModal .modal-title,
+  #artigoModal .sz_modal_title {
+    font-size: 0.9375rem !important;
+    line-height: var(--sz-line-normal) !important;
+    font-weight: var(--sz-font-weight-semibold) !important;
+    color: var(--sz-color-text) !important;
+    font-family: var(--sz-font-family) !important;
+  }
+
+  #artigoModal .sz_label {
+    font-size: var(--sz-font-size-sm) !important;
+    font-weight: var(--sz-font-weight-semibold) !important;
+    color: var(--sz-color-text-secondary) !important;
+    font-family: var(--sz-font-family) !important;
+  }
+
+  #artigoModal .artigo-table-wrap {
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    background: var(--sz-color-surface) !important;
+    overflow: auto !important;
+    box-shadow: none !important;
+  }
+
+  #artigoModal .artigo-table {
+    width: 100% !important;
+    min-width: 680px !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #artigoModal .artigo-table thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 3 !important;
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    font-weight: var(--sz-font-weight-semibold) !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    padding: 0.75rem 0.9rem !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    box-shadow: none !important;
+  }
+
+  #artigoModal .artigo-table tbody td {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    font-weight: var(--sz-font-weight-normal) !important;
+    padding: 0.75rem 0.9rem !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  #artigoModal .artigo-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 4%, var(--sz-color-surface)) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #artigoModal .artigo-table tbody td:first-child {
+    font-family: var(--sz-font-family) !important;
+    font-weight: var(--sz-font-weight-normal) !important;
+    letter-spacing: normal !important;
+  }
+
+  #artigoModal .artigo-table thead th:first-child {
+    border-top-left-radius: var(--sz-radius-md) !important;
+  }
+
+  #artigoModal .artigo-table thead th:last-child {
+    border-top-right-radius: var(--sz-radius-md) !important;
+  }
+
+  #artigoModal .artigo-searchbox-icon {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    border-color: var(--sz-color-border) !important;
+  }
+
+  #artigoModal .artigo-searchbox .sz_input {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border-color: var(--sz-color-border) !important;
+  }
+
+  #artigoModal .artigo-modal-close {
+    font-family: inherit !important;
+  }
+
+  .fo-compras-contextbar-right {
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .fo-compras-contextbar {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .fo-status-row {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    flex-wrap: wrap;
+    margin: 0;
+  }
+
+  .fo-status-card {
+    min-height: auto;
+    padding: 0.18rem 0.55rem;
+    line-height: 1.2;
+  }
+
+  .fo-compras-contextbar .sz_contextbar_left {
+    row-gap: 0.15rem;
+  }
+
+  .fo-compras-contextbar .sz_page_title,
+  .fo-compras-contextbar .sz_page_subtitle {
+    margin-bottom: 0 !important;
+  }
+
+  .fo-form-shell {
+    padding: var(--sz-space-4);
+  }
+
+  .fo-compras-page .form-label {
+    margin-bottom: 0.35rem;
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text-secondary);
+  }
+
+  .fo-compras-page .form-control,
+  .fo-compras-page .form-select,
+  .fo-compras-page .input-group-text {
+    border-radius: var(--sz-radius-sm);
+    border: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    font-size: var(--sz-font-size-sm);
+    font-family: var(--sz-font-family);
+    min-height: var(--sz-input-height);
+    box-shadow: none;
+  }
+
+  .fo-compras-page .form-control,
+  .fo-compras-page .form-select {
+    padding: 0 var(--sz-space-3);
+  }
+
+  .fo-compras-page textarea.form-control {
+    min-height: 7rem;
+    padding: var(--sz-space-3);
+  }
+
+  .fo-compras-page .form-control:focus,
+  .fo-compras-page .form-select:focus {
+    border-color: var(--sz-color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sz-color-primary) 18%, transparent);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+  }
+
+  .fo-compras-page .sz_input:focus,
+  .fo-compras-page .sz_select:focus {
+    border-color: var(--sz-color-primary) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sz-color-primary) 18%, transparent) !important;
+    background: var(--sz-color-surface) !important;
+    background-color: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  .fo-compras-page .form-control:-webkit-autofill,
+  .fo-compras-page .form-control:-webkit-autofill:hover,
+  .fo-compras-page .form-control:-webkit-autofill:focus,
+  .fo-compras-page .form-select:-webkit-autofill,
+  .fo-compras-page .sz_input:-webkit-autofill,
+  .fo-compras-page .sz_input:-webkit-autofill:hover,
+  .fo-compras-page .sz_input:-webkit-autofill:focus,
+  .fo-compras-page .sz_select:-webkit-autofill {
+    -webkit-text-fill-color: var(--sz-color-text) !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--sz-color-surface) inset !important;
+    box-shadow: 0 0 0 1000px var(--sz-color-surface) inset !important;
+  }
+
+  .fo-compras-page .form-select {
+    padding-right: 2rem;
+  }
+
+  .fo-compras-page .input-group .btn,
+  .fo-compras-page .btn.btn-outline-secondary,
+  .fo-compras-page .btn.btn-outline-primary {
+    border-radius: var(--sz-radius-sm);
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border));
+    background: transparent;
+    color: var(--sz-color-primary);
+    box-shadow: none;
+  }
+
+  .fo-compras-page .input-group .btn:hover,
+  .fo-compras-page .btn.btn-outline-secondary:hover,
+  .fo-compras-page .btn.btn-outline-primary:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, transparent);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 62%, var(--sz-color-border));
+    color: var(--sz-color-primary);
+  }
+
+  .fo-compras-page .input-group-sm > .btn,
+  .fo-compras-page .input-group-sm > .form-control,
+  .fo-compras-page .input-group-sm > .form-select {
+    min-height: 2.1rem;
+  }
+
+  .fo-lines-panel .sz_section_body,
+  .fo-attachments .sz_section_body {
+    padding: var(--sz-space-3);
+  }
+
+  .fo-lines-panel-header .d-flex:first-child,
+  .fo-attachments .sz_section_header .d-flex:first-child {
+    width: 100%;
+  }
+
+  .fo-lines {
+    padding: 0;
+    background: var(--sz-color-surface);
+  }
+
+  .fo-lines-table {
+    min-width: 1320px;
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
+
+  .fo-lines-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    border-bottom: 1px solid var(--sz-color-border);
+    padding: 0.62rem 0.55rem;
+    text-transform: none;
+    letter-spacing: normal;
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .fo-lines-table tbody tr {
+    background: var(--sz-color-surface);
+    box-shadow: none;
+  }
+
+  .fo-lines-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 4%, var(--sz-color-surface));
+  }
+
+  .fo-lines-table tbody td {
+    border-bottom: 1px solid var(--sz-color-border);
+    padding: 0.3rem 0.35rem;
+    vertical-align: middle;
+    background: var(--sz-color-surface);
+  }
+
+  .fo-lines-table input.form-control,
+  .fo-lines-table select.form-select {
+    min-height: var(--sz-input-height);
+    height: var(--sz-input-height);
+    font-size: var(--sz-font-size-sm);
+    line-height: 1.35;
+    padding: 0 var(--sz-space-3);
+  }
+
+  .fo-lines-table select.form-select {
+    padding-right: 2rem;
+  }
+
+  .fo-lines-table .btn {
+    min-height: var(--sz-input-height);
+    height: var(--sz-input-height);
+    padding: 0 0.55rem;
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .fo-attachments {
+    background: transparent;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+  }
+
+  .fo-compras-actionbar .sz_actionbar_right {
+    margin-left: auto;
+  }
+
+  .fo-compras-page input[type="number"].form-control {
+    text-align: right;
+  }
+
+  .fo-compras-page .text-danger {
+    color: var(--sz-color-danger) !important;
+  }
+
+  .fo-compras-page .text-muted,
+  .fo-compras-page .small.text-muted,
+  .fo-compras-page #anexosList .text-muted {
+    color: var(--sz-color-text-muted) !important;
+  }
+
+  @media (max-width: 900px) {
+    .fo-compras-page {
+      padding-inline: var(--sz-space-3);
+    }
+  }
+
+  @media (max-width: 780px) {
+    .fo-compras-contextbar-right {
+      align-items: flex-start;
+    }
+
+    .fo-status-row {
+      justify-content: flex-start;
+    }
+  }
+
   .fo-lines {
     background: linear-gradient(145deg, #f8fafc 0%, #eef2f7 100%);
     border: 1px solid #e2e8f0;
@@ -669,35 +1682,36 @@
   .fo-lines-table {
     width: 100%;
     font-size: 12px;
-    color: #0f172a;
-    border-collapse: separate;
-    border-spacing: 0 4px;
+    color: var(--sz-color-text);
+    border-collapse: collapse;
+    border-spacing: 0;
   }
   .fo-lines-table thead th {
     font-weight: 700;
-    color: #1f2937;
-    border: none;
-    padding: 0.28rem 0.45rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    background: transparent;
+    color: var(--sz-color-text-secondary);
+    border: 0;
+    border-bottom: 1px solid var(--sz-color-border);
+    padding: 0.5rem 0.65rem;
+    text-transform: none;
+    letter-spacing: normal;
+    background: var(--sz-color-surface-alt);
     font-size: 12px;
   }
   .fo-lines-table tbody tr {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+    background: var(--sz-color-surface);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
   .fo-lines-table tbody tr td {
-    border: none;
-    padding: 0.2rem 0.35rem;
+    border: 0;
+    border-bottom: 1px solid var(--sz-color-border);
+    padding: 0.35rem 0.45rem;
     vertical-align: middle;
     font-size: 12px;
   }
   .fo-lines-table tbody tr:hover {
-    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
-    border-color: #cbd5e1;
+    background: color-mix(in srgb, var(--sz-color-primary) 6%, var(--sz-color-surface));
   }
   .fo-lines-table .btn {
     padding: 0.2rem 0.35rem;
@@ -717,25 +1731,27 @@
   /* Compact inputs/selects so they match header spacing and avoid overlap */
   .fo-lines-table tbody input.form-control,
   .fo-lines-table tbody select.form-select {
-    font-size: 12px;
-    padding: 0.18rem 0.35rem;
-    height: calc(1.5em + 0.35rem);
+    font-size: var(--sz-font-size-sm);
+    padding: 0 var(--sz-space-3);
+    min-height: var(--sz-input-height);
+    height: var(--sz-input-height);
   }
   .fo-lines-table tbody select.form-select {
-    padding-right: 1.5rem;
+    padding-right: 2rem;
     min-width: 110px;
   }
   /* Compact variant for this grid */
   .fo-lines-compact tbody input.form-control,
   .fo-lines-compact tbody select.form-select {
-    font-size: 12px;
-    height: calc(1.5em + 0.35rem);
+    font-size: var(--sz-font-size-sm);
+    min-height: var(--sz-input-height);
+    height: var(--sz-input-height);
   }
   .fo-lines-compact tbody input.form-control {
-    padding: 0.2rem 0.35rem;
+    padding: 0 var(--sz-space-3);
   }
   .fo-lines-compact tbody select.form-select {
-    padding: 0.2rem 2rem 0.2rem 0.35rem;
+    padding: 0 2rem 0 var(--sz-space-3);
   }
   .fo-lines-compact tbody input[data-field="FAMILIA"] {
     pointer-events: auto;
@@ -823,4 +1839,914 @@
     font-size: 0.78rem;
   }
 </style>
+<style>
+  .fo-compras-page #foForm {
+    --bs-gutter-x: 0.75rem;
+    --bs-gutter-y: 0.85rem;
+  }
+
+  .fo-compras-page #foForm .row {
+    row-gap: var(--sz-space-2);
+  }
+
+  .fo-compras-page .sz_dynamic_form_body {
+    background: var(--sz-color-surface) !important;
+    border-color: var(--sz-color-border) !important;
+  }
+
+  .fo-compras-page .fo-form-shell {
+    padding: var(--sz-space-4) !important;
+  }
+
+  .fo-compras-page .form-label {
+    margin-bottom: 0.35rem !important;
+    font-size: 0.82rem !important;
+    line-height: 1.15 !important;
+    font-weight: var(--sz-font-weight-semibold) !important;
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  .fo-compras-page .form-control,
+  .fo-compras-page .form-select,
+  .fo-compras-page .sz_input,
+  .fo-compras-page .sz_select,
+  .fo-compras-page .input-group-text {
+    min-height: var(--sz-input-height) !important;
+    height: var(--sz-input-height) !important;
+    font-size: 0.92rem !important;
+    line-height: 1.35 !important;
+    font-family: var(--sz-font-family) !important;
+    padding: 0 var(--sz-space-3) !important;
+    background-color: var(--sz-color-surface) !important;
+    background-image: none !important;
+    color: var(--sz-color-text) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-sm) !important;
+    box-shadow: none !important;
+  }
+
+  .fo-compras-page .form-control[readonly],
+  .fo-compras-page .form-control:disabled,
+  .fo-compras-page .form-select:disabled,
+  .fo-compras-page .sz_input[readonly] {
+    background-color: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  .fo-compras-page .form-control::placeholder,
+  .fo-compras-page .form-select::placeholder {
+    color: var(--sz-color-text-muted) !important;
+  }
+
+  .fo-compras-page .fo-lines-panel .sz_section_body,
+  .fo-compras-page .fo-attachments .sz_section_header,
+  .fo-compras-page .fo-attachments .sz_section_body {
+    background: transparent !important;
+  }
+
+  .fo-compras-page .fo-lines-panel {
+    overflow: hidden !important;
+  }
+
+  .fo-compras-page .fo-lines-panel .sz_section_header {
+    padding: var(--sz-space-3) var(--sz-space-4) !important;
+  }
+
+  .fo-compras-page .fo-lines-panel .sz_section_body {
+    padding: var(--sz-space-3) !important;
+    background: transparent !important;
+  }
+
+  .fo-compras-page .fo-lines {
+    background: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    overflow: auto !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .fo-compras-page .fo-lines,
+  .fo-compras-page .fo-attachments {
+    border-color: var(--sz-color-border) !important;
+    box-shadow: none !important;
+  }
+
+  .fo-compras-page .fo-lines .sz_table_wrap {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .fo-compras-page .fo-lines-table {
+    width: 100% !important;
+    min-width: 1360px !important;
+    color: var(--sz-color-text) !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    background: var(--sz-color-surface) !important;
+  }
+
+  .fo-compras-page .fo-lines-table thead th {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    box-shadow: none !important;
+  }
+
+  .fo-compras-page .fo-lines-table tbody tr {
+    display: table-row !important;
+    background: var(--sz-color-surface) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .fo-compras-page .fo-lines-table tbody tr td {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    vertical-align: middle !important;
+    padding: 0.3rem 0.4rem !important;
+  }
+
+  .fo-compras-page .fo-lines-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 4%, var(--sz-color-surface)) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  .fo-compras-page .fo-lines-table tbody tr:last-child td {
+    border-bottom: 0 !important;
+  }
+
+  .fo-compras-page .fo-lines-table .btn,
+  .fo-compras-page .input-group .btn {
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border)) !important;
+    background: transparent !important;
+    color: var(--sz-color-primary) !important;
+    border-radius: var(--sz-radius-sm) !important;
+    box-shadow: none !important;
+  }
+
+  .fo-compras-page .fo-lines-table .btn,
+  .fo-compras-page .fo-lines-table .sz_button {
+    min-height: var(--sz-input-height) !important;
+    height: var(--sz-input-height) !important;
+    padding: 0 0.5rem !important;
+    font-size: var(--sz-font-size-sm) !important;
+    line-height: 1 !important;
+    transform: none !important;
+    vertical-align: middle !important;
+  }
+
+  .fo-compras-page .fo-lines-table .input-group {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: var(--sz-space-1);
+  }
+
+  .fo-compras-page .fo-lines-table .input-group > .btn,
+  .fo-compras-page .fo-lines-table .input-group > .sz_button,
+  .fo-compras-page .fo-lines-table button[data-action="choose_artigo"],
+  .fo-compras-page .fo-lines-table button[data-action="delete"] {
+    width: var(--sz-input-height) !important;
+    min-width: var(--sz-input-height) !important;
+    max-width: var(--sz-input-height) !important;
+    height: var(--sz-input-height) !important;
+    min-height: var(--sz-input-height) !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 var(--sz-input-height) !important;
+    border-radius: var(--sz-radius-sm) !important;
+  }
+
+  .fo-compras-page .fo-lines-table td.text-end {
+    white-space: nowrap;
+  }
+
+  .fo-compras-page .fo-lines-table .btn:hover,
+  .fo-compras-page .input-group .btn:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, transparent) !important;
+    border-color: color-mix(in srgb, var(--sz-color-primary) 62%, var(--sz-color-border)) !important;
+  }
+
+  .fo-compras-page .fo-lines-table .btn.btn-outline-danger {
+    border-color: color-mix(in srgb, var(--sz-color-danger) 55%, var(--sz-color-border)) !important;
+    color: var(--sz-color-danger) !important;
+  }
+
+  .fo-compras-page .fo-lines-table .btn.btn-outline-danger:hover {
+    background: color-mix(in srgb, var(--sz-color-danger) 14%, transparent) !important;
+    border-color: color-mix(in srgb, var(--sz-color-danger) 72%, var(--sz-color-border)) !important;
+    color: var(--sz-color-danger) !important;
+  }
+
+  .fo-compras-page .form-control,
+  .fo-compras-page .form-select,
+  .fo-compras-page .input-group-text {
+    background: var(--sz-color-surface) !important;
+    background-color: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border-color: var(--sz-color-border) !important;
+    box-shadow: none !important;
+  }
+
+  .fo-compras-page .fo-lines-table tbody input.form-control,
+  .fo-compras-page .fo-lines-table tbody select.form-select,
+  .fo-compras-page .fo-lines-table tbody .sz_input,
+  .fo-compras-page .fo-lines-table tbody .sz_select {
+    height: var(--sz-input-height) !important;
+    min-height: var(--sz-input-height) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    line-height: 1.35 !important;
+    padding: 0 var(--sz-space-3) !important;
+    background: var(--sz-color-surface-alt) !important;
+    background-color: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text) !important;
+    border-color: var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-sm) !important;
+    vertical-align: middle !important;
+  }
+
+  .fo-compras-page .fo-lines-table tbody input.form-control:focus,
+  .fo-compras-page .fo-lines-table tbody select.form-select:focus,
+  .fo-compras-page .fo-lines-table tbody .sz_input:focus,
+  .fo-compras-page .fo-lines-table tbody .sz_select:focus {
+    background: var(--sz-color-surface-alt) !important;
+    background-color: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  .fo-compras-page .fo-lines-table .form-control-sm,
+  .fo-compras-page .fo-lines-table .form-select-sm,
+  .fo-compras-page .fo-lines-table .input-group-sm > .form-control,
+  .fo-compras-page .fo-lines-table .input-group-sm > .form-select,
+  .fo-compras-page .fo-lines-table .input-group-sm > .btn {
+    height: var(--sz-input-height) !important;
+    min-height: var(--sz-input-height) !important;
+    font-size: var(--sz-font-size-sm) !important;
+  }
+
+  .fo-compras-page .fo-lines-table tbody .input-group > .form-control,
+  .fo-compras-page .fo-lines-table tbody .input-group > .sz_input {
+    flex: 1 1 auto !important;
+    margin: 0 !important;
+  }
+
+  .fo-compras-page .fo-lines-table tbody .input-group-sm > .btn,
+  .fo-compras-page .fo-lines-table tbody .input-group-sm > .form-control,
+  .fo-compras-page .fo-lines-table tbody .input-group-sm > .form-select {
+    border-radius: var(--sz-radius-sm) !important;
+  }
+
+  .fo-compras-page .fo-lines-table td > .form-control,
+  .fo-compras-page .fo-lines-table td > .form-select,
+  .fo-compras-page .fo-lines-table td > .sz_input,
+  .fo-compras-page .fo-lines-table td > .sz_select,
+  .fo-compras-page .fo-lines-table td > .btn,
+  .fo-compras-page .fo-lines-table td > .sz_button,
+  .fo-compras-page .fo-lines-table td .input-group {
+    vertical-align: middle !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .fo-compras-page .fo-lines-table tbody .form-check-input,
+  .fo-compras-page .fo-lines-table tbody input[type="checkbox"] {
+    accent-color: var(--sz-color-primary);
+  }
+
+  .fo-compras-page .fo-attachments .sz_section_header {
+    padding: var(--sz-space-3) var(--sz-space-4) !important;
+    background: var(--sz-color-surface-alt) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  .fo-compras-page .fo-attachments .sz_section_body {
+    padding: var(--sz-space-3) !important;
+    background: var(--sz-color-surface) !important;
+  }
+
+  .fo-compras-page #anexosList {
+    min-height: 5rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--sz-space-2);
+    padding: 0;
+  }
+
+  .fo-compras-page .fo-anexo-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    max-width: 100%;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface-alt);
+  }
+
+  .fo-compras-page .fo-anexo-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    color: var(--sz-color-text);
+    text-decoration: none;
+    font-size: var(--sz-font-size-sm);
+    max-width: min(46vw, 560px);
+  }
+
+  .fo-compras-page .fo-anexo-link span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .fo-compras-page .fo-anexo-link:hover {
+    color: var(--sz-color-primary);
+  }
+
+  .fo-compras-page .fo-anexo-delete {
+    min-height: 1.8rem !important;
+    height: 1.8rem !important;
+    min-width: 1.8rem !important;
+    width: 1.8rem !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+  }
+
+  .fo-compras-page .fo-anexos-empty {
+    display: flex;
+    align-items: center;
+    min-height: 3rem;
+    padding: var(--sz-space-2) 0;
+  }
+
+  .fo-compras-page .fo-attachments {
+    background: transparent !important;
+    border: 0 !important;
+    padding: 0 !important;
+  }
+
+  .fo-compras-page .fo-attachments .accordion-item {
+    border-radius: var(--sz-radius-md) !important;
+    overflow: hidden !important;
+  }
+
+  .fo-compras-page .fo-attachments .accordion-button {
+    border-radius: 0 !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 8px 16px !important;
+    line-height: 24px !important;
+    display: flex !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+  }
+
+  .fo-compras-page .fo-attachments .accordion-button:not(.collapsed) {
+    box-shadow: none !important;
+  }
+
+  .fo-compras-page .fo-attachments .accordion-collapse {
+    border-top: 1px solid var(--sz-color-border);
+  }
+
+  .fo-compras-page .sz_dynamic_form_panels.accordion.fo-attachments .accordion-item .accordion-collapse .accordion-body.sz_dynamic_anexos_section {
+    padding: 12px !important;
+    background: var(--sz-color-surface) !important;
+  }
+
+  .fo-compras-page .form-label {
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  .fo-compras-page .fo-status-card {
+    box-shadow: none !important;
+  }
+
+  .fo-compras-page .fo-status-card.sz_badge_info {
+    background: color-mix(in srgb, var(--sz-color-info) 16%, transparent) !important;
+    border-color: color-mix(in srgb, var(--sz-color-info) 45%, transparent) !important;
+    color: var(--sz-color-info) !important;
+  }
+
+  .fo-compras-page .fo-status-card.sz_badge_success {
+    background: color-mix(in srgb, var(--sz-color-success) 16%, transparent) !important;
+    border-color: color-mix(in srgb, var(--sz-color-success) 45%, transparent) !important;
+    color: var(--sz-color-success) !important;
+  }
+
+  .fo-compras-page .fo-status-card.sz_badge_warning {
+    background: color-mix(in srgb, var(--sz-color-warning) 18%, transparent) !important;
+    border-color: color-mix(in srgb, var(--sz-color-warning) 45%, transparent) !important;
+    color: var(--sz-color-warning) !important;
+  }
+
+  /* grelha de linhas: classe nova para escapar aos estilos legacy do template */
+  .fo-compras-page .fo-lines-grid {
+    width: max-content !important;
+    min-width: 0 !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    table-layout: auto !important;
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  .fo-compras-page .fo-lines .sz_table_wrap {
+    width: max-content !important;
+    min-width: 0 !important;
+  }
+
+  .fo-compras-page .fo-lines-grid thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    padding: 0.5rem 0.32rem !important;
+    font-size: var(--sz-font-size-xs) !important;
+    font-weight: var(--sz-font-weight-semibold) !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+  }
+
+  .fo-compras-page .fo-lines-grid tbody tr {
+    background: var(--sz-color-surface) !important;
+  }
+
+  .fo-compras-page .fo-lines-grid tbody td {
+    padding: 0.1rem 0.2rem !important;
+    vertical-align: middle !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  .fo-compras-page .fo-lines-grid tbody td.sz_table_cell {
+    padding: 0.1rem 0.2rem !important;
+  }
+
+  .fo-compras-page .fo-lines-grid tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 4%, var(--sz-color-surface)) !important;
+  }
+
+  .fo-compras-page .fo-lines-grid tbody tr:last-child td {
+    border-bottom: 0 !important;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-line-input,
+  .fo-compras-page .fo-lines-grid .fo-line-select,
+  .fo-compras-page .fo-lines-grid .fo-line-icon-btn {
+    height: var(--sz-input-height) !important;
+    min-height: var(--sz-input-height) !important;
+    box-sizing: border-box !important;
+    vertical-align: middle !important;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-line-input,
+  .fo-compras-page .fo-lines-grid .fo-line-select {
+    width: 100% !important;
+    padding: 0 var(--sz-space-3) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    line-height: 1.35 !important;
+    background: var(--sz-color-surface-alt) !important;
+    background-color: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-sm) !important;
+    box-shadow: none !important;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-line-input:focus,
+  .fo-compras-page .fo-lines-grid .fo-line-select:focus {
+    background: var(--sz-color-surface-alt) !important;
+    background-color: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text) !important;
+    border-color: var(--sz-color-primary) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sz-color-primary) 18%, transparent) !important;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-line-select {
+    padding-right: 2rem !important;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-line-icon-btn {
+    width: var(--sz-input-height) !important;
+    min-width: var(--sz-input-height) !important;
+    max-width: var(--sz-input-height) !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 var(--sz-input-height) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    line-height: 1 !important;
+    transform: none !important;
+  }
+
+  .fo-compras-page .fo-lines-grid td.text-center,
+  .fo-compras-page .fo-lines-grid td.text-end {
+    padding-left: 0.08rem !important;
+    padding-right: 0.08rem !important;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-line-check {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--sz-color-primary);
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-search {
+    width: calc(var(--sz-input-height) + 0.5rem);
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-ref {
+    width: 18ch;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-design {
+    width: 45ch;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-qtt {
+    width: 8ch;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-un {
+    width: 4ch;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-preco {
+    width: 8ch;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-total {
+    width: 8ch;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-iva {
+    width: 6ch;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-incl {
+    width: 4ch;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-ccusto {
+    width: 12ch;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-dtcusto {
+    width: 12ch;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-familia {
+    width: 8ch;
+  }
+
+  .fo-compras-page .fo-lines-grid .fo-col-delete {
+    width: calc(var(--sz-input-height) + 0.5rem);
+  }
+
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(2) .fo-line-input { width: 18ch !important; }
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(3) .fo-line-input { width: 45ch !important; }
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(4) .fo-line-input { width: 8ch !important; }
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(5) .fo-line-input { width: 4ch !important; }
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(6) .fo-line-input { width: 8ch !important; }
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(7) .fo-line-input { width: 8ch !important; }
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(8) .fo-line-select { width: 6ch !important; }
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(10) .fo-line-select { width: 12ch !important; }
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(11) .fo-line-input { width: 12ch !important; }
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(12) .fo-line-input { width: 8ch !important; }
+
+  .fo-compras-page .fo-lines-grid thead th:nth-child(1),
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(1),
+  .fo-compras-page .fo-lines-grid thead th:nth-child(9),
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(9) {
+    text-align: center;
+  }
+
+  .fo-compras-page .fo-lines-grid thead th:nth-child(13),
+  .fo-compras-page .fo-lines-grid tbody td:nth-child(13) {
+    text-align: right;
+  }
+
+  /* bloco superior: contrato visual igual ao rs_reservas_form */
+  .fo-compras-page .fof-top-section {
+    margin-top: 0 !important;
+    padding: 1rem !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    background: var(--sz-color-surface) !important;
+    box-shadow: var(--sz-shadow-1) !important;
+  }
+
+  .fo-compras-page .fof-form {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: var(--sz-space-4) !important;
+  }
+
+  .fo-compras-page .fof-form .row {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .fo-compras-page .fof-form .row.g-2 {
+    --bs-gutter-x: var(--sz-space-4) !important;
+    --bs-gutter-y: var(--sz-space-4) !important;
+  }
+
+  .fo-compras-page .fof-form .form-label {
+    font-family: var(--sz-font-family) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    line-height: var(--sz-line-normal) !important;
+    color: var(--sz-color-text-secondary) !important;
+    font-weight: var(--sz-font-weight-semibold) !important;
+    margin-bottom: var(--sz-space-2) !important;
+  }
+
+  .fo-compras-page .fof-form .form-control,
+  .fo-compras-page .fof-form .form-select,
+  .fo-compras-page .fof-form textarea {
+    font-family: var(--sz-font-family) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    line-height: var(--sz-line-normal) !important;
+    font-weight: var(--sz-font-weight-normal) !important;
+    min-height: var(--sz-input-height) !important;
+    height: var(--sz-input-height) !important;
+    border-radius: var(--sz-radius-sm) !important;
+    padding: 0 var(--sz-space-3) !important;
+    background: var(--sz-color-surface) !important;
+    background-color: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    color: var(--sz-color-text) !important;
+    box-shadow: none !important;
+  }
+
+  .fo-compras-page .fof-form .form-select {
+    padding-right: 2rem !important;
+  }
+
+  .fo-compras-page .fof-form .form-control::placeholder,
+  .fo-compras-page .fof-form textarea::placeholder {
+    color: var(--sz-color-text-muted) !important;
+    opacity: 1 !important;
+  }
+
+  .fo-compras-page .fof-form .form-control:focus,
+  .fo-compras-page .fof-form .form-select:focus,
+  .fo-compras-page .fof-form textarea:focus {
+    background: var(--sz-color-surface) !important;
+    background-color: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border-color: color-mix(in srgb, var(--sz-color-primary) 70%, var(--sz-color-border)) !important;
+    box-shadow: 0 0 0 0.16rem color-mix(in srgb, var(--sz-color-primary) 20%, transparent) !important;
+  }
+
+  .fo-compras-page .fof-form .form-control[readonly],
+  .fo-compras-page .fof-form .form-control:disabled,
+  .fo-compras-page .fof-form .form-select:disabled {
+    background: var(--sz-color-surface-alt) !important;
+    background-color: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  .fo-compras-page .fof-form input:-webkit-autofill,
+  .fo-compras-page .fof-form input:-webkit-autofill:hover,
+  .fo-compras-page .fof-form input:-webkit-autofill:focus,
+  .fo-compras-page .fof-form textarea:-webkit-autofill,
+  .fo-compras-page .fof-form textarea:-webkit-autofill:hover,
+  .fo-compras-page .fof-form textarea:-webkit-autofill:focus,
+  .fo-compras-page .fof-form select:-webkit-autofill,
+  .fo-compras-page .fof-form select:-webkit-autofill:hover,
+  .fo-compras-page .fof-form select:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--sz-color-text) !important;
+    caret-color: var(--sz-color-text) !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--sz-color-surface) inset !important;
+    box-shadow: 0 0 0 1000px var(--sz-color-surface) inset !important;
+    border: 1px solid var(--sz-color-border) !important;
+    transition: background-color 99999s ease-in-out 0s !important;
+  }
+
+  .fo-compras-page .fof-form input[readonly]:-webkit-autofill,
+  .fo-compras-page .fof-form input[readonly]:-webkit-autofill:hover,
+  .fo-compras-page .fof-form input[readonly]:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--sz-color-surface-alt) inset !important;
+    box-shadow: 0 0 0 1000px var(--sz-color-surface-alt) inset !important;
+    -webkit-text-fill-color: var(--sz-color-text-secondary) !important;
+  }
+
+  .fo-compras-page .fof-form .position-relative > .dropdown-menu {
+    background: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    box-shadow: var(--sz-shadow-2) !important;
+  }
+
+  .fo-compras-page .fof-form .position-relative > .dropdown-menu .dropdown-item {
+    color: var(--sz-color-text-secondary) !important;
+    font-size: var(--sz-font-size-sm) !important;
+  }
+
+  .fo-compras-page .fof-form .position-relative > .dropdown-menu .dropdown-item:hover,
+  .fo-compras-page .fof-form .position-relative > .dropdown-menu .dropdown-item:focus {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  .fo-compras-page .fof-form #totalsRow {
+    width: 100% !important;
+  }
+
+  /* overrides finais: dropdown REF + modal artigos + modal QR/ATCUD */
+  #refSuggestions.dropdown-menu,
+  div.dropdown-menu.ref-autocomplete,
+  body .dropdown-menu.ref-autocomplete {
+    display: none;
+    background: var(--sz-color-surface) !important;
+    background-color: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    box-shadow: var(--sz-shadow-2) !important;
+    padding: var(--sz-space-1) 0 !important;
+    overflow-y: auto !important;
+  }
+
+  #refSuggestions.dropdown-menu.show,
+  div.dropdown-menu.ref-autocomplete.show,
+  body .dropdown-menu.ref-autocomplete.show {
+    display: block !important;
+  }
+
+  #refSuggestions.dropdown-menu .dropdown-item,
+  div.dropdown-menu.ref-autocomplete .dropdown-item,
+  body .dropdown-menu.ref-autocomplete .dropdown-item {
+    display: block;
+    background: transparent !important;
+    background-color: transparent !important;
+    color: var(--sz-color-text) !important;
+    font-size: var(--sz-font-size-sm) !important;
+    font-family: var(--sz-font-family) !important;
+    line-height: var(--sz-line-normal) !important;
+    padding: 0.6rem 0.8rem !important;
+  }
+
+  #refSuggestions.dropdown-menu .dropdown-item:hover,
+  #refSuggestions.dropdown-menu .dropdown-item:focus,
+  div.dropdown-menu.ref-autocomplete .dropdown-item:hover,
+  div.dropdown-menu.ref-autocomplete .dropdown-item:focus,
+  body .dropdown-menu.ref-autocomplete .dropdown-item:hover,
+  body .dropdown-menu.ref-autocomplete .dropdown-item:focus {
+    background: var(--sz-color-surface-alt) !important;
+    background-color: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #artigoModal .modal-dialog,
+  #docAnalyzeModal .modal-dialog {
+    color: var(--sz-color-text) !important;
+  }
+
+  #artigoModal .modal-content.shadow-lg.border-0,
+  #artigoModal .modal-content,
+  #docAnalyzeModal .modal-dialog.modal-lg.modal-dialog-centered.modal-dialog-scrollable .modal-content,
+  #docAnalyzeModal .modal-content {
+    background: var(--sz-color-surface) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    box-shadow: var(--sz-shadow-3) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #artigoModal .artigo-modal-header,
+  #artigoModal .modal-header,
+  #docAnalyzeModal .modal-header {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  #artigoModal .modal-title,
+  #docAnalyzeModal .modal-title,
+  #artigoModal .small,
+  #docAnalyzeModal .small,
+  #docAnalyzeMeta {
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  #artigoModal .modal-body,
+  #artigoModal .modal-footer,
+  #docAnalyzeModal .modal-body,
+  #docAnalyzeModal .modal-footer {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border-color: var(--sz-color-border) !important;
+  }
+
+  #artigoModal .artigo-sticky {
+    background: var(--sz-color-surface) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    box-shadow: none !important;
+  }
+
+  #artigoModal .input-group-text,
+  #artigoModal .form-control,
+  #artigoModal .form-select,
+  #docAnalyzeModal .input-group-text,
+  #docAnalyzeModal .form-control,
+  #docAnalyzeModal .form-select {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-sm) !important;
+    min-height: var(--sz-input-height) !important;
+    box-shadow: none !important;
+  }
+
+  #artigoModal .input-group-text {
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  #artigoModal .artigo-table-wrap,
+  #docAnalyzeModal .table-responsive {
+    border: 1px solid var(--sz-color-border) !important;
+    border-radius: var(--sz-radius-md) !important;
+    background: var(--sz-color-surface) !important;
+  }
+
+  #artigoModal .artigo-table,
+  #docAnalyzeModal table.table {
+    --bs-table-bg: var(--sz-color-surface);
+    --bs-table-color: var(--sz-color-text);
+    --bs-table-border-color: var(--sz-color-border);
+    --bs-table-striped-bg: var(--sz-color-surface);
+    --bs-table-striped-color: var(--sz-color-text);
+    --bs-table-hover-bg: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+    --bs-table-hover-color: var(--sz-color-text);
+    color: var(--sz-color-text) !important;
+    margin-bottom: 0 !important;
+  }
+
+  #artigoModal .artigo-table thead th,
+  #docAnalyzeModal table.table thead th {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  #artigoModal .artigo-table tbody td,
+  #docAnalyzeModal table.table tbody td {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  #artigoModal .artigo-table tbody tr:hover td,
+  #docAnalyzeModal table.table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface)) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  #docAnalyzeModal #docAnalyzeProbe {
+    background: var(--sz-color-surface-alt) !important;
+    border: 1px solid var(--sz-color-border) !important;
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  #artigoModal .modal-footer .btn-outline-secondary,
+  #docAnalyzeModal .modal-footer .btn-outline-secondary {
+    background: transparent !important;
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border)) !important;
+    color: var(--sz-color-primary) !important;
+  }
+
+  #artigoModal .modal-footer .btn-outline-secondary:hover,
+  #docAnalyzeModal .modal-footer .btn-outline-secondary:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, transparent) !important;
+    border-color: color-mix(in srgb, var(--sz-color-primary) 62%, var(--sz-color-border)) !important;
+    color: var(--sz-color-primary) !important;
+  }
+
+  #docAnalyzeModal .modal-footer .btn-primary {
+    background: var(--sz-color-primary) !important;
+    border-color: var(--sz-color-primary) !important;
+    color: #fff !important;
+  }
+</style>
 {% endblock %}
+

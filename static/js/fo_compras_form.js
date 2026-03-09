@@ -1,5 +1,5 @@
-// static/js/fo_compras_form.js
-// Cabeçalho FO + linhas FN com linhas em memória (só grava no final)
+﻿// static/js/fo_compras_form.js
+// CabeÃ§alho FO + linhas FN com linhas em memÃ³ria (sÃ³ grava no final)
 
 const FO_TABLE = 'FO';
 const FN_TABLE = 'FN';
@@ -80,6 +80,23 @@ const docAnalyzeMeta = document.getElementById('docAnalyzeMeta');
 const docAnalyzeProbe = document.getElementById('docAnalyzeProbe');
 const docAnalyzeBody = document.getElementById('docAnalyzeBody');
 const btnImportDocData = document.getElementById('btnImportDocData');
+let isSyncingSzPreview = false;
+const szPreviewFieldMap = [
+  ['DOCNOME', 'SZ_DOCNOME'],
+  ['ADOC', 'SZ_ADOC'],
+  ['DATA', 'SZ_DATA'],
+  ['DOCDATA', 'SZ_DOCDATA'],
+  ['PDATA', 'SZ_PDATA'],
+  ['NOME', 'SZ_NOME'],
+  ['NO', 'SZ_NO'],
+  ['NCONT', 'SZ_NCONT'],
+  ['CCUSTO', 'SZ_CCUSTO'],
+  ['TPDESC', 'SZ_TPDESC'],
+  ['COLAB', 'SZ_COLAB'],
+  ['ETTILIQ', 'SZ_ETTILIQ'],
+  ['ETTIVA', 'SZ_ETTIVA'],
+  ['ETOTAL', 'SZ_ETOTAL']
+];
 let foAnexosRows = [];
 let lastDocAnalyzeResult = null;
 
@@ -137,6 +154,7 @@ function setFoFormValues(data = {}) {
   selectOptionTrim(document.getElementById('TPDESC'), data.TPDESC);
   selectOptionTrim(document.getElementById('COLAB'), data.COLAB);
   toggleColabVisibility();
+  syncFoPreviewAll();
   syncDocdataFromDataIfEmpty();
   renderFoStatusBadges();
   applyEditLocks();
@@ -280,17 +298,17 @@ async function refreshAnexos() {
     const arr = await res.json();
     foAnexosRows = Array.isArray(arr) ? arr : [];
     if (!arr.length) {
-      anexosList.innerHTML = '<span class="text-muted small">Sem anexos.</span>';
+      anexosList.innerHTML = '<div class="sz_dynamic_anexos_empty sz_text_muted">Sem anexos.</div>';
       if (btnAnalyzeDoc) btnAnalyzeDoc.disabled = true;
       return;
     }
     if (btnAnalyzeDoc) btnAnalyzeDoc.disabled = false;
     anexosList.innerHTML = arr.map(a => `
-      <div class="d-inline-flex align-items-center p-2 rounded-pill bg-light border">
-        <a href="${a.CAMINHO}" target="_blank" class="text-decoration-none me-2">
-          <i class="fa fa-file me-1"></i>${a.FICHEIRO}
+      <div class="sz_dynamic_anexo_item">
+        <a href="${a.CAMINHO}" target="_blank" class="sz_dynamic_anexo_link">
+          <i class="fa fa-file sz_dynamic_anexo_info"></i><span>${a.FICHEIRO}</span>
         </a>
-        <button class="btn btn-sm btn-outline-danger" data-anx-id="${a.ANEXOSSTAMP}" title="Eliminar">
+        <button class="sz_dynamic_anexo_icon sz_dynamic_anexo_delete" data-anx-id="${a.ANEXOSSTAMP}" title="Eliminar" type="button">
           <i class="fa fa-times"></i>
         </button>
       </div>
@@ -310,7 +328,7 @@ async function refreshAnexos() {
     });
   } catch (e) {
     foAnexosRows = [];
-    anexosList.innerHTML = '<span class="text-danger small">Erro ao carregar anexos.</span>';
+    anexosList.innerHTML = '<div class="sz_dynamic_anexos_empty sz_error">Erro ao carregar anexos.</div>';
     if (btnAnalyzeDoc) btnAnalyzeDoc.disabled = true;
   }
 }
@@ -335,17 +353,17 @@ function renderDocAnalyzeResult(data) {
     { label: 'ATCUD', key: 'atcud' },
     { label: 'CPE', key: 'cpe' },
     { label: 'Local Consumo', key: 'local_consumo' },
-    { label: 'Nº Documento', key: 'doc_no' },
+    { label: 'N Documento', key: 'doc_no' },
     { label: 'NIF Emitente', key: 'nif_emitente' },
     { label: 'NIF Receptor', key: 'nif_receptor' },
     { label: 'Data', key: 'data' },
     { label: 'Total', key: 'total' },
     { label: 'IVA', key: 'iva' },
-    { label: 'AT C (País Receptor)', key: 'at_c_pais_receptor' },
+    { label: 'AT C (Pais Receptor)', key: 'at_c_pais_receptor' },
     { label: 'AT D (Tipo Documento)', key: 'at_d_tipo_documento' },
     { label: 'AT E (Estado Documento)', key: 'at_e_estado_documento' },
     { label: 'AT F (Data Documento)', key: 'at_f_data_documento' },
-    { label: 'AT G (Número Documento)', key: 'at_g_numero_documento' },
+    { label: 'AT G (Numero Documento)', key: 'at_g_numero_documento' },
     { label: 'AT Q (Hash)', key: 'at_q_hash' },
     { label: 'AT R (Software Cert.)', key: 'at_r_software_certificado' },
     { label: 'AT I1', key: 'at_i1' },
@@ -361,7 +379,7 @@ function renderDocAnalyzeResult(data) {
   const page = found?.page;
   const method = found?.method;
   docAnalyzeMeta.textContent = (page || method)
-    ? `Encontrado na página ${page ?? '-'} (método ${method ?? '-'})`
+    ? `Encontrado na pagina ${page ?? '-'} (metodo ${method ?? '-'})`
     : (data?.message || '');
 
   const probeText = (found?.first_text || '').toString().trim();
@@ -377,18 +395,18 @@ function renderDocAnalyzeResult(data) {
     const fileSize = Number(dbg.file_size || 0);
     const deps = dbg.deps || {};
     const depTxt = Object.keys(deps).length
-      ? Object.entries(deps).map(([k, v]) => `${k}:${v ? 'ok' : 'falta'}`).join(' · ')
+      ? Object.entries(deps).map(([k, v]) => `${k}:${v ? 'ok' : 'falta'}`).join(' ? ')
       : '-';
     docAnalyzeProbe.style.display = '';
     docAnalyzeProbe.innerHTML = `
-      <div class="fw-semibold mb-1">Diagnóstico da análise</div>
+      <div class="sz_h4 sz_mb_1">Diagnostico da analise</div>
       <div><strong>Ficheiro:</strong> ${escapeHtml(fileName || '-')}</div>
       <div><strong>Caminho:</strong> ${escapeHtml(filePath || '-')}</div>
-      <div><strong>Existe no servidor:</strong> ${fileExists ? 'Sim' : 'Não'} · <strong>Tamanho:</strong> ${Number.isFinite(fileSize) ? fileSize : 0} bytes</div>
-      <div><strong>Páginas:</strong> ${Number.isFinite(pages) ? pages : 0} · <strong>Tentativas QR:</strong> ${Number.isFinite(attempts) ? attempts : 0} · <strong>Texto extraído (chars):</strong> ${Number.isFinite(textChars) ? textChars : 0}</div>
-      <div><strong>Dependências:</strong> ${escapeHtml(depTxt)}</div>
-      <div class="mt-2 fw-semibold">Primeiro texto lido${probePage ? ` (página ${probePage})` : ''}</div>
-      <div>${probeText ? escapeHtml(probeText) : '<span class="text-muted">Sem texto extraído.</span>'}</div>
+      <div><strong>Existe no servidor:</strong> ${fileExists ? 'Sim' : 'Nao'} ? <strong>Tamanho:</strong> ${Number.isFinite(fileSize) ? fileSize : 0} bytes</div>
+      <div><strong>Paginas:</strong> ${Number.isFinite(pages) ? pages : 0} ? <strong>Tentativas QR:</strong> ${Number.isFinite(attempts) ? attempts : 0} ? <strong>Texto extraido (chars):</strong> ${Number.isFinite(textChars) ? textChars : 0}</div>
+      <div><strong>Dependencias:</strong> ${escapeHtml(depTxt)}</div>
+      <div class="sz_h4 sz_mt_1">Primeiro texto lido${probePage ? ` (pagina ${probePage})` : ''}</div>
+      <div>${probeText ? escapeHtml(probeText) : '<span class="sz_text_muted">Sem texto extraido.</span>'}</div>
     `;
   }
 
@@ -399,13 +417,13 @@ function renderDocAnalyzeResult(data) {
     const val = (typeof v === 'number') ? String(v) : (v || '').toString();
     rows.push(`
       <tr>
-        <td class="fw-semibold">${f.label}</td>
-        <td class="${f.raw ? 'qr-raw' : ''}">${escapeHtml(val)}</td>
+        <td class="sz_table_cell" style="font-weight: 400; font-family: var(--sz-font-family);">${f.label}</td>
+        <td class="sz_table_cell ${f.raw ? 'qr-raw' : ''}" style="font-weight: 400; font-family: var(--sz-font-family);">${escapeHtml(val)}</td>
       </tr>
     `);
   });
   if (!rows.length) {
-    rows.push('<tr><td colspan="2" class="text-muted">Não foram encontrados campos úteis.</td></tr>');
+    rows.push('<tr><td colspan="2" class="sz_table_cell sz_text_muted">Nao foram encontrados campos uteis.</td></tr>');
   }
   docAnalyzeBody.innerHTML = rows.join('');
 }
@@ -469,7 +487,7 @@ function buildImportedLinesFromFound(found = {}) {
       FNSTAMP: randomStamp(),
       FOSTAMP: currentFoStamp,
       REF: '',
-      DESIGN: `Importação QR AT ${idx + 1}`,
+      DESIGN: `ImportaÃ§Ã£o QR AT ${idx + 1}`,
       QTT: 1,
       UNIDADE: '',
       EPV: base.toFixed(2),
@@ -507,6 +525,7 @@ async function fillFornecedorByNif(nif) {
     if (moradaEl) moradaEl.value = (f.MORADA ?? '').toString().trim();
     if (localEl) localEl.value = (f.LOCAL ?? '').toString().trim();
     if (codpostEl) codpostEl.value = (f.CODPOST ?? '').toString().trim();
+    syncFoPreviewAll();
     return f;
   } catch (_) {}
   return null;
@@ -736,6 +755,162 @@ function toggleColabVisibility() {
   }
 }
 
+function syncFoPreviewField(sourceId, targetId) {
+  if (isSyncingSzPreview) return;
+  const source = document.getElementById(sourceId);
+  const target = document.getElementById(targetId);
+  if (!source || !target) return;
+
+  if (source.tagName === 'SELECT' && target.tagName === 'SELECT') {
+    target.innerHTML = source.innerHTML;
+    target.value = source.value;
+  } else {
+    target.value = source.value ?? '';
+  }
+
+  target.readOnly = !!source.readOnly;
+  target.disabled = !!source.disabled;
+}
+
+function syncFoPreviewAll() {
+  if (isSyncingSzPreview) return;
+  szPreviewFieldMap.forEach(([sourceId, targetId]) => syncFoPreviewField(sourceId, targetId));
+}
+
+function propagatePreviewToSource(targetId, sourceId, eventType = 'input') {
+  const source = document.getElementById(sourceId);
+  const target = document.getElementById(targetId);
+  if (!source || !target) return;
+  if (isSyncingSzPreview) return;
+  isSyncingSzPreview = true;
+  if (source.tagName === 'SELECT') {
+    source.value = target.value ?? '';
+  } else {
+    source.value = target.value ?? '';
+  }
+  source.dispatchEvent(new Event(eventType, { bubbles: true }));
+  if (eventType !== 'change') {
+    source.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  isSyncingSzPreview = false;
+  syncFoPreviewAll();
+}
+
+function initFoPreviewMirror() {
+  szPreviewFieldMap.forEach(([sourceId, targetId]) => {
+    const source = document.getElementById(sourceId);
+    const target = document.getElementById(targetId);
+    if (!source || !target) return;
+
+    const sync = () => syncFoPreviewField(sourceId, targetId);
+    source.addEventListener('input', sync);
+    source.addEventListener('change', sync);
+
+    if (source.tagName === 'SELECT') {
+      const observer = new MutationObserver(sync);
+      observer.observe(source, { childList: true, subtree: true, attributes: true });
+    }
+
+    if (!source.readOnly && !source.disabled) {
+      const propagateInput = () => propagatePreviewToSource(targetId, sourceId, 'input');
+      const propagateChange = () => propagatePreviewToSource(targetId, sourceId, 'change');
+      target.addEventListener('input', propagateInput);
+      target.addEventListener('change', propagateChange);
+    }
+  });
+
+  syncFoPreviewAll();
+}
+
+function applyFornecedorSelection(item = {}, inputId, menuId) {
+  const input = document.getElementById(inputId);
+  const menu = document.getElementById(menuId);
+  const nome = (item.NOME || '').toString();
+  const no = (item.NO || '').toString();
+  const ncont = (item.NCONT || '').toString();
+  const morada = (item.MORADA || '').toString();
+  const local = (item.LOCAL || '').toString();
+  const codpost = (item.CODPOST || '').toString();
+
+  isSyncingSzPreview = true;
+  if (document.getElementById('NOME')) document.getElementById('NOME').value = nome;
+  if (document.getElementById('NO')) document.getElementById('NO').value = no;
+  if (document.getElementById('NCONT')) document.getElementById('NCONT').value = ncont;
+  if (document.getElementById('MORADA')) document.getElementById('MORADA').value = morada;
+  if (document.getElementById('LOCAL')) document.getElementById('LOCAL').value = local;
+  if (document.getElementById('CODPOST')) document.getElementById('CODPOST').value = codpost;
+  if (document.getElementById('SZ_NOME')) document.getElementById('SZ_NOME').value = nome;
+  if (document.getElementById('SZ_NO')) document.getElementById('SZ_NO').value = no;
+  if (document.getElementById('SZ_NCONT')) document.getElementById('SZ_NCONT').value = ncont;
+  isSyncingSzPreview = false;
+
+  input && (input.value = nome);
+  menu?.classList.remove('sz_is_open');
+  if (menu) menu.innerHTML = '';
+}
+
+function bindSupplierAutocomplete(inputId, menuId) {
+  const input = document.getElementById(inputId);
+  const menu = document.getElementById(menuId);
+  if (!input || !menu) return;
+
+  let debounceTimer;
+
+  const closeMenu = () => {
+    menu.classList.remove('sz_is_open');
+    menu.innerHTML = '';
+  };
+
+  const renderMenu = (items) => {
+    if (!Array.isArray(items) || !items.length) {
+      closeMenu();
+      return;
+    }
+    menu.innerHTML = '';
+    items.forEach((it) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sz_purchase_suggestion';
+      btn.textContent = `${it.NOME || ''}`;
+      btn.addEventListener('click', () => applyFornecedorSelection(it, inputId, menuId));
+      menu.appendChild(btn);
+    });
+    menu.classList.add('sz_is_open');
+  };
+
+  input.addEventListener('input', () => {
+    if (isSyncingSzPreview) return;
+    const term = (input.value || '').trim();
+    if (inputId === 'SZ_NOME') {
+      const source = document.getElementById('NOME');
+      if (source) source.value = input.value;
+    }
+    if (term.length < 2) {
+      closeMenu();
+      return;
+    }
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      try {
+        const url = `/generic/api/fo/search_cliente?q=${encodeURIComponent(term)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(res.statusText);
+        const data = await res.json();
+        renderMenu(data);
+      } catch (e) {
+        console.error('autocomplete fornecedor error', e);
+        closeMenu();
+      }
+    }, 200);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!menu.contains(e.target) && !input.contains(e.target)) {
+      closeMenu();
+    }
+  });
+}
+
 function renderFoStatusBadges() {
   const row = document.getElementById('foStatusRow');
   const sync = document.getElementById('foSyncBadge');
@@ -744,42 +919,30 @@ function renderFoStatusBadges() {
   const showSync = Number(foSyncValue) === 1;
   const showPlano = Number(foPlanoValue) === 1;
   const showPago = foPagoStatus === 'full' || foPagoStatus === 'partial';
-  const applyCardStyles = (el, type) => {
+  const applyBadgeStyles = (el, type) => {
     if (!el) return;
-    const base = [
-      'display:inline-flex',
-      'align-items:center',
-      'gap:0.4rem',
-      'padding:0.5rem 1rem',
-      'border-radius:10px',
-      'font-size:0.88rem',
-      'font-weight:700',
-      'box-shadow:0 8px 20px rgba(0,0,0,0.08)',
-      'letter-spacing:0.01em',
-      'border:1px solid #cbd5e1'
-    ];
+    el.className = 'fo-status-card sz_badge';
     if (type === 'sync') {
-      base.push('background:#0d6efd', 'color:#fff', 'border-color:#0b5ed7');
+      el.classList.add('sz_badge_info', 'sync');
     } else if (type === 'plano') {
-      base.push('background:#198754', 'color:#fff', 'border-color:#146c43');
+      el.classList.add('sz_badge_success', 'plano');
     } else if (type === 'pago_full') {
-      base.push('background:#0f766e', 'color:#fff', 'border-color:#0f766e');
+      el.classList.add('sz_badge_success', 'pago', 'pago-full');
     } else if (type === 'pago_partial') {
-      base.push('background:#f59e0b', 'color:#111827', 'border-color:#d97706');
+      el.classList.add('sz_badge_warning', 'pago', 'pago-partial');
     } else {
-      base.push('background:#e2e8f0', 'color:#0f172a');
+      el.classList.add('sz_badge_info');
     }
-    el.style.cssText = base.join(';') + ';';
   };
 
   if (sync) sync.style.display = showSync ? 'inline-flex' : 'none';
   if (plano) plano.style.display = showPlano ? 'inline-flex' : 'none';
   if (pago) pago.style.display = showPago ? 'inline-flex' : 'none';
-  if (showSync) applyCardStyles(sync, 'sync');
-  if (showPlano) applyCardStyles(plano, 'plano');
+  if (showSync) applyBadgeStyles(sync, 'sync');
+  if (showPlano) applyBadgeStyles(plano, 'plano');
   if (showPago && pago) {
     pago.textContent = (foPagoStatus === 'full') ? 'Pago' : 'Pago Parcialmente';
-    applyCardStyles(pago, foPagoStatus === 'full' ? 'pago_full' : 'pago_partial');
+    applyBadgeStyles(pago, foPagoStatus === 'full' ? 'pago_full' : 'pago_partial');
   }
   if (row) {
     const any = showSync || showPlano || showPago;
@@ -833,8 +996,8 @@ function buildFoObs(payload) {
   const cabCcustoMissing = !((payload.CCUSTO || '').toString().trim());
   const fornecedorMissing = Number(payload.NO || 0) === 0;
 
-  if (hasFamiliaMissing) msgs.push('Famílias em Falta');
-  if (hasRefMissing) msgs.push('Referências em Falta');
+  if (hasFamiliaMissing) msgs.push('FamÃ­lias em Falta');
+  if (hasRefMissing) msgs.push('ReferÃªncias em Falta');
   if (fornecedorMissing) msgs.push('Fornecedor em Falta');
   if (hasCcustoLineMissing || cabCcustoMissing) msgs.push('CCusto em Falta');
 
@@ -861,7 +1024,7 @@ function renderContratosRows(rows, filterText = '') {
   const ft = (filterText || '').toString().trim().toLowerCase();
   const filtered = ft ? rows.filter(r => contractRowText(r).includes(ft)) : rows;
   if (!filtered.length) {
-    contratoTableBody.innerHTML = '<tr><td colspan="7" class="text-muted">Sem contratos.</td></tr>';
+    contratoTableBody.innerHTML = '<tr><td colspan="7" class="sz_table_cell sz_text_muted">Sem contratos.</td></tr>';
     return;
   }
   contratoTableBody.innerHTML = filtered.map(r => {
@@ -873,14 +1036,14 @@ function renderContratosRows(rows, filterText = '') {
     const maquinaTxt = (r.MAQUINA ?? '').toString().trim();
     const obraTxt = (r.OBRANO ?? '').toString().trim();
     return `
-      <tr data-bostamp="${(r.BOSTAMP ?? '').toString().trim()}">
-        <td>${(r.NDOS ?? '').toString().trim()}</td>
-        <td>${escapeHtml(doc)}</td>
-        <td>${escapeHtml(obraTxt)}</td>
-        <td>${escapeHtml(maquinaTxt)}</td>
-        <td class="text-end">${escapeHtml(totalTxt)}</td>
-        <td>${escapeHtml(noTxt ? `${noTxt} - ${nomeTxt}` : nomeTxt)}</td>
-        <td class="text-end"><button class="btn btn-sm btn-primary" data-action="pick">Escolher</button></td>
+      <tr class="sz_table_row" data-bostamp="${(r.BOSTAMP ?? '').toString().trim()}">
+        <td class="sz_table_cell">${(r.NDOS ?? '').toString().trim()}</td>
+        <td class="sz_table_cell">${escapeHtml(doc)}</td>
+        <td class="sz_table_cell">${escapeHtml(obraTxt)}</td>
+        <td class="sz_table_cell">${escapeHtml(maquinaTxt)}</td>
+        <td class="sz_table_cell sz_text_right">${escapeHtml(totalTxt)}</td>
+        <td class="sz_table_cell">${escapeHtml(noTxt ? `${noTxt} - ${nomeTxt}` : nomeTxt)}</td>
+        <td class="sz_table_cell sz_text_right"><button class="sz_button sz_button_primary fo-contrato-pick-btn" data-action="pick">Escolher</button></td>
       </tr>
     `;
   }).join('');
@@ -900,10 +1063,10 @@ async function loadContratosIntoModal() {
   const no = (document.getElementById('NO')?.value || '').toString().trim();
   const nome = (document.getElementById('NOME')?.value || '').toString().trim();
   if (contratoSupplierInfo) {
-    contratoSupplierInfo.textContent = no ? `Fornecedor: ${no}${nome ? ' - ' + nome : ''}` : 'Sem fornecedor no cabeçalho: a mostrar todos os contratos.';
+    contratoSupplierInfo.textContent = no ? `Fornecedor: ${no}${nome ? ' - ' + nome : ''}` : 'Sem fornecedor no cabecalho: a mostrar todos os contratos.';
   }
   if (contratoTableBody) {
-    contratoTableBody.innerHTML = '<tr><td colspan="7" class="text-muted">A carregar...</td></tr>';
+    contratoTableBody.innerHTML = '<tr><td colspan="7" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
   }
 
   const res = await fetch(`/generic/api/fo/contratos?no=${encodeURIComponent(no)}`);
@@ -911,7 +1074,7 @@ async function loadContratosIntoModal() {
     const err = await res.json().catch(() => ({}));
     const msg = err.error || res.statusText;
     if (contratoTableBody) {
-      contratoTableBody.innerHTML = `<tr><td colspan="7" class="text-danger">Erro: ${escapeHtml(msg)}</td></tr>`;
+      contratoTableBody.innerHTML = `<tr><td colspan="7" class="sz_table_cell sz_error">Erro: ${escapeHtml(msg)}</td></tr>`;
     }
     return;
   }
@@ -931,7 +1094,7 @@ async function importContratoByBoStamp(bostamp) {
   }
   const rows = await res.json();
 
-  // carregar famílias por REF (V_ST)
+  // carregar famÃ­lias por REF (V_ST)
   let familiaByRef = {};
   try {
     const refs = Array.from(new Set(rows.map(r => (r.REF ?? '').toString().trim()).filter(Boolean)));
@@ -994,7 +1157,7 @@ function openArtigoModal(target) {
   artigoPickTarget = target || null;
   if (artigoSearch) artigoSearch.value = '';
   if (artigoTableBody) {
-    artigoTableBody.innerHTML = '<tr><td colspan="3" class="text-muted">A carregar...</td></tr>';
+    artigoTableBody.innerHTML = '<tr><td colspan="3" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
   }
   artigoModal.show();
   loadArtigosIntoModal('');
@@ -1004,7 +1167,7 @@ function openArtigoModal(target) {
 function renderArtigosRows(rows) {
   if (!artigoTableBody) return;
   if (!Array.isArray(rows) || !rows.length) {
-    artigoTableBody.innerHTML = '<tr><td colspan="3" class="text-muted">Sem artigos.</td></tr>';
+    artigoTableBody.innerHTML = '<tr><td colspan="3" class="sz_table_cell sz_text_muted">Sem artigos.</td></tr>';
     return;
   }
   artigoTableBody.innerHTML = '';
@@ -1019,11 +1182,13 @@ function renderArtigosRows(rows) {
 
     const tdRef = document.createElement('td');
     tdRef.textContent = ref;
-    tdRef.className = 'artigo-ref';
+    tdRef.className = 'sz_table_cell';
     const tdDesign = document.createElement('td');
     tdDesign.textContent = design;
+    tdDesign.className = 'sz_table_cell';
     const tdFam = document.createElement('td');
     tdFam.textContent = familiaTxt;
+    tdFam.className = 'sz_table_cell';
 
     tr.appendChild(tdRef);
     tr.appendChild(tdDesign);
@@ -1197,8 +1362,8 @@ async function loadDocnomeOptions() {
       opt.textContent = extra;
       sel.append(opt);
     }
-    // ensure "V/Nt. Crédito DD" is present
-    const extra2 = 'V/Nt. Crédito DD';
+    // ensure "V/Nt. CrÃ©dito DD" is present
+    const extra2 = 'V/Nt. CrÃ©dito DD';
     if (!normalized.has(extra2.toUpperCase())) {
       const opt = document.createElement('option');
       opt.value = extra2;
@@ -1350,6 +1515,7 @@ function applyTpSelection() {
 
   // toggle COLAB when TPDESC == DESPESAS
   toggleColabVisibility();
+  syncFoPreviewAll();
 }
 
 function bindNomeAutocomplete() {
@@ -1377,6 +1543,7 @@ function bindNomeAutocomplete() {
       const el = document.getElementById(dest);
       if (el) el.value = item[src] || '';
     });
+    syncFoPreviewAll();
     closeMenu();
   };
 
@@ -1486,7 +1653,7 @@ function bindRefAutocomplete() {
       });
       menu.appendChild(a);
     });
-    // posicionar relativo ao wrapper (mesma linha) com largura = 2x REF (máx 480px)
+    // posicionar relativo ao wrapper (mesma linha) com largura = 2x REF (mÃ¡x 480px)
     try {
       const wrapper = input.closest('.position-relative') || input.parentElement;
       if (wrapper && getComputedStyle(wrapper).position === 'static') {
@@ -1554,7 +1721,7 @@ async function loadLines() {
     recalcTotals();
     if (tabivaLoaded && linesData?.length) renderLines();
   } catch {
-    linesTableBody.innerHTML = '<tr><td colspan="12" class="text-danger">Erro ao carregar linhas</td></tr>';
+    linesTableBody.innerHTML = '<tr><td colspan="13" class="sz_table_cell sz_error">Erro ao carregar linhas</td></tr>';
   }
 }
 
@@ -1563,7 +1730,12 @@ function renderTabivaSelect(line) {
   const lineTab = (line.TABIVA ?? '').toString().trim();
   const lineTaxa = (line.TAXAIVA ?? '').toString().trim();
   const sel = document.createElement('select');
-  sel.className = 'form-select form-select-sm';
+  sel.className = 'sz_select fo-line-select';
+  sel.style.width = '100%';
+  sel.style.minWidth = '0';
+  sel.style.maxWidth = 'none';
+  sel.style.height = 'var(--sz-input-height)';
+  sel.style.minHeight = 'var(--sz-input-height)';
   sel.disabled = isFoLocked();
   sel.dataset.line = line.FNSTAMP;
   sel.dataset.field = 'TABIVA';
@@ -1582,7 +1754,7 @@ function renderTabivaSelect(line) {
     }
     sel.append(opt);
   });
-  // se não encontrou, acrescenta opção isolada para exibir o valor existente
+  // se nÃ£o encontrou, acrescenta opÃ§Ã£o isolada para exibir o valor existente
   if (!matched && lineTab) {
     const opt = document.createElement('option');
     opt.value = lineTab;
@@ -1591,7 +1763,7 @@ function renderTabivaSelect(line) {
     opt.selected = true;
     sel.append(opt);
   }
-  // garantir seleção via value também
+  // garantir seleÃ§Ã£o via value tambÃ©m
   if (lineTab) sel.value = lineTab;
   // hidden input to persist TAXAIVA value without occupying layout
   const hiddenTaxa = document.createElement('input');
@@ -1615,7 +1787,12 @@ function renderCcustoSelect(line) {
   const options = ccustoOptions.length ? ccustoOptions : [line.FNCCUSTO || fallbackCcusto || ''];
   const lineCcusto = (line.FNCCUSTO ?? '').toString().trim();
   const sel = document.createElement('select');
-  sel.className = 'form-select form-select-sm';
+  sel.className = 'sz_select fo-line-select';
+  sel.style.width = '100%';
+  sel.style.minWidth = '0';
+  sel.style.maxWidth = 'none';
+  sel.style.height = 'var(--sz-input-height)';
+  sel.style.minHeight = 'var(--sz-input-height)';
   sel.disabled = isFoLocked();
   sel.dataset.line = line.FNSTAMP;
   sel.dataset.field = 'FNCCUSTO';
@@ -1655,6 +1832,25 @@ function attachRefAutocompleteInline(input) {
   menu.style.zIndex = 3000;
   menu.style.minWidth = '220px';
   menu.style.display = 'none';
+  const applyThemeStyles = () => {
+    const rootStyles = getComputedStyle(document.documentElement);
+    const bodyStyles = getComputedStyle(document.body);
+    const surface = rootStyles.getPropertyValue('--sz-color-surface').trim() || bodyStyles.getPropertyValue('--sz-color-surface').trim() || '#ffffff';
+    const surfaceAlt = rootStyles.getPropertyValue('--sz-color-surface-alt').trim() || bodyStyles.getPropertyValue('--sz-color-surface-alt').trim() || '#f8fbff';
+    const text = rootStyles.getPropertyValue('--sz-color-text').trim() || bodyStyles.getPropertyValue('--sz-color-text').trim() || '#162233';
+    const border = rootStyles.getPropertyValue('--sz-color-border').trim() || bodyStyles.getPropertyValue('--sz-color-border').trim() || '#d8e0ec';
+    const radius = rootStyles.getPropertyValue('--sz-radius-md').trim() || '12px';
+    const shadow = rootStyles.getPropertyValue('--sz-shadow-2').trim() || '0 8px 24px rgba(23, 44, 76, 0.08)';
+    menu.style.background = surface;
+    menu.style.backgroundColor = surface;
+    menu.style.border = `1px solid ${border}`;
+    menu.style.borderRadius = radius;
+    menu.style.boxShadow = shadow;
+    menu.style.padding = '0.25rem 0';
+    menu.dataset.szSurfaceAlt = surfaceAlt;
+    menu.dataset.szText = text;
+  };
+  applyThemeStyles();
   document.body.appendChild(menu);
 
   const closeMenu = () => { menu.classList.remove('show'); menu.style.display = 'none'; };
@@ -1681,6 +1877,16 @@ function attachRefAutocompleteInline(input) {
       a.href = '#';
       a.className = 'dropdown-item';
       a.textContent = item.REF ? `${item.REF}` : '';
+      a.style.display = 'block';
+      a.style.padding = '0.6rem 0.8rem';
+      a.style.background = 'transparent';
+      a.style.color = menu.dataset.szText || '';
+      a.addEventListener('mouseenter', () => {
+        a.style.background = menu.dataset.szSurfaceAlt || '';
+      });
+      a.addEventListener('mouseleave', () => {
+        a.style.background = 'transparent';
+      });
       a.addEventListener('click', (e) => {
         e.preventDefault();
         const lineId = input.dataset.line;
@@ -1729,12 +1935,29 @@ function attachRefAutocompleteInline(input) {
   document.addEventListener('click', (e) => {
     if (!menu.contains(e.target) && !input.contains(e.target)) closeMenu();
   });
+  document.addEventListener('sz-theme-change', applyThemeStyles);
+  const themeObserver = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'data-sz-theme') {
+        applyThemeStyles();
+        if (menu.classList.contains('show')) {
+          const items = menu.querySelectorAll('.dropdown-item');
+          items.forEach((item) => {
+            item.style.color = menu.dataset.szText || '';
+            item.style.background = 'transparent';
+          });
+        }
+        break;
+      }
+    }
+  });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-sz-theme'] });
 }
 
 function renderLines() {
   if (!linesTableBody) return;
   if (!linesData.length) {
-    linesTableBody.innerHTML = '<tr><td colspan="12" class="text-muted">Sem linhas</td></tr>';
+    linesTableBody.innerHTML = '<tr><td colspan="13" class="sz_table_cell sz_text_muted">Sem linhas</td></tr>';
     return;
   }
   const locked = isFoLocked();
@@ -1742,7 +1965,7 @@ function renderLines() {
   normalizeLineOrder();
   linesTableBody.innerHTML = '';
   linesData.forEach(r => {
-    // normalizar campos chave para evitar espa�os e manter selects sincronizados
+    // normalizar campos chave para evitar espaï¿½os e manter selects sincronizados
     r.TABIVA = (r.TABIVA ?? '').toString().trim();
     r.TAXAIVA = (r.TAXAIVA ?? '').toString().trim();
     r.FNCCUSTO = (r.FNCCUSTO ?? '').toString().trim();
@@ -1750,7 +1973,7 @@ function renderLines() {
     r.DESIGN = (r.DESIGN ?? '').toString().trim();
     r.DTCUSTO = toDateInputValue(r.DTCUSTO) || null;
     r.FAMILIA = (r.FAMILIA ?? '').toString().trim();
-    // garantir ETILIQUIDO calculado localmente se possível
+    // garantir ETILIQUIDO calculado localmente se possÃ­vel
     const qtt = Number(r.QTT);
     const epv = Number(r.EPV);
     if (Number.isFinite(qtt) && Number.isFinite(epv)) {
@@ -1768,27 +1991,42 @@ function renderLines() {
     const ivaCombined = ivaParts.join(' | ');
     const ivainclChecked = (r.IVAINCL === 1 || r.IVAINCL === '1' || r.IVAINCL === true);
     const tr = document.createElement('tr');
+    const controlStyle = {
+      input: 'width:100%;min-width:0;max-width:none;height:var(--sz-input-height);min-height:var(--sz-input-height);',
+      iconBtn: 'width:var(--sz-input-height);min-width:var(--sz-input-height);max-width:var(--sz-input-height);height:var(--sz-input-height);min-height:var(--sz-input-height);padding:0;',
+      cellSearch: 'width:var(--sz-input-height);min-width:var(--sz-input-height);max-width:var(--sz-input-height);padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellRef: 'width:16ch;min-width:16ch;max-width:16ch;padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellDesign: 'width:38ch;min-width:38ch;max-width:38ch;padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellQtt: 'width:10ch;min-width:10ch;max-width:10ch;padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellUn: 'width:4ch;min-width:4ch;max-width:4ch;padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellPreco: 'width:10ch;min-width:10ch;max-width:10ch;padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellTotal: 'width:10ch;min-width:10ch;max-width:10ch;padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellIva: 'width:8ch;min-width:8ch;max-width:8ch;padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellIncl: 'width:4ch;min-width:4ch;max-width:4ch;padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellCcusto: 'width:12ch;min-width:12ch;max-width:12ch;padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellDtcusto: 'width:14ch;min-width:14ch;max-width:14ch;padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellFamilia: 'width:8ch;min-width:8ch;max-width:8ch;padding:0.1rem 0.2rem;vertical-align:middle;',
+      cellDelete: 'width:var(--sz-input-height);min-width:var(--sz-input-height);max-width:var(--sz-input-height);padding:0.1rem 0.2rem;vertical-align:middle;'
+    };
     tr.innerHTML = `
-      <td>
-        <div class="input-group input-group-sm">
-          <button type="button" class="btn btn-outline-secondary" data-action="choose_artigo" data-id="${r.FNSTAMP}" title="Escolher artigo" ${dis}>
-            <i class="fa fa-search"></i>
-          </button>
-          <input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="REF" value="${r.REF || ''}" ${dis}>
-        </div>
+      <td class="sz_table_cell text-center" style="${controlStyle.cellSearch}">
+        <button type="button" class="sz_button sz_button_ghost fo-line-icon-btn" style="${controlStyle.iconBtn}" data-action="choose_artigo" data-id="${r.FNSTAMP}" title="Escolher artigo" ${dis}>
+          <i class="fa fa-search"></i>
+        </button>
       </td>
-      <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="DESIGN" value="${r.DESIGN || ''}" ${dis}></td>
-      <td><input class="form-control form-control-sm text-end" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="QTT" value="${r.QTT ?? ''}" ${dis}></td>
-      <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="UNIDADE" value="${r.UNIDADE || ''}" ${dis}></td>
-      <td><input class="form-control form-control-sm text-end" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="EPV" value="${r.EPV ?? ''}" ${dis}></td>
-      <td><input class="form-control form-control-sm text-end" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="ETILIQUIDO" value="${r.ETILIQUIDO ?? ''}" readonly></td>
-      <td>${renderTabivaSelect(r)}</td>
-      <td class="text-center"><input type="checkbox" data-line="${r.FNSTAMP}" data-field="IVAINCL" ${ivainclChecked ? 'checked' : ''} ${dis}></td>
-      <td>${renderCcustoSelect(r)}</td>
-      <td><input class="form-control form-control-sm" type="date" data-line="${r.FNSTAMP}" data-field="DTCUSTO" value="${r.DTCUSTO || ''}" ${dis}></td>
-      <td><input class="form-control form-control-sm" data-line="${r.FNSTAMP}" data-field="FAMILIA" value="${r.FAMILIA || ''}" ${dis}></td>
-      <td class="text-end">
-        <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${r.FNSTAMP}" title="Apagar" ${dis}><i class="fa fa-trash"></i></button>
+      <td class="sz_table_cell" style="${controlStyle.cellRef}"><input class="sz_input fo-line-input" style="${controlStyle.input}" data-line="${r.FNSTAMP}" data-field="REF" value="${r.REF || ''}" ${dis}></td>
+      <td class="sz_table_cell" style="${controlStyle.cellDesign}"><input class="sz_input fo-line-input" style="${controlStyle.input}" data-line="${r.FNSTAMP}" data-field="DESIGN" value="${r.DESIGN || ''}" ${dis}></td>
+      <td class="sz_table_cell" style="${controlStyle.cellQtt}"><input class="sz_input fo-line-input text-end" style="${controlStyle.input}" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="QTT" value="${r.QTT ?? ''}" ${dis}></td>
+      <td class="sz_table_cell" style="${controlStyle.cellUn}"><input class="sz_input fo-line-input" style="${controlStyle.input}" data-line="${r.FNSTAMP}" data-field="UNIDADE" value="${r.UNIDADE || ''}" ${dis}></td>
+      <td class="sz_table_cell" style="${controlStyle.cellPreco}"><input class="sz_input fo-line-input text-end" style="${controlStyle.input}" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="EPV" value="${r.EPV ?? ''}" ${dis}></td>
+      <td class="sz_table_cell" style="${controlStyle.cellTotal}"><input class="sz_input fo-line-input text-end" style="${controlStyle.input}" type="number" step="0.01" data-line="${r.FNSTAMP}" data-field="ETILIQUIDO" value="${r.ETILIQUIDO ?? ''}" readonly></td>
+      <td class="sz_table_cell" style="${controlStyle.cellIva}">${renderTabivaSelect(r)}</td>
+      <td class="sz_table_cell text-center" style="${controlStyle.cellIncl}"><input class="fo-line-check" type="checkbox" data-line="${r.FNSTAMP}" data-field="IVAINCL" ${ivainclChecked ? 'checked' : ''} ${dis}></td>
+      <td class="sz_table_cell" style="${controlStyle.cellCcusto}">${renderCcustoSelect(r)}</td>
+      <td class="sz_table_cell" style="${controlStyle.cellDtcusto}"><input class="sz_input fo-line-input" style="${controlStyle.input}" type="date" data-line="${r.FNSTAMP}" data-field="DTCUSTO" value="${r.DTCUSTO || ''}" ${dis}></td>
+      <td class="sz_table_cell" style="${controlStyle.cellFamilia}"><input class="sz_input fo-line-input" style="${controlStyle.input}" data-line="${r.FNSTAMP}" data-field="FAMILIA" value="${r.FAMILIA || ''}" ${dis}></td>
+      <td class="sz_table_cell text-end" style="${controlStyle.cellDelete}">
+        <button class="sz_button sz_button_danger fo-line-icon-btn" style="${controlStyle.iconBtn}" data-action="delete" data-id="${r.FNSTAMP}" title="Apagar" ${dis}><i class="fa fa-trash"></i></button>
       </td>
     `;
     linesTableBody.appendChild(tr);
@@ -1833,11 +2071,11 @@ function updateLineField(lineId, field, value) {
 
 async function saveFo() {
   if (Number(foPlanoValue) === 1) {
-    alert('Documento contabilizado no ERP. Não pode ser alterado.');
+    alert('Documento contabilizado no ERP. NÃ£o pode ser alterado.');
     return;
   }
   if (foPagoLocked) {
-    alert('Documento incluído em pagamento. Não pode ser alterado.');
+    alert('Documento incluÃ­do em pagamento. NÃ£o pode ser alterado.');
     return;
   }
   // mostra overlay
@@ -1860,7 +2098,7 @@ async function saveFo() {
   if (!payload.NO) payload.NO = 0;
   if (!payload.PDATA && payload.DATA) payload.PDATA = payload.DATA;
   if (!isNewRecord && Number(foSyncValue) === 1) {
-    payload.SYNC = 0; // forçar re-sincronização
+    payload.SYNC = 0; // forÃ§ar re-sincronizaÃ§Ã£o
     const syncEl = document.getElementById('SYNC');
     if (syncEl) syncEl.value = 0;
   }
@@ -1910,15 +2148,15 @@ async function deleteFo() {
     return;
   }
   if (Number(foPlanoValue) === 1) {
-    alert('Documento contabilizado no ERP. Não pode ser eliminado.');
+    alert('Documento contabilizado no ERP. NÃ£o pode ser eliminado.');
     return;
   }
   if (foPagoLocked) {
-    alert('Documento incluído em pagamento. Não pode ser eliminado.');
+    alert('Documento incluÃ­do em pagamento. NÃ£o pode ser eliminado.');
     return;
   }
   if (Number(foSyncValue) === 1 && !canDeleteSynced()) {
-    alert('Documento sincronizado. Não pode ser eliminado.');
+    alert('Documento sincronizado. NÃ£o pode ser eliminado.');
     return;
   }
   if (!confirm('Eliminar este FO?')) return;
@@ -1947,7 +2185,7 @@ function openLineModal(data = {}) {
       el.value = data[f] ?? '';
     }
   });
-  // default FNCCUSTO com CCUSTO de cabeçalho se estiver vazio
+  // default FNCCUSTO com CCUSTO de cabeÃ§alho se estiver vazio
   const fnCcusto = document.getElementById('FN_FNCCUSTO');
   const cabCcusto = document.getElementById('CCUSTO');
   if (fnCcusto && !fnCcusto.value && cabCcusto) {
@@ -1993,11 +2231,11 @@ async function saveLine() {
 async function deleteLine(fnStamp) {
   if (!fnStamp) return;
   if (Number(foPlanoValue) === 1) {
-    alert('Documento contabilizado no ERP. Não pode ser alterado.');
+    alert('Documento contabilizado no ERP. NÃ£o pode ser alterado.');
     return;
   }
   if (foPagoLocked) {
-    alert('Documento incluído em pagamento. Não pode ser alterado.');
+    alert('Documento incluÃ­do em pagamento. NÃ£o pode ser alterado.');
     return;
   }
   if (!confirm('Eliminar esta linha?')) return;
@@ -2112,6 +2350,7 @@ function recalcTotals() {
   if (ettliqEl) ettliqEl.value = totalLiquido.toFixed(2);
   if (ettivaEl) ettivaEl.value = totalIva.toFixed(2);
   if (etotalEl) etotalEl.value = total.toFixed(2);
+  syncFoPreviewAll();
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2246,14 +2485,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('TPDESC')?.addEventListener('change', applyTpSelection);
   document.getElementById('TPDESC')?.addEventListener('change', toggleColabVisibility);
+  initFoPreviewMirror();
+  syncFoPreviewAll();
   document.getElementById('DATA')?.addEventListener('change', applyTpSelection);
   document.getElementById('FN_QTT')?.addEventListener('input', recalcModalEtiliq);
   document.getElementById('FN_EPV')?.addEventListener('input', recalcModalEtiliq);
+  bindSupplierAutocomplete('SZ_NOME', 'szNomeSuggestions');
   bindRefAutocomplete();
   // anexos
   btnAddAnexo?.addEventListener('click', () => {
     if (isMobile()) {
-      const choice = prompt('Escolha opção: 1- Ficheiro, 2- Câmara, 3- Galeria', '1');
+      const choice = prompt('Escolha opÃ§Ã£o: 1- Ficheiro, 2- CÃ¢mara, 3- Galeria', '1');
       if (choice === '2') {
         inputAnexoCamera?.click();
         return;
@@ -2284,11 +2526,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (action === 'delete') deleteLine(id);
     if (action === 'choose_artigo') {
       if (Number(foPlanoValue) === 1) {
-        alert('Documento contabilizado no ERP. Não pode ser alterado.');
+        alert('Documento contabilizado no ERP. NÃ£o pode ser alterado.');
         return;
       }
       if (foPagoLocked) {
-        alert('Documento incluído em pagamento. Não pode ser alterado.');
+        alert('Documento incluÃ­do em pagamento. NÃ£o pode ser alterado.');
         return;
       }
       openArtigoModal({ type: 'inline', lineId: id });
@@ -2318,3 +2560,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
 });
+

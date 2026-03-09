@@ -1487,17 +1487,23 @@ document.addEventListener('DOMContentLoaded', () => {
     ccList.innerHTML = ccOptions.map((cc) => {
       const checked = ccSelected.has(cc.ccusto) ? 'checked' : '';
       const tipoNorm = (cc.tipo || '').trim().toUpperCase();
-      let badge = '<span class="badge bg-secondary-subtle text-secondary ms-auto">Estrutura</span>';
-      if (tipoNorm === 'EXPLORACAO') badge = '<span class="badge bg-info-subtle text-info ms-auto">Exploração</span>';
-      else if (tipoNorm === 'GESTAO') badge = '<span class="badge bg-success-subtle text-success ms-auto">Gestão</span>';
+      let badge = '<span class="sz_badge sz_badge_warning">Estrutura</span>';
+      if (tipoNorm === 'EXPLORACAO') badge = '<span class="sz_badge sz_badge_info">Exploração</span>';
+      else if (tipoNorm === 'GESTAO') badge = '<span class="sz_badge sz_badge_success">Gestão</span>';
       return `
-        <label class="list-group-item d-flex align-items-center gap-2">
-          <input class="form-check-input" type="checkbox" value="${cc.ccusto}" ${checked}>
-          <span>${cc.ccusto}</span>
-          ${badge}
-        </label>
+        <tr class="sz_table_row">
+          <td class="sz_table_cell text-center">
+            <input class="sz_management_map_cc_checkbox" type="checkbox" value="${cc.ccusto}" ${checked}>
+          </td>
+          <td class="sz_table_cell">
+            <label class="sz_management_map_cc_row_label">
+              <span class="sz_management_map_cc_name">${cc.ccusto}</span>
+            </label>
+          </td>
+          <td class="sz_table_cell sz_management_map_cc_badge_wrap">${badge}</td>
+        </tr>
       `;
-    }).join('') || '<div class="text-muted">Sem centros de custo.</div>';
+    }).join('') || '<tr><td colspan="3" class="sz_table_cell sz_text_muted text-center">Sem centros de custo.</td></tr>';
     updateCcSummary();
   }
 
@@ -1542,7 +1548,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error(err);
       ccOptions = [];
       ccSelected = new Set();
-      if (ccList) ccList.innerHTML = '<div class="text-danger">Erro ao carregar centros de custo.</div>';
+      if (ccList) ccList.innerHTML = '<tr><td colspan="3" class="sz_table_cell text-center" style="color: var(--sz-color-danger);">Erro ao carregar centros de custo.</td></tr>';
       setLoading('Erro ao carregar centros de custo');
       updateBudgetAvailability();
     }
