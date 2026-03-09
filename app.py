@@ -35,6 +35,11 @@ from services.ft_pdf_service import (
     generate_ft_pdf_bytes_xhtml2pdf,
     discover_pdf_engines,
 )
+from services.shop_guest_service import (
+    build_shop_cart,
+    get_shop_catalog_data,
+    get_shop_product_by_code,
+)
 from price_engine import register_pricing
 
 # Importa a instÃ¢ncia db e modelos
@@ -194,6 +199,146 @@ def create_app():
                 return date.fromisoformat(txt[:10]) < date.today()
         except Exception:
             return False
+
+    def _public_token_invalid(token_value: str) -> bool:
+        tok = (token_value or '').strip()
+        return (not tok) or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok)
+
+    def _public_reserva_row(token_value: str):
+        if _public_token_invalid(token_value):
+            return None
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                RS.RSSTAMP,
+                RS.RESERVA,
+                RS.ALOJAMENTO,
+                RS.DATAIN,
+                RS.DATAOUT,
+                RS.HORAIN,
+                RS.HORAOUT,
+                ISNULL(RS.BERCO,0) AS BERCO,
+                RS.ADULTOS,
+                RS.CRIANCAS,
+                RS.NOITES,
+                RS.GUIDE_TOKEN,
+                RS.GUIDE_TOKEN_EXPIRES,
+                RS.GUIDE_TOKEN_REVOKED,
+                ISNULL(RS.FTNOME,'') AS FTNOME,
+                ISNULL(RS.FTMORADA,'') AS FTMORADA,
+                ISNULL(RS.FTLOCAL,'') AS FTLOCAL,
+                ISNULL(RS.FTCODPOST,'') AS FTCODPOST,
+                ISNULL(RS.FTNCONT,'') AS FTNCONT,
+                ISNULL(RS.FTEMAIL,'') AS FTEMAIL,
+                AL.MORADA,
+                AL.CODPOST,
+                AL.LOCAL,
+                AL.LAT,
+                AL.LON
+            FROM dbo.RS RS
+            LEFT JOIN dbo.AL AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+               = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
+            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
+        """), {'t': token_value}).mappings().first()
+        if not row:
+            return None
+        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
+            return None
+        if _token_expired(row.get('GUIDE_TOKEN_EXPIRES')):
+            return None
+        return dict(row)
+
+    def _fmt_public_date(v):
+        if isinstance(v, datetime):
+            return v.strftime('%d/%m/%Y')
+        if isinstance(v, date):
+            return v.strftime('%d/%m/%Y')
+        s = str(v or '').strip()
+        if not s:
+            return ''
+        try:
+            return datetime.fromisoformat(s[:10]).strftime('%d/%m/%Y')
+        except Exception:
+            return s
+
+    def _parse_public_date(value):
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        raw = str(value or '').strip()
+        if not raw:
+            return None
+        try:
+            return datetime.fromisoformat(raw[:10]).date()
+        except Exception:
+            return None
+
+    def _parse_public_time(value, default_value='15:00'):
+        raw = str(value or '').strip() or default_value
+        if not re.match(r'^\d{2}:\d{2}$', raw):
+            raw = default_value
+        try:
+            hh = int(raw[:2])
+            mm = int(raw[3:5])
+            return dtime(hour=max(0, min(23, hh)), minute=max(0, min(59, mm)))
+        except Exception:
+            return dtime(hour=15, minute=0)
+
+    def _public_shop_state(row):
+        datain = _parse_public_date((row or {}).get('DATAIN'))
+        if not datain:
+            return {
+                'is_available': False,
+                'reason': 'missing_checkin',
+                'deadline_at': '',
+                'deadline_label': '',
+                'message': 'Nao e possivel calcular a janela de compra desta reserva.',
+            }
+
+        checkin_time = _parse_public_time((row or {}).get('HORAIN'), '15:00')
+        checkin_at = datetime.combine(datain, checkin_time)
+        deadline_at = checkin_at - timedelta(hours=24)
+        now = datetime.now()
+        is_available = now <= deadline_at
+        deadline_label = deadline_at.strftime('%d/%m/%Y %H:%M')
+        return {
+            'is_available': is_available,
+            'reason': 'ok' if is_available else 'past_cutoff',
+            'deadline_at': deadline_at.isoformat(timespec='minutes'),
+            'deadline_label': deadline_label,
+            'message': (
+                f'Podes adicionar itens ate {deadline_label}.'
+                if is_available else
+                f'As encomendas para esta reserva encerraram em {deadline_label}.'
+            ),
+        }
+
+    def _public_shop_session_key(token_value: str) -> str:
+        return f"SHOP::{(token_value or '').strip()}"
+
+    def _public_shop_cart_raw(token_value: str):
+        carts = session.get('PUBLIC_SHOP_CARTS') or {}
+        return dict(carts.get(_public_shop_session_key(token_value), {}) or {})
+
+    def _public_shop_cart_save(token_value: str, lines):
+        carts = dict(session.get('PUBLIC_SHOP_CARTS') or {})
+        norm = {}
+        for product_code, qty in (lines or {}).items():
+            code = str(product_code or '').strip().upper()
+            if not code:
+                continue
+            try:
+                quantity = int(qty)
+            except Exception:
+                quantity = 0
+            if quantity > 0:
+                norm[code] = quantity
+        carts[_public_shop_session_key(token_value)] = norm
+        session['PUBLIC_SHOP_CARTS'] = carts
+        session.modified = True
+        return norm
 
     @app.route('/planeamento_limpezas')
     @app.route('/planeamento_limpezas/')
@@ -421,72 +566,11 @@ def create_app():
     @app.route('/r/<token>/')
     def public_reserva_page(token):
         tok = (token or '').strip()
-        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
+        if _public_token_invalid(tok):
             return render_template('r_public.html', invalid=True, page_data={})
-
-        def _public_reserva_from_token(token_value: str):
-            sql = text("""
-            SELECT TOP 1
-                RS.RSSTAMP,
-                RS.RESERVA,
-                RS.ALOJAMENTO,
-                RS.DATAIN,
-                RS.DATAOUT,
-                RS.HORAIN,
-                RS.HORAOUT,
-                ISNULL(RS.BERCO,0) AS BERCO,
-                RS.ADULTOS,
-                RS.CRIANCAS,
-                RS.NOITES,
-                RS.GUIDE_TOKEN,
-                RS.GUIDE_TOKEN_EXPIRES,
-                RS.GUIDE_TOKEN_REVOKED,
-                ISNULL(RS.FTNOME,'') AS FTNOME,
-                ISNULL(RS.FTMORADA,'') AS FTMORADA,
-                ISNULL(RS.FTLOCAL,'') AS FTLOCAL,
-                ISNULL(RS.FTCODPOST,'') AS FTCODPOST,
-                ISNULL(RS.FTNCONT,'') AS FTNCONT,
-                ISNULL(RS.FTEMAIL,'') AS FTEMAIL,
-                AL.MORADA,
-                AL.CODPOST,
-                AL.LOCAL,
-                AL.LAT,
-                AL.LON
-            FROM dbo.RS RS
-            LEFT JOIN dbo.AL AL
-              ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
-               = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
-            WHERE
-              LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
-            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
-        """)
-            rowx = db.session.execute(sql, {'t': token_value}).mappings().first()
-            if not rowx:
-                return None
-            is_revoked = bool(rowx.get('GUIDE_TOKEN_REVOKED') or 0)
-            expx = rowx.get('GUIDE_TOKEN_EXPIRES')
-            if is_revoked:
-                return None
-            if _token_expired(expx):
-                return None
-            return dict(rowx)
-
-        row = _public_reserva_from_token(tok)
+        row = _public_reserva_row(tok)
         if not row:
             return render_template('r_public.html', invalid=True, page_data={})
-
-        def _fmt_date(v):
-            if isinstance(v, datetime):
-                return v.strftime('%d/%m/%Y')
-            if isinstance(v, date):
-                return v.strftime('%d/%m/%Y')
-            s = str(v or '').strip()
-            if not s:
-                return ''
-            try:
-                return datetime.fromisoformat(s[:10]).strftime('%d/%m/%Y')
-            except Exception:
-                return s
 
         lat = row.get('LAT')
         lon = row.get('LON')
@@ -511,13 +595,14 @@ def create_app():
         adultos = int(row.get('ADULTOS') or 0)
         criancas = int(row.get('CRIANCAS') or 0)
         hospedes = adultos + criancas
+        shop_state = _public_shop_state(row)
 
         page_data = {
             'token': tok,
             'reserva': (row.get('RESERVA') or '').strip(),
             'alojamento': (row.get('ALOJAMENTO') or '').strip(),
-            'checkin_data': _fmt_date(row.get('DATAIN')),
-            'checkout_data': _fmt_date(row.get('DATAOUT')),
+            'checkin_data': _fmt_public_date(row.get('DATAIN')),
+            'checkout_data': _fmt_public_date(row.get('DATAOUT')),
             'checkin_hora': (row.get('HORAIN') or '').strip(),
             'checkout_hora': (row.get('HORAOUT') or '').strip(),
             'berco': bool(row.get('BERCO') or 0),
@@ -537,7 +622,11 @@ def create_app():
             'address_text': address_text,
             'lat': lat,
             'lon': lon,
-            'maps_url': maps_url
+            'maps_url': maps_url,
+            'shop_available': bool(shop_state.get('is_available')),
+            'shop_message': shop_state.get('message') or '',
+            'shop_deadline_label': shop_state.get('deadline_label') or '',
+            'shop_url': url_for('public_reserva_shop_page', token=tok),
         }
 
         # POI associados ao alojamento (agrupados por grupo)
@@ -633,6 +722,179 @@ def create_app():
 
         page_data['poi_groups'] = [poi_groups_map[k] for k in poi_groups_order]
         return render_template('r_public.html', invalid=False, page_data=page_data)
+
+    @app.route('/r/<token>/shop')
+    @app.route('/r/<token>/shop/')
+    def public_reserva_shop_page(token):
+        tok = (token or '').strip()
+        if _public_token_invalid(tok):
+            return render_template('r_public_shop.html', invalid=True, page_data={}), 404
+
+        row = _public_reserva_row(tok)
+        if not row:
+            return render_template('r_public_shop.html', invalid=True, page_data={}), 404
+
+        shop_state = _public_shop_state(row)
+        page_data = {
+            'token': tok,
+            'reserva': (row.get('RESERVA') or '').strip(),
+            'alojamento': (row.get('ALOJAMENTO') or '').strip(),
+            'checkin_data': _fmt_public_date(row.get('DATAIN')),
+            'checkin_hora': (row.get('HORAIN') or '').strip(),
+            'checkout_data': _fmt_public_date(row.get('DATAOUT')),
+            'checkout_hora': (row.get('HORAOUT') or '').strip(),
+            'shop_available': bool(shop_state.get('is_available')),
+            'shop_message': shop_state.get('message') or '',
+            'shop_deadline_label': shop_state.get('deadline_label') or '',
+            'back_url': url_for('public_reserva_page', token=tok),
+        }
+        return render_template('r_public_shop.html', invalid=False, page_data=page_data)
+
+    @app.route('/api/r/<token>/shop/bootstrap', methods=['GET'])
+    def public_reserva_shop_bootstrap(token):
+        tok = (token or '').strip()
+        row = _public_reserva_row(tok)
+        if not row:
+            return jsonify({'error': 'Link invalido ou expirado'}), 404
+
+        shop_state = _public_shop_state(row)
+        catalog = get_shop_catalog_data()
+        cart = build_shop_cart(_public_shop_cart_raw(tok))
+        return jsonify({
+            'ok': True,
+            'reservation': {
+                'token': tok,
+                'reserva': (row.get('RESERVA') or '').strip(),
+                'alojamento': (row.get('ALOJAMENTO') or '').strip(),
+                'checkin_data': _fmt_public_date(row.get('DATAIN')),
+                'checkin_hora': (row.get('HORAIN') or '').strip(),
+                'checkout_data': _fmt_public_date(row.get('DATAOUT')),
+                'checkout_hora': (row.get('HORAOUT') or '').strip(),
+            },
+            'shop_state': shop_state,
+            'catalog': {
+                'currency': catalog['currency'],
+                'families': catalog['families'],
+                'products': catalog['products'],
+            },
+            'cart': cart,
+            'backend_mode': 'session_fallback',
+        })
+
+    @app.route('/api/r/<token>/shop/products/<product_code>', methods=['GET'])
+    def public_reserva_shop_product_detail(token, product_code):
+        tok = (token or '').strip()
+        row = _public_reserva_row(tok)
+        if not row:
+            return jsonify({'error': 'Link invalido ou expirado'}), 404
+
+        product = get_shop_product_by_code(product_code)
+        if not product:
+            return jsonify({'error': 'Produto nao encontrado'}), 404
+
+        return jsonify({
+            'ok': True,
+            'product': product,
+            'shop_state': _public_shop_state(row),
+        })
+
+    @app.route('/api/r/<token>/shop/cart', methods=['GET', 'POST'])
+    def public_reserva_shop_cart(token):
+        tok = (token or '').strip()
+        row = _public_reserva_row(tok)
+        if not row:
+            return jsonify({'error': 'Link invalido ou expirado'}), 404
+        shop_state = _public_shop_state(row)
+
+        if request.method == 'POST':
+            if not shop_state.get('is_available'):
+                return jsonify({'error': 'A janela para adicionar itens a chegada ja terminou.', 'shop_state': shop_state}), 400
+            body = request.get_json(silent=True) or {}
+            items = list(body.get('items') or [])
+            next_lines = {}
+            for item in items:
+                code = str((item or {}).get('product_code') or (item or {}).get('code') or '').strip().upper()
+                if not code:
+                    continue
+                try:
+                    quantity = int((item or {}).get('quantity') or 0)
+                except Exception:
+                    quantity = 0
+                if quantity > 0:
+                    next_lines[code] = quantity
+            _public_shop_cart_save(tok, next_lines)
+
+        return jsonify({
+            'ok': True,
+            'cart': build_shop_cart(_public_shop_cart_raw(tok)),
+            'shop_state': shop_state,
+        })
+
+    @app.route('/api/r/<token>/shop/cart/items', methods=['POST'])
+    def public_reserva_shop_cart_items(token):
+        tok = (token or '').strip()
+        row = _public_reserva_row(tok)
+        if not row:
+            return jsonify({'error': 'Link invalido ou expirado'}), 404
+        shop_state = _public_shop_state(row)
+        if not shop_state.get('is_available'):
+            return jsonify({'error': 'A janela para adicionar itens a chegada ja terminou.', 'shop_state': shop_state}), 400
+
+        body = request.get_json(silent=True) or {}
+        product_code = str(body.get('product_code') or '').strip().upper()
+        if not product_code:
+            return jsonify({'error': 'Produto invalido'}), 400
+        if not get_shop_product_by_code(product_code):
+            return jsonify({'error': 'Produto nao encontrado'}), 404
+
+        current = _public_shop_cart_raw(tok)
+        current_qty = int(current.get(product_code) or 0)
+        delta = body.get('delta')
+        quantity = body.get('quantity')
+        try:
+            if delta is not None:
+                next_qty = current_qty + int(delta)
+            else:
+                next_qty = int(quantity)
+        except Exception:
+            return jsonify({'error': 'Quantidade invalida'}), 400
+
+        current[product_code] = max(0, next_qty)
+        _public_shop_cart_save(tok, current)
+
+        return jsonify({
+            'ok': True,
+            'cart': build_shop_cart(_public_shop_cart_raw(tok)),
+            'shop_state': shop_state,
+        })
+
+    @app.route('/api/r/<token>/shop/checkout', methods=['POST'])
+    def public_reserva_shop_checkout(token):
+        tok = (token or '').strip()
+        row = _public_reserva_row(tok)
+        if not row:
+            return jsonify({'error': 'Link invalido ou expirado'}), 404
+
+        shop_state = _public_shop_state(row)
+        if not shop_state.get('is_available'):
+            return jsonify({
+                'error': 'A janela para adicionar itens a chegada ja terminou.',
+                'shop_state': shop_state,
+            }), 400
+
+        cart = build_shop_cart(_public_shop_cart_raw(tok))
+        if not cart.get('items'):
+            return jsonify({'error': 'O carrinho esta vazio.'}), 400
+
+        return jsonify({
+            'ok': True,
+            'checkout_ready': False,
+            'provider': 'STRIPE',
+            'integration_status': 'pending_backend',
+            'message': 'Fluxo Stripe preparado no frontend e pendente de integracao backend.',
+            'reservation_code': (row.get('RESERVA') or '').strip(),
+            'cart': cart,
+        }), 202
 
     @app.route('/api/r/<token>/guests', methods=['GET'])
     def public_reserva_guests_get(token):
