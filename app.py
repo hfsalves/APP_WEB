@@ -151,6 +151,9 @@ def create_app():
     from blueprints.sz_dev_ui import bp as sz_dev_ui_bp
     app.register_blueprint(sz_dev_ui_bp)
 
+    from blueprints.shop_backoffice import bp as shop_backoffice_bp
+    app.register_blueprint(shop_backoffice_bp)
+
     register_pricing(app)
 
     def _para_value_from_row(row):
@@ -340,6 +343,51 @@ def create_app():
         session.modified = True
         return norm
 
+    def _public_shop_line_key(product_code: str, variant_id=None) -> str:
+        code = str(product_code or '').strip().upper()
+        if not code:
+            return ''
+        try:
+            variant_num = int(variant_id) if variant_id not in (None, '', 0, '0') else 0
+        except Exception:
+            variant_num = 0
+        return f'{code}::{variant_num}' if variant_num > 0 else code
+
+    def _public_shop_split_line_key(raw_key: str):
+        value = str(raw_key or '').strip().upper()
+        if not value:
+            return '', None
+        if '::' not in value:
+            return value, None
+        product_code, variant_raw = value.split('::', 1)
+        try:
+            variant_id = int(variant_raw)
+        except Exception:
+            variant_id = None
+        return product_code.strip().upper(), variant_id
+
+    def _public_shop_resolve_variant(product: dict, variant_id=None):
+        variants = list((product or {}).get('variants') or [])
+        if not variants:
+            return None
+        if variant_id not in (None, '', 0, '0'):
+            try:
+                wanted = int(variant_id)
+            except Exception:
+                wanted = None
+            if wanted is not None:
+                for variant in variants:
+                    try:
+                        if int(variant.get('id') or 0) == wanted:
+                            return variant
+                    except Exception:
+                        continue
+                return False
+        for variant in variants:
+            if variant.get('is_default'):
+                return variant
+        return variants[0]
+
     @app.route('/planeamento_limpezas')
     @app.route('/planeamento_limpezas/')
     @login_required
@@ -442,6 +490,12 @@ def create_app():
                         page_name = m.nome
                         break
 
+            if not page_name:
+                if request.path.startswith('/shop/artigos'):
+                    page_name = 'Shop - Artigos'
+                elif request.path.startswith('/shop/encomendas'):
+                    page_name = 'Shop - Encomendas'
+
             # 4) Montar estrutura do menu com permissÃµes
             menu_structure = []
             user_is_admin = getattr(current_user, 'ADMIN', False)
@@ -498,6 +552,38 @@ def create_app():
                 g for g in menu_structure
                 if not isinstance(g, dict) or g.get('mostrar', True) or (g.get('children') and len(g['children']) > 0)
             ]
+
+            existing_urls = {
+                child.get('url')
+                for item in menu_structure
+                for child in (item.get('children') if isinstance(item, dict) and item.get('children') else [item])
+                if isinstance(child, dict) and child.get('url')
+            }
+            shop_catalog_allowed = user_is_admin or perms.get('SHOP', {}).get('consultar', False) or perms.get('SHOP_PRODUTOS', {}).get('consultar', False) or perms.get('SHOP_FAMILIAS', {}).get('consultar', False)
+            shop_orders_allowed = user_is_admin or perms.get('SHOP', {}).get('consultar', False) or perms.get('SHOP_ENCOMENDAS', {}).get('consultar', False) or perms.get('SHOP_PAGAMENTOS', {}).get('consultar', False)
+            shop_children = []
+            if shop_catalog_allowed and '/shop/artigos' not in existing_urls:
+                shop_children.append({
+                    'name': 'Artigos',
+                    'url': '/shop/artigos',
+                    'icon': 'fa-box-open',
+                    'novo': False,
+                })
+            if shop_orders_allowed and '/shop/encomendas' not in existing_urls:
+                shop_children.append({
+                    'name': 'Encomendas',
+                    'url': '/shop/encomendas',
+                    'icon': 'fa-receipt',
+                    'novo': False,
+                })
+            if shop_children:
+                menu_structure.append({
+                    'name': 'Shop',
+                    'icon': 'fa-store',
+                    'novo': False,
+                    'children': shop_children,
+                    'mostrar': True,
+                })
 
             menu_forms = { m.tabela: getattr(m, 'form', None) for m in menu_items }
 
@@ -778,7 +864,7 @@ def create_app():
                 'products': catalog['products'],
             },
             'cart': cart,
-            'backend_mode': 'session_fallback',
+            'backend_mode': f"session_{catalog.get('source', 'fallback')}",
         })
 
     @app.route('/api/r/<token>/shop/products/<product_code>', methods=['GET'])
@@ -816,12 +902,18 @@ def create_app():
                 code = str((item or {}).get('product_code') or (item or {}).get('code') or '').strip().upper()
                 if not code:
                     continue
+                product = get_shop_product_by_code(code)
+                if not product:
+                    continue
+                variant = _public_shop_resolve_variant(product, (item or {}).get('variant_id'))
+                if variant is False:
+                    continue
                 try:
                     quantity = int((item or {}).get('quantity') or 0)
                 except Exception:
                     quantity = 0
                 if quantity > 0:
-                    next_lines[code] = quantity
+                    next_lines[_public_shop_line_key(code, variant.get('id') if variant else None)] = quantity
             _public_shop_cart_save(tok, next_lines)
 
         return jsonify({
@@ -841,14 +933,23 @@ def create_app():
             return jsonify({'error': 'A janela para adicionar itens a chegada ja terminou.', 'shop_state': shop_state}), 400
 
         body = request.get_json(silent=True) or {}
-        product_code = str(body.get('product_code') or '').strip().upper()
+        raw_line_key = str(body.get('line_key') or '').strip().upper()
+        line_key = raw_line_key
+        parsed_product_code, parsed_variant_id = _public_shop_split_line_key(raw_line_key) if raw_line_key else ('', None)
+        product_code = str(body.get('product_code') or parsed_product_code or '').strip().upper()
         if not product_code:
             return jsonify({'error': 'Produto invalido'}), 400
-        if not get_shop_product_by_code(product_code):
+        product = get_shop_product_by_code(product_code)
+        if not product:
             return jsonify({'error': 'Produto nao encontrado'}), 404
+        variant = _public_shop_resolve_variant(product, body.get('variant_id') if body.get('variant_id') is not None else parsed_variant_id)
+        if variant is False:
+            return jsonify({'error': 'Variante invalida para o artigo selecionado'}), 400
 
         current = _public_shop_cart_raw(tok)
-        current_qty = int(current.get(product_code) or 0)
+        if not line_key:
+            line_key = _public_shop_line_key(product_code, variant.get('id') if variant else None)
+        current_qty = int(current.get(line_key) or 0)
         delta = body.get('delta')
         quantity = body.get('quantity')
         try:
@@ -859,7 +960,7 @@ def create_app():
         except Exception:
             return jsonify({'error': 'Quantidade invalida'}), 400
 
-        current[product_code] = max(0, next_qty)
+        current[line_key] = max(0, next_qty)
         _public_shop_cart_save(tok, current)
 
         return jsonify({
@@ -4590,16 +4691,23 @@ def create_app():
         )
         dashboard = {1: [], 2: [], 3: []}
         for usw, widg in query:
-            dashboard[usw.COLUNA].append({
+            try:
+                coluna = int(getattr(usw, 'COLUNA', 1) or 1)
+            except Exception:
+                coluna = 1
+            if coluna not in dashboard:
+                coluna = 1
+
+            dashboard[coluna].append({
                 'nome': widg.NOME,
                 'titulo': widg.TITULO,
                 'tipo': widg.TIPO,
                 'fonte': widg.FONTE,
                 'config': widg.CONFIG,
                 'filtros': getattr(widg, 'FILTROS', '') or '',
-                'coluna': usw.COLUNA,
-                'ordem': usw.ORDEM,
-                'maxheight': usw.MAXHEIGHT
+                'coluna': coluna,
+                'ordem': getattr(usw, 'ORDEM', 0) or 0,
+                'maxheight': getattr(usw, 'MAXHEIGHT', None)
             })
         return jsonify(dashboard)
 

@@ -30,6 +30,7 @@
       product_increase: "Aumentar quantidade",
       product_decrease: "Diminuir quantidade",
       product_remove: "Remover do carrinho",
+      product_variants: "Variantes",
       cart_title: "Carrinho",
       cart_total: "Total",
       cart_empty_title: "Ainda nao adicionaste nada",
@@ -65,6 +66,7 @@
       product_increase: "Increase quantity",
       product_decrease: "Decrease quantity",
       product_remove: "Remove from cart",
+      product_variants: "Variants",
       cart_title: "Cart",
       cart_total: "Total",
       cart_empty_title: "You have not added anything yet",
@@ -100,6 +102,7 @@
       product_increase: "Augmenter la quantite",
       product_decrease: "Diminuer la quantite",
       product_remove: "Retirer du panier",
+      product_variants: "Variantes",
       cart_title: "Panier",
       cart_total: "Total",
       cart_empty_title: "Vous n avez encore rien ajoute",
@@ -135,6 +138,7 @@
       product_increase: "Aumentar cantidad",
       product_decrease: "Reducir cantidad",
       product_remove: "Quitar del carrito",
+      product_variants: "Variantes",
       cart_title: "Carrito",
       cart_total: "Total",
       cart_empty_title: "Todavia no has anadido nada",
@@ -178,6 +182,8 @@
     productPrice: document.getElementById("productPrice"),
     productSubtitle: document.getElementById("productSubtitle"),
     productDescription: document.getElementById("productDescription"),
+    productVariantsBlock: document.getElementById("productVariantsBlock"),
+    productVariants: document.getElementById("productVariants"),
     productQtyMinus: document.getElementById("productQtyMinus"),
     productQtyPlus: document.getElementById("productQtyPlus"),
     productQtyValue: document.getElementById("productQtyValue"),
@@ -204,6 +210,7 @@
     cart: { items: [], items_count: 0, total_quantity: 0, total: 0, currency: "EUR" },
     activeFamily: "",
     currentProduct: null,
+    currentVariantId: null,
     currentQuantity: 1,
     loading: true,
     error: "",
@@ -249,27 +256,100 @@
       .replace(/'/g, "&#39;");
   }
 
+  function localizedProductField(entity, field) {
+    const lang = currentLang();
+    const translations = entity && typeof entity === "object" ? (entity.translations || {}) : {};
+    const langValue = translations[lang] && translations[lang][field];
+    if (langValue) return String(langValue);
+    const ptValue = translations.pt && translations.pt[field];
+    if (ptValue) return String(ptValue);
+    const fallbackMap = {
+      name: entity?.name,
+      title: entity?.title,
+      subtitle: entity?.subtitle,
+      description_short: entity?.description_short,
+      description: entity?.description,
+    };
+    return String(fallbackMap[field] || "");
+  }
+
   function accentStyle(accent) {
     const safe = String(accent || "#2563eb");
     return `background: linear-gradient(135deg, ${safe}, rgba(14,165,233,0.86));`;
+  }
+
+  function renderProductThumb(product, extraClass) {
+    const imageUrl = String((product && product.image_url) || "").trim();
+    const classes = ["shop-product-thumb"];
+    const altLabel = localizedProductField(product, "name") || localizedProductField(product, "title") || "";
+    if (extraClass) classes.push(extraClass);
+    if (imageUrl) {
+      return `<div class="${classes.join(" ")} shop-product-thumb-image" style="${accentStyle(product.accent)}"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(altLabel)}" loading="lazy"></div>`;
+    }
+    return `<div class="${classes.join(" ")}" style="${accentStyle(product.accent)}"><i class="fa-solid ${escapeHtml(product.icon)}"></i></div>`;
   }
 
   function productCodeKey(productCode) {
     return String(productCode || "").trim().toUpperCase();
   }
 
-  function cartItemFor(productCode) {
-    const code = productCodeKey(productCode);
-    return (state.cart.items || []).find((item) => productCodeKey(item.product_code) === code) || null;
+  function normalizeVariantId(variantId) {
+    const num = Number(variantId || 0);
+    return Number.isFinite(num) && num > 0 ? num : null;
   }
 
-  function cartQuantityFor(productCode) {
-    const item = cartItemFor(productCode);
+  function cartLineKey(productCode, variantId) {
+    const code = productCodeKey(productCode);
+    const normalizedVariantId = normalizeVariantId(variantId);
+    return normalizedVariantId ? `${code}::${normalizedVariantId}` : code;
+  }
+
+  function defaultVariantFor(product) {
+    const variants = Array.isArray(product?.variants) ? product.variants : [];
+    if (!variants.length) return null;
+    const wantedId = normalizeVariantId(product?.default_variant_id);
+    if (wantedId) {
+      const wanted = variants.find((item) => normalizeVariantId(item.id) === wantedId);
+      if (wanted) return wanted;
+    }
+    return variants.find((item) => item.is_default) || variants[0] || null;
+  }
+
+  function variantForProduct(product, variantId) {
+    const variants = Array.isArray(product?.variants) ? product.variants : [];
+    const normalizedVariantId = normalizeVariantId(variantId);
+    if (!variants.length) return null;
+    if (normalizedVariantId) {
+      const found = variants.find((item) => normalizeVariantId(item.id) === normalizedVariantId);
+      if (found) return found;
+    }
+    return defaultVariantFor(product);
+  }
+
+  function effectivePrice(product, variantId) {
+    const variant = variantForProduct(product, variantId);
+    if (variant && variant.price !== null && variant.price !== undefined && variant.price !== "") {
+      return Number(variant.price || 0);
+    }
+    return Number(product?.price || 0);
+  }
+
+  function cartItemFor(productCode, variantId) {
+    const key = cartLineKey(productCode, variantId);
+    return (state.cart.items || []).find((item) => String(item.key || cartLineKey(item.product_code, item.variant_id)) === key) || null;
+  }
+
+  function cartQuantityFor(productCode, variantId) {
+    const item = cartItemFor(productCode, variantId);
     return item ? Number(item.quantity || 0) : 0;
   }
 
-  function isProductPending(productCode) {
-    return !!state.pendingProducts[productCodeKey(productCode)];
+  function isProductPending(productCode, variantId) {
+    return !!state.pendingProducts[cartLineKey(productCode, variantId)];
+  }
+
+  function listVariantForProduct(product) {
+    return defaultVariantFor(product);
   }
 
   function updateStickyMetrics() {
@@ -294,24 +374,26 @@
     }, 950);
   }
 
-  function renderProductQtyControlMarkup(productCode) {
-    const code = productCodeKey(productCode);
-    const quantity = cartQuantityFor(code);
+  function renderProductQtyControlMarkup(product) {
+    const code = productCodeKey(product?.code);
+    const variant = listVariantForProduct(product);
+    const variantId = normalizeVariantId(variant?.id);
+    const quantity = cartQuantityFor(code, variantId);
     const expanded = quantity > 0;
-    const pending = isProductPending(code);
+    const pending = isProductPending(code, variantId);
     const leftIcon = quantity <= 1 ? "fa-trash-can" : "fa-minus";
     const leftLabel = quantity <= 1 ? t("product_remove") : t("product_decrease");
     return `
-      <div class="shop-product-qty${expanded ? " is-expanded" : ""}${pending ? " is-pending" : ""}" data-product-qty="${escapeHtml(code)}" data-qty="${quantity}">
-        <button type="button" class="shop-product-qty-add" data-product-qty-add="${escapeHtml(code)}" aria-label="${escapeHtml(t("product_add"))}" ${(!state.shopState.is_available || pending) ? "disabled" : ""}>
+      <div class="shop-product-qty${expanded ? " is-expanded" : ""}${pending ? " is-pending" : ""}" data-product-qty="${escapeHtml(code)}" data-variant-id="${escapeHtml(variantId || "")}" data-qty="${quantity}">
+        <button type="button" class="shop-product-qty-add" data-product-qty-add="${escapeHtml(code)}" data-variant-id="${escapeHtml(variantId || "")}" aria-label="${escapeHtml(t("product_add"))}" ${(!state.shopState.is_available || pending) ? "disabled" : ""}>
           <i class="fa-solid fa-plus"></i>
         </button>
         <div class="shop-product-qty-expanded">
-          <button type="button" class="shop-product-qty-btn shop-product-qty-btn-left" data-product-qty-decrease="${escapeHtml(code)}" aria-label="${escapeHtml(leftLabel)}" ${(!state.shopState.is_available || pending) ? "disabled" : ""}>
+          <button type="button" class="shop-product-qty-btn shop-product-qty-btn-left" data-product-qty-decrease="${escapeHtml(code)}" data-variant-id="${escapeHtml(variantId || "")}" aria-label="${escapeHtml(leftLabel)}" ${(!state.shopState.is_available || pending) ? "disabled" : ""}>
             <i class="fa-solid ${leftIcon}"></i>
           </button>
           <span class="shop-product-qty-value">${quantity}</span>
-          <button type="button" class="shop-product-qty-btn" data-product-qty-increase="${escapeHtml(code)}" aria-label="${escapeHtml(t("product_increase"))}" ${(!state.shopState.is_available || pending) ? "disabled" : ""}>
+          <button type="button" class="shop-product-qty-btn" data-product-qty-increase="${escapeHtml(code)}" data-variant-id="${escapeHtml(variantId || "")}" aria-label="${escapeHtml(t("product_increase"))}" ${(!state.shopState.is_available || pending) ? "disabled" : ""}>
             <i class="fa-solid fa-plus"></i>
           </button>
         </div>
@@ -326,8 +408,9 @@
 
     controls.forEach((control) => {
       const code = control.getAttribute("data-product-qty") || "";
-      const quantity = cartQuantityFor(code);
-      const pending = isProductPending(code);
+      const variantId = normalizeVariantId(control.getAttribute("data-variant-id"));
+      const quantity = cartQuantityFor(code, variantId);
+      const pending = isProductPending(code, variantId);
       const expanded = quantity > 0;
       const leftIcon = quantity <= 1 ? "fa-trash-can" : "fa-minus";
       const leftLabel = quantity <= 1 ? t("product_remove") : t("product_decrease");
@@ -461,18 +544,17 @@
           </div>
           <div class="shop-product-grid">
             ${products.map((product) => `
-              <div class="shop-product-card${state.shopState.is_available ? "" : " is-disabled"}" data-product-card="${escapeHtml(product.code)}" role="button" tabindex="0" aria-label="${escapeHtml(product.name)}">
-                <div class="shop-product-thumb" style="${accentStyle(product.accent)}">
-                  <i class="fa-solid ${escapeHtml(product.icon)}"></i>
-                </div>
+              <div class="shop-product-card${state.shopState.is_available ? "" : " is-disabled"}" data-product-card="${escapeHtml(product.code)}" role="button" tabindex="0" aria-label="${escapeHtml(localizedProductField(product, "name"))}">
+                ${renderProductThumb(product)}
                 <div class="shop-product-body">
-                  <div class="shop-product-name">${escapeHtml(product.name)}</div>
-                  <div class="shop-product-subtitle">${escapeHtml(product.subtitle || "")}</div>
-                  <div class="shop-product-desc">${escapeHtml(product.description_short || "")}</div>
+                  <div class="shop-product-name">${escapeHtml(localizedProductField(product, "name"))}</div>
+                  <div class="shop-product-subtitle">${escapeHtml(localizedProductField(product, "subtitle"))}</div>
+                  ${product.default_variant_label ? `<div class="shop-product-subtitle">${escapeHtml(product.default_variant_label)}</div>` : ""}
+                  <div class="shop-product-desc">${escapeHtml(localizedProductField(product, "description_short"))}</div>
                 </div>
                 <div class="shop-product-meta">
-                  <div class="shop-product-card-price">${escapeHtml(formatCurrency(product.price, product.currency))}</div>
-                  ${renderProductQtyControlMarkup(product.code)}
+                  <div class="shop-product-card-price">${escapeHtml(formatCurrency(effectivePrice(product, product.default_variant_id), product.currency))}</div>
+                  ${renderProductQtyControlMarkup(product)}
                 </div>
               </div>
             `).join("")}
@@ -535,18 +617,19 @@
     }
     if (els.cartItems) {
       els.cartItems.innerHTML = hasItems ? cart.items.map((item) => `
-        <div class="shop-cart-line">
+        <div class="shop-cart-line" data-cart-line-key="${escapeHtml(item.key || cartLineKey(item.product_code, item.variant_id))}">
           <div>
-            <div class="shop-cart-line-name">${escapeHtml(item.product_name)}</div>
-            <div class="shop-cart-line-subtitle">${escapeHtml(item.subtitle || "")}</div>
+            <div class="shop-cart-line-name">${escapeHtml(localizedProductField(item, "name") || item.product_name)}</div>
+            ${item.variant_label ? `<div class="shop-cart-line-subtitle">${escapeHtml(item.variant_label)}</div>` : ""}
+            <div class="shop-cart-line-subtitle">${escapeHtml(localizedProductField(item, "subtitle") || item.subtitle || "")}</div>
             <div class="shop-cart-line-price">${escapeHtml(formatCurrency(item.unit_price, item.currency))} / ${escapeHtml(t("line_qty"))}</div>
           </div>
           <div class="shop-cart-line-side">
             <div class="shop-cart-line-total">${escapeHtml(formatCurrency(item.line_total, item.currency))}</div>
             <div class="shop-cart-line-qty">
-              <button type="button" data-cart-delta="-1" data-product-code="${escapeHtml(item.product_code)}" ${(!state.shopState.is_available || isProductPending(item.product_code)) ? "disabled" : ""}>-</button>
+              <button type="button" data-cart-delta="-1" data-product-code="${escapeHtml(item.product_code)}" data-variant-id="${escapeHtml(item.variant_id || "")}" ${(!state.shopState.is_available || isProductPending(item.product_code, item.variant_id)) ? "disabled" : ""}>-</button>
               <strong>${item.quantity}</strong>
-              <button type="button" data-cart-delta="1" data-product-code="${escapeHtml(item.product_code)}" ${(!state.shopState.is_available || isProductPending(item.product_code)) ? "disabled" : ""}>+</button>
+              <button type="button" data-cart-delta="1" data-product-code="${escapeHtml(item.product_code)}" data-variant-id="${escapeHtml(item.variant_id || "")}" ${(!state.shopState.is_available || isProductPending(item.product_code, item.variant_id)) ? "disabled" : ""}>+</button>
             </div>
           </div>
         </div>
@@ -562,18 +645,57 @@
     }
   }
 
+  function wait(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  async function animateCartLineRemoval(lineEl) {
+    if (!lineEl) return;
+    lineEl.classList.add("is-removing");
+    const buttons = Array.from(lineEl.querySelectorAll("button"));
+    buttons.forEach((btn) => { btn.disabled = true; });
+    await wait(180);
+  }
+
   function renderCurrentProduct() {
     const product = state.currentProduct;
     if (!product) return;
-    const pending = isProductPending(product.code);
+    const selectedVariant = variantForProduct(product, state.currentVariantId);
+    const selectedVariantId = normalizeVariantId(selectedVariant?.id);
+    const pending = isProductPending(product.code, selectedVariantId);
     if (els.productHero) els.productHero.style.cssText = `${accentStyle(product.accent)} min-height:220px;`;
-    if (els.productHeroIcon) els.productHeroIcon.innerHTML = `<i class="fa-solid ${escapeHtml(product.icon)}"></i>`;
-    if (els.productHeroIcon) els.productHeroIcon.style.cssText = accentStyle(product.accent);
+    if (els.productHeroIcon) {
+      const imageUrl = String(product.image_url || "").trim();
+      els.productHeroIcon.innerHTML = imageUrl
+        ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(localizedProductField(product, "name") || localizedProductField(product, "title"))}" loading="eager">`
+        : `<i class="fa-solid ${escapeHtml(product.icon)}"></i>`;
+    }
+    if (els.productHeroIcon) {
+      const imageUrl = String(product.image_url || "").trim();
+      els.productHeroIcon.classList.toggle("is-image", !!imageUrl);
+      els.productHeroIcon.style.cssText = accentStyle(product.accent);
+    }
     if (els.productFamily) els.productFamily.textContent = product.family_name || "";
-    if (els.productTitle) els.productTitle.textContent = product.name || "";
-    if (els.productPrice) els.productPrice.textContent = formatCurrency(product.price, product.currency);
-    if (els.productSubtitle) els.productSubtitle.textContent = product.subtitle || "";
-    if (els.productDescription) els.productDescription.textContent = product.description || product.description_short || "";
+    if (els.productTitle) els.productTitle.textContent = localizedProductField(product, "title") || localizedProductField(product, "name");
+    if (els.productPrice) els.productPrice.textContent = formatCurrency(effectivePrice(product, selectedVariantId), product.currency);
+    if (els.productSubtitle) {
+      els.productSubtitle.textContent = selectedVariant?.label || localizedProductField(product, "subtitle") || "";
+    }
+    if (els.productDescription) {
+      els.productDescription.textContent = selectedVariant?.description_short || localizedProductField(product, "description") || localizedProductField(product, "description_short") || "";
+    }
+    if (els.productVariantsBlock) {
+      const variants = Array.isArray(product.variants) ? product.variants : [];
+      els.productVariantsBlock.classList.toggle("d-none", !variants.length);
+    }
+    if (els.productVariants) {
+      const variants = Array.isArray(product.variants) ? product.variants : [];
+      els.productVariants.innerHTML = variants.map((variant) => `
+        <button type="button" class="shop-product-variant-chip${normalizeVariantId(variant.id) === selectedVariantId ? " is-active" : ""}" data-product-variant="${escapeHtml(variant.id)}">
+          ${escapeHtml(variant.label || variant.name || variant.value || "")}
+        </button>
+      `).join("");
+    }
     if (els.productQtyValue) els.productQtyValue.textContent = String(state.currentQuantity || 1);
     if (els.productQtyMinus) els.productQtyMinus.disabled = pending;
     if (els.productQtyPlus) els.productQtyPlus.disabled = pending;
@@ -670,6 +792,7 @@
       state.currentProduct = fallback || null;
     }
     if (!state.currentProduct) return;
+    state.currentVariantId = normalizeVariantId(defaultVariantFor(state.currentProduct)?.id);
     state.currentQuantity = 1;
     renderCurrentProduct();
     openSheet("product");
@@ -677,12 +800,18 @@
 
   async function updateCartItem(productCode, payload) {
     const code = productCodeKey(productCode);
+    const variantId = normalizeVariantId(payload?.variantId);
+    const lineKey = String(payload?.lineKey || "").trim();
+    const skipOptimisticCartRender = !!payload?.skipOptimisticCartRender;
     const body = { product_code: code };
+    if (variantId) body.variant_id = variantId;
+    if (lineKey) body.line_key = lineKey;
     if (Object.prototype.hasOwnProperty.call(payload || {}, "delta")) body.delta = payload.delta;
     if (Object.prototype.hasOwnProperty.call(payload || {}, "quantity")) body.quantity = payload.quantity;
-    state.pendingProducts[code] = true;
+    const pendingKey = lineKey || cartLineKey(code, variantId);
+    state.pendingProducts[pendingKey] = true;
     syncProductControls(code);
-    renderCart();
+    if (!skipOptimisticCartRender) renderCart();
     renderCurrentProduct();
     try {
       const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/cart/items`, {
@@ -698,7 +827,7 @@
       syncProductControls(code);
       triggerCartFeedback();
     } finally {
-      delete state.pendingProducts[code];
+      delete state.pendingProducts[pendingKey];
       syncProductControls(code);
       renderCart();
       renderCurrentProduct();
@@ -741,9 +870,10 @@
     if (productQtyAddBtn) {
       if (!state.shopState.is_available) return;
       const code = productQtyAddBtn.getAttribute("data-product-qty-add") || "";
-      if (isProductPending(code)) return;
+      const variantId = normalizeVariantId(productQtyAddBtn.getAttribute("data-variant-id"));
+      if (isProductPending(code, variantId)) return;
       try {
-        await updateCartItem(code, { delta: 1 });
+        await updateCartItem(code, { delta: 1, variantId });
         if (els.checkoutMsg) els.checkoutMsg.textContent = t("added_to_cart");
       } catch (error) {
         if (els.checkoutMsg) els.checkoutMsg.textContent = error.message || "";
@@ -755,13 +885,14 @@
     if (productQtyDecreaseBtn) {
       if (!state.shopState.is_available) return;
       const code = productQtyDecreaseBtn.getAttribute("data-product-qty-decrease") || "";
-      if (isProductPending(code)) return;
-      const quantity = cartQuantityFor(code);
+      const variantId = normalizeVariantId(productQtyDecreaseBtn.getAttribute("data-variant-id"));
+      if (isProductPending(code, variantId)) return;
+      const quantity = cartQuantityFor(code, variantId);
       try {
         if (quantity <= 1) {
-          await updateCartItem(code, { quantity: 0 });
+          await updateCartItem(code, { quantity: 0, variantId });
         } else {
-          await updateCartItem(code, { delta: -1 });
+          await updateCartItem(code, { delta: -1, variantId });
         }
       } catch (error) {
         if (els.checkoutMsg) els.checkoutMsg.textContent = error.message || "";
@@ -773,12 +904,20 @@
     if (productQtyIncreaseBtn) {
       if (!state.shopState.is_available) return;
       const code = productQtyIncreaseBtn.getAttribute("data-product-qty-increase") || "";
-      if (isProductPending(code)) return;
+      const variantId = normalizeVariantId(productQtyIncreaseBtn.getAttribute("data-variant-id"));
+      if (isProductPending(code, variantId)) return;
       try {
-        await updateCartItem(code, { delta: 1 });
+        await updateCartItem(code, { delta: 1, variantId });
       } catch (error) {
         if (els.checkoutMsg) els.checkoutMsg.textContent = error.message || "";
       }
+      return;
+    }
+
+    const variantChip = event.target.closest("[data-product-variant]");
+    if (variantChip && state.currentProduct) {
+      state.currentVariantId = normalizeVariantId(variantChip.getAttribute("data-product-variant"));
+      renderCurrentProduct();
       return;
     }
 
@@ -793,10 +932,20 @@
       if (!state.shopState.is_available) return;
       const delta = Number(cartDeltaBtn.getAttribute("data-cart-delta") || 0);
       const code = cartDeltaBtn.getAttribute("data-product-code") || "";
-      if (isProductPending(code)) return;
+      const variantId = normalizeVariantId(cartDeltaBtn.getAttribute("data-variant-id"));
+      const lineKey = String(cartDeltaBtn.closest("[data-cart-line-key]")?.getAttribute("data-cart-line-key") || "").trim();
+      if (isProductPending(code, variantId)) return;
+      const lineEl = cartDeltaBtn.closest("[data-cart-line-key]");
+      const quantity = cartQuantityFor(code, variantId);
       try {
-        await updateCartItem(code, { delta });
+        if (delta < 0 && quantity <= 1) {
+          await animateCartLineRemoval(lineEl);
+          await updateCartItem(code, { quantity: 0, variantId, lineKey, skipOptimisticCartRender: true });
+          return;
+        }
+        await updateCartItem(code, { delta, variantId, lineKey });
       } catch (error) {
+        if (lineEl) lineEl.classList.remove("is-removing");
         if (els.checkoutMsg) els.checkoutMsg.textContent = error.message || "";
       }
       return;
@@ -826,11 +975,12 @@
   if (els.productAddBtn) {
     els.productAddBtn.addEventListener("click", async () => {
       if (!state.currentProduct || !state.shopState.is_available) return;
-      if (isProductPending(state.currentProduct.code)) return;
+      if (isProductPending(state.currentProduct.code, state.currentVariantId)) return;
       const original = els.productAddBtn.textContent;
       try {
         await updateCartItem(state.currentProduct.code, {
           delta: Number(state.currentQuantity || 1),
+          variantId: state.currentVariantId,
         });
         els.productAddBtn.textContent = t("added_to_cart");
         window.setTimeout(() => {

@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+{% set page_title = "Shop - Encomendas" %}
+{% set page_name = "Shop - Encomendas" %}
+
+{% block title %}Shop - Encomendas{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop_backoffice.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page shop-bo-page" id="shopOrdersPage">
+  <div class="sz_page_container shop-bo-container">
+    <div class="sz_page_header">
+      <div class="sz_contextbar shop-bo-contextbar">
+        <div class="sz_contextbar_left">
+          <div class="sz_page_title">Shop - Encomendas</div>
+          <div class="sz_breadcrumbs">SHOP / ENCOMENDAS</div>
+          <div class="sz_page_subtitle">Consulta operacional e financeira das encomendas, pagamentos, Stripe e reembolsos.</div>
+        </div>
+        <div class="sz_contextbar_right shop-bo-contextbar_right">
+          <div class="shop-bo-toolbar">
+            <div class="shop-bo-filters">
+              <div class="sz_field shop-bo-search">
+                <label class="sz_label" for="shopOrdersSearch">Reserva / Encomenda</label>
+                <input id="shopOrdersSearch" class="sz_input" type="text" placeholder="Reserva, numero ou ID...">
+              </div>
+              <div class="sz_field shop-bo-field_select">
+                <label class="sz_label" for="shopOrdersStateFilter">Estado encomenda</label>
+                <select id="shopOrdersStateFilter" class="sz_select">
+                  <option value="">Todos</option>
+                </select>
+              </div>
+              <div class="sz_field shop-bo-field_select">
+                <label class="sz_label" for="shopOrdersPaymentStateFilter">Estado pagamento</label>
+                <select id="shopOrdersPaymentStateFilter" class="sz_select">
+                  <option value="">Todos</option>
+                </select>
+              </div>
+              <div class="sz_field shop-bo-field_date">
+                <label class="sz_label" for="shopOrdersDateFrom">De</label>
+                <input id="shopOrdersDateFrom" class="sz_input" type="date">
+              </div>
+              <div class="sz_field shop-bo-field_date">
+                <label class="sz_label" for="shopOrdersDateTo">Ate</label>
+                <input id="shopOrdersDateTo" class="sz_input" type="date">
+              </div>
+            </div>
+            <div class="shop-bo-actions">
+              <button id="shopOrdersRefreshBtn" type="button" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-rotate"></i>
+                <span>Atualizar</span>
+              </button>
+            </div>
+          </div>
+          <div class="sz_text_muted shop-bo-status" id="shopOrdersStatus">A carregar encomendas...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sz_page_body">
+      <div class="sz_sidebar_layout shop-bo-layout">
+        <div class="sz_page_content shop-bo-main">
+          <div class="sz_panel shop-bo-table-panel">
+            <div class="sz_table_host">
+              <table class="sz_table" id="shopOrdersTable">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th style="width: 100px;">ID</th>
+                    <th style="width: 150px;">Numero</th>
+                    <th style="width: 150px;">Reserva</th>
+                    <th style="width: 160px;">Criada</th>
+                    <th style="width: 140px;">Estado</th>
+                    <th class="sz_text_right" style="width: 120px;">Total</th>
+                    <th style="width: 150px;">Pagamento</th>
+                    <th style="width: 110px;">Stripe</th>
+                    <th style="width: 180px;">Refs Stripe</th>
+                    <th style="width: 110px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="shopOrdersBody">
+                  <tr class="sz_table_row"><td colspan="10" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <aside class="sz_page_sidebar">
+          <div class="shop-bo-side_stack">
+            <div class="shop-bo-metric">
+              <div class="shop-bo-metric_label">Encomendas visiveis</div>
+              <div class="shop-bo-metric_value" id="shopOrdersCount">0</div>
+            </div>
+            <div class="shop-bo-metric">
+              <div class="shop-bo-metric_label">Pagas</div>
+              <div class="shop-bo-metric_value" id="shopOrdersPaidCount">0</div>
+            </div>
+            <div class="shop-bo-metric">
+              <div class="shop-bo-metric_label">Com Stripe</div>
+              <div class="shop-bo-metric_value" id="shopOrdersStripeCount">0</div>
+            </div>
+            <div class="shop-bo-metric">
+              <div class="shop-bo-metric_label">Total filtrado</div>
+              <div class="shop-bo-metric_value" id="shopOrdersTotalValue">0,00 €</div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="shopOrderDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable shop-bo-modal_dialog">
+    <div class="modal-content shop-bo-modal_content">
+      <div class="modal-header shop-bo-modal_header">
+        <div>
+          <div class="sz_modal_title" id="shopOrderDetailTitle">Detalhe da encomenda</div>
+          <div class="shop-bo-tagline" id="shopOrderDetailSubtitle">Consulta de cabecalho, linhas, pagamentos, Stripe e logs.</div>
+        </div>
+        <button type="button" class="btn-close shop-bo-modal_close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body shop-bo-modal_body">
+        <div class="shop-bo-kpis">
+          <div class="shop-bo-kpi">
+            <div class="shop-bo-kpi_label">Estado</div>
+            <div class="shop-bo-kpi_value" id="shopOrderKpiState">-</div>
+          </div>
+          <div class="shop-bo-kpi">
+            <div class="shop-bo-kpi_label">Total</div>
+            <div class="shop-bo-kpi_value" id="shopOrderKpiTotal">-</div>
+          </div>
+          <div class="shop-bo-kpi">
+            <div class="shop-bo-kpi_label">Pago</div>
+            <div class="shop-bo-kpi_value" id="shopOrderKpiPaid">-</div>
+          </div>
+          <div class="shop-bo-kpi">
+            <div class="shop-bo-kpi_label">Reembolsado</div>
+            <div class="shop-bo-kpi_value" id="shopOrderKpiRefunded">-</div>
+          </div>
+        </div>
+
+        <div class="shop-bo-detail_sections">
+          <div class="shop-bo-section">
+            <div class="shop-bo-section_head">
+              <div>
+                <div class="shop-bo-section_title">Cabecalho da encomenda</div>
+                <div class="shop-bo-section_hint">Ligacao principal com reserva, estado e timestamps.</div>
+              </div>
+            </div>
+            <div class="shop-bo-form_grid_3" id="shopOrderHeaderGrid"></div>
+          </div>
+
+          <div class="shop-bo-section">
+            <div class="shop-bo-section_head">
+              <div>
+                <div class="shop-bo-section_title">Linhas</div>
+                <div class="shop-bo-section_hint">Resumo dos artigos, variantes, quantidades e totais.</div>
+              </div>
+            </div>
+            <div class="sz_table_host">
+              <table class="sz_table shop-bo-table_compact">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th style="width: 70px;">Linha</th>
+                    <th>Artigo</th>
+                    <th style="width: 160px;">Variante</th>
+                    <th class="sz_text_right" style="width: 90px;">Qtd.</th>
+                    <th class="sz_text_right" style="width: 120px;">Unitario</th>
+                    <th class="sz_text_right" style="width: 120px;">Total</th>
+                  </tr>
+                </thead>
+                <tbody id="shopOrderLinesBody">
+                  <tr class="sz_table_row"><td colspan="6" class="sz_table_cell sz_text_muted">Sem linhas.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="shop-bo-section">
+            <div class="shop-bo-section_head">
+              <div>
+                <div class="shop-bo-section_title">Pagamentos</div>
+                <div class="shop-bo-section_hint">Estado financeiro e referencias internas/externas.</div>
+              </div>
+            </div>
+            <div class="sz_table_host">
+              <table class="sz_table shop-bo-table_compact">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th style="width: 80px;">ID</th>
+                    <th style="width: 120px;">Estado</th>
+                    <th class="sz_text_right" style="width: 120px;">Valor</th>
+                    <th class="sz_text_right" style="width: 120px;">Capturado</th>
+                    <th class="sz_text_right" style="width: 120px;">Reembolsado</th>
+                    <th>Referencia</th>
+                    <th style="width: 170px;">Pago em</th>
+                  </tr>
+                </thead>
+                <tbody id="shopOrderPaymentsBody">
+                  <tr class="sz_table_row"><td colspan="7" class="sz_table_cell sz_text_muted">Sem pagamentos.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="shop-bo-section">
+            <div class="shop-bo-section_head">
+              <div>
+                <div class="shop-bo-section_title">Transacoes Stripe</div>
+                <div class="shop-bo-section_hint">Checkout session, payment intent, charge, refund e payload resumido.</div>
+              </div>
+            </div>
+            <div class="sz_table_host">
+              <table class="sz_table shop-bo-table_compact">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th style="width: 80px;">ID</th>
+                    <th style="width: 120px;">Tipo</th>
+                    <th style="width: 170px;">Evento</th>
+                    <th style="width: 180px;">Payment intent</th>
+                    <th style="width: 160px;">Checkout</th>
+                    <th style="width: 150px;">Charge</th>
+                    <th style="width: 140px;">Estado externo</th>
+                    <th>Resumo payload</th>
+                    <th style="width: 170px;">Data</th>
+                  </tr>
+                </thead>
+                <tbody id="shopOrderTransactionsBody">
+                  <tr class="sz_table_row"><td colspan="9" class="sz_table_cell sz_text_muted">Sem transacoes.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="shop-bo-section">
+            <div class="shop-bo-section_head">
+              <div>
+                <div class="shop-bo-section_title">Reembolsos</div>
+                <div class="shop-bo-section_hint">Quando existirem, ficam visiveis no mesmo detalhe.</div>
+              </div>
+            </div>
+            <div class="sz_table_host">
+              <table class="sz_table shop-bo-table_compact">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th style="width: 80px;">ID</th>
+                    <th style="width: 120px;">Estado</th>
+                    <th class="sz_text_right" style="width: 120px;">Valor</th>
+                    <th>Motivo</th>
+                    <th style="width: 160px;">Refund id</th>
+                    <th style="width: 170px;">Processado em</th>
+                  </tr>
+                </thead>
+                <tbody id="shopOrderRefundsBody">
+                  <tr class="sz_table_row"><td colspan="6" class="sz_table_cell sz_text_muted">Sem reembolsos.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="shop-bo-section">
+            <div class="shop-bo-section_head">
+              <div>
+                <div class="shop-bo-section_title">Logs tecnicos</div>
+                <div class="shop-bo-section_hint">Eventos relevantes do modulo SHOP ligados a esta encomenda.</div>
+              </div>
+            </div>
+            <div class="sz_table_host">
+              <table class="sz_table shop-bo-table_compact">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th style="width: 150px;">Data</th>
+                    <th style="width: 100px;">Nivel</th>
+                    <th style="width: 120px;">Categoria</th>
+                    <th style="width: 160px;">Evento</th>
+                    <th>Mensagem</th>
+                    <th style="width: 220px;">Detalhe</th>
+                  </tr>
+                </thead>
+                <tbody id="shopOrderLogsBody">
+                  <tr class="sz_table_row"><td colspan="6" class="sz_table_cell sz_text_muted">Sem logs.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer shop-bo-modal_footer">
+        <div class="shop-bo-helper" id="shopOrderDetailStatus"></div>
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/shop_encomendas.js') }}?v={{ static_version }}"></script>
+{% endblock %}

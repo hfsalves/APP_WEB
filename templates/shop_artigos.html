@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+{% set page_title = "Shop - Artigos" %}
+{% set page_name = "Shop - Artigos" %}
+
+{% block title %}Shop - Artigos{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop_backoffice.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page shop-bo-page" id="shopArticlesPage">
+  <div class="sz_page_container shop-bo-container">
+    <div class="sz_page_header">
+      <div class="sz_contextbar shop-bo-contextbar">
+        <div class="sz_contextbar_left">
+          <div class="sz_page_title">Shop - Artigos</div>
+          <div class="sz_breadcrumbs">SHOP / CATALOGO</div>
+          <div class="sz_page_subtitle">Gestao do catalogo, familias, variantes e imagens do modulo de loja para hospedes.</div>
+        </div>
+        <div class="sz_contextbar_right shop-bo-contextbar_right">
+          <div class="shop-bo-toolbar">
+            <div class="shop-bo-filters">
+              <div class="sz_field shop-bo-search">
+                <label class="sz_label" for="shopProductsSearch">Pesquisar</label>
+                <input id="shopProductsSearch" class="sz_input" type="text" placeholder="Nome, codigo, subtitulo...">
+              </div>
+              <div class="sz_field shop-bo-field_select">
+                <label class="sz_label" for="shopProductsFamilyFilter">Familia</label>
+                <select id="shopProductsFamilyFilter" class="sz_select">
+                  <option value="">Todas</option>
+                </select>
+              </div>
+              <div class="sz_field shop-bo-field_select">
+                <label class="sz_label" for="shopProductsActiveFilter">Estado</label>
+                <select id="shopProductsActiveFilter" class="sz_select">
+                  <option value="">Todos</option>
+                  <option value="1">Ativos</option>
+                  <option value="0">Inativos</option>
+                </select>
+              </div>
+              <div class="sz_field shop-bo-field_select">
+                <label class="sz_label" for="shopProductsSort">Ordenar</label>
+                <select id="shopProductsSort" class="sz_select">
+                  <option value="alterado">Alterado</option>
+                  <option value="criado">Criado</option>
+                  <option value="nome">Nome</option>
+                  <option value="familia">Familia</option>
+                  <option value="preco">Preco</option>
+                  <option value="ordem">Ordem</option>
+                </select>
+              </div>
+            </div>
+            <div class="shop-bo-actions">
+              <button id="shopFamiliesBtn" type="button" class="sz_button sz_button_ghost">
+                <i class="fa-solid fa-layer-group"></i>
+                <span>Familias</span>
+              </button>
+              <button id="shopProductsRefreshBtn" type="button" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-rotate"></i>
+                <span>Atualizar</span>
+              </button>
+              <button id="shopNewProductBtn" type="button" class="sz_button sz_button_primary">
+                <i class="fa-solid fa-plus"></i>
+                <span>Novo artigo</span>
+              </button>
+            </div>
+          </div>
+          <div class="sz_text_muted shop-bo-status" id="shopProductsStatus">A carregar catalogo...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sz_page_body">
+      <div class="sz_sidebar_layout shop-bo-layout">
+        <div class="sz_page_content shop-bo-main">
+          <div class="sz_panel shop-bo-table-panel">
+            <div class="sz_table_host">
+              <table class="sz_table" id="shopProductsTable">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th style="width: 86px;">ID</th>
+                    <th>Artigo</th>
+                    <th style="width: 170px;">Familia</th>
+                    <th class="sz_text_right" style="width: 130px;">Preco base</th>
+                    <th class="sz_text_right" style="width: 120px;">Stock</th>
+                    <th style="width: 110px;">Ativo</th>
+                    <th class="sz_text_right" style="width: 90px;">Ordem</th>
+                    <th style="width: 170px;">Alterado</th>
+                    <th style="width: 110px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="shopProductsBody">
+                  <tr class="sz_table_row"><td colspan="9" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <aside class="sz_page_sidebar">
+          <div class="shop-bo-side_stack">
+            <div class="shop-bo-metric">
+              <div class="shop-bo-metric_label">Artigos visiveis</div>
+              <div class="shop-bo-metric_value" id="shopProductsCount">0</div>
+            </div>
+            <div class="shop-bo-metric">
+              <div class="shop-bo-metric_label">Ativos</div>
+              <div class="shop-bo-metric_value" id="shopProductsActiveCount">0</div>
+            </div>
+            <div class="shop-bo-metric">
+              <div class="shop-bo-metric_label">Familias listadas</div>
+              <div class="shop-bo-metric_value" id="shopProductsFamiliesCount">0</div>
+            </div>
+            <div class="shop-bo-metric">
+              <div class="shop-bo-metric_label">Operacao</div>
+              <div class="shop-bo-helper">
+                Mantem familias e artigos no mesmo ecrã. As imagens podem ser reordenadas, marcadas como principais e removidas sem sair do registo.
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="shopProductModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable shop-bo-modal_dialog">
+    <div class="modal-content shop-bo-modal_content">
+      <div class="modal-header shop-bo-modal_header">
+        <div>
+          <div class="sz_modal_title" id="shopProductModalTitle">Artigo</div>
+          <div class="shop-bo-tagline">Edita o essencial do catalogo, variantes e media.</div>
+        </div>
+        <button type="button" class="btn-close shop-bo-modal_close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body shop-bo-modal_body">
+        <input type="hidden" id="shopProductId">
+        <div class="shop-bo-section">
+          <div class="shop-bo-section_head">
+            <div>
+              <div class="shop-bo-section_title">Dados base</div>
+              <div class="shop-bo-section_hint">Campos principais do artigo na app publica e no checkout.</div>
+            </div>
+            <button id="shopProductTranslationsBtn" type="button" class="sz_button sz_button_ghost">
+              <i class="fa-solid fa-language"></i>
+              <span>Traducoes</span>
+            </button>
+          </div>
+          <div class="shop-bo-form_grid">
+            <div class="sz_field">
+              <label class="sz_label" for="shopProductCode">Codigo</label>
+              <input id="shopProductCode" class="sz_input" type="text" maxlength="50">
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="shopProductFamily">Familia</label>
+              <div class="shop-bo-upload_row">
+                <select id="shopProductFamily" class="sz_select"></select>
+                <button id="shopProductOpenFamiliesBtn" type="button" class="sz_button sz_button_ghost">
+                  <i class="fa-solid fa-layer-group"></i>
+                  <span>Gerir</span>
+                </button>
+              </div>
+            </div>
+            <div class="sz_field shop-bo-col_span_2">
+              <label class="sz_label" for="shopProductName">Nome</label>
+              <input id="shopProductName" class="sz_input" type="text" maxlength="150">
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="shopProductTitle">Titulo</label>
+              <input id="shopProductTitle" class="sz_input" type="text" maxlength="200">
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="shopProductSubtitle">Subtitulo</label>
+              <input id="shopProductSubtitle" class="sz_input" type="text" maxlength="200">
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="shopProductPrice">Preco</label>
+              <input id="shopProductPrice" class="sz_input" type="number" min="0" step="0.01">
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="shopProductOrder">Ordem</label>
+              <input id="shopProductOrder" class="sz_input" type="number" min="0" step="1">
+            </div>
+            <div class="sz_field shop-bo-col_span_2">
+              <label class="sz_label" for="shopProductDescriptionShort">Descricao curta</label>
+              <input id="shopProductDescriptionShort" class="sz_input" type="text" maxlength="500">
+            </div>
+            <div class="sz_field shop-bo-col_span_2">
+              <label class="sz_label" for="shopProductDescription">Descricao</label>
+              <textarea id="shopProductDescription" class="sz_textarea" rows="4"></textarea>
+            </div>
+            <label class="shop-bo-inline_check">
+              <input id="shopProductActive" type="checkbox">
+              <span>Artigo ativo</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="shop-bo-section">
+          <div class="shop-bo-section_head">
+            <div>
+              <div class="shop-bo-section_title">Variantes</div>
+              <div class="shop-bo-section_hint">Tamanho, capacidade, formato ou unidade. A lista e substituida na gravacao do artigo.</div>
+            </div>
+            <button id="shopAddVariantBtn" type="button" class="sz_button sz_button_ghost">
+              <i class="fa-solid fa-plus"></i>
+              <span>Adicionar variante</span>
+            </button>
+          </div>
+          <div class="sz_table_host">
+            <table class="sz_table shop-bo-table_compact" id="shopVariantsTable">
+              <thead class="sz_table_head">
+                <tr>
+                  <th style="width: 140px;">Tipo</th>
+                  <th style="width: 180px;">Nome</th>
+                  <th style="width: 160px;">Valor</th>
+                  <th class="sz_text_right" style="width: 120px;">Preco</th>
+                  <th class="sz_text_right" style="width: 90px;">Ordem</th>
+                  <th style="width: 100px;">Padrao</th>
+                  <th style="width: 90px;">Ativo</th>
+                  <th style="width: 64px;"></th>
+                </tr>
+              </thead>
+              <tbody id="shopVariantsBody">
+                <tr class="sz_table_row"><td colspan="8" class="sz_table_cell sz_text_muted">Sem variantes.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="shop-bo-section">
+          <div class="shop-bo-section_head">
+            <div>
+              <div class="shop-bo-section_title">Imagens</div>
+              <div class="shop-bo-section_hint" id="shopImagesHint">Guarda o artigo para poderes carregar imagens.</div>
+            </div>
+          </div>
+          <div class="shop-bo-upload_row">
+            <input id="shopImageFile" type="file" accept="image/*">
+            <input id="shopImageAltText" class="sz_input" type="text" maxlength="200" placeholder="Alt text / legenda">
+            <button id="shopUploadImageBtn" type="button" class="sz_button sz_button_secondary">
+              <i class="fa-solid fa-upload"></i>
+              <span>Carregar imagem</span>
+            </button>
+          </div>
+          <div id="shopImagesGrid" class="shop-bo-image_grid">
+            <div class="shop-bo-empty">Sem imagens.</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer shop-bo-modal_footer">
+        <div class="shop-bo-helper" id="shopProductModalStatus"></div>
+        <div class="shop-bo-upload_row">
+          <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
+          <button id="shopSaveProductBtn" type="button" class="sz_button sz_button_primary">
+            <i class="fa-solid fa-save"></i>
+            <span>Gravar artigo</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="shopTranslationsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable shop-bo-modal_dialog">
+    <div class="modal-content shop-bo-modal_content">
+      <div class="modal-header shop-bo-modal_header">
+        <div>
+          <div class="sz_modal_title">Traducoes do artigo</div>
+          <div class="shop-bo-tagline">PT continua como base. EN, ES e FR ficam gravados no proprio artigo.</div>
+        </div>
+        <button type="button" class="btn-close shop-bo-modal_close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body shop-bo-modal_body">
+        <div class="shop-bo-section">
+          <div class="shop-bo-section_head">
+            <div>
+              <div class="shop-bo-section_title">Traducao automatica</div>
+              <div class="shop-bo-section_hint">Usa os campos PT atuais do formulario para gerar EN, ES e FR.</div>
+            </div>
+            <button id="shopAutoTranslateBtn" type="button" class="sz_button sz_button_secondary">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+              <span>Traduzir automaticamente</span>
+            </button>
+          </div>
+          <div id="shopTranslationsStatus" class="shop-bo-helper"></div>
+        </div>
+
+        <div class="shop-bo-form_grid">
+          <div class="shop-bo-section">
+            <div class="shop-bo-section_head">
+              <div>
+                <div class="shop-bo-section_title">English</div>
+                <div class="shop-bo-section_hint">Campos visiveis na shop quando o idioma e EN.</div>
+              </div>
+            </div>
+            <div class="shop-bo-form_grid">
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopProductNameEn">Name</label>
+                <input id="shopProductNameEn" class="sz_input" type="text" maxlength="150">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="shopProductTitleEn">Title</label>
+                <input id="shopProductTitleEn" class="sz_input" type="text" maxlength="200">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="shopProductSubtitleEn">Subtitle</label>
+                <input id="shopProductSubtitleEn" class="sz_input" type="text" maxlength="200">
+              </div>
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopProductDescriptionShortEn">Short description</label>
+                <input id="shopProductDescriptionShortEn" class="sz_input" type="text" maxlength="500">
+              </div>
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopProductDescriptionEn">Description</label>
+                <textarea id="shopProductDescriptionEn" class="sz_textarea" rows="4"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="shop-bo-section">
+            <div class="shop-bo-section_head">
+              <div>
+                <div class="shop-bo-section_title">Espanol</div>
+                <div class="shop-bo-section_hint">Campos visiveis na shop quando o idioma e ES.</div>
+              </div>
+            </div>
+            <div class="shop-bo-form_grid">
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopProductNameEs">Nombre</label>
+                <input id="shopProductNameEs" class="sz_input" type="text" maxlength="150">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="shopProductTitleEs">Titulo</label>
+                <input id="shopProductTitleEs" class="sz_input" type="text" maxlength="200">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="shopProductSubtitleEs">Subtitulo</label>
+                <input id="shopProductSubtitleEs" class="sz_input" type="text" maxlength="200">
+              </div>
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopProductDescriptionShortEs">Descripcion corta</label>
+                <input id="shopProductDescriptionShortEs" class="sz_input" type="text" maxlength="500">
+              </div>
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopProductDescriptionEs">Descripcion</label>
+                <textarea id="shopProductDescriptionEs" class="sz_textarea" rows="4"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="shop-bo-section shop-bo-col_span_2">
+            <div class="shop-bo-section_head">
+              <div>
+                <div class="shop-bo-section_title">Francais</div>
+                <div class="shop-bo-section_hint">Campos visiveis na shop quando o idioma e FR.</div>
+              </div>
+            </div>
+            <div class="shop-bo-form_grid">
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopProductNameFr">Nom</label>
+                <input id="shopProductNameFr" class="sz_input" type="text" maxlength="150">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="shopProductTitleFr">Titre</label>
+                <input id="shopProductTitleFr" class="sz_input" type="text" maxlength="200">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="shopProductSubtitleFr">Sous-titre</label>
+                <input id="shopProductSubtitleFr" class="sz_input" type="text" maxlength="200">
+              </div>
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopProductDescriptionShortFr">Description courte</label>
+                <input id="shopProductDescriptionShortFr" class="sz_input" type="text" maxlength="500">
+              </div>
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopProductDescriptionFr">Description</label>
+                <textarea id="shopProductDescriptionFr" class="sz_textarea" rows="4"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer shop-bo-modal_footer">
+        <div class="shop-bo-helper">As traducoes ficam gravadas no mesmo registo do artigo.</div>
+        <div class="shop-bo-upload_row">
+          <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="shopFamiliesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable shop-bo-modal_dialog">
+    <div class="modal-content shop-bo-modal_content">
+      <div class="modal-header shop-bo-modal_header">
+        <div>
+          <div class="sz_modal_title">Familias do catalogo</div>
+          <div class="shop-bo-tagline">Manutencao rapida sem sair do ecrã de artigos.</div>
+        </div>
+        <button type="button" class="btn-close shop-bo-modal_close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body shop-bo-modal_body">
+        <div class="shop-bo-form_grid">
+          <div class="shop-bo-section shop-bo-col_span_2">
+            <div class="shop-bo-section_head">
+              <div>
+                <div class="shop-bo-section_title">Lista de familias</div>
+                <div class="shop-bo-section_hint">Seleciona uma linha para editar rapidamente.</div>
+              </div>
+            </div>
+            <div class="sz_table_host">
+              <table class="sz_table shop-bo-table_compact" id="shopFamiliesTable">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th style="width: 80px;">ID</th>
+                    <th style="width: 140px;">Codigo</th>
+                    <th>Nome</th>
+                    <th style="width: 120px;">Titulo</th>
+                    <th class="sz_text_right" style="width: 90px;">Ordem</th>
+                    <th style="width: 90px;">Ativo</th>
+                  </tr>
+                </thead>
+                <tbody id="shopFamiliesBody">
+                  <tr class="sz_table_row"><td colspan="6" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="shop-bo-section">
+            <div class="shop-bo-section_head">
+              <div>
+                <div class="shop-bo-section_title">Editar familia</div>
+                <div class="shop-bo-section_hint">Criacao e edicao no mesmo formulario.</div>
+              </div>
+            </div>
+            <input type="hidden" id="shopFamilyId">
+            <div class="shop-bo-form_grid">
+              <div class="sz_field">
+                <label class="sz_label" for="shopFamilyCode">Codigo</label>
+                <input id="shopFamilyCode" class="sz_input" type="text" maxlength="50">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="shopFamilyOrder">Ordem</label>
+                <input id="shopFamilyOrder" class="sz_input" type="number" min="0" step="1">
+              </div>
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopFamilyName">Nome</label>
+                <input id="shopFamilyName" class="sz_input" type="text" maxlength="100">
+              </div>
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopFamilyTitle">Titulo</label>
+                <input id="shopFamilyTitle" class="sz_input" type="text" maxlength="150">
+              </div>
+              <div class="sz_field shop-bo-col_span_2">
+                <label class="sz_label" for="shopFamilyDescription">Descricao</label>
+                <textarea id="shopFamilyDescription" class="sz_textarea" rows="3"></textarea>
+              </div>
+              <label class="shop-bo-inline_check">
+                <input id="shopFamilyActive" type="checkbox">
+                <span>Familia ativa</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer shop-bo-modal_footer">
+        <div class="shop-bo-helper" id="shopFamilyModalStatus"></div>
+        <div class="shop-bo-upload_row">
+          <button id="shopNewFamilyBtn" type="button" class="sz_button sz_button_ghost">
+            <i class="fa-solid fa-plus"></i>
+            <span>Nova familia</span>
+          </button>
+          <button id="shopSaveFamilyBtn" type="button" class="sz_button sz_button_primary">
+            <i class="fa-solid fa-save"></i>
+            <span>Gravar familia</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/shop_artigos.js') }}?v={{ static_version }}"></script>
+{% endblock %}

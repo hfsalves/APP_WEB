@@ -7,14 +7,44 @@ function parseNumber(val) {
   const n = Number(s);
   return isNaN(n) ? 0 : n;
 }
-function formatNumber(n) {
+function isNumericLike(val) {
+  if (typeof val === 'number') return Number.isFinite(val);
+  if (typeof val !== 'string') return false;
+  const s = val.trim();
+  if (!s) return false;
+  return /^[+-]?[\d\s,.]+$/.test(s) && !Number.isNaN(parseNumber(s));
+}
+function formatNumber(n, decimals = 0) {
   const num = Number(n);
   if (isNaN(num)) return '';
-  const intStr = String(Math.trunc(num));
-  return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return new Intl.NumberFormat('pt-PT', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(num);
 }
 function formatTitle(str) {
   return str.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
+}
+
+async function parseJsonResponse(resp, fallbackMessage) {
+  const raw = await resp.text();
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    const compact = String(raw || '').replace(/\s+/g, ' ').trim();
+    const looksHtml = compact.startsWith('<!doctype') || compact.startsWith('<html') || compact.startsWith('<');
+    const hint = looksHtml
+      ? 'O servidor devolveu HTML em vez de JSON. Normalmente isto significa erro Flask/500 ou redirect para login.'
+      : `Resposta invalida: ${compact.slice(0, 180)}`;
+    throw new Error(`${fallbackMessage || 'Resposta invalida do servidor'} (${resp.status}). ${hint}`);
+  }
+}
+
+function showDashboardError(message) {
+  const cols = document.querySelectorAll('.sz_dashboard_col');
+  cols.forEach((col) => {
+    col.innerHTML = `<div class="sz_panel p-4 text-danger">${message}</div>`;
+  });
 }
 
 // Loading ------------------------------------------------
@@ -54,7 +84,7 @@ async function fetchOptions(widgetId, field) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ options_query: field.options_query })
   });
-  const js = await resp.json();
+  const js = await parseJsonResponse(resp, `Erro ao carregar opcoes do widget ${widgetId}`);
   if (!resp.ok || js.error) throw new Error(js.error || 'Erro ao carregar opcoes');
   return Array.isArray(js.options) ? js.options : [];
 }
@@ -172,7 +202,7 @@ async function runWidget(widgetName, filters) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ filters: filters || {} })
   });
-  const js = await resp.json();
+  const js = await parseJsonResponse(resp, `Erro ao executar widget ${widgetName}`);
   if (!resp.ok || js.error) throw new Error(js.error || 'Falha ao executar widget');
   return js;
 }
@@ -205,9 +235,7 @@ function renderAnalise(body, data) {
   const numericCols = data.columns.filter(c =>
     data.rows.every(row => {
       const v = row[c];
-      if (typeof v === 'number') return true;
-      if (typeof v === 'string') return /^[\d\s,\.]+$/.test(v);
-      return false;
+      return isNumericLike(v);
     })
   );
 
@@ -244,7 +272,7 @@ function renderAnalise(body, data) {
           return `<td>${dd}.${mm}.${yyyy}</td>`;
         }
         if (numericCols.includes(c)) {
-          return `<td class="num">${formatNumber(parseNumber(row[c]))}</td>`;
+          return `<td class="num">${formatNumber(parseNumber(row[c]), decimalCols.includes(c) ? 2 : 0)}</td>`;
         }
         return `<td>${row[c]}</td>`;
       }).join('') +
@@ -256,7 +284,7 @@ function renderAnalise(body, data) {
       data.columns.map((c,i) => {
         if (i === 0) return '<td>Total</td>';
         if (numericCols.includes(c)) {
-          return `<td class="num">${formatNumber(totals[c])}</td>`;
+          return `<td class="num">${formatNumber(totals[c], decimalCols.includes(c) ? 2 : 0)}</td>`;
         }
         return '<td></td>';
       }).join('') +
@@ -486,7 +514,7 @@ async function renderWidget(widget, colDiv) {
 document.addEventListener('DOMContentLoaded', () => {
   showLoading();
   fetch('/api/dashboard')
-    .then(r => r.json())
+    .then(r => parseJsonResponse(r, 'Erro ao carregar configuracao do dashboard'))
     .then(data => {
       const widgetPromises = [];
       [1,2,3].forEach(col => {
@@ -498,6 +526,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
       return Promise.all(widgetPromises);
+    })
+    .catch((err) => {
+      console.error('Dashboard bootstrap failed:', err);
+      showDashboardError(err.message || 'Falha ao carregar dashboard.');
     })
     .finally(hideLoading);
 });

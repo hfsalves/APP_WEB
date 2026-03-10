@@ -113,6 +113,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="StationZero">
   <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/icon-180-v2.png') }}">
+  {% block extra_head %}{% endblock %}
 
   <!-- Injeta permissões do user para o JS -->
   <script>

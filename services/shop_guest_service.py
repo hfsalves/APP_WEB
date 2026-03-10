@@ -1,7 +1,39 @@
 from decimal import Decimal, ROUND_HALF_UP
 
+from sqlalchemy import text
+
+from models import db
+
 
 _DEC2 = Decimal("0.01")
+_PRODUCT_TRANSLATION_COLUMNS = (
+    "NOME_EN",
+    "NOME_ES",
+    "NOME_FR",
+    "TITULO_EN",
+    "TITULO_ES",
+    "TITULO_FR",
+    "SUBTITULO_EN",
+    "SUBTITULO_ES",
+    "SUBTITULO_FR",
+    "DESCRICAO_CURTA_EN",
+    "DESCRICAO_CURTA_ES",
+    "DESCRICAO_CURTA_FR",
+    "DESCRICAO_EN",
+    "DESCRICAO_ES",
+    "DESCRICAO_FR",
+)
+
+_FAMILY_UI_META = {
+    "MAIS_POPULARES": {"icon": "fa-fire-flame-curved", "accent": "#f59e0b"},
+    "PEQUENO_ALMOCO": {"icon": "fa-mug-hot", "accent": "#f97316"},
+    "MERCEARIA": {"icon": "fa-basket-shopping", "accent": "#84cc16"},
+    "BEBIDAS": {"icon": "fa-wine-bottle", "accent": "#06b6d4"},
+    "HIGIENE_PESSOAL": {"icon": "fa-pump-soap", "accent": "#8b5cf6"},
+    "SURPRESAS": {"icon": "fa-gift", "accent": "#ec4899"},
+    "UTILITARIOS": {"icon": "fa-suitcase-medical", "accent": "#64748b"},
+    "ADULT_MATERIAL": {"icon": "fa-moon", "accent": "#be185d"},
+}
 
 
 _SHOP_FAMILIES = [
@@ -143,7 +175,278 @@ def _to_price(value):
     return Decimal(str(value)).quantize(_DEC2, rounding=ROUND_HALF_UP)
 
 
-def get_shop_catalog_data():
+def _table_exists(table_name):
+    sql = text(
+        """
+        SELECT COUNT(*)
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = 'dbo'
+          AND TABLE_NAME = :table_name
+        """
+    )
+    return bool(db.session.execute(sql, {"table_name": table_name}).scalar() or 0)
+
+
+def _public_image_url(raw_url):
+    value = str(raw_url or "").strip()
+    if not value:
+        return ""
+    if value.startswith(("http://", "https://", "/")):
+        return value
+    return f"/{value.lstrip('/')}"
+
+
+def _display_variant_label(name, value):
+    raw_name = str(name or "").strip()
+    raw_value = str(value or "").strip()
+    if raw_name and raw_value:
+        normalized = raw_value.lower().replace(",", ".")
+        if normalized in {"1", "1.0", "true"}:
+            return raw_name
+        if raw_value.lower() == raw_name.lower():
+            return raw_name
+        return f"{raw_name} · {raw_value}"
+    return raw_name or raw_value
+
+
+def _product_translations(name="", title="", subtitle="", description_short="", description="", row=None):
+    row = row or {}
+    return {
+        "pt": {
+            "name": str(name or "").strip(),
+            "title": str(title or name or "").strip(),
+            "subtitle": str(subtitle or "").strip(),
+            "description_short": str(description_short or "").strip(),
+            "description": str(description or "").strip(),
+        },
+        "en": {
+            "name": str(row.get("NOME_EN") or "").strip(),
+            "title": str(row.get("TITULO_EN") or "").strip(),
+            "subtitle": str(row.get("SUBTITULO_EN") or "").strip(),
+            "description_short": str(row.get("DESCRICAO_CURTA_EN") or "").strip(),
+            "description": str(row.get("DESCRICAO_EN") or "").strip(),
+        },
+        "es": {
+            "name": str(row.get("NOME_ES") or "").strip(),
+            "title": str(row.get("TITULO_ES") or "").strip(),
+            "subtitle": str(row.get("SUBTITULO_ES") or "").strip(),
+            "description_short": str(row.get("DESCRICAO_CURTA_ES") or "").strip(),
+            "description": str(row.get("DESCRICAO_ES") or "").strip(),
+        },
+        "fr": {
+            "name": str(row.get("NOME_FR") or "").strip(),
+            "title": str(row.get("TITULO_FR") or "").strip(),
+            "subtitle": str(row.get("SUBTITULO_FR") or "").strip(),
+            "description_short": str(row.get("DESCRICAO_CURTA_FR") or "").strip(),
+            "description": str(row.get("DESCRICAO_FR") or "").strip(),
+        },
+    }
+
+
+def _cart_line_key(product_code, variant_id=None):
+    code = str(product_code or "").strip().upper()
+    if not code:
+        return ""
+    try:
+        variant_num = int(variant_id) if variant_id not in (None, "", 0, "0") else 0
+    except Exception:
+        variant_num = 0
+    return f"{code}::{variant_num}" if variant_num > 0 else code
+
+
+def _split_cart_line_key(raw_key):
+    value = str(raw_key or "").strip().upper()
+    if not value:
+        return "", None
+    if "::" not in value:
+        return value, None
+    product_code, variant_raw = value.split("::", 1)
+    try:
+        variant_id = int(variant_raw)
+    except Exception:
+        variant_id = None
+    return product_code.strip().upper(), variant_id
+
+
+def _db_catalog_available():
+    return all(
+        _table_exists(name)
+        for name in ("SHOP_FAMILIAS", "SHOP_PRODUTOS", "SHOP_PRODUTO_IMAGENS")
+    )
+
+
+def _db_shop_catalog_data():
+    rows = db.session.execute(
+        text(
+            """
+            SELECT
+                f.FAMILIA_ID,
+                f.CODIGO AS FAMILIA_CODIGO,
+                f.NOME AS FAMILIA_NOME,
+                f.TITULO AS FAMILIA_TITULO,
+                f.DESCRICAO AS FAMILIA_DESCRICAO,
+                f.ORDEM AS FAMILIA_ORDEM,
+                p.PRODUTO_ID,
+                p.CODIGO AS PRODUTO_CODIGO,
+                p.NOME AS PRODUTO_NOME,
+                p.TITULO AS PRODUTO_TITULO,
+                p.SUBTITULO AS PRODUTO_SUBTITULO,
+                p.DESCRICAO_CURTA,
+                p.DESCRICAO,
+                p.NOME_EN,
+                p.NOME_ES,
+                p.NOME_FR,
+                p.TITULO_EN,
+                p.TITULO_ES,
+                p.TITULO_FR,
+                p.SUBTITULO_EN,
+                p.SUBTITULO_ES,
+                p.SUBTITULO_FR,
+                p.DESCRICAO_CURTA_EN,
+                p.DESCRICAO_CURTA_ES,
+                p.DESCRICAO_CURTA_FR,
+                p.DESCRICAO_EN,
+                p.DESCRICAO_ES,
+                p.DESCRICAO_FR,
+                p.PRECO,
+                p.MOEDA,
+                p.ORDEM AS PRODUTO_ORDEM,
+                (
+                    SELECT TOP 1 pi.URL
+                    FROM dbo.SHOP_PRODUTO_IMAGENS pi
+                    WHERE pi.PRODUTO_ID = p.PRODUTO_ID
+                      AND pi.ATIVO = 1
+                    ORDER BY pi.E_PRINCIPAL DESC, pi.ORDEM ASC, pi.PRODUTO_IMAGEM_ID ASC
+                ) AS IMAGEM_URL
+            FROM dbo.SHOP_FAMILIAS f
+            INNER JOIN dbo.SHOP_PRODUTOS p
+                ON p.FAMILIA_ID = f.FAMILIA_ID
+            WHERE f.ATIVO = 1
+              AND p.ATIVO = 1
+            ORDER BY f.ORDEM ASC, f.NOME ASC, p.ORDEM ASC, p.NOME ASC
+            """
+        )
+    ).mappings().all()
+
+    if not rows:
+        return {"currency": "EUR", "families": [], "products": [], "products_by_family": {}, "source": "db"}
+
+    product_ids = [int(row["PRODUTO_ID"]) for row in rows if row.get("PRODUTO_ID") is not None]
+    variants_map = {}
+    if product_ids and _table_exists("SHOP_PRODUTO_VARIANTES"):
+        params = {f"pid{i}": pid for i, pid in enumerate(product_ids)}
+        placeholders = ", ".join(f":pid{i}" for i in range(len(product_ids)))
+        variant_rows = db.session.execute(
+            text(
+                f"""
+                SELECT
+                    PRODUTO_VARIANTE_ID, PRODUTO_ID, CODIGO, TIPO_VARIANTE, NOME, VALOR,
+                    DESCRICAO_CURTA, PRECO, ORDEM, PADRAO, ATIVO
+                FROM dbo.SHOP_PRODUTO_VARIANTES
+                WHERE ATIVO = 1
+                  AND PRODUTO_ID IN ({placeholders})
+                ORDER BY PRODUTO_ID ASC, PADRAO DESC, ORDEM ASC, PRODUTO_VARIANTE_ID ASC
+                """
+            ),
+            params,
+        ).mappings().all()
+        for variant_row in variant_rows:
+            product_id = int(variant_row["PRODUTO_ID"])
+            variants_map.setdefault(product_id, []).append(
+                {
+                    "id": int(variant_row["PRODUTO_VARIANTE_ID"]),
+                    "code": str(variant_row.get("CODIGO") or "").strip().upper(),
+                    "type": str(variant_row.get("TIPO_VARIANTE") or "").strip().upper(),
+                    "name": str(variant_row.get("NOME") or "").strip(),
+                    "value": str(variant_row.get("VALOR") or "").strip(),
+                    "description_short": str(variant_row.get("DESCRICAO_CURTA") or "").strip(),
+                    "price": float(_to_price(variant_row.get("PRECO"))) if variant_row.get("PRECO") is not None else None,
+                    "sort_order": int(variant_row.get("ORDEM") or 0),
+                    "is_default": bool(variant_row.get("PADRAO")),
+                    "label": _display_variant_label(variant_row.get("NOME"), variant_row.get("VALOR")),
+                }
+            )
+
+    families = []
+    family_index = {}
+    products = []
+
+    for row in rows:
+        family_code = str(row.get("FAMILIA_CODIGO") or "").strip().upper()
+        if not family_code:
+            continue
+        if family_code not in family_index:
+            ui_meta = _FAMILY_UI_META.get(family_code, {"icon": "fa-bag-shopping", "accent": "#2563eb"})
+            family = {
+                "id": row.get("FAMILIA_ID"),
+                "code": family_code,
+                "name": str(row.get("FAMILIA_NOME") or "").strip(),
+                "title": str(row.get("FAMILIA_TITULO") or row.get("FAMILIA_NOME") or "").strip(),
+                "description": str(row.get("FAMILIA_DESCRICAO") or "").strip(),
+                "sort_order": int(row.get("FAMILIA_ORDEM") or 0),
+                "icon": ui_meta["icon"],
+                "accent": ui_meta["accent"],
+                "products_count": 0,
+            }
+            family_index[family_code] = family
+            families.append(family)
+
+        family = family_index[family_code]
+        price = _to_price(row.get("PRECO") or "0.00")
+        product_variants = list(variants_map.get(int(row.get("PRODUTO_ID") or 0), []))
+        default_variant = next((item for item in product_variants if item.get("is_default")), None) or (product_variants[0] if product_variants else None)
+        product_name = str(row.get("PRODUTO_NOME") or "").strip()
+        product_title = str(row.get("PRODUTO_TITULO") or row.get("PRODUTO_NOME") or "").strip()
+        product_subtitle = str(row.get("PRODUTO_SUBTITULO") or "").strip()
+        product_description_short = str(row.get("DESCRICAO_CURTA") or "").strip()
+        product_description = str(row.get("DESCRICAO") or "").strip()
+        products.append(
+            {
+                "id": row.get("PRODUTO_ID"),
+                "code": str(row.get("PRODUTO_CODIGO") or "").strip().upper(),
+                "family_code": family_code,
+                "family_name": family["name"],
+                "name": product_name,
+                "title": product_title,
+                "subtitle": product_subtitle,
+                "description_short": product_description_short,
+                "description": product_description,
+                "translations": _product_translations(
+                    product_name,
+                    product_title,
+                    product_subtitle,
+                    product_description_short,
+                    product_description,
+                    row=row,
+                ),
+                "price": float(price),
+                "currency": str(row.get("MOEDA") or "EUR").strip() or "EUR",
+                "sort_order": int(row.get("PRODUTO_ORDEM") or 0),
+                "icon": family["icon"],
+                "accent": family["accent"],
+                "image_url": _public_image_url(row.get("IMAGEM_URL")),
+                "variants": product_variants,
+                "has_variants": bool(product_variants),
+                "default_variant_id": default_variant.get("id") if default_variant else None,
+                "default_variant_label": default_variant.get("label") if default_variant else "",
+            }
+        )
+        family["products_count"] += 1
+
+    products_by_family = {}
+    for family in families:
+        products_by_family[family["code"]] = [item for item in products if item["family_code"] == family["code"]]
+
+    return {
+        "currency": "EUR",
+        "families": families,
+        "products": products,
+        "products_by_family": products_by_family,
+        "source": "db",
+    }
+
+
+def _fallback_shop_catalog_data():
     families = [dict(item) for item in sorted(_SHOP_FAMILIES, key=lambda item: (item["sort_order"], item["name"]))]
     family_index = {item["code"]: item for item in families}
     products = []
@@ -159,11 +462,23 @@ def get_shop_catalog_data():
             "subtitle": item["subtitle"],
             "description_short": item["description_short"],
             "description": item["description"],
+            "translations": _product_translations(
+                item["name"],
+                item["name"],
+                item["subtitle"],
+                item["description_short"],
+                item["description"],
+            ),
             "price": float(price),
             "currency": "EUR",
             "sort_order": item["sort_order"],
             "icon": family["icon"],
             "accent": family["accent"],
+            "image_url": "",
+            "variants": [],
+            "has_variants": False,
+            "default_variant_id": None,
+            "default_variant_label": "",
         }
         products.append(product)
 
@@ -178,7 +493,17 @@ def get_shop_catalog_data():
         "families": families,
         "products": products,
         "products_by_family": products_by_family,
+        "source": "fallback",
     }
+
+
+def get_shop_catalog_data():
+    try:
+        if _db_catalog_available():
+            return _db_shop_catalog_data()
+    except Exception:
+        pass
+    return _fallback_shop_catalog_data()
 
 
 def get_shop_product_by_code(product_code):
@@ -199,8 +524,8 @@ def build_shop_cart(raw_lines):
     total_quantity = 0
     subtotal = Decimal("0.00")
 
-    for product_code, qty in (raw_lines or {}).items():
-        code = str(product_code or "").strip().upper()
+    for raw_key, qty in (raw_lines or {}).items():
+        code, variant_id = _split_cart_line_key(raw_key)
         if not code or code not in product_index:
             continue
         try:
@@ -210,13 +535,20 @@ def build_shop_cart(raw_lines):
         if quantity <= 0:
             continue
         product = product_index[code]
-        unit_price = _to_price(product["price"])
+        variant = None
+        if variant_id:
+            variant = next((item for item in (product.get("variants") or []) if int(item.get("id") or 0) == int(variant_id)), None)
+        unit_price = _to_price(variant["price"] if variant and variant.get("price") is not None else product["price"])
         line_total = (unit_price * quantity).quantize(_DEC2, rounding=ROUND_HALF_UP)
         items.append(
             {
+                "key": _cart_line_key(code, variant_id),
                 "product_code": code,
                 "product_name": product["name"],
                 "subtitle": product["subtitle"],
+                "translations": product.get("translations") or {},
+                "variant_id": variant.get("id") if variant else None,
+                "variant_label": variant.get("label") if variant else "",
                 "family_code": product["family_code"],
                 "family_name": product["family_name"],
                 "quantity": quantity,
@@ -225,12 +557,13 @@ def build_shop_cart(raw_lines):
                 "currency": product["currency"],
                 "icon": product["icon"],
                 "accent": product["accent"],
+                "image_url": product.get("image_url") or "",
             }
         )
         total_quantity += quantity
         subtotal += line_total
 
-    items.sort(key=lambda item: (item["family_name"], item["product_name"]))
+    items.sort(key=lambda item: (item["family_name"], item["product_name"], item.get("variant_label") or ""))
     subtotal = subtotal.quantize(_DEC2, rounding=ROUND_HALF_UP)
     return {
         "currency": "EUR",
