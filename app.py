@@ -559,32 +559,6 @@ def create_app():
                 for child in (item.get('children') if isinstance(item, dict) and item.get('children') else [item])
                 if isinstance(child, dict) and child.get('url')
             }
-            shop_catalog_allowed = user_is_admin or perms.get('SHOP', {}).get('consultar', False) or perms.get('SHOP_PRODUTOS', {}).get('consultar', False) or perms.get('SHOP_FAMILIAS', {}).get('consultar', False)
-            shop_orders_allowed = user_is_admin or perms.get('SHOP', {}).get('consultar', False) or perms.get('SHOP_ENCOMENDAS', {}).get('consultar', False) or perms.get('SHOP_PAGAMENTOS', {}).get('consultar', False)
-            shop_children = []
-            if shop_catalog_allowed and '/shop/artigos' not in existing_urls:
-                shop_children.append({
-                    'name': 'Artigos',
-                    'url': '/shop/artigos',
-                    'icon': 'fa-box-open',
-                    'novo': False,
-                })
-            if shop_orders_allowed and '/shop/encomendas' not in existing_urls:
-                shop_children.append({
-                    'name': 'Encomendas',
-                    'url': '/shop/encomendas',
-                    'icon': 'fa-receipt',
-                    'novo': False,
-                })
-            if shop_children:
-                menu_structure.append({
-                    'name': 'Shop',
-                    'icon': 'fa-store',
-                    'novo': False,
-                    'children': shop_children,
-                    'mostrar': True,
-                })
-
             menu_forms = { m.tabela: getattr(m, 'form', None) for m in menu_items }
 
         return {

@@ -14,13 +14,13 @@ function isNumericLike(val) {
   if (!s) return false;
   return /^[+-]?[\d\s,.]+$/.test(s) && !Number.isNaN(parseNumber(s));
 }
-function formatNumber(n, decimals = 0) {
+function formatNumber(n) {
   const num = Number(n);
   if (isNaN(num)) return '';
-  return new Intl.NumberFormat('pt-PT', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  }).format(num);
+  const rounded = Math.round(num);
+  const sign = rounded < 0 ? '-' : '';
+  const digits = String(Math.abs(rounded));
+  return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 function formatTitle(str) {
   return str.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
@@ -239,10 +239,6 @@ function renderAnalise(body, data) {
     })
   );
 
-  const decimalCols = numericCols.filter(c =>
-    data.rows.some(row => parseNumber(row[c]) % 1 !== 0)
-  );
-
   const dateCols = data.columns.filter(c =>
     data.rows.every(row => {
       const v = row[c];
@@ -272,19 +268,19 @@ function renderAnalise(body, data) {
           return `<td>${dd}.${mm}.${yyyy}</td>`;
         }
         if (numericCols.includes(c)) {
-          return `<td class="num">${formatNumber(parseNumber(row[c]), decimalCols.includes(c) ? 2 : 0)}</td>`;
+          return `<td class="num">${formatNumber(parseNumber(row[c]))}</td>`;
         }
         return `<td>${row[c]}</td>`;
       }).join('') +
     '</tr>').join('') +
   '</tbody>';
 
-  if (decimalCols.length > 0) {
+  if (numericCols.length > 0) {
     html += '<tfoot><tr>' +
       data.columns.map((c,i) => {
         if (i === 0) return '<td>Total</td>';
         if (numericCols.includes(c)) {
-          return `<td class="num">${formatNumber(totals[c], decimalCols.includes(c) ? 2 : 0)}</td>`;
+          return `<td class="num">${formatNumber(totals[c])}</td>`;
         }
         return '<td></td>';
       }).join('') +
