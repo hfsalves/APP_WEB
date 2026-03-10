@@ -634,6 +634,51 @@
     .guest-nav-btn.active::before{
       background:linear-gradient(180deg, rgba(37,99,235,.92), rgba(56,189,248,.78));
     }
+    .rules-summary{
+      display:grid;
+      gap:12px;
+    }
+    .rules-summary-intro{
+      color:#b9d4ea;
+      font-size:.9rem;
+      line-height:1.5;
+    }
+    .rules-list{
+      display:grid;
+      gap:10px;
+      padding:0;
+      margin:0;
+      list-style:none;
+    }
+    .rules-item{
+      display:flex;
+      align-items:flex-start;
+      gap:10px;
+      padding:12px 14px;
+      border-radius:16px;
+      border:1px solid rgba(125,211,252,.16);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+    }
+    .rules-item i{
+      margin-top:2px;
+      color:#7dd3fc;
+      flex-shrink:0;
+    }
+    .rules-item span{
+      color:#eaf6ff;
+      font-size:.9rem;
+      line-height:1.5;
+    }
+    .rules-note{
+      color:#b9d4ea;
+      font-size:.82rem;
+      line-height:1.45;
+      padding:10px 12px;
+      border-radius:14px;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(191,219,254,.12);
+    }
     .guest-nav-top{
       display:flex;
       align-items:center;
@@ -1129,7 +1174,14 @@
             </div>
           </div>
         </article>
-        <article class="r-card"><h3 data-i18n="card_rules">Regras Essenciais</h3><div class="placeholder" data-i18n="placeholder_content">Conte&uacute;do em prepara&ccedil;&atilde;o.</div></article>
+        <article class="r-card">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <h3 class="mb-0" data-i18n="card_rules">Regras Essenciais</h3>
+            <span class="badge bg-info-subtle text-info-emphasis border" data-i18n="rules_badge">Importante</span>
+          </div>
+          <div class="small text-muted mb-3" data-i18n="rules_hint">Consulta um resumo rapido das regras da casa, horarios e principais penalizacoes.</div>
+          <button id="rulesOpenBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_open_rules">Ler regras da casa</button>
+        </article>
         <article class="r-card">
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <h3 class="mb-0" data-i18n="card_billing">Dados de Fatura&ccedil;&atilde;o</h3>
@@ -1140,6 +1192,36 @@
           <button id="billingOpenBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_open_billing">Adicionar dados de fatura&ccedil;&atilde;o</button>
         </article>
       </section>
+
+      <div id="rulesModal" class="guest-modal" aria-hidden="true">
+        <div class="guest-modal-backdrop" id="rulesBackdrop"></div>
+        <div class="guest-modal-panel">
+          <div class="guest-modal-header">
+            <div>
+              <div class="fw-bold" data-i18n="rules_modal_title">Regras da casa</div>
+              <div class="small text-muted" data-i18n="rules_modal_hint">Resumo essencial para preparar a estadia e evitar problemas durante a reserva.</div>
+            </div>
+            <button id="rulesCloseBtn" type="button" class="btn btn-sm btn-outline-secondary">X</button>
+          </div>
+          <section class="rules-summary">
+            <div class="rules-summary-intro" data-i18n="rules_intro">Segue estas orientacoes principais para um check-in tranquilo, uma estadia respeitosa e um check-out sem custos extra.</div>
+            <ul class="rules-list">
+              <li class="rules-item"><i class="fa-solid fa-clock"></i><span data-i18n="rules_item_1">Check-in depois das 15h e check-out ate as 11h. O boletim de alojamento com os dados de todos os hospedes tem de estar preenchido antes da chegada. Bagagem pode ser guardada gratuitamente no escritorio em dias uteis; aos fins de semana e feriados recomendamos lockers da Trindade.</span></li>
+              <li class="rules-item"><i class="fa-solid fa-box-open"></i><span data-i18n="rules_item_2">Toalhas, lencois, papel higienico, gel de banho, secador, ferro, tabua de engomar e Wi-Fi estao incluidos. Nao ha limpeza durante a estadia, pequeno-almoco, refeicoes, alimentos de base nem Netflix.</span></li>
+              <li class="rules-item"><i class="fa-solid fa-volume-low"></i><span data-i18n="rules_item_3">Respeita os vizinhos e mantem o ruido no minimo, sobretudo entre as 23h e as 7h. Ruido excessivo ou comportamento desrespeitoso pode levar ao fim imediato da estadia sem reembolso.</span></li>
+              <li class="rules-item"><i class="fa-solid fa-user-check"></i><span data-i18n="rules_item_4">So podem entrar pessoas registadas na reserva. Hospedes extra nao autorizados pagam multa diaria, e festas sao totalmente proibidas e sujeitas a penalizacao elevada.</span></li>
+              <li class="rules-item"><i class="fa-solid fa-house-lock"></i><span data-i18n="rules_item_5">Leva o lixo para os contentores, fecha bem portas e janelas quando sais e desliga luzes, aquecimento, ar condicionado, ventoinhas e aparelhos quando nao forem necessarios.</span></li>
+              <li class="rules-item"><i class="fa-solid fa-ban"></i><span data-i18n="rules_item_6">Nao e permitido fumar no interior nem levar animais. Danos, limpeza extra, odores, mobiliario estragado ou incumprimentos associados serao cobrados ao hospede.</span></li>
+              <li class="rules-item"><i class="fa-solid fa-triangle-exclamation"></i><span data-i18n="rules_item_7">Comunica qualquer dano logo que aconteca. Perda de chaves custa 30 EUR; limpeza extra e abertura por serralheiro sao cobradas. O incumprimento das regras pode terminar a estadia e gerar custos adicionais.</span></li>
+            </ul>
+            <div class="rules-note" data-i18n="rules_note">Se tiveres duvidas sobre alguma regra antes da chegada, fala connosco para evitar constrangimentos durante a estadia.</div>
+            <div class="guest-actions">
+              <div class="guest-actions-nav"></div>
+              <button id="rulesDismissBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_close_info">Fechar</button>
+            </div>
+          </section>
+        </div>
+      </div>
 
       <div id="billingModal" class="guest-modal" aria-hidden="true">
         <div class="guest-modal-backdrop" id="billingModalBackdrop"></div>
@@ -1347,6 +1429,20 @@
           card_laundries: 'Lavandarias',
           card_emergency: 'Emerg\u00eancia e Contactos',
           card_rules: 'Regras Essenciais',
+          rules_badge: 'Importante',
+          rules_hint: 'Consulta um resumo rapido das regras da casa, horarios e principais penalizacoes.',
+          btn_open_rules: 'Ler regras da casa',
+          rules_modal_title: 'Regras da casa',
+          rules_modal_hint: 'Resumo essencial para preparar a estadia e evitar problemas durante a reserva.',
+          rules_intro: 'Segue estas orientacoes principais para um check-in tranquilo, uma estadia respeitosa e um check-out sem custos extra.',
+          rules_item_1: 'Check-in depois das 15h e check-out ate as 11h. O boletim de alojamento com os dados de todos os hospedes tem de estar preenchido antes da chegada. Bagagem pode ser guardada gratuitamente no escritorio em dias uteis; aos fins de semana e feriados recomendamos lockers da Trindade.',
+          rules_item_2: 'Toalhas, lencois, papel higienico, gel de banho, secador, ferro, tabua de engomar e Wi-Fi estao incluidos. Nao ha limpeza durante a estadia, pequeno-almoco, refeicoes, alimentos de base nem Netflix.',
+          rules_item_3: 'Respeita os vizinhos e mantem o ruido no minimo, sobretudo entre as 23h e as 7h. Ruido excessivo ou comportamento desrespeitoso pode levar ao fim imediato da estadia sem reembolso.',
+          rules_item_4: 'So podem entrar pessoas registadas na reserva. Hospedes extra nao autorizados pagam multa diaria, e festas sao totalmente proibidas e sujeitas a penalizacao elevada.',
+          rules_item_5: 'Leva o lixo para os contentores, fecha bem portas e janelas quando sais e desliga luzes, aquecimento, ar condicionado, ventoinhas e aparelhos quando nao forem necessarios.',
+          rules_item_6: 'Nao e permitido fumar no interior nem levar animais. Danos, limpeza extra, odores, mobiliario estragado ou incumprimentos associados serao cobrados ao hospede.',
+          rules_item_7: 'Comunica qualquer dano logo que aconteca. Perda de chaves custa 30 EUR; limpeza extra e abertura por serralheiro sao cobradas. O incumprimento das regras pode terminar a estadia e gerar custos adicionais.',
+          rules_note: 'Se tiveres duvidas sobre alguma regra antes da chegada, fala connosco para evitar constrangimentos durante a estadia.',
           label_hours: 'Hor\u00e1rio',
           label_price: 'Pre\u00e7o',
           label_notes: 'Nota',
@@ -1489,6 +1585,20 @@
           card_laundries: 'Laundries',
           card_emergency: 'Emergency & Contacts',
           card_rules: 'Essential Rules',
+          rules_badge: 'Important',
+          rules_hint: 'Read a quick summary of the house rules, timings and main penalties.',
+          btn_open_rules: 'Read house rules',
+          rules_modal_title: 'House rules',
+          rules_modal_hint: 'Essential summary to help you prepare your stay and avoid problems during the booking.',
+          rules_intro: 'Please follow these key rules for a smooth check-in, a respectful stay and a check-out without extra charges.',
+          rules_item_1: 'Check-in starts after 3:00 pm and check-out is by 11:00 am. The accommodation form for all guests must be completed before arrival. Luggage can be stored free of charge at our city-centre office on weekdays; on weekends and holidays we recommend Trindade lockers.',
+          rules_item_2: 'Towels, bed linen, toilet paper, shower gel, hair dryer, iron, ironing board and Wi-Fi are included. Daily cleaning, breakfast, meals, pantry staples and Netflix are not included.',
+          rules_item_3: 'Please respect the neighbours and keep noise to a minimum, especially between 11:00 pm and 7:00 am. Excessive noise or disrespectful behaviour may lead to the immediate end of the stay without refund.',
+          rules_item_4: 'Only guests registered in the booking may enter the property. Unauthorised extra guests are charged a daily penalty, and parties are strictly forbidden and subject to a high fine.',
+          rules_item_5: 'Take rubbish to the public bins, make sure doors and windows are closed when you leave, and switch off lights, heating, air conditioning, fans and electronics whenever they are not needed.',
+          rules_item_6: 'Smoking indoors and pets are not allowed. Damage, extra cleaning, odours, furniture issues or related breaches will be charged to the guest.',
+          rules_item_7: 'Report any damage as soon as it happens. Lost keys cost EUR 30, and extra cleaning or locksmith call-outs are charged separately. Breaking the rules may end the stay and generate extra costs.',
+          rules_note: 'If you have any questions about the rules before arrival, contact us in advance to avoid issues during your stay.',
           label_hours: 'Hours',
           label_price: 'Price',
           label_notes: 'Notes',
@@ -1631,6 +1741,20 @@
           card_laundries: 'Laveries',
           card_emergency: 'Urgence et contacts',
           card_rules: 'R\u00e8gles essentielles',
+          rules_badge: 'Important',
+          rules_hint: 'Consultez un resume rapide des regles de la maison, des horaires et des principales penalites.',
+          btn_open_rules: 'Lire les regles',
+          rules_modal_title: 'Regles de la maison',
+          rules_modal_hint: 'Resume essentiel pour preparer votre sejour et eviter les problemes pendant la reservation.',
+          rules_intro: 'Merci de suivre ces consignes principales pour une arrivee fluide, un sejour respectueux et un depart sans frais supplementaires.',
+          rules_item_1: 'L arrivee se fait apres 15h et le depart avant 11h. Le formulaire d hebergement de tous les voyageurs doit etre complete avant l arrivee. Les bagages peuvent etre deposes gratuitement a notre bureau en semaine ; les week-ends et jours feries, nous recommandons les lockers de Trindade.',
+          rules_item_2: 'Les serviettes, draps, papier toilette, gel douche, seche-cheveux, fer, table a repasser et le Wi-Fi sont inclus. Le menage pendant le sejour, le petit-dejeuner, les repas, les produits de base et Netflix ne sont pas inclus.',
+          rules_item_3: 'Merci de respecter le voisinage et de reduire le bruit au minimum, surtout entre 23h et 7h. Le bruit excessif ou un comportement irrespectueux peut entrainer la fin immediate du sejour sans remboursement.',
+          rules_item_4: 'Seules les personnes enregistrees dans la reservation peuvent entrer dans le logement. Les voyageurs supplementaires non autorises entrainent une penalite journaliere, et les fetes sont strictement interdites avec amende elevee.',
+          rules_item_5: 'Jetez les dechets dans les conteneurs publics, verifiez que portes et fenetres sont bien fermees en sortant, et eteignez lumieres, chauffage, climatisation, ventilateurs et appareils quand ils ne sont pas necessaires.',
+          rules_item_6: 'Il est interdit de fumer a l interieur et les animaux ne sont pas admis. Les dommages, odeurs, nettoyages supplementaires, degats sur le mobilier ou manquements associes seront factures au voyageur.',
+          rules_item_7: 'Signalez tout dommage des que possible. La perte des cles coute 30 EUR et le nettoyage supplementaire ou un serrurier sont factures a part. Le non-respect des regles peut mettre fin au sejour et generer des frais supplementaires.',
+          rules_note: 'Si vous avez un doute sur une regle avant votre arrivee, contactez-nous a l avance pour eviter tout inconvenient pendant le sejour.',
           label_hours: 'Horaires',
           label_price: 'Prix',
           label_notes: 'Note',
@@ -1773,6 +1897,20 @@
           card_laundries: 'Lavander\u00edas',
           card_emergency: 'Emergencia y contactos',
           card_rules: 'Reglas esenciales',
+          rules_badge: 'Importante',
+          rules_hint: 'Consulta un resumen rapido de las normas de la casa, horarios y principales penalizaciones.',
+          btn_open_rules: 'Leer normas de la casa',
+          rules_modal_title: 'Normas de la casa',
+          rules_modal_hint: 'Resumen esencial para preparar la estancia y evitar problemas durante la reserva.',
+          rules_intro: 'Sigue estas reglas principales para un check-in fluido, una estancia respetuosa y un check-out sin cargos extra.',
+          rules_item_1: 'El check-in es despues de las 15:00 y el check-out hasta las 11:00. El formulario de alojamiento con los datos de todos los huespedes debe completarse antes de la llegada. El equipaje puede guardarse gratis en nuestra oficina entre semana; en fines de semana y festivos recomendamos los lockers de Trindade.',
+          rules_item_2: 'Toallas, sabanas, papel higienico, gel de bano, secador, plancha, tabla de planchar y Wi-Fi estan incluidos. No se incluye limpieza durante la estancia, desayuno, comidas, productos basicos ni Netflix.',
+          rules_item_3: 'Respeta a los vecinos y manten el ruido al minimo, sobre todo entre las 23:00 y las 7:00. El ruido excesivo o un comportamiento irrespetuoso puede terminar la estancia de inmediato y sin reembolso.',
+          rules_item_4: 'Solo pueden entrar personas registradas en la reserva. Los huespedes extra no autorizados pagan una penalizacion diaria, y las fiestas estan totalmente prohibidas y sujetas a multa elevada.',
+          rules_item_5: 'Lleva la basura a los contenedores publicos, deja puertas y ventanas bien cerradas al salir y apaga luces, calefaccion, aire acondicionado, ventiladores y aparatos cuando no sean necesarios.',
+          rules_item_6: 'No se permite fumar dentro del alojamiento ni llevar animales. Los danos, olores, limpieza extra, desperfectos en mobiliario o incumplimientos relacionados se cobraran al huesped.',
+          rules_item_7: 'Comunica cualquier dano en cuanto ocurra. La perdida de llaves cuesta 30 EUR y la limpieza extra o el cerrajero se cobran aparte. El incumplimiento de las normas puede terminar la estancia y generar costes adicionales.',
+          rules_note: 'Si tienes dudas sobre alguna norma antes de llegar, contactanos con antelacion para evitar incidencias durante la estancia.',
           label_hours: 'Horario',
           label_price: 'Precio',
           label_notes: 'Nota',
@@ -1959,6 +2097,13 @@
         backdrop: document.getElementById('guestWhyBackdrop'),
         close: document.getElementById('guestWhyCloseBtn'),
         dismiss: document.getElementById('guestWhyDismissBtn')
+      };
+      const rulesEls = {
+        openBtn: document.getElementById('rulesOpenBtn'),
+        modal: document.getElementById('rulesModal'),
+        backdrop: document.getElementById('rulesBackdrop'),
+        close: document.getElementById('rulesCloseBtn'),
+        dismiss: document.getElementById('rulesDismissBtn')
       };
       const stayEls = {
         status: document.getElementById('stayPlanStatus'),
@@ -2337,6 +2482,18 @@
         guestWhyEls.modal.setAttribute('aria-hidden', 'true');
       }
 
+      function openRulesModal() {
+        if (!rulesEls.modal) return;
+        rulesEls.modal.classList.add('open');
+        rulesEls.modal.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeRulesModal() {
+        if (!rulesEls.modal) return;
+        rulesEls.modal.classList.remove('open');
+        rulesEls.modal.setAttribute('aria-hidden', 'true');
+      }
+
       function renderStayPlanUi() {
         if (!stayEls.summary) return;
         const lines = [];
@@ -2640,6 +2797,10 @@
       guestWhyEls.close?.addEventListener('click', closeGuestWhyModal);
       guestWhyEls.dismiss?.addEventListener('click', closeGuestWhyModal);
       guestWhyEls.backdrop?.addEventListener('click', closeGuestWhyModal);
+      rulesEls.openBtn?.addEventListener('click', openRulesModal);
+      rulesEls.close?.addEventListener('click', closeRulesModal);
+      rulesEls.dismiss?.addEventListener('click', closeRulesModal);
+      rulesEls.backdrop?.addEventListener('click', closeRulesModal);
       stayEls.openBtn?.addEventListener('click', openStayPlanModal);
       stayEls.close?.addEventListener('click', closeStayPlanModal);
       stayEls.cancel?.addEventListener('click', closeStayPlanModal);
@@ -2660,6 +2821,7 @@
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && guestEls.modal?.classList.contains('open')) closeGuestModal();
         if (e.key === 'Escape' && guestWhyEls.modal?.classList.contains('open')) closeGuestWhyModal();
+        if (e.key === 'Escape' && rulesEls.modal?.classList.contains('open')) closeRulesModal();
         if (e.key === 'Escape' && stayEls.modal?.classList.contains('open')) closeStayPlanModal();
         if (e.key === 'Escape' && billingEls.modal?.classList.contains('open')) closeBillingModal();
       });

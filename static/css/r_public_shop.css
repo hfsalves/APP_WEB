@@ -311,7 +311,7 @@ body {
 
 .shop-product-card {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 96px;
+  grid-template-columns: 58px minmax(0, 1fr) 104px;
   gap: 8px;
   align-items: stretch;
   padding: 8px;
@@ -389,7 +389,7 @@ body {
   align-items: flex-end;
   gap: 6px;
   min-height: 58px;
-  width: 96px;
+  width: 104px;
 }
 
 .shop-product-card-price {
@@ -460,7 +460,7 @@ body {
 }
 
 .shop-product-qty.is-expanded .shop-product-qty-expanded {
-  width: 96px;
+  width: 104px;
   opacity: 1;
   padding: 2px;
   transform: scale(1);
@@ -851,10 +851,10 @@ body {
   }
 
   .shop-product-card {
-    grid-template-columns: 58px minmax(0, 1fr) auto;
+    grid-template-columns: 58px minmax(0, 1fr) 104px;
   }
 
   .shop-product-meta {
-    width: auto;
+    width: 104px;
   }
 }
