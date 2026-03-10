@@ -1226,7 +1226,7 @@ const setupPlanner2 = () => {
     }
   });
 
-  fetch('/generic/api/EQ')
+  fetch('/generic/api/planner2_teams')
     .then(r => r.json())
     .then(data => { planner2Teams = Array.isArray(data) ? data : []; })
     .catch(() => { planner2Teams = []; })

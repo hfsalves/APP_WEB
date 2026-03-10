@@ -88,6 +88,22 @@ def has_permission(table_name: str, action: str) -> bool:
         return False
     return getattr(acesso, action, False)
 
+
+def has_cleaning_planner_access() -> bool:
+    """Custom planner access is granted by MENU/ACESSOS on planner2."""
+    try:
+        if getattr(current_user, 'ADMIN', False):
+            return True
+        if bool(getattr(current_user, 'LPADMIN', False)):
+            return True
+        if has_permission('planner2', 'consultar'):
+            return True
+        if has_permission('LP', 'consultar'):
+            return True
+    except Exception:
+        return False
+    return False
+
 # --------------------------------------------------
 # Helper: reflect a table by name
 # --------------------------------------------------
@@ -1646,6 +1662,8 @@ def view_planner(planner_date):
 @bp.route('/planeamento_limpezas/<planner_date>')
 @login_required
 def view_planeamento_limpezas(planner_date):
+    if not has_cleaning_planner_access():
+        abort(403, 'Sem permissão para consultar')
     try:
         if planner_date:
             datetime.strptime(planner_date, '%Y-%m-%d')
@@ -1659,12 +1677,15 @@ def view_planeamento_limpezas(planner_date):
 
 
 @bp.route('/api/cleaning_plan')
+@login_required
 def api_cleaning_plan():
     """
     Return JSON payload with lodging cleaning plan for a given date.
     Query params:
       - date: 'YYYY-MM-DD'
     """
+    if not has_cleaning_planner_access():
+        return jsonify({'error': 'Sem permissão para consultar'}), 403
     date = request.args.get('date')
     try:
         cols = db.session.execute(text("""
@@ -1832,8 +1853,46 @@ def api_cleaning_plan():
     result = [dict(row) for row in rows]
     return jsonify(result)
 
+
+@bp.route('/api/planner2_teams')
+@login_required
+def api_planner2_teams():
+    if not has_cleaning_planner_access():
+        return jsonify({'error': 'Sem permissão para consultar'}), 403
+    try:
+        cols = db.session.execute(text("""
+            SELECT UPPER(COLUMN_NAME) AS COL
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'EQ'
+        """)).fetchall()
+        eq_cols = {str(r[0] or '').strip().upper() for r in cols if r and r[0]}
+
+        select_cols = ["LTRIM(RTRIM(ISNULL(NOME,''))) AS NOME"]
+        if 'COR' in eq_cols:
+            select_cols.append("ISNULL(COR,'') AS COR")
+        else:
+            select_cols.append("'' AS COR")
+        order_expr = 'ORDER BY NOME'
+        if 'ORDEM' in eq_cols:
+            order_expr = 'ORDER BY ORDEM, NOME'
+
+        sql = text(f"""
+            SELECT {', '.join(select_cols)}
+            FROM dbo.EQ
+            WHERE LTRIM(RTRIM(ISNULL(NOME,''))) <> ''
+            {order_expr}
+        """)
+        rows = db.session.execute(sql).mappings().all()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro ao carregar equipas do planner2')
+        return jsonify({'error': str(e)}), 500
+
 @bp.route("/api/LP/gravar", methods=["POST"])
+@login_required
 def api_gravar_limpezas():
+    if not has_cleaning_planner_access():
+        return jsonify(success=False, message='Sem permissão para gravar'), 403
     limpezas = request.get_json()
     if not limpezas:
         return jsonify(success=False, message="Nenhum dado recebido"), 400

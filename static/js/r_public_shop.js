@@ -27,6 +27,9 @@
       cart_view: "Ver carrinho",
       product_add: "Adicionar ao carrinho",
       product_open: "Ver detalhe",
+      product_increase: "Aumentar quantidade",
+      product_decrease: "Diminuir quantidade",
+      product_remove: "Remover do carrinho",
       cart_title: "Carrinho",
       cart_total: "Total",
       cart_empty_title: "Ainda nao adicionaste nada",
@@ -59,6 +62,9 @@
       cart_view: "View cart",
       product_add: "Add to cart",
       product_open: "View details",
+      product_increase: "Increase quantity",
+      product_decrease: "Decrease quantity",
+      product_remove: "Remove from cart",
       cart_title: "Cart",
       cart_total: "Total",
       cart_empty_title: "You have not added anything yet",
@@ -91,6 +97,9 @@
       cart_view: "Voir le panier",
       product_add: "Ajouter au panier",
       product_open: "Voir le detail",
+      product_increase: "Augmenter la quantite",
+      product_decrease: "Diminuer la quantite",
+      product_remove: "Retirer du panier",
       cart_title: "Panier",
       cart_total: "Total",
       cart_empty_title: "Vous n avez encore rien ajoute",
@@ -123,6 +132,9 @@
       cart_view: "Ver carrito",
       product_add: "Anadir al carrito",
       product_open: "Ver detalle",
+      product_increase: "Aumentar cantidad",
+      product_decrease: "Reducir cantidad",
+      product_remove: "Quitar del carrito",
       cart_title: "Carrito",
       cart_total: "Total",
       cart_empty_title: "Todavia no has anadido nada",
@@ -197,6 +209,8 @@
     error: "",
     observer: null,
     programmaticScrollUntil: 0,
+    pendingProducts: {},
+    cartFeedbackTimer: 0,
   };
 
   function currentLang() {
@@ -240,16 +254,30 @@
     return `background: linear-gradient(135deg, ${safe}, rgba(14,165,233,0.86));`;
   }
 
+  function productCodeKey(productCode) {
+    return String(productCode || "").trim().toUpperCase();
+  }
+
+  function cartItemFor(productCode) {
+    const code = productCodeKey(productCode);
+    return (state.cart.items || []).find((item) => productCodeKey(item.product_code) === code) || null;
+  }
+
+  function cartQuantityFor(productCode) {
+    const item = cartItemFor(productCode);
+    return item ? Number(item.quantity || 0) : 0;
+  }
+
+  function isProductPending(productCode) {
+    return !!state.pendingProducts[productCodeKey(productCode)];
+  }
+
   function updateStickyMetrics() {
-    const shellHeight = els.topbarShell ? Math.ceil(els.topbarShell.getBoundingClientRect().height) : 0;
-    document.documentElement.style.setProperty("--shop-sticky-top", `${shellHeight}px`);
-    return shellHeight;
+    return els.familyBar ? Math.ceil(els.familyBar.getBoundingClientRect().height) : 0;
   }
 
   function currentStickyOffset() {
-    const topbarHeight = updateStickyMetrics();
-    const familyBarHeight = els.familyBar ? Math.ceil(els.familyBar.getBoundingClientRect().height) : 0;
-    return topbarHeight + familyBarHeight + 20;
+    return updateStickyMetrics() + 10;
   }
 
   function scrollToFamilySection(familyCode, behavior) {
@@ -264,6 +292,81 @@
     window.setTimeout(() => {
       state.programmaticScrollUntil = 0;
     }, 950);
+  }
+
+  function renderProductQtyControlMarkup(productCode) {
+    const code = productCodeKey(productCode);
+    const quantity = cartQuantityFor(code);
+    const expanded = quantity > 0;
+    const pending = isProductPending(code);
+    const leftIcon = quantity <= 1 ? "fa-trash-can" : "fa-minus";
+    const leftLabel = quantity <= 1 ? t("product_remove") : t("product_decrease");
+    return `
+      <div class="shop-product-qty${expanded ? " is-expanded" : ""}${pending ? " is-pending" : ""}" data-product-qty="${escapeHtml(code)}" data-qty="${quantity}">
+        <button type="button" class="shop-product-qty-add" data-product-qty-add="${escapeHtml(code)}" aria-label="${escapeHtml(t("product_add"))}" ${(!state.shopState.is_available || pending) ? "disabled" : ""}>
+          <i class="fa-solid fa-plus"></i>
+        </button>
+        <div class="shop-product-qty-expanded">
+          <button type="button" class="shop-product-qty-btn shop-product-qty-btn-left" data-product-qty-decrease="${escapeHtml(code)}" aria-label="${escapeHtml(leftLabel)}" ${(!state.shopState.is_available || pending) ? "disabled" : ""}>
+            <i class="fa-solid ${leftIcon}"></i>
+          </button>
+          <span class="shop-product-qty-value">${quantity}</span>
+          <button type="button" class="shop-product-qty-btn" data-product-qty-increase="${escapeHtml(code)}" aria-label="${escapeHtml(t("product_increase"))}" ${(!state.shopState.is_available || pending) ? "disabled" : ""}>
+            <i class="fa-solid fa-plus"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  function syncProductControls(productCode) {
+    const controls = productCode
+      ? Array.from(document.querySelectorAll(`[data-product-qty="${productCodeKey(productCode)}"]`))
+      : Array.from(document.querySelectorAll("[data-product-qty]"));
+
+    controls.forEach((control) => {
+      const code = control.getAttribute("data-product-qty") || "";
+      const quantity = cartQuantityFor(code);
+      const pending = isProductPending(code);
+      const expanded = quantity > 0;
+      const leftIcon = quantity <= 1 ? "fa-trash-can" : "fa-minus";
+      const leftLabel = quantity <= 1 ? t("product_remove") : t("product_decrease");
+      control.classList.toggle("is-expanded", expanded);
+      control.classList.toggle("is-pending", pending);
+      control.setAttribute("data-qty", String(quantity));
+
+      const addBtn = control.querySelector("[data-product-qty-add]");
+      const decBtn = control.querySelector("[data-product-qty-decrease]");
+      const incBtn = control.querySelector("[data-product-qty-increase]");
+      const valueNode = control.querySelector(".shop-product-qty-value");
+      const leftIconNode = decBtn ? decBtn.querySelector("i") : null;
+      const shouldDisable = !state.shopState.is_available || pending;
+
+      if (addBtn) addBtn.disabled = shouldDisable;
+      if (decBtn) {
+        decBtn.disabled = shouldDisable;
+        decBtn.setAttribute("aria-label", leftLabel);
+      }
+      if (incBtn) incBtn.disabled = shouldDisable;
+      if (valueNode) valueNode.textContent = String(quantity);
+      if (leftIconNode) leftIconNode.className = `fa-solid ${leftIcon}`;
+    });
+  }
+
+  function triggerCartFeedback() {
+    if (!els.cartBar) return;
+    els.cartBar.classList.remove("is-feedback");
+    void els.cartBar.offsetWidth;
+    els.cartBar.classList.remove("d-none");
+    els.cartBar.classList.add("is-feedback");
+    if (state.cartFeedbackTimer) window.clearTimeout(state.cartFeedbackTimer);
+    state.cartFeedbackTimer = window.setTimeout(() => {
+      els.cartBar.classList.remove("is-feedback");
+      if (!state.cart.total_quantity) {
+        els.cartBar.classList.add("d-none");
+      }
+      state.cartFeedbackTimer = 0;
+    }, 320);
   }
 
   function applyLanguage(lang) {
@@ -369,9 +472,7 @@
                 </div>
                 <div class="shop-product-meta">
                   <div class="shop-product-card-price">${escapeHtml(formatCurrency(product.price, product.currency))}</div>
-                  <button type="button" class="shop-product-cta" data-product-add="${escapeHtml(product.code)}" aria-label="${escapeHtml(t("product_add"))}" ${state.shopState.is_available ? "" : "disabled"}>
-                    <i class="fa-solid fa-plus"></i>
-                  </button>
+                  ${renderProductQtyControlMarkup(product.code)}
                 </div>
               </div>
             `).join("")}
@@ -386,6 +487,7 @@
     });
 
     bindSectionObserver();
+    syncProductControls();
   }
 
   function bindSectionObserver() {
@@ -414,7 +516,8 @@
     const hasItems = Array.isArray(cart.items) && cart.items.length > 0;
 
     if (els.cartBar) {
-      els.cartBar.classList.toggle("d-none", !hasItems);
+      const keepVisible = els.cartBar.classList.contains("is-feedback");
+      els.cartBar.classList.toggle("d-none", !hasItems && !keepVisible);
     }
     if (els.cartBarSummary) {
       els.cartBarSummary.textContent = hasItems
@@ -441,9 +544,9 @@
           <div class="shop-cart-line-side">
             <div class="shop-cart-line-total">${escapeHtml(formatCurrency(item.line_total, item.currency))}</div>
             <div class="shop-cart-line-qty">
-              <button type="button" data-cart-delta="-1" data-product-code="${escapeHtml(item.product_code)}" ${state.shopState.is_available ? "" : "disabled"}>-</button>
+              <button type="button" data-cart-delta="-1" data-product-code="${escapeHtml(item.product_code)}" ${(!state.shopState.is_available || isProductPending(item.product_code)) ? "disabled" : ""}>-</button>
               <strong>${item.quantity}</strong>
-              <button type="button" data-cart-delta="1" data-product-code="${escapeHtml(item.product_code)}" ${state.shopState.is_available ? "" : "disabled"}>+</button>
+              <button type="button" data-cart-delta="1" data-product-code="${escapeHtml(item.product_code)}" ${(!state.shopState.is_available || isProductPending(item.product_code)) ? "disabled" : ""}>+</button>
             </div>
           </div>
         </div>
@@ -462,7 +565,8 @@
   function renderCurrentProduct() {
     const product = state.currentProduct;
     if (!product) return;
-    if (els.productHero) els.productHero.style.cssText = `${accentStyle(product.accent)} min-height:240px;`;
+    const pending = isProductPending(product.code);
+    if (els.productHero) els.productHero.style.cssText = `${accentStyle(product.accent)} min-height:220px;`;
     if (els.productHeroIcon) els.productHeroIcon.innerHTML = `<i class="fa-solid ${escapeHtml(product.icon)}"></i>`;
     if (els.productHeroIcon) els.productHeroIcon.style.cssText = accentStyle(product.accent);
     if (els.productFamily) els.productFamily.textContent = product.family_name || "";
@@ -471,8 +575,10 @@
     if (els.productSubtitle) els.productSubtitle.textContent = product.subtitle || "";
     if (els.productDescription) els.productDescription.textContent = product.description || product.description_short || "";
     if (els.productQtyValue) els.productQtyValue.textContent = String(state.currentQuantity || 1);
+    if (els.productQtyMinus) els.productQtyMinus.disabled = pending;
+    if (els.productQtyPlus) els.productQtyPlus.disabled = pending;
     if (els.productAddBtn) {
-      els.productAddBtn.disabled = !state.shopState.is_available;
+      els.productAddBtn.disabled = !state.shopState.is_available || pending;
       els.productAddBtn.textContent = state.shopState.is_available ? t("product_add") : t("unavailable_cta");
     }
   }
@@ -570,19 +676,33 @@
   }
 
   async function updateCartItem(productCode, payload) {
-    const body = { product_code: productCode };
+    const code = productCodeKey(productCode);
+    const body = { product_code: code };
     if (Object.prototype.hasOwnProperty.call(payload || {}, "delta")) body.delta = payload.delta;
     if (Object.prototype.hasOwnProperty.call(payload || {}, "quantity")) body.quantity = payload.quantity;
-    const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/cart/items`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    state.cart = data.cart || state.cart;
-    state.shopState = data.shop_state || state.shopState;
-    renderStateBanner();
+    state.pendingProducts[code] = true;
+    syncProductControls(code);
     renderCart();
     renderCurrentProduct();
+    try {
+      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/cart/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      state.cart = data.cart || state.cart;
+      state.shopState = data.shop_state || state.shopState;
+      renderStateBanner();
+      renderCart();
+      renderCurrentProduct();
+      syncProductControls(code);
+      triggerCartFeedback();
+    } finally {
+      delete state.pendingProducts[code];
+      syncProductControls(code);
+      renderCart();
+      renderCurrentProduct();
+    }
   }
 
   async function submitCheckout() {
@@ -605,18 +725,6 @@
       return;
     }
 
-    if (els.langMenuBtn && (event.target === els.langMenuBtn || els.langMenuBtn.contains(event.target))) {
-      if (els.langMenuList) els.langMenuList.classList.toggle("open");
-      return;
-    }
-
-    const langBtn = event.target.closest(".shop-lang-option[data-lang]");
-    if (langBtn) {
-      applyLanguage(langBtn.dataset.lang);
-      if (els.langMenuList) els.langMenuList.classList.remove("open");
-      return;
-    }
-
     const familyTab = event.target.closest("[data-family-tab]");
     if (familyTab) {
       const familyCode = familyTab.getAttribute("data-family-tab") || "";
@@ -629,13 +737,45 @@
       return;
     }
 
-    const productAddBtn = event.target.closest("[data-product-add]");
-    if (productAddBtn) {
+    const productQtyAddBtn = event.target.closest("[data-product-qty-add]");
+    if (productQtyAddBtn) {
       if (!state.shopState.is_available) return;
-      const code = productAddBtn.getAttribute("data-product-add") || "";
+      const code = productQtyAddBtn.getAttribute("data-product-qty-add") || "";
+      if (isProductPending(code)) return;
       try {
         await updateCartItem(code, { delta: 1 });
         if (els.checkoutMsg) els.checkoutMsg.textContent = t("added_to_cart");
+      } catch (error) {
+        if (els.checkoutMsg) els.checkoutMsg.textContent = error.message || "";
+      }
+      return;
+    }
+
+    const productQtyDecreaseBtn = event.target.closest("[data-product-qty-decrease]");
+    if (productQtyDecreaseBtn) {
+      if (!state.shopState.is_available) return;
+      const code = productQtyDecreaseBtn.getAttribute("data-product-qty-decrease") || "";
+      if (isProductPending(code)) return;
+      const quantity = cartQuantityFor(code);
+      try {
+        if (quantity <= 1) {
+          await updateCartItem(code, { quantity: 0 });
+        } else {
+          await updateCartItem(code, { delta: -1 });
+        }
+      } catch (error) {
+        if (els.checkoutMsg) els.checkoutMsg.textContent = error.message || "";
+      }
+      return;
+    }
+
+    const productQtyIncreaseBtn = event.target.closest("[data-product-qty-increase]");
+    if (productQtyIncreaseBtn) {
+      if (!state.shopState.is_available) return;
+      const code = productQtyIncreaseBtn.getAttribute("data-product-qty-increase") || "";
+      if (isProductPending(code)) return;
+      try {
+        await updateCartItem(code, { delta: 1 });
       } catch (error) {
         if (els.checkoutMsg) els.checkoutMsg.textContent = error.message || "";
       }
@@ -653,6 +793,7 @@
       if (!state.shopState.is_available) return;
       const delta = Number(cartDeltaBtn.getAttribute("data-cart-delta") || 0);
       const code = cartDeltaBtn.getAttribute("data-product-code") || "";
+      if (isProductPending(code)) return;
       try {
         await updateCartItem(code, { delta });
       } catch (error) {
@@ -665,12 +806,6 @@
     if (closeBtn) {
       closeSheet(closeBtn.getAttribute("data-close-sheet"));
       return;
-    }
-  });
-
-  document.addEventListener("click", (event) => {
-    if (els.langMenuList && els.langMenuBtn && !els.langMenuBtn.contains(event.target) && !els.langMenuList.contains(event.target)) {
-      els.langMenuList.classList.remove("open");
     }
   });
 
@@ -691,6 +826,7 @@
   if (els.productAddBtn) {
     els.productAddBtn.addEventListener("click", async () => {
       if (!state.currentProduct || !state.shopState.is_available) return;
+      if (isProductPending(state.currentProduct.code)) return;
       const original = els.productAddBtn.textContent;
       try {
         await updateCartItem(state.currentProduct.code, {
