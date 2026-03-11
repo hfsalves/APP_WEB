@@ -11,7 +11,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRec = document.getElementById('rbReconciliar');
   const btnRemove = document.getElementById('rbRemoveRec');
   const btnCreateOw = document.getElementById('rbCreateOW');
+  const btnGroup = document.getElementById('rbGroupExtratos');
   const onlyOpen = document.getElementById('rbOnlyOpen');
+  const groupModalEl = document.getElementById('rbGroupModal');
+  const groupModal = groupModalEl && window.bootstrap ? new bootstrap.Modal(groupModalEl) : null;
+  const groupConta = document.getElementById('rbGroupConta');
+  const groupAno = document.getElementById('rbGroupAno');
+  const groupMes = document.getElementById('rbGroupMes');
+  const groupStatus = document.getElementById('rbGroupStatus');
+  const groupSubmit = document.getElementById('rbGroupSubmit');
 
   const searchEl = document.getElementById('rbSearchEl');
   const searchBa = document.getElementById('rbSearchBa');
@@ -27,7 +35,13 @@ document.addEventListener('DOMContentLoaded', () => {
     selEl: new Set(),
     selBa: new Set(),
     activeGroupId: 0,
+    groupAccounts: [],
   };
+
+  const monthNames = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+  ];
 
   const esc = (s) => (s ?? '').toString()
     .replaceAll('&', '&amp;')
@@ -45,6 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!statusEl) return;
     statusEl.className = 'small ' + (kind === 'err' ? 'text-danger' : kind === 'ok' ? 'text-success' : 'text-muted');
     statusEl.textContent = msg || '';
+  }
+
+  function setGroupStatus(msg, kind) {
+    if (!groupStatus) return;
+    groupStatus.className = 'rb-group-status sz_text_sm ' + (kind === 'err' ? 'text-danger' : kind === 'ok' ? 'text-success' : 'text-muted');
+    groupStatus.textContent = msg || '';
   }
 
   function moneyClass(v) {
@@ -88,6 +108,62 @@ document.addEventListener('DOMContentLoaded', () => {
     if (onlyOpen?.checked) base = base.filter(r => Number(r.RECONCILIADO || 0) !== 1);
     if (!q) return base;
     return base.filter(r => fields.some(f => (r[f] ?? '').toString().toLowerCase().includes(q)));
+  }
+
+  function accountLabel(account) {
+    const banco = (account?.BANCO || '').toString().trim();
+    const conta = (account?.CONTA || '').toString().trim();
+    const noconta = (account?.NOCONTA ?? '').toString().trim();
+    const extCount = Number(account?.EXT_COUNT || 0) || 0;
+    const base = [banco, conta].filter(Boolean).join(' - ') || `Conta ${noconta}`;
+    return `${base} · ${extCount} estrato(s)`;
+  }
+
+  function fillGroupAccounts(selectedAccount) {
+    if (!groupConta) return;
+    const accounts = Array.isArray(state.groupAccounts) ? state.groupAccounts : [];
+    if (!accounts.length) {
+      groupConta.innerHTML = '<option value="">Sem contas com estratos</option>';
+      groupConta.disabled = true;
+      return;
+    }
+    groupConta.disabled = false;
+    groupConta.innerHTML = accounts.map(acc => (
+      `<option value="${esc(acc.NOCONTA)}">${esc(accountLabel(acc))}</option>`
+    )).join('');
+    const wanted = (selectedAccount ?? '').toString().trim();
+    if (wanted && accounts.some(acc => (acc.NOCONTA ?? '').toString() === wanted)) {
+      groupConta.value = wanted;
+    }
+  }
+
+  async function loadGroupAccounts() {
+    if (!groupConta) return;
+    groupConta.disabled = true;
+    groupConta.innerHTML = '<option value="">A carregar...</option>';
+    try {
+      const r = await fetch('/api/extratos/contas');
+      const js = await r.json().catch(() => ([]));
+      if (!r.ok || js.error) throw new Error(js.error || r.statusText);
+      state.groupAccounts = Array.isArray(js) ? js : [];
+      fillGroupAccounts(state.ext?.NOCONTA ?? '');
+      setGroupStatus('', '');
+    } catch (e) {
+      groupConta.innerHTML = '<option value="">(Erro ao carregar)</option>';
+      groupConta.disabled = true;
+      setGroupStatus(e?.message || String(e), 'err');
+    }
+  }
+
+  function prefillGroupForm() {
+    const refDate = (state.ext?.DATAINI || state.ext?.DATAFIM || '').toString();
+    const parsed = refDate ? new Date(`${refDate}T00:00:00`) : new Date();
+    const year = Number.isFinite(parsed.getTime()) ? parsed.getFullYear() : new Date().getFullYear();
+    const month = Number.isFinite(parsed.getTime()) ? parsed.getMonth() + 1 : new Date().getMonth() + 1;
+    if (groupAno) groupAno.value = year;
+    if (groupMes) groupMes.value = String(month);
+    fillGroupAccounts(state.ext?.NOCONTA ?? '');
+    setGroupStatus('', '');
   }
 
   function renderEl() {
@@ -314,6 +390,49 @@ document.addEventListener('DOMContentLoaded', () => {
       setStatus(e?.message || String(e), 'err');
     } finally {
       computeSums();
+    }
+  });
+
+  btnGroup?.addEventListener('click', async () => {
+    prefillGroupForm();
+    if (!state.groupAccounts.length) await loadGroupAccounts();
+    groupModal?.show();
+  });
+
+  groupSubmit?.addEventListener('click', async () => {
+    const noconta = Number(groupConta?.value || 0) || 0;
+    const ano = Number(groupAno?.value || 0) || 0;
+    const mes = Number(groupMes?.value || 0) || 0;
+    if (noconta <= 0 || ano <= 0 || mes <= 0) {
+      setGroupStatus('Seleciona a conta, o ano e o mês.', 'err');
+      return;
+    }
+    const monthLabel = monthNames[mes - 1] || `Mês ${mes}`;
+    if (!confirm(`Criar um estrato único para ${monthLabel} de ${ano} na conta selecionada?\n\nOs movimentos desse mês serão movidos para um novo estrato.`)) {
+      return;
+    }
+    try {
+      groupSubmit.disabled = true;
+      setGroupStatus('A agrupar estratos...', '');
+      const r = await fetch('/api/extratos/agrupar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ NOCONTA: noconta, ANO: ano, MES: mes }),
+      });
+      const js = await r.json().catch(() => ({}));
+      if (!r.ok || js.error) throw new Error(js.error || r.statusText);
+      setGroupStatus(`Estrato mensal criado com ${js.moved_lines || 0} movimento(s).`, 'ok');
+      setStatus(`Estrato mensal ${monthLabel}/${ano} criado com sucesso.`, 'ok');
+      await loadExtratos();
+      if (selExt && js.EXTSTAMP) {
+        selExt.value = js.EXTSTAMP;
+        await loadForExt(js.EXTSTAMP);
+      }
+      setTimeout(() => groupModal?.hide(), 220);
+    } catch (e) {
+      setGroupStatus(e?.message || String(e), 'err');
+    } finally {
+      groupSubmit.disabled = false;
     }
   });
 

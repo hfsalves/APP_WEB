@@ -11,6 +11,8 @@ import unicodedata
 import re
 import io
 import importlib.util
+import hashlib
+import hmac
 from decimal import Decimal, ROUND_HALF_UP
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -18,7 +20,7 @@ from datetime import datetime, date, timedelta, time as dtime
 from sqlalchemy import text
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from services.assinatura_service import sign_ft_document
 from services.qr_atcud_service import (
     get_param as qr_get_param,
@@ -387,6 +389,697 @@ def create_app():
             if variant.get('is_default'):
                 return variant
         return variants[0]
+
+    def _public_shop_cart_clear(token_value: str):
+        carts = dict(session.get('PUBLIC_SHOP_CARTS') or {})
+        carts.pop(_public_shop_session_key(token_value), None)
+        session['PUBLIC_SHOP_CARTS'] = carts
+        session.modified = True
+
+    def _shop_table_exists(table_name: str) -> bool:
+        name = str(table_name or '').strip()
+        if not name:
+            return False
+        try:
+            row = db.session.execute(
+                text("""
+                    SELECT TOP 1 1
+                    FROM INFORMATION_SCHEMA.TABLES
+                    WHERE TABLE_SCHEMA = 'dbo'
+                      AND TABLE_NAME = :t
+                """),
+                {'t': name},
+            ).fetchone()
+            return row is not None
+        except Exception:
+            return False
+
+    def _shop_require_tables(*table_names):
+        missing = [name for name in table_names if not _shop_table_exists(name)]
+        if missing:
+            raise RuntimeError(f"Modulo SHOP indisponivel. Faltam tabelas: {', '.join(missing)}.")
+
+    def _shop_para_value(code: str, default=''):
+        key = str(code or '').strip()
+        if not key:
+            return default
+        try:
+            para_map = app.config.get('PARA_VALUES') or {}
+            if key in para_map and para_map[key] not in (None, ''):
+                return para_map[key]
+        except Exception:
+            pass
+        if not _shop_table_exists('PARA'):
+            return default
+        row = db.session.execute(
+            text("""
+                SELECT TOP 1 PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+                FROM dbo.PARA
+                WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) = UPPER(LTRIM(RTRIM(:code)))
+            """),
+            {'code': key},
+        ).mappings().first()
+        if not row:
+            return default
+        try:
+            return _para_value_from_row(row)
+        except Exception:
+            return default
+
+    def _shop_stripe_secret_key():
+        return (
+            str(_shop_para_value('SHOP_STRIPE_SECRET_KEY', '') or '').strip()
+            or str(_shop_para_value('STRIPE_SECRET_KEY', '') or '').strip()
+            or str(os.environ.get('SHOP_STRIPE_SECRET_KEY') or '').strip()
+            or str(os.environ.get('STRIPE_SECRET_KEY') or '').strip()
+        )
+
+    def _shop_stripe_webhook_secret():
+        return (
+            str(_shop_para_value('SHOP_STRIPE_WEBHOOK_SECRET', '') or '').strip()
+            or str(_shop_para_value('STRIPE_WEBHOOK_SECRET', '') or '').strip()
+            or str(os.environ.get('SHOP_STRIPE_WEBHOOK_SECRET') or '').strip()
+            or str(os.environ.get('STRIPE_WEBHOOK_SECRET') or '').strip()
+        )
+
+    def _shop_decimal(value, default='0.00'):
+        try:
+            if isinstance(value, Decimal):
+                return value.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+            return Decimal(str(value or default))
+        except Exception:
+            return Decimal(str(default))
+
+    def _shop_money(value, default='0.00'):
+        try:
+            if isinstance(value, Decimal):
+                return value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            return Decimal(str(value or default)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        except Exception:
+            return Decimal(str(default)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    def _shop_amount_to_minor_units(value):
+        amount = _shop_money(value)
+        return int((amount * 100).to_integral_value(rounding=ROUND_HALF_UP))
+
+    def _shop_amount_from_minor_units(value):
+        try:
+            return (Decimal(int(value or 0)) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        except Exception:
+            return Decimal('0.00')
+
+    def _shop_serialize_payload(payload):
+        if payload in (None, ''):
+            return None
+        if isinstance(payload, str):
+            return payload
+        try:
+            return json.dumps(payload, ensure_ascii=False)
+        except Exception:
+            return str(payload)
+
+    def _shop_log(level, category, message, **kwargs):
+        if not _shop_table_exists('SHOP_LOGS'):
+            return
+        db.session.execute(
+            text("""
+                INSERT INTO dbo.SHOP_LOGS
+                (
+                    NIVEL, CATEGORIA, EVENTO, ENTIDADE, ENTIDADE_ID, RESERVA,
+                    ENCOMENDA_ID, PAGAMENTO_ID, TRANSACAO_STRIPE_ID,
+                    MENSAGEM, DETALHE
+                )
+                VALUES
+                (
+                    :nivel, :categoria, :evento, :entidade, :entidade_id, :reserva,
+                    :encomenda_id, :pagamento_id, :transacao_stripe_id,
+                    :mensagem, :detalhe
+                )
+            """),
+            {
+                'nivel': str(level or 'INFO').strip().upper()[:10] or 'INFO',
+                'categoria': str(category or 'SHOP').strip()[:50] or 'SHOP',
+                'evento': str(kwargs.get('event') or '').strip()[:100] or None,
+                'entidade': str(kwargs.get('entity') or '').strip()[:50] or None,
+                'entidade_id': str(kwargs.get('entity_id') or '').strip()[:100] or None,
+                'reserva': str(kwargs.get('reserva') or '').strip()[:50] or None,
+                'encomenda_id': kwargs.get('order_id'),
+                'pagamento_id': kwargs.get('payment_id'),
+                'transacao_stripe_id': kwargs.get('stripe_transaction_id'),
+                'mensagem': str(message or '').strip()[:1000] or 'SHOP',
+                'detalhe': _shop_serialize_payload(kwargs.get('detail')),
+            },
+        )
+
+    def _shop_get_order_state_id(code: str):
+        _shop_require_tables('SHOP_ENCOMENDA_ESTADOS')
+        state_code = str(code or '').strip().upper()
+        if not state_code:
+            raise RuntimeError('Estado de encomenda invalido.')
+        row = db.session.execute(
+            text("""
+                SELECT TOP 1 ENCOMENDA_ESTADO_ID
+                FROM dbo.SHOP_ENCOMENDA_ESTADOS
+                WHERE UPPER(LTRIM(RTRIM(CODIGO))) = :code
+            """),
+            {'code': state_code},
+        ).mappings().first()
+        if row and row.get('ENCOMENDA_ESTADO_ID') is not None:
+            return int(row['ENCOMENDA_ESTADO_ID'])
+        defaults = {
+            'PENDENTE': ('Pendente', 10),
+            'PAGO': ('Pago', 20),
+            'FALHADO': ('Falhado', 30),
+            'CANCELADO': ('Cancelado', 40),
+        }
+        state_name, sort_order = defaults.get(state_code, (state_code.title(), 999))
+        state_id = db.session.execute(
+            text("""
+                INSERT INTO dbo.SHOP_ENCOMENDA_ESTADOS
+                (
+                    CODIGO, NOME, DESCRICAO, ORDEM, ATIVO, CRIADO_EM, ALTERADO_EM
+                )
+                OUTPUT INSERTED.ENCOMENDA_ESTADO_ID
+                VALUES
+                (
+                    :codigo, :nome, :descricao, :ordem, 1, SYSUTCDATETIME(), SYSUTCDATETIME()
+                )
+            """),
+            {
+                'codigo': state_code,
+                'nome': state_name,
+                'descricao': f'Estado gerado automaticamente para SHOP: {state_name}',
+                'ordem': sort_order,
+            },
+        ).scalar_one()
+        return int(state_id)
+
+    def _shop_build_checkout_cart(token_value: str):
+        raw_lines = _public_shop_cart_raw(token_value)
+        items = []
+        subtotal = Decimal('0.00')
+        currency = 'EUR'
+
+        for raw_key, raw_qty in (raw_lines or {}).items():
+            product_code, variant_id = _public_shop_split_line_key(raw_key)
+            if not product_code:
+                continue
+            product = get_shop_product_by_code(product_code)
+            if not product:
+                continue
+            if not product.get('id'):
+                raise RuntimeError('Checkout indisponivel sem catalogo SHOP real em base de dados.')
+            variant = _public_shop_resolve_variant(product, variant_id)
+            if variant is False:
+                raise RuntimeError(f'Variante invalida para o artigo {product_code}.')
+            try:
+                quantity = int(raw_qty or 0)
+            except Exception:
+                quantity = 0
+            if quantity <= 0:
+                continue
+            unit_price = _shop_money((variant or {}).get('price') if variant and variant.get('price') is not None else product.get('price'))
+            line_total = (unit_price * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            currency = str(product.get('currency') or 'EUR').strip().upper() or 'EUR'
+            items.append({
+                'line_key': raw_key,
+                'product_id': int(product.get('id')),
+                'product_code': product_code,
+                'product_name': str(product.get('name') or '').strip() or product_code,
+                'variant_id': int(variant.get('id')) if variant and variant.get('id') is not None else None,
+                'variant_label': str((variant or {}).get('label') or '').strip(),
+                'quantity': quantity,
+                'unit_price': unit_price,
+                'line_total': line_total,
+                'currency': currency,
+            })
+            subtotal += line_total
+
+        if not items:
+            raise RuntimeError('O carrinho esta vazio.')
+
+        items.sort(key=lambda item: (item['product_name'], item.get('variant_label') or ''))
+        subtotal = subtotal.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return {
+            'items': items,
+            'subtotal': subtotal,
+            'total': subtotal,
+            'currency': currency,
+        }
+
+    def _shop_create_order_from_cart(row, checkout_cart):
+        _shop_require_tables('SHOP_ENCOMENDAS', 'SHOP_ENCOMENDA_LINHAS', 'SHOP_PAGAMENTOS', 'SHOP_ENCOMENDA_ESTADOS')
+        order_state_id = _shop_get_order_state_id('PENDENTE')
+        currency = str(checkout_cart.get('currency') or 'EUR').strip().upper() or 'EUR'
+        reserva_code = str((row or {}).get('RESERVA') or '').strip()
+        order_id = db.session.execute(
+            text("""
+                INSERT INTO dbo.SHOP_ENCOMENDAS
+                (
+                    CARRINHO_ID, NUMERO, RESERVA, ENCOMENDA_ESTADO_ID,
+                    MOEDA, SUBTOTAL, TOTAL, TOTAL_PAGO, TOTAL_REEMBOLSADO,
+                    CRIADO_EM, ALTERADO_EM
+                )
+                OUTPUT INSERTED.ENCOMENDA_ID
+                VALUES
+                (
+                    NULL, NULL, :reserva, :estado_id,
+                    :moeda, :subtotal, :total, 0, 0,
+                    SYSUTCDATETIME(), SYSUTCDATETIME()
+                )
+            """),
+            {
+                'reserva': reserva_code,
+                'estado_id': order_state_id,
+                'moeda': currency,
+                'subtotal': checkout_cart['subtotal'],
+                'total': checkout_cart['total'],
+            },
+        ).scalar_one()
+        order_number = f"SHOP-{int(order_id):06d}"
+        db.session.execute(
+            text("""
+                UPDATE dbo.SHOP_ENCOMENDAS
+                SET NUMERO = :numero,
+                    ALTERADO_EM = SYSUTCDATETIME()
+                WHERE ENCOMENDA_ID = :order_id
+            """),
+            {'numero': order_number, 'order_id': order_id},
+        )
+        for idx, item in enumerate(checkout_cart.get('items') or [], start=1):
+            db.session.execute(
+                text("""
+                    INSERT INTO dbo.SHOP_ENCOMENDA_LINHAS
+                    (
+                        ENCOMENDA_ID, NUMERO_LINHA, PRODUTO_ID, PRODUTO_VARIANTE_ID,
+                        PRODUTO_NOME, VARIANTE_NOME, QUANTIDADE, PRECO_UNITARIO, SUBTOTAL, TOTAL,
+                        CRIADO_EM, ALTERADO_EM
+                    )
+                    VALUES
+                    (
+                        :order_id, :line_no, :product_id, :variant_id,
+                        :product_name, :variant_name, :quantity, :unit_price, :subtotal, :total,
+                        SYSUTCDATETIME(), SYSUTCDATETIME()
+                    )
+                """),
+                {
+                    'order_id': order_id,
+                    'line_no': idx,
+                    'product_id': item['product_id'],
+                    'variant_id': item.get('variant_id'),
+                    'product_name': item['product_name'],
+                    'variant_name': item.get('variant_label') or None,
+                    'quantity': item['quantity'],
+                    'unit_price': item['unit_price'],
+                    'subtotal': item['line_total'],
+                    'total': item['line_total'],
+                },
+            )
+        payment_id = db.session.execute(
+            text("""
+                INSERT INTO dbo.SHOP_PAGAMENTOS
+                (
+                    ENCOMENDA_ID, PROVEDOR, ESTADO, MOEDA, VALOR,
+                    VALOR_AUTORIZADO, VALOR_CAPTURADO, VALOR_REEMBOLSADO,
+                    REFERENCIA_EXTERNA, PAGO_EM, CRIADO_EM, ALTERADO_EM
+                )
+                OUTPUT INSERTED.PAGAMENTO_ID
+                VALUES
+                (
+                    :order_id, 'STRIPE', 'PENDENTE', :moeda, :valor,
+                    0, 0, 0, NULL, NULL, SYSUTCDATETIME(), SYSUTCDATETIME()
+                )
+            """),
+            {
+                'order_id': order_id,
+                'moeda': currency,
+                'valor': checkout_cart['total'],
+            },
+        ).scalar_one()
+        return {
+            'order_id': int(order_id),
+            'order_number': order_number,
+            'payment_id': int(payment_id),
+            'currency': currency,
+        }
+
+    def _stripe_api_request(method: str, path: str, data=None, idempotency_key: str = ''):
+        secret_key = _shop_stripe_secret_key()
+        if not secret_key:
+            raise RuntimeError('Configuracao Stripe em falta. Define SHOP_STRIPE_SECRET_KEY ou STRIPE_SECRET_KEY.')
+        http_method = str(method or 'GET').strip().upper() or 'GET'
+        resource = str(path or '').strip()
+        if not resource.startswith('/'):
+            resource = f'/{resource}'
+        payload_bytes = None
+        if data:
+            encoded = urlencode(data, doseq=True)
+            if http_method == 'GET':
+                resource = f"{resource}{'&' if '?' in resource else '?'}{encoded}"
+            else:
+                payload_bytes = encoded.encode('utf-8')
+        req = Request(
+            f'https://api.stripe.com{resource}',
+            data=payload_bytes,
+            method=http_method,
+            headers={
+                'Authorization': f'Bearer {secret_key}',
+            },
+        )
+        if payload_bytes is not None:
+            req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+        if idempotency_key:
+            req.add_header('Idempotency-Key', idempotency_key)
+        try:
+            with urlopen(req, timeout=35) as response:
+                raw = response.read().decode('utf-8')
+        except HTTPError as exc:
+            body = exc.read().decode('utf-8', errors='replace')
+            message = body
+            try:
+                parsed = json.loads(body)
+                message = (
+                    parsed.get('error', {}).get('message')
+                    or parsed.get('message')
+                    or body
+                )
+            except Exception:
+                pass
+            raise RuntimeError(f'Stripe: {message}') from exc
+        except URLError as exc:
+            raise RuntimeError(f'Stripe indisponivel: {exc}') from exc
+        try:
+            return json.loads(raw)
+        except Exception as exc:
+            raise RuntimeError('Resposta invalida da Stripe.') from exc
+
+    def _shop_insert_stripe_transaction(payment_id, transaction_type, **kwargs):
+        if not _shop_table_exists('SHOP_TRANSACOES_STRIPE'):
+            return None
+        return db.session.execute(
+            text("""
+                INSERT INTO dbo.SHOP_TRANSACOES_STRIPE
+                (
+                    PAGAMENTO_ID, TIPO_TRANSACAO, EVENT_ID, EVENT_TYPE, IDEMPOTENCY_KEY,
+                    PAYMENT_INTENT_ID, CHECKOUT_SESSION_ID, CHARGE_ID, REFUND_ID,
+                    EXTERNAL_STATUS, MOEDA, VALOR, PAYLOAD, CRIADO_EM
+                )
+                OUTPUT INSERTED.TRANSACAO_STRIPE_ID
+                VALUES
+                (
+                    :payment_id, :transaction_type, :event_id, :event_type, :idempotency_key,
+                    :payment_intent_id, :checkout_session_id, :charge_id, :refund_id,
+                    :external_status, :currency, :amount, :payload, SYSUTCDATETIME()
+                )
+            """),
+            {
+                'payment_id': payment_id,
+                'transaction_type': str(transaction_type or 'WEBHOOK').strip().upper()[:30],
+                'event_id': str(kwargs.get('event_id') or '').strip()[:100] or None,
+                'event_type': str(kwargs.get('event_type') or '').strip()[:100] or None,
+                'idempotency_key': str(kwargs.get('idempotency_key') or '').strip()[:100] or None,
+                'payment_intent_id': str(kwargs.get('payment_intent_id') or '').strip()[:100] or None,
+                'checkout_session_id': str(kwargs.get('checkout_session_id') or '').strip()[:100] or None,
+                'charge_id': str(kwargs.get('charge_id') or '').strip()[:100] or None,
+                'refund_id': str(kwargs.get('refund_id') or '').strip()[:100] or None,
+                'external_status': str(kwargs.get('external_status') or '').strip()[:50] or None,
+                'currency': str(kwargs.get('currency') or '').strip().upper()[:3] or None,
+                'amount': kwargs.get('amount'),
+                'payload': _shop_serialize_payload(kwargs.get('payload')),
+            },
+        ).scalar()
+
+    def _shop_find_payment_context(session_id='', payment_intent_id='', charge_id='', refund_id=''):
+        if not _shop_table_exists('SHOP_PAGAMENTOS'):
+            return None
+        filters = []
+        params = {}
+        if session_id:
+            filters.append("ts.CHECKOUT_SESSION_ID = :session_id")
+            params['session_id'] = session_id
+        if payment_intent_id:
+            filters.append("ts.PAYMENT_INTENT_ID = :payment_intent_id")
+            params['payment_intent_id'] = payment_intent_id
+        if charge_id:
+            filters.append("ts.CHARGE_ID = :charge_id")
+            params['charge_id'] = charge_id
+        if refund_id:
+            filters.append("ts.REFUND_ID = :refund_id")
+            params['refund_id'] = refund_id
+        if filters and _shop_table_exists('SHOP_TRANSACOES_STRIPE'):
+            row = db.session.execute(
+                text(f"""
+                    SELECT TOP 1
+                        p.PAGAMENTO_ID,
+                        p.ENCOMENDA_ID,
+                        p.REFERENCIA_EXTERNA
+                    FROM dbo.SHOP_TRANSACOES_STRIPE ts
+                    INNER JOIN dbo.SHOP_PAGAMENTOS p
+                        ON p.PAGAMENTO_ID = ts.PAGAMENTO_ID
+                    WHERE {" OR ".join(filters)}
+                    ORDER BY ts.TRANSACAO_STRIPE_ID DESC
+                """),
+                params,
+            ).mappings().first()
+            if row:
+                return {
+                    'payment_id': int(row['PAGAMENTO_ID']),
+                    'order_id': int(row['ENCOMENDA_ID']),
+                    'reference': str(row.get('REFERENCIA_EXTERNA') or '').strip(),
+                }
+        if session_id:
+            row = db.session.execute(
+                text("""
+                    SELECT TOP 1 PAGAMENTO_ID, ENCOMENDA_ID, REFERENCIA_EXTERNA
+                    FROM dbo.SHOP_PAGAMENTOS
+                    WHERE REFERENCIA_EXTERNA = :reference
+                    ORDER BY PAGAMENTO_ID DESC
+                """),
+                {'reference': session_id},
+            ).mappings().first()
+            if row:
+                return {
+                    'payment_id': int(row['PAGAMENTO_ID']),
+                    'order_id': int(row['ENCOMENDA_ID']),
+                    'reference': str(row.get('REFERENCIA_EXTERNA') or '').strip(),
+                }
+        return None
+
+    def _shop_refresh_order_financials(order_id):
+        row = db.session.execute(
+            text("""
+                SELECT
+                    COALESCE(SUM(VALOR_CAPTURADO), 0) AS TOTAL_PAGO,
+                    COALESCE(SUM(VALOR_REEMBOLSADO), 0) AS TOTAL_REEMBOLSADO
+                FROM dbo.SHOP_PAGAMENTOS
+                WHERE ENCOMENDA_ID = :order_id
+            """),
+            {'order_id': order_id},
+        ).mappings().first() or {}
+        total_pago = _shop_money(row.get('TOTAL_PAGO'))
+        total_reembolsado = _shop_money(row.get('TOTAL_REEMBOLSADO'))
+        db.session.execute(
+            text("""
+                UPDATE dbo.SHOP_ENCOMENDAS
+                SET TOTAL_PAGO = :total_pago,
+                    TOTAL_REEMBOLSADO = :total_reembolsado,
+                    ALTERADO_EM = SYSUTCDATETIME()
+                WHERE ENCOMENDA_ID = :order_id
+            """),
+            {
+                'order_id': order_id,
+                'total_pago': total_pago,
+                'total_reembolsado': total_reembolsado,
+            },
+        )
+
+    def _shop_set_order_state(order_id, state_code, *, paid_at=None, cancelled_at=None):
+        state_id = _shop_get_order_state_id(state_code)
+        db.session.execute(
+            text("""
+                UPDATE dbo.SHOP_ENCOMENDAS
+                SET ENCOMENDA_ESTADO_ID = :state_id,
+                    PAGA_EM = COALESCE(:paid_at, PAGA_EM),
+                    CANCELADA_EM = COALESCE(:cancelled_at, CANCELADA_EM),
+                    ALTERADO_EM = SYSUTCDATETIME()
+                WHERE ENCOMENDA_ID = :order_id
+            """),
+            {
+                'state_id': state_id,
+                'paid_at': paid_at,
+                'cancelled_at': cancelled_at,
+                'order_id': order_id,
+            },
+        )
+
+    def _shop_set_payment_state(payment_id, state_code, **kwargs):
+        db.session.execute(
+            text("""
+                UPDATE dbo.SHOP_PAGAMENTOS
+                SET ESTADO = :estado,
+                    VALOR_AUTORIZADO = COALESCE(:valor_autorizado, VALOR_AUTORIZADO),
+                    VALOR_CAPTURADO = COALESCE(:valor_capturado, VALOR_CAPTURADO),
+                    VALOR_REEMBOLSADO = COALESCE(:valor_reembolsado, VALOR_REEMBOLSADO),
+                    REFERENCIA_EXTERNA = COALESCE(:referencia_externa, REFERENCIA_EXTERNA),
+                    PAGO_EM = COALESCE(:pago_em, PAGO_EM),
+                    ALTERADO_EM = SYSUTCDATETIME()
+                WHERE PAGAMENTO_ID = :payment_id
+            """),
+            {
+                'estado': str(state_code or 'PENDENTE').strip().upper(),
+                'valor_autorizado': kwargs.get('authorized_amount'),
+                'valor_capturado': kwargs.get('captured_amount'),
+                'valor_reembolsado': kwargs.get('refunded_amount'),
+                'referencia_externa': kwargs.get('reference'),
+                'pago_em': kwargs.get('paid_at'),
+                'payment_id': payment_id,
+            },
+        )
+
+    def _shop_register_refund(payment_id, refund_obj):
+        if not refund_obj:
+            return
+        refund_id = str(refund_obj.get('id') or '').strip()
+        if not refund_id:
+            return
+        amount = _shop_amount_from_minor_units(refund_obj.get('amount'))
+        refund_state_map = {
+            'succeeded': 'PROCESSADO',
+            'failed': 'FALHADO',
+            'canceled': 'CANCELADO',
+            'cancelled': 'CANCELADO',
+            'pending': 'PENDENTE',
+        }
+        refund_state = refund_state_map.get(str(refund_obj.get('status') or '').strip().lower(), 'PENDENTE')
+        processed_at = datetime.utcnow() if refund_state == 'PROCESSADO' else None
+        if _shop_table_exists('SHOP_REEMBOLSOS'):
+            existing = db.session.execute(
+                text("""
+                    SELECT TOP 1 REEMBOLSO_ID
+                    FROM dbo.SHOP_REEMBOLSOS
+                    WHERE REFUND_ID_EXTERNO = :refund_id
+                """),
+                {'refund_id': refund_id},
+            ).mappings().first()
+            if existing:
+                db.session.execute(
+                    text("""
+                        UPDATE dbo.SHOP_REEMBOLSOS
+                        SET ESTADO = :estado,
+                            MOEDA = :moeda,
+                            VALOR = :valor,
+                            MOTIVO = :motivo,
+                            PROCESSADO_EM = COALESCE(:processado_em, PROCESSADO_EM),
+                            ALTERADO_EM = SYSUTCDATETIME()
+                        WHERE REEMBOLSO_ID = :reembolso_id
+                    """),
+                    {
+                        'reembolso_id': existing['REEMBOLSO_ID'],
+                        'estado': refund_state,
+                        'moeda': str(refund_obj.get('currency') or 'eur').strip().upper()[:3],
+                        'valor': amount,
+                        'motivo': str(refund_obj.get('reason') or '').strip()[:200] or None,
+                        'processado_em': processed_at,
+                    },
+                )
+            else:
+                db.session.execute(
+                    text("""
+                        INSERT INTO dbo.SHOP_REEMBOLSOS
+                        (
+                            PAGAMENTO_ID, ESTADO, MOEDA, VALOR, MOTIVO,
+                            REFUND_ID_EXTERNO, PROCESSADO_EM, CRIADO_EM, ALTERADO_EM
+                        )
+                        VALUES
+                        (
+                            :payment_id, :estado, :moeda, :valor, :motivo,
+                            :refund_id, :processado_em, SYSUTCDATETIME(), SYSUTCDATETIME()
+                        )
+                    """),
+                    {
+                        'payment_id': payment_id,
+                        'estado': refund_state,
+                        'moeda': str(refund_obj.get('currency') or 'eur').strip().upper()[:3],
+                        'valor': amount,
+                        'motivo': str(refund_obj.get('reason') or '').strip()[:200] or None,
+                        'refund_id': refund_id,
+                        'processado_em': processed_at,
+                    },
+                )
+
+    def _shop_apply_checkout_session_status(payment_id, order_id, session_obj, *, source='checkout'):
+        payment_status = str(session_obj.get('payment_status') or '').strip().lower()
+        checkout_status = str(session_obj.get('status') or '').strip().lower()
+        payment_intent = session_obj.get('payment_intent')
+        payment_intent_id = payment_intent.get('id') if isinstance(payment_intent, dict) else str(payment_intent or '').strip()
+        charge = None
+        charge_id = ''
+        if isinstance(payment_intent, dict):
+            latest_charge = payment_intent.get('latest_charge')
+            if isinstance(latest_charge, dict):
+                charge = latest_charge
+                charge_id = str(latest_charge.get('id') or '').strip()
+        amount_total = _shop_amount_from_minor_units(session_obj.get('amount_total'))
+        paid_at = datetime.utcnow() if payment_status == 'paid' else None
+        reference = str(session_obj.get('id') or '').strip() or None
+        if payment_status == 'paid':
+            _shop_set_payment_state(
+                payment_id,
+                'PAGO',
+                authorized_amount=amount_total,
+                captured_amount=amount_total,
+                reference=reference,
+                paid_at=paid_at,
+            )
+            _shop_set_order_state(order_id, 'PAGO', paid_at=paid_at)
+        elif checkout_status == 'expired':
+            _shop_set_payment_state(payment_id, 'CANCELADO', reference=reference)
+            _shop_set_order_state(order_id, 'CANCELADO', cancelled_at=datetime.utcnow())
+        elif payment_status == 'unpaid' and source == 'failure':
+            _shop_set_payment_state(payment_id, 'FALHADO', reference=reference)
+            _shop_set_order_state(order_id, 'FALHADO')
+        _shop_refresh_order_financials(order_id)
+        return {
+            'payment_intent_id': payment_intent_id,
+            'charge_id': charge_id,
+            'amount_total': amount_total,
+            'currency': str(session_obj.get('currency') or 'eur').strip().upper()[:3],
+            'external_status': payment_status or checkout_status,
+            'charge': charge,
+        }
+
+    def _shop_stripe_event_already_processed(event_id: str) -> bool:
+        if not event_id or not _shop_table_exists('SHOP_TRANSACOES_STRIPE'):
+            return False
+        row = db.session.execute(
+            text("""
+                SELECT TOP 1 TRANSACAO_STRIPE_ID
+                FROM dbo.SHOP_TRANSACOES_STRIPE
+                WHERE EVENT_ID = :event_id
+            """),
+            {'event_id': event_id},
+        ).mappings().first()
+        return bool(row)
+
+    def _shop_verify_stripe_signature(payload_bytes: bytes, signature_header: str, secret: str) -> bool:
+        if not secret:
+            return True
+        try:
+            parts = {}
+            for chunk in str(signature_header or '').split(','):
+                if '=' not in chunk:
+                    continue
+                key, value = chunk.split('=', 1)
+                parts.setdefault(key.strip(), []).append(value.strip())
+            timestamp = (parts.get('t') or [''])[0]
+            signatures = parts.get('v1') or []
+            if not timestamp or not signatures:
+                return False
+            signed_payload = f"{timestamp}.{payload_bytes.decode('utf-8')}".encode('utf-8')
+            expected = hmac.new(secret.encode('utf-8'), signed_payload, hashlib.sha256).hexdigest()
+            return any(hmac.compare_digest(expected, sig) for sig in signatures)
+        except Exception:
+            return False
 
     @app.route('/planeamento_limpezas')
     @app.route('/planeamento_limpezas/')
@@ -957,19 +1650,388 @@ def create_app():
                 'shop_state': shop_state,
             }), 400
 
-        cart = build_shop_cart(_public_shop_cart_raw(tok))
-        if not cart.get('items'):
-            return jsonify({'error': 'O carrinho esta vazio.'}), 400
+        body = request.get_json(silent=True) or {}
+        lang = str(body.get('lang') or 'pt').strip().lower()
+        stripe_locale = lang if lang in {'pt', 'en', 'fr', 'es'} else 'auto'
+        try:
+            checkout_cart = _shop_build_checkout_cart(tok)
+        except RuntimeError as exc:
+            return jsonify({'error': str(exc)}), 400
+        if not _shop_stripe_secret_key():
+            return jsonify({
+                'error': 'Configuracao Stripe em falta. Define SHOP_STRIPE_SECRET_KEY ou STRIPE_SECRET_KEY.',
+            }), 500
+
+        try:
+            order_payload = _shop_create_order_from_cart(row, checkout_cart)
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            return jsonify({'error': f'Nao foi possivel criar a encomenda SHOP: {exc}'}), 500
+
+        order_id = order_payload['order_id']
+        payment_id = order_payload['payment_id']
+        order_number = order_payload['order_number']
+        checkout_placeholder = '__CHECKOUT_SESSION_ID__'
+        success_url = url_for(
+            'public_reserva_shop_page',
+            token=tok,
+            checkout='success',
+            session_id=checkout_placeholder,
+            _external=True,
+        ).replace(checkout_placeholder, '{CHECKOUT_SESSION_ID}')
+        cancel_url = url_for(
+            'public_reserva_shop_page',
+            token=tok,
+            checkout='cancel',
+            session_id=checkout_placeholder,
+            _external=True,
+        ).replace(checkout_placeholder, '{CHECKOUT_SESSION_ID}')
+        idempotency_key = f"shop-checkout-{payment_id}-{uuid.uuid4().hex[:10]}"
+
+        stripe_payload = {
+            'mode': 'payment',
+            'success_url': success_url,
+            'cancel_url': cancel_url,
+            'client_reference_id': str((row.get('RESERVA') or '').strip() or order_number),
+            'locale': stripe_locale,
+            'metadata[payment_id]': str(payment_id),
+            'metadata[order_id]': str(order_id),
+            'metadata[reservation_code]': str((row.get('RESERVA') or '').strip()),
+            'metadata[token]': tok,
+            'payment_method_types[0]': 'card',
+        }
+        email = str((row.get('FTEMAIL') or '').strip())
+        if email:
+            stripe_payload['customer_email'] = email
+
+        for idx, item in enumerate(checkout_cart.get('items') or []):
+            prefix = f'line_items[{idx}]'
+            stripe_payload[f'{prefix}[quantity]'] = str(int(item['quantity']))
+            stripe_payload[f'{prefix}[price_data][currency]'] = str(item.get('currency') or 'EUR').strip().lower()
+            stripe_payload[f'{prefix}[price_data][unit_amount]'] = str(_shop_amount_to_minor_units(item['unit_price']))
+            stripe_payload[f'{prefix}[price_data][product_data][name]'] = str(item.get('product_name') or 'Produto')[:120]
+            description_bits = []
+            if item.get('variant_label'):
+                description_bits.append(str(item['variant_label']))
+            description = ' · '.join([bit for bit in description_bits if bit])
+            if description:
+                stripe_payload[f'{prefix}[price_data][product_data][description]'] = description[:250]
+
+        try:
+            stripe_session = _stripe_api_request(
+                'POST',
+                '/v1/checkout/sessions',
+                data=stripe_payload,
+                idempotency_key=idempotency_key,
+            )
+            db.session.execute(
+                text("""
+                    UPDATE dbo.SHOP_PAGAMENTOS
+                    SET REFERENCIA_EXTERNA = :reference,
+                        ALTERADO_EM = SYSUTCDATETIME()
+                    WHERE PAGAMENTO_ID = :payment_id
+                """),
+                {
+                    'reference': str(stripe_session.get('id') or '').strip() or None,
+                    'payment_id': payment_id,
+                },
+            )
+            stripe_tx_id = _shop_insert_stripe_transaction(
+                payment_id,
+                'CHECKOUT_SESSION',
+                idempotency_key=idempotency_key,
+                payment_intent_id=str(stripe_session.get('payment_intent') or '').strip() or None,
+                checkout_session_id=str(stripe_session.get('id') or '').strip() or None,
+                external_status=str(stripe_session.get('status') or stripe_session.get('payment_status') or '').strip() or None,
+                currency=str(stripe_session.get('currency') or order_payload.get('currency') or 'EUR').strip().upper(),
+                amount=_shop_amount_from_minor_units(stripe_session.get('amount_total')),
+                payload=stripe_session,
+            )
+            _shop_log(
+                'INFO',
+                'SHOP',
+                f'Checkout Stripe criado para a encomenda {order_number}.',
+                event='stripe_checkout_created',
+                entity='SHOP_ENCOMENDAS',
+                entity_id=order_number,
+                reserva=(row.get('RESERVA') or '').strip(),
+                order_id=order_id,
+                payment_id=payment_id,
+                stripe_transaction_id=stripe_tx_id,
+                detail={'checkout_session_id': stripe_session.get('id')},
+            )
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            try:
+                db.session.execute(
+                    text("""
+                        UPDATE dbo.SHOP_PAGAMENTOS
+                        SET ESTADO = 'FALHADO',
+                            ALTERADO_EM = SYSUTCDATETIME()
+                        WHERE PAGAMENTO_ID = :payment_id
+                    """),
+                    {'payment_id': payment_id},
+                )
+                _shop_set_order_state(order_id, 'FALHADO')
+                _shop_refresh_order_financials(order_id)
+                _shop_log(
+                    'ERROR',
+                    'SHOP',
+                    f'Falha ao criar checkout Stripe para a encomenda {order_number}.',
+                    event='stripe_checkout_failed',
+                    entity='SHOP_ENCOMENDAS',
+                    entity_id=order_number,
+                    reserva=(row.get('RESERVA') or '').strip(),
+                    order_id=order_id,
+                    payment_id=payment_id,
+                    detail={'error': str(exc)},
+                )
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+            return jsonify({'error': str(exc)}), 502
 
         return jsonify({
             'ok': True,
-            'checkout_ready': False,
+            'checkout_ready': True,
             'provider': 'STRIPE',
-            'integration_status': 'pending_backend',
-            'message': 'Fluxo Stripe preparado no frontend e pendente de integracao backend.',
+            'checkout_url': stripe_session.get('url'),
+            'session_id': stripe_session.get('id'),
+            'order_id': order_id,
+            'order_number': order_number,
+            'payment_id': payment_id,
+            'message': 'A redirecionar para o checkout Stripe...',
             'reservation_code': (row.get('RESERVA') or '').strip(),
-            'cart': cart,
-        }), 202
+        })
+
+    @app.route('/api/r/<token>/shop/checkout/confirm', methods=['GET'])
+    def public_reserva_shop_checkout_confirm(token):
+        tok = (token or '').strip()
+        row = _public_reserva_row(tok)
+        if not row:
+            return jsonify({'error': 'Link invalido ou expirado'}), 404
+
+        session_id = str(request.args.get('session_id') or '').strip()
+        if not session_id:
+            return jsonify({'error': 'Sessao Stripe invalida.'}), 400
+
+        payment_ctx = _shop_find_payment_context(session_id=session_id)
+        if not payment_ctx:
+            return jsonify({'error': 'Pagamento SHOP nao encontrado para esta sessao Stripe.'}), 404
+
+        try:
+            stripe_session = _stripe_api_request(
+                'GET',
+                f"/v1/checkout/sessions/{quote(session_id, safe='')}",
+                data=[('expand[]', 'payment_intent.latest_charge')],
+            )
+        except Exception as exc:
+            return jsonify({'error': str(exc)}), 502
+
+        try:
+            sync_info = _shop_apply_checkout_session_status(
+                payment_ctx['payment_id'],
+                payment_ctx['order_id'],
+                stripe_session,
+                source='confirm',
+            )
+            stripe_tx_id = _shop_insert_stripe_transaction(
+                payment_ctx['payment_id'],
+                'CHECKOUT_SESSION',
+                event_type='checkout.confirm',
+                payment_intent_id=sync_info.get('payment_intent_id') or None,
+                checkout_session_id=session_id,
+                charge_id=sync_info.get('charge_id') or None,
+                external_status=sync_info.get('external_status') or None,
+                currency=sync_info.get('currency') or None,
+                amount=sync_info.get('amount_total'),
+                payload=stripe_session,
+            )
+            if sync_info.get('charge') and sync_info['charge'].get('refunded'):
+                for refund in ((sync_info['charge'].get('refunds') or {}).get('data') or []):
+                    _shop_register_refund(payment_ctx['payment_id'], refund)
+                refunded_amount = _shop_amount_from_minor_units(sync_info['charge'].get('amount_refunded'))
+                payment_state = 'REEMBOLSADO' if refunded_amount >= sync_info.get('amount_total', Decimal('0.00')) else 'PARCIALMENTE_REEMBOLSADO'
+                _shop_set_payment_state(payment_ctx['payment_id'], payment_state, refunded_amount=refunded_amount)
+                _shop_refresh_order_financials(payment_ctx['order_id'])
+            if str(stripe_session.get('payment_status') or '').strip().lower() == 'paid':
+                _public_shop_cart_clear(tok)
+            _shop_log(
+                'INFO',
+                'SHOP',
+                f'Confirmacao de checkout Stripe recebida para a sessao {session_id}.',
+                event='stripe_checkout_confirmed',
+                entity='SHOP_PAGAMENTOS',
+                entity_id=str(payment_ctx['payment_id']),
+                reserva=(row.get('RESERVA') or '').strip(),
+                order_id=payment_ctx['order_id'],
+                payment_id=payment_ctx['payment_id'],
+                stripe_transaction_id=stripe_tx_id,
+                detail={'payment_status': stripe_session.get('payment_status'), 'status': stripe_session.get('status')},
+            )
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            return jsonify({'error': f'Falha ao confirmar o pagamento Stripe: {exc}'}), 500
+
+        return jsonify({
+            'ok': True,
+            'status': str(stripe_session.get('payment_status') or stripe_session.get('status') or '').strip().lower(),
+            'message': (
+                'Pagamento confirmado com sucesso.'
+                if str(stripe_session.get('payment_status') or '').strip().lower() == 'paid'
+                else 'O pagamento ainda nao ficou concluido.'
+            ),
+            'cart': build_shop_cart(_public_shop_cart_raw(tok)),
+            'shop_state': _public_shop_state(row),
+        })
+
+    @app.route('/api/shop/stripe/webhook', methods=['POST'])
+    def shop_stripe_webhook():
+        payload_bytes = request.get_data(cache=False, as_text=False) or b''
+        signature_header = request.headers.get('Stripe-Signature') or ''
+        webhook_secret = _shop_stripe_webhook_secret()
+        if webhook_secret and not _shop_verify_stripe_signature(payload_bytes, signature_header, webhook_secret):
+            return jsonify({'error': 'Assinatura Stripe invalida.'}), 400
+
+        try:
+            event = json.loads(payload_bytes.decode('utf-8') or '{}')
+        except Exception:
+            return jsonify({'error': 'Payload Stripe invalido.'}), 400
+
+        event_id = str(event.get('id') or '').strip()
+        event_type = str(event.get('type') or '').strip()
+        if event_id and _shop_stripe_event_already_processed(event_id):
+            return jsonify({'ok': True, 'duplicate': True})
+
+        obj = ((event.get('data') or {}).get('object') or {})
+        session_id = ''
+        payment_intent_id = ''
+        charge_id = ''
+        refund_id = ''
+        if event_type.startswith('checkout.session'):
+            session_id = str(obj.get('id') or '').strip()
+            payment_intent = obj.get('payment_intent')
+            payment_intent_id = payment_intent.get('id') if isinstance(payment_intent, dict) else str(payment_intent or '').strip()
+        elif event_type.startswith('payment_intent'):
+            payment_intent_id = str(obj.get('id') or '').strip()
+        elif event_type.startswith('charge'):
+            charge_id = str(obj.get('id') or '').strip()
+            payment_intent_id = str(obj.get('payment_intent') or '').strip()
+        elif event_type.startswith('refund'):
+            refund_id = str(obj.get('id') or '').strip()
+            charge_id = str(obj.get('charge') or '').strip()
+            payment_intent_id = str(obj.get('payment_intent') or '').strip()
+
+        payment_ctx = _shop_find_payment_context(
+            session_id=session_id,
+            payment_intent_id=payment_intent_id,
+            charge_id=charge_id,
+            refund_id=refund_id,
+        )
+        payment_id = None
+        order_id = None
+        if payment_ctx:
+            payment_id = payment_ctx['payment_id']
+            order_id = payment_ctx['order_id']
+        elif isinstance(obj.get('metadata'), dict):
+            try:
+                payment_id = int(obj['metadata'].get('payment_id') or 0) or None
+                order_id = int(obj['metadata'].get('order_id') or 0) or None
+            except Exception:
+                payment_id = payment_id or None
+                order_id = order_id or None
+
+        if not payment_id or not order_id:
+            return jsonify({'ok': True, 'ignored': True, 'reason': 'payment_not_found'})
+
+        try:
+            amount_value = None
+            currency = str(obj.get('currency') or '').strip().upper()[:3] or None
+            external_status = str(obj.get('status') or obj.get('payment_status') or '').strip() or None
+
+            if event_type == 'checkout.session.completed':
+                sync_info = _shop_apply_checkout_session_status(payment_id, order_id, obj, source='webhook')
+                amount_value = sync_info.get('amount_total')
+                currency = sync_info.get('currency') or currency
+                charge_id = sync_info.get('charge_id') or charge_id
+                payment_intent_id = sync_info.get('payment_intent_id') or payment_intent_id
+                if sync_info.get('charge') and sync_info['charge'].get('refunded'):
+                    for refund in ((sync_info['charge'].get('refunds') or {}).get('data') or []):
+                        _shop_register_refund(payment_id, refund)
+            elif event_type == 'checkout.session.expired':
+                sync_info = _shop_apply_checkout_session_status(payment_id, order_id, obj, source='webhook')
+                amount_value = sync_info.get('amount_total')
+                currency = sync_info.get('currency') or currency
+                payment_intent_id = sync_info.get('payment_intent_id') or payment_intent_id
+            elif event_type == 'payment_intent.payment_failed':
+                amount_value = _shop_amount_from_minor_units(obj.get('amount'))
+                _shop_set_payment_state(payment_id, 'FALHADO')
+                _shop_set_order_state(order_id, 'FALHADO')
+                _shop_refresh_order_financials(order_id)
+            elif event_type == 'refund.updated':
+                amount_value = _shop_amount_from_minor_units(obj.get('amount'))
+                refund_id = str(obj.get('id') or '').strip() or refund_id
+                _shop_register_refund(payment_id, obj)
+                payment_row = db.session.execute(
+                    text("""
+                        SELECT VALOR_CAPTURADO, VALOR_REEMBOLSADO
+                        FROM dbo.SHOP_PAGAMENTOS
+                        WHERE PAGAMENTO_ID = :payment_id
+                    """),
+                    {'payment_id': payment_id},
+                ).mappings().first() or {}
+                refunded_amount = _shop_money(payment_row.get('VALOR_REEMBOLSADO')) + amount_value
+                captured_amount = _shop_money(payment_row.get('VALOR_CAPTURADO'))
+                payment_state = 'REEMBOLSADO' if captured_amount and refunded_amount >= captured_amount else 'PARCIALMENTE_REEMBOLSADO'
+                _shop_set_payment_state(payment_id, payment_state, refunded_amount=refunded_amount)
+                _shop_refresh_order_financials(order_id)
+            elif event_type == 'charge.refunded':
+                amount_value = _shop_amount_from_minor_units(obj.get('amount_refunded'))
+                charge_id = str(obj.get('id') or '').strip() or charge_id
+                for refund in ((obj.get('refunds') or {}).get('data') or []):
+                    _shop_register_refund(payment_id, refund)
+                _shop_set_payment_state(
+                    payment_id,
+                    'REEMBOLSADO' if obj.get('refunded') else 'PARCIALMENTE_REEMBOLSADO',
+                    refunded_amount=amount_value,
+                )
+                _shop_refresh_order_financials(order_id)
+
+            stripe_tx_id = _shop_insert_stripe_transaction(
+                payment_id,
+                'WEBHOOK',
+                event_id=event_id or None,
+                event_type=event_type or None,
+                payment_intent_id=payment_intent_id or None,
+                checkout_session_id=session_id or None,
+                charge_id=charge_id or None,
+                refund_id=refund_id or None,
+                external_status=external_status,
+                currency=currency,
+                amount=amount_value,
+                payload=event,
+            )
+            _shop_log(
+                'INFO',
+                'SHOP',
+                f'Webhook Stripe processado: {event_type}.',
+                event='stripe_webhook',
+                entity='SHOP_PAGAMENTOS',
+                entity_id=str(payment_id),
+                order_id=order_id,
+                payment_id=payment_id,
+                stripe_transaction_id=stripe_tx_id,
+                detail={'event_id': event_id, 'event_type': event_type},
+            )
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            return jsonify({'error': f'Falha ao processar webhook Stripe: {exc}'}), 500
+
+        return jsonify({'ok': True})
 
     @app.route('/api/r/<token>/guests', methods=['GET'])
     def public_reserva_guests_get(token):
@@ -8328,6 +9390,294 @@ OPTION (MAXRECURSION 32767);
                 })
             return jsonify(out)
         except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/extratos/contas')
+    @login_required
+    def api_extratos_contas():
+        try:
+            rows = db.session.execute(text("""
+                WITH CONTAS AS (
+                    SELECT
+                        EXT.NOCONTA,
+                        COUNT(*) AS EXT_COUNT,
+                        MIN(CAST(EXT.DATAINI AS date)) AS DATAINI_MIN,
+                        MAX(CAST(EXT.DATAFIM AS date)) AS DATAFIM_MAX
+                    FROM dbo.EXT AS EXT
+                    GROUP BY EXT.NOCONTA
+                ),
+                BANCOS AS (
+                    SELECT
+                        V.NOCONTA,
+                        MAX(ISNULL(V.BANCO, '')) AS BANCO,
+                        MAX(ISNULL(V.CONTA, '')) AS CONTA,
+                        MIN(TRY_CONVERT(int, NULLIF(CONVERT(varchar(50), V.ORDEM), ''))) AS ORDEM
+                    FROM dbo.V_BL AS V
+                    GROUP BY V.NOCONTA
+                )
+                SELECT
+                    C.NOCONTA,
+                    ISNULL(B.BANCO, '') AS BANCO,
+                    ISNULL(B.CONTA, '') AS CONTA,
+                    ISNULL(B.ORDEM, 999999) AS ORDEM,
+                    C.EXT_COUNT,
+                    C.DATAINI_MIN,
+                    C.DATAFIM_MAX
+                FROM CONTAS AS C
+                LEFT JOIN BANCOS AS B
+                  ON B.NOCONTA = C.NOCONTA
+                ORDER BY
+                    CASE WHEN B.ORDEM IS NULL THEN 1 ELSE 0 END,
+                    B.ORDEM,
+                    ISNULL(B.BANCO, ''),
+                    ISNULL(B.CONTA, ''),
+                    C.NOCONTA
+            """)).mappings().all()
+            out = []
+            for r in rows:
+                di = r.get('DATAINI_MIN')
+                df = r.get('DATAFIM_MAX')
+                out.append({
+                    'NOCONTA': int(r.get('NOCONTA') or 0),
+                    'BANCO': r.get('BANCO') or '',
+                    'CONTA': r.get('CONTA') or '',
+                    'ORDEM': int(r.get('ORDEM') or 0),
+                    'EXT_COUNT': int(r.get('EXT_COUNT') or 0),
+                    'DATAINI_MIN': di.strftime('%Y-%m-%d') if isinstance(di, (date, datetime)) else (str(di) if di else ''),
+                    'DATAFIM_MAX': df.strftime('%Y-%m-%d') if isinstance(df, (date, datetime)) else (str(df) if df else ''),
+                })
+            return jsonify(out)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/extratos/agrupar', methods=['POST'])
+    @login_required
+    def api_extratos_agrupar():
+        import uuid
+        from sqlalchemy import bindparam
+
+        try:
+            body = request.get_json(silent=True) or {}
+
+            try:
+                noconta = int(body.get('NOCONTA') or 0)
+            except Exception:
+                noconta = 0
+            try:
+                ano = int(body.get('ANO') or 0)
+            except Exception:
+                ano = 0
+            try:
+                mes = int(body.get('MES') or 0)
+            except Exception:
+                mes = 0
+
+            if noconta <= 0:
+                return jsonify({'error': 'Conta obrigatória.'}), 400
+            if ano < 2000 or ano > 2100:
+                return jsonify({'error': 'Ano inválido.'}), 400
+            if mes < 1 or mes > 12:
+                return jsonify({'error': 'Mês inválido.'}), 400
+
+            el_cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EL'")
+                ).fetchall()
+            )
+            ext_cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EXT'")
+                ).fetchall()
+            )
+            need_ext = {'EXTSTAMP', 'NOCONTA', 'DATAINI', 'DATAFIM', 'SALDOINI', 'SALDOFIM', 'RECONCILIADO'}
+            missing_ext = sorted(list(need_ext - ext_cols))
+            if missing_ext:
+                return jsonify({'error': f"Campos em falta na EXT: {', '.join(missing_ext)}"}), 400
+            if 'EXTSTAMP' not in el_cols:
+                return jsonify({'error': 'A tabela EL precisa do campo EXTSTAMP.'}), 400
+            stamp_col = 'ELSTAMP' if 'ELSTAMP' in el_cols else ('ELSATMP' if 'ELSATMP' in el_cols else None)
+            if not stamp_col:
+                return jsonify({'error': 'A tabela EL precisa de um campo stamp (ELSTAMP ou ELSATMP).'}), 400
+
+            moved_rows = db.session.execute(text(f"""
+                SELECT
+                    LTRIM(RTRIM(EL.{stamp_col})) AS STAMP,
+                    LTRIM(RTRIM(EL.EXTSTAMP)) AS SRC_EXTSTAMP,
+                    CAST(EL.DATA AS date) AS DATA,
+                    CAST(EL.DTVALOR AS date) AS DTVALOR,
+                    ISNULL(EL.DESCRICAO, '') AS DESCRICAO,
+                    CAST(EL.VALOR AS numeric(12,2)) AS VALOR
+                FROM dbo.EL AS EL
+                INNER JOIN dbo.EXT AS EXT
+                  ON EXT.EXTSTAMP = EL.EXTSTAMP
+                WHERE EXT.NOCONTA = :acc
+                  AND YEAR(CAST(EL.DATA AS date)) = :ano
+                  AND MONTH(CAST(EL.DATA AS date)) = :mes
+                ORDER BY CAST(EL.DATA AS date), CAST(EL.DTVALOR AS date), EL.EXTSTAMP, EL.{stamp_col}
+            """), {'acc': noconta, 'ano': ano, 'mes': mes}).mappings().all()
+
+            if not moved_rows:
+                return jsonify({'error': 'Não existem movimentos de extrato para a conta/mês/ano escolhidos.'}), 400
+
+            moved_stamps = [(r.get('STAMP') or '').strip() for r in moved_rows if (r.get('STAMP') or '').strip()]
+            source_exts = sorted({(r.get('SRC_EXTSTAMP') or '').strip() for r in moved_rows if (r.get('SRC_EXTSTAMP') or '').strip()})
+            if not moved_stamps or not source_exts:
+                return jsonify({'error': 'Não foi possível determinar os estratos de origem.'}), 400
+
+            source_meta = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(EXTSTAMP)) AS EXTSTAMP,
+                    CAST(DATAINI AS date) AS DATAINI,
+                    CAST(DATAFIM AS date) AS DATAFIM,
+                    ISNULL(SALDOINI, '') AS SALDOINI,
+                    ISNULL(SALDOFIM, '') AS SALDOFIM
+                FROM dbo.EXT
+                WHERE LTRIM(RTRIM(EXTSTAMP)) IN :ids
+                ORDER BY CAST(DATAINI AS date), CAST(DATAFIM AS date), EXTSTAMP
+            """).bindparams(bindparam('ids', expanding=True)), {'ids': source_exts}).mappings().all()
+
+            if len(source_meta) != len(source_exts):
+                return jsonify({'error': 'Um ou mais estratos de origem não foram encontrados.'}), 400
+
+            has_rec = db.session.execute(text("""
+                SELECT 1 AS X
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_NAME = 'REC'
+            """)).fetchone()
+
+            affected_groups = []
+            if has_rec:
+                touched_groups = db.session.execute(text("""
+                    SELECT
+                        R.EXTSTAMP,
+                        R.GROUPID,
+                        COUNT(*) AS TOTAL_EL,
+                        SUM(CASE WHEN LTRIM(RTRIM(R.STAMP)) IN :stamps THEN 1 ELSE 0 END) AS MOVED_EL
+                    FROM dbo.REC AS R
+                    WHERE R.ORIGEM = 'EL'
+                      AND LTRIM(RTRIM(R.EXTSTAMP)) IN :exts
+                    GROUP BY R.EXTSTAMP, R.GROUPID
+                    HAVING SUM(CASE WHEN LTRIM(RTRIM(R.STAMP)) IN :stamps THEN 1 ELSE 0 END) > 0
+                """).bindparams(
+                    bindparam('stamps', expanding=True),
+                    bindparam('exts', expanding=True),
+                ), {'stamps': moved_stamps, 'exts': source_exts}).mappings().all()
+
+                conflicts = [g for g in touched_groups if int(g.get('TOTAL_EL') or 0) != int(g.get('MOVED_EL') or 0)]
+                if conflicts:
+                    return jsonify({
+                        'error': 'Existem reconciliações que misturam movimentos do mês escolhido com movimentos fora desse mês. Desfaça essas reconciliações antes de agrupar.'
+                    }), 400
+
+                affected_groups = [
+                    {
+                        'EXTSTAMP': (g.get('EXTSTAMP') or '').strip(),
+                        'GROUPID': int(g.get('GROUPID') or 0),
+                    }
+                    for g in touched_groups
+                    if int(g.get('GROUPID') or 0) > 0
+                ]
+
+            first_row = moved_rows[0]
+            last_row = moved_rows[-1]
+            data_ini = first_row.get('DATA')
+            data_fim = last_row.get('DATA')
+            saldo_ini = source_meta[0].get('SALDOINI') if source_meta else ''
+            saldo_fim = source_meta[-1].get('SALDOFIM') if source_meta else ''
+            new_extstamp = uuid.uuid4().hex[:25].upper()
+
+            db.session.execute(text("""
+                INSERT INTO dbo.EXT (EXTSTAMP, NOCONTA, DATAINI, DATAFIM, SALDOINI, SALDOFIM, RECONCILIADO)
+                VALUES (:s, :n, :di, :df, :si, :sf, 0)
+            """), {
+                's': new_extstamp,
+                'n': noconta,
+                'di': data_ini,
+                'df': data_fim,
+                'si': saldo_ini or '',
+                'sf': saldo_fim or '',
+            })
+
+            db.session.execute(text(f"""
+                UPDATE dbo.EL
+                SET EXTSTAMP = :new_ext
+                WHERE EXTSTAMP IN :exts
+                  AND LTRIM(RTRIM({stamp_col})) IN :stamps
+            """).bindparams(
+                bindparam('exts', expanding=True),
+                bindparam('stamps', expanding=True),
+            ), {'new_ext': new_extstamp, 'exts': source_exts, 'stamps': moved_stamps})
+
+            if affected_groups:
+                db.session.execute(text("""
+                    UPDATE dbo.REC
+                    SET EXTSTAMP = :new_ext
+                    WHERE EXTSTAMP = :old_ext
+                      AND GROUPID = :gid
+                """), [
+                    {'new_ext': new_extstamp, 'old_ext': g['EXTSTAMP'], 'gid': g['GROUPID']}
+                    for g in affected_groups
+                ])
+
+            def recalculate_ext(extstamp_value):
+                remaining = db.session.execute(text(f"""
+                    SELECT
+                        COUNT(1) AS N,
+                        MIN(CAST(EL.DATA AS date)) AS DATAINI,
+                        MAX(CAST(EL.DATA AS date)) AS DATAFIM
+                    FROM dbo.EL AS EL
+                    WHERE EL.EXTSTAMP = :s
+                """), {'s': extstamp_value}).mappings().first()
+                count_rows = int((remaining or {}).get('N') or 0)
+                if count_rows <= 0:
+                    if has_rec:
+                        db.session.execute(text("DELETE FROM dbo.REC WHERE EXTSTAMP = :s"), {'s': extstamp_value})
+                    db.session.execute(text("DELETE FROM dbo.EXT WHERE EXTSTAMP = :s"), {'s': extstamp_value})
+                    return
+
+                not_done = count_rows
+                if has_rec:
+                    not_done = int(db.session.execute(text(f"""
+                        SELECT COUNT(1) AS N
+                        FROM dbo.EL AS EL
+                        LEFT JOIN dbo.REC AS R
+                          ON R.EXTSTAMP = EL.EXTSTAMP
+                         AND R.ORIGEM = 'EL'
+                         AND LTRIM(RTRIM(R.STAMP)) = LTRIM(RTRIM(EL.{stamp_col}))
+                        WHERE EL.EXTSTAMP = :s
+                          AND R.RECSTAMP IS NULL
+                    """), {'s': extstamp_value}).scalar() or 0)
+
+                db.session.execute(text("""
+                    UPDATE dbo.EXT
+                    SET DATAINI = :di,
+                        DATAFIM = :df,
+                        RECONCILIADO = :rec
+                    WHERE EXTSTAMP = :s
+                """), {
+                    's': extstamp_value,
+                    'di': remaining.get('DATAINI'),
+                    'df': remaining.get('DATAFIM'),
+                    'rec': 1 if not_done == 0 else 0,
+                })
+
+            recalculate_ext(new_extstamp)
+            for src_extstamp in source_exts:
+                recalculate_ext(src_extstamp)
+
+            db.session.commit()
+            return jsonify({
+                'ok': True,
+                'EXTSTAMP': new_extstamp,
+                'moved_lines': len(moved_stamps),
+                'source_exts': len(source_exts),
+                'periodo': {
+                    'ANO': ano,
+                    'MES': mes,
+                },
+            })
+        except Exception as e:
+            db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/extratos/<extstamp>')

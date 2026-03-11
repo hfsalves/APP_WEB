@@ -4,132 +4,7 @@
 
 {% block title %}Reconciliação Bancária{% endblock %}
 
-{% block content %}
-<div class="sz_page rb_page">
-  <div class="sz_page_container rb_container">
-    <div class="sz_page_header sz_page_contextbar">
-      <div class="sz_contextbar rb_contextbar">
-        <div class="sz_contextbar_left rb_contextbar_left">
-          <div class="sz_page_title">Reconciliação Bancária</div>
-          <div class="sz_page_subtitle">Seleciona o extrato, revê os movimentos e executa a reconciliação.</div>
-        </div>
-        <div class="sz_contextbar_right rb_contextbar_right">
-          <div class="rb_filters_bar">
-            <div class="sz_field rb_filter_extrato">
-              <label class="sz_label" for="rbExtrato">Extrato</label>
-              <select class="sz_select" id="rbExtrato"></select>
-            </div>
-            <div class="sz_field rb_filter_small">
-              <label class="sz_label" for="rbConta">Conta</label>
-              <input class="sz_input" id="rbConta" disabled>
-            </div>
-            <div class="sz_field rb_filter_periodo">
-              <label class="sz_label" for="rbPeriodo">Período</label>
-              <input class="sz_input" id="rbPeriodo" disabled>
-            </div>
-            <label class="sz_checkbox rb_only_open" for="rbOnlyOpen">
-              <input type="checkbox" role="switch" id="rbOnlyOpen">
-              <span>Apenas pendentes</span>
-            </label>
-            <div class="rb_diff_box">
-              <div class="sz_caption">Diferença</div>
-              <div class="sz_h4 rb-diff" id="rbDiff">0,00</div>
-            </div>
-          </div>
-          <div class="rb_actions_bar">
-            <button type="button" class="sz_button sz_button_primary rb-btn" id="rbReconciliar" disabled>
-              <i class="fa-solid fa-link"></i> Reconciliar
-            </button>
-            <button type="button" class="sz_button sz_button_danger rb-btn" id="rbRemoveRec" disabled>
-              <i class="fa-solid fa-unlink"></i> Remover
-            </button>
-            <button type="button" class="sz_button sz_button_ghost rb-btn" id="rbCreateOW" disabled>
-              <i class="fa-solid fa-arrow-right-to-bracket"></i> Gerar OW
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sz_page_body rb_body">
-      <div class="rb_summary sz_text_sm">
-        <div>Selecionado EL: <span class="rb_summary_value" id="rbSumEl">0,00</span></div>
-        <div>Selecionado BA: <span class="rb_summary_value" id="rbSumBa">0,00</span></div>
-        <div id="rbStatus" class="ms-auto"></div>
-      </div>
-
-      <div class="row g-3 rb-split">
-        <div class="col-12 col-xl-6">
-          <div class="card border-0 shadow-sm h-100 rb-panel">
-            <div class="card-body">
-              <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                <div class="h6 mb-0">Banco (EL)</div>
-                <div class="input-group input-group-sm rb-search">
-                  <input class="form-control" id="rbSearchEl" placeholder="Pesquisar...">
-                  <button class="btn btn-outline-secondary" type="button" id="rbClearEl" title="Limpar">
-                    <i class="fa-solid fa-xmark"></i>
-                  </button>
-                </div>
-              </div>
-              <div class="rb-grid-wrap">
-                <table class="table table-sm table-hover align-middle mb-0 rb-table" id="rbTableEl">
-                  <thead class="table-light">
-                    <tr>
-                      <th style="width:38px;"></th>
-                      <th style="width:110px;">Data</th>
-                      <th style="width:110px;">Dt. Valor</th>
-                      <th>Descrição</th>
-                      <th class="text-end" style="width:120px;">Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-12 col-xl-6">
-          <div class="card border-0 shadow-sm h-100 rb-panel">
-            <div class="card-body">
-              <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                <div class="h6 mb-0">Tesouraria (BA)</div>
-                <div class="input-group input-group-sm rb-search">
-                  <input class="form-control" id="rbSearchBa" placeholder="Pesquisar...">
-                  <button class="btn btn-outline-secondary" type="button" id="rbClearBa" title="Limpar">
-                    <i class="fa-solid fa-xmark"></i>
-                  </button>
-                </div>
-              </div>
-              <div class="rb-grid-wrap">
-                <table class="table table-sm table-hover align-middle mb-0 rb-table" id="rbTableBa">
-                  <thead class="table-light">
-                    <tr>
-                      <th style="width:38px;"></th>
-                      <th style="width:110px;">Data</th>
-                      <th>Documento</th>
-                      <th>Descrição</th>
-                      <th class="text-end" style="width:120px;">Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="text-muted small mt-2">Valor BA = EENTRADA - ESAIDA</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
+{% block extra_head %}
 {{ super() }}
 <style>
   .rb_page {
@@ -205,6 +80,29 @@
   .rb_diff_box .sz_caption,
   .rb_diff_box .rb-diff {
     margin: 0;
+  }
+
+  .rb-group-modal_content {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border: 1px solid var(--sz-color-border);
+  }
+
+  .rb-group-modal_body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-4);
+  }
+
+  .rb-group-note {
+    padding: var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-elevated) 84%, transparent);
+  }
+
+  .rb-group-status {
+    min-height: 1.5rem;
   }
 
   .rb_body {
@@ -423,5 +321,199 @@
     }
   }
 </style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page rb_page">
+  <div class="sz_page_container rb_container">
+    <div class="sz_page_header sz_page_contextbar">
+      <div class="sz_contextbar rb_contextbar">
+        <div class="sz_contextbar_left rb_contextbar_left">
+          <div class="sz_page_title">Reconciliação Bancária</div>
+          <div class="sz_page_subtitle">Seleciona o extrato, revê os movimentos e executa a reconciliação.</div>
+        </div>
+        <div class="sz_contextbar_right rb_contextbar_right">
+          <div class="rb_filters_bar">
+            <div class="sz_field rb_filter_extrato">
+              <label class="sz_label" for="rbExtrato">Extrato</label>
+              <select class="sz_select" id="rbExtrato"></select>
+            </div>
+            <div class="sz_field rb_filter_small">
+              <label class="sz_label" for="rbConta">Conta</label>
+              <input class="sz_input" id="rbConta" disabled>
+            </div>
+            <div class="sz_field rb_filter_periodo">
+              <label class="sz_label" for="rbPeriodo">Período</label>
+              <input class="sz_input" id="rbPeriodo" disabled>
+            </div>
+            <label class="sz_checkbox rb_only_open" for="rbOnlyOpen">
+              <input type="checkbox" role="switch" id="rbOnlyOpen">
+              <span>Apenas pendentes</span>
+            </label>
+            <div class="rb_diff_box">
+              <div class="sz_caption">Diferença</div>
+              <div class="sz_h4 rb-diff" id="rbDiff">0,00</div>
+            </div>
+          </div>
+          <div class="rb_actions_bar">
+            <button type="button" class="sz_button sz_button_ghost rb-btn" id="rbGroupExtratos">
+              <i class="fa-solid fa-layer-group"></i> Agrupar estratos
+            </button>
+            <button type="button" class="sz_button sz_button_primary rb-btn" id="rbReconciliar" disabled>
+              <i class="fa-solid fa-link"></i> Reconciliar
+            </button>
+            <button type="button" class="sz_button sz_button_danger rb-btn" id="rbRemoveRec" disabled>
+              <i class="fa-solid fa-unlink"></i> Remover
+            </button>
+            <button type="button" class="sz_button sz_button_ghost rb-btn" id="rbCreateOW" disabled>
+              <i class="fa-solid fa-arrow-right-to-bracket"></i> Gerar OW
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sz_page_body rb_body">
+      <div class="rb_summary sz_text_sm">
+        <div>Selecionado EL: <span class="rb_summary_value" id="rbSumEl">0,00</span></div>
+        <div>Selecionado BA: <span class="rb_summary_value" id="rbSumBa">0,00</span></div>
+        <div id="rbStatus" class="ms-auto"></div>
+      </div>
+
+      <div class="row g-3 rb-split">
+        <div class="col-12 col-xl-6">
+          <div class="card border-0 shadow-sm h-100 rb-panel">
+            <div class="card-body">
+              <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <div class="h6 mb-0">Banco (EL)</div>
+                <div class="input-group input-group-sm rb-search">
+                  <input class="form-control" id="rbSearchEl" placeholder="Pesquisar...">
+                  <button class="btn btn-outline-secondary" type="button" id="rbClearEl" title="Limpar">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="rb-grid-wrap">
+                <table class="table table-sm table-hover align-middle mb-0 rb-table" id="rbTableEl">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width:38px;"></th>
+                      <th style="width:110px;">Data</th>
+                      <th style="width:110px;">Dt. Valor</th>
+                      <th>Descrição</th>
+                      <th class="text-end" style="width:120px;">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+          <div class="card border-0 shadow-sm h-100 rb-panel">
+            <div class="card-body">
+              <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <div class="h6 mb-0">Tesouraria (BA)</div>
+                <div class="input-group input-group-sm rb-search">
+                  <input class="form-control" id="rbSearchBa" placeholder="Pesquisar...">
+                  <button class="btn btn-outline-secondary" type="button" id="rbClearBa" title="Limpar">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="rb-grid-wrap">
+                <table class="table table-sm table-hover align-middle mb-0 rb-table" id="rbTableBa">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width:38px;"></th>
+                      <th style="width:110px;">Data</th>
+                      <th>Documento</th>
+                      <th>Descrição</th>
+                      <th class="text-end" style="width:120px;">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="text-muted small mt-2">Valor BA = EENTRADA - ESAIDA</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="rbGroupModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content rb-group-modal_content">
+      <div class="modal-header sz_modal_header rb-group-modal_header">
+        <div>
+          <div class="sz_modal_title">Agrupar estratos</div>
+          <div class="sz_text_sm text-muted">Cria um estrato único para a conta e período escolhidos, movendo os movimentos desse mês.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body rb-group-modal_body">
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="sz_field">
+              <label class="sz_label" for="rbGroupConta">Conta bancária</label>
+              <select class="sz_select" id="rbGroupConta"></select>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="sz_field">
+              <label class="sz_label" for="rbGroupAno">Ano</label>
+              <input class="sz_input" id="rbGroupAno" type="number" min="2000" max="2100" step="1">
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="sz_field">
+              <label class="sz_label" for="rbGroupMes">Mês</label>
+              <select class="sz_select" id="rbGroupMes">
+                <option value="1">Janeiro</option>
+                <option value="2">Fevereiro</option>
+                <option value="3">Março</option>
+                <option value="4">Abril</option>
+                <option value="5">Maio</option>
+                <option value="6">Junho</option>
+                <option value="7">Julho</option>
+                <option value="8">Agosto</option>
+                <option value="9">Setembro</option>
+                <option value="10">Outubro</option>
+                <option value="11">Novembro</option>
+                <option value="12">Dezembro</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="rb-group-note">
+          <div class="sz_caption">Como funciona</div>
+          <div class="sz_text_sm text-muted">
+            Os movimentos EL do mês escolhido passam para um novo estrato único. Os restantes movimentos ficam nos estratos onde já estão.
+          </div>
+        </div>
+        <div class="rb-group-status sz_text_sm text-muted" id="rbGroupStatus"></div>
+      </div>
+      <div class="modal-footer sz_modal_footer rb-group-modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="sz_button sz_button_primary" id="rbGroupSubmit">
+          <i class="fa-solid fa-layer-group"></i> Agrupar estratos
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
 <script src="{{ url_for('static', filename='js/reconciliacao_bancaria.js') }}?v={{ static_version }}"></script>
 {% endblock %}

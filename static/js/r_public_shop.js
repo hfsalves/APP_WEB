@@ -36,7 +36,11 @@
       cart_empty_title: "Ainda nao adicionaste nada",
       cart_empty_text: "Explora os artigos e adiciona o que precisares para encontrares tudo pronto a chegada.",
       checkout_cta: "Avancar para checkout",
-      checkout_pending: "Fluxo Stripe preparado no frontend e pendente de integracao backend.",
+      checkout_pending: "Nao foi possivel iniciar o checkout Stripe.",
+      checkout_redirecting: "A redirecionar para o checkout Stripe...",
+      checkout_pending_confirmation: "A confirmar o pagamento...",
+      checkout_success: "Pagamento confirmado com sucesso.",
+      checkout_cancelled: "Checkout cancelado. O carrinho continua disponivel.",
       added_to_cart: "Adicionado ao carrinho.",
       unavailable_cta: "Fora da janela de compra",
       error_loading: "Nao foi possivel carregar a loja neste momento.",
@@ -72,7 +76,11 @@
       cart_empty_title: "You have not added anything yet",
       cart_empty_text: "Browse the items and add whatever you need so it is ready on arrival.",
       checkout_cta: "Continue to checkout",
-      checkout_pending: "Stripe flow is prepared on the frontend and pending backend integration.",
+      checkout_pending: "Could not start Stripe checkout.",
+      checkout_redirecting: "Redirecting to Stripe checkout...",
+      checkout_pending_confirmation: "Confirming payment...",
+      checkout_success: "Payment confirmed successfully.",
+      checkout_cancelled: "Checkout cancelled. Your cart is still available.",
       added_to_cart: "Added to cart.",
       unavailable_cta: "Ordering window closed",
       error_loading: "The shop could not be loaded right now.",
@@ -108,7 +116,11 @@
       cart_empty_title: "Vous n avez encore rien ajoute",
       cart_empty_text: "Parcourez les articles et ajoutez ce dont vous avez besoin pour tout trouver pret a l arrivee.",
       checkout_cta: "Continuer vers le paiement",
-      checkout_pending: "Le flux Stripe est prepare cote frontend et attend l integration backend.",
+      checkout_pending: "Impossible de lancer le paiement Stripe.",
+      checkout_redirecting: "Redirection vers le paiement Stripe...",
+      checkout_pending_confirmation: "Confirmation du paiement...",
+      checkout_success: "Paiement confirme avec succes.",
+      checkout_cancelled: "Paiement annule. Votre panier reste disponible.",
       added_to_cart: "Ajoute au panier.",
       unavailable_cta: "Hors delai de commande",
       error_loading: "Impossible de charger la boutique pour le moment.",
@@ -144,7 +156,11 @@
       cart_empty_title: "Todavia no has anadido nada",
       cart_empty_text: "Explora los articulos y anade lo que necesites para encontrarlo todo listo a tu llegada.",
       checkout_cta: "Avanzar al pago",
-      checkout_pending: "El flujo Stripe esta preparado en frontend y pendiente de integracion backend.",
+      checkout_pending: "No se pudo iniciar el checkout de Stripe.",
+      checkout_redirecting: "Redirigiendo al checkout de Stripe...",
+      checkout_pending_confirmation: "Confirmando pago...",
+      checkout_success: "Pago confirmado correctamente.",
+      checkout_cancelled: "Checkout cancelado. Tu carrito sigue disponible.",
       added_to_cart: "Anadido al carrito.",
       unavailable_cta: "Fuera de plazo de compra",
       error_loading: "No se pudo cargar la tienda ahora mismo.",
@@ -663,15 +679,17 @@
     const selectedVariant = variantForProduct(product, state.currentVariantId);
     const selectedVariantId = normalizeVariantId(selectedVariant?.id);
     const pending = isProductPending(product.code, selectedVariantId);
-    if (els.productHero) els.productHero.style.cssText = `${accentStyle(product.accent)} min-height:220px;`;
+    const imageUrl = String(product.image_url || "").trim();
+    if (els.productHero) {
+      els.productHero.style.cssText = `${accentStyle(product.accent)} min-height:246px;`;
+      els.productHero.classList.toggle("is-image", !!imageUrl);
+    }
     if (els.productHeroIcon) {
-      const imageUrl = String(product.image_url || "").trim();
       els.productHeroIcon.innerHTML = imageUrl
         ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(localizedProductField(product, "name") || localizedProductField(product, "title"))}" loading="eager">`
         : `<i class="fa-solid ${escapeHtml(product.icon)}"></i>`;
     }
     if (els.productHeroIcon) {
-      const imageUrl = String(product.image_url || "").trim();
       els.productHeroIcon.classList.toggle("is-image", !!imageUrl);
       els.productHeroIcon.style.cssText = accentStyle(product.accent);
     }
@@ -835,15 +853,76 @@
   }
 
   async function submitCheckout() {
+    if (els.checkoutBtn) els.checkoutBtn.disabled = true;
     if (els.checkoutMsg) els.checkoutMsg.textContent = "";
     try {
       const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lang: currentLang() }),
       });
+      if (data.checkout_url) {
+        if (els.checkoutMsg) els.checkoutMsg.textContent = data.message || t("checkout_redirecting");
+        window.setTimeout(() => {
+          window.location.assign(String(data.checkout_url));
+        }, 120);
+        return;
+      }
       if (els.checkoutMsg) els.checkoutMsg.textContent = data.message || t("checkout_pending");
     } catch (error) {
       if (els.checkoutMsg) els.checkoutMsg.textContent = error.message || t("checkout_pending");
+    } finally {
+      if (els.checkoutBtn) els.checkoutBtn.disabled = false;
+    }
+  }
+
+  async function handleCheckoutReturn() {
+    const params = new URLSearchParams(window.location.search || "");
+    const checkoutState = String(params.get("checkout") || "").trim().toLowerCase();
+    const sessionId = String(params.get("session_id") || "").trim();
+    if (!checkoutState) return;
+
+    const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
+    const cleanupUrl = () => {
+      try {
+        window.history.replaceState({}, document.title, cleanUrl);
+      } catch (_) {
+        // noop
+      }
+    };
+
+    if (checkoutState === "cancel") {
+      if (els.checkoutMsg) els.checkoutMsg.textContent = t("checkout_cancelled");
+      openSheet("cart");
+      cleanupUrl();
+      return;
+    }
+
+    if (checkoutState !== "success" || !sessionId) {
+      cleanupUrl();
+      return;
+    }
+
+    if (els.checkoutMsg) els.checkoutMsg.textContent = t("checkout_pending_confirmation");
+    try {
+      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/checkout/confirm?session_id=${encodeURIComponent(sessionId)}`);
+      state.cart = data.cart || state.cart;
+      state.shopState = data.shop_state || state.shopState;
+      renderStateBanner();
+      renderCart();
+      renderCurrentProduct();
+      if (els.checkoutMsg) {
+        els.checkoutMsg.textContent = data.message || (String(data.status || "").toLowerCase() === "paid" ? t("checkout_success") : t("checkout_pending_confirmation"));
+      }
+      if (String(data.status || "").toLowerCase() === "paid") {
+        triggerCartFeedback();
+      }
+      openSheet("cart");
+    } catch (error) {
+      if (els.checkoutMsg) els.checkoutMsg.textContent = error.message || t("checkout_pending");
+      openSheet("cart");
+    } finally {
+      cleanupUrl();
     }
   }
 
@@ -1024,7 +1103,12 @@
     }
   });
 
-  applyLanguage(currentLang());
-  updateStickyMetrics();
-  loadBootstrap();
+  async function init() {
+    applyLanguage(currentLang());
+    updateStickyMetrics();
+    await loadBootstrap();
+    await handleCheckoutReturn();
+  }
+
+  init();
 })();
