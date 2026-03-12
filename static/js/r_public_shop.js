@@ -12,9 +12,9 @@
   const I18N = {
     pt: {
       btn_back: "Voltar",
-      hero_kicker: "Chegada preparada",
-      hero_title: "Itens a adicionar a sua chegada",
-      hero_subtitle: "Escolhe pequenos extras para encontrares tudo pronto quando entrares no alojamento.",
+      hero_kicker: "Shop da estadia",
+      hero_title: "Encomendas durante a estadia",
+      hero_subtitle: "Escolhe entrega gratuita ou express e recebe os artigos no momento certo da tua reserva.",
       label_reservation: "Reserva",
       label_checkin: "Check-in",
       loading: "A carregar loja...",
@@ -33,8 +33,21 @@
       product_variants: "Variantes",
       cart_title: "Carrinho",
       cart_total: "Total",
+      delivery_title: "Entrega",
+      delivery_sheet_title: "Escolhe a entrega",
+      delivery_sheet_hint: "Seleciona como queres receber a encomenda antes de seguir para o checkout.",
+      delivery_total: "Total com entrega",
+      delivery_continue_checkout: "Continuar para checkout",
+      delivery_option_free: "Entrega gratuita",
+      delivery_option_express: "Entrega express",
+      delivery_window_before_checkin: "Colocamos tudo no alojamento antes do check-in.",
+      delivery_window_next_morning: "Entregamos no dia seguinte de manha com a nossa chave.",
+      delivery_window_scheduled_1h: "Entrega entre {start} e {end}.",
+      delivery_presence_required: "Tens de estar no alojamento para receber o estafeta.",
+      delivery_presence_not_required: "Nao precisas de estar no alojamento.",
+      delivery_unavailable: "Neste momento nao existe nenhuma modalidade de entrega disponivel.",
       cart_empty_title: "Ainda nao adicionaste nada",
-      cart_empty_text: "Explora os artigos e adiciona o que precisares para encontrares tudo pronto a chegada.",
+      cart_empty_text: "Explora os artigos e adiciona o que precisares para a tua estadia.",
       checkout_cta: "Avancar para checkout",
       checkout_pending: "Nao foi possivel iniciar o checkout Stripe.",
       checkout_redirecting: "A redirecionar para o checkout Stripe...",
@@ -52,9 +65,9 @@
     },
     en: {
       btn_back: "Back",
-      hero_kicker: "Arrival ready",
-      hero_title: "Items to add before you arrive",
-      hero_subtitle: "Choose a few extras so everything is ready when you enter the property.",
+      hero_kicker: "Stay shop",
+      hero_title: "Orders during your stay",
+      hero_subtitle: "Choose free or express delivery and receive your items at the right moment of your reservation.",
       label_reservation: "Reservation",
       label_checkin: "Check-in",
       loading: "Loading shop...",
@@ -73,8 +86,21 @@
       product_variants: "Variants",
       cart_title: "Cart",
       cart_total: "Total",
+      delivery_title: "Delivery",
+      delivery_sheet_title: "Choose delivery",
+      delivery_sheet_hint: "Select how you want to receive the order before continuing to checkout.",
+      delivery_total: "Total with delivery",
+      delivery_continue_checkout: "Continue to checkout",
+      delivery_option_free: "Free delivery",
+      delivery_option_express: "Express delivery",
+      delivery_window_before_checkin: "We place everything in the property before check-in.",
+      delivery_window_next_morning: "We deliver the next morning using our own key.",
+      delivery_window_scheduled_1h: "Delivery between {start} and {end}.",
+      delivery_presence_required: "You need to be at the property to receive the courier.",
+      delivery_presence_not_required: "You do not need to be at the property.",
+      delivery_unavailable: "There is no delivery method available right now.",
       cart_empty_title: "You have not added anything yet",
-      cart_empty_text: "Browse the items and add whatever you need so it is ready on arrival.",
+      cart_empty_text: "Browse the items and add whatever you need for your stay.",
       checkout_cta: "Continue to checkout",
       checkout_pending: "Could not start Stripe checkout.",
       checkout_redirecting: "Redirecting to Stripe checkout...",
@@ -92,9 +118,9 @@
     },
     fr: {
       btn_back: "Retour",
-      hero_kicker: "Arrivee preparee",
-      hero_title: "Articles a ajouter avant votre arrivee",
-      hero_subtitle: "Choisissez quelques extras pour tout trouver pret en entrant dans le logement.",
+      hero_kicker: "Boutique du sejour",
+      hero_title: "Commandes pendant le sejour",
+      hero_subtitle: "Choisissez la livraison gratuite ou express et recevez vos articles au bon moment de votre reservation.",
       label_reservation: "Reservation",
       label_checkin: "Check-in",
       loading: "Chargement de la boutique...",
@@ -113,8 +139,21 @@
       product_variants: "Variantes",
       cart_title: "Panier",
       cart_total: "Total",
+      delivery_title: "Livraison",
+      delivery_sheet_title: "Choisissez la livraison",
+      delivery_sheet_hint: "Selectionnez comment vous souhaitez recevoir la commande avant de passer au paiement.",
+      delivery_total: "Total avec livraison",
+      delivery_continue_checkout: "Continuer vers le paiement",
+      delivery_option_free: "Livraison gratuite",
+      delivery_option_express: "Livraison express",
+      delivery_window_before_checkin: "Nous deposons tout dans le logement avant le check-in.",
+      delivery_window_next_morning: "Nous livrons le lendemain matin avec notre propre cle.",
+      delivery_window_scheduled_1h: "Livraison entre {start} et {end}.",
+      delivery_presence_required: "Vous devez etre sur place pour recevoir le coursier.",
+      delivery_presence_not_required: "Vous n avez pas besoin d etre sur place.",
+      delivery_unavailable: "Aucun mode de livraison n est disponible pour le moment.",
       cart_empty_title: "Vous n avez encore rien ajoute",
-      cart_empty_text: "Parcourez les articles et ajoutez ce dont vous avez besoin pour tout trouver pret a l arrivee.",
+      cart_empty_text: "Parcourez les articles et ajoutez ce dont vous avez besoin pour votre sejour.",
       checkout_cta: "Continuer vers le paiement",
       checkout_pending: "Impossible de lancer le paiement Stripe.",
       checkout_redirecting: "Redirection vers le paiement Stripe...",
@@ -132,9 +171,9 @@
     },
     es: {
       btn_back: "Volver",
-      hero_kicker: "Llegada preparada",
-      hero_title: "Articulos para anadir a tu llegada",
-      hero_subtitle: "Elige pequenos extras para encontrar todo listo al entrar en el alojamiento.",
+      hero_kicker: "Tienda de la estancia",
+      hero_title: "Pedidos durante la estancia",
+      hero_subtitle: "Elige entrega gratuita o express y recibe tus articulos en el momento adecuado de tu reserva.",
       label_reservation: "Reserva",
       label_checkin: "Check-in",
       loading: "Cargando tienda...",
@@ -153,8 +192,21 @@
       product_variants: "Variantes",
       cart_title: "Carrito",
       cart_total: "Total",
+      delivery_title: "Entrega",
+      delivery_sheet_title: "Elige la entrega",
+      delivery_sheet_hint: "Selecciona como quieres recibir el pedido antes de continuar al checkout.",
+      delivery_total: "Total con entrega",
+      delivery_continue_checkout: "Continuar al checkout",
+      delivery_option_free: "Entrega gratuita",
+      delivery_option_express: "Entrega express",
+      delivery_window_before_checkin: "Dejamos todo en el alojamiento antes del check-in.",
+      delivery_window_next_morning: "Entregamos a la manana siguiente con nuestra llave.",
+      delivery_window_scheduled_1h: "Entrega entre {start} y {end}.",
+      delivery_presence_required: "Tienes que estar en el alojamiento para recibir al mensajero.",
+      delivery_presence_not_required: "No necesitas estar en el alojamiento.",
+      delivery_unavailable: "Ahora mismo no hay ninguna modalidad de entrega disponible.",
       cart_empty_title: "Todavia no has anadido nada",
-      cart_empty_text: "Explora los articulos y anade lo que necesites para encontrarlo todo listo a tu llegada.",
+      cart_empty_text: "Explora los articulos y anade lo que necesites para tu estancia.",
       checkout_cta: "Avanzar al pago",
       checkout_pending: "No se pudo iniciar el checkout de Stripe.",
       checkout_redirecting: "Redirigiendo al checkout de Stripe...",
@@ -211,6 +263,11 @@
     cartTotalValue: document.getElementById("cartTotalValue"),
     checkoutBtn: document.getElementById("checkoutBtn"),
     checkoutMsg: document.getElementById("checkoutMsg"),
+    deliverySheet: document.getElementById("deliverySheet"),
+    deliveryOptions: document.getElementById("deliveryOptions"),
+    deliveryTotalValue: document.getElementById("deliveryTotalValue"),
+    deliveryConfirmBtn: document.getElementById("deliveryConfirmBtn"),
+    deliveryMsg: document.getElementById("deliveryMsg"),
   };
 
   const state = {
@@ -228,6 +285,7 @@
     currentProduct: null,
     currentVariantId: null,
     currentQuantity: 1,
+    selectedDeliveryMethod: "",
     loading: true,
     error: "",
     observer: null,
@@ -292,6 +350,98 @@
   function accentStyle(accent) {
     const safe = String(accent || "#2563eb");
     return `background: linear-gradient(135deg, ${safe}, rgba(14,165,233,0.86));`;
+  }
+
+  function deliveryOptions() {
+    return Array.isArray(state.shopState?.delivery_options) ? state.shopState.delivery_options : [];
+  }
+
+  function selectedDeliveryOption() {
+    const wanted = String(state.selectedDeliveryMethod || "").trim().toUpperCase();
+    const options = deliveryOptions();
+    return options.find((item) => String(item.code || "").trim().toUpperCase() === wanted) || null;
+  }
+
+  function ensureDeliverySelection() {
+    const options = deliveryOptions();
+    const current = selectedDeliveryOption();
+    if (current) return current;
+    const fallback = options.find((item) => item.is_default) || options[0] || null;
+    state.selectedDeliveryMethod = fallback ? String(fallback.code || "").trim().toUpperCase() : "";
+    return fallback;
+  }
+
+  function deliveryOptionLabel(option) {
+    const code = String(option?.code || "").trim().toUpperCase();
+    if (code === "EXPRESS") return t("delivery_option_express");
+    if (code === "FREE") return t("delivery_option_free");
+    return code;
+  }
+
+  function deliveryOptionWindow(option) {
+    const windowCode = String(option?.window_code || "").trim().toLowerCase();
+    if (windowCode === "before_checkin") return t("delivery_window_before_checkin");
+    if (windowCode === "next_morning") return t("delivery_window_next_morning");
+    if (windowCode === "scheduled_1h") {
+      const start = formatDeliveryPoint(option?.window_start, false);
+      const end = formatDeliveryPoint(option?.window_end, true);
+      return t("delivery_window_scheduled_1h", { start, end });
+    }
+    return "";
+  }
+
+  function deliveryOptionPresence(option) {
+    return option?.requires_presence ? t("delivery_presence_required") : t("delivery_presence_not_required");
+  }
+
+  function cartGrandTotal() {
+    const deliveryFee = Number(selectedDeliveryOption()?.price || 0);
+    return Number(state.cart?.total || 0) + deliveryFee;
+  }
+
+  function formatDeliveryPoint(value, timeOnlyWhenSameDay) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const dateObj = new Date(raw);
+    if (Number.isNaN(dateObj.getTime())) return raw;
+    const locale = LOCALES[currentLang()] || "pt-PT";
+    const options = timeOnlyWhenSameDay
+      ? { hour: "2-digit", minute: "2-digit" }
+      : { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" };
+    return new Intl.DateTimeFormat(locale, options).format(dateObj);
+  }
+
+  function renderDeliverySheet() {
+    const cart = state.cart || { items: [], total: 0, currency: "EUR" };
+    const options = deliveryOptions();
+    const deliveryOption = ensureDeliverySelection();
+    if (els.deliveryOptions) {
+      els.deliveryOptions.innerHTML = options.length
+        ? options.map((option) => {
+            const code = String(option.code || "").trim().toUpperCase();
+            const checked = deliveryOption && code === String(deliveryOption.code || "").trim().toUpperCase();
+            return `
+              <label class="shop-delivery-option${checked ? " is-active" : ""}">
+                <input type="radio" name="shopDeliveryMethod" value="${escapeHtml(code)}" ${checked ? "checked" : ""}>
+                <div class="shop-delivery-option-copy">
+                  <div class="shop-delivery-option-head">
+                    <strong>${escapeHtml(deliveryOptionLabel(option))}</strong>
+                    <span>${escapeHtml(formatCurrency(option.price || 0, cart.currency || "EUR"))}</span>
+                  </div>
+                  <div class="shop-delivery-option-text">${escapeHtml(deliveryOptionWindow(option))}</div>
+                  <div class="shop-delivery-option-note">${escapeHtml(deliveryOptionPresence(option))}</div>
+                </div>
+              </label>
+            `;
+          }).join("")
+        : `<div class="shop-delivery-empty">${escapeHtml(t("delivery_unavailable"))}</div>`;
+    }
+    if (els.deliveryTotalValue) {
+      els.deliveryTotalValue.textContent = formatCurrency(cartGrandTotal(), cart.currency || "EUR");
+    }
+    if (els.deliveryConfirmBtn) {
+      els.deliveryConfirmBtn.disabled = !deliveryOption || !state.shopState.is_available || !cart.items?.length;
+    }
   }
 
   function renderProductThumb(product, extraClass) {
@@ -495,9 +645,10 @@
     }
     if (els.stateText) {
       const deadline = state.shopState.deadline_label || "";
-      els.stateText.textContent = deadline
-        ? t(state.shopState.is_available ? "state_open_text" : "state_closed_text", { deadline })
-        : (state.shopState.message || "");
+      els.stateText.textContent = state.shopState.message
+        || (deadline
+          ? t(state.shopState.is_available ? "state_open_text" : "state_closed_text", { deadline })
+          : "");
     }
   }
 
@@ -612,7 +763,6 @@
   function renderCart() {
     const cart = state.cart || { items: [], total_quantity: 0, total: 0, currency: "EUR" };
     const hasItems = Array.isArray(cart.items) && cart.items.length > 0;
-
     if (els.cartBar) {
       const keepVisible = els.cartBar.classList.contains("is-feedback");
       els.cartBar.classList.toggle("d-none", !hasItems && !keepVisible);
@@ -652,13 +802,15 @@
       `).join("") : "";
     }
     if (els.checkoutBtn) {
-      els.checkoutBtn.disabled = !hasItems || !state.shopState.is_available;
-      if (!state.shopState.is_available) {
+      const hasDeliveryOptions = deliveryOptions().length > 0;
+      els.checkoutBtn.disabled = !hasItems || !state.shopState.is_available || !hasDeliveryOptions;
+      if (!state.shopState.is_available || !hasDeliveryOptions) {
         els.checkoutBtn.textContent = t("unavailable_cta");
       } else {
         els.checkoutBtn.textContent = t("checkout_cta");
       }
     }
+    renderDeliverySheet();
   }
 
   function wait(ms) {
@@ -732,6 +884,11 @@
       els.cartSheet.classList.add("is-open");
       els.cartSheet.setAttribute("aria-hidden", "false");
     }
+    if (which === "delivery" && els.deliverySheet) {
+      els.deliverySheet.classList.add("is-open");
+      els.deliverySheet.setAttribute("aria-hidden", "false");
+      renderDeliverySheet();
+    }
     document.body.style.overflow = "hidden";
   }
 
@@ -743,6 +900,10 @@
     if (which === "cart" && els.cartSheet) {
       els.cartSheet.classList.remove("is-open");
       els.cartSheet.setAttribute("aria-hidden", "true");
+    }
+    if (which === "delivery" && els.deliverySheet) {
+      els.deliverySheet.classList.remove("is-open");
+      els.deliverySheet.setAttribute("aria-hidden", "true");
     }
     if (!document.querySelector(".shop-sheet.is-open")) {
       document.body.style.overflow = "";
@@ -780,6 +941,8 @@
         state.productsByCode[product.code] = product;
       });
       state.cart = data.cart || state.cart;
+      state.selectedDeliveryMethod = String(state.shopState?.default_delivery_method || state.selectedDeliveryMethod || "").trim().toUpperCase();
+      ensureDeliverySelection();
       state.activeFamily = state.activeFamily || (state.families[0] ? state.families[0].code : "");
       renderStateBanner();
       renderFamilies();
@@ -839,6 +1002,10 @@
       });
       state.cart = data.cart || state.cart;
       state.shopState = data.shop_state || state.shopState;
+      if (!selectedDeliveryOption()) {
+        state.selectedDeliveryMethod = String(state.shopState?.default_delivery_method || "").trim().toUpperCase();
+      }
+      ensureDeliverySelection();
       renderStateBanner();
       renderCart();
       renderCurrentProduct();
@@ -853,26 +1020,35 @@
   }
 
   async function submitCheckout() {
-    if (els.checkoutBtn) els.checkoutBtn.disabled = true;
-    if (els.checkoutMsg) els.checkoutMsg.textContent = "";
+    const deliveryOption = ensureDeliverySelection();
+    if (els.deliveryConfirmBtn) els.deliveryConfirmBtn.disabled = true;
+    if (els.deliveryMsg) els.deliveryMsg.textContent = "";
+    if (!deliveryOption) {
+      if (els.deliveryMsg) els.deliveryMsg.textContent = t("delivery_unavailable");
+      if (els.deliveryConfirmBtn) els.deliveryConfirmBtn.disabled = false;
+      return;
+    }
     try {
       const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lang: currentLang() }),
+        body: JSON.stringify({
+          lang: currentLang(),
+          delivery_method: String(deliveryOption.code || "").trim().toUpperCase(),
+        }),
       });
       if (data.checkout_url) {
-        if (els.checkoutMsg) els.checkoutMsg.textContent = data.message || t("checkout_redirecting");
+        if (els.deliveryMsg) els.deliveryMsg.textContent = data.message || t("checkout_redirecting");
         window.setTimeout(() => {
           window.location.assign(String(data.checkout_url));
         }, 120);
         return;
       }
-      if (els.checkoutMsg) els.checkoutMsg.textContent = data.message || t("checkout_pending");
+      if (els.deliveryMsg) els.deliveryMsg.textContent = data.message || t("checkout_pending");
     } catch (error) {
-      if (els.checkoutMsg) els.checkoutMsg.textContent = error.message || t("checkout_pending");
+      if (els.deliveryMsg) els.deliveryMsg.textContent = error.message || t("checkout_pending");
     } finally {
-      if (els.checkoutBtn) els.checkoutBtn.disabled = false;
+      if (els.deliveryConfirmBtn) els.deliveryConfirmBtn.disabled = false;
     }
   }
 
@@ -893,6 +1069,7 @@
 
     if (checkoutState === "cancel") {
       if (els.checkoutMsg) els.checkoutMsg.textContent = t("checkout_cancelled");
+      if (els.deliveryMsg) els.deliveryMsg.textContent = "";
       openSheet("cart");
       cleanupUrl();
       return;
@@ -904,10 +1081,15 @@
     }
 
     if (els.checkoutMsg) els.checkoutMsg.textContent = t("checkout_pending_confirmation");
+    if (els.deliveryMsg) els.deliveryMsg.textContent = "";
     try {
       const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/checkout/confirm?session_id=${encodeURIComponent(sessionId)}`);
       state.cart = data.cart || state.cart;
       state.shopState = data.shop_state || state.shopState;
+      if (!selectedDeliveryOption()) {
+        state.selectedDeliveryMethod = String(state.shopState?.default_delivery_method || "").trim().toUpperCase();
+      }
+      ensureDeliverySelection();
       renderStateBanner();
       renderCart();
       renderCurrentProduct();
@@ -1037,6 +1219,13 @@
     }
   });
 
+  document.addEventListener("change", (event) => {
+    const deliveryInput = event.target.closest('input[name="shopDeliveryMethod"]');
+    if (!deliveryInput) return;
+    state.selectedDeliveryMethod = String(deliveryInput.value || "").trim().toUpperCase();
+    renderDeliverySheet();
+  });
+
   if (els.productQtyMinus) {
     els.productQtyMinus.addEventListener("click", () => {
       state.currentQuantity = Math.max(1, Number(state.currentQuantity || 1) - 1);
@@ -1080,7 +1269,20 @@
   }
 
   if (els.checkoutBtn) {
-    els.checkoutBtn.addEventListener("click", submitCheckout);
+    els.checkoutBtn.addEventListener("click", () => {
+      if (!state.cart?.items?.length || !state.shopState.is_available || !deliveryOptions().length) {
+        renderCart();
+        return;
+      }
+      if (els.checkoutMsg) els.checkoutMsg.textContent = "";
+      if (els.deliveryMsg) els.deliveryMsg.textContent = "";
+      closeSheet("cart");
+      openSheet("delivery");
+    });
+  }
+
+  if (els.deliveryConfirmBtn) {
+    els.deliveryConfirmBtn.addEventListener("click", submitCheckout);
   }
 
   window.addEventListener("resize", () => {
@@ -1092,6 +1294,7 @@
     if (event.key === "Escape") {
       closeSheet("product");
       closeSheet("cart");
+      closeSheet("delivery");
       return;
     }
     if (event.key === "Enter" || event.key === " ") {

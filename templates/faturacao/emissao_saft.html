@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+{% set page_title = "Emissão SAF-T" %}
+
+{% block title %}Emissão SAF-T{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+  .saft-page {
+    width: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-2) var(--sz-space-4) var(--sz-space-3);
+    background: var(--sz-color-bg-main);
+    color: var(--sz-color-text);
+  }
+
+  .saft-contextbar {
+    align-items: flex-start;
+  }
+
+  .saft-contextbar-left {
+    flex: 0 1 320px;
+    min-width: 240px;
+    max-width: 320px;
+    width: auto;
+  }
+
+  .saft-contextbar-right {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .saft-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--sz-space-3);
+    width: 100%;
+  }
+
+  .saft-field {
+    min-width: 150px;
+    margin-bottom: 0;
+  }
+
+  .saft-field-wide {
+    min-width: 200px;
+  }
+
+  .saft-actions {
+    display: inline-flex;
+    gap: var(--sz-space-2);
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+
+  .saft-message {
+    display: none;
+    padding: var(--sz-space-3) var(--sz-space-4);
+    border-radius: var(--sz-radius-md);
+    border: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    box-shadow: var(--sz-shadow-1);
+  }
+
+  .saft-message.is-visible {
+    display: block;
+  }
+
+  .saft-message.is-success {
+    border-color: color-mix(in srgb, var(--sz-color-success) 35%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-success) 10%, var(--sz-color-surface));
+  }
+
+  .saft-message.is-danger {
+    border-color: color-mix(in srgb, var(--sz-color-danger) 35%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-danger) 10%, var(--sz-color-surface));
+  }
+
+  .saft-body {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    align-content: start;
+  }
+
+  .saft-metrics {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+  }
+
+  .saft-metric {
+    padding: var(--sz-space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-2);
+  }
+
+  .saft-metric_label {
+    font-size: var(--sz-font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--sz-color-text-muted);
+  }
+
+  .saft-metric_value {
+    font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+  }
+
+  .saft-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-4);
+  }
+
+  .saft-panel_head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+  }
+
+  .saft-panel_title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+  }
+
+  .saft-warnings {
+    color: var(--sz-color-text-muted);
+  }
+
+  .saft-warnings ul {
+    margin: 0;
+    padding-left: 1.2rem;
+  }
+
+  .saft-warnings li + li {
+    margin-top: .35rem;
+  }
+
+  @media (max-width: 1200px) {
+    .saft-metrics {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 900px) {
+    .saft-page {
+      padding-inline: var(--sz-space-3);
+    }
+
+    .saft-contextbar-right {
+      justify-content: stretch;
+    }
+
+    .saft-filters {
+      justify-content: stretch;
+    }
+
+    .saft-field,
+    .saft-field-wide,
+    .saft-actions {
+      width: 100%;
+    }
+
+    .saft-actions {
+      justify-content: stretch;
+    }
+
+    .saft-actions .sz_button {
+      flex: 1 1 0;
+      justify-content: center;
+    }
+
+    .saft-metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .saft-metrics {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page saft-page">
+  <header class="sz_contextbar saft-contextbar">
+    <div class="sz_contextbar_left saft-contextbar-left">
+      <h1 class="sz_page_title">Emissão SAF-T</h1>
+      <p class="sz_page_subtitle">Exportação manual SAF-T(PT) de vendas com base nos documentos emitidos e certificados.</p>
+    </div>
+
+    <div class="sz_contextbar_right saft-contextbar-right">
+      <form id="saftForm" class="saft-filters" onsubmit="return false;">
+        <label class="sz_field saft-field">
+          <span class="sz_label">Data inicial</span>
+          <input id="saftDtIni" name="dt_ini" class="sz_input" type="date" value="{{ dt_ini }}">
+        </label>
+
+        <label class="sz_field saft-field">
+          <span class="sz_label">Data final</span>
+          <input id="saftDtFim" name="dt_fim" class="sz_input" type="date" value="{{ dt_fim }}">
+        </label>
+
+        <label class="sz_field saft-field">
+          <span class="sz_label">Série</span>
+          <select id="saftSerie" name="serie" class="sz_select">
+            <option value="">Todas</option>
+            {% for serie in series %}
+              <option value="{{ serie }}">{{ serie }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="sz_field saft-field">
+          <span class="sz_label">Tipo doc.</span>
+          <select id="saftTipoDoc" name="tipo_doc" class="sz_select">
+            <option value="">Todos</option>
+            {% for doc_type in doc_types %}
+              <option value="{{ doc_type }}">{{ doc_type }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="sz_checkbox saft-field-wide">
+          <input id="saftEmitidosOnly" name="emitidos_only" type="checkbox" checked>
+          <span>Incluir apenas documentos emitidos</span>
+        </label>
+
+        <div class="saft-actions">
+          <button id="saftPreviewBtn" type="button" class="sz_button sz_button_ghost">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <span>Pré-visualizar</span>
+          </button>
+          <button id="saftGenerateBtn" type="button" class="sz_button sz_button_primary" disabled>
+            <i class="fa-solid fa-file-arrow-down"></i>
+            <span>Gerar SAF-T</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </header>
+
+  <div id="saftMessage" class="saft-message" role="alert"></div>
+
+  <section class="saft-body">
+    <div class="saft-metrics">
+      <article class="sz_card saft-metric">
+        <div class="saft-metric_label">Documentos</div>
+        <div id="saftDocsCount" class="saft-metric_value">0</div>
+      </article>
+      <article class="sz_card saft-metric">
+        <div class="saft-metric_label">Clientes</div>
+        <div id="saftCustomersCount" class="saft-metric_value">0</div>
+      </article>
+      <article class="sz_card saft-metric">
+        <div class="saft-metric_label">Total líquido</div>
+        <div id="saftNetTotal" class="saft-metric_value">0,00 €</div>
+      </article>
+      <article class="sz_card saft-metric">
+        <div class="saft-metric_label">Total IVA</div>
+        <div id="saftTaxTotal" class="saft-metric_value">0,00 €</div>
+      </article>
+      <article class="sz_card saft-metric">
+        <div class="saft-metric_label">Total documento</div>
+        <div id="saftGrossTotal" class="saft-metric_value">0,00 €</div>
+      </article>
+    </div>
+
+    <article class="sz_card saft-panel">
+      <div class="saft-panel_head">
+        <h2 class="saft-panel_title">Avisos e validações</h2>
+        <span id="saftWarningsCount" class="sz_badge sz_badge_info">0</span>
+      </div>
+      <div id="saftWarnings" class="saft-warnings">Sem pré-visualização.</div>
+    </article>
+  </section>
+</div>
+
+<script>
+(() => {
+  const form = document.getElementById('saftForm');
+  const previewBtn = document.getElementById('saftPreviewBtn');
+  const generateBtn = document.getElementById('saftGenerateBtn');
+  const messageEl = document.getElementById('saftMessage');
+  const warningsEl = document.getElementById('saftWarnings');
+  const warningsCountEl = document.getElementById('saftWarningsCount');
+  const docsEl = document.getElementById('saftDocsCount');
+  const customersEl = document.getElementById('saftCustomersCount');
+  const netEl = document.getElementById('saftNetTotal');
+  const taxEl = document.getElementById('saftTaxTotal');
+  const grossEl = document.getElementById('saftGrossTotal');
+
+  const moneyFmt = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  let lastPayload = null;
+
+  function buildPayload() {
+    const fd = new FormData(form);
+    return {
+      dt_ini: fd.get('dt_ini') || '',
+      dt_fim: fd.get('dt_fim') || '',
+      serie: fd.get('serie') || '',
+      tipo_doc: fd.get('tipo_doc') || '',
+      emitidos_only: document.getElementById('saftEmitidosOnly').checked,
+    };
+  }
+
+  function setBusy(isBusy) {
+    previewBtn.disabled = isBusy;
+    generateBtn.disabled = isBusy || !lastPayload;
+    const previewText = previewBtn.querySelector('span');
+    if (previewText) previewText.textContent = isBusy ? 'A processar...' : 'Pré-visualizar';
+  }
+
+  function showMessage(kind, text) {
+    messageEl.className = `saft-message is-visible is-${kind}`;
+    messageEl.textContent = text;
+  }
+
+  function clearMessage() {
+    messageEl.className = 'saft-message';
+    messageEl.textContent = '';
+  }
+
+  function renderWarnings(list) {
+    const warnings = Array.isArray(list) ? list : [];
+    warningsCountEl.textContent = String(warnings.length);
+    warningsCountEl.className = warnings.length ? 'sz_badge sz_badge_warning' : 'sz_badge sz_badge_success';
+    if (!warnings.length) {
+      warningsEl.innerHTML = '<div class="sz_text_success">Sem avisos relevantes.</div>';
+      return;
+    }
+    warningsEl.innerHTML = `<ul>${warnings.map(item => `<li>${item}</li>`).join('')}</ul>`;
+  }
+
+  function renderSummary(summary) {
+    const data = summary || {};
+    docsEl.textContent = String(data.documents || 0);
+    customersEl.textContent = String(data.customers || 0);
+    netEl.textContent = `${moneyFmt.format(Number(data.net_total || 0))} €`;
+    taxEl.textContent = `${moneyFmt.format(Number(data.tax_total || 0))} €`;
+    grossEl.textContent = `${moneyFmt.format(Number(data.gross_total || 0))} €`;
+  }
+
+  async function preview() {
+    clearMessage();
+    setBusy(true);
+    try {
+      const payload = buildPayload();
+      const response = await fetch('/api/emissao_saft/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Erro ao pré-visualizar o SAF-T.');
+      }
+      lastPayload = payload;
+      renderSummary(data.summary || {});
+      renderWarnings(data.warnings || []);
+      generateBtn.disabled = false;
+      showMessage('success', 'Pré-visualização concluída. O ficheiro está pronto para geração.');
+    } catch (error) {
+      lastPayload = null;
+      renderSummary({});
+      renderWarnings([]);
+      generateBtn.disabled = true;
+      showMessage('danger', error.message || 'Erro ao pré-visualizar o SAF-T.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generate() {
+    clearMessage();
+    const payload = lastPayload || buildPayload();
+    generateBtn.disabled = true;
+    try {
+      const response = await fetch('/api/emissao_saft/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Erro ao gerar o ficheiro SAF-T.');
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename=\"?([^"]+)\"?/i);
+      const fileName = match ? match[1] : 'SAFT_VENDAS.xml';
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      showMessage('success', `Ficheiro ${fileName} gerado com sucesso.`);
+    } catch (error) {
+      showMessage('danger', error.message || 'Erro ao gerar o ficheiro SAF-T.');
+    } finally {
+      generateBtn.disabled = !lastPayload;
+    }
+  }
+
+  previewBtn.addEventListener('click', preview);
+  generateBtn.addEventListener('click', generate);
+})();
+</script>
+{% endblock %}

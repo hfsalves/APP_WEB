@@ -127,6 +127,9 @@
       position:relative;
       overflow:hidden;
     }
+    .public-meta.has-cover{
+      padding:0;
+    }
     .public-meta::before{
       content:'';
       position:absolute;
@@ -148,13 +151,50 @@
       background:radial-gradient(circle, rgba(56,189,248,.22) 0%, rgba(56,189,248,0) 70%);
       pointer-events:none;
     }
+    .public-meta-cover{
+      position:relative;
+      height:220px;
+      overflow:hidden;
+      border-radius:24px 24px 0 0;
+      background:linear-gradient(135deg, rgba(37,99,235,.28), rgba(56,189,248,.14));
+    }
+    .public-meta-cover img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      object-position:center 62%;
+      display:block;
+    }
+    .public-meta-cover::after{
+      content:'';
+      position:absolute;
+      inset:0;
+      background:
+        linear-gradient(180deg, rgba(7,17,31,.06) 0%, rgba(7,17,31,.12) 45%, rgba(7,17,31,.42) 100%);
+      pointer-events:none;
+    }
+    .public-meta-body{
+      position:relative;
+      z-index:1;
+      padding:14px 18px 12px;
+    }
+    .public-meta.has-cover .public-meta-body{
+      background:
+        linear-gradient(180deg, rgba(8,17,30,.34), rgba(11,26,45,.92) 12%, rgba(11,26,45,.9) 100%);
+    }
     .cards-grid{
       display:grid;
       grid-template-columns:repeat(3,minmax(0,1fr));
       gap:16px;
     }
     @media (max-width:1100px){ .cards-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
-    @media (max-width:700px){ .cards-grid{grid-template-columns:1fr;} .public-wrap{padding:96px 12px 16px;} }
+    @media (max-width:700px){
+      .cards-grid{grid-template-columns:1fr;}
+      .public-wrap{padding:96px 12px 16px;}
+      .public-meta-cover{height:192px;}
+      .public-meta-cover img{object-position:center 64%;}
+      .public-meta-body{padding:12px 16px 10px;}
+    }
     .public-footer{
       position:relative;
       z-index:1;
@@ -851,11 +891,18 @@
           </div>
         </div>
       </header>
-      <div class="public-meta">
-        <h1 class="public-title"><span data-i18n="title_reservation">Reserva</span> &middot; {{ page_data.alojamento or 'Alojamento' }}</h1>
-        <div class="public-sub">
-          {% if page_data.reserva %}<span data-i18n="label_reservation">Reserva</span> {{ page_data.reserva }} &middot; {% endif %}
-          {{ page_data.checkin_data or '&mdash;'|safe }} &rarr; {{ page_data.checkout_data or '&mdash;'|safe }}
+      <div class="public-meta{% if page_data.alojamento_cover_url %} has-cover{% endif %}">
+        {% if page_data.alojamento_cover_url %}
+          <div class="public-meta-cover">
+            <img src="{{ page_data.alojamento_cover_url }}" alt="{{ page_data.alojamento or 'Alojamento' }}">
+          </div>
+        {% endif %}
+        <div class="public-meta-body">
+          <h1 class="public-title"><span data-i18n="title_reservation">Reserva</span> &middot; {{ page_data.alojamento or 'Alojamento' }}</h1>
+          <div class="public-sub">
+            {% if page_data.reserva %}<span data-i18n="label_reservation">Reserva</span> {{ page_data.reserva }} &middot; {% endif %}
+            {{ page_data.checkin_data or '&mdash;'|safe }} &rarr; {{ page_data.checkout_data or '&mdash;'|safe }}
+          </div>
         </div>
       </div>
 
@@ -919,23 +966,24 @@
 
         <article class="r-card{% if not page_data.shop_available %} is-disabled{% endif %}">
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <h3 class="mb-0" data-i18n="card_shop">Prepare a sua chegada</h3>
+            <h3 class="mb-0" data-i18n="card_shop">Shop da estadia</h3>
             {% if page_data.shop_available %}
               <span class="badge bg-success-subtle text-success-emphasis border" data-i18n="shop_status_available">Disponivel</span>
             {% else %}
               <span class="badge bg-warning-subtle text-warning-emphasis border" data-i18n="shop_status_closed">Encerrado</span>
             {% endif %}
           </div>
-          <div class="small text-muted mb-3" data-i18n="shop_hint">Adicione pequenos extras a sua estadia e encontre tudo pronto a chegada.</div>
+          <div class="small text-muted mb-3" data-i18n="shop_hint">Encomende artigos para a estadia. As modalidades de entrega sao apresentadas no checkout.</div>
           {% if page_data.shop_deadline_label %}
             <div class="shop-card-deadline small mb-3">
-              <span data-i18n="shop_deadline_prefix">Disponivel ate</span> {{ page_data.shop_deadline_label }}
+              <span data-i18n="shop_deadline_prefix">Encomendas ate</span> {{ page_data.shop_deadline_label }}
             </div>
           {% endif %}
           {% if page_data.shop_available %}
+            <div class="small text-muted mb-3">{{ page_data.shop_message }}</div>
             <a href="{{ page_data.shop_url }}" class="btn btn-sm btn-primary" data-i18n="btn_open_shop">Explorar extras</a>
           {% else %}
-            <div class="small text-muted mb-2" data-i18n="shop_closed_hint">Ja nao e possivel adicionar itens a chegada para esta reserva.</div>
+            <div class="small text-muted mb-2">{{ page_data.shop_message or '' }}</div>
             <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-i18n="btn_shop_unavailable">Fora do prazo</button>
           {% endif %}
         </article>
@@ -1349,12 +1397,12 @@
           stay_plan_crib_hint: 'Ativa apenas se vais precisar de ber\u00e7o para uma crian\u00e7a.',
           btn_open_stay_plan: 'Indicar hor\u00e1rios',
           btn_save_stay_plan: 'Guardar',
-          card_shop: 'Prepare a sua chegada',
+          card_shop: 'Shop da estadia',
           shop_status_available: 'Disponivel',
           shop_status_closed: 'Encerrado',
-          shop_hint: 'Adicione pequenos extras a sua estadia e encontre tudo pronto a chegada.',
-          shop_deadline_prefix: 'Disponivel ate',
-          shop_closed_hint: 'Ja nao e possivel adicionar itens a chegada para esta reserva.',
+          shop_hint: 'Encomende artigos para a estadia. As modalidades de entrega sao apresentadas no checkout.',
+          shop_deadline_prefix: 'Encomendas ate',
+          shop_closed_hint: 'Neste momento ja nao e possivel fazer encomendas para esta reserva.',
           btn_open_shop: 'Explorar extras',
           btn_shop_unavailable: 'Fora do prazo',
           btn_cancel: 'Cancelar',
@@ -1505,12 +1553,12 @@
           stay_plan_crib_hint: 'Turn this on only if you need a crib for a child.',
           btn_open_stay_plan: 'Set times',
           btn_save_stay_plan: 'Save',
-          card_shop: 'Prepare your arrival',
+          card_shop: 'Stay shop',
           shop_status_available: 'Available',
           shop_status_closed: 'Closed',
-          shop_hint: 'Add a few useful extras to your stay and have them ready on arrival.',
-          shop_deadline_prefix: 'Available until',
-          shop_closed_hint: 'It is no longer possible to add arrival items for this reservation.',
+          shop_hint: 'Order useful items for your stay. Delivery methods are shown at checkout.',
+          shop_deadline_prefix: 'Orders until',
+          shop_closed_hint: 'It is no longer possible to place orders for this reservation right now.',
           btn_open_shop: 'Browse extras',
           btn_shop_unavailable: 'Outside deadline',
           btn_cancel: 'Cancel',
@@ -1661,12 +1709,12 @@
           stay_plan_crib_hint: 'Activez uniquement si vous avez besoin d\u2019un lit b\u00e9b\u00e9 pour un enfant.',
           btn_open_stay_plan: 'Indiquer les horaires',
           btn_save_stay_plan: 'Enregistrer',
-          card_shop: 'Preparez votre arrivee',
+          card_shop: 'Boutique du sejour',
           shop_status_available: 'Disponible',
           shop_status_closed: 'Fermee',
-          shop_hint: 'Ajoutez quelques extras utiles a votre sejour pour tout trouver pret a l arrivee.',
-          shop_deadline_prefix: 'Disponible jusqu au',
-          shop_closed_hint: 'Il n est plus possible d ajouter des articles pour l arrivee de cette reservation.',
+          shop_hint: 'Commandez des articles pour votre sejour. Les modes de livraison sont presentes au moment du paiement.',
+          shop_deadline_prefix: 'Commandes jusqu au',
+          shop_closed_hint: 'Il n est plus possible de passer commande pour cette reservation pour le moment.',
           btn_open_shop: 'Voir les extras',
           btn_shop_unavailable: 'Hors delai',
           btn_cancel: 'Annuler',
@@ -1817,12 +1865,12 @@
           stay_plan_crib_hint: 'Act\u00edvalo solo si vas a necesitar una cuna para un ni\u00f1o.',
           btn_open_stay_plan: 'Indicar horarios',
           btn_save_stay_plan: 'Guardar',
-          card_shop: 'Prepara tu llegada',
+          card_shop: 'Tienda de la estancia',
           shop_status_available: 'Disponible',
           shop_status_closed: 'Cerrado',
-          shop_hint: 'Anade pequenos extras a tu estancia y encuentra todo listo a tu llegada.',
-          shop_deadline_prefix: 'Disponible hasta',
-          shop_closed_hint: 'Ya no es posible anadir articulos de llegada para esta reserva.',
+          shop_hint: 'Pide articulos para tu estancia. Las modalidades de entrega se muestran en el checkout.',
+          shop_deadline_prefix: 'Pedidos hasta',
+          shop_closed_hint: 'Ahora mismo ya no es posible hacer pedidos para esta reserva.',
           btn_open_shop: 'Ver extras',
           btn_shop_unavailable: 'Fuera de plazo',
           btn_cancel: 'Cancelar',
@@ -2237,12 +2285,12 @@
         stay_plan_crib_hint: 'Ativa apenas se vais precisar de berco para uma crianca.',
         btn_open_stay_plan: 'Indicar horarios',
         btn_save_stay_plan: 'Guardar',
-        card_shop: 'Prepare a sua chegada',
+        card_shop: 'Shop da estadia',
         shop_status_available: 'Disponivel',
         shop_status_closed: 'Encerrado',
-        shop_hint: 'Adicione pequenos extras a sua estadia e encontre tudo pronto a chegada.',
-        shop_deadline_prefix: 'Disponivel ate',
-        shop_closed_hint: 'Ja nao e possivel adicionar itens a chegada para esta reserva.',
+        shop_hint: 'Encomende artigos para a estadia. As modalidades de entrega sao apresentadas no checkout.',
+        shop_deadline_prefix: 'Encomendas ate',
+        shop_closed_hint: 'Neste momento ja nao e possivel fazer encomendas para esta reserva.',
         btn_open_shop: 'Explorar extras',
         btn_shop_unavailable: 'Fora do prazo',
         btn_cancel: 'Cancelar',

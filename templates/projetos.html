@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% set page_title = "Projetos" %}
+{% set page_name = "Projetos" %}
+
+{% block title %}Projetos{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/projetos.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page proj-page" id="projectsPage">
+  <div class="sz_page_container proj-container">
+    <div class="sz_page_header">
+      <div class="sz_contextbar proj-contextbar">
+        <div class="sz_contextbar_left">
+          <div class="sz_page_title">Projetos</div>
+          <div class="sz_breadcrumbs">ROADMAP / PROJETOS</div>
+          <div class="sz_page_subtitle">Gestao simples de projetos e tarefas, reutilizando a tabela TAREFAS no fluxo operacional da app.</div>
+        </div>
+        <div class="sz_contextbar_right">
+          <div class="proj-toolbar">
+            <div class="proj-filters">
+              <div class="sz_field proj-search">
+                <label class="sz_label" for="projectsSearch">Pesquisar</label>
+                <input id="projectsSearch" class="sz_input" type="text" placeholder="Nome, codigo, descricao, responsavel...">
+              </div>
+              <div class="sz_field proj-field-select">
+                <label class="sz_label" for="projectsStateFilter">Estado</label>
+                <select id="projectsStateFilter" class="sz_select">
+                  <option value="">Todos</option>
+                </select>
+              </div>
+              <div class="sz_field proj-field-select">
+                <label class="sz_label" for="projectsResponsibleFilter">Responsavel</label>
+                <select id="projectsResponsibleFilter" class="sz_select">
+                  <option value="">Todos</option>
+                </select>
+              </div>
+              <label class="sz_checkbox">
+                <input id="projectsMineFilter" type="checkbox">
+                <span>Meus projetos</span>
+              </label>
+            </div>
+            <div class="proj-actions">
+              <button id="projectsRefreshBtn" type="button" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-rotate"></i>
+                <span>Atualizar</span>
+              </button>
+              <button id="projectsNewBtn" type="button" class="sz_button sz_button_primary">
+                <i class="fa-solid fa-plus"></i>
+                <span>Novo projeto</span>
+              </button>
+            </div>
+          </div>
+          <div class="sz_text_muted proj-status" id="projectsStatus">A carregar projetos...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sz_page_body">
+      <div class="sz_sidebar_layout proj-layout">
+        <div class="sz_page_content proj-main">
+          <div class="sz_panel proj-table-panel">
+            <div class="sz_table_host">
+              <table class="sz_table" id="projectsTable">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th style="width: 120px;">Codigo</th>
+                    <th>Projeto</th>
+                    <th style="width: 180px;">Responsavel</th>
+                    <th style="width: 120px;">Estado</th>
+                    <th style="width: 110px;">Prioridade</th>
+                    <th style="width: 120px;">Prevista</th>
+                    <th style="width: 150px;">Tarefas</th>
+                    <th style="width: 160px;">Progresso</th>
+                    <th style="width: 110px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="projectsTableBody">
+                  <tr class="sz_table_row"><td colspan="9" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <aside class="sz_page_sidebar">
+          <div class="proj-side-stack">
+            <div class="proj-metric">
+              <div class="proj-metric-label">Projetos visiveis</div>
+              <div class="proj-metric-value" id="projectsMetricTotal">0</div>
+            </div>
+            <div class="proj-metric">
+              <div class="proj-metric-label">Em curso / ativos</div>
+              <div class="proj-metric-value" id="projectsMetricActive">0</div>
+            </div>
+            <div class="proj-metric">
+              <div class="proj-metric-label">Concluidos</div>
+              <div class="proj-metric-value" id="projectsMetricDone">0</div>
+            </div>
+            <div class="proj-metric">
+              <div class="proj-metric-label">Atrasados</div>
+              <div class="proj-metric-value" id="projectsMetricOverdue">0</div>
+            </div>
+            <div class="proj-metric">
+              <div class="proj-metric-label">Operacao</div>
+              <div class="proj-helper">
+                As tarefas de projeto ficam em <code>TAREFAS</code> com origem <code>PROJ</code>, pelo que continuam visiveis no monitor e no calendario da app.
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="projectModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable proj-modal-dialog">
+    <div class="modal-content proj-modal-content">
+      <div class="modal-header proj-modal-header">
+        <div>
+          <div class="proj-modal-title" id="projectModalTitle">Projeto</div>
+          <div class="proj-tagline">Planeamento simples, progresso por tarefas e responsabilidade clara.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body proj-modal-body">
+        <input type="hidden" id="projectFormStamp">
+        <div class="proj-form-grid">
+          <div class="sz_field">
+            <label class="sz_label" for="projectFormCode">Codigo</label>
+            <input id="projectFormCode" class="sz_input" type="text" maxlength="30" placeholder="PRJ-20260312-ABCD">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="projectFormResponsible">Responsavel</label>
+            <select id="projectFormResponsible" class="sz_select"></select>
+          </div>
+          <div class="sz_field proj-col-span-2">
+            <label class="sz_label" for="projectFormName">Nome</label>
+            <input id="projectFormName" class="sz_input" type="text" maxlength="120">
+          </div>
+          <div class="sz_field proj-col-span-2">
+            <label class="sz_label" for="projectFormDescription">Descricao</label>
+            <textarea id="projectFormDescription" class="sz_textarea" rows="4"></textarea>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="projectFormState">Estado</label>
+            <select id="projectFormState" class="sz_select"></select>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="projectFormPriority">Prioridade</label>
+            <select id="projectFormPriority" class="sz_select"></select>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="projectFormStartDate">Data inicio</label>
+            <input id="projectFormStartDate" class="sz_input" type="date">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="projectFormExpectedDate">Data prevista</label>
+            <input id="projectFormExpectedDate" class="sz_input" type="date">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="projectFormEndDate">Data fim</label>
+            <input id="projectFormEndDate" class="sz_input" type="date">
+          </div>
+        </div>
+        <div class="proj-helper" id="projectModalStatus"></div>
+      </div>
+      <div class="modal-footer proj-modal-footer">
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">
+          <i class="fa-solid fa-ban"></i>
+          <span>Fechar</span>
+        </button>
+        <button type="button" id="projectSaveBtn" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar projeto</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/projetos.js') }}?v={{ static_version }}"></script>
+{% endblock %}

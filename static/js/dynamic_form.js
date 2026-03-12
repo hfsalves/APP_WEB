@@ -1085,6 +1085,451 @@ hideLoading()
     }
     // ——— Fim Anexos ———
 
+    // ===============================
+// 7B. IMAGENS DE ALOJAMENTO
+// ===============================
+    const isAlojamentoForm = String(TABLE_NAME || '').toUpperCase() === 'AL';
+    const btnALFotos = document.getElementById('btnALFotos');
+    const alFotosModalEl = document.getElementById('alFotosModal');
+    const alFotosGrid = document.getElementById('alFotosGrid');
+    const alFotosStatus = document.getElementById('alFotosStatus');
+    const alFotosInput = document.getElementById('alFotosInput');
+    const btnALFotosPick = document.getElementById('btnALFotosPick');
+    const alFotosDropzone = document.getElementById('alFotosDropzone');
+    const alFotosModal = alFotosModalEl ? new bootstrap.Modal(alFotosModalEl) : null;
+    let alFotosRows = [];
+    let dragFotoStamp = null;
+
+    function setALFotosStatus(message = '', { isError = false } = {}) {
+      if (!alFotosStatus) return;
+      alFotosStatus.textContent = message;
+      alFotosStatus.classList.toggle('is-error', Boolean(isError));
+    }
+
+    function getALFotoStaticUrl(path) {
+      const clean = String(path || '').trim().replace(/^\/+/, '');
+      return clean ? `/static/${clean}` : '';
+    }
+
+    function renderALFotos() {
+      if (!alFotosGrid) return;
+      if (!alFotosRows.length) {
+        alFotosGrid.innerHTML = `
+          <div class="sz_al_fotos_empty">
+            Ainda não existem imagens para este alojamento.
+          </div>
+        `;
+        return;
+      }
+
+      alFotosGrid.innerHTML = alFotosRows.map(row => {
+        const stamp = row.ALFOTOSTAMP || '';
+        const isCover = Boolean(row.CAPA);
+        return `
+          <article class="sz_al_fotos_card${isCover ? ' is-cover' : ''}" draggable="true" data-foto-stamp="${stamp}">
+            <div class="sz_al_fotos_thumb">
+              <img src="${getALFotoStaticUrl(row.CAMINHO)}" alt="${row.ALT_TEXT || row.FICHEIRO || 'Imagem do alojamento'}">
+            </div>
+            <div class="sz_al_fotos_meta">
+              <div class="sz_al_fotos_topline">
+                <div class="sz_al_fotos_filename">${row.FICHEIRO || 'Imagem'}</div>
+                ${isCover ? '<span class="sz_al_fotos_badge">Capa</span>' : ''}
+              </div>
+              <div class="sz_al_fotos_controls">
+                <button type="button" class="sz_button sz_button_ghost btn-al-foto-cover" data-foto-stamp="${stamp}">
+                  <i class="fa fa-star"></i>
+                  <span>${isCover ? 'Foto de capa' : 'Definir capa'}</span>
+                </button>
+                <button type="button" class="sz_button sz_button_danger btn-al-foto-delete" data-foto-stamp="${stamp}">
+                  <i class="fa fa-trash-alt"></i>
+                  <span>Apagar</span>
+                </button>
+                <span class="sz_al_fotos_drag_hint">
+                  <i class="fa fa-grip-vertical"></i>
+                  Arrastar
+                </span>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    async function refreshALFotos({ silent = false } = {}) {
+      if (!isAlojamentoForm || !RECORD_STAMP || !alFotosGrid) return;
+      if (!silent) {
+        setALFotosStatus('A carregar imagens...');
+      }
+      const res = await fetch(`/generic/api/al_fotos/${encodeURIComponent(RECORD_STAMP)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setALFotosStatus(data.error || 'Erro ao carregar imagens.', { isError: true });
+        return;
+      }
+      alFotosRows = Array.isArray(data) ? data : [];
+      renderALFotos();
+      const count = alFotosRows.length;
+      setALFotosStatus(count ? `${count} imagem(ns) carregada(s). Arrasta para reordenar.` : '');
+    }
+
+    async function uploadALFotos(files) {
+      if (!isAlojamentoForm || !RECORD_STAMP || !files?.length) return;
+      const formData = new FormData();
+      Array.from(files).forEach(file => formData.append('files', file));
+      setALFotosStatus(`A carregar ${files.length} imagem(ns)...`);
+      const res = await fetch(`/generic/api/al_fotos/${encodeURIComponent(RECORD_STAMP)}/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setALFotosStatus(data.error || 'Erro ao carregar imagens.', { isError: true });
+        return;
+      }
+      setALFotosStatus('Imagens carregadas com sucesso.');
+      await refreshALFotos({ silent: true });
+    }
+
+    async function setALFotoCover(fotoStamp) {
+      const res = await fetch(`/generic/api/al_fotos/${encodeURIComponent(RECORD_STAMP)}/capa/${encodeURIComponent(fotoStamp)}`, {
+        method: 'POST'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setALFotosStatus(data.error || 'Erro ao definir foto de capa.', { isError: true });
+        return;
+      }
+      setALFotosStatus('Foto de capa atualizada.');
+      await refreshALFotos({ silent: true });
+    }
+
+    async function deleteALFoto(fotoStamp) {
+      const res = await fetch(`/generic/api/al_fotos/${encodeURIComponent(RECORD_STAMP)}/${encodeURIComponent(fotoStamp)}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setALFotosStatus(data.error || 'Erro ao apagar imagem.', { isError: true });
+        return;
+      }
+      setALFotosStatus('Imagem removida.');
+      await refreshALFotos({ silent: true });
+    }
+
+    async function persistALFotosOrder() {
+      if (!alFotosGrid) return;
+      const ordered = Array.from(alFotosGrid.querySelectorAll('.sz_al_fotos_card'))
+        .map(card => card.dataset.fotoStamp)
+        .filter(Boolean);
+      if (!ordered.length) return;
+      const res = await fetch(`/generic/api/al_fotos/${encodeURIComponent(RECORD_STAMP)}/ordem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: ordered })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setALFotosStatus(data.error || 'Erro ao reordenar imagens.', { isError: true });
+        return;
+      }
+      await refreshALFotos({ silent: true });
+    }
+
+    if (btnALFotos && alFotosModalEl && isAlojamentoForm) {
+      btnALFotos.addEventListener('click', async () => {
+        if (!RECORD_STAMP) return;
+        alFotosModal.show();
+        await refreshALFotos();
+      });
+
+      btnALFotosPick?.addEventListener('click', () => alFotosInput?.click());
+      alFotosInput?.addEventListener('change', async () => {
+        const files = alFotosInput.files;
+        if (!files?.length) return;
+        await uploadALFotos(files);
+        alFotosInput.value = '';
+      });
+
+      alFotosDropzone?.addEventListener('click', () => alFotosInput?.click());
+      alFotosDropzone?.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          alFotosInput?.click();
+        }
+      });
+      ['dragenter', 'dragover'].forEach(evt => {
+        alFotosDropzone?.addEventListener(evt, e => {
+          e.preventDefault();
+          alFotosDropzone.classList.add('is-dragover');
+        });
+      });
+      ['dragleave', 'drop'].forEach(evt => {
+        alFotosDropzone?.addEventListener(evt, e => {
+          e.preventDefault();
+          alFotosDropzone.classList.remove('is-dragover');
+        });
+      });
+      alFotosDropzone?.addEventListener('drop', async e => {
+        const files = e.dataTransfer?.files;
+        if (files?.length) {
+          await uploadALFotos(files);
+        }
+      });
+
+      alFotosGrid?.addEventListener('click', async e => {
+        const coverBtn = e.target.closest('.btn-al-foto-cover');
+        if (coverBtn) {
+          await setALFotoCover(coverBtn.dataset.fotoStamp);
+          return;
+        }
+        const deleteBtn = e.target.closest('.btn-al-foto-delete');
+        if (deleteBtn) {
+          if (!confirm('Apagar esta imagem?')) return;
+          await deleteALFoto(deleteBtn.dataset.fotoStamp);
+        }
+      });
+
+      alFotosGrid?.addEventListener('dragstart', e => {
+        const card = e.target.closest('.sz_al_fotos_card');
+        if (!card) return;
+        dragFotoStamp = card.dataset.fotoStamp || null;
+        card.classList.add('is-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      alFotosGrid?.addEventListener('dragend', e => {
+        const card = e.target.closest('.sz_al_fotos_card');
+        if (card) card.classList.remove('is-dragging');
+        alFotosGrid.querySelectorAll('.sz_al_fotos_card').forEach(node => node.classList.remove('is-drop-target'));
+        dragFotoStamp = null;
+      });
+
+      alFotosGrid?.addEventListener('dragover', e => {
+        const target = e.target.closest('.sz_al_fotos_card');
+        const dragging = alFotosGrid.querySelector('.sz_al_fotos_card.is-dragging');
+        if (!target || !dragging || target === dragging) return;
+        e.preventDefault();
+        alFotosGrid.querySelectorAll('.sz_al_fotos_card').forEach(node => node.classList.remove('is-drop-target'));
+        target.classList.add('is-drop-target');
+        const rect = target.getBoundingClientRect();
+        const shouldInsertAfter = (e.clientY - rect.top) > rect.height / 2;
+        if (shouldInsertAfter) {
+          target.after(dragging);
+        } else {
+          target.before(dragging);
+        }
+      });
+
+      alFotosGrid?.addEventListener('drop', async e => {
+        const target = e.target.closest('.sz_al_fotos_card');
+        if (!target || !dragFotoStamp) return;
+        e.preventDefault();
+        alFotosGrid.querySelectorAll('.sz_al_fotos_card').forEach(node => node.classList.remove('is-drop-target'));
+        await persistALFotosOrder();
+        setALFotosStatus('Ordem das imagens atualizada.');
+      });
+    }
+
+    // ===============================
+// 7C. NOTIFICACOES PUSH NA FICHA DE UTILIZADOR
+// ===============================
+    const isUserForm = String(TABLE_NAME || '').toUpperCase() === 'US';
+    const btnUserPushNotify = document.getElementById('btnUserPushNotify');
+    const btnUserPushNotifyInline = document.getElementById('btnUserPushNotifyInline');
+    const btnUserPushRefresh = document.getElementById('btnUserPushRefresh');
+    const userPushPanel = document.getElementById('userPushPanel');
+    const userPushStatus = document.getElementById('userPushStatus');
+    const userPushSummary = document.getElementById('userPushSummary');
+    const userPushLogs = document.getElementById('userPushLogs');
+    const userPushModalEl = document.getElementById('userPushModal');
+    const userPushModalStatus = document.getElementById('userPushModalStatus');
+    const userPushTitle = document.getElementById('userPushTitle');
+    const userPushBody = document.getElementById('userPushBody');
+    const userPushUrl = document.getElementById('userPushUrl');
+    const btnUserPushSendModal = document.getElementById('btnUserPushSendModal');
+    const userPushModal = userPushModalEl ? new bootstrap.Modal(userPushModalEl) : null;
+    let userPushSummaryData = null;
+
+    function setUserPushStatus(message = '', { isError = false } = {}) {
+      if (!userPushStatus) return;
+      userPushStatus.textContent = message;
+      userPushStatus.classList.toggle('is-error', Boolean(isError));
+      userPushStatus.classList.toggle('is-success', Boolean(message) && !isError);
+    }
+
+    function setUserPushModalStatus(message = '', { isError = false } = {}) {
+      if (!userPushModalStatus) return;
+      userPushModalStatus.textContent = message;
+      userPushModalStatus.classList.toggle('is-error', Boolean(isError));
+      userPushModalStatus.classList.toggle('is-success', Boolean(message) && !isError);
+    }
+
+    function fmtPushDate(value) {
+      if (!value) return '';
+      try {
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) return String(value);
+        return dt.toLocaleString('pt-PT', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      } catch (_) {
+        return String(value || '');
+      }
+    }
+
+    function renderUserPushSummary() {
+      if (!userPushSummary || !userPushLogs) return;
+      const data = userPushSummaryData || {};
+      const activeDevices = Number(data.active_devices || 0);
+      const devices = Array.isArray(data.devices) ? data.devices : [];
+      const logs = Array.isArray(data.logs) ? data.logs : [];
+      const prefs = Array.isArray(data.preferences) ? data.preferences : [];
+
+      userPushSummary.innerHTML = `
+        <div class="sz_user_push_stats">
+          <div class="sz_user_push_stat">
+            <span class="sz_user_push_stat_label">Dispositivos ativos</span>
+            <strong class="sz_user_push_stat_value">${activeDevices}</strong>
+          </div>
+          <div class="sz_user_push_stat">
+            <span class="sz_user_push_stat_label">Preferências ativas</span>
+            <strong class="sz_user_push_stat_value">${prefs.filter(p => Number(p.PUSH_ENABLED || 0) === 1).length}</strong>
+          </div>
+          <div class="sz_user_push_stat">
+            <span class="sz_user_push_stat_label">Último envio</span>
+            <strong class="sz_user_push_stat_value">${logs.length ? fmtPushDate(logs[0].SENT_AT || logs[0].CREATED_AT) : '-'}</strong>
+          </div>
+        </div>
+        <div class="sz_user_push_prefs">
+          ${prefs.length ? prefs.map(pref => `
+            <span class="sz_user_push_pref${Number(pref.PUSH_ENABLED || 0) === 1 ? ' is-active' : ''}">
+              ${pref.EVENT_TYPE || '-'}
+            </span>
+          `).join('') : ''}
+        </div>
+        <div class="sz_user_push_devices">
+          ${devices.length ? devices.map(device => `
+            <div class="sz_user_push_device${Number(device.IS_ACTIVE || 0) === 1 ? ' is-active' : ''}">
+              <div class="sz_user_push_device_title">${device.DEVICE_LABEL || device.PLATFORM || 'Dispositivo'}</div>
+              <div class="sz_user_push_device_meta">
+                <span>${device.PLATFORM || 'unknown'}</span>
+                <span>${fmtPushDate(device.LAST_SEEN) || 'Sem atividade'}</span>
+              </div>
+            </div>
+          `).join('') : '<div class="sz_user_push_empty">Sem dispositivos registados.</div>'}
+        </div>
+      `;
+
+      userPushLogs.innerHTML = `
+        <div class="sz_user_push_logs_title">Últimos envios</div>
+        ${logs.length ? logs.map(log => `
+          <div class="sz_user_push_log">
+            <div class="sz_user_push_log_head">
+              <strong>${log.TITLE || 'Notificação'}</strong>
+              <span class="sz_user_push_log_status is-${String(log.STATUS || '').toLowerCase()}">${log.STATUS || '-'}</span>
+            </div>
+            <div class="sz_user_push_log_meta">
+              <span>${log.EVENT_TYPE || '-'}</span>
+              <span>${fmtPushDate(log.CREATED_AT)}</span>
+              <span>${log.SENT_BY_NAME || ''}</span>
+            </div>
+          </div>
+        `).join('') : '<div class="sz_user_push_empty">Sem envios registados.</div>'}
+      `;
+    }
+
+    async function refreshUserPushSummary({ silent = false } = {}) {
+      if (!isUserForm || !RECORD_STAMP || !userPushPanel) return;
+      if (!silent) setUserPushStatus('A carregar notificações push...');
+      const res = await fetch(`/api/push/user/${encodeURIComponent(RECORD_STAMP)}/summary`, {
+        credentials: 'same-origin',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUserPushStatus(data.error || 'Erro ao carregar notificações push.', { isError: true });
+        return;
+      }
+      userPushSummaryData = data;
+      renderUserPushSummary();
+      setUserPushStatus(
+        Number(data.active_devices || 0) > 0
+          ? `${data.active_devices} dispositivo(s) ativo(s).`
+          : 'Sem dispositivos ativos para este utilizador.'
+      );
+      const canSendManual = Boolean(data.can_send_manual);
+      btnUserPushNotify?.toggleAttribute('disabled', !canSendManual);
+      btnUserPushNotifyInline?.toggleAttribute('disabled', !canSendManual);
+    }
+
+    function openUserPushModal() {
+      if (!userPushModal) return;
+      setUserPushModalStatus('');
+      if (userPushTitle) userPushTitle.value = '';
+      if (userPushBody) userPushBody.value = '';
+      if (userPushUrl) userPushUrl.value = '/monitor';
+      userPushModal.show();
+    }
+
+    async function sendManualUserPush() {
+      const title = (userPushTitle?.value || '').trim();
+      const body = (userPushBody?.value || '').trim();
+      const targetUrl = (userPushUrl?.value || '').trim();
+      if (!title) {
+        setUserPushModalStatus('Título obrigatório.', { isError: true });
+        userPushTitle?.focus();
+        return;
+      }
+      if (!body) {
+        setUserPushModalStatus('Mensagem obrigatória.', { isError: true });
+        userPushBody?.focus();
+        return;
+      }
+      setUserPushModalStatus('A enviar...');
+      const res = await fetch('/api/push/send-manual', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          userstamp: RECORD_STAMP,
+          title,
+          body,
+          target_url: targetUrl || '/monitor',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUserPushModalStatus(data.error || 'Erro ao enviar notificação.', { isError: true });
+        return;
+      }
+      if (data?.result?.status === 'NO_DEVICES') {
+        setUserPushModalStatus('Este utilizador ainda não tem dispositivos ativos.', { isError: true });
+        return;
+      }
+      setUserPushModalStatus('Notificação enviada.');
+      await refreshUserPushSummary({ silent: true });
+      setTimeout(() => userPushModal.hide(), 500);
+    }
+
+    if (isUserForm && RECORD_STAMP) {
+      btnUserPushNotify?.addEventListener('click', openUserPushModal);
+      btnUserPushNotifyInline?.addEventListener('click', openUserPushModal);
+      btnUserPushRefresh?.addEventListener('click', async () => {
+        await refreshUserPushSummary();
+      });
+      btnUserPushSendModal?.addEventListener('click', async () => {
+        await sendManualUserPush();
+      });
+      userPushModalEl?.addEventListener('hidden.bs.modal', () => setUserPushModalStatus(''));
+      await refreshUserPushSummary();
+    }
+
 
 
     // ===============================

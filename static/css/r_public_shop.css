@@ -871,6 +871,88 @@ body {
   margin-top: 14px;
 }
 
+.shop-cart-delivery {
+  display: grid;
+  gap: 8px;
+}
+
+.shop-cart-delivery-title {
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.shop-cart-delivery-options {
+  display: grid;
+  gap: 8px;
+}
+
+.shop-delivery-option {
+  display: block;
+  padding: 11px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: #fff;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.shop-delivery-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.22);
+}
+
+.shop-delivery-option.is-active {
+  border-color: rgba(37, 99, 235, 0.3);
+  box-shadow: 0 14px 24px rgba(37, 99, 235, 0.08);
+}
+
+.shop-delivery-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shop-delivery-option-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.shop-delivery-option-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #0f172a;
+}
+
+.shop-delivery-option-head strong {
+  font-size: 0.92rem;
+}
+
+.shop-delivery-option-head span {
+  color: #1d4ed8;
+  font-size: 0.88rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.shop-delivery-option-text {
+  color: #475569;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.shop-delivery-option-note,
+.shop-delivery-empty {
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
 .shop-cart-total-row {
   display: flex;
   align-items: center;

@@ -1,0 +1,80 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET XACT_ABORT ON;
+
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    IF OBJECT_ID('dbo.AL_FOTOS', 'U') IS NULL
+    BEGIN
+        CREATE TABLE dbo.AL_FOTOS
+        (
+            ALFOTOSTAMP     VARCHAR(25) NOT NULL CONSTRAINT DF_AL_FOTOS_STAMP DEFAULT (LEFT(CONVERT(VARCHAR(36), NEWID()), 25)),
+            ALSTAMP         VARCHAR(25) NOT NULL,
+            FICHEIRO        NVARCHAR(255) NOT NULL,
+            CAMINHO         NVARCHAR(500) NOT NULL,
+            ALT_TEXT        NVARCHAR(200) NULL,
+            ORDEM           INT NOT NULL CONSTRAINT DF_AL_FOTOS_ORDEM DEFAULT (0),
+            CAPA            BIT NOT NULL CONSTRAINT DF_AL_FOTOS_CAPA DEFAULT (0),
+            ATIVO           BIT NOT NULL CONSTRAINT DF_AL_FOTOS_ATIVO DEFAULT (1),
+            DTCRI           DATETIME NOT NULL CONSTRAINT DF_AL_FOTOS_DTCRI DEFAULT (GETDATE()),
+            DTALT           DATETIME NOT NULL CONSTRAINT DF_AL_FOTOS_DTALT DEFAULT (GETDATE()),
+            UTILIZADOR      NVARCHAR(60) NULL,
+            CONSTRAINT PK_AL_FOTOS PRIMARY KEY CLUSTERED (ALFOTOSTAMP)
+        );
+    END;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.check_constraints
+        WHERE name = 'CK_AL_FOTOS_FICHEIRO'
+    )
+        ALTER TABLE dbo.AL_FOTOS
+            ADD CONSTRAINT CK_AL_FOTOS_FICHEIRO
+                CHECK (LEN(LTRIM(RTRIM(FICHEIRO))) > 0);
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.check_constraints
+        WHERE name = 'CK_AL_FOTOS_CAMINHO'
+    )
+        ALTER TABLE dbo.AL_FOTOS
+            ADD CONSTRAINT CK_AL_FOTOS_CAMINHO
+                CHECK (LEN(LTRIM(RTRIM(CAMINHO))) > 0);
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.check_constraints
+        WHERE name = 'CK_AL_FOTOS_ORDEM'
+    )
+        ALTER TABLE dbo.AL_FOTOS
+            ADD CONSTRAINT CK_AL_FOTOS_ORDEM
+                CHECK (ORDEM >= 0);
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE name = 'IX_AL_FOTOS_ALSTAMP_ORDEM'
+          AND object_id = OBJECT_ID('dbo.AL_FOTOS')
+    )
+        CREATE INDEX IX_AL_FOTOS_ALSTAMP_ORDEM
+            ON dbo.AL_FOTOS (ALSTAMP, ATIVO, ORDEM, DTCRI DESC);
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE name = 'UX_AL_FOTOS_CAPA'
+          AND object_id = OBJECT_ID('dbo.AL_FOTOS')
+    )
+        CREATE UNIQUE INDEX UX_AL_FOTOS_CAPA
+            ON dbo.AL_FOTOS (ALSTAMP)
+            WHERE CAPA = 1;
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0
+        ROLLBACK TRANSACTION;
+
+    THROW;
+END CATCH;

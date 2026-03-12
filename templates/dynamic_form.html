@@ -11,6 +11,26 @@
       <div class="sz_page_subtitle">{% if record_stamp %}Edição de registo{% else %}Novo registo{% endif %}</div>
     </div>
     <div class="sz_contextbar_right">
+      {% if table_name|upper == 'AL' %}
+      <button
+        type="button"
+        id="btnALFotos"
+        class="sz_button sz_button_ghost d-inline-flex align-items-center gap-2"
+        {% if not record_stamp %}disabled title="Grava primeiro o alojamento para gerir imagens"{% endif %}>
+        <i class="fa fa-images"></i>
+        <span>Imagens</span>
+      </button>
+      {% endif %}
+      {% if table_name|upper == 'US' %}
+      <button
+        type="button"
+        id="btnUserPushNotify"
+        class="sz_button sz_button_ghost d-inline-flex align-items-center gap-2"
+        {% if not record_stamp %}disabled title="Grava primeiro o utilizador para enviar notificações"{% endif %}>
+        <i class="fa fa-bell"></i>
+        <span>Enviar notificação</span>
+      </button>
+      {% endif %}
       {% if botoes %}
       <div class="dropdown d-inline-block">
         <button
@@ -92,6 +112,39 @@
             </div>
           </div>
         </div>
+
+        {% if table_name|upper == 'US' %}
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingPushUser">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#collapsePushUser"
+                    aria-expanded="false" aria-controls="collapsePushUser">
+              Notificações push
+            </button>
+          </h2>
+          <div id="collapsePushUser"
+              class="accordion-collapse collapse"
+              aria-labelledby="headingPushUser">
+            <div class="accordion-body">
+              <div id="userPushPanel" class="sz_user_push_panel">
+                <div id="userPushStatus" class="sz_user_push_status">A carregar estado das notificações...</div>
+                <div class="sz_user_push_actions">
+                  <button type="button" class="sz_button sz_button_primary" id="btnUserPushNotifyInline">
+                    <i class="fa fa-paper-plane"></i>
+                    <span>Enviar notificação</span>
+                  </button>
+                  <button type="button" class="sz_button sz_button_secondary" id="btnUserPushRefresh">
+                    <i class="fa fa-rotate"></i>
+                    <span>Atualizar</span>
+                  </button>
+                </div>
+                <div id="userPushSummary" class="sz_user_push_summary"></div>
+                <div id="userPushLogs" class="sz_user_push_logs"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
       </div>
     </section>
   </section>
@@ -141,6 +194,83 @@
   </div>
 </div>
 <!-- fim do Modal -->
+
+{% if table_name|upper == 'AL' %}
+<div class="modal fade" id="alFotosModal" tabindex="-1" aria-labelledby="alFotosModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable sz_al_fotos_modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="alFotosModalLabel">Imagens do alojamento</h5>
+          <div class="text-muted small">Carrega, reordena e define a foto de capa.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="sz_al_fotos_toolbar">
+          <div id="alFotosDropzone" class="sz_al_fotos_dropzone" role="button" tabindex="0">
+            <div class="sz_al_fotos_dropzone_icon"><i class="fa fa-cloud-upload-alt"></i></div>
+            <div class="sz_al_fotos_dropzone_text">
+              <strong>Arrasta imagens para aqui</strong>
+              <span>ou usa o botão para selecionar vários ficheiros</span>
+            </div>
+          </div>
+          <div class="sz_al_fotos_actions">
+            <input type="file" id="alFotosInput" accept="image/*" multiple hidden>
+            <button type="button" id="btnALFotosPick" class="sz_button sz_button_primary">
+              <i class="fa fa-upload"></i>
+              <span>Carregar imagens</span>
+            </button>
+          </div>
+        </div>
+        <div id="alFotosStatus" class="sz_al_fotos_status"></div>
+        <div id="alFotosGrid" class="sz_al_fotos_grid"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if table_name|upper == 'US' %}
+<div class="modal fade" id="userPushModal" tabindex="-1" aria-labelledby="userPushModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="userPushModalLabel">Enviar notificação</h5>
+          <div class="text-muted small">Envio manual de uma notificação push para este utilizador.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="sz_field">
+          <label class="sz_label" for="userPushTitle">Título</label>
+          <input type="text" id="userPushTitle" class="sz_input" maxlength="200">
+        </div>
+        <div class="sz_field">
+          <label class="sz_label" for="userPushBody">Mensagem</label>
+          <textarea id="userPushBody" class="sz_textarea" rows="4" maxlength="1000"></textarea>
+        </div>
+        <div class="sz_field">
+          <label class="sz_label" for="userPushUrl">Link / URL</label>
+          <input type="text" id="userPushUrl" class="sz_input" maxlength="500" placeholder="/monitor">
+        </div>
+        <div id="userPushModalStatus" class="sz_user_push_status"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="sz_button sz_button_primary" id="btnUserPushSendModal">
+          <i class="fa fa-paper-plane"></i>
+          <span>Enviar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {% set return_to = request.args.get('return_to', url_for('generic.edit_table', table_name=table_name, record_stamp=record_stamp)) %}
 <script>

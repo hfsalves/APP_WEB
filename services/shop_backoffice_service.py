@@ -54,6 +54,18 @@ def _table_exists(table_name):
     return bool(db.session.execute(sql, {"table_name": table_name}).scalar() or 0)
 
 
+def _view_exists(view_name):
+    sql = text(
+        """
+        SELECT COUNT(*)
+        FROM INFORMATION_SCHEMA.VIEWS
+        WHERE TABLE_SCHEMA = 'dbo'
+          AND TABLE_NAME = :view_name
+        """
+    )
+    return bool(db.session.execute(sql, {"view_name": view_name}).scalar() or 0)
+
+
 def _require_tables(*table_names):
     missing = [name for name in table_names if not _table_exists(name)]
     if missing:
@@ -231,6 +243,48 @@ def _translation_model():
     ).strip()
 
 
+def _taxaiva_for_tabiva(tabiva):
+    tabiva_value = _int_value(tabiva, default=0, minimum=0)
+    if tabiva_value <= 0 or not _view_exists("V_TAXASIVA"):
+        return None
+    row = db.session.execute(
+        text(
+            """
+            SELECT TOP 1 TRY_CONVERT(NUMERIC(6,2), TAXAIVA) AS TAXAIVA
+            FROM dbo.V_TAXASIVA
+            WHERE TRY_CONVERT(INT, TABIVA) = :tabiva
+            """
+        ),
+        {"tabiva": tabiva_value},
+    ).mappings().first()
+    if not row:
+        return None
+    try:
+        return Decimal(str(row.get("TAXAIVA") or 0)).quantize(_DEC2, rounding=ROUND_HALF_UP)
+    except Exception:
+        return None
+
+
+def _supplier_name_for_no(flno):
+    supplier_no = _int_value(flno, default=0, minimum=0)
+    if supplier_no <= 0 or not _view_exists("V_FL"):
+        return None
+    row = db.session.execute(
+        text(
+            """
+            SELECT TOP 1 CAST(ISNULL(NOME, '') AS NVARCHAR(55)) AS FLNOME
+            FROM dbo.V_FL
+            WHERE TRY_CONVERT(INT, NO) = :flno
+            ORDER BY NOME
+            """
+        ),
+        {"flno": supplier_no},
+    ).mappings().first()
+    if not row:
+        return None
+    return _nullable_text(row.get("FLNOME"), 55)
+
+
 def _extract_openai_text(payload):
     direct = str(payload.get("output_text") or "").strip()
     if direct:
@@ -305,6 +359,8 @@ def _stock_expr():
 def get_shop_meta():
     families = []
     states = []
+    iva_rates = []
+    suppliers = []
     if _table_exists("SHOP_FAMILIAS"):
         families = db.session.execute(
             text(
@@ -325,9 +381,50 @@ def get_shop_meta():
                 """
             )
         ).mappings().all()
+    if _view_exists("V_TAXASIVA"):
+        iva_rates = db.session.execute(
+            text(
+                """
+                SELECT
+                    TRY_CONVERT(INT, TABIVA) AS TABIVA,
+                    TRY_CONVERT(NUMERIC(6,2), TAXAIVA) AS TAXAIVA
+                FROM dbo.V_TAXASIVA
+                ORDER BY TRY_CONVERT(INT, TABIVA)
+                """
+            )
+        ).mappings().all()
+    if _view_exists("V_FL"):
+        suppliers = db.session.execute(
+            text(
+                """
+                SELECT
+                    TRY_CONVERT(INT, NO) AS FLNO,
+                    CAST(ISNULL(NOME, '') AS NVARCHAR(55)) AS FLNOME
+                FROM dbo.V_FL
+                WHERE TRY_CONVERT(INT, NO) IS NOT NULL
+                ORDER BY NOME, TRY_CONVERT(INT, NO)
+                """
+            )
+        ).mappings().all()
     return {
         "families": [dict(row) for row in families],
         "order_states": [dict(row) for row in states],
+        "iva_rates": [
+            {
+                "TABIVA": int(row.get("TABIVA") or 0),
+                "TAXAIVA": _money_float(row.get("TAXAIVA") or 0),
+            }
+            for row in iva_rates
+            if row.get("TABIVA") is not None
+        ],
+        "suppliers": [
+            {
+                "FLNO": int(row.get("FLNO") or 0),
+                "FLNOME": _text_value(row.get("FLNOME"), 55),
+            }
+            for row in suppliers
+            if row.get("FLNO") is not None
+        ],
         "payment_states": [
             {"code": "PENDENTE", "name": "Pendente"},
             {"code": "AUTORIZADO", "name": "Autorizado"},
@@ -486,6 +583,11 @@ def list_products(filters=None):
                 p.NOME_ES,
                 p.NOME_FR,
                 p.PRECO,
+                p.PCUSTO,
+                p.TABIVA,
+                p.TAXAIVA,
+                p.FLNO,
+                p.FLNOME,
                 p.MOEDA,
                 p.ORDEM,
                 p.ATIVO,
@@ -529,6 +631,8 @@ def list_products(filters=None):
     for row in rows:
         item = dict(row)
         item["PRECO"] = _money_float(item.get("PRECO"))
+        item["PCUSTO"] = _money_float(item.get("PCUSTO"))
+        item["TAXAIVA"] = _money_float(item.get("TAXAIVA") or 0)
         item["STOCK_ATUAL"] = float(item.get("STOCK_ATUAL") or 0)
         item["CRIADO_EM"] = _format_dt(item.get("CRIADO_EM"))
         item["ALTERADO_EM"] = _format_dt(item.get("ALTERADO_EM"))
@@ -601,7 +705,7 @@ def get_product_detail(product_id):
                 p.PRODUTO_ID, p.FAMILIA_ID, p.CODIGO, p.NOME, p.TITULO,
                 p.SUBTITULO, p.DESCRICAO_CURTA, p.DESCRICAO,
                 {_translation_select_sql('p')},
-                p.PRECO,
+                p.PRECO, p.PCUSTO, p.TABIVA, p.TAXAIVA, p.FLNO, p.FLNOME,
                 p.MOEDA, p.ORDEM, p.ATIVO, p.CRIADO_EM, p.ALTERADO_EM,
                 f.NOME AS FAMILIA_NOME, f.CODIGO AS FAMILIA_CODIGO,
                 {_stock_expr()} AS STOCK_ATUAL
@@ -617,6 +721,8 @@ def get_product_detail(product_id):
         raise ShopNotFoundError("Artigo nao encontrado.")
     product = dict(row)
     product["PRECO"] = _money_float(product.get("PRECO"))
+    product["PCUSTO"] = _money_float(product.get("PCUSTO"))
+    product["TAXAIVA"] = _money_float(product.get("TAXAIVA") or 0)
     product["STOCK_ATUAL"] = float(product.get("STOCK_ATUAL") or 0)
     product["CRIADO_EM"] = _format_dt(product.get("CRIADO_EM"))
     product["ALTERADO_EM"] = _format_dt(product.get("ALTERADO_EM"))
@@ -780,6 +886,10 @@ def save_product(payload, product_id=None):
     nome = _text_value(payload.get("NOME"), 150)
     if not nome:
         raise ShopValidationError("O nome do artigo e obrigatorio.")
+    tabiva = _int_value(payload.get("TABIVA"), default=0, minimum=0)
+    taxaiva = _taxaiva_for_tabiva(tabiva) if tabiva > 0 else _decimal_value(payload.get("TAXAIVA"), default="0.00", minimum=Decimal("0.00"))
+    supplier_no = _int_value(payload.get("FLNO"), default=0, minimum=0)
+    supplier_name = _supplier_name_for_no(supplier_no) if supplier_no > 0 else _nullable_text(payload.get("FLNOME"), 55)
     params = {
         "FAMILIA_ID": family_id,
         "CODIGO": _normalize_code(payload.get("CODIGO"), "PRD"),
@@ -789,6 +899,11 @@ def save_product(payload, product_id=None):
         "DESCRICAO_CURTA": _nullable_text(payload.get("DESCRICAO_CURTA"), 500),
         "DESCRICAO": _nullable_text(payload.get("DESCRICAO")),
         "PRECO": _decimal_value(payload.get("PRECO"), default="0.00", minimum=Decimal("0.00")),
+        "PCUSTO": _decimal_value(payload.get("PCUSTO"), default="0.00", minimum=Decimal("0.00")),
+        "TABIVA": tabiva or None,
+        "TAXAIVA": taxaiva,
+        "FLNO": supplier_no or None,
+        "FLNOME": supplier_name,
         "MOEDA": _text_value(payload.get("MOEDA") or "EUR", 3).upper() or "EUR",
         "ORDEM": _int_value(payload.get("ORDEM"), default=0, minimum=0),
         "ATIVO": 1 if _bool_value(payload.get("ATIVO", True)) else 0,
@@ -799,10 +914,10 @@ def save_product(payload, product_id=None):
             text(
                 """
                 INSERT INTO dbo.SHOP_PRODUTOS
-                    (FAMILIA_ID, CODIGO, NOME, TITULO, SUBTITULO, DESCRICAO_CURTA, DESCRICAO, """ + _translation_insert_sql() + """, PRECO, MOEDA, ORDEM, ATIVO, CRIADO_EM, ALTERADO_EM)
+                    (FAMILIA_ID, CODIGO, NOME, TITULO, SUBTITULO, DESCRICAO_CURTA, DESCRICAO, """ + _translation_insert_sql() + """, PRECO, PCUSTO, TABIVA, TAXAIVA, FLNO, FLNOME, MOEDA, ORDEM, ATIVO, CRIADO_EM, ALTERADO_EM)
                 OUTPUT INSERTED.PRODUTO_ID
                 VALUES
-                    (:FAMILIA_ID, :CODIGO, :NOME, :TITULO, :SUBTITULO, :DESCRICAO_CURTA, :DESCRICAO, """ + _translation_values_sql() + """, :PRECO, :MOEDA, :ORDEM, :ATIVO, SYSUTCDATETIME(), SYSUTCDATETIME())
+                    (:FAMILIA_ID, :CODIGO, :NOME, :TITULO, :SUBTITULO, :DESCRICAO_CURTA, :DESCRICAO, """ + _translation_values_sql() + """, :PRECO, :PCUSTO, :TABIVA, :TAXAIVA, :FLNO, :FLNOME, :MOEDA, :ORDEM, :ATIVO, SYSUTCDATETIME(), SYSUTCDATETIME())
                 """
             ),
             params,
@@ -824,6 +939,11 @@ def save_product(payload, product_id=None):
                     DESCRICAO = :DESCRICAO,
                     """ + _translation_update_sql() + """,
                     PRECO = :PRECO,
+                    PCUSTO = :PCUSTO,
+                    TABIVA = :TABIVA,
+                    TAXAIVA = :TAXAIVA,
+                    FLNO = :FLNO,
+                    FLNOME = :FLNOME,
                     MOEDA = :MOEDA,
                     ORDEM = :ORDEM,
                     ATIVO = :ATIVO,

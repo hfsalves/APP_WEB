@@ -30,7 +30,12 @@ document.addEventListener("DOMContentLoaded", () => {
     productTitleInput: document.getElementById("shopProductTitle"),
     productSubtitle: document.getElementById("shopProductSubtitle"),
     productPrice: document.getElementById("shopProductPrice"),
+    productCost: document.getElementById("shopProductCost"),
     productOrder: document.getElementById("shopProductOrder"),
+    productTabIva: document.getElementById("shopProductTabIva"),
+    productTaxaIva: document.getElementById("shopProductTaxaIva"),
+    productSupplierNo: document.getElementById("shopProductSupplierNo"),
+    productSupplierName: document.getElementById("shopProductSupplierName"),
     productDescriptionShort: document.getElementById("shopProductDescriptionShort"),
     productDescription: document.getElementById("shopProductDescription"),
     productActive: document.getElementById("shopProductActive"),
@@ -193,6 +198,33 @@ document.addEventListener("DOMContentLoaded", () => {
       .join("");
   }
 
+  function ivaOptionsHtml(selectedTabIva) {
+    const selectedValue = String(selectedTabIva ?? "");
+    return ['<option value="">Seleciona...</option>']
+      .concat(
+        (state.meta?.iva_rates || []).map((item) => {
+          const value = String(item.TABIVA ?? "");
+          const selected = selectedValue === value ? "selected" : "";
+          const rate = Number(item.TAXAIVA || 0).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          return `<option value="${esc(value)}" data-taxaiva="${esc(item.TAXAIVA)}" ${selected}>${esc(value)} · ${esc(rate)}%</option>`;
+        })
+      )
+      .join("");
+  }
+
+  function supplierOptionsHtml(selectedNo) {
+    const selectedValue = String(selectedNo ?? "");
+    return ['<option value="">Sem fornecedor</option>']
+      .concat(
+        (state.meta?.suppliers || []).map((item) => {
+          const value = String(item.FLNO ?? "");
+          const selected = selectedValue === value ? "selected" : "";
+          return `<option value="${esc(value)}" data-name="${esc(item.FLNOME || "")}" ${selected}>${esc(value)} · ${esc(item.FLNOME || "")}</option>`;
+        })
+      )
+      .join("");
+  }
+
   function populateFamilySelectors(selectedId = null) {
     els.familyFilter.innerHTML = '<option value="">Todas</option>' + state.families.map((family) => (
       `<option value="${family.FAMILIA_ID}">${esc(family.NOME)}</option>`
@@ -201,6 +233,33 @@ document.addEventListener("DOMContentLoaded", () => {
       els.familyFilter.value = els.familyFilter.dataset.currentValue;
     }
     els.productFamily.innerHTML = familyOptionsHtml(selectedId);
+  }
+
+  function syncTaxRateFromTabIva() {
+    const selected = els.productTabIva.selectedOptions?.[0];
+    const raw = selected?.dataset?.taxaiva ?? "";
+    const numeric = raw === "" ? "" : Number(raw || 0).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%";
+    els.productTaxaIva.value = numeric;
+  }
+
+  function syncSupplierNameFromNo() {
+    const selected = els.productSupplierNo.selectedOptions?.[0];
+    const name = selected?.dataset?.name || "";
+    els.productSupplierName.value = name;
+  }
+
+  function populateProductMetaSelectors(product = null) {
+    els.productTabIva.innerHTML = ivaOptionsHtml(product?.TABIVA ?? "");
+    els.productSupplierNo.innerHTML = supplierOptionsHtml(product?.FLNO ?? "");
+    if (product?.FLNO) {
+      els.productSupplierNo.value = String(product.FLNO);
+    }
+    syncTaxRateFromTabIva();
+    if (product?.FLNOME && !els.productSupplierName.value) {
+      els.productSupplierName.value = product.FLNOME;
+    } else {
+      syncSupplierNameFromNo();
+    }
   }
 
   function collectFilters() {
@@ -333,11 +392,17 @@ document.addEventListener("DOMContentLoaded", () => {
     els.productTitleInput.value = "";
     els.productSubtitle.value = "";
     els.productPrice.value = "";
+    els.productCost.value = "";
     els.productOrder.value = "0";
+    els.productTabIva.innerHTML = ivaOptionsHtml("");
+    els.productTaxaIva.value = "";
+    els.productSupplierNo.innerHTML = supplierOptionsHtml("");
+    els.productSupplierName.value = "";
     els.productDescriptionShort.value = "";
     els.productDescription.value = "";
     els.productActive.checked = true;
     els.productFamily.innerHTML = familyOptionsHtml(null);
+    populateProductMetaSelectors();
     resetTranslationsForm();
     renderVariants([]);
     renderImages([]);
@@ -356,11 +421,13 @@ document.addEventListener("DOMContentLoaded", () => {
     els.productTitleInput.value = product.TITULO || "";
     els.productSubtitle.value = product.SUBTITULO || "";
     els.productPrice.value = product.PRECO ?? "";
+    els.productCost.value = product.PCUSTO ?? "";
     els.productOrder.value = product.ORDEM ?? 0;
     els.productDescriptionShort.value = product.DESCRICAO_CURTA || "";
     els.productDescription.value = product.DESCRICAO || "";
     els.productActive.checked = !!product.ATIVO;
     els.productFamily.innerHTML = familyOptionsHtml(product.FAMILIA_ID);
+    populateProductMetaSelectors(product);
     fillTranslationsForm(product);
     renderVariants(detail.variants || []);
     renderImages(detail.images || []);
@@ -391,6 +458,11 @@ document.addEventListener("DOMContentLoaded", () => {
       DESCRICAO_CURTA: els.productDescriptionShort.value,
       DESCRICAO: els.productDescription.value,
       PRECO: els.productPrice.value,
+      PCUSTO: els.productCost.value,
+      TABIVA: els.productTabIva.value,
+      TAXAIVA: els.productTaxaIva.value.replace("%", "").replace(/\s/g, "").replace(",", "."),
+      FLNO: els.productSupplierNo.value,
+      FLNOME: els.productSupplierName.value,
       ORDEM: els.productOrder.value,
       ATIVO: els.productActive.checked,
       ...collectTranslationsPayload(),
@@ -615,6 +687,8 @@ document.addEventListener("DOMContentLoaded", () => {
   [els.familyFilter, els.activeFilter, els.sort].forEach((input) => {
     input.addEventListener("change", () => loadProducts().catch((error) => setStatus(error.message, "danger")));
   });
+  els.productTabIva.addEventListener("change", syncTaxRateFromTabIva);
+  els.productSupplierNo.addEventListener("change", syncSupplierNameFromNo);
 
   els.tableBody.addEventListener("click", (event) => {
     const button = event.target.closest('[data-action="edit"]');

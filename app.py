@@ -37,6 +37,12 @@ from services.ft_pdf_service import (
     generate_ft_pdf_bytes_xhtml2pdf,
     discover_pdf_engines,
 )
+from services.saft_service import (
+    SaftValidationError,
+    generate_saft_sales_xml,
+    get_saft_filter_options,
+    preview_saft_sales,
+)
 from services.shop_guest_service import (
     build_shop_cart,
     get_shop_catalog_data,
@@ -156,7 +162,21 @@ def create_app():
     from blueprints.shop_backoffice import bp as shop_backoffice_bp
     app.register_blueprint(shop_backoffice_bp)
 
+    from blueprints.projetos import bp as projetos_bp
+    app.register_blueprint(projetos_bp)
+
+    from blueprints.push_notifications import bp as push_notifications_bp
+    app.register_blueprint(push_notifications_bp)
+
     register_pricing(app)
+
+    @app.route('/service-worker.js')
+    def service_worker():
+        response = send_from_directory(app.static_folder, 'service-worker.js')
+        response.headers['Cache-Control'] = 'no-cache'
+        response.headers['Service-Worker-Allowed'] = '/'
+        response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+        return response
 
     def _para_value_from_row(row):
         tipo = (row.get('TIPO') or '').strip().upper()
@@ -237,6 +257,7 @@ def create_app():
                 AL.MORADA,
                 AL.CODPOST,
                 AL.LOCAL,
+                AL.ALSTAMP,
                 AL.LAT,
                 AL.LON
             FROM dbo.RS RS
@@ -253,6 +274,26 @@ def create_app():
         if _token_expired(row.get('GUIDE_TOKEN_EXPIRES')):
             return None
         return dict(row)
+
+    def _public_al_cover_url(alstamp: str):
+        stamp = str(alstamp or '').strip()
+        if not stamp or not _shop_table_exists('AL_FOTOS'):
+            return ''
+        try:
+            row = db.session.execute(text("""
+                SELECT TOP 1 ISNULL(CAMINHO, '') AS CAMINHO
+                FROM dbo.AL_FOTOS
+                WHERE ALSTAMP = :alstamp
+                  AND ISNULL(ATIVO, 1) = 1
+                ORDER BY
+                  CASE WHEN CAPA = 1 THEN 0 ELSE 1 END,
+                  ISNULL(ORDEM, 999999),
+                  DTCRI
+            """), {'alstamp': stamp}).mappings().first()
+        except Exception:
+            row = None
+        caminho = str((row or {}).get('CAMINHO') or '').strip().lstrip('/')
+        return f"/static/{caminho}" if caminho else ''
 
     def _fmt_public_date(v):
         if isinstance(v, datetime):
@@ -291,33 +332,145 @@ def create_app():
         except Exception:
             return dtime(hour=15, minute=0)
 
+    def _format_public_datetime_label(value):
+        try:
+            return value.strftime('%d/%m/%Y %H:%M')
+        except Exception:
+            return ''
+
+    def _next_public_shop_express_slot(row):
+        datain = _parse_public_date((row or {}).get('DATAIN'))
+        dataout = _parse_public_date((row or {}).get('DATAOUT'))
+        if not datain or not dataout:
+            return None, None
+
+        now = datetime.now()
+        checkin_start = datetime.combine(datain, dtime(hour=15, minute=0))
+        checkout_deadline = datetime.combine(dataout, dtime(hour=10, minute=0))
+        if now > checkout_deadline:
+            return None, None
+
+        slot_start = max(now, checkin_start)
+        opening = dtime(hour=9, minute=30)
+        closing = dtime(hour=17, minute=30)
+        last_start = dtime(hour=16, minute=30)
+
+        while slot_start <= checkout_deadline:
+            current_date = slot_start.date()
+            earliest_start = datetime.combine(current_date, opening)
+            latest_start = datetime.combine(current_date, last_start)
+            if current_date == datain:
+                earliest_start = max(earliest_start, checkin_start)
+
+            if slot_start < earliest_start:
+                slot_start = earliest_start
+
+            if slot_start <= latest_start:
+                slot_end = slot_start + timedelta(hours=1)
+                return slot_start, slot_end
+
+            next_date = current_date + timedelta(days=1)
+            slot_start = datetime.combine(next_date, opening)
+
+        return None, None
+
+    def _public_shop_delivery_options(row):
+        datain = _parse_public_date((row or {}).get('DATAIN'))
+        dataout = _parse_public_date((row or {}).get('DATAOUT'))
+        if not datain or not dataout:
+            return []
+
+        now = datetime.now()
+        checkin_start = datetime.combine(datain, dtime(hour=15, minute=0))
+        checkout_deadline = datetime.combine(dataout, dtime(hour=10, minute=0))
+        today = now.date()
+        options = []
+        express_fee = _shop_money(_shop_para_value('SHOP_EXPRESS_DELIVERY_FEE', '0') or '0')
+
+        if checkin_start <= now <= checkout_deadline:
+            express_start, express_end = _next_public_shop_express_slot(row)
+            if express_start and express_end:
+                options.append({
+                    'code': 'EXPRESS',
+                    'price': float(express_fee),
+                    'requires_presence': True,
+                    'window_code': 'scheduled_1h',
+                    'window_start': express_start.isoformat(timespec='minutes'),
+                    'window_end': express_end.isoformat(timespec='minutes'),
+                    'is_default': False,
+                })
+
+        free_window_code = ''
+        if today < datain:
+            free_window_code = 'before_checkin'
+        elif datain <= today <= (dataout - timedelta(days=2)):
+            free_window_code = 'next_morning'
+
+        if free_window_code:
+            options.append({
+                'code': 'FREE',
+                'price': 0.0,
+                'requires_presence': False,
+                'window_code': free_window_code,
+                'is_default': True,
+            })
+
+        if len(options) == 1:
+            options[0]['is_default'] = True
+        elif any(item['code'] == 'FREE' for item in options):
+            for item in options:
+                item['is_default'] = item['code'] == 'FREE'
+
+        return options
+
     def _public_shop_state(row):
         datain = _parse_public_date((row or {}).get('DATAIN'))
-        if not datain:
+        dataout = _parse_public_date((row or {}).get('DATAOUT'))
+        if not datain or not dataout:
             return {
                 'is_available': False,
                 'reason': 'missing_checkin',
                 'deadline_at': '',
                 'deadline_label': '',
                 'message': 'Nao e possivel calcular a janela de compra desta reserva.',
+                'delivery_options': [],
+                'default_delivery_method': '',
             }
 
-        checkin_time = _parse_public_time((row or {}).get('HORAIN'), '15:00')
-        checkin_at = datetime.combine(datain, checkin_time)
-        deadline_at = checkin_at - timedelta(hours=24)
+        deadline_at = datetime.combine(dataout, dtime(hour=10, minute=0))
         now = datetime.now()
-        is_available = now <= deadline_at
-        deadline_label = deadline_at.strftime('%d/%m/%Y %H:%M')
+        deadline_label = _format_public_datetime_label(deadline_at)
+        if now > deadline_at:
+            return {
+                'is_available': False,
+                'reason': 'past_cutoff',
+                'deadline_at': deadline_at.isoformat(timespec='minutes'),
+                'deadline_label': deadline_label,
+                'message': f'As encomendas para esta reserva encerraram em {deadline_label}.',
+                'delivery_options': [],
+                'default_delivery_method': '',
+            }
+
+        delivery_options = _public_shop_delivery_options(row)
+        default_delivery_method = next((item['code'] for item in delivery_options if item.get('is_default')), '') or (delivery_options[0]['code'] if delivery_options else '')
+        if delivery_options:
+            message = f'Podes encomendar ate {deadline_label}. As opcoes de entrega sao mostradas no checkout.'
+            is_available = True
+            reason = 'ok'
+        else:
+            message = (
+                f'A shop continua aberta ate {deadline_label}, mas neste momento nao existe nenhuma modalidade de entrega disponivel.'
+            )
+            is_available = False
+            reason = 'no_delivery_window'
         return {
             'is_available': is_available,
-            'reason': 'ok' if is_available else 'past_cutoff',
+            'reason': reason,
             'deadline_at': deadline_at.isoformat(timespec='minutes'),
             'deadline_label': deadline_label,
-            'message': (
-                f'Podes adicionar itens ate {deadline_label}.'
-                if is_available else
-                f'As encomendas para esta reserva encerraram em {deadline_label}.'
-            ),
+            'message': message,
+            'delivery_options': delivery_options,
+            'default_delivery_method': default_delivery_method,
         }
 
     def _public_shop_session_key(token_value: str) -> str:
@@ -627,11 +780,41 @@ def create_app():
             'currency': currency,
         }
 
-    def _shop_create_order_from_cart(row, checkout_cart):
+    def _shop_resolve_delivery_option(row, delivery_code=''):
+        options = _public_shop_delivery_options(row)
+        if not options:
+            raise RuntimeError('Neste momento nao existe nenhuma modalidade de entrega disponivel para esta reserva.')
+        wanted_code = str(delivery_code or '').strip().upper()
+        option = next((item for item in options if item['code'] == wanted_code), None)
+        if not option:
+            option = next((item for item in options if item.get('is_default')), None) or options[0]
+        label_map = {
+            'EXPRESS': 'Entrega express',
+            'FREE': 'Entrega gratuita',
+        }
+        detail_map = {
+            'before_checkin': 'Entrega prevista antes do check-in.',
+            'next_morning': 'Entrega prevista na manha seguinte.',
+        }
+        resolved = dict(option)
+        resolved['label'] = label_map.get(resolved['code'], resolved['code'])
+        if resolved.get('window_code') == 'scheduled_1h':
+            start_label = _format_public_datetime_label(datetime.fromisoformat(str(resolved.get('window_start') or '').strip()))
+            end_dt = datetime.fromisoformat(str(resolved.get('window_end') or '').strip())
+            end_label = end_dt.strftime('%H:%M')
+            resolved['detail'] = f'Entrega prevista entre {start_label} e {end_label}.'
+        else:
+            resolved['detail'] = detail_map.get(resolved.get('window_code') or '', '')
+        resolved['price_decimal'] = _shop_money(resolved.get('price') or 0)
+        return resolved
+
+    def _shop_create_order_from_cart(row, checkout_cart, delivery_option):
         _shop_require_tables('SHOP_ENCOMENDAS', 'SHOP_ENCOMENDA_LINHAS', 'SHOP_PAGAMENTOS', 'SHOP_ENCOMENDA_ESTADOS')
         order_state_id = _shop_get_order_state_id('PENDENTE')
         currency = str(checkout_cart.get('currency') or 'EUR').strip().upper() or 'EUR'
         reserva_code = str((row or {}).get('RESERVA') or '').strip()
+        delivery_fee = _shop_money((delivery_option or {}).get('price_decimal') or 0)
+        order_total = _shop_money(checkout_cart['subtotal'] + delivery_fee)
         order_id = db.session.execute(
             text("""
                 INSERT INTO dbo.SHOP_ENCOMENDAS
@@ -653,7 +836,7 @@ def create_app():
                 'estado_id': order_state_id,
                 'moeda': currency,
                 'subtotal': checkout_cart['subtotal'],
-                'total': checkout_cart['total'],
+                'total': order_total,
             },
         ).scalar_one()
         order_number = f"SHOP-{int(order_id):06d}"
@@ -713,14 +896,17 @@ def create_app():
             {
                 'order_id': order_id,
                 'moeda': currency,
-                'valor': checkout_cart['total'],
+                'valor': order_total,
             },
         ).scalar_one()
+        _shop_store_order_delivery(order_id, delivery_option)
         return {
             'order_id': int(order_id),
             'order_number': order_number,
             'payment_id': int(payment_id),
             'currency': currency,
+            'delivery_fee': delivery_fee,
+            'order_total': order_total,
         }
 
     def _stripe_api_request(method: str, path: str, data=None, idempotency_key: str = ''):
@@ -934,6 +1120,47 @@ def create_app():
                 'pago_em': kwargs.get('paid_at'),
                 'payment_id': payment_id,
             },
+        )
+
+    def _shop_store_order_delivery(order_id, delivery_option):
+        if not delivery_option or not _shop_table_exists('SHOP_ENCOMENDAS'):
+            return
+        columns = db.session.execute(
+            text("""
+                SELECT UPPER(COLUMN_NAME) AS COLUMN_NAME
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = 'dbo'
+                  AND TABLE_NAME = 'SHOP_ENCOMENDAS'
+            """)
+        ).fetchall()
+        colset = {str(row[0] or '').upper() for row in columns}
+        assignments = []
+        params = {'order_id': order_id}
+        if 'ENTREGA_TIPO' in colset:
+            assignments.append('ENTREGA_TIPO = :delivery_code')
+            params['delivery_code'] = str(delivery_option.get('code') or '').strip().upper() or None
+        if 'ENTREGA_NOME' in colset:
+            assignments.append('ENTREGA_NOME = :delivery_label')
+            params['delivery_label'] = str(delivery_option.get('label') or '').strip()[:100] or None
+        if 'ENTREGA_VALOR' in colset:
+            assignments.append('ENTREGA_VALOR = :delivery_price')
+            params['delivery_price'] = _shop_money(delivery_option.get('price_decimal') or 0)
+        if 'ENTREGA_PREVISTA' in colset:
+            assignments.append('ENTREGA_PREVISTA = :delivery_detail')
+            params['delivery_detail'] = str(delivery_option.get('detail') or '').strip()[:200] or None
+        if 'ENTREGA_REQUER_PRESENCA' in colset:
+            assignments.append('ENTREGA_REQUER_PRESENCA = :delivery_presence')
+            params['delivery_presence'] = 1 if delivery_option.get('requires_presence') else 0
+        if not assignments:
+            return
+        assignments.append('ALTERADO_EM = SYSUTCDATETIME()')
+        db.session.execute(
+            text(f"""
+                UPDATE dbo.SHOP_ENCOMENDAS
+                SET {', '.join(assignments)}
+                WHERE ENCOMENDA_ID = :order_id
+            """),
+            params,
         )
 
     def _shop_register_refund(payment_id, refund_obj):
@@ -1354,6 +1581,7 @@ def create_app():
             'token': tok,
             'reserva': (row.get('RESERVA') or '').strip(),
             'alojamento': (row.get('ALOJAMENTO') or '').strip(),
+            'alojamento_cover_url': _public_al_cover_url(row.get('ALSTAMP')),
             'checkin_data': _fmt_public_date(row.get('DATAIN')),
             'checkout_data': _fmt_public_date(row.get('DATAOUT')),
             'checkin_hora': (row.get('HORAIN') or '').strip(),
@@ -1561,7 +1789,7 @@ def create_app():
 
         if request.method == 'POST':
             if not shop_state.get('is_available'):
-                return jsonify({'error': 'A janela para adicionar itens a chegada ja terminou.', 'shop_state': shop_state}), 400
+                return jsonify({'error': 'A janela para encomendas desta reserva ja terminou.', 'shop_state': shop_state}), 400
             body = request.get_json(silent=True) or {}
             items = list(body.get('items') or [])
             next_lines = {}
@@ -1597,7 +1825,7 @@ def create_app():
             return jsonify({'error': 'Link invalido ou expirado'}), 404
         shop_state = _public_shop_state(row)
         if not shop_state.get('is_available'):
-            return jsonify({'error': 'A janela para adicionar itens a chegada ja terminou.', 'shop_state': shop_state}), 400
+            return jsonify({'error': 'A janela para encomendas desta reserva ja terminou.', 'shop_state': shop_state}), 400
 
         body = request.get_json(silent=True) or {}
         raw_line_key = str(body.get('line_key') or '').strip().upper()
@@ -1646,12 +1874,13 @@ def create_app():
         shop_state = _public_shop_state(row)
         if not shop_state.get('is_available'):
             return jsonify({
-                'error': 'A janela para adicionar itens a chegada ja terminou.',
+                'error': 'A janela para encomendas desta reserva ja terminou.',
                 'shop_state': shop_state,
             }), 400
 
         body = request.get_json(silent=True) or {}
         lang = str(body.get('lang') or 'pt').strip().lower()
+        delivery_code = str(body.get('delivery_method') or '').strip().upper()
         stripe_locale = lang if lang in {'pt', 'en', 'fr', 'es'} else 'auto'
         try:
             checkout_cart = _shop_build_checkout_cart(tok)
@@ -1663,7 +1892,12 @@ def create_app():
             }), 500
 
         try:
-            order_payload = _shop_create_order_from_cart(row, checkout_cart)
+            delivery_option = _shop_resolve_delivery_option(row, delivery_code)
+        except RuntimeError as exc:
+            return jsonify({'error': str(exc), 'shop_state': shop_state}), 400
+
+        try:
+            order_payload = _shop_create_order_from_cart(row, checkout_cart, delivery_option)
             db.session.commit()
         except Exception as exc:
             db.session.rollback()
@@ -1717,6 +1951,15 @@ def create_app():
             description = ' · '.join([bit for bit in description_bits if bit])
             if description:
                 stripe_payload[f'{prefix}[price_data][product_data][description]'] = description[:250]
+        delivery_fee = _shop_money(order_payload.get('delivery_fee') or 0)
+        if delivery_fee > 0:
+            idx = len(checkout_cart.get('items') or [])
+            prefix = f'line_items[{idx}]'
+            stripe_payload[f'{prefix}[quantity]'] = '1'
+            stripe_payload[f'{prefix}[price_data][currency]'] = str(order_payload.get('currency') or 'EUR').strip().lower()
+            stripe_payload[f'{prefix}[price_data][unit_amount]'] = str(_shop_amount_to_minor_units(delivery_fee))
+            stripe_payload[f'{prefix}[price_data][product_data][name]'] = str(delivery_option.get('label') or 'Entrega')[:120]
+            stripe_payload[f'{prefix}[price_data][product_data][description]'] = str(delivery_option.get('detail') or '')[:250]
 
         try:
             stripe_session = _stripe_api_request(
@@ -1802,6 +2045,8 @@ def create_app():
             'order_id': order_id,
             'order_number': order_number,
             'payment_id': payment_id,
+            'delivery_method': delivery_option.get('code'),
+            'delivery_fee': float(delivery_fee),
             'message': 'A redirecionar para o checkout Stripe...',
             'reservation_code': (row.get('RESERVA') or '').strip(),
         })
@@ -2682,6 +2927,21 @@ def create_app():
             'faturacao_reservas.html',
             ano_inicial=today.year,
             mes_inicial=today.month,
+        )
+
+    @app.route('/emissao_saft')
+    @app.route('/faturacao/emissao_saft')
+    @login_required
+    def emissao_saft_page():
+        today = date.today()
+        first_day = today.replace(day=1)
+        options = get_saft_filter_options(db.session)
+        return render_template(
+            'faturacao/emissao_saft.html',
+            dt_ini=first_day.isoformat(),
+            dt_fim=today.isoformat(),
+            series=options.get('series') or [],
+            doc_types=options.get('doc_types') or ['FT', 'FR', 'NC'],
         )
 
     @app.route('/cancelamentos')
@@ -3617,6 +3877,35 @@ def create_app():
         sql += " ORDER BY ISNULL(FDATA,'19000101') DESC, ISNULL(FNO,0) DESC"
         rows = db.session.execute(text(sql), params).mappings().all()
         return jsonify([dict(r) for r in rows])
+
+    @app.route('/api/emissao_saft/preview', methods=['POST'])
+    @login_required
+    def api_emissao_saft_preview():
+        body = request.get_json(silent=True) or {}
+        try:
+            return jsonify(preview_saft_sales(db.session, body))
+        except SaftValidationError as exc:
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            app.logger.exception('Erro ao pré-visualizar SAF-T.')
+            return jsonify({'error': f'Erro ao pré-visualizar SAF-T: {exc}'}), 500
+
+    @app.route('/api/emissao_saft/download', methods=['POST'])
+    @login_required
+    def api_emissao_saft_download():
+        body = request.get_json(silent=True) or {}
+        try:
+            filename, xml_bytes, meta = generate_saft_sales_xml(db.session, body)
+            response = Response(xml_bytes, mimetype='application/xml; charset=utf-8')
+            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+            response.headers['X-SAFT-Documents'] = str((meta.get('summary') or {}).get('documents') or 0)
+            response.headers['X-SAFT-Customers'] = str((meta.get('summary') or {}).get('customers') or 0)
+            return response
+        except SaftValidationError as exc:
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            app.logger.exception('Erro ao gerar SAF-T.')
+            return jsonify({'error': f'Erro ao gerar SAF-T: {exc}'}), 500
 
     @app.route('/api/faturacao/reservas', methods=['GET'])
     @login_required

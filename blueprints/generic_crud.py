@@ -9,8 +9,12 @@ import uuid
 from datetime import date, timedelta
 import json
 import re
+import os
+from werkzeug.utils import secure_filename
 
 bp = Blueprint('generic', __name__, url_prefix='/generic')
+
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 
 # --------------------------------------------------
 # FO: pagamento (V_FC) helper
@@ -120,6 +124,18 @@ def get_table(table_name):
         current_app.logger.error(f"Erro ao refletir tabela {table_name}: {e}")
         abort(404, f"Tabela {table_name} nÃ£o encontrada")
 
+
+def al_fotos_table_exists() -> bool:
+    try:
+        row = db.session.execute(text("""
+            SELECT 1
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'AL_FOTOS'
+        """)).fetchone()
+        return row is not None
+    except Exception:
+        return False
+
 # --------------------------------------------------
 # Views para front-end
 # --------------------------------------------------
@@ -175,6 +191,286 @@ def edit_table(table_name, record_stamp):
         botoes=botoes,
         linhas_exist=linhas_exist  # <-- adiciona aqui
     )
+
+
+@bp.route('/api/al_fotos/<alstamp>', methods=['GET'])
+@login_required
+def al_fotos_list(alstamp):
+    try:
+        if not al_fotos_table_exists():
+            return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
+        alstamp = (alstamp or '').strip()
+        if not alstamp:
+            return jsonify([])
+        rows = db.session.execute(text("""
+            SELECT
+                ALFOTOSTAMP,
+                ALSTAMP,
+                FICHEIRO,
+                CAMINHO,
+                ALT_TEXT,
+                ORDEM,
+                CAPA,
+                ATIVO,
+                DTCRI,
+                DTALT,
+                UTILIZADOR
+            FROM dbo.AL_FOTOS
+            WHERE ALSTAMP = :alstamp
+            ORDER BY CAPA DESC, ORDEM ASC, DTCRI ASC
+        """), {'alstamp': alstamp}).mappings().all()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        current_app.logger.exception('Erro ao listar AL_FOTOS')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/al_fotos/<alstamp>/upload', methods=['POST'])
+@login_required
+def al_fotos_upload(alstamp):
+    try:
+        if not al_fotos_table_exists():
+            return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
+        alstamp = (alstamp or '').strip()
+        if not alstamp:
+            return jsonify({'error': 'ALSTAMP em falta'}), 400
+
+        files = request.files.getlist('files')
+        if not files:
+            single = request.files.get('file')
+            if single:
+                files = [single]
+        files = [f for f in files if f and f.filename]
+        if not files:
+            return jsonify({'error': 'Nenhum ficheiro enviado'}), 400
+
+        target_dir = os.path.join(current_app.static_folder, 'images', 'alojamentos')
+        os.makedirs(target_dir, exist_ok=True)
+        user_login = (getattr(current_user, 'LOGIN', None) or getattr(current_user, 'NOME', None) or '').strip() or None
+
+        existing = db.session.execute(text("""
+            SELECT
+                ISNULL(MAX(ORDEM), -1) AS MAX_ORDEM,
+                MAX(CASE WHEN CAPA = 1 THEN 1 ELSE 0 END) AS TEM_CAPA
+            FROM dbo.AL_FOTOS
+            WHERE ALSTAMP = :alstamp
+        """), {'alstamp': alstamp}).mappings().first() or {}
+        next_ordem = int(existing.get('MAX_ORDEM') or -1) + 1
+        has_cover = bool(existing.get('TEM_CAPA'))
+
+        inserted = []
+        for idx, photo in enumerate(files):
+            safe_name = secure_filename(photo.filename or '')
+            ext = os.path.splitext(safe_name)[1].lower()
+            if ext not in ALLOWED_IMAGE_EXTENSIONS:
+                return jsonify({'error': f'Formato inválido: {safe_name or photo.filename}'}), 400
+
+            photo_stamp = uuid.uuid4().hex[:25]
+            new_name = f"{uuid.uuid4().hex}{ext}"
+            save_path = os.path.join(target_dir, new_name)
+            photo.save(save_path)
+            rel_path = f"images/alojamentos/{new_name}"
+            is_cover = 1 if (not has_cover and idx == 0) else 0
+
+            db.session.execute(text("""
+                INSERT INTO dbo.AL_FOTOS
+                (
+                    ALFOTOSTAMP,
+                    ALSTAMP,
+                    FICHEIRO,
+                    CAMINHO,
+                    ALT_TEXT,
+                    ORDEM,
+                    CAPA,
+                    ATIVO,
+                    DTCRI,
+                    DTALT,
+                    UTILIZADOR
+                )
+                VALUES
+                (
+                    :stamp,
+                    :alstamp,
+                    :ficheiro,
+                    :caminho,
+                    :alt_text,
+                    :ordem,
+                    :capa,
+                    1,
+                    GETDATE(),
+                    GETDATE(),
+                    :utilizador
+                )
+            """), {
+                'stamp': photo_stamp,
+                'alstamp': alstamp,
+                'ficheiro': safe_name or photo.filename,
+                'caminho': rel_path,
+                'alt_text': request.form.get('alt_text', '').strip() or None,
+                'ordem': next_ordem,
+                'capa': is_cover,
+                'utilizador': user_login,
+            })
+            next_ordem += 1
+            inserted.append({'ALFOTOSTAMP': photo_stamp, 'CAMINHO': rel_path})
+
+        db.session.commit()
+        return jsonify({'success': True, 'items': inserted})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao carregar AL_FOTOS')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/al_fotos/<alstamp>/capa/<alfotostamp>', methods=['POST'])
+@login_required
+def al_fotos_set_capa(alstamp, alfotostamp):
+    try:
+        if not al_fotos_table_exists():
+            return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
+        alstamp = (alstamp or '').strip()
+        alfotostamp = (alfotostamp or '').strip()
+        if not alstamp or not alfotostamp:
+            return jsonify({'error': 'Dados em falta'}), 400
+
+        exists = db.session.execute(text("""
+            SELECT 1
+            FROM dbo.AL_FOTOS
+            WHERE ALSTAMP = :alstamp
+              AND ALFOTOSTAMP = :stamp
+        """), {'alstamp': alstamp, 'stamp': alfotostamp}).fetchone()
+        if not exists:
+            return jsonify({'error': 'Foto não encontrada'}), 404
+
+        db.session.execute(text("""
+            UPDATE dbo.AL_FOTOS
+            SET CAPA = 0,
+                DTALT = GETDATE()
+            WHERE ALSTAMP = :alstamp
+        """), {'alstamp': alstamp})
+        db.session.execute(text("""
+            UPDATE dbo.AL_FOTOS
+            SET CAPA = 1,
+                DTALT = GETDATE()
+            WHERE ALSTAMP = :alstamp
+              AND ALFOTOSTAMP = :stamp
+        """), {'alstamp': alstamp, 'stamp': alfotostamp})
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao definir capa AL_FOTOS')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/al_fotos/<alstamp>/ordem', methods=['POST'])
+@login_required
+def al_fotos_set_ordem(alstamp):
+    try:
+        if not al_fotos_table_exists():
+            return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
+        alstamp = (alstamp or '').strip()
+        payload = request.get_json(silent=True) or {}
+        items = payload.get('items') or []
+        if not alstamp or not isinstance(items, list) or not items:
+            return jsonify({'error': 'Ordenação inválida'}), 400
+
+        cleaned = []
+        seen = set()
+        for stamp in items:
+            value = str(stamp or '').strip()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            cleaned.append(value)
+
+        rows = db.session.execute(text("""
+            SELECT ALFOTOSTAMP
+            FROM dbo.AL_FOTOS
+            WHERE ALSTAMP = :alstamp
+        """), {'alstamp': alstamp}).fetchall()
+        existing = {r[0] for r in rows}
+        if not existing:
+            return jsonify({'error': 'Sem fotos para ordenar'}), 404
+
+        final_order = [stamp for stamp in cleaned if stamp in existing]
+        final_order.extend([stamp for stamp in existing if stamp not in final_order])
+
+        for idx, stamp in enumerate(final_order):
+            db.session.execute(text("""
+                UPDATE dbo.AL_FOTOS
+                SET ORDEM = :ordem,
+                    DTALT = GETDATE()
+                WHERE ALSTAMP = :alstamp
+                  AND ALFOTOSTAMP = :stamp
+            """), {'ordem': idx, 'alstamp': alstamp, 'stamp': stamp})
+
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao ordenar AL_FOTOS')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/al_fotos/<alstamp>/<alfotostamp>', methods=['DELETE'])
+@login_required
+def al_fotos_delete(alstamp, alfotostamp):
+    try:
+        if not al_fotos_table_exists():
+            return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
+        alstamp = (alstamp or '').strip()
+        alfotostamp = (alfotostamp or '').strip()
+        if not alstamp or not alfotostamp:
+            return jsonify({'error': 'Dados em falta'}), 400
+
+        photo = db.session.execute(text("""
+            SELECT ALFOTOSTAMP, CAMINHO, CAPA
+            FROM dbo.AL_FOTOS
+            WHERE ALSTAMP = :alstamp
+              AND ALFOTOSTAMP = :stamp
+        """), {'alstamp': alstamp, 'stamp': alfotostamp}).mappings().first()
+        if not photo:
+            return jsonify({'error': 'Foto não encontrada'}), 404
+
+        db.session.execute(text("""
+            DELETE FROM dbo.AL_FOTOS
+            WHERE ALSTAMP = :alstamp
+              AND ALFOTOSTAMP = :stamp
+        """), {'alstamp': alstamp, 'stamp': alfotostamp})
+
+        if photo.get('CAPA'):
+            replacement = db.session.execute(text("""
+                SELECT TOP 1 ALFOTOSTAMP
+                FROM dbo.AL_FOTOS
+                WHERE ALSTAMP = :alstamp
+                ORDER BY ORDEM ASC, DTCRI ASC
+            """), {'alstamp': alstamp}).fetchone()
+            if replacement:
+                db.session.execute(text("""
+                    UPDATE dbo.AL_FOTOS
+                    SET CAPA = 1,
+                        DTALT = GETDATE()
+                    WHERE ALSTAMP = :alstamp
+                      AND ALFOTOSTAMP = :stamp
+                """), {'alstamp': alstamp, 'stamp': replacement[0]})
+
+        db.session.commit()
+
+        caminho = str(photo.get('CAMINHO') or '').strip().replace('/', os.sep)
+        if caminho:
+            abs_path = os.path.join(current_app.static_folder, caminho)
+            if os.path.isfile(abs_path):
+                try:
+                    os.remove(abs_path)
+                except OSError:
+                    current_app.logger.warning('Não foi possível remover ficheiro %s', abs_path)
+
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao apagar AL_FOTOS')
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/fo_compras_form/', defaults={'record_stamp': None})
 @bp.route('/fo_compras_form/<record_stamp>')
@@ -1896,9 +2192,19 @@ def api_gravar_limpezas():
     limpezas = request.get_json()
     if not limpezas:
         return jsonify(success=False, message="Nenhum dado recebido"), 400
+    push_queue = []
     for lp in limpezas:
         lpstamp = lp.get("LPSTAMP") or lp.get("lpstamp")
         if lpstamp:
+            previous = db.session.execute(text("""
+                SELECT TOP 1
+                    ISNULL(ALOJAMENTO,'') AS ALOJAMENTO,
+                    CONVERT(varchar(10), DATA, 23) AS DATA,
+                    ISNULL(HORA,'') AS HORA,
+                    ISNULL(EQUIPA,'') AS EQUIPA
+                FROM LP
+                WHERE LPSTAMP = :lpstamp
+            """), {"lpstamp": lpstamp}).mappings().first()
             res = db.session.execute(
                 text("""
                 UPDATE LP
@@ -1917,6 +2223,25 @@ def api_gravar_limpezas():
                 )
             )
             if res.rowcount:
+                prev = dict(previous or {})
+                changed = any([
+                    str(prev.get("ALOJAMENTO") or "") != str(lp.get("ALOJAMENTO") or ""),
+                    str(prev.get("DATA") or "") != str(lp.get("DATA") or ""),
+                    str(prev.get("HORA") or "") != str(lp.get("HORA") or ""),
+                    str(prev.get("EQUIPA") or "") != str(lp.get("EQUIPA") or ""),
+                ])
+                if changed and str(lp.get("EQUIPA") or "").strip():
+                    push_queue.append({
+                        "event_type": "TASK_REASSIGNED" if str(prev.get("EQUIPA") or "").strip() else "CLEANING_ASSIGNED",
+                        "team": lp["EQUIPA"],
+                        "context": {
+                            "alojamento": lp.get("ALOJAMENTO"),
+                            "data": lp.get("DATA"),
+                            "hora": lp.get("HORA"),
+                            "body": f"{lp.get('ALOJAMENTO') or 'Alojamento'} - {lp.get('DATA') or ''} {lp.get('HORA') or ''}".strip(),
+                            "url": "/monitor",
+                        },
+                    })
                 continue
         # Verifica se jÃ¡ existe (mesmo ALOJAMENTO, DATA, HORA, EQUIPA)
         reg = db.session.execute(
@@ -1949,7 +2274,30 @@ def api_gravar_limpezas():
                 equipe=lp["EQUIPA"]
             )
         )
+        if str(lp.get("EQUIPA") or "").strip():
+            push_queue.append({
+                "event_type": "CLEANING_ASSIGNED",
+                "team": lp["EQUIPA"],
+                "context": {
+                    "alojamento": lp.get("ALOJAMENTO"),
+                    "data": lp.get("DATA"),
+                    "hora": lp.get("HORA"),
+                    "url": "/monitor",
+                },
+            })
     db.session.commit()
+    if push_queue:
+        try:
+            from services.push_service import send_push_to_team
+            for item in push_queue:
+                send_push_to_team(
+                    item.get("team"),
+                    item.get("event_type") or "CLEANING_ASSIGNED",
+                    context=item.get("context") or {},
+                    sent_by_userstamp=getattr(current_user, "USSTAMP", None),
+                )
+        except Exception:
+            current_app.logger.exception("Erro ao enviar notificações push de limpeza.")
     return jsonify(success=True)
 
 
