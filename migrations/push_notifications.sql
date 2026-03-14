@@ -242,6 +242,29 @@ BEGIN TRY
         END;
 
         IF NOT EXISTS (
+            SELECT 1 FROM dbo.PARA WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) = 'VAPID_PRIVATE_KEY_B64'
+        )
+        BEGIN
+            INSERT INTO dbo.PARA
+            (
+                PARASTAMP, PARAMETRO, DESCRICAO, TIPO,
+                CVALOR, DVALOR, NVALOR, LVALOR, GRUPO
+            )
+            VALUES
+            (
+                UPPER(CONVERT(VARCHAR(25), REPLACE(CONVERT(VARCHAR(36), NEWID()), '-', ''))),
+                'VAPID_PRIVATE_KEY_B64',
+                'Chave privada VAPID em base64 compacto para notificacoes push web',
+                'C',
+                '',
+                CAST(GETDATE() AS DATE),
+                0,
+                0,
+                'PUSH'
+            );
+        END;
+
+        IF NOT EXISTS (
             SELECT 1 FROM dbo.PARA WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) = 'VAPID_SUBJECT'
         )
         BEGIN

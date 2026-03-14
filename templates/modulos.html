@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+
+{% block title %}Módulos{% endblock %}
+
+{% block content %}
+<div class="sz_page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Módulos</div>
+        <div class="sz_breadcrumbs">FINANCEIRO / MULTI-EMPRESA</div>
+        <div class="sz_page_subtitle">Catálogo base dos módulos disponíveis na aplicação.</div>
+      </div>
+      <div class="sz_contextbar_right"></div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content">
+        <div class="sz_sidebar_layout sz_modulos_layout">
+          <aside class="sz_sidebar">
+            <section class="sz_panel sz_stack">
+              <div class="sz_grid sz_grid_2">
+                <div class="sz_field">
+                  <label class="sz_label" for="modSearch">Pesquisa</label>
+                  <input id="modSearch" type="text" class="sz_input" placeholder="Código, nome ou descrição">
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="modActiveFilter">Estado</label>
+                  <select id="modActiveFilter" class="sz_select">
+                    <option value="">Todos</option>
+                    <option value="1">Ativos</option>
+                    <option value="0">Inativos</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="sz_inline">
+                <span id="modListSummary" class="sz_text_muted">0 módulos</span>
+              </div>
+
+              <div id="modList" class="sz_stack">
+                <div class="sz_panel sz_modulos_empty">A carregar...</div>
+              </div>
+            </section>
+          </aside>
+
+          <div class="sz_stack">
+            <section class="sz_panel sz_stack">
+              <div class="sz_modulos_header">
+                <div class="sz_stack">
+                  <div class="sz_caption">Ficha do módulo</div>
+                  <div id="modEditorTitle" class="sz_page_title sz_modulos_editor_title">Novo módulo</div>
+                </div>
+                <div class="sz_grid sz_grid_4 sz_modulos_stats">
+                  <div class="sz_card sz_stack">
+                    <span class="sz_caption">Entidades</span>
+                    <strong id="modTotalFe" class="sz_modulos_stat_value">0</strong>
+                    <span class="sz_badge sz_badge_info">Ligadas</span>
+                  </div>
+                  <div class="sz_card sz_stack">
+                    <span class="sz_caption">Ativas</span>
+                    <strong id="modTotalFeAtivas" class="sz_modulos_stat_value">0</strong>
+                    <span class="sz_badge sz_badge_success">FE ativas</span>
+                  </div>
+                  <div class="sz_card sz_stack">
+                    <span class="sz_caption">Objetos</span>
+                    <strong id="modTotalObjetos" class="sz_modulos_stat_value">0</strong>
+                    <span class="sz_badge sz_badge_info">Associados</span>
+                  </div>
+                  <div class="sz_card sz_stack">
+                    <span class="sz_caption">Estado</span>
+                    <strong id="modEstado" class="sz_modulos_stat_value">Ativo</strong>
+                    <span id="modEstadoBadge" class="sz_badge sz_badge_success">Ativo</span>
+                  </div>
+                </div>
+              </div>
+              <div class="sz_inline">
+                <button id="modBtnObjects" type="button" class="sz_button sz_button_ghost">
+                  <i class="fa-solid fa-table-cells-large"></i>
+                  <span>Gerir objetos</span>
+                </button>
+              </div>
+            </section>
+
+            <form id="modForm" class="sz_stack" autocomplete="off">
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Identificação</div>
+                <div class="sz_grid sz_grid_3 sz_modulos_grid_id">
+                  <div class="sz_field">
+                    <label class="sz_label" for="modMODSTAMP">MODSTAMP</label>
+                    <input id="modMODSTAMP" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="modCODIGO">Código</label>
+                    <input id="modCODIGO" class="sz_input" maxlength="40">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="modATIVO">Estado</label>
+                    <label class="sz_checkbox">
+                      <input id="modATIVO" type="checkbox">
+                      <span>Módulo ativo</span>
+                    </label>
+                  </div>
+                  <div class="sz_field sz_modulos_span_2">
+                    <label class="sz_label" for="modNOME">Nome</label>
+                    <input id="modNOME" class="sz_input" maxlength="80">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="modORDEM">Ordem</label>
+                    <input id="modORDEM" type="number" class="sz_input_number" min="0" step="1">
+                  </div>
+                </div>
+              </section>
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Descrição</div>
+                <div class="sz_field">
+                  <label class="sz_label" for="modDESCR">Descrição funcional</label>
+                  <textarea id="modDESCR" rows="4" class="sz_textarea" maxlength="200"></textarea>
+                </div>
+              </section>
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Auditoria</div>
+                <div class="sz_grid sz_grid_4">
+                  <div class="sz_field">
+                    <label class="sz_label" for="modDTCRI">Criado em</label>
+                    <input id="modDTCRI" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="modDTALT">Alterado em</label>
+                    <input id="modDTALT" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="modUSERCRIACAO">User criação</label>
+                    <input id="modUSERCRIACAO" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="modUSERALTERACAO">User alteração</label>
+                    <input id="modUSERALTERACAO" class="sz_input" readonly>
+                  </div>
+                </div>
+              </section>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left">
+        <button id="modBtnNew" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-plus"></i>
+          <span>Novo</span>
+        </button>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="modBtnCancel" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button id="modBtnDelete" type="button" class="sz_button sz_button_danger">
+          <i class="fa-solid fa-trash"></i>
+          <span>Eliminar</span>
+        </button>
+        <button id="modBtnSave" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div class="modal fade" id="modObjectsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable sz_modulos_objects_dialog">
+    <div class="modal-content sz_panel sz_modulos_objects_modal">
+      <div class="modal-header sz_modal_header">
+        <div class="sz_stack">
+          <h5 class="modal-title sz_modal_title">Objetos do módulo</h5>
+          <div id="modObjectsModalSubtitle" class="sz_text_muted">Selecione menus e ecrãs do módulo.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body sz_stack">
+        <div class="sz_grid sz_grid_2">
+          <div class="sz_field">
+            <label class="sz_label" for="modObjectsSearch">Pesquisa</label>
+            <input id="modObjectsSearch" type="text" class="sz_input" placeholder="Nome, rota ou origem">
+          </div>
+          <div class="sz_inline sz_modulos_objects_actions">
+            <button id="modObjectsAddManual" type="button" class="sz_button sz_button_secondary">
+              <i class="fa-solid fa-plus"></i>
+              <span>Adicionar linha</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="sz_table_host">
+          <table class="sz_table sz_table_compact">
+            <thead class="sz_table_head">
+              <tr class="sz_table_row">
+                <th class="sz_table_cell">Tipo</th>
+                <th class="sz_table_cell">Nome</th>
+                <th class="sz_table_cell">Rota</th>
+                <th class="sz_table_cell">Origem</th>
+                <th class="sz_table_cell sz_text_right">Ativo</th>
+              </tr>
+            </thead>
+            <tbody id="modObjectsTableBody">
+              <tr class="sz_table_row">
+                <td colspan="5" class="sz_table_cell sz_text_muted">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button id="modObjectsSave" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar objetos</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.MODULOS_INITIAL_MODSTAMP = {{ initial_modstamp|tojson }};
+  window.MOD_CAN_CREATE = {{ mod_can_create|tojson }};
+  window.MOD_CAN_EDIT = {{ mod_can_edit|tojson }};
+  window.MOD_CAN_DELETE = {{ mod_can_delete|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/modulos.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+
+<style>
+  .sz_modulos_layout {
+    align-items: start;
+  }
+
+  .sz_modulos_header,
+  .sz_modulos_stats,
+  .sz_modulos_grid_id {
+    min-width: 0;
+  }
+
+  .sz_modulos_header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--sz-space-4);
+  }
+
+  .sz_modulos_editor_title {
+    font-size: var(--sz-font-size-xl);
+  }
+
+  .sz_modulos_stats {
+    width: min(100%, 420px);
+  }
+
+  .sz_modulos_stat_value {
+    font-size: var(--sz-font-size-xl);
+    line-height: var(--sz-line-tight);
+  }
+
+  .sz_modulos_stats .sz_badge {
+    width: fit-content;
+  }
+
+  .sz_modulos_span_2 {
+    grid-column: span 2;
+  }
+
+  .sz_modulos_list_item {
+    cursor: pointer;
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    gap: var(--sz-space-2);
+    padding: var(--sz-space-3);
+  }
+
+  .sz_modulos_list_item:hover {
+    transform: translateY(-1px);
+  }
+
+  .sz_modulos_list_item.sz_is_active {
+    border-color: var(--sz-color-primary);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 30%, transparent);
+  }
+
+  .sz_modulos_list_head,
+  .sz_modulos_list_meta {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+  }
+
+  .sz_modulos_list_meta {
+    flex-wrap: wrap;
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-xs);
+    gap: var(--sz-space-2);
+  }
+
+  .sz_modulos_list_meta .sz_badge {
+    font-size: 11px;
+  }
+
+  .sz_modulos_list_title_block {
+    gap: 0;
+  }
+
+  .sz_modulos_empty {
+    text-align: center;
+    color: var(--sz-color-text-muted);
+  }
+
+  .sz_modulos_list_actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .sz_modulos_list_actions .sz_button {
+    min-width: 0;
+    padding-inline: var(--sz-space-3);
+    height: 2rem;
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .sz_modulos_objects_dialog {
+    max-width: min(1400px, calc(100vw - 2rem));
+  }
+
+  .sz_modulos_objects_actions {
+    justify-content: flex-end;
+    align-items: end;
+  }
+
+  .sz_modulos_objects_modal .sz_table_cell .sz_checkbox {
+    justify-content: flex-end;
+  }
+
+  .sz_modulos_manual_input {
+    min-width: 160px;
+  }
+
+  @media (max-width: 1200px) {
+    .sz_modulos_header {
+      flex-direction: column;
+    }
+
+    .sz_modulos_stats {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .sz_modulos_span_2 {
+      grid-column: auto;
+    }
+
+    .sz_modulos_objects_actions {
+      justify-content: flex-start;
+    }
+  }
+</style>
+{% endblock %}

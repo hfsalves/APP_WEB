@@ -17,7 +17,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date, timedelta, time as dtime
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
@@ -47,6 +47,10 @@ from services.shop_guest_service import (
     build_shop_cart,
     get_shop_catalog_data,
     get_shop_product_by_code,
+)
+from services.airbnb_commission_import_service import (
+    preview_airbnb_commissions_csv,
+    import_airbnb_commissions_rows,
 )
 from price_engine import register_pricing
 
@@ -2692,6 +2696,226 @@ def create_app():
         except Exception:
             return int(default)
 
+    def _fe_has_permission(action='consultar'):
+        try:
+            if getattr(current_user, 'ADMIN', False):
+                return True
+            acesso = Acessos.query.filter_by(utilizador=current_user.LOGIN, tabela='FE').first()
+            if not acesso:
+                return False
+            return bool(getattr(acesso, action, False))
+        except Exception:
+            return False
+
+    def _mod_has_permission(action='consultar'):
+        try:
+            if getattr(current_user, 'ADMIN', False):
+                return True
+            acesso = Acessos.query.filter_by(utilizador=current_user.LOGIN, tabela='MODULOS').first()
+            if not acesso:
+                return False
+            return bool(getattr(acesso, action, False))
+        except Exception:
+            return False
+
+    def _fo_has_permission(action='consultar'):
+        try:
+            if getattr(current_user, 'ADMIN', False):
+                return True
+            acesso = Acessos.query.filter_by(utilizador=current_user.LOGIN, tabela='FO').first()
+            if not acesso:
+                return False
+            return bool(getattr(acesso, action, False))
+        except Exception:
+            return False
+
+    def _default_fe_payload(user_login: str):
+        return {
+            'FESTAMP': _new_stamp_25(),
+            'NIF': 0,
+            'NOME': '',
+            'NOMEFISCAL': '',
+            'ATIVIDADE': '',
+            'MORADA': '',
+            'MORADA2': '',
+            'CODPOST': '',
+            'LOCAL': '',
+            'PAISISO2': 'PT',
+            'EMAIL': '',
+            'TELEFONE': '',
+            'ATIVA': 1,
+            'OBS': '',
+            'CERTNUM': '',
+            'ATCUD_PREFIX': '',
+            'QRVER': '',
+            'HASHVER': '',
+            'KEYID': '',
+            'RSA_PRIV_PATH': '',
+            'RSA_PUB_PATH': '',
+            'AT_WS_ATIVO': 0,
+            'AT_WS_AMBIENTE': '',
+            'AT_WS_USER': '',
+            'AT_WS_PASS': '',
+            'USERCRIACAO': user_login,
+            'USERALTERACAO': user_login,
+        }
+
+    def _load_fe_module_rows(festamp: str | None = None):
+        params = {'festamp': (festamp or '').strip()}
+        return [dict(r) for r in db.session.execute(text("""
+            SELECT
+                M.MODSTAMP,
+                M.CODIGO,
+                M.NOME,
+                M.DESCR,
+                M.ORDEM,
+                M.ATIVO AS MODULO_ATIVO,
+                CASE WHEN FM.FEMODSTAMP IS NULL THEN 0 ELSE 1 END AS ASSOCIADO,
+                ISNULL(FM.ATIVO, 1) AS ATIVO,
+                ISNULL(FM.OBS, '') AS OBS,
+                ISNULL(FM.FEMODSTAMP, '') AS FEMODSTAMP
+            FROM dbo.MODULOS M
+            LEFT JOIN dbo.FE_MODULOS FM
+              ON FM.MODSTAMP = M.MODSTAMP
+             AND FM.FESTAMP = :festamp
+            ORDER BY ISNULL(M.ORDEM, 0), ISNULL(M.NOME, '')
+        """), params).mappings().all()]
+
+    def _default_mod_payload(user_login: str):
+        return {
+            'MODSTAMP': _new_stamp_25(),
+            'CODIGO': '',
+            'NOME': '',
+            'DESCR': '',
+            'ORDEM': 0,
+            'ATIVO': 1,
+            'USERCRIACAO': user_login,
+            'USERALTERACAO': user_login,
+        }
+
+    def _collect_module_object_candidates():
+        candidates = []
+        seen_keys = set()
+
+        try:
+            menu_rows = db.session.execute(text("""
+                SELECT
+                    ISNULL(menustamp, '') AS MENUSTAMP,
+                    ISNULL(nome, '') AS NOME,
+                    ISNULL(tabela, '') AS TABELA,
+                    ISNULL(url, '') AS URL,
+                    ISNULL(ordem, 0) AS ORDEM
+                FROM dbo.MENU
+                ORDER BY ISNULL(ordem, 0), ISNULL(nome, '')
+            """)).mappings().all()
+        except Exception:
+            menu_rows = []
+
+        for row in menu_rows:
+            menustamp = str(row.get('MENUSTAMP') or '').strip()
+            if not menustamp:
+                continue
+            key = f"MENU:{menustamp}"
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            candidates.append({
+                'TIPO': 'MENU',
+                'OBJKEY': key,
+                'OBJNOME': str(row.get('NOME') or '').strip(),
+                'OBJROTA': str(row.get('URL') or '').strip(),
+                'MENUSTAMP': menustamp,
+                'ORDEM': _to_int(row.get('ORDEM'), 0),
+                'ORIGEM': f"MENU / {str(row.get('TABELA') or '').strip()}",
+            })
+
+        route_candidates = []
+        for rule in app.url_map.iter_rules():
+            methods = set(rule.methods or [])
+            route = str(rule.rule or '').strip()
+            if 'GET' not in methods:
+                continue
+            if not route or route.startswith('/api/') or route.startswith('/static/'):
+                continue
+            if route in ('/', '/login', '/logout'):
+                continue
+            endpoint = str(rule.endpoint or '').strip()
+            if endpoint == 'static':
+                continue
+            key = f"ROUTE:{route}"
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            route_candidates.append({
+                'TIPO': 'SCREEN',
+                'OBJKEY': key,
+                'OBJNOME': endpoint.replace('_', ' ').strip().title() or route,
+                'OBJROTA': route,
+                'MENUSTAMP': '',
+                'ORDEM': 9999,
+                'ORIGEM': 'ROUTE',
+            })
+
+        route_candidates.sort(key=lambda item: ((item.get('OBJROTA') or '').lower(), (item.get('OBJNOME') or '').lower()))
+        candidates.extend(route_candidates)
+        return candidates
+
+    def _ensure_mod_objetos_table():
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.MOD_OBJETOS', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.MOD_OBJETOS
+                (
+                    MODOBJSTAMP      varchar(25)  NOT NULL
+                        CONSTRAINT DF_MOD_OBJETOS_MODOBJSTAMP DEFAULT LEFT(CONVERT(varchar(36), NEWID()), 25),
+                    MODSTAMP         varchar(25)  NOT NULL,
+                    TIPO             varchar(20)  NOT NULL,
+                    OBJKEY           varchar(150) NOT NULL,
+                    OBJNOME          varchar(150) NOT NULL,
+                    OBJROTA          varchar(255) NOT NULL
+                        CONSTRAINT DF_MOD_OBJETOS_OBJROTA DEFAULT '',
+                    MENUSTAMP        varchar(25)  NOT NULL
+                        CONSTRAINT DF_MOD_OBJETOS_MENUSTAMP DEFAULT '',
+                    ORDEM            int          NOT NULL
+                        CONSTRAINT DF_MOD_OBJETOS_ORDEM DEFAULT 0,
+                    ATIVO            bit          NOT NULL
+                        CONSTRAINT DF_MOD_OBJETOS_ATIVO DEFAULT 1,
+                    DTCRI            datetime2(0) NOT NULL
+                        CONSTRAINT DF_MOD_OBJETOS_DTCRI DEFAULT GETDATE(),
+                    DTALT            datetime2(0) NULL,
+                    USERCRIACAO      varchar(50)  NOT NULL
+                        CONSTRAINT DF_MOD_OBJETOS_USERCRIACAO DEFAULT '',
+                    USERALTERACAO    varchar(50)  NOT NULL
+                        CONSTRAINT DF_MOD_OBJETOS_USERALTERACAO DEFAULT '',
+                    CONSTRAINT PK_MOD_OBJETOS PRIMARY KEY CLUSTERED (MODOBJSTAMP),
+                    CONSTRAINT FK_MOD_OBJETOS_MODULOS FOREIGN KEY (MODSTAMP) REFERENCES dbo.MODULOS(MODSTAMP),
+                    CONSTRAINT UQ_MOD_OBJETOS UNIQUE (MODSTAMP, OBJKEY)
+                );
+                CREATE INDEX IX_MOD_OBJETOS_MODSTAMP ON dbo.MOD_OBJETOS (MODSTAMP);
+                CREATE INDEX IX_MOD_OBJETOS_MENUSTAMP ON dbo.MOD_OBJETOS (MENUSTAMP);
+            END
+        """))
+        db.session.commit()
+
+    def _load_module_object_rows(modstamp: str):
+        _ensure_mod_objetos_table()
+        rows = [dict(r) for r in db.session.execute(text("""
+            SELECT
+                MODOBJSTAMP,
+                MODSTAMP,
+                TIPO,
+                OBJKEY,
+                OBJNOME,
+                OBJROTA,
+                MENUSTAMP,
+                ORDEM,
+                ATIVO
+            FROM dbo.MOD_OBJETOS
+            WHERE MODSTAMP=:modstamp
+            ORDER BY ISNULL(ORDEM, 0), ISNULL(OBJNOME, '')
+        """), {'modstamp': (modstamp or '').strip()}).mappings().all()]
+        return rows
+
     def _default_ft_payload(user_login: str):
         today = date.today()
         return {
@@ -2975,6 +3199,36 @@ def create_app():
             page_title='Investimentos',
             ano_inicial=today.year,
             mes_inicial=today.month,
+        )
+
+    @app.route('/entidades')
+    @app.route('/entidades/<festamp>')
+    @login_required
+    def entidades_page(festamp=None):
+        if not _fe_has_permission('consultar'):
+            abort(403)
+        return render_template(
+            'entidades.html',
+            page_title='Entidades',
+            initial_festamp=(festamp or '').strip(),
+            fe_can_create=_fe_has_permission('inserir'),
+            fe_can_edit=_fe_has_permission('editar'),
+            fe_can_delete=_fe_has_permission('eliminar'),
+        )
+
+    @app.route('/modulos')
+    @app.route('/modulos/<modstamp>')
+    @login_required
+    def modulos_page(modstamp=None):
+        if not _mod_has_permission('consultar'):
+            abort(403)
+        return render_template(
+            'modulos.html',
+            page_title='Módulos',
+            initial_modstamp=(modstamp or '').strip(),
+            mod_can_create=_mod_has_permission('inserir'),
+            mod_can_edit=_mod_has_permission('editar'),
+            mod_can_delete=_mod_has_permission('eliminar'),
         )
 
     @app.route('/faturacao/ft/new')
@@ -3823,6 +4077,636 @@ def create_app():
             ORDER BY NOME
         """)).mappings().all()
         return jsonify([dict(r) for r in rows])
+
+    @app.route('/api/entidades', methods=['GET'])
+    @login_required
+    def api_entidades_list():
+        if not _fe_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar entidades.'}), 403
+
+        q = (request.args.get('q') or '').strip()
+        active = (request.args.get('active') or '').strip().lower()
+
+        sql = """
+            SELECT
+                FE.FESTAMP,
+                FE.NIF,
+                FE.NOME,
+                FE.NOMEFISCAL,
+                FE.EMAIL,
+                FE.TELEFONE,
+                FE.LOCAL,
+                FE.PAISISO2,
+                FE.ATIVA,
+                FE.CERTNUM,
+                FE.AT_WS_ATIVO,
+                FE.DTAlteracao,
+                FE.USERALTERACAO,
+                ISNULL(SER.SERIES_TOTAL, 0) AS SERIES_TOTAL,
+                ISNULL(SER.SERIES_ATIVAS, 0) AS SERIES_ATIVAS
+            FROM dbo.FE FE
+            LEFT JOIN (
+                SELECT
+                    FESTAMP,
+                    COUNT(*) AS SERIES_TOTAL,
+                    SUM(CASE WHEN ISNULL(ATIVA,0)=1 THEN 1 ELSE 0 END) AS SERIES_ATIVAS
+                FROM dbo.FTS
+                GROUP BY FESTAMP
+            ) SER ON SER.FESTAMP = FE.FESTAMP
+            WHERE 1=1
+        """
+        params = {}
+        if q:
+            sql += """
+              AND (
+                ISNULL(FE.NOME,'') LIKE :q
+                OR ISNULL(FE.NOMEFISCAL,'') LIKE :q
+                OR CONVERT(varchar(30), ISNULL(FE.NIF,0)) LIKE :q
+                OR ISNULL(FE.EMAIL,'') LIKE :q
+                OR ISNULL(FE.LOCAL,'') LIKE :q
+              )
+            """
+            params['q'] = f'%{q}%'
+        if active in ('1', 'true', 'ativo', 'ativos'):
+            sql += " AND ISNULL(FE.ATIVA,0)=1"
+        elif active in ('0', 'false', 'inativo', 'inativos'):
+            sql += " AND ISNULL(FE.ATIVA,0)=0"
+
+        sql += " ORDER BY ISNULL(FE.ATIVA,1) DESC, ISNULL(FE.NOME,'')"
+        rows = db.session.execute(text(sql), params).mappings().all()
+        return jsonify({'rows': [dict(r) for r in rows]})
+
+    @app.route('/api/entidades/<festamp>', methods=['GET'])
+    @login_required
+    def api_entidades_detail(festamp):
+        if not _fe_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar entidades.'}), 403
+
+        row = db.session.execute(text("""
+            SELECT
+                FE.*,
+                ISNULL(SER.SERIES_TOTAL, 0) AS SERIES_TOTAL,
+                ISNULL(SER.SERIES_ATIVAS, 0) AS SERIES_ATIVAS
+            FROM dbo.FE FE
+            LEFT JOIN (
+                SELECT
+                    FESTAMP,
+                    COUNT(*) AS SERIES_TOTAL,
+                    SUM(CASE WHEN ISNULL(ATIVA,0)=1 THEN 1 ELSE 0 END) AS SERIES_ATIVAS
+                FROM dbo.FTS
+                GROUP BY FESTAMP
+            ) SER ON SER.FESTAMP = FE.FESTAMP
+            WHERE FE.FESTAMP = :festamp
+        """), {'festamp': (festamp or '').strip()}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Entidade não encontrada.'}), 404
+        return jsonify({'row': dict(row), 'modules': _load_fe_module_rows(festamp)})
+
+    @app.route('/api/entidades/modules', methods=['GET'])
+    @login_required
+    def api_entidades_modules():
+        if not _fe_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar entidades.'}), 403
+        return jsonify({'rows': _load_fe_module_rows('')})
+
+    @app.route('/api/entidades/save', methods=['POST'])
+    @login_required
+    def api_entidades_save():
+        body = request.get_json(silent=True) or {}
+        raw = body.get('row') if isinstance(body.get('row'), dict) else body
+        raw_modules = body.get('modules') if isinstance(body.get('modules'), list) else []
+        if not isinstance(raw, dict):
+            return jsonify({'error': 'Payload inválido.'}), 400
+
+        festamp = (raw.get('FESTAMP') or '').strip()
+        exists = None
+        if festamp:
+            exists = db.session.execute(
+                text("SELECT TOP 1 FESTAMP FROM dbo.FE WHERE FESTAMP=:festamp"),
+                {'festamp': festamp}
+            ).mappings().first()
+
+        if exists:
+            if not _fe_has_permission('editar'):
+                return jsonify({'error': 'Sem permissão para editar entidades.'}), 403
+        else:
+            if not _fe_has_permission('inserir'):
+                return jsonify({'error': 'Sem permissão para criar entidades.'}), 403
+
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        payload = _default_fe_payload(user_login)
+        payload.update({
+            'FESTAMP': festamp or payload['FESTAMP'],
+            'NIF': _to_int(raw.get('NIF'), 0),
+            'NOME': (raw.get('NOME') or '').strip(),
+            'NOMEFISCAL': (raw.get('NOMEFISCAL') or '').strip(),
+            'ATIVIDADE': (raw.get('ATIVIDADE') or '').strip(),
+            'MORADA': (raw.get('MORADA') or '').strip(),
+            'MORADA2': (raw.get('MORADA2') or '').strip(),
+            'CODPOST': (raw.get('CODPOST') or '').strip(),
+            'LOCAL': (raw.get('LOCAL') or '').strip(),
+            'PAISISO2': (raw.get('PAISISO2') or 'PT').strip().upper()[:2],
+            'EMAIL': (raw.get('EMAIL') or '').strip(),
+            'TELEFONE': (raw.get('TELEFONE') or '').strip(),
+            'ATIVA': 1 if raw.get('ATIVA') else 0,
+            'OBS': (raw.get('OBS') or '').strip(),
+            'CERTNUM': (raw.get('CERTNUM') or '').strip(),
+            'ATCUD_PREFIX': (raw.get('ATCUD_PREFIX') or '').strip(),
+            'QRVER': (raw.get('QRVER') or '').strip(),
+            'HASHVER': (raw.get('HASHVER') or '').strip(),
+            'KEYID': (raw.get('KEYID') or '').strip(),
+            'RSA_PRIV_PATH': (raw.get('RSA_PRIV_PATH') or '').strip(),
+            'RSA_PUB_PATH': (raw.get('RSA_PUB_PATH') or '').strip(),
+            'AT_WS_ATIVO': 1 if raw.get('AT_WS_ATIVO') else 0,
+            'AT_WS_AMBIENTE': (raw.get('AT_WS_AMBIENTE') or '').strip(),
+            'AT_WS_USER': (raw.get('AT_WS_USER') or '').strip(),
+            'AT_WS_PASS': (raw.get('AT_WS_PASS') or '').strip(),
+            'USERALTERACAO': user_login,
+        })
+
+        if not payload['NOME']:
+            return jsonify({'error': 'O campo Nome é obrigatório.'}), 400
+        if not payload['NOMEFISCAL']:
+            return jsonify({'error': 'O campo Nome fiscal é obrigatório.'}), 400
+        if payload['NIF'] <= 0:
+            return jsonify({'error': 'O campo NIF é obrigatório.'}), 400
+
+        normalized_modules = []
+        seen_modstamps = set()
+        for item in raw_modules:
+            if not isinstance(item, dict):
+                continue
+            modstamp_value = (item.get('MODSTAMP') or '').strip()
+            if not modstamp_value or modstamp_value in seen_modstamps:
+                continue
+            seen_modstamps.add(modstamp_value)
+            normalized_modules.append({
+                'MODSTAMP': modstamp_value,
+                'ATIVO': 1 if item.get('ATIVO', item.get('ASSOCIADO', 0)) else 0,
+                'OBS': (item.get('OBS') or '').strip()[:200],
+            })
+
+        try:
+            if exists:
+                db.session.execute(text("""
+                    UPDATE dbo.FE
+                    SET NIF=:NIF,
+                        NOME=:NOME,
+                        NOMEFISCAL=:NOMEFISCAL,
+                        ATIVIDADE=:ATIVIDADE,
+                        MORADA=:MORADA,
+                        MORADA2=:MORADA2,
+                        CODPOST=:CODPOST,
+                        LOCAL=:LOCAL,
+                        PAISISO2=:PAISISO2,
+                        EMAIL=:EMAIL,
+                        TELEFONE=:TELEFONE,
+                        ATIVA=:ATIVA,
+                        OBS=:OBS,
+                        CERTNUM=:CERTNUM,
+                        ATCUD_PREFIX=:ATCUD_PREFIX,
+                        QRVER=:QRVER,
+                        HASHVER=:HASHVER,
+                        KEYID=:KEYID,
+                        RSA_PRIV_PATH=:RSA_PRIV_PATH,
+                        RSA_PUB_PATH=:RSA_PUB_PATH,
+                        AT_WS_ATIVO=:AT_WS_ATIVO,
+                        AT_WS_AMBIENTE=:AT_WS_AMBIENTE,
+                        AT_WS_USER=:AT_WS_USER,
+                        AT_WS_PASS=:AT_WS_PASS,
+                        DTAlteracao=GETDATE(),
+                        USERALTERACAO=:USERALTERACAO
+                    WHERE FESTAMP=:FESTAMP
+                """), payload)
+            else:
+                db.session.execute(text("""
+                    INSERT INTO dbo.FE
+                    (
+                        FESTAMP, NIF, NOME, NOMEFISCAL, ATIVIDADE, MORADA, MORADA2, CODPOST, LOCAL, PAISISO2,
+                        EMAIL, TELEFONE, ATIVA, OBS, CERTNUM, ATCUD_PREFIX, QRVER, HASHVER, KEYID,
+                        RSA_PRIV_PATH, RSA_PUB_PATH, AT_WS_ATIVO, AT_WS_AMBIENTE, AT_WS_USER, AT_WS_PASS,
+                        DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO
+                    )
+                    VALUES
+                    (
+                        :FESTAMP, :NIF, :NOME, :NOMEFISCAL, :ATIVIDADE, :MORADA, :MORADA2, :CODPOST, :LOCAL, :PAISISO2,
+                        :EMAIL, :TELEFONE, :ATIVA, :OBS, :CERTNUM, :ATCUD_PREFIX, :QRVER, :HASHVER, :KEYID,
+                        :RSA_PRIV_PATH, :RSA_PUB_PATH, :AT_WS_ATIVO, :AT_WS_AMBIENTE, :AT_WS_USER, :AT_WS_PASS,
+                        GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO
+                    )
+                """), payload)
+
+            if normalized_modules:
+                valid_mods = {
+                    str(r['MODSTAMP']).strip()
+                    for r in db.session.execute(text("""
+                        SELECT MODSTAMP
+                        FROM dbo.MODULOS
+                        WHERE MODSTAMP IN :modstamps
+                    """).bindparams(bindparam('modstamps', expanding=True)), {
+                        'modstamps': [m['MODSTAMP'] for m in normalized_modules]
+                    }).mappings().all()
+                }
+            else:
+                valid_mods = set()
+
+            if normalized_modules and len(valid_mods) != len(normalized_modules):
+                invalid = [m['MODSTAMP'] for m in normalized_modules if m['MODSTAMP'] not in valid_mods]
+                db.session.rollback()
+                return jsonify({'error': f'Módulos inválidos: {", ".join(invalid)}'}), 400
+
+            db.session.execute(text("""
+                DELETE FROM dbo.FE_MODULOS
+                WHERE FESTAMP=:festamp
+            """), {'festamp': payload['FESTAMP']})
+
+            for module_row in normalized_modules:
+                if not module_row['ATIVO']:
+                    continue
+                db.session.execute(text("""
+                    INSERT INTO dbo.FE_MODULOS
+                    (
+                        FEMODSTAMP, FESTAMP, MODSTAMP, ATIVO, OBS,
+                        DTCRI, DTALT, USERCRIACAO, USERALTERACAO
+                    )
+                    VALUES
+                    (
+                        :FEMODSTAMP, :FESTAMP, :MODSTAMP, :ATIVO, :OBS,
+                        GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO
+                    )
+                """), {
+                    'FEMODSTAMP': _new_stamp_25(),
+                    'FESTAMP': payload['FESTAMP'],
+                    'MODSTAMP': module_row['MODSTAMP'],
+                    'ATIVO': 1,
+                    'OBS': module_row['OBS'],
+                    'USERCRIACAO': user_login,
+                    'USERALTERACAO': user_login,
+                })
+            db.session.commit()
+            return jsonify({'ok': True, 'festamp': payload['FESTAMP']})
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar entidade.')
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/entidades/<festamp>/delete', methods=['POST'])
+    @login_required
+    def api_entidades_delete(festamp):
+        if not _fe_has_permission('eliminar'):
+            return jsonify({'error': 'Sem permissão para eliminar entidades.'}), 403
+        festamp = (festamp or '').strip()
+        if not festamp:
+            return jsonify({'error': 'FESTAMP obrigatório.'}), 400
+        try:
+            res = db.session.execute(text("DELETE FROM dbo.FE WHERE FESTAMP=:festamp"), {'festamp': festamp})
+            if not res.rowcount:
+                db.session.rollback()
+                return jsonify({'error': 'Entidade não encontrada.'}), 404
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception('Erro ao eliminar entidade.')
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/modulos', methods=['GET'])
+    @login_required
+    def api_modulos_list():
+        if not _mod_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar módulos.'}), 403
+
+        q = (request.args.get('q') or '').strip()
+        active = (request.args.get('active') or '').strip().lower()
+        _ensure_mod_objetos_table()
+
+        sql = """
+            SELECT
+                M.MODSTAMP,
+                M.CODIGO,
+                M.NOME,
+                M.DESCR,
+                M.ORDEM,
+                M.ATIVO,
+                M.DTCRI,
+                M.DTALT,
+                M.USERCRIACAO,
+                M.USERALTERACAO,
+                ISNULL(FE.TOTAL_FE, 0) AS TOTAL_FE,
+                ISNULL(FE.TOTAL_FE_ATIVAS, 0) AS TOTAL_FE_ATIVAS,
+                ISNULL(OBJ.TOTAL_OBJETOS, 0) AS TOTAL_OBJETOS
+            FROM dbo.MODULOS M
+            LEFT JOIN (
+                SELECT
+                    MODSTAMP,
+                    COUNT(*) AS TOTAL_FE,
+                    SUM(CASE WHEN ISNULL(ATIVO,0)=1 THEN 1 ELSE 0 END) AS TOTAL_FE_ATIVAS
+                FROM dbo.FE_MODULOS
+                GROUP BY MODSTAMP
+            ) FE ON FE.MODSTAMP = M.MODSTAMP
+            LEFT JOIN (
+                SELECT
+                    MODSTAMP,
+                    COUNT(*) AS TOTAL_OBJETOS
+                FROM dbo.MOD_OBJETOS
+                WHERE ISNULL(ATIVO, 0) = 1
+                GROUP BY MODSTAMP
+            ) OBJ ON OBJ.MODSTAMP = M.MODSTAMP
+            WHERE 1=1
+        """
+        params = {}
+        if q:
+            sql += """
+              AND (
+                ISNULL(M.CODIGO,'') LIKE :q
+                OR ISNULL(M.NOME,'') LIKE :q
+                OR ISNULL(M.DESCR,'') LIKE :q
+              )
+            """
+            params['q'] = f'%{q}%'
+        if active in ('1', 'true', 'ativo', 'ativos'):
+            sql += " AND ISNULL(M.ATIVO,0)=1"
+        elif active in ('0', 'false', 'inativo', 'inativos'):
+            sql += " AND ISNULL(M.ATIVO,0)=0"
+
+        sql += " ORDER BY ISNULL(M.ATIVO,1) DESC, ISNULL(M.ORDEM,0), ISNULL(M.NOME,'')"
+        rows = db.session.execute(text(sql), params).mappings().all()
+        return jsonify({'rows': [dict(r) for r in rows]})
+
+    @app.route('/api/modulos/<modstamp>', methods=['GET'])
+    @login_required
+    def api_modulos_detail(modstamp):
+        if not _mod_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar módulos.'}), 403
+        _ensure_mod_objetos_table()
+
+        row = db.session.execute(text("""
+            SELECT
+                M.*,
+                ISNULL(FE.TOTAL_FE, 0) AS TOTAL_FE,
+                ISNULL(FE.TOTAL_FE_ATIVAS, 0) AS TOTAL_FE_ATIVAS,
+                ISNULL(OBJ.TOTAL_OBJETOS, 0) AS TOTAL_OBJETOS
+            FROM dbo.MODULOS M
+            LEFT JOIN (
+                SELECT
+                    MODSTAMP,
+                    COUNT(*) AS TOTAL_FE,
+                    SUM(CASE WHEN ISNULL(ATIVO,0)=1 THEN 1 ELSE 0 END) AS TOTAL_FE_ATIVAS
+                FROM dbo.FE_MODULOS
+                GROUP BY MODSTAMP
+            ) FE ON FE.MODSTAMP = M.MODSTAMP
+            LEFT JOIN (
+                SELECT
+                    MODSTAMP,
+                    COUNT(*) AS TOTAL_OBJETOS
+                FROM dbo.MOD_OBJETOS
+                WHERE ISNULL(ATIVO, 0) = 1
+                GROUP BY MODSTAMP
+            ) OBJ ON OBJ.MODSTAMP = M.MODSTAMP
+            WHERE M.MODSTAMP = :modstamp
+        """), {'modstamp': (modstamp or '').strip()}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Módulo não encontrado.'}), 404
+        return jsonify({'row': dict(row)})
+
+    @app.route('/api/modulos/<modstamp>/objetos', methods=['GET'])
+    @login_required
+    def api_modulos_objetos(modstamp):
+        if not _mod_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar módulos.'}), 403
+        modstamp = (modstamp or '').strip()
+        if not modstamp:
+            return jsonify({'error': 'MODSTAMP obrigatório.'}), 400
+
+        exists = db.session.execute(
+            text("SELECT TOP 1 MODSTAMP FROM dbo.MODULOS WHERE MODSTAMP=:modstamp"),
+            {'modstamp': modstamp}
+        ).mappings().first()
+        if not exists:
+            return jsonify({'error': 'Módulo não encontrado.'}), 404
+
+        try:
+            return jsonify({
+                'rows': _load_module_object_rows(modstamp),
+                'candidates': _collect_module_object_candidates(),
+            })
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar objetos do módulo.')
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/modulos/<modstamp>/objetos/save', methods=['POST'])
+    @login_required
+    def api_modulos_objetos_save(modstamp):
+        if not _mod_has_permission('editar'):
+            return jsonify({'error': 'Sem permissão para editar módulos.'}), 403
+
+        modstamp = (modstamp or '').strip()
+        if not modstamp:
+            return jsonify({'error': 'MODSTAMP obrigatório.'}), 400
+
+        exists = db.session.execute(
+            text("SELECT TOP 1 MODSTAMP FROM dbo.MODULOS WHERE MODSTAMP=:modstamp"),
+            {'modstamp': modstamp}
+        ).mappings().first()
+        if not exists:
+            return jsonify({'error': 'Módulo não encontrado.'}), 404
+
+        body = request.get_json(silent=True) or {}
+        raw_rows = body.get('rows') if isinstance(body.get('rows'), list) else []
+
+        normalized = []
+        seen_keys = set()
+        for idx, item in enumerate(raw_rows, start=1):
+            if not isinstance(item, dict):
+                continue
+            tipo = (item.get('TIPO') or 'MANUAL').strip().upper()[:20] or 'MANUAL'
+            objnome = (item.get('OBJNOME') or '').strip()[:150]
+            objrota = (item.get('OBJROTA') or '').strip()[:255]
+            menustamp = (item.get('MENUSTAMP') or '').strip()[:25]
+            ativo = 1 if item.get('ATIVO', True) else 0
+            ordem = _to_int(item.get('ORDEM'), idx * 10)
+            objkey = (item.get('OBJKEY') or '').strip()[:150]
+
+            if not objnome and not objrota:
+                continue
+
+            if not objkey:
+                if tipo == 'MANUAL':
+                    objkey = f"MANUAL:{_new_stamp_25()}"
+                elif menustamp:
+                    objkey = f"MENU:{menustamp}"
+                elif objrota:
+                    objkey = f"ROUTE:{objrota}"
+                else:
+                    objkey = f"{tipo}:{_new_stamp_25()}"
+
+            if objkey in seen_keys:
+                continue
+            seen_keys.add(objkey)
+
+            normalized.append({
+                'MODOBJSTAMP': _new_stamp_25(),
+                'MODSTAMP': modstamp,
+                'TIPO': tipo,
+                'OBJKEY': objkey,
+                'OBJNOME': objnome or objrota,
+                'OBJROTA': objrota,
+                'MENUSTAMP': menustamp,
+                'ORDEM': ordem,
+                'ATIVO': ativo,
+            })
+
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+
+        try:
+            _ensure_mod_objetos_table()
+            db.session.execute(text("DELETE FROM dbo.MOD_OBJETOS WHERE MODSTAMP=:modstamp"), {'modstamp': modstamp})
+            for row in normalized:
+                db.session.execute(text("""
+                    INSERT INTO dbo.MOD_OBJETOS
+                    (
+                        MODOBJSTAMP, MODSTAMP, TIPO, OBJKEY, OBJNOME, OBJROTA,
+                        MENUSTAMP, ORDEM, ATIVO, DTCRI, DTALT, USERCRIACAO, USERALTERACAO
+                    )
+                    VALUES
+                    (
+                        :MODOBJSTAMP, :MODSTAMP, :TIPO, :OBJKEY, :OBJNOME, :OBJROTA,
+                        :MENUSTAMP, :ORDEM, :ATIVO, GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO
+                    )
+                """), {
+                    **row,
+                    'USERCRIACAO': user_login,
+                    'USERALTERACAO': user_login,
+                })
+            db.session.commit()
+            return jsonify({'ok': True, 'count': len(normalized)})
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar objetos do módulo.')
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/modulos/save', methods=['POST'])
+    @login_required
+    def api_modulos_save():
+        body = request.get_json(silent=True) or {}
+        raw = body.get('row') if isinstance(body.get('row'), dict) else body
+        if not isinstance(raw, dict):
+            return jsonify({'error': 'Payload inválido.'}), 400
+
+        modstamp = (raw.get('MODSTAMP') or '').strip()
+        exists = None
+        if modstamp:
+            exists = db.session.execute(
+                text("SELECT TOP 1 MODSTAMP FROM dbo.MODULOS WHERE MODSTAMP=:modstamp"),
+                {'modstamp': modstamp}
+            ).mappings().first()
+
+        if exists:
+            if not _mod_has_permission('editar'):
+                return jsonify({'error': 'Sem permissão para editar módulos.'}), 403
+        else:
+            if not _mod_has_permission('inserir'):
+                return jsonify({'error': 'Sem permissão para criar módulos.'}), 403
+
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        payload = _default_mod_payload(user_login)
+        payload.update({
+            'MODSTAMP': modstamp or payload['MODSTAMP'],
+            'CODIGO': (raw.get('CODIGO') or '').strip().upper()[:40],
+            'NOME': (raw.get('NOME') or '').strip()[:80],
+            'DESCR': (raw.get('DESCR') or '').strip()[:200],
+            'ORDEM': _to_int(raw.get('ORDEM'), 0),
+            'ATIVO': 1 if raw.get('ATIVO') else 0,
+            'USERALTERACAO': user_login,
+        })
+
+        if not payload['CODIGO']:
+            return jsonify({'error': 'O campo Código é obrigatório.'}), 400
+        if not payload['NOME']:
+            return jsonify({'error': 'O campo Nome é obrigatório.'}), 400
+
+        dup_sql = """
+            SELECT TOP 1 MODSTAMP
+            FROM dbo.MODULOS
+            WHERE UPPER(ISNULL(CODIGO,'')) = :codigo
+              AND MODSTAMP <> :modstamp
+        """
+        duplicate = db.session.execute(text(dup_sql), {
+            'codigo': payload['CODIGO'],
+            'modstamp': payload['MODSTAMP'],
+        }).mappings().first()
+        if duplicate:
+            return jsonify({'error': 'Já existe um módulo com esse código.'}), 400
+
+        try:
+            if exists:
+                db.session.execute(text("""
+                    UPDATE dbo.MODULOS
+                    SET CODIGO=:CODIGO,
+                        NOME=:NOME,
+                        DESCR=:DESCR,
+                        ORDEM=:ORDEM,
+                        ATIVO=:ATIVO,
+                        DTALT=GETDATE(),
+                        USERALTERACAO=:USERALTERACAO
+                    WHERE MODSTAMP=:MODSTAMP
+                """), payload)
+            else:
+                db.session.execute(text("""
+                    INSERT INTO dbo.MODULOS
+                    (
+                        MODSTAMP, CODIGO, NOME, DESCR, ORDEM, ATIVO,
+                        DTCRI, DTALT, USERCRIACAO, USERALTERACAO
+                    )
+                    VALUES
+                    (
+                        :MODSTAMP, :CODIGO, :NOME, :DESCR, :ORDEM, :ATIVO,
+                        GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO
+                    )
+                """), payload)
+            db.session.commit()
+            return jsonify({'ok': True, 'modstamp': payload['MODSTAMP']})
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar módulo.')
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/modulos/<modstamp>/delete', methods=['POST'])
+    @login_required
+    def api_modulos_delete(modstamp):
+        if not _mod_has_permission('eliminar'):
+            return jsonify({'error': 'Sem permissão para eliminar módulos.'}), 403
+        modstamp = (modstamp or '').strip()
+        if not modstamp:
+            return jsonify({'error': 'MODSTAMP obrigatório.'}), 400
+        try:
+            linked = db.session.execute(text("""
+                SELECT TOP 1 1
+                FROM dbo.FE_MODULOS
+                WHERE MODSTAMP=:modstamp
+            """), {'modstamp': modstamp}).scalar()
+            if linked:
+                return jsonify({'error': 'Não é possível eliminar um módulo associado a entidades.'}), 400
+
+            linked_objects = db.session.execute(text("""
+                SELECT TOP 1 1
+                FROM dbo.MOD_OBJETOS
+                WHERE MODSTAMP=:modstamp
+            """), {'modstamp': modstamp}).scalar()
+            if linked_objects:
+                return jsonify({'error': 'Não é possível eliminar um módulo com objetos associados.'}), 400
+
+            res = db.session.execute(text("DELETE FROM dbo.MODULOS WHERE MODSTAMP=:modstamp"), {'modstamp': modstamp})
+            if not res.rowcount:
+                db.session.rollback()
+                return jsonify({'error': 'Módulo não encontrado.'}), 404
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception('Erro ao eliminar módulo.')
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/api/lookups/fts', methods=['GET'])
     @login_required
@@ -6845,10 +7729,11 @@ VALUES
     - Noites livres = noites que NÃO existem em v_diario_all (por CCUSTO, DATA)
     - Só conta livres vendáveis: blocos consecutivos com >= 2 noites
     - Métricas por alojamento:
+        Critico_HojeAmanha
         Livres_D7, Livres_D14, Livres_D30
         Pressao_D7, Pressao_D14, Pressao_D30
         ADR_60d (média VALOR>0 últimos 60 dias; fallback = média global 60d)
-        Sugestão de Ação (prioriza risco D7)
+        Sugestão de Ação (prioriza hoje+amanha e depois risco D7)
 */
 
 DECLARE @Hoje date = CAST(GETDATE() AS date);
@@ -6880,6 +7765,7 @@ Occ AS (
         CAST(v.[DATA] AS date) AS [DATA]
     FROM dbo.v_diario_all v
     WHERE v.[DATA] BETWEEN @DataInicio AND @DataFim
+      AND ISNULL(v.VALOR, 0) <> 0
 ),
 Livres AS (
     -- livres = (alojamento x calendário) sem registo em Occ
@@ -6891,8 +7777,25 @@ Livres AS (
     CROSS JOIN Cal c
     LEFT JOIN Occ o
       ON o.CCUSTO = a.CCUSTO
-     AND o.[DATA] = c.[DATA]
+      AND o.[DATA] = c.[DATA]
     WHERE o.CCUSTO IS NULL
+),
+HojeAmanha AS (
+    SELECT
+        a.CCUSTO,
+        MAX(CASE WHEN o.[DATA] = @Hoje THEN 1 ELSE 0 END) AS Ocupado_Hoje,
+        MAX(CASE WHEN o.[DATA] = DATEADD(day, 1, @Hoje) THEN 1 ELSE 0 END) AS Ocupado_Amanha
+    FROM Aloj a
+    LEFT JOIN (
+        SELECT DISTINCT
+            v.CCUSTO,
+            CAST(v.[DATA] AS date) AS [DATA]
+        FROM dbo.v_diario_all v
+        WHERE v.[DATA] BETWEEN @Hoje AND DATEADD(day, 1, @Hoje)
+          AND ISNULL(v.VALOR, 0) <> 0
+    ) o
+      ON o.CCUSTO = a.CCUSTO
+    GROUP BY a.CCUSTO
 ),
 LivresComGrupo AS (
     -- ilhas de livres consecutivas
@@ -6967,11 +7870,17 @@ Base AS (
         CAST(1.0 * ISNULL(l.Livres_D7,  0) / 7.0  AS decimal(10,4)) AS Pressao_D7,
         CAST(1.0 * ISNULL(l.Livres_D14, 0) / 7.0  AS decimal(10,4)) AS Pressao_D14,
         CAST(1.0 * ISNULL(l.Livres_D30, 0) / 16.0 AS decimal(10,4)) AS Pressao_D30,
+        CASE
+            WHEN ISNULL(h.Ocupado_Hoje, 0) = 0 AND ISNULL(h.Ocupado_Amanha, 0) = 0 THEN 1
+            ELSE 0
+        END AS Critico_HojeAmanha,
         COALESCE(adr.ADR_60d, p.ADR_Portfolio_60d) AS ADR_Usado_60d,
         p.ADR_Portfolio_60d
     FROM Aloj a
     LEFT JOIN LivresAgg l
       ON l.CCUSTO = a.CCUSTO
+    LEFT JOIN HojeAmanha h
+      ON h.CCUSTO = a.CCUSTO
     LEFT JOIN ADR_Aloj_60d adr
       ON adr.CCUSTO = a.CCUSTO
     CROSS JOIN ADR_Portfolio_60d p
@@ -6989,9 +7898,11 @@ SELECT
     ADR_Portfolio_60d,
     CAST((ADR_Usado_60d / NULLIF(ADR_Portfolio_60d,0)) - 1 AS decimal(10,4)) AS Desvio_ADR,
     CASE
-        WHEN Pressao_D7 >= 0.40 AND ADR_Usado_60d >= ADR_Portfolio_60d
+        WHEN Critico_HojeAmanha = 1
+            THEN 'Critico: sem reserva hoje e amanha'
+        WHEN Livres_D7 >= 2 AND ADR_Usado_60d >= ADR_Portfolio_60d
             THEN 'Urgente: baixar preco / abrir regras (D7)'
-        WHEN Pressao_D7 >= 0.40
+        WHEN Livres_D7 >= 2
             THEN 'Urgente: mexer em regras/anuncio (D7)'
         WHEN Pressao_D14 >= 0.50 AND ADR_Usado_60d >= ADR_Portfolio_60d
             THEN 'Ajuste: preco ligeiro / min nights (D14)'
@@ -7004,7 +7915,8 @@ SELECT
 FROM Base
 ORDER BY
     CASE
-        WHEN Pressao_D7  >= 0.40 THEN 1
+        WHEN Critico_HojeAmanha = 1 THEN 0
+        WHEN Livres_D7  >= 2 THEN 1
         WHEN Pressao_D14 >= 0.50 THEN 2
         WHEN Pressao_D30 >= 0.60 THEN 3
         ELSE 4
@@ -9315,7 +10227,8 @@ OPTION (MAXRECURSION 32767);
             total_next4_days = (next4_end - next_start).days + 1 if next4_end >= next_start else 0
             total_next7_days = (next7_end - next_start).days + 1 if next7_end >= next_start else 0
 
-            # SQL Server aggregation with LEFT JOIN and filters in ON to preserve AL rows
+            # SQL Server aggregation with LEFT JOIN and filters in ON to preserve AL rows.
+            # Exclude closed lodgings, and later compute sellable availability as 2+ night runs.
             sql = text(
                 """
                 SELECT
@@ -9327,7 +10240,7 @@ OPTION (MAXRECURSION 32767);
                     CASE WHEN COUNT(DISTINCT V.data) > 0
                          THEN SUM(ISNULL(V.valor,0)) / NULLIF(COUNT(DISTINCT V.data), 0)
                          ELSE 0 END AS preco_medio_noite,
-                    COUNT(DISTINCT CASE WHEN V.data >= :hoje THEN V.data END) AS noites_futuras_ocupadas,
+                    COUNT(DISTINCT CASE WHEN V.data >= :future_start THEN V.data END) AS noites_futuras_ocupadas,
                     COUNT(DISTINCT CASE WHEN V.data BETWEEN :next_start AND :next2_end THEN V.data END) AS next2_ocupadas,
                     COUNT(DISTINCT CASE WHEN V.data BETWEEN :next_start AND :next4_end THEN V.data END) AS next4_ocupadas,
                     COUNT(DISTINCT CASE WHEN V.data BETWEEN :next_start AND :next7_end THEN V.data END) AS next7_ocupadas
@@ -9337,6 +10250,7 @@ OPTION (MAXRECURSION 32767);
                  AND ISNULL(V.valor, 0) <> 0
                  AND V.data BETWEEN :data_inicio AND :data_fim
                 WHERE ISNULL(A.INATIVO, 0) = 0
+                  AND ISNULL(A.FECHADO, 0) = 0
                 GROUP BY A.NOME, A.TIPOLOGIA, A.TIPO
                 ORDER BY A.NOME
                 """
@@ -9346,25 +10260,30 @@ OPTION (MAXRECURSION 32767);
                 'data_inicio': data_inicio,
                 'data_fim': data_fim,
                 'hoje': today,
+                'future_start': future_start,
                 'next_start': next_start,
                 'next2_end': next2_end,
                 'next4_end': next4_end,
                 'next7_end': next7_end
             }).mappings().all()
-            # Build occupancy map for next 7-day horizon to detect 2+ night gaps
+            # Build occupancy map for the future selected horizon so availability only counts
+            # sellable runs of >= 2 nights, consistent with radar/detail logic.
             from datetime import datetime as _dt
             sql_occ = text(
                 """
                 SELECT V.CCUSTO AS nome, CAST(V.data AS date) AS dia
                 FROM v_diario_all V
-                JOIN AL A ON V.CCUSTO = A.NOME AND ISNULL(A.INATIVO,0)=0
+                JOIN AL A
+                  ON V.CCUSTO = A.NOME
+                 AND ISNULL(A.INATIVO,0)=0
+                 AND ISNULL(A.FECHADO,0)=0
                 WHERE ISNULL(V.valor,0) <> 0
                   AND V.data BETWEEN :start AND :end
                 """
             )
             occ_rows = db.session.execute(sql_occ, {
-                'start': next_start,
-                'end': next7_end
+                'start': future_start,
+                'end': data_fim
             }).fetchall()
             occ_map = {}
             for nome, dia in occ_rows:
@@ -9386,6 +10305,25 @@ OPTION (MAXRECURSION 32767);
                 noites_futuras_ocupadas = int(r.get('noites_futuras_ocupadas') or 0)
                 # Occupancy map for this lodging in next horizon
                 occ_set = occ_map.get(nome, set())
+                future_keys = []
+                if data_fim >= future_start:
+                    for offset in range((data_fim - future_start).days + 1):
+                        future_keys.append(future_start + timedelta(days=offset))
+
+                def sellable_nights(days):
+                    run = 0
+                    total = 0
+                    for d in days:
+                        if d in occ_set:
+                            if run >= 2:
+                                total += run
+                            run = 0
+                        else:
+                            run += 1
+                    if run >= 2:
+                        total += run
+                    return total
+
                 # Helper to detect if there exists a run of >=2 empty nights within first L days
                 def has_two_plus_gap(L):
                     if L is None or L < 2:
@@ -9400,7 +10338,7 @@ OPTION (MAXRECURSION 32767);
                             if run >= 2:
                                 return True
                     return False
-                noites_disponiveis = max(0, noites_futuras_totais - noites_futuras_ocupadas)
+                noites_disponiveis = sellable_nights(future_keys)
                 taxa = (noites_ocupadas / noites_totais * 100.0) if noites_totais > 0 else 0.0
                 # Determine alert level based on first window that contains a 2+ empty-night run
                 alert_level = ''
@@ -9640,6 +10578,15 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def fr_import_page():
         return render_template('fr_import.html', page_title='Importar Faturas de Reservas')
+
+    @app.route('/fo_airbnb_import')
+    @app.route('/fo_airbnb_importar')
+    @app.route('/airbnb_comissoes_importar')
+    @login_required
+    def fo_airbnb_import_page():
+        if not _fo_has_permission('consultar'):
+            return render_template('error.html', message='Sem permissão para importar documentos de compra.'), 403
+        return render_template('fo_airbnb_import.html', page_title='Importar Comissões Airbnb')
 
     @app.route('/reconciliacao_bancaria')
     @app.route('/reconciliacao-bancaria')
@@ -10286,11 +11233,12 @@ OPTION (MAXRECURSION 32767);
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/reconciliacao/ow', methods=['POST'])
+    @app.route('/api/reconciliacao/olbb', methods=['POST'])
     @login_required
-    def api_reconciliacao_create_ow():
+    def api_reconciliacao_create_olbb():
         """
-        Gera movimentos de tesouraria (OW) no ERP a partir de entradas (VALOR > 0)
-        selecionadas na grelha EL (não reconciliadas).
+        Gera movimentos de transferência bancária (OLBB) no ERP a partir de
+        entradas (VALOR > 0) selecionadas na grelha EL (não reconciliadas).
 
         Body:
           { "EXTSTAMP": "...", "EL": ["<ELSTAMP>", ...] }
@@ -10318,54 +11266,61 @@ OPTION (MAXRECURSION 32767);
             if not stamp_col:
                 return jsonify({'error': 'A tabela EL precisa de um campo stamp (ELSTAMP ou ELSATMP).'}), 400
 
-            # Verificar tabela/colunas na OW (na BD do ERP)
-            ow_tbl = db.session.execute(text(f"""
+            # Verificar tabela/colunas na OLBB (na BD do ERP)
+            olbb_tbl = db.session.execute(text(f"""
                 SELECT 1 AS X
                 FROM [{ERP_DB}].INFORMATION_SCHEMA.TABLES
-                WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'OW'
+                WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'OLBB'
             """)).fetchone()
-            if not ow_tbl:
-                return jsonify({'error': f"Tabela OW não existe na BD {ERP_DB}."}), 400
+            if not olbb_tbl:
+                return jsonify({'error': f"Tabela OLBB não existe na BD {ERP_DB}."}), 400
 
-            ow_cols = set(
+            olbb_cols = set(
                 r[0] for r in db.session.execute(
                     text(f"""
                         SELECT UPPER(COLUMN_NAME)
                         FROM [{ERP_DB}].INFORMATION_SCHEMA.COLUMNS
-                        WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'OW'
+                        WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'OLBB'
                     """)
                 ).fetchall()
             )
-            if not ow_cols:
-                return jsonify({'error': f"Não foi possível ler colunas da OW em {ERP_DB}."}), 400
+            if not olbb_cols:
+                return jsonify({'error': f"Não foi possível ler colunas da OLBB em {ERP_DB}."}), 400
 
-            eentr_col = 'EENTR' if 'EENTR' in ow_cols else ('EENTRADA' if 'EENTRADA' in ow_cols else None)
-            docno_col = 'DOCNO' if 'DOCNO' in ow_cols else ('NDOS' if 'NDOS' in ow_cols else None)
-
-            required = {'OWSTAMP', 'DATA', 'DOCNOME', 'DESCRICAO', 'LOCAL', 'SGRUPO', 'GRUPO', 'ORIGEM', 'CONTADO', 'OLLOCAL', 'OLCODIGO'}
-            missing_req = sorted([c for c in required if c not in ow_cols])
-            if not eentr_col:
-                missing_req.append('EENTR')
-            if not docno_col:
-                missing_req.append('DOCNO')
+            required = {'OLBBSTAMP', 'DATA', 'DVALOR', 'DESCRICAO', 'EVALOR', 'CONTADO1', 'CONTADO2', 'OLLOCAL1', 'OLLOCAL2', 'DOCUMENTO'}
+            missing_req = sorted([c for c in required if c not in olbb_cols])
             if missing_req:
-                return jsonify({'error': f"Campos em falta na OW ({ERP_DB}): " + ', '.join(missing_req)}), 400
+                return jsonify({'error': f"Campos em falta na OLBB ({ERP_DB}): " + ', '.join(missing_req)}), 400
 
             inserted = 0
             skipped_exists = 0
             skipped_reconciled = 0
             skipped_invalid = 0
 
-            ins_cols = ['OWSTAMP', 'DATA', 'DOCNOME', 'DESCRICAO', eentr_col, 'LOCAL', 'SGRUPO', 'GRUPO', 'ORIGEM', 'CONTADO', 'OLLOCAL', 'OLCODIGO', docno_col]
-            ins_vals = [':OWSTAMP', ':DATA', ':DOCNOME', ':DESCRICAO', ':EENTR', ':LOCAL', ':SGRUPO', ':GRUPO', ':ORIGEM', ':CONTADO', ':OLLOCAL', ':OLCODIGO', ':DOCNO']
+            ins_cols = ['OLBBSTAMP', 'DATA', 'DVALOR', 'DESCRICAO', 'EVALOR', 'CONTADO1', 'CONTADO2', 'OLLOCAL1', 'OLLOCAL2', 'DOCUMENTO']
+            ins_vals = [':OLBBSTAMP', ':DATA', ':DVALOR', ':DESCRICAO', ':EVALOR', ':CONTADO1', ':CONTADO2', ':OLLOCAL1', ':OLLOCAL2', ':DOCUMENTO']
+            optional_defaults = {
+                'VALOR': ':VALOR',
+                'PLANO': ':PLANO',
+                'OUSRINIS': ':OUSRINIS',
+                'OUSRDATA': ':OUSRDATA',
+                'OUSRHORA': ':OUSRHORA',
+                'USRINIS': ':USRINIS',
+                'USRDATA': ':USRDATA',
+                'USRHORA': ':USRHORA',
+            }
+            for col_name, bind_name in optional_defaults.items():
+                if col_name in olbb_cols:
+                    ins_cols.append(col_name)
+                    ins_vals.append(bind_name)
             ins_sql = text(f"""
-                INSERT INTO [{ERP_DB}].[dbo].[OW] ({", ".join(ins_cols)})
+                INSERT INTO [{ERP_DB}].[dbo].[OLBB] ({", ".join(ins_cols)})
                 VALUES ({", ".join(ins_vals)})
             """)
 
             for s in stamps[:5000]:
-                stamp = (str(s or '').strip())[:25]
-                if not stamp:
+                el_stamp = (str(s or '').strip())[:25]
+                if not el_stamp:
                     skipped_invalid += 1
                     continue
 
@@ -10374,7 +11329,7 @@ OPTION (MAXRECURSION 32767);
                     SELECT TOP 1 1 AS X
                     FROM dbo.REC
                     WHERE EXTSTAMP = :e AND ORIGEM = 'EL' AND LTRIM(RTRIM(STAMP)) = :s
-                """), {'e': extstamp, 's': stamp}).fetchone()
+                """), {'e': extstamp, 's': el_stamp}).fetchone()
                 if rec:
                     skipped_reconciled += 1
                     continue
@@ -10388,7 +11343,7 @@ OPTION (MAXRECURSION 32767);
                     FROM dbo.EL
                     WHERE EXTSTAMP = :e
                       AND LTRIM(RTRIM({stamp_col})) = :s
-                """), {'e': extstamp, 's': stamp}).mappings().first()
+                """), {'e': extstamp, 's': el_stamp}).mappings().first()
                 if not el:
                     skipped_invalid += 1
                     continue
@@ -10398,16 +11353,6 @@ OPTION (MAXRECURSION 32767);
                     skipped_invalid += 1
                     continue
 
-                # Já existe na OW?
-                exists = db.session.execute(text("""
-                    SELECT TOP 1 1 AS X
-                    FROM [GUEST_SPA_TUR].[dbo].[OW]
-                    WHERE LTRIM(RTRIM(OWSTAMP)) = :s
-                """), {'s': stamp}).fetchone()
-                if exists:
-                    skipped_exists += 1
-                    continue
-
                 d = el.get('DATA')
                 if isinstance(d, datetime):
                     d = d.date()
@@ -10415,22 +11360,45 @@ OPTION (MAXRECURSION 32767);
                     skipped_invalid += 1
                     continue
                 data_dt = datetime.combine(d, datetime.min.time())
-                desc = (str(el.get('DESCRICAO') or '')).strip()
+                desc = (str(el.get('DESCRICAO') or '')).strip()[:60]
+
+                # Já existe na OLBB?
+                exists = db.session.execute(text("""
+                    SELECT TOP 1 1 AS X
+                    FROM [GUEST_SPA_TUR].[dbo].[OLBB]
+                    WHERE CAST(DATA AS date) = :d
+                      AND ISNULL(DESCRICAO,'') = :desc
+                      AND CAST(EVALOR AS numeric(19,6)) = :valor
+                      AND LTRIM(RTRIM(ISNULL(DOCUMENTO,''))) = 'Trfa'
+                """), {'d': d, 'desc': desc, 'valor': valor}).fetchone()
+                if exists:
+                    skipped_exists += 1
+                    continue
+
+                olbb_stamp = uuid.uuid4().hex[:25].upper()
+                user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+                now_dt = datetime.now()
+                now_hora = now_dt.strftime('%H:%M')
 
                 db.session.execute(ins_sql, {
-                    'OWSTAMP': stamp,
+                    'OLBBSTAMP': olbb_stamp,
                     'DATA': data_dt,
-                    'DOCNOME': 'Recebimento Airbnb',
+                    'DVALOR': data_dt,
                     'DESCRICAO': desc,
-                    'EENTR': valor,
-                    'LOCAL': 'B',
-                    'SGRUPO': 'Recebimentos de Clientes',
-                    'GRUPO': 'Actividades Operacionais',
-                    'ORIGEM': 'OW',
-                    'CONTADO': 1,
-                    'OLLOCAL': 'Santander  DO',
-                    'OLCODIGO': 'R10001',
-                    'DOCNO': 15
+                    'EVALOR': valor,
+                    'CONTADO1': 13,
+                    'CONTADO2': 1,
+                    'OLLOCAL1': 'AIRBNB     AIRBNB',
+                    'OLLOCAL2': 'Santander  DO',
+                    'DOCUMENTO': 'Trfa',
+                    'VALOR': valor,
+                    'PLANO': 0,
+                    'OUSRINIS': user_login,
+                    'OUSRDATA': now_dt,
+                    'OUSRHORA': now_hora,
+                    'USRINIS': user_login,
+                    'USRDATA': now_dt,
+                    'USRHORA': now_hora,
                 })
                 inserted += 1
 
@@ -10944,6 +11912,58 @@ OPTION (MAXRECURSION 32767);
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/fo_airbnb_import/preview', methods=['POST'])
+    @login_required
+    def api_fo_airbnb_import_preview():
+        if not _fo_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar compras.'}), 403
+        try:
+            file_obj = request.files.get('file')
+            if not file_obj or not getattr(file_obj, 'filename', ''):
+                return jsonify({'error': 'Selecione um ficheiro CSV.'}), 400
+            result = preview_airbnb_commissions_csv(db.session, file_obj)
+            app.logger.info(
+                'Airbnb CSV preview: file=%s total=%s valid=%s dup=%s err=%s',
+                getattr(file_obj, 'filename', ''),
+                result.get('stats', {}).get('total_rows', 0),
+                result.get('stats', {}).get('valid_rows', 0),
+                result.get('stats', {}).get('duplicate_rows', 0),
+                result.get('stats', {}).get('error_rows', 0),
+            )
+            return jsonify(result)
+        except Exception as e:
+            app.logger.exception('Erro no preview do importador Airbnb.')
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/fo_airbnb_import/import', methods=['POST'])
+    @login_required
+    def api_fo_airbnb_import_import():
+        if not _fo_has_permission('inserir'):
+            return jsonify({'error': 'Sem permissão para criar documentos de compra.'}), 403
+        try:
+            body = request.get_json(silent=True) or {}
+            rows = body.get('rows') if isinstance(body.get('rows'), list) else []
+            if not rows:
+                return jsonify({'error': 'Sem linhas para importar.'}), 400
+            user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+            result = import_airbnb_commissions_rows(
+                db.session,
+                rows,
+                user_login=user_login,
+                stamp_factory=_new_stamp_25,
+            )
+            app.logger.info(
+                'Airbnb CSV import: created=%s skipped=%s failed=%s',
+                result.get('stats', {}).get('created', 0),
+                result.get('stats', {}).get('skipped', 0),
+                result.get('stats', {}).get('failed', 0),
+            )
+            return jsonify(result)
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception('Erro no importador Airbnb.')
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/generic/api/tesouraria/contas')
     @login_required

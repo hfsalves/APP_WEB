@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import json
 import uuid
@@ -5,6 +6,7 @@ from datetime import datetime
 
 from flask import current_app
 from sqlalchemy import text
+from cryptography.hazmat.primitives import serialization
 
 from models import db
 from services.qr_atcud_service import get_param
@@ -81,11 +83,11 @@ def _param_value(code: str, default=None):
 
 def _get_vapid_config() -> dict:
     public_key = _safe_text(_param_value("VAPID_PUBLIC_KEY", ""))
-    private_key = _safe_text(_param_value("VAPID_PRIVATE_KEY", ""))
+    private_key = _load_vapid_private_key()
     subject = _safe_text(_param_value("VAPID_SUBJECT", ""))
     if not public_key or not private_key or not subject:
         raise PushConfigurationError(
-            "Configuracao VAPID em falta. Preenche os parametros VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY e VAPID_SUBJECT."
+            "Configuracao VAPID em falta. Preenche VAPID_PUBLIC_KEY, VAPID_SUBJECT e a chave privada em VAPID_PRIVATE_KEY, VAPID_PRIVATE_KEY_B64 ou VAPID_PRIVATE_KEY_1/_2/_3."
         )
     return {
         "public_key": public_key,
@@ -96,6 +98,52 @@ def _get_vapid_config() -> dict:
 
 def get_vapid_public_key() -> str:
     return _get_vapid_config()["public_key"]
+
+
+def _normalize_private_key_value(raw_value: str) -> str:
+    value = _safe_text(raw_value)
+    if not value:
+        return ""
+    if "BEGIN PRIVATE KEY" in value:
+        return value
+    padded = value + ("=" * ((4 - len(value) % 4) % 4))
+    try:
+        key_bytes = base64.urlsafe_b64decode(padded.encode("utf-8"))
+    except Exception:
+        try:
+            key_bytes = base64.b64decode(padded.encode("utf-8"))
+        except Exception:
+            return value
+    try:
+        private_key = serialization.load_der_private_key(key_bytes, password=None)
+        pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        return pem.decode("utf-8")
+    except Exception:
+        return value
+
+
+def _load_vapid_private_key() -> str:
+    direct = _safe_text(_param_value("VAPID_PRIVATE_KEY", ""))
+    if direct:
+        return _normalize_private_key_value(direct)
+
+    compact = _safe_text(_param_value("VAPID_PRIVATE_KEY_B64", ""))
+    if compact:
+        return _normalize_private_key_value(compact)
+
+    parts = []
+    for idx in range(1, 10):
+        part = _safe_text(_param_value(f"VAPID_PRIVATE_KEY_{idx}", ""))
+        if not part:
+            break
+        parts.append(part)
+    if parts:
+        return _normalize_private_key_value("".join(parts))
+    return ""
 
 
 def _load_user_row(userstamp: str):

@@ -345,18 +345,18 @@ document.addEventListener('DOMContentLoaded', () => {
       return Number(row.RECONCILIADO || 0) !== 1 && (Number(row.VALOR || 0) || 0) > 0.005;
     });
     if (!eligible.length) return;
-    if (!confirm(`Gerar movimentos OW no ERP para ${eligible.length} entrada(s)?`)) return;
+    if (!confirm(`Gerar movimentos OLBB no ERP para ${eligible.length} entrada(s)?`)) return;
     try {
       btnCreateOw.disabled = true;
-      setStatus('A gerar OW...', '');
-      const r = await fetch('/api/reconciliacao/ow', {
+      setStatus('A gerar OLBB...', '');
+      const r = await fetch('/api/reconciliacao/olbb', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ EXTSTAMP: extstamp, EL: eligible })
       });
       const js = await r.json().catch(() => ({}));
       if (!r.ok || js.error) throw new Error(js.error || r.statusText);
-      setStatus(`OW gerado(s): ${js.inserted || 0}.`, 'ok');
+      setStatus(`OLBB gerado(s): ${js.inserted || 0}.`, 'ok');
       await loadForExt(extstamp);
     } catch (e) {
       setStatus(e?.message || String(e), 'err');

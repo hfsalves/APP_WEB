@@ -123,30 +123,64 @@
     <div class="modal-content sz_performance_modal_content">
       <div class="modal-header sz_modal_header sz_performance_modal_header">
         <h5 class="modal-title sz_modal_title" id="perfDetailTitle">Detalhe</h5>
-        <button type="button" class="sz_button sz_button_ghost sz_performance_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div class="sz_performance_modal_actions">
+          <button type="button" id="perfCompareToggle" class="sz_button sz_button_secondary">
+            <i class="fa-solid fa-code-compare"></i>
+            <span>Comparar</span>
+          </button>
+          <button type="button" class="sz_button sz_button_ghost sz_performance_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
       </div>
       <div class="modal-body sz_modal_body sz_performance_modal_body">
-        <div id="perfCalendar" class="sz_performance_calendar"></div>
-        <div class="sz_performance_detail_metrics">
-          <div class="sz_card sz_performance_detail_metric">
-            <span class="sz_text_muted">Faturado mês</span>
-            <strong id="perfCalTotalMonth" class="sz_h4">--</strong>
-          </div>
-          <div class="sz_card sz_performance_detail_metric">
-            <span class="sz_text_muted">Noites disp.</span>
-            <strong id="perfCalNightsAvail" class="sz_h4">--</strong>
-          </div>
-          <div class="sz_card sz_performance_detail_metric">
-            <span class="sz_text_muted">Est. restante</span>
-            <strong id="perfCalEstimate" class="sz_h4">--</strong>
-          </div>
-          <div class="sz_card sz_performance_detail_metric">
-            <span class="sz_text_muted">Total estimado</span>
-            <strong id="perfCalTotalEstimated" class="sz_h4">--</strong>
-          </div>
+        <div id="perfCalendarCompareWrap" class="sz_performance_calendar_compare">
+          <section id="perfCalendarComparePanel" class="sz_card sz_performance_calendar_panel sz_performance_calendar_panel_compare" aria-hidden="true">
+            <div id="perfCalendarCompareLabel" class="sz_caption sz_performance_calendar_label">Mesmo mês do ano anterior</div>
+            <div id="perfCalendarCompare" class="sz_performance_calendar"></div>
+            <div class="sz_performance_detail_metrics sz_performance_detail_metrics_inline">
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Fact. mês</span>
+                <strong id="perfCalPrevTotalMonth" class="sz_h4">--</strong>
+              </div>
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Noites disp.</span>
+                <strong id="perfCalPrevNightsAvail" class="sz_h4">--</strong>
+              </div>
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Est. restante</span>
+                <strong id="perfCalPrevEstimate" class="sz_h4">--</strong>
+              </div>
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Total estim.</span>
+                <strong id="perfCalPrevTotalEstimated" class="sz_h4">--</strong>
+              </div>
+            </div>
+          </section>
+          <section class="sz_card sz_performance_calendar_panel sz_performance_calendar_panel_current">
+            <div id="perfCalendarCurrentLabel" class="sz_caption sz_performance_calendar_label">Mês selecionado</div>
+            <div id="perfCalendar" class="sz_performance_calendar"></div>
+            <div class="sz_performance_detail_metrics sz_performance_detail_metrics_inline">
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Fact. mês</span>
+                <strong id="perfCalTotalMonth" class="sz_h4">--</strong>
+              </div>
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Noites disp.</span>
+                <strong id="perfCalNightsAvail" class="sz_h4">--</strong>
+              </div>
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Est. restante</span>
+                <strong id="perfCalEstimate" class="sz_h4">--</strong>
+              </div>
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Total estim.</span>
+                <strong id="perfCalTotalEstimated" class="sz_h4">--</strong>
+              </div>
+            </div>
+          </section>
         </div>
+      </div>
       </div>
     </div>
   </div>
@@ -210,6 +244,10 @@
   let currentMonth = firstDayOfMonth(new Date());
   let sortMode = 'occ';
   let lastRows = [];
+  let perfCompareEnabled = false;
+  let perfDetailNome = '';
+  let perfDetailModalInstance = null;
+  let perfCompareCloseTimer = null;
 
   async function loadData() {
     const ini = toYMD(firstDayOfMonth(currentMonth));
@@ -382,6 +420,128 @@
     if (picker) picker.value = monthInputValue(currentMonth);
   }
 
+  function compareMonth(base) {
+    return new Date(base.getFullYear() - 1, base.getMonth(), 1);
+  }
+
+  function perfDetailRefs() {
+    return {
+      compareWrap: document.getElementById('perfCalendarCompareWrap'),
+      comparePanel: document.getElementById('perfCalendarComparePanel'),
+      compareBtn: document.getElementById('perfCompareToggle'),
+      currentLabel: document.getElementById('perfCalendarCurrentLabel'),
+      compareLabel: document.getElementById('perfCalendarCompareLabel'),
+    };
+  }
+
+  function syncCompareUi() {
+    const { compareWrap, comparePanel, compareBtn, currentLabel, compareLabel } = perfDetailRefs();
+    if (perfCompareCloseTimer) {
+      clearTimeout(perfCompareCloseTimer);
+      perfCompareCloseTimer = null;
+    }
+    if (compareWrap) {
+      compareWrap.classList.remove('is-closing');
+      if (perfCompareEnabled) {
+        compareWrap.style.height = '';
+        compareWrap.classList.add('is-active');
+      } else if (compareWrap.classList.contains('is-active')) {
+        compareWrap.style.height = `${compareWrap.offsetHeight}px`;
+        compareWrap.classList.add('is-closing');
+        perfCompareCloseTimer = setTimeout(() => {
+          compareWrap.classList.remove('is-active', 'is-closing');
+          compareWrap.style.height = '';
+          perfCompareCloseTimer = null;
+        }, 280);
+      } else {
+        compareWrap.classList.remove('is-active');
+        compareWrap.style.height = '';
+      }
+    }
+    if (comparePanel) comparePanel.setAttribute('aria-hidden', perfCompareEnabled ? 'false' : 'true');
+    if (compareBtn) {
+      compareBtn.classList.toggle('sz_button_primary', perfCompareEnabled);
+      compareBtn.classList.toggle('sz_button_secondary', !perfCompareEnabled);
+      compareBtn.setAttribute('aria-pressed', perfCompareEnabled ? 'true' : 'false');
+      const span = compareBtn.querySelector('span');
+      if (span) span.textContent = perfCompareEnabled ? 'Comparação ativa' : 'Comparar';
+    }
+    if (currentLabel) currentLabel.textContent = monthLabelText(currentMonth);
+    if (compareLabel) compareLabel.textContent = monthLabelText(compareMonth(currentMonth));
+  }
+
+  async function fetchPerfOccupacao(nome, baseMonth) {
+    const ini = toYMD(firstDayOfMonth(baseMonth));
+    const fim = toYMD(lastDayOfMonth(baseMonth));
+    const res = await fetch(`/api/performance/ocupacao?alojamento=${encodeURIComponent(nome)}&data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
+    const data = await res.json();
+    if (data && data.error) throw new Error(data.error);
+    return data || {};
+  }
+
+  function computePerfCalendarMetrics(baseMonth, mapa) {
+    const totalMonth = Object.values(mapa || {}).reduce((a, v) => a + Number(v || 0), 0);
+    const occupiedDays = new Set(Object.keys(mapa || {}));
+    const occupiedCount = occupiedDays.size;
+
+    const today = new Date();
+    const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const baseStart = firstDayOfMonth(baseMonth);
+    const baseEnd = lastDayOfMonth(baseMonth);
+    const availStart = (t0 > baseStart) ? t0 : baseStart;
+
+    const keys = [];
+    for (let d = new Date(baseStart); d <= baseEnd; d.setDate(d.getDate() + 1)) {
+      keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    }
+
+    const singles = new Set();
+    let nightsAvail = 0;
+    let i = 0;
+    while (i < keys.length) {
+      const parts = keys[i].split('-');
+      const kd = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      if (kd >= availStart) break;
+      i++;
+    }
+
+    while (i < keys.length) {
+      const k = keys[i];
+      if (occupiedDays.has(k)) {
+        i++;
+        continue;
+      }
+      let j = i;
+      while (j < keys.length && !occupiedDays.has(keys[j])) j++;
+      const runLen = j - i;
+      if (runLen === 1) singles.add(keys[i]);
+      if (runLen >= 2) nightsAvail += runLen;
+      i = j;
+    }
+
+    const avgPerNight = occupiedCount > 0 ? (totalMonth / occupiedCount) : 0;
+    const estimate = avgPerNight * nightsAvail * 0.8;
+
+    return {
+      singles,
+      totalMonth,
+      nightsAvail,
+      estimate,
+      totalEstimated: totalMonth + estimate,
+    };
+  }
+
+  function fillPerfMetricSet(prefix, metrics) {
+    const totalMonthEl = document.getElementById(`${prefix}TotalMonth`);
+    const nightsAvailEl = document.getElementById(`${prefix}NightsAvail`);
+    const estimateEl = document.getElementById(`${prefix}Estimate`);
+    const totalEstimatedEl = document.getElementById(`${prefix}TotalEstimated`);
+    if (totalMonthEl) totalMonthEl.textContent = metrics ? fmtEUR0.format(metrics.totalMonth) : '--';
+    if (nightsAvailEl) nightsAvailEl.textContent = metrics ? fmtNum.format(metrics.nightsAvail) : '--';
+    if (estimateEl) estimateEl.textContent = metrics ? fmtEUR0.format(metrics.estimate) : '--';
+    if (totalEstimatedEl) totalEstimatedEl.textContent = metrics ? fmtEUR0.format(metrics.totalEstimated) : '--';
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     const prev = document.getElementById('btnPrevMonth');
     const next = document.getElementById('btnNextMonth');
@@ -389,6 +549,7 @@
     const btnName = document.getElementById('btnSortName');
     const btnOcc = document.getElementById('btnSortOcc');
     const cardsGrid = document.getElementById('cardsGrid');
+    const compareBtn = document.getElementById('perfCompareToggle');
 
     function updateMonth(delta) {
       if (delta) {
@@ -436,80 +597,66 @@
       });
     }
 
+    if (compareBtn) {
+      compareBtn.addEventListener('click', async () => {
+        perfCompareEnabled = !perfCompareEnabled;
+        syncCompareUi();
+        if (perfDetailNome) {
+          await loadPerfDetail(perfDetailNome);
+        }
+      });
+    }
+
     syncMonthPicker();
     updateSortButtons();
+    syncCompareUi();
     loadData();
   });
 
   async function openPerfDetail(nome) {
-    const title = document.getElementById('perfDetailTitle');
-    title.textContent = nome + ' - ' + monthLabelText(currentMonth);
-    const ini = toYMD(firstDayOfMonth(currentMonth));
-    const fim = toYMD(lastDayOfMonth(currentMonth));
+    perfDetailNome = nome;
+    if (!perfDetailModalInstance) {
+      perfDetailModalInstance = new bootstrap.Modal(document.getElementById('perfDetailModal'));
+    }
+    syncCompareUi();
+    await loadPerfDetail(nome);
+    perfDetailModalInstance.show();
+  }
 
+  async function loadPerfDetail(nome) {
+    const title = document.getElementById('perfDetailTitle');
+    const compareCalendar = document.getElementById('perfCalendarCompare');
+    title.textContent = nome + ' - ' + monthLabelText(currentMonth);
+    syncCompareUi();
     try {
-      const res = await fetch(`/api/performance/ocupacao?alojamento=${encodeURIComponent(nome)}&data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
-      const data = await res.json();
-      if (data && data.error) throw new Error(data.error);
+      const requests = [fetchPerfOccupacao(nome, currentMonth)];
+      if (perfCompareEnabled) {
+        requests.push(fetchPerfOccupacao(nome, compareMonth(currentMonth)));
+      }
+      const [data, previousData] = await Promise.all(requests);
 
       const mapa = (data && data.mapa) || {};
-      const totalMonth = Object.values(mapa).reduce((a, v) => a + Number(v || 0), 0);
-      const occupiedDays = new Set(Object.keys(mapa));
-      const occupiedCount = occupiedDays.size;
+      const currentMetrics = computePerfCalendarMetrics(currentMonth, mapa);
+      renderCalendar('perfCalendar', currentMonth, mapa, currentMetrics.singles);
+      fillPerfMetricSet('perfCal', currentMetrics);
 
-      const today = new Date();
-      const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const baseStart = firstDayOfMonth(currentMonth);
-      const baseEnd = lastDayOfMonth(currentMonth);
-      const availStart = (t0 > baseStart) ? t0 : baseStart;
-
-      const keys = [];
-      for (let d = new Date(baseStart); d <= baseEnd; d.setDate(d.getDate() + 1)) {
-        keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+      if (perfCompareEnabled) {
+        const compareBaseMonth = compareMonth(currentMonth);
+        const previousMap = (previousData && previousData.mapa) || {};
+        const previousMetrics = computePerfCalendarMetrics(compareBaseMonth, previousMap);
+        renderCalendar('perfCalendarCompare', compareBaseMonth, previousMap, previousMetrics.singles);
+        fillPerfMetricSet('perfCalPrev', previousMetrics);
+      } else if (compareCalendar) {
+        compareCalendar.innerHTML = '';
+        fillPerfMetricSet('perfCalPrev', null);
       }
-
-      const singles = new Set();
-      let nightsAvail = 0;
-      let i = 0;
-      while (i < keys.length) {
-        const parts = keys[i].split('-');
-        const kd = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-        if (kd >= availStart) break;
-        i++;
-      }
-
-      while (i < keys.length) {
-        const k = keys[i];
-        if (occupiedDays.has(k)) {
-          i++;
-          continue;
-        }
-        let j = i;
-        while (j < keys.length && !occupiedDays.has(keys[j])) j++;
-        const runLen = j - i;
-        if (runLen === 1) singles.add(keys[i]);
-        if (runLen >= 2) nightsAvail += runLen;
-        i = j;
-      }
-
-      renderCalendar('perfCalendar', currentMonth, mapa, singles);
-      const avgPerNight = occupiedCount > 0 ? (totalMonth / occupiedCount) : 0;
-      const estimate = avgPerNight * nightsAvail * 0.8;
-      document.getElementById('perfCalTotalMonth').textContent = fmtEUR0.format(totalMonth);
-      document.getElementById('perfCalNightsAvail').textContent = fmtNum.format(nightsAvail);
-      document.getElementById('perfCalEstimate').textContent = fmtEUR0.format(estimate);
-      document.getElementById('perfCalTotalEstimated').textContent = fmtEUR0.format(totalMonth + estimate);
     } catch (e) {
       console.error(e);
       renderCalendar('perfCalendar', currentMonth, {}, new Set());
-      document.getElementById('perfCalTotalMonth').textContent = '--';
-      document.getElementById('perfCalNightsAvail').textContent = '--';
-      document.getElementById('perfCalEstimate').textContent = '--';
-      document.getElementById('perfCalTotalEstimated').textContent = '--';
+      fillPerfMetricSet('perfCal', null);
+      if (compareCalendar) compareCalendar.innerHTML = '';
+      fillPerfMetricSet('perfCalPrev', null);
     }
-
-    const modal = new bootstrap.Modal(document.getElementById('perfDetailModal'));
-    modal.show();
   }
 
   function renderCalendar(containerId, baseDate, dailyTotals, singleNights) {

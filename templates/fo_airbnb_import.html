@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% set page_title = "Importar Comissões Airbnb" %}
+
+{% block title %}Importar Comissões Airbnb{% endblock %}
+
+{% block content %}
+<div class="sz_page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Importar Comissões Airbnb</div>
+        <div class="sz_breadcrumbs">COMPRAS / IMPORTAÇÃO CSV</div>
+        <div class="sz_page_subtitle">1 linha do CSV gera 1 documento FO e 1 linha FN.</div>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content sz_airbnb_import_page">
+        <section class="sz_panel sz_airbnb_import_upload">
+          <div class="sz_airbnb_import_upload_grid">
+            <div class="sz_field">
+              <label class="sz_label" for="airbnbCsvFile">Ficheiro CSV Airbnb</label>
+              <input id="airbnbCsvFile" type="file" class="sz_input" accept=".csv,text/csv">
+            </div>
+            <div class="sz_airbnb_import_inline_actions">
+              <button id="airbnbBtnPreview" type="button" class="sz_button sz_button_primary">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <span>Analisar</span>
+              </button>
+              <button id="airbnbBtnClearTop" type="button" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-eraser"></i>
+                <span>Limpar</span>
+              </button>
+            </div>
+          </div>
+          <div id="airbnbFileMeta" class="sz_text_muted">Sem ficheiro analisado.</div>
+        </section>
+
+        <section class="sz_grid sz_airbnb_import_stats">
+          <article class="sz_card sz_stack">
+            <span class="sz_caption">Linhas lidas</span>
+            <strong id="statTotalRows" class="sz_airbnb_import_stat_value">0</strong>
+          </article>
+          <article class="sz_card sz_stack">
+            <span class="sz_caption">Válidas</span>
+            <strong id="statValidRows" class="sz_airbnb_import_stat_value">0</strong>
+          </article>
+          <article class="sz_card sz_stack">
+            <span class="sz_caption">Com erro</span>
+            <strong id="statErrorRows" class="sz_airbnb_import_stat_value">0</strong>
+          </article>
+          <article class="sz_card sz_stack">
+            <span class="sz_caption">Já existentes</span>
+            <strong id="statDuplicateRows" class="sz_airbnb_import_stat_value">0</strong>
+          </article>
+          <article class="sz_card sz_stack">
+            <span class="sz_caption">Prontas a importar</span>
+            <strong id="statReadyRows" class="sz_airbnb_import_stat_value">0</strong>
+          </article>
+        </section>
+
+        <section class="sz_panel sz_stack">
+          <div class="sz_airbnb_import_section_head">
+            <div class="sz_stack">
+              <div class="sz_label">Pré-visualização</div>
+              <div id="airbnbPreviewMeta" class="sz_text_muted">Ainda sem dados.</div>
+            </div>
+            <div class="sz_airbnb_import_dependencies">
+              <span id="depSupplier" class="sz_badge sz_badge_info">Fornecedor por validar</span>
+              <span id="depArticle" class="sz_badge sz_badge_info">Artigo por validar</span>
+            </div>
+          </div>
+
+          <div class="sz_table_host sz_airbnb_import_table_host">
+            <table class="sz_table sz_table_compact" id="airbnbPreviewTable">
+              <thead class="sz_table_head">
+                <tr>
+                  <th>Linha</th>
+                  <th>Documento</th>
+                  <th>Data</th>
+                  <th>Confirmação</th>
+                  <th>Data Reserva</th>
+                  <th>Anúncio</th>
+                  <th class="text-end">Líquido</th>
+                  <th class="text-end">IVA</th>
+                  <th class="text-end">Total</th>
+                  <th>Estado</th>
+                  <th>Mensagem</th>
+                </tr>
+              </thead>
+              <tbody id="airbnbPreviewBody">
+                <tr class="sz_table_row">
+                  <td colspan="11" class="sz_table_cell sz_text_muted">Sem dados para mostrar.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="sz_panel sz_stack">
+          <div class="sz_label">Log</div>
+          <div id="airbnbLog" class="sz_airbnb_import_log">À espera de ficheiro.</div>
+        </section>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar sz_page_footer">
+      <div class="sz_actionbar_left">
+        <div id="airbnbImportSummary" class="sz_text_muted">Nenhuma linha pronta a importar.</div>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="airbnbBtnClear" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-xmark"></i>
+          <span>Limpar</span>
+        </button>
+        <button id="airbnbBtnImport" type="button" class="sz_button sz_button_primary" disabled>
+          <i class="fa-solid fa-file-import"></i>
+          <span>Importar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .sz_airbnb_import_page {
+    gap: var(--sz-space-4);
+  }
+
+  .sz_airbnb_import_upload {
+    display: grid;
+    gap: var(--sz-space-3);
+  }
+
+  .sz_airbnb_import_upload_grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sz-space-3);
+    align-items: end;
+  }
+
+  .sz_airbnb_import_inline_actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    flex-wrap: wrap;
+  }
+
+  .sz_airbnb_import_stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+  }
+
+  .sz_airbnb_import_stat_value {
+    font-size: var(--sz-font-size-xl);
+    font-weight: var(--sz-font-weight-bold);
+    line-height: var(--sz-line-tight);
+  }
+
+  .sz_airbnb_import_section_head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+    flex-wrap: wrap;
+  }
+
+  .sz_airbnb_import_dependencies {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    flex-wrap: wrap;
+  }
+
+  .sz_airbnb_import_table_host {
+    max-height: calc(100vh - 24rem);
+  }
+
+  .sz_airbnb_import_log {
+    min-height: 8rem;
+    max-height: 16rem;
+    overflow: auto;
+    white-space: pre-wrap;
+    font-family: var(--sz-font-family-mono);
+    font-size: var(--sz-font-size-sm);
+    color: var(--sz-color-text-secondary);
+    background: var(--sz-color-surface-alt);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    padding: var(--sz-space-3);
+  }
+
+  .sz_airbnb_import_status_cell {
+    white-space: nowrap;
+  }
+
+  .sz_airbnb_import_amount {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 1200px) {
+    .sz_airbnb_import_stats {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 900px) {
+    .sz_airbnb_import_upload_grid {
+      grid-template-columns: 1fr;
+    }
+
+    .sz_airbnb_import_stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .sz_airbnb_import_stats {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<script>
+  window.AIRBNB_IMPORT_CAN_WRITE = {{ 1 if current_user.is_authenticated else 0 }};
+</script>
+<script src="{{ url_for('static', filename='js/fo_airbnb_import.js') }}?v={{ static_version }}"></script>
+{% endblock %}

@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+
+{% block title %}Entidades{% endblock %}
+
+{% block content %}
+<div class="sz_page">
+  <div class="sz_page_container sz_entities_page">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Entidades</div>
+        <div class="sz_breadcrumbs">FINANCEIRO / MULTI-EMPRESA</div>
+        <div class="sz_page_subtitle">Base fiscal, certificação e integração AT de cada empresa emissora.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <button id="entBtnNewTop" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-plus"></i>
+          <span>Nova</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content">
+        <div class="sz_sidebar_layout sz_entities_layout">
+          <aside class="sz_sidebar">
+            <section class="sz_panel sz_stack">
+              <div class="sz_grid sz_entities_filters">
+                <div class="sz_field">
+                  <label class="sz_label" for="entSearch">Pesquisa</label>
+                  <input id="entSearch" type="text" class="sz_input" placeholder="Nome, NIF, email ou localidade">
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="entActiveFilter">Estado</label>
+                  <select id="entActiveFilter" class="sz_select">
+                    <option value="">Todas</option>
+                    <option value="1">Ativas</option>
+                    <option value="0">Inativas</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="sz_inline">
+                <span id="entListSummary" class="sz_text_muted">0 entidades</span>
+              </div>
+
+              <div id="entList" class="sz_stack">
+                <div class="sz_panel sz_entities_empty">A carregar...</div>
+              </div>
+            </section>
+          </aside>
+
+          <div class="sz_stack">
+            <section class="sz_panel sz_stack">
+              <div class="sz_entities_header">
+                <div class="sz_stack">
+                  <div class="sz_caption">Ficha da entidade</div>
+                  <div id="entEditorTitle" class="sz_page_title sz_entities_editor_title">Nova entidade</div>
+                </div>
+                <div class="sz_grid sz_entities_stats">
+                  <div class="sz_card sz_stack">
+                    <span class="sz_caption">Séries</span>
+                    <strong id="entSeriesTotal" class="sz_entities_stat_value">0</strong>
+                  </div>
+                  <div class="sz_card sz_stack">
+                    <span class="sz_caption">Séries ativas</span>
+                    <strong id="entSeriesAtivas" class="sz_entities_stat_value">0</strong>
+                  </div>
+                  <div class="sz_card sz_stack">
+                    <span class="sz_caption">WS AT</span>
+                    <strong id="entWsEstado" class="sz_entities_stat_value">Desligado</strong>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <form id="entForm" class="sz_stack" autocomplete="off">
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Identificação</div>
+                <div class="sz_grid sz_entities_grid_id">
+                  <div class="sz_field">
+                    <label class="sz_label" for="entFESTAMP">FESTAMP</label>
+                    <input id="entFESTAMP" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entNIF">NIF</label>
+                    <input id="entNIF" type="number" class="sz_input_number" min="0" step="1">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entATIVA">Estado</label>
+                    <label class="sz_checkbox sz_entities_checkbox">
+                      <input id="entATIVA" type="checkbox">
+                      <span>Entidade ativa</span>
+                    </label>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entNOME">Nome</label>
+                    <input id="entNOME" class="sz_input">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entNOMEFISCAL">Nome fiscal</label>
+                    <input id="entNOMEFISCAL" class="sz_input">
+                  </div>
+                  <div class="sz_field sz_entities_span_full">
+                    <label class="sz_label" for="entATIVIDADE">Atividade</label>
+                    <input id="entATIVIDADE" class="sz_input">
+                  </div>
+                </div>
+              </section>
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Morada e contacto</div>
+                <div class="sz_grid sz_entities_grid_contact">
+                  <div class="sz_field sz_entities_span_full">
+                    <label class="sz_label" for="entMORADA">Morada</label>
+                    <input id="entMORADA" class="sz_input">
+                  </div>
+                  <div class="sz_field sz_entities_span_full">
+                    <label class="sz_label" for="entMORADA2">Morada 2</label>
+                    <input id="entMORADA2" class="sz_input">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entCODPOST">Código postal</label>
+                    <input id="entCODPOST" class="sz_input">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entLOCAL">Localidade</label>
+                    <input id="entLOCAL" class="sz_input">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entPAISISO2">País ISO2</label>
+                    <input id="entPAISISO2" class="sz_input" maxlength="2">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entEMAIL">Email</label>
+                    <input id="entEMAIL" type="email" class="sz_input">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entTELEFONE">Telefone</label>
+                    <input id="entTELEFONE" class="sz_input">
+                  </div>
+                  <div class="sz_field sz_entities_span_full">
+                    <label class="sz_label" for="entOBS">Observações</label>
+                    <textarea id="entOBS" rows="3" class="sz_textarea"></textarea>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Fiscal e certificação</div>
+                <div class="sz_grid sz_entities_grid_fiscal">
+                  <div class="sz_field">
+                    <label class="sz_label" for="entCERTNUM">N.º certificado</label>
+                    <input id="entCERTNUM" class="sz_input">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entATCUD_PREFIX">Prefixo ATCUD</label>
+                    <input id="entATCUD_PREFIX" class="sz_input">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entQRVER">Versão QR</label>
+                    <input id="entQRVER" class="sz_input">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entHASHVER">Versão hash</label>
+                    <input id="entHASHVER" class="sz_input">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entKEYID">KEYID</label>
+                    <input id="entKEYID" class="sz_input">
+                  </div>
+                  <div class="sz_field sz_entities_span_full">
+                    <label class="sz_label" for="entRSA_PRIV_PATH">RSA privada</label>
+                    <input id="entRSA_PRIV_PATH" class="sz_input">
+                  </div>
+                  <div class="sz_field sz_entities_span_full">
+                    <label class="sz_label" for="entRSA_PUB_PATH">RSA pública</label>
+                    <input id="entRSA_PUB_PATH" class="sz_input">
+                  </div>
+                </div>
+              </section>
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Integração AT</div>
+                <div class="sz_grid sz_entities_grid_ws">
+                  <div class="sz_field">
+                    <label class="sz_label" for="entAT_WS_ATIVO">Webservice</label>
+                    <label class="sz_checkbox sz_entities_checkbox">
+                      <input id="entAT_WS_ATIVO" type="checkbox">
+                      <span>Ativo</span>
+                    </label>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entAT_WS_AMBIENTE">Ambiente</label>
+                    <input id="entAT_WS_AMBIENTE" class="sz_input" placeholder="prod / test">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entAT_WS_USER">Utilizador AT</label>
+                    <input id="entAT_WS_USER" class="sz_input">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entAT_WS_PASS">Password AT</label>
+                    <input id="entAT_WS_PASS" type="password" class="sz_input">
+                  </div>
+                </div>
+              </section>
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_entities_modules_head">
+                  <div class="sz_label">Módulos</div>
+                  <div id="entModulesSummary" class="sz_text_muted">0 módulos associados</div>
+                </div>
+                <div class="sz_table_host">
+                  <table class="sz_table sz_table_compact">
+                    <thead class="sz_table_head">
+                      <tr class="sz_table_row">
+                        <th class="sz_table_cell">Código</th>
+                        <th class="sz_table_cell">Nome</th>
+                        <th class="sz_table_cell">Descrição</th>
+                        <th class="sz_table_cell sz_text_right">Associado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="entModulesList">
+                      <tr class="sz_table_row">
+                        <td colspan="4" class="sz_table_cell sz_text_muted">A carregar...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Auditoria</div>
+                <div class="sz_grid sz_grid_4">
+                  <div class="sz_field">
+                    <label class="sz_label" for="entDTCriacao">Criado em</label>
+                    <input id="entDTCriacao" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entDTAlteracao">Alterado em</label>
+                    <input id="entDTAlteracao" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entUSERCRIACAO">User criação</label>
+                    <input id="entUSERCRIACAO" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entUSERALTERACAO">User alteração</label>
+                    <input id="entUSERALTERACAO" class="sz_input" readonly>
+                  </div>
+                </div>
+              </section>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <button id="entBtnCancel" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button id="entBtnDelete" type="button" class="sz_button sz_button_danger">
+          <i class="fa-solid fa-trash"></i>
+          <span>Eliminar</span>
+        </button>
+        <button id="entBtnSaveBottom" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.ENTIDADES_INITIAL_FESTAMP = {{ initial_festamp|tojson }};
+  window.FE_CAN_CREATE = {{ fe_can_create|tojson }};
+  window.FE_CAN_EDIT = {{ fe_can_edit|tojson }};
+  window.FE_CAN_DELETE = {{ fe_can_delete|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/entidades.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+<style>
+  .sz_entities_page {
+    padding-block: var(--sz-space-2);
+    padding-inline: var(--sz-space-4);
+  }
+
+  .sz_entities_page .sz_page_body {
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .sz_entities_page .sz_page_body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .sz_entities_layout {
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  }
+
+  .sz_entities_filters {
+    grid-template-columns: minmax(0, 1fr) 120px;
+  }
+
+  .sz_entities_header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sz-space-4);
+  }
+
+  .sz_entities_editor_title {
+    font-size: 1.25rem;
+  }
+
+  .sz_entities_stats {
+    grid-template-columns: repeat(3, minmax(110px, 1fr));
+  }
+
+  .sz_entities_stat_value {
+    font-size: var(--sz-font-size-xl);
+    line-height: var(--sz-line-tight);
+    color: var(--sz-color-text);
+  }
+
+  .sz_entities_list_item {
+    cursor: pointer;
+    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+  }
+
+  .sz_entities_list_item:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border));
+    box-shadow: var(--sz-shadow-2);
+  }
+
+  .sz_entities_list_item.sz_is_active {
+    border-color: var(--sz-color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--sz-color-primary) 12%, transparent);
+  }
+
+  .sz_entities_list_item_head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+  }
+
+  .sz_entities_badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.75rem;
+    padding: 0 .75rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: 999px;
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+    white-space: nowrap;
+  }
+
+  .sz_entities_badge.sz_is_active {
+    color: var(--sz-color-success);
+    border-color: color-mix(in srgb, var(--sz-color-success) 28%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-success) 8%, white);
+  }
+
+  .sz_entities_badge.sz_is_inactive {
+    color: var(--sz-color-danger);
+    border-color: color-mix(in srgb, var(--sz-color-danger) 28%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-danger) 8%, white);
+  }
+
+  .sz_entities_meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sz-space-2) var(--sz-space-3);
+  }
+
+  .sz_entities_modules_head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+  }
+
+  .sz_entities_checkbox {
+    min-height: var(--sz-input-height);
+    padding: 0 var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface);
+  }
+
+  .sz_entities_grid_id {
+    grid-template-columns: minmax(0, 1.2fr) minmax(160px, .7fr) minmax(180px, .7fr);
+  }
+
+  .sz_entities_grid_contact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sz_entities_grid_fiscal {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .sz_entities_grid_ws {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .sz_entities_span_full {
+    grid-column: 1 / -1;
+  }
+
+  .sz_entities_empty {
+    text-align: center;
+    color: var(--sz-color-text-muted);
+  }
+
+  @media (max-width: 1200px) {
+    .sz_entities_grid_fiscal {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 992px) {
+    .sz_entities_header {
+      flex-direction: column;
+    }
+
+    .sz_entities_stats,
+    .sz_entities_grid_id,
+    .sz_entities_grid_contact,
+    .sz_entities_grid_fiscal,
+    .sz_entities_grid_ws {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+  }
+
+  @media (max-width: 780px) {
+    .sz_entities_filters,
+    .sz_entities_stats,
+    .sz_entities_grid_id,
+    .sz_entities_grid_contact,
+    .sz_entities_grid_fiscal,
+    .sz_entities_grid_ws,
+    .sz_entities_meta {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}

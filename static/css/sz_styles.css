@@ -1915,6 +1915,147 @@ body.sz-base-shell.authenticated .main-content {
   padding-inline: 0.7rem;
 }
 
+.sz_performance_modal_actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sz-space-2);
+}
+
+.sz_performance_calendar_compare {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+  transition: gap 260ms ease;
+}
+
+.sz_performance_calendar_compare.is-active {
+  gap: var(--sz-space-3);
+}
+
+.sz_performance_calendar_compare.is-closing {
+  gap: var(--sz-space-3);
+}
+
+.sz_performance_calendar_panel_compare {
+  flex: 0 0 0;
+  width: 0;
+  max-width: 0;
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border-width: 0;
+  border-color: transparent;
+  box-shadow: none;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform-origin: left center;
+  transform: translateX(-24px) scale(0.96);
+  clip-path: inset(0 100% 0 0 round var(--sz-radius-lg));
+  filter: blur(8px);
+  transition:
+    flex-basis 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    max-width 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    clip-path 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 280ms ease,
+    visibility 0s linear 340ms;
+}
+
+.sz_performance_calendar_compare.is-active .sz_performance_calendar_panel_compare {
+  flex: 1 1 0;
+  width: calc(50% - (var(--sz-space-3) / 2));
+  max-width: calc(50% - (var(--sz-space-3) / 2));
+  padding: var(--sz-space-3);
+  border-width: 1px;
+  border-color: var(--sz-color-border);
+  visibility: visible;
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  clip-path: inset(0 0 0 0 round var(--sz-radius-lg));
+  filter: blur(0);
+  transition-delay: 0s;
+}
+
+.sz_performance_calendar_compare.is-closing .sz_performance_calendar_panel.sz_performance_calendar_panel_compare {
+  flex: 1 1 0;
+  width: calc(50% - (var(--sz-space-3) / 2));
+  max-width: calc(50% - (var(--sz-space-3) / 2));
+  padding: var(--sz-space-3);
+  border-width: 1px;
+  border-color: var(--sz-color-border);
+  visibility: visible;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-18px) scale(0.985);
+  clip-path: inset(0 100% 0 0 round var(--sz-radius-lg));
+  filter: blur(6px);
+}
+
+.sz_performance_calendar_panel_current {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+  transition:
+    flex-basis 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    max-width 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms ease;
+}
+
+.sz_performance_calendar_compare.is-active .sz_performance_calendar_panel_current {
+  flex-basis: calc(50% - (var(--sz-space-3) / 2));
+  max-width: calc(50% - (var(--sz-space-3) / 2));
+  transform: translateX(0.2rem);
+}
+
+.sz_performance_calendar_compare.is-closing .sz_performance_calendar_panel_current {
+  flex-basis: calc(50% - (var(--sz-space-3) / 2));
+  max-width: calc(50% - (var(--sz-space-3) / 2));
+  transform: translateX(0);
+}
+
+.sz_performance_calendar_compare:not(.is-active) .sz_performance_calendar_panel_current {
+  transform: translateX(0);
+}
+
+.sz_performance_calendar_panel {
+  padding: var(--sz-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-2);
+}
+
+.sz_performance_calendar_panel.sz_performance_calendar_panel_compare {
+  width: 0;
+  max-width: 0;
+  padding: 0;
+  border-width: 0;
+}
+
+.sz_performance_calendar_compare.is-active .sz_performance_calendar_panel.sz_performance_calendar_panel_compare {
+  width: calc(50% - (var(--sz-space-3) / 2));
+  max-width: calc(50% - (var(--sz-space-3) / 2));
+  padding: var(--sz-space-3);
+  border-width: 1px;
+}
+
+.sz_performance_calendar_label {
+  color: var(--sz-color-text-secondary);
+}
+
+.sz_performance_detail_metrics_inline {
+  margin-top: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sz-space-2);
+}
+
 .sz_performance_calendar {
   display: flex;
   flex-direction: column;
@@ -1997,10 +2138,37 @@ body.sz-base-shell.authenticated .main-content {
   gap: var(--sz-space-3);
 }
 
+.sz_performance_detail_metrics_inline .sz_performance_detail_metric {
+  padding: 0.75rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.sz_performance_detail_metrics_inline .sz_text_muted,
+.sz_performance_detail_metrics_inline .sz_h4 {
+  overflow-wrap: anywhere;
+}
+
+.sz_performance_detail_metrics_inline .sz_h4 {
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
 @media (max-width: 1100px) {
   .sz_performance_summary_grid,
   .sz_performance_detail_metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sz_performance_detail_metrics_inline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sz_performance_calendar_compare.is-active {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2023,6 +2191,10 @@ body.sz-base-shell.authenticated .main-content {
   .sz_performance_summary_grid,
   .sz_performance_detail_metrics {
     grid-template-columns: 1fr;
+  }
+
+  .sz_performance_detail_metrics_inline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .sz_performance_cards_grid {
@@ -2106,6 +2278,10 @@ body.sz-base-shell.authenticated .main-content {
 
   .sz_performance_detail_metric .sz_h4 {
     font-size: 0.9rem;
+  }
+
+  .sz_performance_detail_metrics_inline .sz_h4 {
+    font-size: 0.82rem;
   }
 }
 
@@ -3250,12 +3426,59 @@ body.sz-base-shell .main-content .planner2-page {
   box-shadow: 0 0 10px rgba(89, 255, 123, 0.22);
 }
 
+.sz_push_modal .modal-content {
+  background: var(--sz-color-surface);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-lg);
+  color: var(--sz-color-text);
+  box-shadow: var(--sz-shadow-3);
+  overflow: hidden;
+}
+
+.sz_push_modal .modal-header,
+.sz_push_modal .modal-footer {
+  border-color: var(--sz-color-border);
+  background: var(--sz-color-surface);
+  padding: var(--sz-space-4) var(--sz-space-5);
+}
+
+.sz_push_modal .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-3);
+  padding: var(--sz-space-4) var(--sz-space-5);
+  background: var(--sz-color-surface);
+}
+
+.sz_push_modal .modal-title {
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-lg);
+  font-weight: var(--sz-font-weight-bold);
+}
+
+.sz_push_modal .text-muted.small,
+.sz_push_modal_subtitle {
+  margin-top: var(--sz-space-1);
+  color: var(--sz-color-text-muted) !important;
+  font-size: var(--sz-font-size-sm);
+  line-height: var(--sz-line-normal);
+}
+
+.sz_push_modal .btn-close {
+  opacity: 0.88;
+}
+
+[data-sz-theme="dark"] .sz_push_modal .btn-close,
+[data-sz-theme="geek"] .sz_push_modal .btn-close {
+  filter: invert(1) grayscale(1);
+}
+
 .sz_push_status_box,
 .sz_user_push_status {
   padding: 12px 14px;
   border-radius: 14px;
   border: 1px solid var(--sz-color-border);
-  background: var(--sz-color-surface-soft);
+  background: var(--sz-color-surface-alt);
   color: var(--sz-color-text);
   font-size: 0.95rem;
   line-height: 1.45;
@@ -3276,7 +3499,6 @@ body.sz-base-shell .main-content .planner2-page {
 .sz_push_modal_grid {
   display: grid;
   gap: 14px;
-  margin-top: 14px;
 }
 
 .sz_push_hint {
@@ -3307,7 +3529,7 @@ body.sz-base-shell .main-content .planner2-page {
 .sz_user_push_log {
   border: 1px solid var(--sz-color-border);
   border-radius: 14px;
-  background: var(--sz-color-surface-soft);
+  background: var(--sz-color-surface-alt);
 }
 
 .sz_user_push_stat {
@@ -3347,7 +3569,7 @@ body.sz-base-shell .main-content .planner2-page {
   border-radius: 999px;
   border: 1px solid var(--sz-color-border);
   color: var(--sz-color-text-muted);
-  background: var(--sz-color-surface-soft);
+  background: var(--sz-color-surface-alt);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -3413,7 +3635,7 @@ body.sz-base-shell .main-content .planner2-page {
   padding: 14px;
   border-radius: 14px;
   border: 1px dashed var(--sz-color-border);
-  background: var(--sz-color-surface-soft);
+  background: var(--sz-color-surface-alt);
   color: var(--sz-color-text-muted);
   text-align: center;
 }
