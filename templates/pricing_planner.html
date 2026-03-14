@@ -583,6 +583,27 @@
   }
 
   @media (max-width: 720px) {
+    .sz_page {
+      height: auto;
+      min-height: 100dvh;
+      overflow: visible;
+    }
+
+    .sz_page_container {
+      height: auto;
+      min-height: 100dvh;
+      grid-template-rows: auto auto auto;
+    }
+
+    .sz_page_body {
+      min-height: auto;
+      overflow: visible;
+    }
+
+    .sz_pricing_grid_panel {
+      overflow: visible;
+    }
+
     .sz_pricing_contextbar_controls,
     .sz_pricing_form_grid {
       grid-template-columns: 1fr;
