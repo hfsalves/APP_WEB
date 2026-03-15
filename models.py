@@ -59,6 +59,15 @@ class US(UserMixin, db.Model):
     VIEWMODE = db.Column(db.String(20), nullable=False, default='LIGHT MODE')
 
     def check_password(self, plaintext):
+        from services.auth_service import verify_password_hash
+
+        password_hash = getattr(self, 'PASSWORD_HASH', None)
+        if password_hash:
+            row = {
+                'PASSWORD_HASH': password_hash,
+                'PASSWORD_ALGO': getattr(self, 'PASSWORD_ALGO', None),
+            }
+            return verify_password_hash(row, plaintext)
         return self.PASSWORD == plaintext
 
     def get_id(self):

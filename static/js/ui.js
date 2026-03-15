@@ -4,19 +4,19 @@ window.addEventListener('DOMContentLoaded', () => {
   const main    = document.querySelector('.main-content');
   const btn     = document.getElementById('menuToggleMobile');
   const collapseBtn = document.getElementById('sidebarCollapseToggle');
-  const icon    = btn.querySelector('i');
+  const icon    = btn ? btn.querySelector('i') : null;
   const flyout = document.createElement('div');
   flyout.className = 'sidebar-flyout';
   document.body.appendChild(flyout);
 
-  btn.addEventListener('click', () => {
+  if (btn && sidebar) btn.addEventListener('click', () => {
     const open = sidebar.classList.toggle('open');
-    main.classList.toggle('shifted');
+    if (main) main.classList.toggle('shifted');
     document.body.classList.toggle('sidebar-open', open);
 
-    if (open) {
+    if (icon && open) {
       icon.classList.replace('fa-bars', 'fa-xmark');
-    } else {
+    } else if (icon) {
       icon.classList.replace('fa-xmark', 'fa-bars');
     }
   });

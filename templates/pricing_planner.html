@@ -73,10 +73,12 @@
     <div class="modal-content sz_panel sz_pricing_modal">
       <div class="modal-header sz_modal_header">
         <div class="sz_stack">
-          <h5 class="modal-title sz_modal_title">Alojamento</h5>
+          <h5 class="sz_modal_title">Alojamento</h5>
           <div class="sz_text_muted">Configuração base do alojamento para cálculo de preço.</div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <button type="button" class="sz_button sz_button_ghost sz_pricing_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
       <div class="modal-body sz_modal_body sz_stack">
         <div id="pricingAlojamentoSummary" class="sz_text_muted"></div>
@@ -148,16 +150,18 @@
     <div class="modal-content sz_panel sz_pricing_modal">
       <div class="modal-header sz_modal_header">
         <div class="sz_stack">
-          <h5 class="modal-title sz_modal_title">Detalhe do dia</h5>
+          <h5 class="sz_modal_title">Detalhe do dia</h5>
           <div class="sz_text_muted">Breakdown do preço final, overrides ativos e criação rápida de override.</div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <button type="button" class="sz_button sz_button_ghost sz_pricing_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
       <div class="modal-body sz_modal_body sz_stack">
         <div id="pricingDaySummary" class="sz_pricing_day_summary"></div>
         <div class="sz_pricing_day_grid">
           <div class="sz_stack">
-            <h6 class="sz_h4">Breakdown</h6>
+            <h6 class="sz_h4 sz_pricing_section_title">Breakdown</h6>
             <div id="pricingFlagsCards" class="sz_pricing_info_stack"></div>
             <details class="sz_pricing_raw">
               <summary>Ver JSON bruto</summary>
@@ -165,14 +169,14 @@
             </details>
           </div>
           <div class="sz_stack">
-            <h6 class="sz_h4">Overrides ativos</h6>
+            <h6 class="sz_h4 sz_pricing_section_title">Overrides ativos</h6>
             <div id="pricingOverridesCards" class="sz_pricing_info_stack"></div>
             <details class="sz_pricing_raw">
               <summary>Ver JSON bruto</summary>
               <pre id="pricingOverrides" class="sz_pricing_pre"></pre>
             </details>
             <section class="sz_panel sz_stack sz_pricing_override_panel">
-              <h6 class="sz_h4">Criar override</h6>
+              <h6 class="sz_h4 sz_pricing_section_title">Criar override</h6>
               <form id="pricingOverrideForm" class="sz_pricing_form_grid" autocomplete="off">
                 <div class="sz_field">
                   <label class="sz_label" for="overrideTipo">Tipo</label>
@@ -432,6 +436,16 @@
     overflow: hidden;
   }
 
+  .sz_pricing_modal .sz_modal_footer {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .sz_pricing_modal_close {
+    min-width: var(--sz-button-height);
+    padding-inline: 0.7rem;
+  }
+
   .sz_pricing_form_grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -452,6 +466,34 @@
   .sz_pricing_day_summary {
     display: grid;
     gap: var(--sz-space-1);
+    color: var(--sz-color-text-secondary);
+  }
+
+  .sz_pricing_day_summary_main {
+    font-size: var(--sz-font-size-lg);
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+    line-height: 1.25;
+  }
+
+  .sz_pricing_day_summary_value {
+    font-size: var(--sz-font-size-md);
+    font-weight: var(--sz-font-weight-medium);
+    color: var(--sz-color-text-secondary);
+    line-height: 1.35;
+  }
+
+  .sz_pricing_day_summary_meta {
+    font-size: var(--sz-font-size-sm);
+    color: var(--sz-color-text-muted);
+    line-height: 1.4;
+  }
+
+  .sz_pricing_section_title {
+    margin: 0;
+    color: var(--sz-color-text);
+    font-size: var(--sz-font-size-md);
+    font-weight: var(--sz-font-weight-semibold);
   }
 
   .sz_pricing_day_grid {
@@ -560,6 +602,10 @@
     cursor: pointer;
     font-size: var(--sz-font-size-xs);
     color: var(--sz-color-text-muted);
+  }
+
+  .sz_pricing_raw[open] summary {
+    color: var(--sz-color-text-secondary);
   }
 
   .sz_pricing_inline_btn {
@@ -1239,10 +1285,10 @@
       const syncText = payload.synced ? 'Sim' : 'Não';
       const syncedAtText = payload.synced_at || '-';
       daySummaryEl.innerHTML = `
-        <div><strong>${payload.alojamento}</strong> - ${payload.date}</div>
-        <div>${fmtMoney(payload.preco_calc)} calculado | ${fmtMoney(payload.preco_final)} final</div>
-        <div class="sz_text_muted" data-sync-state>Sincronizado: ${syncText} | Última sincronização: ${syncedAtText}</div>
-        <div class="sz_text_muted">Atualizado em ${payload.updated_at || '-'}</div>
+        <div class="sz_pricing_day_summary_main">${escapeHtml(payload.alojamento)} · ${escapeHtml(payload.date)}</div>
+        <div class="sz_pricing_day_summary_value">${escapeHtml(fmtMoney(payload.preco_calc))} calculado · ${escapeHtml(fmtMoney(payload.preco_final))} final</div>
+        <div class="sz_pricing_day_summary_meta" data-sync-state>Sincronizado: ${escapeHtml(syncText)} · Última sincronização: ${escapeHtml(syncedAtText)}</div>
+        <div class="sz_pricing_day_summary_meta">Atualizado em ${escapeHtml(payload.updated_at || '-')}</div>
       `;
       renderFlagsCards(payload.flags || {});
       renderOverrideCards(payload.overrides || [], payload.flags || {});

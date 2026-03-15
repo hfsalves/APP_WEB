@@ -13,6 +13,7 @@ import io
 import importlib.util
 import hashlib
 import hmac
+import logging
 from decimal import Decimal, ROUND_HALF_UP
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -52,6 +53,11 @@ from services.airbnb_commission_import_service import (
     preview_airbnb_commissions_csv,
     import_airbnb_commissions_rows,
 )
+from services.auth_service import (
+    authenticate_user,
+    get_user_by_stamp,
+    set_password_for_user,
+)
 from price_engine import register_pricing
 
 # Importa a instÃ¢ncia db e modelos
@@ -60,6 +66,7 @@ from models import Modais, CamposModal
 #from your_app_folder import db  # ou ajusta conforme a tua estrutura
 
 login_manager = LoginManager()
+auth_logger = logging.getLogger("stationzero.auth")
 
 def new_stamp() -> str:
     return uuid.uuid4().hex.upper()[:25]
@@ -1503,13 +1510,10 @@ def create_app():
 
     @login_manager.user_loader
     def load_user(user_stamp):
-        sql = text("""
-            SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO, TEMPOS, VIEWMODE
-            FROM US
-            WHERE USSTAMP = :stamp
-        """)
-        row = db.session.execute(sql, {'stamp': user_stamp}).mappings().first()
+        row = get_user_by_stamp(db.session, user_stamp)
         if not row:
+            return None
+        if row.get('IS_ACTIVE') is False or bool(row.get('INATIVO') or 0):
             return None
 
         user = US()
@@ -1523,27 +1527,26 @@ def create_app():
         if request.method == 'POST':
             login_ = request.form['login']
             pwd = request.form['password']
+            try:
+                result = authenticate_user(db.session, login_, pwd)
+                if result.success and result.row:
+                    user = US()
+                    for k, v in result.row.items():
+                        setattr(user, k, v)
+                    login_user(user)
+                    try:
+                        para_map = _load_para_map()
+                        session['APP_PARAMS'] = para_map
+                        app.config['PARA_VALUES'] = para_map
+                    except Exception:
+                        session['APP_PARAMS'] = {}
+                    return redirect(request.args.get('next') or url_for('home_page'))
 
-            sql = text("""
-                SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO, TEMPOS, VIEWMODE
-                FROM US
-                WHERE LOGIN = :login
-            """)
-            row = db.session.execute(sql, {'login': login_}).mappings().first()
-            if row and row['PASSWORD'] == pwd:
-                user = US()
-                for k, v in row.items():
-                    setattr(user, k, v)
-                login_user(user)
-                try:
-                    para_map = _load_para_map()
-                    session['APP_PARAMS'] = para_map
-                    app.config['PARA_VALUES'] = para_map
-                except Exception:
-                    session['APP_PARAMS'] = {}
-                return redirect(request.args.get('next') or url_for('home_page'))
-
-            return render_template('login.html', error='Credenciais invÃ¡lidas')
+                return render_template('login.html', error=result.user_message)
+            except Exception:
+                db.session.rollback()
+                auth_logger.exception('Erro inesperado durante autenticação', extra={'login': login_})
+                return render_template('login.html', error='Erro interno na autenticação')
         return render_template('login.html')
 
     @app.route('/r/<token>')
@@ -16581,13 +16584,24 @@ OPTION (MAXRECURSION 32767);
         if not new_pwd or len(new_pwd) < 4:
             return {'error': 'Password demasiado curta'}, 400
 
-        from app import db  # ou usa db conforme jÃ¡ tens no teu projeto
-        user = db.session.query(US).get(current_user.USSTAMP)
-        if not user:
-            return {'error': 'Utilizador nÃ£o encontrado'}, 404
-        user.PASSWORD = new_pwd
-        db.session.commit()
-        return {'success': True}
+        row = get_user_by_stamp(db.session, current_user.USSTAMP)
+        if not row:
+            return {'error': 'Utilizador não encontrado'}, 404
+
+        try:
+            password_algo = set_password_for_user(db.session, current_user.USSTAMP, new_pwd)
+            auth_logger.info(
+                'Password alterada com atualização de credenciais seguras',
+                extra={'login': row.get('LOGIN'), 'userstamp': current_user.USSTAMP, 'password_algo': password_algo},
+            )
+            return {'success': True, 'password_algo': password_algo}
+        except Exception as e:
+            db.session.rollback()
+            auth_logger.exception(
+                'Erro ao alterar password',
+                extra={'login': row.get('LOGIN'), 'userstamp': current_user.USSTAMP},
+            )
+            return {'error': str(e)}, 500
 
     @app.route('/api/profile/save', methods=['POST'])
     @login_required
