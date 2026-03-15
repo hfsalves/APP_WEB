@@ -58,6 +58,15 @@ from services.auth_service import (
     get_user_by_stamp,
     set_password_for_user,
 )
+from services.multiempresa_service import (
+    MissingUserEntitiesError,
+    MissingCurrentEntityError,
+    get_current_feid,
+    get_current_entity_context,
+    get_default_entity_for_user,
+    get_user_entities,
+    store_current_entity_in_session,
+)
 from price_engine import register_pricing
 
 # Importa a instÃ¢ncia db e modelos
@@ -1346,8 +1355,23 @@ def create_app():
         perms = {}
         menu_botoes = {}
         menu_forms = {}
+        allowed_menu_stamps = None
+        current_entity = None
+        current_user_entities = []
+        can_switch_entity = False
 
         if current_user.is_authenticated:
+            if session.get('current_feid') not in (None, ''):
+                try:
+                    current_entity = get_current_entity_context()
+                except Exception:
+                    current_entity = None
+            try:
+                current_user_entities = get_user_entities(db.session, getattr(current_user, 'USSTAMP', ''))
+            except Exception:
+                current_user_entities = []
+            can_switch_entity = len(current_user_entities) > 1
+
             # 1) Carrega todos os menus (filtra admin se for caso)
             if getattr(current_user, 'ADMIN', False):
                 menu_items = Menu.query.order_by(Menu.ordem).all()
@@ -1358,6 +1382,13 @@ def create_app():
                         .order_by(Menu.ordem)
                         .all()
                 )
+
+            allowed_menu_stamps = _get_allowed_menu_stamps_for_current_entity()
+            if allowed_menu_stamps is not None:
+                menu_items = [
+                    item for item in menu_items
+                    if (item.ordem % 100 == 0) or (str(getattr(item, 'menustamp', '') or '').strip() in allowed_menu_stamps)
+                ]
 
             # 2) PermissÃµes de acesso por tabela
             rows = Acessos.query.filter_by(utilizador=current_user.LOGIN).all()
@@ -1503,7 +1534,10 @@ def create_app():
             'can_open_mn'    : can_open_mn if current_user.is_authenticated else False,
             'can_open_fs'    : can_open_fs if current_user.is_authenticated else False,
             'static_version' : app.config.get('STATIC_VERSION', 1),
-            'app_params'     : session.get('APP_PARAMS', {}) if current_user.is_authenticated else {}
+            'app_params'     : session.get('APP_PARAMS', {}) if current_user.is_authenticated else {},
+            'current_entity' : current_entity,
+            'current_user_entities': current_user_entities,
+            'can_switch_entity': can_switch_entity,
         }
 
     from sqlalchemy.sql import text
@@ -1530,10 +1564,32 @@ def create_app():
             try:
                 result = authenticate_user(db.session, login_, pwd)
                 if result.success and result.row:
+                    try:
+                        user_entities = get_user_entities(db.session, result.row.get('USSTAMP'))
+                        default_entity = get_default_entity_for_user(db.session, result.row.get('USSTAMP'))
+                    except MissingUserEntitiesError as entity_error:
+                        session.pop('current_feid', None)
+                        session.pop('current_entity_name', None)
+                        auth_logger.warning(
+                            'Login recusado: utilizador sem entidades ativas',
+                            extra={'login': result.row.get('LOGIN'), 'usstamp': result.row.get('USSTAMP')},
+                        )
+                        return render_template('login.html', error=str(entity_error))
+
                     user = US()
                     for k, v in result.row.items():
                         setattr(user, k, v)
                     login_user(user)
+                    store_current_entity_in_session(default_entity)
+                    auth_logger.info(
+                        'Contexto multiempresa carregado no login',
+                        extra={
+                            'login': result.row.get('LOGIN'),
+                            'usstamp': result.row.get('USSTAMP'),
+                            'entity_count': len(user_entities),
+                            'current_feid': default_entity.get('FEID'),
+                        },
+                    )
                     try:
                         para_map = _load_para_map()
                         session['APP_PARAMS'] = para_map
@@ -2669,8 +2725,42 @@ def create_app():
     @login_required
     def logout():
         session.pop('APP_PARAMS', None)
+        session.pop('current_feid', None)
+        session.pop('current_entity_name', None)
         logout_user()
         return redirect(url_for('login'))
+
+    @app.route('/api/session/switch-entity', methods=['POST'])
+    @login_required
+    def switch_active_entity():
+        body = request.get_json(silent=True) or {}
+        requested_feid = body.get('feid')
+        try:
+            requested_feid = int(requested_feid)
+        except Exception:
+            return jsonify({'error': 'Empresa inválida.'}), 400
+
+        user_entities = get_user_entities(db.session, getattr(current_user, 'USSTAMP', ''))
+        target_entity = next((row for row in user_entities if int(row.get('FEID') or 0) == requested_feid), None)
+        if not target_entity:
+            return jsonify({'error': 'Sem acesso à empresa selecionada.'}), 403
+
+        store_current_entity_in_session(target_entity)
+        auth_logger.info(
+            'Empresa ativa alterada na sessão',
+            extra={
+                'login': getattr(current_user, 'LOGIN', ''),
+                'usstamp': getattr(current_user, 'USSTAMP', ''),
+                'current_feid': requested_feid,
+            },
+        )
+        return jsonify({
+            'ok': True,
+            'current_entity': {
+                'FEID': int(target_entity.get('FEID') or 0),
+                'NOME': str(target_entity.get('NOME') or '').strip(),
+            }
+        })
 
     # ---------------------------
     # FATURAÇÃO (FT/FI)
@@ -2774,7 +2864,7 @@ def create_app():
                 M.ORDEM,
                 M.ATIVO AS MODULO_ATIVO,
                 CASE WHEN FM.FEMODSTAMP IS NULL THEN 0 ELSE 1 END AS ASSOCIADO,
-                ISNULL(FM.ATIVO, 1) AS ATIVO,
+                ISNULL(FM.ATIVO, 0) AS ATIVO,
                 ISNULL(FM.OBS, '') AS OBS,
                 ISNULL(FM.FEMODSTAMP, '') AS FEMODSTAMP
             FROM dbo.MODULOS M
@@ -2918,6 +3008,38 @@ def create_app():
             ORDER BY ISNULL(ORDEM, 0), ISNULL(OBJNOME, '')
         """), {'modstamp': (modstamp or '').strip()}).mappings().all()]
         return rows
+
+    def _get_allowed_menu_stamps_for_current_entity():
+        current_feid = session.get('current_feid')
+        if current_feid in (None, ''):
+            return None
+
+        _ensure_mod_objetos_table()
+        rows = db.session.execute(text("""
+            SELECT DISTINCT
+                LTRIM(RTRIM(ISNULL(MO.MENUSTAMP, ''))) AS MENUSTAMP
+            FROM dbo.FE FE
+            INNER JOIN dbo.FE_MODULOS FM
+                ON FM.FESTAMP = FE.FESTAMP
+            INNER JOIN dbo.MODULOS M
+                ON M.MODSTAMP = FM.MODSTAMP
+            INNER JOIN dbo.MOD_OBJETOS MO
+                ON MO.MODSTAMP = FM.MODSTAMP
+            WHERE
+                FE.FEID = :feid
+                AND ISNULL(FM.ATIVO, 0) = 1
+                AND ISNULL(M.ATIVO, 0) = 1
+                AND ISNULL(MO.ATIVO, 0) = 1
+                AND UPPER(LTRIM(RTRIM(ISNULL(MO.TIPO, '')))) = 'MENU'
+                AND LTRIM(RTRIM(ISNULL(MO.MENUSTAMP, ''))) <> ''
+        """), {'feid': int(current_feid)}).mappings().all()
+
+        allowed = {
+            str(row.get('MENUSTAMP') or '').strip()
+            for row in rows
+            if str(row.get('MENUSTAMP') or '').strip()
+        }
+        return allowed if allowed else None
 
     def _default_ft_payload(user_login: str):
         today = date.today()
@@ -3101,11 +3223,28 @@ def create_app():
         }
 
     def _get_rs_bundle(rsstamp):
+        try:
+            current_feid = get_current_feid()
+        except MissingCurrentEntityError:
+            return None, []
+
         rs = db.session.execute(text("""
             SELECT *
             FROM dbo.RS
             WHERE RSSTAMP = :s
-        """), {'s': rsstamp}).mappings().first()
+              AND (
+                    ISNULL(RS.FEID, 0) = :current_feid
+                 OR EXISTS (
+                        SELECT 1
+                        FROM dbo.AL ALV
+                        WHERE LTRIM(RTRIM(ISNULL(ALV.NOME,''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
+                          AND (
+                                ISNULL(ALV.FEID, 0) = :current_feid
+                             OR ISNULL(ALV.FEID_GESTOR, 0) = :current_feid
+                          )
+                    )
+              )
+        """), {'s': rsstamp, 'current_feid': current_feid}).mappings().first()
         if not rs:
             return None, []
         guests = db.session.execute(text("""
@@ -3139,6 +3278,35 @@ def create_app():
         if not raw:
             return ''
         return raw[:16].replace(' ', 'T')
+
+    def _current_feid_or_json_error():
+        try:
+            return get_current_feid(), None
+        except MissingCurrentEntityError as exc:
+            return None, (jsonify({'error': str(exc)}), 403)
+
+    def _rs_write_clause(alias='RS'):
+        prefix = f'{alias}.' if alias else ''
+        aloj_expr = f"{prefix}ALOJAMENTO" if prefix else "ALOJAMENTO"
+        return f"""
+            AND EXISTS (
+                SELECT 1
+                FROM dbo.AL ALV
+                WHERE LTRIM(RTRIM(ISNULL(ALV.NOME,''))) = LTRIM(RTRIM(ISNULL({aloj_expr},'')))
+                  AND (
+                        (ISNULL(ALV.FEID_GESTOR, 0) <> 0 AND ISNULL(ALV.FEID_GESTOR, 0) = :current_feid)
+                     OR (ISNULL(ALV.FEID_GESTOR, 0) = 0 AND ISNULL({prefix}FEID, 0) = :current_feid)
+                  )
+            )
+        """
+
+    def _rs_exists_any(rsstamp):
+        row = db.session.execute(text("""
+            SELECT TOP 1 RSSTAMP
+            FROM dbo.RS
+            WHERE RSSTAMP = :s
+        """), {'s': rsstamp}).mappings().first()
+        return bool(row)
 
     @app.route('/faturacao/ft')
     @login_required
@@ -3337,18 +3505,37 @@ def create_app():
     @app.route('/api/reservas/rs/config', methods=['GET'])
     @login_required
     def api_reservas_rs_config():
+        current_feid, error_response = _current_feid_or_json_error()
+        if error_response:
+            return error_response
         aloj_rows = db.session.execute(text("""
             SELECT ISNULL(NOME,'') AS NOME
             FROM dbo.AL
             WHERE ISNULL(NOME,'') <> ''
+              AND (
+                    ISNULL(FEID, 0) = :current_feid
+                 OR ISNULL(FEID_GESTOR, 0) = :current_feid
+              )
             ORDER BY NOME
-        """)).mappings().all()
+        """), {'current_feid': current_feid}).mappings().all()
         origem_rows = db.session.execute(text("""
             SELECT DISTINCT ISNULL(ORIGEM,'') AS ORIGEM
             FROM dbo.RS
             WHERE ISNULL(ORIGEM,'') <> ''
+              AND (
+                    ISNULL(RS.FEID, 0) = :current_feid
+                 OR EXISTS (
+                        SELECT 1
+                        FROM dbo.AL ALV
+                        WHERE LTRIM(RTRIM(ISNULL(ALV.NOME,''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
+                          AND (
+                                ISNULL(ALV.FEID, 0) = :current_feid
+                             OR ISNULL(ALV.FEID_GESTOR, 0) = :current_feid
+                          )
+                    )
+              )
             ORDER BY ORIGEM
-        """)).mappings().all()
+        """), {'current_feid': current_feid}).mappings().all()
         return jsonify({
             'alojamentos': [str(r.get('NOME') or '').strip() for r in aloj_rows if str(r.get('NOME') or '').strip()],
             'origens': [str(r.get('ORIGEM') or '').strip() for r in origem_rows if str(r.get('ORIGEM') or '').strip()],
@@ -3380,6 +3567,9 @@ def create_app():
     @app.route('/api/reservas/rs/<rsstamp>/limpezas', methods=['GET'])
     @login_required
     def api_reservas_rs_limpezas(rsstamp):
+        current_feid, error_response = _current_feid_or_json_error()
+        if error_response:
+            return error_response
         rs = db.session.execute(text("""
             SELECT
                 RS.RSSTAMP,
@@ -3393,7 +3583,12 @@ def create_app():
             LEFT JOIN dbo.AL AS AL
               ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
             WHERE RS.RSSTAMP = :s
-        """), {'s': rsstamp}).mappings().first()
+              AND (
+                    ISNULL(RS.FEID, 0) = :current_feid
+                 OR ISNULL(AL.FEID, 0) = :current_feid
+                 OR ISNULL(AL.FEID_GESTOR, 0) = :current_feid
+              )
+        """), {'s': rsstamp, 'current_feid': current_feid}).mappings().first()
         if not rs:
             return jsonify({'error': 'Reserva não encontrada'}), 404
 
@@ -3521,6 +3716,9 @@ def create_app():
     @app.route('/api/reservas/cancelamentos', methods=['GET'])
     @login_required
     def api_reservas_cancelamentos():
+        current_feid, error_response = _current_feid_or_json_error()
+        if error_response:
+            return error_response
         def _date_or_none(raw):
             s = str(raw or '').strip()
             if not s:
@@ -3582,8 +3780,20 @@ def create_app():
                 CAST(ISNULL(RS.PCANCEL,0) AS decimal(18,2)) AS PCANCEL
             FROM dbo.RS RS
             WHERE {' AND '.join(where)}
+              AND (
+                    ISNULL(RS.FEID, 0) = :current_feid
+                 OR EXISTS (
+                        SELECT 1
+                        FROM dbo.AL ALV
+                        WHERE LTRIM(RTRIM(ISNULL(ALV.NOME,''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
+                          AND (
+                                ISNULL(ALV.FEID, 0) = :current_feid
+                             OR ISNULL(ALV.FEID_GESTOR, 0) = :current_feid
+                          )
+                    )
+              )
             ORDER BY CAST(RS.DATAIN AS date) DESC, CAST(RS.DATAOUT AS date) DESC, ISNULL(RS.RESERVA,'')
-        """), params).mappings().all()
+        """), {**params, 'current_feid': current_feid}).mappings().all()
 
         out = []
         for r in rows:
@@ -3613,6 +3823,9 @@ def create_app():
     @app.route('/api/reservas/cancelamentos/<rsstamp>/pcancel', methods=['POST'])
     @login_required
     def api_reservas_cancelamentos_set_pcancel(rsstamp):
+        current_feid, error_response = _current_feid_or_json_error()
+        if error_response:
+            return error_response
         body = request.get_json(silent=True) or {}
         try:
             value = round(float(body.get('pcancel') or 0), 2)
@@ -3621,22 +3834,26 @@ def create_app():
         if value < 0:
             return jsonify({'error': 'Valor não pode ser negativo.'}), 400
 
-        row = db.session.execute(text("""
+        row = db.session.execute(text(f"""
             SELECT ISNULL(CANCELADA,0) AS CANCELADA
             FROM dbo.RS
             WHERE RSSTAMP=:s
-        """), {'s': rsstamp}).mappings().first()
+              {_rs_write_clause('RS')}
+        """), {'s': rsstamp, 'current_feid': current_feid}).mappings().first()
         if not row:
+            if _rs_exists_any(rsstamp):
+                return jsonify({'error': 'Sem permissão para alterar esta reserva na empresa ativa.'}), 403
             return jsonify({'error': 'Reserva não encontrada'}), 404
         if int(row.get('CANCELADA') or 0) != 1:
             return jsonify({'error': 'A reserva não está cancelada.'}), 400
 
         try:
-            db.session.execute(text("""
+            db.session.execute(text(f"""
                 UPDATE dbo.RS
                 SET PCANCEL=:v
                 WHERE RSSTAMP=:s
-            """), {'v': value, 's': rsstamp})
+                {_rs_write_clause('RS')}
+            """), {'v': value, 's': rsstamp, 'current_feid': current_feid})
             db.session.commit()
         except Exception as e:
             db.session.rollback()
@@ -3646,16 +3863,22 @@ def create_app():
     @app.route('/api/reservas/rs/<rsstamp>/save', methods=['POST'])
     @login_required
     def api_reservas_rs_save(rsstamp):
+        current_feid, error_response = _current_feid_or_json_error()
+        if error_response:
+            return error_response
         body = request.get_json(silent=True) or {}
         header = dict(body.get('header') or {})
         guests = list(body.get('guests') or [])
 
-        current = db.session.execute(text("""
+        current = db.session.execute(text(f"""
             SELECT *
             FROM dbo.RS
             WHERE RSSTAMP = :s
-        """), {'s': rsstamp}).mappings().first()
+              {_rs_write_clause('RS')}
+        """), {'s': rsstamp, 'current_feid': current_feid}).mappings().first()
         if not current:
+            if _rs_exists_any(rsstamp):
+                return jsonify({'error': 'Sem permissão para alterar esta reserva na empresa ativa.'}), 403
             return jsonify({'error': 'Reserva não encontrada'}), 404
         current = dict(current)
 
@@ -3693,7 +3916,7 @@ def create_app():
                 return header.get(name)
             return current.get(name, default)
 
-        db.session.execute(text("""
+        db.session.execute(text(f"""
             UPDATE dbo.RS
             SET
                 ALOJAMENTO=:ALOJAMENTO,
@@ -3741,8 +3964,10 @@ def create_app():
                 FTNCONT=:FTNCONT,
                 FTEMAIL=:FTEMAIL
             WHERE RSSTAMP=:RSSTAMP
+            {_rs_write_clause('RS')}
         """), {
             'RSSTAMP': rsstamp,
+            'current_feid': current_feid,
             'ALOJAMENTO': str(_h('ALOJAMENTO') or '').strip(),
             'RDATA': rdata,
             'ORIGEM': str(_h('ORIGEM') or '').strip(),
@@ -3848,11 +4073,21 @@ def create_app():
     @app.route('/api/reservas/rs/<rsstamp>/delete', methods=['POST'])
     @login_required
     def api_reservas_rs_delete(rsstamp):
-        exists = db.session.execute(text("SELECT RSSTAMP FROM dbo.RS WHERE RSSTAMP=:s"), {'s': rsstamp}).mappings().first()
+        current_feid, error_response = _current_feid_or_json_error()
+        if error_response:
+            return error_response
+        exists = db.session.execute(text(f"""
+            SELECT RSSTAMP
+            FROM dbo.RS
+            WHERE RSSTAMP=:s
+            {_rs_write_clause('RS')}
+        """), {'s': rsstamp, 'current_feid': current_feid}).mappings().first()
         if not exists:
+            if _rs_exists_any(rsstamp):
+                return jsonify({'error': 'Sem permissão para eliminar esta reserva na empresa ativa.'}), 403
             return jsonify({'error': 'Reserva não encontrada'}), 404
         db.session.execute(text("DELETE FROM dbo.RSGUESTS WHERE RSSTAMP=:s"), {'s': rsstamp})
-        db.session.execute(text("DELETE FROM dbo.RS WHERE RSSTAMP=:s"), {'s': rsstamp})
+        db.session.execute(text(f"DELETE FROM dbo.RS WHERE RSSTAMP=:s {_rs_write_clause('RS')}"), {'s': rsstamp, 'current_feid': current_feid})
         db.session.commit()
         return jsonify({'ok': True})
 
@@ -10184,6 +10419,9 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def api_performance():
         try:
+            current_feid, error_response = _current_feid_or_json_error()
+            if error_response:
+                return error_response
             # Parse dates or default to current month
             qs_ini = (request.args.get('data_inicio') or '').strip()
             qs_fim = (request.args.get('data_fim') or '').strip()
@@ -10254,6 +10492,10 @@ OPTION (MAXRECURSION 32767);
                  AND V.data BETWEEN :data_inicio AND :data_fim
                 WHERE ISNULL(A.INATIVO, 0) = 0
                   AND ISNULL(A.FECHADO, 0) = 0
+                  AND (
+                        ISNULL(A.FEID, 0) = :current_feid
+                     OR ISNULL(A.FEID_GESTOR, 0) = :current_feid
+                  )
                 GROUP BY A.NOME, A.TIPOLOGIA, A.TIPO
                 ORDER BY A.NOME
                 """
@@ -10267,7 +10509,8 @@ OPTION (MAXRECURSION 32767);
                 'next_start': next_start,
                 'next2_end': next2_end,
                 'next4_end': next4_end,
-                'next7_end': next7_end
+                'next7_end': next7_end,
+                'current_feid': current_feid,
             }).mappings().all()
             # Build occupancy map for the future selected horizon so availability only counts
             # sellable runs of >= 2 nights, consistent with radar/detail logic.
@@ -10280,13 +10523,18 @@ OPTION (MAXRECURSION 32767);
                   ON V.CCUSTO = A.NOME
                  AND ISNULL(A.INATIVO,0)=0
                  AND ISNULL(A.FECHADO,0)=0
+                 AND (
+                       ISNULL(A.FEID, 0) = :current_feid
+                    OR ISNULL(A.FEID_GESTOR, 0) = :current_feid
+                 )
                 WHERE ISNULL(V.valor,0) <> 0
                   AND V.data BETWEEN :start AND :end
                 """
             )
             occ_rows = db.session.execute(sql_occ, {
                 'start': future_start,
-                'end': data_fim
+                'end': data_fim,
+                'current_feid': current_feid,
             }).fetchall()
             occ_map = {}
             for nome, dia in occ_rows:
@@ -16366,6 +16614,9 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def api_performance_detalhe():
         try:
+            current_feid, error_response = _current_feid_or_json_error()
+            if error_response:
+                return error_response
             alojamento = (request.args.get('alojamento') or '').strip()
             data_inicio = (request.args.get('data_inicio') or '').strip()
             data_fim = (request.args.get('data_fim') or '').strip()
@@ -16384,6 +16635,15 @@ OPTION (MAXRECURSION 32767);
                 WHERE V.CCUSTO = :aloj
                   AND ISNULL(V.valor, 0) <> 0
                   AND V.data BETWEEN :data_inicio AND :data_fim
+                  AND EXISTS (
+                        SELECT 1
+                        FROM dbo.AL A
+                        WHERE LTRIM(RTRIM(ISNULL(A.NOME,''))) = LTRIM(RTRIM(ISNULL(:aloj,'')))
+                          AND (
+                                ISNULL(A.FEID, 0) = :current_feid
+                             OR ISNULL(A.FEID_GESTOR, 0) = :current_feid
+                          )
+                  )
                 GROUP BY ISNULL(V.reserva, '')
                 ORDER BY data_reserva, reserva
                 """
@@ -16392,7 +16652,8 @@ OPTION (MAXRECURSION 32767);
             rows = db.session.execute(sql, {
                 'aloj': alojamento,
                 'data_inicio': data_inicio,
-                'data_fim': data_fim
+                'data_fim': data_fim,
+                'current_feid': current_feid,
             }).mappings().all()
 
             out = []
@@ -16419,6 +16680,15 @@ OPTION (MAXRECURSION 32767);
                 FROM v_custo AS C
                 WHERE C.ccusto = :aloj
                   AND C.data BETWEEN :data_inicio AND :data_fim
+                  AND EXISTS (
+                        SELECT 1
+                        FROM dbo.AL A
+                        WHERE LTRIM(RTRIM(ISNULL(A.NOME,''))) = LTRIM(RTRIM(ISNULL(:aloj,'')))
+                          AND (
+                                ISNULL(A.FEID, 0) = :current_feid
+                             OR ISNULL(A.FEID_GESTOR, 0) = :current_feid
+                          )
+                  )
                 GROUP BY ISNULL(C.ref,'')
                 ORDER BY ISNULL(C.ref,'')
                 """
@@ -16426,7 +16696,8 @@ OPTION (MAXRECURSION 32767);
             c_rows_db = db.session.execute(sql_c, {
                 'aloj': alojamento,
                 'data_inicio': data_inicio,
-                'data_fim': data_fim
+                'data_fim': data_fim,
+                'current_feid': current_feid,
             }).mappings().all()
 
             custos_rows = []
@@ -16454,6 +16725,9 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def api_performance_ocupacao():
         try:
+            current_feid, error_response = _current_feid_or_json_error()
+            if error_response:
+                return error_response
             alojamento = (request.args.get('alojamento') or '').strip()
             data_inicio = (request.args.get('data_inicio') or '').strip()
             data_fim = (request.args.get('data_fim') or '').strip()
@@ -16467,6 +16741,15 @@ OPTION (MAXRECURSION 32767);
                 WHERE V.CCUSTO = :aloj
                   AND ISNULL(V.valor,0) <> 0
                   AND V.data BETWEEN :data_inicio AND :data_fim
+                  AND EXISTS (
+                        SELECT 1
+                        FROM dbo.AL A
+                        WHERE LTRIM(RTRIM(ISNULL(A.NOME,''))) = LTRIM(RTRIM(ISNULL(:aloj,'')))
+                          AND (
+                                ISNULL(A.FEID, 0) = :current_feid
+                             OR ISNULL(A.FEID_GESTOR, 0) = :current_feid
+                          )
+                  )
                 GROUP BY CAST(V.data AS date)
                 ORDER BY dia
                 """
@@ -16474,7 +16757,8 @@ OPTION (MAXRECURSION 32767);
             rows = db.session.execute(sql, {
                 'aloj': alojamento,
                 'data_inicio': data_inicio,
-                'data_fim': data_fim
+                'data_fim': data_fim,
+                'current_feid': current_feid,
             }).fetchall()
             dias = []
             mapa = {}

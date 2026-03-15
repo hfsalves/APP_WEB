@@ -144,6 +144,58 @@
             </div>
           </div>
         </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingUserEmpresas">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#collapseUserEmpresas"
+                    aria-expanded="false" aria-controls="collapseUserEmpresas">
+              Empresas
+            </button>
+          </h2>
+          <div id="collapseUserEmpresas"
+              class="accordion-collapse collapse"
+              aria-labelledby="headingUserEmpresas">
+            <div class="accordion-body">
+              <div class="sz_dynamic_usfe_section">
+                <div class="sz_dynamic_usfe_toolbar">
+                  <div class="sz_field sz_dynamic_usfe_field">
+                    <label class="sz_label" for="userFeNewFeid">Empresa</label>
+                    <select id="userFeNewFeid" class="sz_select" {% if not record_stamp %}disabled{% endif %}></select>
+                  </div>
+                  <button type="button"
+                          id="btnUserFeAdd"
+                          class="sz_button sz_button_primary"
+                          {% if not record_stamp %}disabled title="Grava primeiro o utilizador para associar empresas"{% endif %}>
+                    <i class="fa fa-plus"></i>
+                    <span>Adicionar empresa</span>
+                  </button>
+                </div>
+                {% if not record_stamp %}
+                <div class="sz_text_muted sz_dynamic_usfe_hint">Grava primeiro o utilizador para gerir empresas associadas.</div>
+                {% endif %}
+                <div id="userFeStatus" class="sz_dynamic_usfe_status"></div>
+                <div class="sz_table_wrap">
+                  <table class="sz_table sz_table_compact">
+                    <thead>
+                      <tr>
+                        <th>Empresa</th>
+                        <th class="sz_col_fit">Ativo</th>
+                        <th class="sz_col_fit">Principal</th>
+                        <th class="sz_col_fit">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody id="userFeTableBody">
+                      <tr>
+                        <td colspan="4" class="sz_text_muted">A carregar empresas...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         {% endif %}
       </div>
     </section>

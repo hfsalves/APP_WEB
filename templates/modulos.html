@@ -241,7 +241,22 @@
 
 <style>
   .sz_modulos_layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .sz_modulos_layout > * {
+    min-width: 0;
+  }
+
+  .sz_modulos_layout > .sz_sidebar,
+  .sz_modulos_layout > .sz_stack {
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    padding-right: var(--sz-space-2);
   }
 
   .sz_modulos_header,
@@ -262,7 +277,7 @@
   }
 
   .sz_modulos_stats {
-    width: min(100%, 420px);
+    width: 100%;
   }
 
   .sz_modulos_stat_value {
@@ -282,7 +297,7 @@
     cursor: pointer;
     transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
     gap: var(--sz-space-2);
-    padding: var(--sz-space-3);
+    padding: var(--sz-space-2);
   }
 
   .sz_modulos_list_item:hover {
@@ -295,15 +310,16 @@
   }
 
   .sz_modulos_list_head,
-  .sz_modulos_list_meta {
+  .sz_modulos_list_footer {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: var(--sz-space-3);
+    gap: var(--sz-space-2);
   }
 
   .sz_modulos_list_meta {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, max-content));
     color: var(--sz-color-text-secondary);
     font-size: var(--sz-font-size-xs);
     gap: var(--sz-space-2);
@@ -317,6 +333,15 @@
     gap: 0;
   }
 
+  .sz_modulos_list_descr {
+    color: var(--sz-color-text-muted);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    min-height: calc(var(--sz-line-normal) * 2em);
+  }
+
   .sz_modulos_empty {
     text-align: center;
     color: var(--sz-color-text-muted);
@@ -325,6 +350,7 @@
   .sz_modulos_list_actions {
     display: flex;
     justify-content: flex-end;
+    flex: 0 0 auto;
   }
 
   .sz_modulos_list_actions .sz_button {
@@ -352,6 +378,18 @@
   }
 
   @media (max-width: 1200px) {
+    .sz_modulos_layout {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+
+    .sz_modulos_layout > .sz_sidebar,
+    .sz_modulos_layout > .sz_stack {
+      max-height: none;
+      overflow: visible;
+      padding-right: 0;
+    }
+
     .sz_modulos_header {
       flex-direction: column;
     }
@@ -362,6 +400,16 @@
   }
 
   @media (max-width: 768px) {
+    .sz_modulos_list_footer,
+    .sz_modulos_list_head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .sz_modulos_list_meta {
+      grid-template-columns: 1fr 1fr;
+    }
+
     .sz_modulos_span_2 {
       grid-column: auto;
     }

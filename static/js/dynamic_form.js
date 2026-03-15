@@ -1530,6 +1530,160 @@ hideLoading()
       await refreshUserPushSummary();
     }
 
+    // ===============================
+// 7C. EMPRESAS DO UTILIZADOR
+// ===============================
+    const userFeTableBody = document.getElementById('userFeTableBody');
+    const userFeNewFeid = document.getElementById('userFeNewFeid');
+    const btnUserFeAdd = document.getElementById('btnUserFeAdd');
+    const userFeStatus = document.getElementById('userFeStatus');
+    let userFeRows = [];
+    let userFeOptions = [];
+
+    function setUserFeStatus(message = '', { isError = false, isSuccess = false } = {}) {
+      if (!userFeStatus) return;
+      userFeStatus.textContent = message;
+      userFeStatus.classList.toggle('is-error', Boolean(isError));
+      userFeStatus.classList.toggle('is-success', Boolean(isSuccess));
+    }
+
+    function renderUserFeOptions() {
+      if (!userFeNewFeid) return;
+      const used = new Set(userFeRows.map(row => String(row.FEID)));
+      const available = userFeOptions.filter(opt => !used.has(String(opt.FEID)));
+      userFeNewFeid.innerHTML = available.length
+        ? `<option value="">Seleciona empresa</option>${available.map(opt => `<option value="${opt.FEID}">${opt.NOME || `Empresa ${opt.FEID}`}</option>`).join('')}`
+        : '<option value="">Sem empresas disponíveis</option>';
+      userFeNewFeid.disabled = !RECORD_STAMP || available.length === 0;
+      if (btnUserFeAdd) btnUserFeAdd.disabled = !RECORD_STAMP || available.length === 0;
+    }
+
+    function renderUserFeRows() {
+      if (!userFeTableBody) return;
+      if (!RECORD_STAMP) {
+        userFeTableBody.innerHTML = '<tr><td colspan="4" class="sz_text_muted">Grava primeiro o utilizador para gerir empresas.</td></tr>';
+        renderUserFeOptions();
+        return;
+      }
+      if (!userFeRows.length) {
+        userFeTableBody.innerHTML = '<tr><td colspan="4" class="sz_text_muted">Ainda não existem empresas associadas.</td></tr>';
+        renderUserFeOptions();
+        return;
+      }
+
+      userFeTableBody.innerHTML = userFeRows.map(row => `
+        <tr data-usfe-stamp="${row.USFESTAMP}">
+          <td>${row.FE_NOME || `Empresa ${row.FEID}`}</td>
+          <td class="sz_col_fit"><input type="checkbox" class="form-check-input user-fe-ativo" ${row.ATIVO ? 'checked' : ''}></td>
+          <td class="sz_col_fit"><input type="radio" name="userFePrincipal" class="form-check-input user-fe-principal" ${row.PRINCIPAL ? 'checked' : ''}></td>
+          <td class="sz_col_fit">
+            <div class="d-inline-flex gap-1">
+              <button type="button" class="sz_button sz_button_secondary user-fe-save" title="Gravar"><i class="fa fa-save"></i></button>
+              <button type="button" class="sz_button sz_button_danger user-fe-delete" title="Eliminar"><i class="fa fa-trash"></i></button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      renderUserFeOptions();
+    }
+
+    async function refreshUserFeRows({ silent = false } = {}) {
+      if (!isUserForm || !userFeTableBody) return;
+      if (!RECORD_STAMP) {
+        renderUserFeRows();
+        return;
+      }
+      if (!silent) setUserFeStatus('A carregar empresas...');
+      const res = await fetch(`/generic/api/us/${encodeURIComponent(RECORD_STAMP)}/empresas`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUserFeStatus(data.error || 'Erro ao carregar empresas.', { isError: true });
+        return;
+      }
+      userFeRows = Array.isArray(data.rows) ? data.rows : [];
+      userFeOptions = Array.isArray(data.fe_options) ? data.fe_options : [];
+      renderUserFeRows();
+      setUserFeStatus(`${userFeRows.length} empresa(s) associada(s).`);
+    }
+
+    async function createUserFeRow() {
+      const feid = Number(userFeNewFeid?.value || 0);
+      if (!feid) {
+        setUserFeStatus('Seleciona a empresa a associar.', { isError: true });
+        return;
+      }
+      const res = await fetch(`/generic/api/us/${encodeURIComponent(RECORD_STAMP)}/empresas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ FEID: feid, ATIVO: true, PRINCIPAL: userFeRows.length === 0 })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUserFeStatus(data.error || 'Erro ao adicionar empresa.', { isError: true });
+        return;
+      }
+      setUserFeStatus('Empresa associada com sucesso.', { isSuccess: true });
+      await refreshUserFeRows({ silent: true });
+    }
+
+    async function updateUserFeRow(usfeStamp, payload) {
+      const res = await fetch(`/generic/api/us/${encodeURIComponent(RECORD_STAMP)}/empresas/${encodeURIComponent(usfeStamp)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUserFeStatus(data.error || 'Erro ao gravar empresa.', { isError: true });
+        return false;
+      }
+      return true;
+    }
+
+    async function deleteUserFeRow(usfeStamp) {
+      const res = await fetch(`/generic/api/us/${encodeURIComponent(RECORD_STAMP)}/empresas/${encodeURIComponent(usfeStamp)}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUserFeStatus(data.error || 'Erro ao eliminar empresa.', { isError: true });
+        return false;
+      }
+      return true;
+    }
+
+    if (isUserForm && userFeTableBody) {
+      btnUserFeAdd?.addEventListener('click', async () => {
+        await createUserFeRow();
+      });
+
+      userFeTableBody.addEventListener('click', async (event) => {
+        const rowEl = event.target.closest('tr[data-usfe-stamp]');
+        if (!rowEl) return;
+        const usfeStamp = rowEl.dataset.usfeStamp;
+        if (event.target.closest('.user-fe-save')) {
+          const ativo = rowEl.querySelector('.user-fe-ativo')?.checked ?? false;
+          const principal = rowEl.querySelector('.user-fe-principal')?.checked ?? false;
+          const ok = await updateUserFeRow(usfeStamp, { ATIVO: ativo, PRINCIPAL: principal });
+          if (ok) {
+            setUserFeStatus('Empresas atualizadas.', { isSuccess: true });
+            await refreshUserFeRows({ silent: true });
+          }
+          return;
+        }
+        if (event.target.closest('.user-fe-delete')) {
+          if (!confirm('Eliminar esta associação à empresa?')) return;
+          const ok = await deleteUserFeRow(usfeStamp);
+          if (ok) {
+            setUserFeStatus('Empresa removida.', { isSuccess: true });
+            await refreshUserFeRows({ silent: true });
+          }
+        }
+      });
+
+      await refreshUserFeRows();
+    }
+
 
 
     // ===============================

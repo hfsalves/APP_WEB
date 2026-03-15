@@ -17,15 +17,21 @@
     </div>
   </div>
 
-  <div class="widget widget-calendar mb-4 calendar-card sz_calendar_card">
+  <div class="widget widget-calendar calendar-card sz_calendar_card">
     <div class="widget-body sz_calendar_body">
       <div class="calendar-month-nav sz_calendar_month_nav d-flex justify-content-between align-items-center mb-3">
+        <button class="btn sz_button sz_button_ghost sz_calendar_mobile_nav_action" id="openFiltersMobile" aria-label="Filtros" title="Filtros">
+          <i class="fa-solid fa-filter"></i>
+        </button>
         <button id="prev-month" class="btn btn-light cal-nav-btn sz_calendar_nav_btn" title="Mês anterior" aria-label="Mês anterior">
           <i class="fa-solid fa-chevron-left"></i>
         </button>
         <h3 id="month-year" class="m-0 sz_calendar_month_title"></h3>
         <button id="next-month" class="btn btn-light cal-nav-btn sz_calendar_nav_btn" title="Mês seguinte" aria-label="Mês seguinte">
           <i class="fa-solid fa-chevron-right"></i>
+        </button>
+        <button class="btn sz_button sz_button_primary sz_calendar_mobile_nav_action" id="addTaskMobile" aria-label="Adicionar tarefa" title="Adicionar tarefa">
+          <i class="fa-solid fa-plus"></i>
         </button>
       </div>
       <div class="table-responsive">
@@ -45,6 +51,9 @@
         </table>
       </div>
     </div>
+  </div>
+  <div class="sz_calendar_mobile_day_panel" id="calendarMobileDayPanel">
+    <div class="sz_calendar_mobile_day_cards" id="calendarSelectedDayCards"></div>
   </div>
 </div>
 </div>

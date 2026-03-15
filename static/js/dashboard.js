@@ -1,5 +1,7 @@
 // static/js/dashboard.js
 
+document.querySelector('.main-content')?.classList.add('sz_dashboard_host');
+
 // Utils -------------------------------------------------
 function parseNumber(val) {
   if (val == null || val === '') return 0;

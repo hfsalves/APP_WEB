@@ -58,6 +58,20 @@
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[match]
   ));
 
+  function formatDisplayDate(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[3]}.${match[2]}.${match[1]}`;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw;
+    return [
+      String(date.getDate()).padStart(2, '0'),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getFullYear()),
+    ].join('.');
+  }
+
   function showToast(message, type = 'success') {
     if (typeof window.showToast === 'function') {
       window.showToast(message, type);
@@ -151,7 +165,9 @@
       if (field.type === 'checkbox') {
         field.checked = !!current[key];
       } else {
-        field.value = current[key] ?? '';
+        field.value = ['DTCRI', 'DTALT'].includes(key)
+          ? formatDisplayDate(current[key])
+          : (current[key] ?? '');
       }
     });
     updateSummary(current);
@@ -180,18 +196,20 @@
           </div>
           <span class="sz_badge ${active ? 'sz_badge_success' : 'sz_badge_warning'}">${active ? 'Ativo' : 'Inativo'}</span>
         </div>
-        <div class="sz_text_muted">${esc(row.DESCR || 'Sem descrição')}</div>
-        <div class="sz_modulos_list_meta">
-          <span class="sz_badge sz_badge_info">Ordem ${esc(row.ORDEM || 0)}</span>
-          <span class="sz_badge sz_badge_info">Objetos ${esc(row.TOTAL_OBJETOS || 0)}</span>
-          <span class="sz_badge sz_badge_info">Entidades ${esc(row.TOTAL_FE || 0)}</span>
-          <span class="sz_badge sz_badge_success">FE ativas ${esc(row.TOTAL_FE_ATIVAS || 0)}</span>
-        </div>
-        <div class="sz_modulos_list_actions">
-          <button type="button" class="sz_button sz_button_ghost" data-action="objects" data-modstamp="${esc(row.MODSTAMP)}">
-            <i class="fa-solid fa-table-cells-large"></i>
-            <span>Objetos</span>
-          </button>
+        <div class="sz_modulos_list_descr">${esc(row.DESCR || 'Sem descrição')}</div>
+        <div class="sz_modulos_list_footer">
+          <div class="sz_modulos_list_meta">
+            <span class="sz_badge sz_badge_info">Ordem ${esc(row.ORDEM || 0)}</span>
+            <span class="sz_badge sz_badge_info">Objetos ${esc(row.TOTAL_OBJETOS || 0)}</span>
+            <span class="sz_badge sz_badge_info">Entidades ${esc(row.TOTAL_FE || 0)}</span>
+            <span class="sz_badge sz_badge_success">FE ativas ${esc(row.TOTAL_FE_ATIVAS || 0)}</span>
+          </div>
+          <div class="sz_modulos_list_actions">
+            <button type="button" class="sz_button sz_button_ghost" data-action="objects" data-modstamp="${esc(row.MODSTAMP)}">
+              <i class="fa-solid fa-table-cells-large"></i>
+              <span>Objetos</span>
+            </button>
+          </div>
         </div>
       </div>
     `;

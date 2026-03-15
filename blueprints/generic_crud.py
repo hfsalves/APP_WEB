@@ -2,9 +2,10 @@
 
 from flask import Blueprint, render_template, request, jsonify, abort, current_app
 from flask_login import login_required, current_user
-from sqlalchemy import MetaData, Table, select, text, String, or_, bindparam
+from sqlalchemy import MetaData, Table, select, text, String, or_, and_, exists, bindparam
 from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
+from services.multiempresa_service import get_current_feid, MissingCurrentEntityError
 import uuid
 from datetime import date, timedelta
 import json
@@ -15,6 +16,7 @@ from werkzeug.utils import secure_filename
 bp = Blueprint('generic', __name__, url_prefix='/generic')
 
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+FE_SCOPED_TABLES = {'AL', 'RS', 'LP', 'FS', 'MN', 'TAREFAS'}
 
 # --------------------------------------------------
 # FO: pagamento (V_FC) helper
@@ -125,6 +127,118 @@ def get_table(table_name):
         abort(404, f"Tabela {table_name} nÃ£o encontrada")
 
 
+def _column_exists(table_name: str, column_name: str) -> bool:
+    row = db.session.execute(text("""
+        SELECT 1
+          FROM sys.columns
+         WHERE object_id = OBJECT_ID(:obj)
+           AND name = :col
+    """), {'obj': f'dbo.{table_name}', 'col': column_name}).first()
+    return bool(row)
+
+
+def _table_is_fe_scoped(table_name: str) -> bool:
+    tn = (table_name or '').strip().upper()
+    return tn in FE_SCOPED_TABLES and _column_exists(tn, 'FEID')
+
+
+def _current_feid_or_abort() -> int:
+    try:
+        return get_current_feid()
+    except MissingCurrentEntityError as exc:
+        abort(403, str(exc))
+
+
+def _apply_feid_scope_stmt(stmt, table, table_name: str, mode: str = 'read'):
+    tn = (table_name or '').strip().upper()
+    if _table_is_fe_scoped(tn):
+        current_feid = _current_feid_or_abort()
+        if tn == 'AL' and hasattr(table.c, 'FEID_GESTOR'):
+            stmt = stmt.where(or_(
+                getattr(table.c, 'FEID') == current_feid,
+                getattr(table.c, 'FEID_GESTOR') == current_feid,
+            ))
+        elif tn == 'RS' and mode == 'read' and hasattr(table.c, 'ALOJAMENTO'):
+            al_table = get_table('AL')
+            owner_visibility = exists(
+                select(1)
+                .select_from(al_table)
+                .where(
+                    and_(
+                        al_table.c.NOME == table.c.ALOJAMENTO,
+                        al_table.c.FEID == current_feid,
+                    )
+                )
+            )
+            stmt = stmt.where(or_(
+                getattr(table.c, 'FEID') == current_feid,
+                owner_visibility,
+            ))
+        elif tn == 'RS' and mode == 'write' and hasattr(table.c, 'ALOJAMENTO'):
+            al_table = get_table('AL')
+            manager_or_owner_write = exists(
+                select(1)
+                .select_from(al_table)
+                .where(
+                    and_(
+                        al_table.c.NOME == table.c.ALOJAMENTO,
+                        or_(
+                            and_(
+                                al_table.c.FEID_GESTOR.isnot(None),
+                                al_table.c.FEID_GESTOR != 0,
+                                al_table.c.FEID_GESTOR == current_feid,
+                            ),
+                            and_(
+                                or_(al_table.c.FEID_GESTOR.is_(None), al_table.c.FEID_GESTOR == 0),
+                                getattr(table.c, 'FEID') == current_feid,
+                            ),
+                        ),
+                    )
+                )
+            )
+            stmt = stmt.where(manager_or_owner_write)
+        else:
+            stmt = stmt.where(getattr(table.c, 'FEID') == current_feid)
+    return stmt
+
+
+def _sql_feid_clause(table_name: str, alias: str = '', param_name: str = 'current_feid', mode: str = 'read') -> str:
+    tn = (table_name or '').strip().upper()
+    if not _table_is_fe_scoped(tn):
+        return ''
+    prefix = f'{alias}.' if alias else ''
+    if tn == 'AL' and _column_exists('AL', 'FEID_GESTOR'):
+        return (
+            f" AND (ISNULL({prefix}FEID, 0) = :{param_name}"
+            f" OR ISNULL({prefix}FEID_GESTOR, 0) = :{param_name})"
+        )
+    if tn == 'RS' and mode == 'read' and _column_exists('RS', 'ALOJAMENTO'):
+        rs_aloj = f"{prefix}ALOJAMENTO" if prefix else "ALOJAMENTO"
+        return (
+            f" AND (ISNULL({prefix}FEID, 0) = :{param_name}"
+            f" OR EXISTS ("
+            f"     SELECT 1"
+            f"       FROM dbo.AL ALV"
+            f"      WHERE LTRIM(RTRIM(ISNULL(ALV.NOME,''))) = LTRIM(RTRIM(ISNULL({rs_aloj},'')))"
+            f"        AND ISNULL(ALV.FEID, 0) = :{param_name}"
+            f" ))"
+        )
+    if tn == 'RS' and mode == 'write' and _column_exists('RS', 'ALOJAMENTO') and _column_exists('AL', 'FEID_GESTOR'):
+        rs_aloj = f"{prefix}ALOJAMENTO" if prefix else "ALOJAMENTO"
+        return (
+            f" AND EXISTS ("
+            f"     SELECT 1"
+            f"       FROM dbo.AL ALV"
+            f"      WHERE LTRIM(RTRIM(ISNULL(ALV.NOME,''))) = LTRIM(RTRIM(ISNULL({rs_aloj},'')))"
+            f"        AND ("
+            f"              (ISNULL(ALV.FEID_GESTOR, 0) <> 0 AND ISNULL(ALV.FEID_GESTOR, 0) = :{param_name})"
+            f"           OR (ISNULL(ALV.FEID_GESTOR, 0) = 0 AND ISNULL({prefix}FEID, 0) = :{param_name})"
+            f"        )"
+            f" )"
+        )
+    return f" AND ISNULL({prefix}FEID, 0) = :{param_name}"
+
+
 def al_fotos_table_exists() -> bool:
     try:
         row = db.session.execute(text("""
@@ -191,6 +305,208 @@ def edit_table(table_name, record_stamp):
         botoes=botoes,
         linhas_exist=linhas_exist  # <-- adiciona aqui
     )
+
+
+@bp.route('/api/us/<usstamp>/empresas', methods=['GET'])
+@login_required
+def us_empresas_list(usstamp):
+    if not has_permission('US', 'consultar'):
+        return jsonify({'error': 'Sem permissão para consultar utilizadores'}), 403
+    try:
+        usstamp = (usstamp or '').strip()
+        if not usstamp:
+            return jsonify({'error': 'USSTAMP em falta'}), 400
+
+        fe_active_filter = "AND ISNULL(FE.ATIVA, 0) = 1" if _column_exists('FE', 'ATIVA') else ""
+        rows = db.session.execute(text(f"""
+            SELECT
+                UF.USFESTAMP,
+                UF.USSTAMP,
+                UF.FEID,
+                ISNULL(FE.NOME, '') AS FE_NOME,
+                ISNULL(UF.ATIVO, 0) AS ATIVO,
+                ISNULL(UF.PRINCIPAL, 0) AS PRINCIPAL
+            FROM dbo.US_FE UF
+            INNER JOIN dbo.FE FE
+                ON FE.FEID = UF.FEID
+            WHERE
+                UF.USSTAMP = :usstamp
+                {fe_active_filter}
+            ORDER BY ISNULL(UF.PRINCIPAL, 0) DESC, ISNULL(FE.NOME, ''), UF.FEID
+        """), {'usstamp': usstamp}).mappings().all()
+
+        fe_options = db.session.execute(text(f"""
+            SELECT
+                FEID,
+                ISNULL(NOME, '') AS NOME
+            FROM dbo.FE
+            WHERE 1=1
+            {fe_active_filter}
+            ORDER BY ISNULL(NOME, ''), FEID
+        """)).mappings().all()
+
+        return jsonify({
+            'rows': [dict(r) for r in rows],
+            'fe_options': [dict(r) for r in fe_options],
+        })
+    except Exception as e:
+        current_app.logger.exception('Erro ao carregar US_FE')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/us/<usstamp>/empresas', methods=['POST'])
+@login_required
+def us_empresas_create(usstamp):
+    if not has_permission('US', 'editar'):
+        return jsonify({'error': 'Sem permissão para editar utilizadores'}), 403
+    try:
+        usstamp = (usstamp or '').strip()
+        payload = request.get_json(force=True) or {}
+        feid = int(payload.get('FEID') or 0)
+        ativo = bool(payload.get('ATIVO', True))
+        principal = bool(payload.get('PRINCIPAL', False))
+        if not usstamp:
+            return jsonify({'error': 'USSTAMP em falta'}), 400
+        if feid <= 0:
+            return jsonify({'error': 'Empresa inválida'}), 400
+
+        dup = db.session.execute(text("""
+            SELECT TOP 1 USFESTAMP
+            FROM dbo.US_FE
+            WHERE USSTAMP = :usstamp
+              AND FEID = :feid
+        """), {'usstamp': usstamp, 'feid': feid}).mappings().first()
+        if dup:
+            return jsonify({'error': 'Esta empresa já está associada ao utilizador.'}), 400
+
+        usfestamp = uuid.uuid4().hex.upper()[:25]
+        now = datetime.now()
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+
+        if principal:
+            db.session.execute(text("""
+                UPDATE dbo.US_FE
+                   SET PRINCIPAL = 0,
+                       DTAlteracao = :dtalt,
+                       USERALTERACAO = :useralt
+                 WHERE USSTAMP = :usstamp
+            """), {'usstamp': usstamp, 'dtalt': now, 'useralt': user_login})
+
+        db.session.execute(text("""
+            INSERT INTO dbo.US_FE
+            (
+                USFESTAMP, USSTAMP, FEID, ATIVO, PRINCIPAL,
+                DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO
+            )
+            VALUES
+            (
+                :USFESTAMP, :USSTAMP, :FEID, :ATIVO, :PRINCIPAL,
+                :DTCriacao, :DTAlteracao, :USERCRIACAO, :USERALTERACAO
+            )
+        """), {
+            'USFESTAMP': usfestamp,
+            'USSTAMP': usstamp,
+            'FEID': feid,
+            'ATIVO': ativo,
+            'PRINCIPAL': principal,
+            'DTCriacao': now,
+            'DTAlteracao': now,
+            'USERCRIACAO': user_login,
+            'USERALTERACAO': user_login,
+        })
+        db.session.commit()
+        return jsonify({'success': True, 'USFESTAMP': usfestamp}), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao criar US_FE')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/us/<usstamp>/empresas/<usfestamp>', methods=['PUT'])
+@login_required
+def us_empresas_update(usstamp, usfestamp):
+    if not has_permission('US', 'editar'):
+        return jsonify({'error': 'Sem permissão para editar utilizadores'}), 403
+    try:
+        usstamp = (usstamp or '').strip()
+        usfestamp = (usfestamp or '').strip()
+        payload = request.get_json(force=True) or {}
+        ativo = bool(payload.get('ATIVO', True))
+        principal = bool(payload.get('PRINCIPAL', False))
+        if not usstamp or not usfestamp:
+            return jsonify({'error': 'Dados em falta'}), 400
+
+        exists = db.session.execute(text("""
+            SELECT TOP 1 USFESTAMP
+            FROM dbo.US_FE
+            WHERE USFESTAMP = :usfestamp
+              AND USSTAMP = :usstamp
+        """), {'usfestamp': usfestamp, 'usstamp': usstamp}).mappings().first()
+        if not exists:
+            return jsonify({'error': 'Associação não encontrada'}), 404
+
+        now = datetime.now()
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+
+        if principal:
+            db.session.execute(text("""
+                UPDATE dbo.US_FE
+                   SET PRINCIPAL = 0,
+                       DTAlteracao = :dtalt,
+                       USERALTERACAO = :useralt
+                 WHERE USSTAMP = :usstamp
+                   AND USFESTAMP <> :usfestamp
+            """), {'usstamp': usstamp, 'usfestamp': usfestamp, 'dtalt': now, 'useralt': user_login})
+
+        db.session.execute(text("""
+            UPDATE dbo.US_FE
+               SET ATIVO = :ativo,
+                   PRINCIPAL = :principal,
+                   DTAlteracao = :dtalt,
+                   USERALTERACAO = :useralt
+             WHERE USFESTAMP = :usfestamp
+               AND USSTAMP = :usstamp
+        """), {
+            'ativo': ativo,
+            'principal': principal,
+            'dtalt': now,
+            'useralt': user_login,
+            'usfestamp': usfestamp,
+            'usstamp': usstamp,
+        })
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao atualizar US_FE')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/us/<usstamp>/empresas/<usfestamp>', methods=['DELETE'])
+@login_required
+def us_empresas_delete(usstamp, usfestamp):
+    if not has_permission('US', 'editar'):
+        return jsonify({'error': 'Sem permissão para editar utilizadores'}), 403
+    try:
+        usstamp = (usstamp or '').strip()
+        usfestamp = (usfestamp or '').strip()
+        if not usstamp or not usfestamp:
+            return jsonify({'error': 'Dados em falta'}), 400
+
+        res = db.session.execute(text("""
+            DELETE FROM dbo.US_FE
+             WHERE USFESTAMP = :usfestamp
+               AND USSTAMP = :usstamp
+        """), {'usfestamp': usfestamp, 'usstamp': usstamp})
+        if not res.rowcount:
+            db.session.rollback()
+            return jsonify({'error': 'Associação não encontrada'}), 404
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao eliminar US_FE')
+        return jsonify({'error': str(e)}), 500
 
 
 @bp.route('/api/al_fotos/<alstamp>', methods=['GET'])
@@ -785,6 +1101,7 @@ def list_or_describe(table_name):
 
     table = get_table(table_name)
     stmt  = select(table)
+    stmt  = _apply_feid_scope_stmt(stmt, table, table_name, mode='read')
     campos_filtro = Campo.query.filter_by(tabela=table_name, filtro=True).all()
 
     def resolve_default_token(raw_value: str):
@@ -991,14 +1308,18 @@ def mn_tratar():
         return jsonify({'ok': False, 'error': 'Sem permissÃ£o'}), 403
 
     try:
-        sql = text("""
+        params = {'user': current_user.LOGIN, 'stamp': mnstamp}
+        sql = text(f"""
             UPDATE MN
             SET TRATADO = 1,
                 NMTRATADO = :user,
                 DTTRATADO = CAST(GETDATE() AS date)
             WHERE MNSTAMP = :stamp
+            {_sql_feid_clause('MN')}
         """)
-        db.session.execute(sql, {'user': current_user.LOGIN, 'stamp': mnstamp})
+        if _table_is_fe_scoped('MN'):
+            params['current_feid'] = _current_feid_or_abort()
+        db.session.execute(sql, params)
         db.session.commit()
         return jsonify({'ok': True})
     except Exception as e:
@@ -1032,16 +1353,20 @@ def api_tarefa_nova():
 
     tarefastamp = uuid.uuid4().hex[:25].upper()
     try:
-        sql = text("""
+        scoped = _table_is_fe_scoped('TAREFAS')
+        current_feid = _current_feid_or_abort() if scoped else None
+        sql = text(f"""
             INSERT INTO TAREFAS (
               TAREFASSTAMP, UTILIZADOR, DATA, HORA, DURACAO,
               TAREFA, ALOJAMENTO, ORIGEM, ORISTAMP, TRATADO, DTTRATADO, NMTRATADO
+              {', FEID' if scoped else ''}
             ) VALUES (
               :id, :util, :data, :hora, :dur,
               :tarefa, :aloj, '', '', 0, CAST('1900-01-01' AS date), ''
+              {', :feid' if scoped else ''}
             )
         """)
-        db.session.execute(sql, {
+        params = {
             'id': tarefastamp,
             'util': utilizador,
             'data': data_str,
@@ -1049,7 +1374,10 @@ def api_tarefa_nova():
             'dur': duracao,
             'tarefa': tarefa,
             'aloj': aloj
-        })
+        }
+        if scoped:
+            params['feid'] = current_feid
+        db.session.execute(sql, params)
         db.session.commit()
         return jsonify({'ok': True, 'TAREFASSTAMP': tarefastamp})
     except Exception as e:
@@ -1144,12 +1472,15 @@ def api_ls_novo():
 @login_required
 def monitor_tasks_filtered():
     only_mine = request.args.get('only_mine', '1') in ('1', 'true', 'True')
+    current_feid = _current_feid_or_abort() if _table_is_fe_scoped('TAREFAS') else None
 
     is_mn_admin = bool(getattr(current_user, 'MNADMIN', False))
     is_lp_admin = bool(getattr(current_user, 'LPADMIN', False))
 
     where = []
     params = {'user': current_user.LOGIN}
+    if current_feid is not None:
+        params['current_feid'] = current_feid
 
     if only_mine:
         # LPADMIN: ver sempre FS, mesmo quando only_mine=1
@@ -1192,6 +1523,7 @@ def monitor_tasks_filtered():
         FROM TAREFAS T
         LEFT JOIN US U ON U.LOGIN = T.UTILIZADOR
         {where_sql}
+        {_sql_feid_clause('TAREFAS', 'T')}
         ORDER BY 
           T.DATA,
           CASE WHEN UPPER(T.UTILIZADOR) = UPPER(:user) THEN 0 ELSE 1 END,
@@ -1218,9 +1550,13 @@ def monitor_tasks_filtered():
                     WHERE UPPER(ISNULL(ORIGEM,'')) = 'LP'
                       AND UPPER(UTILIZADOR) = UPPER(:u)
                       AND (TRATADO = 0 OR DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))
+                      {_sql_feid_clause('TAREFAS')}
                     """
                 )
-                lp_pairs = [(r.DATA, r.ALOJAMENTO) for r in db.session.execute(lp_sql, {'u': current_user.LOGIN})]
+                lp_params = {'u': current_user.LOGIN}
+                if current_feid is not None:
+                    lp_params['current_feid'] = current_feid
+                lp_pairs = [(r.DATA, r.ALOJAMENTO) for r in db.session.execute(lp_sql, lp_params)]
 
                 if lp_pairs:
                     # Construir WHERE por pares (DATA, ALOJAMENTO)
@@ -1259,8 +1595,11 @@ def monitor_tasks_filtered():
                                   AND (T.TRATADO = 0 OR T.DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))
                                   AND T.DATA >= CAST(GETDATE() AS date)
                                   AND UPPER(ISNULL(T.ORIGEM,'')) IN ('MN','FS')
+                                  {_sql_feid_clause('TAREFAS', 'T')}
                                 """
                             )
+                        if current_feid is not None:
+                            tf_bind['current_feid'] = current_feid
                         for r in db.session.execute(tf_sql, tf_bind).mappings().all():
                             extra.append(dict(r))
                     except Exception:
@@ -1288,8 +1627,11 @@ def monitor_tasks_filtered():
                               AND (ISNULL(M.TRATADO,0) = 0 OR M.DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))
                               AND M.DATA >= CAST(GETDATE() AS date)
                               AND M.MNSTAMP NOT IN (SELECT ORISTAMP FROM TAREFAS)
+                              {_sql_feid_clause('MN', 'M')}
                             """
                         )
+                        if _table_is_fe_scoped('MN'):
+                            mn_bind['current_feid'] = _current_feid_or_abort()
                         for r in db.session.execute(mn_sql, mn_bind).mappings().all():
                             extra.append(dict(r))
                     except Exception:
@@ -1317,8 +1659,11 @@ def monitor_tasks_filtered():
                               AND (ISNULL(F.TRATADO,0) = 0 OR F.DATA >= DATEADD(day, -7, CAST(GETDATE() AS date)))
                               AND F.DATA >= CAST(GETDATE() AS date)
                               AND F.FSSTAMP NOT IN (SELECT ORISTAMP FROM TAREFAS)
+                              {_sql_feid_clause('FS', 'F')}
                             """
                         )
+                        if _table_is_fe_scoped('FS'):
+                            fs_bind['current_feid'] = _current_feid_or_abort()
                         for r in db.session.execute(fs_sql, fs_bind).mappings().all():
                             extra.append(dict(r))
                     except Exception:
@@ -1365,6 +1710,7 @@ def monitor_tasks_by_users():
     users_param = (request.args.get('users') or '').strip()
     origins_param = (request.args.get('origins') or '').strip()
     aloj_param = (request.args.get('aloj') or '').strip()
+    current_feid = _current_feid_or_abort() if _table_is_fe_scoped('TAREFAS') else None
     if not users_param:
         # por defeito, devolve as do pr�prio utilizador
         users = [current_user.LOGIN]
@@ -1381,6 +1727,8 @@ def monitor_tasks_by_users():
 
     # constr�i IN din�mico
     params = {}
+    if current_feid is not None:
+        params['current_feid'] = current_feid
     placeholders = []
     for i, u in enumerate(users):
         pn = f'u{i}'
@@ -1462,6 +1810,7 @@ def monitor_tasks_by_users():
         FROM TAREFAS T
         LEFT JOIN US U ON U.LOGIN = T.UTILIZADOR
         {where_sql}
+        {_sql_feid_clause('TAREFAS', 'T')}
         ORDER BY 
           T.DATA,
           CASE WHEN UPPER(T.UTILIZADOR) = UPPER(:me) THEN 0 ELSE 1 END,
@@ -1484,6 +1833,7 @@ def tarefa_tratar():
     tid = data.get('id')
     if not tid:
         return jsonify({'ok': False, 'error': 'ID em falta'}), 400
+    current_feid = _current_feid_or_abort() if _table_is_fe_scoped('TAREFAS') else None
     try:
         # Regra: utilizadores com registo de tempos não podem concluir limpezas via monitor
         try:
@@ -1498,20 +1848,25 @@ def tarefa_tratar():
                 SELECT UPPER(LTRIM(RTRIM(ISNULL(ORIGEM,'')))) AS ORIGEM
                 FROM TAREFAS
                 WHERE TAREFASSTAMP = :id
-            """), {'id': tid}).scalar()
+                """ + _sql_feid_clause('TAREFAS')
+            ), {'id': tid, **({'current_feid': current_feid} if current_feid is not None else {})}).scalar()
             if origem is None:
                 return jsonify({'ok': False, 'error': 'Tarefa não encontrada'}), 404
             if str(origem).upper() == 'LP':
                 return jsonify({'ok': False, 'error': 'A conclusão das limpezas deve ser feita no Registo de Limpezas.'}), 403
 
-        sql = text("""
+        sql = text(f"""
             UPDATE TAREFAS
             SET TRATADO = 1,
                 NMTRATADO = :user,
                 DTTRATADO = CAST(GETDATE() AS date)
             WHERE TAREFASSTAMP = :id
+            {_sql_feid_clause('TAREFAS')}
         """)
-        db.session.execute(sql, {'user': current_user.LOGIN, 'id': tid})
+        params = {'user': current_user.LOGIN, 'id': tid}
+        if current_feid is not None:
+            params['current_feid'] = current_feid
+        db.session.execute(sql, params)
         db.session.commit()
         return jsonify({'ok': True})
     except Exception as e:
@@ -1527,14 +1882,18 @@ def tarefa_reabrir():
     if not tid:
         return jsonify({'ok': False, 'error': 'ID em falta'}), 400
     try:
-        sql = text("""
+        sql = text(f"""
             UPDATE TAREFAS
             SET TRATADO = 0,
                 NMTRATADO = '',
                 DTTRATADO = CAST('1900-01-01' AS date)
             WHERE TAREFASSTAMP = :id
+            {_sql_feid_clause('TAREFAS')}
         """)
-        db.session.execute(sql, {'id': tid})
+        params = {'id': tid}
+        if _table_is_fe_scoped('TAREFAS'):
+            params['current_feid'] = _current_feid_or_abort()
+        db.session.execute(sql, params)
         db.session.commit()
         return jsonify({'ok': True})
     except Exception as e:
@@ -1554,23 +1913,29 @@ def rs_search():
         return jsonify({'error': 'Indica data ou reserva'}), 400
 
     try:
+        params = {}
         if date_in:
-            sql = text("""
+            sql = text(f"""
                 SELECT RSSTAMP, RESERVA, ALOJAMENTO, CONVERT(varchar(10), DATAIN, 23) AS DATAIN,
                        NOITES, ADULTOS, CRIANCAS, OBS, NOME, ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
                 FROM RS
                 WHERE DATAIN = :date AND (CANCELADA = 0 OR CANCELADA IS NULL)
+                {_sql_feid_clause('RS', mode='read')}
                 ORDER BY ALOJAMENTO
             """)
-            rows = db.session.execute(sql, {'date': date_in}).fetchall()
+            params['date'] = date_in
         else:
-            sql = text("""
+            sql = text(f"""
                 SELECT RSSTAMP, RESERVA, ALOJAMENTO, CONVERT(varchar(10), DATAIN, 23) AS DATAIN,
                        NOITES, ADULTOS, CRIANCAS, OBS, NOME, ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
                 FROM RS
                 WHERE RESERVA = :reserva AND (CANCELADA = 0 OR CANCELADA IS NULL)
+                {_sql_feid_clause('RS', mode='read')}
             """)
-            rows = db.session.execute(sql, {'reserva': reserva}).fetchall()
+            params['reserva'] = reserva
+        if _table_is_fe_scoped('RS'):
+            params['current_feid'] = _current_feid_or_abort()
+        rows = db.session.execute(sql, params).fetchall()
         return jsonify([dict(r._mapping) for r in rows])
     except Exception as e:
         current_app.logger.exception('Erro em rs_search')
@@ -1587,14 +1952,18 @@ def rs_update_obs():
     if not reserva:
         return jsonify({'ok': False, 'error': 'Reserva em falta'}), 400
     try:
-        sql = text("""
+        sql = text(f"""
             UPDATE RS
             SET OBS = :obs,
                 BERCO = :berco,
                 SOFACAMA = :sofacama
             WHERE RESERVA = :reserva
+            {_sql_feid_clause('RS', mode='write')}
         """)
-        db.session.execute(sql, {'obs': obs, 'reserva': reserva, 'berco': berco, 'sofacama': sofacama})
+        params = {'obs': obs, 'reserva': reserva, 'berco': berco, 'sofacama': sofacama}
+        if _table_is_fe_scoped('RS'):
+            params['current_feid'] = _current_feid_or_abort()
+        db.session.execute(sql, params)
         db.session.commit()
         return jsonify({'ok': True})
     except Exception as e:
@@ -1614,6 +1983,7 @@ def get_record(table_name, record_stamp):
     table = get_table(table_name)
     pk    = getattr(table.c, f"{table_name.upper()}STAMP")
     stmt  = select(table).where(pk == record_stamp)
+    stmt  = _apply_feid_scope_stmt(stmt, table, table_name, mode='read')
     row   = db.session.execute(stmt).fetchone()
     if not row:
         abort(404, f"Registro nÃ£o encontrado: {record_stamp}")
@@ -1665,6 +2035,9 @@ def create_record(table_name):
             clean[col_map[lk]] = v
     # â€” end filtra â€”
 
+    if _table_is_fe_scoped(table_name):
+        clean['FEID'] = _current_feid_or_abort()
+
     # Bloqueio: FO/FN incluÃ­do(s) em pagamento nÃ£o podem ser alterados
     try:
         tn = (table_name or '').strip().upper()
@@ -1699,12 +2072,16 @@ def tarefa_origin(tarefas_stamp):
     if not has_permission('TAREFAS', 'consultar') and not getattr(current_user, 'ADMIN', False):
         return jsonify({'error': 'Sem permissão'}), 403
     try:
-        sql = text("""
+        params = {'id': tarefas_stamp}
+        sql = text(f"""
             SELECT TOP 1 ORIGEM, ORISTAMP
             FROM TAREFAS
             WHERE TAREFASSTAMP = :id
+            {_sql_feid_clause('TAREFAS')}
         """)
-        row = db.session.execute(sql, {'id': tarefas_stamp}).mappings().first()
+        if _table_is_fe_scoped('TAREFAS'):
+            params['current_feid'] = _current_feid_or_abort()
+        row = db.session.execute(sql, params).mappings().first()
         if not row:
             return jsonify({}), 404
         return jsonify({'ORIGEM': row['ORIGEM'] or '', 'ORISTAMP': row['ORISTAMP'] or ''})
@@ -1752,7 +2129,9 @@ def update_record(table_name, record_stamp):
         pass
 
     try:
-        upd = table.update().where(pk == record_stamp).values(**data)
+        upd = table.update().where(pk == record_stamp)
+        upd = _apply_feid_scope_stmt(upd, table, table_name, mode='write')
+        upd = upd.values(**data)
         res = db.session.execute(upd)
         if res.rowcount == 0:
             abort(404)
@@ -1786,10 +2165,14 @@ def delete_record(table_name, record_stamp):
     except Exception:
         pass
 
-    # ... ACL ...
-    pk_name = f"{table_name.upper()}STAMP"
-    sql = f"DELETE FROM {table_name} WHERE {pk_name} = :id"
-    result = db.session.execute(text(sql), {"id": record_stamp})
+    if not has_permission(table_name, 'eliminar'):
+        abort(403, 'Sem permissÃ£o para eliminar')
+
+    table = get_table(table_name)
+    pk = getattr(table.c, f"{table_name.upper()}STAMP")
+    stmt = table.delete().where(pk == record_stamp)
+    stmt = _apply_feid_scope_stmt(stmt, table, table_name, mode='write')
+    result = db.session.execute(stmt)
     db.session.commit()
 
     if result.rowcount == 0:
@@ -1928,9 +2311,13 @@ def api_calendar_tasks():
     LEFT JOIN TEC   tc ON tc.NOME    = u.TECNICO
     LEFT JOIN EQ    eq ON eq.NOME    = u.EQUIPA
     WHERE ta.DATA BETWEEN :start AND :end
+      """ + _sql_feid_clause('TAREFAS', 'ta') + """
     ORDER BY ta.DATA, ta.HORA
     """)
-    rows = db.session.execute(sql, {'start': start, 'end': end}).mappings().all()
+    params = {'start': start, 'end': end}
+    if _table_is_fe_scoped('TAREFAS'):
+        params['current_feid'] = _current_feid_or_abort()
+    rows = db.session.execute(sql, params).mappings().all()
     tarefas = [dict(r) for r in rows]
     return jsonify(tarefas)
 

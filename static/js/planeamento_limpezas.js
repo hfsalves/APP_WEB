@@ -120,8 +120,8 @@ const setPlanner2Dirty = (isDirty) => {
   planner2Dirty = !!isDirty;
   if (planner2SaveBtn) {
     planner2SaveBtn.disabled = !planner2Dirty;
-    planner2SaveBtn.classList.toggle('btn-primary', planner2Dirty);
-    planner2SaveBtn.classList.toggle('btn-secondary', !planner2Dirty);
+    planner2SaveBtn.classList.toggle('sz_button_primary', planner2Dirty);
+    planner2SaveBtn.classList.toggle('sz_button_ghost', !planner2Dirty);
   }
 };
 
@@ -1132,8 +1132,8 @@ const setupPlanner2 = () => {
   const printBtn = document.getElementById('planner2-print-labels');
   planner2SaveBtn = document.getElementById('planner2-save');
   if (planner2SaveBtn) {
-    planner2SaveBtn.classList.add('btn-secondary');
-    planner2SaveBtn.classList.remove('btn-primary');
+    planner2SaveBtn.classList.add('sz_button_ghost');
+    planner2SaveBtn.classList.remove('sz_button_primary');
     planner2SaveBtn.disabled = true;
   }
   const showOcc = document.getElementById('planner2-show-occupied');
@@ -1169,8 +1169,8 @@ const setupPlanner2 = () => {
   showEmpty?.addEventListener('change', rerender);
   sortBtn?.addEventListener('click', () => {
     planner2SortMode = !planner2SortMode;
-    sortBtn.classList.toggle('btn-outline-secondary', !planner2SortMode);
-    sortBtn.classList.toggle('btn-outline-primary', planner2SortMode);
+    sortBtn.classList.toggle('sz_button_ghost', !planner2SortMode);
+    sortBtn.classList.toggle('sz_button_primary', planner2SortMode);
     rerender();
   });
 

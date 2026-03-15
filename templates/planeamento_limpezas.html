@@ -2,57 +2,134 @@
 
 {% block title %}Planeamento de Limpezas{% endblock %}
 
+{% block extra_head %}
+  {{ super() }}
+  <style>
+    .planner2-page .sz_page_container {
+      padding-block: var(--sz-space-2) 0;
+      padding-inline: var(--sz-space-4);
+    }
+
+    .planner2-page .sz_contextbar {
+      align-items: center;
+      gap: var(--sz-space-3);
+    }
+
+    .planner2-page .sz_contextbar_left {
+      flex: 0 1 auto;
+      min-width: 0;
+      gap: var(--sz-space-1);
+    }
+
+    .planner2-page .sz_page_subtitle {
+      max-width: 34rem;
+      color: var(--sz-color-text-muted);
+    }
+
+    .planner2-page .sz_contextbar_right {
+      flex: 1 1 auto;
+      min-width: 0;
+      justify-content: flex-end;
+    }
+
+    .planner2-toolbar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--sz-space-2);
+      flex-wrap: nowrap;
+      min-width: 0;
+    }
+
+    .planner2-toolbar .sz_input {
+      width: 9rem;
+      text-align: center;
+    }
+
+    .planner2-toolbar .sz_button {
+      flex: 0 0 auto;
+    }
+
+    .planner2-filter-toggles {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sz-space-2);
+      margin-left: var(--sz-space-1);
+    }
+
+    .planner2-filter-toggles .sz_checkbox {
+      margin: 0;
+      white-space: nowrap;
+    }
+
+    .planner2-page .sz_actionbar_right {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sz-space-2);
+    }
+
+    .planner2-print-btn {
+      width: 2.5rem;
+      min-width: 2.5rem;
+      padding-inline: 0;
+    }
+
+    @media (max-width: 1180px) {
+      .planner2-page .sz_contextbar {
+        align-items: flex-start;
+      }
+
+      .planner2-page .sz_contextbar_right {
+        justify-content: flex-start;
+        width: 100%;
+      }
+
+      .planner2-toolbar {
+        flex-wrap: wrap;
+      }
+    }
+  </style>
+{% endblock %}
+
 {% block content %}
 <div class="sz_page planner2-page">
   <div class="sz_page_container">
     <header class="sz_contextbar sz_page_contextbar">
       <div class="sz_contextbar_left">
         <div class="sz_page_title">Planeamento de Limpezas</div>
-        <div class="sz_breadcrumbs">OPERAÇÃO / PLANEAMENTO</div>
         <div class="sz_page_subtitle">Organização diária de check-ins, check-outs, ocupados e equipas.</div>
       </div>
       <div class="sz_contextbar_right">
-        <span class="sz_badge sz_badge_info">Planner diário</span>
+        <div class="planner2-toolbar">
+          <button id="planner2-prev" class="btn sz_button sz_button_ghost" type="button" aria-label="Dia anterior">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <input id="planner2-date" class="sz_input" />
+          <button id="planner2-next" class="btn sz_button sz_button_ghost" type="button" aria-label="Dia seguinte">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button id="planner2-sort-cleaning" class="btn sz_button sz_button_ghost" type="button" title="Ordenar por equipa/horário">
+            <i class="fa-solid fa-user-clock"></i>
+            <span>Ordenar</span>
+          </button>
+          <div class="planner2-filter-toggles">
+            <label class="sz_checkbox" for="planner2-show-occupied">
+              <input type="checkbox" id="planner2-show-occupied">
+              <span>Ocupados</span>
+            </label>
+            <label class="sz_checkbox" for="planner2-show-empty">
+              <input type="checkbox" id="planner2-show-empty">
+              <span>Vazios</span>
+            </label>
+          </div>
+        </div>
       </div>
     </header>
 
     <section class="sz_page_body">
       <div class="sz_page_content">
         <div class="card shadow-sm border-0 planner2-card">
-          <div class="card-body d-flex flex-column gap-2 planner2-body">
-            <div class="planner2-filters">
-              <div class="planner2-filters-left">
-                <button id="planner2-prev" class="btn btn-outline-secondary btn-sm rounded-circle" type="button">
-                  <i class="fa-solid fa-chevron-left"></i>
-                </button>
-                <input id="planner2-date" class="form-control text-center" style="width: 140px;" />
-                <button id="planner2-next" class="btn btn-outline-secondary btn-sm rounded-circle" type="button">
-                  <i class="fa-solid fa-chevron-right"></i>
-                </button>
-                <button id="planner2-sort-cleaning" class="btn btn-sm btn-outline-secondary" type="button" title="Ordenar por equipa/horário">
-                  <i class="fa-solid fa-user-clock"></i>
-                </button>
-                <div class="planner2-filter-toggles">
-                  <div class="form-check form-switch mb-0 me-1">
-                    <input class="form-check-input" type="checkbox" role="switch" id="planner2-show-occupied">
-                    <label class="form-check-label small text-muted" for="planner2-show-occupied">Ocupados</label>
-                  </div>
-                  <div class="form-check form-switch mb-0 me-1">
-                    <input class="form-check-input" type="checkbox" role="switch" id="planner2-show-empty">
-                    <label class="form-check-label small text-muted" for="planner2-show-empty">Vazios</label>
-                  </div>
-                </div>
-              </div>
-              <div class="planner2-filters-right">
-                <button id="planner2-print-labels" class="btn btn-sm btn-primary rounded-circle" type="button" title="Imprimir Etiquetas" style="width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;">
-                  <i class="fa-solid fa-print"></i>
-                </button>
-                <button id="planner2-save" class="btn btn-sm btn-primary planner2-save" type="button" disabled>
-                  <i class="fa-solid fa-floppy-disk me-1"></i>Gravar
-                </button>
-              </div>
-            </div>
-
+          <div class="d-flex flex-column planner2-body">
             <div class="planner2-body">
               <div class="planner2-gantt">
                 <div class="planner2-table-wrap">
@@ -78,10 +155,16 @@
     </section>
 
     <footer class="sz_actionbar sz_page_footer">
-      <div class="sz_actionbar_left">
-        <span class="sz_text_muted">O planeamento permanece intacto entre as barras superior e inferior.</span>
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <button id="planner2-print-labels" class="btn sz_button sz_button_ghost planner2-print-btn" type="button" title="Imprimir etiquetas">
+          <i class="fa-solid fa-print"></i>
+        </button>
+        <button id="planner2-save" class="btn sz_button sz_button_primary planner2-save" type="button" disabled>
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar</span>
+        </button>
       </div>
-      <div class="sz_actionbar_right"></div>
     </footer>
   </div>
 </div>

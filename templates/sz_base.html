@@ -102,6 +102,157 @@
       flex: 1 1 auto;
       min-height: 0;
     }
+
+    .sz_entity_switch_trigger {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: .65rem;
+      color: inherit;
+      cursor: pointer;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    .sz_entity_switch_trigger:hover {
+      opacity: .92;
+      transform: translateY(-1px);
+    }
+
+    .sz_entity_switch_trigger:focus-visible {
+      outline: 2px solid var(--sz-color-primary);
+      outline-offset: 4px;
+      border-radius: var(--sz-radius-md);
+    }
+
+    .sz_entity_switch_trigger_icon {
+      width: 1.9rem;
+      height: 1.9rem;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
+      background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
+      color: var(--sz-color-primary);
+      font-size: .9rem;
+    }
+
+    .sz_entity_switch_dialog {
+      max-width: min(96vw, 1120px);
+    }
+
+    .sz_entity_switch_modal {
+      background: linear-gradient(180deg, color-mix(in srgb, var(--sz-color-surface-alt) 94%, transparent), var(--sz-color-surface));
+      border: 1px solid var(--sz-color-border);
+      border-radius: calc(var(--sz-radius-lg) + 6px);
+      box-shadow: var(--sz-shadow-3);
+      color: var(--sz-color-text);
+    }
+
+    .sz_entity_switch_modal .sz_modal_header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--sz-space-3);
+      padding: 1.4rem 1.4rem 0;
+      margin-bottom: 0;
+      border-bottom: 1px solid var(--sz-color-border);
+    }
+
+    .sz_entity_switch_modal .sz_modal_body {
+      padding: 1rem 1.4rem 1.4rem;
+    }
+
+    .sz_entity_switch_title {
+      font-size: clamp(1.3rem, 1rem + .8vw, 1.8rem);
+      font-weight: 700;
+      line-height: 1.1;
+      margin: 0;
+    }
+
+    .sz_entity_switch_subtitle {
+      color: var(--sz-color-text-muted);
+      margin-top: .45rem;
+      font-size: var(--sz-font-size-sm);
+    }
+
+    .sz_entity_switch_grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+
+    .sz_entity_switch_card {
+      border: 1px solid color-mix(in srgb, var(--sz-color-primary) 16%, var(--sz-color-border));
+      border-radius: calc(var(--sz-radius-md) + 4px);
+      background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--sz-color-primary) 12%, transparent), transparent 38%),
+        linear-gradient(180deg, color-mix(in srgb, var(--sz-color-surface-alt) 86%, transparent), var(--sz-color-surface));
+      padding: 1rem;
+      display: grid;
+      gap: .9rem;
+      min-height: 178px;
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+
+    .sz_entity_switch_card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--sz-shadow-2);
+      border-color: color-mix(in srgb, var(--sz-color-primary) 38%, var(--sz-color-border));
+    }
+
+    .sz_entity_switch_card.is-current {
+      border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 30%, transparent);
+    }
+
+    .sz_entity_switch_card_head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: .75rem;
+    }
+
+    .sz_entity_switch_name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .sz_entity_switch_meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .45rem;
+    }
+
+    .sz_entity_switch_status {
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-sm);
+      min-height: 1.2rem;
+    }
+
+    .sz_entity_switch_status.is-error {
+      color: var(--sz-color-danger);
+    }
+
+    .sz_entity_switch_status.is-success {
+      color: var(--sz-color-success);
+    }
+
+    .sz_entity_switch_close {
+      flex: 0 0 auto;
+      width: 2.75rem;
+      height: 2.75rem;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--sz-radius-md);
+    }
   </style>
 
   <!-- Web App Manifest & Theme Color -->
@@ -165,7 +316,14 @@
         </button>
         <div class="page-meta">
           <h1 class="page-title">
-            {{ (app_params.get('EMP_NOME_COM') if app_params else None) or 'StationZero' }}
+            {% if can_switch_entity %}
+              <button type="button" id="currentEntitySwitcherToggle" class="sz_entity_switch_trigger" aria-label="Mudar empresa">
+                <span>{{ (current_entity.NOME if current_entity else None) or 'StationZero' }}</span>
+                <span class="sz_entity_switch_trigger_icon"><i class="fa-solid fa-chevron-down"></i></span>
+              </button>
+            {% else %}
+              {{ (current_entity.NOME if current_entity else None) or 'StationZero' }}
+            {% endif %}
           </h1>
         </div>
       </div>
@@ -367,8 +525,107 @@
     </div>
   </div>
 
+  {% if current_user.is_authenticated and can_switch_entity %}
+  <div class="modal fade" id="entitySwitchModal" tabindex="-1" aria-labelledby="entitySwitchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered sz_entity_switch_dialog">
+      <div class="modal-content sz_panel sz_entity_switch_modal">
+        <div class="sz_modal_header">
+          <div>
+            <h5 class="sz_entity_switch_title" id="entitySwitchModalLabel">Escolher empresa</h5>
+            <div class="sz_entity_switch_subtitle">Seleciona uma empresa disponível no teu utilizador.</div>
+          </div>
+          <button type="button" class="sz_button sz_button_ghost sz_entity_switch_close" data-bs-dismiss="modal" aria-label="Fechar">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="sz_modal_body">
+          <div id="entitySwitchStatus" class="sz_entity_switch_status"></div>
+          <div class="sz_entity_switch_grid">
+            {% for entity in current_user_entities %}
+              <div class="sz_entity_switch_card {% if current_entity and current_entity.FEID == entity.FEID %}is-current{% endif %}" data-feid="{{ entity.FEID }}">
+                <div class="sz_entity_switch_card_head">
+                  <div>
+                    <div class="sz_entity_switch_name">{{ entity.NOME }}</div>
+                  </div>
+                  {% if current_entity and current_entity.FEID == entity.FEID %}
+                    <span class="sz_badge sz_badge_primary">Atual</span>
+                  {% endif %}
+                </div>
+                <div class="sz_entity_switch_meta">
+                  {% if entity.PRINCIPAL %}
+                    <span class="sz_badge sz_badge_info">Principal</span>
+                  {% endif %}
+                  <span class="sz_badge sz_badge_success">Ativa</span>
+                </div>
+                <button type="button" class="sz_button {% if current_entity and current_entity.FEID == entity.FEID %}sz_button_secondary{% else %}sz_button_primary{% endif %}" data-entity-switch="{{ entity.FEID }}">
+                  <i class="fa-solid fa-building"></i>
+                  <span>{% if current_entity and current_entity.FEID == entity.FEID %}Empresa atual{% else %}Entrar nesta empresa{% endif %}</span>
+                </button>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Toast container -->
   <div id="toastContainer" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;"></div>
+
+  {% if current_user.is_authenticated and can_switch_entity %}
+  <script>
+    (function () {
+      var trigger = document.getElementById('currentEntitySwitcherToggle');
+      var modalEl = document.getElementById('entitySwitchModal');
+      var statusEl = document.getElementById('entitySwitchStatus');
+      if (!trigger || !modalEl || !window.bootstrap) return;
+
+      var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+      function setStatus(message, type) {
+        if (!statusEl) return;
+        statusEl.textContent = message || '';
+        statusEl.classList.remove('is-error', 'is-success');
+        if (type === 'error') statusEl.classList.add('is-error');
+        if (type === 'success') statusEl.classList.add('is-success');
+      }
+
+      trigger.addEventListener('click', function () {
+        setStatus('');
+        modal.show();
+      });
+
+      modalEl.querySelectorAll('[data-entity-switch]').forEach(function (button) {
+        button.addEventListener('click', async function () {
+          var feid = Number(button.getAttribute('data-entity-switch') || 0);
+          if (!feid) return;
+          setStatus('A mudar de empresa...');
+          modalEl.querySelectorAll('[data-entity-switch]').forEach(function (node) {
+            node.disabled = true;
+          });
+          try {
+            var res = await fetch('/api/session/switch-entity', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify({ feid: feid })
+            });
+            var data = await res.json().catch(function () { return {}; });
+            if (!res.ok || data.error) throw new Error(data.error || 'Erro ao mudar de empresa.');
+            setStatus('Empresa alterada. A recarregar...', 'success');
+            window.location.reload();
+          } catch (error) {
+            setStatus((error && error.message) || 'Erro ao mudar de empresa.', 'error');
+            modalEl.querySelectorAll('[data-entity-switch]').forEach(function (node) {
+              node.disabled = false;
+            });
+          }
+        });
+      });
+    })();
+  </script>
+  {% endif %}
 
 
   

@@ -1,160 +1,652 @@
 {% extends 'base.html' %}
 
-{% block content %}
-<div class="container-fluid py-3">
-  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-    <div class="input-group" style="max-width:220px;">
-      <span class="input-group-text"><i class="fa-solid fa-calendar"></i></span>
-      <input type="date" class="form-control" id="turnDate" value="{{ today }}">
-    </div>
-    <div class="btn-group" role="group" aria-label="Navegar datas">
-      <button class="btn btn-outline-secondary" id="turnPrev"><i class="fa-solid fa-chevron-left"></i></button>
-      <button class="btn btn-outline-secondary" id="turnNext"><i class="fa-solid fa-chevron-right"></i></button>
-    </div>
-    <div class="ms-auto text-muted small" id="turnInfo"></div>
-  </div>
+{% block extra_head %}
+  {{ super() }}
+  <style>
+    .turn-page {
+      min-height: 100%;
+    }
 
-  <div id="turnCards" class="turn-grid"></div>
+    .turn-page .sz_page_container {
+      padding-block: var(--sz-space-2) var(--sz-space-4);
+      padding-inline: var(--sz-space-4);
+    }
+
+    .turn-page .sz_contextbar {
+      align-items: center;
+      gap: var(--sz-space-3);
+    }
+
+    .turn-page .sz_contextbar_left {
+      flex: 0 1 auto;
+      min-width: 0;
+      gap: var(--sz-space-1);
+    }
+
+    .turn-page .sz_page_subtitle {
+      max-width: 40rem;
+      color: var(--sz-color-text-muted);
+    }
+
+    .turn-page .sz_contextbar_right {
+      flex: 1 1 auto;
+      min-width: 0;
+      justify-content: flex-end;
+    }
+
+    .turn-toolbar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--sz-space-2);
+      flex-wrap: nowrap;
+      min-width: 0;
+    }
+
+    .turn-date-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sz-space-2);
+      padding: 0 var(--sz-space-3);
+      min-height: 2.75rem;
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-md);
+      background: var(--sz-color-surface);
+      color: var(--sz-color-text-secondary);
+      box-shadow: var(--sz-shadow-1);
+    }
+
+    .turn-date-wrap i {
+      color: var(--sz-color-text-muted);
+    }
+
+    .turn-date-wrap .sz_input {
+      width: 9.25rem;
+      min-height: auto;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      color: var(--sz-color-text);
+    }
+
+    .turn-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sz-space-2);
+    }
+
+    .turn-nav .sz_button {
+      width: 2.75rem;
+      min-width: 2.75rem;
+      padding-inline: 0;
+    }
+
+    .turn-info {
+      min-width: 10rem;
+      text-align: right;
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-sm);
+    }
+
+    .turn-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: var(--sz-space-3);
+    }
+
+    @media (min-width: 1280px) {
+      .turn-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    .turn-card {
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-lg);
+      background: var(--sz-color-surface);
+      box-shadow: var(--sz-shadow-2);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .turn-card .card-header {
+      padding: 10px 12px;
+      background: linear-gradient(90deg, color-mix(in srgb, var(--sz-color-info) 75%, transparent), color-mix(in srgb, var(--sz-color-primary) 80%, transparent));
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      font-size: 14px;
+      border-bottom: 1px solid color-mix(in srgb, var(--sz-color-primary) 42%, transparent);
+    }
+
+    .turn-card .card-header.delayed {
+      background: linear-gradient(90deg, color-mix(in srgb, var(--sz-color-danger) 78%, transparent), color-mix(in srgb, #8f182f 86%, transparent));
+    }
+
+    .turn-card .card-body {
+      display: grid;
+      grid-template-columns: minmax(46px, 60px) 1fr minmax(46px, 60px);
+      align-items: stretch;
+      padding: 0;
+      background: var(--sz-color-surface);
+    }
+
+    .turn-hours {
+      font-size: 11px;
+      color: var(--sz-color-text-secondary);
+      font-weight: 600;
+    }
+
+    .turn-block {
+      border-radius: 0;
+      padding: 5px;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 72px;
+      justify-content: center;
+      min-width: 50px;
+      text-align: center;
+    }
+
+    .turn-block.out {
+      background: color-mix(in srgb, var(--sz-color-danger) 88%, #94162c);
+    }
+
+    .turn-block.in {
+      background: color-mix(in srgb, var(--sz-color-success) 80%, #12663a);
+      cursor: pointer;
+    }
+
+    .turn-block.muted {
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 86%, #90a4bc 14%);
+      color: var(--sz-color-text);
+    }
+
+    .turn-block.in.done {
+      background: color-mix(in srgb, var(--sz-color-success) 88%, #0f5b2e);
+    }
+
+    .turn-block .label {
+      font-size: 9px;
+      text-transform: uppercase;
+      opacity: 0.82;
+    }
+
+    .turn-block .time {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .turn-block .time .dow {
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .turn-block .time .date {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .turn-middle {
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, var(--sz-color-surface));
+      border-inline: 1px solid var(--sz-color-border);
+      padding: 8px 10px;
+      display: grid;
+      gap: 4px;
+      font-size: 13px;
+      color: var(--sz-color-text);
+    }
+
+    .turn-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 88%, transparent);
+      border: 1px solid color-mix(in srgb, var(--sz-color-border) 82%, transparent);
+      color: var(--sz-color-text);
+    }
+
+    .turn-pill.turn-pill-ok {
+      background: color-mix(in srgb, var(--sz-color-success) 18%, transparent);
+      border-color: color-mix(in srgb, var(--sz-color-success) 40%, transparent);
+      color: color-mix(in srgb, var(--sz-color-success) 86%, white);
+    }
+
+    .turn-pill.turn-pill-warn {
+      background: color-mix(in srgb, var(--sz-color-danger) 14%, transparent);
+      border-color: color-mix(in srgb, var(--sz-color-danger) 38%, transparent);
+      color: color-mix(in srgb, var(--sz-color-danger) 88%, white);
+    }
+
+    .turn-pill.turn-pill-pres {
+      background: color-mix(in srgb, var(--sz-color-warning) 18%, transparent);
+      border-color: color-mix(in srgb, var(--sz-color-warning) 36%, transparent);
+      color: color-mix(in srgb, var(--sz-color-warning) 85%, white);
+    }
+
+    .turn-pill.turn-pill-pres-off {
+      background: color-mix(in srgb, var(--sz-color-info) 15%, transparent);
+      border-color: color-mix(in srgb, var(--sz-color-info) 35%, transparent);
+      color: color-mix(in srgb, var(--sz-color-info) 90%, white);
+    }
+
+    .turn-status {
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 88%, transparent);
+      color: var(--sz-color-text);
+      font-weight: 700;
+      font-size: 11px;
+      border: 1px solid color-mix(in srgb, var(--sz-color-border) 82%, transparent);
+      line-height: 1;
+      letter-spacing: 0.01em;
+    }
+
+    .turn-status.planeada {
+      background: color-mix(in srgb, var(--sz-color-warning) 18%, transparent);
+      border-color: color-mix(in srgb, var(--sz-color-warning) 35%, transparent);
+      color: color-mix(in srgb, var(--sz-color-warning) 85%, white);
+    }
+
+    .turn-status.concluida {
+      background: color-mix(in srgb, var(--sz-color-success) 18%, transparent);
+      border-color: color-mix(in srgb, var(--sz-color-success) 40%, transparent);
+      color: color-mix(in srgb, var(--sz-color-success) 88%, white);
+    }
+
+    .turn-status.atrasada {
+      background: color-mix(in srgb, var(--sz-color-danger) 14%, transparent);
+      border-color: color-mix(in srgb, var(--sz-color-danger) 38%, transparent);
+      color: color-mix(in srgb, var(--sz-color-danger) 88%, white);
+    }
+
+    .turn-status.sem {
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 88%, transparent);
+      border-color: color-mix(in srgb, var(--sz-color-border) 82%, transparent);
+      color: var(--sz-color-text);
+    }
+
+    [data-sz-theme="light"] .turn-status {
+      background: rgba(255, 255, 255, 0.82);
+      border-color: rgba(148, 163, 184, 0.42);
+      color: #334155;
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+    }
+
+    [data-sz-theme="light"] .turn-status.planeada {
+      background: #fff4d6;
+      border-color: #f1bf59;
+      color: #8a4b00;
+    }
+
+    [data-sz-theme="light"] .turn-status.concluida {
+      background: #dcfce7;
+      border-color: #62c98d;
+      color: #166534;
+    }
+
+    [data-sz-theme="light"] .turn-status.atrasada {
+      background: #ffe2e2;
+      border-color: #ef8181;
+      color: #b42318;
+    }
+
+    [data-sz-theme="light"] .turn-status.sem {
+      background: #eef2f7;
+      border-color: #c7d2e0;
+      color: #475569;
+    }
+
+    .turn-modal .modal-content {
+      background: var(--sz-color-surface);
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-lg);
+      color: var(--sz-color-text);
+      box-shadow: var(--sz-shadow-3);
+      overflow: hidden;
+    }
+
+    .turn-modal .modal-header {
+      background: linear-gradient(90deg, color-mix(in srgb, var(--sz-color-info) 75%, transparent), color-mix(in srgb, var(--sz-color-primary) 80%, transparent));
+      color: #fff;
+      border: 0;
+      padding: var(--sz-space-4) var(--sz-space-5);
+    }
+
+    .turn-modal .modal-title {
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .turn-modal .modal-body {
+      background: var(--sz-color-surface);
+      display: grid;
+      gap: 10px;
+      padding: var(--sz-space-4) var(--sz-space-5);
+    }
+
+    .turn-modal .modal-footer {
+      border-top: 1px solid var(--sz-color-border);
+      background: var(--sz-color-surface);
+      padding: var(--sz-space-3) var(--sz-space-5) var(--sz-space-4);
+    }
+
+    .turn-modal .form-check-label,
+    .turn-modal .form-label,
+    .turn-modal .text-muted.small {
+      color: var(--sz-color-text-secondary) !important;
+    }
+
+    .turn-modal .form-check-input:checked {
+      background-color: var(--sz-color-primary);
+      border-color: var(--sz-color-primary);
+    }
+
+    .turn-modal .form-check-input,
+    .turn-modal .form-select {
+      background-color: var(--sz-color-surface-alt);
+      border-color: var(--sz-color-border);
+      color: var(--sz-color-text);
+    }
+
+    .turn-modal .form-select:focus,
+    .turn-modal .form-check-input:focus {
+      border-color: var(--sz-color-primary);
+      box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--sz-color-primary) 22%, transparent);
+    }
+
+    .turn-modal .btn-primary {
+      background: var(--sz-color-primary);
+      border-color: var(--sz-color-primary);
+      color: #fff;
+      box-shadow: 0 10px 20px color-mix(in srgb, var(--sz-color-primary) 25%, transparent);
+    }
+
+    .turn-modal .btn-secondary {
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 88%, transparent);
+      border-color: var(--sz-color-border);
+      color: var(--sz-color-text);
+    }
+
+    [data-sz-theme="dark"] .turn-modal .btn-close,
+    [data-sz-theme="geek"] .turn-modal .btn-close {
+      filter: invert(1) grayscale(1);
+    }
+
+    [data-sz-theme="geek"] .turn-card,
+    [data-sz-theme="geek"] .turn-date-wrap,
+    [data-sz-theme="geek"] .turn-modal .modal-content {
+      backdrop-filter: none;
+    }
+
+    [data-sz-theme="dark"] .turn-card {
+      background: linear-gradient(180deg, rgba(19, 34, 53, 0.86), rgba(19, 34, 53, 0.74));
+      box-shadow: 0 18px 38px rgba(2, 5, 10, 0.26);
+    }
+
+    [data-sz-theme="dark"] .turn-card .card-header {
+      background: linear-gradient(90deg, rgba(105, 166, 255, 0.74), rgba(111, 203, 255, 0.46));
+      border-bottom-color: rgba(105, 166, 255, 0.34);
+      backdrop-filter: blur(8px);
+    }
+
+    [data-sz-theme="dark"] .turn-card .card-header.delayed {
+      background: linear-gradient(90deg, rgba(255, 111, 145, 0.8), rgba(143, 24, 47, 0.48));
+      border-bottom-color: rgba(255, 111, 145, 0.3);
+    }
+
+    [data-sz-theme="dark"] .turn-middle {
+      background: rgba(23, 43, 66, 0.72);
+      border-inline-color: rgba(39, 64, 95, 0.74);
+      backdrop-filter: blur(6px);
+    }
+
+    [data-sz-theme="dark"] .turn-block.out {
+      background: linear-gradient(180deg, rgba(255, 111, 145, 0.88), rgba(148, 22, 44, 0.76));
+      backdrop-filter: blur(6px);
+    }
+
+    [data-sz-theme="dark"] .turn-block.in,
+    [data-sz-theme="dark"] .turn-block.in.done {
+      background: linear-gradient(180deg, rgba(79, 209, 155, 0.84), rgba(18, 102, 58, 0.74));
+      backdrop-filter: blur(6px);
+    }
+
+    [data-sz-theme="dark"] .turn-block.muted {
+      background: rgba(61, 84, 112, 0.72);
+      color: #e5edf8;
+      backdrop-filter: blur(6px);
+    }
+
+    [data-sz-theme="dark"] .turn-status,
+    [data-sz-theme="dark"] .turn-pill {
+      backdrop-filter: blur(8px);
+    }
+
+    [data-sz-theme="dark"] .turn-status {
+      background: rgba(17, 31, 48, 0.86);
+      border-color: rgba(124, 147, 177, 0.34);
+      color: #f0f5fb;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    [data-sz-theme="dark"] .turn-status.planeada {
+      background: rgba(242, 188, 97, 0.22);
+      border-color: rgba(242, 188, 97, 0.46);
+      color: #ffd89c;
+    }
+
+    [data-sz-theme="dark"] .turn-status.concluida {
+      background: rgba(79, 209, 155, 0.22);
+      border-color: rgba(79, 209, 155, 0.46);
+      color: #baf5dc;
+    }
+
+    [data-sz-theme="dark"] .turn-status.atrasada {
+      background: rgba(255, 111, 145, 0.22);
+      border-color: rgba(255, 111, 145, 0.46);
+      color: #ffc0cf;
+    }
+
+    [data-sz-theme="dark"] .turn-status.sem {
+      background: rgba(61, 84, 112, 0.62);
+      border-color: rgba(124, 147, 177, 0.34);
+      color: #d7e2f0;
+    }
+
+    [data-sz-theme="geek"] .turn-card {
+      background: linear-gradient(180deg, rgba(5, 13, 7, 0.92), rgba(3, 8, 4, 0.86));
+      box-shadow: 0 0 0 1px rgba(117, 255, 132, 0.18), 0 0 18px rgba(117, 255, 132, 0.1);
+      border-color: rgba(117, 255, 132, 0.26);
+      font-family: var(--sz-font-family-mono);
+    }
+
+    [data-sz-theme="geek"] .turn-card .card-header,
+    [data-sz-theme="geek"] .turn-modal .modal-header {
+      color: #021305;
+    }
+
+    [data-sz-theme="geek"] .turn-card .card-header {
+      background: linear-gradient(90deg, rgba(117, 255, 132, 0.54), rgba(70, 224, 255, 0.34));
+      border-bottom-color: rgba(117, 255, 132, 0.22);
+      text-shadow: 0 0 10px rgba(117, 255, 132, 0.12);
+    }
+
+    [data-sz-theme="geek"] .turn-card .card-header.delayed {
+      background: linear-gradient(90deg, rgba(255, 95, 118, 0.58), rgba(106, 15, 33, 0.36));
+      border-bottom-color: rgba(255, 95, 118, 0.22);
+    }
+
+    [data-sz-theme="geek"] .turn-middle {
+      background: rgba(8, 17, 10, 0.78);
+      border-inline-color: rgba(30, 101, 45, 0.82);
+      color: #8fff9a;
+      backdrop-filter: blur(5px);
+    }
+
+    [data-sz-theme="geek"] .turn-block.out {
+      background: linear-gradient(180deg, rgba(255, 95, 118, 0.9), rgba(148, 20, 43, 0.76));
+      text-shadow: 0 0 10px rgba(255, 95, 118, 0.18);
+    }
+
+    [data-sz-theme="geek"] .turn-block.in,
+    [data-sz-theme="geek"] .turn-block.in.done {
+      background: linear-gradient(180deg, rgba(117, 255, 132, 0.86), rgba(27, 116, 45, 0.74));
+      color: #031106;
+      text-shadow: none;
+      box-shadow: inset 0 0 0 1px rgba(199, 255, 205, 0.08);
+    }
+
+    [data-sz-theme="geek"] .turn-block.muted {
+      background: rgba(21, 33, 24, 0.9);
+      color: #a8ffb2;
+    }
+
+    [data-sz-theme="geek"] .turn-pill {
+      background: rgba(8, 17, 10, 0.84);
+      border-color: rgba(117, 255, 132, 0.24);
+      color: #9cffaa;
+      box-shadow: inset 0 0 0 1px rgba(117, 255, 132, 0.06);
+    }
+
+    [data-sz-theme="geek"] .turn-status {
+      background: rgba(6, 12, 7, 0.88);
+      border-color: rgba(117, 255, 132, 0.3);
+      color: #b8ffc0;
+      box-shadow: inset 0 0 0 1px rgba(117, 255, 132, 0.08), 0 0 10px rgba(117, 255, 132, 0.08);
+    }
+
+    [data-sz-theme="geek"] .turn-status.planeada,
+    [data-sz-theme="geek"] .turn-pill.turn-pill-pres {
+      background: rgba(228, 255, 79, 0.16);
+      border-color: rgba(228, 255, 79, 0.34);
+      color: #f3ffaf;
+    }
+
+    [data-sz-theme="geek"] .turn-status.concluida,
+    [data-sz-theme="geek"] .turn-pill.turn-pill-ok {
+      background: rgba(117, 255, 132, 0.16);
+      border-color: rgba(117, 255, 132, 0.32);
+      color: #c2ffca;
+    }
+
+    [data-sz-theme="geek"] .turn-status.atrasada,
+    [data-sz-theme="geek"] .turn-pill.turn-pill-warn {
+      background: rgba(255, 95, 118, 0.16);
+      border-color: rgba(255, 95, 118, 0.3);
+      color: #ffb0bc;
+    }
+
+    [data-sz-theme="geek"] .turn-pill.turn-pill-pres-off,
+    [data-sz-theme="geek"] .turn-status.sem {
+      background: rgba(70, 224, 255, 0.12);
+      border-color: rgba(70, 224, 255, 0.28);
+      color: #a2f3ff;
+    }
+
+    @media (max-width: 1180px) {
+      .turn-page .sz_contextbar {
+        align-items: flex-start;
+      }
+
+      .turn-page .sz_contextbar_right {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .turn-toolbar {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+      }
+
+      .turn-info {
+        min-width: 0;
+        text-align: left;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .sz-base-shell .main-content {
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        height: auto !important;
+        min-height: 100dvh;
+        display: block !important;
+      }
+
+      .turn-page {
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+      }
+
+      .turn-page .sz_page_container {
+        height: auto;
+        min-height: 100dvh;
+        display: block;
+      }
+
+      .turn-page .sz_page_body,
+      .turn-page .sz_page_content {
+        min-height: auto;
+        overflow: visible;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page turn-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Turnover Diário</div>
+        <div class="sz_page_subtitle">Check-outs, check-ins e estado operacional por alojamento.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="turn-toolbar">
+          <div class="turn-date-wrap">
+            <i class="fa-solid fa-calendar"></i>
+            <input type="date" class="sz_input" id="turnDate" value="{{ today }}">
+          </div>
+          <div class="turn-nav" role="group" aria-label="Navegar datas">
+            <button class="sz_button sz_button_ghost" id="turnPrev" type="button" aria-label="Data anterior">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <button class="sz_button sz_button_ghost" id="turnNext" type="button" aria-label="Data seguinte">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+          <div class="turn-info" id="turnInfo"></div>
+        </div>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content">
+        <div id="turnCards" class="turn-grid"></div>
+      </div>
+    </section>
+  </div>
 </div>
 
-<style>
-  .turn-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 12px;
-  }
-  .turn-pill.turn-pill-ok { background: #dcfce7; color: #166534; }
-  .turn-pill.turn-pill-warn { background: #fee2e2; color: #b91c1c; }
-  .turn-pill.turn-pill-pres { background: #fed7aa; color: #9a3412; }
-  .turn-pill.turn-pill-pres-off { background: #dbeafe; color: #1d4ed8; }
-  @media (min-width: 1280px) {
-    .turn-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-  }
-  .turn-card {
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    background: #ffffff;
-    box-shadow: 0 10px 24px rgba(15,23,42,0.08);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-  .turn-card .card-header {
-    padding: 10px 12px;
-    background: linear-gradient(90deg, #0ea5e9, #6366f1);
-    color: #fff;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-weight: 700;
-    font-size: 14px;
-  }
-  .turn-card .card-header.delayed {
-    background: linear-gradient(90deg, #f87171, #b91c1c);
-  }
-  .turn-card .card-body {
-    display: grid;
-    grid-template-columns: minmax(46px, 60px) 1fr minmax(46px, 60px);
-    align-items: stretch;
-  }
-  .turn-hours {
-    font-size: 11px;
-    color: #475569;
-    font-weight: 600;
-  }
-  .turn-block {
-    border-radius: 0;
-    padding: 5px;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-height: 72px;
-    justify-content: center;
-    min-width: 50px;
-    text-align: center;
-  }
-  .turn-block.out { background: #dc2626; }
-  .turn-block.in { background: #16a34a; }
-  .turn-block.muted { background: #cbd5e1; color: #0f172a; }
-  .turn-block.in.done { background: #15803d; }
-  .turn-block.in { cursor: pointer; }
-  .turn-block .label { font-size: 9px; text-transform: uppercase; opacity: 0.8; }
-  .turn-block .time { font-size: 14px; font-weight: 700; line-height: 1; }
-  .turn-block .time .dow { font-size: 11px; font-weight: 600; }
-  .turn-block .time .date { font-size: 13px; font-weight: 700; }
-  .turn-middle {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 8px 10px;
-    display: grid;
-    gap: 4px;
-    font-size: 13px;
-  }
-  .turn-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
-    border-radius: 999px;
-    font-size: 11px;
-    background: #e2e8f0;
-    color: #0f172a;
-  }
-  .turn-status {
-    padding: 2px 10px;
-    border-radius: 999px;
-    background: #e2e8f0;
-    color: #0f172a;
-    font-weight: 700;
-    font-size: 11px;
-  }
-  .turn-status.planeada { background: #fff3cd; color: #92400e; }
-  .turn-status.concluida { background: #dcfce7; color: #166534; }
-  .turn-status.atrasada { background: #fee2e2; color: #b91c1c; }
-  .turn-status.sem { background: #e2e8f0; color: #0f172a; }
-  /* Modal styling */
-  .turn-modal .modal-content {
-    border: none;
-    border-radius: 14px;
-    box-shadow: 0 20px 50px rgba(15,23,42,0.2);
-    overflow: hidden;
-  }
-  .turn-modal .modal-header {
-    background: linear-gradient(90deg, #0ea5e9, #6366f1);
-    color: #fff;
-    border: none;
-  }
-  .turn-modal .modal-title {
-    font-weight: 700;
-    letter-spacing: 0.2px;
-  }
-  .turn-modal .modal-body {
-    background: #f8fafc;
-    display: grid;
-    gap: 10px;
-  }
-  .turn-modal .form-check-input:checked {
-    background-color: #0ea5e9;
-    border-color: #0ea5e9;
-  }
-  .turn-modal .btn-primary {
-    background: linear-gradient(90deg, #0ea5e9, #6366f1);
-    border: none;
-    box-shadow: 0 10px 20px rgba(99,102,241,0.25);
-  }
-</style>
-
-<!-- Modal Check-in -->
 <div class="modal fade turn-modal" id="checkinModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="turnCheckinTitle">Check-in</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
         <div class="alert alert-danger d-none" id="turnCheckinErr"></div>
@@ -188,7 +680,6 @@
     </div>
   </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}

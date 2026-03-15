@@ -31,6 +31,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const filtersModalEl = document.getElementById('filtersModal');
   const filtersModal = filtersModalEl ? new bootstrap.Modal(filtersModalEl) : null;
   const btnOpenFilters = document.getElementById('openFilters');
+  const btnOpenFiltersMobile = document.getElementById('openFiltersMobile');
+  const btnAddTaskMobile = document.getElementById('addTaskMobile');
   const btnTabUsers = document.getElementById('filtersTabUsers');
   const btnTabAloj = document.getElementById('filtersTabAloj');
   const btnTabOrigins = document.getElementById('filtersTabOrigins');
@@ -50,6 +52,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const ntTarefa = document.getElementById('ntTarefa');
   const ntAloj = document.getElementById('ntAloj');
   const ntGravar = document.getElementById('ntGravar');
+  const selectedDayCardsEl = document.getElementById('calendarSelectedDayCards');
+  let selectedDateIso = toLocalIso(new Date());
+  const expandedTaskStamps = new Set();
 
   function setFiltersLoading(isLoading) {
     try {
@@ -73,6 +78,14 @@ document.addEventListener('DOMContentLoaded', function() {
   let currentTab = 'users';
 
   function normalizeStr(v) { return (v == null ? '' : String(v)).trim(); }
+  function escapeHtml(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
 
   function updateFiltersSummary() {
     const usersLabel = (state.users.size === 1 && state.users.has(CURRENT_USER))
@@ -228,6 +241,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Tarefas carregadas para o intervalo atual
   let loadedTasks = [];
+  const weekdayNames = ['Domingo', 'Segunda-feira', 'Ter?a-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'S?bado'];
 
   const monthNames = [
     'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -241,6 +255,179 @@ document.addEventListener('DOMContentLoaded', function() {
       String(d.getMonth() + 1).padStart(2, '0'),
       String(d.getDate()).padStart(2, '0')
     ].join('-');
+  }
+
+  function isMobileCalendar() {
+    return window.innerWidth <= 900;
+  }
+
+  function formatSelectedDayTitle(iso) {
+    if (!iso) return '';
+    const parts = String(iso).split('-').map(Number);
+    const dt = new Date(parts[0], (parts[1] || 1) - 1, parts[2] || 1);
+    return `${weekdayNames[dt.getDay()]}, ${String(parts[2] || 1).padStart(2, '0')} de ${monthNames[(parts[1] || 1) - 1]} de ${parts[0]}`;
+  }
+
+  function getCollapsedTaskTitle(task) {
+    return normalizeStr(task.TAREFA) || normalizeStr(task.ALOJAMENTO) || 'Tarefa';
+  }
+
+  function getExpandedTaskRows(task) {
+    const rows = [];
+    const aloj = normalizeStr(task.ALOJAMENTO);
+    const user = normalizeStr(task.UTILIZADOR);
+    const origin = normalizeStr(task.ORIGEM).toUpperCase();
+    const duration = Number(task.DURACAO || 0);
+    if (aloj) rows.push({ label: 'Alojamento', value: aloj });
+    if (user) rows.push({ label: 'Utilizador', value: user });
+    if (origin) rows.push({ label: 'Origem', value: origin });
+    if (duration > 0) rows.push({ label: 'Duração', value: `${duration} min` });
+    return rows;
+  }
+
+  async function markTaskAsDone(taskStamp) {
+    if (!taskStamp) return;
+    try {
+      const resp = await fetch('/generic/api/tarefas/tratar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: taskStamp })
+      });
+      const js = await resp.json().catch(() => ({}));
+      if (!resp.ok || js.ok === false) throw new Error(js.error || 'Falha ao marcar tarefa.');
+      loadCalendar(currentYear, currentMonth);
+    } catch (err) {
+      alert(err.message || 'Erro ao marcar tarefa como tratada.');
+    }
+  }
+
+  function getTasksForDate(iso, tasks) {
+    const usersSet = state.users;
+    const alojSet = state.aloj;
+    const origSet = state.origins;
+    const baseTasks = (tasks || []).filter(t => t.DATA === iso);
+
+    const matches = (t) => {
+      const u = normalizeStr(t.UTILIZADOR);
+      const a = normalizeStr(t.ALOJAMENTO);
+      const o = normalizeStr(t.ORIGEM).toUpperCase();
+      if (usersSet.size > 0 && !usersSet.has(u)) return false;
+      if (alojSet.size > 0) {
+        const aval = a === '' ? '' : a;
+        if (!alojSet.has(aval)) return false;
+      }
+      if (origSet.size > 0) {
+        const oval = o === '' ? '' : o;
+        if (!origSet.has(oval)) return false;
+      }
+      return true;
+    };
+
+    const initiallyMatched = baseTasks.filter(matches);
+    const lpPairs = new Set();
+    if (usersSet.size > 0) {
+      for (const t of baseTasks) {
+        const u = normalizeStr(t.UTILIZADOR);
+        const a = normalizeStr(t.ALOJAMENTO);
+        const o = normalizeStr(t.ORIGEM).toUpperCase();
+        if (!usersSet.has(u)) continue;
+        if (alojSet.size > 0 && !alojSet.has(a === '' ? '' : a)) continue;
+        if (t.DATA === iso && o === 'LP') lpPairs.add(`${t.DATA}||${a}`);
+      }
+    }
+    const includeOrigins = (origSet.size === 0) ? new Set(['MN', 'FS']) : new Set(Array.from(origSet).filter(x => x === 'MN' || x === 'FS'));
+    const extra = [];
+    if (lpPairs.size > 0 && includeOrigins.size > 0) {
+      const seen = new Set();
+      for (const t of baseTasks) {
+        const a = normalizeStr(t.ALOJAMENTO);
+        const o = normalizeStr(t.ORIGEM).toUpperCase();
+        const keyPair = `${t.DATA}||${a}`;
+        if (!lpPairs.has(keyPair)) continue;
+        if (!includeOrigins.has(o)) continue;
+        if (alojSet.size > 0 && !alojSet.has(a === '' ? '' : a)) continue;
+        const k = `${o}|${t.DATA}|${t.HORA || ''}|${a}|${t.TAREFA || ''}|${normalizeStr(t.UTILIZADOR)}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        extra.push(t);
+      }
+    }
+    return initiallyMatched.concat(extra).sort((a, b) => {
+      const ah = normalizeStr(a.HORA);
+      const bh = normalizeStr(b.HORA);
+      if (ah !== bh) return ah.localeCompare(bh);
+      return normalizeStr(a.TAREFA).localeCompare(normalizeStr(b.TAREFA), 'pt-PT');
+    });
+  }
+
+  function renderSelectedDayCards() {
+    if (!selectedDayCardsEl) return;
+    if (!isMobileCalendar()) {
+      selectedDayCardsEl.innerHTML = '';
+      return;
+    }
+    const tasks = getTasksForDate(selectedDateIso, loadedTasks || []);
+    if (!tasks.length) {
+      selectedDayCardsEl.innerHTML = '<div class="sz_calendar_mobile_empty">Sem tarefas para o dia selecionado.</div>';
+      return;
+    }
+    selectedDayCardsEl.innerHTML = tasks.map((task) => {
+      const color = normalizeStr(task.COR) || '#4f46e5';
+      const title = getCollapsedTaskTitle(task);
+      const isExpanded = expandedTaskStamps.has(task.TAREFASSTAMP || '');
+      const treated = task.TRATADO ? '<span class="sz_calendar_mobile_task_badge"><i class="fa-solid fa-check"></i> Tratada</span>' : '';
+      const origin = normalizeStr(task.ORIGEM).toUpperCase();
+      const originBadge = origin ? `<span class="sz_calendar_mobile_task_badge">${origin}</span>` : '';
+      const user = normalizeStr(task.UTILIZADOR);
+      const userBadge = user ? `<span class="sz_calendar_mobile_task_badge"><span style="display:inline-block;width:.55rem;height:.55rem;border-radius:999px;background:${color};"></span>${user}</span>` : '';
+      const detailRows = getExpandedTaskRows(task).map((row) => `
+        <div class="sz_calendar_mobile_task_detail_row">
+          <span class="sz_calendar_mobile_task_detail_label">${escapeHtml(row.label)}</span>
+          <span class="sz_calendar_mobile_task_detail_value">${escapeHtml(row.value)}</span>
+        </div>
+      `).join('');
+      const treatButton = !task.TRATADO ? `
+        <button type="button" class="sz_button sz_button_primary sz_calendar_mobile_task_action" data-action="treat">
+          <i class="fa-solid fa-check"></i>
+          Dar como tratada
+        </button>
+      ` : '';
+      return `
+        <div class="sz_calendar_mobile_task_card${isExpanded ? ' is-expanded' : ''}" data-stamp="${task.TAREFASSTAMP || ''}" style="border-left:3px solid ${color};">
+          <div class="sz_calendar_mobile_task_top">
+            <div class="sz_calendar_mobile_task_title">${escapeHtml(title)}</div>
+            <div class="sz_calendar_mobile_task_side">
+              <div class="sz_calendar_mobile_task_time">${escapeHtml(normalizeStr(task.HORA) || '--:--')}</div>
+              <i class="fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} sz_calendar_mobile_task_chevron"></i>
+            </div>
+          </div>
+          ${isExpanded ? `
+            <div class="sz_calendar_mobile_task_details">
+              ${detailRows}
+              <div class="sz_calendar_mobile_task_meta">${originBadge}${userBadge}${treated}</div>
+              ${treatButton ? `<div class="sz_calendar_mobile_task_actions">${treatButton}</div>` : ''}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+    selectedDayCardsEl.querySelectorAll('.sz_calendar_mobile_task_card').forEach((card) => {
+      card.addEventListener('click', () => {
+        const stamp = card.getAttribute('data-stamp');
+        if (!stamp) return;
+        if (expandedTaskStamps.has(stamp)) expandedTaskStamps.delete(stamp);
+        else expandedTaskStamps.add(stamp);
+        renderSelectedDayCards();
+      });
+    });
+    selectedDayCardsEl.querySelectorAll('[data-action="treat"]').forEach((button) => {
+      button.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        const card = event.currentTarget.closest('.sz_calendar_mobile_task_card');
+        const stamp = card?.getAttribute('data-stamp');
+        await markTaskAsDone(stamp);
+      });
+    });
   }
 
   function loadCalendar(year, month) {
@@ -321,7 +508,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         td.addEventListener('click', (e) => {
           if (e.target.closest('.cal-task-chip')) return;
-          openNovaTarefaModal(cellIso);
+          selectedDateIso = cellIso;
+          renderCalendar(startDate, endDate, tasks);
+          renderSelectedDayCards();
+          if (!isMobileCalendar()) {
+            openNovaTarefaModal(cellIso);
+          }
         });
 
         const dayDiv = document.createElement('div');
@@ -329,63 +521,21 @@ document.addEventListener('DOMContentLoaded', function() {
         dayDiv.textContent = cellDate.getDate();
         td.appendChild(dayDiv);
 
-        // filtra tasks usando data local da célula
-        const iso = cellIso;
-        const usersSet = state.users; // vazio => todos
-        const alojSet = state.aloj;   // vazio => todos
-        const origSet = state.origins; // vazio => todas
+        const finalTasks = getTasksForDate(cellIso, tasks);
 
-        const baseTasks = (tasks || []).filter(t => t.DATA === iso);
+        if (cellIso === selectedDateIso) td.classList.add('is-selected');
 
-        const matches = (t) => {
-          const u = normalizeStr(t.UTILIZADOR);
-          const a = normalizeStr(t.ALOJAMENTO);
-          const o = normalizeStr(t.ORIGEM).toUpperCase();
-          if (usersSet.size > 0 && !usersSet.has(u)) return false;
-          if (alojSet.size > 0) {
-            const aval = a === '' ? '' : a;
-            if (!alojSet.has(aval)) return false;
-          }
-          if (origSet.size > 0) {
-            const oval = o === '' ? '' : o;
-            if (!origSet.has(oval)) return false;
-          }
-          return true;
-        };
-
-        const initiallyMatched = baseTasks.filter(matches);
-
-        const lpPairs = new Set();
-        if (usersSet.size > 0) {
-          for (const t of baseTasks) {
-            const u = normalizeStr(t.UTILIZADOR);
-            const a = normalizeStr(t.ALOJAMENTO);
-            const o = normalizeStr(t.ORIGEM).toUpperCase();
-            if (!usersSet.has(u)) continue;
-            if (alojSet.size > 0 && !alojSet.has(a === '' ? '' : a)) continue;
-            if (t.DATA === iso && o === 'LP') {
-              lpPairs.add(`${t.DATA}||${a}`);
-            }
-          }
+        if (isMobileCalendar()) {
+          const bullets = document.createElement('div');
+          bullets.className = 'sz_calendar_day_bullets';
+          finalTasks.forEach((task) => {
+            const bullet = document.createElement('span');
+            bullet.className = 'sz_calendar_day_bullet';
+            bullet.style.backgroundColor = task.COR || '#4f46e5';
+            bullets.appendChild(bullet);
+          });
+          td.appendChild(bullets);
         }
-        const includeOrigins = (origSet.size === 0) ? new Set(['MN','FS']) : new Set(Array.from(origSet).filter(x => x === 'MN' || x === 'FS'));
-        const extra = [];
-        if (lpPairs.size > 0 && includeOrigins.size > 0) {
-          const seen = new Set();
-          for (const t of baseTasks) {
-            const a = normalizeStr(t.ALOJAMENTO);
-            const o = normalizeStr(t.ORIGEM).toUpperCase();
-            const keyPair = `${t.DATA}||${a}`;
-            if (!lpPairs.has(keyPair)) continue;
-            if (!includeOrigins.has(o)) continue;
-            if (alojSet.size > 0 && !alojSet.has(a === '' ? '' : a)) continue;
-            const k = `${o}|${t.DATA}|${t.HORA || ''}|${a}|${t.TAREFA || ''}|${normalizeStr(t.UTILIZADOR)}`;
-            if (seen.has(k)) continue;
-            seen.add(k);
-            extra.push(t);
-          }
-        }
-        const finalTasks = initiallyMatched.concat(extra);
 
         finalTasks.forEach(t => {
           const div = document.createElement('div');
@@ -421,20 +571,25 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       tbody.appendChild(tr);
     }
+    renderSelectedDayCards();
   }
 
   // navegação mês a mês
   document.getElementById('prev-month').onclick = () => {
     if (currentMonth === 0) { currentMonth = 11; currentYear--; } else { currentMonth--; }
+    selectedDateIso = toLocalIso(new Date(currentYear, currentMonth, 1));
     loadCalendar(currentYear, currentMonth);
   };
   document.getElementById('next-month').onclick = () => {
     if (currentMonth === 11) { currentMonth = 0; currentYear++; } else { currentMonth++; }
+    selectedDateIso = toLocalIso(new Date(currentYear, currentMonth, 1));
     loadCalendar(currentYear, currentMonth);
   };
 
   // Listeners do modal de filtros
   if (btnOpenFilters) btnOpenFilters.addEventListener('click', openFiltersModal);
+  if (btnOpenFiltersMobile) btnOpenFiltersMobile.addEventListener('click', openFiltersModal);
+  if (btnAddTaskMobile) btnAddTaskMobile.addEventListener('click', () => openNovaTarefaModal(selectedDateIso || toLocalIso(new Date())));
   if (btnTabUsers) btnTabUsers.addEventListener('click', () => showTab('users'));
   if (btnTabAloj) btnTabAloj.addEventListener('click', () => showTab('aloj'));
   if (btnTabOrigins) btnTabOrigins.addEventListener('click', () => showTab('origins'));
@@ -491,6 +646,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const endDate = new Date(lastDay);
     endDate.setDate(lastDay.getDate() + shiftEnd);
     renderCalendar(startDate, endDate, loadedTasks || []);
+    renderSelectedDayCards();
   });
 
   if (notaTarefaForm) {
@@ -534,6 +690,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Resumo inicial
   updateFiltersSummary();
+  renderSelectedDayCards();
 
   loadCalendar(currentYear, currentMonth);
+  window.addEventListener('resize', renderSelectedDayCards);
 });
