@@ -1,4 +1,4 @@
-const PLANNER2 = {
+﻿const PLANNER2 = {
   startHour: 7,
   endHour: 23,
   slotMinutes: 30,
@@ -28,6 +28,11 @@ const parseTime = (timeStr, fallback) => {
   if (Number.isNaN(h)) h = parseInt(fallback.split(':')[0], 10);
   if (Number.isNaN(m)) m = parseInt(fallback.split(':')[1], 10);
   return { h, m };
+};
+
+const hasDefinedPlannerTime = (timeStr) => {
+  const time = String(timeStr || '').trim();
+  return !!time && time !== 'N/D';
 };
 
 const timeToIndex = (h, m) => {
@@ -333,7 +338,7 @@ const renderPlanner2TeamCards = () => {
         entries.push({
           type: 'clean',
           label: `${item.lodging}`,
-          meta: `${minutesToTime(startMinutes)} · ${item.typology} · ${formatMinutes(item.duration)}`,
+          meta: `${minutesToTime(startMinutes)} Â· ${item.typology} Â· ${formatMinutes(item.duration)}`,
           address: item.address,
           stamp: item.stamp,
           lodging: item.lodging,
@@ -351,7 +356,7 @@ const renderPlanner2TeamCards = () => {
           if (entry.start != null && entry.end != null && lunchStart >= entry.start && lunchStart <= entry.end) {
             entries.splice(i + 1, 0, {
               type: 'lunch',
-              label: `Almoço ${minutesToTime(entry.end)}`,
+              label: `AlmoÃ§o ${minutesToTime(entry.end)}`,
               start: entry.end,
               end: entry.end + lunchMinutes
             });
@@ -362,7 +367,7 @@ const renderPlanner2TeamCards = () => {
         if (!inserted) {
           entries.push({
             type: 'lunch',
-            label: `Almoço ${minutesToTime(lunchStart)}`,
+            label: `AlmoÃ§o ${minutesToTime(lunchStart)}`,
             start: lunchStart,
             end: lunchStart + lunchMinutes
           });
@@ -481,7 +486,7 @@ const renderPlanner2TeamCards = () => {
         if (current > latestStart) {
           if (allowViolations) {
             penalty += 100000;
-            alerts.push('Sem tempo para almoço');
+            alerts.push('Sem tempo para almoÃ§o');
             lunchTaken = true;
             lunchStart = current;
             return true;
@@ -492,7 +497,7 @@ const renderPlanner2TeamCards = () => {
         if (lunchAt > latestStart) {
           if (allowViolations) {
             penalty += 100000;
-            alerts.push('Almoço fora da janela');
+            alerts.push('AlmoÃ§o fora da janela');
             lunchTaken = true;
             lunchStart = lunchAt;
             return true;
@@ -510,7 +515,7 @@ const renderPlanner2TeamCards = () => {
 
       for (let i = 0; i <= order.length; i += 1) {
         if (i === lunchIndex) {
-          if (!insertLunch()) return { valid: false, penalty: Infinity, alerts: ['Sem almoço'] };
+          if (!insertLunch()) return { valid: false, penalty: Infinity, alerts: ['Sem almoÃ§o'] };
         }
         if (i === order.length) break;
         const item = order[i];
@@ -548,16 +553,16 @@ const renderPlanner2TeamCards = () => {
       }
 
       if (!lunchTaken) {
-        if (!insertLunch()) return { valid: false, penalty: Infinity, alerts: ['Sem almoço'] };
+        if (!insertLunch()) return { valid: false, penalty: Infinity, alerts: ['Sem almoÃ§o'] };
       }
 
       if (current > teamEndMin) {
         const overtime = current - teamEndMin;
         if (allowViolations) {
           penalty += overtime * 500;
-          alerts.push('Fim após horário');
+          alerts.push('Fim apÃ³s horÃ¡rio');
         } else {
-          return { valid: false, penalty: Infinity, alerts: ['Fim após horário'] };
+          return { valid: false, penalty: Infinity, alerts: ['Fim apÃ³s horÃ¡rio'] };
         }
       }
 
@@ -636,7 +641,7 @@ const renderPlanner2TeamCards = () => {
           startTime: chosen && Array.isArray(chosen.scheduleTimes) && chosen.scheduleTimes.length ? chosen.scheduleTimes[0] : teamStartMin,
           lunchMinutes,
           lunchStart: chosen ? chosen.lunchStart : null,
-          alerts: chosen ? chosen.alerts : ['Sem solução válida'],
+          alerts: chosen ? chosen.alerts : ['Sem soluÃ§Ã£o vÃ¡lida'],
           valid: !!(chosen && chosen.valid)
         }
       };
@@ -691,7 +696,7 @@ const renderPlanner2TeamCards = () => {
       plannedMeta.className = 'planner2-team-section-meta';
       const travelMinutes = Math.round((plannedMetrics.travelSeconds || 0) / 60);
       const endText = minutesToTime(plannedMetrics.endTime || teamStartMin);
-      plannedMeta.textContent = `${Number(plannedMetrics.totalKm || 0).toFixed(2)} km · Desloc. ${formatMinutes(travelMinutes)} · Espera ${formatMinutes(plannedMetrics.waitMinutes || 0)} · Fim ${endText} · Almoço ${plannedMetrics.lunchMinutes || 0}m`;
+      plannedMeta.textContent = `${Number(plannedMetrics.totalKm || 0).toFixed(2)} km Â· Desloc. ${formatMinutes(travelMinutes)} Â· Espera ${formatMinutes(plannedMetrics.waitMinutes || 0)} Â· Fim ${endText} Â· AlmoÃ§o ${plannedMetrics.lunchMinutes || 0}m`;
       plannedWrap.appendChild(plannedMeta);
     }
 
@@ -722,14 +727,14 @@ const renderPlanner2TeamCards = () => {
       + (suggestionMetrics.totalKm || 0)
     ) : null;
     const suggestionWorseOrEqual = plannedScore != null && suggestedScore != null && suggestedScore >= plannedScore;
-    suggestedTitle.textContent = 'Sugestão';
+    suggestedTitle.textContent = 'SugestÃ£o';
     if (!sameOrder && !suggestionWorseOrEqual) {
       const metaLine = document.createElement('div');
       metaLine.className = 'planner2-team-section-meta';
       const travelMinutes = Math.round((suggestionMetrics.travelSeconds || 0) / 60);
       const fallbackStart = plannedTimes.length ? plannedTimes[0] : 0;
       const endText = minutesToTime(suggestionMetrics.endTime || fallbackStart);
-      metaLine.textContent = `${Number(suggestionMetrics.totalKm || 0).toFixed(2)} km · Desloc. ${formatMinutes(travelMinutes)} · Espera ${formatMinutes(suggestionMetrics.waitMinutes || 0)} · Fim ${endText} · Almoço ${suggestionMetrics.lunchMinutes || 0}m`;
+      metaLine.textContent = `${Number(suggestionMetrics.totalKm || 0).toFixed(2)} km Â· Desloc. ${formatMinutes(travelMinutes)} Â· Espera ${formatMinutes(suggestionMetrics.waitMinutes || 0)} Â· Fim ${endText} Â· AlmoÃ§o ${suggestionMetrics.lunchMinutes || 0}m`;
       const applyBtn = document.createElement('button');
       applyBtn.type = 'button';
       applyBtn.className = 'btn btn-sm btn-outline-primary planner2-team-apply';
@@ -844,13 +849,14 @@ const renderRows = (data, slots) => {
 
     const checkoutHas = !!row.checkout_reservation;
     if (checkoutHas) {
+      const checkoutHasDefinedTime = hasDefinedPlannerTime(row.checkout_time);
       let { h, m } = parseTime(row.checkout_time, '11:00');
       if (h < 7 || (h === 7 && m <= 0)) {
         h = 7;
         m = 30;
       }
       const endIdx = timeToIndex(h, m);
-      const checkoutLabel = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      const checkoutLabel = checkoutHasDefinedTime ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}` : 'N/D';
       const bar = document.createElement('div');
       bar.className = 'planner2-bar planner2-bar-checkout';
       bar.style.left = `${lodgeWidth}px`;
@@ -879,6 +885,7 @@ const renderRows = (data, slots) => {
 
     const checkinHas = !!row.checkin_reservation;
     if (checkinHas) {
+      const checkinHasDefinedTime = hasDefinedPlannerTime(row.checkin_time);
       const originalTime = parseTime(row.checkin_time, '15:00');
       let { h, m } = originalTime;
       let barHour = h;
@@ -891,7 +898,8 @@ const renderRows = (data, slots) => {
       const totalSlots = slots.length;
       const guests = Number(row.checkin_people || 0);
       const nights = Number(row.checkin_nights || 0);
-      const checkinLabel = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')} · ${guests}P · ${nights}N`;
+      const checkinTimeLabel = checkinHasDefinedTime ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}` : 'N/D';
+      const checkinLabel = `${checkinTimeLabel} Â· ${guests}P Â· ${nights}N`;
       const bar = document.createElement('div');
       bar.className = 'planner2-bar planner2-bar-checkin';
       bar.style.left = `${lodgeWidth + startIdx * PLANNER2.slotWidth}px`;
@@ -902,7 +910,7 @@ const renderRows = (data, slots) => {
       attachTooltip(bar, [
         `Hóspede: ${guestName || '-'}`,
         `País: ${guestCountry || '-'}`,
-        `Checkin: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,
+        `Checkin: ${checkinTimeLabel}`,
         `Hóspedes: ${guests}`,
         `Noites: ${nights}`,
         `Tipologia: ${typology || '-'}`
@@ -936,7 +944,7 @@ const renderRows = (data, slots) => {
       attachTooltip(bar, tooltipLines.join('\n'), tooltip);
       const label = document.createElement('span');
       label.className = 'planner2-bar-label planner2-bar-label-left';
-      label.textContent = guests && nights ? `${guests}P · ${nights}N` : '';
+      label.textContent = guests && nights ? `${guests}P Â· ${nights}N` : '';
       bar.appendChild(label);
       tr.appendChild(bar);
     }
@@ -1401,3 +1409,4 @@ document.addEventListener('mouseup', () => {
     });
   }
 });
+
