@@ -68,6 +68,24 @@ def _week_bounds(day_value):
     return week_start, week_end
 
 
+def _month_bounds(day_value):
+    month_start = day_value.replace(day=1)
+    if month_start.month == 12:
+        month_end = date(month_start.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(month_start.year, month_start.month + 1, 1) - timedelta(days=1)
+    return month_start, month_end
+
+
+def _month_pickup_season(day_value):
+    month = int(day_value.month)
+    if month == 3:
+        return "MID"
+    if 4 <= month <= 10:
+        return "ALTA"
+    return "BAIXA"
+
+
 def _clamp(value, min_value, max_value):
     return min(max(value, min_value), max_value)
 
@@ -377,6 +395,19 @@ def ensure_pricing_schema(session):
             );
         END
         """,
+        """
+        IF OBJECT_ID('dbo.PR_PICKUP_CURVE_MENSAL', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.PR_PICKUP_CURVE_MENSAL (
+                TEMPORADA NVARCHAR(20) NOT NULL,
+                LEAD_DAYS INT NOT NULL,
+                OCUP_ALVO DECIMAL(7,2) NOT NULL,
+                CONSTRAINT PK_PR_PICKUP_CURVE_MENSAL PRIMARY KEY (TEMPORADA, LEAD_DAYS),
+                CONSTRAINT CK_PR_PICKUP_CURVE_MENSAL_TEMPORADA CHECK (TEMPORADA IN ('ALTA', 'MID', 'BAIXA')),
+                CONSTRAINT CK_PR_PICKUP_CURVE_MENSAL_OCUP CHECK (OCUP_ALVO BETWEEN 0 AND 100)
+            );
+        END
+        """,
         f"""
         IF OBJECT_ID('dbo.PR_OVERRIDE', 'U') IS NULL
         BEGIN
@@ -532,9 +563,11 @@ def _load_pricing_inputs(session, start_date, end_date, alojamento=None):
             "events": [],
             "event_years": {},
             "pickup_curves": {},
+            "monthly_pickup_curves": {},
             "overrides": {},
             "reserved_days": {},
             "week_occupancy": {},
+            "month_occupancy": {},
         }
 
     profile_ids = sorted({int(row["PERFIL_ID"]) for row in aloj_rows if row.get("PERFIL_ID") is not None})
@@ -641,6 +674,27 @@ def _load_pricing_inputs(session, start_date, end_date, alojamento=None):
                 (int(row["LEAD_DAYS"]), _safe_decimal(row.get("OCUP_ALVO"), "0"))
             )
 
+    monthly_pickup_curves = {}
+    try:
+        rows = session.execute(
+            text(
+                """
+                SELECT TEMPORADA, LEAD_DAYS, OCUP_ALVO
+                FROM dbo.PR_PICKUP_CURVE_MENSAL
+                ORDER BY TEMPORADA ASC, LEAD_DAYS ASC
+                """
+            )
+        ).mappings().all()
+        for row in rows:
+            season_code = str(row.get("TEMPORADA") or "").strip().upper()
+            if not season_code:
+                continue
+            monthly_pickup_curves.setdefault(season_code, []).append(
+                (int(row["LEAD_DAYS"]), _safe_decimal(row.get("OCUP_ALVO"), "0"))
+            )
+    except Exception:
+        monthly_pickup_curves = {}
+
     override_sql = """
         SELECT
             OVR_ID,
@@ -712,6 +766,26 @@ def _load_pricing_inputs(session, start_date, end_date, alojamento=None):
             week_occupancy[(aloj_key, week_cursor)] = (Decimal(occupied_days) / Decimal("7")) * Decimal("100")
             week_cursor += timedelta(days=7)
 
+    month_occupancy = {}
+    month_cursor = date(start_date.year, start_date.month, 1)
+    last_month = date(end_date.year, end_date.month, 1)
+    month_starts = []
+    while month_cursor <= last_month:
+        month_starts.append(month_cursor)
+        if month_cursor.month == 12:
+            month_cursor = date(month_cursor.year + 1, 1, 1)
+        else:
+            month_cursor = date(month_cursor.year, month_cursor.month + 1, 1)
+
+    for row in aloj_rows:
+        aloj_key = _aloj_cache_key(row.get("AL_NOME"))
+        reserved_set = reserved_days.get(aloj_key, set())
+        for month_start in month_starts:
+            month_end = _month_bounds(month_start)[1]
+            total_days = (month_end - month_start).days + 1
+            occupied_days = sum(1 for offset in range(total_days) if (month_start + timedelta(days=offset)) in reserved_set)
+            month_occupancy[(aloj_key, month_start)] = (Decimal(occupied_days) / Decimal(total_days)) * Decimal("100")
+
     return {
         "alojamentos": aloj_rows,
         "profiles": profiles,
@@ -720,15 +794,22 @@ def _load_pricing_inputs(session, start_date, end_date, alojamento=None):
         "events": events,
         "event_years": event_years,
         "pickup_curves": pickup_curves,
+        "monthly_pickup_curves": monthly_pickup_curves,
         "overrides": overrides,
         "reserved_days": reserved_days,
         "week_occupancy": week_occupancy,
+        "month_occupancy": month_occupancy,
     }
 
 
 def get_occupancy_week(alojamento, week_start, week_end, cached_week_occupancy=None):
     cache = cached_week_occupancy or {}
     return cache.get((_aloj_cache_key(alojamento), week_start), Decimal("0"))
+
+
+def get_occupancy_month(alojamento, month_start, cached_month_occupancy=None):
+    cache = cached_month_occupancy or {}
+    return cache.get((_aloj_cache_key(alojamento), month_start), Decimal("0"))
 
 
 def _resolve_event_factor(day_value, events, event_years):
@@ -838,6 +919,7 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
             total_rows += 1
             iso_year, iso_week_num, iso_week = _iso_week_parts(day_value)
             week_start, week_end = _week_bounds(day_value)
+            month_start, month_end = _month_bounds(day_value)
 
             month_index = inputs["seasonality"].get(day_value.month, Decimal("100"))
             month_factor = month_index / Decimal("100")
@@ -851,6 +933,18 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
             preco = price_after_event
 
             is_available = day_value not in reserved
+            month_season = _month_pickup_season(day_value)
+            month_curve = inputs["monthly_pickup_curves"].get(month_season, [])
+            month_lead_days = (month_start - today).days
+            month_target_occ = _interpolate_curve(month_curve, month_lead_days)
+            month_real_occ = get_occupancy_month(aloj_name, month_start, inputs["month_occupancy"])
+            month_deviation = month_real_occ - month_target_occ
+            month_pickup_adjustment = month_deviation * profile["k_pickup"]
+            month_pickup_adjustment = _clamp(month_pickup_adjustment, profile["lim_min"], profile["lim_max"])
+            if is_available and month_curve:
+                preco *= Decimal("1") + month_pickup_adjustment
+            price_after_month_pickup = preco
+
             lead_days = (week_start - today).days
             target_occ = _interpolate_curve(inputs["pickup_curves"].get(profile_id, []), lead_days)
             real_occ = get_occupancy_week(aloj_name, week_start, week_end, inputs["week_occupancy"])
@@ -936,6 +1030,7 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                         "after_month": _to_float(_quantize_money(price_after_month)),
                         "after_dow": _to_float(_quantize_money(price_after_dow)),
                         "after_event": _to_float(_quantize_money(price_after_event)),
+                        "after_pickup_month": _to_float(_quantize_money(price_after_month_pickup)),
                         "after_pickup": _to_float(_quantize_money(price_after_pickup)),
                         "after_last_min": _to_float(_quantize_money(price_after_last_min)),
                         "after_clamp": _to_float(_quantize_money(price_after_clamp)),
@@ -960,6 +1055,19 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                         if event_info
                         else None
                     ),
+                    "pickup_month": {
+                        "applied": bool(is_available and month_curve),
+                        "season": month_season,
+                        "lead_days": month_lead_days,
+                        "target_occ": _to_float(month_target_occ.quantize(Decimal("0.01"))),
+                        "real_occ": _to_float(month_real_occ.quantize(Decimal("0.01"))),
+                        "deviation": _to_float(month_deviation.quantize(Decimal("0.01"))),
+                        "k": _to_float(profile["k_pickup"]),
+                        "adjustment_pct": _to_float((month_pickup_adjustment * Decimal("100")).quantize(Decimal("0.01"))),
+                        "month_start": month_start.isoformat(),
+                        "month_end": month_end.isoformat(),
+                        "result": _to_float(_quantize_money(price_after_month_pickup)),
+                    },
                     "pickup": {
                         "applied": bool(is_available),
                         "lead_days": lead_days,
@@ -1319,6 +1427,424 @@ def _load_pricing_settings_state():
     }
 
 
+PICKUP_CURVE_SCOPE_OPTIONS = {
+    "weekly": {"kind": "weekly", "label": "Semanal"},
+    "monthly_high": {"kind": "monthly", "season": "ALTA", "label": "Mensal · High Season"},
+    "monthly_mid": {"kind": "monthly", "season": "MID", "label": "Mensal · Mid Season"},
+    "monthly_low": {"kind": "monthly", "season": "BAIXA", "label": "Mensal · Low Season"},
+}
+PICKUP_CURVE_HORIZON_OPTIONS = (60, 90, 120, 150, 180)
+
+
+def _validate_pickup_curve_scope(scope):
+    key = str(scope or "").strip().lower()
+    config = PICKUP_CURVE_SCOPE_OPTIONS.get(key)
+    if not config:
+        raise ValueError("Scope de curva inválido.")
+    return key, config
+
+
+def _validate_pickup_curve_horizon(value):
+    try:
+        horizon_days = int(value)
+    except Exception as exc:
+        raise ValueError("Horizonte inválido.") from exc
+    if horizon_days not in PICKUP_CURVE_HORIZON_OPTIONS:
+        raise ValueError("Horizonte inválido.")
+    return horizon_days
+
+
+def _pickup_curve_grid(horizon_days):
+    return list(range(horizon_days, -1, -5))
+
+
+def _pickup_curve_source_points(scope, perfil_id=None):
+    scope_key, scope_config = _validate_pickup_curve_scope(scope)
+    if scope_config["kind"] == "weekly":
+        if perfil_id is None:
+            raise ValueError("O perfil é obrigatório para a curva semanal.")
+        rows = db.session.execute(
+            text(
+                """
+                SELECT LEAD_DAYS, OCUP_ALVO
+                FROM dbo.PR_PICKUP_CURVE
+                WHERE PERFIL_ID = :perfil_id
+                ORDER BY LEAD_DAYS ASC
+                """
+            ),
+            {"perfil_id": int(perfil_id)},
+        ).mappings().all()
+    else:
+        rows = db.session.execute(
+            text(
+                """
+                SELECT LEAD_DAYS, OCUP_ALVO
+                FROM dbo.PR_PICKUP_CURVE_MENSAL
+                WHERE TEMPORADA = :temporada
+                ORDER BY LEAD_DAYS ASC
+                """
+            ),
+            {"temporada": scope_config["season"]},
+        ).mappings().all()
+
+    return [(int(row["LEAD_DAYS"]), _safe_decimal(row.get("OCUP_ALVO"), "0")) for row in rows]
+
+
+def _default_pickup_curve_horizon(scope, perfil_id=None):
+    source_points = _pickup_curve_source_points(scope, perfil_id=perfil_id)
+    if not source_points:
+        return PICKUP_CURVE_HORIZON_OPTIONS[1]
+
+    max_lead_days = max(lead_days for lead_days, _ in source_points)
+    if max_lead_days in PICKUP_CURVE_HORIZON_OPTIONS:
+        return max_lead_days
+
+    for option in PICKUP_CURVE_HORIZON_OPTIONS:
+        if option >= max_lead_days:
+            return option
+    return PICKUP_CURVE_HORIZON_OPTIONS[-1]
+
+
+def _pickup_curve_period_options(scope, horizon_days, today_value=None):
+    scope_key, scope_config = _validate_pickup_curve_scope(scope)
+    horizon_days = _validate_pickup_curve_horizon(horizon_days)
+    today_value = today_value or date.today()
+    horizon_end = today_value + timedelta(days=horizon_days)
+
+    if scope_config["kind"] == "weekly":
+        week_start, _ = _week_bounds(today_value)
+        last_week_start, _ = _week_bounds(horizon_end)
+        options = []
+        cursor = week_start
+        while cursor <= last_week_start:
+            iso_year, iso_week, _ = cursor.isocalendar()
+            options.append(
+                {
+                    "value": f"{iso_year}-W{iso_week:02d}",
+                    "label": f"Semana {iso_week:02d}",
+                    "start_date": cursor.isoformat(),
+                }
+            )
+            cursor += timedelta(days=7)
+        return options
+
+    month_names = {
+        1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril", 5: "Maio", 6: "Junho",
+        7: "Julho", 8: "Agosto", 9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro",
+    }
+    cursor = today_value.replace(day=1)
+    last_month = horizon_end.replace(day=1)
+    options = []
+    while cursor <= last_month:
+        options.append(
+            {
+                "value": f"{cursor.year}-{cursor.month:02d}",
+                "label": f"{month_names[cursor.month]} {cursor.year}",
+                "start_date": cursor.isoformat(),
+            }
+        )
+        if cursor.month == 12:
+            cursor = date(cursor.year + 1, 1, 1)
+        else:
+            cursor = date(cursor.year, cursor.month + 1, 1)
+    return options
+
+
+def _parse_pickup_curve_period(scope, period_value):
+    scope_key, scope_config = _validate_pickup_curve_scope(scope)
+    raw = str(period_value or "").strip()
+    if not raw:
+        raise ValueError("Período em falta.")
+
+    if scope_config["kind"] == "weekly":
+        if "-W" not in raw:
+            raise ValueError("Semana inválida.")
+        year_raw, week_raw = raw.split("-W", 1)
+        try:
+            iso_year = int(year_raw)
+            iso_week = int(week_raw)
+            period_start = date.fromisocalendar(iso_year, iso_week, 1)
+        except Exception as exc:
+            raise ValueError("Semana inválida.") from exc
+        period_end = period_start + timedelta(days=6)
+        return {
+            "value": raw,
+            "label": f"Semana {iso_week:02d}",
+            "start_date": period_start,
+            "end_date": period_end,
+            "kind": "weekly",
+        }
+
+    try:
+        year_raw, month_raw = raw.split("-", 1)
+        period_start = date(int(year_raw), int(month_raw), 1)
+    except Exception as exc:
+        raise ValueError("Mês inválido.") from exc
+    period_end = _month_bounds(period_start)[1]
+    return {
+        "value": raw,
+        "label": f"{period_start.month:02d}/{period_start.year}",
+        "start_date": period_start,
+        "end_date": period_end,
+        "kind": "monthly",
+    }
+
+
+def _period_occupancy_pct(alojamento, start_date, end_date):
+    alojamento = _normalize_alojamento(alojamento)
+    if not alojamento:
+        return Decimal("0")
+
+    rows = db.session.execute(
+        text(
+            """
+            SELECT
+                CAST(RS.DATAIN AS date) AS DATA_INI,
+                CAST(RS.DATAOUT AS date) AS DATA_FIM
+            FROM dbo.RS
+            WHERE LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) = :alojamento
+              AND RS.DATAIN IS NOT NULL
+              AND RS.DATAOUT IS NOT NULL
+              AND ISNULL(RS.CANCELADA, 0) = 0
+              AND CAST(RS.DATAOUT AS date) > :start_date
+              AND CAST(RS.DATAIN AS date) <= :end_date
+            """
+        ),
+        {"alojamento": alojamento, "start_date": start_date, "end_date": end_date},
+    ).mappings().all()
+
+    occupied_days = set()
+    period_end_exclusive = end_date + timedelta(days=1)
+    for row in rows:
+        stay_start = max(row.get("DATA_INI"), start_date)
+        stay_end_exclusive = min(row.get("DATA_FIM"), period_end_exclusive)
+        if not stay_start or not stay_end_exclusive or stay_start >= stay_end_exclusive:
+            continue
+        cursor = stay_start
+        while cursor < stay_end_exclusive:
+            occupied_days.add(cursor)
+            cursor += timedelta(days=1)
+
+    total_days = (end_date - start_date).days + 1
+    if total_days <= 0:
+        return Decimal("0")
+    return (Decimal(len(occupied_days)) / Decimal(total_days)) * Decimal("100")
+
+
+def _period_occupancy_pct_by_booking_date(alojamento, start_date, end_date, booked_until):
+    alojamento = _normalize_alojamento(alojamento)
+    if not alojamento:
+        return Decimal("0")
+
+    rows = db.session.execute(
+        text(
+            """
+            SELECT
+                CAST(RS.DATAIN AS date) AS DATA_INI,
+                CAST(RS.DATAOUT AS date) AS DATA_FIM
+            FROM dbo.RS
+            WHERE LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) = :alojamento
+              AND RS.DATAIN IS NOT NULL
+              AND RS.DATAOUT IS NOT NULL
+              AND RS.RDATA IS NOT NULL
+              AND ISNULL(RS.CANCELADA, 0) = 0
+              AND CAST(RS.RDATA AS date) <= :booked_until
+              AND CAST(RS.DATAOUT AS date) > :start_date
+              AND CAST(RS.DATAIN AS date) <= :end_date
+            """
+        ),
+        {
+            "alojamento": alojamento,
+            "booked_until": booked_until,
+            "start_date": start_date,
+            "end_date": end_date,
+        },
+    ).mappings().all()
+
+    occupied_days = set()
+    period_end_exclusive = end_date + timedelta(days=1)
+    for row in rows:
+        stay_start = max(row.get("DATA_INI"), start_date)
+        stay_end_exclusive = min(row.get("DATA_FIM"), period_end_exclusive)
+        if not stay_start or not stay_end_exclusive or stay_start >= stay_end_exclusive:
+            continue
+        cursor = stay_start
+        while cursor < stay_end_exclusive:
+            occupied_days.add(cursor)
+            cursor += timedelta(days=1)
+
+    total_days = (end_date - start_date).days + 1
+    if total_days <= 0:
+        return Decimal("0")
+    return (Decimal(len(occupied_days)) / Decimal(total_days)) * Decimal("100")
+
+
+def _load_pickup_curve_comparison(scope, horizon_days, alojamento=None, period_value=None, perfil_id=None):
+    scope_key, scope_config = _validate_pickup_curve_scope(scope)
+    horizon_days = _validate_pickup_curve_horizon(horizon_days)
+    period = _parse_pickup_curve_period(scope_key, period_value)
+    source_points = _pickup_curve_source_points(scope_key, perfil_id=perfil_id)
+    grid = _pickup_curve_grid(horizon_days)
+    today_value = date.today()
+    lead_days = (period["start_date"] - today_value).days
+    target_occ = _interpolate_curve(source_points, lead_days) if source_points else Decimal("0")
+    real_occ = _period_occupancy_pct_by_booking_date(alojamento, period["start_date"], period["end_date"], today_value)
+    deviation = real_occ - target_occ
+    nearest_lead_days = min(grid, key=lambda item: abs(item - lead_days)) if grid else 0
+    actual_points = []
+    for point_lead_days in grid:
+        booked_until = period["start_date"] - timedelta(days=point_lead_days)
+        known = booked_until <= today_value
+        actual_pct = _period_occupancy_pct_by_booking_date(
+            alojamento,
+            period["start_date"],
+            period["end_date"],
+            booked_until,
+        )
+        actual_points.append(
+            {
+                "lead_days": int(point_lead_days),
+                "booked_until": booked_until.isoformat(),
+                "known": bool(known),
+                "real_occ": _to_float(actual_pct.quantize(Decimal("0.01"))),
+                "target_occ": _to_float(_interpolate_curve(source_points, point_lead_days).quantize(Decimal("0.01"))) if source_points else 0,
+            }
+        )
+
+    return {
+        "alojamento": alojamento or "",
+        "period_value": period["value"],
+        "period_label": period["label"],
+        "period_start": period["start_date"].isoformat(),
+        "period_end": period["end_date"].isoformat(),
+        "lead_days": int(lead_days),
+        "booked_until": today_value.isoformat(),
+        "nearest_lead_days": int(nearest_lead_days),
+        "target_occ": _to_float(target_occ.quantize(Decimal("0.01"))),
+        "real_occ": _to_float(real_occ.quantize(Decimal("0.01"))),
+        "deviation": _to_float(deviation.quantize(Decimal("0.01"))),
+        "kind": scope_config["kind"],
+        "actual_points": actual_points,
+    }
+
+
+def _pickup_curve_profiles():
+    ensure_pricing_schema(db.session)
+    rows = db.session.execute(
+        text(
+            """
+            SELECT PERFIL_ID, NOME
+            FROM dbo.PR_PERFIL
+            ORDER BY NOME ASC, PERFIL_ID ASC
+            """
+        )
+    ).mappings().all()
+    return [{"perfil_id": int(row["PERFIL_ID"]), "nome": row.get("NOME") or ""} for row in rows]
+
+
+def _load_pickup_curve_points(scope, horizon_days, perfil_id=None):
+    ensure_pricing_schema(db.session)
+    scope_key, scope_config = _validate_pickup_curve_scope(scope)
+    if horizon_days in (None, ""):
+        horizon_days = _default_pickup_curve_horizon(scope_key, perfil_id=perfil_id)
+    else:
+        horizon_days = _validate_pickup_curve_horizon(horizon_days)
+
+    source_points = _pickup_curve_source_points(scope_key, perfil_id=perfil_id)
+
+    points = []
+    for lead_days in _pickup_curve_grid(horizon_days):
+        value = _interpolate_curve(source_points, lead_days)
+        if source_points and lead_days > source_points[-1][0]:
+            value = source_points[-1][1]
+        points.append({"lead_days": int(lead_days), "ocup_alvo": _to_float(value.quantize(Decimal("0.01")))})
+
+    return {
+        "scope": scope_key,
+        "label": scope_config["label"],
+        "kind": scope_config["kind"],
+        "season": scope_config.get("season"),
+        "perfil_id": int(perfil_id) if perfil_id is not None else None,
+        "horizon_days": horizon_days,
+        "points": points,
+        "source_points": [
+            {"lead_days": int(lead_days), "ocup_alvo": _to_float(value.quantize(Decimal("0.01")))}
+            for lead_days, value in source_points
+        ],
+    }
+
+
+def _save_pickup_curve_points(scope, horizon_days, points, perfil_id=None):
+    ensure_pricing_schema(db.session)
+    scope_key, scope_config = _validate_pickup_curve_scope(scope)
+    horizon_days = _validate_pickup_curve_horizon(horizon_days)
+    expected_days = _pickup_curve_grid(horizon_days)
+
+    if scope_config["kind"] == "weekly":
+        if perfil_id is None:
+            raise ValueError("O perfil é obrigatório para a curva semanal.")
+        perfil_id = int(perfil_id)
+        exists = db.session.execute(
+            text("SELECT COUNT(*) FROM dbo.PR_PERFIL WHERE PERFIL_ID = :perfil_id"),
+            {"perfil_id": perfil_id},
+        ).scalar_one()
+        if int(exists or 0) == 0:
+            raise ValueError("Perfil não encontrado.")
+
+    if not isinstance(points, list):
+        raise ValueError("Formato de pontos inválido.")
+
+    normalized = {}
+    for item in points:
+        try:
+            lead_days = int(item.get("lead_days"))
+        except Exception as exc:
+            raise ValueError("Lead day inválido.") from exc
+        if lead_days not in expected_days:
+            raise ValueError("Os pontos têm de respeitar a grelha de 5 em 5 dias.")
+        ocup = _safe_decimal(item.get("ocup_alvo"), "0")
+        if ocup < 0 or ocup > 100:
+            raise ValueError("OCUP_ALVO tem de estar entre 0 e 100.")
+        normalized[lead_days] = ocup.quantize(Decimal("0.01"))
+
+    if sorted(normalized.keys(), reverse=True) != expected_days:
+        raise ValueError("A curva tem de incluir todos os pontos do horizonte selecionado.")
+
+    if scope_config["kind"] == "weekly":
+        db.session.execute(
+            text("DELETE FROM dbo.PR_PICKUP_CURVE WHERE PERFIL_ID = :perfil_id"),
+            {"perfil_id": perfil_id},
+        )
+        for lead_days in expected_days:
+            db.session.execute(
+                text(
+                    """
+                    INSERT INTO dbo.PR_PICKUP_CURVE (PERFIL_ID, LEAD_DAYS, OCUP_ALVO)
+                    VALUES (:perfil_id, :lead_days, :ocup_alvo)
+                    """
+                ),
+                {"perfil_id": perfil_id, "lead_days": lead_days, "ocup_alvo": normalized[lead_days]},
+            )
+    else:
+        db.session.execute(
+            text("DELETE FROM dbo.PR_PICKUP_CURVE_MENSAL WHERE TEMPORADA = :temporada"),
+            {"temporada": scope_config["season"]},
+        )
+        for lead_days in expected_days:
+            db.session.execute(
+                text(
+                    """
+                    INSERT INTO dbo.PR_PICKUP_CURVE_MENSAL (TEMPORADA, LEAD_DAYS, OCUP_ALVO)
+                    VALUES (:temporada, :lead_days, :ocup_alvo)
+                    """
+                ),
+                {"temporada": scope_config["season"], "lead_days": lead_days, "ocup_alvo": normalized[lead_days]},
+            )
+
+    db.session.commit()
+    return _load_pickup_curve_points(scope_key, horizon_days, perfil_id=perfil_id)
+
+
 def _load_pricing_events_state():
     ensure_pricing_schema(db.session)
 
@@ -1436,6 +1962,28 @@ def pricing_planner():
     return render_template("pricing_planner.html", alojamentos=alojamentos, page_title="Price Manager")
 
 
+@pricing_bp.route("/pickup-curves")
+@login_required
+def pricing_pickup_curves():
+    alojamentos = _load_ui_alojamentos()
+    profiles = _pickup_curve_profiles()
+    initial_state = {
+        "scopes": [
+            {"value": key, "label": config["label"], "kind": config["kind"], "season": config.get("season")}
+            for key, config in PICKUP_CURVE_SCOPE_OPTIONS.items()
+        ],
+        "horizons": list(PICKUP_CURVE_HORIZON_OPTIONS),
+        "profiles": profiles,
+        "alojamentos": alojamentos,
+        "today": {
+            "date": date.today().isoformat(),
+            "iso_week": int(date.today().isocalendar()[1]),
+            "month": int(date.today().month),
+        },
+    }
+    return render_template("pickup_curves.html", initial_state=initial_state, page_title="Pickup Curves")
+
+
 @pricing_bp.route("/settings")
 @login_required
 def pricing_settings():
@@ -1454,6 +2002,67 @@ def pricing_events():
 @login_required
 def pricing_api_settings_state():
     return jsonify(_load_pricing_settings_state())
+
+
+@pricing_bp.route("/api/pickup-curves/state")
+@login_required
+def pricing_api_pickup_curves_state():
+    try:
+        scope = request.args.get("scope") or "weekly"
+        horizon_days = request.args.get("horizon_days")
+        perfil_id_raw = request.args.get("perfil_id")
+        perfil_id = int(perfil_id_raw) if str(perfil_id_raw or "").strip() else None
+        alojamento = _normalize_alojamento(request.args.get("alojamento"))
+        if horizon_days in (None, ""):
+            horizon_days = _default_pickup_curve_horizon(scope, perfil_id=perfil_id)
+        else:
+            horizon_days = _validate_pickup_curve_horizon(horizon_days)
+        period_options = _pickup_curve_period_options(scope, horizon_days)
+        period_value = request.args.get("period_value") or (period_options[0]["value"] if period_options else "")
+        payload = {
+            "scopes": [
+                {"value": key, "label": config["label"], "kind": config["kind"], "season": config.get("season")}
+                for key, config in PICKUP_CURVE_SCOPE_OPTIONS.items()
+            ],
+            "horizons": list(PICKUP_CURVE_HORIZON_OPTIONS),
+            "profiles": _pickup_curve_profiles(),
+            "alojamentos": _load_ui_alojamentos(),
+            "period_options": period_options,
+            "selected_period_value": period_value,
+            "curve": _load_pickup_curve_points(scope, horizon_days, perfil_id=perfil_id),
+            "comparison": None,
+        }
+        valid_period_values = {item["value"] for item in period_options}
+        if period_value not in valid_period_values and period_options:
+            period_value = period_options[0]["value"]
+            payload["selected_period_value"] = period_value
+        if alojamento and period_value:
+            payload["comparison"] = _load_pickup_curve_comparison(
+                scope,
+                horizon_days,
+                alojamento=alojamento,
+                period_value=period_value,
+                perfil_id=perfil_id,
+            )
+        return jsonify(payload)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@pricing_bp.route("/api/pickup-curves", methods=["POST"])
+@login_required
+def pricing_api_pickup_curves_save():
+    payload = request.get_json(silent=True) or {}
+    try:
+        scope = payload.get("scope")
+        horizon_days = payload.get("horizon_days")
+        perfil_id_raw = payload.get("perfil_id")
+        perfil_id = int(perfil_id_raw) if str(perfil_id_raw or "").strip() else None
+        points = payload.get("points") or []
+        curve = _save_pickup_curve_points(scope, horizon_days, points, perfil_id=perfil_id)
+        return jsonify({"ok": True, "curve": curve})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @pricing_bp.route("/api/events/state")
@@ -2296,6 +2905,9 @@ def register_pricing(app):
     def _pricing_events_legacy():
         return redirect(url_for("pricing.pricing_events"))
 
+    def _pricing_pickup_curves_legacy():
+        return redirect(url_for("pricing.pricing_pickup_curves"))
+
     app.add_url_rule("/pricing_planner", endpoint="pricing_planner_legacy", view_func=_pricing_planner_legacy)
     app.add_url_rule("/pricing_planner/", endpoint="pricing_planner_legacy_slash", view_func=_pricing_planner_legacy)
     app.add_url_rule("/pricing_config", endpoint="pricing_settings_legacy", view_func=_pricing_settings_legacy)
@@ -2304,6 +2916,10 @@ def register_pricing(app):
     app.add_url_rule("/pricing_settings/", endpoint="pricing_settings_legacy_alt_slash", view_func=_pricing_settings_legacy)
     app.add_url_rule("/pricing_events", endpoint="pricing_events_legacy", view_func=_pricing_events_legacy)
     app.add_url_rule("/pricing_events/", endpoint="pricing_events_legacy_slash", view_func=_pricing_events_legacy)
+    app.add_url_rule("/pickup_curves", endpoint="pricing_pickup_curves_legacy", view_func=_pricing_pickup_curves_legacy)
+    app.add_url_rule("/pickup_curves/", endpoint="pricing_pickup_curves_legacy_slash", view_func=_pricing_pickup_curves_legacy)
+    app.add_url_rule("/pickup-curves", endpoint="pricing_pickup_curves_legacy_alt", view_func=_pricing_pickup_curves_legacy)
+    app.add_url_rule("/pickup-curves/", endpoint="pricing_pickup_curves_legacy_alt_slash", view_func=_pricing_pickup_curves_legacy)
 
     @app.cli.command("pricing:recalc")
     @click.option("--days", default=DEFAULT_HORIZON_DAYS, type=int, show_default=True)

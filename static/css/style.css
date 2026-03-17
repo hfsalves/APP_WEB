@@ -935,6 +935,10 @@ body:not(.authenticated) .main-content {
   gap: 1rem;
   margin-bottom: 1.25rem;
 }
+.login-brand {
+  display: grid;
+  gap: 0.2rem;
+}
 .login-logo-wrap {
   width: 78px;
   height: 78px;
@@ -951,23 +955,18 @@ body:not(.authenticated) .main-content {
   height: 78px;
   object-fit: contain;
 }
-.login-eyebrow {
+.login-title {
   margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-size: 0.75rem;
-  color: #475569;
-}
-.login-card h2 {
-  margin: 0.1rem 0;
   font-weight: 700;
   color: #0f172a;
-  font-size: 1.15rem;
+  font-size: 1.7rem;
+  line-height: 1.1;
 }
 .login-subtitle {
   margin: 0;
   color: #475569;
   font-size: 0.95rem;
+  font-weight: 500;
 }
 .login-form .form-group {
   margin-bottom: 1rem;
@@ -1019,6 +1018,28 @@ body:not(.authenticated) .main-content {
 .login-card .btn-primary:hover,
 .login-card .btn-primary:focus {
   background: linear-gradient(135deg, #2c4160 0%, #111b2a 100%);
+}
+.login-actions {
+  margin-top: 0.85rem;
+  text-align: center;
+}
+.login-forgot-link {
+  font-size: 0.875rem;
+  color: #64748b;
+  text-decoration: none;
+}
+.login-forgot-link:hover,
+.login-forgot-link:focus {
+  color: #334155;
+  text-decoration: underline;
+}
+.login-card-footer {
+  margin-top: 1.1rem;
+  padding-top: 0.95rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  text-align: center;
+  font-size: 0.78rem;
+  color: #94a3b8;
 }
 .login-card .alert {
   border-radius: 10px;

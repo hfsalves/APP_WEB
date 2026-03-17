@@ -898,64 +898,115 @@
     return `<div class="sz_pricing_info_result">${escapeHtml(formatted)}</div>`;
   }
 
+  function parseFlagsValue(value) {
+    if (!value) return null;
+    if (typeof value === 'object') return value;
+    if (typeof value !== 'string') return null;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeFlags(flags) {
+    const parsed = parseFlagsValue(flags) || {};
+    const rawParsed = parseFlagsValue(parsed.raw) || {};
+    const normalized = { ...rawParsed, ...parsed };
+
+    normalized.stages = {
+      ...(rawParsed.stages || {}),
+      ...(parsed.stages || {}),
+    };
+
+    normalized.pickup_month =
+      normalized.pickup_month
+      || normalized.pickup_mensal
+      || normalized.month_pickup
+      || normalized.monthly_pickup
+      || rawParsed.pickup_month
+      || rawParsed.pickup_mensal
+      || rawParsed.month_pickup
+      || rawParsed.monthly_pickup
+      || null;
+
+    if (normalized.pickup_month && normalized.stages.after_pickup_month == null) {
+      normalized.stages.after_pickup_month =
+        numOrNull(normalized.pickup_month.result)
+        ?? numOrNull(normalized.stages.after_month_pickup)
+        ?? null;
+    }
+
+    return normalized;
+  }
+
   function computeStageValues(flags) {
-    const values = { ...(flags?.stages || {}) };
-    let current = numOrNull(values.base ?? flags?.base);
+    const normalizedFlags = normalizeFlags(flags);
+    const values = { ...(normalizedFlags?.stages || {}) };
+    let current = numOrNull(values.base ?? normalizedFlags?.base);
 
     values.base = current;
 
     if (values.after_month == null) {
-      const monthFactor = numOrNull(flags?.month?.fator);
+      const monthFactor = numOrNull(normalizedFlags?.month?.fator);
       values.after_month = current != null && monthFactor != null
         ? current * monthFactor
-        : numOrNull(flags?.month?.result);
+        : numOrNull(normalizedFlags?.month?.result);
     }
     if (values.after_month != null) current = values.after_month;
 
     if (values.after_dow == null) {
-      const dowFactor = numOrNull(flags?.dow?.fator);
+      const dowFactor = numOrNull(normalizedFlags?.dow?.fator);
       values.after_dow = current != null && dowFactor != null
         ? current * dowFactor
-        : numOrNull(flags?.dow?.result);
+        : numOrNull(normalizedFlags?.dow?.result);
     }
     if (values.after_dow != null) current = values.after_dow;
 
     if (values.after_event == null) {
-      const eventFactor = numOrNull(flags?.event?.factor);
+      const eventFactor = numOrNull(normalizedFlags?.event?.factor);
       values.after_event = current != null && eventFactor != null
         ? current * eventFactor
-        : numOrNull(flags?.event?.result);
+        : numOrNull(normalizedFlags?.event?.result);
     }
     if (values.after_event != null) current = values.after_event;
 
+    if (values.after_pickup_month == null) {
+      const pickupMonthAdjPct = numOrNull(normalizedFlags?.pickup_month?.adjustment_pct);
+      values.after_pickup_month = current != null && normalizedFlags?.pickup_month?.applied && pickupMonthAdjPct != null
+        ? current * (1 + (pickupMonthAdjPct / 100))
+        : numOrNull(normalizedFlags?.pickup_month?.result) ?? current;
+    }
+    if (values.after_pickup_month != null) current = values.after_pickup_month;
+
     if (values.after_pickup == null) {
-      const pickupAdjPct = numOrNull(flags?.pickup?.adjustment_pct);
-      values.after_pickup = current != null && flags?.pickup?.applied && pickupAdjPct != null
+      const pickupAdjPct = numOrNull(normalizedFlags?.pickup?.adjustment_pct);
+      values.after_pickup = current != null && normalizedFlags?.pickup?.applied && pickupAdjPct != null
         ? current * (1 + (pickupAdjPct / 100))
-        : numOrNull(flags?.pickup?.result) ?? current;
+        : numOrNull(normalizedFlags?.pickup?.result) ?? current;
     }
     if (values.after_pickup != null) current = values.after_pickup;
 
     if (values.after_last_min == null) {
-      const lastMinPct = numOrNull(flags?.last_min?.discount_pct);
-      values.after_last_min = current != null && flags?.last_min?.applied && lastMinPct != null
+      const lastMinPct = numOrNull(normalizedFlags?.last_min?.discount_pct);
+      values.after_last_min = current != null && normalizedFlags?.last_min?.applied && lastMinPct != null
         ? current * (1 - (lastMinPct / 100))
-        : numOrNull(flags?.last_min?.result) ?? current;
+        : numOrNull(normalizedFlags?.last_min?.result) ?? current;
     }
     if (values.after_last_min != null) current = values.after_last_min;
 
     if (values.after_clamp == null) {
       values.after_clamp = clampNumber(
         current,
-        numOrNull(flags?.clamp?.min),
-        numOrNull(flags?.clamp?.max)
+        numOrNull(normalizedFlags?.clamp?.min),
+        numOrNull(normalizedFlags?.clamp?.max)
       );
     }
     if (values.after_clamp != null) current = values.after_clamp;
 
     if (values.after_smooth == null) {
-      values.after_smooth = numOrNull(flags?.smooth?.to)
-        ?? numOrNull(flags?.smooth?.result)
+      values.after_smooth = numOrNull(normalizedFlags?.smooth?.to)
+        ?? numOrNull(normalizedFlags?.smooth?.result)
         ?? current;
     }
 
@@ -1056,61 +1107,71 @@
   }
 
   function renderFlagsCards(flags) {
+    const normalizedFlags = normalizeFlags(flags);
     const sections = [];
-    if (!flags || typeof flags !== 'object') {
+    if (!normalizedFlags || typeof normalizedFlags !== 'object') {
       flagsCardsEl.innerHTML = '<div class="sz_text_muted">Sem breakdown.</div>';
       return;
     }
-    const stageValues = computeStageValues(flags);
+    const stageValues = computeStageValues(normalizedFlags);
 
     sections.push(infoCard('Base e Resultado', [
-      chip('Base', fmtMoney(flags.base)),
-      chip('Calculado', fmtMoney(flags.result?.preco_calc)),
-      chip('Final', fmtMoney(flags.result?.preco_final)),
-      chip('Disponível', flags.availability?.available ? 'Sim' : 'Não'),
-    ], '', stageResult(stageValues.base ?? flags.base)));
+      chip('Base', fmtMoney(normalizedFlags.base)),
+      chip('Calculado', fmtMoney(normalizedFlags.result?.preco_calc)),
+      chip('Final', fmtMoney(normalizedFlags.result?.preco_final)),
+      chip('Disponível', normalizedFlags.availability?.available ? 'Sim' : 'Não'),
+    ], '', stageResult(stageValues.base ?? normalizedFlags.base)));
 
     sections.push(infoCard('Sazonalidade', [
-      chip('Mês', flags.month?.mes ?? '-'),
-      chip('Índice', flags.month?.indice ?? '-'),
-      chip('Fator', flags.month?.fator ?? '-'),
-    ], '', stageResult(flags.month?.result ?? stageValues.after_month)));
+      chip('Mês', normalizedFlags.month?.mes ?? '-'),
+      chip('Índice', normalizedFlags.month?.indice ?? '-'),
+      chip('Fator', normalizedFlags.month?.fator ?? '-'),
+    ], '', stageResult(normalizedFlags.month?.result ?? stageValues.after_month)));
 
     sections.push(infoCard('Dia da Semana', [
-      chip('DOW', flags.dow?.dow ?? '-'),
-      chip('Fator', flags.dow?.fator ?? '-'),
-    ], '', stageResult(flags.dow?.result ?? stageValues.after_dow)));
+      chip('DOW', normalizedFlags.dow?.dow ?? '-'),
+      chip('Fator', normalizedFlags.dow?.fator ?? '-'),
+    ], '', stageResult(normalizedFlags.dow?.result ?? stageValues.after_dow)));
 
-    if (flags.event) {
+    if (normalizedFlags.event) {
       sections.push(infoCard('Evento', [
-        chip('Nome', flags.event?.nome || '-'),
-        chip('Prioridade', flags.event?.prioridade ?? '-'),
-        chip('Fator', flags.event?.factor ?? '-'),
-      ], '', stageResult(flags.event?.result ?? stageValues.after_event)));
+        chip('Nome', normalizedFlags.event?.nome || '-'),
+        chip('Prioridade', normalizedFlags.event?.prioridade ?? '-'),
+        chip('Fator', normalizedFlags.event?.factor ?? '-'),
+      ], '', stageResult(normalizedFlags.event?.result ?? stageValues.after_event)));
     }
 
+    sections.push(infoCard('Pickup mensal', [
+      chip('Aplicado', normalizedFlags.pickup_month?.applied ? 'Sim' : 'Não'),
+      chip('Temporada', normalizedFlags.pickup_month?.season ?? '-'),
+      chip('Lead', normalizedFlags.pickup_month?.lead_days ?? '-'),
+      chip('Ocup alvo', normalizedFlags.pickup_month?.target_occ ?? '-'),
+      chip('Ocup real', normalizedFlags.pickup_month?.real_occ ?? '-'),
+      chip('Ajuste %', normalizedFlags.pickup_month?.adjustment_pct ?? '-'),
+    ], '', stageResult(normalizedFlags.pickup_month?.result ?? stageValues.after_pickup_month)));
+
     sections.push(infoCard('Pickup', [
-      chip('Aplicado', flags.pickup?.applied ? 'Sim' : 'Não'),
-      chip('Lead', flags.pickup?.lead_days ?? '-'),
-      chip('Ocup alvo', flags.pickup?.target_occ ?? '-'),
-      chip('Ocup real', flags.pickup?.real_occ ?? '-'),
-      chip('Ajuste %', flags.pickup?.adjustment_pct ?? '-'),
-    ], '', stageResult(flags.pickup?.result ?? stageValues.after_pickup)));
+      chip('Aplicado', normalizedFlags.pickup?.applied ? 'Sim' : 'Não'),
+      chip('Lead', normalizedFlags.pickup?.lead_days ?? '-'),
+      chip('Ocup alvo', normalizedFlags.pickup?.target_occ ?? '-'),
+      chip('Ocup real', normalizedFlags.pickup?.real_occ ?? '-'),
+      chip('Ajuste %', normalizedFlags.pickup?.adjustment_pct ?? '-'),
+    ], '', stageResult(normalizedFlags.pickup?.result ?? stageValues.after_pickup)));
 
     sections.push(infoCard('Última Hora', [
-      chip('Configurado %', flags.last_min?.configured_pct ?? '-'),
-      chip('Janela dias', flags.last_min?.window_days ?? '-'),
-      chip('Lead dia', flags.last_min?.stay_lead_days ?? '-'),
-      chip('Aplicado', flags.last_min?.applied ? 'Sim' : 'Não'),
-      chip('Desconto %', flags.last_min?.discount_pct ?? '-'),
-    ], '', stageResult(flags.last_min?.result ?? stageValues.after_last_min)));
+      chip('Configurado %', normalizedFlags.last_min?.configured_pct ?? '-'),
+      chip('Janela dias', normalizedFlags.last_min?.window_days ?? '-'),
+      chip('Lead dia', normalizedFlags.last_min?.stay_lead_days ?? '-'),
+      chip('Aplicado', normalizedFlags.last_min?.applied ? 'Sim' : 'Não'),
+      chip('Desconto %', normalizedFlags.last_min?.discount_pct ?? '-'),
+    ], '', stageResult(normalizedFlags.last_min?.result ?? stageValues.after_last_min)));
 
     sections.push(infoCard('Clamp e Suavização', [
-      chip('Min', fmtMoney(flags.clamp?.min)),
-      chip('Max', fmtMoney(flags.clamp?.max)),
-      chip('Suavizado', flags.smooth?.applied ? 'Sim' : 'Não'),
-      ...(flags.smooth?.applied ? [chip('Para', fmtMoney(flags.smooth?.to))] : []),
-    ], '', stageResult(flags.smooth?.result ?? flags.clamp?.result ?? stageValues.after_smooth ?? stageValues.after_clamp)));
+      chip('Min', fmtMoney(normalizedFlags.clamp?.min)),
+      chip('Max', fmtMoney(normalizedFlags.clamp?.max)),
+      chip('Suavizado', normalizedFlags.smooth?.applied ? 'Sim' : 'Não'),
+      ...(normalizedFlags.smooth?.applied ? [chip('Para', fmtMoney(normalizedFlags.smooth?.to))] : []),
+    ], '', stageResult(normalizedFlags.smooth?.result ?? normalizedFlags.clamp?.result ?? stageValues.after_smooth ?? stageValues.after_clamp)));
 
     flagsCardsEl.innerHTML = sections.filter(Boolean).join('') || '<div class="sz_text_muted">Sem breakdown.</div>';
   }

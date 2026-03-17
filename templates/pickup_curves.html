@@ -1,0 +1,859 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="sz_page sz_pickup_curves_page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar sz_pickup_curves_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Pickup Curves</div>
+        <div class="sz_page_subtitle">Editor visual das curvas semanal e mensal usadas no Price Manager.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="sz_pickup_curves_controls">
+          <div class="sz_field">
+            <label class="sz_label" for="pickupCurveScope">Tipo</label>
+            <select id="pickupCurveScope" class="sz_select"></select>
+          </div>
+          <div class="sz_field" id="pickupCurveProfileField">
+            <label class="sz_label" for="pickupCurveProfile">Perfil</label>
+            <select id="pickupCurveProfile" class="sz_select"></select>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="pickupCurveHorizon">Dias</label>
+            <select id="pickupCurveHorizon" class="sz_select"></select>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="pickupCurveAlojamento">Alojamento</label>
+            <select id="pickupCurveAlojamento" class="sz_select"></select>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="pickupCurvePeriod">Período</label>
+            <select id="pickupCurvePeriod" class="sz_select"></select>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content sz_pickup_curves_content">
+        <section class="sz_panel sz_pickup_curves_panel">
+          <div class="sz_pickup_curves_panel_head">
+            <div>
+              <div id="pickupCurvePanelTitle" class="sz_pickup_curves_panel_title">Curva</div>
+              <div id="pickupCurvePanelMeta" class="sz_pickup_curves_panel_meta"></div>
+            </div>
+          </div>
+
+          <div id="pickupCurveComparison" class="sz_pickup_curves_comparison" hidden></div>
+
+          <div id="pickupCurveEmpty" class="sz_pickup_curves_empty" hidden>
+            Seleciona um perfil para editar a curva semanal.
+          </div>
+
+          <div id="pickupCurveEditor" class="sz_pickup_curves_editor" hidden>
+            <div class="sz_pickup_curves_scale">
+              <span>100</span>
+              <span>75</span>
+              <span>50</span>
+              <span>25</span>
+              <span>0</span>
+            </div>
+            <div class="sz_pickup_curves_chart_wrap">
+              <svg id="pickupCurveOverlay" class="sz_pickup_curve_overlay" aria-hidden="true"></svg>
+              <div id="pickupCurveChart" class="sz_pickup_curves_chart"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar sz_page_footer">
+      <div class="sz_actionbar_left">
+        <div id="pickupCurveStatus" class="sz_text_muted"></div>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="pickupCurveCancel" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-rotate-left"></i>
+          <span>Cancelar</span>
+        </button>
+        <button id="pickupCurveSave" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .sz_pickup_curves_page .sz_page_container {
+    padding-block: var(--sz-space-2) 0;
+    padding-inline: var(--sz-space-4);
+  }
+
+  .sz_pickup_curves_contextbar .sz_contextbar_right {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    min-width: min(100%, 64rem);
+  }
+
+  .sz_pickup_curves_contextbar .sz_contextbar_left {
+    flex: 0 1 18rem;
+    min-width: 0;
+  }
+
+  .sz_pickup_curves_controls {
+    display: grid;
+    grid-template-columns: minmax(14rem, 1.3fr) minmax(14rem, 1fr) minmax(7rem, 0.5fr) minmax(16rem, 1.5fr) minmax(12rem, 1fr);
+    gap: var(--sz-space-3);
+    align-items: end;
+    width: 100%;
+  }
+
+  .sz_pickup_curves_controls .sz_field {
+    min-width: 0;
+  }
+
+  .sz_pickup_curves_controls .sz_select,
+  .sz_pickup_curves_controls .sz_input {
+    width: 100%;
+  }
+
+  .sz_pickup_curves_content {
+    gap: var(--sz-space-3);
+  }
+
+  .sz_pickup_curves_panel {
+    display: grid;
+    gap: var(--sz-space-4);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .sz_pickup_curves_panel_head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+  }
+
+  .sz_pickup_curves_comparison {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .sz_pickup_curves_chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--sz-color-border) 90%, transparent);
+    background: linear-gradient(180deg, var(--sz-color-surface-alt) 0%, var(--sz-color-surface) 100%);
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-xs);
+    line-height: 1.2;
+  }
+
+  .sz_pickup_curves_chip strong {
+    color: var(--sz-color-text);
+  }
+
+  .sz_pickup_curves_panel_title {
+    font-size: var(--sz-font-size-lg);
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+  }
+
+  .sz_pickup_curves_panel_meta {
+    margin-top: var(--sz-space-1);
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .sz_pickup_curves_empty {
+    border: 1px dashed var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    padding: var(--sz-space-5);
+    color: var(--sz-color-text-muted);
+    text-align: center;
+  }
+
+  .sz_pickup_curves_editor {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    min-height: 0;
+  }
+
+  .sz_pickup_curves_scale {
+    display: grid;
+    grid-template-rows: repeat(5, 1fr);
+    align-items: stretch;
+    justify-items: end;
+    min-width: 2rem;
+    padding-block: 0.5rem 2rem;
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .sz_pickup_curves_chart_wrap {
+    position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: var(--sz-space-2);
+  }
+
+  .sz_pickup_curves_chart {
+    display: grid;
+    position: relative;
+    gap: var(--sz-space-2);
+    align-items: stretch;
+    min-height: 36rem;
+    width: 100%;
+    padding: var(--sz-space-2) var(--sz-space-2) 0;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    background:
+      linear-gradient(to top,
+        transparent 0,
+        transparent calc(25% - 1px),
+        color-mix(in srgb, var(--sz-color-border) 48%, transparent) calc(25% - 1px),
+        color-mix(in srgb, var(--sz-color-border) 48%, transparent) 25%,
+        transparent 25%,
+        transparent calc(50% - 1px),
+        color-mix(in srgb, var(--sz-color-border) 48%, transparent) calc(50% - 1px),
+        color-mix(in srgb, var(--sz-color-border) 48%, transparent) 50%,
+        transparent 50%,
+        transparent calc(75% - 1px),
+        color-mix(in srgb, var(--sz-color-border) 48%, transparent) calc(75% - 1px),
+        color-mix(in srgb, var(--sz-color-border) 48%, transparent) 75%,
+        transparent 75%),
+      linear-gradient(180deg, var(--sz-color-surface-alt) 0%, var(--sz-color-surface) 100%);
+  }
+
+  .sz_pickup_curve_overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .sz_pickup_curve_line_expected,
+  .sz_pickup_curve_line_actual {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .sz_pickup_curve_line_expected {
+    stroke: color-mix(in srgb, var(--sz-color-primary) 90%, #ffffff 10%);
+    stroke-width: 2.25;
+    opacity: 0.95;
+  }
+
+  .sz_pickup_curve_line_actual {
+    stroke: color-mix(in srgb, var(--sz-color-success) 88%, #ffffff 12%);
+    stroke-width: 2.25;
+    opacity: 0.95;
+    stroke-dasharray: 0;
+  }
+
+  .sz_pickup_curve_bar {
+    display: grid;
+    justify-items: center;
+    grid-template-rows: auto minmax(24rem, 1fr) auto;
+    align-content: stretch;
+    gap: 0.45rem;
+    min-height: 100%;
+    position: relative;
+    z-index: 2;
+  }
+
+  .sz_pickup_curve_bar.is-selected .sz_pickup_curve_value,
+  .sz_pickup_curve_bar.is-selected .sz_pickup_curve_actual_value,
+  .sz_pickup_curve_bar.is-selected .sz_pickup_curve_day {
+    color: var(--sz-color-primary);
+  }
+
+  .sz_pickup_curve_label_stack {
+    display: grid;
+    justify-items: center;
+    gap: 0.1rem;
+    align-self: start;
+    min-height: 2.8rem;
+  }
+
+  .sz_pickup_curve_actual_value,
+  .sz_pickup_curve_value {
+    min-width: 2.8rem;
+    text-align: center;
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+    line-height: 1.1;
+  }
+
+  .sz_pickup_curve_actual_value {
+    color: var(--sz-color-success);
+  }
+
+  .sz_pickup_curve_value {
+    color: var(--sz-color-text-secondary);
+  }
+
+  .sz_pickup_curve_slider_wrap {
+    position: relative;
+    width: 100%;
+    min-height: 24rem;
+    overflow: visible;
+    cursor: ns-resize;
+    touch-action: none;
+  }
+
+  .sz_pickup_curve_track,
+  .sz_pickup_curve_fill {
+    position: absolute;
+    left: 50%;
+    width: 0.45rem;
+    border-radius: 999px;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .sz_pickup_curve_track {
+    top: 0;
+    bottom: 0;
+    background: color-mix(in srgb, var(--sz-color-primary) 18%, var(--sz-color-surface-alt));
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 20%, transparent);
+  }
+
+  .sz_pickup_curve_bar.is-selected .sz_pickup_curve_track {
+    width: 0.65rem;
+    background: color-mix(in srgb, var(--sz-color-primary) 26%, var(--sz-color-surface-alt));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 38%, transparent);
+  }
+
+  .sz_pickup_curve_fill {
+    bottom: 0;
+    height: calc(var(--curve-value, 0) * 1%);
+    background: color-mix(in srgb, var(--sz-color-primary) 48%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 32%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 18%, transparent);
+  }
+
+  .sz_pickup_curve_thumb {
+    position: absolute;
+    left: 50%;
+    bottom: calc((var(--curve-value, 0) * 1%) - 0.5rem);
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: var(--sz-color-primary);
+    border: 2px solid var(--sz-color-surface);
+    box-shadow: var(--sz-shadow-1);
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .sz_pickup_curve_actual_marker {
+    position: absolute;
+    left: 50%;
+    bottom: calc((var(--actual-value, 0) * 1%) - 0.42rem);
+    width: 0.84rem;
+    height: 0.84rem;
+    border-radius: 50%;
+    background: var(--sz-color-success);
+    border: 2px solid var(--sz-color-surface);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--sz-color-success) 24%, transparent);
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .sz_pickup_curve_actual_marker::after {
+    content: '';
+    position: absolute;
+    inset: -0.35rem;
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--sz-color-success) 34%, transparent);
+    opacity: 0.7;
+  }
+
+  .sz_pickup_curve_hitbox {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: transparent;
+    border: 0;
+    cursor: ns-resize;
+  }
+
+  .sz_pickup_curve_day {
+    font-size: var(--sz-font-size-xs);
+    color: var(--sz-color-text-muted);
+    font-weight: var(--sz-font-weight-semibold);
+    text-align: center;
+    line-height: 1.15;
+    min-width: 2.8rem;
+  }
+
+  .sz_pickup_curves_page .sz_actionbar_left {
+    min-width: 0;
+  }
+
+  .sz_pickup_curves_page .sz_actionbar_right {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+  }
+
+  .sz_pickup_curves_status_error {
+    color: var(--sz-color-danger);
+  }
+
+  @media (max-width: 1180px) {
+    .sz_pickup_curves_controls {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 720px) {
+    .sz_pickup_curves_page .sz_page_container {
+      padding-inline: var(--sz-space-3);
+    }
+
+    .sz_pickup_curves_controls {
+      grid-template-columns: 1fr;
+    }
+
+    .sz_pickup_curves_editor {
+      grid-template-columns: 1fr;
+    }
+
+    .sz_pickup_curves_scale {
+      display: none;
+    }
+  }
+
+</style>
+<script>
+(() => {
+  const seed = {{ initial_state|tojson }};
+  const scopeSelect = document.getElementById('pickupCurveScope');
+  const profileField = document.getElementById('pickupCurveProfileField');
+  const profileSelect = document.getElementById('pickupCurveProfile');
+  const horizonSelect = document.getElementById('pickupCurveHorizon');
+  const alojamentoSelect = document.getElementById('pickupCurveAlojamento');
+  const periodSelect = document.getElementById('pickupCurvePeriod');
+  const panelTitle = document.getElementById('pickupCurvePanelTitle');
+  const panelMeta = document.getElementById('pickupCurvePanelMeta');
+  const comparisonEl = document.getElementById('pickupCurveComparison');
+  const emptyEl = document.getElementById('pickupCurveEmpty');
+  const editorEl = document.getElementById('pickupCurveEditor');
+  const overlayEl = document.getElementById('pickupCurveOverlay');
+  const chartEl = document.getElementById('pickupCurveChart');
+  const statusEl = document.getElementById('pickupCurveStatus');
+  const saveBtn = document.getElementById('pickupCurveSave');
+  const cancelBtn = document.getElementById('pickupCurveCancel');
+
+  let currentCurve = null;
+  let currentComparison = null;
+  let savedSnapshot = '';
+  let activeDrag = null;
+
+  function setStatus(text, isError = false) {
+    statusEl.textContent = text || '';
+    statusEl.className = isError ? 'sz_pickup_curves_status_error' : 'sz_text_muted';
+  }
+
+  function isWeeklyScope() {
+    return scopeSelect.value === 'weekly';
+  }
+
+  function currentProfileId() {
+    const raw = profileSelect.value;
+    return raw ? Number(raw) : null;
+  }
+
+  function currentPayload() {
+    return {
+      scope: scopeSelect.value,
+      horizon_days: Number(horizonSelect.value),
+      perfil_id: isWeeklyScope() ? currentProfileId() : null,
+      points: (currentCurve?.points || []).map((item) => ({
+        lead_days: Number(item.lead_days),
+        ocup_alvo: Number(item.ocup_alvo),
+      })),
+    };
+  }
+
+  function snapshotPayload() {
+    return JSON.stringify(currentPayload());
+  }
+
+  function updateDirtyState() {
+    saveBtn.disabled = !currentCurve || snapshotPayload() === savedSnapshot;
+    cancelBtn.disabled = !currentCurve || snapshotPayload() === savedSnapshot;
+  }
+
+  function clampCurveValue(value) {
+    const number = Number(value);
+    if (Number.isNaN(number)) return 0;
+    return Math.max(0, Math.min(100, Math.round(number)));
+  }
+
+  function applyCurveValue(index, value) {
+    if (!currentCurve?.points?.[index]) return;
+    const nextValue = clampCurveValue(value);
+    currentCurve.points[index].ocup_alvo = nextValue;
+    const barEl = chartEl.querySelector(`.sz_pickup_curve_bar[data-index="${index}"]`);
+    const valueEl = barEl?.querySelector('.sz_pickup_curve_value');
+    if (valueEl) valueEl.textContent = `${nextValue}%`;
+    if (barEl) barEl.style.setProperty('--curve-value', nextValue);
+    requestAnimationFrame(renderOverlayLines);
+    updateDirtyState();
+  }
+
+  function valueFromPointer(event, wrapEl) {
+    const rect = wrapEl.getBoundingClientRect();
+    const ratio = 1 - ((event.clientY - rect.top) / rect.height);
+    return clampCurveValue(ratio * 100);
+  }
+
+  function renderControls() {
+    scopeSelect.innerHTML = seed.scopes.map((item) =>
+      `<option value="${item.value}">${item.label}</option>`
+    ).join('');
+    scopeSelect.value = 'weekly';
+
+    profileSelect.innerHTML = seed.profiles.map((item) =>
+      `<option value="${item.perfil_id}">${item.nome}</option>`
+    ).join('');
+    if (seed.profiles.length) {
+      profileSelect.value = String(seed.profiles[0].perfil_id);
+    }
+
+    horizonSelect.innerHTML = seed.horizons.map((value) =>
+      `<option value="${value}">${value}</option>`
+    ).join('');
+
+    alojamentoSelect.innerHTML = seed.alojamentos.map((item) =>
+      `<option value="${item}">${item}</option>`
+    ).join('');
+    if (seed.alojamentos.length) {
+      alojamentoSelect.value = seed.alojamentos[0];
+    }
+  }
+
+  function renderComparison() {
+    if (!currentComparison) {
+      comparisonEl.hidden = true;
+      comparisonEl.innerHTML = '';
+      return;
+    }
+
+    const delta = Number(currentComparison.deviation || 0);
+    const deltaPrefix = delta > 0 ? '+' : '';
+    comparisonEl.hidden = false;
+    comparisonEl.innerHTML = [
+      `<span class="sz_pickup_curves_chip"><strong>Alojamento:</strong> ${currentComparison.alojamento || '-'}</span>`,
+      `<span class="sz_pickup_curves_chip"><strong>Período:</strong> ${currentComparison.period_label || '-'}</span>`,
+      `<span class="sz_pickup_curves_chip"><strong>Lead:</strong> ${currentComparison.lead_days ?? '-'} dias</span>`,
+      `<span class="sz_pickup_curves_chip"><strong>Data corte:</strong> ${currentComparison.booked_until || '-'}</span>`,
+      `<span class="sz_pickup_curves_chip"><strong>Esperado:</strong> ${currentComparison.target_occ ?? '-'}%</span>`,
+      `<span class="sz_pickup_curves_chip"><strong>Real:</strong> ${currentComparison.real_occ ?? '-'}%</span>`,
+      `<span class="sz_pickup_curves_chip"><strong>Desvio:</strong> ${deltaPrefix}${currentComparison.deviation ?? '-'} p.p.</span>`,
+    ].join('');
+  }
+
+  function buildActualPointLookup() {
+    const lookup = new Map((currentComparison?.actual_points || []).map((item) => [Number(item.lead_days), { ...item }]));
+    if (!currentComparison) return lookup;
+
+    const liveLeadDays = Number(currentComparison.lead_days);
+    const liveRealOcc = Number(currentComparison.real_occ);
+    if (Number.isNaN(liveLeadDays) || Number.isNaN(liveRealOcc) || liveLeadDays < 0) return lookup;
+
+    const snappedLeadDays = Math.max(0, Math.floor(liveLeadDays / 5) * 5);
+    const existingPoint = lookup.get(snappedLeadDays);
+    if (!existingPoint || !existingPoint.known) {
+      lookup.set(snappedLeadDays, {
+        lead_days: snappedLeadDays,
+        real_occ: liveRealOcc,
+        known: true,
+        synthetic_current: true,
+      });
+    }
+
+    return lookup;
+  }
+
+  function barCenterPoint(barEl, value) {
+    const chartRect = chartEl.getBoundingClientRect();
+    const wrapEl = barEl.querySelector('.sz_pickup_curve_slider_wrap');
+    if (!wrapEl || !chartRect.width || !chartRect.height) return null;
+    const wrapRect = wrapEl.getBoundingClientRect();
+    const x = (wrapRect.left + (wrapRect.width / 2)) - chartRect.left;
+    const clamped = clampCurveValue(value);
+    const y = wrapRect.bottom - chartRect.top - (wrapRect.height * (clamped / 100));
+    return { x, y };
+  }
+
+  function buildPolyline(points) {
+    return points.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' ');
+  }
+
+  function renderOverlayLines() {
+    if (!currentCurve || !overlayEl) {
+      if (overlayEl) overlayEl.innerHTML = '';
+      return;
+    }
+
+    const chartRect = chartEl.getBoundingClientRect();
+    overlayEl.setAttribute('viewBox', `0 0 ${Math.max(chartRect.width, 1)} ${Math.max(chartRect.height, 1)}`);
+    overlayEl.innerHTML = '';
+
+    const expectedPoints = [];
+    const actualPoints = [];
+    const actualLookup = buildActualPointLookup();
+
+    chartEl.querySelectorAll('.sz_pickup_curve_bar').forEach((barEl) => {
+      const index = Number(barEl.dataset.index);
+      const curvePoint = currentCurve?.points?.[index];
+      if (!curvePoint) return;
+
+      const expectedPoint = barCenterPoint(barEl, Number(curvePoint.ocup_alvo) || 0);
+      if (expectedPoint) expectedPoints.push(expectedPoint);
+
+      const actualPointData = actualLookup.get(Number(curvePoint.lead_days));
+      if (actualPointData?.known) {
+        const actualPoint = barCenterPoint(barEl, Number(actualPointData.real_occ) || 0);
+        if (actualPoint) actualPoints.push(actualPoint);
+      }
+    });
+
+    if (expectedPoints.length >= 2) {
+      overlayEl.insertAdjacentHTML(
+        'beforeend',
+        `<polyline class="sz_pickup_curve_line_expected" points="${buildPolyline(expectedPoints)}"></polyline>`
+      );
+    }
+    if (actualPoints.length >= 2) {
+      overlayEl.insertAdjacentHTML(
+        'beforeend',
+        `<polyline class="sz_pickup_curve_line_actual" points="${buildPolyline(actualPoints)}"></polyline>`
+      );
+    }
+  }
+
+  function renderCurve() {
+    if (!currentCurve) {
+      editorEl.hidden = true;
+      emptyEl.hidden = false;
+      chartEl.innerHTML = '';
+      panelTitle.textContent = 'Curva';
+      panelMeta.textContent = '';
+      renderComparison();
+      updateDirtyState();
+      return;
+    }
+
+    panelTitle.textContent = currentCurve.label || 'Curva';
+    panelMeta.textContent = isWeeklyScope()
+      ? `${currentCurve.horizon_days} dias · Perfil ${profileSelect.options[profileSelect.selectedIndex]?.text || ''}`
+      : `${currentCurve.horizon_days} dias`;
+
+    emptyEl.hidden = true;
+    editorEl.hidden = false;
+
+    const actualLookup = buildActualPointLookup();
+    chartEl.innerHTML = (currentCurve.points || []).map((item, index) => `
+      <div class="sz_pickup_curve_bar" data-index="${index}" style="--curve-value:${Math.round(Number(item.ocup_alvo) || 0)}; --actual-value:${Number(actualLookup.get(Number(item.lead_days))?.real_occ ?? 0)};">
+        <div class="sz_pickup_curve_label_stack">
+          ${actualLookup.get(Number(item.lead_days))?.known ? `<div class="sz_pickup_curve_actual_value">${Math.round(Number(actualLookup.get(Number(item.lead_days)).real_occ) || 0)}%</div>` : ''}
+          <div class="sz_pickup_curve_value">${Math.round(Number(item.ocup_alvo) || 0)}%</div>
+        </div>
+        <div class="sz_pickup_curve_slider_wrap">
+          <div class="sz_pickup_curve_track"></div>
+          <div class="sz_pickup_curve_fill"></div>
+          <div class="sz_pickup_curve_thumb"></div>
+          ${actualLookup.get(Number(item.lead_days))?.known ? `<div class="sz_pickup_curve_actual_marker" title="Real: ${actualLookup.get(Number(item.lead_days)).real_occ}%"></div>` : ''}
+          <button
+            type="button"
+            class="sz_pickup_curve_hitbox"
+            aria-label="Ajustar valor para o dia ${item.lead_days}"
+            data-index="${index}"></button>
+        </div>
+        <div class="sz_pickup_curve_day">D${item.lead_days}</div>
+      </div>
+    `).join('');
+    chartEl.style.gridTemplateColumns = `repeat(${Math.max((currentCurve.points || []).length, 1)}, minmax(2.8rem, 1fr))`;
+
+    renderComparison();
+    requestAnimationFrame(renderOverlayLines);
+    updateDirtyState();
+  }
+
+  function renderPeriods(options, selectedValue) {
+    periodSelect.innerHTML = (options || []).map((item) =>
+      `<option value="${item.value}">${item.label}</option>`
+    ).join('');
+    if (selectedValue && Array.from(periodSelect.options).some((option) => option.value === selectedValue)) {
+      periodSelect.value = selectedValue;
+    } else if (periodSelect.options.length) {
+      periodSelect.selectedIndex = 0;
+    }
+  }
+
+  async function loadCurve(useDefaultHorizon = false) {
+    const perfilId = currentProfileId();
+    profileField.hidden = !isWeeklyScope();
+
+    if (isWeeklyScope() && !perfilId) {
+      currentCurve = null;
+      setStatus('Seleciona um perfil para editar a curva semanal.', true);
+      renderCurve();
+      return;
+    }
+
+    setStatus('A carregar curva...');
+    try {
+      const params = new URLSearchParams({
+        scope: scopeSelect.value,
+      });
+      if (!useDefaultHorizon && horizonSelect.value) {
+        params.set('horizon_days', horizonSelect.value);
+      }
+      if (isWeeklyScope() && perfilId) params.set('perfil_id', String(perfilId));
+      if (alojamentoSelect.value) params.set('alojamento', alojamentoSelect.value);
+      if (!useDefaultHorizon && periodSelect.value) params.set('period_value', periodSelect.value);
+
+      const response = await fetch(`/pricing/api/pickup-curves/state?${params.toString()}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a ler curva');
+      currentCurve = payload.curve;
+      currentComparison = payload.comparison || null;
+      if (String(horizonSelect.value) !== String(currentCurve.horizon_days)) {
+        horizonSelect.value = String(currentCurve.horizon_days);
+      }
+      renderPeriods(payload.period_options || [], payload.selected_period_value || '');
+      savedSnapshot = snapshotPayload();
+      renderCurve();
+      setStatus('Curva carregada.');
+    } catch (error) {
+      currentCurve = null;
+      currentComparison = null;
+      renderCurve();
+      setStatus(error.message, true);
+    }
+  }
+
+  async function saveCurve() {
+    if (!currentCurve) return;
+    setStatus('A gravar curva...');
+    try {
+      const response = await fetch('/pricing/api/pickup-curves', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(currentPayload()),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a gravar curva');
+      currentCurve = payload.curve;
+      savedSnapshot = snapshotPayload();
+      await loadCurve(false);
+      setStatus('Curva gravada.');
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
+  function cancelChanges() {
+    if (!savedSnapshot) return;
+    const snapshot = JSON.parse(savedSnapshot);
+    currentCurve = {
+      ...(currentCurve || {}),
+      ...snapshot,
+      points: snapshot.points.map((item) => ({ ...item })),
+      label: currentCurve?.label || '',
+      kind: currentCurve?.kind || '',
+      season: currentCurve?.season || null,
+    };
+    renderCurve();
+    setStatus('Alterações descartadas.');
+  }
+
+  chartEl.addEventListener('pointerdown', (event) => {
+    const hitbox = event.target.closest('.sz_pickup_curve_hitbox');
+    if (!hitbox || !currentCurve) return;
+    const index = Number(hitbox.dataset.index);
+    const wrapEl = hitbox.closest('.sz_pickup_curve_slider_wrap');
+    if (!Number.isInteger(index) || !wrapEl) return;
+    activeDrag = { index, wrapEl };
+    hitbox.setPointerCapture?.(event.pointerId);
+    applyCurveValue(index, valueFromPointer(event, wrapEl));
+    event.preventDefault();
+  });
+
+  chartEl.addEventListener('keydown', (event) => {
+    const hitbox = event.target.closest('.sz_pickup_curve_hitbox');
+    if (!hitbox || !currentCurve) return;
+    const index = Number(hitbox.dataset.index);
+    if (!Number.isInteger(index) || !currentCurve.points[index]) return;
+    const currentValue = Number(currentCurve.points[index].ocup_alvo) || 0;
+    if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
+      applyCurveValue(index, currentValue + 1);
+      event.preventDefault();
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
+      applyCurveValue(index, currentValue - 1);
+      event.preventDefault();
+    } else if (event.key === 'PageUp') {
+      applyCurveValue(index, currentValue + 5);
+      event.preventDefault();
+    } else if (event.key === 'PageDown') {
+      applyCurveValue(index, currentValue - 5);
+      event.preventDefault();
+    } else if (event.key === 'Home') {
+      applyCurveValue(index, 0);
+      event.preventDefault();
+    } else if (event.key === 'End') {
+      applyCurveValue(index, 100);
+      event.preventDefault();
+    }
+  });
+
+  document.addEventListener('pointermove', (event) => {
+    if (!activeDrag) return;
+    applyCurveValue(activeDrag.index, valueFromPointer(event, activeDrag.wrapEl));
+  });
+
+  document.addEventListener('pointerup', () => {
+    activeDrag = null;
+  });
+
+  window.addEventListener('resize', () => {
+    requestAnimationFrame(renderOverlayLines);
+  });
+
+  scopeSelect.addEventListener('change', () => loadCurve(true));
+  profileSelect.addEventListener('change', () => loadCurve(true));
+  horizonSelect.addEventListener('change', () => loadCurve(false));
+  alojamentoSelect.addEventListener('change', () => loadCurve(false));
+  periodSelect.addEventListener('change', () => loadCurve(false));
+  saveBtn.addEventListener('click', saveCurve);
+  cancelBtn.addEventListener('click', cancelChanges);
+
+  renderControls();
+  loadCurve(true);
+})();
+</script>
+{% endblock %}

@@ -2576,6 +2576,12 @@ def api_planner2_teams():
 def api_gravar_limpezas():
     if not has_cleaning_planner_access():
         return jsonify(success=False, message='Sem permissão para gravar'), 403
+    current_feid = None
+    if _table_is_fe_scoped('LP'):
+        try:
+            current_feid = get_current_feid()
+        except MissingCurrentEntityError:
+            return jsonify(success=False, message='Empresa ativa não definida.'), 400
     limpezas = request.get_json()
     if not limpezas:
         return jsonify(success=False, message="Nenhum dado recebido"), 400
@@ -2599,14 +2605,18 @@ def api_gravar_limpezas():
                     DATA = :data,
                     HORA = :hora,
                     EQUIPA = :equipa
+                    {feid_sql}
                 WHERE LPSTAMP = :lpstamp
-                """),
+                """.format(
+                    feid_sql=', FEID = :feid' if current_feid is not None else ''
+                )),
                 dict(
                     lpstamp=lpstamp,
                     alojamento=lp["ALOJAMENTO"],
                     data=lp["DATA"],
                     hora=lp["HORA"],
-                    equipa=lp["EQUIPA"]
+                    equipa=lp["EQUIPA"],
+                    **({'feid': current_feid} if current_feid is not None else {})
                 )
             )
             if res.rowcount:
@@ -2638,11 +2648,15 @@ def api_gravar_limpezas():
               AND DATA = :data
               AND HORA = :hora
               AND EQUIPA = :equipa
-            """), dict(
+              {feid_where}
+            """.format(
+                feid_where='AND FEID = :feid' if current_feid is not None else ''
+            )), dict(
                 alojamento=lp["ALOJAMENTO"],
                 data=lp["DATA"],
                 hora=lp["HORA"],
-                equipa=lp["EQUIPA"]
+                equipa=lp["EQUIPA"],
+                **({'feid': current_feid} if current_feid is not None else {})
             )
         ).fetchone()
         if reg:
@@ -2650,15 +2664,19 @@ def api_gravar_limpezas():
         # SenÃ£o, cria
         db.session.execute(
             text("""
-            INSERT INTO LP (LPSTAMP, ALOJAMENTO, DATA, HORA, EQUIPA, TERMINADA, CUSTO, HOSPEDES, NOITES, OBS)
-            VALUES (:lpstamp, :alojamento, :data, :hora, :equipe, 0, 0, 0, 0, '')
-            """),
+            INSERT INTO LP (LPSTAMP, ALOJAMENTO, DATA, HORA, EQUIPA, TERMINADA, CUSTO, HOSPEDES, NOITES, OBS{feid_cols})
+            VALUES (:lpstamp, :alojamento, :data, :hora, :equipe, 0, 0, 0, 0, ''{feid_vals})
+            """.format(
+                feid_cols=', FEID' if current_feid is not None else '',
+                feid_vals=', :feid' if current_feid is not None else '',
+            )),
             dict(
                 lpstamp=uuid.uuid4().hex[:25],
                 alojamento=lp["ALOJAMENTO"],
                 data=lp["DATA"],
                 hora=lp["HORA"],
-                equipe=lp["EQUIPA"]
+                equipe=lp["EQUIPA"],
+                **({'feid': current_feid} if current_feid is not None else {})
             )
         )
         if str(lp.get("EQUIPA") or "").strip():
