@@ -1810,17 +1810,11 @@ body.sz-base-shell.authenticated .main-content {
    dashboard
 ============================== */
 .sz_dashboard_page {
-  width: 100%;
-  height: auto;
-  min-height: 100%;
   --sz-dashboard-widget-table-font-size: calc(var(--sz-font-size-sm) - 3px);
-  display: grid;
-  grid-template-rows: auto auto;
-  gap: var(--sz-page-body-gap);
+}
+
+.sz_dashboard_page .sz_page_container {
   padding: var(--sz-space-2) var(--sz-space-3) var(--sz-space-3);
-  background: var(--sz-color-bg-main);
-  color: var(--sz-color-text);
-  font-family: var(--sz-font-family);
 }
 
 .sz_dashboard_contextbar {

@@ -1,22 +1,26 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<div class="sz_dashboard_page">
-  <header class="sz_contextbar sz_page_contextbar sz_dashboard_contextbar">
-    <div class="sz_contextbar_left">
-      <div class="sz_breadcrumbs">HOME / DASHBOARD</div>
-      <div class="sz_page_title">Dashboard</div>
-      <div class="sz_page_subtitle">Visao geral dos widgets operacionais</div>
-    </div>
-  </header>
+<div class="sz_page sz_dashboard_page">
+  <div class="sz_page_container">
+    <header class="sz_page_header">
+      <div class="sz_contextbar sz_page_contextbar sz_dashboard_contextbar">
+        <div class="sz_contextbar_left">
+          <div class="sz_breadcrumbs">HOME / DASHBOARD</div>
+          <div class="sz_page_title">Dashboard</div>
+          <div class="sz_page_subtitle">Visao geral dos widgets operacionais</div>
+        </div>
+      </div>
+    </header>
 
-  <section class="sz_dashboard_body">
-    <div class="sz_dashboard_grid">
-      <div class="sz_dashboard_col" id="col-1"></div>
-      <div class="sz_dashboard_col" id="col-2"></div>
-      <div class="sz_dashboard_col" id="col-3"></div>
-    </div>
-  </section>
+    <section class="sz_page_body sz_dashboard_body">
+      <div class="sz_dashboard_grid">
+        <div class="sz_dashboard_col" id="col-1"></div>
+        <div class="sz_dashboard_col" id="col-2"></div>
+        <div class="sz_dashboard_col" id="col-3"></div>
+      </div>
+    </section>
+  </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="/static/js/dashboard.js"></script>

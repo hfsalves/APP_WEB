@@ -349,6 +349,8 @@ function renderDocAnalyzeResult(data) {
   if (!docAnalyzeBody || !docAnalyzeMeta) return;
   lastDocAnalyzeResult = data || null;
   lastExtractedInvoiceCpe = ((data?.found?.cpe) || '').toString().trim();
+  const extractedCpeEl = document.getElementById('EXTRACTED_CPE');
+  if (extractedCpeEl) extractedCpeEl.value = lastExtractedInvoiceCpe;
   if (btnImportDocData) btnImportDocData.disabled = !(data && data.status === 'ok' && data.found);
   const found = data?.found || {};
   const fields = [
@@ -679,8 +681,17 @@ async function importDocAnalyzeToForm() {
 }
 
 async function syncAlojamentoCpeBeforeSave() {
-  const ccusto = (document.getElementById('CCUSTO')?.value || '').toString().trim();
-  const invoiceCpe = (lastExtractedInvoiceCpe || lastDocAnalyzeResult?.found?.cpe || '').toString().trim();
+  const ccusto = (
+    document.getElementById('CCUSTO')?.value ||
+    document.getElementById('SZ_CCUSTO')?.value ||
+    ''
+  ).toString().trim();
+  const invoiceCpe = (
+    document.getElementById('EXTRACTED_CPE')?.value ||
+    lastExtractedInvoiceCpe ||
+    lastDocAnalyzeResult?.found?.cpe ||
+    ''
+  ).toString().trim();
   if (!ccusto || !invoiceCpe) return true;
 
   const callSync = async (updateAlojamento = false) => {

@@ -13311,18 +13311,20 @@ OPTION (MAXRECURSION 32767);
             if error_response:
                 return error_response
 
-            row = db.session.execute(text("""
-                SELECT TOP 1
+            ccusto_norm = (ccusto or '').strip().upper()
+            rows = db.session.execute(text("""
+                SELECT
                     ALSTAMP,
                     LTRIM(RTRIM(ISNULL(NOME,''))) AS NOME,
                     LTRIM(RTRIM(ISNULL(CCUSTO,''))) AS CCUSTO,
-                    LTRIM(RTRIM(ISNULL(CPE,''))) AS CPE
+                    LTRIM(RTRIM(ISNULL(CPE,''))) AS CPE,
+                    CASE
+                        WHEN ISNULL(FEID_GESTOR, 0) = :current_feid THEN 0
+                        WHEN ISNULL(FEID, 0) = :current_feid THEN 1
+                        ELSE 9
+                    END AS MATCH_SCORE
                 FROM dbo.AL
-                WHERE LTRIM(RTRIM(ISNULL(CCUSTO,''))) = :ccusto
-                  AND (
-                        ISNULL(FEID, 0) = :current_feid
-                     OR ISNULL(FEID_GESTOR, 0) = :current_feid
-                  )
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(CCUSTO,'')))) = :ccusto_norm
                 ORDER BY
                     CASE
                         WHEN ISNULL(FEID_GESTOR, 0) = :current_feid THEN 0
@@ -13331,9 +13333,17 @@ OPTION (MAXRECURSION 32767);
                     END,
                     NOME
             """), {
-                'ccusto': ccusto,
+                'ccusto_norm': ccusto_norm,
                 'current_feid': current_feid,
-            }).mappings().first()
+            }).mappings().all()
+
+            row = None
+            if rows:
+                scoped = next((r for r in rows if int(r.get('MATCH_SCORE') or 9) < 9), None)
+                if scoped is not None:
+                    row = scoped
+                elif len(rows) == 1:
+                    row = rows[0]
 
             if not row:
                 return jsonify({
