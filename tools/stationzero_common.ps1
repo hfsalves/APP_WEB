@@ -295,7 +295,7 @@ function Get-StationZeroPortListeners {
 
 function Test-StationZeroPortListening {
     param([int]$Port)
-    return (Get-StationZeroPortListeners -Port $Port).Count -gt 0
+    return @(Get-StationZeroPortListeners -Port $Port).Count -gt 0
 }
 
 function Get-StationZeroPortOwnerProcess {
