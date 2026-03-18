@@ -1054,18 +1054,19 @@ body:not(.authenticated) .main-content {
 
   body:not(.authenticated) .main-content {
     min-height: 100dvh;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
     overflow-y: auto;
   }
 
   .login-page {
     min-height: 100dvh;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: center;
     padding:
-      max(1rem, env(safe-area-inset-top))
+      max(2.5rem, calc(env(safe-area-inset-top) + 1rem))
       1rem
-      max(1.25rem, env(safe-area-inset-bottom));
+      max(1.5rem, calc(env(safe-area-inset-bottom) + 0.5rem));
     overflow: visible;
   }
 
