@@ -1,4 +1,17 @@
 // static/js/dynamic_form.js
+function showDynamicFormToast(message, type = 'success', options = {}) {
+  if (typeof window.showToast === 'function') {
+    window.showToast(message, type, options);
+    return;
+  }
+  alert(message);
+}
+
+function queueDynamicFormToast(message, type = 'success', options = {}) {
+  if (typeof window.queueToastOnNextPage === 'function') {
+    window.queueToastOnNextPage(message, type, options);
+  }
+}
 console.warn('✅ novo dynamic_form.js carregado');
 
 // ===============================
@@ -1703,13 +1716,14 @@ hideLoading()
         const resp = await fetch(`/generic/api/${TABLE_NAME}/${RECORD_STAMP}`, { method: 'DELETE' });
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
-          alert('Erro: ' + (err.error || resp.statusText));
+          showDynamicFormToast('Erro: ' + (err.error || resp.statusText), 'danger');
           return;
         }
+        queueDynamicFormToast('Registo eliminado.', 'success');
         window.location.href = RETURN_URL;
       } catch (err) {
         console.error('Erro ao eliminar:', err);
-        alert('Erro inesperado ao eliminar.');
+        showDynamicFormToast('Erro inesperado ao eliminar.', 'danger');
       }
     });
 
@@ -1792,7 +1806,7 @@ hideLoading()
 
     if (!form.checkValidity()) {
       form.classList.add('was-validated');
-      alert("⚠️ Existem campos obrigatórios por preencher.");
+      showDynamicFormToast('Existem campos obrigat?rios por preencher.', 'warning');
       return;
     }
 
@@ -1823,11 +1837,13 @@ hideLoading()
         let msg;
         try { const err = await res.json(); msg = err.error || JSON.stringify(err); }
         catch { msg = await res.text(); }
-        return alert(`Erro ao gravar: ${msg}`);
+        showDynamicFormToast(`Erro ao gravar: ${msg}`, 'danger');
+        return;
       }
+      queueDynamicFormToast(RECORD_STAMP ? 'Registo gravado.' : 'Registo criado.', 'success');
       window.location.href = RETURN_URL;
     } catch (net) {
-      alert(`Erro de rede: ${net.message}`);
+      showDynamicFormToast(`Erro de rede: ${net.message}`, 'danger');
     }
   });
 
@@ -2129,3 +2145,6 @@ document.querySelectorAll('.dropdown-item.btn-custom[data-tipo="MODAL"]')
       abrirModal(el.dataset.acao);
     });
   });
+
+
+

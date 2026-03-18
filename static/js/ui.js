@@ -187,6 +187,34 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', closeFlyout);
   window.addEventListener('scroll', closeFlyout, true);
   
+  const pendingToastStorageKey = 'sz_pending_toasts';
+
+  function flushPendingToasts() {
+    try {
+      const raw = sessionStorage.getItem(pendingToastStorageKey);
+      if (!raw) return;
+      sessionStorage.removeItem(pendingToastStorageKey);
+      const items = JSON.parse(raw);
+      if (!Array.isArray(items) || !items.length) return;
+      window.setTimeout(() => {
+        items.forEach(item => {
+          if (!item || !item.message) return;
+          window.showToast(item.message, item.type || 'success', item.options || {});
+        });
+      }, 120);
+    } catch (_) {}
+  }
+
+  window.queueToastOnNextPage = function(message, type = 'success', options = {}) {
+    try {
+      const raw = sessionStorage.getItem(pendingToastStorageKey);
+      const items = raw ? JSON.parse(raw) : [];
+      const queue = Array.isArray(items) ? items : [];
+      queue.push({ message, type, options });
+      sessionStorage.setItem(pendingToastStorageKey, JSON.stringify(queue));
+    } catch (_) {}
+  };
+
   // Toast helper
   window.showToast = function(message, type = 'success', options = {}) {
     try {
@@ -219,4 +247,6 @@ window.addEventListener('DOMContentLoaded', () => {
       alert(message);
     }
   };
+
+  flushPendingToasts();
 });

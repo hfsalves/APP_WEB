@@ -8,6 +8,14 @@
 
 let planner2Teams = [];
 
+function showPlannerToast(message, type = 'success', options = {}) {
+  if (typeof window.showToast === 'function') {
+    window.showToast(message, type, options);
+    return;
+  }
+  alert(message);
+}
+
 const buildSlots = () => {
   const slots = [];
   for (let h = PLANNER2.startHour; h < PLANNER2.endHour; h++) {
@@ -1092,7 +1100,7 @@ const openPlanner2CleaningMenu = (bar, row, cl) => {
           const res = await fetch(`/generic/api/LP/${cl.id}`, { method: 'DELETE' });
           if (!res.ok) throw new Error(res.statusText);
         } catch (err) {
-          alert(`Erro ao eliminar: ${err.message || err}`);
+          showPlannerToast(`Erro ao eliminar: ${err.message || err}`, 'danger');
           return;
         }
       }
@@ -1101,6 +1109,7 @@ const openPlanner2CleaningMenu = (bar, row, cl) => {
         const clKey = cl._tmpId || cl.id || '';
         return String(cKey) !== String(clKey);
       });
+      showPlannerToast('Registo eliminado.', 'success');
       setPlanner2Dirty(true);
       const slots = buildSlots();
       buildHead(slots);
@@ -1212,7 +1221,7 @@ const setupPlanner2 = () => {
     if (planner2SaveBtn.disabled) return;
     const payload = collectPlanner2Payload(currentDate);
     if (!payload.length) {
-      alert('Nada para gravar.');
+      showPlannerToast('Nada para gravar.', 'warning');
       setPlanner2Dirty(false);
       return;
     }
@@ -1228,8 +1237,9 @@ const setupPlanner2 = () => {
       if (!data.success) throw new Error(data.message || 'Erro ao gravar');
       await loadPlanner2(currentDate);
       setPlanner2Dirty(false);
+      showPlannerToast('Registos gravados.', 'success');
     } catch (err) {
-      alert(`Erro ao gravar: ${err.message || err}`);
+      showPlannerToast(`Erro ao gravar: ${err.message || err}`, 'danger');
       setPlanner2Dirty(true);
     }
   });

@@ -4,6 +4,20 @@
 const FO_TABLE = 'FO';
 const FN_TABLE = 'FN';
 
+function showFoToast(message, type = 'success', options = {}) {
+  if (typeof window.showToast === 'function') {
+    window.showToast(message, type, options);
+    return;
+  }
+  alert(message);
+}
+
+function queueFoToast(message, type = 'success', options = {}) {
+  if (typeof window.queueToastOnNextPage === 'function') {
+    window.queueToastOnNextPage(message, type, options);
+  }
+}
+
 let isNewRecord = !window.FO_STAMP;
 let currentFoStamp = window.FO_STAMP || randomStamp();
 let editingFnStamp = null;
@@ -2123,11 +2137,11 @@ function updateLineField(lineId, field, value) {
 
 async function saveFo() {
   if (Number(foPlanoValue) === 1) {
-    alert('Documento contabilizado no ERP. NÃ£o pode ser alterado.');
+    showFoToast('Documento contabilizado no ERP. Não pode ser alterado.', 'warning');
     return;
   }
   if (foPagoLocked) {
-    alert('Documento incluÃ­do em pagamento. NÃ£o pode ser alterado.');
+    showFoToast('Documento incluído em pagamento. Não pode ser alterado.', 'warning');
     return;
   }
   if (form && !form.checkValidity()) {
@@ -2137,7 +2151,7 @@ async function saveFo() {
   try {
     await syncAlojamentoCpeBeforeSave();
   } catch (error) {
-    alert(error.message || 'Erro ao validar CPE do alojamento.');
+    showFoToast(error.message || 'Erro ao validar CPE do alojamento.', 'danger');
     return;
   }
   if (overlay) {
@@ -2169,7 +2183,7 @@ async function saveFo() {
       overlay.style.opacity = '0';
       setTimeout(() => overlay.style.display = 'none', 200);
     }
-    alert('Erro de rede: ' + net.message);
+    showFoToast('Erro de rede: ' + net.message, 'danger');
     return;
   }
   if (!res.ok) {
@@ -2182,7 +2196,7 @@ async function saveFo() {
       overlay.style.opacity = '0';
       setTimeout(() => overlay.style.display = 'none', 200);
     }
-    alert('Erro ao gravar FO: ' + msg);
+    showFoToast('Erro ao gravar FO: ' + msg, 'danger');
     return;
   }
   currentFoStamp = payload.FOSTAMP;
@@ -2191,33 +2205,35 @@ async function saveFo() {
   await saveAllLines();
   await loadFo();
   await loadLines();
+  queueFoToast(isNew ? 'Compra criada.' : 'Compra gravada.', 'success');
   window.location.href = returnTo;
 }
 
 async function deleteFo() {
   if (!currentFoStamp) {
-    alert('Nada para eliminar.');
+    showFoToast('Nada para eliminar.', 'warning');
     return;
   }
   if (Number(foPlanoValue) === 1) {
-    alert('Documento contabilizado no ERP. NÃ£o pode ser eliminado.');
+    showFoToast('Documento contabilizado no ERP. Não pode ser eliminado.', 'warning');
     return;
   }
   if (foPagoLocked) {
-    alert('Documento incluÃ­do em pagamento. NÃ£o pode ser eliminado.');
+    showFoToast('Documento incluído em pagamento. Não pode ser eliminado.', 'warning');
     return;
   }
   if (Number(foSyncValue) === 1 && !canDeleteSynced()) {
-    alert('Documento sincronizado. NÃ£o pode ser eliminado.');
+    showFoToast('Documento sincronizado. Não pode ser eliminado.', 'warning');
     return;
   }
   if (!confirm('Eliminar este FO?')) return;
   const res = await fetch(`/generic/api/${FO_TABLE}/${currentFoStamp}`, { method: 'DELETE' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    alert('Erro ao eliminar: ' + (err.error || res.statusText));
+    showFoToast('Erro ao eliminar: ' + (err.error || res.statusText), 'danger');
     return;
   }
+  queueFoToast('Compra eliminada.', 'success');
   window.location.href = returnTo;
 }
 

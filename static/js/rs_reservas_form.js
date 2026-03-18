@@ -1,6 +1,20 @@
 const rsStamp = String(window.RS_STAMP || '').trim();
 const returnUrl = String(window.RS_RETURN_TO || '/generic/view/RS/').trim() || '/generic/view/RS/';
 
+function showReservationToast(message, type = 'success', options = {}) {
+  if (typeof window.showToast === 'function') {
+    window.showToast(message, type, options);
+    return;
+  }
+  window.alert(message);
+}
+
+function queueReservationToast(message, type = 'success', options = {}) {
+  if (typeof window.queueToastOnNextPage === 'function') {
+    window.queueToastOnNextPage(message, type, options);
+  }
+}
+
 const overlay = document.getElementById('loadingOverlay');
 const overlayText = overlay?.querySelector('.loading-text');
 const titleEl = document.getElementById('rsTitulo');
@@ -866,6 +880,7 @@ async function saveDocument() {
     updateChatUi();
     renderBillingCard();
     await loadCleaningInfo();
+    showReservationToast('Reserva gravada.', 'success');
   } finally {
     hideOverlay();
   }
@@ -881,10 +896,11 @@ async function deleteDocument() {
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || 'Erro ao eliminar reserva');
+    queueReservationToast('Reserva eliminada.', 'success');
     window.location.href = returnUrl;
   } catch (err) {
     hideOverlay();
-    window.alert(err.message || 'Erro ao eliminar reserva');
+    showReservationToast(err.message || 'Erro ao eliminar reserva', 'danger');
   }
 }
 
@@ -946,7 +962,7 @@ async function init() {
           tmp.remove();
         }
       } catch (_) {
-        window.alert('Erro ao copiar link');
+        showReservationToast('Erro ao copiar link', 'danger');
       }
     });
 
@@ -954,7 +970,7 @@ async function init() {
       try {
         await saveDocument();
       } catch (err) {
-        window.alert(err.message || 'Erro ao gravar reserva');
+        showReservationToast(err.message || 'Erro ao gravar reserva', 'danger');
       }
     });
     document.getElementById('rsBtnCancel')?.addEventListener('click', async () => {
@@ -962,7 +978,7 @@ async function init() {
         showOverlay('A carregar...');
         await loadDocument();
       } catch (err) {
-        window.alert(err.message || 'Erro ao repor reserva');
+        showReservationToast(err.message || 'Erro ao repor reserva', 'danger');
       } finally {
         hideOverlay();
       }
@@ -974,7 +990,7 @@ async function init() {
 
     await Promise.all([loadConfig(), loadDocument()]);
   } catch (err) {
-    window.alert(err.message || 'Erro ao iniciar ecrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£ de reservas');
+    showReservationToast(err.message || 'Erro ao iniciar ecr? de reservas', 'danger');
   } finally {
     hideOverlay();
   }
