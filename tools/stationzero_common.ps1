@@ -20,6 +20,19 @@ $script:StationZeroConfig = @{
     ServerPort  = 8000
 }
 
+function Test-StationZeroOwnedExecutable {
+    param([Parameter(Mandatory = $true)]$Process)
+
+    $exe = (ConvertTo-StationZeroSafeString $Process.ExecutablePath).ToLowerInvariant()
+    if (-not $exe) {
+        return $false
+    }
+
+    $pythonExe = $script:StationZeroConfig.PythonExe.ToLowerInvariant()
+    $waitressExe = $script:StationZeroConfig.WaitressExe.ToLowerInvariant()
+    return $exe -eq $pythonExe -or $exe -eq $waitressExe
+}
+
 function Ensure-StationZeroDirectories {
     foreach ($path in @($script:StationZeroLogs, $script:StationZeroRun)) {
         if (-not (Test-Path $path)) {
@@ -212,7 +225,8 @@ function Test-StationZeroRootMatch {
     $commandLine = ConvertTo-StationZeroSafeString $Process.CommandLine
     $executable = ConvertTo-StationZeroSafeString $Process.ExecutablePath
     return $commandLine.ToLowerInvariant().Contains($script:StationZeroRootLower) -or
-        $executable.ToLowerInvariant().Contains($script:StationZeroRootLower)
+        $executable.ToLowerInvariant().Contains($script:StationZeroRootLower) -or
+        (Test-StationZeroOwnedExecutable -Process $Process)
 }
 
 function Test-StationZeroModeSignature {
@@ -234,13 +248,21 @@ function Test-StationZeroModeSignature {
         }
         'ProdLike' {
             return ($cmd.Contains('waitress-serve') -or $cmd.Contains('app:app')) -and
-                $cmd.Contains('--host=127.0.0.1') -and
-                $cmd.Contains("--port=$($Config.Port)")
+                $cmd.Contains("--port=$($Config.Port)") -and
+                (
+                    $cmd.Contains('--host=127.0.0.1') -or
+                    $cmd.Contains('--listen=127.0.0.1') -or
+                    (Test-StationZeroOwnedExecutable -Process $Process)
+                )
         }
         'Server' {
             return ($cmd.Contains('waitress-serve') -or $cmd.Contains('app:app')) -and
-                ($cmd.Contains('--host=0.0.0.0') -or $cmd.Contains('--listen=0.0.0.0')) -and
-                $cmd.Contains("--port=$($Config.Port)")
+                $cmd.Contains("--port=$($Config.Port)") -and
+                (
+                    $cmd.Contains('--host=0.0.0.0') -or
+                    $cmd.Contains('--listen=0.0.0.0') -or
+                    (Test-StationZeroOwnedExecutable -Process $Process)
+                )
         }
         default {
             return $false
