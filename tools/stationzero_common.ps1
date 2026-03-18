@@ -215,6 +215,39 @@ function Test-StationZeroRootMatch {
         $executable.ToLowerInvariant().Contains($script:StationZeroRootLower)
 }
 
+function Test-StationZeroModeSignature {
+    param(
+        [Parameter(Mandatory = $true)]$Process,
+        [Parameter(Mandatory = $true)][hashtable]$Config
+    )
+
+    $cmd = (ConvertTo-StationZeroSafeString $Process.CommandLine).ToLowerInvariant()
+    if (-not $cmd) {
+        return $false
+    }
+
+    switch ($Config.Mode) {
+        'Dev' {
+            return $cmd.Contains('-m flask') -and
+                $cmd.Contains('--app app.py') -and
+                $cmd.Contains("--port=$($Config.Port)")
+        }
+        'ProdLike' {
+            return ($cmd.Contains('waitress-serve') -or $cmd.Contains('app:app')) -and
+                $cmd.Contains('--host=127.0.0.1') -and
+                $cmd.Contains("--port=$($Config.Port)")
+        }
+        'Server' {
+            return ($cmd.Contains('waitress-serve') -or $cmd.Contains('app:app')) -and
+                ($cmd.Contains('--host=0.0.0.0') -or $cmd.Contains('--listen=0.0.0.0')) -and
+                $cmd.Contains("--port=$($Config.Port)")
+        }
+        default {
+            return $false
+        }
+    }
+}
+
 function Test-StationZeroModeProcess {
     param(
         [Parameter(Mandatory = $true)]$Process,
@@ -225,25 +258,7 @@ function Test-StationZeroModeProcess {
         return $false
     }
 
-    $cmd = (ConvertTo-StationZeroSafeString $Process.CommandLine).ToLowerInvariant()
-    switch ($Config.Mode) {
-        'Dev' {
-            return $cmd.Contains('-m flask') -and $cmd.Contains('--app app.py') -and $cmd.Contains("--port=$($Config.Port)")
-        }
-        'ProdLike' {
-            return ($cmd.Contains('waitress-serve') -or $cmd.Contains('app:app')) -and
-                $cmd.Contains('--host=127.0.0.1') -and
-                $cmd.Contains("--port=$($Config.Port)")
-        }
-        'Server' {
-            return ($cmd.Contains('waitress-serve') -or $cmd.Contains('app:app')) -and
-                $cmd.Contains('--host=0.0.0.0') -and
-                $cmd.Contains("--port=$($Config.Port)")
-        }
-        default {
-            return $false
-        }
-    }
+    return (Test-StationZeroModeSignature -Process $Process -Config $Config)
 }
 
 function Get-StationZeroPortListeners {
@@ -278,7 +293,7 @@ function Get-StationZeroModeProcesses {
 
     $matches = @(Get-StationZeroProcessInventory | Where-Object { Test-StationZeroModeProcess -Process $_ -Config $Config })
     $portOwner = Get-StationZeroPortOwnerProcess -Port $Config.Port
-    if ($portOwner -and (Test-StationZeroRootMatch -Process $portOwner)) {
+    if ($portOwner -and ((Test-StationZeroRootMatch -Process $portOwner) -or (Test-StationZeroModeSignature -Process $portOwner -Config $Config))) {
         if (-not ($matches | Where-Object { $_.ProcessId -eq $portOwner.ProcessId })) {
             $matches += $portOwner
         }
@@ -438,7 +453,7 @@ function Start-StationZeroMode {
     }
 
     $portOwner = Get-StationZeroPortOwnerProcess -Port $Config.Port
-    if ($portOwner -and -not (Test-StationZeroRootMatch -Process $portOwner)) {
+    if ($portOwner -and -not ((Test-StationZeroRootMatch -Process $portOwner) -or (Test-StationZeroModeSignature -Process $portOwner -Config $Config))) {
         $msg = "Porta $($Config.Port) ocupada por processo nao relacionado: PID $($portOwner.ProcessId) [$($portOwner.Name)]."
         Write-StationZeroLog -Kind control -Message $msg
         throw $msg
