@@ -952,7 +952,7 @@ hideLoading()
                 const id = rowData ? rowData[campoPK] : null;
                 if (!id) return alert('Não consegui determinar o ID a eliminar.');
 
-                if (!confirm('Confirmar eliminação deste registo?')) return;
+                if (!(await (window.szConfirmDelete?.('Pretende eliminar este registo?') ?? Promise.resolve(confirm('Confirmar elimina??o?'))))) return;
 
                 const resp = await fetch(`/generic/api/${det.tabela}/${id}`, { method: 'DELETE' });
                 if (!resp.ok) {
@@ -1710,7 +1710,7 @@ hideLoading()
     // Eliminar
     document.getElementById('btnDelete')?.addEventListener('click', async () => {
       if (!RECORD_STAMP || !TABLE_NAME) return;
-      if (!confirm('Confirmar eliminação?')) return;
+      if (!(await (window.szConfirmDelete?.('Pretende eliminar este registo?') ?? Promise.resolve(confirm('Confirmar elimina??o?'))))) return;
 
       try {
         const resp = await fetch(`/generic/api/${TABLE_NAME}/${RECORD_STAMP}`, { method: 'DELETE' });

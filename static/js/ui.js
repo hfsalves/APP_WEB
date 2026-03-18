@@ -215,6 +215,195 @@ window.addEventListener('DOMContentLoaded', () => {
     } catch (_) {}
   };
 
+  const isMobileMessageUi = () => {
+    try {
+      return window.matchMedia('(max-width: 768px)').matches
+        || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    } catch (_) {
+      return false;
+    }
+  };
+
+  let messageModalEl = null;
+  let messageModalInstance = null;
+  let messageModalState = null;
+
+  function ensureMessageModal() {
+    if (messageModalEl) return messageModalEl;
+
+    messageModalEl = document.createElement('div');
+    messageModalEl.className = 'modal fade sz_message_modal';
+    messageModalEl.tabIndex = -1;
+    messageModalEl.setAttribute('aria-hidden', 'true');
+    messageModalEl.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header sz_modal_header">
+            <div class="sz_message_modal_head">
+              <div class="sz_message_modal_eyebrow" data-sz-message-eyebrow hidden></div>
+              <h5 class="modal-title sz_modal_title" data-sz-message-title>Mensagem</h5>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body sz_modal_body">
+            <div class="sz_message_modal_text" data-sz-message-text></div>
+          </div>
+          <div class="modal-footer sz_modal_footer" data-sz-message-footer></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(messageModalEl);
+    messageModalInstance = bootstrap.Modal.getOrCreateInstance(messageModalEl, {
+      backdrop: true,
+      keyboard: true
+    });
+
+    messageModalEl.addEventListener('hidden.bs.modal', () => {
+      if (!messageModalState?.resolve) return;
+      const action = messageModalEl.dataset.szMessageAction || messageModalState.dismissAction || 'dismiss';
+      messageModalEl.dataset.szMessageAction = '';
+      const resolve = messageModalState.resolve;
+      messageModalState = null;
+      resolve(action);
+    });
+
+    return messageModalEl;
+  }
+
+  function renderMessageModal(options = {}) {
+    const modalEl = ensureMessageModal();
+    const titleEl = modalEl.querySelector('[data-sz-message-title]');
+    const eyebrowEl = modalEl.querySelector('[data-sz-message-eyebrow]');
+    const textEl = modalEl.querySelector('[data-sz-message-text]');
+    const footerEl = modalEl.querySelector('[data-sz-message-footer]');
+    const intent = String(options.intent || 'info').trim().toLowerCase();
+    const buttons = Array.isArray(options.buttons) && options.buttons.length
+      ? options.buttons
+      : [{ key: 'ok', label: 'OK', className: 'sz_button_primary' }];
+
+    modalEl.classList.remove('sz_message_info', 'sz_message_success', 'sz_message_warning', 'sz_message_danger');
+    modalEl.classList.add(`sz_message_${intent}`);
+
+    titleEl.textContent = options.title || 'Mensagem';
+    textEl.textContent = options.message || '';
+
+    const eyebrow = (options.eyebrow || '').toString().trim();
+    if (eyebrow) {
+      eyebrowEl.hidden = false;
+      eyebrowEl.textContent = eyebrow;
+    } else {
+      eyebrowEl.hidden = true;
+      eyebrowEl.textContent = '';
+    }
+
+    footerEl.innerHTML = '';
+    buttons.forEach((button, index) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `sz_button ${button.className || (index === 0 ? 'sz_button_primary' : 'sz_button_secondary')}`;
+      btn.textContent = button.label || button.key || 'OK';
+      btn.addEventListener('click', () => {
+        modalEl.dataset.szMessageAction = button.key || 'ok';
+        messageModalInstance.hide();
+      });
+      footerEl.appendChild(btn);
+    });
+
+    window.setTimeout(() => {
+      footerEl.querySelector('.sz_button_primary, .sz_button_danger, .sz_button')?.focus();
+    }, 30);
+  }
+
+  window.szMessage = function(options = {}) {
+    if (isMobileMessageUi() || !window.bootstrap?.Modal) {
+      return Promise.resolve('dismiss');
+    }
+    ensureMessageModal();
+    if (messageModalState?.resolve) {
+      const resolve = messageModalState.resolve;
+      messageModalState = null;
+      resolve('dismiss');
+    }
+    renderMessageModal(options);
+    return new Promise((resolve) => {
+      messageModalState = {
+        resolve,
+        dismissAction: options.dismissAction || 'dismiss'
+      };
+      messageModalEl.dataset.szMessageAction = '';
+      messageModalInstance.show();
+    });
+  };
+
+  window.szAlert = async function(message, options = {}) {
+    if (isMobileMessageUi() || !window.bootstrap?.Modal) {
+      window.alert(message);
+      return 'ok';
+    }
+    return window.szMessage({
+      title: options.title || 'Mensagem',
+      eyebrow: options.eyebrow || '',
+      message,
+      intent: options.intent || 'info',
+      buttons: [{ key: 'ok', label: options.okText || 'OK', className: options.okClassName || 'sz_button_primary' }],
+      dismissAction: 'ok'
+    });
+  };
+
+  window.szConfirm = async function(message, options = {}) {
+    if (isMobileMessageUi() || !window.bootstrap?.Modal) {
+      return window.confirm(message);
+    }
+    const result = await window.szMessage({
+      title: options.title || 'Confirmar',
+      eyebrow: options.eyebrow || '',
+      message,
+      intent: options.intent || 'warning',
+      buttons: [
+        { key: 'ok', label: options.okText || 'OK', className: options.okClassName || 'sz_button_primary' },
+        { key: 'cancel', label: options.cancelText || 'Cancelar', className: options.cancelClassName || 'sz_button_secondary' }
+      ],
+      dismissAction: 'cancel'
+    });
+    return result === 'ok';
+  };
+
+  window.szYesNo = async function(message, options = {}) {
+    if (isMobileMessageUi() || !window.bootstrap?.Modal) {
+      return window.confirm(message);
+    }
+    const result = await window.szMessage({
+      title: options.title || 'Confirmar',
+      eyebrow: options.eyebrow || '',
+      message,
+      intent: options.intent || 'info',
+      buttons: [
+        { key: 'yes', label: options.yesText || 'Sim', className: options.yesClassName || 'sz_button_primary' },
+        { key: 'no', label: options.noText || 'Não', className: options.noClassName || 'sz_button_secondary' }
+      ],
+      dismissAction: 'no'
+    });
+    return result === 'yes';
+  };
+
+  window.szConfirmDelete = async function(message, options = {}) {
+    if (isMobileMessageUi() || !window.bootstrap?.Modal) {
+      return window.confirm(message);
+    }
+    const result = await window.szMessage({
+      title: options.title || 'Confirmar eliminação',
+      eyebrow: options.eyebrow || 'Atenção!',
+      message,
+      intent: 'danger',
+      buttons: [
+        { key: 'delete', label: options.deleteText || 'Eliminar', className: 'sz_button_danger' },
+        { key: 'cancel', label: options.cancelText || 'Cancelar', className: 'sz_button_secondary' }
+      ],
+      dismissAction: 'cancel'
+    });
+    return result === 'delete';
+  };
+
   // Toast helper
   window.showToast = function(message, type = 'success', options = {}) {
     try {

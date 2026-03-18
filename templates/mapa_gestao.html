@@ -332,7 +332,9 @@
     <div class="modal-content detail-card">
       <div class="modal-header border-0 pb-1">
         <h5 class="modal-title mb-0" id="mapDetailTitle">Detalhe</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <button type="button" class="sz_button sz_button_ghost sz_management_map_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
       <div class="modal-body pt-2">
         <div class="table-responsive rounded-3 shadow-sm detail-table-wrap">
@@ -340,14 +342,14 @@
             <thead>
               <tr>
                 <th>Documento</th>
-                <th>N�mero</th>
+                <th>N&uacute;mero</th>
                 <th>Data</th>
                 <th>Nome</th>
                 <th>C. Custo</th>
-                <th>Refer�ncia</th>
-                <th>Designa��o</th>
+                <th>Refer&ecirc;ncia</th>
+                <th>Designa&ccedil;&atilde;o</th>
                 <th class="text-end">Quantidade</th>
-                <th class="text-end">Pre�o</th>
+                <th class="text-end">Pre&ccedil;o</th>
                 <th class="text-end">Total</th>
                 <th class="text-center">Anexo</th>
               </tr>
@@ -359,8 +361,8 @@
         </div>
       </div>
       <div class="modal-footer d-flex justify-content-between">
-        <div class="fw-semibold" id="mapDetailTotal">Total: --</div>
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        <div id="mapDetailTotal">Total: --</div>
+        <button class="sz_button sz_button_secondary" data-bs-dismiss="modal" type="button">Fechar</button>
       </div>
     </div>
   </div>
@@ -1052,9 +1054,11 @@
 
   .detail-table {
     width: 100%;
+    min-width: 1120px;
     margin: 0;
     border-collapse: collapse;
     color: var(--sz-color-text);
+    table-layout: auto;
   }
 
   .detail-table thead {
@@ -1067,27 +1071,71 @@
 
   .detail-table th,
   .detail-table td {
-    border-color: var(--sz-color-border);
+    border-color: var(--sz-color-border) !important;
+    color: var(--sz-color-text) !important;
     font-size: 12px;
     vertical-align: middle;
     padding: 0.65rem 0.8rem;
   }
 
   .detail-table th {
-    border: 0;
-    border-bottom: 1px solid var(--sz-color-border);
+    border: 0 !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
   }
 
   .detail-table td {
-    border: 0;
-    border-bottom: 1px solid var(--sz-color-border);
-    background: var(--sz-color-surface);
+    border: 0 !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    background: var(--sz-color-surface) !important;
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .detail-table th:nth-child(1),
+  .detail-table td:nth-child(1) {
+    min-width: 110px;
+  }
+
+  .detail-table th:nth-child(2),
+  .detail-table td:nth-child(2) {
+    min-width: 120px;
+  }
+
+  .detail-table th:nth-child(3),
+  .detail-table td:nth-child(3) {
+    min-width: 100px;
+  }
+
+  .detail-table th:nth-child(8),
+  .detail-table td:nth-child(8) {
+    width: 90px;
+  }
+
+  .detail-table th:nth-child(9),
+  .detail-table td:nth-child(9),
+  .detail-table th:nth-child(10),
+  .detail-table td:nth-child(10) {
+    width: 90px;
+  }
+
+  .detail-table th:last-child,
+  .detail-table td:last-child {
+    width: 92px;
+    min-width: 92px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .detail-table tbody tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 78%, var(--sz-color-surface)) !important;
   }
 
   .detail-table tbody tr:hover td {
-    background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface));
+    background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface)) !important;
   }
 
   #mapDetailTotal,
@@ -1095,6 +1143,48 @@
     font-size: 14px;
     color: var(--sz-color-text);
     font-weight: var(--sz-font-weight-semibold);
+  }
+
+  #mapDetailTotal {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .sz_management_map_detail_metric {
+    color: var(--sz-color-text-muted);
+    font-size: 0.8125rem;
+  }
+
+  .sz_management_map_detail_metric strong {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .sz_management_map_detail_delta {
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .sz_management_map_detail_open {
+    min-height: 2rem;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.75rem;
+  }
+
+  .sz_management_map_modal_close {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--sz-radius-sm);
+    flex: 0 0 auto;
+  }
+
+  .sz_management_map_modal_close i {
+    font-size: 0.95rem;
   }
 
   #mapDetailTitle {

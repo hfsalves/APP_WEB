@@ -887,7 +887,7 @@ async function saveDocument() {
 }
 
 async function deleteDocument() {
-  if (!window.confirm('Eliminar esta reserva?')) return;
+  if (!(await (window.szConfirmDelete?.('Pretende eliminar esta reserva?') ?? Promise.resolve(window.confirm('Eliminar esta reserva?'))))) return;
   showOverlay('A eliminar...');
   try {
     const resp = await fetch(`/api/reservas/rs/${encodeURIComponent(rsStamp)}/delete`, {

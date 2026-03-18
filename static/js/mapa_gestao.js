@@ -1795,7 +1795,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         detailBody.innerHTML = rows.map(r => {
           const url = r.anexo_url || '';
-          const btn = url ? `<a class="btn btn-outline-primary btn-sm" target="_blank" href="${escapeHtml(url)}">Abrir</a>` : '';
+          const btn = url ? `<a class="sz_button sz_button_ghost sz_management_map_detail_open" target="_blank" href="${escapeHtml(url)}">Abrir</a>` : '';
           return `
           <tr>
             <td>${escapeHtml(r.documento || '')}</td>
@@ -1825,17 +1825,17 @@ document.addEventListener('DOMContentLoaded', () => {
             : (desvio > 0 ? 'text-success' : (desvio < 0 ? 'text-danger' : 'text-muted'));
           const pctTxt = pct == null ? '' : ` (${fmtPct.format(pct)}%)`;
           detailTotal.innerHTML = `
-            <span class="fw-bold">Total: ${fmtNum2.format(total)}</span>
-            <span class="text-muted small ms-2">Orçamento: ${fmtNum2.format(orc)}</span>
-            <span class="text-muted small ms-2">Desvio: <span class="${cls} opacity-75">${fmtNum2.format(desvio)}${pctTxt}</span></span>
+            <span class="sz_management_map_detail_metric"><strong>Total:</strong> ${fmtNum2.format(total)}</span>
+            <span class="sz_management_map_detail_metric"><strong>Or&ccedil;amento:</strong> ${fmtNum2.format(orc)}</span>
+            <span class="sz_management_map_detail_metric"><strong>Desvio:</strong> <span class="sz_management_map_detail_delta ${cls}">${fmtNum2.format(desvio)}${pctTxt}</span></span>
           `.trim();
         } else {
-          detailTotal.innerHTML = `<span class="fw-bold">Total: ${fmtNum2.format(total)}</span>`;
+          detailTotal.innerHTML = `<span class="sz_management_map_detail_metric"><strong>Total:</strong> ${fmtNum2.format(total)}</span>`;
         }
       }
     } catch (err) {
       console.error(err);
-      detailBody.innerHTML = `<tr><td colspan="10" class="text-center text-danger">${escapeHtml(err.message || 'Erro ao carregar detalhe')}</td></tr>`;
+      detailBody.innerHTML = `<tr><td colspan="11" class="text-center text-danger">${escapeHtml(err.message || 'Erro ao carregar detalhe')}</td></tr>`;
       if (detailTotal) detailTotal.textContent = 'Total: --';
     }
   }

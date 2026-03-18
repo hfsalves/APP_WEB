@@ -2226,7 +2226,7 @@ async function deleteFo() {
     showFoToast('Documento sincronizado. Não pode ser eliminado.', 'warning');
     return;
   }
-  if (!confirm('Eliminar este FO?')) return;
+  if (!(await (window.szConfirmDelete?.('Pretende eliminar esta compra?') ?? Promise.resolve(confirm('Eliminar este FO?'))))) return;
   const res = await fetch(`/generic/api/${FO_TABLE}/${currentFoStamp}`, { method: 'DELETE' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
