@@ -387,12 +387,32 @@ function Invoke-StationZeroLoggedCommand {
     $commandText = "$Executable $($Arguments -join ' ')"
     Add-Content -Path $LogFile -Value "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $commandText"
 
-    $allOutput = & $Executable @Arguments 2>&1
-    if ($allOutput) {
-        $allOutput | Out-File -FilePath $LogFile -Append -Encoding utf8
-    }
+    Ensure-StationZeroDirectories
+    $stdoutFile = Join-Path $script:StationZeroRun ("cmd-" + [guid]::NewGuid().ToString('N') + ".out.log")
+    $stderrFile = Join-Path $script:StationZeroRun ("cmd-" + [guid]::NewGuid().ToString('N') + ".err.log")
 
-    return $LASTEXITCODE
+    try {
+        $proc = Start-Process -FilePath $Executable `
+            -ArgumentList $Arguments `
+            -WorkingDirectory $script:StationZeroRoot `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput $stdoutFile `
+            -RedirectStandardError $stderrFile `
+            -Wait `
+            -PassThru
+
+        if (Test-Path $stdoutFile) {
+            Get-Content $stdoutFile | Out-File -FilePath $LogFile -Append -Encoding utf8
+        }
+        if (Test-Path $stderrFile) {
+            Get-Content $stderrFile | Out-File -FilePath $LogFile -Append -Encoding utf8
+        }
+
+        return [int]$proc.ExitCode
+    } finally {
+        if (Test-Path $stdoutFile) { Remove-Item $stdoutFile -Force -ErrorAction SilentlyContinue }
+        if (Test-Path $stderrFile) { Remove-Item $stderrFile -Force -ErrorAction SilentlyContinue }
+    }
 }
 
 function Invoke-StationZeroServerUpdate {
