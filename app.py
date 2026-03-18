@@ -13290,6 +13290,123 @@ OPTION (MAXRECURSION 32767);
         except Exception as e:
             return jsonify({'ok': False, 'error': str(e)}), 500
 
+    def _normalize_cpe_value(raw):
+        return re.sub(r'[\s\-]+', '', str(raw or '').upper()).strip()
+
+    @app.route('/api/fo_compras/sync_alojamento_cpe', methods=['POST'])
+    @login_required
+    def api_fo_compras_sync_alojamento_cpe():
+        try:
+            body = request.get_json(silent=True) or {}
+            ccusto = (body.get('ccusto') or '').strip()
+            invoice_cpe = (body.get('cpe') or '').strip()
+            update_alojamento = bool(body.get('update_alojamento'))
+
+            if not ccusto:
+                return jsonify({'ok': False, 'error': 'CCUSTO em falta.'}), 400
+            if not invoice_cpe:
+                return jsonify({'ok': False, 'error': 'CPE da fatura em falta.'}), 400
+
+            current_feid, error_response = _current_feid_or_json_error()
+            if error_response:
+                return error_response
+
+            row = db.session.execute(text("""
+                SELECT TOP 1
+                    ALSTAMP,
+                    LTRIM(RTRIM(ISNULL(NOME,''))) AS NOME,
+                    LTRIM(RTRIM(ISNULL(CCUSTO,''))) AS CCUSTO,
+                    LTRIM(RTRIM(ISNULL(CPE,''))) AS CPE
+                FROM dbo.AL
+                WHERE LTRIM(RTRIM(ISNULL(CCUSTO,''))) = :ccusto
+                  AND (
+                        ISNULL(FEID, 0) = :current_feid
+                     OR ISNULL(FEID_GESTOR, 0) = :current_feid
+                  )
+                ORDER BY
+                    CASE
+                        WHEN ISNULL(FEID_GESTOR, 0) = :current_feid THEN 0
+                        WHEN ISNULL(FEID, 0) = :current_feid THEN 1
+                        ELSE 9
+                    END,
+                    NOME
+            """), {
+                'ccusto': ccusto,
+                'current_feid': current_feid,
+            }).mappings().first()
+
+            if not row:
+                return jsonify({
+                    'ok': True,
+                    'status': 'no_alojamento',
+                    'message': 'Sem alojamento para o CCUSTO selecionado.'
+                })
+
+            stored_cpe = (row.get('CPE') or '').strip()
+            invoice_cpe_norm = _normalize_cpe_value(invoice_cpe)
+            stored_cpe_norm = _normalize_cpe_value(stored_cpe)
+
+            if not stored_cpe_norm:
+                db.session.execute(text("""
+                    UPDATE dbo.AL
+                    SET CPE = :cpe
+                    WHERE ALSTAMP = :alstamp
+                """), {
+                    'cpe': invoice_cpe,
+                    'alstamp': row.get('ALSTAMP'),
+                })
+                db.session.commit()
+                return jsonify({
+                    'ok': True,
+                    'status': 'filled',
+                    'alojamento_nome': row.get('NOME') or '',
+                    'ccusto': row.get('CCUSTO') or '',
+                    'stored_cpe': '',
+                    'invoice_cpe': invoice_cpe,
+                })
+
+            if stored_cpe_norm == invoice_cpe_norm:
+                return jsonify({
+                    'ok': True,
+                    'status': 'same',
+                    'alojamento_nome': row.get('NOME') or '',
+                    'ccusto': row.get('CCUSTO') or '',
+                    'stored_cpe': stored_cpe,
+                    'invoice_cpe': invoice_cpe,
+                })
+
+            if update_alojamento:
+                db.session.execute(text("""
+                    UPDATE dbo.AL
+                    SET CPE = :cpe
+                    WHERE ALSTAMP = :alstamp
+                """), {
+                    'cpe': invoice_cpe,
+                    'alstamp': row.get('ALSTAMP'),
+                })
+                db.session.commit()
+                return jsonify({
+                    'ok': True,
+                    'status': 'updated',
+                    'alojamento_nome': row.get('NOME') or '',
+                    'ccusto': row.get('CCUSTO') or '',
+                    'stored_cpe': stored_cpe,
+                    'invoice_cpe': invoice_cpe,
+                })
+
+            return jsonify({
+                'ok': True,
+                'status': 'different',
+                'requires_confirmation': True,
+                'alojamento_nome': row.get('NOME') or '',
+                'ccusto': row.get('CCUSTO') or '',
+                'stored_cpe': stored_cpe,
+                'invoice_cpe': invoice_cpe,
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(e)}), 500
+
     @app.route('/api/cc_fornecedores/resumo')
     @login_required
     def api_cc_fornecedores_resumo():

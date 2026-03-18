@@ -1045,18 +1045,101 @@ body:not(.authenticated) .main-content {
   border-radius: 10px;
   border: 1px solid rgba(220, 38, 38, 0.15);
 }
-@media (max-width: 560px) {
+@media (max-width: 768px) {
+  body:not(.authenticated) .app-container {
+    height: auto;
+    min-height: 100dvh;
+    overflow-y: auto;
+  }
+
+  body:not(.authenticated) .main-content {
+    min-height: 100dvh;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+  }
+
   .login-page {
-    padding: 1.25rem;
+    min-height: 100dvh;
+    align-items: flex-start;
+    padding:
+      max(1rem, env(safe-area-inset-top))
+      1rem
+      max(1.25rem, env(safe-area-inset-bottom));
+    overflow: visible;
   }
+
   .login-card {
-    padding: 1.25rem 1.1rem;
+    width: min(420px, 100%);
+    padding: 1.25rem 1.1rem 1rem;
+    border-radius: 16px;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.26), 0 8px 18px rgba(0,0,0,0.1);
   }
+
   .login-card-header {
     align-items: center;
-    flex-direction: row;
-    gap: 0.75rem;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
     text-align: left;
+  }
+
+  .login-logo-wrap,
+  .login-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+  }
+
+  .login-title {
+    font-size: 1.35rem;
+  }
+
+  .login-subtitle {
+    font-size: 0.9rem;
+  }
+
+  .login-form .form-group {
+    margin-bottom: 0.9rem;
+  }
+
+  .login-form label {
+    font-size: 0.95rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .input-with-icon {
+    gap: 0.55rem;
+    padding: 0.38rem 0.6rem;
+    border-radius: 11px;
+  }
+
+  .input-with-icon i {
+    font-size: 0.95rem;
+  }
+
+  .input-with-icon .form-control {
+    min-height: 2.1rem;
+    padding: 0.2rem 0;
+    font-size: 0.98rem;
+  }
+
+  .login-card .btn-primary {
+    padding: 0.78rem 1rem;
+    border-radius: 11px;
+  }
+
+  .login-actions {
+    margin-top: 0.7rem;
+  }
+
+  .login-forgot-link {
+    font-size: 0.82rem;
+  }
+
+  .login-card-footer {
+    margin-top: 0.85rem;
+    padding-top: 0.75rem;
+    font-size: 0.72rem;
   }
 }
 /* Labels sempre em cima dos campos de filtro */

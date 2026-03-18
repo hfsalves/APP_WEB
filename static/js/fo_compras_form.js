@@ -99,6 +99,7 @@ const szPreviewFieldMap = [
 ];
 let foAnexosRows = [];
 let lastDocAnalyzeResult = null;
+let lastExtractedInvoiceCpe = '';
 
 function isFoLocked() {
   return Number(foPlanoValue) === 1 || foPagoLocked === true;
@@ -347,6 +348,7 @@ function getDefaultPdfAnexoId() {
 function renderDocAnalyzeResult(data) {
   if (!docAnalyzeBody || !docAnalyzeMeta) return;
   lastDocAnalyzeResult = data || null;
+  lastExtractedInvoiceCpe = ((data?.found?.cpe) || '').toString().trim();
   if (btnImportDocData) btnImportDocData.disabled = !(data && data.status === 'ok' && data.found);
   const found = data?.found || {};
   const fields = [
@@ -674,6 +676,45 @@ async function importDocAnalyzeToForm() {
     recalcTotals();
   }
   docAnalyzeModal?.hide();
+}
+
+async function syncAlojamentoCpeBeforeSave() {
+  const ccusto = (document.getElementById('CCUSTO')?.value || '').toString().trim();
+  const invoiceCpe = (lastExtractedInvoiceCpe || lastDocAnalyzeResult?.found?.cpe || '').toString().trim();
+  if (!ccusto || !invoiceCpe) return true;
+
+  const callSync = async (updateAlojamento = false) => {
+    const response = await fetch('/api/fo_compras/sync_alojamento_cpe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ccusto,
+        cpe: invoiceCpe,
+        update_alojamento: updateAlojamento
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.ok === false) {
+      throw new Error(payload.error || 'Erro ao validar CPE do alojamento.');
+    }
+    return payload;
+  };
+
+  const result = await callSync(false);
+  if (result.status !== 'different') return true;
+
+  const alojamentoNome = (result.alojamento_nome || ccusto || 'alojamento').toString().trim();
+  const answer = confirm(
+    `O CPE do alojamento ${alojamentoNome} não coincide com o CPE da fatura.\n\n` +
+    `AL: ${result.stored_cpe || '-'}\n` +
+    `Fatura: ${result.invoice_cpe || invoiceCpe}\n\n` +
+    `Pretende atualizar o CPE no alojamento?`
+  );
+
+  if (answer) {
+    await callSync(true);
+  }
+  return true;
 }
 
 async function analyzeDocumento() {
@@ -2078,20 +2119,20 @@ async function saveFo() {
     alert('Documento incluÃ­do em pagamento. NÃ£o pode ser alterado.');
     return;
   }
-  // mostra overlay
+  if (form && !form.checkValidity()) {
+    form.reportValidity?.();
+    return;
+  }
+  try {
+    await syncAlojamentoCpeBeforeSave();
+  } catch (error) {
+    alert(error.message || 'Erro ao validar CPE do alojamento.');
+    return;
+  }
   if (overlay) {
     overlay.style.display = 'flex';
     if (overlayText) overlayText.textContent = window.SAVE_OVERLAY_TEXT || 'A gravar...';
     requestAnimationFrame(() => overlay.style.opacity = '1');
-  }
-
-  if (form && !form.checkValidity()) {
-    if (overlay) {
-      overlay.style.opacity = '0';
-      setTimeout(() => overlay.style.display = 'none', 200);
-    }
-    form.reportValidity?.();
-    return;
   }
   const payload = getFoPayload();
   payload.OBS = buildFoObs(payload);
