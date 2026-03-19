@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <title>Mapa KMS {{ month_name }} {{ ano }}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+      color: #111827;
+      margin: 0;
+    }
+
+    .title {
+      font-size: 18pt;
+      font-weight: 700;
+      margin: 0 0 12px 0;
+    }
+
+    .top-grid {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+    }
+
+    .top-grid td {
+      vertical-align: top;
+      padding: 0;
+    }
+
+    .meta-box {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .meta-box td {
+      border: 1px solid #1f2937;
+      padding: 6px 8px;
+      font-size: 10pt;
+    }
+
+    .meta-label {
+      width: 120px;
+      font-size: 8.5pt;
+      color: #4b5563;
+      white-space: nowrap;
+    }
+
+    .meta-value {
+      font-weight: 700;
+    }
+
+    .receipt-box {
+      text-align: right;
+      padding-left: 18px;
+    }
+
+    .receipt-title {
+      font-size: 16pt;
+      font-weight: 700;
+      margin: 8px 0 10px 0;
+    }
+
+    .period-grid {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .period-grid td {
+      border: 1px solid #1f2937;
+      padding: 6px 8px;
+      text-align: center;
+    }
+
+    .period-label {
+      text-align: left;
+      font-size: 8.5pt;
+      color: #4b5563;
+      border: none !important;
+      padding: 0 0 4px 2px !important;
+    }
+
+    table.sheet {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .sheet th,
+    .sheet td {
+      border: 1px solid #1f2937;
+      padding: 4px 6px;
+      vertical-align: top;
+    }
+
+    .sheet th {
+      font-size: 9pt;
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .sheet td {
+      height: 20px;
+      font-size: 9pt;
+    }
+
+    .col-day {
+      width: 7%;
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .col-origin {
+      width: 25%;
+    }
+
+    .col-destination {
+      width: 25%;
+    }
+
+    .col-justification {
+      width: 31%;
+    }
+
+    .col-kms {
+      width: 12%;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .multiline {
+      white-space: pre-line;
+      line-height: 1.25;
+    }
+
+    .footer {
+      margin-top: 10px;
+      display: table;
+      width: 100%;
+    }
+
+    .footer-row {
+      display: table-row;
+    }
+
+    .footer-cell {
+      display: table-cell;
+      padding: 2px 4px;
+      font-size: 10pt;
+    }
+
+    .footer-label {
+      font-weight: 700;
+      width: 15%;
+      white-space: nowrap;
+    }
+
+    .footer-value {
+      width: 18%;
+    }
+
+    .generated {
+      margin-top: 12px;
+      font-size: 9pt;
+      color: #374151;
+      text-align: right;
+    }
+
+    .signature-wrap {
+      margin-top: 18px;
+      width: 100%;
+      text-align: right;
+    }
+
+    .signature-box {
+      display: inline-block;
+      width: 280px;
+      text-align: center;
+    }
+
+    .signature-line {
+      border-top: 1px solid #1f2937;
+      margin-top: 28px;
+      margin-bottom: 6px;
+    }
+
+    .signature-label {
+      font-size: 9pt;
+      color: #374151;
+    }
+  </style>
+</head>
+<body>
+  <div class="title">Compensação por deslocação em viatura própria (KMS)</div>
+
+  <table class="top-grid">
+    <tr>
+      <td style="width:56%;">
+        <table class="meta-box">
+          <tr>
+            <td class="meta-label">Empresa:</td>
+            <td class="meta-value">{{ company.nome or '' }}</td>
+          </tr>
+          <tr>
+            <td class="meta-label">Morada:</td>
+            <td class="meta-value">{{ company.morada or '' }}</td>
+          </tr>
+          <tr>
+            <td class="meta-label">Nº de Contribuinte:</td>
+            <td class="meta-value">{{ company.nif or '' }}</td>
+          </tr>
+          <tr>
+            <td class="meta-label">Colaborador:</td>
+            <td class="meta-value">{{ utilizador_nome or utilizador }}</td>
+          </tr>
+        </table>
+      </td>
+      <td class="receipt-box">
+        <div class="receipt-title">Recibo</div>
+        <table class="period-grid">
+          <tr>
+            <td class="period-label">Mês:</td>
+            <td class="period-label">Ano:</td>
+          </tr>
+          <tr>
+            <td><strong>{{ month_name }}</strong></td>
+            <td><strong>{{ ano }}</strong></td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <table class="sheet">
+    <thead>
+      <tr>
+        <th class="col-day">Dia</th>
+        <th class="col-origin">Local de origem</th>
+        <th class="col-destination">Local de destino</th>
+        <th class="col-justification">Justificação</th>
+        <th class="col-kms">Nº de KMS</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td class="col-day">{{ row.dia }}</td>
+        <td class="multiline">{{ row.origem }}</td>
+        <td class="multiline">{{ row.destino }}</td>
+        <td class="multiline">{{ row.justificacao }}</td>
+        <td class="col-kms">
+          {% if row.kms %}
+            {{ '{:,.2f}'.format(row.kms).replace(',', 'X').replace('.', ',').replace('X', ' ') }}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <div class="footer-row">
+      <div class="footer-cell footer-label">Total KMS:</div>
+      <div class="footer-cell footer-value">{{ '{:,.2f}'.format(totals.total_kms).replace(',', 'X').replace('.', ',').replace('X', ' ') }}</div>
+      <div class="footer-cell footer-label">Total a receber:</div>
+      <div class="footer-cell footer-value">{{ '{:,.2f}'.format(totals.total_valor).replace(',', 'X').replace('.', ',').replace('X', ' ') }} €</div>
+    </div>
+  </div>
+
+  <div class="generated">Porto, {{ generated_at.strftime('%d/%m/%Y') }}</div>
+
+  <div class="signature-wrap">
+    <div class="signature-box">
+      <div class="signature-line"></div>
+      <div class="signature-label">Assinatura do colaborador</div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,5 +1,6 @@
 ﻿import os
 import tempfile
+import calendar
 import subprocess
 import shutil
 import pyodbc
@@ -10408,6 +10409,693 @@ OPTION (MAXRECURSION 32767);
             return jsonify({'error': str(e)}), 500
 
 
+    def _ensure_rh_kms_schema():
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.RH_KMS', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.RH_KMS
+                (
+                    RH_KMSSTAMP VARCHAR(25) NOT NULL
+                        CONSTRAINT DF_RH_KMS_RH_KMSSTAMP DEFAULT LEFT(CONVERT(varchar(36), NEWID()), 25),
+                    ANO INT NOT NULL CONSTRAINT DF_RH_KMS_ANO DEFAULT 0,
+                    MES INT NOT NULL CONSTRAINT DF_RH_KMS_MES DEFAULT 0,
+                    UTILIZADOR VARCHAR(50) NOT NULL CONSTRAINT DF_RH_KMS_UTILIZADOR DEFAULT '',
+                    RESERVA VARCHAR(25) NOT NULL CONSTRAINT DF_RH_KMS_RESERVA DEFAULT '',
+                    ORIGEM NVARCHAR(200) NOT NULL CONSTRAINT DF_RH_KMS_ORIGEM DEFAULT '',
+                    DESTINO NVARCHAR(200) NOT NULL CONSTRAINT DF_RH_KMS_DESTINO DEFAULT '',
+                    KMS DECIMAL(12,2) NOT NULL CONSTRAINT DF_RH_KMS_KMS DEFAULT 0,
+                    VALOR_KM DECIMAL(12,2) NOT NULL CONSTRAINT DF_RH_KMS_VALOR_KM DEFAULT 0,
+                    VALOR_TOTAL DECIMAL(12,2) NOT NULL CONSTRAINT DF_RH_KMS_VALOR_TOTAL DEFAULT 0,
+                    OBS VARCHAR(200) NOT NULL CONSTRAINT DF_RH_KMS_OBS DEFAULT '',
+                    CONSTRAINT PK_RH_KMS PRIMARY KEY CLUSTERED (RH_KMSSTAMP)
+                );
+            END
+        """))
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.RH_KMS', 'U') IS NOT NULL
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE object_id = OBJECT_ID('dbo.RH_KMS')
+                      AND name = 'UX_RH_KMS_RESERVA'
+               )
+            BEGIN
+                CREATE UNIQUE NONCLUSTERED INDEX UX_RH_KMS_RESERVA
+                    ON dbo.RH_KMS (RESERVA);
+            END
+        """))
+        db.session.commit()
+
+
+    def _kms_is_admin():
+        return bool(getattr(current_user, 'ADMIN', False))
+
+
+    def _kms_parse_ano(raw_value, default_value=None):
+        default_year = default_value or date.today().year
+        try:
+            year = int(raw_value or default_year)
+        except Exception:
+            year = default_year
+        return max(2000, min(2100, year))
+
+
+    def _kms_parse_mes(raw_value, default_value=None):
+        default_month = default_value or date.today().month
+        try:
+            month = int(raw_value or default_month)
+        except Exception:
+            month = default_month
+        return max(1, min(12, month))
+
+
+    def _kms_decimal(value, default='0.00'):
+        try:
+            text_value = str(value or '').strip().replace(',', '.')
+            if not text_value:
+                return Decimal(default)
+            return Decimal(text_value)
+        except Exception:
+            return Decimal(default)
+
+
+    def _kms_round(value):
+        return _kms_decimal(value).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+
+    def _kms_float(value):
+        try:
+            return float(_kms_round(value))
+        except Exception:
+            return 0.0
+
+
+    def _kms_read_preco_km():
+        row = db.session.execute(text("""
+            SELECT TOP 1 PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+            FROM dbo.PARA
+            WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) = 'PRECO_KM'
+        """)).mappings().first()
+        if not row:
+            return Decimal('0.00')
+        try:
+            value = _para_value_from_row(row)
+        except Exception:
+            value = 0
+        return _kms_round(value)
+
+
+    def _kms_company_info():
+        current_feid = None
+        try:
+            current_feid = get_current_feid()
+        except Exception:
+            current_feid = None
+
+        fe_name = ''
+        if current_feid not in (None, ''):
+            fe_row = db.session.execute(text("""
+                SELECT TOP 1
+                    ISNULL(NOMEFISCAL, '') AS NOMEFISCAL,
+                    ISNULL(NOME, '') AS NOME
+                FROM dbo.FE
+                WHERE FEID = :feid
+            """), {'feid': int(current_feid)}).mappings().first() or {}
+            fe_name = str(fe_row.get('NOMEFISCAL') or '').strip() or str(fe_row.get('NOME') or '').strip()
+
+        rows = db.session.execute(text("""
+            SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+            FROM dbo.PARA
+            WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) IN (
+                'EMP_NOME_COM',
+                'EMP_NOME',
+                'EMP_MORADA',
+                'EMP_CODPOST',
+                'EMP_LOCAL',
+                'EMP_NIF',
+                'EMP_NCONT'
+            )
+        """)).mappings().all()
+        values = {}
+        for row in rows:
+            key = str(row.get('PARAMETRO') or '').strip().upper()
+            if not key:
+                continue
+            try:
+                values[key] = str(_para_value_from_row(row) or '').strip()
+            except Exception:
+                values[key] = str(row.get('CVALOR') or '').strip()
+        morada_parts = [values.get('EMP_MORADA', ''), values.get('EMP_CODPOST', ''), values.get('EMP_LOCAL', '')]
+        morada_parts = [part for part in morada_parts if part]
+        return {
+            'nome': fe_name or values.get('EMP_NOME_COM') or values.get('EMP_NOME') or 'StationZero',
+            'morada': ' '.join(morada_parts).strip(),
+            'nif': values.get('EMP_NIF') or values.get('EMP_NCONT') or ''
+        }
+
+
+    def _kms_sede_label():
+        rows = db.session.execute(text("""
+            SELECT PARAMETRO, TIPO, CVALOR, NVALOR
+            FROM dbo.PARA
+            WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) IN ('EMP_MORADA', 'EMP_CODPOST', 'EMP_LOCAL')
+        """)).mappings().all()
+        values = {}
+        for row in rows:
+            key = (row.get('PARAMETRO') or '').strip().upper()
+            tipo = (row.get('TIPO') or '').strip().upper()
+            if tipo == 'N':
+                raw = row.get('NVALOR')
+            else:
+                raw = row.get('CVALOR')
+            values[key] = str(raw or '').strip()
+        parts = [values.get('EMP_MORADA', ''), values.get('EMP_CODPOST', ''), values.get('EMP_LOCAL', '')]
+        parts = [part for part in parts if part]
+        return f"SEDE - {', '.join(parts)}" if parts else 'SEDE'
+
+
+    def _kms_user_options():
+        if not _kms_is_admin():
+            login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+            name = str(getattr(current_user, 'NOME', '') or '').strip() or login
+            return [{'login': login, 'nome': name}]
+        rows = db.session.execute(text("""
+            SELECT LOGIN, ISNULL(NOME,'') AS NOME
+            FROM dbo.US
+            WHERE ISNULL(INATIVO,0) = 0
+            ORDER BY NOME, LOGIN
+        """)).mappings().all()
+        out = []
+        for row in rows:
+            login = str(row.get('LOGIN') or '').strip()
+            if not login:
+                continue
+            out.append({
+                'login': login,
+                'nome': str(row.get('NOME') or '').strip() or login
+            })
+        if not out:
+            login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+            if login:
+                out.append({'login': login, 'nome': str(getattr(current_user, 'NOME', '') or '').strip() or login})
+        return out
+
+
+    def _kms_resolve_selected_user(requested_login=None, user_options=None):
+        options = user_options if user_options is not None else _kms_user_options()
+        current_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+        if not _kms_is_admin():
+            return current_login
+        requested = str(requested_login or '').strip()
+        valid = {str(item.get('login') or '').strip().upper(): str(item.get('login') or '').strip() for item in options if str(item.get('login') or '').strip()}
+        if requested and requested.upper() in valid:
+            return valid[requested.upper()]
+        if current_login and current_login.upper() in valid:
+            return valid[current_login.upper()]
+        return next(iter(valid.values()), current_login)
+
+
+    def _kms_selected_user_name(utilizador, user_options=None):
+        login = str(utilizador or '').strip()
+        options = user_options if user_options is not None else _kms_user_options()
+        for item in options:
+            option_login = str(item.get('login') or '').strip()
+            if option_login and option_login.upper() == login.upper():
+                return str(item.get('nome') or '').strip() or option_login
+        if login and str(getattr(current_user, 'LOGIN', '') or '').strip().upper() == login.upper():
+            return str(getattr(current_user, 'NOME', '') or '').strip() or login
+        return login
+
+
+    def _kms_month_totals(ano, mes, utilizador):
+        row = db.session.execute(text("""
+            SELECT
+                ISNULL(SUM(KMS), 0) AS TOTAL_KMS,
+                ISNULL(SUM(VALOR_TOTAL), 0) AS TOTAL_VALOR
+            FROM dbo.RH_KMS
+            WHERE ANO = :ano
+              AND MES = :mes
+              AND LTRIM(RTRIM(ISNULL(UTILIZADOR,''))) = LTRIM(RTRIM(:utilizador))
+        """), {
+            'ano': ano,
+            'mes': mes,
+            'utilizador': utilizador
+        }).mappings().first() or {}
+        return {
+            'total_kms': _kms_float(row.get('TOTAL_KMS')),
+            'total_valor': _kms_float(row.get('TOTAL_VALOR'))
+        }
+
+
+    def _kms_claim_payload(marked_login, marked_name, selected_login):
+        login = str(marked_login or '').strip()
+        name = str(marked_name or '').strip() or login
+        if not login:
+            return {
+                'estado': 'free',
+                'estado_label': 'Livre',
+                'checked': False,
+                'disabled': False,
+                'marcado_por': '',
+                'marcado_por_nome': ''
+            }
+        if login.upper() == str(selected_login or '').strip().upper():
+            return {
+                'estado': 'mine',
+                'estado_label': 'Registado',
+                'checked': True,
+                'disabled': False,
+                'marcado_por': login,
+                'marcado_por_nome': name
+            }
+        return {
+            'estado': 'other',
+            'estado_label': 'Bloqueado',
+            'checked': False,
+            'disabled': True,
+            'marcado_por': login,
+            'marcado_por_nome': name
+        }
+
+
+    def _kms_reservation_claim(rsstamp, selected_login):
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                ISNULL(K.UTILIZADOR,'') AS UTILIZADOR,
+                ISNULL(U.NOME, K.UTILIZADOR) AS UTILIZADOR_NOME
+            FROM dbo.RH_KMS K
+            LEFT JOIN dbo.US U ON U.LOGIN = K.UTILIZADOR
+            WHERE LTRIM(RTRIM(ISNULL(K.RESERVA,''))) = LTRIM(RTRIM(:reserva))
+        """), {'reserva': rsstamp}).mappings().first() or {}
+        return _kms_claim_payload(row.get('UTILIZADOR'), row.get('UTILIZADOR_NOME'), selected_login)
+
+
+    def _kms_unique_violation(exc):
+        message = str(exc or '').lower()
+        return ('2601' in message) or ('2627' in message) or ('duplicate key' in message) or ('unique' in message)
+
+
+    def _kms_fetch_reservation_rows(ano, mes, utilizador, current_feid):
+        sede_label = _kms_sede_label()
+        rows = db.session.execute(text("""
+            SELECT
+                RS.RSSTAMP,
+                ISNULL(RS.RESERVA,'') AS RESERVA_CODIGO,
+                CAST(RS.DATAIN AS date) AS DATA_CHECKIN,
+                ISNULL(RS.ALOJAMENTO,'') AS ALOJAMENTO,
+                ISNULL(RS.NOME,'') AS HOSPEDE,
+                ISNULL(RS.PRESENCIAL,0) AS PRESENCIAL,
+                ISNULL(RS.USRCHECKIN,'') AS USRCHECKIN,
+                ISNULL(UC.NOME, RS.USRCHECKIN) AS USRCHECKIN_NOME,
+                ISNULL(AL.ALSTAMP,'') AS ALSTAMP,
+                ISNULL(AL.CCUSTO,'') AS CCUSTO,
+                ISNULL(AL.MORADA,'') AS AL_MORADA,
+                ISNULL(AL.CODPOST,'') AS AL_CODPOST,
+                ISNULL(AL.LOCAL,'') AS AL_LOCAL,
+                rota.KM AS DISTANCIA_SEDE,
+                ISNULL(K.UTILIZADOR,'') AS KMS_UTILIZADOR,
+                ISNULL(U.NOME, K.UTILIZADOR) AS KMS_UTILIZADOR_NOME
+            FROM dbo.RS RS
+            INNER JOIN dbo.AL AL
+                ON LTRIM(RTRIM(AL.NOME)) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
+            LEFT JOIN dbo.US UC
+                ON UC.LOGIN = RS.USRCHECKIN
+            OUTER APPLY (
+                SELECT TOP 1 CAST(R.Km AS DECIMAL(12,2)) AS KM
+                FROM dbo.ROTAS R
+                WHERE (
+                        LTRIM(RTRIM(ISNULL(R.OrigemStamp,''))) = '__SEDE__'
+                    AND LTRIM(RTRIM(ISNULL(R.DestinoStamp,''))) = LTRIM(RTRIM(AL.ALSTAMP))
+                ) OR (
+                        LTRIM(RTRIM(ISNULL(R.DestinoStamp,''))) = '__SEDE__'
+                    AND LTRIM(RTRIM(ISNULL(R.OrigemStamp,''))) = LTRIM(RTRIM(AL.ALSTAMP))
+                )
+                ORDER BY ISNULL(R.UpdatedAt, GETDATE()) DESC
+            ) rota
+            LEFT JOIN dbo.RH_KMS K
+                ON LTRIM(RTRIM(ISNULL(K.RESERVA,''))) = LTRIM(RTRIM(RS.RSSTAMP))
+            LEFT JOIN dbo.US U
+                ON U.LOGIN = K.UTILIZADOR
+            WHERE YEAR(CAST(RS.DATAIN AS date)) = :ano
+              AND MONTH(CAST(RS.DATAIN AS date)) = :mes
+              AND ISNULL(RS.CANCELADA,0) = 0
+              AND (
+                    ISNULL(AL.FEID, 0) = :current_feid
+                 OR ISNULL(AL.FEID_GESTOR, 0) = :current_feid
+              )
+            ORDER BY CAST(RS.DATAIN AS date), ISNULL(RS.ALOJAMENTO,''), ISNULL(RS.RESERVA,''), RS.RSSTAMP
+        """), {
+            'ano': ano,
+            'mes': mes,
+            'utilizador': utilizador,
+            'current_feid': current_feid
+        }).mappings().all()
+
+        result = []
+        for row in rows:
+            distance_raw = row.get('DISTANCIA_SEDE')
+            has_distance = distance_raw is not None
+            distance = _kms_round(distance_raw if has_distance else 0)
+            kms_value = _kms_round(distance * Decimal('2'))
+            claim = _kms_claim_payload(row.get('KMS_UTILIZADOR'), row.get('KMS_UTILIZADOR_NOME'), utilizador)
+            destination_parts = [
+                str(row.get('ALOJAMENTO') or '').strip(),
+                str(row.get('AL_MORADA') or '').strip(),
+                str(row.get('AL_CODPOST') or '').strip(),
+                str(row.get('AL_LOCAL') or '').strip()
+            ]
+            destination_parts = [part for part in destination_parts if part]
+            result.append({
+                'rsstamp': str(row.get('RSSTAMP') or '').strip(),
+                'reserva_codigo': str(row.get('RESERVA_CODIGO') or '').strip() or str(row.get('RSSTAMP') or '').strip(),
+                'data_checkin': row.get('DATA_CHECKIN').strftime('%Y-%m-%d') if isinstance(row.get('DATA_CHECKIN'), (date, datetime)) else '',
+                'alojamento': str(row.get('ALOJAMENTO') or '').strip(),
+                'hospede': str(row.get('HOSPEDE') or '').strip(),
+                'presencial': bool(row.get('PRESENCIAL') or 0),
+                'usrcheckin': str(row.get('USRCHECKIN') or '').strip(),
+                'usrcheckin_nome': str(row.get('USRCHECKIN_NOME') or '').strip(),
+                'ccusto': str(row.get('CCUSTO') or '').strip(),
+                'alstamp': str(row.get('ALSTAMP') or '').strip(),
+                'origem': sede_label,
+                'destino': ' - '.join(destination_parts),
+                'distancia': _kms_float(distance),
+                'kms': _kms_float(kms_value),
+                'has_distance': bool(has_distance),
+                **claim
+            })
+        return result
+
+
+    def _kms_pdf_rows(ano, mes, utilizador):
+        rows = db.session.execute(text("""
+            SELECT
+                K.RH_KMSSTAMP,
+                K.RESERVA,
+                ISNULL(K.ORIGEM,'') AS ORIGEM,
+                ISNULL(K.DESTINO,'') AS DESTINO,
+                CAST(ISNULL(K.KMS, 0) AS DECIMAL(12,2)) AS KMS,
+                ISNULL(K.OBS,'') AS OBS,
+                CAST(RS.DATAIN AS date) AS DATA_CHECKIN,
+                ISNULL(RS.RESERVA,'') AS RESERVA_CODIGO,
+                ISNULL(RS.ALOJAMENTO,'') AS ALOJAMENTO,
+                ISNULL(RS.NOME,'') AS HOSPEDE
+            FROM dbo.RH_KMS K
+            LEFT JOIN dbo.RS RS
+                ON LTRIM(RTRIM(ISNULL(RS.RSSTAMP,''))) = LTRIM(RTRIM(ISNULL(K.RESERVA,'')))
+            WHERE K.ANO = :ano
+              AND K.MES = :mes
+              AND LTRIM(RTRIM(ISNULL(K.UTILIZADOR,''))) = LTRIM(RTRIM(:utilizador))
+            ORDER BY CAST(RS.DATAIN AS date), ISNULL(RS.RESERVA,''), K.RESERVA
+        """), {
+            'ano': ano,
+            'mes': mes,
+            'utilizador': utilizador
+        }).mappings().all()
+
+        days_in_month = calendar.monthrange(int(ano), int(mes))[1]
+        result = []
+
+        for row in rows:
+            checkin_date = row.get('DATA_CHECKIN')
+            day = checkin_date.day if isinstance(checkin_date, (date, datetime)) else None
+            reserva_codigo = str(row.get('RESERVA_CODIGO') or row.get('RESERVA') or '').strip()
+            alojamento = str(row.get('ALOJAMENTO') or '').strip()
+            obs = str(row.get('OBS') or '').strip()
+            justificacao_parts = [part for part in [reserva_codigo, alojamento, obs] if part]
+            result.append({
+                'dia': day or '',
+                'origem': str(row.get('ORIGEM') or '').strip(),
+                'destino': str(row.get('DESTINO') or '').strip(),
+                'justificacao': ' • '.join(justificacao_parts) or 'Check-in presencial',
+                'kms': _kms_float(row.get('KMS'))
+            })
+
+        if not result:
+            result.append({
+                'dia': '',
+                'origem': '',
+                'destino': '',
+                'justificacao': '',
+                'kms': 0.0
+            })
+
+        return result
+
+
+    def _kms_reservation_candidate(rsstamp, ano, mes, utilizador, current_feid):
+        rows = _kms_fetch_reservation_rows(ano, mes, utilizador, current_feid)
+        for row in rows:
+            if str(row.get('rsstamp') or '').strip().upper() == str(rsstamp or '').strip().upper():
+                return row
+        return None
+
+
+    @app.route('/kms')
+    @app.route('/kms/')
+    @login_required
+    def kms_page():
+        user_options = _kms_user_options()
+        today = date.today()
+        selected_user = _kms_resolve_selected_user(request.args.get('utilizador'), user_options)
+        initial_context = {
+            'mes': _kms_parse_mes(request.args.get('mes'), today.month),
+            'ano': _kms_parse_ano(request.args.get('ano'), today.year),
+            'utilizador': selected_user,
+            'is_admin': _kms_is_admin(),
+            'users': user_options,
+            'current_user': str(getattr(current_user, 'LOGIN', '') or '').strip()
+        }
+        return render_template('rh_kms.html', page_title='KMs', initial_context=initial_context)
+
+
+    @app.route('/api/kms/reservas', methods=['GET'])
+    @login_required
+    def api_kms_reservas():
+        try:
+            current_feid, error_response = _current_feid_or_json_error()
+            if error_response:
+                return error_response
+            _ensure_rh_kms_schema()
+            user_options = _kms_user_options()
+            selected_user = _kms_resolve_selected_user(request.args.get('utilizador'), user_options)
+            ano = _kms_parse_ano(request.args.get('ano'))
+            mes = _kms_parse_mes(request.args.get('mes'))
+            valor_km = _kms_read_preco_km()
+            rows = _kms_fetch_reservation_rows(ano, mes, selected_user, current_feid)
+            totals = _kms_month_totals(ano, mes, selected_user)
+            user_name = next((item.get('nome') for item in user_options if str(item.get('login') or '').strip().upper() == selected_user.upper()), selected_user)
+            return jsonify({
+                'ok': True,
+                'ano': ano,
+                'mes': mes,
+                'utilizador': selected_user,
+                'utilizador_nome': user_name,
+                'is_admin': _kms_is_admin(),
+                'valor_km': _kms_float(valor_km),
+                'total_kms': totals['total_kms'],
+                'total_valor': totals['total_valor'],
+                'rows': rows
+            })
+        except Exception as e:
+            try:
+                app.logger.exception('Erro em api_kms_reservas')
+            except Exception:
+                pass
+            return jsonify({'ok': False, 'message': str(e)}), 500
+
+
+    @app.route('/api/kms/pdf', methods=['GET'])
+    @login_required
+    def api_kms_pdf():
+        try:
+            _ensure_rh_kms_schema()
+            user_options = _kms_user_options()
+            selected_user = _kms_resolve_selected_user(request.args.get('utilizador'), user_options)
+            ano = _kms_parse_ano(request.args.get('ano'))
+            mes = _kms_parse_mes(request.args.get('mes'))
+            company = _kms_company_info()
+            totals = _kms_month_totals(ano, mes, selected_user)
+            rows = _kms_pdf_rows(ano, mes, selected_user)
+            month_name = (
+                'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+            )[mes - 1]
+            html = render_template(
+                'rh_kms_pdf.html',
+                company=company,
+                rows=rows,
+                totals=totals,
+                ano=ano,
+                mes=mes,
+                month_name=month_name,
+                utilizador=selected_user,
+                utilizador_nome=_kms_selected_user_name(selected_user, user_options),
+                generated_at=date(int(ano), int(mes), calendar.monthrange(int(ano), int(mes))[1]),
+            )
+            try:
+                pdf_bytes = generate_ft_pdf_bytes(html)
+                pdf_engine = 'weasy/chrome'
+            except Exception:
+                pdf_bytes = generate_ft_pdf_bytes_xhtml2pdf(html)
+                pdf_engine = 'xhtml2pdf-fallback'
+
+            safe_user = re.sub(r'[^A-Za-z0-9_\-]+', '_', selected_user or 'utilizador').strip('_') or 'utilizador'
+            filename = f'kms_{safe_user}_{ano:04d}_{mes:02d}.pdf'
+            headers = {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': f'inline; filename="{filename}"',
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+                'X-PDF-Engine': pdf_engine
+            }
+            return Response(pdf_bytes, headers=headers)
+        except Exception as e:
+            try:
+                app.logger.exception('Erro em api_kms_pdf')
+            except Exception:
+                pass
+            return Response(str(e), status=500, content_type='text/plain; charset=utf-8')
+
+
+    @app.route('/api/kms/marcar', methods=['POST'])
+    @login_required
+    def api_kms_marcar():
+        body = request.get_json(silent=True) or {}
+        try:
+            current_feid, error_response = _current_feid_or_json_error()
+            if error_response:
+                return error_response
+            _ensure_rh_kms_schema()
+            user_options = _kms_user_options()
+            selected_user = _kms_resolve_selected_user(body.get('utilizador'), user_options)
+            ano = _kms_parse_ano(body.get('ano'))
+            mes = _kms_parse_mes(body.get('mes'))
+            reserva = str(body.get('reserva') or '').strip()
+            if not reserva:
+                return jsonify({'ok': False, 'message': 'Reserva inválida.'}), 400
+
+            candidate = _kms_reservation_candidate(reserva, ano, mes, selected_user, current_feid)
+            if not candidate:
+                return jsonify({'ok': False, 'message': 'Reserva não elegível para este utilizador/período.'}), 404
+
+            existing = db.session.execute(text("""
+                SELECT TOP 1 UTILIZADOR
+                FROM dbo.RH_KMS
+                WHERE LTRIM(RTRIM(ISNULL(RESERVA,''))) = LTRIM(RTRIM(:reserva))
+            """), {'reserva': reserva}).mappings().first()
+            if existing:
+                existing_user = str(existing.get('UTILIZADOR') or '').strip()
+                if existing_user.upper() != selected_user.upper():
+                    return jsonify({
+                        'ok': False,
+                        'message': 'Esta reserva já foi registada por outro utilizador.'
+                    }), 409
+                totals = _kms_month_totals(ano, mes, selected_user)
+                return jsonify({
+                    'ok': True,
+                    'message': 'Reserva já registada.',
+                    'total_kms': totals['total_kms'],
+                    'total_valor': totals['total_valor'],
+                    'state': _kms_reservation_claim(reserva, selected_user)
+                })
+
+            valor_km = _kms_read_preco_km()
+            kms_value = _kms_round(candidate.get('kms'))
+            valor_total = _kms_round(kms_value * valor_km)
+
+            db.session.execute(text("""
+                INSERT INTO dbo.RH_KMS
+                    (ANO, MES, UTILIZADOR, RESERVA, ORIGEM, DESTINO, KMS, VALOR_KM, VALOR_TOTAL, OBS)
+                VALUES
+                    (:ano, :mes, :utilizador, :reserva, :origem, :destino, :kms, :valor_km, :valor_total, '')
+            """), {
+                'ano': ano,
+                'mes': mes,
+                'utilizador': selected_user,
+                'reserva': reserva,
+                'origem': candidate.get('origem') or 'SEDE',
+                'destino': candidate.get('destino') or (candidate.get('alojamento') or ''),
+                'kms': _kms_float(kms_value),
+                'valor_km': _kms_float(valor_km),
+                'valor_total': _kms_float(valor_total)
+            })
+            db.session.commit()
+            totals = _kms_month_totals(ano, mes, selected_user)
+            return jsonify({
+                'ok': True,
+                'message': 'Reserva registada.',
+                'total_kms': totals['total_kms'],
+                'total_valor': totals['total_valor'],
+                'state': _kms_reservation_claim(reserva, selected_user)
+            })
+        except Exception as e:
+            db.session.rollback()
+            if _kms_unique_violation(e):
+                return jsonify({
+                    'ok': False,
+                    'message': 'Esta reserva já foi registada por outro utilizador.'
+                }), 409
+            try:
+                app.logger.exception('Erro em api_kms_marcar')
+            except Exception:
+                pass
+            return jsonify({'ok': False, 'message': str(e)}), 500
+
+
+    @app.route('/api/kms/desmarcar', methods=['POST'])
+    @login_required
+    def api_kms_desmarcar():
+        body = request.get_json(silent=True) or {}
+        try:
+            _ensure_rh_kms_schema()
+            user_options = _kms_user_options()
+            selected_user = _kms_resolve_selected_user(body.get('utilizador'), user_options)
+            ano = _kms_parse_ano(body.get('ano'))
+            mes = _kms_parse_mes(body.get('mes'))
+            reserva = str(body.get('reserva') or '').strip()
+            if not reserva:
+                return jsonify({'ok': False, 'message': 'Reserva inválida.'}), 400
+
+            existing = db.session.execute(text("""
+                SELECT TOP 1 UTILIZADOR
+                FROM dbo.RH_KMS
+                WHERE LTRIM(RTRIM(ISNULL(RESERVA,''))) = LTRIM(RTRIM(:reserva))
+            """), {'reserva': reserva}).mappings().first()
+            if existing:
+                existing_user = str(existing.get('UTILIZADOR') or '').strip()
+                if existing_user and existing_user.upper() != selected_user.upper():
+                    return jsonify({
+                        'ok': False,
+                        'message': 'Esta reserva já foi registada por outro utilizador.'
+                    }), 409
+
+            db.session.execute(text("""
+                DELETE FROM dbo.RH_KMS
+                WHERE LTRIM(RTRIM(ISNULL(RESERVA,''))) = LTRIM(RTRIM(:reserva))
+                  AND LTRIM(RTRIM(ISNULL(UTILIZADOR,''))) = LTRIM(RTRIM(:utilizador))
+            """), {
+                'reserva': reserva,
+                'utilizador': selected_user
+            })
+            db.session.commit()
+            totals = _kms_month_totals(ano, mes, selected_user)
+            return jsonify({
+                'ok': True,
+                'message': 'Reserva removida.',
+                'total_kms': totals['total_kms'],
+                'total_valor': totals['total_valor'],
+                'state': _kms_reservation_claim(reserva, selected_user)
+            })
+        except Exception as e:
+            db.session.rollback()
+            try:
+                app.logger.exception('Erro em api_kms_desmarcar')
+            except Exception:
+                pass
+            return jsonify({'ok': False, 'message': str(e)}), 500
+
+
     # Performance dashboard page
     @app.route('/performance')
     @login_required
@@ -18437,6 +19125,36 @@ OPTION (MAXRECURSION 32767);
         return (datetime.now() - ts).total_seconds() > seconds
 
 
+    def _rotas_pair(orig_stamp, dest_stamp):
+        orig = str(orig_stamp or '').strip()
+        dest = str(dest_stamp or '').strip()
+        if not orig or not dest or orig == dest:
+            return None
+        return (orig, dest) if orig <= dest else (dest, orig)
+
+
+    def _rotas_get_sede_coords():
+        rows = db.session.execute(text("""
+            SELECT PARAMETRO, TIPO, CVALOR, NVALOR
+            FROM dbo.PARA
+            WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) IN ('EMP_LAT', 'EMP_LON')
+        """)).mappings().all()
+        values = {}
+        for row in rows:
+            key = str(row.get('PARAMETRO') or '').strip().upper()
+            tipo = str(row.get('TIPO') or '').strip().upper()
+            raw = row.get('NVALOR') if tipo == 'N' else row.get('CVALOR')
+            try:
+                values[key] = float(raw)
+            except Exception:
+                values[key] = None
+        lat = values.get('EMP_LAT')
+        lon = values.get('EMP_LON')
+        if lat is None or lon is None:
+            return None
+        return (lat, lon)
+
+
     def run_rotas_rebuild(job_id, full_rebuild=True):
         with app.app_context():
             try:
@@ -18477,8 +19195,14 @@ OPTION (MAXRECURSION 32767);
                     aloj.append(str(r['ALSTAMP']))
 
                 aloj = sorted(set(aloj))
+                sede_coords = _rotas_get_sede_coords()
+                has_sede = bool(sede_coords)
+                if sede_coords:
+                    coords['__SEDE__'] = sede_coords
                 if full_rebuild:
                     total = int(len(aloj) * (len(aloj) - 1) / 2)
+                    if has_sede:
+                        total += len(aloj)
                     rotas_job_update(
                         job_id,
                         Total=total,
@@ -18490,11 +19214,34 @@ OPTION (MAXRECURSION 32767);
                     )
 
                     batch = []
+                    seen_pairs = set()
                     for i in range(len(aloj)):
                         for j in range(i + 1, len(aloj)):
+                            pair = _rotas_pair(aloj[i], aloj[j])
+                            if not pair or pair in seen_pairs:
+                                continue
+                            seen_pairs.add(pair)
                             batch.append({
-                                'orig': aloj[i],
-                                'dest': aloj[j]
+                                'orig': pair[0],
+                                'dest': pair[1]
+                            })
+                            if len(batch) >= 1000:
+                                db.session.execute(text("""
+                                    INSERT INTO dbo.ROTAS
+                                    (OrigemStamp, DestinoStamp, Km, Segundos, Perfil, Provider, Status, Tentativas, Erro, UpdatedAt)
+                                    VALUES (:orig, :dest, 0, 0, 'driving', 'OSRM', 0, 0, '', GETDATE())
+                                """), batch)
+                                db.session.commit()
+                                batch = []
+                    if has_sede:
+                        for stamp in aloj:
+                            pair = _rotas_pair('__SEDE__', stamp)
+                            if not pair or pair in seen_pairs:
+                                continue
+                            seen_pairs.add(pair)
+                            batch.append({
+                                'orig': pair[0],
+                                'dest': pair[1]
                             })
                             if len(batch) >= 1000:
                                 db.session.execute(text("""
@@ -18785,20 +19532,37 @@ OPTION (MAXRECURSION 32767);
     def api_rotas_rebuild_generate_missing():
         inserted = db.session.execute(text("""
             ;WITH coords AS (
-                SELECT ALSTAMP
+                SELECT ALSTAMP AS STAMP
                 FROM AL
                 WHERE LAT IS NOT NULL AND LON IS NOT NULL
+                UNION ALL
+                SELECT '__SEDE__' AS STAMP
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM dbo.PARA p1
+                    JOIN dbo.PARA p2 ON 1 = 1
+                    WHERE UPPER(LTRIM(RTRIM(p1.PARAMETRO))) = 'EMP_LAT'
+                      AND UPPER(LTRIM(RTRIM(p2.PARAMETRO))) = 'EMP_LON'
+                      AND COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(50), COALESCE(p1.NVALOR, p1.CVALOR)))), ''), '') <> ''
+                      AND COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(50), COALESCE(p2.NVALOR, p2.CVALOR)))), ''), '') <> ''
+                )
+            ),
+            pairs AS (
+                SELECT
+                    CASE WHEN a.STAMP <= b.STAMP THEN a.STAMP ELSE b.STAMP END AS OrigemStamp,
+                    CASE WHEN a.STAMP <= b.STAMP THEN b.STAMP ELSE a.STAMP END AS DestinoStamp
+                FROM coords a
+                JOIN coords b ON a.STAMP < b.STAMP
             )
             INSERT INTO dbo.ROTAS
             (OrigemStamp, DestinoStamp, Km, Segundos, Perfil, Provider, Status, Tentativas, Erro, UpdatedAt)
-            SELECT a.ALSTAMP, b.ALSTAMP, 0, 0, 'driving', 'OSRM', 0, 0, '', GETDATE()
-            FROM coords a
-            JOIN coords b ON a.ALSTAMP < b.ALSTAMP
+            SELECT p.OrigemStamp, p.DestinoStamp, 0, 0, 'driving', 'OSRM', 0, 0, '', GETDATE()
+            FROM pairs p
             WHERE NOT EXISTS (
                 SELECT 1
                 FROM dbo.ROTAS r
-                WHERE (r.OrigemStamp = a.ALSTAMP AND r.DestinoStamp = b.ALSTAMP)
-                   OR (r.OrigemStamp = b.ALSTAMP AND r.DestinoStamp = a.ALSTAMP)
+                WHERE r.OrigemStamp = p.OrigemStamp
+                  AND r.DestinoStamp = p.DestinoStamp
             )
         """)).rowcount
         db.session.commit()

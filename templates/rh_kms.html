@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="sz_page sz_kms_page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">KMs</div>
+        <div class="sz_page_subtitle">Registo mensal de deslocações em viatura própria associadas a check-ins presenciais.</div>
+        <div class="sz_kms_summary">
+          <div class="sz_kms_metric">
+            <div class="sz_label">Total de kms</div>
+            <div id="kmsTotalKms" class="sz_kms_metric_value">0,00 km</div>
+          </div>
+          <div class="sz_kms_metric">
+            <div class="sz_label">Total a receber</div>
+            <div id="kmsTotalValor" class="sz_kms_metric_value">0,00 €</div>
+          </div>
+          <div class="sz_kms_metric">
+            <div class="sz_label">Valor por km</div>
+            <div id="kmsValorKm" class="sz_kms_metric_value">0,00 €</div>
+          </div>
+        </div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="sz_kms_filters">
+          <label class="sz_field">
+            <span class="sz_label">Mês</span>
+            <select id="kmsMes" class="sz_select"></select>
+          </label>
+          <label class="sz_field">
+            <span class="sz_label">Ano</span>
+            <select id="kmsAno" class="sz_select"></select>
+          </label>
+          <label class="sz_field sz_kms_user_field">
+            <span class="sz_label">Utilizador</span>
+            <select id="kmsUtilizador" class="sz_select"></select>
+          </label>
+        </div>
+        <button id="kmsGerarPdf" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-file-pdf"></i>
+          <span>Mapa PDF</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content">
+        <section class="sz_panel">
+          <div class="sz_table_host">
+            <div class="sz_table_wrap">
+              <table class="sz_table sz_table_compact" id="kmsTable">
+                <thead class="sz_table_head">
+                  <tr class="sz_table_row">
+                    <th class="sz_table_cell">Registo</th>
+                    <th class="sz_table_cell">Check-in</th>
+                    <th class="sz_table_cell">Reserva</th>
+                    <th class="sz_table_cell">Alojamento</th>
+                    <th class="sz_table_cell">Hóspede</th>
+                    <th class="sz_table_cell sz_text_right">Distância</th>
+                    <th class="sz_table_cell sz_text_right">Kms</th>
+                    <th class="sz_table_cell">Estado</th>
+                  </tr>
+                </thead>
+                <tbody id="kmsTableBody">
+                  <tr class="sz_table_row">
+                    <td colspan="8" class="sz_table_cell sz_text_muted">A carregar...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div id="kmsStatus" class="sz_text_muted" style="margin-top: var(--sz-space-3);">
+            Os registos são gravados automaticamente ao clicar.
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .sz_kms_page .sz_page_container {
+    padding-block: var(--sz-space-2) 0;
+    padding-inline: var(--sz-space-4);
+  }
+
+  .sz_kms_page .sz_contextbar_right {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    align-items: flex-end;
+    gap: var(--sz-space-3);
+  }
+
+  .sz_kms_page .sz_contextbar_left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sz-space-2);
+    min-width: 0;
+  }
+
+  .sz_kms_filters {
+    display: grid;
+    grid-template-columns: 8rem 8rem minmax(14rem, 20rem);
+    gap: var(--sz-space-3);
+    align-items: end;
+  }
+
+  .sz_kms_user_field {
+    min-width: 0;
+  }
+
+  .sz_kms_summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+    width: 100%;
+    max-width: 40rem;
+  }
+
+  .sz_kms_metric {
+    min-width: 0;
+  }
+
+  .sz_kms_metric_value {
+    margin-top: 0.15rem;
+    font-size: var(--sz-font-size-lg);
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+  }
+
+  .sz_kms_table_toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+  }
+
+  .sz_kms_table_toggle .sz_checkbox {
+    color: var(--sz-color-text);
+  }
+
+  .sz_kms_table_meta {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: var(--sz-font-size-xs);
+    color: var(--sz-color-text-muted);
+    line-height: 1.3;
+  }
+
+  .sz_kms_table_row_blocked {
+    opacity: 0.78;
+  }
+
+  .sz_kms_empty {
+    padding: var(--sz-space-4) 0;
+    text-align: center;
+    color: var(--sz-color-text-muted);
+  }
+
+  @media (max-width: 980px) {
+    .sz_kms_page .sz_contextbar_left,
+    .sz_kms_page .sz_contextbar_right {
+      width: 100%;
+    }
+
+    .sz_kms_page .sz_contextbar_right {
+      align-items: stretch;
+    }
+
+    .sz_kms_filters {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      width: 100%;
+    }
+
+    .sz_kms_user_field {
+      grid-column: 1 / -1;
+    }
+
+    .sz_kms_summary {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .sz_kms_page .sz_page_container {
+      padding-inline: var(--sz-space-3);
+    }
+
+    .sz_kms_summary,
+    .sz_kms_filters {
+      grid-template-columns: 1fr;
+      max-width: none;
+    }
+  }
+</style>
+<script>
+  window.KMS_INITIAL_CONTEXT = {{ initial_context|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/rh_kms.js') }}"></script>
+{% endblock %}
