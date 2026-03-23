@@ -61,9 +61,11 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   console.log('modal triggers encontrados:', document.querySelectorAll('.btn-custom'));
 
   const TABLE_NAME   = window.TABLE_NAME;
+  const TABLE_NAME_UPPER = String(TABLE_NAME || '').toUpperCase();
   const RECORD_STAMP = window.RECORD_STAMP;
   const isAdminUser  = window.IS_ADMIN_USER;
   const DEV_MODE = window.DEV_MODE || false;
+  const isClientForm = TABLE_NAME_UPPER === 'CL';
 
   console.log('[dynamic_form.js] TABLE_NAME:', TABLE_NAME);
 
@@ -150,6 +152,219 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   // 2. Prepara o form
   const form = document.getElementById('editForm');
   const DECIMAL_SEPARATOR = ',';
+
+  async function prepareClientNoField() {
+    if (!isClientForm) return;
+    const noInput = form.querySelector('[name="NO"]');
+    if (!noInput) return;
+    if (RECORD_STAMP) {
+      noInput.readOnly = true;
+      noInput.classList.add('sz_surface_alt');
+      return;
+    }
+    if (String(noInput.value || '').trim() !== '') return;
+    try {
+      const res = await fetch('/generic/api/cl/next_no');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      const nextNo = String(data?.NO ?? '').trim();
+      if (!nextNo) return;
+      noInput.value = nextNo;
+      formState.NO = nextNo;
+    } catch (err) {
+      console.warn('Erro ao obter próximo NO de cliente:', err);
+    }
+  }
+
+  let clientViesLookupController = null;
+  let lastClientViesLookupKey = '';
+  let clientViesLookupSequence = 0;
+  const clientViesTargetFields = ['NOME', 'MORADA', 'CODPOST', 'LOCAL'];
+
+  function normalizeClientVatForLookup(value) {
+    return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  function extractPortugueseVatDigits(value) {
+    const normalized = normalizeClientVatForLookup(value);
+    if (/^PT\d{9}$/.test(normalized)) return normalized.slice(2);
+    if (/^\d{9}$/.test(normalized)) return normalized;
+    return '';
+  }
+
+  function isValidPortugueseNif(value) {
+    const digits = extractPortugueseVatDigits(value);
+    if (!digits) return false;
+    let total = 0;
+    for (let index = 0; index < 8; index += 1) {
+      total += Number(digits[index]) * (9 - index);
+    }
+    let checkDigit = 11 - (total % 11);
+    if (checkDigit >= 10) checkDigit = 0;
+    return checkDigit === Number(digits[8]);
+  }
+
+  function looksLikePortugueseVat(value) {
+    return Boolean(extractPortugueseVatDigits(value));
+  }
+
+  function ensureClientViesStatusElement() {
+    if (!isClientForm) return null;
+    let statusEl = document.getElementById('clientViesStatus');
+    if (statusEl) return statusEl;
+    const nifInput = form.querySelector('[name="NIF"]');
+    const nifWrapper = nifInput?.closest('.sz_field');
+    if (!nifWrapper) return null;
+    statusEl = document.createElement('div');
+    statusEl.id = 'clientViesStatus';
+    statusEl.className = 'sz_text_muted';
+    statusEl.style.marginTop = 'var(--sz-space-2)';
+    statusEl.style.minHeight = '1.25rem';
+    nifWrapper.appendChild(statusEl);
+    return statusEl;
+  }
+
+  function setClientViesStatus(message = '', tone = 'muted', isBusy = false) {
+    const statusEl = ensureClientViesStatusElement();
+    if (!statusEl) return;
+    const colorMap = {
+      muted: 'var(--sz-color-text-muted)',
+      info: 'var(--sz-color-info)',
+      success: 'var(--sz-color-success)',
+      warning: 'var(--sz-color-warning)',
+      danger: 'var(--sz-color-danger)'
+    };
+    statusEl.style.color = colorMap[tone] || colorMap.muted;
+    statusEl.innerHTML = isBusy
+      ? '<i class="fa-solid fa-spinner fa-spin"></i> A consultar VIES...'
+      : String(message || '');
+  }
+
+  function setClientViesBusy(isBusy) {
+    clientViesTargetFields.forEach(fieldName => {
+      const input = form.querySelector(`[name="${fieldName}"]`);
+      if (!input) return;
+      if (isBusy) {
+        if (!Object.prototype.hasOwnProperty.call(input.dataset, 'viesReadonlyOriginal')) {
+          input.dataset.viesReadonlyOriginal = input.readOnly ? 'true' : 'false';
+        }
+        input.readOnly = true;
+        input.classList.add('sz_surface_alt');
+      } else {
+        const originalReadonly = input.dataset.viesReadonlyOriginal === 'true';
+        input.readOnly = originalReadonly;
+        delete input.dataset.viesReadonlyOriginal;
+        if (!originalReadonly) {
+          input.classList.remove('sz_surface_alt');
+        }
+      }
+    });
+  }
+
+  function shouldLookupClientVat(value) {
+    const normalized = normalizeClientVatForLookup(value);
+    if (!normalized) return false;
+    if (/^[A-Z]{2}[A-Z0-9]+$/.test(normalized)) {
+      return normalized.length > 4;
+    }
+    return /^\d{9}$/.test(normalized);
+  }
+
+  function setClientFieldValue(fieldName, value) {
+    const input = form.querySelector(`[name="${fieldName}"]`);
+    if (!input) return;
+    const nextValue = String(value || '');
+    input.value = nextValue;
+    formState[fieldName.toUpperCase()] = nextValue;
+  }
+
+  async function lookupClientVatOnVies({ force = false } = {}) {
+    if (!isClientForm) return;
+    const nifInput = form.querySelector('[name="NIF"]');
+    if (!nifInput) return;
+
+    const rawValue = String(nifInput.value || '').trim();
+    const normalizedVat = normalizeClientVatForLookup(rawValue);
+    if (!normalizedVat) {
+      lastClientViesLookupKey = '';
+      if (clientViesLookupController) clientViesLookupController.abort();
+      setClientViesBusy(false);
+      setClientViesStatus('', 'muted');
+      return;
+    }
+    if (looksLikePortugueseVat(rawValue) && !isValidPortugueseNif(rawValue)) {
+      lastClientViesLookupKey = '';
+      if (clientViesLookupController) clientViesLookupController.abort();
+      setClientViesBusy(false);
+      setClientViesStatus('O NIF introduzido nao e valido. Se for um NIF portugues, confirma os 9 digitos e o digito de controlo.', 'danger');
+      showDynamicFormToast('O NIF introduzido nao e valido. Se for um NIF portugues, confirma os 9 digitos e o digito de controlo.', 'warning');
+      return;
+    }
+    if (!shouldLookupClientVat(normalizedVat)) {
+      setClientViesBusy(false);
+      setClientViesStatus('', 'muted');
+      return;
+    }
+    if (!force && normalizedVat === lastClientViesLookupKey) return;
+
+    clientViesLookupSequence += 1;
+    const lookupSequence = clientViesLookupSequence;
+    lastClientViesLookupKey = normalizedVat;
+
+    try {
+      if (clientViesLookupController) {
+        clientViesLookupController.abort();
+      }
+      clientViesLookupController = new AbortController();
+      setClientViesBusy(true);
+      setClientViesStatus('', 'info', true);
+
+      const res = await fetch(`/generic/api/cl/vies_lookup?nif=${encodeURIComponent(rawValue)}`, {
+        signal: clientViesLookupController.signal
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (lookupSequence !== clientViesLookupSequence) return;
+
+      if (!res.ok || !data?.ok) {
+        setClientViesStatus(data?.error || 'Nao foi possivel consultar o VIES.', 'warning');
+        showDynamicFormToast(data?.error || 'NÃ£o foi possÃ­vel consultar o VIES.', 'warning');
+        return;
+      }
+
+      if (!data.valid) {
+        setClientViesStatus(data.message || 'O NIF indicado nao esta valido no VIES.', 'warning');
+        showDynamicFormToast(data.message || 'O NIF indicado nÃ£o estÃ¡ vÃ¡lido no VIES.', 'warning');
+        return;
+      }
+
+      if (data.nome) setClientFieldValue('NOME', data.nome);
+      if (data.morada) setClientFieldValue('MORADA', data.morada);
+      if (data.codpost) setClientFieldValue('CODPOST', data.codpost);
+      if (data.local) setClientFieldValue('LOCAL', data.local);
+
+      aplicarCondicoesDeVisibilidade();
+      setClientViesStatus(data.message || 'Dados obtidos do VIES.', 'success');
+      showDynamicFormToast(data.message || 'Dados obtidos do VIES.', 'success');
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      console.warn('Erro ao consultar VIES:', err);
+      setClientViesStatus('Nao foi possivel consultar o VIES.', 'warning');
+      showDynamicFormToast('NÃ£o foi possÃ­vel consultar o VIES.', 'warning');
+    } finally {
+      if (lookupSequence === clientViesLookupSequence) {
+        setClientViesBusy(false);
+      }
+    }
+  }
+
+  function setupClientVatLookup() {
+    if (!isClientForm) return;
+    const nifInput = form.querySelector('[name="NIF"]');
+    if (!nifInput) return;
+    ensureClientViesStatusElement();
+    nifInput.addEventListener('change', () => lookupClientVatOnVies({ force: true }));
+  }
 
   const isDecimalInput = el => el?.dataset?.decimal === 'true';
   const getDecimalPlacesForInput = el => {
@@ -743,6 +958,9 @@ if (RECORD_STAMP) {
 } else {
   document.getElementById('btnDelete')?.style.setProperty('display', 'none');
 }
+
+await prepareClientNoField();
+setupClientVatLookup();
 
 hideLoading()
 

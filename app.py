@@ -16,7 +16,7 @@ import hashlib
 import hmac
 import logging
 from decimal import Decimal, ROUND_HALF_UP
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date, timedelta, time as dtime
 from sqlalchemy import text, bindparam
@@ -2790,6 +2790,37 @@ def create_app():
         except Exception:
             return int(default)
 
+    def _to_decimal_param(v, scale='0.01', default='0'):
+        try:
+            if isinstance(v, Decimal):
+                value = v
+            else:
+                text_value = str(v if v not in (None, '') else default).strip().replace(',', '.')
+                value = Decimal(text_value or default)
+            return value.quantize(Decimal(scale), rounding=ROUND_HALF_UP)
+        except Exception:
+            return Decimal(default).quantize(Decimal(scale), rounding=ROUND_HALF_UP)
+
+    def _calc_fi_unitprice(qtt_value, etiliquido_value):
+        dec6 = Decimal('0.000001')
+        try:
+            qtt = _to_decimal_param(qtt_value, '0.000001')
+            if qtt == Decimal('0.000000'):
+                return None
+            etiliquido = _to_decimal_param(etiliquido_value, '0.000001')
+            return (etiliquido / qtt).quantize(dec6, rounding=ROUND_HALF_UP)
+        except Exception:
+            return None
+
+    def _enrich_fi_fiscal_fields(lines):
+        enriched = []
+        for line in lines or []:
+            row = dict(line or {})
+            unitprice = _calc_fi_unitprice(row.get('QTT'), row.get('ETILIQUIDO'))
+            row['UNITPRICE_FISCAL'] = (f"{unitprice:.6f}" if unitprice is not None else None)
+            enriched.append(row)
+        return enriched
+
     def _fe_has_permission(action='consultar'):
         try:
             if getattr(current_user, 'ADMIN', False):
@@ -3046,6 +3077,7 @@ def create_app():
         today = date.today()
         return {
             'FTSTAMP': _new_stamp_25(),
+            'FEID': 0,
             'NDOC': 0,
             'NMDOC': '',
             'FNO': 0,
@@ -3065,6 +3097,7 @@ def create_app():
             'TPSTAMP': '',
             'TPDESC': '',
             'FESTAMP': '',
+            'DESCONTO': 0,
             'ETTILIQ': 0,
             'ETTIVA': 0,
             'ETOTAL': 0,
@@ -3077,7 +3110,101 @@ def create_app():
             'USERALTERACAO': user_login or ''
         }
 
-    def _calc_totals_and_breakdown(lines):
+    def _get_miseimp_options():
+        rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(MISEIMPSTAMP,''))) AS MISEIMPSTAMP,
+                UPPER(LTRIM(RTRIM(ISNULL(CODIGO,'')))) AS CODIGO,
+                LTRIM(RTRIM(ISNULL(DESCRICAO,''))) AS DESCRICAO
+            FROM dbo.MISEIMP
+            WHERE LTRIM(RTRIM(ISNULL(CODIGO,''))) <> ''
+            ORDER BY UPPER(LTRIM(RTRIM(ISNULL(CODIGO,''))))
+        """)).mappings().all()
+        return [dict(r) for r in rows]
+
+    def _validate_ft_miseimp(lines):
+        valid_codes = {
+            str(item.get('CODIGO') or '').strip().upper()
+            for item in _get_miseimp_options()
+            if str(item.get('CODIGO') or '').strip()
+        }
+        missing = []
+        invalid = []
+        for idx, line in enumerate(lines or [], start=1):
+            ref = str((line or {}).get('REF') or '').strip()
+            design = str((line or {}).get('DESIGN') or '').strip()
+            qtt = _num((line or {}).get('QTT'), 0)
+            epv = _num((line or {}).get('EPV'), 0)
+            total = _num((line or {}).get('ETILIQUIDO'), 0)
+            meaningful = bool(
+                ref or
+                design or
+                abs(epv) > 0.000001 or
+                abs(total) > 0.000001 or
+                (abs(qtt) > 0.000001 and (abs(epv) > 0.000001 or abs(total) > 0.000001))
+            )
+            if not meaningful:
+                continue
+            iva = round(_num((line or {}).get('IVA'), 0), 2)
+            code = str((line or {}).get('MISEIMP') or '').strip().upper()
+            if abs(iva) < 0.000001:
+                if not code:
+                    missing.append(idx)
+                elif code not in valid_codes:
+                    invalid.append(f'{idx} ({code})')
+        if missing or invalid:
+            parts = []
+            if missing:
+                parts.append('Linhas com IVA 0% sem motivo de isenção: ' + ', '.join(str(x) for x in missing))
+            if invalid:
+                parts.append('Linhas com motivo de isenção inválido: ' + ', '.join(invalid))
+            return ' | '.join(parts)
+        return ''
+
+    def _get_current_fe_row():
+        current_feid = get_current_feid()
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                FEID,
+                LTRIM(RTRIM(ISNULL(FESTAMP, ''))) AS FESTAMP,
+                LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(NOMEFISCAL, ''))) AS NOMEFISCAL,
+                CONVERT(varchar(20), ISNULL(NIF, 0)) AS NIF
+            FROM dbo.FE
+            WHERE FEID = :feid
+        """), {'feid': int(current_feid)}).mappings().first()
+        if not row:
+            raise MissingCurrentEntityError('Empresa ativa não encontrada.')
+        entity = dict(row)
+        entity['FEID'] = int(entity.get('FEID') or 0)
+        entity['FESTAMP'] = (entity.get('FESTAMP') or '').strip()
+        entity['NOME'] = (entity.get('NOME') or '').strip()
+        entity['NOMEFISCAL'] = (entity.get('NOMEFISCAL') or '').strip()
+        entity['NIF'] = (entity.get('NIF') or '').strip()
+        if not entity['FESTAMP']:
+            raise MissingCurrentEntityError('Entidade ativa sem série/configuração associada.')
+        return entity
+
+    def _current_fe_or_json_error():
+        try:
+            return _get_current_fe_row(), None
+        except MissingCurrentEntityError as exc:
+            return None, (jsonify({'error': str(exc)}), 403)
+
+    def _ft_entity_scope_sql(alias='FT'):
+        prefix = f'{alias}.' if alias else ''
+        return f"""
+            AND (
+                ISNULL({prefix}FEID, 0) = :current_feid
+                OR (
+                    ISNULL({prefix}FEID, 0) = 0
+                    AND LTRIM(RTRIM(ISNULL({prefix}FESTAMP, ''))) = :current_festamp
+                )
+            )
+        """
+
+    def _calc_totals_and_breakdown(lines, header_discount=0):
+        dec6 = Decimal('0.000001')
         dec2 = Decimal('0.01')
 
         def _to_dec(val, default='0'):
@@ -3091,55 +3218,64 @@ def create_app():
             except Exception:
                 return Decimal(default)
 
+        def _to_pct(val, default='0'):
+            pct = _to_dec(val, default)
+            if pct < Decimal('0.00'):
+                return Decimal('0.00')
+            if pct > Decimal('100.00'):
+                return Decimal('100.00')
+            return pct.quantize(dec6, rounding=ROUND_HALF_UP)
+
         normalized = []
-        total_base = Decimal('0.00')
+        total_base = Decimal('0.000000')
         total_vat = Decimal('0.00')
         buckets = {}
+        header_discount = _to_pct(header_discount, '0')
         for idx, line in enumerate(lines or []):
-            qtt = _to_dec((line or {}).get('QTT'), '0').quantize(dec2, rounding=ROUND_HALF_UP)
-            epv = _to_dec((line or {}).get('EPV'), '0').quantize(dec2, rounding=ROUND_HALF_UP)
-            rate = _to_dec((line or {}).get('IVA'), '0').quantize(dec2, rounding=ROUND_HALF_UP)
+            qtt = _to_dec((line or {}).get('QTT'), '0').quantize(dec6, rounding=ROUND_HALF_UP)
+            epv = _to_dec((line or {}).get('EPV'), '0').quantize(dec6, rounding=ROUND_HALF_UP)
+            desconto = _to_pct((line or {}).get('DESCONTO'), '0')
+            rate = _to_dec((line or {}).get('IVA'), '0')
+            if rate < Decimal('0.00'):
+                rate = Decimal('0.00')
+            rate = rate.quantize(dec6, rounding=ROUND_HALF_UP)
             ivaincl = 1 if int(_num((line or {}).get('IVAINCL'), 0)) == 1 else 0
-            # ETILIQUIDO da linha é tratado como total bruto de linha (com IVA quando IVAINCL=1).
-            # Se vier vazio, usa QTT*EPV.
-            raw_line_total = (line or {}).get('ETILIQUIDO')
-            if raw_line_total is None or str(raw_line_total).strip() == '':
-                line_total = (qtt * epv).quantize(dec2, rounding=ROUND_HALF_UP)
-            else:
-                line_total = _to_dec(raw_line_total, '0').quantize(dec2, rounding=ROUND_HALF_UP)
 
-            if rate > 0:
-                if ivaincl:
-                    vat = (line_total * rate / (Decimal('100.00') + rate)).quantize(dec2, rounding=ROUND_HALF_UP)
-                    base = line_total - vat
-                else:
-                    base = line_total
-                    vat = (line_total * rate / Decimal('100.00')).quantize(dec2, rounding=ROUND_HALF_UP)
-            else:
-                base = line_total
-                vat = Decimal('0.00')
-            line_total = line_total.quantize(dec2, rounding=ROUND_HALF_UP)
-            base = base.quantize(dec2, rounding=ROUND_HALF_UP)
-            vat = vat.quantize(dec2, rounding=ROUND_HALF_UP)
-            total_base += base
+            gross_line_total = (qtt * epv).quantize(dec6, rounding=ROUND_HALF_UP)
+            desconto_linha_valor = (gross_line_total * desconto / Decimal('100.00')).quantize(dec6, rounding=ROUND_HALF_UP)
+            total_apos_desc_linha = (gross_line_total - desconto_linha_valor).quantize(dec6, rounding=ROUND_HALF_UP)
+            desconto_cabecalho_valor = (total_apos_desc_linha * header_discount / Decimal('100.00')).quantize(dec6, rounding=ROUND_HALF_UP)
+            total_liquido = (total_apos_desc_linha - desconto_cabecalho_valor).quantize(dec6, rounding=ROUND_HALF_UP)
+            vat = (total_liquido * rate / Decimal('100.00')).quantize(dec2, rounding=ROUND_HALF_UP) if rate > 0 else Decimal('0.00')
+
+            total_base += total_liquido
             total_vat += vat
             tabiva = _to_int((line or {}).get('TABIVA'), 0)
             row = dict(line or {})
             row['LORDEM'] = _to_int(row.get('LORDEM'), (idx + 1) * 10)
             row['QTT'] = float(qtt)
             row['EPV'] = float(epv)
+            row['DESCONTO'] = float(desconto)
             row['IVA'] = float(rate)
             row['IVAINCL'] = ivaincl
             row['TABIVA'] = tabiva
-            row['ETILIQUIDO'] = float(line_total)
+            row['MISEIMP'] = (str(row.get('MISEIMP') or '').strip().upper() if rate == 0 else '')
+            row['ETILIQUIDO'] = f"{total_liquido:.6f}"
+            row['BRUTO'] = f"{gross_line_total:.6f}"
+            row['DESCONTO_LINHA_VALOR'] = f"{desconto_linha_valor:.6f}"
+            row['TOTAL_APOS_DESC_LINHA'] = f"{total_apos_desc_linha:.6f}"
+            row['DESCONTO_CABECALHO_VALOR'] = f"{desconto_cabecalho_valor:.6f}"
+            row['IVA_LINHA'] = f"{vat:.2f}"
+            row['TOTAL_LINHA_COM_IVA'] = f"{(total_liquido + vat):.6f}"
+            row['UNITPRICE_FISCAL'] = (f"{(total_liquido / qtt).quantize(dec6, rounding=ROUND_HALF_UP):.6f}" if qtt != 0 else None)
             normalized.append(row)
             rate_key = float(rate)
             if rate_key not in buckets:
-                buckets[rate_key] = {'base': Decimal('0.00'), 'vat': Decimal('0.00')}
-            buckets[rate_key]['base'] += base
+                buckets[rate_key] = {'base': Decimal('0.000000'), 'vat': Decimal('0.00')}
+            buckets[rate_key]['base'] += total_liquido
             buckets[rate_key]['vat'] += vat
 
-        total_base = total_base.quantize(dec2, rounding=ROUND_HALF_UP)
+        total_base_display = total_base.quantize(dec2, rounding=ROUND_HALF_UP)
         total_vat = total_vat.quantize(dec2, rounding=ROUND_HALF_UP)
         total = (total_base + total_vat).quantize(dec2, rounding=ROUND_HALF_UP)
         breakdown = sorted(buckets.items(), key=lambda x: x[0])[:9]
@@ -3150,14 +3286,19 @@ def create_app():
             ivatx[idx] = round(float(tx), 2)
             eivain[idx] = round(float(vals.get('base', Decimal('0.00'))), 2)
             eivav[idx] = round(float(vals.get('vat', Decimal('0.00'))), 2)
-        return normalized, float(total_base), float(total_vat), float(total), ivatx, eivain, eivav
+        return normalized, float(total_base_display), float(total_vat), float(total), ivatx, eivain, eivav
 
-    def _get_ft(ftstamp):
+    def _get_ft(ftstamp, entity=None):
+        entity = entity or _get_current_fe_row()
         ft = db.session.execute(text("""
             SELECT *
             FROM dbo.FT
             WHERE FTSTAMP = :s
-        """), {'s': ftstamp}).mappings().first()
+        """ + _ft_entity_scope_sql('FT')), {
+            's': ftstamp,
+            'current_feid': int(entity.get('FEID') or 0),
+            'current_festamp': (entity.get('FESTAMP') or '').strip(),
+        }).mappings().first()
         if not ft:
             return None, []
         fi = db.session.execute(text("""
@@ -3166,7 +3307,7 @@ def create_app():
             WHERE FTSTAMP = :s
             ORDER BY ISNULL(LORDEM,0), FISTAMP
         """), {'s': ftstamp}).mappings().all()
-        return dict(ft), [dict(r) for r in fi]
+        return dict(ft), _enrich_fi_fiscal_fields([dict(r) for r in fi])
 
     def _default_rs_payload(user_login=''):
         today = date.today()
@@ -3406,22 +3547,30 @@ def create_app():
     @app.route('/faturacao/ft/new')
     @login_required
     def faturacao_ft_new():
+        try:
+            current_entity = _get_current_fe_row()
+        except MissingCurrentEntityError as exc:
+            return Response(str(exc), status=403, content_type='text/plain; charset=utf-8')
         user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
         payload = _default_ft_payload(user_login)
+        payload.update({
+            'FEID': int(current_entity.get('FEID') or 0),
+            'FESTAMP': (current_entity.get('FESTAMP') or '').strip(),
+        })
         db.session.execute(text("""
             INSERT INTO dbo.FT
-            (FTSTAMP, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA,
-             FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
+            (FTSTAMP, FEID, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA,
+             FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, DESCONTO, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
              IVATX1, IVATX2, IVATX3, IVATX4, IVATX5, IVATX6, IVATX7, IVATX8, IVATX9,
              EIVAIN1, EIVAIN2, EIVAIN3, EIVAIN4, EIVAIN5, EIVAIN6, EIVAIN7, EIVAIN8, EIVAIN9,
              TIPODOC, EIVAV1, EIVAV2, EIVAV3, EIVAV4, EIVAV5, EIVAV6, EIVAV7, EIVAV8, EIVAV9,
              FESTAMP, SERIE, ESTADO, BLOQUEADO, DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO,
              HASHVER, HASHANT, HASH, ASSINATURA, KEYID, ATCUD, CODIGOQR,
-             ANULADA, ANULDATA, ANULUSER, ANULMOTIVO,
+            ANULADA, ANULDATA, ANULUSER, ANULMOTIVO,
              FTREFSTAMP, AT_ENVIO_ESTADO, AT_ENVIO_DATA, AT_ENVIO_MSG)
             VALUES
-            (:FTSTAMP, :NDOC, :NMDOC, :FNO, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA,
-             :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
+            (:FTSTAMP, :FEID, :NDOC, :NMDOC, :FNO, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA,
+             :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :DESCONTO, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
              0,0,0,0,0,0,0,0,0,
              0,0,0,0,0,0,0,0,0,
              0,0,0,0,0,0,0,0,0,0,
@@ -3436,7 +3585,14 @@ def create_app():
     @app.route('/faturacao/ft/<ftstamp>')
     @login_required
     def faturacao_ft_form(ftstamp):
-        return render_template('ft_faturacao_form.html', ftstamp=ftstamp)
+        try:
+            current_entity = _get_current_fe_row()
+        except MissingCurrentEntityError as exc:
+            return Response(str(exc), status=403, content_type='text/plain; charset=utf-8')
+        ft, _ = _get_ft(ftstamp, current_entity)
+        if not ft:
+            abort(404)
+        return render_template('ft_faturacao_form.html', ftstamp=ftstamp, current_entity=current_entity)
 
     @app.route('/reservas/rs/new')
     @login_required
@@ -5885,12 +6041,25 @@ def create_app():
             return jsonify({'error': 'Cliente não encontrado'}), 404
         return jsonify(dict(row))
 
+    @app.route('/api/faturacao/miseimp', methods=['GET'])
+    @login_required
+    def api_faturacao_miseimp():
+        try:
+            return jsonify(_get_miseimp_options())
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/faturacao/ft/<ftstamp>', methods=['GET'])
     @login_required
     def api_faturacao_ft_get(ftstamp):
-        ft, fi = _get_ft(ftstamp)
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        ft, fi = _get_ft(ftstamp, current_entity)
         if not ft:
             return jsonify({'error': 'Documento não encontrado'}), 404
+        ft['FEID'] = int(current_entity.get('FEID') or 0)
+        ft['FESTAMP'] = (current_entity.get('FESTAMP') or '').strip()
         return jsonify({'header': ft, 'lines': fi})
 
     def _ft_pdf_dir() -> str:
@@ -6028,6 +6197,12 @@ def create_app():
     @app.route('/api/faturacao/ft/<ftstamp>/pdf', methods=['GET'])
     @login_required
     def api_faturacao_ft_pdf(ftstamp):
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        ft_check, _ = _get_ft(ftstamp, current_entity)
+        if not ft_check:
+            return jsonify({'error': 'Documento não encontrado'}), 404
         ft, fi_rows, fe = get_ft_pdf_data(db.session, ftstamp)
         if not ft:
             return jsonify({'error': 'Documento não encontrado'}), 404
@@ -6063,6 +6238,12 @@ def create_app():
     @app.route('/api/faturacao/ft/<ftstamp>/pdf/cache', methods=['POST'])
     @login_required
     def api_faturacao_ft_pdf_cache(ftstamp):
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        ft_check, _ = _get_ft(ftstamp, current_entity)
+        if not ft_check:
+            return jsonify({'error': 'Documento não encontrado'}), 404
         ft, _, _ = get_ft_pdf_data(db.session, ftstamp)
         if not ft:
             return jsonify({'error': 'Documento não encontrado'}), 404
@@ -6083,6 +6264,12 @@ def create_app():
     @app.route('/api/faturacao/ft/<ftstamp>/pdf/html', methods=['GET'])
     @login_required
     def api_faturacao_ft_pdf_html(ftstamp):
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        ft_check, _ = _get_ft(ftstamp, current_entity)
+        if not ft_check:
+            return jsonify({'error': 'Documento não encontrado'}), 404
         ft, fi_rows, fe = get_ft_pdf_data(db.session, ftstamp)
         if not ft:
             return jsonify({'error': 'Documento não encontrado'}), 404
@@ -6116,34 +6303,51 @@ def create_app():
     @app.route('/api/faturacao/ft/<ftstamp>/save', methods=['POST'])
     @login_required
     def api_faturacao_ft_save(ftstamp):
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
         body = request.get_json(silent=True) or {}
         header = dict(body.get('header') or {})
         lines = list(body.get('lines') or [])
 
-        curr = db.session.execute(text("SELECT BLOQUEADO FROM dbo.FT WHERE FTSTAMP=:s"), {'s': ftstamp}).mappings().first()
+        curr = db.session.execute(text("""
+            SELECT BLOQUEADO
+            FROM dbo.FT
+            WHERE FTSTAMP=:s
+        """ + _ft_entity_scope_sql('FT')), {
+            's': ftstamp,
+            'current_feid': int(current_entity.get('FEID') or 0),
+            'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
+        }).mappings().first()
         if not curr:
             return jsonify({'error': 'Documento não encontrado'}), 404
         if int(curr.get('BLOQUEADO') or 0) == 1:
             return jsonify({'error': 'Documento bloqueado'}), 400
 
         user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
-        normalized, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown(lines)
+        header_desconto = max(0.0, min(100.0, _num(header.get('DESCONTO'), 0)))
+        normalized, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown(lines, header_desconto)
+        miseimp_error = _validate_ft_miseimp(normalized)
+        if miseimp_error:
+            return jsonify({'error': miseimp_error}), 400
         fdata = header.get('FDATA') or date.today().isoformat()
         ftano = _to_int(header.get('FTANO'), _to_int(str(fdata)[:4], date.today().year))
 
-        db.session.execute(text("""
+        update_result = db.session.execute(text("""
             UPDATE dbo.FT
             SET
                 NDOC=:NDOC, NMDOC=:NMDOC, NO=:NO, NOME=:NOME, MORADA=:MORADA, CODPOST=:CODPOST, PAIS=:PAIS,
-                LOCAL=:LOCAL, NCONT=:NCONT, MOEDA=:MOEDA, FDATA=:FDATA, FTANO=:FTANO, PDATA=:PDATA, FESTAMP=:FESTAMP,
-                CCUSTO=:CCUSTO, TPSTAMP=:TPSTAMP, TPDESC=:TPDESC, SERIE=:SERIE,
+                LOCAL=:LOCAL, NCONT=:NCONT, MOEDA=:MOEDA, FDATA=:FDATA, FTANO=:FTANO, PDATA=:PDATA, FESTAMP=:FESTAMP, FEID=:FEID,
+                CCUSTO=:CCUSTO, TPSTAMP=:TPSTAMP, TPDESC=:TPDESC, SERIE=:SERIE, DESCONTO=:DESCONTO,
                 ETTILIQ=:ETTILIQ, ETTIVA=:ETTIVA, ETOTAL=:ETOTAL,
                 IVATX1=:IVATX1, IVATX2=:IVATX2, IVATX3=:IVATX3, IVATX4=:IVATX4, IVATX5=:IVATX5, IVATX6=:IVATX6, IVATX7=:IVATX7, IVATX8=:IVATX8, IVATX9=:IVATX9,
                 EIVAIN1=:EIVAIN1, EIVAIN2=:EIVAIN2, EIVAIN3=:EIVAIN3, EIVAIN4=:EIVAIN4, EIVAIN5=:EIVAIN5, EIVAIN6=:EIVAIN6, EIVAIN7=:EIVAIN7, EIVAIN8=:EIVAIN8, EIVAIN9=:EIVAIN9,
                 EIVAV1=:EIVAV1, EIVAV2=:EIVAV2, EIVAV3=:EIVAV3, EIVAV4=:EIVAV4, EIVAV5=:EIVAV5, EIVAV6=:EIVAV6, EIVAV7=:EIVAV7, EIVAV8=:EIVAV8, EIVAV9=:EIVAV9,
                 DTAlteracao=GETDATE(), USERALTERACAO=:USERALTERACAO
             WHERE FTSTAMP=:FTSTAMP
-        """), {
+        """ + _ft_entity_scope_sql('FT')), {
+            'current_feid': int(current_entity.get('FEID') or 0),
+            'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
             'FTSTAMP': ftstamp,
             'NDOC': _to_int(header.get('NDOC'), 0),
             'NMDOC': (header.get('NMDOC') or '').strip(),
@@ -6158,11 +6362,13 @@ def create_app():
             'FDATA': fdata,
             'FTANO': ftano,
             'PDATA': (header.get('PDATA') or fdata),
-            'FESTAMP': (header.get('FESTAMP') or '').strip(),
+            'FESTAMP': (current_entity.get('FESTAMP') or '').strip(),
+            'FEID': int(current_entity.get('FEID') or 0),
             'CCUSTO': (header.get('CCUSTO') or '').strip(),
             'TPSTAMP': (header.get('TPSTAMP') or '').strip(),
             'TPDESC': (header.get('TPDESC') or '').strip(),
             'SERIE': (header.get('SERIE') or '').strip(),
+            'DESCONTO': header_desconto,
             'ETTILIQ': ettiliq,
             'ETTIVA': ettiva,
             'ETOTAL': etotal,
@@ -6171,6 +6377,8 @@ def create_app():
             'EIVAV1': eivav[0], 'EIVAV2': eivav[1], 'EIVAV3': eivav[2], 'EIVAV4': eivav[3], 'EIVAV5': eivav[4], 'EIVAV6': eivav[5], 'EIVAV7': eivav[6], 'EIVAV8': eivav[7], 'EIVAV9': eivav[8],
             'USERALTERACAO': user_login
         })
+        if int(getattr(update_result, 'rowcount', 0) or 0) <= 0:
+            return jsonify({'error': 'Documento não encontrado'}), 404
 
         db.session.execute(text("DELETE FROM dbo.FI WHERE FTSTAMP=:s"), {'s': ftstamp})
         for idx, line in enumerate(normalized):
@@ -6179,27 +6387,30 @@ def create_app():
             nmdoc = (header.get('NMDOC') or '').strip()
             db.session.execute(text("""
                 INSERT INTO dbo.FI
-                (FISTAMP, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA)
+                (FISTAMP, FEID, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA, DESCONTO, MISEIMP)
                 VALUES
-                (:FISTAMP, :NMDOC, :FNO, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA)
+                (:FISTAMP, :FEID, :NMDOC, :FNO, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA, :DESCONTO, :MISEIMP)
             """), {
                 'FISTAMP': fistamp,
+                'FEID': int(current_entity.get('FEID') or 0),
                 'NMDOC': nmdoc,
                 'FNO': _to_int(header.get('FNO'), 0),
                 'REF': (line.get('REF') or '').strip(),
                 'DESIGN': (line.get('DESIGN') or '').strip(),
-                'QTT': _num(line.get('QTT'), 0),
-                'ETILIQUIDO': _num(line.get('ETILIQUIDO'), 0),
+                'QTT': _to_decimal_param(line.get('QTT'), '0.000001'),
+                'ETILIQUIDO': _to_decimal_param(line.get('ETILIQUIDO'), '0.000001'),
                 'UNIDADE': (line.get('UNIDADE') or '').strip(),
-                'IVA': _num(line.get('IVA'), 0),
+                'IVA': _to_decimal_param(line.get('IVA'), '0.000001'),
                 'IVAINCL': 1 if int(_num(line.get('IVAINCL'), 0)) == 1 else 0,
                 'TABIVA': _to_int(line.get('TABIVA'), 0),
                 'NDOC': ndoc,
                 'LORDEM': _to_int(line.get('LORDEM'), (idx + 1) * 10),
                 'FTSTAMP': ftstamp,
                 'FICCUSTO': (line.get('FICCUSTO') or header.get('CCUSTO') or '').strip(),
-                'EPV': _num(line.get('EPV'), 0),
-                'FAMILIA': (line.get('FAMILIA') or '').strip()
+                'EPV': _to_decimal_param(line.get('EPV'), '0.000001'),
+                'FAMILIA': (line.get('FAMILIA') or '').strip(),
+                'DESCONTO': _to_decimal_param(line.get('DESCONTO'), '0.01'),
+                'MISEIMP': (line.get('MISEIMP') or '').strip().upper()
             })
 
         db.session.commit()
@@ -6207,7 +6418,7 @@ def create_app():
 
     def _emit_ft_core_global(ftstamp_emit: str, user_login_emit: str):
         row = db.session.execute(text("""
-            SELECT TOP 1 FTSTAMP, NDOC, NMDOC, SERIE, FDATA, FTANO, FESTAMP, NO, NOME, BLOQUEADO, ESTADO, ANULADA
+            SELECT TOP 1 FTSTAMP, NDOC, NMDOC, SERIE, FDATA, FTANO, FESTAMP, NO, NOME, BLOQUEADO, ESTADO, ANULADA, DESCONTO
             FROM dbo.FT WITH (UPDLOCK, ROWLOCK)
             WHERE FTSTAMP=:s
         """), {'s': ftstamp_emit}).mappings().first()
@@ -6259,7 +6470,10 @@ def create_app():
             SELECT * FROM dbo.FI WITH (UPDLOCK, ROWLOCK)
             WHERE FTSTAMP=:s ORDER BY ISNULL(LORDEM,0), FISTAMP
         """), {'s': ftstamp_emit}).mappings().all()
-        _, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown([dict(r) for r in fi_rows])
+        normalized, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown([dict(r) for r in fi_rows], row.get('DESCONTO'))
+        miseimp_error = _validate_ft_miseimp(normalized)
+        if miseimp_error:
+            raise ValueError(miseimp_error)
         new_fno = _to_int(srow.get('ULTIMO_FNO'), 0) + 1
 
         db.session.execute(text("""
@@ -6330,9 +6544,16 @@ def create_app():
     @app.route('/api/faturacao/ft/<ftstamp>/emitir', methods=['POST'])
     @login_required
     def api_faturacao_ft_emitir(ftstamp):
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        ft_check, _ = _get_ft(ftstamp, current_entity)
+        if not ft_check:
+            return jsonify({'error': 'Documento não encontrado'}), 404
+
         def _emit_ft_core(ftstamp_emit: str, user_login_emit: str):
             row = db.session.execute(text("""
-                SELECT TOP 1 FTSTAMP, NDOC, NMDOC, SERIE, FDATA, FTANO, FESTAMP, NO, NOME, BLOQUEADO, ESTADO, ANULADA
+                SELECT TOP 1 FTSTAMP, NDOC, NMDOC, SERIE, FDATA, FTANO, FESTAMP, NO, NOME, BLOQUEADO, ESTADO, ANULADA, DESCONTO
                 FROM dbo.FT WITH (UPDLOCK, ROWLOCK)
                 WHERE FTSTAMP=:s
             """), {'s': ftstamp_emit}).mappings().first()
@@ -6393,7 +6614,10 @@ def create_app():
                 WHERE FTSTAMP=:s
                 ORDER BY ISNULL(LORDEM,0), FISTAMP
             """), {'s': ftstamp_emit}).mappings().all()
-            normalized, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown([dict(r) for r in fi_rows])
+            normalized, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown([dict(r) for r in fi_rows], row.get('DESCONTO'))
+            miseimp_error = _validate_ft_miseimp(normalized)
+            if miseimp_error:
+                raise ValueError(miseimp_error)
             new_fno = _to_int(srow.get('ULTIMO_FNO'), 0) + 1
 
             db.session.execute(text("""
@@ -6754,7 +6978,7 @@ def create_app():
                     db.session.execute(text("""
                         INSERT INTO dbo.FT
                         (FTSTAMP, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA,
-                         FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
+                         FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, DESCONTO, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
                          IVATX1, IVATX2, IVATX3, IVATX4, IVATX5, IVATX6, IVATX7, IVATX8, IVATX9,
                          EIVAIN1, EIVAIN2, EIVAIN3, EIVAIN4, EIVAIN5, EIVAIN6, EIVAIN7, EIVAIN8, EIVAIN9,
                          TIPODOC, EIVAV1, EIVAV2, EIVAV3, EIVAV4, EIVAV5, EIVAV6, EIVAV7, EIVAV8, EIVAV9,
@@ -6764,7 +6988,7 @@ def create_app():
                          FTREFSTAMP, AT_ENVIO_ESTADO, AT_ENVIO_DATA, AT_ENVIO_MSG)
                         VALUES
                         (:FTSTAMP, :NDOC, :NMDOC, :FNO, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA,
-                         :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
+                         :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :DESCONTO, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
                          0,0,0,0,0,0,0,0,0,
                          0,0,0,0,0,0,0,0,0,
                          0,0,0,0,0,0,0,0,0,0,
@@ -6782,9 +7006,9 @@ def create_app():
 
                     fi_insert_sql = text("""
                         INSERT INTO dbo.FI
-                        (FISTAMP, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA)
+                        (FISTAMP, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA, DESCONTO, MISEIMP)
                         VALUES
-                        (:FISTAMP, :NMDOC, 0, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA)
+                        (:FISTAMP, :NMDOC, 0, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA, :DESCONTO, :MISEIMP)
                     """)
 
                     # Até 2026-03-02 (inclusive): 2 linhas (ESTADIA 6% + LIMPEZA 23%).
@@ -6807,7 +7031,9 @@ def create_app():
                                 'FTSTAMP': payload['FTSTAMP'],
                                 'FICCUSTO': '',
                                 'EPV': estadia_val,
-                                'FAMILIA': ''
+                                'FAMILIA': '',
+                                'DESCONTO': 0,
+                                'MISEIMP': ''
                             })
                         if limpeza_val > 0:
                             db.session.execute(fi_insert_sql, {
@@ -6826,7 +7052,9 @@ def create_app():
                                 'FTSTAMP': payload['FTSTAMP'],
                                 'FICCUSTO': '',
                                 'EPV': limpeza_val,
-                                'FAMILIA': ''
+                                'FAMILIA': '',
+                                'DESCONTO': 0,
+                                'MISEIMP': ''
                             })
                     else:
                         db.session.execute(fi_insert_sql, {
@@ -6845,7 +7073,9 @@ def create_app():
                             'FTSTAMP': payload['FTSTAMP'],
                             'FICCUSTO': '',
                             'EPV': estadia_plus_limpeza,
-                            'FAMILIA': ''
+                            'FAMILIA': '',
+                            'DESCONTO': 0,
+                            'MISEIMP': ''
                         })
 
                     db.session.commit()
@@ -6956,6 +7186,9 @@ def create_app():
     @app.route('/api/faturacao/ft/<ftstamp>/anular', methods=['POST'])
     @login_required
     def api_faturacao_ft_anular(ftstamp):
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
         body = request.get_json(silent=True) or {}
         motivo = (body.get('motivo') or '').strip()
         user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
@@ -6964,14 +7197,23 @@ def create_app():
             SET ANULADA=1, ESTADO=2, BLOQUEADO=1, ANULDATA=GETDATE(), ANULUSER=:u, ANULMOTIVO=:m,
                 DTAlteracao=GETDATE(), USERALTERACAO=:u
             WHERE FTSTAMP=:s
-        """), {'u': user_login, 'm': motivo[:255], 's': ftstamp})
+        """ + _ft_entity_scope_sql('FT')), {
+            'u': user_login,
+            'm': motivo[:255],
+            's': ftstamp,
+            'current_feid': int(current_entity.get('FEID') or 0),
+            'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
+        })
         db.session.commit()
         return jsonify({'ok': True})
 
     @app.route('/api/faturacao/ft/<ftstamp>/duplicar', methods=['POST'])
     @login_required
     def api_faturacao_ft_duplicar(ftstamp):
-        ft, fi = _get_ft(ftstamp)
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        ft, fi = _get_ft(ftstamp, current_entity)
         if not ft:
             return jsonify({'error': 'Documento não encontrado'}), 404
         user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
@@ -6979,8 +7221,8 @@ def create_app():
         today = date.today()
         db.session.execute(text("""
             INSERT INTO dbo.FT
-            (FTSTAMP, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA,
-             FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
+            (FTSTAMP, FEID, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA,
+             FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, DESCONTO, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
              IVATX1, IVATX2, IVATX3, IVATX4, IVATX5, IVATX6, IVATX7, IVATX8, IVATX9,
              EIVAIN1, EIVAIN2, EIVAIN3, EIVAIN4, EIVAIN5, EIVAIN6, EIVAIN7, EIVAIN8, EIVAIN9,
              TIPODOC, EIVAV1, EIVAV2, EIVAV3, EIVAV4, EIVAV5, EIVAV6, EIVAV7, EIVAV8, EIVAV9,
@@ -6989,8 +7231,8 @@ def create_app():
              ANULADA, ANULDATA, ANULUSER, ANULMOTIVO,
              FTREFSTAMP, AT_ENVIO_ESTADO, AT_ENVIO_DATA, AT_ENVIO_MSG)
             VALUES
-            (:new, :NDOC, :NMDOC, 0, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA,
-             :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
+            (:new, :FEID, :NDOC, :NMDOC, 0, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA,
+             :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :DESCONTO, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
              :IVATX1, :IVATX2, :IVATX3, :IVATX4, :IVATX5, :IVATX6, :IVATX7, :IVATX8, :IVATX9,
              :EIVAIN1, :EIVAIN2, :EIVAIN3, :EIVAIN4, :EIVAIN5, :EIVAIN6, :EIVAIN7, :EIVAIN8, :EIVAIN9,
              :TIPODOC, :EIVAV1, :EIVAV2, :EIVAV3, :EIVAV4, :EIVAV5, :EIVAV6, :EIVAV7, :EIVAV8, :EIVAV9,
@@ -7000,14 +7242,16 @@ def create_app():
              :old, 0, CAST('19000101' AS datetime2(0)), '')
         """), {
             'new': new_ft, 'old': ftstamp,
+            'FEID': int(current_entity.get('FEID') or 0),
             'NDOC': _to_int(ft.get('NDOC'), 0), 'NMDOC': (ft.get('NMDOC') or '').strip(), 'TIPO': (ft.get('TIPO') or 'FT').strip(),
             'NO': _to_int(ft.get('NO'), 0), 'NOME': (ft.get('NOME') or '').strip(), 'MORADA': (ft.get('MORADA') or '').strip(),
             'CODPOST': (ft.get('CODPOST') or '').strip(), 'PAIS': _to_int(ft.get('PAIS'), 0), 'LOCAL': (ft.get('LOCAL') or '').strip(),
             'NCONT': (ft.get('NCONT') or '').strip(), 'MOEDA': (ft.get('MOEDA') or 'EUR').strip(),
             'FDATA': ft.get('FDATA') or today.isoformat(), 'FTANO': _to_int(ft.get('FTANO'), today.year), 'PDATA': ft.get('PDATA') or today.isoformat(),
             'PLANO': _to_int(ft.get('PLANO'), 0), 'TPSTAMP': (ft.get('TPSTAMP') or '').strip(), 'TPDESC': (ft.get('TPDESC') or '').strip(),
+            'DESCONTO': _num(ft.get('DESCONTO'), 0),
             'ETTILIQ': _num(ft.get('ETTILIQ'), 0), 'ETTIVA': _num(ft.get('ETTIVA'), 0), 'ETOTAL': _num(ft.get('ETOTAL'), 0),
-            'CCUSTO': (ft.get('CCUSTO') or '').strip(), 'FESTAMP': (ft.get('FESTAMP') or '').strip(), 'SERIE': (ft.get('SERIE') or '').strip(),
+            'CCUSTO': (ft.get('CCUSTO') or '').strip(), 'FESTAMP': (current_entity.get('FESTAMP') or '').strip(), 'SERIE': (ft.get('SERIE') or '').strip(),
             'IVATX1': _num(ft.get('IVATX1'), 0), 'IVATX2': _num(ft.get('IVATX2'), 0), 'IVATX3': _num(ft.get('IVATX3'), 0), 'IVATX4': _num(ft.get('IVATX4'), 0), 'IVATX5': _num(ft.get('IVATX5'), 0), 'IVATX6': _num(ft.get('IVATX6'), 0), 'IVATX7': _num(ft.get('IVATX7'), 0), 'IVATX8': _num(ft.get('IVATX8'), 0), 'IVATX9': _num(ft.get('IVATX9'), 0),
             'EIVAIN1': _num(ft.get('EIVAIN1'), 0), 'EIVAIN2': _num(ft.get('EIVAIN2'), 0), 'EIVAIN3': _num(ft.get('EIVAIN3'), 0), 'EIVAIN4': _num(ft.get('EIVAIN4'), 0), 'EIVAIN5': _num(ft.get('EIVAIN5'), 0), 'EIVAIN6': _num(ft.get('EIVAIN6'), 0), 'EIVAIN7': _num(ft.get('EIVAIN7'), 0), 'EIVAIN8': _num(ft.get('EIVAIN8'), 0), 'EIVAIN9': _num(ft.get('EIVAIN9'), 0),
             'TIPODOC': _to_int(ft.get('TIPODOC'), 0),
@@ -7017,26 +7261,29 @@ def create_app():
         for row in fi:
             db.session.execute(text("""
                 INSERT INTO dbo.FI
-                (FISTAMP, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA)
+                (FISTAMP, FEID, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA, DESCONTO, MISEIMP)
                 VALUES
-                (:FISTAMP, :NMDOC, 0, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA)
+                (:FISTAMP, :FEID, :NMDOC, 0, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA, :DESCONTO, :MISEIMP)
             """), {
                 'FISTAMP': _new_stamp_25(),
+                'FEID': int(current_entity.get('FEID') or 0),
                 'NMDOC': (row.get('NMDOC') or '').strip(),
                 'REF': (row.get('REF') or '').strip(),
                 'DESIGN': (row.get('DESIGN') or '').strip(),
-                'QTT': _num(row.get('QTT'), 0),
-                'ETILIQUIDO': _num(row.get('ETILIQUIDO'), 0),
+                'QTT': _to_decimal_param(row.get('QTT'), '0.000001'),
+                'ETILIQUIDO': _to_decimal_param(row.get('ETILIQUIDO'), '0.000001'),
                 'UNIDADE': (row.get('UNIDADE') or '').strip(),
-                'IVA': _num(row.get('IVA'), 0),
+                'IVA': _to_decimal_param(row.get('IVA'), '0.000001'),
                 'IVAINCL': _to_int(row.get('IVAINCL'), 0),
                 'TABIVA': _to_int(row.get('TABIVA'), 0),
                 'NDOC': _to_int(row.get('NDOC'), 0),
                 'LORDEM': _to_int(row.get('LORDEM'), 0),
                 'FTSTAMP': new_ft,
                 'FICCUSTO': (row.get('FICCUSTO') or '').strip(),
-                'EPV': _num(row.get('EPV'), 0),
-                'FAMILIA': (row.get('FAMILIA') or '').strip()
+                'EPV': _to_decimal_param(row.get('EPV'), '0.000001'),
+                'FAMILIA': (row.get('FAMILIA') or '').strip(),
+                'DESCONTO': _to_decimal_param(row.get('DESCONTO'), '0.01'),
+                'MISEIMP': (row.get('MISEIMP') or '').strip().upper()
             })
         db.session.commit()
         return jsonify({'ok': True, 'FTSTAMP': new_ft})
@@ -7044,18 +7291,32 @@ def create_app():
     @app.route('/api/faturacao/ft/<ftstamp>/cancelar', methods=['POST'])
     @login_required
     def api_faturacao_ft_cancelar(ftstamp):
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
         row = db.session.execute(text("""
             SELECT ISNULL(ESTADO,0) AS ESTADO
             FROM dbo.FT
             WHERE FTSTAMP=:s
-        """), {'s': ftstamp}).mappings().first()
+        """ + _ft_entity_scope_sql('FT')), {
+            's': ftstamp,
+            'current_feid': int(current_entity.get('FEID') or 0),
+            'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
+        }).mappings().first()
         if not row:
             return jsonify({'error': 'Documento não encontrado'}), 404
         if int(row.get('ESTADO') or 0) != 0:
             return jsonify({'ok': True, 'deleted': False, 'message': 'Documento não é rascunho.'})
 
         db.session.execute(text("DELETE FROM dbo.FI WHERE FTSTAMP=:s"), {'s': ftstamp})
-        db.session.execute(text("DELETE FROM dbo.FT WHERE FTSTAMP=:s"), {'s': ftstamp})
+        db.session.execute(text("""
+            DELETE FROM dbo.FT
+            WHERE FTSTAMP=:s
+        """ + _ft_entity_scope_sql('FT')), {
+            's': ftstamp,
+            'current_feid': int(current_entity.get('FEID') or 0),
+            'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
+        })
         db.session.commit()
         return jsonify({'ok': True, 'deleted': True})
 

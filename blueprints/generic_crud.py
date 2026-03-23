@@ -11,12 +11,16 @@ from datetime import date, timedelta
 import json
 import re
 import os
+import xml.etree.ElementTree as ET
+from urllib import request as urllib_request, error as urllib_error
 from werkzeug.utils import secure_filename
 
 bp = Blueprint('generic', __name__, url_prefix='/generic')
 
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
-FE_SCOPED_TABLES = {'AL', 'RS', 'LP', 'FS', 'MN', 'TAREFAS'}
+VIES_CHECKVAT_URL = 'https://ec.europa.eu/taxation_customs/vies/services/checkVatService'
+VIES_SOAP_NS = 'http://schemas.xmlsoap.org/soap/envelope/'
+VIES_TYPES_NS = 'urn:ec.europa.eu:taxud:vies:services:checkVat:types'
 
 # --------------------------------------------------
 # FO: pagamento (V_FC) helper
@@ -139,7 +143,7 @@ def _column_exists(table_name: str, column_name: str) -> bool:
 
 def _table_is_fe_scoped(table_name: str) -> bool:
     tn = (table_name or '').strip().upper()
-    return tn in FE_SCOPED_TABLES and _column_exists(tn, 'FEID')
+    return tn not in ('',) and _column_exists(tn, 'FEID')
 
 
 def _current_feid_or_abort() -> int:
@@ -147,6 +151,209 @@ def _current_feid_or_abort() -> int:
         return get_current_feid()
     except MissingCurrentEntityError as exc:
         abort(403, str(exc))
+
+
+def _normalize_vies_text(value) -> str:
+    if value is None:
+        return ''
+    raw = str(value).replace('\r\n', '\n').replace('\r', '\n')
+    lines = []
+    for line in raw.split('\n'):
+        clean = re.sub(r'\s+', ' ', (line or '').strip())
+        if clean and clean != '---':
+            lines.append(clean)
+    return '\n'.join(lines)
+
+
+def _normalize_vies_vat(vat_value: str) -> tuple[str, str]:
+    raw = re.sub(r'[^A-Z0-9]', '', str(vat_value or '').upper())
+    if len(raw) >= 3 and raw[:2].isalpha():
+        return raw[:2], raw[2:]
+    return 'PT', raw
+
+
+def _is_valid_portuguese_nif(vat_number: str) -> bool:
+    digits = re.sub(r'\D', '', str(vat_number or ''))
+    if len(digits) != 9:
+        return False
+    total = sum(int(digits[idx]) * (9 - idx) for idx in range(8))
+    check_digit = 11 - (total % 11)
+    if check_digit >= 10:
+        check_digit = 0
+    return check_digit == int(digits[8])
+
+
+def _parse_vies_address(address: str, country_code: str = 'PT') -> dict[str, str]:
+    normalized = _normalize_vies_text(address)
+    lines = [line.strip(' ,;') for line in normalized.split('\n') if line.strip(' ,;')]
+    result = {
+        'morada': '',
+        'codpost': '',
+        'local': '',
+        'address': normalized,
+    }
+    if not lines:
+        return result
+
+    upper_country = (country_code or 'PT').strip().upper()
+    if upper_country == 'PT':
+        for idx in range(len(lines) - 1, -1, -1):
+            match = re.match(r'^(?P<codpost>\d{4}-\d{3})(?:\s+(?P<local>.+))?$', lines[idx], re.IGNORECASE)
+            if match:
+                result['codpost'] = (match.group('codpost') or '').strip().upper()
+                result['local'] = (match.group('local') or '').strip()
+                morada_lines = lines[:idx]
+                result['morada'] = ', '.join(morada_lines).strip(' ,')
+                break
+
+    if not result['morada']:
+        if len(lines) > 1:
+            result['morada'] = ', '.join(lines[:-1]).strip(' ,')
+            if not result['local'] and not result['codpost']:
+                result['local'] = lines[-1]
+        else:
+            result['morada'] = lines[0]
+
+    return result
+
+
+def _extract_vies_fault(xml_bytes: bytes) -> tuple[str, str]:
+    try:
+        root = ET.fromstring(xml_bytes)
+    except Exception:
+        return '', ''
+    ns = {'soap': VIES_SOAP_NS}
+    fault = root.find('.//soap:Fault', ns)
+    if fault is None:
+        return '', ''
+    code = (fault.findtext('faultcode') or '').strip()
+    message = (fault.findtext('faultstring') or '').strip()
+    return code, message
+
+
+def _friendly_vies_error_message(raw_message: str) -> str:
+    token = (raw_message or '').strip().upper()
+    if 'INVALID_INPUT' in token:
+        return 'NIF inválido para consulta no VIES.'
+    if 'SERVICE_UNAVAILABLE' in token or 'SERVER_BUSY' in token or 'TIMEOUT' in token:
+        return 'O serviço VIES está temporariamente indisponível.'
+    if 'MS_UNAVAILABLE' in token:
+        return 'O serviço VIES do país indicado está indisponível.'
+    return 'Não foi possível obter dados do VIES.'
+
+
+def _fetch_vies_info(vat_value: str) -> dict:
+    country_code, vat_number = _normalize_vies_vat(vat_value)
+    if len(country_code) != 2 or not vat_number:
+        raise ValueError('NIF inválido para consulta no VIES.')
+    if country_code == 'PT' and not _is_valid_portuguese_nif(vat_number):
+        raise ValueError('O NIF introduzido não é válido. Se for um NIF português, confirma os 9 dígitos e o dígito de controlo.')
+
+    envelope = f"""<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="{VIES_SOAP_NS}" xmlns:urn="{VIES_TYPES_NS}">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <urn:checkVat>
+      <urn:countryCode>{country_code}</urn:countryCode>
+      <urn:vatNumber>{vat_number}</urn:vatNumber>
+    </urn:checkVat>
+  </soapenv:Body>
+</soapenv:Envelope>""".encode('utf-8')
+
+    req = urllib_request.Request(
+        VIES_CHECKVAT_URL,
+        data=envelope,
+        headers={
+            'Content-Type': 'text/xml; charset=utf-8',
+            'SOAPAction': '',
+        },
+        method='POST',
+    )
+
+    try:
+        with urllib_request.urlopen(req, timeout=20) as resp:
+            response_bytes = resp.read()
+    except urllib_error.HTTPError as exc:
+        response_bytes = exc.read() or b''
+        _, fault_message = _extract_vies_fault(response_bytes)
+        raise RuntimeError(_friendly_vies_error_message(fault_message or str(exc))) from exc
+    except urllib_error.URLError as exc:
+        raise RuntimeError('Não foi possível ligar ao serviço VIES.') from exc
+
+    try:
+        root = ET.fromstring(response_bytes)
+    except Exception as exc:
+        raise RuntimeError('Resposta inválida do serviço VIES.') from exc
+
+    ns = {
+        'soap': VIES_SOAP_NS,
+        'vies': VIES_TYPES_NS,
+    }
+    fault = root.find('.//soap:Fault', ns)
+    if fault is not None:
+        raise RuntimeError(_friendly_vies_error_message(fault.findtext('faultstring') or ''))
+
+    response_node = root.find('.//vies:checkVatResponse', ns)
+    if response_node is None:
+        raise RuntimeError('Resposta inválida do serviço VIES.')
+
+    valid = (response_node.findtext('vies:valid', default='', namespaces=ns) or '').strip().lower() == 'true'
+    response_country = (response_node.findtext('vies:countryCode', default=country_code, namespaces=ns) or country_code).strip().upper()
+    response_vat = (response_node.findtext('vies:vatNumber', default=vat_number, namespaces=ns) or vat_number).strip().upper()
+    name = _normalize_vies_text(response_node.findtext('vies:name', default='', namespaces=ns))
+    address = _normalize_vies_text(response_node.findtext('vies:address', default='', namespaces=ns))
+    parsed_address = _parse_vies_address(address, response_country)
+
+    return {
+        'valid': valid,
+        'country_code': response_country,
+        'vat_number': response_vat,
+        'name': name,
+        'address': address,
+        'morada': parsed_address.get('morada', ''),
+        'codpost': parsed_address.get('codpost', ''),
+        'local': parsed_address.get('local', ''),
+    }
+
+
+def _next_incremental_no(table_name: str, current_feid: int | None = None) -> int:
+    tn = (table_name or '').strip().upper()
+    if not tn or not _column_exists(tn, 'NO'):
+        return 1
+    sql = text(f"""
+        SELECT ISNULL(MAX(TRY_CAST(NO AS int)), 0) + 1 AS NEXT_NO
+          FROM dbo.{tn}
+         WHERE 1 = 1
+         {_sql_feid_clause(tn) if current_feid is not None else ''}
+    """)
+    params = {'current_feid': current_feid} if current_feid is not None else {}
+    value = db.session.execute(sql, params).scalar()
+    try:
+        next_no = int(value or 1)
+    except Exception:
+        next_no = 1
+    return max(1, next_no)
+
+
+def _record_no_exists(table_name: str, no_value, current_feid: int | None = None, exclude_stamp: str | None = None) -> bool:
+    tn = (table_name or '').strip().upper()
+    if not tn or not _column_exists(tn, 'NO'):
+        return False
+    pk_name = f"{tn}STAMP"
+    exclude_sql = f" AND ISNULL({pk_name}, '') <> :exclude_stamp" if exclude_stamp else ''
+    sql = text(f"""
+        SELECT TOP 1 1
+          FROM dbo.{tn}
+         WHERE TRY_CAST(NO AS int) = :no
+         {_sql_feid_clause(tn) if current_feid is not None else ''}
+         {exclude_sql}
+    """)
+    params = {'no': int(no_value)}
+    if current_feid is not None:
+        params['current_feid'] = current_feid
+    if exclude_stamp:
+        params['exclude_stamp'] = exclude_stamp
+    return bool(db.session.execute(sql, params).first())
 
 
 def _apply_feid_scope_stmt(stmt, table, table_name: str, mode: str = 'read'):
@@ -1270,6 +1477,51 @@ def list_or_describe(table_name):
         current_app.logger.exception(f"Falha ao listar {table_name}")
         return jsonify({'error': str(e)}), 500
 
+
+@bp.route('/api/cl/next_no', methods=['GET'])
+@login_required
+def cl_next_no():
+    if not has_permission('CL', 'inserir'):
+        abort(403, 'Sem permissão para inserir')
+    current_feid = _current_feid_or_abort() if _table_is_fe_scoped('CL') else None
+    return jsonify({'NO': _next_incremental_no('CL', current_feid)})
+
+
+@bp.route('/api/cl/vies_lookup', methods=['GET'])
+@login_required
+def cl_vies_lookup():
+    if not (has_permission('CL', 'consultar') or has_permission('CL', 'editar') or has_permission('CL', 'inserir')):
+        abort(403, 'Sem permissão')
+
+    nif = (request.args.get('nif') or '').strip()
+    if not nif:
+        return jsonify({'ok': False, 'error': 'NIF em falta.'}), 400
+
+    try:
+        result = _fetch_vies_info(nif)
+    except ValueError as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 502
+    except Exception as exc:
+        current_app.logger.exception('Erro inesperado ao consultar VIES')
+        return jsonify({'ok': False, 'error': 'Não foi possível consultar o VIES.'}), 500
+
+    payload = {
+        'ok': True,
+        'valid': bool(result.get('valid')),
+        'country_code': result.get('country_code') or '',
+        'vat_number': result.get('vat_number') or '',
+        'name': result.get('name') or '',
+        'address': result.get('address') or '',
+        'nome': result.get('name') or '',
+        'morada': result.get('morada') or '',
+        'codpost': result.get('codpost') or '',
+        'local': result.get('local') or '',
+        'message': 'Dados obtidos do VIES.' if result.get('valid') else 'O NIF indicado não está válido no VIES.',
+    }
+    return jsonify(payload)
+
 # --------------------------------------------------
 # API: opÃ§Ãµes para COMBO
 # --------------------------------------------------
@@ -2020,6 +2272,8 @@ def create_record(table_name):
 
     table = get_table(table_name)
     data  = request.get_json() or {}
+    tn = (table_name or '').strip().upper()
+    current_feid = _current_feid_or_abort() if _table_is_fe_scoped(table_name) else None
 
     # Se vier chave vazia para o PK, removemos
     pk_name = f"{table_name.upper()}STAMP"
@@ -2035,12 +2289,24 @@ def create_record(table_name):
             clean[col_map[lk]] = v
     # â€” end filtra â€”
 
-    if _table_is_fe_scoped(table_name):
-        clean['FEID'] = _current_feid_or_abort()
+    if current_feid is not None:
+        clean['FEID'] = current_feid
+
+    if tn == 'CL' and 'NO' in col_map:
+        raw_no = clean.get('NO')
+        raw_text = '' if raw_no is None else str(raw_no).strip()
+        if raw_text == '':
+            clean['NO'] = _next_incremental_no('CL', current_feid)
+        else:
+            try:
+                clean['NO'] = int(float(raw_text.replace(',', '.')))
+            except Exception:
+                return jsonify({'error': 'Número de cliente inválido.'}), 400
+        if _record_no_exists('CL', clean['NO'], current_feid):
+            return jsonify({'error': f'Já existe um cliente com o número {clean["NO"]}.'}), 400
 
     # Bloqueio: FO/FN incluÃ­do(s) em pagamento nÃ£o podem ser alterados
     try:
-        tn = (table_name or '').strip().upper()
         if tn == 'FN':
             fs = (clean.get('FOSTAMP') or '').strip()
             if fs and fo_pagamento_status(fs).get('locked'):
@@ -2100,6 +2366,7 @@ def update_record(table_name, record_stamp):
 
     table = get_table(table_name)
     data  = request.get_json() or {}
+    tn = (table_name or '').strip().upper()
     # filtra sÃ³ colunas vÃ¡lidas
     col_map = {c.name.lower(): c.name for c in table.c}
     clean   = {}
@@ -2109,11 +2376,13 @@ def update_record(table_name, record_stamp):
             clean[col_map[lk]] = v
     data = clean
 
+    if tn == 'CL' and 'NO' in data:
+        data.pop('NO', None)
+
     pk = getattr(table.c, f"{table_name.upper()}STAMP")
 
     # Bloqueio: FO/FN incluÃ­do(s) em pagamento nÃ£o podem ser alterados
     try:
-        tn = (table_name or '').strip().upper()
         if tn == 'FO':
             if fo_pagamento_status(record_stamp).get('locked'):
                 return jsonify({'error': 'Documento incluido em pagamento. Nao pode ser alterado.'}), 403

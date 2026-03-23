@@ -39,11 +39,9 @@
     .iva-box { margin-bottom: 0; }
     .iva-box th, .iva-box td { padding: 4px 6px; }
     .footer-block {
-      position: fixed;
-      left: 10mm;
-      right: 10mm;
-      bottom: 20mm;
-      width: auto;
+      width: 100%;
+      margin-top: 12px;
+      page-break-inside: avoid;
     }
     .cert-line {
       margin-top: 8px;
@@ -118,15 +116,6 @@
       </tr>
     </thead>
     <tbody>
-      <tr class="row-fill">
-        <td class="w-ref">&nbsp;</td>
-        <td class="w-design">&nbsp;</td>
-        <td class="num w-qtd">&nbsp;</td>
-        <td class="w-un">&nbsp;</td>
-        <td class="num w-preco">&nbsp;</td>
-        <td class="num w-total">&nbsp;</td>
-        <td class="num w-iva">&nbsp;</td>
-      </tr>
       {% for ln in lines %}
       <tr{% if loop.first %} class="first-data-row"{% endif %}>
         <td class="w-ref">{{ ln.REF or '' }}</td>
@@ -138,7 +127,7 @@
         <td class="num w-iva">{{ ln._IVA_TX }}</td>
       </tr>
       {% endfor %}
-      {% set fill_count = 24 - (lines|length) %}
+      {% set fill_count = 10 - (lines|length) %}
       {% if fill_count > 0 %}
         {% for _ in range(fill_count) %}
         <tr class="row-fill">
@@ -156,7 +145,6 @@
   </table>
   <div class="cert-line">{{ (hash4 or '----') }}-Processado por programa certificado nº {{ at_cert_no_dec or '' }}/AT</div>
 
-  <div style="height:170px;"></div>
   <table class="doc tbl footer-block" style="border:0; border-collapse:separate; border-spacing:0;">
     <tr>
       <td style="width:25%; border:0; padding:8px 8px 0 0; vertical-align:top;">

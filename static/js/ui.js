@@ -1,5 +1,182 @@
 // static/js/ui.js
+(() => {
+  const DECIMAL_SEPARATOR = ',';
+
+  function getDecimalPlaces(input) {
+    const places = Number(input?.dataset?.szDecimals);
+    return Number.isFinite(places) ? Math.max(0, places) : 2;
+  }
+
+  function shouldEnhanceDecimalInput(input) {
+    if (!input || input.dataset?.szNoDecimalMask === 'true') return false;
+    if (input.dataset?.szDecimal === 'true') return true;
+    if (input.dataset?.szInt === 'true') return false;
+    if (!['sz_input', 'sz_input_number'].some(cls => input.classList.contains(cls))) return false;
+    if ((input.type || '').toLowerCase() !== 'number') return false;
+    const step = String(input.getAttribute('step') || input.step || '').trim().toLowerCase();
+    return step !== '' && step !== '1' && step !== '1.0';
+  }
+
+  function parseDecimalString(value) {
+    if (value === null || value === undefined) {
+      return { sign: false, integers: '', decimals: '', hasDigits: false };
+    }
+    let text = String(value).trim();
+    let sign = false;
+    if (text.startsWith('-')) {
+      sign = true;
+      text = text.slice(1);
+    }
+    text = text.replace(/\./g, DECIMAL_SEPARATOR);
+    const allowed = new RegExp(`[^0-9${DECIMAL_SEPARATOR}]`, 'g');
+    text = text.replace(allowed, '');
+    const parts = text.split(DECIMAL_SEPARATOR);
+    const integers = parts.shift() || '';
+    const decimals = parts.join('');
+    const hasDigits = (integers + decimals).length > 0;
+    return { sign, integers, decimals, hasDigits };
+  }
+
+  function formatDecimalString(parsed, places, { padDecimals = false, forceComma = false } = {}) {
+    const { sign, integers, decimals, hasDigits } = parsed;
+    if (!hasDigits) return '';
+    const normalizedPlaces = Number.isFinite(places) ? Math.max(0, places) : 2;
+    let integerPart = integers.replace(/^0+(?=\d)/, '');
+    if (!integerPart) integerPart = '0';
+    let decimalPart = decimals.slice(0, normalizedPlaces);
+    if (padDecimals && normalizedPlaces > 0) {
+      decimalPart = decimalPart.padEnd(normalizedPlaces, '0');
+    }
+    let result = integerPart;
+    if (normalizedPlaces > 0 && (decimalPart.length > 0 || padDecimals || forceComma)) {
+      result += DECIMAL_SEPARATOR + decimalPart;
+    }
+    return (sign ? '-' : '') + result;
+  }
+
+  function toDisplayDecimal(value, places) {
+    const parsed = parseDecimalString(value);
+    if (!parsed.hasDigits) return '';
+    return formatDecimalString(parsed, places, {
+      padDecimals: places > 0,
+      forceComma: places > 0
+    });
+  }
+
+  function setCaretPosition(input, pos) {
+    if (typeof input.setSelectionRange === 'function') {
+      requestAnimationFrame(() => input.setSelectionRange(pos, pos));
+    }
+  }
+
+  function collectDigits(text = '') {
+    return (text.match(/\d+/g) || []).join('');
+  }
+
+  function attachDecimalBehavior(input) {
+    if (!shouldEnhanceDecimalInput(input) || input.dataset.szDecimalReady === '1') return;
+    const decimalPlaces = getDecimalPlaces(input);
+    input.dataset.szDecimal = 'true';
+    input.dataset.szDecimalReady = '1';
+    input.type = 'text';
+    input.inputMode = 'decimal';
+    input.autocomplete = 'off';
+
+    input.addEventListener('keydown', (event) => {
+      if (event.key === ',' || event.key === '.' || event.key === 'Decimal') {
+        event.preventDefault();
+        const value = input.value || '';
+        const start = input.selectionStart ?? value.length;
+        const existingComma = value.indexOf(DECIMAL_SEPARATOR);
+        if (existingComma >= 0 && start > existingComma) {
+          setCaretPosition(input, existingComma + 1);
+          return;
+        }
+        const sign = value.trim().startsWith('-') ? '-' : '';
+        const leftDigits = collectDigits(value.slice(0, start));
+        const nextCommaIndex = value.indexOf(DECIMAL_SEPARATOR, start);
+        const segmentForDecimals = nextCommaIndex >= 0 ? value.slice(start, nextCommaIndex) : value.slice(start);
+        const rightDigits = collectDigits(segmentForDecimals);
+        const paddedRight = decimalPlaces > 0
+          ? rightDigits.slice(0, decimalPlaces).padEnd(decimalPlaces, '0')
+          : '';
+        let newValue = leftDigits || '0';
+        if (decimalPlaces > 0) newValue += DECIMAL_SEPARATOR + paddedRight;
+        input.value = (sign && newValue !== '0' ? sign : '') + newValue;
+        const caretPos = input.value.indexOf(DECIMAL_SEPARATOR);
+        if (caretPos >= 0) setCaretPosition(input, caretPos + 1);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+
+      if (/^[0-9]$/.test(event.key)) {
+        const value = input.value || '';
+        const commaIndex = value.indexOf(DECIMAL_SEPARATOR);
+        if (commaIndex >= 0) {
+          const start = input.selectionStart ?? value.length;
+          if (start > commaIndex) {
+            event.preventDefault();
+            const offset = Math.min(Math.max(start - commaIndex - 1, 0), Math.max(decimalPlaces - 1, 0));
+            const decimals = value.slice(commaIndex + 1).padEnd(decimalPlaces, '0');
+            const decimalArray = decimals.split('');
+            decimalArray[offset] = event.key;
+            input.value = value.slice(0, commaIndex + 1) + decimalArray.join('').slice(0, decimalPlaces);
+            setCaretPosition(input, commaIndex + 1 + Math.min(offset + 1, decimalPlaces));
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }
+      }
+    });
+
+    input.addEventListener('input', () => {
+      const hadComma = (input.value || '').includes(DECIMAL_SEPARATOR);
+      const parsed = parseDecimalString(input.value);
+      const sanitized = parsed.hasDigits
+        ? formatDecimalString(parsed, decimalPlaces, {
+          padDecimals: hadComma && decimalPlaces > 0,
+          forceComma: hadComma && decimalPlaces > 0
+        })
+        : '';
+      if (sanitized !== input.value) {
+        const cursor = input.selectionStart ?? sanitized.length;
+        input.value = sanitized;
+        setCaretPosition(input, Math.min(cursor, sanitized.length));
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      if (!input.value) return;
+      input.value = toDisplayDecimal(input.value, decimalPlaces);
+    });
+
+    if (input.value) {
+      input.value = toDisplayDecimal(input.value, decimalPlaces);
+    }
+  }
+
+  window.szEnhanceDecimalInputs = function(root = document) {
+    const scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+    scope.querySelectorAll('input').forEach(attachDecimalBehavior);
+  };
+})();
+
 window.addEventListener('DOMContentLoaded', () => {
+  window.szEnhanceDecimalInputs?.(document);
+  if (document.body && typeof MutationObserver === 'function') {
+    const decimalObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (!(node instanceof HTMLElement)) return;
+          if (node.matches?.('input')) {
+            window.szEnhanceDecimalInputs?.(node.parentElement || document);
+          } else if (node.querySelectorAll) {
+            window.szEnhanceDecimalInputs?.(node);
+          }
+        });
+      });
+    });
+    decimalObserver.observe(document.body, { childList: true, subtree: true });
+  }
   const sidebar = document.querySelector('.sidebar');
   const main    = document.querySelector('.main-content');
   const btn     = document.getElementById('menuToggleMobile');

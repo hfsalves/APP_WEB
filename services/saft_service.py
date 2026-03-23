@@ -39,6 +39,11 @@ def _money(value: Any) -> str:
     return format(quantized, "f")
 
 
+def _decimal_6(value: Any) -> str:
+    quantized = _to_decimal(value).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    return format(quantized, "f")
+
+
 def _fmt_date(value: Any) -> str:
     if isinstance(value, datetime):
         return value.date().isoformat()
@@ -208,6 +213,8 @@ def _load_lines(session, filters: dict[str, Any]) -> dict[str, list[dict[str, An
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         item = dict(row)
+        unit_price = _line_unit_price(item)
+        item["UNITPRICE_FISCAL"] = format(unit_price, "f") if unit_price is not None else None
         grouped[str(item.get("FTSTAMP") or "").strip()].append(item)
     return grouped
 
@@ -320,6 +327,17 @@ def _product_code_no_warning(line: dict[str, Any]) -> str:
         return ref[:60]
     key = str(line.get("FISTAMP") or line.get("LORDEM") or "0")
     return f"GEN-{key}"[:60]
+
+
+def _line_unit_price(line: dict[str, Any]) -> Decimal | None:
+    quantity = _to_decimal(line.get("QTT"), "0").quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    if quantity == Decimal("0.000000"):
+        return None
+    provided = line.get("UNITPRICE_FISCAL")
+    if provided not in (None, ""):
+        return _to_decimal(provided, "0").quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    net_amount = _to_decimal(line.get("ETILIQUIDO"), "0").quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    return (net_amount / quantity).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
 
 
 def _build_dataset(session, filters: dict[str, Any]) -> dict[str, Any]:
@@ -606,7 +624,7 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
             line_el = ET.SubElement(invoice_el, _ns("Line"))
             product_code = _product_code_no_warning(line)
             quantity = _to_decimal(line.get("QTT"), "0").copy_abs()
-            unit_price = _to_decimal(line.get("EPV"), "0").copy_abs()
+            unit_price = _line_unit_price(line)
             net_amount = _to_decimal(line.get("ETILIQUIDO"), "0").copy_abs()
             tax_percentage = _to_decimal(line.get("IVA"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
@@ -615,7 +633,7 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
             _append_text(line_el, "ProductDescription", _safe_text(line.get("DESIGN"), "Linha faturação"))
             _append_text(line_el, "Quantity", format(quantity, "f"))
             _append_text(line_el, "UnitOfMeasure", _safe_text(line.get("UNIDADE"), "UN"))
-            _append_text(line_el, "UnitPrice", _money(unit_price))
+            _append_text(line_el, "UnitPrice", _decimal_6((unit_price or Decimal("0.000000")).copy_abs()))
             _append_text(line_el, "TaxPointDate", _fmt_date(header_row.get("FDATA")))
             _append_text(line_el, "Description", _safe_text(line.get("DESIGN"), "Linha faturação"))
             if doc_type == "NC":

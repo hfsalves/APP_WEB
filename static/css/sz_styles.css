@@ -650,6 +650,26 @@ body.sz-base-shell.authenticated .main-content {
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 }
 
+input.sz_input[data-sz-decimal="true"],
+input.sz_input_number[data-sz-decimal="true"],
+input.sz_input[type="number"]:not([data-sz-int="true"]):not([step="1"]):not([step="1.0"]),
+input.sz_input_number[type="number"]:not([data-sz-int="true"]):not([step="1"]):not([step="1.0"]) {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input.sz_input[data-sz-decimal="true"]::-webkit-outer-spin-button,
+input.sz_input[data-sz-decimal="true"]::-webkit-inner-spin-button,
+input.sz_input_number[data-sz-decimal="true"]::-webkit-outer-spin-button,
+input.sz_input_number[data-sz-decimal="true"]::-webkit-inner-spin-button,
+input.sz_input[type="number"]:not([data-sz-int="true"]):not([step="1"]):not([step="1.0"])::-webkit-outer-spin-button,
+input.sz_input[type="number"]:not([data-sz-int="true"]):not([step="1"]):not([step="1.0"])::-webkit-inner-spin-button,
+input.sz_input_number[type="number"]:not([data-sz-int="true"]):not([step="1"]):not([step="1.0"])::-webkit-outer-spin-button,
+input.sz_input_number[type="number"]:not([data-sz-int="true"]):not([step="1"]):not([step="1.0"])::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .sz_textarea {
   min-height: 7rem;
   height: auto;
