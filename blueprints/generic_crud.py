@@ -146,6 +146,10 @@ def _table_is_fe_scoped(table_name: str) -> bool:
     return tn not in ('',) and _column_exists(tn, 'FEID')
 
 
+def _is_partner_table(table_name: str) -> bool:
+    return (table_name or '').strip().upper() in ('CL', 'FL')
+
+
 def _current_feid_or_abort() -> int:
     try:
         return get_current_feid()
@@ -1478,19 +1482,25 @@ def list_or_describe(table_name):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/api/cl/next_no', methods=['GET'])
+@bp.route('/api/<table_name>/next_no', methods=['GET'])
 @login_required
-def cl_next_no():
-    if not has_permission('CL', 'inserir'):
+def partner_next_no(table_name):
+    tn = (table_name or '').strip().upper()
+    if not _is_partner_table(tn):
+        abort(404)
+    if not has_permission(tn, 'inserir'):
         abort(403, 'Sem permissão para inserir')
-    current_feid = _current_feid_or_abort() if _table_is_fe_scoped('CL') else None
-    return jsonify({'NO': _next_incremental_no('CL', current_feid)})
+    current_feid = _current_feid_or_abort() if _table_is_fe_scoped(tn) else None
+    return jsonify({'NO': _next_incremental_no(tn, current_feid)})
 
 
-@bp.route('/api/cl/vies_lookup', methods=['GET'])
+@bp.route('/api/<table_name>/vies_lookup', methods=['GET'])
 @login_required
-def cl_vies_lookup():
-    if not (has_permission('CL', 'consultar') or has_permission('CL', 'editar') or has_permission('CL', 'inserir')):
+def partner_vies_lookup(table_name):
+    tn = (table_name or '').strip().upper()
+    if not _is_partner_table(tn):
+        abort(404)
+    if not (has_permission(tn, 'consultar') or has_permission(tn, 'editar') or has_permission(tn, 'inserir')):
         abort(403, 'Sem permissão')
 
     nif = (request.args.get('nif') or '').strip()
@@ -2292,18 +2302,20 @@ def create_record(table_name):
     if current_feid is not None:
         clean['FEID'] = current_feid
 
-    if tn == 'CL' and 'NO' in col_map:
+    if _is_partner_table(tn) and 'NO' in col_map:
         raw_no = clean.get('NO')
         raw_text = '' if raw_no is None else str(raw_no).strip()
         if raw_text == '':
-            clean['NO'] = _next_incremental_no('CL', current_feid)
+            clean['NO'] = _next_incremental_no(tn, current_feid)
         else:
             try:
                 clean['NO'] = int(float(raw_text.replace(',', '.')))
             except Exception:
-                return jsonify({'error': 'Número de cliente inválido.'}), 400
-        if _record_no_exists('CL', clean['NO'], current_feid):
-            return jsonify({'error': f'Já existe um cliente com o número {clean["NO"]}.'}), 400
+                label = 'cliente' if tn == 'CL' else 'fornecedor'
+                return jsonify({'error': f'Número de {label} inválido.'}), 400
+        if _record_no_exists(tn, clean['NO'], current_feid):
+            label = 'cliente' if tn == 'CL' else 'fornecedor'
+            return jsonify({'error': f'Já existe um {label} com o número {clean["NO"]}.'}), 400
 
     # Bloqueio: FO/FN incluÃ­do(s) em pagamento nÃ£o podem ser alterados
     try:
@@ -2376,7 +2388,7 @@ def update_record(table_name, record_stamp):
             clean[col_map[lk]] = v
     data = clean
 
-    if tn == 'CL' and 'NO' in data:
+    if _is_partner_table(tn) and 'NO' in data:
         data.pop('NO', None)
 
     pk = getattr(table.c, f"{table_name.upper()}STAMP")

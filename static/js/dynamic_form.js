@@ -65,7 +65,8 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   const RECORD_STAMP = window.RECORD_STAMP;
   const isAdminUser  = window.IS_ADMIN_USER;
   const DEV_MODE = window.DEV_MODE || false;
-  const isClientForm = TABLE_NAME_UPPER === 'CL';
+  const isPartnerForm = ['CL', 'FL'].includes(TABLE_NAME_UPPER);
+  const partnerApiBase = `/generic/api/${String(TABLE_NAME || '').toLowerCase()}`;
 
   console.log('[dynamic_form.js] TABLE_NAME:', TABLE_NAME);
 
@@ -154,7 +155,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   const DECIMAL_SEPARATOR = ',';
 
   async function prepareClientNoField() {
-    if (!isClientForm) return;
+    if (!isPartnerForm) return;
     const noInput = form.querySelector('[name="NO"]');
     if (!noInput) return;
     if (RECORD_STAMP) {
@@ -164,7 +165,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
     }
     if (String(noInput.value || '').trim() !== '') return;
     try {
-      const res = await fetch('/generic/api/cl/next_no');
+      const res = await fetch(`${partnerApiBase}/next_no`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return;
       const nextNo = String(data?.NO ?? '').trim();
@@ -209,7 +210,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   }
 
   function ensureClientViesStatusElement() {
-    if (!isClientForm) return null;
+    if (!isPartnerForm) return null;
     let statusEl = document.getElementById('clientViesStatus');
     if (statusEl) return statusEl;
     const nifInput = form.querySelector('[name="NIF"]');
@@ -279,7 +280,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   }
 
   async function lookupClientVatOnVies({ force = false } = {}) {
-    if (!isClientForm) return;
+    if (!isPartnerForm) return;
     const nifInput = form.querySelector('[name="NIF"]');
     if (!nifInput) return;
 
@@ -319,7 +320,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
       setClientViesBusy(true);
       setClientViesStatus('', 'info', true);
 
-      const res = await fetch(`/generic/api/cl/vies_lookup?nif=${encodeURIComponent(rawValue)}`, {
+      const res = await fetch(`${partnerApiBase}/vies_lookup?nif=${encodeURIComponent(rawValue)}`, {
         signal: clientViesLookupController.signal
       });
       const data = await res.json().catch(() => ({}));
@@ -359,7 +360,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   }
 
   function setupClientVatLookup() {
-    if (!isClientForm) return;
+    if (!isPartnerForm) return;
     const nifInput = form.querySelector('[name="NIF"]');
     if (!nifInput) return;
     ensureClientViesStatusElement();
