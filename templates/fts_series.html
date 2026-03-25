@@ -1,0 +1,501 @@
+{% extends "base.html" %}
+
+{% block title %}Séries de faturação{% endblock %}
+
+{% block content %}
+<div class="sz_page">
+  <div class="sz_page_container sz_fts_page">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Séries de faturação</div>
+        <div class="sz_page_subtitle">Gestão da entidade emissora atual e configuração técnica AT/ATCUD.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <span class="sz_fts_entity_badge" title="{{ (current_entity.get('FESTAMP') or '')|e }}">
+          {{ (current_entity.get('NOMEFISCAL') or current_entity.get('NOME') or current_entity.get('FESTAMP') or 'Entidade atual')|e }}
+        </span>
+        <button id="ftsBtnNewTop" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-plus"></i>
+          <span>Nova série</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content">
+        <div class="sz_sidebar_layout sz_fts_layout">
+          <aside class="sz_sidebar">
+            <section class="sz_panel sz_stack">
+              <div class="sz_grid sz_fts_filters">
+                <div class="sz_field">
+                  <label class="sz_label" for="ftsFilterSerie">Série</label>
+                  <input id="ftsFilterSerie" type="text" class="sz_input" placeholder="Pesquisar série">
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="ftsFilterAno">Ano</label>
+                  <input id="ftsFilterAno" type="number" class="sz_input" min="0" step="1" placeholder="AAAA">
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="ftsFilterNdoc">NDOC</label>
+                  <input id="ftsFilterNdoc" type="number" class="sz_input" min="0" step="1" placeholder="NDOC">
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="ftsFilterAtiva">Ativa</label>
+                  <select id="ftsFilterAtiva" class="sz_select">
+                    <option value="">Todas</option>
+                    <option value="1">Ativas</option>
+                    <option value="0">Inativas</option>
+                  </select>
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="ftsFilterTipoSaft">TIPOSAFT</label>
+                  <select id="ftsFilterTipoSaft" class="sz_select">
+                    <option value="">Todas</option>
+                    <option value="__NONE__">--</option>
+                    {% for option in fts_tiposaft_options if option.value %}
+                    <option value="{{ option.value }}">{{ option.label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="ftsFilterFtsx">FTSX</label>
+                  <select id="ftsFilterFtsx" class="sz_select">
+                    <option value="">Todas</option>
+                    <option value="1">Com FTSX</option>
+                    <option value="0">Sem FTSX</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="sz_inline sz_fts_list_summary">
+                <span id="ftsListSummary" class="sz_text_muted">0 séries</span>
+              </div>
+
+              <div id="ftsList" class="sz_stack">
+                <div class="sz_panel sz_fts_empty">A carregar...</div>
+              </div>
+            </section>
+          </aside>
+
+          <div class="sz_stack">
+            <section class="sz_panel sz_stack">
+              <div class="sz_fts_header">
+                <div class="sz_stack">
+                  <div class="sz_caption">Detalhe da série</div>
+                  <div id="ftsEditorTitle" class="sz_page_title sz_fts_editor_title">Nova série</div>
+                </div>
+                <div class="sz_grid sz_fts_stats">
+                  <div class="sz_card sz_stack">
+                    <span class="sz_caption">Séries</span>
+                    <strong id="ftsStatTotal" class="sz_fts_stat_value">0</strong>
+                  </div>
+                  <div class="sz_card sz_stack">
+                    <span class="sz_caption">Com FTSX</span>
+                    <strong id="ftsStatWithFtsx" class="sz_fts_stat_value">0</strong>
+                  </div>
+                  <div class="sz_card sz_stack">
+                    <span class="sz_caption">Ativas</span>
+                    <strong id="ftsStatActive" class="sz_fts_stat_value">0</strong>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <form id="ftsForm" class="sz_stack" autocomplete="off">
+              <input id="ftsFTSSTAMP" type="hidden">
+              <input id="ftsFEID" type="hidden">
+              <input id="ftsxFTSXSTAMP" type="hidden">
+              <input id="ftsxFTSSTAMP" type="hidden">
+              <input id="ftsxFEID" type="hidden">
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Série documental</div>
+                <div class="sz_grid sz_fts_grid_main">
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsFESTAMP">FESTAMP</label>
+                    <input id="ftsFESTAMP" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsANO">ANO</label>
+                    <input id="ftsANO" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsNDOC">NDOC</label>
+                    <input id="ftsNDOC" type="number" class="sz_input" min="0" step="1">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsSERIE">Série</label>
+                    <input id="ftsSERIE" class="sz_input" maxlength="20">
+                  </div>
+                  <div class="sz_field sz_fts_span_2">
+                    <label class="sz_label" for="ftsDESCR">Descrição</label>
+                    <input id="ftsDESCR" class="sz_input" maxlength="60">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsTIPOSAFT">TIPOSAFT</label>
+                    <select id="ftsTIPOSAFT" class="sz_select">
+                      {% for option in fts_tiposaft_options %}
+                      <option value="{{ option.value }}">{{ option.label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsESTADO">ESTADO</label>
+                    <select id="ftsESTADO" class="sz_select">
+                      {% for option in fts_estado_options %}
+                      <option value="{{ option.value }}">{{ option.label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsULTIMO_FNO">ULTIMO_FNO</label>
+                    <input id="ftsULTIMO_FNO" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsATIVA">Ativa</label>
+                    <label class="sz_checkbox sz_fts_checkbox">
+                      <input id="ftsATIVA" type="checkbox">
+                      <span>Série ativa</span>
+                    </label>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsNO_SAFT">NO_SAFT</label>
+                    <label class="sz_checkbox sz_fts_checkbox">
+                      <input id="ftsNO_SAFT" type="checkbox">
+                      <span>Flag NO_SAFT</span>
+                    </label>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_fts_panel_head">
+                  <div class="sz_stack">
+                    <div class="sz_label">Configuração AT</div>
+                    <div class="sz_inline">
+                      <span id="ftsxStatusBadge" class="sz_fts_badge sz_fts_badge_warn">Sem configuração AT</span>
+                    </div>
+                  </div>
+                  <button id="ftsCreateFtsxBtn" type="button" class="sz_button sz_button_secondary">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Criar configuração AT</span>
+                  </button>
+                </div>
+
+                <div id="ftsxMissingNote" class="sz_panel sz_fts_notice">
+                  <div class="sz_label">Sem configuração AT</div>
+                  <div class="sz_text_muted">A série continua editável. A configuração AT pode ser criada a qualquer momento.</div>
+                </div>
+
+                <div id="ftsxFormWrap" class="sz_stack">
+                  <div class="sz_grid sz_fts_grid_tech">
+                    <div class="sz_field">
+                      <label class="sz_label" for="ftsxHASHVER">HASHVER</label>
+                      <input id="ftsxHASHVER" class="sz_input" readonly>
+                    </div>
+                    <div class="sz_field sz_fts_span_2">
+                      <label class="sz_label" for="ftsxCOD_VALIDACAO_SERIE">COD_VALIDACAO_SERIE</label>
+                      <input id="ftsxCOD_VALIDACAO_SERIE" class="sz_input" maxlength="20">
+                    </div>
+                    <div class="sz_field sz_fts_span_2">
+                      <label class="sz_label" for="ftsxATCUD_PREFIX">ATCUD_PREFIX</label>
+                      <input id="ftsxATCUD_PREFIX" class="sz_input" maxlength="30">
+                    </div>
+                    <div class="sz_field">
+                      <label class="sz_label" for="ftsxAT_SERIE_ESTADO">AT_SERIE_ESTADO</label>
+                      <select id="ftsxAT_SERIE_ESTADO" class="sz_select">
+                        {% for option in ftsx_at_estado_options %}
+                        <option value="{{ option.value }}">{{ option.label }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="sz_field">
+                      <label class="sz_label" for="ftsxAT_SERIE_DATA">AT_SERIE_DATA</label>
+                      <input id="ftsxAT_SERIE_DATA" type="datetime-local" class="sz_input">
+                    </div>
+                    <div class="sz_field sz_fts_span_full">
+                      <label class="sz_label" for="ftsxLAST_HASH_COPY">LAST_HASH</label>
+                      <div class="sz_fts_hash_row">
+                        <div id="ftsxLAST_HASH" class="sz_input sz_fts_display" title=""></div>
+                        <button id="ftsxLAST_HASH_COPY" type="button" class="sz_button sz_button_ghost" title="Copiar LAST_HASH">
+                          <i class="fa-solid fa-copy"></i>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="sz_field sz_fts_span_full">
+                      <label class="sz_label" for="ftsxAT_SERIE_MSG">AT_SERIE_MSG</label>
+                      <textarea id="ftsxAT_SERIE_MSG" rows="5" class="sz_textarea"></textarea>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Auditoria</div>
+                <div class="sz_grid sz_fts_grid_audit">
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsDTCriacao">FTS criado em</label>
+                    <input id="ftsDTCriacao" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsDTAlteracao">FTS alterado em</label>
+                    <input id="ftsDTAlteracao" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsUSERCRIACAO">FTS user criação</label>
+                    <input id="ftsUSERCRIACAO" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsUSERALTERACAO">FTS user alteração</label>
+                    <input id="ftsUSERALTERACAO" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsxDTCriacao">FTSX criado em</label>
+                    <input id="ftsxDTCriacao" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsxDTAlteracao">FTSX alterado em</label>
+                    <input id="ftsxDTAlteracao" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsxUSERCRIACAO">FTSX user criação</label>
+                    <input id="ftsxUSERCRIACAO" class="sz_input" readonly>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsxUSERALTERACAO">FTSX user alteração</label>
+                    <input id="ftsxUSERALTERACAO" class="sz_input" readonly>
+                  </div>
+                </div>
+              </section>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <button id="ftsBtnCancel" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button id="ftsBtnSaveBottom" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.FTS_INITIAL_STAMP = {{ initial_ftsstamp|tojson }};
+  window.FTS_CAN_CREATE = {{ fts_can_create|tojson }};
+  window.FTS_CAN_EDIT = {{ fts_can_edit|tojson }};
+  window.FTS_CURRENT_ENTITY = {{ current_entity|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/fts_series.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+<style>
+  .sz_fts_page {
+    padding-block: var(--sz-space-2);
+    padding-inline: var(--sz-space-4);
+  }
+
+  .sz_fts_page .sz_page_body {
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .sz_fts_page .sz_page_body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .sz_fts_layout {
+    grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+  }
+
+  .sz_fts_filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sz_fts_header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sz-space-4);
+  }
+
+  .sz_fts_editor_title {
+    font-size: 1.25rem;
+  }
+
+  .sz_fts_stats {
+    grid-template-columns: repeat(3, minmax(110px, 1fr));
+  }
+
+  .sz_fts_stat_value {
+    font-size: var(--sz-font-size-xl);
+    line-height: var(--sz-line-tight);
+    color: var(--sz-color-text);
+  }
+
+  .sz_fts_entity_badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.75rem;
+    padding: 0 .875rem;
+    border-radius: 999px;
+    border: 1px solid var(--sz-color-border);
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, white);
+    color: var(--sz-color-primary);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .sz_fts_list_item {
+    cursor: pointer;
+    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+  }
+
+  .sz_fts_list_item:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border));
+    box-shadow: var(--sz-shadow-2);
+  }
+
+  .sz_fts_list_item.sz_is_active {
+    border-color: var(--sz-color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--sz-color-primary) 12%, transparent);
+  }
+
+  .sz_fts_list_head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+  }
+
+  .sz_fts_list_meta {
+    display: grid;
+    gap: .375rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    font-size: var(--sz-font-size-sm);
+    color: var(--sz-color-text-muted);
+  }
+
+  .sz_fts_badges {
+    display: flex;
+    align-items: center;
+    gap: .375rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .sz_fts_badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.75rem;
+    padding: 0 .75rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: 999px;
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+    white-space: nowrap;
+  }
+
+  .sz_fts_badge_ok {
+    color: var(--sz-color-success);
+    border-color: color-mix(in srgb, var(--sz-color-success) 28%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-success) 8%, white);
+  }
+
+  .sz_fts_badge_warn {
+    color: var(--sz-color-warning-700);
+    border-color: color-mix(in srgb, var(--sz-color-warning-700) 28%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-warning-500) 14%, white);
+  }
+
+  .sz_fts_badge_muted {
+    color: var(--sz-color-text-muted);
+    background: var(--sz-color-surface-alt);
+  }
+
+  .sz_fts_grid_main,
+  .sz_fts_grid_tech,
+  .sz_fts_grid_audit {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .sz_fts_span_2 {
+    grid-column: span 2;
+  }
+
+  .sz_fts_span_full {
+    grid-column: 1 / -1;
+  }
+
+  .sz_fts_checkbox {
+    min-height: var(--sz-control-h);
+  }
+
+  .sz_fts_panel_head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sz-space-4);
+  }
+
+  .sz_fts_notice {
+    border-style: dashed;
+  }
+
+  .sz_fts_hash_row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sz-space-2);
+    align-items: center;
+  }
+
+  .sz_fts_display {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sz_fts_empty {
+    color: var(--sz-color-text-muted);
+  }
+
+  @media (max-width: 1200px) {
+    .sz_fts_layout {
+      grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+    }
+    .sz_fts_grid_main,
+    .sz_fts_grid_tech,
+    .sz_fts_grid_audit {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 900px) {
+    .sz_fts_layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .sz_fts_header,
+    .sz_fts_panel_head {
+      flex-direction: column;
+    }
+    .sz_fts_stats {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}

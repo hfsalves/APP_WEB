@@ -360,6 +360,33 @@ def _record_no_exists(table_name: str, no_value, current_feid: int | None = None
     return bool(db.session.execute(sql, params).first())
 
 
+def _generate_stamp_value(max_length: int | None = None) -> str:
+    raw = str(uuid.uuid4()).upper()
+    if isinstance(max_length, int) and max_length > 0:
+        return raw[:max_length]
+    return raw[:25]
+
+
+def _ensure_named_stamp(table, table_name: str, clean: dict) -> None:
+    tn = (table_name or '').strip().upper()
+    stamp_name = f"{tn}STAMP"
+    if stamp_name not in table.c:
+        return
+    current_value = clean.get(stamp_name)
+    if str(current_value or '').strip():
+        return
+    column = table.c[stamp_name]
+    if getattr(column, 'server_default', None) is not None or getattr(column, 'default', None) is not None:
+        return
+    python_type = getattr(column.type, 'python_type', None)
+    try:
+        if python_type not in (str,):
+            return
+    except Exception:
+        return
+    clean[stamp_name] = _generate_stamp_value(getattr(column.type, 'length', None))
+
+
 def _apply_feid_scope_stmt(stmt, table, table_name: str, mode: str = 'read'):
     tn = (table_name or '').strip().upper()
     if _table_is_fe_scoped(tn):
@@ -2298,6 +2325,8 @@ def create_record(table_name):
         if lk in col_map:
             clean[col_map[lk]] = v
     # â€” end filtra â€”
+
+    _ensure_named_stamp(table, table_name, clean)
 
     if current_feid is not None:
         clean['FEID'] = current_feid

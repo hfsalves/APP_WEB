@@ -17,7 +17,7 @@ def _to_int(value, default=0):
         return int(default)
 
 
-def sign_ft_document(session, ftstamp: str, current_user: str = "") -> dict:
+def sign_ft_document(session, ftstamp: str, current_user: str = "", hash_ant_override: str | None = None) -> dict:
     ft = session.execute(text("""
         SELECT TOP 1 *
         FROM dbo.FT WITH (UPDLOCK, ROWLOCK)
@@ -59,7 +59,7 @@ def sign_ft_document(session, ftstamp: str, current_user: str = "") -> dict:
         raise ValueError("Dados de série inválidos para assinatura (NDOC/SERIE/ANO).")
 
     srow = session.execute(text("""
-        SELECT TOP 1 FTSSTAMP
+        SELECT TOP 1 FTSSTAMP, ISNULL(TIPOSAFT,'') AS TIPOSAFT
         FROM dbo.FTS
         WHERE
             FESTAMP=:festamp
@@ -68,20 +68,37 @@ def sign_ft_document(session, ftstamp: str, current_user: str = "") -> dict:
             AND ANO=:ano
     """), {"festamp": festamp, "ndoc": ndoc, "serie": serie, "ano": ftano}).mappings().first()
 
-    hash_ant = ""
-    if srow and srow.get("FTSSTAMP"):
-        try:
-            hx = session.execute(text("""
-                SELECT TOP 1 ISNULL(LAST_HASH,'') AS LAST_HASH
-                FROM dbo.FTSX
-                WHERE FTSSTAMP=:s
-            """), {"s": srow.get("FTSSTAMP")}).mappings().first()
-            hash_ant = (hx.get("LAST_HASH") if hx else "") or ""
-        except Exception:
-            hash_ant = ""
+    prev_signature = ""
+    if hash_ant_override is not None:
+        prev_signature = str(hash_ant_override or "").strip()
+    else:
+        prev_row = session.execute(text("""
+            SELECT TOP 1 ISNULL(ASSINATURA,'') AS ASSINATURA
+            FROM dbo.FT
+            WHERE
+                FESTAMP=:festamp
+                AND NDOC=:ndoc
+                AND ISNULL(SERIE,'')=:serie
+                AND ISNULL(FTANO,0)=:ano
+                AND ISNULL(FNO,0) < :fno
+                AND ISNULL(BLOQUEADO,0)=1
+            ORDER BY ISNULL(FNO,0) DESC, FTSTAMP DESC
+        """), {
+            "festamp": festamp,
+            "ndoc": ndoc,
+            "serie": serie,
+            "ano": ftano,
+            "fno": _to_int(ft.get("FNO"), 0),
+        }).mappings().first()
+        prev_signature = str((prev_row or {}).get("ASSINATURA") or "").strip()
 
-    message = build_ft_hash_message(ft, fi_rows, hash_ant)
-    digest_bytes, hash_hex = sha1_hex(message)
+    if srow:
+        ft["TIPOSAFT"] = str(srow.get("TIPOSAFT") or "").strip()
+    if str(ft.get("TIPOSAFT") or "").strip().upper() in {"PF", "OR"}:
+        raise ValueError("Documentos PF/OR não usam assinatura fiscal.")
+
+    message = build_ft_hash_message(ft, fi_rows, prev_signature)
+    digest_bytes, digest_hex = sha1_hex(message)
 
     private_key = load_private_key_from_pem(fe.get("RSA_PRIV_PATH") or "")
     signature_bytes = sign_sha1_prehashed(private_key, digest_bytes)
@@ -94,11 +111,10 @@ def sign_ft_document(session, ftstamp: str, current_user: str = "") -> dict:
 
     return {
         "HASHVER": hashver,
-        "HASHANT": hash_ant,
-        "HASH": hash_hex,
+        "HASHANT": prev_signature[:128],
+        "HASH": digest_hex,
         "ASSINATURA": signature_b64,
         "KEYID": keyid,
         "MESSAGE": message,
-        "DIGEST_HEX": hash_hex,
+        "DIGEST_HEX": digest_hex,
     }
-

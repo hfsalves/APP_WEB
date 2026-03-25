@@ -2053,9 +2053,17 @@ hideLoading()
     try {
       const res = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
       if (!res.ok) {
-        let msg;
-        try { const err = await res.json(); msg = err.error || JSON.stringify(err); }
-        catch { msg = await res.text(); }
+        let msg = '';
+        const rawBody = await res.text();
+        if (rawBody) {
+          try {
+            const err = JSON.parse(rawBody);
+            msg = err.error || JSON.stringify(err);
+          } catch {
+            msg = rawBody;
+          }
+        }
+        if (!msg) msg = `HTTP ${res.status}`;
         showDynamicFormToast(`Erro ao gravar: ${msg}`, 'danger');
         return;
       }

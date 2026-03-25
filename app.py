@@ -15,6 +15,8 @@ import importlib.util
 import hashlib
 import hmac
 import logging
+import xml.etree.ElementTree as ET
+from email.utils import parsedate_to_datetime
 from decimal import Decimal, ROUND_HALF_UP
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -34,6 +36,7 @@ from services.qr_atcud_service import (
 from services.ft_pdf_service import (
     get_ft_data as get_ft_pdf_data,
     build_qr_base64 as build_ft_qr_base64,
+    is_ft_non_fiscal,
     render_ft_pdf_html,
     generate_ft_pdf_bytes,
     generate_ft_pdf_bytes_xhtml2pdf,
@@ -45,6 +48,7 @@ from services.saft_service import (
     get_saft_filter_options,
     preview_saft_sales,
 )
+from services.hash_service import ft_invoice_no
 from services.shop_guest_service import (
     build_shop_cart,
     get_shop_catalog_data,
@@ -77,6 +81,47 @@ from models import Modais, CamposModal
 
 login_manager = LoginManager()
 auth_logger = logging.getLogger("stationzero.auth")
+
+ECB_FX_DAILY_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml'
+ECB_FX_CACHE_TTL_SECONDS = 6 * 60 * 60
+OXR_CURRENCIES_URL = 'https://openexchangerates.org/api/currencies.json'
+ECB_FX_LABELS = {
+    'EUR': 'Euro',
+    'USD': 'US dollar',
+    'JPY': 'Japanese yen',
+    'BGN': 'Bulgarian lev',
+    'CZK': 'Czech koruna',
+    'DKK': 'Danish krone',
+    'GBP': 'Pound sterling',
+    'HUF': 'Hungarian forint',
+    'PLN': 'Polish zloty',
+    'RON': 'Romanian leu',
+    'SEK': 'Swedish krona',
+    'CHF': 'Swiss franc',
+    'ISK': 'Icelandic krona',
+    'NOK': 'Norwegian krone',
+    'TRY': 'Turkish lira',
+    'AUD': 'Australian dollar',
+    'BRL': 'Brazilian real',
+    'CAD': 'Canadian dollar',
+    'CNY': 'Chinese yuan renminbi',
+    'HKD': 'Hong Kong dollar',
+    'IDR': 'Indonesian rupiah',
+    'ILS': 'Israeli shekel',
+    'INR': 'Indian rupee',
+    'KRW': 'South Korean won',
+    'MXN': 'Mexican peso',
+    'MYR': 'Malaysian ringgit',
+    'NZD': 'New Zealand dollar',
+    'PHP': 'Philippine peso',
+    'SGD': 'Singapore dollar',
+    'THB': 'Thai baht',
+    'ZAR': 'South African rand',
+}
+_ecb_fx_cache = {'loaded_at': 0.0, 'items': None}
+_ecb_fx_cache_lock = threading.Lock()
+_oxr_currency_cache = {'loaded_at': 0.0, 'items': None}
+_oxr_currency_cache_lock = threading.Lock()
 
 def new_stamp() -> str:
     return uuid.uuid4().hex.upper()[:25]
@@ -3090,6 +3135,7 @@ def create_app():
             'LOCAL': '',
             'NCONT': '',
             'MOEDA': 'EUR',
+            'CAMBIO': Decimal('1.000000'),
             'FDATA': today,
             'FTANO': today.year,
             'PDATA': today,
@@ -3103,6 +3149,10 @@ def create_app():
             'ETOTAL': 0,
             'CCUSTO': '',
             'SERIE': '',
+            'FTSTAMP_ORIGEM': '',
+            'TIPODOC_ORIGEM': '',
+            'NUMDOC_ORIGEM': '',
+            'DATA_ORIGEM': None,
             'ESTADO': 0,
             'BLOQUEADO': 0,
             'ANULADA': 0,
@@ -3190,6 +3240,137 @@ def create_app():
             return _get_current_fe_row(), None
         except MissingCurrentEntityError as exc:
             return None, (jsonify({'error': str(exc)}), 403)
+
+    def _fetch_ecb_fx_options(force_refresh=False):
+        now_ts = time.time()
+        with _ecb_fx_cache_lock:
+            cached_items = _ecb_fx_cache.get('items') or []
+            loaded_at = float(_ecb_fx_cache.get('loaded_at') or 0)
+            if not force_refresh and cached_items and (now_ts - loaded_at) < ECB_FX_CACHE_TTL_SECONDS:
+                return [dict(item) for item in cached_items]
+
+        request_obj = Request(
+            ECB_FX_DAILY_URL,
+            headers={
+                'User-Agent': 'StationZero/1.0',
+                'Accept': 'application/xml, text/xml;q=0.9, */*;q=0.1',
+            }
+        )
+        try:
+            with urlopen(request_obj, timeout=12) as response:
+                payload = response.read()
+        except Exception:
+            with _ecb_fx_cache_lock:
+                cached_items = _ecb_fx_cache.get('items') or []
+                if cached_items:
+                    return [dict(item) for item in cached_items]
+            raise
+
+        try:
+            root = ET.fromstring(payload)
+        except Exception as exc:
+            with _ecb_fx_cache_lock:
+                cached_items = _ecb_fx_cache.get('items') or []
+                if cached_items:
+                    return [dict(item) for item in cached_items]
+            raise ValueError(f'Não foi possível ler a resposta do BCE: {exc}') from exc
+
+        ns = {'fx': 'http://www.ecb.int/vocabulary/2002-08-01/eurofxref'}
+        time_cube = root.find('.//fx:Cube[@time]', ns)
+        if time_cube is None:
+            with _ecb_fx_cache_lock:
+                cached_items = _ecb_fx_cache.get('items') or []
+                if cached_items:
+                    return [dict(item) for item in cached_items]
+            raise ValueError('O BCE não devolveu a data de referência dos câmbios.')
+
+        rate_date = str(time_cube.attrib.get('time') or '').strip()
+        items = [{
+            'CODIGO': 'EUR',
+            'DESCRICAO': ECB_FX_LABELS.get('EUR', 'EUR'),
+            'CAMBIO': '1.000000',
+            'DATA_REF': rate_date,
+            'FONTE': 'ECB',
+        }]
+        dec6 = Decimal('0.000001')
+        for cube in list(time_cube):
+            code = str(cube.attrib.get('currency') or '').strip().upper()
+            raw_rate = str(cube.attrib.get('rate') or '').strip()
+            if not code or not raw_rate:
+                continue
+            try:
+                rate = Decimal(raw_rate).quantize(dec6, rounding=ROUND_HALF_UP)
+            except Exception:
+                continue
+            items.append({
+                'CODIGO': code,
+                'DESCRICAO': ECB_FX_LABELS.get(code, code),
+                'CAMBIO': f'{rate:.6f}',
+                'DATA_REF': rate_date,
+                'FONTE': 'ECB',
+            })
+        items.sort(key=lambda row: (0 if row.get('CODIGO') == 'EUR' else 1, str(row.get('CODIGO') or '')))
+        with _ecb_fx_cache_lock:
+            _ecb_fx_cache['items'] = [dict(item) for item in items]
+            _ecb_fx_cache['loaded_at'] = time.time()
+        return items
+
+    def _normalize_ft_cambio(moeda, cambio, default=None):
+        moeda_code = str(moeda or 'EUR').strip().upper() or 'EUR'
+        default_value = Decimal('1.000000') if moeda_code == 'EUR' else Decimal(str(default if default is not None else '0'))
+        try:
+            value = Decimal(str(cambio or '').strip().replace(',', '.')) if str(cambio or '').strip() else default_value
+        except Exception:
+            value = default_value
+        if value < Decimal('0.000000'):
+            value = Decimal('0.000000')
+        return value.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
+
+    def _fetch_oxr_currency_options(force_refresh=False):
+        now_ts = time.time()
+        with _oxr_currency_cache_lock:
+            cached_items = _oxr_currency_cache.get('items') or []
+            loaded_at = float(_oxr_currency_cache.get('loaded_at') or 0)
+            if not force_refresh and cached_items and (now_ts - loaded_at) < ECB_FX_CACHE_TTL_SECONDS:
+                return [dict(item) for item in cached_items]
+
+        request_obj = Request(
+            OXR_CURRENCIES_URL,
+            headers={
+                'User-Agent': 'StationZero/1.0',
+                'Accept': 'application/json, text/plain;q=0.9, */*;q=0.1',
+            }
+        )
+        try:
+            with urlopen(request_obj, timeout=12) as response:
+                payload = response.read().decode('utf-8', 'ignore')
+            data = json.loads(payload or '{}')
+        except Exception:
+            with _oxr_currency_cache_lock:
+                cached_items = _oxr_currency_cache.get('items') or []
+                if cached_items:
+                    return [dict(item) for item in cached_items]
+            raise
+
+        items = []
+        if isinstance(data, dict):
+            for code, description in data.items():
+                code_norm = str(code or '').strip().upper()
+                if not code_norm:
+                    continue
+                items.append({
+                    'CODIGO': code_norm,
+                    'DESCRICAO': str(description or '').strip() or code_norm,
+                    'CAMBIO': '',
+                    'DATA_REF': '',
+                    'FONTE': 'OXR',
+                    'MANUAL': True,
+                })
+        items.sort(key=lambda row: str(row.get('CODIGO') or ''))
+        with _oxr_currency_cache_lock:
+            _oxr_currency_cache['items'] = [dict(item) for item in items]
+            _oxr_currency_cache['loaded_at'] = time.time()
+        return items
 
     def _ft_entity_scope_sql(alias='FT'):
         prefix = f'{alias}.' if alias else ''
@@ -3308,6 +3489,459 @@ def create_app():
             ORDER BY ISNULL(LORDEM,0), FISTAMP
         """), {'s': ftstamp}).mappings().all()
         return dict(ft), _enrich_fi_fiscal_fields([dict(r) for r in fi])
+
+    def _table_has_columns(table_name: str, *column_names: str) -> bool:
+        wanted = {str(name or '').strip().upper() for name in (column_names or []) if str(name or '').strip()}
+        if not wanted:
+            return True
+        rows = db.session.execute(text("""
+            SELECT UPPER(COLUMN_NAME) AS CN
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'dbo'
+              AND TABLE_NAME = :table_name
+        """), {'table_name': str(table_name or '').strip()}).mappings().all()
+        existing = {str(row.get('CN') or '').upper() for row in rows}
+        return wanted.issubset(existing)
+
+    def _ft_origin_columns_available():
+        return _table_has_columns('FT', 'FTSTAMP_ORIGEM', 'TIPODOC_ORIGEM', 'NUMDOC_ORIGEM', 'DATA_ORIGEM')
+
+    def _ft_motivo_referencia_available():
+        return _table_has_columns('FT', 'MOTIVO_REFERENCIA')
+
+    def _fi_origin_column_available():
+        return _table_has_columns('FI', 'FISTAMP_ORIGEM')
+
+    def _ft_origin_json_error():
+        return jsonify({
+            'error': 'A base de dados ainda não tem os campos de origem em FT. Aplique migrations/ft_origem_fields.sql.'
+        }), 400
+
+    def _ft_nc_json_error():
+        return jsonify({
+            'error': 'A base de dados ainda não tem os campos necessários para NC com origem. Aplique migrations/ft_nc_origem_fields.sql.'
+        }), 400
+
+    def _ft_origin_date_param(value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        raw = str(value or '').strip()
+        if not raw:
+            return None
+        normalized = raw.replace('Z', '+00:00')
+        try:
+            return datetime.fromisoformat(normalized[:19]).date().isoformat()
+        except Exception:
+            pass
+        try:
+            return date.fromisoformat(normalized[:10]).isoformat()
+        except Exception:
+            pass
+        try:
+            return parsedate_to_datetime(raw).date().isoformat()
+        except Exception:
+            return None
+
+    def _load_ft_series_context(current_entity, ndoc, serie, ano):
+        return db.session.execute(text("""
+            SELECT TOP 1
+                FTSSTAMP,
+                ISNULL(TIPOSAFT, '') AS TIPOSAFT,
+                ISNULL(NO_SAFT, 0) AS NO_SAFT,
+                ISNULL(ATIVA, 0) AS ATIVA,
+                ISNULL(ANO, 0) AS ANO,
+                ISNULL(SERIE, '') AS SERIE,
+                ISNULL(NDOC, 0) AS NDOC
+            FROM dbo.FTS
+            WHERE ISNULL(NDOC, 0) = :ndoc
+              AND LTRIM(RTRIM(ISNULL(SERIE, ''))) = :serie
+              AND ISNULL(ANO, 0) = :ano
+              AND (
+                    ISNULL(FEID, 0) = :current_feid
+                 OR (
+                        ISNULL(FEID, 0) = 0
+                    AND LTRIM(RTRIM(ISNULL(FESTAMP, ''))) = :current_festamp
+                 )
+              )
+            ORDER BY ISNULL(ATIVA, 0) DESC, FTSSTAMP DESC
+        """), {
+            'ndoc': _to_int(ndoc, 0),
+            'serie': (serie or '').strip(),
+            'ano': _to_int(ano, 0),
+            'current_feid': int(current_entity.get('FEID') or 0),
+            'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
+        }).mappings().first()
+
+    def _ft_doc_type_from_header_snapshot(current_entity, header_snapshot=None, fallback_row=None):
+        probe = dict(fallback_row or {})
+        probe.update(dict(header_snapshot or {}))
+        fdata = probe.get('FDATA') or probe.get('DATA') or date.today().isoformat()
+        ftano = _to_int(probe.get('FTANO'), _to_int(str(fdata)[:4], date.today().year))
+        srow = _load_ft_series_context(current_entity, probe.get('NDOC'), probe.get('SERIE'), ftano)
+        return _ft_doc_type_from_emit_context(probe, dict(srow or {}))
+
+    def _load_faturacao_cliente_detail_row(no):
+        no_int = _to_int(no, 0)
+        if no_int <= 0:
+            return None
+        cols = db.session.execute(text("""
+            SELECT UPPER(COLUMN_NAME) AS CN
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME='CL'
+        """)).mappings().all()
+        colset = {str(r.get('CN') or '').upper() for r in cols}
+        nif_expr = "'' AS NIF"
+        if 'NIF' in colset:
+            nif_expr = "CONVERT(varchar(20), ISNULL(NIF,0)) AS NIF"
+        elif 'NCONT' in colset:
+            nif_expr = "CONVERT(varchar(20), ISNULL(NCONT,'')) AS NIF"
+        pais_expr = "'' AS PAIS"
+        if 'PAIS' in colset:
+            pais_expr = "CONVERT(varchar(30), ISNULL(PAIS,'')) AS PAIS"
+        row = db.session.execute(text(f"""
+            SELECT TOP 1
+                ISNULL(NO,0) AS NO,
+                ISNULL(NOME,'') AS NOME,
+                {nif_expr},
+                ISNULL(MORADA,'') AS MORADA,
+                ISNULL(LOCAL,'') AS LOCAL,
+                ISNULL(CODPOST,'') AS CODPOST,
+                {pais_expr}
+            FROM dbo.CL
+            WHERE ISNULL(NO,0)=:no
+        """), {'no': no_int}).mappings().first()
+        return dict(row) if row else None
+
+    def _ft_fs_client_no_required():
+        raw = str(qr_get_param(db.session, 'CLIENTE_FS', '') or '').strip()
+        if not raw:
+            raise ValueError('O parâmetro CLIENTE_FS não está configurado.')
+        client_no = _to_int(raw, 0)
+        if client_no <= 0:
+            raise ValueError('O parâmetro CLIENTE_FS é inválido.')
+        return client_no
+
+    def _ft_fs_limit_required():
+        raw = str(qr_get_param(db.session, 'LIMITE_FS', '') or '').strip()
+        if not raw:
+            raise ValueError('O parâmetro LIMITE_FS não está configurado.')
+        try:
+            value = Decimal(raw.replace(',', '.')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        except Exception:
+            raise ValueError('O parâmetro LIMITE_FS é inválido.')
+        if value <= Decimal('0.00'):
+            raise ValueError('O parâmetro LIMITE_FS é inválido.')
+        return value
+
+    def _ft_fs_context_payload():
+        payload = {
+            'clientNo': 0,
+            'client': None,
+            'limit': '',
+            'clientError': '',
+            'limitError': '',
+        }
+        try:
+            client_no = _ft_fs_client_no_required()
+            payload['clientNo'] = client_no
+            client_row = _load_faturacao_cliente_detail_row(client_no)
+            if client_row:
+                payload['client'] = client_row
+            else:
+                payload['clientError'] = 'O cliente definido em CLIENTE_FS não existe.'
+        except ValueError as exc:
+            payload['clientError'] = str(exc)
+        try:
+            payload['limit'] = f"{_ft_fs_limit_required():.2f}"
+        except ValueError as exc:
+            payload['limitError'] = str(exc)
+        return payload
+
+    def _validate_fs_document_rules(header_snapshot, total_value):
+        client_no = _ft_fs_client_no_required()
+        limit_value = _ft_fs_limit_required()
+        client_row = _load_faturacao_cliente_detail_row(client_no)
+        if not client_row:
+            raise ValueError('O cliente definido em CLIENTE_FS não existe.')
+        current_no = _to_int((header_snapshot or {}).get('NO'), 0)
+        if current_no != client_no:
+            raise ValueError('A fatura simplificada tem de usar o cliente genérico configurado em CLIENTE_FS.')
+        total_decimal = _to_decimal_param(total_value, '0.01')
+        if total_decimal > limit_value:
+            raise ValueError('O total da fatura simplificada excede o limite configurado.')
+
+    def _get_ft_copy_source_rules(dest_doc_type: str):
+        code = str(dest_doc_type or '').strip().upper()
+        if code == 'NC':
+            return {
+                'allowed_types': ['FT', 'FR', 'FS'],
+                'single_use': False,
+                'require_emitted': True,
+            }
+        return {
+            'allowed_types': ['PF'],
+            'single_use': True,
+            'require_emitted': False,
+        }
+
+    def _is_meaningful_ft_line(line):
+        line = dict(line or {})
+        qtt = _to_decimal_param(line.get('QTT'), '0.000001')
+        epv = _to_decimal_param(line.get('EPV'), '0.000001')
+        etiliquido = _to_decimal_param(line.get('ETILIQUIDO'), '0.000001')
+        return bool(
+            str(line.get('REF') or '').strip()
+            or str(line.get('DESIGN') or '').strip()
+            or epv != Decimal('0.000000')
+            or etiliquido != Decimal('0.000000')
+            or (qtt != Decimal('0.000000') and (epv != Decimal('0.000000') or etiliquido != Decimal('0.000000')))
+        )
+
+    def _load_nc_origin_bundle(current_entity, origem_ftstamp):
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                O.*,
+                UPPER(LTRIM(RTRIM(ISNULL(S.TIPOSAFT, '')))) AS TIPODOC
+            FROM dbo.FT AS O
+            INNER JOIN dbo.FTS AS S
+              ON S.FESTAMP = O.FESTAMP
+             AND S.NDOC = O.NDOC
+             AND LTRIM(RTRIM(ISNULL(S.SERIE, ''))) = LTRIM(RTRIM(ISNULL(O.SERIE, '')))
+             AND ISNULL(S.ANO, 0) = ISNULL(O.FTANO, 0)
+            WHERE O.FTSTAMP = :origem_ftstamp
+              """ + _ft_entity_scope_sql('O') + """
+        """), {
+            'origem_ftstamp': (origem_ftstamp or '').strip(),
+            'current_feid': int(current_entity.get('FEID') or 0),
+            'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
+        }).mappings().first()
+        if not row:
+            return None, []
+        lines = db.session.execute(text("""
+            SELECT *
+            FROM dbo.FI
+            WHERE FTSTAMP = :origem_ftstamp
+            ORDER BY ISNULL(LORDEM, 0), FISTAMP
+        """), {'origem_ftstamp': (origem_ftstamp or '').strip()}).mappings().all()
+        return dict(row), [dict(item) for item in lines]
+
+    def _load_nc_credit_aggregates(current_entity, origem_ftstamp, current_ftstamp):
+        if not _fi_origin_column_available():
+            return {}
+        rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(FI.FISTAMP_ORIGEM, ''))) AS FISTAMP_ORIGEM,
+                SUM(ISNULL(FI.QTT, 0)) AS QTT_CREDITADA,
+                SUM(ISNULL(FI.ETILIQUIDO, 0)) AS ETILIQ_CREDITADO
+            FROM dbo.FI AS FI
+            INNER JOIN dbo.FT AS NC
+              ON NC.FTSTAMP = FI.FTSTAMP
+            INNER JOIN dbo.FTS AS S
+              ON S.FESTAMP = NC.FESTAMP
+             AND S.NDOC = NC.NDOC
+             AND LTRIM(RTRIM(ISNULL(S.SERIE, ''))) = LTRIM(RTRIM(ISNULL(NC.SERIE, '')))
+             AND ISNULL(S.ANO, 0) = ISNULL(NC.FTANO, 0)
+            WHERE LTRIM(RTRIM(ISNULL(FI.FISTAMP_ORIGEM, ''))) <> ''
+              AND LTRIM(RTRIM(ISNULL(NC.FTSTAMP_ORIGEM, ''))) = :origem_ftstamp
+              AND LTRIM(RTRIM(ISNULL(NC.FTSTAMP, ''))) <> :current_ftstamp
+              AND ISNULL(NC.ANULADA, 0) = 0
+              AND ISNULL(NC.ESTADO, 0) = 1
+              AND UPPER(LTRIM(RTRIM(ISNULL(S.TIPOSAFT, '')))) = 'NC'
+              """ + _ft_entity_scope_sql('NC') + """
+            GROUP BY LTRIM(RTRIM(ISNULL(FI.FISTAMP_ORIGEM, '')))
+        """), {
+            'origem_ftstamp': (origem_ftstamp or '').strip(),
+            'current_ftstamp': (current_ftstamp or '').strip(),
+            'current_feid': int(current_entity.get('FEID') or 0),
+            'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
+        }).mappings().all()
+        out = {}
+        for row in rows:
+            key = str(row.get('FISTAMP_ORIGEM') or '').strip()
+            if not key:
+                continue
+            out[key] = {
+                'QTT_CREDITADA': _to_decimal_param(row.get('QTT_CREDITADA'), '0.000001'),
+                'ETILIQ_CREDITADO': _to_decimal_param(row.get('ETILIQ_CREDITADO'), '0.000001'),
+            }
+        return out
+
+    def _validate_nc_against_origin(current_entity, ftstamp, header, normalized_lines):
+        if not _ft_origin_columns_available() or not _ft_motivo_referencia_available() or not _fi_origin_column_available():
+            raise ValueError('A base de dados ainda não tem os campos necessários para NC com origem. Aplique migrations/ft_nc_origem_fields.sql.')
+
+        origem_ftstamp = (header.get('FTSTAMP_ORIGEM') or '').strip()
+        tipodoc_origem = (header.get('TIPODOC_ORIGEM') or '').strip().upper()
+        numdoc_origem = (header.get('NUMDOC_ORIGEM') or '').strip()
+        data_origem = _ft_origin_date_param(header.get('DATA_ORIGEM'))
+        motivo = str(header.get('MOTIVO_REFERENCIA') or '').strip()
+
+        if not (origem_ftstamp and tipodoc_origem and numdoc_origem and data_origem):
+            raise ValueError('A nota de crédito tem de indicar o documento de origem.')
+        if not motivo:
+            raise ValueError('Indique o motivo da nota de crédito.')
+
+        origem_header, origem_lines = _load_nc_origin_bundle(current_entity, origem_ftstamp)
+        if not origem_header:
+            raise ValueError('O documento de origem da nota de crédito não foi encontrado.')
+        if int(origem_header.get('ANULADA') or 0) == 1:
+            raise ValueError('Não é possível creditar um documento de origem anulado.')
+        if int(origem_header.get('ESTADO') or 0) != 1:
+            raise ValueError('A nota de crédito só pode referenciar um documento de origem emitido.')
+        origem_tipo = str(origem_header.get('TIPODOC') or '').strip().upper()
+        if origem_tipo not in {'FT', 'FR', 'FS'}:
+            raise ValueError('A nota de crédito só pode referenciar FT, FR ou FS.')
+        if tipodoc_origem != origem_tipo:
+            raise ValueError('O tipo do documento de origem da nota de crédito não corresponde ao documento selecionado.')
+        if _to_int(header.get('NO'), 0) != _to_int(origem_header.get('NO'), 0):
+            raise ValueError('A nota de crédito tem de manter o mesmo cliente do documento de origem.')
+        if not origem_lines:
+            raise ValueError('O documento de origem não tem linhas para creditar.')
+
+        origem_map = {}
+        for row in origem_lines:
+            key = str(row.get('FISTAMP') or '').strip()
+            if key:
+                origem_map[key] = dict(row)
+        creditados = _load_nc_credit_aggregates(current_entity, origem_ftstamp, ftstamp)
+
+        total_liquido_nc = Decimal('0.000000')
+        total_liquido_origem = Decimal('0.000000')
+        total_liquido_creditado = Decimal('0.000000')
+        meaningful_lines = [dict(line or {}) for line in (normalized_lines or []) if _is_meaningful_ft_line(line)]
+        for idx, line in enumerate(meaningful_lines, start=1):
+            fistamp_origem = str(line.get('FISTAMP_ORIGEM') or '').strip()
+            if not fistamp_origem:
+                raise ValueError(f'A linha {idx} da nota de crédito tem de estar ligada a uma linha do documento de origem.')
+            origem_line = origem_map.get(fistamp_origem)
+            if not origem_line:
+                raise ValueError(f'A linha {idx} da nota de crédito não corresponde a nenhuma linha do documento de origem.')
+
+            qtt_nc = _to_decimal_param(line.get('QTT'), '0.000001')
+            qtt_orig = _to_decimal_param(origem_line.get('QTT'), '0.000001')
+            qtt_creditada = creditados.get(fistamp_origem, {}).get('QTT_CREDITADA', Decimal('0.000000'))
+            qtt_restante = (qtt_orig - qtt_creditada).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
+            if qtt_restante < Decimal('0.000000'):
+                qtt_restante = Decimal('0.000000')
+            if qtt_nc > qtt_restante:
+                raise ValueError(f'A quantidade da linha {idx} excede o disponível para crédito no documento de origem.')
+
+            epv_nc = _to_decimal_param(line.get('EPV'), '0.000001')
+            epv_orig = _to_decimal_param(origem_line.get('EPV'), '0.000001')
+            if epv_nc > epv_orig:
+                raise ValueError(f'O preço unitário da linha {idx} não pode ser superior ao do documento de origem.')
+
+            if str(line.get('REF') or '').strip() != str(origem_line.get('REF') or '').strip():
+                raise ValueError(f'A referência da linha {idx} tem de coincidir com a linha original.')
+            if str(line.get('DESIGN') or '').strip() != str(origem_line.get('DESIGN') or '').strip():
+                raise ValueError(f'A designação da linha {idx} tem de coincidir com a linha original.')
+            if str(line.get('UNIDADE') or '').strip() != str(origem_line.get('UNIDADE') or '').strip():
+                raise ValueError(f'A unidade da linha {idx} tem de coincidir com a linha original.')
+
+            iva_nc = _to_decimal_param(line.get('IVA'), '0.000001')
+            iva_orig = _to_decimal_param(origem_line.get('IVA'), '0.000001')
+            if iva_nc != iva_orig:
+                raise ValueError(f'A taxa de IVA da linha {idx} tem de coincidir com a linha original.')
+            if _to_int(line.get('TABIVA'), 0) != _to_int(origem_line.get('TABIVA'), 0):
+                raise ValueError(f'A tabela de IVA da linha {idx} tem de coincidir com a linha original.')
+            if _to_int(line.get('IVAINCL'), 0) != _to_int(origem_line.get('IVAINCL'), 0):
+                raise ValueError(f'O indicador IVA incluído da linha {idx} tem de coincidir com a linha original.')
+
+            origem_miseimp = str(origem_line.get('MISEIMP') or '').strip().upper()
+            if iva_orig == Decimal('0.000000') and origem_miseimp and str(line.get('MISEIMP') or '').strip().upper() != origem_miseimp:
+                raise ValueError(f'O motivo de isenção da linha {idx} tem de coincidir com a linha original.')
+
+            liquido_nc = _to_decimal_param(line.get('ETILIQUIDO'), '0.000001')
+            liquido_orig = _to_decimal_param(origem_line.get('ETILIQUIDO'), '0.000001')
+            liquido_creditado = creditados.get(fistamp_origem, {}).get('ETILIQ_CREDITADO', Decimal('0.000000'))
+            liquido_restante = (liquido_orig - liquido_creditado).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
+            if liquido_restante < Decimal('0.000000'):
+                liquido_restante = Decimal('0.000000')
+            if liquido_nc > liquido_restante:
+                raise ValueError(f'O total líquido da linha {idx} excede o disponível para crédito no documento de origem.')
+
+            total_liquido_nc += liquido_nc
+            total_liquido_origem += liquido_orig
+            total_liquido_creditado += liquido_creditado
+
+        if total_liquido_nc > (total_liquido_origem - total_liquido_creditado).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP):
+            raise ValueError('O total líquido acumulado da nota de crédito excede o disponível no documento de origem.')
+
+    def _get_ft_copy_source_rows(current_entity, current_ftstamp, client_no, allowed_types=None, include_used=False, single_use=False, require_emitted=False):
+        allowed = [str(item or '').strip().upper() for item in (allowed_types or ['PF']) if str(item or '').strip()]
+        if not allowed:
+            allowed = ['PF']
+        params = {
+            'current_feid': int(current_entity.get('FEID') or 0),
+            'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
+            'current_ftstamp': (current_ftstamp or '').strip(),
+            'no': int(client_no or 0),
+        }
+        extra_filter = ''
+        if single_use and not include_used:
+            extra_filter = "AND ISNULL(USED_BY.DESTINO_FTSTAMP, '') = ''"
+        emitted_filter = "AND ISNULL(O.ESTADO, 0) = 1" if require_emitted else ""
+        type_params = {}
+        type_filter_parts = []
+        for idx, item in enumerate(allowed):
+            key = f'tipo_{idx}'
+            type_params[key] = item
+            type_filter_parts.append(f":{key}")
+        params.update(type_params)
+        type_filter_sql = ", ".join(type_filter_parts) or "''"
+        rows = db.session.execute(text(f"""
+            SELECT
+                O.FTSTAMP,
+                O.NDOC,
+                ISNULL(O.NMDOC, '') AS NMDOC,
+                ISNULL(O.SERIE, '') AS SERIE,
+                ISNULL(O.FNO, 0) AS FNO,
+                CAST(O.FDATA AS date) AS FDATA,
+                ISNULL(O.NO, 0) AS NO,
+                ISNULL(O.NOME, '') AS NOME,
+                ISNULL(O.ETTILIQ, 0) AS ETTILIQ,
+                ISNULL(O.ETTIVA, 0) AS ETTIVA,
+                ISNULL(O.ETOTAL, 0) AS ETOTAL,
+                ISNULL(O.ESTADO, 0) AS ESTADO,
+                ISNULL(O.ANULADA, 0) AS ANULADA,
+                UPPER(LTRIM(RTRIM(ISNULL(S.TIPOSAFT, '')))) AS TIPODOC,
+                ISNULL(USED_BY.DESTINO_FTSTAMP, '') AS DESTINO_FTSTAMP
+            FROM dbo.FT AS O
+            INNER JOIN dbo.FTS AS S
+              ON S.FESTAMP = O.FESTAMP
+             AND S.NDOC = O.NDOC
+             AND LTRIM(RTRIM(ISNULL(S.SERIE, ''))) = LTRIM(RTRIM(ISNULL(O.SERIE, '')))
+             AND ISNULL(S.ANO, 0) = ISNULL(O.FTANO, 0)
+            OUTER APPLY (
+                SELECT TOP 1
+                    LTRIM(RTRIM(ISNULL(D.FTSTAMP, ''))) AS DESTINO_FTSTAMP
+                FROM dbo.FT AS D
+                WHERE LTRIM(RTRIM(ISNULL(D.FTSTAMP_ORIGEM, ''))) = LTRIM(RTRIM(ISNULL(O.FTSTAMP, '')))
+                  AND LTRIM(RTRIM(ISNULL(D.FTSTAMP, ''))) <> :current_ftstamp
+                ORDER BY ISNULL(D.DTCriacao, D.DTAlteracao) DESC, D.FTSTAMP DESC
+            ) AS USED_BY
+            WHERE ISNULL(O.NO, 0) = :no
+              AND UPPER(LTRIM(RTRIM(ISNULL(S.TIPOSAFT, '')))) IN ({type_filter_sql})
+              AND ISNULL(O.ANULADA, 0) = 0
+              AND ISNULL(O.FNO, 0) > 0
+              {emitted_filter}
+              {_ft_entity_scope_sql('O')}
+              {extra_filter}
+            ORDER BY CAST(O.FDATA AS date) DESC, ISNULL(O.FNO, 0) DESC
+        """), params).mappings().all()
+        out = []
+        for row in rows:
+            item = dict(row)
+            item['TIPODOC'] = (item.get('TIPODOC') or '').strip().upper()
+            item['TIPOSAFT'] = item['TIPODOC']
+            item['NUMDOC_FORMATADO'] = ft_invoice_no(item)
+            item['JA_COPIADO'] = bool((item.get('DESTINO_FTSTAMP') or '').strip())
+            out.append(item)
+        return out
 
     def _default_rs_payload(user_login=''):
         today = date.today()
@@ -3470,15 +4104,20 @@ def create_app():
     @app.route('/faturacao/emissao_saft')
     @login_required
     def emissao_saft_page():
+        try:
+            current_entity = _get_current_fe_row()
+        except MissingCurrentEntityError as exc:
+            return Response(str(exc), status=403, content_type='text/plain; charset=utf-8')
         today = date.today()
         first_day = today.replace(day=1)
-        options = get_saft_filter_options(db.session)
+        options = get_saft_filter_options(db.session, current_entity)
         return render_template(
             'faturacao/emissao_saft.html',
             dt_ini=first_day.isoformat(),
             dt_fim=today.isoformat(),
             series=options.get('series') or [],
-            doc_types=options.get('doc_types') or ['FT', 'FR', 'NC'],
+            doc_types=options.get('doc_types') or ['FT', 'FS', 'FR', 'NC'],
+            current_entity=current_entity,
         )
 
     @app.route('/cancelamentos')
@@ -3529,6 +4168,30 @@ def create_app():
             fe_can_delete=_fe_has_permission('eliminar'),
         )
 
+    @app.route('/faturacao/series')
+    @app.route('/faturacao/series/<ftsstamp>')
+    @app.route('/fts_series')
+    @app.route('/fts_series/<ftsstamp>')
+    @login_required
+    def faturacao_series_page(ftsstamp=None):
+        if not _fe_has_permission('consultar'):
+            abort(403)
+        try:
+            current_entity = _get_current_fe_row()
+        except MissingCurrentEntityError as exc:
+            return Response(str(exc), status=403, content_type='text/plain; charset=utf-8')
+        return render_template(
+            'fts_series.html',
+            page_title='Séries de faturação',
+            initial_ftsstamp=(ftsstamp or '').strip(),
+            fts_can_create=_fe_has_permission('inserir'),
+            fts_can_edit=_fe_has_permission('editar'),
+            current_entity=current_entity,
+            fts_tiposaft_options=FTS_TIPOSAFT_OPTIONS,
+            fts_estado_options=FTS_ESTADO_OPTIONS,
+            ftsx_at_estado_options=FTSX_AT_ESTADO_OPTIONS,
+        )
+
     @app.route('/modulos')
     @app.route('/modulos/<modstamp>')
     @login_required
@@ -3559,7 +4222,7 @@ def create_app():
         })
         db.session.execute(text("""
             INSERT INTO dbo.FT
-            (FTSTAMP, FEID, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA,
+            (FTSTAMP, FEID, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA, CAMBIO,
              FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, DESCONTO, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
              IVATX1, IVATX2, IVATX3, IVATX4, IVATX5, IVATX6, IVATX7, IVATX8, IVATX9,
              EIVAIN1, EIVAIN2, EIVAIN3, EIVAIN4, EIVAIN5, EIVAIN6, EIVAIN7, EIVAIN8, EIVAIN9,
@@ -3569,7 +4232,7 @@ def create_app():
             ANULADA, ANULDATA, ANULUSER, ANULMOTIVO,
              FTREFSTAMP, AT_ENVIO_ESTADO, AT_ENVIO_DATA, AT_ENVIO_MSG)
             VALUES
-            (:FTSTAMP, :FEID, :NDOC, :NMDOC, :FNO, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA,
+            (:FTSTAMP, :FEID, :NDOC, :NMDOC, :FNO, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA, :CAMBIO,
              :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :DESCONTO, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
              0,0,0,0,0,0,0,0,0,
              0,0,0,0,0,0,0,0,0,
@@ -3592,7 +4255,12 @@ def create_app():
         ft, _ = _get_ft(ftstamp, current_entity)
         if not ft:
             abort(404)
-        return render_template('ft_faturacao_form.html', ftstamp=ftstamp, current_entity=current_entity)
+        return render_template(
+            'ft_faturacao_form.html',
+            ftstamp=ftstamp,
+            current_entity=current_entity,
+            fs_config=_ft_fs_context_payload(),
+        )
 
     @app.route('/reservas/rs/new')
     @login_required
@@ -4765,6 +5433,557 @@ def create_app():
             app.logger.exception('Erro ao eliminar entidade.')
             return jsonify({'error': str(e)}), 500
 
+    def _fts_user_login() -> str:
+        return (getattr(current_user, 'LOGIN', '') or '').strip()
+
+    def _fts_json_value(value):
+        if isinstance(value, datetime):
+            return value.isoformat(sep=' ', timespec='seconds')
+        if isinstance(value, date):
+            return value.isoformat()
+        if isinstance(value, Decimal):
+            try:
+                if value == value.to_integral_value():
+                    return int(value)
+            except Exception:
+                pass
+            return float(value)
+        return value
+
+    def _fts_serialize_row(row):
+        return {key: _fts_json_value(val) for key, val in dict(row or {}).items()}
+
+    def _fts_parse_int(value, default=0):
+        try:
+            if value is None or str(value).strip() == '':
+                return int(default)
+            return int(float(str(value).replace(',', '.')))
+        except Exception:
+            return int(default)
+
+    def _fts_parse_bit(value, default=0):
+        raw = str(value if value is not None else '').strip().lower()
+        if raw in ('1', 'true', 'sim', 'yes', 'on'):
+            return 1
+        if raw in ('0', 'false', 'nao', 'não', 'no', 'off'):
+            return 0
+        return 1 if int(default or 0) == 1 else 0
+
+    def _fts_parse_datetime(value):
+        raw = str(value or '').strip()
+        if not raw:
+            return datetime(1900, 1, 1)
+        normalized = raw.replace('T', ' ')
+        try:
+            return datetime.fromisoformat(normalized[:19])
+        except Exception:
+            try:
+                return datetime.combine(date.fromisoformat(normalized[:10]), datetime.min.time())
+            except Exception:
+                return datetime(1900, 1, 1)
+
+    FTS_TIPOSAFT_OPTIONS = [
+        {'value': '', 'label': '--'},
+        {'value': 'FT', 'label': 'FT · Fatura'},
+        {'value': 'FS', 'label': 'FS · Fatura simplificada'},
+        {'value': 'FR', 'label': 'FR · Fatura-recibo'},
+        {'value': 'NC', 'label': 'NC · Nota de crédito'},
+        {'value': 'OR', 'label': 'OR · Orçamento'},
+        {'value': 'PF', 'label': 'PF · Pro-Forma'},
+    ]
+    FTS_ALLOWED_TIPOSAFT = {str(item['value']).strip().upper() for item in FTS_TIPOSAFT_OPTIONS}
+    FTS_ESTADO_OPTIONS = [
+        {'value': 0, 'label': '0'},
+        {'value': 1, 'label': '1'},
+    ]
+    FTS_ALLOWED_ESTADOS = {int(item['value']) for item in FTS_ESTADO_OPTIONS}
+    FTSX_AT_ESTADO_OPTIONS = [
+        {'value': 0, 'label': '0'},
+        {'value': 1, 'label': '1'},
+    ]
+    FTSX_ALLOWED_AT_ESTADOS = {int(item['value']) for item in FTSX_AT_ESTADO_OPTIONS}
+
+    def _fts_base_query():
+        return """
+            SELECT
+                S.FTSSTAMP,
+                S.FESTAMP,
+                ISNULL(S.FEID, 0) AS FEID,
+                ISNULL(S.NDOC, 0) AS NDOC,
+                ISNULL(T.NMDOC, '') AS NMDOC,
+                ISNULL(S.SERIE, '') AS SERIE,
+                ISNULL(S.DESCR, '') AS DESCR,
+                ISNULL(S.ATIVA, 0) AS ATIVA,
+                ISNULL(S.ESTADO, 0) AS ESTADO,
+                ISNULL(S.ANO, 0) AS ANO,
+                ISNULL(S.ULTIMO_FNO, 0) AS ULTIMO_FNO,
+                ISNULL(S.NO_SAFT, 0) AS NO_SAFT,
+                ISNULL(S.TIPOSAFT, '') AS TIPOSAFT,
+                S.DTCriacao,
+                S.DTAlteracao,
+                ISNULL(S.USERCRIACAO, '') AS USERCRIACAO,
+                ISNULL(S.USERALTERACAO, '') AS USERALTERACAO,
+                X.FTSXSTAMP,
+                ISNULL(X.HASHVER, '') AS HASHVER,
+                ISNULL(X.LAST_HASH, '') AS LAST_HASH,
+                ISNULL(X.COD_VALIDACAO_SERIE, '') AS COD_VALIDACAO_SERIE,
+                ISNULL(X.ATCUD_PREFIX, '') AS ATCUD_PREFIX,
+                ISNULL(X.AT_SERIE_ESTADO, 0) AS AT_SERIE_ESTADO,
+                X.AT_SERIE_DATA,
+                ISNULL(X.AT_SERIE_MSG, '') AS AT_SERIE_MSG,
+                X.DTCriacao AS FTSX_DTCriacao,
+                X.DTAlteracao AS FTSX_DTAlteracao,
+                ISNULL(X.USERCRIACAO, '') AS FTSX_USERCRIACAO,
+                ISNULL(X.USERALTERACAO, '') AS FTSX_USERALTERACAO,
+                ISNULL(X.FEID, 0) AS FTSX_FEID,
+                CASE WHEN X.FTSXSTAMP IS NULL THEN 0 ELSE 1 END AS HAS_FTSX
+            FROM dbo.FTS AS S
+            LEFT JOIN dbo.V_TD AS T
+              ON T.NDOC = S.NDOC
+            LEFT JOIN dbo.FTSX AS X
+              ON X.FTSSTAMP = S.FTSSTAMP
+        """
+
+    def _fts_fetch_row(ftsstamp: str, current_entity: dict):
+        row = db.session.execute(text(f"""
+            {_fts_base_query()}
+            WHERE S.FTSSTAMP = :ftsstamp
+              AND S.FESTAMP = :festamp
+        """), {
+            'ftsstamp': (ftsstamp or '').strip(),
+            'festamp': (current_entity.get('FESTAMP') or '').strip(),
+        }).mappings().first()
+        return _fts_serialize_row(row) if row else None
+
+    def _fts_fetch_parent_for_write(ftsstamp: str, current_entity: dict):
+        return db.session.execute(text("""
+            SELECT TOP 1
+                FTSSTAMP,
+                FESTAMP,
+                ISNULL(FEID, 0) AS FEID,
+                ISNULL(ANO, 0) AS ANO,
+                ISNULL(ULTIMO_FNO, 0) AS ULTIMO_FNO
+            FROM dbo.FTS
+            WHERE FTSSTAMP = :ftsstamp
+              AND FESTAMP = :festamp
+        """), {
+            'ftsstamp': (ftsstamp or '').strip(),
+            'festamp': (current_entity.get('FESTAMP') or '').strip(),
+        }).mappings().first()
+
+    def _fts_duplicate_exists(current_entity: dict, ndoc: int, serie: str, ano: int, exclude_stamp: str = '') -> bool:
+        row = db.session.execute(text("""
+            SELECT TOP 1 1
+            FROM dbo.FTS
+            WHERE FESTAMP = :festamp
+              AND NDOC = :ndoc
+              AND ISNULL(SERIE, '') = :serie
+              AND ANO = :ano
+              AND (:exclude_stamp = '' OR FTSSTAMP <> :exclude_stamp)
+        """), {
+            'festamp': (current_entity.get('FESTAMP') or '').strip(),
+            'ndoc': ndoc,
+            'serie': (serie or '').strip(),
+            'ano': ano,
+            'exclude_stamp': (exclude_stamp or '').strip(),
+        }).first()
+        return bool(row)
+
+    def _fts_validate_payload(payload: dict):
+        ndoc = _fts_parse_int(payload.get('NDOC'), 0)
+        serie = str(payload.get('SERIE') or '').strip()
+        descr = str(payload.get('DESCR') or '').strip()
+        estado = _fts_parse_int(payload.get('ESTADO'), 0)
+        ativa = _fts_parse_bit(payload.get('ATIVA'), 0)
+        no_saft = _fts_parse_bit(payload.get('NO_SAFT'), 0)
+        tiposaft = str(payload.get('TIPOSAFT') or '').strip().upper()
+        if ndoc <= 0:
+            raise ValueError('NDOC obrigatório.')
+        if not serie:
+            raise ValueError('Série obrigatória.')
+        if not descr:
+            raise ValueError('Descrição obrigatória.')
+        if estado not in FTS_ALLOWED_ESTADOS:
+            raise ValueError('ESTADO inválido.')
+        if tiposaft not in FTS_ALLOWED_TIPOSAFT:
+            raise ValueError('TIPOSAFT inválido.')
+        return {
+            'NDOC': ndoc,
+            'SERIE': serie,
+            'DESCR': descr,
+            'ATIVA': ativa,
+            'ESTADO': estado,
+            'NO_SAFT': no_saft,
+            'TIPOSAFT': tiposaft,
+        }
+
+    def _ftsx_payload_from_request(payload: dict):
+        at_serie_estado = _fts_parse_int(payload.get('AT_SERIE_ESTADO'), 0)
+        if at_serie_estado not in FTSX_ALLOWED_AT_ESTADOS:
+            raise ValueError('AT_SERIE_ESTADO inválido.')
+        return {
+            'COD_VALIDACAO_SERIE': str(payload.get('COD_VALIDACAO_SERIE') or '').strip(),
+            'ATCUD_PREFIX': str(payload.get('ATCUD_PREFIX') or '').strip(),
+            'AT_SERIE_ESTADO': at_serie_estado,
+            'AT_SERIE_DATA': _fts_parse_datetime(payload.get('AT_SERIE_DATA')),
+            'AT_SERIE_MSG': str(payload.get('AT_SERIE_MSG') or '').strip(),
+        }
+
+    @app.route('/api/fts', methods=['GET'])
+    @login_required
+    def api_fts_list():
+        if not _fe_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar séries.'}), 403
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+
+        serie = str(request.args.get('serie') or '').strip()
+        tiposaft = str(request.args.get('tiposaft') or '').strip().upper()
+        ativa = str(request.args.get('ativa') or '').strip().lower()
+        has_ftsx = str(request.args.get('has_ftsx') or '').strip().lower()
+        ano = _fts_parse_int(request.args.get('ano'), 0)
+        ndoc = _fts_parse_int(request.args.get('ndoc'), 0)
+
+        sql = f"""
+            {_fts_base_query()}
+            WHERE S.FESTAMP = :festamp
+        """
+        params = {'festamp': (current_entity.get('FESTAMP') or '').strip()}
+        if serie:
+            sql += " AND ISNULL(S.SERIE, '') LIKE :serie"
+            params['serie'] = f"%{serie}%"
+        if tiposaft == '__NONE__':
+            sql += " AND LTRIM(RTRIM(ISNULL(S.TIPOSAFT, ''))) = ''"
+        elif tiposaft:
+            sql += " AND UPPER(LTRIM(RTRIM(ISNULL(S.TIPOSAFT, '')))) = :tiposaft"
+            params['tiposaft'] = tiposaft
+        if ativa in ('1', 'true', 'ativa', 'ativas'):
+            sql += " AND ISNULL(S.ATIVA, 0) = 1"
+        elif ativa in ('0', 'false', 'inativa', 'inativas'):
+            sql += " AND ISNULL(S.ATIVA, 0) = 0"
+        if has_ftsx in ('1', 'true', 'com'):
+            sql += " AND X.FTSXSTAMP IS NOT NULL"
+        elif has_ftsx in ('0', 'false', 'sem'):
+            sql += " AND X.FTSXSTAMP IS NULL"
+        if ano > 0:
+            sql += " AND ISNULL(S.ANO, 0) = :ano"
+            params['ano'] = ano
+        if ndoc > 0:
+            sql += " AND ISNULL(S.NDOC, 0) = :ndoc"
+            params['ndoc'] = ndoc
+
+        sql += " ORDER BY ISNULL(S.ANO, 0) DESC, ISNULL(S.NDOC, 0), ISNULL(S.SERIE, '')"
+        rows = db.session.execute(text(sql), params).mappings().all()
+        return jsonify({'rows': [_fts_serialize_row(row) for row in rows]})
+
+    @app.route('/api/fts/<ftsstamp>', methods=['GET'])
+    @login_required
+    def api_fts_detail(ftsstamp):
+        if not _fe_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar séries.'}), 403
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+
+        row = _fts_fetch_row(ftsstamp, current_entity)
+        if not row:
+            return jsonify({'error': 'Série não encontrada.'}), 404
+
+        ftsx = None
+        if str(row.get('FTSXSTAMP') or '').strip():
+            ftsx = {
+                'FTSXSTAMP': row.get('FTSXSTAMP') or '',
+                'FTSSTAMP': row.get('FTSSTAMP') or '',
+                'HASHVER': row.get('HASHVER') or '',
+                'LAST_HASH': row.get('LAST_HASH') or '',
+                'COD_VALIDACAO_SERIE': row.get('COD_VALIDACAO_SERIE') or '',
+                'ATCUD_PREFIX': row.get('ATCUD_PREFIX') or '',
+                'AT_SERIE_ESTADO': row.get('AT_SERIE_ESTADO') or 0,
+                'AT_SERIE_DATA': row.get('AT_SERIE_DATA') or '',
+                'AT_SERIE_MSG': row.get('AT_SERIE_MSG') or '',
+                'DTCriacao': row.get('FTSX_DTCriacao') or '',
+                'DTAlteracao': row.get('FTSX_DTAlteracao') or '',
+                'USERCRIACAO': row.get('FTSX_USERCRIACAO') or '',
+                'USERALTERACAO': row.get('FTSX_USERALTERACAO') or '',
+                'FEID': row.get('FTSX_FEID') or 0,
+            }
+
+        fts = {
+            'FTSSTAMP': row.get('FTSSTAMP') or '',
+            'FESTAMP': row.get('FESTAMP') or '',
+            'FEID': row.get('FEID') or 0,
+            'NDOC': row.get('NDOC') or 0,
+            'NMDOC': row.get('NMDOC') or '',
+            'SERIE': row.get('SERIE') or '',
+            'DESCR': row.get('DESCR') or '',
+            'ATIVA': row.get('ATIVA') or 0,
+            'ESTADO': row.get('ESTADO') or 0,
+            'ANO': row.get('ANO') or 0,
+            'ULTIMO_FNO': row.get('ULTIMO_FNO') or 0,
+            'NO_SAFT': row.get('NO_SAFT') or 0,
+            'TIPOSAFT': row.get('TIPOSAFT') or '',
+            'DTCriacao': row.get('DTCriacao') or '',
+            'DTAlteracao': row.get('DTAlteracao') or '',
+            'USERCRIACAO': row.get('USERCRIACAO') or '',
+            'USERALTERACAO': row.get('USERALTERACAO') or '',
+            'HAS_FTSX': row.get('HAS_FTSX') or 0,
+        }
+        return jsonify({'fts': fts, 'ftsx': ftsx})
+
+    @app.route('/api/fts', methods=['POST'])
+    @login_required
+    def api_fts_create():
+        if not _fe_has_permission('inserir'):
+            return jsonify({'error': 'Sem permissão para criar séries.'}), 403
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        payload = request.get_json(silent=True) or {}
+        try:
+            clean = _fts_validate_payload(payload)
+            ano = date.today().year
+            if _fts_duplicate_exists(current_entity, clean['NDOC'], clean['SERIE'], ano):
+                return jsonify({'error': 'Já existe uma série com NDOC, SERIE e ANO para a entidade atual.'}), 400
+            stamp = _new_stamp_25()
+            now = datetime.now()
+            user_login = _fts_user_login()
+            db.session.execute(text("""
+                INSERT INTO dbo.FTS (
+                    FTSSTAMP, FESTAMP, NDOC, SERIE, DESCR, ATIVA, ESTADO, ANO, ULTIMO_FNO,
+                    DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO, NO_SAFT, TIPOSAFT, FEID
+                ) VALUES (
+                    :FTSSTAMP, :FESTAMP, :NDOC, :SERIE, :DESCR, :ATIVA, :ESTADO, :ANO, :ULTIMO_FNO,
+                    :DTCriacao, :DTAlteracao, :USERCRIACAO, :USERALTERACAO, :NO_SAFT, :TIPOSAFT, :FEID
+                )
+            """), {
+                'FTSSTAMP': stamp,
+                'FESTAMP': (current_entity.get('FESTAMP') or '').strip(),
+                'NDOC': clean['NDOC'],
+                'SERIE': clean['SERIE'],
+                'DESCR': clean['DESCR'],
+                'ATIVA': clean['ATIVA'],
+                'ESTADO': clean['ESTADO'],
+                'ANO': ano,
+                'ULTIMO_FNO': 0,
+                'DTCriacao': now,
+                'DTAlteracao': now,
+                'USERCRIACAO': user_login,
+                'USERALTERACAO': user_login,
+                'NO_SAFT': clean['NO_SAFT'],
+                'TIPOSAFT': clean['TIPOSAFT'],
+                'FEID': int(current_entity.get('FEID') or 0),
+            })
+            db.session.commit()
+            row = _fts_fetch_row(stamp, current_entity)
+            return jsonify({'ok': True, 'fts': row}), 201
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao criar série FTS.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/fts/<ftsstamp>', methods=['PUT'])
+    @login_required
+    def api_fts_update(ftsstamp):
+        if not _fe_has_permission('editar'):
+            return jsonify({'error': 'Sem permissão para editar séries.'}), 403
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        parent = _fts_fetch_parent_for_write(ftsstamp, current_entity)
+        if not parent:
+            return jsonify({'error': 'Série não encontrada.'}), 404
+        payload = request.get_json(silent=True) or {}
+        try:
+            clean = _fts_validate_payload(payload)
+            ano = _fts_parse_int(parent.get('ANO'), date.today().year)
+            if _fts_duplicate_exists(current_entity, clean['NDOC'], clean['SERIE'], ano, exclude_stamp=ftsstamp):
+                return jsonify({'error': 'Já existe uma série com NDOC, SERIE e ANO para a entidade atual.'}), 400
+            db.session.execute(text("""
+                UPDATE dbo.FTS
+                SET NDOC=:NDOC,
+                    SERIE=:SERIE,
+                    DESCR=:DESCR,
+                    ATIVA=:ATIVA,
+                    ESTADO=:ESTADO,
+                    NO_SAFT=:NO_SAFT,
+                    TIPOSAFT=:TIPOSAFT,
+                    DTAlteracao=:DTAlteracao,
+                    USERALTERACAO=:USERALTERACAO
+                WHERE FTSSTAMP=:FTSSTAMP
+                  AND FESTAMP=:FESTAMP
+            """), {
+                'NDOC': clean['NDOC'],
+                'SERIE': clean['SERIE'],
+                'DESCR': clean['DESCR'],
+                'ATIVA': clean['ATIVA'],
+                'ESTADO': clean['ESTADO'],
+                'NO_SAFT': clean['NO_SAFT'],
+                'TIPOSAFT': clean['TIPOSAFT'],
+                'DTAlteracao': datetime.now(),
+                'USERALTERACAO': _fts_user_login(),
+                'FTSSTAMP': (ftsstamp or '').strip(),
+                'FESTAMP': (current_entity.get('FESTAMP') or '').strip(),
+            })
+            db.session.commit()
+            row = _fts_fetch_row(ftsstamp, current_entity)
+            return jsonify({'ok': True, 'fts': row})
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao atualizar série FTS.')
+            return jsonify({'error': str(exc)}), 500
+
+    def _ftsx_create_for_series(ftsstamp: str, current_entity: dict, payload: dict | None = None):
+        payload = payload or {}
+        parent = _fts_fetch_parent_for_write(ftsstamp, current_entity)
+        if not parent:
+            raise ValueError('Série não encontrada.')
+        existing = db.session.execute(text("""
+            SELECT TOP 1 FTSXSTAMP
+            FROM dbo.FTSX
+            WHERE FTSSTAMP = :ftsstamp
+        """), {'ftsstamp': (ftsstamp or '').strip()}).mappings().first()
+        if existing:
+            raise ValueError('A série já tem configuração AT.')
+        clean = _ftsx_payload_from_request(payload)
+        now = datetime.now()
+        user_login = _fts_user_login()
+        ftsxstamp = _new_stamp_25()
+        db.session.execute(text("""
+            INSERT INTO dbo.FTSX (
+                FTSXSTAMP, FTSSTAMP, HASHVER, LAST_HASH, COD_VALIDACAO_SERIE, ATCUD_PREFIX,
+                AT_SERIE_ESTADO, AT_SERIE_DATA, AT_SERIE_MSG,
+                DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO, FEID
+            ) VALUES (
+                :FTSXSTAMP, :FTSSTAMP, :HASHVER, :LAST_HASH, :COD_VALIDACAO_SERIE, :ATCUD_PREFIX,
+                :AT_SERIE_ESTADO, :AT_SERIE_DATA, :AT_SERIE_MSG,
+                :DTCriacao, :DTAlteracao, :USERCRIACAO, :USERALTERACAO, :FEID
+            )
+        """), {
+            'FTSXSTAMP': ftsxstamp,
+            'FTSSTAMP': (parent.get('FTSSTAMP') or '').strip(),
+            'HASHVER': '',
+            'LAST_HASH': '',
+            'COD_VALIDACAO_SERIE': clean['COD_VALIDACAO_SERIE'],
+            'ATCUD_PREFIX': clean['ATCUD_PREFIX'],
+            'AT_SERIE_ESTADO': clean['AT_SERIE_ESTADO'],
+            'AT_SERIE_DATA': clean['AT_SERIE_DATA'],
+            'AT_SERIE_MSG': clean['AT_SERIE_MSG'],
+            'DTCriacao': now,
+            'DTAlteracao': now,
+            'USERCRIACAO': user_login,
+            'USERALTERACAO': user_login,
+            'FEID': int(parent.get('FEID') or current_entity.get('FEID') or 0),
+        })
+        return ftsxstamp
+
+    @app.route('/api/fts/<ftsstamp>/create_ftsx', methods=['POST'])
+    @login_required
+    def api_fts_create_ftsx(ftsstamp):
+        if not _fe_has_permission('editar'):
+            return jsonify({'error': 'Sem permissão para criar configuração AT.'}), 403
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        try:
+            _ftsx_create_for_series(ftsstamp, current_entity)
+            db.session.commit()
+            row = _fts_fetch_row(ftsstamp, current_entity)
+            return jsonify({'ok': True, 'fts': row})
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao criar FTSX.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/ftsx', methods=['POST'])
+    @login_required
+    def api_ftsx_create():
+        if not _fe_has_permission('editar'):
+            return jsonify({'error': 'Sem permissão para criar configuração AT.'}), 403
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        payload = request.get_json(silent=True) or {}
+        ftsstamp = str(payload.get('FTSSTAMP') or '').strip()
+        if not ftsstamp:
+            return jsonify({'error': 'FTSSTAMP obrigatório.'}), 400
+        try:
+            _ftsx_create_for_series(ftsstamp, current_entity, payload)
+            db.session.commit()
+            row = _fts_fetch_row(ftsstamp, current_entity)
+            return jsonify({'ok': True, 'fts': row}), 201
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao criar FTSX.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/ftsx/<ftsxstamp>', methods=['PUT'])
+    @login_required
+    def api_ftsx_update(ftsxstamp):
+        if not _fe_has_permission('editar'):
+            return jsonify({'error': 'Sem permissão para editar configuração AT.'}), 403
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                X.FTSXSTAMP,
+                X.FTSSTAMP
+            FROM dbo.FTSX AS X
+            INNER JOIN dbo.FTS AS S
+              ON S.FTSSTAMP = X.FTSSTAMP
+            WHERE X.FTSXSTAMP = :ftsxstamp
+              AND S.FESTAMP = :festamp
+        """), {
+            'ftsxstamp': (ftsxstamp or '').strip(),
+            'festamp': (current_entity.get('FESTAMP') or '').strip(),
+        }).mappings().first()
+        if not row:
+            return jsonify({'error': 'Configuração AT não encontrada.'}), 404
+
+        try:
+            payload = request.get_json(silent=True) or {}
+            clean = _ftsx_payload_from_request(payload)
+            db.session.execute(text("""
+                UPDATE dbo.FTSX
+                SET COD_VALIDACAO_SERIE = :COD_VALIDACAO_SERIE,
+                    ATCUD_PREFIX = :ATCUD_PREFIX,
+                    AT_SERIE_ESTADO = :AT_SERIE_ESTADO,
+                    AT_SERIE_DATA = :AT_SERIE_DATA,
+                    AT_SERIE_MSG = :AT_SERIE_MSG,
+                    DTAlteracao = :DTAlteracao,
+                    USERALTERACAO = :USERALTERACAO
+                WHERE FTSXSTAMP = :FTSXSTAMP
+            """), {
+                **clean,
+                'DTAlteracao': datetime.now(),
+                'USERALTERACAO': _fts_user_login(),
+                'FTSXSTAMP': (ftsxstamp or '').strip(),
+            })
+            db.session.commit()
+            parent_row = _fts_fetch_row(row.get('FTSSTAMP') or '', current_entity)
+            return jsonify({'ok': True, 'fts': parent_row})
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao atualizar FTSX.')
+            return jsonify({'error': str(exc)}), 500
+
     @app.route('/api/modulos', methods=['GET'])
     @login_required
     def api_modulos_list():
@@ -5106,29 +6325,37 @@ def create_app():
     @app.route('/api/lookups/fts', methods=['GET'])
     @login_required
     def api_lookup_fts():
+        feid = _to_int(request.args.get('feid'), 0)
         festamp = (request.args.get('festamp') or '').strip()
         ano = _to_int(request.args.get('ano'), 0)
-        if not festamp:
+        if not feid and not festamp:
             return jsonify([])
-        rows = db.session.execute(text("""
+        sql = """
             SELECT
                 S.FTSSTAMP,
                 S.FESTAMP,
+                ISNULL(S.FEID, 0) AS FEID,
                 S.NDOC,
-                ISNULL(T.NMDOC, '') AS NMDOC,
+                LTRIM(RTRIM(ISNULL(S.DESCR, ''))) AS NMDOC,
                 S.SERIE,
-                S.DESCR,
+                LTRIM(RTRIM(ISNULL(S.DESCR, ''))) AS DESCR,
                 S.ANO,
                 S.ESTADO,
-                S.ULTIMO_FNO
+                S.ULTIMO_FNO,
+                ISNULL(S.NO_SAFT, 0) AS NO_SAFT,
+                UPPER(LTRIM(RTRIM(ISNULL(S.TIPOSAFT, '')))) AS TIPOSAFT
             FROM dbo.FTS S
-            LEFT JOIN dbo.V_TD T ON T.NDOC = S.NDOC
             WHERE
-                S.FESTAMP = :festamp
-                AND ISNULL(S.ATIVA, 0) = 1
+                ISNULL(S.ATIVA, 0) = 1
                 AND (:ano = 0 OR S.ANO = :ano)
-            ORDER BY S.NDOC, S.SERIE
-        """), {'festamp': festamp, 'ano': ano}).mappings().all()
+        """
+        params = {'feid': feid, 'festamp': festamp, 'ano': ano}
+        if feid:
+            sql += " AND ISNULL(S.FEID, 0) = :feid"
+        else:
+            sql += " AND S.FESTAMP = :festamp"
+        sql += " ORDER BY S.NDOC, S.SERIE"
+        rows = db.session.execute(text(sql), params).mappings().all()
         return jsonify([dict(r) for r in rows])
 
     @app.route('/api/faturacao/ft/list', methods=['GET'])
@@ -5160,7 +6387,12 @@ def create_app():
     @app.route('/api/emissao_saft/preview', methods=['POST'])
     @login_required
     def api_emissao_saft_preview():
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
         body = request.get_json(silent=True) or {}
+        body['current_feid'] = int(current_entity.get('FEID') or 0)
+        body['current_festamp'] = (current_entity.get('FESTAMP') or '').strip()
         try:
             return jsonify(preview_saft_sales(db.session, body))
         except SaftValidationError as exc:
@@ -5172,7 +6404,12 @@ def create_app():
     @app.route('/api/emissao_saft/download', methods=['POST'])
     @login_required
     def api_emissao_saft_download():
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
         body = request.get_json(silent=True) or {}
+        body['current_feid'] = int(current_entity.get('FEID') or 0)
+        body['current_festamp'] = (current_entity.get('FESTAMP') or '').strip()
         try:
             filename, xml_bytes, meta = generate_saft_sales_xml(db.session, body)
             response = Response(xml_bytes, mimetype='application/xml; charset=utf-8')
@@ -6011,35 +7248,10 @@ def create_app():
     @app.route('/api/faturacao/clientes/<int:no>', methods=['GET'])
     @login_required
     def api_faturacao_cliente_detail(no):
-        cols = db.session.execute(text("""
-            SELECT UPPER(COLUMN_NAME) AS CN
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_NAME='CL'
-        """)).mappings().all()
-        colset = {str(r.get('CN') or '').upper() for r in cols}
-        nif_expr = "'' AS NIF"
-        if 'NIF' in colset:
-            nif_expr = "CONVERT(varchar(20), ISNULL(NIF,0)) AS NIF"
-        elif 'NCONT' in colset:
-            nif_expr = "CONVERT(varchar(20), ISNULL(NCONT,'')) AS NIF"
-        pais_expr = "'' AS PAIS"
-        if 'PAIS' in colset:
-            pais_expr = "CONVERT(varchar(30), ISNULL(PAIS,'')) AS PAIS"
-        row = db.session.execute(text(f"""
-            SELECT TOP 1
-                ISNULL(NO,0) AS NO,
-                ISNULL(NOME,'') AS NOME,
-                {nif_expr},
-                ISNULL(MORADA,'') AS MORADA,
-                ISNULL(LOCAL,'') AS LOCAL,
-                ISNULL(CODPOST,'') AS CODPOST,
-                {pais_expr}
-            FROM dbo.CL
-            WHERE ISNULL(NO,0)=:no
-        """), {'no': no}).mappings().first()
+        row = _load_faturacao_cliente_detail_row(no)
         if not row:
             return jsonify({'error': 'Cliente não encontrado'}), 404
-        return jsonify(dict(row))
+        return jsonify(row)
 
     @app.route('/api/faturacao/miseimp', methods=['GET'])
     @login_required
@@ -6048,6 +7260,31 @@ def create_app():
             return jsonify(_get_miseimp_options())
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/faturacao/fx-rates', methods=['GET'])
+    @login_required
+    def api_faturacao_fx_rates():
+        try:
+            q = str(request.args.get('q') or '').strip().upper()
+            items = _fetch_ecb_fx_options()
+            if q:
+                filtered_ecb = [
+                    item for item in items
+                    if q in str(item.get('CODIGO') or '').upper()
+                    or q in str(item.get('DESCRICAO') or '').upper()
+                ]
+                if filtered_ecb:
+                    return jsonify(filtered_ecb)
+                oxr_items = _fetch_oxr_currency_options()
+                filtered_oxr = [
+                    item for item in oxr_items
+                    if q in str(item.get('CODIGO') or '').upper()
+                    or q in str(item.get('DESCRICAO') or '').upper()
+                ]
+                return jsonify(filtered_oxr)
+            return jsonify(items)
+        except Exception as e:
+            return jsonify({'error': f'Não foi possível obter os câmbios oficiais do BCE: {e}'}), 502
 
     @app.route('/api/faturacao/ft/<ftstamp>', methods=['GET'])
     @login_required
@@ -6060,7 +7297,281 @@ def create_app():
             return jsonify({'error': 'Documento não encontrado'}), 404
         ft['FEID'] = int(current_entity.get('FEID') or 0)
         ft['FESTAMP'] = (current_entity.get('FESTAMP') or '').strip()
+        ft['CAMBIO'] = f"{_normalize_ft_cambio(ft.get('MOEDA'), ft.get('CAMBIO')):.6f}"
+        if 'DATA_ORIGEM' in ft:
+            ft['DATA_ORIGEM'] = _ft_origin_date_param(ft.get('DATA_ORIGEM'))
         return jsonify({'header': ft, 'lines': fi})
+
+    @app.route('/api/faturacao/ft/<ftstamp>/copy-origins', methods=['GET'])
+    @login_required
+    def api_faturacao_ft_copy_origins(ftstamp):
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        if not _ft_origin_columns_available():
+            return _ft_origin_json_error()
+        ft, _ = _get_ft(ftstamp, current_entity)
+        if not ft:
+            return jsonify({'error': 'Documento não encontrado'}), 404
+        client_no = _to_int(request.args.get('no'), 0)
+        if client_no <= 0:
+            return jsonify([])
+        header_snapshot = {
+            'NDOC': request.args.get('ndoc'),
+            'SERIE': request.args.get('serie'),
+            'FTANO': request.args.get('ftano'),
+            'FDATA': request.args.get('fdata'),
+            'NMDOC': request.args.get('nmdoc'),
+        }
+        dest_doc_type = _ft_doc_type_from_header_snapshot(current_entity, header_snapshot, fallback_row=ft)
+        rules = _get_ft_copy_source_rules(dest_doc_type)
+        include_used = str(request.args.get('include_used') or '').strip().lower() in ('1', 'true', 'sim', 'yes')
+        return jsonify(_get_ft_copy_source_rows(
+            current_entity,
+            ftstamp,
+            client_no,
+            allowed_types=rules.get('allowed_types') or ['PF'],
+            include_used=include_used,
+            single_use=bool(rules.get('single_use')),
+            require_emitted=bool(rules.get('require_emitted')),
+        ))
+
+    @app.route('/api/faturacao/ft/<ftstamp>/copy-from', methods=['POST'])
+    @login_required
+    def api_faturacao_ft_copy_from(ftstamp):
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        if not _ft_origin_columns_available():
+            return _ft_origin_json_error()
+
+        body = request.get_json(silent=True) or {}
+        origem_ftstamp = (body.get('origem_ftstamp') or '').strip()
+        client_no = _to_int(body.get('no'), 0)
+        dest_header = dict(body.get('dest_header') or {})
+        if not origem_ftstamp:
+            return jsonify({'error': 'Documento origem não indicado.'}), 400
+        if client_no <= 0:
+            return jsonify({'error': 'Selecione primeiro o cliente do documento atual.'}), 400
+
+        destino = db.session.execute(text("""
+            SELECT *
+            FROM dbo.FT
+            WHERE FTSTAMP = :s
+        """ + _ft_entity_scope_sql('FT')), {
+            's': ftstamp,
+            'current_feid': int(current_entity.get('FEID') or 0),
+            'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
+        }).mappings().first()
+        if not destino:
+            return jsonify({'error': 'Documento destino não encontrado.'}), 404
+        if int(destino.get('BLOQUEADO') or 0) == 1:
+            return jsonify({'error': 'Documento bloqueado.'}), 400
+
+        dest_doc_type = _ft_doc_type_from_header_snapshot(current_entity, dest_header, fallback_row=destino)
+        if dest_doc_type == 'NC' and (not _ft_motivo_referencia_available() or not _fi_origin_column_available()):
+            return _ft_nc_json_error()
+        rules = _get_ft_copy_source_rules(dest_doc_type)
+        origem_rows = _get_ft_copy_source_rows(
+            current_entity,
+            ftstamp,
+            client_no,
+            allowed_types=rules.get('allowed_types') or ['PF'],
+            include_used=True,
+            single_use=bool(rules.get('single_use')),
+            require_emitted=bool(rules.get('require_emitted')),
+        )
+        origem = next((row for row in origem_rows if (row.get('FTSTAMP') or '').strip() == origem_ftstamp), None)
+        if not origem:
+            return jsonify({'error': 'Documento origem não elegível para cópia.'}), 400
+        if bool(rules.get('single_use')) and bool(origem.get('JA_COPIADO')):
+            return jsonify({'error': 'Este documento origem já foi copiado para outro documento.'}), 400
+
+        origem_full, origem_lines = _get_ft(origem_ftstamp, current_entity)
+        if not origem_full:
+            return jsonify({'error': 'Documento origem não encontrado.'}), 404
+        origem_tipo = str(origem.get('TIPODOC') or '').strip().upper()
+        allowed_types = set(rules.get('allowed_types') or ['PF'])
+        if origem_tipo not in allowed_types:
+            return jsonify({'error': 'O documento origem não é elegível para o tipo de documento atual.'}), 400
+        if _to_int(origem_full.get('NO'), 0) != client_no:
+            return jsonify({'error': 'O documento origem não pertence ao cliente selecionado.'}), 400
+        if int(origem_full.get('ANULADA') or 0) == 1:
+            return jsonify({'error': 'Não é possível copiar de um documento anulado.'}), 400
+        if not origem_lines:
+            return jsonify({'error': 'O documento origem não tem linhas para copiar.'}), 400
+
+        linhas_origem = []
+        for idx, line in enumerate(origem_lines or []):
+            linhas_origem.append({
+                'REF': (line.get('REF') or '').strip(),
+                'DESIGN': (line.get('DESIGN') or '').strip(),
+                'QTT': line.get('QTT'),
+                'UNIDADE': (line.get('UNIDADE') or '').strip(),
+                'EPV': line.get('EPV'),
+                'DESCONTO': line.get('DESCONTO'),
+                'IVA': line.get('IVA'),
+                'IVAINCL': 1 if int(_num(line.get('IVAINCL'), 0)) == 1 else 0,
+                'TABIVA': _to_int(line.get('TABIVA'), 0),
+                'FAMILIA': (line.get('FAMILIA') or '').strip(),
+                'FICCUSTO': (line.get('FICCUSTO') or origem_full.get('CCUSTO') or '').strip(),
+                'MISEIMP': (line.get('MISEIMP') or '').strip().upper(),
+                'FISTAMP_ORIGEM': (line.get('FISTAMP') or '').strip() if dest_doc_type == 'NC' else '',
+                'LORDEM': _to_int(line.get('LORDEM'), (idx + 1) * 10),
+            })
+        normalized, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown(
+            linhas_origem,
+            _num(origem_full.get('DESCONTO'), 0)
+        )
+        miseimp_error = _validate_ft_miseimp(normalized)
+        if miseimp_error:
+            return jsonify({'error': miseimp_error}), 400
+
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        moeda_origem = (origem_full.get('MOEDA') or 'EUR').strip().upper() or 'EUR'
+        cambio_origem = _normalize_ft_cambio(moeda_origem, origem_full.get('CAMBIO'))
+        dest_fdata = dest_header.get('FDATA') or destino.get('FDATA') or date.today().isoformat()
+        dest_ftano = _to_int(dest_header.get('FTANO'), _to_int(str(dest_fdata)[:4], _to_int(destino.get('FTANO'), date.today().year)))
+        dest_pdata = dest_header.get('PDATA') or destino.get('PDATA') or dest_fdata
+        dest_ndoc = _to_int(dest_header.get('NDOC'), _to_int(destino.get('NDOC'), 0))
+        dest_nmdoc = (dest_header.get('NMDOC') or destino.get('NMDOC') or '').strip()
+        dest_serie = (dest_header.get('SERIE') or destino.get('SERIE') or '').strip()
+        numdoc_origem = ft_invoice_no({
+            'TIPOSAFT': origem_tipo,
+            'SERIE': origem_full.get('SERIE'),
+            'FNO': origem_full.get('FNO'),
+            'NMDOC': origem_full.get('NMDOC'),
+        })
+        motivo_referencia_sql = ''
+        motivo_referencia_param = {}
+        if _ft_motivo_referencia_available():
+            motivo_referencia_sql = "MOTIVO_REFERENCIA=:MOTIVO_REFERENCIA,"
+            motivo_referencia_param = {
+                'MOTIVO_REFERENCIA': '' if dest_doc_type == 'NC' else str(destino.get('MOTIVO_REFERENCIA') or '').strip()
+            }
+
+        db.session.execute(text(f"""
+            UPDATE dbo.FT
+            SET
+                NDOC=:NDOC,
+                NMDOC=:NMDOC,
+                FDATA=:FDATA,
+                FTANO=:FTANO,
+                PDATA=:PDATA,
+                SERIE=:SERIE,
+                NO=:NO,
+                NOME=:NOME,
+                MORADA=:MORADA,
+                CODPOST=:CODPOST,
+                PAIS=:PAIS,
+                LOCAL=:LOCAL,
+                NCONT=:NCONT,
+                MOEDA=:MOEDA,
+                CAMBIO=:CAMBIO,
+                CCUSTO=:CCUSTO,
+                TPSTAMP=:TPSTAMP,
+                TPDESC=:TPDESC,
+                DESCONTO=:DESCONTO,
+                FTSTAMP_ORIGEM=:FTSTAMP_ORIGEM,
+                TIPODOC_ORIGEM=:TIPODOC_ORIGEM,
+                NUMDOC_ORIGEM=:NUMDOC_ORIGEM,
+                DATA_ORIGEM=:DATA_ORIGEM,
+                {motivo_referencia_sql}
+                ETTILIQ=:ETTILIQ,
+                ETTIVA=:ETTIVA,
+                ETOTAL=:ETOTAL,
+                IVATX1=:IVATX1, IVATX2=:IVATX2, IVATX3=:IVATX3, IVATX4=:IVATX4, IVATX5=:IVATX5, IVATX6=:IVATX6, IVATX7=:IVATX7, IVATX8=:IVATX8, IVATX9=:IVATX9,
+                EIVAIN1=:EIVAIN1, EIVAIN2=:EIVAIN2, EIVAIN3=:EIVAIN3, EIVAIN4=:EIVAIN4, EIVAIN5=:EIVAIN5, EIVAIN6=:EIVAIN6, EIVAIN7=:EIVAIN7, EIVAIN8=:EIVAIN8, EIVAIN9=:EIVAIN9,
+                EIVAV1=:EIVAV1, EIVAV2=:EIVAV2, EIVAV3=:EIVAV3, EIVAV4=:EIVAV4, EIVAV5=:EIVAV5, EIVAV6=:EIVAV6, EIVAV7=:EIVAV7, EIVAV8=:EIVAV8, EIVAV9=:EIVAV9,
+                DTAlteracao=GETDATE(),
+                USERALTERACAO=:USERALTERACAO
+            WHERE FTSTAMP=:FTSTAMP
+        """ + _ft_entity_scope_sql('FT')), {
+            'current_feid': int(current_entity.get('FEID') or 0),
+            'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
+            'FTSTAMP': ftstamp,
+            'NDOC': dest_ndoc,
+            'NMDOC': dest_nmdoc,
+            'FDATA': dest_fdata,
+            'FTANO': dest_ftano,
+            'PDATA': dest_pdata,
+            'SERIE': dest_serie,
+            'NO': _to_int(origem_full.get('NO'), 0),
+            'NOME': (origem_full.get('NOME') or '').strip(),
+            'MORADA': (origem_full.get('MORADA') or '').strip(),
+            'CODPOST': (origem_full.get('CODPOST') or '').strip(),
+            'PAIS': _to_int(origem_full.get('PAIS'), 0),
+            'LOCAL': (origem_full.get('LOCAL') or '').strip(),
+            'NCONT': (origem_full.get('NCONT') or '').strip(),
+            'MOEDA': moeda_origem,
+            'CAMBIO': cambio_origem,
+            'CCUSTO': (origem_full.get('CCUSTO') or '').strip(),
+            'TPSTAMP': (origem_full.get('TPSTAMP') or '').strip(),
+            'TPDESC': (origem_full.get('TPDESC') or '').strip(),
+            'DESCONTO': max(0.0, min(100.0, _num(origem_full.get('DESCONTO'), 0))),
+            'FTSTAMP_ORIGEM': origem_ftstamp,
+            'TIPODOC_ORIGEM': origem_tipo,
+            'NUMDOC_ORIGEM': numdoc_origem,
+            'DATA_ORIGEM': _ft_origin_date_param(origem_full.get('FDATA')),
+            'ETTILIQ': ettiliq,
+            'ETTIVA': ettiva,
+            'ETOTAL': etotal,
+            'IVATX1': ivatx[0], 'IVATX2': ivatx[1], 'IVATX3': ivatx[2], 'IVATX4': ivatx[3], 'IVATX5': ivatx[4], 'IVATX6': ivatx[5], 'IVATX7': ivatx[6], 'IVATX8': ivatx[7], 'IVATX9': ivatx[8],
+            'EIVAIN1': eivain[0], 'EIVAIN2': eivain[1], 'EIVAIN3': eivain[2], 'EIVAIN4': eivain[3], 'EIVAIN5': eivain[4], 'EIVAIN6': eivain[5], 'EIVAIN7': eivain[6], 'EIVAIN8': eivain[7], 'EIVAIN9': eivain[8],
+            'EIVAV1': eivav[0], 'EIVAV2': eivav[1], 'EIVAV3': eivav[2], 'EIVAV4': eivav[3], 'EIVAV5': eivav[4], 'EIVAV6': eivav[5], 'EIVAV7': eivav[6], 'EIVAV8': eivav[7], 'EIVAV9': eivav[8],
+            'USERALTERACAO': user_login,
+            **motivo_referencia_param,
+        })
+
+        db.session.execute(text("DELETE FROM dbo.FI WHERE FTSTAMP=:s"), {'s': ftstamp})
+        fi_origin_column_sql = ''
+        fi_origin_value_sql = ''
+        if _fi_origin_column_available():
+            fi_origin_column_sql = ", FISTAMP_ORIGEM"
+            fi_origin_value_sql = ", :FISTAMP_ORIGEM"
+        for idx, line in enumerate(normalized):
+            fistamp = (line.get('FISTAMP') or '').strip() or _new_stamp_25()
+            db.session.execute(text(f"""
+                INSERT INTO dbo.FI
+                (FISTAMP, FEID, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA, DESCONTO, MISEIMP{fi_origin_column_sql})
+                VALUES
+                (:FISTAMP, :FEID, :NMDOC, :FNO, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA, :DESCONTO, :MISEIMP{fi_origin_value_sql})
+            """), {
+                'FISTAMP': fistamp,
+                'FEID': int(current_entity.get('FEID') or 0),
+                'NMDOC': dest_nmdoc,
+                'FNO': _to_int(destino.get('FNO'), 0),
+                'REF': (line.get('REF') or '').strip(),
+                'DESIGN': (line.get('DESIGN') or '').strip(),
+                'QTT': _to_decimal_param(line.get('QTT'), '0.000001'),
+                'ETILIQUIDO': _to_decimal_param(line.get('ETILIQUIDO'), '0.000001'),
+                'UNIDADE': (line.get('UNIDADE') or '').strip(),
+                'IVA': _to_decimal_param(line.get('IVA'), '0.000001'),
+                'IVAINCL': 1 if int(_num(line.get('IVAINCL'), 0)) == 1 else 0,
+                'TABIVA': _to_int(line.get('TABIVA'), 0),
+                'NDOC': dest_ndoc,
+                'LORDEM': _to_int(line.get('LORDEM'), (idx + 1) * 10),
+                'FTSTAMP': ftstamp,
+                'FICCUSTO': (line.get('FICCUSTO') or origem_full.get('CCUSTO') or '').strip(),
+                'EPV': _to_decimal_param(line.get('EPV'), '0.000001'),
+                'FAMILIA': (line.get('FAMILIA') or '').strip(),
+                'DESCONTO': _to_decimal_param(line.get('DESCONTO'), '0.01'),
+                'MISEIMP': (line.get('MISEIMP') or '').strip().upper(),
+                'FISTAMP_ORIGEM': (line.get('FISTAMP_ORIGEM') or '').strip(),
+            })
+
+        db.session.commit()
+        return jsonify({
+            'ok': True,
+            'message': 'Documento copiado com sucesso.',
+            'origem': {
+                'FTSTAMP': origem_ftstamp,
+                'TIPODOC': origem_tipo,
+                'NUMDOC_FORMATADO': numdoc_origem,
+                'DATA': _ft_origin_date_param(origem_full.get('FDATA')),
+            },
+            'totals': {'ETTILIQ': ettiliq, 'ETTIVA': ettiva, 'ETOTAL': etotal},
+        })
 
     def _ft_pdf_dir() -> str:
         base = os.environ.get('FT_PDF_DIR', '').strip()
@@ -6096,10 +7607,11 @@ def create_app():
         ft, fi_rows, fe = get_ft_pdf_data(db.session, ftstamp)
         if not ft:
             raise ValueError('Documento não encontrado')
+        doc_is_non_fiscal = is_ft_non_fiscal(ft)
         modo_teste_raw = str(qr_get_param(db.session, 'MODO_TESTE_AT', '0') or '0').strip().lower()
         modo_teste = modo_teste_raw in ('1', 'true', 'sim', 'yes')
-        at_certificado = str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
-        qr_b64 = build_ft_qr_base64(ft.get('CODIGOQR') or '')
+        at_certificado = '' if doc_is_non_fiscal else str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
+        qr_b64 = '' if doc_is_non_fiscal else build_ft_qr_base64(ft.get('CODIGOQR') or '')
         html = render_ft_pdf_html(ft, fi_rows, fe or {}, qr_b64, at_certificado=at_certificado, modo_teste=modo_teste)
         try:
             return generate_ft_pdf_bytes(html), 'weasy/chrome'
@@ -6207,10 +7719,14 @@ def create_app():
         if not ft:
             return jsonify({'error': 'Documento não encontrado'}), 404
         try:
-            if int(ft.get('ESTADO') or 0) == 1:
+            force_fresh_pdf = bool(getattr(current_user, 'ADMIN', False)) or is_ft_non_fiscal(ft)
+            if int(ft.get('ESTADO') or 0) == 1 and not force_fresh_pdf:
                 pdf_bytes, pdf_engine = _ft_pdf_ensure_cached(ftstamp, wait_if_busy=True, wait_timeout=45)
             else:
                 pdf_bytes, pdf_engine = _ft_pdf_generate_once(ftstamp)
+                if force_fresh_pdf:
+                    freshness_tag = 'fresh-admin' if bool(getattr(current_user, 'ADMIN', False)) else 'fresh-live'
+                    pdf_engine = f'{pdf_engine} ({freshness_tag})'
         except Exception as e:
             return Response(str(e), status=500, content_type='text/plain; charset=utf-8')
 
@@ -6273,10 +7789,11 @@ def create_app():
         ft, fi_rows, fe = get_ft_pdf_data(db.session, ftstamp)
         if not ft:
             return jsonify({'error': 'Documento não encontrado'}), 404
+        doc_is_non_fiscal = is_ft_non_fiscal(ft)
         modo_teste_raw = str(qr_get_param(db.session, 'MODO_TESTE_AT', '0') or '0').strip().lower()
         modo_teste = modo_teste_raw in ('1', 'true', 'sim', 'yes')
-        at_certificado = str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
-        qr_b64 = build_ft_qr_base64(ft.get('CODIGOQR') or '')
+        at_certificado = '' if doc_is_non_fiscal else str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
+        qr_b64 = '' if doc_is_non_fiscal else build_ft_qr_base64(ft.get('CODIGOQR') or '')
         html = render_ft_pdf_html(ft, fi_rows, fe or {}, qr_b64, at_certificado=at_certificado, modo_teste=modo_teste)
         headers = {
             'Content-Type': 'text/html; charset=utf-8',
@@ -6325,20 +7842,77 @@ def create_app():
             return jsonify({'error': 'Documento bloqueado'}), 400
 
         user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        header_moeda = (header.get('MOEDA') or 'EUR').strip().upper() or 'EUR'
+        header_cambio = _normalize_ft_cambio(header_moeda, header.get('CAMBIO'))
         header_desconto = max(0.0, min(100.0, _num(header.get('DESCONTO'), 0)))
+        header_ftstamp_origem = (header.get('FTSTAMP_ORIGEM') or '').strip()
+        header_tipodoc_origem = (header.get('TIPODOC_ORIGEM') or '').strip().upper()
+        header_numdoc_origem = (header.get('NUMDOC_ORIGEM') or '').strip()
+        header_data_origem = _ft_origin_date_param(header.get('DATA_ORIGEM'))
+        header_motivo_referencia = str(header.get('MOTIVO_REFERENCIA') or '').strip()
+        if not header_ftstamp_origem:
+            header_tipodoc_origem = ''
+            header_numdoc_origem = ''
+            header_data_origem = None
+            header_motivo_referencia = ''
+        elif not (header_tipodoc_origem and header_numdoc_origem and header_data_origem):
+            return jsonify({'error': 'A referência ao documento origem está incompleta.'}), 400
+        doc_type = _ft_doc_type_from_header_snapshot(current_entity, header, fallback_row=curr)
+        if doc_type == 'NC':
+            if not _ft_motivo_referencia_available() or not _fi_origin_column_available():
+                return _ft_nc_json_error()
+        origin_columns_sql = ''
+        origin_params = {}
+        if _ft_origin_columns_available():
+            origin_columns_sql = """
+                FTSTAMP_ORIGEM=:FTSTAMP_ORIGEM,
+                TIPODOC_ORIGEM=:TIPODOC_ORIGEM,
+                NUMDOC_ORIGEM=:NUMDOC_ORIGEM,
+                DATA_ORIGEM=:DATA_ORIGEM,
+            """
+            origin_params = {
+                'FTSTAMP_ORIGEM': header_ftstamp_origem,
+                'TIPODOC_ORIGEM': header_tipodoc_origem,
+                'NUMDOC_ORIGEM': header_numdoc_origem,
+                'DATA_ORIGEM': header_data_origem,
+            }
+        motivo_referencia_sql = ''
+        motivo_referencia_param = {}
+        if _ft_motivo_referencia_available():
+            motivo_referencia_sql = "MOTIVO_REFERENCIA=:MOTIVO_REFERENCIA,"
+            motivo_referencia_param = {'MOTIVO_REFERENCIA': header_motivo_referencia}
         normalized, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown(lines, header_desconto)
         miseimp_error = _validate_ft_miseimp(normalized)
         if miseimp_error:
             return jsonify({'error': miseimp_error}), 400
+        if doc_type == 'FS':
+            try:
+                _validate_fs_document_rules(header, etotal)
+            except ValueError as exc:
+                return jsonify({'error': str(exc)}), 400
+        if doc_type == 'NC':
+            try:
+                _validate_nc_against_origin(current_entity, ftstamp, {
+                    **header,
+                    'FTSTAMP_ORIGEM': header_ftstamp_origem,
+                    'TIPODOC_ORIGEM': header_tipodoc_origem,
+                    'NUMDOC_ORIGEM': header_numdoc_origem,
+                    'DATA_ORIGEM': header_data_origem,
+                    'MOTIVO_REFERENCIA': header_motivo_referencia,
+                }, normalized)
+            except ValueError as exc:
+                return jsonify({'error': str(exc)}), 400
         fdata = header.get('FDATA') or date.today().isoformat()
         ftano = _to_int(header.get('FTANO'), _to_int(str(fdata)[:4], date.today().year))
 
-        update_result = db.session.execute(text("""
+        update_result = db.session.execute(text(f"""
             UPDATE dbo.FT
             SET
                 NDOC=:NDOC, NMDOC=:NMDOC, NO=:NO, NOME=:NOME, MORADA=:MORADA, CODPOST=:CODPOST, PAIS=:PAIS,
-                LOCAL=:LOCAL, NCONT=:NCONT, MOEDA=:MOEDA, FDATA=:FDATA, FTANO=:FTANO, PDATA=:PDATA, FESTAMP=:FESTAMP, FEID=:FEID,
+                LOCAL=:LOCAL, NCONT=:NCONT, MOEDA=:MOEDA, CAMBIO=:CAMBIO, FDATA=:FDATA, FTANO=:FTANO, PDATA=:PDATA, FESTAMP=:FESTAMP, FEID=:FEID,
                 CCUSTO=:CCUSTO, TPSTAMP=:TPSTAMP, TPDESC=:TPDESC, SERIE=:SERIE, DESCONTO=:DESCONTO,
+                {origin_columns_sql}
+                {motivo_referencia_sql}
                 ETTILIQ=:ETTILIQ, ETTIVA=:ETTIVA, ETOTAL=:ETOTAL,
                 IVATX1=:IVATX1, IVATX2=:IVATX2, IVATX3=:IVATX3, IVATX4=:IVATX4, IVATX5=:IVATX5, IVATX6=:IVATX6, IVATX7=:IVATX7, IVATX8=:IVATX8, IVATX9=:IVATX9,
                 EIVAIN1=:EIVAIN1, EIVAIN2=:EIVAIN2, EIVAIN3=:EIVAIN3, EIVAIN4=:EIVAIN4, EIVAIN5=:EIVAIN5, EIVAIN6=:EIVAIN6, EIVAIN7=:EIVAIN7, EIVAIN8=:EIVAIN8, EIVAIN9=:EIVAIN9,
@@ -6358,7 +7932,8 @@ def create_app():
             'PAIS': _to_int(header.get('PAIS'), 0),
             'LOCAL': (header.get('LOCAL') or '').strip(),
             'NCONT': (header.get('NCONT') or '').strip(),
-            'MOEDA': (header.get('MOEDA') or 'EUR').strip(),
+            'MOEDA': header_moeda,
+            'CAMBIO': header_cambio,
             'FDATA': fdata,
             'FTANO': ftano,
             'PDATA': (header.get('PDATA') or fdata),
@@ -6375,21 +7950,28 @@ def create_app():
             'IVATX1': ivatx[0], 'IVATX2': ivatx[1], 'IVATX3': ivatx[2], 'IVATX4': ivatx[3], 'IVATX5': ivatx[4], 'IVATX6': ivatx[5], 'IVATX7': ivatx[6], 'IVATX8': ivatx[7], 'IVATX9': ivatx[8],
             'EIVAIN1': eivain[0], 'EIVAIN2': eivain[1], 'EIVAIN3': eivain[2], 'EIVAIN4': eivain[3], 'EIVAIN5': eivain[4], 'EIVAIN6': eivain[5], 'EIVAIN7': eivain[6], 'EIVAIN8': eivain[7], 'EIVAIN9': eivain[8],
             'EIVAV1': eivav[0], 'EIVAV2': eivav[1], 'EIVAV3': eivav[2], 'EIVAV4': eivav[3], 'EIVAV5': eivav[4], 'EIVAV6': eivav[5], 'EIVAV7': eivav[6], 'EIVAV8': eivav[7], 'EIVAV9': eivav[8],
-            'USERALTERACAO': user_login
+            'USERALTERACAO': user_login,
+            **origin_params,
+            **motivo_referencia_param,
         })
         if int(getattr(update_result, 'rowcount', 0) or 0) <= 0:
             return jsonify({'error': 'Documento não encontrado'}), 404
 
         db.session.execute(text("DELETE FROM dbo.FI WHERE FTSTAMP=:s"), {'s': ftstamp})
+        fi_origin_column_sql = ''
+        fi_origin_value_sql = ''
+        if _fi_origin_column_available():
+            fi_origin_column_sql = ", FISTAMP_ORIGEM"
+            fi_origin_value_sql = ", :FISTAMP_ORIGEM"
         for idx, line in enumerate(normalized):
             fistamp = (line.get('FISTAMP') or '').strip() or _new_stamp_25()
             ndoc = _to_int(header.get('NDOC'), 0)
             nmdoc = (header.get('NMDOC') or '').strip()
-            db.session.execute(text("""
+            db.session.execute(text(f"""
                 INSERT INTO dbo.FI
-                (FISTAMP, FEID, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA, DESCONTO, MISEIMP)
+                (FISTAMP, FEID, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA, DESCONTO, MISEIMP{fi_origin_column_sql})
                 VALUES
-                (:FISTAMP, :FEID, :NMDOC, :FNO, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA, :DESCONTO, :MISEIMP)
+                (:FISTAMP, :FEID, :NMDOC, :FNO, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA, :DESCONTO, :MISEIMP{fi_origin_value_sql})
             """), {
                 'FISTAMP': fistamp,
                 'FEID': int(current_entity.get('FEID') or 0),
@@ -6410,11 +7992,56 @@ def create_app():
                 'EPV': _to_decimal_param(line.get('EPV'), '0.000001'),
                 'FAMILIA': (line.get('FAMILIA') or '').strip(),
                 'DESCONTO': _to_decimal_param(line.get('DESCONTO'), '0.01'),
-                'MISEIMP': (line.get('MISEIMP') or '').strip().upper()
+                'MISEIMP': (line.get('MISEIMP') or '').strip().upper(),
+                'FISTAMP_ORIGEM': (line.get('FISTAMP_ORIGEM') or '').strip(),
             })
 
         db.session.commit()
         return jsonify({'ok': True, 'totals': {'ETTILIQ': ettiliq, 'ETTIVA': ettiva, 'ETOTAL': etotal}})
+
+    def _ft_doc_type_from_emit_context(row: dict, srow: dict | None = None) -> str:
+        code = str((srow or {}).get('TIPOSAFT') or (row or {}).get('TIPOSAFT') or '').strip().upper()
+        if code:
+            return code
+        nmdoc = str((row or {}).get('NMDOC') or '').strip().upper()
+        if 'SIMPLIFICADA' in nmdoc or nmdoc.startswith('FS'):
+            return 'FS'
+        if 'PRO-FORMA' in nmdoc or 'PRO FORMA' in nmdoc or nmdoc.startswith('PF'):
+            return 'PF'
+        if 'ORÇAMENTO' in nmdoc or 'ORCAMENTO' in nmdoc or nmdoc.startswith('OR'):
+            return 'OR'
+        return 'FT'
+
+    def _ft_emit_is_non_fiscal(row: dict, srow: dict | None = None) -> bool:
+        return _ft_doc_type_from_emit_context(row, srow) in {'PF', 'OR'}
+
+    def _finalize_non_fiscal_ft_emit(ftstamp_emit: str, ftsstamp: str, new_fno: int, user_login_emit: str):
+        db.session.execute(text("""
+            UPDATE dbo.FT
+            SET
+                HASHVER='',
+                HASHANT='',
+                HASH='',
+                ASSINATURA='',
+                KEYID='',
+                ATCUD='',
+                CODIGOQR='',
+                ESTADO=1,
+                BLOQUEADO=1,
+                USERALTERACAO=:u
+            WHERE FTSTAMP=:s
+        """), {'u': user_login_emit, 's': ftstamp_emit})
+        db.session.execute(text("""
+            UPDATE dbo.FTS
+            SET ULTIMO_FNO=:fno, DTAlteracao=GETDATE(), USERALTERACAO=:u
+            WHERE FTSSTAMP=:s
+        """), {'fno': new_fno, 'u': user_login_emit, 's': ftsstamp})
+        db.session.commit()
+        try:
+            _spawn_ft_pdf_cache_job(ftstamp_emit)
+        except Exception:
+            pass
+        return {'ok': True, 'FNO': new_fno, 'HASH': '', 'ATCUD': '', 'ESTADO': 1}
 
     def _emit_ft_core_global(ftstamp_emit: str, user_login_emit: str):
         row = db.session.execute(text("""
@@ -6450,13 +8077,14 @@ def create_app():
             raise ValueError('Documento sem linhas válidas.')
 
         srow = db.session.execute(text("""
-            SELECT TOP 1 FTSSTAMP, ISNULL(ULTIMO_FNO,0) AS ULTIMO_FNO, ISNULL(NO_SAFT,0) AS NO_SAFT
+            SELECT TOP 1 FTSSTAMP, ISNULL(ULTIMO_FNO,0) AS ULTIMO_FNO, ISNULL(NO_SAFT,0) AS NO_SAFT, ISNULL(TIPOSAFT,'') AS TIPOSAFT
             FROM dbo.FTS WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
             WHERE FESTAMP=:festamp AND NDOC=:ndoc AND ISNULL(SERIE,'')=:serie AND ANO=:ano AND ISNULL(ATIVA,0)=1
         """), {'festamp': festamp, 'ndoc': ndoc, 'serie': serie, 'ano': ftano}).mappings().first()
         if not srow:
             raise ValueError('Série não certificada/ativa para esta entidade e ano.')
-        if int(srow.get('NO_SAFT') or 0) != 1:
+        is_non_fiscal = _ft_emit_is_non_fiscal(dict(row), dict(srow))
+        if int(srow.get('NO_SAFT') or 0) != 1 and not is_non_fiscal:
             if isinstance(fdata, datetime):
                 fdata_date = fdata.date()
             elif isinstance(fdata, date):
@@ -6474,6 +8102,9 @@ def create_app():
         miseimp_error = _validate_ft_miseimp(normalized)
         if miseimp_error:
             raise ValueError(miseimp_error)
+        doc_type = _ft_doc_type_from_emit_context(dict(row), dict(srow))
+        if doc_type == 'FS':
+            _validate_fs_document_rules(dict(row), etotal)
         new_fno = _to_int(srow.get('ULTIMO_FNO'), 0) + 1
 
         db.session.execute(text("""
@@ -6492,6 +8123,9 @@ def create_app():
             'EIVAV1': eivav[0], 'EIVAV2': eivav[1], 'EIVAV3': eivav[2], 'EIVAV4': eivav[3], 'EIVAV5': eivav[4], 'EIVAV6': eivav[5], 'EIVAV7': eivav[6], 'EIVAV8': eivav[7], 'EIVAV9': eivav[8],
         })
         db.session.execute(text("UPDATE dbo.FI SET FNO=:fno WHERE FTSTAMP=:s"), {'fno': new_fno, 's': ftstamp_emit})
+
+        if is_non_fiscal:
+            return _finalize_non_fiscal_ft_emit(ftstamp_emit, str(srow.get('FTSSTAMP') or '').strip(), new_fno, user_login_emit)
 
         signed = sign_ft_document(db.session, ftstamp_emit, user_login_emit)
         ft_emit = db.session.execute(text("SELECT TOP 1 * FROM dbo.FT WITH (UPDLOCK, ROWLOCK) WHERE FTSTAMP=:s"), {'s': ftstamp_emit}).mappings().first()
@@ -6514,13 +8148,13 @@ def create_app():
             certificado = '12345'
         qr_validate_requirements(modo_teste, cod_validacao, certificado, bool(ftsstamp_for_qr))
         atcud = build_atcud(cod_validacao, _to_int(ft_emit.get('FNO'), 0))
-        ft_for_qr = dict(ft_emit); ft_for_qr['HASH'] = signed.get('HASH') or ''; ft_for_qr['_QR_VERSION'] = qr_version
+        ft_for_qr = dict(ft_emit); ft_for_qr['HASH'] = signed.get('HASH') or ''; ft_for_qr['ASSINATURA'] = signed.get('ASSINATURA') or ''; ft_for_qr['_QR_VERSION'] = qr_version
         codigo_qr = build_qr_payload(ft_for_qr, fe_row, atcud, certificado, modo_teste)
 
         db.session.execute(text("""
             UPDATE dbo.FT
             SET HASHVER=:HASHVER, HASHANT=:HASHANT, HASH=:HASH, ASSINATURA=:ASSINATURA, KEYID=:KEYID,
-                ATCUD=:ATCUD, CODIGOQR=:CODIGOQR, ESTADO=1, BLOQUEADO=1, DTAlteracao=GETDATE(), USERALTERACAO=:u
+                ATCUD=:ATCUD, CODIGOQR=:CODIGOQR, ESTADO=1, BLOQUEADO=1, USERALTERACAO=:u
             WHERE FTSTAMP=:s
         """), {
             'HASHVER': signed.get('HASHVER') or '1', 'HASHANT': signed.get('HASHANT') or '', 'HASH': signed.get('HASH') or '',
@@ -6586,7 +8220,7 @@ def create_app():
                 raise ValueError('Documento sem linhas válidas.')
 
             srow = db.session.execute(text("""
-                SELECT TOP 1 FTSSTAMP, ISNULL(ULTIMO_FNO,0) AS ULTIMO_FNO, ISNULL(NO_SAFT,0) AS NO_SAFT
+                SELECT TOP 1 FTSSTAMP, ISNULL(ULTIMO_FNO,0) AS ULTIMO_FNO, ISNULL(NO_SAFT,0) AS NO_SAFT, ISNULL(TIPOSAFT,'') AS TIPOSAFT
                 FROM dbo.FTS WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
                 WHERE
                     FESTAMP=:festamp
@@ -6598,7 +8232,12 @@ def create_app():
             if not srow:
                 db.session.rollback()
                 return jsonify({'error': 'Série não certificada/ativa para esta entidade e ano.'}), 400
-            if int(srow.get('NO_SAFT') or 0) != 1:
+            is_non_fiscal = _ft_emit_is_non_fiscal(dict(row), dict(srow))
+            allow_old_date_emit = (
+                int(current_entity.get('FEID') or 0) == 1
+                and bool(getattr(current_user, 'ADMIN', False))
+            )
+            if int(srow.get('NO_SAFT') or 0) != 1 and not allow_old_date_emit and not is_non_fiscal:
                 if isinstance(fdata, datetime):
                     fdata_date = fdata.date()
                 elif isinstance(fdata, date):
@@ -6618,6 +8257,16 @@ def create_app():
             miseimp_error = _validate_ft_miseimp(normalized)
             if miseimp_error:
                 raise ValueError(miseimp_error)
+            doc_type = _ft_doc_type_from_emit_context(dict(row), dict(srow))
+            if doc_type == 'FS':
+                _validate_fs_document_rules(dict(row), etotal)
+            if doc_type == 'NC':
+                if not _ft_motivo_referencia_available() or not _fi_origin_column_available():
+                    raise ValueError('A base de dados ainda não tem os campos necessários para NC com origem. Aplique migrations/ft_nc_origem_fields.sql.')
+                ft_full, _ = _get_ft(ftstamp_emit, current_entity)
+                if not ft_full:
+                    raise ValueError('Documento não encontrado.')
+                _validate_nc_against_origin(current_entity, ftstamp_emit, ft_full, normalized)
             new_fno = _to_int(srow.get('ULTIMO_FNO'), 0) + 1
 
             db.session.execute(text("""
@@ -6644,6 +8293,9 @@ def create_app():
                 SET FNO=:fno
                 WHERE FTSTAMP=:s
             """), {'fno': new_fno, 's': ftstamp_emit})
+
+            if is_non_fiscal:
+                return _finalize_non_fiscal_ft_emit(ftstamp_emit, str(srow.get('FTSSTAMP') or '').strip(), new_fno, user_login_emit)
 
             signed = sign_ft_document(db.session, ftstamp_emit, user_login_emit)
 
@@ -6680,6 +8332,7 @@ def create_app():
 
             ft_for_qr = dict(ft_emit)
             ft_for_qr['HASH'] = signed.get('HASH') or ''
+            ft_for_qr['ASSINATURA'] = signed.get('ASSINATURA') or ''
             ft_for_qr['_QR_VERSION'] = qr_version
             codigo_qr = build_qr_payload(ft_for_qr, fe_row, atcud, certificado, modo_teste)
 
@@ -6695,7 +8348,6 @@ def create_app():
                     CODIGOQR=:CODIGOQR,
                     ESTADO=1,
                     BLOQUEADO=1,
-                    DTAlteracao=GETDATE(),
                     USERALTERACAO=:u
                 WHERE FTSTAMP=:s
             """), {
@@ -6742,6 +8394,9 @@ def create_app():
         try:
             result = _emit_ft_core(ftstamp, user_login)
             return jsonify(result)
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao emitir: {e}'}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': f'Erro ao emitir: {e}'}), 500
@@ -6779,7 +8434,11 @@ def create_app():
             SELECT
               S.FTSSTAMP,
               S.NDOC,
-              ISNULL(T.NMDOC,'') AS NMDOC,
+              CASE
+                WHEN LTRIM(RTRIM(ISNULL(T.NMDOC, ''))) <> '' THEN LTRIM(RTRIM(ISNULL(T.NMDOC, '')))
+                WHEN LTRIM(RTRIM(ISNULL(S.DESCR, ''))) <> '' THEN LTRIM(RTRIM(ISNULL(S.DESCR, '')))
+                ELSE ''
+              END AS NMDOC,
               ISNULL(S.SERIE,'') AS SERIE,
               ISNULL(S.NO_SAFT,0) AS NO_SAFT
             FROM dbo.FTS S
@@ -6977,7 +8636,7 @@ def create_app():
 
                     db.session.execute(text("""
                         INSERT INTO dbo.FT
-                        (FTSTAMP, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA,
+                        (FTSTAMP, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA, CAMBIO,
                          FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, DESCONTO, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
                          IVATX1, IVATX2, IVATX3, IVATX4, IVATX5, IVATX6, IVATX7, IVATX8, IVATX9,
                          EIVAIN1, EIVAIN2, EIVAIN3, EIVAIN4, EIVAIN5, EIVAIN6, EIVAIN7, EIVAIN8, EIVAIN9,
@@ -6987,7 +8646,7 @@ def create_app():
                          ANULADA, ANULDATA, ANULUSER, ANULMOTIVO,
                          FTREFSTAMP, AT_ENVIO_ESTADO, AT_ENVIO_DATA, AT_ENVIO_MSG)
                         VALUES
-                        (:FTSTAMP, :NDOC, :NMDOC, :FNO, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA,
+                        (:FTSTAMP, :NDOC, :NMDOC, :FNO, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA, :CAMBIO,
                          :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :DESCONTO, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
                          0,0,0,0,0,0,0,0,0,
                          0,0,0,0,0,0,0,0,0,
@@ -7221,7 +8880,7 @@ def create_app():
         today = date.today()
         db.session.execute(text("""
             INSERT INTO dbo.FT
-            (FTSTAMP, FEID, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA,
+            (FTSTAMP, FEID, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA, CAMBIO,
              FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, DESCONTO, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
              IVATX1, IVATX2, IVATX3, IVATX4, IVATX5, IVATX6, IVATX7, IVATX8, IVATX9,
              EIVAIN1, EIVAIN2, EIVAIN3, EIVAIN4, EIVAIN5, EIVAIN6, EIVAIN7, EIVAIN8, EIVAIN9,
@@ -7231,7 +8890,7 @@ def create_app():
              ANULADA, ANULDATA, ANULUSER, ANULMOTIVO,
              FTREFSTAMP, AT_ENVIO_ESTADO, AT_ENVIO_DATA, AT_ENVIO_MSG)
             VALUES
-            (:new, :FEID, :NDOC, :NMDOC, 0, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA,
+            (:new, :FEID, :NDOC, :NMDOC, 0, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA, :CAMBIO,
              :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :DESCONTO, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
              :IVATX1, :IVATX2, :IVATX3, :IVATX4, :IVATX5, :IVATX6, :IVATX7, :IVATX8, :IVATX9,
              :EIVAIN1, :EIVAIN2, :EIVAIN3, :EIVAIN4, :EIVAIN5, :EIVAIN6, :EIVAIN7, :EIVAIN8, :EIVAIN9,
@@ -7247,6 +8906,7 @@ def create_app():
             'NO': _to_int(ft.get('NO'), 0), 'NOME': (ft.get('NOME') or '').strip(), 'MORADA': (ft.get('MORADA') or '').strip(),
             'CODPOST': (ft.get('CODPOST') or '').strip(), 'PAIS': _to_int(ft.get('PAIS'), 0), 'LOCAL': (ft.get('LOCAL') or '').strip(),
             'NCONT': (ft.get('NCONT') or '').strip(), 'MOEDA': (ft.get('MOEDA') or 'EUR').strip(),
+            'CAMBIO': _normalize_ft_cambio((ft.get('MOEDA') or 'EUR').strip(), ft.get('CAMBIO')),
             'FDATA': ft.get('FDATA') or today.isoformat(), 'FTANO': _to_int(ft.get('FTANO'), today.year), 'PDATA': ft.get('PDATA') or today.isoformat(),
             'PLANO': _to_int(ft.get('PLANO'), 0), 'TPSTAMP': (ft.get('TPSTAMP') or '').strip(), 'TPDESC': (ft.get('TPDESC') or '').strip(),
             'DESCONTO': _num(ft.get('DESCONTO'), 0),
@@ -15582,11 +17242,14 @@ OPTION (MAXRECURSION 32767);
         try:
             al_rows = db.session.execute(text("""
                 SELECT
-                    LTRIM(RTRIM(ISNULL(NOME,''))) AS NOME,
-                    ISNULL(PBASE,0) AS PBASE
-                FROM AL
+                    LTRIM(RTRIM(ISNULL(AL.NOME,''))) AS NOME,
+                    ISNULL(AL.PBASE,0) AS PBASE,
+                    ISNULL(PA.[SYNC],0) AS [SYNC]
+                FROM dbo.AL AS AL
+                LEFT JOIN dbo.PR_ALOJAMENTO AS PA
+                  ON LTRIM(RTRIM(ISNULL(PA.AL_NOME,''))) = LTRIM(RTRIM(ISNULL(AL.NOME,'')))
                 WHERE ISNULL(INATIVO,0) = 0
-                ORDER BY LTRIM(RTRIM(ISNULL(NOME,'')))
+                ORDER BY LTRIM(RTRIM(ISNULL(AL.NOME,'')))
             """)).mappings().all()
             alojamentos = [str(r.get('NOME') or '').strip() for r in al_rows if str(r.get('NOME') or '').strip()]
             def _norm_key(v: str) -> str:
@@ -15598,11 +17261,14 @@ OPTION (MAXRECURSION 32767);
                 return s.upper()
 
             pbase_by_name = {}
+            sync_by_name = {}
             for r in al_rows:
                 nome = str(r.get('NOME') or '').strip()
                 if not nome:
                     continue
-                pbase_by_name[_norm_key(nome)] = float(r.get('PBASE') or 0)
+                nome_key = _norm_key(nome)
+                pbase_by_name[nome_key] = float(r.get('PBASE') or 0)
+                sync_by_name[nome_key] = 1 if int(r.get('SYNC') or 0) else 0
         except Exception as e:
             return jsonify({'error': f'Erro ao obter alojamentos: {e}'}), 500
 
@@ -15734,6 +17400,7 @@ OPTION (MAXRECURSION 32767);
                 'id': v,
                 'content': v,
                 'pbase': float(pbase_by_name.get(_norm_key(name), 0) or 0),
+                'sync': 1 if int(sync_by_name.get(_norm_key(name), 0) or 0) else 0,
             })
 
         # Noites bloqueadas (BQ) na janela (start..end) - cadeado por célula
@@ -15794,25 +17461,28 @@ OPTION (MAXRECURSION 32767);
             elif v.get('has_block_treated'):
                 blocked.append({'group': k[0], 'date': k[1], 'tratado': 1, 'desbloq': 0})
 
-        # Preços por data (PRECOS) - para mostrar nas células (noites vazias)
+        # Preços por data (PR_CALC_DAY) - fonte de verdade do Price Manager
         try:
             pr_rows = db.session.execute(text("""
                 SELECT
-                    LTRIM(RTRIM(ISNULL(P.ALOJAMENTO,''))) AS ALOJAMENTO,
+                    LTRIM(RTRIM(ISNULL(P.AL_NOME,''))) AS ALOJAMENTO,
                     CAST(P.[DATA] AS date) AS [DATA],
-                    ISNULL(P.PBASE,0) AS PBASE,
-                    ISNULL(P.DESCONTO,0) AS DESCONTO,
-                    ISNULL(P.PRECO,0) AS PRECO,
-                    ISNULL(P.TRATADO,0) AS TRATADO
-                FROM dbo.PRECOS AS P
+                    ISNULL(P.PRECO_CALC,0) AS PRECO_CALC,
+                    ISNULL(P.PRECO_FINAL,0) AS PRECO_FINAL,
+                    ISNULL(P.[SYNC],0) AS [SYNC],
+                    ISNULL(PA.[SYNC],0) AS SYNC_ENABLED,
+                    P.SYNCED_AT
+                FROM dbo.PR_CALC_DAY AS P
+                LEFT JOIN dbo.PR_ALOJAMENTO AS PA
+                  ON LTRIM(RTRIM(ISNULL(PA.AL_NOME,''))) = LTRIM(RTRIM(ISNULL(P.AL_NOME,'')))
                 WHERE CAST(P.[DATA] AS date) >= :start
                   AND CAST(P.[DATA] AS date) <= :end
-                ORDER BY ISNULL(P.TRATADO,0) DESC, CAST(P.[DATA] AS date) DESC
+                ORDER BY CAST(P.[DATA] AS date) DESC
             """), {'start': start_d, 'end': end_d}).mappings().all()
         except Exception as e:
-            return jsonify({'error': f'Erro ao obter PRECOS: {e}'}), 500
+            return jsonify({'error': f'Erro ao obter PR_CALC_DAY: {e}'}), 500
 
-        price_map = {}  # (group_id, YYYY-MM-DD) -> {pbase, desconto, preco, tratado}
+        price_map = {}  # (group_id, YYYY-MM-DD) -> {pbase, desconto, preco, synced, synced_at}
         for r in pr_rows:
             d = r.get('DATA')
             if not d:
@@ -15825,14 +17495,18 @@ OPTION (MAXRECURSION 32767);
             if key in price_map:
                 continue
             try:
+                preco_calc = float(r.get('PRECO_CALC') or 0)
+                preco_final = float(r.get('PRECO_FINAL') or 0)
                 price_map[key] = {
-                    'pbase': float(r.get('PBASE') or 0),
-                    'desconto': float(r.get('DESCONTO') or 0),
-                    'preco': float(r.get('PRECO') or 0),
-                    'tratado': 1 if int(r.get('TRATADO') or 0) else 0,
+                    'pbase': preco_calc,
+                    'desconto': 0.0,
+                    'preco': preco_final,
+                    'synced': 1 if int(r.get('SYNC') or 0) else 0,
+                    'sync_enabled': 1 if int(r.get('SYNC_ENABLED') or 0) else 0,
+                    'synced_at': r.get('SYNCED_AT').isoformat() if r.get('SYNCED_AT') else '',
                 }
             except Exception:
-                price_map[key] = {'pbase': 0.0, 'desconto': 0.0, 'preco': 0.0, 'tratado': 0}
+                price_map[key] = {'pbase': 0.0, 'desconto': 0.0, 'preco': 0.0, 'synced': 0, 'sync_enabled': 0, 'synced_at': ''}
 
         prices = [
             {'group': k[0], 'date': k[1], **v}
@@ -15845,6 +17519,63 @@ OPTION (MAXRECURSION 32767);
             'groups': groups,
             'items': items,
             'blocked': blocked,
+            'prices': prices,
+        })
+
+    @app.route('/api/calendario_reservas_sync')
+    @login_required
+    def api_calendario_reservas_sync():
+        try:
+            start_str = (request.args.get('start') or '').strip()
+            end_str = (request.args.get('end') or '').strip()
+            start_d = datetime.strptime(start_str, '%Y-%m-%d').date()
+            end_d = datetime.strptime(end_str, '%Y-%m-%d').date()
+        except Exception:
+            return jsonify({'error': 'Parâmetros inválidos'}), 400
+
+        if end_d < start_d:
+            return jsonify({'error': 'Intervalo inválido'}), 400
+
+        try:
+            pr_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(P.AL_NOME,''))) AS ALOJAMENTO,
+                    CAST(P.[DATA] AS date) AS [DATA],
+                    ISNULL(P.[SYNC],0) AS [SYNC],
+                    ISNULL(PA.[SYNC],0) AS SYNC_ENABLED,
+                    P.SYNCED_AT
+                FROM dbo.PR_CALC_DAY AS P
+                LEFT JOIN dbo.PR_ALOJAMENTO AS PA
+                  ON LTRIM(RTRIM(ISNULL(PA.AL_NOME,''))) = LTRIM(RTRIM(ISNULL(P.AL_NOME,'')))
+                WHERE CAST(P.[DATA] AS date) >= :start
+                  AND CAST(P.[DATA] AS date) <= :end
+                ORDER BY LTRIM(RTRIM(ISNULL(P.AL_NOME,''))), CAST(P.[DATA] AS date)
+            """), {'start': start_d, 'end': end_d}).mappings().all()
+        except Exception as e:
+            return jsonify({'error': f'Erro ao obter estado de sincronização: {e}'}), 500
+
+        seen = set()
+        prices = []
+        for r in pr_rows:
+            aloj = str(r.get('ALOJAMENTO') or '').strip()
+            d = r.get('DATA')
+            if not aloj or not d:
+                continue
+            key = (aloj, d.isoformat())
+            if key in seen:
+                continue
+            seen.add(key)
+            prices.append({
+                'group': aloj,
+                'date': d.isoformat(),
+                'synced': 1 if int(r.get('SYNC') or 0) else 0,
+                'sync_enabled': 1 if int(r.get('SYNC_ENABLED') or 0) else 0,
+                'synced_at': r.get('SYNCED_AT').isoformat() if r.get('SYNCED_AT') else '',
+            })
+
+        return jsonify({
+            'start': start_d.isoformat(),
+            'end': end_d.isoformat(),
             'prices': prices,
         })
 
@@ -16352,7 +18083,13 @@ OPTION (MAXRECURSION 32767);
                 WHERE LTRIM(RTRIM(ISNULL(T.ORIGEM,''))) = 'LP'
                   AND CAST(T.DATA AS date) = :d
                   AND ISNULL(T.UTILIZADOR,'') = :u
-                ORDER BY ISNULL(T.HORA,''), ISNULL(T.ALOJAMENTO,''), T.TAREFASSTAMP
+                ORDER BY
+                    CASE
+                        WHEN LTRIM(RTRIM(ISNULL(T.HORAINI,''))) <> '' THEN LTRIM(RTRIM(ISNULL(T.HORAINI,'')))
+                        ELSE LTRIM(RTRIM(ISNULL(T.HORA,'')))
+                    END,
+                    ISNULL(T.ALOJAMENTO,''),
+                    T.TAREFASSTAMP
             """)
             rows = db.session.execute(sql, {'u': user, 'd': dt}).mappings().all()
             out = []

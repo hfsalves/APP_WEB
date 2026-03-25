@@ -8,6 +8,13 @@ const currentEntity = {
   NOMEFISCAL: String(context.currentEntity?.NOMEFISCAL || '').trim(),
   NIF: String(context.currentEntity?.NIF || '').trim()
 };
+const fsConfig = {
+  clientNo: Number(context.fsConfig?.clientNo || 0) || 0,
+  client: context.fsConfig?.client && typeof context.fsConfig.client === 'object' ? context.fsConfig.client : null,
+  limit: Number(String(context.fsConfig?.limit || '').replace(',', '.')) || 0,
+  clientError: String(context.fsConfig?.clientError || '').trim(),
+  limitError: String(context.fsConfig?.limitError || '').trim()
+};
 
 const overlay = document.getElementById('loadingOverlay');
 const overlayText = overlay?.querySelector('.loading-text');
@@ -26,6 +33,9 @@ const nifInput = document.getElementById('FT_NCONT');
 const ccustoSel = document.getElementById('FT_CCUSTO');
 const descontoInput = document.getElementById('FT_DESCONTO');
 const moedaInput = document.getElementById('FT_MOEDA');
+const moedaSugg = document.getElementById('FT_MOEDA_SUGG');
+const moedaStatus = document.getElementById('FT_MOEDA_STATUS');
+const cambioInput = document.getElementById('FT_CAMBIO');
 const totalLiquidoInput = document.getElementById('FT_ETTILIQ');
 const totalIvaInput = document.getElementById('FT_ETTIVA');
 const totalInput = document.getElementById('FT_ETOTAL');
@@ -34,6 +44,8 @@ const clientDetailBtn = document.getElementById('FT_CLIENT_DETAIL');
 const addLineBtn = document.getElementById('ftAddLinha');
 const linesPanel = document.querySelector('.sz_ft_lines_panel');
 const btnCalc = document.getElementById('ftBtnCalc');
+const btnCopiarOrigem = document.getElementById('ftBtnCopiarOrigem');
+const btnCopiarOrigemText = document.getElementById('ftBtnCopiarOrigemText');
 const btnGuardar = document.getElementById('ftBtnGuardar');
 const btnEmitir = document.getElementById('ftBtnEmitir');
 const btnCancelar = document.getElementById('ftBtnCancelar');
@@ -48,19 +60,42 @@ const hiddenPais = document.getElementById('FT_PAIS');
 
 const clienteModalEl = document.getElementById('ftClienteModal');
 const clienteModal = clienteModalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(clienteModalEl) : null;
+const clienteApplyBtn = document.getElementById('ftClienteApply');
 const artigoModalEl = document.getElementById('ftArtigoModal');
 const artigoModal = artigoModalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(artigoModalEl) : null;
+const origemModalEl = document.getElementById('ftOrigemModal');
+const origemModal = origemModalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(origemModalEl) : null;
 const miseimpModalEl = document.getElementById('ftMiseimpModal');
 const miseimpModal = miseimpModalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(miseimpModalEl) : null;
 const calcModalEl = document.getElementById('ftCalcModal');
 const calcModal = calcModalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(calcModalEl) : null;
 const artigoSearchInput = document.getElementById('ftArtigoSearch');
 const artigoTableBody = document.getElementById('ftArtigoTableBody');
+const origemClientInfo = document.getElementById('ftOrigemClientInfo');
+const origemModalTitle = document.getElementById('ftOrigemModalTitle');
+const origemIncludeUsed = document.getElementById('ftOrigemIncludeUsed');
+const origemIncludeUsedWrap = document.getElementById('ftOrigemIncludeUsedWrap');
+const origemIncludeUsedText = document.getElementById('ftOrigemIncludeUsedText');
+const origemTableBody = document.getElementById('ftOrigemTableBody');
+const origemConfirmBtn = document.getElementById('ftOrigemConfirm');
+const origemInfoWrap = document.getElementById('ftOrigemInfoWrap');
+const origemInfoInput = document.getElementById('FT_ORIGEM_INFO');
+const motivoReferenciaWrap = document.getElementById('ftMotivoReferenciaWrap');
+const motivoReferenciaInput = document.getElementById('FT_MOTIVO_REFERENCIA');
+const clienteModalNoInput = document.getElementById('FTM_NO');
+const clienteModalNomeInput = document.getElementById('FTM_NOME');
+const clienteModalNifInput = document.getElementById('FTM_NIF');
+const clienteModalMoradaInput = document.getElementById('FTM_MORADA');
+const clienteModalCodpostInput = document.getElementById('FTM_CODPOST');
+const clienteModalLocalInput = document.getElementById('FTM_LOCAL');
+const clienteModalPaisInput = document.getElementById('FTM_PAIS');
 const miseimpTableBody = document.getElementById('ftMiseimpTableBody');
 const calcNoEl = document.getElementById('ftCalcNo');
 const calcNomeEl = document.getElementById('ftCalcNome');
 const calcNifEl = document.getElementById('ftCalcNif');
 const calcMoradaEl = document.getElementById('ftCalcMorada');
+const calcMoedaEl = document.getElementById('ftCalcMoeda');
+const calcCambioEl = document.getElementById('ftCalcCambio');
 const calcLinesBody = document.getElementById('ftCalcLinesBody');
 const calcBreakdownBody = document.getElementById('ftCalcBreakdownBody');
 const calcBaseEl = document.getElementById('ftCalcBase');
@@ -74,6 +109,8 @@ let tabivaOptions = [];
 let miseimpOptions = [];
 let ftsRows = [];
 let artigoRows = [];
+let origemRows = [];
+let origemPickStamp = '';
 let isBlocked = false;
 let clientTimer = null;
 let artigoTimer = null;
@@ -86,6 +123,10 @@ let refAutocompleteHost = null;
 let refAutocompleteItems = [];
 let refAutocompleteTimer = null;
 let refAutocompleteRequestId = 0;
+let currencyOptions = [];
+let currencyTimer = null;
+let currencyPromise = null;
+let currencySearchRequestId = 0;
 
 const n = (value, fallback = 0) => {
   const normalized = Number(String(value ?? '').replace(',', '.'));
@@ -237,6 +278,23 @@ function setHiddenClientFields(source = {}) {
   if (hiddenPais) hiddenPais.value = String(source.PAIS || '').trim();
 }
 
+function currentClientNo() {
+  return n(header.NO, n(noInput?.value, 0));
+}
+
+function hasCurrentLinesToReplace() {
+  return lines.some((line) => isMeaningfulLine(line));
+}
+
+async function confirmReplaceCurrentLines() {
+  if (!hasCurrentLinesToReplace()) return true;
+  const message = 'Substituir as linhas atuais e os dados comerciais copiados do documento origem?';
+  if (typeof window.szConfirm === 'function') {
+    return await window.szConfirm(message, { title: 'Copiar de outro documento' });
+  }
+  return window.confirm(message);
+}
+
 function normalizeLineOrder() {
   lines.sort((a, b) => n(a.LORDEM, 0) - n(b.LORDEM, 0));
   lines.forEach((line, index) => {
@@ -259,6 +317,235 @@ function getTaxaByTabiva(tabiva) {
 function displayValue(value) {
   const text = String(value ?? '').trim();
   return text || '—';
+}
+
+function currencyCode(value) {
+  return String(value || '').trim().toUpperCase().slice(0, 3);
+}
+
+function currencyCambioValue(code, cambio) {
+  const normalizedCode = currencyCode(code) || 'EUR';
+  const raw = String(cambio ?? '').trim();
+  if (!raw) return normalizedCode === 'EUR' ? '1.000000' : '';
+  return scaledToPlain(parseScaled(raw), 6);
+}
+
+function setCurrencyStatus(message = '', tone = 'muted') {
+  if (!moedaStatus) return;
+  const text = String(message || '');
+  moedaStatus.textContent = text;
+  moedaStatus.classList.remove('sz_text_muted', 'sz_text_warning', 'sz_text_success');
+  if (tone === 'warning') moedaStatus.classList.add('sz_text_warning');
+  else if (tone === 'success') moedaStatus.classList.add('sz_text_success');
+  else moedaStatus.classList.add('sz_text_muted');
+  moedaStatus.style.display = text ? 'block' : 'none';
+  moedaInput?.closest('.sz_ft_autocomplete')?.classList.toggle('has-status', Boolean(text));
+}
+
+function syncCurrencyInputsFromHeader() {
+  const code = currencyCode(header.MOEDA) || 'EUR';
+  const cambioValue = currencyCambioValue(code, header.CAMBIO);
+  header.MOEDA = code;
+  header.CAMBIO = cambioValue;
+  if (moedaInput && document.activeElement !== moedaInput) moedaInput.value = code;
+  if (cambioInput && document.activeElement !== cambioInput) cambioInput.value = cambioValue ? fmtInputDecimal(cambioValue, 6) : '';
+}
+
+async function ensureCurrencyOptions(force = false) {
+  if (!force && currencyOptions.length) return currencyOptions;
+  if (!force && currencyPromise) return currencyPromise;
+  currencyPromise = fetch('/api/faturacao/fx-rates')
+    .then(async (response) => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(data)) {
+        throw new Error(data?.error || 'Não foi possível carregar as moedas.');
+      }
+      currencyOptions = data.map((row) => ({
+        CODIGO: currencyCode(row?.CODIGO || ''),
+        DESCRICAO: String(row?.DESCRICAO || '').trim(),
+        CAMBIO: currencyCambioValue(row?.CODIGO || '', row?.CAMBIO),
+        DATA_REF: String(row?.DATA_REF || '').trim(),
+        FONTE: String(row?.FONTE || '').trim()
+      })).filter((row) => row.CODIGO);
+      return currencyOptions;
+    })
+    .finally(() => {
+      currencyPromise = null;
+    });
+  return currencyPromise;
+}
+
+function hideCurrencySuggestions() {
+  if (!moedaSugg) return;
+  moedaSugg.style.display = 'none';
+  moedaSugg.innerHTML = '';
+}
+
+function filterCurrencyOptions(term) {
+  const query = currencyCode(term);
+  if (!query) return currencyOptions.slice(0, 12);
+  const starts = [];
+  const contains = [];
+  currencyOptions.forEach((item) => {
+    const code = item.CODIGO;
+    const desc = String(item.DESCRICAO || '').toUpperCase();
+    if (code.startsWith(query) || desc.startsWith(query)) starts.push(item);
+    else if (code.includes(query) || desc.includes(query)) contains.push(item);
+  });
+  return starts.concat(contains).slice(0, 12);
+}
+
+function applyCurrencyOption(item) {
+  if (!item) return;
+  header.MOEDA = currencyCode(item.CODIGO) || 'EUR';
+  header.CAMBIO = currencyCambioValue(header.MOEDA, item.CAMBIO);
+  syncCurrencyInputsFromHeader();
+  if (moedaInput) moedaInput.value = header.MOEDA;
+  if (cambioInput) cambioInput.value = header.CAMBIO ? fmtInputDecimal(header.CAMBIO, 6) : '';
+  const refDate = String(item.DATA_REF || '').trim();
+  const source = String(item.FONTE || '').trim().toUpperCase();
+  if (header.MOEDA === 'EUR') setCurrencyStatus('');
+  else if (source === 'OXR') setCurrencyStatus('Moeda encontrada no Open Exchange Rates. Introduza o câmbio manualmente.', 'warning');
+  else setCurrencyStatus(refDate ? `Taxa BCE de ${refDate}` : 'Taxa encontrada no BCE.', 'success');
+  hideCurrencySuggestions();
+}
+
+function renderCurrencySuggestions(items) {
+  if (!moedaSugg) return;
+  if (!Array.isArray(items) || !items.length || isBlocked) {
+    hideCurrencySuggestions();
+    return;
+  }
+  moedaSugg.innerHTML = items.map((item, index) => `
+    <button type="button" class="sz_ft_suggestion_item" data-currency-index="${index}">
+      <strong>${esc(item.CODIGO)}</strong>
+      <small>${esc(item.DESCRICAO || item.CODIGO)}${item.CAMBIO ? ` · ${esc(fmtInputDecimal(item.CAMBIO || '', 6))}` : ' · câmbio manual'}</small>
+    </button>
+  `).join('');
+  moedaSugg.style.display = 'block';
+  moedaSugg.querySelectorAll('[data-currency-index]').forEach((button) => {
+    button.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      const item = items[n(button.dataset.currencyIndex, -1)];
+      applyCurrencyOption(item);
+    });
+  });
+}
+
+async function searchCurrencyOptions(term = '') {
+  if (isBlocked) {
+    hideCurrencySuggestions();
+    return;
+  }
+  const query = currencyCode(term);
+  const requestId = ++currencySearchRequestId;
+  setCurrencyStatus('A pesquisar no BCE...', 'muted');
+  try {
+    const items = await ensureCurrencyOptions();
+    if (requestId !== currencySearchRequestId) return;
+    if (!Array.isArray(items) || !items.length) {
+      hideCurrencySuggestions();
+      setCurrencyStatus('BCE sem resposta útil. Pode introduzir moeda e câmbio manualmente.', 'warning');
+      return;
+    }
+    const filtered = filterCurrencyOptions(query);
+    if (filtered.length || !query) {
+      renderCurrencySuggestions(filtered);
+      if (query) setCurrencyStatus('Selecione uma moeda do BCE ou introduza o câmbio manualmente.', 'muted');
+      else setCurrencyStatus('');
+      return;
+    }
+
+    setCurrencyStatus('Não encontrado no BCE. A pesquisar no Open Exchange Rates...', 'muted');
+    const response = await fetch(`/api/faturacao/fx-rates?q=${encodeURIComponent(query)}`);
+    const data = await response.json().catch(() => []);
+    if (requestId !== currencySearchRequestId) return;
+    if (!response.ok || !Array.isArray(data) || !data.length) {
+      hideCurrencySuggestions();
+      setCurrencyStatus('Moeda não encontrada no BCE. Introduza o câmbio manualmente.', 'warning');
+      return;
+    }
+    renderCurrencySuggestions(data);
+    setCurrencyStatus('Moeda encontrada no Open Exchange Rates. O câmbio continua manual.', 'warning');
+  } catch {
+    if (requestId !== currencySearchRequestId) return;
+    hideCurrencySuggestions();
+    setCurrencyStatus('Não foi possível pesquisar a moeda. Introduza o câmbio manualmente.', 'warning');
+  }
+}
+
+async function resolveCurrencyInput() {
+  const typed = currencyCode(moedaInput?.value || '');
+  if (!typed) {
+    syncCurrencyInputsFromHeader();
+    hideCurrencySuggestions();
+    setCurrencyStatus('');
+    return;
+  }
+  const exact = currencyOptions.find((item) => item.CODIGO === typed);
+  if (exact) {
+    applyCurrencyOption(exact);
+    return;
+  }
+  try {
+    const response = await fetch(`/api/faturacao/fx-rates?q=${encodeURIComponent(typed)}`);
+    const data = await response.json().catch(() => []);
+    if (response.ok && Array.isArray(data)) {
+      const exactFallback = data.find((item) => currencyCode(item.CODIGO) === typed);
+      if (exactFallback) {
+        applyCurrencyOption(exactFallback);
+        return;
+      }
+    }
+  } catch {
+  }
+  const previousCode = currencyCode(header.MOEDA);
+  header.MOEDA = typed;
+  if (typed === 'EUR') {
+    header.CAMBIO = '1.000000';
+  } else if (previousCode !== typed) {
+    header.CAMBIO = '';
+  }
+  syncCurrencyInputsFromHeader();
+  if (moedaInput) moedaInput.value = typed;
+  setCurrencyStatus('Moeda não encontrada no BCE. Introduza o câmbio manualmente.', 'warning');
+  hideCurrencySuggestions();
+}
+
+function getCalcCurrencyContext() {
+  const code = currencyCode(header.MOEDA) || 'EUR';
+  if (code === 'EUR') {
+    return { code, cambioText: '1.000000', cambioScaled: SCALE, hasEuroConversion: true };
+  }
+  const cambioText = currencyCambioValue(code, header.CAMBIO);
+  const cambioScaled = cambioText ? parseScaled(cambioText) : 0n;
+  return {
+    code,
+    cambioText,
+    cambioScaled: cambioScaled > 0n ? cambioScaled : 0n,
+    hasEuroConversion: cambioScaled > 0n
+  };
+}
+
+function convertDocScaledToEuro(amountScaled, currencyCtx) {
+  const safeAmount = BigInt(amountScaled || 0n);
+  if (!currencyCtx || currencyCtx.code === 'EUR') return safeAmount;
+  if (!currencyCtx.hasEuroConversion || !currencyCtx.cambioScaled) return null;
+  return roundDiv(safeAmount * SCALE, currencyCtx.cambioScaled);
+}
+
+function formatCalcMoneyCell(amountScaled, currencyCtx, decimals = 2, euroDecimals = decimals) {
+  const docText = `${formatScaled(amountScaled, decimals)} ${currencyCtx?.code || 'EUR'}`;
+  if (!currencyCtx || currencyCtx.code === 'EUR') {
+    return { doc: docText, eur: '', html: `<div class="sz_ft_calc_money"><strong>${esc(docText)}</strong></div>` };
+  }
+  const euroScaled = convertDocScaledToEuro(amountScaled, currencyCtx);
+  const eurText = euroScaled == null ? '— EUR' : `${formatScaled(euroScaled, euroDecimals)} EUR`;
+  return {
+    doc: docText,
+    eur: eurText,
+    html: `<div class="sz_ft_calc_money"><strong>${esc(docText)}</strong><small>${esc(eurText)}</small></div>`
+  };
 }
 
 function computeLineAmounts(line, headerDiscountValue = header.DESCONTO) {
@@ -337,6 +624,7 @@ function recalcLine(line) {
 function normalizeLine(line = {}, index = 0) {
   const normalized = {
     FISTAMP: String(line.FISTAMP || stamp()).trim(),
+    FISTAMP_ORIGEM: String(line.FISTAMP_ORIGEM || '').trim(),
     FTSTAMP: ftStamp,
     NDOC: n(line.NDOC, n(header.NDOC, 0)),
     NMDOC: String(line.NMDOC || header.NMDOC || '').trim(),
@@ -359,6 +647,171 @@ function normalizeLine(line = {}, index = 0) {
   };
   recalcLine(normalized);
   return normalized;
+}
+
+function serializeHeaderForSave(source = {}) {
+  return { ...source };
+}
+
+function serializeLineForSave(line = {}) {
+  return {
+    FISTAMP: String(line.FISTAMP || '').trim(),
+    FISTAMP_ORIGEM: String(line.FISTAMP_ORIGEM || '').trim(),
+    FTSTAMP: String(line.FTSTAMP || '').trim(),
+    NDOC: n(line.NDOC, 0),
+    NMDOC: String(line.NMDOC || '').trim(),
+    FNO: n(line.FNO, 0),
+    REF: String(line.REF || '').trim(),
+    DESIGN: String(line.DESIGN || '').trim(),
+    QTT: n(line.QTT, 0),
+    UNIDADE: String(line.UNIDADE || '').trim(),
+    EPV: n(line.EPV, 0),
+    DESCONTO: n(line.DESCONTO, 0),
+    IVA: n(line.IVA, 0),
+    IVAINCL: Number(n(line.IVAINCL, 0)) === 1 ? 1 : 0,
+    TABIVA: String(line.TABIVA ?? '').trim(),
+    ETILIQUIDO: String(line.ETILIQUIDO ?? '').trim(),
+    UNITPRICE_FISCAL: line.UNITPRICE_FISCAL == null ? null : String(line.UNITPRICE_FISCAL).trim(),
+    FAMILIA: String(line.FAMILIA || '').trim(),
+    FICCUSTO: String(line.FICCUSTO || '').trim(),
+    MISEIMP: lineCode(line),
+    LORDEM: n(line.LORDEM, 0)
+  };
+}
+
+function currentFtsRow() {
+  const currentSerie = String(header.SERIE || '').trim();
+  const currentNdoc = n(header.NDOC, 0);
+  return ftsRows.find((row) => n(row.NDOC, 0) === currentNdoc && String(row.SERIE || '').trim() === currentSerie)
+    || ftsRows.find((row) => n(row.NDOC, 0) === currentNdoc)
+    || null;
+}
+
+function currentDocType() {
+  const code = String(currentFtsRow()?.TIPOSAFT || '').trim().toUpperCase();
+  if (code) return code;
+  const nmdoc = String(header.NMDOC || '').trim().toUpperCase();
+  if (nmdoc.includes('SIMPLIFICADA') || nmdoc.startsWith('FS')) return 'FS';
+  if (nmdoc.includes('PRO-FORMA') || nmdoc.includes('PRO FORMA') || nmdoc.startsWith('PF')) return 'PF';
+  if (nmdoc.includes('ORÇAMENTO') || nmdoc.includes('ORCAMENTO') || nmdoc.startsWith('OR')) return 'OR';
+  if (nmdoc.includes('CRÉDITO') || nmdoc.includes('CREDITO') || nmdoc.startsWith('NC')) return 'NC';
+  if (nmdoc.includes('RECIBO') || nmdoc.startsWith('FR')) return 'FR';
+  return 'FT';
+}
+
+function isCurrentNcDoc() {
+  return currentDocType() === 'NC';
+}
+
+function isCurrentFsDoc() {
+  return currentDocType() === 'FS';
+}
+
+function setClientDetailEditable(editable) {
+  const allowEdit = Boolean(editable);
+  [clienteModalNomeInput, clienteModalNifInput, clienteModalMoradaInput, clienteModalCodpostInput, clienteModalLocalInput, clienteModalPaisInput].forEach((input) => {
+    if (!input) return;
+    input.readOnly = !allowEdit;
+    input.disabled = false;
+  });
+  if (clienteModalNoInput) {
+    clienteModalNoInput.readOnly = true;
+    clienteModalNoInput.disabled = false;
+  }
+  if (clienteApplyBtn) {
+    clienteApplyBtn.style.display = allowEdit ? '' : 'none';
+    clienteApplyBtn.disabled = isBlocked;
+  }
+}
+
+function fillClientModal(values = {}) {
+  if (clienteModalNoInput) clienteModalNoInput.value = n(values.NO, 0) || '';
+  if (clienteModalNomeInput) clienteModalNomeInput.value = String(values.NOME || '').trim();
+  if (clienteModalNifInput) clienteModalNifInput.value = String(values.NIF || values.NCONT || '').trim();
+  if (clienteModalMoradaInput) clienteModalMoradaInput.value = String(values.MORADA || '').trim();
+  if (clienteModalCodpostInput) clienteModalCodpostInput.value = String(values.CODPOST || '').trim();
+  if (clienteModalLocalInput) clienteModalLocalInput.value = String(values.LOCAL || '').trim();
+  if (clienteModalPaisInput) clienteModalPaisInput.value = String(values.PAIS || '').trim();
+}
+
+function applyClientModalToHeader() {
+  if (!isCurrentFsDoc()) return;
+  header.NOME = String(clienteModalNomeInput?.value || '').trim();
+  header.NCONT = String(clienteModalNifInput?.value || '').trim();
+  header.MORADA = String(clienteModalMoradaInput?.value || '').trim();
+  header.CODPOST = String(clienteModalCodpostInput?.value || '').trim();
+  header.LOCAL = String(clienteModalLocalInput?.value || '').trim();
+  header.PAIS = String(clienteModalPaisInput?.value || '').trim();
+  if (nomeInput) nomeInput.value = header.NOME || '';
+  if (nifInput) nifInput.value = header.NCONT || '';
+  setHiddenClientFields(header);
+  clienteModal?.hide();
+}
+
+async function applyFsConfiguredClient(force = false) {
+  if (!isCurrentFsDoc()) return true;
+  if (fsConfig.clientError) {
+    alertMessage(fsConfig.clientError);
+    return false;
+  }
+  if (!fsConfig.client || n(fsConfig.client.NO, 0) <= 0) {
+    alertMessage('O parâmetro CLIENTE_FS não está configurado corretamente.');
+    return false;
+  }
+  if (!force && n(header.NO, 0) === n(fsConfig.client.NO, 0)) {
+    return true;
+  }
+  applyClient(fsConfig.client);
+  return true;
+}
+
+function validateFsHeader() {
+  if (!isCurrentFsDoc()) return '';
+  if (fsConfig.clientError) return fsConfig.clientError;
+  if (fsConfig.limitError) return fsConfig.limitError;
+  if (n(header.NO, 0) !== n(fsConfig.clientNo, 0)) {
+    return 'A fatura simplificada tem de usar o cliente genérico configurado em CLIENTE_FS.';
+  }
+  if (n(header.ETOTAL, 0) > n(fsConfig.limit, 0)) {
+    return 'O total da fatura simplificada excede o limite configurado.';
+  }
+  return '';
+}
+
+function buildOrigemSummary() {
+  const parts = [];
+  if (String(header.NUMDOC_ORIGEM || '').trim()) parts.push(String(header.NUMDOC_ORIGEM || '').trim());
+  if (String(header.DATA_ORIGEM || '').trim()) parts.push(safeDate(header.DATA_ORIGEM));
+  return parts.join(' · ') || '';
+}
+
+function updateOrigemUi() {
+  const isNc = isCurrentNcDoc();
+  const hasOrigem = Boolean(String(header.FTSTAMP_ORIGEM || '').trim());
+  if (btnCopiarOrigemText) {
+    btnCopiarOrigemText.textContent = isNc ? 'Copiar de documento de venda' : 'Copiar de outro documento';
+  }
+  if (origemModalTitle) {
+    origemModalTitle.textContent = isNc ? 'Selecionar documento origem' : 'Copiar de outro documento';
+  }
+  if (origemIncludeUsedWrap) {
+    origemIncludeUsedWrap.style.display = isNc ? 'none' : '';
+  }
+  if (origemIncludeUsedText) {
+    origemIncludeUsedText.textContent = 'Mostrar pró-forma já copiada';
+  }
+  if (origemInfoWrap) {
+    origemInfoWrap.style.display = (isNc || hasOrigem) ? '' : 'none';
+  }
+  if (origemInfoInput) {
+    origemInfoInput.value = buildOrigemSummary();
+  }
+  if (motivoReferenciaWrap) {
+    motivoReferenciaWrap.style.display = isNc ? '' : 'none';
+  }
+  if (motivoReferenciaInput && document.activeElement !== motivoReferenciaInput) {
+    motivoReferenciaInput.value = String(header.MOTIVO_REFERENCIA || '').trim();
+  }
 }
 
 function recalcAll() {
@@ -421,7 +874,8 @@ function renderNdocOptions() {
   const map = new Map();
   ftsRows.forEach((row) => {
     const ndoc = String(n(row.NDOC, 0));
-    if (!map.has(ndoc)) map.set(ndoc, String(row.NMDOC || '').trim());
+    const label = String(row.NMDOC || row.DESCR || '').trim();
+    if (!map.has(ndoc)) map.set(ndoc, label);
   });
   ndocSel.innerHTML = '<option value="">---</option>' + Array.from(map.entries()).map(([ndoc, nmdoc]) => (
     `<option value="${esc(ndoc)}">${esc(nmdoc || ndoc)}</option>`
@@ -443,20 +897,23 @@ function syncSeriesFromHeader() {
   const selectedSerieRow = matchingRows.find((row) => String(row.SERIE || '').trim() === currentSerie) || matchingRows[0];
   header.SERIE = String(selectedSerieRow.SERIE || '').trim();
   header.NDOC = n(selectedSerieRow.NDOC, 0);
-  header.NMDOC = String(selectedSerieRow.NMDOC || '').trim();
+  header.NMDOC = String(selectedSerieRow.NMDOC || selectedSerieRow.DESCR || '').trim();
   ndocSel.value = String(header.NDOC || '');
   if (serieInput) serieInput.value = header.SERIE || '';
 }
 
 async function loadFts() {
-  if (!currentEntity.FESTAMP) {
+  if (!currentEntity.FEID && !currentEntity.FESTAMP) {
     ftsRows = [];
     renderNdocOptions();
     syncSeriesFromHeader();
     return;
   }
   const ano = n(String(header.FDATA || '').slice(0, 4), new Date().getFullYear());
-  const response = await fetch(`/api/lookups/fts?festamp=${encodeURIComponent(currentEntity.FESTAMP)}&ano=${encodeURIComponent(ano)}`);
+  const query = currentEntity.FEID
+    ? `feid=${encodeURIComponent(currentEntity.FEID)}&ano=${encodeURIComponent(ano)}`
+    : `festamp=${encodeURIComponent(currentEntity.FESTAMP)}&ano=${encodeURIComponent(ano)}`;
+  const response = await fetch(`/api/lookups/fts?${query}`);
   ftsRows = await response.json().catch(() => []);
   if (!Array.isArray(ftsRows)) ftsRows = [];
   if (!ftsRows.length) {
@@ -465,7 +922,7 @@ async function loadFts() {
     header.SERIE = '';
   } else if (!ftsRows.some((row) => n(row.NDOC, 0) === n(header.NDOC, 0))) {
     header.NDOC = n(ftsRows[0].NDOC, 0);
-    header.NMDOC = String(ftsRows[0].NMDOC || '').trim();
+    header.NMDOC = String(ftsRows[0].NMDOC || ftsRows[0].DESCR || '').trim();
     header.SERIE = String(ftsRows[0].SERIE || '').trim();
   }
   renderNdocOptions();
@@ -682,7 +1139,7 @@ function renderClientSuggestions(rows) {
 
 async function searchClients(term) {
   const query = String(term || '').trim();
-  if (query.length < 2 || isBlocked) {
+  if (query.length < 2 || isBlocked || isCurrentFsDoc()) {
     renderClientSuggestions([]);
     return;
   }
@@ -696,6 +1153,7 @@ async function searchClients(term) {
 }
 
 function applyClient(client) {
+  const previousNo = n(header.NO, 0);
   header.NO = n(client.NO, 0);
   header.NOME = String(client.NOME || '').trim();
   header.NCONT = String(client.NIF || '').trim();
@@ -706,11 +1164,38 @@ function applyClient(client) {
   if (noInput) noInput.value = header.NO || '';
   if (nomeInput) nomeInput.value = header.NOME || '';
   if (nifInput) nifInput.value = header.NCONT || '';
+  if (previousNo && previousNo !== header.NO && String(header.FTSTAMP_ORIGEM || '').trim()) {
+    header.FTSTAMP_ORIGEM = '';
+    header.TIPODOC_ORIGEM = '';
+    header.NUMDOC_ORIGEM = '';
+    header.DATA_ORIGEM = '';
+    header.MOTIVO_REFERENCIA = '';
+  }
   setHiddenClientFields(header);
+  updateOrigemUi();
   renderClientSuggestions([]);
 }
 
 async function openClientDetail() {
+  if (isCurrentFsDoc()) {
+    const no = n(header.NO, 0) || n(fsConfig.clientNo, 0);
+    if (!no) {
+      alertMessage(fsConfig.clientError || 'O parâmetro CLIENTE_FS não está configurado.');
+      return;
+    }
+    fillClientModal({
+      NO: no,
+      NOME: header.NOME,
+      NCONT: header.NCONT,
+      MORADA: header.MORADA,
+      CODPOST: header.CODPOST,
+      LOCAL: header.LOCAL,
+      PAIS: header.PAIS,
+    });
+    setClientDetailEditable(true);
+    clienteModal?.show();
+    return;
+  }
   const no = n(noInput?.value, 0);
   if (!no) {
     alertMessage('Selecione primeiro um cliente.');
@@ -722,17 +1207,8 @@ async function openClientDetail() {
     alertMessage(data.error || 'Erro ao ler detalhes do cliente.');
     return;
   }
-  const setValue = (id, value) => {
-    const element = document.getElementById(id);
-    if (element) element.value = value ?? '';
-  };
-  setValue('FTM_NO', n(data.NO, 0) || '');
-  setValue('FTM_NOME', data.NOME || '');
-  setValue('FTM_NIF', data.NIF || '');
-  setValue('FTM_MORADA', data.MORADA || '');
-  setValue('FTM_CODPOST', data.CODPOST || '');
-  setValue('FTM_LOCAL', data.LOCAL || '');
-  setValue('FTM_PAIS', data.PAIS || '');
+  fillClientModal(data);
+  setClientDetailEditable(false);
   clienteModal?.show();
 }
 
@@ -755,12 +1231,18 @@ function mapHeaderToUi() {
   if (fnoInput) fnoInput.value = n(header.FNO, 0) || 0;
   if (fdataInput) fdataInput.value = safeDate(header.FDATA);
   if (pdataInput) pdataInput.value = safeDate(header.PDATA || header.FDATA);
-  if (moedaInput) moedaInput.value = String(header.MOEDA || 'EUR').trim() || 'EUR';
+  syncCurrencyInputsFromHeader();
+  const currentCurrency = currencyCode(header.MOEDA);
+  if (currentCurrency === 'EUR') setCurrencyStatus('');
+  else if (currencyOptions.some((item) => item.CODIGO === currentCurrency)) setCurrencyStatus('Moeda disponível no BCE.', 'muted');
+  else if (currentCurrency) setCurrencyStatus('Moeda fora do BCE. Câmbio manual.', 'warning');
+  else setCurrencyStatus('');
   if (descontoInput) descontoInput.value = fmtInputDecimal(pct2(header.DESCONTO, 0), 2);
   if (noInput) noInput.value = n(header.NO, 0) || '';
   if (nomeInput) nomeInput.value = header.NOME || '';
   if (nifInput) nifInput.value = header.NCONT || '';
   if (ccustoSel) ccustoSel.value = String(header.CCUSTO || '').trim();
+  updateOrigemUi();
   setHiddenClientFields(header);
   syncSeriesFromHeader();
   recalcAll();
@@ -773,20 +1255,23 @@ function mapUiToHeader() {
   header.NDOC = n(ndocSel?.value, 0);
   header.SERIE = String(serieInput?.value || '').trim();
   const selectedSerie = ftsRows.find((row) => String(n(row.NDOC, 0)) === String(header.NDOC) && String(row.SERIE || '').trim() === header.SERIE);
-  header.NMDOC = String(selectedSerie?.NMDOC || header.NMDOC || '').trim();
+  header.NMDOC = String(selectedSerie?.NMDOC || selectedSerie?.DESCR || header.NMDOC || '').trim();
   header.FDATA = fdataInput?.value || todayISO();
   header.FTANO = n(String(header.FDATA).slice(0, 4), new Date().getFullYear());
   header.PDATA = pdataInput?.value || header.FDATA;
-  header.MOEDA = String(moedaInput?.value || 'EUR').trim() || 'EUR';
+  header.MOEDA = currencyCode(moedaInput?.value || header.MOEDA || 'EUR') || 'EUR';
+  header.CAMBIO = currencyCambioValue(header.MOEDA, cambioInput?.value || header.CAMBIO);
   header.DESCONTO = pct2(descontoInput?.value, 0);
   header.NO = n(noInput?.value, 0);
   header.NOME = String(nomeInput?.value || '').trim();
   header.NCONT = String(nifInput?.value || '').trim();
   header.CCUSTO = String(ccustoSel?.value || '').trim();
+  header.MOTIVO_REFERENCIA = String(motivoReferenciaInput?.value || header.MOTIVO_REFERENCIA || '').trim();
   header.MORADA = String(hiddenMorada?.value || '').trim();
   header.CODPOST = String(hiddenCodpost?.value || '').trim();
   header.LOCAL = String(hiddenLocal?.value || '').trim();
   header.PAIS = String(hiddenPais?.value || '').trim();
+  updateOrigemUi();
 }
 
 function buildTabivaOptions(currentValue) {
@@ -811,6 +1296,12 @@ function renderLines() {
   normalizeLineOrder();
   const disabled = isBlocked ? 'disabled' : '';
   linesBody.innerHTML = lines.map((line) => {
+    const isCreditOriginLine = isCurrentNcDoc() && Boolean(String(line.FISTAMP_ORIGEM || '').trim());
+    const refDisabled = (isBlocked || isCreditOriginLine) ? 'disabled' : '';
+    const designDisabled = (isBlocked || isCreditOriginLine) ? 'disabled' : '';
+    const unidadeDisabled = (isBlocked || isCreditOriginLine) ? 'disabled' : '';
+    const tabivaDisabled = (isBlocked || isCreditOriginLine) ? 'disabled' : '';
+    const ivainclDisabled = (isBlocked || isCreditOriginLine) ? 'disabled' : '';
     const needsMiseimp = isZeroIva(line);
     const code = lineCode(line);
     const desc = getMiseimpDescription(code);
@@ -824,18 +1315,18 @@ function renderLines() {
             <button type="button" ${disabled} class="sz_button sz_button_ghost sz_ft_icon_button" data-a="choose_ref" title="Escolher referência">
               <i class="fa-solid fa-search"></i>
             </button>
-            <input ${disabled} class="sz_input sz_ft_table_input" data-f="REF" value="${esc(line.REF)}">
+            <input ${refDisabled} class="sz_input sz_ft_table_input" data-f="REF" value="${esc(line.REF)}">
           </div>
         </td>
-        <td><input ${disabled} class="sz_input sz_ft_table_input" data-f="DESIGN" value="${esc(line.DESIGN)}"></td>
+        <td><input ${designDisabled} class="sz_input sz_ft_table_input" data-f="DESIGN" value="${esc(line.DESIGN)}"></td>
         <td><input ${disabled} class="sz_input sz_ft_table_input sz_text_right" type="number" step="0.01" data-sz-decimal="true" data-f="QTT" value="${inputNumberValue(line.QTT, 2)}"></td>
-        <td><input ${disabled} class="sz_input sz_ft_table_input" data-f="UNIDADE" value="${esc(line.UNIDADE)}"></td>
+        <td><input ${unidadeDisabled} class="sz_input sz_ft_table_input" data-f="UNIDADE" value="${esc(line.UNIDADE)}"></td>
         <td><input ${disabled} class="sz_input sz_ft_table_input sz_text_right" type="number" step="0.01" data-sz-decimal="true" data-f="EPV" value="${inputNumberValue(line.EPV, 2)}"></td>
         <td><input ${disabled} class="sz_input sz_ft_table_input sz_text_right" type="number" step="0.01" min="0" data-sz-decimal="true" data-f="DESCONTO" value="${inputNumberValue(line.DESCONTO, 2)}"></td>
         <td><input class="sz_input sz_ft_table_input sz_text_right" readonly data-f="ETILIQUIDO" value="${fmt(line.ETILIQUIDO, 2)}"></td>
-        <td><select ${disabled} class="sz_select sz_ft_table_select" data-f="TABIVA">${buildTabivaOptions(line.TABIVA)}</select></td>
+        <td><select ${tabivaDisabled} class="sz_select sz_ft_table_select" data-f="TABIVA">${buildTabivaOptions(line.TABIVA)}</select></td>
         <td>${badgeHtml}</td>
-        <td class="sz_text_center"><input ${disabled} class="sz_ft_table_checkbox" type="checkbox" data-f="IVAINCL" ${Number(line.IVAINCL || 0) === 1 ? 'checked' : ''}></td>
+        <td class="sz_text_center"><input ${ivainclDisabled} class="sz_ft_table_checkbox" type="checkbox" data-f="IVAINCL" ${Number(line.IVAINCL || 0) === 1 ? 'checked' : ''}></td>
         <td><input ${disabled} class="sz_input sz_ft_table_input" data-f="FAMILIA" value="${esc(line.FAMILIA)}"></td>
         <td><input ${disabled} class="sz_input sz_ft_table_input" data-f="FICCUSTO" value="${esc(line.FICCUSTO || header.CCUSTO || '')}"></td>
         <td>
@@ -874,6 +1365,147 @@ async function loadArtigoRows(term = '') {
   renderArtigoRows();
 }
 
+function renderOrigemRows() {
+  if (!origemTableBody) return;
+  if (!origemRows.length) {
+    origemTableBody.innerHTML = '<tr><td colspan="5" class="sz_text_muted">Sem documentos elegíveis.</td></tr>';
+    if (origemConfirmBtn) origemConfirmBtn.disabled = true;
+    return;
+  }
+  origemTableBody.innerHTML = origemRows.map((row) => {
+    const selectedClass = row.FTSTAMP === origemPickStamp ? ' class="is-selected"' : '';
+    let statusHtml = '<span class="sz_badge sz_badge_warning">Rascunho</span>';
+    if (Number(row.ANULADA || 0) === 1) {
+      statusHtml = '<span class="sz_badge sz_badge_danger">Anulado</span>';
+    } else if (Number(row.ESTADO || 0) === 1) {
+      statusHtml = '<span class="sz_badge sz_badge_success">Emitido</span>';
+    }
+    if (row.JA_COPIADO && !isCurrentNcDoc()) {
+      statusHtml += '<span class="sz_badge sz_badge_warning sz_ft_copy_status">Já copiado</span>';
+    }
+    return `
+      <tr data-origem-ftstamp="${esc(row.FTSTAMP)}"${selectedClass}>
+        <td><strong>${esc(row.TIPODOC || 'PF')}</strong></td>
+        <td>
+          <div>${esc(row.NUMDOC_FORMATADO || '—')}</div>
+        </td>
+        <td>${esc(safeDate(row.FDATA || row.DATA || ''))}</td>
+        <td>${statusHtml}</td>
+        <td class="sz_text_right">${fmt(row.ETOTAL ?? row.TOTALDOC ?? 0, 2)}</td>
+      </tr>
+    `;
+  }).join('');
+  if (origemConfirmBtn) origemConfirmBtn.disabled = !origemPickStamp;
+}
+
+async function loadOrigemRows() {
+  if (!origemTableBody) return;
+  mapUiToHeader();
+  const no = currentClientNo();
+  if (no <= 0) {
+    origemRows = [];
+    origemPickStamp = '';
+    renderOrigemRows();
+    return;
+  }
+  origemTableBody.innerHTML = '<tr><td colspan="5" class="sz_text_muted">A carregar...</td></tr>';
+  if (origemConfirmBtn) origemConfirmBtn.disabled = true;
+  const includeUsed = origemIncludeUsed?.checked ? 1 : 0;
+  const query = new URLSearchParams({
+    no: String(no),
+    include_used: String(includeUsed),
+    ndoc: String(header.NDOC || ''),
+    serie: String(header.SERIE || ''),
+    ftano: String(header.FTANO || ''),
+    fdata: String(header.FDATA || ''),
+    nmdoc: String(header.NMDOC || '')
+  });
+  const response = await fetch(`/api/faturacao/ft/${encodeURIComponent(ftStamp)}/copy-origins?${query.toString()}`);
+  const data = await response.json().catch(() => ([]));
+  if (!response.ok || !Array.isArray(data)) {
+    origemRows = [];
+    origemPickStamp = '';
+    renderOrigemRows();
+    throw new Error(data?.error || 'Não foi possível carregar os documentos origem.');
+  }
+  origemRows = data;
+  if (!origemRows.some((row) => row.FTSTAMP === origemPickStamp)) {
+    origemPickStamp = '';
+  }
+  renderOrigemRows();
+}
+
+async function openCopyOrigemModal() {
+  mapUiToHeader();
+  if (currentClientNo() <= 0) {
+    alertMessage('Selecione primeiro o cliente do documento atual.');
+    return;
+  }
+  if (origemClientInfo) {
+    origemClientInfo.textContent = `Cliente ${currentClientNo()} · ${(header.NOME || '').trim() || 'sem nome'}`;
+  }
+  origemPickStamp = '';
+  origemRows = [];
+  renderOrigemRows();
+  origemModal?.show();
+  try {
+    await loadOrigemRows();
+  } catch (error) {
+    alertMessage(error?.message || 'Não foi possível carregar os documentos origem.');
+  }
+}
+
+async function copyFromSelectedOrigem() {
+  mapUiToHeader();
+  if (!origemPickStamp) {
+    alertMessage('Selecione um documento origem.');
+    return;
+  }
+  if (currentClientNo() <= 0) {
+    alertMessage('Selecione primeiro o cliente do documento atual.');
+    return;
+  }
+  const confirmed = await confirmReplaceCurrentLines();
+  if (!confirmed) return;
+  showOverlay('A copiar documento origem...');
+  try {
+    const response = await fetch(`/api/faturacao/ft/${encodeURIComponent(ftStamp)}/copy-from`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        origem_ftstamp: origemPickStamp,
+        no: currentClientNo(),
+        dest_header: serializeHeaderForSave(header),
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error) {
+      alertMessage(data.error || 'Não foi possível copiar o documento origem.');
+      return;
+    }
+    origemModal?.hide();
+    await loadDoc();
+    alertMessage(data.message || 'Documento copiado com sucesso.');
+  } finally {
+    hideOverlay();
+  }
+}
+
+function validateNcHeader() {
+  if (!isCurrentNcDoc()) return '';
+  if (!String(header.FTSTAMP_ORIGEM || '').trim()) {
+    return 'A nota de crÃ©dito tem de indicar um documento de venda de origem.';
+  }
+  if (!String(header.MOTIVO_REFERENCIA || '').trim()) {
+    return 'Indique o motivo da nota de crÃ©dito.';
+  }
+  const invalidLines = lines.filter((line) => isMeaningfulLine(line) && !String(line.FISTAMP_ORIGEM || '').trim());
+  if (invalidLines.length) {
+    return 'A nota de crÃ©dito nÃ£o pode ter linhas sem correspondÃªncia no documento de origem.';
+  }
+  return '';
+}
+
 function renderMiseimpRows() {
   if (!miseimpTableBody) return;
   if (!miseimpOptions.length) {
@@ -893,6 +1525,7 @@ function renderMiseimpRows() {
 function computeCalcSnapshot() {
   mapUiToHeader();
   recalcAll();
+  const currencyCtx = getCalcCurrencyContext();
   const detailLines = [];
   const breakdown = new Map();
   let totalBaseScaled = 0n;
@@ -919,26 +1552,41 @@ function computeCalcSnapshot() {
       REF: String(line.REF || '').trim(),
       DESIGN: String(line.DESIGN || '').trim(),
       QTT: formatScaled(detail.qttScaled, 2),
-      EPV: formatScaled(detail.epvScaled, 2),
+      EPV: formatCalcMoneyCell(detail.epvScaled, currencyCtx, 2, 6),
       DESCONTO_LINHA: formatScaled(detail.descontoLinhaPctScaled, 2),
-      TOTAL_LINHA: formatScaled(detail.totalAposDescLinhaScaled, 6),
+      TOTAL_LINHA: formatCalcMoneyCell(detail.totalAposDescLinhaScaled, currencyCtx, 6, 6),
       DESCONTO_CAB: formatScaled(detail.descontoCabecalhoPctScaled, 2),
-      TOTAL_APOS_CAB: formatScaled(detail.totalLiquidoScaled, 6),
+      TOTAL_APOS_CAB: formatCalcMoneyCell(detail.totalLiquidoScaled, currencyCtx, 6, 6),
       TAXA_IVA: formatScaled(detail.ivaRateScaled, 2),
-      IVA_LINHA: formatScaled(detail.ivaLinhaScaled, 2)
+      IVA_LINHA: formatCalcMoneyCell(detail.ivaLinhaScaled, currencyCtx, 2, 2)
     });
   });
+
+  const totalVatScaled = totalVatCents * 10000n;
+  const totalDocScaled = totalBaseScaled + totalVatScaled;
+  let cambioLabel = `1 EUR = ${formatScaled(SCALE, 6)} EUR`;
+  if (currencyCtx.code !== 'EUR') {
+    cambioLabel = currencyCtx.hasEuroConversion
+      ? `1 EUR = ${formatScaled(parseScaled(currencyCtx.cambioText), 6)} ${currencyCtx.code}`
+      : `Câmbio manual (${currencyCtx.code})`;
+  }
 
   return {
     no: displayValue(header.NO),
     nome: displayValue(header.NOME),
     nif: displayValue(header.NCONT),
     morada: displayValue([header.MORADA, header.CODPOST, header.LOCAL].filter(Boolean).join(', ')),
+    moeda: currencyCtx.code,
+    cambio: cambioLabel,
     lines: detailLines,
-    breakdown: Array.from(breakdown.values()),
-    totalBase: formatScaled(totalBaseScaled, 2),
-    totalVat: formatScaled(totalVatCents * 10000n, 2),
-    totalDoc: formatScaled(totalBaseScaled + (totalVatCents * 10000n), 2)
+    breakdown: Array.from(breakdown.values()).map((row) => ({
+      label: row.label,
+      base: formatCalcMoneyCell(row.baseScaled, currencyCtx, 2, 2),
+      iva: formatCalcMoneyCell(row.ivaCents * 10000n, currencyCtx, 2, 2)
+    })),
+    totalBase: formatCalcMoneyCell(totalBaseScaled, currencyCtx, 2, 2),
+    totalVat: formatCalcMoneyCell(totalVatScaled, currencyCtx, 2, 2),
+    totalDoc: formatCalcMoneyCell(totalDocScaled, currencyCtx, 2, 2)
   };
 }
 
@@ -948,6 +1596,8 @@ function renderCalcModal() {
   if (calcNomeEl) calcNomeEl.textContent = snapshot.nome;
   if (calcNifEl) calcNifEl.textContent = snapshot.nif;
   if (calcMoradaEl) calcMoradaEl.textContent = snapshot.morada;
+  if (calcMoedaEl) calcMoedaEl.textContent = snapshot.moeda;
+  if (calcCambioEl) calcCambioEl.textContent = snapshot.cambio;
 
   if (calcLinesBody) {
     if (!snapshot.lines.length) {
@@ -958,13 +1608,13 @@ function renderCalcModal() {
           <td>${esc(row.REF || '—')}</td>
           <td>${esc(row.DESIGN || '—')}</td>
           <td class="sz_text_right">${row.QTT}</td>
-          <td class="sz_text_right">${row.EPV}</td>
+          <td class="sz_text_right">${row.EPV.html}</td>
           <td class="sz_text_right">${row.DESCONTO_LINHA}</td>
-          <td class="sz_text_right">${row.TOTAL_LINHA}</td>
+          <td class="sz_text_right">${row.TOTAL_LINHA.html}</td>
           <td class="sz_text_right">${row.DESCONTO_CAB}</td>
-          <td class="sz_text_right">${row.TOTAL_APOS_CAB}</td>
+          <td class="sz_text_right">${row.TOTAL_APOS_CAB.html}</td>
           <td class="sz_text_right">${row.TAXA_IVA}</td>
-          <td class="sz_text_right">${row.IVA_LINHA}</td>
+          <td class="sz_text_right">${row.IVA_LINHA.html}</td>
         </tr>
       `).join('');
     }
@@ -977,16 +1627,16 @@ function renderCalcModal() {
       calcBreakdownBody.innerHTML = snapshot.breakdown.map((row) => `
         <tr>
           <td>${esc(row.label)}</td>
-          <td class="sz_text_right">${formatScaled(row.baseScaled, 2)}</td>
-          <td class="sz_text_right">${formatScaled(row.ivaCents * 10000n, 2)}</td>
+          <td class="sz_text_right">${row.base.html}</td>
+          <td class="sz_text_right">${row.iva.html}</td>
         </tr>
       `).join('');
     }
   }
 
-  if (calcBaseEl) calcBaseEl.textContent = snapshot.totalBase;
-  if (calcVatEl) calcVatEl.textContent = snapshot.totalVat;
-  if (calcTotalEl) calcTotalEl.textContent = snapshot.totalDoc;
+  if (calcBaseEl) calcBaseEl.innerHTML = snapshot.totalBase.html;
+  if (calcVatEl) calcVatEl.innerHTML = snapshot.totalVat.html;
+  if (calcTotalEl) calcTotalEl.innerHTML = snapshot.totalDoc.html;
 }
 
 function openCalcModal() {
@@ -1005,9 +1655,19 @@ function updateEditableState() {
   const anulada = Number(header.ANULADA || 0) === 1;
   isBlocked = Number(header.BLOQUEADO || 0) === 1;
 
-  [ndocSel, fdataInput, pdataInput, nomeInput, ccustoSel, descontoInput, clientDetailBtn, addLineBtn].forEach((element) => {
+  [ndocSel, fdataInput, pdataInput, ccustoSel, descontoInput, moedaInput, cambioInput, clientDetailBtn, addLineBtn, btnCopiarOrigem].forEach((element) => {
     if (element) element.disabled = isBlocked;
   });
+  if (nomeInput) {
+    nomeInput.disabled = isBlocked;
+    nomeInput.readOnly = isCurrentFsDoc();
+  }
+  if (isBlocked || isCurrentFsDoc()) {
+    renderClientSuggestions([]);
+  }
+  if (addLineBtn && isCurrentNcDoc()) addLineBtn.disabled = true;
+  if (motivoReferenciaInput) motivoReferenciaInput.disabled = isBlocked || !isCurrentNcDoc();
+  if (clienteApplyBtn) clienteApplyBtn.disabled = isBlocked;
 
   if (btnGuardar) btnGuardar.disabled = isBlocked;
   if (btnEmitir) btnEmitir.disabled = isBlocked;
@@ -1024,12 +1684,16 @@ async function loadDoc() {
   }
   header = Object.assign({}, data.header || {});
   applySessionEntityToHeader();
-  header.MOEDA = String(header.MOEDA || 'EUR').trim() || 'EUR';
+  header.MOEDA = currencyCode(header.MOEDA || 'EUR') || 'EUR';
+  header.CAMBIO = currencyCambioValue(header.MOEDA, header.CAMBIO);
   header.FDATA = safeDate(header.FDATA);
   header.PDATA = safeDate(header.PDATA || header.FDATA);
   lines = Array.isArray(data.lines) ? data.lines.map((line, index) => normalizeLine(line, index)) : [];
   await loadFts();
   mapHeaderToUi();
+  if (isCurrentFsDoc() && n(header.NO, 0) <= 0 && !String(header.NOME || '').trim()) {
+    await applyFsConfiguredClient(true);
+  }
   renderLines();
   updateEditableState();
 }
@@ -1038,15 +1702,29 @@ async function saveDoc(redirectAfter = true, reloadAfter = true) {
   if (isBlocked) return false;
   mapUiToHeader();
   recalcAll();
+  const fsHeaderError = validateFsHeader();
+  if (fsHeaderError) {
+    alertMessage(fsHeaderError);
+    return false;
+  }
+  const ncHeaderError = validateNcHeader();
+  if (ncHeaderError) {
+    alertMessage(ncHeaderError);
+    return false;
+  }
   const miseimpError = validateMiseimpLines();
   if (miseimpError) {
     alertMessage(miseimpError);
     return false;
   }
+  const payload = {
+    header: serializeHeaderForSave(header),
+    lines: lines.map((line) => serializeLineForSave(line))
+  };
   const response = await fetch(`/api/faturacao/ft/${encodeURIComponent(ftStamp)}/save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ header, lines })
+    body: JSON.stringify(payload)
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.error) {
@@ -1141,6 +1819,10 @@ async function cancelarDoc() {
 }
 
 function newLine() {
+  if (isCurrentNcDoc()) {
+    alertMessage('As linhas da nota de crÃ©dito tÃªm de vir do documento de origem.');
+    return;
+  }
   lines.push(normalizeLine({
     FISTAMP: stamp(),
     FTSTAMP: ftStamp,
@@ -1169,8 +1851,13 @@ linesBody?.addEventListener('click', async (event) => {
   if (!actionEl) return;
   const row = getLineByRow(actionEl);
   if (!row) return;
+  const isCreditOriginLine = isCurrentNcDoc() && Boolean(String(row.FISTAMP_ORIGEM || '').trim());
 
   if (actionEl.dataset.a === 'choose_ref') {
+    if (isCreditOriginLine) {
+      alertMessage('A linha da nota de crÃ©dito tem de manter a referÃªncia da linha de origem.');
+      return;
+    }
     artigoPickRowId = row.FISTAMP;
     if (artigoSearchInput) artigoSearchInput.value = '';
     await loadArtigoRows('');
@@ -1179,6 +1866,10 @@ linesBody?.addEventListener('click', async (event) => {
   }
 
   if (actionEl.dataset.a === 'miseimp') {
+    if (isCreditOriginLine) {
+      alertMessage('O motivo de isenÃ§Ã£o tem de manter coerÃªncia com a linha de origem.');
+      return;
+    }
     openMiseimpModal(row.FISTAMP);
     return;
   }
@@ -1198,6 +1889,11 @@ linesBody?.addEventListener('change', async (event) => {
   if (!row) return;
 
   const field = fieldEl.dataset.f;
+  const isCreditOriginLine = isCurrentNcDoc() && Boolean(String(row.FISTAMP_ORIGEM || '').trim());
+  if (isCreditOriginLine && ['REF', 'DESIGN', 'UNIDADE', 'TABIVA', 'IVAINCL'].includes(field)) {
+    renderLines();
+    return;
+  }
   if (field === 'IVAINCL') row.IVAINCL = fieldEl.checked ? 1 : 0;
   else row[field] = fieldEl.value;
 
@@ -1229,6 +1925,13 @@ artigoTableBody?.addEventListener('click', (event) => {
   artigoModal?.hide();
 });
 
+origemTableBody?.addEventListener('click', (event) => {
+  const rowEl = event.target.closest('tr[data-origem-ftstamp]');
+  if (!rowEl) return;
+  origemPickStamp = String(rowEl.dataset.origemFtstamp || '').trim();
+  renderOrigemRows();
+});
+
 miseimpTableBody?.addEventListener('click', (event) => {
   const rowEl = event.target.closest('tr[data-codigo]');
   if (!rowEl) return;
@@ -1254,12 +1957,72 @@ nomeInput?.addEventListener('blur', () => {
   setTimeout(() => { renderClientSuggestions([]); }, 180);
 });
 
-clientDetailBtn?.addEventListener('click', openClientDetail);
-btnCalc?.addEventListener('click', openCalcModal);
+moedaInput?.addEventListener('focus', async () => {
+  try {
+    await searchCurrencyOptions(moedaInput.value || '');
+  } catch (error) {
+    hideCurrencySuggestions();
+    alertMessage(error?.message || 'Não foi possível carregar as moedas.');
+  }
+});
 
-ndocSel?.addEventListener('change', () => {
+moedaInput?.addEventListener('input', () => {
+  if (isBlocked) return;
+  moedaInput.value = currencyCode(moedaInput.value || '');
+  if (currencyTimer) clearTimeout(currencyTimer);
+  currencyTimer = setTimeout(async () => {
+    try {
+      await searchCurrencyOptions(moedaInput.value || '');
+    } catch (error) {
+      hideCurrencySuggestions();
+      alertMessage(error?.message || 'Não foi possível carregar as moedas.');
+    }
+  }, 120);
+});
+
+moedaInput?.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    hideCurrencySuggestions();
+    return;
+  }
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    resolveCurrencyInput();
+  }
+});
+
+moedaInput?.addEventListener('blur', () => {
+  setTimeout(() => {
+    resolveCurrencyInput();
+  }, 180);
+});
+
+cambioInput?.addEventListener('input', () => {
+  if (isBlocked) return;
+  header.CAMBIO = currencyCambioValue(header.MOEDA, cambioInput.value || '');
+});
+
+cambioInput?.addEventListener('blur', () => {
+  if (isBlocked) return;
+  header.CAMBIO = currencyCambioValue(header.MOEDA, cambioInput.value || '');
+  syncCurrencyInputsFromHeader();
+});
+
+clientDetailBtn?.addEventListener('click', openClientDetail);
+clienteApplyBtn?.addEventListener('click', applyClientModalToHeader);
+btnCalc?.addEventListener('click', openCalcModal);
+btnCopiarOrigem?.addEventListener('click', openCopyOrigemModal);
+
+ndocSel?.addEventListener('change', async () => {
+  const previousDocType = currentDocType();
   header.NDOC = n(ndocSel.value, 0);
   syncSeriesFromHeader();
+  updateOrigemUi();
+  updateEditableState();
+  if (currentDocType() === 'FS' && previousDocType !== 'FS') {
+    const applied = await applyFsConfiguredClient(true);
+    if (!applied) return;
+  }
   lines.forEach((line) => {
     line.NDOC = header.NDOC;
     line.NMDOC = header.NMDOC;
@@ -1290,6 +2053,15 @@ btnDuplicar?.addEventListener('click', duplicarDoc);
 btnImprimir?.addEventListener('click', imprimirDoc);
 btnVerHtml?.addEventListener('click', verHtmlDoc);
 addLineBtn?.addEventListener('click', newLine);
+origemIncludeUsed?.addEventListener('change', () => {
+  loadOrigemRows().catch((error) => {
+    alertMessage(error?.message || 'Não foi possível carregar os documentos origem.');
+  });
+});
+origemConfirmBtn?.addEventListener('click', copyFromSelectedOrigem);
+motivoReferenciaInput?.addEventListener('input', () => {
+  header.MOTIVO_REFERENCIA = String(motivoReferenciaInput.value || '').trim();
+});
 
 miseimpModalEl?.addEventListener('hidden.bs.modal', () => {
   miseimpPickRowId = null;
@@ -1299,12 +2071,20 @@ artigoModalEl?.addEventListener('hidden.bs.modal', () => {
   artigoPickRowId = null;
 });
 
+origemModalEl?.addEventListener('hidden.bs.modal', () => {
+  origemPickStamp = '';
+  origemRows = [];
+  if (origemIncludeUsed) origemIncludeUsed.checked = false;
+  renderOrigemRows();
+});
+
 showOverlay('A carregar...');
 try {
   await Promise.all([
     loadCcustoOptions(),
     loadTaxaOptions(),
-    loadMiseimpOptions()
+    loadMiseimpOptions(),
+    ensureCurrencyOptions().catch(() => [])
   ]);
   await loadDoc();
 } finally {

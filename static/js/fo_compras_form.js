@@ -234,9 +234,9 @@ function getFoPayload() {
   payload.SYNC = boolToBit(payload.SYNC);
   payload.PLANO = boolToBit(payload.PLANO);
   payload.APROVADO = boolToBit(payload.APROVADO);
-  payload.ETTILIQ = Number(payload.ETTILIQ) || 0;
-  payload.ETTIVA = Number(payload.ETTIVA) || 0;
-  payload.ETOTAL = Number(payload.ETTOTAL) || (payload.ETTILIQ + payload.ETTIVA) || 0;
+  payload.ETTILIQ = parseNum(payload.ETTILIQ) || 0;
+  payload.ETTIVA = parseNum(payload.ETTIVA) || 0;
+  payload.ETOTAL = parseNum(payload.ETTOTAL) || (payload.ETTILIQ + payload.ETTIVA) || 0;
   payload.EIVAIN = payload.EIVAIN || 0;
   payload.EFINV = payload.EFINV || 0;
   payload.EIVAV1 = payload.EIVAV1 || 0;
@@ -1188,8 +1188,8 @@ async function importContratoByBoStamp(bostamp) {
   const headerCcusto = (document.getElementById('CCUSTO')?.value || '').toString().trim();
   rows.forEach((r) => {
     const ref = (r.REF ?? '').toString().trim();
-    const qtt = Number(r.QTT);
-    const epv = Number(r.EDEBITO);
+    const qtt = parseNum(r.QTT);
+    const epv = parseNum(r.EDEBITO);
     const tabiva = (r.TABIVA ?? '').toString().trim();
     const taxa = getTaxaForTabiva(tabiva) || (r.IVA ?? '').toString().trim();
     const fnccusto = ((r.CCUSTO ?? '').toString().trim()) || headerCcusto;
@@ -2040,8 +2040,8 @@ function renderLines() {
     r.DTCUSTO = toDateInputValue(r.DTCUSTO) || null;
     r.FAMILIA = (r.FAMILIA ?? '').toString().trim();
     // garantir ETILIQUIDO calculado localmente se possÃ­vel
-    const qtt = Number(r.QTT);
-    const epv = Number(r.EPV);
+    const qtt = parseNum(r.QTT);
+    const epv = parseNum(r.EPV);
     if (Number.isFinite(qtt) && Number.isFinite(epv)) {
       r.ETILIQUIDO = (qtt * epv).toFixed(2);
     }
@@ -2049,8 +2049,10 @@ function renderLines() {
       const cabCcusto = document.getElementById('CCUSTO');
       r.FNCCUSTO = cabCcusto?.value || '';
     }
-    const tabivaInt = Number.isFinite(Number(r.TABIVA)) ? Math.trunc(Number(r.TABIVA)) : '';
-    const taxaivaInt = Number.isFinite(Number(r.TAXAIVA)) ? Math.trunc(Number(r.TAXAIVA)) : '';
+    const tabivaNum = parseNum(r.TABIVA);
+    const taxaivaNum = parseNum(r.TAXAIVA);
+    const tabivaInt = Number.isFinite(tabivaNum) ? Math.trunc(tabivaNum) : '';
+    const taxaivaInt = Number.isFinite(taxaivaNum) ? Math.trunc(taxaivaNum) : '';
     const ivaParts = [];
     if (tabivaInt !== '') ivaParts.push(tabivaInt);
     if (taxaivaInt !== '') ivaParts.push(taxaivaInt);
@@ -2126,8 +2128,8 @@ function updateLineField(lineId, field, value) {
   } else {
     line[field] = value;
   }
-  const qtt = Number(line.QTT);
-  const epv = Number(line.EPV);
+  const qtt = parseNum(line.QTT);
+  const epv = parseNum(line.EPV);
   if (Number.isFinite(qtt) && Number.isFinite(epv)) {
     line.ETILIQUIDO = (qtt * epv).toFixed(2);
   }
@@ -2366,7 +2368,7 @@ function normalizeLineForSave(line) {
       body[f] = null;
       return;
     }
-    const n = Number(body[f]);
+    const n = parseNum(body[f]);
     body[f] = Number.isFinite(n) ? n : null;
   });
   body.IVAINCL = body.IVAINCL === 1 || body.IVAINCL === '1' || body.IVAINCL === true ? 1 : 0;
@@ -2378,18 +2380,15 @@ function recalcModalEtiliq() {
   const epvEl = document.getElementById('FN_EPV');
   const etEl = document.getElementById('FN_ETILIQUIDO');
   if (!qttEl || !epvEl || !etEl) return;
-  const qtt = Number(qttEl.value);
-  const epv = Number(epvEl.value);
+  const qtt = parseNum(qttEl.value);
+  const epv = parseNum(epvEl.value);
   if (Number.isFinite(qtt) && Number.isFinite(epv)) {
     etEl.value = (qtt * epv).toFixed(2);
   }
 }
 
 function recalcTotals() {
-  const toNum = (v) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
-  };
+  const toNum = (v) => parseNum(v);
   let totalLiquido = 0;
   let totalIva = 0;
   linesData.forEach(line => {

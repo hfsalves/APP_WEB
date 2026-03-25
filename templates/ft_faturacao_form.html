@@ -12,6 +12,10 @@
       <button id="ftBtnCalc" type="button" class="sz_button sz_button_ghost sz_ft_icon_button" title="Ver cálculos" aria-label="Ver cálculos">
         <i class="fa-solid fa-calculator"></i>
       </button>
+      <button id="ftBtnCopiarOrigem" type="button" class="sz_button sz_button_ghost">
+        <i class="fa-solid fa-copy"></i>
+        <span id="ftBtnCopiarOrigemText">Copiar de outro documento</span>
+      </button>
       <div class="dropdown">
         <button type="button" class="sz_button sz_button_ghost dropdown-toggle sz_ft_actions_toggle" data-bs-toggle="dropdown" aria-expanded="false">
           <i class="fa-solid fa-bolt"></i>
@@ -106,9 +110,23 @@
               <label class="sz_label" for="FT_ETOTAL">Total</label>
               <input id="FT_ETOTAL" class="sz_input sz_text_right" readonly>
             </div>
-            <div class="sz_field" style="grid-column: span 4;">
+            <div class="sz_field sz_ft_autocomplete" style="grid-column: span 2;">
               <label class="sz_label" for="FT_MOEDA">Moeda</label>
-              <input id="FT_MOEDA" class="sz_input sz_text_right" value="EUR" readonly>
+              <input id="FT_MOEDA" class="sz_input" value="EUR" maxlength="3" autocomplete="off" spellcheck="false">
+              <div id="FT_MOEDA_SUGG" class="sz_ft_suggestions"></div>
+              <div id="FT_MOEDA_STATUS" class="sz_caption sz_text_muted"></div>
+            </div>
+            <div class="sz_field" style="grid-column: span 2;">
+              <label class="sz_label" for="FT_CAMBIO">Câmbio</label>
+              <input id="FT_CAMBIO" class="sz_input sz_text_right" data-sz-decimal="true" data-sz-decimals="6">
+            </div>
+            <div class="sz_field" id="ftOrigemInfoWrap" style="grid-column: span 4; display: none;">
+              <label class="sz_label" for="FT_ORIGEM_INFO">Documento origem</label>
+              <input id="FT_ORIGEM_INFO" class="sz_input" readonly>
+            </div>
+            <div class="sz_field" id="ftMotivoReferenciaWrap" style="grid-column: span 8; display: none;">
+              <label class="sz_label" for="FT_MOTIVO_REFERENCIA">Motivo referência</label>
+              <input id="FT_MOTIVO_REFERENCIA" class="sz_input" maxlength="200">
             </div>
           </div>
         </section>
@@ -221,6 +239,7 @@
           </div>
         </div>
         <div class="modal-footer sz_modal_footer">
+          <button id="ftClienteApply" type="button" class="sz_button sz_button_primary" style="display: none;">Aplicar</button>
           <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Fechar</button>
         </div>
       </div>
@@ -259,6 +278,50 @@
           </div>
         </div>
         <div class="modal-footer sz_modal_footer">
+          <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade sz_ft_modal" id="ftOrigemModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+      <div class="modal-content">
+        <div class="modal-header sz_modal_header">
+          <div class="sz_modal_title" id="ftOrigemModalTitle">Copiar de outro documento</div>
+          <button type="button" class="sz_button sz_button_ghost sz_ft_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="modal-body sz_modal_body sz_stack">
+          <div class="sz_ft_copy_toolbar">
+            <div id="ftOrigemClientInfo" class="sz_caption sz_text_muted">Selecione um documento origem.</div>
+            <label class="sz_ft_copy_toggle" id="ftOrigemIncludeUsedWrap">
+              <input id="ftOrigemIncludeUsed" type="checkbox">
+              <span id="ftOrigemIncludeUsedText">Mostrar pró-forma já copiada</span>
+            </label>
+          </div>
+          <div class="sz_table_wrap">
+            <table class="sz_table sz_table_compact" id="ftOrigemTable">
+              <thead>
+                <tr>
+                  <th class="sz_col_fit">Tipo</th>
+                  <th>Documento</th>
+                  <th class="sz_col_fit">Data</th>
+                  <th class="sz_col_fit">Estado</th>
+                  <th class="sz_col_fit sz_text_right">Total</th>
+                </tr>
+              </thead>
+              <tbody id="ftOrigemTableBody">
+                <tr>
+                  <td colspan="5" class="sz_text_muted">Sem documentos elegíveis.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer sz_modal_footer">
+          <button id="ftOrigemConfirm" type="button" class="sz_button sz_button_primary" disabled>Copiar</button>
           <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Fechar</button>
         </div>
       </div>
@@ -325,6 +388,14 @@
               <label class="sz_label">Morada</label>
               <div class="sz_ft_calc_value" id="ftCalcMorada">—</div>
             </div>
+            <div class="sz_field">
+              <label class="sz_label">Moeda documento</label>
+              <div class="sz_ft_calc_value" id="ftCalcMoeda">EUR</div>
+            </div>
+            <div class="sz_field">
+              <label class="sz_label">Câmbio</label>
+              <div class="sz_ft_calc_value" id="ftCalcCambio">1 EUR = 1,000000 EUR</div>
+            </div>
           </div>
 
           <div class="sz_table_wrap">
@@ -372,15 +443,15 @@
             <div class="sz_ft_calc_totals">
               <div class="sz_ft_calc_total_row">
                 <span>Total base líquido</span>
-                <strong id="ftCalcBase">0,00</strong>
+                <div class="sz_ft_calc_total_value" id="ftCalcBase">0,00</div>
               </div>
               <div class="sz_ft_calc_total_row">
                 <span>Total IVA</span>
-                <strong id="ftCalcVat">0,00</strong>
+                <div class="sz_ft_calc_total_value" id="ftCalcVat">0,00</div>
               </div>
               <div class="sz_ft_calc_total_row">
                 <span>Total documento</span>
-                <strong id="ftCalcTotal">0,00</strong>
+                <div class="sz_ft_calc_total_value" id="ftCalcTotal">0,00</div>
               </div>
             </div>
           </div>
@@ -434,11 +505,26 @@
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: var(--sz-space-3);
+  }
+
+  .sz_ft_form_grid {
+    align-items: start;
+  }
+
+  .sz_ft_modal_grid {
     align-items: end;
   }
 
   .sz_ft_autocomplete {
     position: relative;
+  }
+
+  #FT_MOEDA_STATUS {
+    min-height: 1rem;
+    margin-top: 0.35rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .sz_ft_suggestions {
@@ -533,6 +619,10 @@
   .sz_ft_lines_panel,
   .sz_ft_lines_panel .sz_section_body {
     overflow: visible;
+  }
+
+  .sz_ft_lines_panel {
+    position: relative;
   }
 
   .sz_ft_lines_panel .sz_table_wrap {
@@ -676,6 +766,59 @@
     background: var(--sz-color-surface-alt);
   }
 
+  #ftOrigemModal .modal-dialog {
+    max-width: min(1100px, calc(100vw - 2rem));
+  }
+
+  #ftOrigemModal .modal-content {
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+  }
+
+  #ftOrigemModal .modal-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #ftOrigemModal .sz_table_wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  #ftOrigemTable thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--sz-color-surface-alt);
+  }
+
+  #ftOrigemTable tbody tr.is-selected {
+    background: var(--sz-color-surface-alt);
+  }
+
+  .sz_ft_copy_toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+  }
+
+  .sz_ft_copy_toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+  }
+
+  .sz_ft_copy_status {
+    display: inline-flex;
+    margin-left: 0.5rem;
+  }
+
   #ftMiseimpModal .modal-dialog {
     max-width: min(900px, calc(100vw - 2rem));
   }
@@ -733,6 +876,19 @@
     min-width: 100%;
   }
 
+  .sz_ft_calc_money {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.12rem;
+  }
+
+  .sz_ft_calc_money small {
+    color: var(--sz-color-text-muted);
+    font-size: 0.76rem;
+    line-height: 1.2;
+  }
+
   .sz_ft_calc_footer {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 18rem;
@@ -753,6 +909,11 @@
     display: flex;
     justify-content: space-between;
     gap: var(--sz-space-3);
+  }
+
+  .sz_ft_calc_total_value {
+    font-weight: 700;
+    text-align: right;
   }
 
   @media (max-width: 1200px) {
@@ -782,6 +943,11 @@
       justify-content: flex-start;
     }
 
+    .sz_ft_copy_toolbar {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
     .sz_ft_calc_grid,
     .sz_ft_calc_footer {
       grid-template-columns: repeat(1, minmax(0, 1fr));
@@ -797,6 +963,7 @@
   window.FT_CONTEXT = {
     stamp: {{ ftstamp|tojson }},
     currentEntity: {{ current_entity|tojson }},
+    fsConfig: {{ fs_config|tojson }},
     returnUrl: '/generic/view/FT/'
   };
 </script>

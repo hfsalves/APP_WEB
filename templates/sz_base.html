@@ -105,12 +105,15 @@
 
     .sz_entity_switch_trigger {
       appearance: none;
-      border: 0;
-      background: transparent;
+      border: 1px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
+      background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
       padding: 0;
+      width: 1.9rem;
+      height: 1.9rem;
+      border-radius: 999px;
       display: inline-flex;
       align-items: center;
-      gap: .65rem;
+      justify-content: center;
       color: inherit;
       cursor: pointer;
       transition: opacity .18s ease, transform .18s ease;
@@ -127,17 +130,23 @@
       border-radius: var(--sz-radius-md);
     }
 
-    .sz_entity_switch_trigger_icon {
-      width: 1.9rem;
-      height: 1.9rem;
-      border-radius: 999px;
+    .sz_entity_home_link {
+      color: inherit;
+      text-decoration: none;
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      border: 1px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
-      background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
-      color: var(--sz-color-primary);
-      font-size: .9rem;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    .sz_entity_home_link:hover {
+      opacity: .92;
+      transform: translateY(-1px);
+    }
+
+    .sz_entity_home_link:focus-visible {
+      outline: 2px solid var(--sz-color-primary);
+      outline-offset: 4px;
+      border-radius: var(--sz-radius-md);
     }
 
     .sz_entity_switch_dialog {
@@ -317,12 +326,14 @@
         <div class="page-meta">
           <h1 class="page-title">
             {% if can_switch_entity %}
-              <button type="button" id="currentEntitySwitcherToggle" class="sz_entity_switch_trigger" aria-label="Mudar empresa">
-                <span>{{ (current_entity.NOME if current_entity else None) or 'StationZero' }}</span>
-                <span class="sz_entity_switch_trigger_icon"><i class="fa-solid fa-chevron-down"></i></span>
-              </button>
+              <span class="d-inline-flex align-items-center gap-2">
+                <a href="{{ url_for('home_page') }}" class="sz_entity_home_link">{{ (current_entity.NOME if current_entity else None) or 'StationZero' }}</a>
+                <button type="button" id="currentEntitySwitcherToggle" class="sz_entity_switch_trigger" aria-label="Mudar empresa" title="Mudar empresa">
+                  <i class="fa-solid fa-chevron-down"></i>
+                </button>
+              </span>
             {% else %}
-              {{ (current_entity.NOME if current_entity else None) or 'StationZero' }}
+              <a href="{{ url_for('home_page') }}" class="sz_entity_home_link">{{ (current_entity.NOME if current_entity else None) or 'StationZero' }}</a>
             {% endif %}
           </h1>
         </div>

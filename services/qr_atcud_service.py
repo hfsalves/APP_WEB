@@ -93,6 +93,9 @@ def build_atcud(cod_validacao: str, fno: int) -> str:
 
 
 def map_doc_type(ft: dict) -> str:
+    tiposaft = str(ft.get("TIPOSAFT") or "").strip().upper()
+    if tiposaft:
+        return tiposaft
     nmdoc = str(ft.get("NMDOC") or "").strip().upper()
     if nmdoc.startswith("FS"):
         return "FS"
@@ -120,7 +123,7 @@ def build_qr_payload(ft: dict, fe: dict, atcud: str, certificado: str, modo_test
     estado = "A" if int(_to_decimal(ft.get("ANULADA"), "0")) == 1 else "N"
     fdata = str(ft.get("FDATA") or "").strip()
     ident = f"{str(ft.get('NMDOC') or '').strip()} {str(ft.get('SERIE') or '').strip()}/{int(_to_decimal(ft.get('FNO'), '0'))}"
-    h4 = str(ft.get("HASH") or "")[:4]
+    h4 = str(ft.get("ASSINATURA") or ft.get("HASH") or "")[:4]
     pais = "PT"
     qr_ver = str(ft.get("_QR_VERSION") or "").strip()
 
@@ -156,4 +159,3 @@ def build_qr_payload(ft: dict, fe: dict, atcud: str, certificado: str, modo_test
         parts.append(f"V:{qr_ver}")
 
     return "*".join(parts)
-

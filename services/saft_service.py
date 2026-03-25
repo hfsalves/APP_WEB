@@ -8,12 +8,13 @@ from xml.etree import ElementTree as ET
 
 from sqlalchemy import text
 
+from services.hash_service import ft_invoice_no, ft_system_entry_datetime
 from services.qr_atcud_service import get_param as qr_get_param
 
 
 SAFT_NS = "urn:OECD:StandardAuditFile-Tax:PT_1.04_01"
 SAFT_VERSION = "1.04_01"
-ALLOWED_DOC_TYPES = {"FT", "FR", "NC"}
+ALLOWED_DOC_TYPES = {"FT", "FS", "FR", "NC"}
 
 
 class SaftValidationError(ValueError):
@@ -23,6 +24,8 @@ class SaftValidationError(ValueError):
 def _to_decimal(value: Any, default: str = "0") -> Decimal:
     if value is None:
         return Decimal(default)
+    if isinstance(value, bool):
+        return Decimal("1" if value else "0")
     if isinstance(value, Decimal):
         return value
     raw = str(value).strip()
@@ -69,6 +72,30 @@ def _fmt_datetime(value: Any) -> str:
     return clean[:19]
 
 
+def _as_valid_datetime(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.year > 1900 else None
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time()) if value.year > 1900 else None
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    clean = raw.replace(" ", "T")
+    if len(clean) == 10:
+        clean = f"{clean}T00:00:00"
+    elif len(clean) == 16:
+        clean = f"{clean}:00"
+    else:
+        clean = clean[:19]
+    try:
+        parsed = datetime.fromisoformat(clean)
+    except ValueError:
+        return None
+    return parsed if parsed.year > 1900 else None
+
+
 def _safe_text(value: Any, fallback: str = "") -> str:
     raw = str(value or "").strip()
     return raw or fallback
@@ -107,12 +134,16 @@ def _normalize_filters(filters: dict[str, Any] | None) -> dict[str, Any]:
         raise SaftValidationError("Tipo de documento inválido.")
 
     incluir_emitidos = bool(payload.get("emitidos_only", True))
+    current_festamp = _safe_text(payload.get("current_festamp"))
+    current_feid = _safe_text(payload.get("current_feid"))
     return {
         "dt_ini": dt_ini,
         "dt_fim": dt_fim,
         "serie": serie,
         "tipo_doc": tipo_doc,
         "emitidos_only": incluir_emitidos,
+        "current_festamp": current_festamp,
+        "current_feid": current_feid,
     }
 
 
@@ -120,16 +151,22 @@ def _ns(tag: str) -> str:
     return f"{{{SAFT_NS}}}{tag}"
 
 
-def get_saft_filter_options(session) -> dict[str, Any]:
-    series = session.execute(text("""
+def get_saft_filter_options(session, current_entity: dict[str, Any] | None = None) -> dict[str, Any]:
+    current_festamp = _safe_text((current_entity or {}).get("FESTAMP"))
+    sql = """
         SELECT DISTINCT LTRIM(RTRIM(ISNULL(SERIE,''))) AS SERIE
         FROM dbo.FT
         WHERE LTRIM(RTRIM(ISNULL(SERIE,''))) <> ''
-        ORDER BY SERIE
-    """)).mappings().all()
+    """
+    params: dict[str, Any] = {}
+    if current_festamp:
+        sql += " AND LTRIM(RTRIM(ISNULL(FESTAMP,''))) = :current_festamp"
+        params["current_festamp"] = current_festamp
+    sql += " ORDER BY SERIE"
+    series = session.execute(text(sql), params).mappings().all()
     return {
         "series": [str(row.get("SERIE") or "").strip() for row in series if str(row.get("SERIE") or "").strip()],
-        "doc_types": ["FT", "FR", "NC"],
+        "doc_types": ["FT", "FS", "FR", "NC"],
     }
 
 
@@ -149,7 +186,7 @@ def _doc_where_sql(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     clauses = [
         "CAST(FT.FDATA AS date) BETWEEN :dt_ini AND :dt_fim",
         "ISNULL(FT.FNO,0) > 0",
-        "UPPER(LTRIM(RTRIM(ISNULL(FTS.TIPOSAFT,'')))) IN ('FT','FR','NC')",
+        "UPPER(LTRIM(RTRIM(ISNULL(FTS.TIPOSAFT,'')))) IN ('FT','FS','FR','NC')",
     ]
     params: dict[str, Any] = {
         "dt_ini": filters["dt_ini"].isoformat(),
@@ -163,6 +200,9 @@ def _doc_where_sql(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     if filters.get("tipo_doc"):
         clauses.append("UPPER(LTRIM(RTRIM(ISNULL(FTS.TIPOSAFT,'')))) = :tipo_doc")
         params["tipo_doc"] = filters["tipo_doc"]
+    if filters.get("current_festamp"):
+        clauses.append("LTRIM(RTRIM(ISNULL(FT.FESTAMP,''))) = :current_festamp")
+        params["current_festamp"] = filters["current_festamp"]
     return " AND ".join(clauses), params
 
 
@@ -340,6 +380,152 @@ def _line_unit_price(line: dict[str, Any]) -> Decimal | None:
     return (net_amount / quantity).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
 
 
+def _doc_label(doc: dict[str, Any]) -> str:
+    nmdoc = _safe_text(doc.get("NMDOC"))
+    serie = _safe_text(doc.get("SERIE"))
+    fno = int(_to_decimal(doc.get("FNO"), "0"))
+    if nmdoc and serie:
+        return f"{nmdoc} {serie}/{fno}"
+    if serie:
+        return f"{serie}/{fno}"
+    if nmdoc:
+        return nmdoc
+    return _safe_text(doc.get("FTSTAMP"), "documento")
+
+
+def _document_status_info(doc: dict[str, Any]) -> dict[str, str]:
+    def _pick_natural_user(*values: Any) -> str:
+        synthetic = {"SYSTEM_REPAIR", "SYSTEM", "SYSTEM_FIX", "SYSTEM_MIGRATION"}
+        normalized = [(_safe_text(value), _safe_text(value).upper()) for value in values]
+        for raw, upper in normalized:
+            if raw and upper not in synthetic:
+                return raw
+        for raw, _ in normalized:
+            if raw:
+                return raw
+        return "SYSTEM"
+
+    is_annulled = int(_to_decimal(doc.get("ANULADA"), "0")) == 1
+    if is_annulled:
+        status = "A"
+        status_dt = (
+            _as_valid_datetime(doc.get("ANULDATA"))
+            or _as_valid_datetime(doc.get("DTAlteracao"))
+            or _as_valid_datetime(doc.get("DTCriacao"))
+            or _as_valid_datetime(doc.get("FDATA"))
+            or datetime.now()
+        )
+        source_id = _pick_natural_user(doc.get("ANULUSER"), doc.get("USERALTERACAO"), doc.get("USERCRIACAO"))
+        reason = _safe_text(doc.get("ANULMOTIVO"))
+    else:
+        status = "N"
+        status_dt = (
+            _as_valid_datetime(doc.get("DTAlteracao"))
+            or _as_valid_datetime(doc.get("DTCriacao"))
+            or _as_valid_datetime(doc.get("FDATA"))
+            or datetime.now()
+        )
+        source_id = _pick_natural_user(doc.get("USERALTERACAO"), doc.get("USERCRIACAO"))
+        reason = ""
+    return {
+        "status": status,
+        "status_date": _fmt_datetime(status_dt),
+        "source_id": source_id,
+        "reason": reason,
+    }
+
+
+def _doc_saft_hash(doc: dict[str, Any]) -> str:
+    signed_value = _safe_text(doc.get("ASSINATURA"))
+    if signed_value:
+        return signed_value
+    return _safe_text(doc.get("HASH"))
+
+
+def _reference_reason(value: Any) -> str:
+    return _safe_text(value)[:50]
+
+
+def _normalize_doc_currency_code(value: Any) -> str:
+    raw = _safe_text(value).upper()
+    return raw or "EUR"
+
+
+def _doc_exchange_rate_raw(doc: dict[str, Any]) -> Any:
+    if doc.get("TAXA_CAMBIO") not in (None, ""):
+        return doc.get("TAXA_CAMBIO")
+    return doc.get("CAMBIO")
+
+
+def _doc_currency_context(doc: dict[str, Any]) -> dict[str, Any]:
+    code = _normalize_doc_currency_code(doc.get("MOEDA"))
+    if code == "EUR":
+        return {
+            "code": "EUR",
+            "is_foreign": False,
+            "rate": Decimal("1.000000"),
+        }
+    if len(code) != 3 or not code.isalpha():
+        raise SaftValidationError(f"{_doc_label(doc)} tem moeda inválida para SAF-T: {code or '(vazia)'}.")
+    rate = _to_decimal(_doc_exchange_rate_raw(doc), "0").quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    if rate <= Decimal("0.000000"):
+        raise SaftValidationError(f"{_doc_label(doc)} está em {code} sem taxa de câmbio válida.")
+    return {
+        "code": code,
+        "is_foreign": True,
+        "rate": rate,
+    }
+
+
+def _line_tax_rate(line: dict[str, Any]) -> Decimal:
+    rate = _to_decimal(line.get("IVA"), "0")
+    if rate < Decimal("0.00"):
+        rate = Decimal("0.00")
+    return rate.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _line_doc_vat_amount(line: dict[str, Any]) -> Decimal:
+    rate = _line_tax_rate(line)
+    if rate == Decimal("0.00"):
+        return Decimal("0.00")
+    net_amount = _to_decimal(line.get("ETILIQUIDO"), "0").quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+    return (net_amount * rate / Decimal("100.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _software_certificate_number(value: Any) -> str:
+    try:
+        parsed = _to_decimal(value, "0")
+    except Exception:
+        parsed = Decimal("0")
+    if parsed < Decimal("0"):
+        parsed = Decimal("0")
+    return str(int(parsed))
+
+
+def _prepare_doc_for_saft(header_row: dict[str, Any], lines: list[dict[str, Any]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    currency_ctx = _doc_currency_context(header_row)
+    prepared_header = dict(header_row)
+    prepared_lines: list[dict[str, Any]] = []
+
+    for line in lines:
+        prepared_line = dict(line)
+        prepared_line["_SAFT_NET_AMOUNT"] = _to_decimal(prepared_line.get("ETILIQUIDO"), "0").quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        prepared_line["_SAFT_VAT_AMOUNT"] = _line_doc_vat_amount(prepared_line)
+        prepared_line["_SAFT_UNIT_PRICE"] = _line_unit_price(prepared_line)
+        prepared_lines.append(prepared_line)
+
+    prepared_header["_SAFT_NET_TOTAL"] = _to_decimal(header_row.get("ETTILIQ"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    prepared_header["_SAFT_TAX_TOTAL"] = _to_decimal(header_row.get("ETTIVA"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    prepared_header["_SAFT_GROSS_TOTAL"] = _to_decimal(header_row.get("ETOTAL"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    prepared_header["_SAFT_CURRENCY_CODE"] = currency_ctx["code"] if currency_ctx["is_foreign"] else ""
+    prepared_header["_SAFT_EXCHANGE_RATE"] = currency_ctx["rate"] if currency_ctx["is_foreign"] else None
+    prepared_header["_SAFT_CURRENCY_AMOUNT"] = (
+        _to_decimal(header_row.get("ETOTAL"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if currency_ctx["is_foreign"] else None
+    )
+    return prepared_header, prepared_lines
+
+
 def _build_dataset(session, filters: dict[str, Any]) -> dict[str, Any]:
     normalized = _normalize_filters(filters)
     headers = _load_headers(session, normalized)
@@ -376,6 +562,8 @@ def _build_dataset(session, filters: dict[str, Any]) -> dict[str, Any]:
     if not valid_headers:
         raise SaftValidationError("Não existem documentos exportáveis com linhas válidas.")
 
+    prepared_headers: list[dict[str, Any]] = []
+    prepared_lines_by_doc: dict[str, list[dict[str, Any]]] = {}
     totals = {
         "documents": len(valid_headers),
         "customers": 0,
@@ -391,24 +579,29 @@ def _build_dataset(session, filters: dict[str, Any]) -> dict[str, Any]:
     tax_table: dict[str, dict[str, Any]] = {}
 
     for header in valid_headers:
-        totals["net_total"] += _to_decimal(header.get("ETTILIQ"), "0")
-        totals["tax_total"] += _to_decimal(header.get("ETTIVA"), "0")
-        totals["gross_total"] += _to_decimal(header.get("ETOTAL"), "0")
+        ftstamp = _safe_text(header.get("FTSTAMP"))
+        prepared_header, prepared_lines = _prepare_doc_for_saft(header, lines_by_doc.get(ftstamp, []))
+        prepared_headers.append(prepared_header)
+        prepared_lines_by_doc[ftstamp] = prepared_lines
 
-        customer_id = _customer_id_from_doc(header)
+        totals["net_total"] += _to_decimal(prepared_header.get("_SAFT_NET_TOTAL"), "0")
+        totals["tax_total"] += _to_decimal(prepared_header.get("_SAFT_TAX_TOTAL"), "0")
+        totals["gross_total"] += _to_decimal(prepared_header.get("_SAFT_GROSS_TOTAL"), "0")
+
+        customer_id = _customer_id_from_doc(prepared_header)
         if customer_id not in customers:
             customers[customer_id] = {
                 "CustomerID": customer_id,
                 "AccountID": customer_id,
-                "CustomerTaxID": _customer_tax_id(header, warnings, customer_warning_keys),
-                "CompanyName": _pick_first(header, "NOME", default="Consumidor final"),
-                "AddressDetail": _pick_first(header, "MORADA", default=""),
-                "City": _pick_first(header, "LOCAL", default=""),
-                "PostalCode": _pick_first(header, "CODPOST", default=""),
-                "Country": _country_code(_pick_first(header, "PAIS", default="PT")),
+                "CustomerTaxID": _customer_tax_id(prepared_header, warnings, customer_warning_keys),
+                "CompanyName": _pick_first(prepared_header, "NOME", default="Consumidor final"),
+                "AddressDetail": _pick_first(prepared_header, "MORADA", default=""),
+                "City": _pick_first(prepared_header, "LOCAL", default=""),
+                "PostalCode": _pick_first(prepared_header, "CODPOST", default=""),
+                "Country": _country_code(_pick_first(prepared_header, "PAIS", default="PT")),
             }
 
-        for line in lines_by_doc.get(_safe_text(header.get("FTSTAMP")), []):
+        for line in prepared_lines:
             product_code = _product_code(line, warnings, product_warning_keys)
             if product_code not in products:
                 products[product_code] = {
@@ -465,19 +658,19 @@ def _build_dataset(session, filters: dict[str, Any]) -> dict[str, Any]:
         "StartDate": normalized["dt_ini"].isoformat(),
         "EndDate": normalized["dt_fim"].isoformat(),
         "CurrencyCode": "EUR",
-        "DateCreated": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "DateCreated": date.today().isoformat(),
         "TaxEntity": "PT",
         "ProductCompanyTaxID": emit_nif,
-        "SoftwareCertificateNumber": certificado,
-        "ProductID": "StationZero",
+        "SoftwareCertificateNumber": _software_certificate_number(certificado),
+        "ProductID": "StationZero/StationZero",
         "ProductVersion": os.environ.get("APP_VERSION", "dev"),
     }
 
     return {
         "filters": normalized,
         "header": header_data,
-        "documents": valid_headers,
-        "lines_by_doc": lines_by_doc,
+        "documents": prepared_headers,
+        "lines_by_doc": prepared_lines_by_doc,
         "customers": customers,
         "products": products,
         "tax_table": tax_table,
@@ -526,6 +719,16 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
         "TaxAccountingBasis",
         "CompanyName",
         "BusinessName",
+    ):
+        if field == "BusinessName" and not _safe_text(hdr.get(field)):
+            continue
+        _append_text(header, field, hdr.get(field))
+
+    company_address = ET.SubElement(header, _ns("CompanyAddress"))
+    for field in ("AddressDetail", "City", "PostalCode", "Country"):
+        _append_text(company_address, field, hdr["CompanyAddress"].get(field))
+
+    for field in (
         "FiscalYear",
         "StartDate",
         "EndDate",
@@ -539,10 +742,6 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
     ):
         _append_text(header, field, hdr.get(field))
 
-    company_address = ET.SubElement(header, _ns("CompanyAddress"))
-    for field in ("AddressDetail", "City", "PostalCode", "Country"):
-        _append_text(company_address, field, hdr["CompanyAddress"].get(field))
-
     master_files = ET.SubElement(root, _ns("MasterFiles"))
     for customer in dataset["customers"].values():
         customer_el = ET.SubElement(master_files, _ns("Customer"))
@@ -553,11 +752,16 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
         billing_address = ET.SubElement(customer_el, _ns("BillingAddress"))
         for field in ("AddressDetail", "City", "PostalCode", "Country"):
             _append_text(billing_address, field, customer.get(field))
+        _append_text(customer_el, "SelfBillingIndicator", "0")
 
     for product in dataset["products"].values():
         product_el = ET.SubElement(master_files, _ns("Product"))
-        for field in ("ProductType", "ProductCode", "ProductGroup", "Description", "ProductNumberCode"):
-            _append_text(product_el, field, product.get(field))
+        _append_text(product_el, "ProductType", product.get("ProductType"))
+        _append_text(product_el, "ProductCode", product.get("ProductCode"))
+        if _safe_text(product.get("ProductGroup")):
+            _append_text(product_el, "ProductGroup", product.get("ProductGroup"))
+        _append_text(product_el, "ProductDescription", product.get("Description"))
+        _append_text(product_el, "ProductNumberCode", product.get("ProductNumberCode"))
 
     tax_table_el = ET.SubElement(master_files, _ns("TaxTable"))
     for tax in dataset["tax_table"].values():
@@ -576,7 +780,7 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
     total_credit = Decimal("0.00")
 
     for header_row in dataset["documents"]:
-        gross_total = _to_decimal(header_row.get("ETOTAL"), "0")
+        gross_total = _to_decimal(header_row.get("_SAFT_GROSS_TOTAL"), "0")
         doc_type = _safe_text(header_row.get("TIPOSAFT") or header_row.get("NMDOC")).upper() or "FT"
         if doc_type == "NC":
             total_credit += gross_total.copy_abs()
@@ -589,21 +793,22 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
     for header_row in dataset["documents"]:
         invoice_el = ET.SubElement(sales_invoices, _ns("Invoice"))
         doc_type = _safe_text(header_row.get("TIPOSAFT") or header_row.get("NMDOC")).upper() or "FT"
-        serie = _safe_text(header_row.get("SERIE"))
-        fno = int(_to_decimal(header_row.get("FNO"), "0"))
-        invoice_no = f"{doc_type} {serie}/{fno}" if serie else f"{doc_type} {fno}"
+        invoice_no = ft_invoice_no(header_row)
         customer_id = _customer_id_from_doc(header_row)
 
         _append_text(invoice_el, "InvoiceNo", invoice_no)
         _append_text(invoice_el, "ATCUD", header_row.get("ATCUD"))
 
+        status_info = _document_status_info(header_row)
         document_status = ET.SubElement(invoice_el, _ns("DocumentStatus"))
-        _append_text(document_status, "InvoiceStatus", "A" if int(_to_decimal(header_row.get("ANULADA"), "0")) == 1 else "N")
-        _append_text(document_status, "InvoiceStatusDate", _fmt_datetime(header_row.get("ANULDATA") or header_row.get("DTAlteracao") or header_row.get("DTCriacao")))
-        _append_text(document_status, "SourceID", _safe_text(header_row.get("USERALTERACAO") or header_row.get("USERCRIACAO") or "SYSTEM"))
+        _append_text(document_status, "InvoiceStatus", status_info["status"])
+        _append_text(document_status, "InvoiceStatusDate", status_info["status_date"])
+        if status_info["reason"]:
+            _append_text(document_status, "Reason", status_info["reason"])
+        _append_text(document_status, "SourceID", status_info["source_id"])
         _append_text(document_status, "SourceBilling", "P")
 
-        _append_text(invoice_el, "Hash", header_row.get("HASH"))
+        _append_text(invoice_el, "Hash", _doc_saft_hash(header_row))
         _append_text(invoice_el, "HashControl", _safe_text(header_row.get("HASHVER") or header_row.get("KEYID") or "1"))
         _append_text(invoice_el, "Period", f"{int(_fmt_date(header_row.get('FDATA'))[5:7] or '0')}")
         _append_text(invoice_el, "InvoiceDate", _fmt_date(header_row.get("FDATA")))
@@ -615,7 +820,7 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
         _append_text(special_regimes, "ThirdPartiesBillingIndicator", "0")
 
         _append_text(invoice_el, "SourceID", _safe_text(header_row.get("USERCRIACAO") or "SYSTEM"))
-        _append_text(invoice_el, "SystemEntryDate", _fmt_datetime(header_row.get("DTCriacao") or header_row.get("DTAlteracao")))
+        _append_text(invoice_el, "SystemEntryDate", ft_system_entry_datetime(header_row))
         _append_text(invoice_el, "CustomerID", customer_id)
 
         line_number = 0
@@ -624,11 +829,23 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
             line_el = ET.SubElement(invoice_el, _ns("Line"))
             product_code = _product_code_no_warning(line)
             quantity = _to_decimal(line.get("QTT"), "0").copy_abs()
-            unit_price = _line_unit_price(line)
-            net_amount = _to_decimal(line.get("ETILIQUIDO"), "0").copy_abs()
+            unit_price = line.get("_SAFT_UNIT_PRICE")
+            net_amount = _to_decimal(line.get("_SAFT_NET_AMOUNT"), "0").copy_abs()
             tax_percentage = _to_decimal(line.get("IVA"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
             _append_text(line_el, "LineNumber", str(line_number))
+            if doc_type == "NC" and (_safe_text(header_row.get("NUMDOC_ORIGEM")) or _reference_reason(header_row.get("MOTIVO_REFERENCIA"))):
+                refs_el = ET.SubElement(line_el, _ns("References"))
+                if _safe_text(header_row.get("NUMDOC_ORIGEM")):
+                    _append_text(refs_el, "Reference", header_row.get("NUMDOC_ORIGEM"))
+                if _reference_reason(header_row.get("MOTIVO_REFERENCIA")):
+                    _append_text(refs_el, "Reason", _reference_reason(header_row.get("MOTIVO_REFERENCIA")))
+            elif _safe_text(header_row.get("NUMDOC_ORIGEM")) or _fmt_date(header_row.get("DATA_ORIGEM")):
+                order_refs_el = ET.SubElement(line_el, _ns("OrderReferences"))
+                if _safe_text(header_row.get("NUMDOC_ORIGEM")):
+                    _append_text(order_refs_el, "OriginatingON", header_row.get("NUMDOC_ORIGEM"))
+                if _fmt_date(header_row.get("DATA_ORIGEM")):
+                    _append_text(order_refs_el, "OrderDate", _fmt_date(header_row.get("DATA_ORIGEM")))
             _append_text(line_el, "ProductCode", product_code)
             _append_text(line_el, "ProductDescription", _safe_text(line.get("DESIGN"), "Linha faturação"))
             _append_text(line_el, "Quantity", format(quantity, "f"))
@@ -648,9 +865,14 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
             _append_text(tax_el, "TaxPercentage", _money(tax_percentage))
 
         totals_el = ET.SubElement(invoice_el, _ns("DocumentTotals"))
-        _append_text(totals_el, "TaxPayable", _money(header_row.get("ETTIVA")))
-        _append_text(totals_el, "NetTotal", _money(header_row.get("ETTILIQ")))
-        _append_text(totals_el, "GrossTotal", _money(header_row.get("ETOTAL")))
+        _append_text(totals_el, "TaxPayable", _money(header_row.get("_SAFT_TAX_TOTAL")))
+        _append_text(totals_el, "NetTotal", _money(header_row.get("_SAFT_NET_TOTAL")))
+        _append_text(totals_el, "GrossTotal", _money(header_row.get("_SAFT_GROSS_TOTAL")))
+        if _safe_text(header_row.get("_SAFT_CURRENCY_CODE")):
+            currency_el = ET.SubElement(totals_el, _ns("Currency"))
+            _append_text(currency_el, "CurrencyCode", header_row.get("_SAFT_CURRENCY_CODE"))
+            _append_text(currency_el, "CurrencyAmount", _money(header_row.get("_SAFT_CURRENCY_AMOUNT")))
+            _append_text(currency_el, "ExchangeRate", _decimal_6(header_row.get("_SAFT_EXCHANGE_RATE")))
 
     return root
 

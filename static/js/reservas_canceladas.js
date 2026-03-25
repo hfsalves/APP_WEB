@@ -32,6 +32,15 @@
     return /^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : '';
   };
   const fmtMoney = (v) => Number(v || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const parseMoneyInput = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return 0;
+    const normalized = raw.includes(',')
+      ? raw.replace(/\./g, '').replace(',', '.')
+      : raw;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  };
 
   function setHighlight(stamp) {
     const rsstamp = String(stamp || '').trim();
@@ -182,7 +191,7 @@
         if (els.modalInfo) {
           els.modalInfo.textContent = state.currentReserva ? `Reserva ${state.currentReserva}` : state.currentRsstamp;
         }
-        if (els.modalValor) els.modalValor.value = current.toFixed(2);
+        if (els.modalValor) els.modalValor.value = fmtMoney(current);
         getModal()?.show();
       });
     });
@@ -209,7 +218,7 @@
   async function savePcancel() {
     const rsstamp = String(state.currentRsstamp || '').trim();
     if (!rsstamp) return;
-    const value = Number(els.modalValor?.value || 0);
+    const value = parseMoneyInput(els.modalValor?.value || 0);
     if (!Number.isFinite(value) || value < 0) {
       window.alert('Valor inválido.');
       return;
@@ -263,6 +272,7 @@
   els.pesquisar?.addEventListener('click', loadRows);
   els.limpar?.addEventListener('click', clearFilters);
   els.modalGuardar?.addEventListener('click', savePcancel);
+  window.szEnhanceDecimalInputs?.(els.modalEl || document);
   [els.datainFrom, els.datainTo, els.dataoutFrom, els.dataoutTo, els.diasCancelMax, els.semPagamento].forEach((el) => {
     el?.addEventListener('change', loadRows);
   });

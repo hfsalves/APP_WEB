@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const fmtDate = new Intl.DateTimeFormat('pt-PT', { year: 'numeric', month: '2-digit', day: '2-digit' });
   const fmtCur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0, useGrouping: true });
+  const fmtBaseBadge = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 0, useGrouping: true });
   const fmtDow = new Intl.DateTimeFormat('pt-PT', { weekday: 'short' });
   const escapeHtml = (str) => String(str == null ? '' : str)
     .replace(/&/g, '&amp;')
@@ -34,6 +35,18 @@ document.addEventListener('DOMContentLoaded', () => {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+
+  function buildGroupContent(label, pbase, sync) {
+    const name = String(label || '').trim();
+    if (!sync) return `<span class="rescal-group-name">${escapeHtml(name)}</span>`;
+    const badgeText = fmtBaseBadge.format(Number(pbase || 0));
+    return `
+      <span class="rescal-group-label">
+        <span class="rescal-group-name">${escapeHtml(name)}</span>
+        <span class="rescal-group-badge">${escapeHtml(badgeText)}</span>
+      </span>
+    `;
+  }
 
   const today = () => {
     const d = new Date();
@@ -196,6 +209,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastOccupiedByGroup = new Map(); // groupId -> Set(YYYY-MM-DD)
   let lastPriceByKey = new Map(); // group|date -> {preco,desconto}
   let lastBqByKey = new Map(); // group|date -> {tratado,desbloq}
+  let syncPollInFlight = false;
+  let syncPollTimer = null;
 
   const MS_DAY = 24 * 60 * 60 * 1000;
   const DAY_PX = 36; // largura por dia (fixa)
@@ -209,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
     height: '100%',
     orientation: { axis: 'top', item: 'top' },
     stack: false,
-    groupOrder: 'content',
+    groupOrder: 'sortLabel',
     horizontalScroll: true,
     verticalScroll: true,
     autoResize: true,
@@ -357,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const upd = [];
     for (const g of all) {
-      const label = normText(g.content || g.id);
+      const label = normText(g.label || g.id);
       upd.push({ id: g.id, visible: label.includes(q) });
     }
     groups.update(upd);
@@ -386,9 +401,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return x;
   }
 
-  function buildPbaseContent(priceVal, descVal) {
+  function buildPbaseContent(priceVal, descVal, synced = true, showUnsynced = true) {
       const wrap = document.createElement('div');
       wrap.className = 'pbase-wrap';
+      if (showUnsynced && synced === false) wrap.classList.add('pbase-unsynced');
       wrap.style.position = 'relative';
       wrap.style.width = '100%';
       wrap.style.height = '100%';
@@ -405,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
       price.style.fontSize = '9px';
       price.style.fontWeight = '400';
       price.style.lineHeight = '1';
-      price.style.setProperty('color', '#334155', 'important');
+      price.style.setProperty('color', 'var(--rescal-price-color)', 'important');
       wrap.appendChild(price);
 
       if (descVal > 0) {
@@ -418,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
         disc.style.fontSize = '9px';
         disc.style.fontWeight = '800';
         disc.style.lineHeight = '1';
-        disc.style.setProperty('color', '#b91c1c', 'important');
+        disc.style.setProperty('color', 'var(--rescal-discount-color)', 'important');
         wrap.appendChild(disc);
       }
 
@@ -451,6 +467,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const override = priceByKey?.get?.(mapKey); // {preco,desconto} | number | undefined
         const overridePreco = (override && typeof override === 'object') ? override.preco : override;
         const overrideDesc = (override && typeof override === 'object') ? override.desconto : 0;
+        const overrideSynced = (override && typeof override === 'object') ? override.synced : true;
+        const overrideSyncEnabled = (override && typeof override === 'object' && override.sync_enabled != null)
+          ? Boolean(override.sync_enabled)
+          : Boolean(g.sync);
         const val = Math.round(Number((overridePreco != null ? overridePreco : baseP) || 0));
         const desc = Math.round(Number(overrideDesc || 0));
         if (!isFinite(val) || val <= 0) return;
@@ -463,12 +483,14 @@ document.addEventListener('DOMContentLoaded', () => {
           group: groupId,
           start: `${dateKey} 00:00:00`,
           end: `${toIsoDate(addDays(d, 1))} 00:00:00`,
-          content: buildPbaseContent(val, desc),
+          content: buildPbaseContent(val, desc, overrideSynced !== false, overrideSyncEnabled),
           title: String(val),
           className: 'pbase-item',
           selectable: false,
           preco: val,
           desconto: (isFinite(desc) && desc > 0) ? desc : 0,
+          synced: overrideSynced !== false ? 1 : 0,
+          sync_enabled: overrideSyncEnabled ? 1 : 0,
         });
       });
     }
@@ -485,6 +507,76 @@ document.addEventListener('DOMContentLoaded', () => {
       priceRenderTimer = null;
       addPbaseItems(lastOccupiedByGroup, lastPriceByKey, windowStart, windowEnd);
     }, ms);
+  }
+
+  function mergeSyncState(prices) {
+    let changed = false;
+    (Array.isArray(prices) ? prices : []).forEach((item) => {
+      const groupId = String(item?.group || '').trim();
+      const dateKey = String(item?.date || '').trim();
+      if (!groupId || !dateKey) return;
+      const mapKey = `${groupId}|${dateKey}`;
+      const nextSynced = Boolean(item?.synced);
+      const nextSyncEnabled = item?.sync_enabled != null ? Boolean(item.sync_enabled) : null;
+      const nextSyncedAt = String(item?.synced_at || '');
+
+      const currentVisible = lastPriceByKey.get(mapKey);
+      if (currentVisible) {
+        if (
+          Boolean(currentVisible.synced) !== nextSynced ||
+          String(currentVisible.synced_at || '') !== nextSyncedAt ||
+          (nextSyncEnabled != null && Boolean(currentVisible.sync_enabled) !== nextSyncEnabled)
+        ) {
+          lastPriceByKey.set(mapKey, {
+            ...currentVisible,
+            synced: nextSynced,
+            sync_enabled: nextSyncEnabled != null ? nextSyncEnabled : currentVisible.sync_enabled,
+            synced_at: nextSyncedAt,
+          });
+          changed = true;
+        }
+      }
+
+      const currentRec = lastPriceRecByKey.get(mapKey);
+      if (currentRec) {
+        if (
+          Boolean(currentRec.synced) !== nextSynced ||
+          String(currentRec.synced_at || '') !== nextSyncedAt ||
+          (nextSyncEnabled != null && Boolean(currentRec.sync_enabled) !== nextSyncEnabled)
+        ) {
+          lastPriceRecByKey.set(mapKey, {
+            ...currentRec,
+            synced: nextSynced,
+            sync_enabled: nextSyncEnabled != null ? nextSyncEnabled : currentRec.sync_enabled,
+            synced_at: nextSyncedAt,
+          });
+          changed = true;
+        }
+      }
+    });
+    return changed;
+  }
+
+  async function refreshSyncStateSilently() {
+    if (!lastPriceByKey.size || syncPollInFlight) return;
+    syncPollInFlight = true;
+    try {
+      const qs = new URLSearchParams({ start: toIsoDate(windowStart), end: toIsoDate(windowEnd) });
+      const res = await fetch(`/api/calendario_reservas_sync?${qs.toString()}`);
+      const data = await res.json();
+      if (!res.ok || data?.error) return;
+      if (mergeSyncState(data.prices || [])) {
+        renderPricesForVisibleRange(0);
+      }
+    } catch (_) {
+    } finally {
+      syncPollInFlight = false;
+    }
+  }
+
+  function ensureSyncPolling() {
+    if (syncPollTimer) return;
+    syncPollTimer = window.setInterval(refreshSyncStateSilently, 15000);
   }
 
   function syncRowHeights() {
@@ -728,7 +820,11 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!groupId || !dateKey) continue;
 
           const mapKey = `${groupId}|${dateKey}`;
-          lastPriceRecByKey.set(mapKey, { pbase, desconto: desc, preco, tratado: 0 });
+          const existingRec = lastPriceRecByKey.get(mapKey);
+          const groupSyncEnabled = existingRec?.sync_enabled != null
+            ? Boolean(existingRec.sync_enabled)
+            : Boolean(groups.get(groupId)?.sync);
+          lastPriceRecByKey.set(mapKey, { pbase, desconto: desc, preco, synced: false, sync_enabled: groupSyncEnabled, synced_at: '' });
 
           const occ = lastOccupiedByGroup?.get?.(groupId);
           const isOcc = !!(occ && occ.has(dateKey));
@@ -747,12 +843,14 @@ document.addEventListener('DOMContentLoaded', () => {
             group: groupId,
             start: `${dateKey} 00:00:00`,
             end: `${toIsoDate(addDays(new Date(dateKey + 'T00:00:00'), 1))} 00:00:00`,
-            content: buildPbaseContent(Math.round(preco), Math.round(desc)),
+            content: buildPbaseContent(Math.round(preco), Math.round(desc), false, groupSyncEnabled),
             title: String(Math.round(preco)),
             className: 'pbase-item',
             selectable: false,
             preco: Math.round(preco),
             desconto: (isFinite(desc) && desc > 0) ? Math.round(desc) : 0,
+            synced: 0,
+            sync_enabled: groupSyncEnabled ? 1 : 0,
           };
 
           if (items.get(id)) items.update(patch);
@@ -868,7 +966,18 @@ document.addEventListener('DOMContentLoaded', () => {
       items.clear();
       (Array.isArray(data.groups) ? data.groups : []).forEach(g => {
         if (!g || !g.id) return;
-        groups.add({ id: g.id, content: g.content || g.id, visible: true, pbase: Number(g.pbase || 0) });
+        const label = String(g.content || g.id || '').trim();
+        const pbase = Number(g.pbase || 0);
+        const sync = Boolean(g.sync);
+        groups.add({
+          id: g.id,
+          label,
+          sortLabel: label,
+          content: buildGroupContent(label, pbase, sync),
+          visible: true,
+          pbase,
+          sync,
+        });
       });
       rebuildGroupOrderCache();
       applyGroupFilter();
@@ -925,12 +1034,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const dateKey = p?.date;
         if (!groupId || !dateKey) return;
         const key = `${String(groupId)}|${dateKey}`;
-        priceByKey.set(key, { preco: Number(p?.preco || 0), desconto: Number(p?.desconto || 0) });
+        priceByKey.set(key, {
+          preco: Number(p?.preco || 0),
+          desconto: Number(p?.desconto || 0),
+          synced: Boolean(p?.synced),
+          sync_enabled: Boolean(p?.sync_enabled),
+          synced_at: String(p?.synced_at || ''),
+        });
         lastPriceRecByKey.set(key, {
           pbase: Number(p?.pbase || 0),
           desconto: Number(p?.desconto || 0),
           preco: Number(p?.preco || 0),
-          tratado: Number(p?.tratado || 0),
+          synced: Boolean(p?.synced),
+          sync_enabled: Boolean(p?.sync_enabled),
+          synced_at: String(p?.synced_at || ''),
         });
       });
       lastPriceByKey = priceByKey;
@@ -1153,4 +1270,5 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 100);
 
   loadData();
+  ensureSyncPolling();
 });
