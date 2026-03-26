@@ -829,14 +829,15 @@
   function mergeSyncState(items) {
     let changed = false;
     (items || []).forEach((item) => {
-      const current = dayMap.get(item.date);
+      const normalizedItem = normalizePlannerDay(item);
+      const current = dayMap.get(normalizedItem.date);
       if (!current) return;
-      const nextSynced = Boolean(item.synced);
-      const nextSyncedAt = item.synced_at || '';
+      const nextSynced = Boolean(normalizedItem.synced);
+      const nextSyncedAt = normalizedItem.synced_at || '';
       if (Boolean(current.synced) === nextSynced && (current.synced_at || '') === nextSyncedAt) {
         return;
       }
-      dayMap.set(item.date, {
+      dayMap.set(normalizedItem.date, {
         ...current,
         synced: nextSynced,
         synced_at: nextSyncedAt,
@@ -907,6 +908,37 @@
     } catch {
       return null;
     }
+  }
+
+  async function readJsonResponse(response) {
+    const raw = await response.text();
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw);
+    } catch {
+      throw new Error(response.ok ? 'Resposta invalida do servidor.' : 'Erro interno no servidor.');
+    }
+  }
+
+  function todayIso() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function isPastPlannerDay(isoDate) {
+    return String(isoDate || '') < todayIso();
+  }
+
+  function normalizePlannerDay(item) {
+    if (!item || typeof item !== 'object') return item;
+    if (!isPastPlannerDay(item.date)) return item;
+    return {
+      ...item,
+      synced: true,
+    };
   }
 
   function normalizeFlags(flags) {
@@ -1321,7 +1353,10 @@
       ]);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Erro ao ler planner');
-      dayMap = new Map((payload.days || []).map((item) => [item.date, item]));
+      dayMap = new Map((payload.days || []).map((item) => {
+        const normalized = normalizePlannerDay(item);
+        return [normalized.date, normalized];
+      }));
       renderPlanner(startInput.value);
       const metaText = buildAlojamentoMetaText(config);
       setStatus(`${payload.days.length} dias carregados para ${alojamento}.${metaText ? ` • ${metaText}` : ''}`);
@@ -1343,7 +1378,7 @@
       const response = await fetch(`/pricing/api/day?alojamento=${encodeURIComponent(alojamentoInput.value)}&date=${isoDate}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Erro ao ler detalhe');
-      const syncText = payload.synced ? 'Sim' : 'Não';
+      const syncText = (isPastPlannerDay(payload.date) ? true : Boolean(payload.synced)) ? 'Sim' : 'Não';
       const syncedAtText = payload.synced_at || '-';
       daySummaryEl.innerHTML = `
         <div class="sz_pricing_day_summary_main">${escapeHtml(payload.alojamento)} · ${escapeHtml(payload.date)}</div>
@@ -1376,7 +1411,7 @@
           days: Number(daysInput.value || 400),
         }),
       });
-      const payload = await response.json();
+      const payload = await readJsonResponse(response);
       if (!response.ok) throw new Error(payload.error || 'Erro no recalculo');
       setStatus(`Recalculado: ${payload.result.changed_rows} linhas alteradas, ${payload.result.skipped_threshold} abaixo do threshold.`);
       await loadPlanner();
@@ -1392,7 +1427,7 @@
     overrideStatusEl.textContent = 'A remover override...';
     try {
       const response = await fetch(`/pricing/api/override/${ovrId}`, { method: 'DELETE' });
-      const payload = await response.json();
+      const payload = await readJsonResponse(response);
       if (!response.ok) throw new Error(payload.error || 'Erro ao remover override');
       overrideStatusEl.textContent = payload.recalc
         ? `Override removido. ${payload.recalc.changed_rows} linhas recalculadas.`
@@ -1423,7 +1458,7 @@
           permitir_abaixo_min: document.getElementById('overrideAbaixoMin').checked,
         }),
       });
-      const payload = await response.json();
+      const payload = await readJsonResponse(response);
       if (!response.ok) throw new Error(payload.error || 'Erro ao criar override');
       overrideStatusEl.textContent = `Override gravado. ${payload.recalc.changed_rows} linhas recalculadas.`;
       await loadPlanner();

@@ -1,6 +1,8 @@
+import hmac
 import json
+import os
 from datetime import date, datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 
 import click
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
@@ -8,6 +10,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import text
 
 from models import db
+from services.qr_atcud_service import get_param as qr_get_param
 
 
 DEFAULT_HORIZON_DAYS = 400
@@ -16,6 +19,52 @@ DEFAULT_DAILY_VARIATION_LIMIT = Decimal("0.00")
 
 
 pricing_bp = Blueprint("pricing", __name__, url_prefix="/pricing")
+
+PRICING_SYNC_ROBOTS = (
+    {"name": "R2-D2", "from": "A", "to": "FZZZ"},
+    {"name": "C-3PO", "from": "G", "to": "ZZZZ"},
+)
+
+
+def _pricing_robot_key():
+    value = str(qr_get_param(db.session, "PRICING_ROBOT_KEY", "") or "").strip()
+    if value:
+        return value
+    value = str(os.getenv("PRICING_ROBOT_KEY") or "").strip()
+    if value:
+        return value
+    return str(os.getenv("STATIONZERO_ROBOT_KEY") or "").strip()
+
+
+def _extract_robot_credential():
+    direct = str(request.headers.get("X-StationZero-Key") or "").strip()
+    if direct:
+        return direct
+    auth = str(request.headers.get("Authorization") or "").strip()
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return ""
+
+
+def _authorize_pricing_robot_request():
+    expected = _pricing_robot_key()
+    if not expected:
+        return "PRICING_ROBOT_KEY nao configurada.", 503
+    received = _extract_robot_credential()
+    if not received or not hmac.compare_digest(received, expected):
+        return "Credencial invalida.", 401
+    return None, 200
+
+
+def _pricing_sync_robot_for_alojamento(alojamento):
+    normalized = _normalize_alojamento(alojamento).upper()
+    return PRICING_SYNC_ROBOTS[0]["name"] if normalized < "G" else PRICING_SYNC_ROBOTS[1]["name"]
+
+
+def _iso_or_empty(value):
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return ""
 
 
 def _quantize_money(value):
@@ -93,7 +142,22 @@ def _clamp(value, min_value, max_value):
 def _safe_decimal(value, default="0"):
     if value is None or value == "":
         return Decimal(default)
-    return Decimal(str(value))
+    if isinstance(value, Decimal):
+        return value
+    text = str(value).strip().replace(" ", "")
+    if text == "":
+        return Decimal(default)
+    if "," in text and "." in text:
+        if text.rfind(",") > text.rfind("."):
+            text = text.replace(".", "").replace(",", ".")
+        else:
+            text = text.replace(",", "")
+    elif "," in text:
+        text = text.replace(",", ".")
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f"Valor decimal invalido: {value}") from exc
 
 
 def _round_price(value):
@@ -1915,6 +1979,123 @@ def _load_pricing_events_state():
     return {"events": events}
 
 
+def _load_pricing_sync_monitor_state():
+    ensure_pricing_schema(db.session)
+
+    rows = db.session.execute(
+        text(
+            """
+            SELECT
+                LTRIM(RTRIM(D.AL_NOME)) AS Alojamento,
+                COUNT(*) AS RegistosPorSincronizar,
+                MIN(CAST(D.[DATA] AS date)) AS PrimeiraData,
+                MAX(CAST(D.[DATA] AS date)) AS UltimaData
+            FROM dbo.PR_CALC_DAY AS D
+            JOIN dbo.PR_ALOJAMENTO AS P
+              ON P.AL_NOME = D.AL_NOME
+            JOIN dbo.AL AS AL
+              ON AL.NOME = D.AL_NOME
+            WHERE
+                P.SYNC = 1
+                AND ISNULL(D.SYNC, 0) = 0
+                AND D.[DATA] >= CAST(GETDATE() AS date)
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.RS
+                    WHERE RS.ALOJAMENTO = D.AL_NOME
+                      AND ISNULL(RS.CANCELADA, 0) = 0
+                      AND CAST(RS.DATAIN AS date) <= D.[DATA]
+                      AND CAST(RS.DATAOUT AS date) > D.[DATA]
+                )
+            GROUP BY
+                LTRIM(RTRIM(D.AL_NOME))
+            ORDER BY
+                LTRIM(RTRIM(D.AL_NOME)) ASC
+            """
+        )
+    ).mappings().all()
+
+    items = []
+    totals = {
+        "total_alojamentos": 0,
+        "total_registos": 0,
+        "primeira_data": "",
+        "ultima_data": "",
+    }
+    robots = {
+        robot["name"]: {
+            "robot": robot["name"],
+            "range": f'{robot["from"]}–{robot["to"]}',
+            "total_alojamentos": 0,
+            "total_registos": 0,
+            "primeira_data": "",
+            "ultima_data": "",
+        }
+        for robot in PRICING_SYNC_ROBOTS
+    }
+
+    overall_first = None
+    overall_last = None
+
+    for row in rows:
+        alojamento = _normalize_alojamento(row.get("Alojamento"))
+        count = int(row.get("RegistosPorSincronizar") or 0)
+        first_date = row.get("PrimeiraData")
+        last_date = row.get("UltimaData")
+        robot_name = _pricing_sync_robot_for_alojamento(alojamento)
+        item = {
+            "robot": robot_name,
+            "alojamento": alojamento,
+            "registos": count,
+            "primeira_data": _iso_or_empty(first_date),
+            "ultima_data": _iso_or_empty(last_date),
+        }
+        items.append(item)
+
+        totals["total_alojamentos"] += 1
+        totals["total_registos"] += count
+
+        if first_date and (overall_first is None or first_date < overall_first):
+            overall_first = first_date
+        if last_date and (overall_last is None or last_date > overall_last):
+            overall_last = last_date
+
+        robot_bucket = robots[robot_name]
+        robot_bucket["total_alojamentos"] += 1
+        robot_bucket["total_registos"] += count
+
+        current_first = robot_bucket.get("_first")
+        current_last = robot_bucket.get("_last")
+        if first_date and (current_first is None or first_date < current_first):
+            robot_bucket["_first"] = first_date
+        if last_date and (current_last is None or last_date > current_last):
+            robot_bucket["_last"] = last_date
+
+    totals["primeira_data"] = _iso_or_empty(overall_first)
+    totals["ultima_data"] = _iso_or_empty(overall_last)
+
+    robot_items = []
+    for robot in PRICING_SYNC_ROBOTS:
+        bucket = robots[robot["name"]]
+        robot_items.append(
+            {
+                "robot": bucket["robot"],
+                "range": bucket["range"],
+                "total_alojamentos": bucket["total_alojamentos"],
+                "total_registos": bucket["total_registos"],
+                "primeira_data": _iso_or_empty(bucket.get("_first")),
+                "ultima_data": _iso_or_empty(bucket.get("_last")),
+            }
+        )
+
+    return {
+        "generated_at": datetime.utcnow().replace(microsecond=0).isoformat(),
+        "totals": totals,
+        "robots": robot_items,
+        "rows": items,
+    }
+
+
 def _load_event_cache_for_range(start_date, end_date):
     years = sorted({start_date.year, end_date.year})
     events = db.session.execute(
@@ -1962,6 +2143,12 @@ def pricing_planner():
     return render_template("pricing_planner.html", alojamentos=alojamentos, page_title="Price Manager")
 
 
+@pricing_bp.route("/sync-monitor")
+@login_required
+def pricing_sync_monitor():
+    return render_template("pricing_sync_monitor.html", page_title="Monitor de Sync")
+
+
 @pricing_bp.route("/pickup-curves")
 @login_required
 def pricing_pickup_curves():
@@ -2002,6 +2189,12 @@ def pricing_events():
 @login_required
 def pricing_api_settings_state():
     return jsonify(_load_pricing_settings_state())
+
+
+@pricing_bp.route("/api/sync-monitor")
+@login_required
+def pricing_api_sync_monitor():
+    return jsonify(_load_pricing_sync_monitor_state())
 
 
 @pricing_bp.route("/api/pickup-curves/state")
@@ -2785,13 +2978,16 @@ def pricing_api_override():
     ensure_pricing_schema(db.session)
     payload = request.get_json(silent=True) or request.form
 
-    alojamento = _normalize_alojamento(payload.get("alojamento"))
-    tipo = str(payload.get("tipo") or "").strip().upper()
-    data_ini = _parse_date(payload.get("data_ini"), "data_ini")
-    data_fim = _parse_date(payload.get("data_fim"), "data_fim")
-    valor = _safe_decimal(payload.get("valor"), "0")
-    motivo = str(payload.get("motivo") or "").strip()
-    permitir_abaixo_min = _as_bool(payload.get("permitir_abaixo_min"))
+    try:
+        alojamento = _normalize_alojamento(payload.get("alojamento"))
+        tipo = str(payload.get("tipo") or "").strip().upper()
+        data_ini = _parse_date(payload.get("data_ini"), "data_ini")
+        data_fim = _parse_date(payload.get("data_fim"), "data_fim")
+        valor = _safe_decimal(payload.get("valor"), "0")
+        motivo = str(payload.get("motivo") or "").strip()
+        permitir_abaixo_min = _as_bool(payload.get("permitir_abaixo_min"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     if not alojamento or not data_ini or not data_fim:
         return jsonify({"error": "alojamento, data_ini e data_fim sao obrigatorios."}), 400
@@ -2893,6 +3089,28 @@ def pricing_api_recalc():
         return jsonify({"error": str(exc)}), 500
 
 
+@pricing_bp.route("/api/recalc-job", methods=["POST"])
+def pricing_api_recalc_job():
+    error, status = _authorize_pricing_robot_request()
+    if error:
+        return jsonify({"error": error}), status
+
+    payload = request.get_json(silent=True) or request.form or {}
+    try:
+        result = recalculate_prices(
+            days=payload.get("days") or DEFAULT_HORIZON_DAYS,
+            alojamento=payload.get("alojamento"),
+            from_date=payload.get("from"),
+            to_date=payload.get("to"),
+        )
+        return jsonify({"ok": True, "result": result})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception("Erro no recalc tecnico de pricing")
+        return jsonify({"error": str(exc)}), 500
+
+
 def register_pricing(app):
     app.register_blueprint(pricing_bp)
 
@@ -2908,6 +3126,9 @@ def register_pricing(app):
     def _pricing_pickup_curves_legacy():
         return redirect(url_for("pricing.pricing_pickup_curves"))
 
+    def _pricing_sync_monitor_legacy():
+        return redirect(url_for("pricing.pricing_sync_monitor"))
+
     app.add_url_rule("/pricing_planner", endpoint="pricing_planner_legacy", view_func=_pricing_planner_legacy)
     app.add_url_rule("/pricing_planner/", endpoint="pricing_planner_legacy_slash", view_func=_pricing_planner_legacy)
     app.add_url_rule("/pricing_config", endpoint="pricing_settings_legacy", view_func=_pricing_settings_legacy)
@@ -2920,6 +3141,8 @@ def register_pricing(app):
     app.add_url_rule("/pickup_curves/", endpoint="pricing_pickup_curves_legacy_slash", view_func=_pricing_pickup_curves_legacy)
     app.add_url_rule("/pickup-curves", endpoint="pricing_pickup_curves_legacy_alt", view_func=_pricing_pickup_curves_legacy)
     app.add_url_rule("/pickup-curves/", endpoint="pricing_pickup_curves_legacy_alt_slash", view_func=_pricing_pickup_curves_legacy)
+    app.add_url_rule("/pricing_sync_monitor", endpoint="pricing_sync_monitor_legacy", view_func=_pricing_sync_monitor_legacy)
+    app.add_url_rule("/pricing_sync_monitor/", endpoint="pricing_sync_monitor_legacy_slash", view_func=_pricing_sync_monitor_legacy)
 
     @app.cli.command("pricing:recalc")
     @click.option("--days", default=DEFAULT_HORIZON_DAYS, type=int, show_default=True)

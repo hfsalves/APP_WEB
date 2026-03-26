@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+{% set page_title = "Monitor de Sync" %}
+
+{% block title %}Monitor de Sync{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+  .pszm-page {
+    width: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-2) var(--sz-space-4) var(--sz-space-3);
+    background: var(--sz-color-bg-main);
+    color: var(--sz-color-text);
+  }
+
+  .pszm-contextbar {
+    align-items: flex-start;
+  }
+
+  .pszm-contextbar-left {
+    flex: 1 1 auto;
+    min-width: 240px;
+  }
+
+  .pszm-contextbar-right {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-end;
+    gap: var(--sz-space-2);
+  }
+
+  .pszm-subtitle {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sz-space-2);
+    align-items: center;
+  }
+
+  .pszm-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+  }
+
+  .pszm-kpi {
+    padding: var(--sz-space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-2);
+  }
+
+  .pszm-kpi-label {
+    font-size: var(--sz-font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--sz-color-text-muted);
+  }
+
+  .pszm-kpi-value {
+    font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+    font-weight: var(--sz-font-weight-semibold);
+    transition: color .28s ease, transform .28s ease;
+  }
+
+  .pszm-kpi-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sz-space-2);
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .pszm-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-4);
+  }
+
+  .pszm-panels-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+  }
+
+  .pszm-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+  }
+
+  .pszm-panel-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .pszm-table-wrap {
+    overflow: auto;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+  }
+
+  .pszm-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 560px;
+  }
+
+  .pszm-table th,
+  .pszm-table td {
+    padding: .7rem .85rem;
+    border-bottom: 1px solid var(--sz-color-border);
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  .pszm-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--sz-color-surface-2);
+    color: var(--sz-color-text);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .pszm-table td.is-number,
+  .pszm-table th.is-number {
+    text-align: right;
+  }
+
+  .pszm-empty {
+    padding: var(--sz-space-5);
+    text-align: center;
+    color: var(--sz-color-text-muted);
+  }
+
+  .pszm-generated {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .pszm-registos-value {
+    display: inline-block;
+    min-width: 1.5rem;
+    text-align: right;
+    transition: color .28s ease, transform .28s ease;
+  }
+
+  .pszm-value-bump {
+    animation: pszmValueBump .55s ease;
+  }
+
+  @keyframes pszmValueBump {
+    0% {
+      transform: translateY(0) scale(1);
+      color: inherit;
+    }
+    35% {
+      transform: translateY(-1px) scale(1.08);
+      color: var(--sz-color-info);
+    }
+    100% {
+      transform: translateY(0) scale(1);
+      color: inherit;
+    }
+  }
+
+  @media (max-width: 1100px) {
+    .pszm-kpis {
+      grid-template-columns: 1fr;
+    }
+
+    .pszm-panels-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .pszm-page {
+      padding-inline: var(--sz-space-3);
+    }
+
+    .pszm-contextbar {
+      align-items: stretch;
+    }
+
+    .pszm-contextbar-right {
+      width: 100%;
+      justify-content: flex-start;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page">
+  <div class="sz_page_container pszm-page">
+    <header class="sz_contextbar sz_page_contextbar pszm-contextbar">
+      <div class="sz_contextbar_left pszm-contextbar-left">
+        <div class="sz_page_title">Monitor de Sync</div>
+        <div class="sz_page_subtitle pszm-subtitle">
+          <span class="sz_badge sz_badge_info">Price Manager</span>
+          <span>Preços por sincronizar a partir de hoje, sem dias ocupados.</span>
+        </div>
+      </div>
+      <div class="sz_contextbar_right pszm-contextbar-right">
+        <button id="pszmReload" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content">
+        <section class="pszm-kpis">
+          <article class="sz_card pszm-kpi">
+            <div class="pszm-kpi-label">Total global</div>
+            <div class="pszm-kpi-value" id="pszmTotalRegistos">0</div>
+            <div class="pszm-kpi-meta">
+              <span id="pszmTotalAlojamentos">0 alojamentos</span>
+              <span id="pszmTotalIntervalo">—</span>
+            </div>
+          </article>
+          <article class="sz_card pszm-kpi">
+            <div class="pszm-kpi-label">R2-D2 · A–FZZZ</div>
+            <div class="pszm-kpi-value" id="pszmRobotARegistos">0</div>
+            <div class="pszm-kpi-meta">
+              <span id="pszmRobotAAlojamentos">0 alojamentos</span>
+              <span id="pszmRobotAIntervalo">—</span>
+            </div>
+          </article>
+          <article class="sz_card pszm-kpi">
+            <div class="pszm-kpi-label">C-3PO · G–ZZZZ</div>
+            <div class="pszm-kpi-value" id="pszmRobotBRegistos">0</div>
+            <div class="pszm-kpi-meta">
+              <span id="pszmRobotBAlojamentos">0 alojamentos</span>
+              <span id="pszmRobotBIntervalo">—</span>
+            </div>
+          </article>
+        </section>
+
+        <div id="pszmGenerated" class="pszm-generated">—</div>
+        <section class="pszm-panels-grid">
+          <section class="sz_panel pszm-panel">
+            <div class="pszm-panel-head">
+              <h2 class="pszm-panel-title">R2-D2 · A–FZZZ</h2>
+            </div>
+            <div class="pszm-table-wrap">
+              <table class="pszm-table">
+                <thead>
+                  <tr>
+                    <th>Alojamento</th>
+                    <th class="is-number">Registos</th>
+                    <th>Primeira data</th>
+                    <th>Última data</th>
+                  </tr>
+                </thead>
+                <tbody id="pszmTableBodyA">
+                  <tr><td colspan="4" class="pszm-empty">A carregar...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="sz_panel pszm-panel">
+            <div class="pszm-panel-head">
+              <h2 class="pszm-panel-title">C-3PO · G–ZZZZ</h2>
+            </div>
+            <div class="pszm-table-wrap">
+              <table class="pszm-table">
+                <thead>
+                  <tr>
+                    <th>Alojamento</th>
+                    <th class="is-number">Registos</th>
+                    <th>Primeira data</th>
+                    <th>Última data</th>
+                  </tr>
+                </thead>
+                <tbody id="pszmTableBodyB">
+                  <tr><td colspan="4" class="pszm-empty">A carregar...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(() => {
+  const totalRegistosEl = document.getElementById('pszmTotalRegistos');
+  const totalAlojamentosEl = document.getElementById('pszmTotalAlojamentos');
+  const totalIntervaloEl = document.getElementById('pszmTotalIntervalo');
+  const robotARegistosEl = document.getElementById('pszmRobotARegistos');
+  const robotAAlojamentosEl = document.getElementById('pszmRobotAAlojamentos');
+  const robotAIntervaloEl = document.getElementById('pszmRobotAIntervalo');
+  const robotBRegistosEl = document.getElementById('pszmRobotBRegistos');
+  const robotBAlojamentosEl = document.getElementById('pszmRobotBAlojamentos');
+  const robotBIntervaloEl = document.getElementById('pszmRobotBIntervalo');
+  const generatedEl = document.getElementById('pszmGenerated');
+  const tableBodyAEl = document.getElementById('pszmTableBodyA');
+  const tableBodyBEl = document.getElementById('pszmTableBodyB');
+  const reloadBtn = document.getElementById('pszmReload');
+  let monitorPollTimer = null;
+  let syncLoadInFlight = false;
+  let monitorState = { rows: new Map() };
+
+  function fmtDate(value) {
+    if (!value) return '—';
+    const [year, month, day] = String(value).slice(0, 10).split('-');
+    if (!year || !month || !day) return value;
+    return `${day}/${month}/${year}`;
+  }
+
+  function fmtInterval(firstDate, lastDate) {
+    if (!firstDate && !lastDate) return '—';
+    if (firstDate && lastDate && firstDate !== lastDate) return `${fmtDate(firstDate)} → ${fmtDate(lastDate)}`;
+    return fmtDate(firstDate || lastDate);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function bumpElement(el) {
+    if (!el) return;
+    el.classList.remove('pszm-value-bump');
+    void el.offsetWidth;
+    el.classList.add('pszm-value-bump');
+  }
+
+  function updateTextWithBump(el, nextText) {
+    if (!el) return;
+    const normalized = String(nextText ?? '');
+    if (el.textContent !== normalized) {
+      el.textContent = normalized;
+      bumpElement(el);
+    } else {
+      el.textContent = normalized;
+    }
+  }
+
+  function renderTableRows(tableBodyEl, rows, emptyText) {
+    const previousRows = monitorState.rows || new Map();
+    if (!rows.length) {
+      tableBodyEl.innerHTML = `<tr><td colspan="4" class="pszm-empty">${escapeHtml(emptyText)}</td></tr>`;
+      return;
+    }
+    tableBodyEl.innerHTML = rows.map((row) => {
+      const rowKey = `${row.robot}::${row.alojamento}`;
+      const prev = previousRows.get(rowKey);
+      const changed = !prev || Number(prev.registos || 0) !== Number(row.registos || 0);
+      return `
+        <tr data-row-key="${escapeHtml(rowKey)}">
+          <td>${escapeHtml(row.alojamento)}</td>
+          <td class="is-number"><span class="pszm-registos-value${changed ? ' pszm-value-bump' : ''}">${escapeHtml(row.registos)}</span></td>
+          <td>${escapeHtml(fmtDate(row.primeira_data))}</td>
+          <td>${escapeHtml(fmtDate(row.ultima_data))}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function renderRows(rows) {
+    const allRows = Array.isArray(rows) ? rows : [];
+    const rowsA = allRows.filter((row) => row.robot === 'R2-D2');
+    const rowsB = allRows.filter((row) => row.robot === 'C-3PO');
+    renderTableRows(tableBodyAEl, rowsA, 'Sem preços por sincronizar para o R2-D2.');
+    renderTableRows(tableBodyBEl, rowsB, 'Sem preços por sincronizar para o C-3PO.');
+    monitorState.rows = new Map(allRows.map((row) => [`${row.robot}::${row.alojamento}`, row]));
+  }
+
+  async function loadSyncMonitor({ silent = false } = {}) {
+    if (syncLoadInFlight) return;
+    syncLoadInFlight = true;
+    if (!silent) reloadBtn.disabled = true;
+    try {
+      const response = await fetch('/pricing/api/sync-monitor');
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro ao ler monitor de sync.');
+
+      const totals = payload.totals || {};
+      const robots = Array.isArray(payload.robots) ? payload.robots : [];
+      const rows = Array.isArray(payload.rows) ? payload.rows : [];
+      const robotAData = robots.find((item) => item.robot === 'R2-D2');
+      const robotBData = robots.find((item) => item.robot === 'C-3PO');
+
+      updateTextWithBump(totalRegistosEl, String(totals.total_registos || 0));
+      totalAlojamentosEl.textContent = `${totals.total_alojamentos || 0} alojamentos`;
+      totalIntervaloEl.textContent = fmtInterval(totals.primeira_data, totals.ultima_data);
+
+      updateTextWithBump(robotARegistosEl, String(robotAData?.total_registos || 0));
+      robotAAlojamentosEl.textContent = `${robotAData?.total_alojamentos || 0} alojamentos`;
+      robotAIntervaloEl.textContent = fmtInterval(robotAData?.primeira_data, robotAData?.ultima_data);
+
+      updateTextWithBump(robotBRegistosEl, String(robotBData?.total_registos || 0));
+      robotBAlojamentosEl.textContent = `${robotBData?.total_alojamentos || 0} alojamentos`;
+      robotBIntervaloEl.textContent = fmtInterval(robotBData?.primeira_data, robotBData?.ultima_data);
+
+      generatedEl.textContent = payload.generated_at
+        ? `Gerado em ${new Date(payload.generated_at).toLocaleString('pt-PT')}`
+        : '—';
+
+      renderRows(rows);
+    } catch (error) {
+      if (!silent) {
+        const errorText = escapeHtml(error.message || 'Erro ao carregar.');
+        tableBodyAEl.innerHTML = `<tr><td colspan="4" class="pszm-empty">${errorText}</td></tr>`;
+        tableBodyBEl.innerHTML = `<tr><td colspan="4" class="pszm-empty">${errorText}</td></tr>`;
+      }
+    } finally {
+      if (!silent) reloadBtn.disabled = false;
+      syncLoadInFlight = false;
+    }
+  }
+
+  function ensurePolling() {
+    if (monitorPollTimer) return;
+    monitorPollTimer = window.setInterval(() => {
+      loadSyncMonitor({ silent: true });
+    }, 15000);
+  }
+
+  reloadBtn?.addEventListener('click', () => loadSyncMonitor());
+  loadSyncMonitor();
+  ensurePolling();
+})();
+</script>
+{% endblock %}
