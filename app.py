@@ -17222,6 +17222,9 @@ OPTION (MAXRECURSION 32767);
         try:
             start_str = (request.args.get('start') or '').strip()
             end_str = (request.args.get('end') or '').strip()
+            slice_start_str = (request.args.get('slice_start') or '').strip()
+            slice_end_str = (request.args.get('slice_end') or '').strip()
+            show_blocked_arg = (request.args.get('show_blocked') or '1').strip().lower()
             if start_str:
                 start_d = datetime.strptime(start_str, '%Y-%m-%d').date()
             else:
@@ -17230,20 +17233,33 @@ OPTION (MAXRECURSION 32767);
                 end_d = datetime.strptime(end_str, '%Y-%m-%d').date()
             else:
                 end_d = start_d + timedelta(days=119)
+            slice_start_d = datetime.strptime(slice_start_str, '%Y-%m-%d').date() if slice_start_str else start_d
+            slice_end_d = datetime.strptime(slice_end_str, '%Y-%m-%d').date() if slice_end_str else end_d
         except Exception:
             start_d = date.today() - timedelta(days=5)
             end_d = start_d + timedelta(days=119)
+            slice_start_d = start_d
+            slice_end_d = end_d
+            show_blocked_arg = '1'
 
         if end_d < start_d:
             end_d = start_d
+        if slice_end_d < slice_start_d:
+            slice_end_d = slice_start_d
+        if slice_start_d < start_d:
+            slice_start_d = start_d
+        if slice_end_d > end_d:
+            slice_end_d = end_d
 
         end_excl = end_d + timedelta(days=1)
+        slice_end_excl = slice_end_d + timedelta(days=1)
+        show_blocked = show_blocked_arg not in ('0', 'false', 'off', 'no')
 
         try:
             al_rows = db.session.execute(text("""
                 SELECT
                     LTRIM(RTRIM(ISNULL(AL.NOME,''))) AS NOME,
-                    ISNULL(AL.PBASE,0) AS PBASE,
+                    ISNULL(PA.PRECO_BASE, ISNULL(AL.PBASE,0)) AS PBASE,
                     ISNULL(PA.[SYNC],0) AS [SYNC]
                 FROM dbo.AL AS AL
                 LEFT JOIN dbo.PR_ALOJAMENTO AS PA
@@ -17317,10 +17333,10 @@ OPTION (MAXRECURSION 32767);
                 WHERE RS.DATAIN IS NOT NULL
                   AND RS.DATAOUT IS NOT NULL
                   AND ISNULL(RS.CANCELADA,0) = 0
-                  AND CAST(RS.DATAOUT AS date) >= :start
-                  AND CAST(RS.DATAIN AS date) < :end_excl
+                  AND CAST(RS.DATAOUT AS date) >= :slice_start
+                  AND CAST(RS.DATAIN AS date) < :slice_end_excl
             """
-            rs_rows = db.session.execute(text(sql_rs), {'start': start_d, 'end_excl': end_excl}).mappings().all()
+            rs_rows = db.session.execute(text(sql_rs), {'slice_start': slice_start_d, 'slice_end_excl': slice_end_excl}).mappings().all()
         except Exception as e:
             return jsonify({'error': f'Erro ao obter reservas: {e}'}), 500
 
@@ -17404,22 +17420,24 @@ OPTION (MAXRECURSION 32767);
             })
 
         # Noites bloqueadas (BQ) na janela (start..end) - cadeado por célula
-        try:
-            bq_rows = db.session.execute(text("""
-                SELECT
-                    LTRIM(RTRIM(ISNULL(BQ.ALOJAMENTO,''))) AS ALOJAMENTO,
-                    LTRIM(RTRIM(ISNULL(BQ.NMAIRBNB,''))) AS NMAIRBNB,
-                    CAST(BQ.[DATA] AS date) AS [DATA],
-                    ISNULL(BQ.TRATADO,0) AS TRATADO,
-                    ISNULL(BQ.DESBLOQ,0) AS DESBLOQ,
-                    ISNULL(BQ.ANULADO,0) AS ANULADO
-                FROM dbo.BQ AS BQ
-                WHERE CAST(BQ.[DATA] AS date) >= :start
-                  AND CAST(BQ.[DATA] AS date) <= :end
-                  AND ISNULL(BQ.ANULADO,0) = 0
-            """), {'start': start_d, 'end': end_d}).mappings().all()
-        except Exception as e:
-            return jsonify({'error': f'Erro ao obter BQ: {e}'}), 500
+        bq_rows = []
+        if show_blocked:
+            try:
+                bq_rows = db.session.execute(text("""
+                    SELECT
+                        LTRIM(RTRIM(ISNULL(BQ.ALOJAMENTO,''))) AS ALOJAMENTO,
+                        LTRIM(RTRIM(ISNULL(BQ.NMAIRBNB,''))) AS NMAIRBNB,
+                        CAST(BQ.[DATA] AS date) AS [DATA],
+                        ISNULL(BQ.TRATADO,0) AS TRATADO,
+                        ISNULL(BQ.DESBLOQ,0) AS DESBLOQ,
+                        ISNULL(BQ.ANULADO,0) AS ANULADO
+                    FROM dbo.BQ AS BQ
+                    WHERE CAST(BQ.[DATA] AS date) >= :slice_start
+                      AND CAST(BQ.[DATA] AS date) <= :slice_end
+                      AND ISNULL(BQ.ANULADO,0) = 0
+                """), {'slice_start': slice_start_d, 'slice_end': slice_end_d}).mappings().all()
+            except Exception as e:
+                return jsonify({'error': f'Erro ao obter BQ: {e}'}), 500
 
         blocked_map = {}  # (group_id, YYYY-MM-DD) -> flags
         for r in bq_rows:
@@ -17475,10 +17493,10 @@ OPTION (MAXRECURSION 32767);
                 FROM dbo.PR_CALC_DAY AS P
                 LEFT JOIN dbo.PR_ALOJAMENTO AS PA
                   ON LTRIM(RTRIM(ISNULL(PA.AL_NOME,''))) = LTRIM(RTRIM(ISNULL(P.AL_NOME,'')))
-                WHERE CAST(P.[DATA] AS date) >= :start
-                  AND CAST(P.[DATA] AS date) <= :end
+                WHERE CAST(P.[DATA] AS date) >= :slice_start
+                  AND CAST(P.[DATA] AS date) <= :slice_end
                 ORDER BY CAST(P.[DATA] AS date) DESC
-            """), {'start': start_d, 'end': end_d}).mappings().all()
+            """), {'slice_start': slice_start_d, 'slice_end': slice_end_d}).mappings().all()
         except Exception as e:
             return jsonify({'error': f'Erro ao obter PR_CALC_DAY: {e}'}), 500
 
@@ -17516,6 +17534,8 @@ OPTION (MAXRECURSION 32767);
         return jsonify({
             'start': start_d.isoformat(),
             'end': end_d.isoformat(),
+            'slice_start': slice_start_d.isoformat(),
+            'slice_end': slice_end_d.isoformat(),
             'groups': groups,
             'items': items,
             'blocked': blocked,
@@ -17528,6 +17548,7 @@ OPTION (MAXRECURSION 32767);
         try:
             start_str = (request.args.get('start') or '').strip()
             end_str = (request.args.get('end') or '').strip()
+            sync_only_arg = (request.args.get('sync_only') or '0').strip().lower()
             start_d = datetime.strptime(start_str, '%Y-%m-%d').date()
             end_d = datetime.strptime(end_str, '%Y-%m-%d').date()
         except Exception:
@@ -17535,8 +17556,10 @@ OPTION (MAXRECURSION 32767);
 
         if end_d < start_d:
             return jsonify({'error': 'Intervalo inválido'}), 400
+        sync_only = sync_only_arg not in ('0', 'false', 'off', 'no')
 
         try:
+            sync_only_sql = "AND ISNULL(PA.[SYNC],0) = 1" if sync_only else ""
             pr_rows = db.session.execute(text("""
                 SELECT
                     LTRIM(RTRIM(ISNULL(P.AL_NOME,''))) AS ALOJAMENTO,
@@ -17549,6 +17572,7 @@ OPTION (MAXRECURSION 32767);
                   ON LTRIM(RTRIM(ISNULL(PA.AL_NOME,''))) = LTRIM(RTRIM(ISNULL(P.AL_NOME,'')))
                 WHERE CAST(P.[DATA] AS date) >= :start
                   AND CAST(P.[DATA] AS date) <= :end
+                  """ + sync_only_sql + """
                 ORDER BY LTRIM(RTRIM(ISNULL(P.AL_NOME,''))), CAST(P.[DATA] AS date)
             """), {'start': start_d, 'end': end_d}).mappings().all()
         except Exception as e:

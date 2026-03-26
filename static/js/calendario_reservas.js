@@ -4,7 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('rescalTimeline');
   const loadingEl = document.getElementById('rescalLoading');
   const rangeEl = document.getElementById('rescalRange');
+  const unsyncedKpiEl = document.getElementById('rescalUnsyncedKpi');
   const filterEl = document.getElementById('rescalFilter');
+  const showBlockedEl = document.getElementById('rescalShowBlocked');
   const btnReload = document.getElementById('rescalReload');
   const btnToday = document.getElementById('rescalToday');
   const btnPrev30 = document.getElementById('rescalPrev30');
@@ -36,16 +38,24 @@ document.addEventListener('DOMContentLoaded', () => {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-  function buildGroupContent(label, pbase, sync) {
+  function buildGroupNode(label, pbase, sync) {
     const name = String(label || '').trim();
-    if (!sync) return `<span class="rescal-group-name">${escapeHtml(name)}</span>`;
-    const badgeText = fmtBaseBadge.format(Number(pbase || 0));
-    return `
-      <span class="rescal-group-label">
-        <span class="rescal-group-name">${escapeHtml(name)}</span>
-        <span class="rescal-group-badge">${escapeHtml(badgeText)}</span>
-      </span>
-    `;
+    const wrap = document.createElement('span');
+    wrap.className = 'rescal-group-label';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'rescal-group-name';
+    nameEl.textContent = name;
+    wrap.appendChild(nameEl);
+
+    if (sync) {
+      const badgeEl = document.createElement('span');
+      badgeEl.className = 'sz_badge sz_badge_info rescal-group-badge';
+      badgeEl.textContent = fmtBaseBadge.format(Number(pbase || 0));
+      wrap.appendChild(badgeEl);
+    }
+
+    return wrap;
   }
 
   const today = () => {
@@ -114,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         title,
       });
     });
+    return seen.size;
   }
 
   function upsertBlockedItem(groupId, dateKey, tratado, desbloq) {
@@ -170,15 +181,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let decoRaf = null;
   function scheduleDecorations() {
+    if (!hasBlockedItems) return;
     if (decoRaf) return;
     decoRaf = requestAnimationFrame(() => {
       decoRaf = null;
       decorateBlockedDom();
     });
     // fallback: vis por vezes re-renderiza após o RAF
-    setTimeout(() => {
-      try { decorateBlockedDom(); } catch (_) {}
-    }, 50);
   }
 
   const toIsoDate = (d) => {
@@ -211,13 +220,21 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastBqByKey = new Map(); // group|date -> {tratado,desbloq}
   let syncPollInFlight = false;
   let syncPollTimer = null;
+  let sliceLoadTimer = null;
+  let loadedSliceStart = null;
+  let loadedSliceEnd = null;
+  let hasBlockedItems = false;
+  let loadSeq = 0;
 
   const MS_DAY = 24 * 60 * 60 * 1000;
-  const DAY_PX = 36; // largura por dia (fixa)
+  const DAY_PX = 48; // largura por dia (fixa)
   const GROUP_W_PX = 240;
-  const ROW_HEIGHT = 27;
+  const ROW_HEIGHT = 36;
   const MIN_DAYS_VISIBLE = 12; // mínimo de dias visíveis
+  const SLICE_MARGIN_DAYS = 14;
+  const SLICE_EDGE_DAYS = 4;
   let currentVisibleDays = MIN_DAYS_VISIBLE;
+  const shouldShowBlocked = () => !showBlockedEl || !!showBlockedEl.checked;
 
   const options = {
     width: '100%',
@@ -233,6 +250,9 @@ document.addEventListener('DOMContentLoaded', () => {
     margin: { item: 1, axis: 10 },
     selectable: true,
     multiselect: false,
+    groupTemplate: function(group) {
+      return buildGroupNode(group?.label || group?.content || group?.id, group?.pbase, Boolean(group?.sync));
+    },
     start: windowStart,
     end: addDays(windowEnd, 1),
     min: windowStart,
@@ -314,6 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   timeline.on('rangechanged', () => {
     syncHScrollWidth();
+    renderPricesForVisibleRange(30);
+    scheduleVisibleSliceLoad();
   });
   requestAnimationFrame(() => {
     try { timeline.redraw(); } catch (_) {}
@@ -505,8 +527,74 @@ document.addEventListener('DOMContentLoaded', () => {
     const ms = Number(delayMs || 0);
     priceRenderTimer = setTimeout(() => {
       priceRenderTimer = null;
-      addPbaseItems(lastOccupiedByGroup, lastPriceByKey, windowStart, windowEnd);
+      const range = getCurrentPriceRenderRange();
+      addPbaseItems(lastOccupiedByGroup, lastPriceByKey, range.start, range.end);
     }, ms);
+  }
+
+  function getCurrentPriceRenderRange() {
+    try {
+      const w = timeline?.getWindow?.();
+      if (!w?.start || !w?.end) return { start: windowStart, end: windowEnd };
+      let start = floorToDay(new Date(w.start));
+      let end = floorToDay(new Date(new Date(w.end).getTime() - 1));
+      start = addDays(start, -1);
+      end = addDays(end, 1);
+      if (start < windowStart) start = new Date(windowStart.getTime());
+      if (end > windowEnd) end = new Date(windowEnd.getTime());
+      if (end < start) return { start: new Date(windowStart.getTime()), end: new Date(windowEnd.getTime()) };
+      return { start, end };
+    } catch (_) {
+      return { start: windowStart, end: windowEnd };
+    }
+  }
+
+  function getCurrentVisibleDayRange() {
+    try {
+      const w = timeline?.getWindow?.();
+      if (!w?.start || !w?.end) {
+        return {
+          start: new Date(windowStart.getTime()),
+          end: addDays(new Date(windowStart.getTime()), Math.max(0, currentVisibleDays - 1))
+        };
+      }
+      const start = floorToDay(new Date(w.start));
+      const end = floorToDay(new Date(new Date(w.end).getTime() - 1));
+      return { start, end: end < start ? start : end };
+    } catch (_) {
+      return {
+        start: new Date(windowStart.getTime()),
+        end: addDays(new Date(windowStart.getTime()), Math.max(0, currentVisibleDays - 1))
+      };
+    }
+  }
+
+  function getCurrentSliceRange() {
+    const visible = getCurrentVisibleDayRange();
+    let start = addDays(visible.start, -SLICE_MARGIN_DAYS);
+    let end = addDays(visible.end, SLICE_MARGIN_DAYS);
+    if (start < windowStart) start = new Date(windowStart.getTime());
+    if (end > windowEnd) end = new Date(windowEnd.getTime());
+    if (end < start) end = new Date(start.getTime());
+    return { start, end };
+  }
+
+  function shouldReloadVisibleSlice() {
+    if (!loadedSliceStart || !loadedSliceEnd) return true;
+    const visible = getCurrentVisibleDayRange();
+    return (
+      visible.start <= addDays(loadedSliceStart, SLICE_EDGE_DAYS) ||
+      visible.end >= addDays(loadedSliceEnd, -SLICE_EDGE_DAYS)
+    );
+  }
+
+  function scheduleVisibleSliceLoad() {
+    if (!shouldReloadVisibleSlice()) return;
+    if (sliceLoadTimer) clearTimeout(sliceLoadTimer);
+    sliceLoadTimer = setTimeout(() => {
+      sliceLoadTimer = null;
+      loadData({ refreshGroups: false, showLoading: false });
+    }, 140);
   }
 
   function mergeSyncState(prices) {
@@ -554,14 +642,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     });
+    updateUnsyncedKpi();
     return changed;
+  }
+
+  function updateUnsyncedKpi() {
+    if (!unsyncedKpiEl) return;
+    let count = 0;
+    lastPriceRecByKey.forEach((entry) => {
+      if (!entry) return;
+      if (Boolean(entry.sync_enabled) && !Boolean(entry.synced)) count += 1;
+    });
+    unsyncedKpiEl.textContent = `${count} por sincronizar`;
+    unsyncedKpiEl.title = `${count} preços por sincronizar`;
   }
 
   async function refreshSyncStateSilently() {
     if (!lastPriceByKey.size || syncPollInFlight) return;
     syncPollInFlight = true;
     try {
-      const qs = new URLSearchParams({ start: toIsoDate(windowStart), end: toIsoDate(windowEnd) });
+      const range = getCurrentPriceRenderRange();
+      const qs = new URLSearchParams({ start: toIsoDate(range.start), end: toIsoDate(range.end), sync_only: '1' });
       const res = await fetch(`/api/calendario_reservas_sync?${qs.toString()}`);
       const data = await res.json();
       if (!res.ok || data?.error) return;
@@ -953,34 +1054,47 @@ document.addEventListener('DOMContentLoaded', () => {
     rangeEl.textContent = `${fmtDate.format(windowStart)} → ${fmtDate.format(windowEnd)} (120 dias)`;
   }
 
-  async function loadData() {
-    setLoading(true);
+  async function loadData(options = {}) {
+    const refreshGroups = options.refreshGroups !== false;
+    const showLoading = options.showLoading !== false;
+    const sliceRange = getCurrentSliceRange();
+    const currentLoadSeq = ++loadSeq;
+    if (showLoading) setLoading(true);
     setRangeLabel();
-    const qs = new URLSearchParams({ start: toIsoDate(windowStart), end: toIsoDate(windowEnd) });
+    const qs = new URLSearchParams({
+      start: toIsoDate(windowStart),
+      end: toIsoDate(windowEnd),
+      slice_start: toIsoDate(sliceRange.start),
+      slice_end: toIsoDate(sliceRange.end),
+      show_blocked: shouldShowBlocked() ? '1' : '0'
+    });
     try {
       const res = await fetch(`/api/calendario_reservas?${qs.toString()}`);
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar reservas');
+      if (currentLoadSeq !== loadSeq) return;
 
-      groups.clear();
+      if (refreshGroups) groups.clear();
       items.clear();
-      (Array.isArray(data.groups) ? data.groups : []).forEach(g => {
-        if (!g || !g.id) return;
-        const label = String(g.content || g.id || '').trim();
-        const pbase = Number(g.pbase || 0);
-        const sync = Boolean(g.sync);
-        groups.add({
-          id: g.id,
-          label,
-          sortLabel: label,
-          content: buildGroupContent(label, pbase, sync),
-          visible: true,
-          pbase,
-          sync,
+      if (refreshGroups || !groups.getIds().length) {
+        (Array.isArray(data.groups) ? data.groups : []).forEach(g => {
+          if (!g || !g.id) return;
+          const label = String(g.content || g.id || '').trim();
+          const pbase = Number(g.pbase || 0);
+          const sync = Boolean(g.sync);
+          groups.add({
+            id: g.id,
+            label,
+            sortLabel: label,
+            content: label,
+            visible: true,
+            pbase,
+            sync,
+          });
         });
-      });
-      rebuildGroupOrderCache();
-      applyGroupFilter();
+        rebuildGroupOrderCache();
+        applyGroupFilter();
+      }
 
       const occupiedByGroup = new Map(); // groupId -> Set(YYYY-MM-DD)
       (Array.isArray(data.items) ? data.items : []).forEach(it => {
@@ -1018,14 +1132,16 @@ document.addEventListener('DOMContentLoaded', () => {
       // fixar janela
       windowStart = new Date(data.start + 'T00:00:00');
       windowEnd = new Date(data.end + 'T00:00:00');
+      loadedSliceStart = new Date((data.slice_start || qs.get('slice_start')) + 'T00:00:00');
+      loadedSliceEnd = new Date((data.slice_end || qs.get('slice_end')) + 'T00:00:00');
 
       // evidenciar fins de semana (Sáb/Dom) no background
-      addWeekendBackgroundItems(windowStart, windowEnd);
+      addWeekendBackgroundItems(loadedSliceStart, loadedSliceEnd);
 
       lastOccupiedByGroup = occupiedByGroup;
 
       // noites bloqueadas (cadeados)
-      addBlockedItems(data.blocked);
+      hasBlockedItems = addBlockedItems(data.blocked) > 0;
 
       const priceByKey = new Map();
       lastPriceRecByKey = new Map();
@@ -1051,6 +1167,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
       lastPriceByKey = priceByKey;
+      updateUnsyncedKpi();
       lastBqByKey = new Map();
       (Array.isArray(data.blocked) ? data.blocked : []).forEach(b => {
         const groupId = b?.group;
@@ -1064,7 +1181,8 @@ document.addEventListener('DOMContentLoaded', () => {
       pruneSelectionToRange();
       renderSelection();
 
-      timeline.setOptions({
+      if (refreshGroups) {
+        timeline.setOptions({
         min: windowStart,
         max: addDays(windowEnd, 1)
       });
@@ -1072,16 +1190,25 @@ document.addEventListener('DOMContentLoaded', () => {
       try { timeline.redraw(); } catch (_) {}
       scheduleDecorations();
       syncRowHeights();
-      requestAnimationFrame(() => applyFixedDayWidth());
-      renderPricesForVisibleRange(0);
-      setTimeout(applyFixedDayWidth, 80);
-      setTimeout(applyFixedDayWidth, 220);
+      requestAnimationFrame(() => {
+        applyFixedDayWidth();
+        renderPricesForVisibleRange(0);
+      });
+      setTimeout(() => {
+        applyFixedDayWidth();
+        renderPricesForVisibleRange(0);
+      }, 120);
+      } else {
+        try { timeline.redraw(); } catch (_) {}
+        scheduleDecorations();
+        renderPricesForVisibleRange(0);
+      }
       setRangeLabel();
     } catch (err) {
       console.error(err);
       if (rangeEl) rangeEl.textContent = `Erro: ${err.message || err}`;
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }
 
@@ -1115,6 +1242,9 @@ document.addEventListener('DOMContentLoaded', () => {
       filterRaf = null;
       applyGroupFilter();
     });
+  });
+  showBlockedEl?.addEventListener('change', () => {
+    loadData();
   });
 
   // Click numa célula: seleciona dia+alojamento (Ctrl para alternar)

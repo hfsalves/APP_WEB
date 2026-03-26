@@ -11,11 +11,16 @@
         <div class="sz_page_subtitle rescal-subtitle">
           <span class="sz_badge sz_badge_info">Timeline</span>
           <span id="rescalRange">--</span>
+          <span class="sz_badge sz_badge_warning rescal-kpi" id="rescalUnsyncedKpi">0 por sincronizar</span>
         </div>
       </div>
       <div class="sz_contextbar_right">
         <div class="rescal-toolbar">
           <input class="sz_input rescal-filter-input" id="rescalFilter" placeholder="Filtrar alojamento...">
+          <label class="sz_checkbox rescal-toggle" for="rescalShowBlocked">
+            <input type="checkbox" id="rescalShowBlocked">
+            <span>Mostrar bloqueios</span>
+          </label>
           <button class="sz_button sz_button_secondary rescal-icon-button" id="rescalPrev30" title="Recuar 30 dias" type="button">
             <i class="fa-solid fa-arrow-left"></i>
           </button>
@@ -131,18 +136,33 @@
     display: flex;
     align-items: center;
     gap: var(--sz-space-2);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+  }
+  .rescal-contextbar .sz_contextbar_left {
+    width: auto;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .rescal-contextbar .sz_contextbar_right {
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .rescal-toolbar {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: var(--sz-space-2);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
   .rescal-filter-input {
     width: min(240px, 100%);
     min-width: 220px;
+  }
+  .rescal-toggle {
+    white-space: nowrap;
+  }
+  .rescal-kpi {
+    white-space: nowrap;
   }
   .rescal-icon-button {
     min-width: 2.625rem;
@@ -264,8 +284,8 @@
   .vis-panel.vis-center .vis-content::-webkit-scrollbar-thumb:hover,
   .vis-panel.vis-bottom .vis-content::-webkit-scrollbar-thumb:hover,
   .vis-panel.vis-right .vis-content::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--sz-color-text-muted) 55%, transparent); }
-  .vis-labelset .vis-label { border-bottom: 1px solid color-mix(in srgb, var(--sz-color-border) 72%, transparent); height: 27px !important; }
-  .vis-itemset .vis-group { height: 27px !important; }
+  .vis-labelset .vis-label { border-bottom: 1px solid color-mix(in srgb, var(--sz-color-border) 72%, transparent); height: 36px !important; }
+  .vis-itemset .vis-group { height: 36px !important; }
   .vis-panel.vis-left .vis-labelset .vis-label .vis-inner {
     display: flex;
     align-items: center;
@@ -289,21 +309,13 @@
     white-space: nowrap;
   }
   .rescal-group-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     flex: 0 0 auto;
-    min-width: 1.6rem;
-    height: 1rem;
-    padding: 0 0.32rem;
-    border-radius: 999px;
+    min-width: 1.5rem;
+    min-height: 1rem;
+    padding: 0.08rem 0.36rem;
     font-size: 0.62rem;
     line-height: 1;
-    font-weight: 700;
     white-space: nowrap;
-    color: var(--sz-color-primary-700);
-    background: color-mix(in srgb, var(--sz-color-info) 18%, transparent);
-    border: 1px solid color-mix(in srgb, var(--sz-color-info) 34%, transparent);
   }
   .vis-time-axis .vis-grid.vis-minor { border-color: color-mix(in srgb, var(--sz-color-border) 72%, transparent); }
   .vis-time-axis .vis-grid.vis-major { border-color: var(--sz-color-border); }
@@ -393,7 +405,7 @@
     position: absolute;
     top: 2px;
     right: 4px;
-    font-size: 10px !important;
+    font-size: 12px !important;
     font-weight: 700 !important;
     color: color-mix(in srgb, var(--sz-color-text) 92%, transparent) !important;
     line-height: 1 !important;
@@ -417,7 +429,7 @@
     top: 2px !important;
     right: 4px !important;
     left: auto !important;
-    font-size: 10px !important;
+    font-size: 12px !important;
     font-weight: 700 !important;
     color: color-mix(in srgb, var(--sz-color-text) 92%, transparent) !important;
     line-height: 1 !important;
@@ -544,16 +556,28 @@
   }
 
   @media (max-width: 960px) {
+    .rescal-contextbar .sz_page_subtitle {
+      flex-wrap: wrap;
+    }
+    .rescal-contextbar .sz_contextbar_left {
+      width: 100%;
+      flex: 1 1 auto;
+    }
     .rescal-contextbar .sz_contextbar_right {
       width: 100%;
+      flex: 1 1 auto;
     }
     .rescal-toolbar {
       width: 100%;
       justify-content: flex-start;
+      flex-wrap: wrap;
     }
     .rescal-filter-input {
       min-width: 0;
       flex: 1 1 220px;
+    }
+    .rescal-toggle {
+      width: 100%;
     }
   }
 
@@ -589,11 +613,6 @@
   }
   [data-sz-theme="dark"] .rescal-page .vis-time-axis .vis-text.vis-minor .rescal-dow {
     color: #a8bfdc;
-  }
-  [data-sz-theme="dark"] .rescal-page .rescal-group-badge {
-    color: #d7ecff;
-    background: rgba(110, 176, 255, 0.12);
-    border-color: rgba(110, 176, 255, 0.24);
   }
   [data-sz-theme="dark"] .rescal-page .weekend-bg {
     background: rgba(145, 168, 197, 0.13) !important;
@@ -655,11 +674,6 @@
   }
   [data-sz-theme="geek"] .rescal-page .vis-time-axis .vis-text.vis-minor .rescal-dow {
     color: #76c67e;
-  }
-  [data-sz-theme="geek"] .rescal-page .rescal-group-badge {
-    color: #b8ffbf;
-    background: rgba(70, 224, 255, 0.1);
-    border-color: rgba(70, 224, 255, 0.22);
   }
   [data-sz-theme="geek"] .rescal-page .weekend-bg {
     background: rgba(117, 255, 132, 0.08) !important;
