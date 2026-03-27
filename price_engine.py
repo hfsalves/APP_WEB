@@ -21,8 +21,7 @@ DEFAULT_DAILY_VARIATION_LIMIT = Decimal("0.00")
 pricing_bp = Blueprint("pricing", __name__, url_prefix="/pricing")
 
 PRICING_SYNC_ROBOTS = (
-    {"name": "R2-D2", "from": "A", "to": "FZZZ"},
-    {"name": "C-3PO", "from": "G", "to": "ZZZZ"},
+    {"name": "R2-D2", "from": "A", "to": "ZZZ"},
 )
 
 
@@ -57,8 +56,14 @@ def _authorize_pricing_robot_request():
 
 
 def _pricing_sync_robot_for_alojamento(alojamento):
-    normalized = _normalize_alojamento(alojamento).upper()
-    return PRICING_SYNC_ROBOTS[0]["name"] if normalized < "G" else PRICING_SYNC_ROBOTS[1]["name"]
+    return PRICING_SYNC_ROBOTS[0]["name"]
+
+
+def _add_months(day_value, months):
+    month_index = (day_value.month - 1) + int(months)
+    year = day_value.year + (month_index // 12)
+    month = (month_index % 12) + 1
+    return date(year, month, 1)
 
 
 def _iso_or_empty(value):
@@ -1999,6 +2004,7 @@ def _load_pricing_sync_monitor_state():
                 P.SYNC = 1
                 AND ISNULL(D.SYNC, 0) = 0
                 AND D.[DATA] >= CAST(GETDATE() AS date)
+                AND D.[DATA] < DATEADD(day, 375, CAST(GETDATE() AS date))
                 AND NOT EXISTS (
                     SELECT 1
                     FROM dbo.RS
@@ -2096,6 +2102,130 @@ def _load_pricing_sync_monitor_state():
     }
 
 
+def _load_pricing_sync_monitor_alojamento_detail(alojamento):
+    ensure_pricing_schema(db.session)
+
+    alojamento_norm = _normalize_alojamento(alojamento)
+    if not alojamento_norm:
+        raise ValueError("Alojamento em falta.")
+
+    today_value = date.today()
+    month_start = today_value.replace(day=1)
+    last_month_start = _add_months(month_start, 11)
+    last_month_end = _month_bounds(last_month_start)[1]
+    max_sync_day = today_value + timedelta(days=374)
+    range_end = min(last_month_end, max_sync_day)
+
+    rows = db.session.execute(
+        text(
+            """
+            SELECT CAST(D.[DATA] AS date) AS Dia
+            FROM dbo.PR_CALC_DAY AS D
+            JOIN dbo.PR_ALOJAMENTO AS P
+              ON P.AL_NOME = D.AL_NOME
+            JOIN dbo.AL AS AL
+              ON AL.NOME = D.AL_NOME
+            WHERE
+                LTRIM(RTRIM(D.AL_NOME)) = :alojamento
+                AND P.SYNC = 1
+                AND ISNULL(D.SYNC, 0) = 0
+                AND D.[DATA] >= :date_from
+                AND D.[DATA] <= :date_to
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.RS
+                    WHERE RS.ALOJAMENTO = D.AL_NOME
+                      AND ISNULL(RS.CANCELADA, 0) = 0
+                      AND CAST(RS.DATAIN AS date) <= D.[DATA]
+                      AND CAST(RS.DATAOUT AS date) > D.[DATA]
+                )
+            ORDER BY CAST(D.[DATA] AS date) ASC
+            """
+        ),
+        {
+            "alojamento": alojamento_norm,
+            "date_from": today_value,
+            "date_to": range_end,
+        },
+    ).mappings().all()
+
+    unsynced_dates = {_iso_or_empty(row.get("Dia")) for row in rows if row.get("Dia")}
+    occupied_rows = db.session.execute(
+        text(
+            """
+            SELECT
+                CAST(RS.DATAIN AS date) AS DataIn,
+                CAST(RS.DATAOUT AS date) AS DataOut
+            FROM dbo.RS
+            WHERE
+                LTRIM(RTRIM(RS.ALOJAMENTO)) = :alojamento
+                AND ISNULL(RS.CANCELADA, 0) = 0
+                AND CAST(RS.DATAOUT AS date) > :date_from
+                AND CAST(RS.DATAIN AS date) <= :date_to
+            """
+        ),
+        {
+            "alojamento": alojamento_norm,
+            "date_from": today_value,
+            "date_to": range_end,
+        },
+    ).mappings().all()
+
+    occupied_dates = set()
+    for row in occupied_rows:
+        data_in = row.get("DataIn")
+        data_out = row.get("DataOut")
+        if not data_in or not data_out:
+            continue
+        cursor_day = max(data_in, today_value)
+        last_day = min(data_out - timedelta(days=1), range_end)
+        while cursor_day <= last_day:
+            occupied_dates.add(cursor_day.isoformat())
+            cursor_day += timedelta(days=1)
+
+    months = []
+    cursor = month_start
+    for _ in range(12):
+        current_start, current_end = _month_bounds(cursor)
+        cells = []
+        for _pad in range(current_start.weekday()):
+            cells.append({"kind": "pad"})
+        total_days = (current_end - current_start).days + 1
+        for offset in range(total_days):
+            day_value = current_start + timedelta(days=offset)
+            iso_day = day_value.isoformat()
+            in_scope = today_value <= day_value <= range_end
+            cells.append(
+                {
+                    "kind": "day",
+                    "date": iso_day,
+                    "active": bool(in_scope),
+                    "occupied": bool(in_scope and iso_day in occupied_dates),
+                    "unsynced": bool(in_scope and iso_day in unsynced_dates),
+                }
+            )
+        months.append(
+            {
+                "month_start": current_start.isoformat(),
+                "label": current_start.strftime("%b %Y"),
+                "unsynced_count": sum(1 for item in cells if item.get("unsynced")),
+                "occupied_count": sum(1 for item in cells if item.get("occupied")),
+                "cells": cells,
+            }
+        )
+        cursor = _add_months(cursor, 1)
+
+    return {
+        "generated_at": datetime.utcnow().replace(microsecond=0).isoformat(),
+        "alojamento": alojamento_norm,
+        "date_from": today_value.isoformat(),
+        "date_to": range_end.isoformat(),
+        "total_unsynced": len(unsynced_dates),
+        "total_occupied": len(occupied_dates),
+        "months": months,
+    }
+
+
 def _load_event_cache_for_range(start_date, end_date):
     years = sorted({start_date.year, end_date.year})
     events = db.session.execute(
@@ -2146,7 +2276,8 @@ def pricing_planner():
 @pricing_bp.route("/sync-monitor")
 @login_required
 def pricing_sync_monitor():
-    return render_template("pricing_sync_monitor.html", page_title="Monitor de Sync")
+    initial_state = _load_pricing_sync_monitor_state()
+    return render_template("pricing_sync_monitor.html", page_title="Monitor de Sync", initial_state=initial_state)
 
 
 @pricing_bp.route("/pickup-curves")
@@ -2195,6 +2326,16 @@ def pricing_api_settings_state():
 @login_required
 def pricing_api_sync_monitor():
     return jsonify(_load_pricing_sync_monitor_state())
+
+
+@pricing_bp.route("/api/sync-monitor/detail")
+@login_required
+def pricing_api_sync_monitor_detail():
+    try:
+        alojamento = request.args.get("alojamento")
+        return jsonify(_load_pricing_sync_monitor_alojamento_detail(alojamento))
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @pricing_bp.route("/api/pickup-curves/state")
