@@ -1097,8 +1097,9 @@ const openPlanner2CleaningMenu = (bar, row, cl) => {
       }
       if (cl.id) {
         try {
-          const res = await fetch(`/generic/api/LP/${cl.id}`, { method: 'DELETE' });
-          if (!res.ok) throw new Error(res.statusText);
+          const res = await fetch(`/generic/api/LP/${encodeURIComponent(cl.id)}/planner-delete`, { method: 'DELETE' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.error) throw new Error(data.error || res.statusText || 'Erro ao eliminar');
         } catch (err) {
           showPlannerToast(`Erro ao eliminar: ${err.message || err}`, 'danger');
           return;

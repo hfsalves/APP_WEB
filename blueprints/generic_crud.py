@@ -3016,6 +3016,70 @@ def api_gravar_limpezas():
     return jsonify(success=True)
 
 
+@bp.route("/api/LP/<lpstamp>/planner-delete", methods=["DELETE"])
+@login_required
+def api_delete_planner_limpeza(lpstamp):
+    if not has_cleaning_planner_access():
+        return jsonify({'error': 'Sem permissão para eliminar'}), 403
+
+    lpstamp = (lpstamp or '').strip()
+    if not lpstamp:
+        return jsonify({'error': 'LPSTAMP em falta'}), 400
+
+    current_feid = None
+    if _table_is_fe_scoped('LP'):
+        try:
+            current_feid = get_current_feid()
+        except MissingCurrentEntityError:
+            return jsonify({'error': 'Empresa ativa não definida.'}), 400
+
+    is_admin = bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'LPADMIN', False))
+
+    try:
+        if is_admin or current_feid is None:
+            result = db.session.execute(
+                text("DELETE FROM dbo.LP WHERE LPSTAMP = :lpstamp"),
+                {'lpstamp': lpstamp},
+            )
+        elif _column_exists('AL', 'FEID_GESTOR'):
+            result = db.session.execute(
+                text(
+                    """
+                    DELETE LP
+                    FROM dbo.LP AS LP
+                    WHERE LP.LPSTAMP = :lpstamp
+                      AND EXISTS (
+                          SELECT 1
+                          FROM dbo.AL AS ALV
+                          WHERE LTRIM(RTRIM(ISNULL(ALV.NOME,''))) = LTRIM(RTRIM(ISNULL(LP.ALOJAMENTO,'')))
+                            AND (
+                                (ISNULL(ALV.FEID_GESTOR, 0) <> 0 AND ISNULL(ALV.FEID_GESTOR, 0) = :current_feid)
+                                OR
+                                (ISNULL(ALV.FEID_GESTOR, 0) = 0 AND ISNULL(LP.FEID, 0) = :current_feid)
+                            )
+                      )
+                    """
+                ),
+                {'lpstamp': lpstamp, 'current_feid': current_feid},
+            )
+        else:
+            result = db.session.execute(
+                text("DELETE FROM dbo.LP WHERE LPSTAMP = :lpstamp AND FEID = :current_feid"),
+                {'lpstamp': lpstamp, 'current_feid': current_feid},
+            )
+
+        if int(result.rowcount or 0) == 0:
+            db.session.rollback()
+            return jsonify({'error': 'Sem permissão para eliminar esta limpeza na empresa ativa.'}), 403
+
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao eliminar limpeza do planner')
+        return jsonify({'error': str(exc)}), 500
+
+
 _osm_geocode_cache = {}
 _osm_distance_cache = {}
 

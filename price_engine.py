@@ -976,7 +976,7 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
             raise ValueError(f"Perfil {profile_id} nao encontrado para o alojamento '{aloj_name}'.")
 
         regime = (aloj.get("REGIME") or "GESTAO").strip().upper()
-        price_min = _round_price(aloj.get("PRECO_MIN"))
+        price_min_base = _round_price(aloj.get("PRECO_MIN"))
         price_base = _round_price(aloj.get("PRECO_BASE"))
         price_max = _round_price(aloj.get("PRECO_MAX"))
         last_min_disc = _safe_decimal(aloj.get("LAST_MIN_DISC"), "0")
@@ -992,6 +992,7 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
 
             month_index = inputs["seasonality"].get(day_value.month, Decimal("100"))
             month_factor = month_index / Decimal("100")
+            price_min = _round_price(price_min_base * month_factor)
             dow_factor = inputs["dow_factors"].get((profile_id, day_value.isoweekday()), Decimal("1"))
             event_factor, event_info = _resolve_event_factor(day_value, inputs["events"], inputs["event_years"])
 
@@ -1109,6 +1110,8 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                         "mes": day_value.month,
                         "indice": _to_float(month_index),
                         "fator": _to_float(month_factor),
+                        "min_base": _to_float(price_min_base),
+                        "min_effective": _to_float(price_min),
                         "result": _to_float(_quantize_money(price_after_month)),
                     },
                     "dow": {
@@ -1155,6 +1158,7 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                     },
                     "availability": {"available": bool(is_available)},
                     "clamp": {
+                        "min_base": _to_float(price_min_base),
                         "min": _to_float(price_min),
                         "max": _to_float(price_max),
                         "result": _to_float(_quantize_money(price_after_clamp)),

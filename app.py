@@ -13018,6 +13018,288 @@ OPTION (MAXRECURSION 32767);
 
 
     # Performance dashboard page
+    def _daily_summary_fmt_money(value):
+        try:
+            amount = float(value or 0)
+        except Exception:
+            amount = 0.0
+        txt = f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return f"{txt} €"
+
+    def _daily_summary_fmt_pct(value):
+        try:
+            amount = float(value or 0)
+        except Exception:
+            amount = 0.0
+        txt = f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return f"{txt}%"
+
+    def _daily_summary_fmt_date(value):
+        if isinstance(value, datetime):
+            value = value.date()
+        if isinstance(value, date):
+            return value.strftime('%d/%m/%Y')
+        parsed = _parse_iso_date(value)
+        return parsed.strftime('%d/%m/%Y') if parsed else '--'
+
+    def _daily_summary_fmt_duration(minutes):
+        if minutes is None:
+            return '--'
+        try:
+            total = int(round(float(minutes)))
+        except Exception:
+            return '--'
+        if total < 0:
+            total = 0
+        hours, mins = divmod(total, 60)
+        if hours and mins:
+            return f'{hours}h {mins}m'
+        if hours:
+            return f'{hours}h'
+        return f'{mins}m'
+
+    def _daily_summary_time_to_minutes(raw):
+        value = str(raw or '').strip()
+        if not value:
+            return None
+        for fmt in ('%H:%M', '%H:%M:%S'):
+            try:
+                parsed = datetime.strptime(value, fmt)
+                return parsed.hour * 60 + parsed.minute
+            except Exception:
+                continue
+        return None
+
+    def _build_daily_summary_state(selected_date, current_feid):
+        reservations_rows = db.session.execute(text("""
+            SELECT
+                RS.RSSTAMP,
+                ISNULL(RS.RESERVA, '') AS RESERVA,
+                ISNULL(RS.NOME, '') AS HOSPEDE,
+                LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                CAST(RS.DATAIN AS date) AS DATAIN,
+                ISNULL(RS.NOITES, 0) AS NOITES,
+                ISNULL(RS.ESTADIA, 0) AS ESTADIA,
+                ISNULL(RS.LIMPEZA, 0) AS LIMPEZA,
+                ISNULL(RS.COMISSAO, 0) AS COMISSAO,
+                (ISNULL(RS.ESTADIA, 0) + ISNULL(RS.LIMPEZA, 0) - ISNULL(RS.COMISSAO, 0)) AS TOTAL_LIQUIDO
+            FROM dbo.RS AS RS
+            LEFT JOIN dbo.AL AS A
+              ON LTRIM(RTRIM(ISNULL(A.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+            WHERE CAST(ISNULL(RS.RDATA, RS.DATAIN) AS date) = :dia
+              AND ISNULL(RS.CANCELADA, 0) = 0
+              AND (
+                    ISNULL(RS.FEID, 0) = :current_feid
+                 OR ISNULL(A.FEID, 0) = :current_feid
+                 OR ISNULL(A.FEID_GESTOR, 0) = :current_feid
+              )
+            ORDER BY CAST(RS.DATAIN AS date), LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))), ISNULL(RS.NOME, '')
+        """), {
+            'dia': selected_date,
+            'current_feid': current_feid,
+        }).mappings().all()
+
+        reservations = []
+        reservations_net_total = 0.0
+        reservations_cleaning_total = 0.0
+        for row in reservations_rows:
+            nights = int(row.get('NOITES') or 0)
+            cleaning = round(float(row.get('LIMPEZA') or 0), 2)
+            net_total = round(float(row.get('TOTAL_LIQUIDO') or 0), 2)
+            avg_day = round((net_total / nights), 2) if nights > 0 else 0.0
+            reservations_net_total += net_total
+            reservations_cleaning_total += cleaning
+            reservations.append({
+                'rsstamp': row.get('RSSTAMP') or '',
+                'reserva': row.get('RESERVA') or '',
+                'hospede': row.get('HOSPEDE') or '',
+                'alojamento': row.get('ALOJAMENTO') or '',
+                'checkin': (row.get('DATAIN').strftime('%Y-%m-%d') if isinstance(row.get('DATAIN'), (date, datetime)) else ''),
+                'checkin_label': _daily_summary_fmt_date(row.get('DATAIN')),
+                'noites': nights,
+                'limpeza': cleaning,
+                'limpeza_label': _daily_summary_fmt_money(cleaning),
+                'valor_medio_dia': avg_day,
+                'valor_medio_dia_label': _daily_summary_fmt_money(avg_day),
+                'total_liquido': net_total,
+                'total_liquido_label': _daily_summary_fmt_money(net_total),
+            })
+
+        occupancy_row = db.session.execute(text("""
+            WITH active_al AS (
+                SELECT LTRIM(RTRIM(ISNULL(A.NOME, ''))) AS ALOJAMENTO
+                FROM dbo.AL AS A
+                WHERE ISNULL(A.INATIVO, 0) = 0
+                  AND ISNULL(A.FECHADO, 0) = 0
+                  AND (
+                        ISNULL(A.FEID, 0) = :current_feid
+                     OR ISNULL(A.FEID_GESTOR, 0) = :current_feid
+                  )
+            ),
+            occupied AS (
+                SELECT
+                    LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))) AS ALOJAMENTO,
+                    SUM(ISNULL(V.VALOR, 0)) AS VALOR
+                FROM dbo.v_diario_all AS V
+                JOIN active_al AS A
+                  ON A.ALOJAMENTO = LTRIM(RTRIM(ISNULL(V.CCUSTO, '')))
+                WHERE CAST(V.DATA AS date) = :dia
+                  AND ISNULL(V.VALOR, 0) <> 0
+                GROUP BY LTRIM(RTRIM(ISNULL(V.CCUSTO, '')))
+            )
+            SELECT
+                (SELECT COUNT(1) FROM active_al) AS TOTAL_ALOJAMENTOS,
+                COUNT(1) AS ALOJAMENTOS_OCUPADOS,
+                ISNULL(SUM(VALOR), 0) AS MONTANTE_DIA,
+                CASE WHEN COUNT(1) > 0 THEN SUM(VALOR) / COUNT(1) ELSE 0 END AS PRECO_MEDIO
+            FROM occupied
+        """), {
+            'dia': selected_date,
+            'current_feid': current_feid,
+        }).mappings().first() or {}
+
+        total_alojamentos = int(occupancy_row.get('TOTAL_ALOJAMENTOS') or 0)
+        alojamentos_ocupados = int(occupancy_row.get('ALOJAMENTOS_OCUPADOS') or 0)
+        montante_dia = round(float(occupancy_row.get('MONTANTE_DIA') or 0), 2)
+        preco_medio_dia = round(float(occupancy_row.get('PRECO_MEDIO') or 0), 2)
+        taxa_ocupacao = round((alojamentos_ocupados / total_alojamentos * 100.0), 2) if total_alojamentos > 0 else 0.0
+
+        cleanings_rows = db.session.execute(text("""
+            SELECT
+                T.TAREFASSTAMP,
+                LTRIM(RTRIM(ISNULL(T.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                ISNULL(T.UTILIZADOR, '') AS UTILIZADOR_LOGIN,
+                ISNULL(U.NOME, ISNULL(T.UTILIZADOR, '')) AS UTILIZADOR_NOME,
+                LTRIM(RTRIM(ISNULL(T.HORAINI, ''))) AS HORAINI,
+                LTRIM(RTRIM(ISNULL(T.HORAFIM, ''))) AS HORAFIM
+            FROM dbo.TAREFAS AS T
+            LEFT JOIN dbo.US AS U
+              ON U.LOGIN = T.UTILIZADOR
+            LEFT JOIN dbo.AL AS A
+              ON LTRIM(RTRIM(ISNULL(A.NOME, ''))) = LTRIM(RTRIM(ISNULL(T.ALOJAMENTO, '')))
+            WHERE LTRIM(RTRIM(ISNULL(T.ORIGEM, ''))) = 'LP'
+              AND CAST(T.DATA AS date) = :dia
+              AND ISNULL(T.TRATADO, 0) = 1
+              AND (
+                    ISNULL(A.FEID, 0) = :current_feid
+                 OR ISNULL(A.FEID_GESTOR, 0) = :current_feid
+              )
+            ORDER BY
+                CASE
+                    WHEN LTRIM(RTRIM(ISNULL(T.HORAINI, ''))) <> '' THEN LTRIM(RTRIM(ISNULL(T.HORAINI, '')))
+                    ELSE '99:99'
+                END,
+                LTRIM(RTRIM(ISNULL(T.ALOJAMENTO, ''))),
+                T.TAREFASSTAMP
+        """), {
+            'dia': selected_date,
+            'current_feid': current_feid,
+        }).mappings().all()
+
+        cleanings = []
+        cleanings_total_minutes = 0
+        cleanings_by_user_map = {}
+        for row in cleanings_rows:
+            start_txt = (row.get('HORAINI') or '').strip()
+            end_txt = (row.get('HORAFIM') or '').strip()
+            start_min = _daily_summary_time_to_minutes(start_txt)
+            end_min = _daily_summary_time_to_minutes(end_txt)
+            duration_min = None
+            if start_min is not None and end_min is not None:
+                if end_min < start_min:
+                    end_min += 24 * 60
+                duration_min = max(0, end_min - start_min)
+                cleanings_total_minutes += duration_min
+
+            cleaner_name = (row.get('UTILIZADOR_NOME') or '').strip() or (row.get('UTILIZADOR_LOGIN') or '').strip() or 'Sem utilizador'
+            cleaner_key = ((row.get('UTILIZADOR_LOGIN') or '').strip() or cleaner_name).upper()
+            group = cleanings_by_user_map.setdefault(cleaner_key, {
+                'utilizador': cleaner_name,
+                'login': (row.get('UTILIZADOR_LOGIN') or '').strip(),
+                'limpezas': 0,
+                'duracao_total_min': 0,
+                'duracao_timed_count': 0,
+            })
+            group['limpezas'] += 1
+            if duration_min is not None:
+                group['duracao_total_min'] += duration_min
+                group['duracao_timed_count'] += 1
+
+            cleanings.append({
+                'tarefasstamp': row.get('TAREFASSTAMP') or '',
+                'alojamento': row.get('ALOJAMENTO') or '',
+                'utilizador': cleaner_name,
+                'inicio': start_txt or '--',
+                'fim': end_txt or '--',
+                'duracao_min': duration_min,
+                'duracao_label': _daily_summary_fmt_duration(duration_min),
+            })
+
+        cleanings_by_user = []
+        for group in cleanings_by_user_map.values():
+            total_min = int(group.get('duracao_total_min') or 0)
+            timed_count = int(group.get('duracao_timed_count') or 0)
+            avg_min = round(total_min / timed_count) if timed_count > 0 else None
+            cleanings_by_user.append({
+                'utilizador': group.get('utilizador') or 'Sem utilizador',
+                'login': group.get('login') or '',
+                'limpezas': int(group.get('limpezas') or 0),
+                'duracao_total_min': total_min,
+                'duracao_total_label': _daily_summary_fmt_duration(total_min if timed_count > 0 else None),
+                'duracao_media_min': avg_min,
+                'duracao_media_label': _daily_summary_fmt_duration(avg_min),
+            })
+        cleanings_by_user.sort(key=lambda item: ((item.get('utilizador') or '').upper(), item.get('login') or ''))
+
+        return {
+            'selected_date': selected_date.isoformat(),
+            'selected_date_label': _daily_summary_fmt_date(selected_date),
+            'generated_at': datetime.now().strftime('%d/%m/%Y, %H:%M:%S'),
+            'kpis': {
+                'reservas_count': len(reservations),
+                'reservas_count_label': str(len(reservations)),
+                'reservas_liquido_total': round(reservations_net_total, 2),
+                'reservas_liquido_total_label': _daily_summary_fmt_money(reservations_net_total),
+                'reservas_limpeza_total': round(reservations_cleaning_total, 2),
+                'reservas_limpeza_total_label': _daily_summary_fmt_money(reservations_cleaning_total),
+                'montante_dia': montante_dia,
+                'montante_dia_label': _daily_summary_fmt_money(montante_dia),
+                'taxa_ocupacao': taxa_ocupacao,
+                'taxa_ocupacao_label': _daily_summary_fmt_pct(taxa_ocupacao),
+                'preco_medio_dia': preco_medio_dia,
+                'preco_medio_dia_label': _daily_summary_fmt_money(preco_medio_dia),
+                'alojamentos_ocupados': alojamentos_ocupados,
+                'alojamentos_total': total_alojamentos,
+                'limpezas_count': len(cleanings),
+                'limpezas_count_label': str(len(cleanings)),
+                'limpezas_users_count': len(cleanings_by_user),
+                'limpezas_total_minutes': cleanings_total_minutes,
+                'limpezas_total_duration_label': _daily_summary_fmt_duration(cleanings_total_minutes if cleanings else None),
+            },
+            'reservas': reservations,
+            'limpezas': cleanings,
+            'limpezas_por_user': cleanings_by_user,
+        }
+
+    @app.route('/resumo_diario')
+    @login_required
+    def resumo_diario_page():
+        try:
+            current_entity = _get_current_fe_row()
+        except MissingCurrentEntityError as exc:
+            return Response(str(exc), status=403, content_type='text/plain; charset=utf-8')
+        selected_date = _parse_iso_date(request.args.get('data'), date.today()) or date.today()
+        state = _build_daily_summary_state(selected_date, int(current_entity.get('FEID') or 0))
+        return render_template(
+            'resumo_diario.html',
+            page_title='Resumo Diário',
+            current_entity=current_entity,
+            state=state,
+            prev_date=(selected_date - timedelta(days=1)).isoformat(),
+            next_date=(selected_date + timedelta(days=1)).isoformat(),
+            today_iso=date.today().isoformat(),
+        )
+
     @app.route('/performance')
     @login_required
     def performance_page():

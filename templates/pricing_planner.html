@@ -1158,6 +1158,7 @@
       chip('Mês', normalizedFlags.month?.mes ?? '-'),
       chip('Índice', normalizedFlags.month?.indice ?? '-'),
       chip('Fator', normalizedFlags.month?.fator ?? '-'),
+      chip('Min mês', fmtMoney(normalizedFlags.month?.min_effective ?? normalizedFlags.clamp?.min)),
     ], '', stageResult(normalizedFlags.month?.result ?? stageValues.after_month)));
 
     sections.push(infoCard('Dia da Semana', [
@@ -1199,6 +1200,7 @@
     ], '', stageResult(normalizedFlags.last_min?.result ?? stageValues.after_last_min)));
 
     sections.push(infoCard('Clamp e Suavização', [
+      ...(normalizedFlags.clamp?.min_base != null ? [chip('Min base', fmtMoney(normalizedFlags.clamp?.min_base))] : []),
       chip('Min', fmtMoney(normalizedFlags.clamp?.min)),
       chip('Max', fmtMoney(normalizedFlags.clamp?.max)),
       chip('Suavizado', normalizedFlags.smooth?.applied ? 'Sim' : 'Não'),
