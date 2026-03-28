@@ -1,0 +1,540 @@
+{% extends "base.html" %}
+
+{% block title %}Wizard de Ecrãs{% endblock %}
+
+{% block content %}
+<div class="sz_page">
+  <div class="sz_page_container swz-page">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <h1 class="sz_page_title">Wizard de ecrãs</h1>
+        <p class="sz_page_subtitle">Cria `MENU`, `MOD_OBJETOS` e `CAMPOS` para `dynamic_form` e `dynamic_list`.</p>
+      </div>
+      <div class="sz_contextbar_right swz-context-actions">
+        <button type="button" id="swzClearBtn" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-rotate-left"></i>
+          <span>Limpar</span>
+        </button>
+        <button type="button" id="swzSaveBtn" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>Criar ecrã</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="sz_page_body swz-body">
+      <section class="sz_panel swz-panel swz-meta-panel">
+        <div class="swz-panel-header">
+          <div>
+            <h3 class="sz_h4">Configuração base</h3>
+            <p class="sz_text_muted">A criação é bloqueada se a tabela já tiver `MENU` ou `CAMPOS` configurados.</p>
+          </div>
+          <div id="swzStatus" class="swz-status sz_text_muted">A carregar wizard...</div>
+        </div>
+
+        <form id="swzForm" class="swz-form-grid" autocomplete="off">
+          <div class="sz_field">
+            <label class="sz_label" for="swzTable">Tabela</label>
+            <select id="swzTable" class="sz_select"></select>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="swzScreenType">Tipo de ecrã</label>
+            <select id="swzScreenType" class="sz_select">
+              <option value="dynamic_list">Dynamic List</option>
+              <option value="dynamic_form">Dynamic Form</option>
+            </select>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="swzTitle">Título</label>
+            <input id="swzTitle" class="sz_input" type="text" maxlength="60" />
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="swzIcon">Ícone</label>
+            <input id="swzIcon" class="sz_input" type="text" maxlength="100" placeholder="fa-solid fa-table-list" />
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="swzOrder">Ordem menu</label>
+            <div class="swz-order-row">
+              <input id="swzOrder" class="sz_input" type="number" step="1" value="0" />
+              <button type="button" id="swzOrderPickerBtn" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-list-ol"></i>
+                <span>Escolher posição</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="swzOrderBy">ORDER BY</label>
+            <input id="swzOrderBy" class="sz_input" type="text" maxlength="200" placeholder="Ex.: DATA DESC, NOME" />
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label">Opções MENU</label>
+            <div class="swz-inline-flags">
+              <label class="sz_checkbox">
+                <input id="swzAdmin" type="checkbox" />
+                <span>Só admin</span>
+              </label>
+              <label class="sz_checkbox">
+                <input id="swzNovo" type="checkbox" checked />
+                <span>Botão Novo</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="sz_field swz-preview-box">
+            <label class="sz_label">Preview</label>
+            <div class="swz-preview-line"><span>Menu URL</span><code id="swzMenuUrlPreview">--</code></div>
+            <div class="swz-preview-line"><span>Form URL</span><code id="swzFormUrlPreview">--</code></div>
+          </div>
+        </form>
+      </section>
+
+      <div class="swz-builder-grid">
+        <section class="sz_panel swz-panel swz-builder-panel">
+          <div class="swz-section-head">
+            <h3 class="sz_h4">Campos disponíveis</h3>
+            <span class="sz_text_muted">Escolhe os campos reais da tabela.</span>
+          </div>
+
+          <div class="swz-table-wrap">
+            <table class="sz_table sz_table_compact swz-table">
+              <thead>
+                <tr>
+                  <th class="sz_col_fit"></th>
+                  <th>Campo</th>
+                  <th>Tipo SQL</th>
+                  <th>Notas</th>
+                </tr>
+              </thead>
+              <tbody id="swzAvailableBody">
+                <tr>
+                  <td colspan="4" class="sz_text_muted">Seleciona uma tabela.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="sz_panel swz-panel swz-builder-panel">
+          <div class="swz-section-head swz-layout-head">
+            <div>
+              <h3 class="sz_h4">Layout / CAMPOS</h3>
+              <span class="sz_text_muted">Usa “Separador de linha” para mudar de row. Não é criado nenhum registo especial; a quebra é guardada pela `ORDEM`.</span>
+            </div>
+            <button type="button" id="swzSeparatorBtn" class="sz_button sz_button_secondary">
+              <i class="fa-solid fa-grip-lines"></i>
+              <span>Separador de linha</span>
+            </button>
+          </div>
+
+          <div class="swz-table-wrap">
+            <table class="sz_table sz_table_compact swz-table">
+              <thead>
+                <tr>
+                  <th class="sz_col_fit">Linha</th>
+                  <th>Campo</th>
+                  <th>Descrição</th>
+                  <th class="sz_col_fit">Tipo</th>
+                  <th class="sz_col_fit">Lista</th>
+                  <th class="sz_col_fit">Filtro</th>
+                  <th class="sz_col_fit">Só leitura</th>
+                  <th class="sz_col_fit">Obrig.</th>
+                  <th class="sz_col_fit">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="swzLayoutBody">
+                <tr>
+                  <td colspan="9" class="sz_text_muted">Ainda não existem campos selecionados.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <section class="sz_panel swz-panel swz-modules-section">
+        <div class="swz-section-head">
+          <h4 class="sz_h4">Módulos</h4>
+          <span class="sz_text_muted">É criado um registo em `MOD_OBJETOS` por módulo selecionado.</span>
+        </div>
+        <div id="swzModules" class="swz-modules-grid"></div>
+      </section>
+
+      <section class="sz_panel swz-panel swz-access-panel">
+        <div class="swz-section-head">
+          <h4 class="sz_h4">Acessos</h4>
+          <span class="sz_text_muted">Define quem pode consultar / inserir / editar / eliminar. Sem linhas em `ACESSOS`, só admins conseguem usar o ecrã.</span>
+        </div>
+        <div class="swz-table-wrap">
+          <table class="sz_table sz_table_compact swz-table">
+            <thead>
+              <tr>
+                <th>Utilizador</th>
+                <th class="sz_col_fit">Consultar</th>
+                <th class="sz_col_fit">Inserir</th>
+                <th class="sz_col_fit">Editar</th>
+                <th class="sz_col_fit">Eliminar</th>
+              </tr>
+            </thead>
+            <tbody id="swzAclBody">
+              <tr>
+                <td colspan="5" class="sz_text_muted">A carregar utilizadores...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="swzOrderModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title">Escolher posição no menu</h5>
+          <div class="swz-modal-subtitle">Seleciona o item depois do qual queres inserir o novo ecrã.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="swz-order-quick-actions">
+          <button type="button" class="sz_button sz_button_ghost swz-order-pick" data-order="0" data-label="No topo">
+            <i class="fa-solid fa-arrow-up-wide-short"></i>
+            <span>No topo</span>
+          </button>
+          <button type="button" id="swzOrderLastBtn" class="sz_button sz_button_ghost">
+            <i class="fa-solid fa-arrow-down-wide-short"></i>
+            <span>No fim</span>
+          </button>
+        </div>
+        <div class="swz-order-search-wrap">
+          <input type="text" id="swzOrderSearch" class="sz_input" placeholder="Filtrar itens do menu..." />
+        </div>
+        <div class="swz-order-list-wrap">
+          <table class="sz_table sz_table_compact swz-table swz-order-table">
+            <thead>
+              <tr>
+                <th class="sz_col_fit">Ordem</th>
+                <th>Menu</th>
+                <th class="sz_col_fit">Posicionar</th>
+              </tr>
+            </thead>
+            <tbody id="swzOrderBody">
+              <tr>
+                <td colspan="3" class="sz_text_muted">A carregar menu...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .swz-page {
+    min-height: calc(100vh - var(--sz-shell-header-height, 64px));
+  }
+
+  .swz-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .swz-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+    position: relative;
+    z-index: 0;
+  }
+
+  .swz-panel-header,
+  .swz-section-head,
+  .swz-layout-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .swz-status {
+    min-height: 1.5rem;
+    max-width: 32rem;
+    text-align: right;
+  }
+
+  .swz-status.is-danger { color: var(--sz-danger); }
+  .swz-status.is-success { color: var(--sz-success); }
+  .swz-status.is-warning { color: var(--sz-warning); }
+
+  .swz-form-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .swz-order-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .5rem;
+    align-items: center;
+  }
+
+  .swz-preview-box {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+  }
+
+  .swz-preview-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .5rem .75rem;
+    border-radius: .75rem;
+    background: var(--sz-surface-2, rgba(255,255,255,.04));
+  }
+
+  .swz-preview-line code {
+    font-size: .85rem;
+    word-break: break-all;
+  }
+
+  .swz-inline-flags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    min-height: 42px;
+    align-items: center;
+  }
+
+  .swz-builder-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 1rem;
+    align-items: start;
+    min-width: 0;
+  }
+
+  .swz-builder-panel {
+    min-width: 0;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .swz-modules-section,
+  .swz-access-panel {
+    min-width: 0;
+    clear: both;
+  }
+
+  .swz-table-wrap {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: auto;
+    position: relative;
+  }
+
+  .swz-table {
+    min-width: 100%;
+  }
+
+  .swz-table th,
+  .swz-table td {
+    vertical-align: middle;
+  }
+
+  .swz-table th {
+    position: static;
+    top: auto;
+    z-index: auto;
+  }
+
+  .swz-modal-subtitle {
+    font-size: .85rem;
+    color: var(--sz-color-text-secondary, rgba(255,255,255,.65));
+    margin-top: .2rem;
+  }
+
+  .swz-order-quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    margin-bottom: .75rem;
+  }
+
+  .swz-order-search-wrap {
+    margin-bottom: .75rem;
+  }
+
+  .swz-order-list-wrap {
+    max-height: 60vh;
+    overflow: auto;
+  }
+
+  #swzOrderModal .modal-content {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg, 1rem);
+    box-shadow: var(--sz-shadow-2, 0 20px 60px rgba(0, 0, 0, .35));
+  }
+
+  #swzOrderModal .modal-header,
+  #swzOrderModal .modal-footer {
+    border-color: var(--sz-color-border);
+    background: var(--sz-color-surface-alt);
+  }
+
+  #swzOrderModal .modal-body {
+    background: var(--sz-color-surface);
+  }
+
+  #swzOrderModal .btn-close {
+    filter: var(--sz-modal-close-filter, none);
+  }
+
+  .swz-order-table .swz-order-label {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    min-width: 0;
+  }
+
+  .swz-order-indent {
+    width: 1rem;
+    flex: 0 0 1rem;
+  }
+
+  .swz-order-table .swz-order-label-text {
+    min-width: 0;
+  }
+
+  .swz-order-table .swz-order-label-text strong,
+  .swz-order-table .swz-order-label-text span {
+    display: block;
+  }
+
+  .swz-order-table .swz-order-label-text span {
+    font-size: .82rem;
+    color: var(--sz-color-text-secondary, rgba(255,255,255,.65));
+  }
+
+  .swz-order-table tr.is-group td {
+    font-weight: 600;
+  }
+
+  .swz-modules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: .75rem;
+  }
+
+  .swz-module-card {
+    border: 1px solid var(--sz-color-border);
+    border-radius: 1rem;
+    padding: .75rem .9rem;
+    display: flex;
+    gap: .75rem;
+    align-items: flex-start;
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+    min-width: 0;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-border) 35%, transparent);
+  }
+
+  .swz-module-card input {
+    margin-top: .2rem;
+    accent-color: var(--sz-color-primary);
+  }
+
+  .swz-module-meta {
+    min-width: 0;
+  }
+
+  .swz-module-meta strong {
+    display: block;
+    line-height: 1.2;
+  }
+
+  .swz-module-meta span {
+    display: block;
+    font-size: .85rem;
+    color: var(--sz-color-text-secondary, rgba(255,255,255,.65));
+  }
+
+  .swz-action-buttons {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+  }
+
+  .swz-separator-row td {
+    background: color-mix(in srgb, var(--sz-warning, #f6c344) 10%, transparent);
+  }
+
+  .swz-layout-name {
+    font-weight: 600;
+  }
+
+  .swz-layout-note {
+    display: block;
+    font-size: .78rem;
+    color: var(--sz-color-text-secondary, rgba(255,255,255,.65));
+  }
+
+  .swz-unsupported {
+    color: var(--sz-danger);
+    font-weight: 600;
+  }
+
+  @media (max-width: 1200px) {
+    .swz-form-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .swz-builder-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .swz-form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .swz-panel-header,
+    .swz-section-head,
+    .swz-layout-head,
+    .swz-context-actions {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .swz-order-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script>
+  window.SCREEN_WIZARD_CONFIG = {
+    bootstrapUrl: "{{ url_for('api_screen_wizard_bootstrap') }}",
+    columnsUrl: "{{ url_for('api_screen_wizard_columns') }}",
+    saveUrl: "{{ url_for('api_screen_wizard_save') }}"
+  };
+</script>
+<script type="module" src="{{ url_for('static', filename='js/screen_wizard.js') }}"></script>
+{% endblock %}

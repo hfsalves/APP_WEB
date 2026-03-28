@@ -231,10 +231,13 @@
   }
 
   .pszm-month-card {
-    border: 1px solid var(--sz-color-border);
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 72%, var(--sz-color-border)) !important;
     border-radius: var(--sz-radius-md);
     padding: var(--sz-space-3);
-    background: color-mix(in srgb, var(--sz-color-surface-2) 72%, transparent);
+    background: color-mix(in srgb, var(--sz-color-primary) 18%, var(--sz-color-surface-3)) !important;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 28%, transparent),
+      0 12px 30px rgba(0, 0, 0, 0.22) !important;
     display: flex;
     flex-direction: column;
     gap: var(--sz-space-2);
@@ -471,16 +474,6 @@
                   <h2 class="pszm-aloj-title">{{ row.alojamento }}</h2>
                   <div class="pszm-aloj-registos">{{ row.registos }}</div>
                 </div>
-                <div class="pszm-aloj-meta">
-                  <div class="pszm-aloj-meta-item">
-                    <div class="pszm-aloj-meta-label">Primeira data</div>
-                    <div class="pszm-aloj-meta-value">{{ row.primeira_data }}</div>
-                  </div>
-                  <div class="pszm-aloj-meta-item">
-                    <div class="pszm-aloj-meta-label">Ultima data</div>
-                    <div class="pszm-aloj-meta-value">{{ row.ultima_data }}</div>
-                  </div>
-                </div>
               </article>
             {% endfor %}
           {% else %}
@@ -676,16 +669,6 @@
             <h2 class="pszm-aloj-title">${escapeHtml(row.alojamento)}</h2>
             <div class="pszm-aloj-registos">
               <span class="pszm-registos-value${changed ? ' pszm-value-bump' : ''}">${escapeHtml(row.registos)}</span>
-            </div>
-          </div>
-          <div class="pszm-aloj-meta">
-            <div class="pszm-aloj-meta-item">
-              <div class="pszm-aloj-meta-label">Primeira data</div>
-              <div class="pszm-aloj-meta-value">${escapeHtml(fmtDate(row.primeira_data))}</div>
-            </div>
-            <div class="pszm-aloj-meta-item">
-              <div class="pszm-aloj-meta-label">Ultima data</div>
-              <div class="pszm-aloj-meta-value">${escapeHtml(fmtDate(row.ultima_data))}</div>
             </div>
           </div>
         </article>

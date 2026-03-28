@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block title %}Reset certificacao FEID 1{% endblock %}
+
+{% block content %}
+<div class="sz_page">
+  <div class="sz_page_container cert-reset-page">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <h1 class="sz_page_title">Reset certificacao FEID 1</h1>
+        <p class="sz_page_subtitle">Ferramenta interna. Apaga o universo documental da empresa alvo e recria series limpas para repetir testes AT.</p>
+      </div>
+      <div class="sz_contextbar_right cert-reset-target">
+        <span class="sz_badge sz_badge_warning">Interno</span>
+        <span class="cert-reset-target-name">{{ (target_entity.get('NOMEFISCAL') or target_entity.get('NOME') or 'FEID 1')|e }}</span>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content cert-reset-content">
+        <section class="sz_panel cert-reset-warning">
+          <div class="cert-reset-warning-icon">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <div class="cert-reset-warning-copy">
+            <div class="sz_h4">Acao destrutiva e limitada a FEID = 1</div>
+            <p class="sz_text_muted">Esta ferramenta nao aparece na navegacao normal. O backend so atua na empresa FEID 1 (Malheiro e Filhos) e nao toca em mestres como clientes, artigos, parametros, FE, US ou LOCAIS.</p>
+          </div>
+        </section>
+
+        <section class="sz_grid cert-reset-kpis">
+          <article class="sz_panel cert-reset-kpi">
+            <div class="cert-reset-kpi-label">Linhas documentais</div>
+            <div class="cert-reset-kpi-value" id="crDocLines">{{ preview_counts.get('doc_lines', 0) }}</div>
+          </article>
+          <article class="sz_panel cert-reset-kpi">
+            <div class="cert-reset-kpi-label">Cabecalhos</div>
+            <div class="cert-reset-kpi-value" id="crDocHeaders">{{ preview_counts.get('doc_headers', 0) }}</div>
+          </article>
+          <article class="sz_panel cert-reset-kpi">
+            <div class="cert-reset-kpi-label">Series</div>
+            <div class="cert-reset-kpi-value" id="crSeries">{{ preview_counts.get('series', 0) }}</div>
+          </article>
+          <article class="sz_panel cert-reset-kpi">
+            <div class="cert-reset-kpi-label">FTSX</div>
+            <div class="cert-reset-kpi-value" id="crFtsx">{{ preview_counts.get('ftsx', 0) }}</div>
+          </article>
+        </section>
+
+        <section class="sz_panel cert-reset-plan">
+          <div class="cert-reset-section-head">
+            <div>
+              <div class="sz_h4">Series a recriar</div>
+              <div class="sz_text_muted">Conjunto minimo limpo para repetir os testes de certificacao.</div>
+            </div>
+          </div>
+          <div class="cert-reset-series-list">
+            {% for item in preview_series %}
+              <div class="cert-reset-series-item">
+                <span class="sz_badge sz_badge_info">{{ (item.get('label') or '')|e }}</span>
+                <span class="sz_text_muted">TIPOSAFT {{ (item.get('tiposaft') or '')|e }}</span>
+                {% if item.get('is_transport') %}
+                  <span class="sz_badge sz_badge_warning">Transporte</span>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+
+        <section class="sz_panel cert-reset-confirm-panel">
+          <div class="cert-reset-section-head">
+            <div>
+              <div class="sz_h4">Confirmacao forte</div>
+              <div class="sz_text_muted">Escreve a frase exata e confirma. O reset corre numa transacao unica.</div>
+            </div>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="crConfirmText">Frase obrigatoria</label>
+            <input id="crConfirmText" class="sz_input" type="text" autocomplete="off" placeholder="{{ confirm_phrase }}">
+          </div>
+
+          <div class="cert-reset-confirm-phrase">
+            <span class="sz_text_muted">Frase esperada</span>
+            <code>{{ confirm_phrase }}</code>
+          </div>
+
+          <div class="cert-reset-actions">
+            <button type="button" id="crExecuteBtn" class="sz_button sz_button_danger">
+              <i class="fa-solid fa-skull-crossbones"></i>
+              <span>Executar reset FEID 1</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="sz_panel cert-reset-result" id="crResultPanel" hidden>
+          <div class="cert-reset-section-head">
+            <div>
+              <div class="sz_h4">Resultado</div>
+              <div id="crResultMeta" class="sz_text_muted">Sem execucao.</div>
+            </div>
+          </div>
+          <div id="crResultError" class="sz_notice sz_notice_error" hidden></div>
+          <div id="crResultOk" hidden>
+            <div class="sz_grid cert-reset-result-grid">
+              <article class="sz_panel cert-reset-kpi">
+                <div class="cert-reset-kpi-label">Linhas apagadas</div>
+                <div class="cert-reset-kpi-value" id="crResultLines">0</div>
+              </article>
+              <article class="sz_panel cert-reset-kpi">
+                <div class="cert-reset-kpi-label">Cabecalhos apagados</div>
+                <div class="cert-reset-kpi-value" id="crResultHeaders">0</div>
+              </article>
+              <article class="sz_panel cert-reset-kpi">
+                <div class="cert-reset-kpi-label">Series apagadas</div>
+                <div class="cert-reset-kpi-value" id="crResultSeries">0</div>
+              </article>
+              <article class="sz_panel cert-reset-kpi">
+                <div class="cert-reset-kpi-label">FTSX apagados</div>
+                <div class="cert-reset-kpi-value" id="crResultFtsx">0</div>
+              </article>
+            </div>
+
+            <div class="cert-reset-extra">
+              <div class="sz_text_muted">PDF cache removida: <strong id="crResultPdf">0</strong></div>
+              <div class="sz_text_muted">Series recriadas</div>
+              <div id="crResultSeriesList" class="cert-reset-series-list"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+</div>
+
+<style>
+  .cert-reset-page { min-height: calc(100vh - 64px); }
+  .cert-reset-content { display: grid; gap: 18px; align-content: start; }
+  .cert-reset-target { display: inline-flex; align-items: center; gap: 10px; }
+  .cert-reset-target-name { font-weight: 700; color: var(--sz-color-text); }
+  .cert-reset-warning {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 16px;
+    align-items: start;
+    border-color: color-mix(in srgb, var(--sz-color-warning) 55%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-warning) 10%, var(--sz-color-surface));
+  }
+  .cert-reset-warning-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    color: var(--sz-color-warning);
+    background: color-mix(in srgb, var(--sz-color-warning) 18%, transparent);
+    font-size: 20px;
+  }
+  .cert-reset-kpis,
+  .cert-reset-result-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+  }
+  .cert-reset-kpi {
+    padding: 16px 18px;
+    background: var(--sz-color-surface-alt);
+  }
+  .cert-reset-kpi-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--sz-color-text-secondary);
+  }
+  .cert-reset-kpi-value {
+    margin-top: 8px;
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--sz-color-text);
+  }
+  .cert-reset-plan,
+  .cert-reset-confirm-panel,
+  .cert-reset-result { display: grid; gap: 14px; }
+  .cert-reset-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 12px;
+  }
+  .cert-reset-series-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .cert-reset-series-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--sz-color-border);
+    border-radius: 14px;
+    background: var(--sz-color-surface-alt);
+  }
+  .cert-reset-confirm-phrase {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .cert-reset-confirm-phrase code {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: var(--sz-color-surface-alt);
+    border: 1px solid var(--sz-color-border);
+    color: var(--sz-color-text);
+  }
+  .cert-reset-actions { display: flex; justify-content: flex-start; }
+  .cert-reset-extra { display: grid; gap: 10px; }
+  .cert-reset-result .sz_notice {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+  }
+  .cert-reset-result .sz_notice_error {
+    border-color: color-mix(in srgb, var(--sz-color-danger) 55%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-danger) 12%, var(--sz-color-surface));
+    color: var(--sz-color-text);
+  }
+  @media (max-width: 720px) {
+    .cert-reset-warning { grid-template-columns: 1fr; }
+    .cert-reset-kpis,
+    .cert-reset-result-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+
+<script>
+  (() => {
+    const confirmPhrase = {{ confirm_phrase|tojson }};
+    const executeUrl = {{ url_for('api_dev_reset_certificacao_feid1')|tojson }};
+    const confirmInput = document.getElementById('crConfirmText');
+    const executeBtn = document.getElementById('crExecuteBtn');
+    const resultPanel = document.getElementById('crResultPanel');
+    const resultMeta = document.getElementById('crResultMeta');
+    const resultError = document.getElementById('crResultError');
+    const resultOk = document.getElementById('crResultOk');
+
+    function setBusy(isBusy) {
+      executeBtn.disabled = !!isBusy;
+      executeBtn.classList.toggle('is-loading', !!isBusy);
+    }
+
+    function showError(message) {
+      resultPanel.hidden = false;
+      resultError.hidden = false;
+      resultOk.hidden = true;
+      resultError.textContent = message || 'Erro ao executar reset.';
+      resultMeta.textContent = 'Execucao com erro.';
+    }
+
+    function showSuccess(result) {
+      const deleted = result.deleted_counts || {};
+      const recreated = Array.isArray(result.recreated_series) ? result.recreated_series : [];
+      resultPanel.hidden = false;
+      resultError.hidden = true;
+      resultOk.hidden = false;
+      resultMeta.textContent = `Executado em ${result.executed_at || '-'} por ${result.executed_by || '-'}.`;
+      document.getElementById('crResultLines').textContent = deleted.doc_lines ?? 0;
+      document.getElementById('crResultHeaders').textContent = deleted.doc_headers ?? 0;
+      document.getElementById('crResultSeries').textContent = deleted.series ?? 0;
+      document.getElementById('crResultFtsx').textContent = deleted.ftsx ?? 0;
+      document.getElementById('crResultPdf').textContent = result.pdf_cache_removed ?? 0;
+      document.getElementById('crDocLines').textContent = '0';
+      document.getElementById('crDocHeaders').textContent = '0';
+      document.getElementById('crSeries').textContent = recreated.length;
+      document.getElementById('crFtsx').textContent = recreated.length;
+      document.getElementById('crResultSeriesList').innerHTML = recreated
+        .map((label) => `<span class="sz_badge sz_badge_info">${String(label)}</span>`)
+        .join('');
+    }
+
+    async function runReset() {
+      const confirmText = (confirmInput.value || '').trim().toUpperCase();
+      if (confirmText !== confirmPhrase) {
+        showError(`Confirmacao invalida. Escreve exatamente "${confirmPhrase}".`);
+        confirmInput.focus();
+        confirmInput.select();
+        return;
+      }
+      const accept = window.confirm('Isto vai apagar todos os documentos e series da empresa FEID=1 e recriar series limpas. Continuar?');
+      if (!accept) return;
+      setBusy(true);
+      try {
+        const response = await fetch(executeUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirm_text: confirmText })
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data || data.ok !== true) {
+          throw new Error((data && data.error) || 'Falha no reset.');
+        }
+        showSuccess(data.result || {});
+      } catch (error) {
+        showError(error.message || 'Falha no reset.');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    executeBtn?.addEventListener('click', runReset);
+    confirmInput?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        runReset();
+      }
+    });
+  })();
+</script>
+{% endblock %}

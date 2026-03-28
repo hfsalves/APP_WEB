@@ -74,6 +74,7 @@
             </section>
 
             <form id="entForm" class="sz_stack" autocomplete="off">
+              <input id="entLOGOTIPO_PATH" type="hidden">
               <section class="sz_panel sz_stack">
                 <div class="sz_label">Identificação</div>
                 <div class="sz_grid sz_entities_grid_id">
@@ -103,6 +104,30 @@
                   <div class="sz_field sz_entities_span_full">
                     <label class="sz_label" for="entATIVIDADE">Atividade</label>
                     <input id="entATIVIDADE" class="sz_input">
+                  </div>
+                </div>
+              </section>
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Logotipo</div>
+                <div class="sz_entities_logo_block">
+                  <div class="sz_entities_logo_preview" id="entLogoPreview">
+                    <img id="entLogoImg" alt="Logotipo da entidade" class="sz_entities_logo_img" style="display:none;">
+                    <div id="entLogoPlaceholder" class="sz_entities_logo_placeholder">Sem logotipo</div>
+                  </div>
+                  <div class="sz_stack">
+                    <div id="entLogoStatus" class="sz_text_muted">Guarde a entidade primeiro para carregar um logotipo.</div>
+                    <div class="sz_inline">
+                      <button id="entBtnUploadLogo" type="button" class="sz_button sz_button_secondary">
+                        <i class="fa-solid fa-upload"></i>
+                        <span>Carregar logotipo</span>
+                      </button>
+                      <button id="entBtnRemoveLogo" type="button" class="sz_button sz_button_ghost">
+                        <i class="fa-solid fa-trash"></i>
+                        <span>Remover</span>
+                      </button>
+                    </div>
+                    <input id="entLogoFile" type="file" accept=".png,.jpg,.jpeg,.webp" style="display:none;">
                   </div>
                 </div>
               </section>
@@ -282,6 +307,7 @@
   window.FE_CAN_CREATE = {{ fe_can_create|tojson }};
   window.FE_CAN_EDIT = {{ fe_can_edit|tojson }};
   window.FE_CAN_DELETE = {{ fe_can_delete|tojson }};
+  window.FE_LOGO_ENABLED = {{ fe_logo_enabled|tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/entidades.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
 <style>
@@ -416,6 +442,38 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
+  .sz_entities_logo_block {
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: var(--sz-space-4);
+    align-items: start;
+  }
+
+  .sz_entities_logo_preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 140px;
+    padding: var(--sz-space-3);
+    border: 1px dashed color-mix(in srgb, var(--sz-color-primary) 35%, var(--sz-color-border));
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-primary) 4%, var(--sz-color-surface-2));
+    overflow: hidden;
+  }
+
+  .sz_entities_logo_img {
+    display: block;
+    max-width: 100%;
+    max-height: 110px;
+    object-fit: contain;
+  }
+
+  .sz_entities_logo_placeholder {
+    color: var(--sz-color-text-muted);
+    text-align: center;
+    font-size: var(--sz-font-size-sm);
+  }
+
   .sz_entities_span_full {
     grid-column: 1 / -1;
   }
@@ -436,15 +494,19 @@
       flex-direction: column;
     }
 
-    .sz_entities_stats,
-    .sz_entities_grid_id,
-    .sz_entities_grid_contact,
-    .sz_entities_grid_fiscal,
-    .sz_entities_grid_ws {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+     .sz_entities_stats,
+     .sz_entities_grid_id,
+     .sz_entities_grid_contact,
+     .sz_entities_grid_fiscal,
+     .sz_entities_grid_ws {
+       grid-template-columns: repeat(2, minmax(0, 1fr));
+     }
 
-  }
+     .sz_entities_logo_block {
+       grid-template-columns: 1fr;
+     }
+
+   }
 
   @media (max-width: 780px) {
     .sz_entities_filters,

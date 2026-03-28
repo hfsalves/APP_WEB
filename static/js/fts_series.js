@@ -51,6 +51,7 @@
         ULTIMO_FNO: document.getElementById('ftsULTIMO_FNO'),
         ATIVA: document.getElementById('ftsATIVA'),
         NO_SAFT: document.getElementById('ftsNO_SAFT'),
+        IS_DOC_TRANSPORTE: document.getElementById('ftsIS_DOC_TRANSPORTE'),
         DTCriacao: document.getElementById('ftsDTCriacao'),
         DTAlteracao: document.getElementById('ftsDTAlteracao'),
         USERCRIACAO: document.getElementById('ftsUSERCRIACAO'),
@@ -74,7 +75,7 @@
     },
   };
 
-  const ftsEditableKeys = ['NDOC', 'SERIE', 'DESCR', 'ATIVA', 'ESTADO', 'NO_SAFT', 'TIPOSAFT'];
+  const ftsEditableKeys = ['NDOC', 'SERIE', 'DESCR', 'ATIVA', 'ESTADO', 'NO_SAFT', 'TIPOSAFT', 'IS_DOC_TRANSPORTE'];
   const ftsxEditableKeys = ['COD_VALIDACAO_SERIE', 'ATCUD_PREFIX', 'AT_SERIE_ESTADO', 'AT_SERIE_DATA', 'AT_SERIE_MSG'];
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (match) => (
@@ -121,6 +122,7 @@
       ULTIMO_FNO: 0,
       NO_SAFT: 0,
       TIPOSAFT: '',
+      IS_DOC_TRANSPORTE: 0,
       DTCriacao: '',
       DTAlteracao: '',
       USERCRIACAO: '',
@@ -248,6 +250,7 @@
           <span><strong>Estado:</strong> ${esc(row.ESTADO || 0)}</span>
           <span><strong>Último FNO:</strong> ${esc(row.ULTIMO_FNO || 0)}</span>
           <span><strong>NO_SAFT:</strong> ${Number(row.NO_SAFT || 0) === 1 ? '1' : '0'}</span>
+          <span><strong>Transporte:</strong> ${Number(row.IS_DOC_TRANSPORTE || 0) === 1 ? '1' : '0'}</span>
           <span><strong>TIPOSAFT:</strong> ${esc(row.TIPOSAFT || '—')}</span>
           <span><strong>COD:</strong> ${esc(row.COD_VALIDACAO_SERIE || '—')}</span>
           <span><strong>Prefixo:</strong> ${esc(row.ATCUD_PREFIX || '—')}</span>
@@ -436,6 +439,7 @@
       ATIVA: els.fields.fts.ATIVA?.checked ? 1 : 0,
       ESTADO: String(els.fields.fts.ESTADO?.value || '').trim(),
       NO_SAFT: els.fields.fts.NO_SAFT?.checked ? 1 : 0,
+      IS_DOC_TRANSPORTE: els.fields.fts.IS_DOC_TRANSPORTE?.checked ? 1 : 0,
       TIPOSAFT: String(els.fields.fts.TIPOSAFT?.value || '').trim().toUpperCase(),
     };
   }

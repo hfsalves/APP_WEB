@@ -1262,11 +1262,83 @@ def _load_ui_alojamentos():
     return [row[0] for row in rows]
 
 
+def _ensure_pricing_alojamentos_registered(session):
+    ensure_pricing_schema(session)
+
+    default_profile_id = session.execute(
+        text(
+            """
+            SELECT TOP 1 PERFIL_ID
+            FROM dbo.PR_PERFIL
+            ORDER BY CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(NOME, '')))) = 'BASE' THEN 0 ELSE 1 END, PERFIL_ID ASC
+            """
+        )
+    ).scalar()
+    if not default_profile_id:
+        raise ValueError("Nao existe PERFIL base em PR_PERFIL.")
+
+    missing_rows = session.execute(
+        text(
+            """
+            SELECT
+                al.NOME AS AL_NOME_RAW,
+                LTRIM(RTRIM(ISNULL(al.NOME, ''))) AS AL_NOME,
+                UPPER(LTRIM(RTRIM(ISNULL(al.TIPO, 'GESTAO')))) AS REGIME_SUGERIDO
+            FROM dbo.AL al
+            LEFT JOIN dbo.PR_ALOJAMENTO pa
+              ON pa.AL_NOME = al.NOME
+            WHERE pa.AL_NOME IS NULL
+              AND LTRIM(RTRIM(ISNULL(al.NOME, ''))) <> ''
+              AND ISNULL(al.INATIVO, 0) = 0
+            ORDER BY LTRIM(RTRIM(ISNULL(al.NOME, ''))) ASC
+            """
+        )
+    ).mappings().all()
+
+    created = []
+    for row in missing_rows:
+        raw_name = row.get("AL_NOME_RAW")
+        normalized_name = _normalize_alojamento(row.get("AL_NOME"))
+        if not raw_name or not normalized_name:
+            continue
+        regime = str(row.get("REGIME_SUGERIDO") or "GESTAO").strip().upper()
+        if regime not in {"GESTAO", "EXPLORACAO"}:
+            regime = "GESTAO"
+        session.execute(
+            text(
+                """
+                INSERT INTO dbo.PR_ALOJAMENTO
+                (
+                    AL_NOME, PERFIL_ID, REGIME, PRECO_MIN, PRECO_BASE, PRECO_MAX,
+                    LAST_MIN_DISC, LAST_MIN_DAYS, SYNC, ATIVO
+                )
+                VALUES
+                (
+                    :alojamento, :perfil_id, :regime, 0, 0, 0,
+                    0, 0, 0, 1
+                )
+                """
+            ),
+            {
+                "alojamento": raw_name,
+                "perfil_id": int(default_profile_id),
+                "regime": regime,
+            },
+        )
+        created.append(normalized_name)
+
+    if created:
+        session.commit()
+    return created
+
+
 def _load_alojamento_config(alojamento):
     ensure_pricing_schema(db.session)
     alojamento = _normalize_alojamento(alojamento)
     if not alojamento:
         raise ValueError("Alojamento em falta.")
+
+    _ensure_pricing_alojamentos_registered(db.session)
 
     row = db.session.execute(
         text(
@@ -2273,8 +2345,14 @@ def _load_event_cache_for_range(start_date, end_date):
 @pricing_bp.route("/planner")
 @login_required
 def pricing_planner():
+    auto_created_alojamentos = _ensure_pricing_alojamentos_registered(db.session)
     alojamentos = _load_ui_alojamentos()
-    return render_template("pricing_planner.html", alojamentos=alojamentos, page_title="Price Manager")
+    return render_template(
+        "pricing_planner.html",
+        alojamentos=alojamentos,
+        page_title="Price Manager",
+        auto_created_alojamentos=auto_created_alojamentos,
+    )
 
 
 @pricing_bp.route("/sync-monitor")

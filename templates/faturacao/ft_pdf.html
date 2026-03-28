@@ -64,8 +64,8 @@
       <td style="width:52%; border:0; padding:0 6px 0 0; vertical-align:top;">
         <table style="width:100%; border-collapse:collapse;">
           <tr><td class="box-pad" style="border:0;">
-            {% if logo_b64 %}
-            <img alt="GuestSpa" src="data:image/png;base64,{{ logo_b64 }}" style="width:140px; height:auto; margin-bottom:16px;">
+            {% if logo and logo.b64 %}
+            <img alt="Logotipo" src="data:{{ logo.mime }};base64,{{ logo.b64 }}" style="width:140px; height:auto; margin-bottom:16px;">
             {% else %}
             <div class="title">GuestSpa</div>
             {% endif %}
@@ -100,10 +100,12 @@
       <td style="width:42%; border:0; padding:0 12px 0 0; vertical-align:top;">
         <table class="tbl" style="margin-top:6px; width:78%; margin-left:0; margin-right:auto;">
           <tbody>
+            {% if show_values %}
             <tr>
               <td style="width:50%;"><strong>Desconto Doc.</strong></td>
               <td class="num">{{ summary.header_discount_pct }}%</td>
             </tr>
+            {% endif %}
             <tr>
               <td><strong>Moeda</strong></td>
               <td class="num">{{ ft.MOEDA or 'EUR' }}</td>
@@ -138,9 +140,11 @@
         <th class="w-design">Designa&ccedil;&atilde;o</th>
         <th class="num w-qtd">Qtd.</th>
         <th class="w-un">Un.</th>
+        {% if show_values %}
         <th class="num w-preco">Pre&ccedil;o</th>
         <th class="center w-desc">Desc. %</th>
         <th class="num w-total">Total</th>
+        {% endif %}
         <th class="center w-iva">IVA %</th>
       </tr>
     </thead>
@@ -151,9 +155,11 @@
         <td class="w-design">{{ ln.DESIGN or '' }}</td>
         <td class="num w-qtd">{{ ln._QTT }}</td>
         <td class="w-un">{{ ln.UNIDADE or '' }}</td>
+        {% if show_values %}
         <td class="num w-preco">{{ ln._EPV }}</td>
         <td class="center w-desc">{{ ln._DESC_PCT }}</td>
         <td class="num w-total">{{ ln._TOTAL }}</td>
+        {% endif %}
         <td class="center w-iva">{{ ln._IVA_TX }}</td>
       </tr>
       {% endfor %}
@@ -165,15 +171,27 @@
           <td class="w-design">&nbsp;</td>
           <td class="num w-qtd">&nbsp;</td>
           <td class="w-un">&nbsp;</td>
+          {% if show_values %}
           <td class="num w-preco">&nbsp;</td>
           <td class="center w-desc">&nbsp;</td>
           <td class="num w-total">&nbsp;</td>
+          {% endif %}
           <td class="center w-iva">&nbsp;</td>
         </tr>
         {% endfor %}
       {% endif %}
     </tbody>
   </table>
+
+  {% if is_transport_doc %}
+  <div class="origin-ref">
+    <div><span class="label">Código AT:</span> <span>{{ ft.CODIGO_AT or '—' }}</span></div>
+    <div><span class="label">Local de carga:</span> <span>{{ ft.LOCAL_CARGA_LABEL or '—' }}</span></div>
+    <div><span class="label">Local de descarga:</span> <span>{{ ft.LOCAL_DESCARGA_LABEL or '—' }}</span></div>
+    <div><span class="label">Matrícula:</span> <span>{{ ft.MATRICULA or '—' }}</span></div>
+    <div><span class="label">Início transporte:</span> <span>{{ transport_data_inicio or '—' }}</span></div>
+  </div>
+  {% endif %}
 
   {% if not is_non_fiscal %}
   <div class="cert-line">{{ hash4 or '----' }}-Processado por programa certificado n&ordm; {{ at_cert_no_dec or '' }}/AT</div>
@@ -199,6 +217,7 @@
         {% endif %}
       </td>
       <td style="width:40%; border:0; padding:8px 8px 0 8px; vertical-align:top;">
+        {% if show_values %}
         <table class="tbl iva-box">
           <thead>
             <tr>
@@ -220,8 +239,10 @@
             {% endif %}
           </tbody>
         </table>
+        {% endif %}
       </td>
       <td style="width:35%; border:0; padding:8px 0 0 8px; vertical-align:top;">
+        {% if show_values %}
         <table class="tbl totals">
           <tr><td>Total il&iacute;quido</td><td class="num">{{ summary.gross_before_discounts }}</td></tr>
           <tr><td>Descontos</td><td class="num">{{ summary.discounts_total }}</td></tr>
@@ -229,6 +250,7 @@
           <tr><td>Total IVA</td><td class="num">{{ summary.vat_total }}</td></tr>
           <tr><td>Total documento</td><td class="num">{{ summary.gross_total }}</td></tr>
         </table>
+        {% endif %}
       </td>
     </tr>
   </table>

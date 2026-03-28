@@ -611,6 +611,7 @@
         button.addEventListener('click', async function () {
           var feid = Number(button.getAttribute('data-entity-switch') || 0);
           if (!feid) return;
+          var currentPath = window.location.pathname + window.location.search + window.location.hash;
           setStatus('A mudar de empresa...');
           modalEl.querySelectorAll('[data-entity-switch]').forEach(function (node) {
             node.disabled = true;
@@ -620,12 +621,14 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
               credentials: 'same-origin',
-              body: JSON.stringify({ feid: feid })
+              body: JSON.stringify({ feid: feid, redirect_to: currentPath })
             });
             var data = await res.json().catch(function () { return {}; });
             if (!res.ok || data.error) throw new Error(data.error || 'Erro ao mudar de empresa.');
             setStatus('Empresa alterada. A recarregar...', 'success');
-            window.location.reload();
+            var targetUrl = (data && data.redirect_to) ? String(data.redirect_to) : currentPath;
+            var joiner = targetUrl.indexOf('?') >= 0 ? '&' : '?';
+            window.location.assign(targetUrl + joiner + '_entity=' + Date.now());
           } catch (error) {
             setStatus((error && error.message) || 'Erro ao mudar de empresa.', 'error');
             modalEl.querySelectorAll('[data-entity-switch]').forEach(function (node) {

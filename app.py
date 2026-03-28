@@ -25,6 +25,7 @@ from sqlalchemy import text, bindparam
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
+from werkzeug.utils import secure_filename
 from services.assinatura_service import sign_ft_document
 from services.qr_atcud_service import (
     get_param as qr_get_param,
@@ -1438,15 +1439,21 @@ def create_app():
 
             # 2) PermissÃµes de acesso por tabela
             rows = Acessos.query.filter_by(utilizador=current_user.LOGIN).all()
-            perms = {
-                a.tabela: {
-                    'consultar': bool(a.consultar),
-                    'inserir' : bool(a.inserir),
-                    'editar'  : bool(a.editar),
-                    'eliminar': bool(a.eliminar),
-                }
-                for a in rows
-            }
+            perms = {}
+            for a in rows:
+                tabela = str(getattr(a, 'tabela', '') or '').strip().upper()
+                if not tabela:
+                    continue
+                current = perms.setdefault(tabela, {
+                    'consultar': False,
+                    'inserir': False,
+                    'editar': False,
+                    'eliminar': False,
+                })
+                current['consultar'] = current['consultar'] or bool(getattr(a, 'consultar', False))
+                current['inserir'] = current['inserir'] or bool(getattr(a, 'inserir', False))
+                current['editar'] = current['editar'] or bool(getattr(a, 'editar', False))
+                current['eliminar'] = current['eliminar'] or bool(getattr(a, 'eliminar', False))
 
             # VerificaÃ§Ã£o direta de acesso Ã  MN conforme pedido
             try:
@@ -2781,6 +2788,7 @@ def create_app():
     def switch_active_entity():
         body = request.get_json(silent=True) or {}
         requested_feid = body.get('feid')
+        redirect_to = str(body.get('redirect_to') or '').strip()
         try:
             requested_feid = int(requested_feid)
         except Exception:
@@ -2805,7 +2813,8 @@ def create_app():
             'current_entity': {
                 'FEID': int(target_entity.get('FEID') or 0),
                 'NOME': str(target_entity.get('NOME') or '').strip(),
-            }
+            },
+            'redirect_to': redirect_to if redirect_to.startswith('/') and not redirect_to.startswith('//') else '/',
         })
 
     # ---------------------------
@@ -2926,6 +2935,7 @@ def create_app():
             'AT_WS_AMBIENTE': '',
             'AT_WS_USER': '',
             'AT_WS_PASS': '',
+            'LOGOTIPO_PATH': '',
             'USERCRIACAO': user_login,
             'USERALTERACAO': user_login,
         }
@@ -3117,6 +3127,740 @@ def create_app():
             if str(row.get('MENUSTAMP') or '').strip()
         }
         return allowed if allowed else None
+
+    def _screen_wizard_allowed() -> bool:
+        try:
+            return bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False))
+        except Exception:
+            return False
+
+    def _screen_wizard_prettify_label(raw_name: str) -> str:
+        value = str(raw_name or '').strip().replace('_', ' ')
+        value = re.sub(r'\s+', ' ', value)
+        if not value:
+            return ''
+        return ' '.join(part[:1].upper() + part[1:].lower() for part in value.split(' '))
+
+    def _screen_wizard_infer_field_type(sql_type: str, char_len=None) -> str:
+        type_name = str(sql_type or '').strip().lower()
+        if type_name == 'bit':
+            return 'BIT'
+        if type_name == 'date':
+            return 'DATE'
+        if type_name == 'time':
+            return 'HOUR'
+        if type_name in {'int', 'bigint', 'smallint', 'tinyint'}:
+            return 'INT'
+        if type_name in {'decimal', 'numeric', 'money', 'smallmoney', 'float', 'real'}:
+            return 'DECIMAL'
+        try:
+            if type_name in {'text', 'ntext', 'xml'} or int(char_len or 0) > 200:
+                return 'MEMO'
+        except Exception:
+            pass
+        return 'TEXT'
+
+    def _screen_wizard_supported_column(row: dict) -> tuple[bool, str]:
+        name = str(row.get('COLUMN_NAME') or '').strip()
+        data_type = str(row.get('DATA_TYPE') or '').strip().lower()
+        if not name:
+            return False, 'Coluna inválida.'
+        if len(name) > 25:
+            return False, 'Campo com nome superior a 25 caracteres.'
+        if _to_int(row.get('IS_IDENTITY'), 0):
+            return False, 'Campo identity.'
+        if _to_int(row.get('IS_COMPUTED'), 0):
+            return False, 'Campo calculado.'
+        if data_type in {'timestamp', 'rowversion', 'image', 'sql_variant', 'hierarchyid', 'geography', 'geometry', 'binary', 'varbinary'}:
+            return False, f'Tipo SQL não suportado ({data_type}).'
+        return True, ''
+
+    def _screen_wizard_menu_url(table_name: str, screen_type: str) -> str:
+        table = str(table_name or '').strip().upper()
+        if screen_type == 'dynamic_form':
+            return f'/generic/form/{table}/'
+        return f'/generic/view/{table}/'
+
+    def _screen_wizard_form_url(table_name: str) -> str:
+        table = str(table_name or '').strip().upper()
+        return f'/generic/form/{table}'
+
+    def _load_screen_wizard_tables():
+        rows = db.session.execute(text("""
+            SELECT
+                UPPER(T.name) AS TABLE_NAME,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM dbo.MENU M
+                        WHERE UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, '')))) = UPPER(T.name)
+                    ) THEN 1 ELSE 0
+                END AS HAS_MENU,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM dbo.CAMPOS C
+                        WHERE UPPER(LTRIM(RTRIM(ISNULL(C.TABELA, '')))) = UPPER(T.name)
+                    ) THEN 1 ELSE 0
+                END AS HAS_CAMPOS
+            FROM sys.tables T
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE S.name = 'dbo'
+              AND UPPER(T.name) <> 'SYSDIAGRAMS'
+            ORDER BY UPPER(T.name)
+        """)).mappings().all()
+        items = []
+        for row in rows:
+            table_name = str(row.get('TABLE_NAME') or '').strip().upper()
+            items.append({
+                'table_name': table_name,
+                'supported': len(table_name) <= 18,
+                'warning': 'Tabela com nome superior a 18 caracteres.' if len(table_name) > 18 else '',
+                'has_menu': bool(_to_int(row.get('HAS_MENU'), 0)),
+                'has_campos': bool(_to_int(row.get('HAS_CAMPOS'), 0)),
+            })
+        return items
+
+    def _load_screen_wizard_modules():
+        rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(MODSTAMP, ''))) AS MODSTAMP,
+                LTRIM(RTRIM(ISNULL(CODIGO, ''))) AS CODIGO,
+                LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(DESCR, ''))) AS DESCR,
+                ISNULL(ORDEM, 0) AS ORDEM,
+                ISNULL(ATIVO, 0) AS ATIVO
+            FROM dbo.MODULOS
+            WHERE ISNULL(ATIVO, 0) = 1
+            ORDER BY ISNULL(ORDEM, 0), LTRIM(RTRIM(ISNULL(NOME, '')))
+        """)).mappings().all()
+        return [dict(row) for row in rows]
+
+    def _load_screen_wizard_menu_positions():
+        rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) AS MENUSTAMP,
+                LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(TABELA, ''))) AS TABELA,
+                ISNULL(ORDEM, 0) AS ORDEM
+            FROM dbo.MENU
+            ORDER BY ISNULL(ORDEM, 0), LTRIM(RTRIM(ISNULL(NOME, '')))
+        """)).mappings().all()
+
+        items = []
+        current_group_open = False
+        normalized_rows = [dict(row) for row in rows]
+
+        for idx, row in enumerate(normalized_rows):
+            ordem = _to_int(row.get('ORDEM'), 0)
+            nome = str(row.get('NOME') or '').strip()
+            tabela = str(row.get('TABELA') or '').strip().upper()
+            next_ordem = _to_int(normalized_rows[idx + 1].get('ORDEM'), ordem + 10) if idx + 1 < len(normalized_rows) else None
+
+            is_group = (ordem % 100 == 0)
+            if is_group:
+                indent = 0
+                current_group_open = True
+            else:
+                indent = 1 if current_group_open else 0
+
+            if next_ordem is None:
+                suggested_after = ordem + 10
+            elif next_ordem - ordem > 1:
+                suggested_after = ordem + max(1, (next_ordem - ordem) // 2)
+            else:
+                suggested_after = ordem + 1
+
+            items.append({
+                'MENUSTAMP': str(row.get('MENUSTAMP') or '').strip(),
+                'NOME': nome,
+                'TABELA': tabela,
+                'ORDEM': ordem,
+                'INDENT': indent,
+                'IS_GROUP': bool(is_group),
+                'SUGGESTED_AFTER': suggested_after,
+                'LABEL': nome or tabela or f'Item {ordem}',
+            })
+
+        first_ordem = _to_int(normalized_rows[0].get('ORDEM'), 0) if normalized_rows else 0
+        last_ordem = _to_int(normalized_rows[-1].get('ORDEM'), 0) if normalized_rows else 0
+
+        return {
+            'before_first': max(0, first_ordem - 1) if normalized_rows else 0,
+            'after_last': last_ordem + 10 if normalized_rows else 10,
+            'items': items,
+        }
+
+    def _load_screen_wizard_acl_users(current_feid: int):
+        rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(U.USSTAMP, ''))) AS USSTAMP,
+                LTRIM(RTRIM(ISNULL(U.LOGIN, ''))) AS LOGIN,
+                LTRIM(RTRIM(ISNULL(U.NOME, ''))) AS NOME,
+                ISNULL(U.ADMIN, 0) AS ADMIN_USER,
+                CASE WHEN UF.USFESTAMP IS NULL THEN 0 ELSE 1 END AS IN_CURRENT_FE
+            FROM dbo.US U
+            LEFT JOIN dbo.US_FE UF
+              ON UF.USSTAMP = U.USSTAMP
+             AND UF.FEID = :feid
+             AND ISNULL(UF.ATIVO, 0) = 1
+            WHERE ISNULL(U.IS_ACTIVE, 1) = 1
+              AND ISNULL(U.INATIVO, 0) = 0
+            ORDER BY
+                CASE WHEN UF.USFESTAMP IS NOT NULL THEN 0 ELSE 1 END,
+                CASE WHEN ISNULL(U.ADMIN, 0) = 1 THEN 0 ELSE 1 END,
+                LTRIM(RTRIM(ISNULL(U.NOME, ''))),
+                LTRIM(RTRIM(ISNULL(U.LOGIN, '')))
+        """), {'feid': int(current_feid)}).mappings().all()
+        return [dict(row) for row in rows]
+
+    CERT_RESET_FEID = 1
+    CERT_RESET_CONFIRM_PHRASE = 'RESET FEID 1'
+
+    def _cert_reset_feid1_allowed() -> bool:
+        try:
+            return bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False))
+        except Exception:
+            return False
+
+    def _load_fe_row_by_feid(feid: int):
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                ISNULL(FEID, 0) AS FEID,
+                LTRIM(RTRIM(ISNULL(FESTAMP, ''))) AS FESTAMP,
+                LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(NOMEFISCAL, ''))) AS NOMEFISCAL
+            FROM dbo.FE
+            WHERE FEID = :feid
+        """), {'feid': int(feid or 0)}).mappings().first()
+        return dict(row) if row else None
+
+    def _cert_reset_feid1_target_entity():
+        row = _load_fe_row_by_feid(CERT_RESET_FEID)
+        if not row:
+            raise ValueError('A empresa FEID=1 não existe.')
+        if not str(row.get('FESTAMP') or '').strip():
+            raise ValueError('A empresa FEID=1 não tem FESTAMP.')
+        row['FEID'] = int(row.get('FEID') or 0)
+        row['FESTAMP'] = str(row.get('FESTAMP') or '').strip()
+        row['NOME'] = str(row.get('NOME') or '').strip()
+        row['NOMEFISCAL'] = str(row.get('NOMEFISCAL') or '').strip()
+        return row
+
+    def _cert_reset_feid1_existing_series_rows():
+        return [dict(row) for row in db.session.execute(text("""
+            SELECT
+                S.FTSSTAMP,
+                ISNULL(S.FEID, 0) AS FEID,
+                ISNULL(S.NDOC, 0) AS NDOC,
+                LTRIM(RTRIM(ISNULL(S.SERIE, ''))) AS SERIE,
+                LTRIM(RTRIM(ISNULL(S.DESCR, ''))) AS DESCR,
+                ISNULL(S.ATIVA, 0) AS ATIVA,
+                ISNULL(S.ESTADO, 0) AS ESTADO,
+                ISNULL(S.ANO, 0) AS ANO,
+                ISNULL(S.ULTIMO_FNO, 0) AS ULTIMO_FNO,
+                ISNULL(S.NO_SAFT, 0) AS NO_SAFT,
+                UPPER(LTRIM(RTRIM(ISNULL(S.TIPOSAFT, '')))) AS TIPOSAFT,
+                """ + ("ISNULL(S.IS_DOC_TRANSPORTE, 0) AS IS_DOC_TRANSPORTE," if _fts_transport_flag_available() else "CAST(0 AS bit) AS IS_DOC_TRANSPORTE,") + """
+                LTRIM(RTRIM(ISNULL(X.FTSXSTAMP, ''))) AS FTSXSTAMP,
+                LTRIM(RTRIM(ISNULL(X.COD_VALIDACAO_SERIE, ''))) AS COD_VALIDACAO_SERIE,
+                LTRIM(RTRIM(ISNULL(X.ATCUD_PREFIX, ''))) AS ATCUD_PREFIX,
+                ISNULL(X.AT_SERIE_ESTADO, 0) AS AT_SERIE_ESTADO,
+                X.AT_SERIE_DATA,
+                LTRIM(RTRIM(ISNULL(X.AT_SERIE_MSG, ''))) AS AT_SERIE_MSG
+            FROM dbo.FTS AS S
+            LEFT JOIN dbo.FTSX AS X
+              ON X.FTSSTAMP = S.FTSSTAMP
+            WHERE ISNULL(S.FEID, 0) = :feid
+            ORDER BY ISNULL(S.NDOC, 0), LTRIM(RTRIM(ISNULL(S.SERIE, '')))
+        """), {'feid': CERT_RESET_FEID}).mappings().all()]
+
+    def _cert_reset_feid1_default_series():
+        return [
+            {'doc_type': 'FT', 'ndoc': 1, 'serie': 'AT', 'descr': 'FT AT', 'tiposaft': 'FT', 'no_saft': 0, 'ativa': 1, 'estado': 0, 'is_transport': 0},
+            {'doc_type': 'FR', 'ndoc': 5, 'serie': 'AT', 'descr': 'FR AT', 'tiposaft': 'FR', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 0},
+            {'doc_type': 'FS', 'ndoc': 7, 'serie': 'AT', 'descr': 'FS AT', 'tiposaft': 'FS', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 0},
+            {'doc_type': 'NC', 'ndoc': 2, 'serie': 'AT', 'descr': 'NC AT', 'tiposaft': 'NC', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 0},
+            {'doc_type': 'PF', 'ndoc': 9, 'serie': 'AT', 'descr': 'PF AT', 'tiposaft': 'PF', 'no_saft': 1, 'ativa': 1, 'estado': 1, 'is_transport': 0},
+            {'doc_type': 'GT', 'ndoc': 11, 'serie': 'AT', 'descr': 'GT AT', 'tiposaft': 'GT', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 1},
+        ]
+
+    def _cert_reset_feid1_build_series_plan(existing_rows=None):
+        existing_rows = list(existing_rows or [])
+        by_type = {}
+        by_ndoc = {}
+        validation_code = ''
+        validation_state = 0
+        validation_date = None
+        validation_msg = ''
+
+        for row in existing_rows:
+            row = dict(row or {})
+            doc_type = str(row.get('TIPOSAFT') or '').strip().upper()
+            ndoc = _to_int(row.get('NDOC'), 0)
+            if doc_type and doc_type not in by_type:
+                by_type[doc_type] = row
+            if ndoc > 0 and ndoc not in by_ndoc:
+                by_ndoc[ndoc] = row
+            code = str(row.get('COD_VALIDACAO_SERIE') or '').strip()
+            if code and not validation_code:
+                validation_code = code
+                validation_state = _to_int(row.get('AT_SERIE_ESTADO'), 1)
+                validation_date = row.get('AT_SERIE_DATA') or datetime.now()
+                validation_msg = str(row.get('AT_SERIE_MSG') or '').strip()
+
+        plan = []
+        for base in _cert_reset_feid1_default_series():
+            existing = by_type.get(base['doc_type']) or by_ndoc.get(base['ndoc']) or {}
+            serie = base['serie']
+            descr = base['descr']
+            ativa = 1 if _to_int(existing.get('ATIVA'), base['ativa']) == 1 else 0
+            estado = _to_int(existing.get('ESTADO'), base['estado'])
+            no_saft = 1 if _to_int(existing.get('NO_SAFT'), base['no_saft']) == 1 else 0
+            is_transport = 1 if int(base['is_transport']) == 1 else 0
+            code = str(existing.get('COD_VALIDACAO_SERIE') or '').strip() or validation_code
+            prefix = str(existing.get('ATCUD_PREFIX') or '').strip()
+            if not prefix and code:
+                prefix = f"{base['doc_type']}-{code}"
+            at_state = _to_int(existing.get('AT_SERIE_ESTADO'), validation_state if code else 0)
+            at_date = existing.get('AT_SERIE_DATA') or validation_date or (datetime.now() if code else datetime(1900, 1, 1))
+            at_msg = str(existing.get('AT_SERIE_MSG') or '').strip() or (validation_msg if code else '')
+            if code and not at_msg:
+                at_msg = 'Reset certificacao FEID 1'
+            plan.append({
+                'doc_type': base['doc_type'],
+                'ndoc': base['ndoc'],
+                'serie': serie,
+                'descr': descr,
+                'tiposaft': base['tiposaft'],
+                'no_saft': no_saft,
+                'ativa': ativa,
+                'estado': estado,
+                'is_transport': is_transport,
+                'ftsx': {
+                    'COD_VALIDACAO_SERIE': code,
+                    'ATCUD_PREFIX': prefix,
+                    'AT_SERIE_ESTADO': at_state,
+                    'AT_SERIE_DATA': at_date,
+                    'AT_SERIE_MSG': at_msg,
+                },
+                'label': f"{base['doc_type']} {serie}",
+            })
+        return plan
+
+    def _cert_reset_feid1_collect_status():
+        target = _cert_reset_feid1_target_entity()
+        doc_headers = _to_int(db.session.execute(text("""
+            SELECT COUNT(1)
+            FROM dbo.FT
+            WHERE ISNULL(FEID, 0) = :feid
+        """), {'feid': CERT_RESET_FEID}).scalar(), 0)
+        doc_lines = _to_int(db.session.execute(text("""
+            SELECT COUNT(1)
+            FROM dbo.FI
+            WHERE FTSTAMP IN (
+                SELECT FTSTAMP
+                FROM dbo.FT
+                WHERE ISNULL(FEID, 0) = :feid
+            )
+        """), {'feid': CERT_RESET_FEID}).scalar(), 0)
+        series_count = _to_int(db.session.execute(text("""
+            SELECT COUNT(1)
+            FROM dbo.FTS
+            WHERE ISNULL(FEID, 0) = :feid
+        """), {'feid': CERT_RESET_FEID}).scalar(), 0)
+        ftsx_count = _to_int(db.session.execute(text("""
+            SELECT COUNT(1)
+            FROM dbo.FTSX
+            WHERE FTSSTAMP IN (
+                SELECT FTSSTAMP
+                FROM dbo.FTS
+                WHERE ISNULL(FEID, 0) = :feid
+            )
+        """), {'feid': CERT_RESET_FEID}).scalar(), 0)
+        existing_rows = _cert_reset_feid1_existing_series_rows()
+        return {
+            'target': target,
+            'counts': {
+                'doc_headers': doc_headers,
+                'doc_lines': doc_lines,
+                'series': series_count,
+                'ftsx': ftsx_count,
+            },
+            'series_plan': _cert_reset_feid1_build_series_plan(existing_rows),
+        }
+
+    def _cert_reset_feid1_clear_pdf_cache(ftstamps):
+        removed = 0
+        for ftstamp in ftstamps or []:
+            stamp = str(ftstamp or '').strip()
+            if not stamp:
+                continue
+            for path in (_ft_pdf_cache_path(stamp), _ft_pdf_lock_path(stamp)):
+                try:
+                    if os.path.isfile(path):
+                        os.remove(path)
+                        removed += 1
+                except Exception:
+                    app.logger.exception('Erro a limpar cache PDF FT %s', stamp)
+        return removed
+
+    def _cert_reset_feid1_execute(user_login: str):
+        target = _cert_reset_feid1_target_entity()
+        existing_rows = _cert_reset_feid1_existing_series_rows()
+        series_plan = _cert_reset_feid1_build_series_plan(existing_rows)
+        ftstamps = [
+            str(row.get('FTSTAMP') or '').strip()
+            for row in db.session.execute(text("""
+                SELECT LTRIM(RTRIM(ISNULL(FTSTAMP, ''))) AS FTSTAMP
+                FROM dbo.FT
+                WHERE ISNULL(FEID, 0) = :feid
+            """), {'feid': CERT_RESET_FEID}).mappings().all()
+            if str(row.get('FTSTAMP') or '').strip()
+        ]
+        deleted_counts = {
+            'doc_lines': _to_int(db.session.execute(text("""
+                SELECT COUNT(1)
+                FROM dbo.FI
+                WHERE FTSTAMP IN (
+                    SELECT FTSTAMP
+                    FROM dbo.FT
+                    WHERE ISNULL(FEID, 0) = :feid
+                )
+            """), {'feid': CERT_RESET_FEID}).scalar(), 0),
+            'doc_headers': len(ftstamps),
+            'series': _to_int(db.session.execute(text("""
+                SELECT COUNT(1)
+                FROM dbo.FTS
+                WHERE ISNULL(FEID, 0) = :feid
+            """), {'feid': CERT_RESET_FEID}).scalar(), 0),
+            'ftsx': _to_int(db.session.execute(text("""
+                SELECT COUNT(1)
+                FROM dbo.FTSX
+                WHERE FTSSTAMP IN (
+                    SELECT FTSSTAMP
+                    FROM dbo.FTS
+                    WHERE ISNULL(FEID, 0) = :feid
+                )
+            """), {'feid': CERT_RESET_FEID}).scalar(), 0),
+        }
+
+        now = datetime.now()
+        user_login = (user_login or '').strip() or 'dev-reset'
+        transport_columns = ", IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ""
+        transport_values = ", :IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ""
+        recreated_series = []
+
+        db.session.execute(text("""
+            DELETE FROM dbo.FI
+            WHERE FTSTAMP IN (
+                SELECT FTSTAMP
+                FROM dbo.FT
+                WHERE ISNULL(FEID, 0) = :feid
+            )
+        """), {'feid': CERT_RESET_FEID})
+        db.session.execute(text("""
+            DELETE FROM dbo.FT
+            WHERE ISNULL(FEID, 0) = :feid
+        """), {'feid': CERT_RESET_FEID})
+        db.session.execute(text("""
+            DELETE FROM dbo.FTSX
+            WHERE FTSSTAMP IN (
+                SELECT FTSSTAMP
+                FROM dbo.FTS
+                WHERE ISNULL(FEID, 0) = :feid
+            )
+        """), {'feid': CERT_RESET_FEID})
+        db.session.execute(text("""
+            DELETE FROM dbo.FTS
+            WHERE ISNULL(FEID, 0) = :feid
+        """), {'feid': CERT_RESET_FEID})
+
+        for item in series_plan:
+            ftsstamp = _new_stamp_25()
+            db.session.execute(text("""
+                INSERT INTO dbo.FTS (
+                    FTSSTAMP, FESTAMP, NDOC, SERIE, DESCR, ATIVA, ESTADO, ANO, ULTIMO_FNO,
+                    DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO, NO_SAFT, TIPOSAFT, FEID""" + transport_columns + """
+                ) VALUES (
+                    :FTSSTAMP, :FESTAMP, :NDOC, :SERIE, :DESCR, :ATIVA, :ESTADO, :ANO, :ULTIMO_FNO,
+                    :DTCriacao, :DTAlteracao, :USERCRIACAO, :USERALTERACAO, :NO_SAFT, :TIPOSAFT, :FEID""" + transport_values + """
+                )
+            """), {
+                'FTSSTAMP': ftsstamp,
+                'FESTAMP': target['FESTAMP'],
+                'NDOC': int(item['ndoc']),
+                'SERIE': item['serie'],
+                'DESCR': item['descr'],
+                'ATIVA': int(item['ativa']),
+                'ESTADO': int(item['estado']),
+                'ANO': date.today().year,
+                'ULTIMO_FNO': 0,
+                'DTCriacao': now,
+                'DTAlteracao': now,
+                'USERCRIACAO': user_login,
+                'USERALTERACAO': user_login,
+                'NO_SAFT': int(item['no_saft']),
+                'TIPOSAFT': item['tiposaft'],
+                'FEID': CERT_RESET_FEID,
+                'IS_DOC_TRANSPORTE': int(item['is_transport']),
+            })
+            _ftsx_create_for_series(ftsstamp, target, item.get('ftsx') or {})
+            recreated_series.append(item['label'])
+
+        db.session.commit()
+        pdf_cache_removed = _cert_reset_feid1_clear_pdf_cache(ftstamps)
+        app.logger.info(
+            'Reset certificacao FEID 1 executado por %s | docs=%s linhas=%s series=%s ftsx=%s | recriadas=%s',
+            user_login,
+            deleted_counts['doc_headers'],
+            deleted_counts['doc_lines'],
+            deleted_counts['series'],
+            deleted_counts['ftsx'],
+            ', '.join(recreated_series),
+        )
+        return {
+            'target': target,
+            'deleted_counts': deleted_counts,
+            'recreated_series': recreated_series,
+            'pdf_cache_removed': pdf_cache_removed,
+            'executed_at': now.isoformat(sep=' ', timespec='seconds'),
+            'executed_by': user_login,
+        }
+
+    def _load_screen_wizard_columns(table_name: str):
+        table = str(table_name or '').strip().upper()
+        if not table:
+            return []
+
+        exists = db.session.execute(text("""
+            SELECT TOP 1 1
+            FROM sys.tables T
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE S.name = 'dbo'
+              AND UPPER(T.name) = :table_name
+        """), {'table_name': table}).scalar()
+        if not exists:
+            return []
+
+        rows = db.session.execute(text("""
+            WITH target_table AS (
+                SELECT TOP 1 T.object_id
+                FROM sys.tables T
+                INNER JOIN sys.schemas S
+                    ON S.schema_id = T.schema_id
+                WHERE S.name = 'dbo'
+                  AND UPPER(T.name) = :table_name
+            ),
+            pk_cols AS (
+                SELECT
+                    IC.column_id AS column_id
+                FROM target_table TT
+                INNER JOIN sys.indexes I
+                    ON I.object_id = TT.object_id
+                   AND I.is_primary_key = 1
+                INNER JOIN sys.index_columns IC
+                    ON IC.object_id = I.object_id
+                   AND IC.index_id = I.index_id
+            )
+            SELECT
+                UPPER(C.name) AS COLUMN_NAME,
+                LOWER(TY.name) AS DATA_TYPE,
+                CASE
+                    WHEN TY.name IN ('nchar','nvarchar') AND C.max_length > 0 THEN C.max_length / 2
+                    ELSE ISNULL(C.max_length, 0)
+                END AS CHAR_LEN,
+                ISNULL(C.precision, 0) AS NUM_PRECISION,
+                ISNULL(C.scale, 0) AS NUM_SCALE,
+                CASE WHEN ISNULL(C.is_nullable, 0) = 1 THEN 'YES' ELSE 'NO' END AS IS_NULLABLE,
+                ISNULL(C.is_identity, 0) AS IS_IDENTITY,
+                ISNULL(C.is_computed, 0) AS IS_COMPUTED,
+                CASE WHEN PK.column_id IS NULL THEN 0 ELSE 1 END AS IS_PK,
+                ISNULL(C.column_id, 0) AS ORDINAL_POSITION
+            FROM target_table TT
+            INNER JOIN sys.columns C
+                ON C.object_id = TT.object_id
+            INNER JOIN sys.types TY
+                ON TY.user_type_id = C.user_type_id
+            LEFT JOIN pk_cols PK
+                ON PK.column_id = C.column_id
+            ORDER BY ISNULL(C.column_id, 0), UPPER(C.name)
+        """), {'table_name': table}).mappings().all()
+
+        columns = []
+        for row in rows:
+            item = dict(row)
+            supported, warning = _screen_wizard_supported_column(item)
+            columns.append({
+                'name': str(item.get('COLUMN_NAME') or '').strip().upper(),
+                'sql_type': str(item.get('DATA_TYPE') or '').strip().lower(),
+                'char_len': _to_int(item.get('CHAR_LEN'), 0),
+                'precision': _to_int(item.get('NUM_PRECISION'), 0),
+                'scale': _to_int(item.get('NUM_SCALE'), 0),
+                'nullable': str(item.get('IS_NULLABLE') or '').strip().upper() == 'YES',
+                'is_identity': bool(_to_int(item.get('IS_IDENTITY'), 0)),
+                'is_computed': bool(_to_int(item.get('IS_COMPUTED'), 0)),
+                'is_pk': bool(_to_int(item.get('IS_PK'), 0)),
+                'default_type': _screen_wizard_infer_field_type(item.get('DATA_TYPE'), item.get('CHAR_LEN')),
+                'default_label': _screen_wizard_prettify_label(item.get('COLUMN_NAME')),
+                'supported': supported,
+                'warning': warning,
+            })
+        return columns
+
+    def _normalize_screen_wizard_layout(payload_items, available_map, screen_type: str):
+        items = payload_items if isinstance(payload_items, list) else []
+        normalized = []
+
+        for raw in items:
+            if not isinstance(raw, dict):
+                continue
+
+            kind = str(raw.get('kind') or 'field').strip().lower()
+            if kind == 'separator':
+                normalized.append({'kind': 'separator'})
+                continue
+
+            field_name = str(raw.get('name') or '').strip().upper()
+            if not field_name:
+                continue
+            base = available_map.get(field_name)
+            if not base:
+                raise ValueError(f'Campo "{field_name}" inválido para a tabela escolhida.')
+            if not base.get('supported'):
+                raise ValueError(base.get('warning') or f'Campo "{field_name}" não suportado.')
+
+            label = str(raw.get('description') or base.get('default_label') or field_name).strip()[:60]
+            if not label:
+                label = field_name[:60]
+
+            field_type = str(raw.get('field_type') or base.get('default_type') or 'TEXT').strip().upper()
+            if field_type not in {'TEXT', 'BIT', 'DATE', 'HOUR', 'INT', 'DECIMAL', 'MEMO', 'COLOR'}:
+                field_type = str(base.get('default_type') or 'TEXT').strip().upper()
+
+            lista = bool(raw.get('lista')) if 'lista' in raw else (screen_type == 'dynamic_list')
+            filtro = bool(raw.get('filtro')) if 'filtro' in raw else False
+            forced_readonly = bool(base.get('is_pk') or base.get('is_identity') or base.get('is_computed'))
+            readonly = True if forced_readonly else bool(raw.get('readonly'))
+            required = False if readonly else (bool(raw.get('required')) if 'required' in raw else False)
+
+            normalized.append({
+                'kind': 'field',
+                'name': field_name,
+                'description': label,
+                'field_type': field_type,
+                'lista': lista,
+                'filtro': filtro,
+                'readonly': readonly,
+                'required': required,
+                'nullable': bool(base.get('nullable')),
+                'is_pk': bool(base.get('is_pk')),
+                'is_identity': bool(base.get('is_identity')),
+                'is_computed': bool(base.get('is_computed')),
+            })
+
+        while normalized and normalized[0].get('kind') == 'separator':
+            normalized.pop(0)
+        while normalized and normalized[-1].get('kind') == 'separator':
+            normalized.pop()
+
+        compact = []
+        previous_separator = False
+        seen = set()
+        for item in normalized:
+            if item.get('kind') == 'separator':
+                if previous_separator or not compact:
+                    continue
+                compact.append(item)
+                previous_separator = True
+                continue
+            field_name = item['name']
+            if field_name in seen:
+                raise ValueError(f'O campo "{field_name}" foi selecionado mais do que uma vez.')
+            seen.add(field_name)
+            compact.append(item)
+            previous_separator = False
+
+        field_count = sum(1 for item in compact if item.get('kind') == 'field')
+        if field_count == 0:
+            raise ValueError('Seleciona pelo menos um campo.')
+
+        return compact
+
+    def _screen_wizard_build_campo_rows(layout_items, screen_type: str):
+        rows = []
+        row_group = 1
+        col_index = 0
+
+        for item in layout_items:
+            if item.get('kind') == 'separator':
+                row_group += 1
+                col_index = 0
+                continue
+
+            col_index += 1
+            if col_index > 9:
+                raise ValueError('Cada linha suporta no máximo 9 campos.')
+
+            ordem = row_group * 10 + col_index
+            readonly = bool(item.get('readonly') or item.get('is_pk') or item.get('is_identity') or item.get('is_computed'))
+            obrigatorio = False if readonly else bool(item.get('required'))
+            rows.append({
+                'CAMPOSSTAMP': _new_stamp_25(),
+                'ORDEM': ordem,
+                'NMCAMPO': item['name'][:25],
+                'DESCRICAO': item['description'][:60],
+                'TIPO': item['field_type'],
+                'LISTA': 1 if item.get('lista') else 0,
+                'FILTRO': 1 if item.get('filtro') else 0,
+                'FILTRODEFAULT': '',
+                'ADMIN': 0,
+                'RONLY': 1 if readonly else 0,
+                'COMBO': '',
+                'VIRTUAL': '',
+                'TAM': 1,
+                'ORDEM_MOBILE': ordem,
+                'TAM_MOBILE': 1,
+                'CONDICAO_VISIVEL': '',
+                'OBRIGATORIO': 1 if obrigatorio else 0,
+            })
+
+        if screen_type == 'dynamic_list' and not any(row['LISTA'] for row in rows):
+            raise ValueError('Num ecrã dynamic_list tem de existir pelo menos um campo de lista.')
+
+        return rows
+
+    def _normalize_screen_wizard_acl_rows(raw_rows):
+        rows = raw_rows if isinstance(raw_rows, list) else []
+        normalized = []
+        seen_users = set()
+
+        for raw in rows:
+            if not isinstance(raw, dict):
+                continue
+            login = str(raw.get('utilizador') or '').strip()
+            usstamp = str(raw.get('usstamp') or '').strip()
+            if not login or login in seen_users:
+                continue
+            consultar = 1 if raw.get('consultar') else 0
+            inserir = 1 if raw.get('inserir') else 0
+            editar = 1 if raw.get('editar') else 0
+            eliminar = 1 if raw.get('eliminar') else 0
+            if not any((consultar, inserir, editar, eliminar)):
+                continue
+            seen_users.add(login)
+            normalized.append({
+                'UTILIZADOR': login,
+                'USSTAMP': usstamp,
+                'CONSULTAR': consultar,
+                'INSERIR': inserir,
+                'EDITAR': editar,
+                'ELIMINAR': eliminar,
+            })
+
+        return normalized
 
     def _default_ft_payload(user_login: str):
         today = date.today()
@@ -3482,6 +4226,7 @@ def create_app():
         }).mappings().first()
         if not ft:
             return None, []
+        ft = _ft_transport_enrich_header(entity, dict(ft))
         fi = db.session.execute(text("""
             SELECT *
             FROM dbo.FI
@@ -3503,6 +4248,44 @@ def create_app():
         existing = {str(row.get('CN') or '').upper() for row in rows}
         return wanted.issubset(existing)
 
+    def _fe_logo_column_available():
+        return _table_has_columns('FE', 'LOGOTIPO_PATH')
+
+    def _fe_logo_json_error():
+        return jsonify({'error': 'A base de dados ainda não tem o campo LOGOTIPO_PATH em FE. Aplique migrations/fe_logotipo.sql.'}), 400
+
+    def _fe_logo_storage_root():
+        root = os.path.join(app.root_path, 'storage', 'fe_logos')
+        os.makedirs(root, exist_ok=True)
+        return root
+
+    def _fe_logo_relative_path(festamp: str, filename: str) -> str:
+        return f"storage/fe_logos/{str(festamp or '').strip()}/{filename}".replace('\\', '/')
+
+    def _fe_logo_abs_path(relative_path: str) -> str:
+        rel = str(relative_path or '').replace('\\', '/').strip().lstrip('/')
+        if not rel:
+            return ''
+        return os.path.normpath(os.path.join(app.root_path, rel))
+
+    def _fe_logo_public_url(festamp: str) -> str:
+        return f"/api/entidades/{quote(str(festamp or '').strip())}/logo"
+
+    def _fe_logo_delete_file(relative_path: str):
+        abs_path = _fe_logo_abs_path(relative_path)
+        storage_root = os.path.normpath(_fe_logo_storage_root())
+        if not abs_path or not os.path.isfile(abs_path):
+            return
+        try:
+            if os.path.commonpath([storage_root, abs_path]) != storage_root:
+                return
+        except Exception:
+            return
+        try:
+            os.remove(abs_path)
+        except Exception:
+            return
+
     def _ft_origin_columns_available():
         return _table_has_columns('FT', 'FTSTAMP_ORIGEM', 'TIPODOC_ORIGEM', 'NUMDOC_ORIGEM', 'DATA_ORIGEM')
 
@@ -3511,6 +4294,32 @@ def create_app():
 
     def _fi_origin_column_available():
         return _table_has_columns('FI', 'FISTAMP_ORIGEM')
+
+    def _fts_transport_flag_available():
+        return _table_has_columns('FTS', 'IS_DOC_TRANSPORTE')
+
+    def _ft_transport_columns_available():
+        return _table_has_columns(
+            'FT',
+            'IS_DOC_TRANSPORTE',
+            'LOCAL_CARGA_ID',
+            'LOCAL_DESCARGA_ID',
+            'DATA_HORA_INICIO_TRANSPORTE',
+            'MATRICULA',
+            'CODIGO_AT',
+            'DOC_TRANSPORTE_ESTADO',
+            'DATA_IMPRESSAO_FINAL',
+            'USER_IMPRESSAO_FINAL',
+        )
+
+    def _locais_table_available():
+        row = db.session.execute(text("""
+            SELECT TOP 1 1
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'dbo'
+              AND TABLE_NAME = 'LOCAIS'
+        """)).first()
+        return bool(row)
 
     def _ft_origin_json_error():
         return jsonify({
@@ -3521,6 +4330,194 @@ def create_app():
         return jsonify({
             'error': 'A base de dados ainda não tem os campos necessários para NC com origem. Aplique migrations/ft_nc_origem_fields.sql.'
         }), 400
+
+    def _ft_transport_json_error():
+        return jsonify({
+            'error': 'A base de dados ainda não tem os campos de documentos de transporte em FT/FTS. Aplique migrations/ft_doc_transporte.sql.'
+        }), 400
+
+    def _locais_json_error():
+        return jsonify({
+            'error': 'A base de dados ainda não tem a tabela LOCAIS. Aplique migrations/ft_doc_transporte.sql.'
+        }), 400
+
+    def _transport_doc_state_normalize(value, default='RASCUNHO'):
+        raw = str(value or '').strip().upper()
+        if raw in {'RASCUNHO', 'EMITIDO', 'PRONTO', 'IMPRESSO'}:
+            return raw
+        return str(default or 'RASCUNHO').strip().upper() or 'RASCUNHO'
+
+    def _ft_transport_datetime_param(value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            return datetime.combine(value, dtime.min)
+        raw = str(value or '').strip()
+        if not raw:
+            return None
+        normalized = raw.replace('T', ' ').replace('Z', '')
+        try:
+            return datetime.fromisoformat(normalized[:19])
+        except Exception:
+            try:
+                return datetime.combine(date.fromisoformat(normalized[:10]), dtime.min)
+            except Exception:
+                return None
+
+    def _ft_transport_datetime_input_value(value):
+        parsed = _ft_transport_datetime_param(value)
+        if not parsed:
+            return ''
+        return parsed.strftime('%Y-%m-%dT%H:%M')
+
+    def _local_label(local_row):
+        if not local_row:
+            return ''
+        designacao = str(local_row.get('DESIGNACAO') or '').strip()
+        morada = str(local_row.get('MORADA') or '').strip()
+        localidade = str(local_row.get('LOCALIDADE') or '').strip()
+        parts = [part for part in [designacao, morada, localidade] if part]
+        return ' · '.join(parts)
+
+    def _load_local_by_stamp(localstamp: str):
+        localstamp = str(localstamp or '').strip()
+        if not localstamp or not _locais_table_available():
+            return None
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                LTRIM(RTRIM(ISNULL(LOCALSTAMP, ''))) AS LOCALSTAMP,
+                LTRIM(RTRIM(ISNULL(DESIGNACAO, ''))) AS DESIGNACAO,
+                LTRIM(RTRIM(ISNULL(MORADA, ''))) AS MORADA,
+                LTRIM(RTRIM(ISNULL(MORADA2, ''))) AS MORADA2,
+                LTRIM(RTRIM(ISNULL(CP, ''))) AS CP,
+                LTRIM(RTRIM(ISNULL(LOCALIDADE, ''))) AS LOCALIDADE,
+                LTRIM(RTRIM(ISNULL(PAIS, ''))) AS PAIS,
+                ISNULL(NO, 0) AS NO,
+                ISNULL(FEID, 0) AS FEID
+            FROM dbo.LOCAIS
+            WHERE LOCALSTAMP = :localstamp
+        """), {'localstamp': localstamp}).mappings().first()
+        return dict(row) if row else None
+
+    def _locais_serialize_row(row: dict, current_entity: dict):
+        item = dict(row or {})
+        no = _to_int(item.get('NO'), 0)
+        feid = _to_int(item.get('FEID'), 0)
+        owner_type = 'CLIENTE' if no > 0 else 'FE'
+        item['OWNER_TYPE'] = owner_type
+        item['CLIENTE_NO'] = no
+        item['ENTITY_FEID'] = feid
+        item['OWNER_LABEL'] = (
+            str(item.get('CLIENTE_NOME') or '').strip()
+            if owner_type == 'CLIENTE'
+            else str(item.get('FE_NOME') or current_entity.get('NOMEFISCAL') or current_entity.get('NOME') or '').strip()
+        )
+        item['LABEL'] = _local_label(item)
+        return item
+
+    def _locais_validate_payload(payload: dict, current_entity: dict):
+        owner_type = str(payload.get('OWNER_TYPE') or '').strip().upper()
+        if owner_type not in {'FE', 'CLIENTE'}:
+            raise ValueError('Tipo de associação inválido.')
+
+        current_feid = int(current_entity.get('FEID') or 0)
+        no = 0
+        feid = 0
+        owner_label = ''
+
+        if owner_type == 'FE':
+            if current_feid <= 0:
+                raise ValueError('Entidade atual inválida.')
+            feid = current_feid
+            owner_label = str(current_entity.get('NOMEFISCAL') or current_entity.get('NOME') or '').strip()
+        else:
+            no = _to_int(payload.get('NO'), 0)
+            if no <= 0:
+                raise ValueError('Seleciona um cliente para associar o local.')
+            client_row = _load_faturacao_cliente_detail_row(no, current_entity)
+            if not client_row:
+                raise ValueError('Cliente não encontrado.')
+            feid = current_feid
+            owner_label = str(client_row.get('NOME') or '').strip()
+
+        designacao = str(payload.get('DESIGNACAO') or '').strip()
+        if not designacao:
+            raise ValueError('Designação obrigatória.')
+
+        return {
+            'OWNER_TYPE': owner_type,
+            'NO': no,
+            'FEID': feid,
+            'OWNER_LABEL': owner_label,
+            'DESIGNACAO': designacao[:100],
+            'MORADA': str(payload.get('MORADA') or '').strip()[:200],
+            'MORADA2': str(payload.get('MORADA2') or '').strip()[:200],
+            'CP': str(payload.get('CP') or '').strip()[:20],
+            'LOCALIDADE': str(payload.get('LOCALIDADE') or '').strip()[:100],
+            'PAIS': str(payload.get('PAIS') or '').strip()[:50],
+            'ATIVO': 1 if _to_int(payload.get('ATIVO'), 0) == 1 or str(payload.get('ATIVO') or '').strip().lower() in {'1', 'true', 'sim', 'yes', 'on'} else 0,
+        }
+
+    def _ft_transport_fields_complete(source):
+        if int(_to_int((source or {}).get('IS_DOC_TRANSPORTE'), 0)) != 1:
+            return False
+        return bool(
+            str((source or {}).get('LOCAL_CARGA_ID') or '').strip()
+            and str((source or {}).get('LOCAL_DESCARGA_ID') or '').strip()
+            and _ft_transport_datetime_param((source or {}).get('DATA_HORA_INICIO_TRANSPORTE'))
+            and str((source or {}).get('MATRICULA') or '').strip()
+            and str((source or {}).get('CODIGO_AT') or '').strip()
+        )
+
+    def _ft_transport_state_from_row(source):
+        if int(_to_int((source or {}).get('IS_DOC_TRANSPORTE'), 0)) != 1:
+            return ''
+        if _ft_transport_datetime_param((source or {}).get('DATA_IMPRESSAO_FINAL')):
+            return 'IMPRESSO'
+        if int(_to_int((source or {}).get('ESTADO'), 0)) != 1:
+            return 'RASCUNHO'
+        if _ft_transport_fields_complete(source):
+            return 'PRONTO'
+        return 'EMITIDO'
+
+    def _ft_transport_enrich_header(current_entity, row):
+        ft = dict(row or {})
+        fdata = ft.get('FDATA') or ft.get('DATA') or date.today().isoformat()
+        ftano = _to_int(ft.get('FTANO'), _to_int(str(fdata)[:4], date.today().year))
+        srow = _load_ft_series_context(current_entity, ft.get('NDOC'), ft.get('SERIE'), ftano)
+        series_transport = 1 if int(_to_int((srow or {}).get('IS_DOC_TRANSPORTE'), 0)) == 1 else 0
+        current_transport = 1 if int(_to_int(ft.get('IS_DOC_TRANSPORTE'), 0)) == 1 else 0
+        is_transport = 1 if (current_transport or series_transport) else 0
+        ft['IS_DOC_TRANSPORTE'] = is_transport
+        if is_transport:
+            ft['LOCAL_CARGA_ID'] = str(ft.get('LOCAL_CARGA_ID') or '').strip()
+            ft['LOCAL_DESCARGA_ID'] = str(ft.get('LOCAL_DESCARGA_ID') or '').strip()
+            ft['MATRICULA'] = str(ft.get('MATRICULA') or '').strip()
+            ft['CODIGO_AT'] = str(ft.get('CODIGO_AT') or '').strip()
+            ft['USER_IMPRESSAO_FINAL'] = str(ft.get('USER_IMPRESSAO_FINAL') or '').strip()
+            ft['DATA_HORA_INICIO_TRANSPORTE'] = _ft_transport_datetime_input_value(ft.get('DATA_HORA_INICIO_TRANSPORTE'))
+            ft['DATA_IMPRESSAO_FINAL'] = _ft_transport_datetime_input_value(ft.get('DATA_IMPRESSAO_FINAL'))
+            ft['DOC_TRANSPORTE_ESTADO'] = _transport_doc_state_normalize(
+                ft.get('DOC_TRANSPORTE_ESTADO') or _ft_transport_state_from_row(ft)
+            )
+            local_carga = _load_local_by_stamp(ft.get('LOCAL_CARGA_ID'))
+            local_descarga = _load_local_by_stamp(ft.get('LOCAL_DESCARGA_ID'))
+            ft['LOCAL_CARGA_LABEL'] = _local_label(local_carga)
+            ft['LOCAL_DESCARGA_LABEL'] = _local_label(local_descarga)
+        else:
+            ft.setdefault('LOCAL_CARGA_ID', '')
+            ft.setdefault('LOCAL_DESCARGA_ID', '')
+            ft.setdefault('DATA_HORA_INICIO_TRANSPORTE', '')
+            ft.setdefault('MATRICULA', '')
+            ft.setdefault('CODIGO_AT', '')
+            ft.setdefault('DOC_TRANSPORTE_ESTADO', 'RASCUNHO')
+            ft.setdefault('DATA_IMPRESSAO_FINAL', '')
+            ft.setdefault('USER_IMPRESSAO_FINAL', '')
+            ft.setdefault('LOCAL_CARGA_LABEL', '')
+            ft.setdefault('LOCAL_DESCARGA_LABEL', '')
+        return ft
 
     def _ft_origin_date_param(value):
         if value is None:
@@ -3547,6 +4544,7 @@ def create_app():
             return None
 
     def _load_ft_series_context(current_entity, ndoc, serie, ano):
+        transport_select = ", ISNULL(IS_DOC_TRANSPORTE, 0) AS IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ", CAST(0 AS bit) AS IS_DOC_TRANSPORTE"
         return db.session.execute(text("""
             SELECT TOP 1
                 FTSSTAMP,
@@ -3556,6 +4554,7 @@ def create_app():
                 ISNULL(ANO, 0) AS ANO,
                 ISNULL(SERIE, '') AS SERIE,
                 ISNULL(NDOC, 0) AS NDOC
+                """ + transport_select + """
             FROM dbo.FTS
             WHERE ISNULL(NDOC, 0) = :ndoc
               AND LTRIM(RTRIM(ISNULL(SERIE, ''))) = :serie
@@ -3584,7 +4583,7 @@ def create_app():
         srow = _load_ft_series_context(current_entity, probe.get('NDOC'), probe.get('SERIE'), ftano)
         return _ft_doc_type_from_emit_context(probe, dict(srow or {}))
 
-    def _load_faturacao_cliente_detail_row(no):
+    def _load_faturacao_cliente_detail_row(no, current_entity=None):
         no_int = _to_int(no, 0)
         if no_int <= 0:
             return None
@@ -3594,6 +4593,19 @@ def create_app():
             WHERE TABLE_NAME='CL'
         """)).mappings().all()
         colset = {str(r.get('CN') or '').upper() for r in cols}
+        entity_scope_sql = ''
+        params = {'no': no_int}
+        if 'FEID' in colset:
+            scoped_entity = current_entity
+            if scoped_entity is None:
+                try:
+                    scoped_entity = _get_current_fe_row()
+                except Exception:
+                    scoped_entity = None
+            feid = _to_int((scoped_entity or {}).get('FEID'), 0)
+            if feid > 0:
+                entity_scope_sql = " AND ISNULL(FEID, 0) = :current_feid"
+                params['current_feid'] = feid
         nif_expr = "'' AS NIF"
         if 'NIF' in colset:
             nif_expr = "CONVERT(varchar(20), ISNULL(NIF,0)) AS NIF"
@@ -3613,7 +4625,8 @@ def create_app():
                 {pais_expr}
             FROM dbo.CL
             WHERE ISNULL(NO,0)=:no
-        """), {'no': no_int}).mappings().first()
+            {entity_scope_sql}
+        """), params).mappings().first()
         return dict(row) if row else None
 
     def _ft_fs_client_no_required():
@@ -3683,7 +4696,7 @@ def create_app():
                 'require_emitted': True,
             }
         return {
-            'allowed_types': ['PF'],
+            'allowed_types': ['PF', 'GT', 'GR'],
             'single_use': True,
             'require_emitted': False,
         }
@@ -4166,6 +5179,7 @@ def create_app():
             fe_can_create=_fe_has_permission('inserir'),
             fe_can_edit=_fe_has_permission('editar'),
             fe_can_delete=_fe_has_permission('eliminar'),
+            fe_logo_enabled=_fe_logo_column_available(),
         )
 
     @app.route('/faturacao/series')
@@ -4190,6 +5204,30 @@ def create_app():
             fts_tiposaft_options=FTS_TIPOSAFT_OPTIONS,
             fts_estado_options=FTS_ESTADO_OPTIONS,
             ftsx_at_estado_options=FTSX_AT_ESTADO_OPTIONS,
+        )
+
+    @app.route('/faturacao/locais')
+    @app.route('/faturacao/locais/<localstamp>')
+    @app.route('/locais_manage')
+    @app.route('/locais_manage/<localstamp>')
+    @app.route('/locais_manager')
+    @app.route('/locais_manager/<localstamp>')
+    @login_required
+    def faturacao_locais_page(localstamp=None):
+        if not _fe_has_permission('consultar'):
+            abort(403)
+        try:
+            current_entity = _get_current_fe_row()
+        except MissingCurrentEntityError as exc:
+            return Response(str(exc), status=403, content_type='text/plain; charset=utf-8')
+        return render_template(
+            'locais_manage.html',
+            page_title='Locais',
+            initial_localstamp=(localstamp or '').strip(),
+            locais_can_create=_fe_has_permission('inserir'),
+            locais_can_edit=_fe_has_permission('editar'),
+            locais_can_delete=_fe_has_permission('eliminar'),
+            current_entity=current_entity,
         )
 
     @app.route('/modulos')
@@ -5225,6 +6263,116 @@ def create_app():
             return jsonify({'error': 'Entidade não encontrada.'}), 404
         return jsonify({'row': dict(row), 'modules': _load_fe_module_rows(festamp)})
 
+    @app.route('/api/entidades/<festamp>/logo', methods=['GET'])
+    @login_required
+    def api_entidades_logo_get(festamp):
+        if not _fe_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar entidades.'}), 403
+        if not _fe_logo_column_available():
+            return _fe_logo_json_error()
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                FESTAMP,
+                ISNULL(LOGOTIPO_PATH, '') AS LOGOTIPO_PATH
+            FROM dbo.FE
+            WHERE FESTAMP = :festamp
+        """), {'festamp': (festamp or '').strip()}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Entidade não encontrada.'}), 404
+        rel_path = str(row.get('LOGOTIPO_PATH') or '').strip()
+        if not rel_path:
+            return jsonify({'error': 'A entidade não tem logotipo.'}), 404
+        abs_path = _fe_logo_abs_path(rel_path)
+        if not abs_path or not os.path.isfile(abs_path):
+            return jsonify({'error': 'Ficheiro do logotipo não encontrado no servidor.'}), 404
+        return send_from_directory(os.path.dirname(abs_path), os.path.basename(abs_path), max_age=0, conditional=True)
+
+    @app.route('/api/entidades/<festamp>/upload_logo', methods=['POST'])
+    @login_required
+    def api_entidades_logo_upload(festamp):
+        if not _fe_has_permission('editar'):
+            return jsonify({'error': 'Sem permissão para editar entidades.'}), 403
+        if not _fe_logo_column_available():
+            return _fe_logo_json_error()
+        festamp = (festamp or '').strip()
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                FESTAMP,
+                ISNULL(LOGOTIPO_PATH, '') AS LOGOTIPO_PATH
+            FROM dbo.FE
+            WHERE FESTAMP = :festamp
+        """), {'festamp': festamp}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Guarde primeiro a entidade antes de carregar o logotipo.'}), 404
+        file_obj = request.files.get('file')
+        if not file_obj or not str(file_obj.filename or '').strip():
+            return jsonify({'error': 'Selecione uma imagem.'}), 400
+        original_name = secure_filename(str(file_obj.filename or '').strip())
+        ext = os.path.splitext(original_name)[1].lower()
+        allowed_exts = {'.png', '.jpg', '.jpeg', '.webp'}
+        if ext not in allowed_exts:
+            return jsonify({'error': 'Formato inválido. Use PNG, JPG, JPEG ou WEBP.'}), 400
+        storage_dir = os.path.join(_fe_logo_storage_root(), festamp)
+        os.makedirs(storage_dir, exist_ok=True)
+        new_filename = f"logo_{uuid.uuid4().hex[:12]}{ext}"
+        rel_path = _fe_logo_relative_path(festamp, new_filename)
+        abs_path = _fe_logo_abs_path(rel_path)
+        old_path = str(row.get('LOGOTIPO_PATH') or '').strip()
+        file_obj.save(abs_path)
+        db.session.execute(text("""
+            UPDATE dbo.FE
+            SET LOGOTIPO_PATH = :LOGOTIPO_PATH,
+                DTAlteracao = GETDATE(),
+                USERALTERACAO = :USERALTERACAO
+            WHERE FESTAMP = :FESTAMP
+        """), {
+            'LOGOTIPO_PATH': rel_path,
+            'USERALTERACAO': (getattr(current_user, 'LOGIN', '') or '').strip(),
+            'FESTAMP': festamp,
+        })
+        db.session.commit()
+        if old_path and old_path != rel_path:
+            _fe_logo_delete_file(old_path)
+        return jsonify({
+            'ok': True,
+            'festamp': festamp,
+            'LOGOTIPO_PATH': rel_path,
+            'logo_url': _fe_logo_public_url(festamp),
+        })
+
+    @app.route('/api/entidades/<festamp>/delete_logo', methods=['POST'])
+    @login_required
+    def api_entidades_logo_delete(festamp):
+        if not _fe_has_permission('editar'):
+            return jsonify({'error': 'Sem permissão para editar entidades.'}), 403
+        if not _fe_logo_column_available():
+            return _fe_logo_json_error()
+        festamp = (festamp or '').strip()
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                FESTAMP,
+                ISNULL(LOGOTIPO_PATH, '') AS LOGOTIPO_PATH
+            FROM dbo.FE
+            WHERE FESTAMP = :festamp
+        """), {'festamp': festamp}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Entidade não encontrada.'}), 404
+        old_path = str(row.get('LOGOTIPO_PATH') or '').strip()
+        db.session.execute(text("""
+            UPDATE dbo.FE
+            SET LOGOTIPO_PATH = '',
+                DTAlteracao = GETDATE(),
+                USERALTERACAO = :USERALTERACAO
+            WHERE FESTAMP = :FESTAMP
+        """), {
+            'USERALTERACAO': (getattr(current_user, 'LOGIN', '') or '').strip(),
+            'FESTAMP': festamp,
+        })
+        db.session.commit()
+        if old_path:
+            _fe_logo_delete_file(old_path)
+        return jsonify({'ok': True, 'festamp': festamp, 'LOGOTIPO_PATH': ''})
+
     @app.route('/api/entidades/modules', methods=['GET'])
     @login_required
     def api_entidades_modules():
@@ -5284,6 +6432,7 @@ def create_app():
             'AT_WS_AMBIENTE': (raw.get('AT_WS_AMBIENTE') or '').strip(),
             'AT_WS_USER': (raw.get('AT_WS_USER') or '').strip(),
             'AT_WS_PASS': (raw.get('AT_WS_PASS') or '').strip(),
+            'LOGOTIPO_PATH': (raw.get('LOGOTIPO_PATH') or '').strip(),
             'USERALTERACAO': user_login,
         })
 
@@ -5310,6 +6459,9 @@ def create_app():
             })
 
         try:
+            logo_set_sql = "\n                        LOGOTIPO_PATH=:LOGOTIPO_PATH," if _fe_logo_column_available() else ""
+            logo_insert_columns = ", LOGOTIPO_PATH" if _fe_logo_column_available() else ""
+            logo_insert_values = ", :LOGOTIPO_PATH" if _fe_logo_column_available() else ""
             if exists:
                 db.session.execute(text("""
                     UPDATE dbo.FE
@@ -5337,6 +6489,7 @@ def create_app():
                         AT_WS_AMBIENTE=:AT_WS_AMBIENTE,
                         AT_WS_USER=:AT_WS_USER,
                         AT_WS_PASS=:AT_WS_PASS,
+                        """ + logo_set_sql + """
                         DTAlteracao=GETDATE(),
                         USERALTERACAO=:USERALTERACAO
                     WHERE FESTAMP=:FESTAMP
@@ -5348,14 +6501,14 @@ def create_app():
                         FESTAMP, NIF, NOME, NOMEFISCAL, ATIVIDADE, MORADA, MORADA2, CODPOST, LOCAL, PAISISO2,
                         EMAIL, TELEFONE, ATIVA, OBS, CERTNUM, ATCUD_PREFIX, QRVER, HASHVER, KEYID,
                         RSA_PRIV_PATH, RSA_PUB_PATH, AT_WS_ATIVO, AT_WS_AMBIENTE, AT_WS_USER, AT_WS_PASS,
-                        DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO
+                        DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO""" + logo_insert_columns + """
                     )
                     VALUES
                     (
                         :FESTAMP, :NIF, :NOME, :NOMEFISCAL, :ATIVIDADE, :MORADA, :MORADA2, :CODPOST, :LOCAL, :PAISISO2,
                         :EMAIL, :TELEFONE, :ATIVA, :OBS, :CERTNUM, :ATCUD_PREFIX, :QRVER, :HASHVER, :KEYID,
                         :RSA_PRIV_PATH, :RSA_PUB_PATH, :AT_WS_ATIVO, :AT_WS_AMBIENTE, :AT_WS_USER, :AT_WS_PASS,
-                        GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO
+                        GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO""" + logo_insert_values + """
                     )
                 """), payload)
 
@@ -5487,6 +6640,8 @@ def create_app():
         {'value': 'FT', 'label': 'FT · Fatura'},
         {'value': 'FS', 'label': 'FS · Fatura simplificada'},
         {'value': 'FR', 'label': 'FR · Fatura-recibo'},
+        {'value': 'GT', 'label': 'GT · Guia de transporte'},
+        {'value': 'GR', 'label': 'GR · Guia de remessa'},
         {'value': 'NC', 'label': 'NC · Nota de crédito'},
         {'value': 'OR', 'label': 'OR · Orçamento'},
         {'value': 'PF', 'label': 'PF · Pro-Forma'},
@@ -5504,6 +6659,7 @@ def create_app():
     FTSX_ALLOWED_AT_ESTADOS = {int(item['value']) for item in FTSX_AT_ESTADO_OPTIONS}
 
     def _fts_base_query():
+        transport_select = "ISNULL(S.IS_DOC_TRANSPORTE, 0) AS IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else "CAST(0 AS bit) AS IS_DOC_TRANSPORTE"
         return """
             SELECT
                 S.FTSSTAMP,
@@ -5519,6 +6675,7 @@ def create_app():
                 ISNULL(S.ULTIMO_FNO, 0) AS ULTIMO_FNO,
                 ISNULL(S.NO_SAFT, 0) AS NO_SAFT,
                 ISNULL(S.TIPOSAFT, '') AS TIPOSAFT,
+                """ + transport_select + """,
                 S.DTCriacao,
                 S.DTAlteracao,
                 ISNULL(S.USERCRIACAO, '') AS USERCRIACAO,
@@ -5596,6 +6753,7 @@ def create_app():
         estado = _fts_parse_int(payload.get('ESTADO'), 0)
         ativa = _fts_parse_bit(payload.get('ATIVA'), 0)
         no_saft = _fts_parse_bit(payload.get('NO_SAFT'), 0)
+        is_doc_transporte = _fts_parse_bit(payload.get('IS_DOC_TRANSPORTE'), 0)
         tiposaft = str(payload.get('TIPOSAFT') or '').strip().upper()
         if ndoc <= 0:
             raise ValueError('NDOC obrigatório.')
@@ -5615,6 +6773,7 @@ def create_app():
             'ESTADO': estado,
             'NO_SAFT': no_saft,
             'TIPOSAFT': tiposaft,
+            'IS_DOC_TRANSPORTE': is_doc_transporte,
         }
 
     def _ftsx_payload_from_request(payload: dict):
@@ -5723,6 +6882,7 @@ def create_app():
             'ULTIMO_FNO': row.get('ULTIMO_FNO') or 0,
             'NO_SAFT': row.get('NO_SAFT') or 0,
             'TIPOSAFT': row.get('TIPOSAFT') or '',
+            'IS_DOC_TRANSPORTE': row.get('IS_DOC_TRANSPORTE') or 0,
             'DTCriacao': row.get('DTCriacao') or '',
             'DTAlteracao': row.get('DTAlteracao') or '',
             'USERCRIACAO': row.get('USERCRIACAO') or '',
@@ -5748,13 +6908,15 @@ def create_app():
             stamp = _new_stamp_25()
             now = datetime.now()
             user_login = _fts_user_login()
+            transport_columns = ", IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ""
+            transport_values = ", :IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ""
             db.session.execute(text("""
                 INSERT INTO dbo.FTS (
                     FTSSTAMP, FESTAMP, NDOC, SERIE, DESCR, ATIVA, ESTADO, ANO, ULTIMO_FNO,
-                    DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO, NO_SAFT, TIPOSAFT, FEID
+                    DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO, NO_SAFT, TIPOSAFT, FEID""" + transport_columns + """
                 ) VALUES (
                     :FTSSTAMP, :FESTAMP, :NDOC, :SERIE, :DESCR, :ATIVA, :ESTADO, :ANO, :ULTIMO_FNO,
-                    :DTCriacao, :DTAlteracao, :USERCRIACAO, :USERALTERACAO, :NO_SAFT, :TIPOSAFT, :FEID
+                    :DTCriacao, :DTAlteracao, :USERCRIACAO, :USERALTERACAO, :NO_SAFT, :TIPOSAFT, :FEID""" + transport_values + """
                 )
             """), {
                 'FTSSTAMP': stamp,
@@ -5773,6 +6935,7 @@ def create_app():
                 'NO_SAFT': clean['NO_SAFT'],
                 'TIPOSAFT': clean['TIPOSAFT'],
                 'FEID': int(current_entity.get('FEID') or 0),
+                'IS_DOC_TRANSPORTE': clean['IS_DOC_TRANSPORTE'],
             })
             db.session.commit()
             row = _fts_fetch_row(stamp, current_entity)
@@ -5802,6 +6965,7 @@ def create_app():
             ano = _fts_parse_int(parent.get('ANO'), date.today().year)
             if _fts_duplicate_exists(current_entity, clean['NDOC'], clean['SERIE'], ano, exclude_stamp=ftsstamp):
                 return jsonify({'error': 'Já existe uma série com NDOC, SERIE e ANO para a entidade atual.'}), 400
+            transport_set_sql = ", IS_DOC_TRANSPORTE=:IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ""
             db.session.execute(text("""
                 UPDATE dbo.FTS
                 SET NDOC=:NDOC,
@@ -5810,7 +6974,7 @@ def create_app():
                     ATIVA=:ATIVA,
                     ESTADO=:ESTADO,
                     NO_SAFT=:NO_SAFT,
-                    TIPOSAFT=:TIPOSAFT,
+                    TIPOSAFT=:TIPOSAFT""" + transport_set_sql + """,
                     DTAlteracao=:DTAlteracao,
                     USERALTERACAO=:USERALTERACAO
                 WHERE FTSSTAMP=:FTSSTAMP
@@ -5823,6 +6987,7 @@ def create_app():
                 'ESTADO': clean['ESTADO'],
                 'NO_SAFT': clean['NO_SAFT'],
                 'TIPOSAFT': clean['TIPOSAFT'],
+                'IS_DOC_TRANSPORTE': clean['IS_DOC_TRANSPORTE'],
                 'DTAlteracao': datetime.now(),
                 'USERALTERACAO': _fts_user_login(),
                 'FTSSTAMP': (ftsstamp or '').strip(),
@@ -6322,6 +7487,304 @@ def create_app():
             app.logger.exception('Erro ao eliminar módulo.')
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/wizard_ecras')
+    @app.route('/screen_wizard')
+    @login_required
+    def screen_wizard_page():
+        if not _screen_wizard_allowed():
+            return abort(403)
+        return render_template('screen_wizard.html')
+
+    @app.route('/api/screen_wizard/bootstrap', methods=['GET'])
+    @login_required
+    def api_screen_wizard_bootstrap():
+        if not _screen_wizard_allowed():
+            return jsonify({'error': 'Sem permissão para usar o wizard.'}), 403
+        current_feid = int(get_current_feid() or 0)
+        return jsonify({
+            'tables': _load_screen_wizard_tables(),
+            'modules': _load_screen_wizard_modules(),
+            'menu_positions': _load_screen_wizard_menu_positions(),
+            'acl_users': _load_screen_wizard_acl_users(current_feid) if current_feid > 0 else [],
+            'screen_types': [
+                {'value': 'dynamic_list', 'label': 'Dynamic List'},
+                {'value': 'dynamic_form', 'label': 'Dynamic Form'},
+            ],
+            'defaults': {
+                'icon': 'fa-solid fa-table-list',
+                'screen_type': 'dynamic_list',
+                'novo': True,
+                'admin': False,
+                'orderby': '',
+            },
+            'current_user_login': (getattr(current_user, 'LOGIN', '') or '').strip(),
+            'current_user_usstamp': (getattr(current_user, 'USSTAMP', '') or '').strip(),
+            'current_feid': current_feid,
+        })
+
+    @app.route('/api/screen_wizard/columns', methods=['GET'])
+    @login_required
+    def api_screen_wizard_columns():
+        if not _screen_wizard_allowed():
+            return jsonify({'error': 'Sem permissão para usar o wizard.'}), 403
+        table_name = (request.args.get('table') or '').strip().upper()
+        if not table_name:
+            return jsonify({'error': 'Tabela obrigatória.'}), 400
+
+        columns = _load_screen_wizard_columns(table_name)
+        if not columns:
+            return jsonify({'error': 'Tabela não encontrada.'}), 404
+        return jsonify({'columns': columns})
+
+    @app.route('/api/screen_wizard/save', methods=['POST'])
+    @login_required
+    def api_screen_wizard_save():
+        if not _screen_wizard_allowed():
+            return jsonify({'error': 'Sem permissão para usar o wizard.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        table_name = str(body.get('table_name') or '').strip().upper()
+        screen_type = str(body.get('screen_type') or '').strip().lower()
+        title = str(body.get('title') or '').strip()
+        icon = str(body.get('icon') or '').strip()[:100]
+        orderby = str(body.get('orderby') or '').strip()[:200]
+        menu_order = _to_int(body.get('menu_order'), 0)
+        admin_only = 1 if body.get('admin') else 0
+        novo = 1 if body.get('novo') else 0
+        current_feid = int(get_current_feid() or 0)
+        module_stamps = []
+        for raw in (body.get('modules') or []):
+            value = str(raw or '').strip()
+            if value and value not in module_stamps:
+                module_stamps.append(value)
+        acl_rows = _normalize_screen_wizard_acl_rows(body.get('acl_rows'))
+
+        if screen_type not in {'dynamic_form', 'dynamic_list'}:
+            return jsonify({'error': 'Tipo de ecrã inválido.'}), 400
+        if not table_name:
+            return jsonify({'error': 'Tabela obrigatória.'}), 400
+        if len(table_name) > 18:
+            return jsonify({'error': 'A tabela escolhida excede o limite suportado pelo MENU.'}), 400
+        if not title:
+            return jsonify({'error': 'Título obrigatório.'}), 400
+        if len(title) > 60:
+            return jsonify({'error': 'O título excede os 60 caracteres.'}), 400
+        if not icon:
+            return jsonify({'error': 'Ícone obrigatório.'}), 400
+        if not module_stamps:
+            return jsonify({'error': 'Seleciona pelo menos um módulo.'}), 400
+
+        table_exists = db.session.execute(text("""
+            SELECT TOP 1 1
+            FROM sys.tables T
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE S.name = 'dbo'
+              AND UPPER(T.name) = :table_name
+        """), {'table_name': table_name}).scalar()
+        if not table_exists:
+            return jsonify({'error': 'Tabela não encontrada.'}), 404
+
+        existing_menu = db.session.execute(text("""
+            SELECT TOP 1 menustamp
+            FROM dbo.MENU
+            WHERE UPPER(LTRIM(RTRIM(ISNULL(tabela, '')))) = :table_name
+        """), {'table_name': table_name}).scalar()
+        if existing_menu:
+            return jsonify({'error': 'Já existe um MENU para essa tabela.'}), 400
+
+        existing_campos = db.session.execute(text("""
+            SELECT TOP 1 camposstamp
+            FROM dbo.CAMPOS
+            WHERE UPPER(LTRIM(RTRIM(ISNULL(tabela, '')))) = :table_name
+        """), {'table_name': table_name}).scalar()
+        if existing_campos:
+            return jsonify({'error': 'Já existe configuração CAMPOS para essa tabela.'}), 400
+
+        module_rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(MODSTAMP, ''))) AS MODSTAMP
+            FROM dbo.MODULOS
+            WHERE MODSTAMP IN :modstamps
+              AND ISNULL(ATIVO, 0) = 1
+        """).bindparams(bindparam('modstamps', expanding=True)), {
+            'modstamps': module_stamps,
+        }).mappings().all()
+        valid_modules = {str(row.get('MODSTAMP') or '').strip() for row in module_rows}
+        missing_modules = [modstamp for modstamp in module_stamps if modstamp not in valid_modules]
+        if missing_modules:
+            return jsonify({'error': 'Existem módulos inválidos ou inativos selecionados.'}), 400
+
+        available_columns = _load_screen_wizard_columns(table_name)
+        if not available_columns:
+            return jsonify({'error': 'Não foi possível carregar os campos da tabela.'}), 400
+        available_map = {str(col.get('name') or '').strip().upper(): col for col in available_columns}
+
+        try:
+            layout_items = _normalize_screen_wizard_layout(body.get('layout'), available_map, screen_type)
+            campo_rows = _screen_wizard_build_campo_rows(layout_items, screen_type)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+
+        menu_stamp = _new_stamp_25()
+        menu_url = _screen_wizard_menu_url(table_name, screen_type)
+        form_url = _screen_wizard_form_url(table_name)
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+
+        menu_payload = {
+            'menustamp': menu_stamp,
+            'ordem': menu_order,
+            'nome': title,
+            'tabela': table_name,
+            'url': menu_url,
+            'admin': admin_only,
+            'icone': icon,
+            'form': form_url,
+            'orderby': orderby or None,
+            'novo': novo,
+        }
+
+        try:
+            _ensure_mod_objetos_table()
+            db.session.execute(text("""
+                INSERT INTO dbo.MENU
+                (
+                    menustamp, ordem, nome, tabela, url, admin, icone, form, ORDERBY, novo
+                )
+                VALUES
+                (
+                    :menustamp, :ordem, :nome, :tabela, :url, :admin, :icone, :form, :orderby, :novo
+                )
+            """), menu_payload)
+
+            for campo_row in campo_rows:
+                db.session.execute(text("""
+                    INSERT INTO dbo.CAMPOS
+                    (
+                        CAMPOSSTAMP, ORDEM, NMCAMPO, DESCRICAO, TIPO, TABELA,
+                        LISTA, FILTRO, FILTRODEFAULT, ADMIN, RONLY, COMBO, VIRTUAL,
+                        TAM, ORDEM_MOBILE, TAM_MOBILE, CONDICAO_VISIVEL, OBRIGATORIO
+                    )
+                    VALUES
+                    (
+                        :CAMPOSSTAMP, :ORDEM, :NMCAMPO, :DESCRICAO, :TIPO, :tabela,
+                        :LISTA, :FILTRO, :FILTRODEFAULT, :ADMIN, :RONLY, :COMBO, :VIRTUAL,
+                        :TAM, :ORDEM_MOBILE, :TAM_MOBILE, :CONDICAO_VISIVEL, :OBRIGATORIO
+                    )
+                """), {
+                    **campo_row,
+                    'tabela': table_name,
+                })
+
+            for modstamp in module_stamps:
+                db.session.execute(text("""
+                    INSERT INTO dbo.MOD_OBJETOS
+                    (
+                        MODOBJSTAMP, MODSTAMP, TIPO, OBJKEY, OBJNOME, OBJROTA,
+                        MENUSTAMP, ORDEM, ATIVO, DTCRI, DTALT, USERCRIACAO, USERALTERACAO
+                    )
+                    VALUES
+                    (
+                        :MODOBJSTAMP, :MODSTAMP, :TIPO, :OBJKEY, :OBJNOME, :OBJROTA,
+                        :MENUSTAMP, :ORDEM, :ATIVO, GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO
+                    )
+                """), {
+                    'MODOBJSTAMP': _new_stamp_25(),
+                    'MODSTAMP': modstamp,
+                    'TIPO': 'MENU',
+                    'OBJKEY': f'MENU:{menu_stamp}',
+                    'OBJNOME': title,
+                    'OBJROTA': menu_url,
+                    'MENUSTAMP': menu_stamp,
+                    'ORDEM': menu_order,
+                    'ATIVO': 1,
+                    'USERCRIACAO': user_login,
+                    'USERALTERACAO': user_login,
+                })
+
+            for acl_row in acl_rows:
+                db.session.execute(text("""
+                    INSERT INTO dbo.ACESSOS
+                    (
+                        ACESSOSSTAMP, UTILIZADOR, TABELA,
+                        CONSULTAR, INSERIR, EDITAR, ELIMINAR,
+                        USSTAMP, FEID
+                    )
+                    VALUES
+                    (
+                        :ACESSOSSTAMP, :UTILIZADOR, :TABELA,
+                        :CONSULTAR, :INSERIR, :EDITAR, :ELIMINAR,
+                        :USSTAMP, :FEID
+                    )
+                """), {
+                    'ACESSOSSTAMP': _new_stamp_25(),
+                    'UTILIZADOR': acl_row['UTILIZADOR'],
+                    'TABELA': table_name,
+                    'CONSULTAR': acl_row['CONSULTAR'],
+                    'INSERIR': acl_row['INSERIR'],
+                    'EDITAR': acl_row['EDITAR'],
+                    'ELIMINAR': acl_row['ELIMINAR'],
+                    'USSTAMP': acl_row['USSTAMP'],
+                    'FEID': current_feid,
+                })
+
+            db.session.commit()
+            return jsonify({
+                'ok': True,
+                'menu': {
+                    'menustamp': menu_stamp,
+                    'url': menu_url,
+                    'form': form_url,
+                    'tabela': table_name,
+                },
+                'campos_count': len(campo_rows),
+                'modules_count': len(module_stamps),
+                'acessos_count': len(acl_rows),
+            })
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar screen wizard.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/dev/reset_certificacao_feid1')
+    @app.route('/internal/reset_certificacao_feid1')
+    @app.route('/dev_reset_certificacao_feid1')
+    @login_required
+    def dev_reset_certificacao_feid1_page():
+        if not _cert_reset_feid1_allowed():
+            return abort(403)
+        try:
+            preview = _cert_reset_feid1_collect_status()
+        except ValueError as exc:
+            return abort(400, str(exc))
+        return render_template(
+            'dev_reset_certificacao_feid1.html',
+            target_entity=preview.get('target') or {},
+            preview_counts=preview.get('counts') or {},
+            preview_series=preview.get('series_plan') or [],
+            confirm_phrase=CERT_RESET_CONFIRM_PHRASE,
+        )
+
+    @app.route('/api/dev/reset_certificacao_feid1', methods=['POST'])
+    @login_required
+    def api_dev_reset_certificacao_feid1():
+        if not _cert_reset_feid1_allowed():
+            return jsonify({'error': 'Sem permissao para executar este reset.'}), 403
+        body = request.get_json(silent=True) or {}
+        confirm_text = str(body.get('confirm_text') or '').strip().upper()
+        if confirm_text != CERT_RESET_CONFIRM_PHRASE:
+            return jsonify({'error': f'Confirmacao invalida. Escreve exatamente "{CERT_RESET_CONFIRM_PHRASE}".'}), 400
+        try:
+            result = _cert_reset_feid1_execute(_fts_user_login())
+            return jsonify({'ok': True, 'result': result})
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro no reset de certificacao FEID 1.')
+            return jsonify({'error': str(exc)}), 500
+
     @app.route('/api/lookups/fts', methods=['GET'])
     @login_required
     def api_lookup_fts():
@@ -6330,6 +7793,7 @@ def create_app():
         ano = _to_int(request.args.get('ano'), 0)
         if not feid and not festamp:
             return jsonify([])
+        transport_select = ", ISNULL(S.IS_DOC_TRANSPORTE, 0) AS IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ", CAST(0 AS bit) AS IS_DOC_TRANSPORTE"
         sql = """
             SELECT
                 S.FTSSTAMP,
@@ -6344,6 +7808,7 @@ def create_app():
                 S.ULTIMO_FNO,
                 ISNULL(S.NO_SAFT, 0) AS NO_SAFT,
                 UPPER(LTRIM(RTRIM(ISNULL(S.TIPOSAFT, '')))) AS TIPOSAFT
+                """ + transport_select + """
             FROM dbo.FTS S
             WHERE
                 ISNULL(S.ATIVA, 0) = 1
@@ -7206,6 +8671,9 @@ def create_app():
     @app.route('/api/faturacao/clientes', methods=['GET'])
     @login_required
     def api_faturacao_clientes():
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
         q = (request.args.get('q') or '').strip()
         if len(q) < 1:
             return jsonify([])
@@ -7241,17 +8709,264 @@ def create_app():
                 ISNULL(CODPOST,'') AS CODPOST
             FROM dbo.CL
             WHERE {where}
+              {"AND ISNULL(FEID, 0) = :current_feid" if 'FEID' in colset else ""}
             ORDER BY NOME
-        """), {'q': f'%{q}%'}).mappings().all()
+        """), {
+            'q': f'%{q}%',
+            **({'current_feid': int(current_entity.get('FEID') or 0)} if 'FEID' in colset else {}),
+        }).mappings().all()
         return jsonify([dict(r) for r in rows])
 
     @app.route('/api/faturacao/clientes/<int:no>', methods=['GET'])
     @login_required
     def api_faturacao_cliente_detail(no):
-        row = _load_faturacao_cliente_detail_row(no)
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        row = _load_faturacao_cliente_detail_row(no, current_entity)
         if not row:
             return jsonify({'error': 'Cliente não encontrado'}), 404
         return jsonify(row)
+
+    @app.route('/api/faturacao/locais', methods=['GET'])
+    @login_required
+    def api_faturacao_locais():
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        if not _locais_table_available():
+            return jsonify([])
+        tipo = str(request.args.get('tipo') or '').strip().lower()
+        client_no = _to_int(request.args.get('no'), 0)
+        if tipo not in {'carga', 'descarga'}:
+            return jsonify([])
+        sql = """
+            SELECT
+                LTRIM(RTRIM(ISNULL(LOCALSTAMP, ''))) AS LOCALSTAMP,
+                LTRIM(RTRIM(ISNULL(DESIGNACAO, ''))) AS DESIGNACAO,
+                LTRIM(RTRIM(ISNULL(MORADA, ''))) AS MORADA,
+                LTRIM(RTRIM(ISNULL(MORADA2, ''))) AS MORADA2,
+                LTRIM(RTRIM(ISNULL(CP, ''))) AS CP,
+                LTRIM(RTRIM(ISNULL(LOCALIDADE, ''))) AS LOCALIDADE,
+                LTRIM(RTRIM(ISNULL(PAIS, ''))) AS PAIS
+            FROM dbo.LOCAIS
+            WHERE ISNULL(ATIVO, 1) = 1
+        """
+        params = {}
+        if tipo == 'carga':
+            sql += " AND ISNULL(FEID, 0) = :feid AND ISNULL(NO, 0) = 0"
+            params['feid'] = int(current_entity.get('FEID') or 0)
+        else:
+            if client_no <= 0:
+                return jsonify([])
+            sql += " AND ISNULL(NO, 0) = :no AND ISNULL(FEID, 0) = :feid"
+            params['no'] = client_no
+            params['feid'] = int(current_entity.get('FEID') or 0)
+        sql += " ORDER BY ISNULL(DESIGNACAO, ''), ISNULL(LOCALIDADE, ''), ISNULL(MORADA, '')"
+        rows = db.session.execute(text(sql), params).mappings().all()
+        out = []
+        for row in rows:
+            item = dict(row)
+            item['LABEL'] = _local_label(item)
+            out.append(item)
+        return jsonify(out)
+
+    @app.route('/api/faturacao/locais-manage', methods=['GET'])
+    @login_required
+    def api_faturacao_locais_manage_list():
+        if not _fe_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar locais.'}), 403
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        if not _locais_table_available():
+            return _locais_json_error()
+
+        q = str(request.args.get('q') or '').strip()
+        owner_type = str(request.args.get('owner_type') or '').strip().upper()
+        ativo = str(request.args.get('ativo') or '').strip().lower()
+
+        sql = """
+            SELECT
+                L.LOCALSTAMP,
+                ISNULL(L.NO, 0) AS NO,
+                ISNULL(L.FEID, 0) AS FEID,
+                LTRIM(RTRIM(ISNULL(L.DESIGNACAO, ''))) AS DESIGNACAO,
+                LTRIM(RTRIM(ISNULL(L.MORADA, ''))) AS MORADA,
+                LTRIM(RTRIM(ISNULL(L.MORADA2, ''))) AS MORADA2,
+                LTRIM(RTRIM(ISNULL(L.CP, ''))) AS CP,
+                LTRIM(RTRIM(ISNULL(L.LOCALIDADE, ''))) AS LOCALIDADE,
+                LTRIM(RTRIM(ISNULL(L.PAIS, ''))) AS PAIS,
+                ISNULL(L.ATIVO, 1) AS ATIVO,
+                LTRIM(RTRIM(ISNULL(CL.NOME, ''))) AS CLIENTE_NOME,
+                LTRIM(RTRIM(ISNULL(FE.NOMEFISCAL, ISNULL(FE.NOME, '')))) AS FE_NOME
+            FROM dbo.LOCAIS L
+            LEFT JOIN dbo.CL CL
+              ON CL.NO = L.NO
+             AND ISNULL(CL.FEID, 0) = ISNULL(L.FEID, 0)
+            LEFT JOIN dbo.FE FE
+              ON FE.FEID = L.FEID
+            WHERE ISNULL(L.FEID, 0) = :current_feid
+        """
+        params = {'current_feid': int(current_entity.get('FEID') or 0)}
+        if q:
+            sql += """
+                AND (
+                       ISNULL(L.DESIGNACAO, '') LIKE :q
+                    OR ISNULL(L.MORADA, '') LIKE :q
+                    OR ISNULL(L.LOCALIDADE, '') LIKE :q
+                    OR ISNULL(CL.NOME, '') LIKE :q
+                )
+            """
+            params['q'] = f'%{q}%'
+        if owner_type == 'FE':
+            sql += " AND ISNULL(L.FEID, 0) = :current_feid AND ISNULL(L.NO, 0) = 0"
+        elif owner_type == 'CLIENTE':
+            sql += " AND ISNULL(L.NO, 0) > 0 AND ISNULL(L.FEID, 0) = :current_feid"
+        if ativo in {'1', 'true', 'ativos', 'ativo'}:
+            sql += " AND ISNULL(L.ATIVO, 1) = 1"
+        elif ativo in {'0', 'false', 'inativos', 'inativo'}:
+            sql += " AND ISNULL(L.ATIVO, 1) = 0"
+        sql += " ORDER BY CASE WHEN ISNULL(L.NO, 0) > 0 THEN 1 ELSE 0 END, ISNULL(CL.NOME, ''), ISNULL(L.DESIGNACAO, '')"
+
+        rows = db.session.execute(text(sql), params).mappings().all()
+        return jsonify({'rows': [_locais_serialize_row(dict(row), current_entity) for row in rows]})
+
+    @app.route('/api/faturacao/locais-manage/<localstamp>', methods=['GET'])
+    @login_required
+    def api_faturacao_locais_manage_detail(localstamp):
+        if not _fe_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar locais.'}), 403
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        if not _locais_table_available():
+            return _locais_json_error()
+
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                L.LOCALSTAMP,
+                ISNULL(L.NO, 0) AS NO,
+                ISNULL(L.FEID, 0) AS FEID,
+                LTRIM(RTRIM(ISNULL(L.DESIGNACAO, ''))) AS DESIGNACAO,
+                LTRIM(RTRIM(ISNULL(L.MORADA, ''))) AS MORADA,
+                LTRIM(RTRIM(ISNULL(L.MORADA2, ''))) AS MORADA2,
+                LTRIM(RTRIM(ISNULL(L.CP, ''))) AS CP,
+                LTRIM(RTRIM(ISNULL(L.LOCALIDADE, ''))) AS LOCALIDADE,
+                LTRIM(RTRIM(ISNULL(L.PAIS, ''))) AS PAIS,
+                ISNULL(L.ATIVO, 1) AS ATIVO,
+                LTRIM(RTRIM(ISNULL(CL.NOME, ''))) AS CLIENTE_NOME,
+                LTRIM(RTRIM(ISNULL(FE.NOMEFISCAL, ISNULL(FE.NOME, '')))) AS FE_NOME
+            FROM dbo.LOCAIS L
+            LEFT JOIN dbo.CL CL
+              ON CL.NO = L.NO
+             AND ISNULL(CL.FEID, 0) = ISNULL(L.FEID, 0)
+            LEFT JOIN dbo.FE FE
+              ON FE.FEID = L.FEID
+            WHERE L.LOCALSTAMP = :localstamp
+              AND ISNULL(L.FEID, 0) = :current_feid
+        """), {
+            'localstamp': str(localstamp or '').strip(),
+            'current_feid': int(current_entity.get('FEID') or 0),
+        }).mappings().first()
+        if not row:
+            return jsonify({'error': 'Local não encontrado.'}), 404
+        return jsonify({'row': _locais_serialize_row(dict(row), current_entity)})
+
+    @app.route('/api/faturacao/locais-manage/save', methods=['POST'])
+    @login_required
+    def api_faturacao_locais_manage_save():
+        if not (_fe_has_permission('inserir') or _fe_has_permission('editar')):
+            return jsonify({'error': 'Sem permissão para gravar locais.'}), 403
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        if not _locais_table_available():
+            return _locais_json_error()
+
+        body = request.get_json(silent=True) or {}
+        row = dict(body.get('row') or {})
+        localstamp = str(row.get('LOCALSTAMP') or '').strip()
+
+        try:
+            clean = _locais_validate_payload(row, current_entity)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+
+        try:
+            if localstamp:
+                if not _fe_has_permission('editar'):
+                    return jsonify({'error': 'Sem permissão para editar locais.'}), 403
+                result = db.session.execute(text("""
+                    UPDATE dbo.LOCAIS
+                    SET
+                        NO = :NO,
+                        FEID = :FEID,
+                        DESIGNACAO = :DESIGNACAO,
+                        MORADA = :MORADA,
+                        MORADA2 = :MORADA2,
+                        CP = :CP,
+                        LOCALIDADE = :LOCALIDADE,
+                        PAIS = :PAIS,
+                        ATIVO = :ATIVO
+                    WHERE LOCALSTAMP = :LOCALSTAMP
+                      AND ISNULL(FEID, 0) = :current_feid
+                """), {
+                    **clean,
+                    'LOCALSTAMP': localstamp,
+                    'current_feid': int(current_entity.get('FEID') or 0),
+                })
+                if int(getattr(result, 'rowcount', 0) or 0) <= 0:
+                    db.session.rollback()
+                    return jsonify({'error': 'Local não encontrado.'}), 404
+            else:
+                if not _fe_has_permission('inserir'):
+                    return jsonify({'error': 'Sem permissão para criar locais.'}), 403
+                localstamp = _new_stamp_25()
+                db.session.execute(text("""
+                    INSERT INTO dbo.LOCAIS (
+                        LOCALSTAMP, NO, FEID, DESIGNACAO, MORADA, MORADA2, CP, LOCALIDADE, PAIS, ATIVO
+                    ) VALUES (
+                        :LOCALSTAMP, :NO, :FEID, :DESIGNACAO, :MORADA, :MORADA2, :CP, :LOCALIDADE, :PAIS, :ATIVO
+                    )
+                """), {
+                    **clean,
+                    'LOCALSTAMP': localstamp,
+                })
+            db.session.commit()
+            return jsonify({'ok': True, 'localstamp': localstamp})
+        except Exception as exc:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao gravar local: {exc}'}), 500
+
+    @app.route('/api/faturacao/locais-manage/<localstamp>/delete', methods=['POST'])
+    @login_required
+    def api_faturacao_locais_manage_delete(localstamp):
+        if not _fe_has_permission('eliminar'):
+            return jsonify({'error': 'Sem permissão para eliminar locais.'}), 403
+        current_entity, error_response = _current_fe_or_json_error()
+        if error_response:
+            return error_response
+        if not _locais_table_available():
+            return _locais_json_error()
+
+        try:
+            result = db.session.execute(text("""
+                DELETE FROM dbo.LOCAIS
+                WHERE LOCALSTAMP = :LOCALSTAMP
+                  AND ISNULL(FEID, 0) = :current_feid
+            """), {
+                'LOCALSTAMP': str(localstamp or '').strip(),
+                'current_feid': int(current_entity.get('FEID') or 0),
+            })
+            if int(getattr(result, 'rowcount', 0) or 0) <= 0:
+                db.session.rollback()
+                return jsonify({'error': 'Local não encontrado.'}), 404
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            return jsonify({'error': f'Erro ao eliminar local: {exc}'}), 500
 
     @app.route('/api/faturacao/miseimp', methods=['GET'])
     @login_required
@@ -7603,7 +9318,7 @@ def create_app():
             fh.write(pdf_bytes or b'')
         os.replace(tmp, path)
 
-    def _ft_pdf_generate_once(ftstamp: str):
+    def _ft_pdf_generate_once(ftstamp: str, show_values: bool = True):
         ft, fi_rows, fe = get_ft_pdf_data(db.session, ftstamp)
         if not ft:
             raise ValueError('Documento não encontrado')
@@ -7612,7 +9327,7 @@ def create_app():
         modo_teste = modo_teste_raw in ('1', 'true', 'sim', 'yes')
         at_certificado = '' if doc_is_non_fiscal else str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
         qr_b64 = '' if doc_is_non_fiscal else build_ft_qr_base64(ft.get('CODIGOQR') or '')
-        html = render_ft_pdf_html(ft, fi_rows, fe or {}, qr_b64, at_certificado=at_certificado, modo_teste=modo_teste)
+        html = render_ft_pdf_html(ft, fi_rows, fe or {}, qr_b64, at_certificado=at_certificado, modo_teste=modo_teste, show_values=show_values)
         try:
             return generate_ft_pdf_bytes(html), 'weasy/chrome'
         except Exception as e:
@@ -7706,6 +9421,58 @@ def create_app():
         th = threading.Thread(target=_worker, name=f'ft-pdf-cache-{ftstamp[:8]}', daemon=True)
         th.start()
 
+    def _ft_pdf_show_values_arg(default=True):
+        raw = str(request.args.get('show_values') or '').strip().lower()
+        if raw in {'0', 'false', 'nao', 'não', 'no', 'off'}:
+            return False
+        if raw in {'1', 'true', 'sim', 'yes', 'on'}:
+            return True
+        return bool(default)
+
+    def _ft_pdf_final_arg():
+        raw = str(request.args.get('final') or '').strip().lower()
+        return raw in {'1', 'true', 'sim', 'yes', 'on'}
+
+    def _ft_transport_print_validation_error(ft: dict):
+        if int(_to_int((ft or {}).get('IS_DOC_TRANSPORTE'), 0)) != 1:
+            return ''
+        state = _transport_doc_state_normalize((ft or {}).get('DOC_TRANSPORTE_ESTADO') or _ft_transport_state_from_row(ft))
+        if state not in {'PRONTO', 'IMPRESSO'}:
+            return 'O documento de transporte tem de estar PRONTO antes da impressão final.'
+        if not str((ft or {}).get('CODIGO_AT') or '').strip():
+            return 'Não é possível imprimir o documento de transporte sem código AT.'
+        if not str((ft or {}).get('LOCAL_CARGA_ID') or '').strip():
+            return 'Não é possível imprimir o documento de transporte sem local de carga.'
+        if not str((ft or {}).get('LOCAL_DESCARGA_ID') or '').strip():
+            return 'Não é possível imprimir o documento de transporte sem local de descarga.'
+        if not str((ft or {}).get('MATRICULA') or '').strip():
+            return 'Não é possível imprimir o documento de transporte sem matrícula.'
+        if not _ft_transport_datetime_param((ft or {}).get('DATA_HORA_INICIO_TRANSPORTE')):
+            return 'Não é possível imprimir o documento de transporte sem data/hora de início.'
+        return ''
+
+    def _ft_transport_mark_printed(ftstamp_pdf: str, user_login_pdf: str, current_entity_pdf: dict):
+        if not _ft_transport_columns_available():
+            raise ValueError('A base de dados ainda não tem os campos de documentos de transporte em FT/FTS. Aplique migrations/ft_doc_transporte.sql.')
+        db.session.execute(text("""
+            UPDATE dbo.FT
+            SET
+                DOC_TRANSPORTE_ESTADO = 'IMPRESSO',
+                DATA_IMPRESSAO_FINAL = GETDATE(),
+                USER_IMPRESSAO_FINAL = :USER_IMPRESSAO_FINAL,
+                BLOQUEADO = 1,
+                DTAlteracao = GETDATE(),
+                USERALTERACAO = :USERALTERACAO
+            WHERE FTSTAMP = :FTSTAMP
+        """ + _ft_entity_scope_sql('FT')), {
+            'current_feid': int(current_entity_pdf.get('FEID') or 0),
+            'current_festamp': (current_entity_pdf.get('FESTAMP') or '').strip(),
+            'FTSTAMP': ftstamp_pdf,
+            'USER_IMPRESSAO_FINAL': user_login_pdf,
+            'USERALTERACAO': user_login_pdf,
+        })
+        db.session.commit()
+
     @app.route('/api/faturacao/ft/<ftstamp>/pdf', methods=['GET'])
     @login_required
     def api_faturacao_ft_pdf(ftstamp):
@@ -7718,17 +9485,31 @@ def create_app():
         ft, fi_rows, fe = get_ft_pdf_data(db.session, ftstamp)
         if not ft:
             return jsonify({'error': 'Documento não encontrado'}), 404
+        show_values = _ft_pdf_show_values_arg(True)
+        final_print = _ft_pdf_final_arg()
+        is_transport_pdf = int(_to_int(ft.get('IS_DOC_TRANSPORTE'), 0)) == 1
+        should_mark_printed = False
+        if is_transport_pdf and final_print:
+            validation_error = _ft_transport_print_validation_error(ft)
+            if validation_error:
+                return Response(validation_error, status=400, content_type='text/plain; charset=utf-8')
+            should_mark_printed = _transport_doc_state_normalize(ft.get('DOC_TRANSPORTE_ESTADO') or _ft_transport_state_from_row(ft)) != 'IMPRESSO'
         try:
-            force_fresh_pdf = bool(getattr(current_user, 'ADMIN', False)) or is_ft_non_fiscal(ft)
+            force_fresh_pdf = bool(getattr(current_user, 'ADMIN', False)) or is_ft_non_fiscal(ft) or is_transport_pdf or final_print
             if int(ft.get('ESTADO') or 0) == 1 and not force_fresh_pdf:
                 pdf_bytes, pdf_engine = _ft_pdf_ensure_cached(ftstamp, wait_if_busy=True, wait_timeout=45)
             else:
-                pdf_bytes, pdf_engine = _ft_pdf_generate_once(ftstamp)
+                pdf_bytes, pdf_engine = _ft_pdf_generate_once(ftstamp, show_values=show_values)
                 if force_fresh_pdf:
                     freshness_tag = 'fresh-admin' if bool(getattr(current_user, 'ADMIN', False)) else 'fresh-live'
                     pdf_engine = f'{pdf_engine} ({freshness_tag})'
         except Exception as e:
             return Response(str(e), status=500, content_type='text/plain; charset=utf-8')
+        if should_mark_printed:
+            try:
+                _ft_transport_mark_printed(ftstamp, (getattr(current_user, 'LOGIN', '') or '').strip(), current_entity)
+            except ValueError as exc:
+                return Response(str(exc), status=400, content_type='text/plain; charset=utf-8')
 
         def _safe_name(v):
             txt = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(v or '').strip())
@@ -7789,12 +9570,13 @@ def create_app():
         ft, fi_rows, fe = get_ft_pdf_data(db.session, ftstamp)
         if not ft:
             return jsonify({'error': 'Documento não encontrado'}), 404
+        show_values = _ft_pdf_show_values_arg(True)
         doc_is_non_fiscal = is_ft_non_fiscal(ft)
         modo_teste_raw = str(qr_get_param(db.session, 'MODO_TESTE_AT', '0') or '0').strip().lower()
         modo_teste = modo_teste_raw in ('1', 'true', 'sim', 'yes')
         at_certificado = '' if doc_is_non_fiscal else str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
         qr_b64 = '' if doc_is_non_fiscal else build_ft_qr_base64(ft.get('CODIGOQR') or '')
-        html = render_ft_pdf_html(ft, fi_rows, fe or {}, qr_b64, at_certificado=at_certificado, modo_teste=modo_teste)
+        html = render_ft_pdf_html(ft, fi_rows, fe or {}, qr_b64, at_certificado=at_certificado, modo_teste=modo_teste, show_values=show_values)
         headers = {
             'Content-Type': 'text/html; charset=utf-8',
             'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
@@ -7828,7 +9610,7 @@ def create_app():
         lines = list(body.get('lines') or [])
 
         curr = db.session.execute(text("""
-            SELECT BLOQUEADO
+            SELECT *
             FROM dbo.FT
             WHERE FTSTAMP=:s
         """ + _ft_entity_scope_sql('FT')), {
@@ -7838,8 +9620,15 @@ def create_app():
         }).mappings().first()
         if not curr:
             return jsonify({'error': 'Documento não encontrado'}), 404
-        if int(curr.get('BLOQUEADO') or 0) == 1:
-            return jsonify({'error': 'Documento bloqueado'}), 400
+        curr = _ft_transport_enrich_header(current_entity, dict(curr))
+
+        is_current_transport = int(_to_int(curr.get('IS_DOC_TRANSPORTE'), 0)) == 1
+        current_transport_state = _transport_doc_state_normalize(
+            curr.get('DOC_TRANSPORTE_ESTADO') or _ft_transport_state_from_row(curr),
+            'RASCUNHO',
+        )
+        if is_current_transport and current_transport_state == 'IMPRESSO':
+            return jsonify({'error': 'Documento de transporte já impresso. Não pode ser alterado.'}), 400
 
         user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
         header_moeda = (header.get('MOEDA') or 'EUR').strip().upper() or 'EUR'
@@ -7857,6 +9646,74 @@ def create_app():
             header_motivo_referencia = ''
         elif not (header_tipodoc_origem and header_numdoc_origem and header_data_origem):
             return jsonify({'error': 'A referência ao documento origem está incompleta.'}), 400
+        fdata = header.get('FDATA') or curr.get('FDATA') or date.today().isoformat()
+        ftano = _to_int(header.get('FTANO'), _to_int(str(fdata)[:4], _to_int(curr.get('FTANO'), date.today().year)))
+        series_context = _load_ft_series_context(current_entity, header.get('NDOC') or curr.get('NDOC'), header.get('SERIE') or curr.get('SERIE'), ftano)
+        header_is_transport = 1 if (
+            int(_to_int(header.get('IS_DOC_TRANSPORTE'), 0)) == 1
+            or int(_to_int(curr.get('IS_DOC_TRANSPORTE'), 0)) == 1
+            or int(_to_int((series_context or {}).get('IS_DOC_TRANSPORTE'), 0)) == 1
+        ) else 0
+        if header_is_transport and (not _ft_transport_columns_available() or not _fts_transport_flag_available()):
+            return _ft_transport_json_error()
+        if header_is_transport and not _locais_table_available():
+            return _locais_json_error()
+
+        transport_local_carga_id = str(header.get('LOCAL_CARGA_ID') or curr.get('LOCAL_CARGA_ID') or '').strip() if header_is_transport else ''
+        transport_local_descarga_id = str(header.get('LOCAL_DESCARGA_ID') or curr.get('LOCAL_DESCARGA_ID') or '').strip() if header_is_transport else ''
+        transport_data_inicio = _ft_transport_datetime_param(header.get('DATA_HORA_INICIO_TRANSPORTE') or curr.get('DATA_HORA_INICIO_TRANSPORTE')) if header_is_transport else None
+        transport_matricula = str(header.get('MATRICULA') or curr.get('MATRICULA') or '').strip() if header_is_transport else ''
+        transport_codigo_at = str(header.get('CODIGO_AT') or curr.get('CODIGO_AT') or '').strip() if header_is_transport else ''
+
+        if is_current_transport and int(_to_int(curr.get('ESTADO'), 0)) == 1:
+            transport_state = 'PRONTO' if _ft_transport_fields_complete({
+                'IS_DOC_TRANSPORTE': 1,
+                'ESTADO': 1,
+                'LOCAL_CARGA_ID': transport_local_carga_id,
+                'LOCAL_DESCARGA_ID': transport_local_descarga_id,
+                'DATA_HORA_INICIO_TRANSPORTE': transport_data_inicio,
+                'MATRICULA': transport_matricula,
+                'CODIGO_AT': transport_codigo_at,
+            }) else 'EMITIDO'
+            db.session.execute(text("""
+                UPDATE dbo.FT
+                SET
+                    IS_DOC_TRANSPORTE = 1,
+                    LOCAL_CARGA_ID = :LOCAL_CARGA_ID,
+                    LOCAL_DESCARGA_ID = :LOCAL_DESCARGA_ID,
+                    DATA_HORA_INICIO_TRANSPORTE = :DATA_HORA_INICIO_TRANSPORTE,
+                    MATRICULA = :MATRICULA,
+                    CODIGO_AT = :CODIGO_AT,
+                    DOC_TRANSPORTE_ESTADO = :DOC_TRANSPORTE_ESTADO,
+                    DTAlteracao = GETDATE(),
+                    USERALTERACAO = :USERALTERACAO
+                WHERE FTSTAMP = :FTSTAMP
+            """ + _ft_entity_scope_sql('FT')), {
+                'current_feid': int(current_entity.get('FEID') or 0),
+                'current_festamp': (current_entity.get('FESTAMP') or '').strip(),
+                'FTSTAMP': ftstamp,
+                'LOCAL_CARGA_ID': transport_local_carga_id,
+                'LOCAL_DESCARGA_ID': transport_local_descarga_id,
+                'DATA_HORA_INICIO_TRANSPORTE': transport_data_inicio,
+                'MATRICULA': transport_matricula,
+                'CODIGO_AT': transport_codigo_at,
+                'DOC_TRANSPORTE_ESTADO': transport_state,
+                'USERALTERACAO': user_login,
+            })
+            db.session.commit()
+            return jsonify({
+                'ok': True,
+                'totals': {
+                    'ETTILIQ': _num(curr.get('ETTILIQ'), 0),
+                    'ETTIVA': _num(curr.get('ETTIVA'), 0),
+                    'ETOTAL': _num(curr.get('ETOTAL'), 0),
+                },
+                'transport_state': transport_state,
+            })
+
+        if int(curr.get('BLOQUEADO') or 0) == 1:
+            return jsonify({'error': 'Documento bloqueado'}), 400
+
         doc_type = _ft_doc_type_from_header_snapshot(current_entity, header, fallback_row=curr)
         if doc_type == 'NC':
             if not _ft_motivo_referencia_available() or not _fi_origin_column_available():
@@ -7881,6 +9738,28 @@ def create_app():
         if _ft_motivo_referencia_available():
             motivo_referencia_sql = "MOTIVO_REFERENCIA=:MOTIVO_REFERENCIA,"
             motivo_referencia_param = {'MOTIVO_REFERENCIA': header_motivo_referencia}
+        transport_columns_sql = ''
+        transport_params = {}
+        if _ft_transport_columns_available():
+            transport_state = 'RASCUNHO' if header_is_transport else 'RASCUNHO'
+            transport_columns_sql = """
+                IS_DOC_TRANSPORTE=:IS_DOC_TRANSPORTE,
+                LOCAL_CARGA_ID=:LOCAL_CARGA_ID,
+                LOCAL_DESCARGA_ID=:LOCAL_DESCARGA_ID,
+                DATA_HORA_INICIO_TRANSPORTE=:DATA_HORA_INICIO_TRANSPORTE,
+                MATRICULA=:MATRICULA,
+                CODIGO_AT=:CODIGO_AT,
+                DOC_TRANSPORTE_ESTADO=:DOC_TRANSPORTE_ESTADO,
+            """
+            transport_params = {
+                'IS_DOC_TRANSPORTE': header_is_transport,
+                'LOCAL_CARGA_ID': transport_local_carga_id,
+                'LOCAL_DESCARGA_ID': transport_local_descarga_id,
+                'DATA_HORA_INICIO_TRANSPORTE': transport_data_inicio,
+                'MATRICULA': transport_matricula,
+                'CODIGO_AT': transport_codigo_at,
+                'DOC_TRANSPORTE_ESTADO': transport_state,
+            }
         normalized, ettiliq, ettiva, etotal, ivatx, eivain, eivav = _calc_totals_and_breakdown(lines, header_desconto)
         miseimp_error = _validate_ft_miseimp(normalized)
         if miseimp_error:
@@ -7902,8 +9781,6 @@ def create_app():
                 }, normalized)
             except ValueError as exc:
                 return jsonify({'error': str(exc)}), 400
-        fdata = header.get('FDATA') or date.today().isoformat()
-        ftano = _to_int(header.get('FTANO'), _to_int(str(fdata)[:4], date.today().year))
 
         update_result = db.session.execute(text(f"""
             UPDATE dbo.FT
@@ -7913,6 +9790,7 @@ def create_app():
                 CCUSTO=:CCUSTO, TPSTAMP=:TPSTAMP, TPDESC=:TPDESC, SERIE=:SERIE, DESCONTO=:DESCONTO,
                 {origin_columns_sql}
                 {motivo_referencia_sql}
+                {transport_columns_sql}
                 ETTILIQ=:ETTILIQ, ETTIVA=:ETTIVA, ETOTAL=:ETOTAL,
                 IVATX1=:IVATX1, IVATX2=:IVATX2, IVATX3=:IVATX3, IVATX4=:IVATX4, IVATX5=:IVATX5, IVATX6=:IVATX6, IVATX7=:IVATX7, IVATX8=:IVATX8, IVATX9=:IVATX9,
                 EIVAIN1=:EIVAIN1, EIVAIN2=:EIVAIN2, EIVAIN3=:EIVAIN3, EIVAIN4=:EIVAIN4, EIVAIN5=:EIVAIN5, EIVAIN6=:EIVAIN6, EIVAIN7=:EIVAIN7, EIVAIN8=:EIVAIN8, EIVAIN9=:EIVAIN9,
@@ -7953,6 +9831,7 @@ def create_app():
             'USERALTERACAO': user_login,
             **origin_params,
             **motivo_referencia_param,
+            **transport_params,
         })
         if int(getattr(update_result, 'rowcount', 0) or 0) <= 0:
             return jsonify({'error': 'Documento não encontrado'}), 404
@@ -8012,7 +9891,15 @@ def create_app():
             return 'OR'
         return 'FT'
 
+    def _ft_is_transport_doc_context(row: dict, srow: dict | None = None) -> bool:
+        return (
+            int(_to_int((row or {}).get('IS_DOC_TRANSPORTE'), 0)) == 1
+            or int(_to_int((srow or {}).get('IS_DOC_TRANSPORTE'), 0)) == 1
+        )
+
     def _ft_emit_is_non_fiscal(row: dict, srow: dict | None = None) -> bool:
+        if _ft_is_transport_doc_context(row, srow):
+            return False
         return _ft_doc_type_from_emit_context(row, srow) in {'PF', 'OR'}
 
     def _finalize_non_fiscal_ft_emit(ftstamp_emit: str, ftsstamp: str, new_fno: int, user_login_emit: str):
@@ -8044,8 +9931,11 @@ def create_app():
         return {'ok': True, 'FNO': new_fno, 'HASH': '', 'ATCUD': '', 'ESTADO': 1}
 
     def _emit_ft_core_global(ftstamp_emit: str, user_login_emit: str):
+        ft_transport_select = ", ISNULL(IS_DOC_TRANSPORTE, 0) AS IS_DOC_TRANSPORTE" if _ft_transport_columns_available() else ", CAST(0 AS bit) AS IS_DOC_TRANSPORTE"
+        fts_transport_select = ", ISNULL(IS_DOC_TRANSPORTE, 0) AS IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ", CAST(0 AS bit) AS IS_DOC_TRANSPORTE"
         row = db.session.execute(text("""
             SELECT TOP 1 FTSTAMP, NDOC, NMDOC, SERIE, FDATA, FTANO, FESTAMP, NO, NOME, BLOQUEADO, ESTADO, ANULADA, DESCONTO
+            """ + ft_transport_select + """
             FROM dbo.FT WITH (UPDLOCK, ROWLOCK)
             WHERE FTSTAMP=:s
         """), {'s': ftstamp_emit}).mappings().first()
@@ -8078,6 +9968,7 @@ def create_app():
 
         srow = db.session.execute(text("""
             SELECT TOP 1 FTSSTAMP, ISNULL(ULTIMO_FNO,0) AS ULTIMO_FNO, ISNULL(NO_SAFT,0) AS NO_SAFT, ISNULL(TIPOSAFT,'') AS TIPOSAFT
+            """ + fts_transport_select + """
             FROM dbo.FTS WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
             WHERE FESTAMP=:festamp AND NDOC=:ndoc AND ISNULL(SERIE,'')=:serie AND ANO=:ano AND ISNULL(ATIVA,0)=1
         """), {'festamp': festamp, 'ndoc': ndoc, 'serie': serie, 'ano': ftano}).mappings().first()
@@ -8103,6 +9994,11 @@ def create_app():
         if miseimp_error:
             raise ValueError(miseimp_error)
         doc_type = _ft_doc_type_from_emit_context(dict(row), dict(srow))
+        is_transport_doc = _ft_is_transport_doc_context(dict(row), dict(srow))
+        if is_transport_doc and (not _ft_transport_columns_available() or not _fts_transport_flag_available()):
+            raise ValueError('A base de dados ainda não tem os campos de documentos de transporte em FT/FTS. Aplique migrations/ft_doc_transporte.sql.')
+        if is_transport_doc and not _locais_table_available():
+            raise ValueError('A base de dados ainda não tem a tabela LOCAIS. Aplique migrations/ft_doc_transporte.sql.')
         if doc_type == 'FS':
             _validate_fs_document_rules(dict(row), etotal)
         new_fno = _to_int(srow.get('ULTIMO_FNO'), 0) + 1
@@ -8150,15 +10046,25 @@ def create_app():
         atcud = build_atcud(cod_validacao, _to_int(ft_emit.get('FNO'), 0))
         ft_for_qr = dict(ft_emit); ft_for_qr['HASH'] = signed.get('HASH') or ''; ft_for_qr['ASSINATURA'] = signed.get('ASSINATURA') or ''; ft_for_qr['_QR_VERSION'] = qr_version
         codigo_qr = build_qr_payload(ft_for_qr, fe_row, atcud, certificado, modo_teste)
+        transport_state = 'PRONTO' if _ft_transport_fields_complete({
+            **ft_emit,
+            'IS_DOC_TRANSPORTE': 1 if is_transport_doc else 0,
+            'ESTADO': 1,
+            'CODIGO_AT': str(ft_emit.get('CODIGO_AT') or '').strip(),
+        }) else 'EMITIDO'
 
         db.session.execute(text("""
             UPDATE dbo.FT
             SET HASHVER=:HASHVER, HASHANT=:HASHANT, HASH=:HASH, ASSINATURA=:ASSINATURA, KEYID=:KEYID,
-                ATCUD=:ATCUD, CODIGOQR=:CODIGOQR, ESTADO=1, BLOQUEADO=1, USERALTERACAO=:u
+                ATCUD=:ATCUD, CODIGOQR=:CODIGOQR, ESTADO=1, BLOQUEADO=:BLOQUEADO, USERALTERACAO=:u
+                """ + (", IS_DOC_TRANSPORTE=:IS_DOC_TRANSPORTE, DOC_TRANSPORTE_ESTADO=:DOC_TRANSPORTE_ESTADO" if _ft_transport_columns_available() else "") + """
             WHERE FTSTAMP=:s
         """), {
             'HASHVER': signed.get('HASHVER') or '1', 'HASHANT': signed.get('HASHANT') or '', 'HASH': signed.get('HASH') or '',
             'ASSINATURA': signed.get('ASSINATURA') or '', 'KEYID': signed.get('KEYID') or '', 'ATCUD': atcud, 'CODIGOQR': codigo_qr,
+            'BLOQUEADO': 0 if is_transport_doc else 1,
+            'IS_DOC_TRANSPORTE': 1 if is_transport_doc else 0,
+            'DOC_TRANSPORTE_ESTADO': transport_state if is_transport_doc else 'RASCUNHO',
             'u': user_login_emit, 's': ftstamp_emit
         })
         db.session.execute(text("UPDATE dbo.FTS SET ULTIMO_FNO=:fno, DTAlteracao=GETDATE(), USERALTERACAO=:u WHERE FTSSTAMP=:s"),
@@ -8186,8 +10092,11 @@ def create_app():
             return jsonify({'error': 'Documento não encontrado'}), 404
 
         def _emit_ft_core(ftstamp_emit: str, user_login_emit: str):
+            ft_transport_select = ", ISNULL(IS_DOC_TRANSPORTE, 0) AS IS_DOC_TRANSPORTE" if _ft_transport_columns_available() else ", CAST(0 AS bit) AS IS_DOC_TRANSPORTE"
+            fts_transport_select = ", ISNULL(IS_DOC_TRANSPORTE, 0) AS IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ", CAST(0 AS bit) AS IS_DOC_TRANSPORTE"
             row = db.session.execute(text("""
                 SELECT TOP 1 FTSTAMP, NDOC, NMDOC, SERIE, FDATA, FTANO, FESTAMP, NO, NOME, BLOQUEADO, ESTADO, ANULADA, DESCONTO
+                """ + ft_transport_select + """
                 FROM dbo.FT WITH (UPDLOCK, ROWLOCK)
                 WHERE FTSTAMP=:s
             """), {'s': ftstamp_emit}).mappings().first()
@@ -8221,6 +10130,7 @@ def create_app():
 
             srow = db.session.execute(text("""
                 SELECT TOP 1 FTSSTAMP, ISNULL(ULTIMO_FNO,0) AS ULTIMO_FNO, ISNULL(NO_SAFT,0) AS NO_SAFT, ISNULL(TIPOSAFT,'') AS TIPOSAFT
+                """ + fts_transport_select + """
                 FROM dbo.FTS WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
                 WHERE
                     FESTAMP=:festamp
@@ -8258,6 +10168,11 @@ def create_app():
             if miseimp_error:
                 raise ValueError(miseimp_error)
             doc_type = _ft_doc_type_from_emit_context(dict(row), dict(srow))
+            is_transport_doc = _ft_is_transport_doc_context(dict(row), dict(srow))
+            if is_transport_doc and (not _ft_transport_columns_available() or not _fts_transport_flag_available()):
+                raise ValueError('A base de dados ainda não tem os campos de documentos de transporte em FT/FTS. Aplique migrations/ft_doc_transporte.sql.')
+            if is_transport_doc and not _locais_table_available():
+                raise ValueError('A base de dados ainda não tem a tabela LOCAIS. Aplique migrations/ft_doc_transporte.sql.')
             if doc_type == 'FS':
                 _validate_fs_document_rules(dict(row), etotal)
             if doc_type == 'NC':
@@ -8335,6 +10250,12 @@ def create_app():
             ft_for_qr['ASSINATURA'] = signed.get('ASSINATURA') or ''
             ft_for_qr['_QR_VERSION'] = qr_version
             codigo_qr = build_qr_payload(ft_for_qr, fe_row, atcud, certificado, modo_teste)
+            transport_state = 'PRONTO' if _ft_transport_fields_complete({
+                **ft_emit,
+                'IS_DOC_TRANSPORTE': 1 if is_transport_doc else 0,
+                'ESTADO': 1,
+                'CODIGO_AT': str(ft_emit.get('CODIGO_AT') or '').strip(),
+            }) else 'EMITIDO'
 
             db.session.execute(text("""
                 UPDATE dbo.FT
@@ -8347,7 +10268,8 @@ def create_app():
                     ATCUD=:ATCUD,
                     CODIGOQR=:CODIGOQR,
                     ESTADO=1,
-                    BLOQUEADO=1,
+                    BLOQUEADO=:BLOQUEADO,
+                    """ + ("IS_DOC_TRANSPORTE=:IS_DOC_TRANSPORTE, DOC_TRANSPORTE_ESTADO=:DOC_TRANSPORTE_ESTADO," if _ft_transport_columns_available() else "") + """
                     USERALTERACAO=:u
                 WHERE FTSTAMP=:s
             """), {
@@ -8358,6 +10280,9 @@ def create_app():
                 'KEYID': signed.get('KEYID') or '',
                 'ATCUD': atcud,
                 'CODIGOQR': codigo_qr,
+                'BLOQUEADO': 0 if is_transport_doc else 1,
+                'IS_DOC_TRANSPORTE': 1 if is_transport_doc else 0,
+                'DOC_TRANSPORTE_ESTADO': transport_state if is_transport_doc else 'RASCUNHO',
                 'u': user_login_emit,
                 's': ftstamp_emit
             })
@@ -13077,6 +15002,9 @@ OPTION (MAXRECURSION 32767);
                 ISNULL(RS.RESERVA, '') AS RESERVA,
                 ISNULL(RS.NOME, '') AS HOSPEDE,
                 LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                UPPER(LTRIM(RTRIM(ISNULL(A.TIPO, '')))) AS REGIME,
+                ISNULL(A.COMISSAO, 0) AS COMISSAO_ALOJAMENTO,
+                ISNULL(A.FTLIMPEZA, 0) AS FTLIMPEZA,
                 CAST(RS.DATAIN AS date) AS DATAIN,
                 ISNULL(RS.NOITES, 0) AS NOITES,
                 ISNULL(RS.ESTADIA, 0) AS ESTADIA,
@@ -13103,10 +15031,27 @@ OPTION (MAXRECURSION 32767);
         reservations_net_total = 0.0
         reservations_cleaning_total = 0.0
         for row in reservations_rows:
+            regime = (row.get('REGIME') or '').strip().upper()
             nights = int(row.get('NOITES') or 0)
+            stay = round(float(row.get('ESTADIA') or 0), 2)
             cleaning = round(float(row.get('LIMPEZA') or 0), 2)
-            net_total = round(float(row.get('TOTAL_LIQUIDO') or 0), 2)
-            avg_day = round((net_total / nights), 2) if nights > 0 else 0.0
+            commission_pct = round(float(row.get('COMISSAO_ALOJAMENTO') or 0), 2)
+            limpeza_na_ft = int(row.get('FTLIMPEZA') or 0)
+            base_before_commission = round((stay * 0.845) + (cleaning * 0.845), 2)
+            if regime == 'GESTAO':
+                estadia_liquida = round(stay * 0.845, 2)
+                limpeza_liquida = round(cleaning * 0.845, 2)
+                if limpeza_na_ft:
+                    net_total = round((estadia_liquida * 0.25) + limpeza_liquida, 2)
+                    commission_label = '25% estadia líquida + limpeza líquida'
+                else:
+                    net_total = round((estadia_liquida + limpeza_liquida) * (commission_pct / 100.0), 2)
+                    commission_label = f'{commission_pct:,.2f}% sobre total líquido'.replace(',', 'X').replace('.', ',').replace('X', '.')
+                avg_day = round((base_before_commission / nights), 2) if nights > 0 else 0.0
+            else:
+                net_total = round(float(row.get('TOTAL_LIQUIDO') or 0), 2)
+                commission_label = ''
+                avg_day = round((net_total / nights), 2) if nights > 0 else 0.0
             reservations_net_total += net_total
             reservations_cleaning_total += cleaning
             reservations.append({
@@ -13114,11 +15059,13 @@ OPTION (MAXRECURSION 32767);
                 'reserva': row.get('RESERVA') or '',
                 'hospede': row.get('HOSPEDE') or '',
                 'alojamento': row.get('ALOJAMENTO') or '',
+                'regime': regime,
                 'checkin': (row.get('DATAIN').strftime('%Y-%m-%d') if isinstance(row.get('DATAIN'), (date, datetime)) else ''),
                 'checkin_label': _daily_summary_fmt_date(row.get('DATAIN')),
                 'noites': nights,
                 'limpeza': cleaning,
                 'limpeza_label': _daily_summary_fmt_money(cleaning),
+                'comissao_aplicada_label': commission_label,
                 'valor_medio_dia': avg_day,
                 'valor_medio_dia_label': _daily_summary_fmt_money(avg_day),
                 'total_liquido': net_total,
@@ -13127,7 +15074,8 @@ OPTION (MAXRECURSION 32767);
 
         occupancy_row = db.session.execute(text("""
             WITH active_al AS (
-                SELECT LTRIM(RTRIM(ISNULL(A.NOME, ''))) AS ALOJAMENTO
+                SELECT
+                    LTRIM(RTRIM(ISNULL(A.NOME, ''))) AS ALOJAMENTO
                 FROM dbo.AL AS A
                 WHERE ISNULL(A.INATIVO, 0) = 0
                   AND ISNULL(A.FECHADO, 0) = 0
@@ -13136,23 +15084,55 @@ OPTION (MAXRECURSION 32767);
                      OR ISNULL(A.FEID_GESTOR, 0) = :current_feid
                   )
             ),
-            occupied AS (
+            occupied_rs AS (
                 SELECT
-                    LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))) AS ALOJAMENTO,
-                    SUM(ISNULL(V.VALOR, 0)) AS VALOR
-                FROM dbo.v_diario_all AS V
-                JOIN active_al AS A
-                  ON A.ALOJAMENTO = LTRIM(RTRIM(ISNULL(V.CCUSTO, '')))
-                WHERE CAST(V.DATA AS date) = :dia
-                  AND ISNULL(V.VALOR, 0) <> 0
-                GROUP BY LTRIM(RTRIM(ISNULL(V.CCUSTO, '')))
+                    LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                    UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO, '')))) AS REGIME,
+                    ISNULL(AL.COMISSAO, 0) AS COMISSAO_ALOJAMENTO,
+                    ISNULL(AL.FTLIMPEZA, 0) AS FTLIMPEZA,
+                    ISNULL(RS.NOITES, 0) AS NOITES,
+                    ISNULL(RS.ESTADIA, 0) AS ESTADIA,
+                    ISNULL(RS.LIMPEZA, 0) AS LIMPEZA,
+                    ISNULL(RS.COMISSAO, 0) AS COMISSAO_RS
+                FROM dbo.RS AS RS
+                JOIN active_al AS AA
+                  ON AA.ALOJAMENTO = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+                LEFT JOIN dbo.AL AS AL
+                  ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+                WHERE :dia >= CAST(RS.DATAIN AS date)
+                  AND :dia < CAST(RS.DATAOUT AS date)
+                  AND ISNULL(RS.CANCELADA, 0) = 0
+            ),
+            occupied_calc AS (
+                SELECT
+                    ALOJAMENTO,
+                    CASE
+                        WHEN NOITES <= 0 THEN 0
+                        WHEN REGIME = 'GESTAO' THEN
+                            CASE
+                                WHEN FTLIMPEZA = 0 THEN
+                                    (((ISNULL(ESTADIA, 0) * 0.845) + (ISNULL(LIMPEZA, 0) * 0.845)) * (ISNULL(COMISSAO_ALOJAMENTO, 0) / 100.0)) / NULLIF(NOITES, 0)
+                                ELSE
+                                    ((((ISNULL(ESTADIA, 0) * 0.845) * 0.25) + (ISNULL(LIMPEZA, 0) * 0.845))) / NULLIF(NOITES, 0)
+                            END
+                        ELSE
+                            (ISNULL(ESTADIA, 0) + ISNULL(LIMPEZA, 0) - ISNULL(COMISSAO_RS, 0)) / NULLIF(NOITES, 0)
+                    END AS VALOR_DIA,
+                    CASE
+                        WHEN NOITES <= 0 THEN 0
+                        WHEN REGIME = 'GESTAO' THEN
+                            ((ISNULL(ESTADIA, 0) * 0.845) + (ISNULL(LIMPEZA, 0) * 0.845)) / NULLIF(NOITES, 0)
+                        ELSE
+                            (ISNULL(ESTADIA, 0) + ISNULL(LIMPEZA, 0) - ISNULL(COMISSAO_RS, 0)) / NULLIF(NOITES, 0)
+                    END AS VALOR_DIA_PRECO_MEDIO
+                FROM occupied_rs
             )
             SELECT
                 (SELECT COUNT(1) FROM active_al) AS TOTAL_ALOJAMENTOS,
                 COUNT(1) AS ALOJAMENTOS_OCUPADOS,
-                ISNULL(SUM(VALOR), 0) AS MONTANTE_DIA,
-                CASE WHEN COUNT(1) > 0 THEN SUM(VALOR) / COUNT(1) ELSE 0 END AS PRECO_MEDIO
-            FROM occupied
+                ISNULL(SUM(VALOR_DIA), 0) AS MONTANTE_DIA,
+                CASE WHEN COUNT(1) > 0 THEN SUM(VALOR_DIA_PRECO_MEDIO) / COUNT(1) ELSE 0 END AS PRECO_MEDIO
+            FROM occupied_calc
         """), {
             'dia': selected_date,
             'current_feid': current_feid,

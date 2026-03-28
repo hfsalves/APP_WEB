@@ -34,6 +34,10 @@
             <i class="fa-solid fa-print"></i>
             <span>Imprimir</span>
           </button>
+          <button id="ftBtnImprimirSemValores" type="button" class="dropdown-item" style="display: none;">
+            <i class="fa-solid fa-file-lines"></i>
+            <span>Imprimir sem valores</span>
+          </button>
         </div>
       </div>
     </div>
@@ -127,6 +131,41 @@
             <div class="sz_field" id="ftMotivoReferenciaWrap" style="grid-column: span 8; display: none;">
               <label class="sz_label" for="FT_MOTIVO_REFERENCIA">Motivo referência</label>
               <input id="FT_MOTIVO_REFERENCIA" class="sz_input" maxlength="200">
+            </div>
+          </div>
+        </section>
+
+        <section id="ftTransportSection" class="sz_panel sz_stack" style="display: none;">
+          <div class="sz_section_header sz_ft_transport_header">
+            <div>
+              <div class="sz_page_subtitle">Transporte</div>
+            </div>
+            <div id="ftTransportEstadoBadge" class="sz_badge sz_badge_info">RASCUNHO</div>
+          </div>
+          <div class="sz_ft_transport_grid">
+            <div class="sz_field" style="grid-column: span 3;">
+              <label class="sz_label" for="FT_LOCAL_CARGA_ID">Local de carga</label>
+              <select id="FT_LOCAL_CARGA_ID" class="sz_select">
+                <option value="">---</option>
+              </select>
+            </div>
+            <div class="sz_field" style="grid-column: span 3;">
+              <label class="sz_label" for="FT_LOCAL_DESCARGA_ID">Local de descarga</label>
+              <select id="FT_LOCAL_DESCARGA_ID" class="sz_select">
+                <option value="">---</option>
+              </select>
+            </div>
+            <div class="sz_field" style="grid-column: span 2;">
+              <label class="sz_label" for="FT_DATA_HORA_INICIO_TRANSPORTE">Início transporte</label>
+              <input id="FT_DATA_HORA_INICIO_TRANSPORTE" type="datetime-local" class="sz_input">
+            </div>
+            <div class="sz_field" style="grid-column: span 2;">
+              <label class="sz_label" for="FT_MATRICULA">Matrícula</label>
+              <input id="FT_MATRICULA" class="sz_input" maxlength="20">
+            </div>
+            <div class="sz_field" style="grid-column: span 2;">
+              <label class="sz_label" for="FT_CODIGO_AT">Código AT</label>
+              <input id="FT_CODIGO_AT" class="sz_input" maxlength="50">
             </div>
           </div>
         </section>
@@ -501,18 +540,25 @@
   }
 
   .sz_ft_form_grid,
-  .sz_ft_modal_grid {
+  .sz_ft_modal_grid,
+  .sz_ft_transport_grid {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: var(--sz-space-3);
   }
 
-  .sz_ft_form_grid {
+  .sz_ft_form_grid,
+  .sz_ft_transport_grid {
     align-items: start;
   }
 
   .sz_ft_modal_grid {
     align-items: end;
+  }
+
+  .sz_ft_transport_header {
+    align-items: center;
+    justify-content: space-between;
   }
 
   .sz_ft_autocomplete {
@@ -918,7 +964,8 @@
 
   @media (max-width: 1200px) {
     .sz_ft_form_grid,
-    .sz_ft_modal_grid {
+    .sz_ft_modal_grid,
+    .sz_ft_transport_grid {
       grid-template-columns: repeat(6, minmax(0, 1fr));
     }
 
@@ -929,7 +976,8 @@
 
   @media (max-width: 720px) {
     .sz_ft_form_grid,
-    .sz_ft_modal_grid {
+    .sz_ft_modal_grid,
+    .sz_ft_transport_grid {
       grid-template-columns: repeat(1, minmax(0, 1fr));
     }
 

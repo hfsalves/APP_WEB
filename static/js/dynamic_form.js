@@ -1988,23 +1988,24 @@ hideLoading()
     });
 
 
-    const userPerms = window.USER_PERMS[TABLE_NAME] || {};
+    const userPerms = window.USER_PERMS[TABLE_NAME] || window.USER_PERMS[TABLE_NAME_UPPER] || {};
 
-    // Se for edição (RECORD_STAMP), valida `editar` e `eliminar`
+    // Se for edi??o (RECORD_STAMP), valida `editar` e `eliminar`
     if (RECORD_STAMP) {
-    if (!userPerms.editar) {
-        // desabilita todos os controles
+      if (!isAdminUser && !userPerms.editar) {
         form.querySelectorAll('input, select, textarea').forEach(el => el.disabled = true);
         document.getElementById('btnSave').style.display = 'none';
-    }
-    if (!userPerms.eliminar) {
+        console.warn('[dynamic_form] Formul?rio desativado por falta de permiss?o de editar em ACESSOS para a tabela', TABLE_NAME_UPPER);
+      }
+      if (!isAdminUser && !userPerms.eliminar) {
         document.getElementById('btnDelete').style.display = 'none';
-    }
+      }
     } else {
-    // se for criação, valida `inserir`
-    if (!userPerms.inserir) {
+      // se for cria??o, valida `inserir`
+      if (!isAdminUser && !userPerms.inserir) {
         document.getElementById('btnSave').style.display = 'none';
-    }
+        console.warn('[dynamic_form] Bot?o gravar ocultado por falta de permiss?o de inserir em ACESSOS para a tabela', TABLE_NAME_UPPER);
+      }
     }
 
   // ===============================

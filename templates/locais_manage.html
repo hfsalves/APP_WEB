@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}Locais{% endblock %}
+
+{% block content %}
+<div class="sz_page">
+  <div class="sz_page_container sz_locais_page">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Locais</div>
+        <div class="sz_page_subtitle">Gestão de locais de carga da entidade atual e locais de descarga associados a clientes.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <span class="sz_fts_entity_badge" title="{{ (current_entity.get('FESTAMP') or '')|e }}">
+          {{ (current_entity.get('NOMEFISCAL') or current_entity.get('NOME') or current_entity.get('FESTAMP') or 'Entidade atual')|e }}
+        </span>
+        <button id="locBtnNewTop" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-plus"></i>
+          <span>Novo local</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content">
+        <div class="sz_sidebar_layout sz_locais_layout">
+          <aside class="sz_sidebar">
+            <section class="sz_panel sz_stack">
+              <div class="sz_grid sz_locais_filters">
+                <div class="sz_field">
+                  <label class="sz_label" for="locFilterSearch">Pesquisar</label>
+                  <input id="locFilterSearch" type="text" class="sz_input" placeholder="Designação, morada, cliente...">
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="locFilterOwnerType">Associação</label>
+                  <select id="locFilterOwnerType" class="sz_select">
+                    <option value="">Todas</option>
+                    <option value="FE">Entidade</option>
+                    <option value="CLIENTE">Cliente</option>
+                  </select>
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="locFilterAtivo">Ativo</label>
+                  <select id="locFilterAtivo" class="sz_select">
+                    <option value="">Todos</option>
+                    <option value="1">Ativos</option>
+                    <option value="0">Inativos</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="sz_inline sz_locais_list_summary">
+                <span id="locListSummary" class="sz_text_muted">0 locais</span>
+              </div>
+
+              <div id="locList" class="sz_stack">
+                <div class="sz_panel sz_locais_empty">A carregar...</div>
+              </div>
+            </section>
+          </aside>
+
+          <div class="sz_stack">
+            <section class="sz_panel sz_stack">
+              <div class="sz_locais_header">
+                <div class="sz_stack">
+                  <div class="sz_caption">Detalhe do local</div>
+                  <div id="locEditorTitle" class="sz_page_title sz_locais_editor_title">Novo local</div>
+                </div>
+              </div>
+            </section>
+
+            <form id="locForm" class="sz_stack" autocomplete="off">
+              <input id="locLOCALSTAMP" type="hidden">
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Associação</div>
+                <div class="sz_grid sz_locais_owner_grid">
+                  <div class="sz_field">
+                    <label class="sz_label" for="locOwnerType">Tipo</label>
+                    <select id="locOwnerType" class="sz_select">
+                      <option value="FE">Entidade</option>
+                      <option value="CLIENTE">Cliente</option>
+                    </select>
+                  </div>
+                  <div id="locOwnerFeWrap" class="sz_field sz_locais_owner_target">
+                    <label class="sz_label">Entidade</label>
+                    <div id="locOwnerFeLabel" class="sz_input sz_locais_display sz_locais_display_entity"></div>
+                  </div>
+                  <div id="locOwnerClientWrap" class="sz_stack sz_locais_owner_client" style="display:none;">
+                    <div class="sz_grid sz_locais_client_row">
+                      <div class="sz_field">
+                        <label class="sz_label" for="locClientSearch">Cliente</label>
+                        <input id="locClientSearch" type="text" class="sz_input" placeholder="Pesquisar cliente">
+                      </div>
+                      <div class="sz_field">
+                        <label class="sz_label" for="locClientNo">Nº cliente</label>
+                        <input id="locClientNo" class="sz_input" readonly>
+                      </div>
+                    </div>
+                    <div id="locClientResults" class="sz_stack"></div>
+                    <div id="locClientSelected" class="sz_input sz_locais_display sz_locais_display_selected"></div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sz_panel sz_stack">
+                <div class="sz_label">Dados do local</div>
+                <div class="sz_grid sz_locais_grid_main">
+                  <div class="sz_field sz_locais_span_2">
+                    <label class="sz_label" for="locDESIGNACAO">Designação</label>
+                    <input id="locDESIGNACAO" class="sz_input" maxlength="100">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="locATIVO">Ativo</label>
+                    <label class="sz_checkbox">
+                      <input id="locATIVO" type="checkbox" checked>
+                      <span>Local ativo</span>
+                    </label>
+                  </div>
+                  <div class="sz_field sz_locais_span_full">
+                    <label class="sz_label" for="locMORADA">Morada</label>
+                    <input id="locMORADA" class="sz_input" maxlength="200">
+                  </div>
+                  <div class="sz_field sz_locais_span_full">
+                    <label class="sz_label" for="locMORADA2">Morada 2</label>
+                    <input id="locMORADA2" class="sz_input" maxlength="200">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="locCP">Código postal</label>
+                    <input id="locCP" class="sz_input" maxlength="20">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="locLOCALIDADE">Localidade</label>
+                    <input id="locLOCALIDADE" class="sz_input" maxlength="100">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="locPAIS">País</label>
+                    <input id="locPAIS" class="sz_input" maxlength="50">
+                  </div>
+                </div>
+              </section>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left">
+        <button id="locBtnDelete" type="button" class="sz_button sz_button_danger">
+          <i class="fa-solid fa-trash"></i>
+          <span>Eliminar</span>
+        </button>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="locBtnCancel" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button id="locBtnSaveBottom" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.LOCAIS_INITIAL_STAMP = {{ initial_localstamp|tojson }};
+  window.LOCAIS_CAN_CREATE = {{ locais_can_create|tojson }};
+  window.LOCAIS_CAN_EDIT = {{ locais_can_edit|tojson }};
+  window.LOCAIS_CAN_DELETE = {{ locais_can_delete|tojson }};
+  window.LOCAIS_CURRENT_ENTITY = {{ current_entity|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/locais_manage.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+<style>
+  .sz_locais_page {
+    padding-block: var(--sz-space-2);
+    padding-inline: var(--sz-space-4);
+  }
+  .sz_locais_page .sz_page_body {
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .sz_locais_page .sz_page_body::-webkit-scrollbar { width:0; height:0; display:none; }
+  .sz_locais_layout { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); }
+  .sz_locais_filters { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .sz_locais_header { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sz-space-4); }
+  .sz_locais_editor_title { margin:0; }
+  .sz_locais_list_item { cursor:pointer; border:1px solid var(--sz-color-border); transition:border-color .16s ease, transform .16s ease, background .16s ease; }
+  .sz_locais_list_item:hover { border-color: var(--sz-color-primary); transform: translateY(-1px); }
+  .sz_locais_list_item.sz_is_active { border-color: var(--sz-color-primary); background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface-1)); }
+  .sz_locais_list_head { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sz-space-3); }
+  .sz_locais_meta { display:grid; gap:var(--sz-space-1); color:var(--sz-color-text-muted); font-size:var(--sz-font-size-sm); }
+  .sz_locais_empty { color:var(--sz-color-text-muted); text-align:center; padding:var(--sz-space-5); }
+  .sz_locais_owner_grid,
+  .sz_locais_grid_main { display:grid; grid-template-columns:repeat(12, minmax(0, 1fr)); gap:var(--sz-space-3); }
+  .sz_locais_owner_target { grid-column: span 5; }
+  .sz_locais_owner_client { grid-column: span 7; }
+  .sz_locais_client_row { display:grid; grid-template-columns: minmax(0, 1fr) 140px; gap:var(--sz-space-3); }
+  .sz_locais_display {
+    display:flex;
+    align-items:center;
+    min-height:44px;
+    border:1px solid var(--sz-color-border);
+    background:var(--sz-color-surface-2);
+    color:var(--sz-color-text);
+    border-radius:var(--sz-radius-md);
+    padding:var(--sz-space-3);
+    transition:border-color .16s ease, background .16s ease, box-shadow .16s ease;
+  }
+  .sz_locais_display_entity {
+    background:color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface-2));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
+  }
+  .sz_locais_display_selected {
+    background:color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface-2));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 14%, transparent);
+  }
+  .sz_locais_display strong {
+    display:block;
+    color:var(--sz-color-text);
+    font-weight:700;
+  }
+  .sz_locais_display .sz_text_muted {
+    color:var(--sz-color-text-muted);
+  }
+  .sz_locais_client_result {
+    width:100%;
+    cursor:pointer;
+    padding:var(--sz-space-3);
+    border:1px solid var(--sz-color-border);
+    border-radius:var(--sz-radius-md);
+    background:color-mix(in srgb, var(--sz-color-primary) 6%, var(--sz-color-surface-2));
+    color:var(--sz-color-text);
+    text-align:left;
+    appearance:none;
+    -webkit-appearance:none;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 12%, transparent);
+    transition:border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease;
+  }
+  .sz_locais_client_result:hover {
+    border-color: var(--sz-color-primary);
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-2));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 25%, transparent);
+    transform: translateY(-1px);
+  }
+  .sz_locais_client_result strong {
+    display:block;
+    color:var(--sz-color-text);
+    font-weight:700;
+  }
+  .sz_locais_client_result .sz_text_muted {
+    color:var(--sz-color-text-muted);
+  }
+  .sz_locais_client_empty {
+    color:var(--sz-color-text-muted);
+  }
+  .sz_locais_span_2 { grid-column: span 8; }
+  .sz_locais_span_full { grid-column: 1 / -1; }
+  @media (max-width: 1200px) {
+    .sz_locais_layout { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 720px) {
+    .sz_locais_page { padding-inline: var(--sz-space-3); }
+    .sz_locais_owner_grid,
+    .sz_locais_grid_main,
+    .sz_locais_client_row { grid-template-columns: 1fr; }
+    .sz_locais_owner_target,
+    .sz_locais_owner_client,
+    .sz_locais_span_2,
+    .sz_locais_span_full { grid-column: auto; }
+  }
+</style>
+{% endblock %}

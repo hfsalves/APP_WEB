@@ -52,11 +52,19 @@ const btnCancelar = document.getElementById('ftBtnCancelar');
 const btnAnular = document.getElementById('ftBtnAnular');
 const btnDuplicar = document.getElementById('ftBtnDuplicar');
 const btnImprimir = document.getElementById('ftBtnImprimir');
+const btnImprimirSemValores = document.getElementById('ftBtnImprimirSemValores');
 const btnVerHtml = document.getElementById('ftBtnVerHtml');
 const hiddenMorada = document.getElementById('FT_MORADA');
 const hiddenCodpost = document.getElementById('FT_CODPOST');
 const hiddenLocal = document.getElementById('FT_LOCAL');
 const hiddenPais = document.getElementById('FT_PAIS');
+const transportSection = document.getElementById('ftTransportSection');
+const transportEstadoBadge = document.getElementById('ftTransportEstadoBadge');
+const localCargaSel = document.getElementById('FT_LOCAL_CARGA_ID');
+const localDescargaSel = document.getElementById('FT_LOCAL_DESCARGA_ID');
+const dataHoraInicioTransporteInput = document.getElementById('FT_DATA_HORA_INICIO_TRANSPORTE');
+const matriculaInput = document.getElementById('FT_MATRICULA');
+const codigoAtInput = document.getElementById('FT_CODIGO_AT');
 
 const clienteModalEl = document.getElementById('ftClienteModal');
 const clienteModal = clienteModalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(clienteModalEl) : null;
@@ -127,6 +135,7 @@ let currencyOptions = [];
 let currencyTimer = null;
 let currencyPromise = null;
 let currencySearchRequestId = 0;
+let transportLocais = { carga: [], descarga: [] };
 
 const n = (value, fallback = 0) => {
   const normalized = Number(String(value ?? '').replace(',', '.'));
@@ -699,6 +708,21 @@ function currentDocType() {
   return 'FT';
 }
 
+function isCurrentTransportDoc() {
+  return Number(header.IS_DOC_TRANSPORTE || currentFtsRow()?.IS_DOC_TRANSPORTE || 0) === 1;
+}
+
+function currentTransportState() {
+  if (!isCurrentTransportDoc()) return 'RASCUNHO';
+  const raw = String(header.DOC_TRANSPORTE_ESTADO || '').trim().toUpperCase();
+  if (['RASCUNHO', 'EMITIDO', 'PRONTO', 'IMPRESSO'].includes(raw)) return raw;
+  return Number(header.ESTADO || 0) === 1 ? 'EMITIDO' : 'RASCUNHO';
+}
+
+function isTransportTransportOnlyPhase() {
+  return isCurrentTransportDoc() && Number(header.ESTADO || 0) === 1 && currentTransportState() !== 'IMPRESSO' && Number(header.ANULADA || 0) !== 1;
+}
+
 function isCurrentNcDoc() {
   return currentDocType() === 'NC';
 }
@@ -814,6 +838,73 @@ function updateOrigemUi() {
   }
 }
 
+function buildLocalOptionLabel(item) {
+  return String(item?.LABEL || item?.DESIGNACAO || '').trim();
+}
+
+function renderLocalSelect(selectEl, rows, currentValue) {
+  if (!selectEl) return;
+  const current = String(currentValue || '').trim();
+  const options = Array.isArray(rows) ? rows : [];
+  const exists = options.some((row) => String(row?.LOCALSTAMP || '').trim() === current);
+  const html = ['<option value="">---</option>']
+    .concat(options.map((row) => `<option value="${esc(String(row?.LOCALSTAMP || '').trim())}" ${String(row?.LOCALSTAMP || '').trim() === current ? 'selected' : ''}>${esc(buildLocalOptionLabel(row))}</option>`))
+    .join('');
+  selectEl.innerHTML = exists || !current ? html : `${html}<option value="${esc(current)}" selected>${esc(current)}</option>`;
+}
+
+function updateTransportUi() {
+  const active = isCurrentTransportDoc();
+  const state = currentTransportState();
+  if (transportSection) transportSection.style.display = active ? '' : 'none';
+  if (transportEstadoBadge) {
+    transportEstadoBadge.textContent = state;
+    transportEstadoBadge.classList.remove('sz_badge_info', 'sz_badge_warning', 'sz_badge_success', 'sz_badge_danger');
+    if (state === 'IMPRESSO') transportEstadoBadge.classList.add('sz_badge', 'sz_badge_danger');
+    else if (state === 'PRONTO') transportEstadoBadge.classList.add('sz_badge', 'sz_badge_success');
+    else if (state === 'EMITIDO') transportEstadoBadge.classList.add('sz_badge', 'sz_badge_info');
+    else transportEstadoBadge.classList.add('sz_badge', 'sz_badge_warning');
+  }
+  renderLocalSelect(localCargaSel, transportLocais.carga, header.LOCAL_CARGA_ID);
+  renderLocalSelect(localDescargaSel, transportLocais.descarga, header.LOCAL_DESCARGA_ID);
+  if (dataHoraInicioTransporteInput && document.activeElement !== dataHoraInicioTransporteInput) dataHoraInicioTransporteInput.value = String(header.DATA_HORA_INICIO_TRANSPORTE || '').trim();
+  if (matriculaInput && document.activeElement !== matriculaInput) matriculaInput.value = String(header.MATRICULA || '').trim();
+  if (codigoAtInput && document.activeElement !== codigoAtInput) codigoAtInput.value = String(header.CODIGO_AT || '').trim();
+  if (btnImprimirSemValores) btnImprimirSemValores.style.display = active ? '' : 'none';
+}
+
+async function loadTransportLocais() {
+  if (!isCurrentTransportDoc()) {
+    transportLocais = { carga: [], descarga: [] };
+    updateTransportUi();
+    return;
+  }
+  const cargaResponse = await fetch('/api/faturacao/locais?tipo=carga');
+  const cargaRows = await cargaResponse.json().catch(() => []);
+  const no = n(header.NO, 0);
+  let descargaRows = [];
+  if (no > 0) {
+    const descargaResponse = await fetch(`/api/faturacao/locais?tipo=descarga&no=${encodeURIComponent(no)}`);
+    descargaRows = await descargaResponse.json().catch(() => []);
+  }
+  transportLocais = {
+    carga: Array.isArray(cargaRows) ? cargaRows : [],
+    descarga: Array.isArray(descargaRows) ? descargaRows : [],
+  };
+  updateTransportUi();
+}
+
+function validateTransportForFinalPrint() {
+  if (!isCurrentTransportDoc()) return '';
+  mapUiToHeader();
+  if (!String(header.CODIGO_AT || '').trim()) return 'Não é possível imprimir o documento de transporte sem código AT.';
+  if (!String(header.LOCAL_CARGA_ID || '').trim()) return 'Não é possível imprimir o documento de transporte sem local de carga.';
+  if (!String(header.LOCAL_DESCARGA_ID || '').trim()) return 'Não é possível imprimir o documento de transporte sem local de descarga.';
+  if (!String(header.MATRICULA || '').trim()) return 'Não é possível imprimir o documento de transporte sem matrícula.';
+  if (!String(header.DATA_HORA_INICIO_TRANSPORTE || '').trim()) return 'Não é possível imprimir o documento de transporte sem data/hora de início.';
+  return '';
+}
+
 function recalcAll() {
   header.DESCONTO = pct2(header.DESCONTO, 0);
   if (descontoInput && document.activeElement !== descontoInput) {
@@ -889,6 +980,7 @@ function syncSeriesFromHeader() {
   if (!matchingRows.length) {
     header.SERIE = '';
     header.NMDOC = '';
+    header.IS_DOC_TRANSPORTE = 0;
     ndocSel.value = '';
     if (serieInput) serieInput.value = '';
     return;
@@ -898,6 +990,7 @@ function syncSeriesFromHeader() {
   header.SERIE = String(selectedSerieRow.SERIE || '').trim();
   header.NDOC = n(selectedSerieRow.NDOC, 0);
   header.NMDOC = String(selectedSerieRow.NMDOC || selectedSerieRow.DESCR || '').trim();
+  header.IS_DOC_TRANSPORTE = Number(selectedSerieRow.IS_DOC_TRANSPORTE || 0) === 1 ? 1 : 0;
   ndocSel.value = String(header.NDOC || '');
   if (serieInput) serieInput.value = header.SERIE || '';
 }
@@ -1174,6 +1267,12 @@ function applyClient(client) {
   setHiddenClientFields(header);
   updateOrigemUi();
   renderClientSuggestions([]);
+  if (isCurrentTransportDoc()) {
+    loadTransportLocais().catch(() => {
+      transportLocais = { carga: [], descarga: [] };
+      updateTransportUi();
+    });
+  }
 }
 
 async function openClientDetail() {
@@ -1215,8 +1314,24 @@ async function openClientDetail() {
 function updateStatusUi() {
   const anulada = Number(header.ANULADA || 0) === 1;
   const emitida = Number(header.ESTADO || 0) === 1;
-  const label = anulada ? 'Anulada' : (emitida ? `Emitida #${n(header.FNO, 0)}` : 'Rascunho');
-  const badgeClass = anulada ? 'sz_badge_danger' : (emitida ? 'sz_badge_success' : 'sz_badge_warning');
+  let label = anulada ? 'Anulada' : (emitida ? `Emitida #${n(header.FNO, 0)}` : 'Rascunho');
+  let badgeClass = anulada ? 'sz_badge_danger' : (emitida ? 'sz_badge_success' : 'sz_badge_warning');
+  if (!anulada && isCurrentTransportDoc()) {
+    const transportState = currentTransportState();
+    if (transportState === 'IMPRESSO') {
+      label = `Impresso #${n(header.FNO, 0)}`;
+      badgeClass = 'sz_badge_danger';
+    } else if (transportState === 'PRONTO') {
+      label = `Pronto #${n(header.FNO, 0)}`;
+      badgeClass = 'sz_badge_success';
+    } else if (transportState === 'EMITIDO') {
+      label = `Emitido #${n(header.FNO, 0)}`;
+      badgeClass = 'sz_badge_info';
+    } else {
+      label = 'Rascunho transporte';
+      badgeClass = 'sz_badge_warning';
+    }
+  }
   if (titleEl) titleEl.textContent = label;
   if (stateBadgeEl) {
     stateBadgeEl.textContent = label;
@@ -1247,6 +1362,7 @@ function mapHeaderToUi() {
   syncSeriesFromHeader();
   recalcAll();
   updateStatusUi();
+  updateTransportUi();
   window.szEnhanceDecimalInputs?.(document.getElementById('ftFormRoot'));
 }
 
@@ -1256,6 +1372,7 @@ function mapUiToHeader() {
   header.SERIE = String(serieInput?.value || '').trim();
   const selectedSerie = ftsRows.find((row) => String(n(row.NDOC, 0)) === String(header.NDOC) && String(row.SERIE || '').trim() === header.SERIE);
   header.NMDOC = String(selectedSerie?.NMDOC || selectedSerie?.DESCR || header.NMDOC || '').trim();
+  header.IS_DOC_TRANSPORTE = Number(selectedSerie?.IS_DOC_TRANSPORTE || header.IS_DOC_TRANSPORTE || 0) === 1 ? 1 : 0;
   header.FDATA = fdataInput?.value || todayISO();
   header.FTANO = n(String(header.FDATA).slice(0, 4), new Date().getFullYear());
   header.PDATA = pdataInput?.value || header.FDATA;
@@ -1271,6 +1388,11 @@ function mapUiToHeader() {
   header.CODPOST = String(hiddenCodpost?.value || '').trim();
   header.LOCAL = String(hiddenLocal?.value || '').trim();
   header.PAIS = String(hiddenPais?.value || '').trim();
+  header.LOCAL_CARGA_ID = String(localCargaSel?.value || header.LOCAL_CARGA_ID || '').trim();
+  header.LOCAL_DESCARGA_ID = String(localDescargaSel?.value || header.LOCAL_DESCARGA_ID || '').trim();
+  header.DATA_HORA_INICIO_TRANSPORTE = String(dataHoraInicioTransporteInput?.value || header.DATA_HORA_INICIO_TRANSPORTE || '').trim();
+  header.MATRICULA = String(matriculaInput?.value || header.MATRICULA || '').trim();
+  header.CODIGO_AT = String(codigoAtInput?.value || header.CODIGO_AT || '').trim();
   updateOrigemUi();
 }
 
@@ -1294,14 +1416,15 @@ function renderLines() {
     return;
   }
   normalizeLineOrder();
-  const disabled = isBlocked ? 'disabled' : '';
+  const fiscalLocked = isBlocked || isTransportTransportOnlyPhase();
+  const disabled = fiscalLocked ? 'disabled' : '';
   linesBody.innerHTML = lines.map((line) => {
     const isCreditOriginLine = isCurrentNcDoc() && Boolean(String(line.FISTAMP_ORIGEM || '').trim());
-    const refDisabled = (isBlocked || isCreditOriginLine) ? 'disabled' : '';
-    const designDisabled = (isBlocked || isCreditOriginLine) ? 'disabled' : '';
-    const unidadeDisabled = (isBlocked || isCreditOriginLine) ? 'disabled' : '';
-    const tabivaDisabled = (isBlocked || isCreditOriginLine) ? 'disabled' : '';
-    const ivainclDisabled = (isBlocked || isCreditOriginLine) ? 'disabled' : '';
+    const refDisabled = (fiscalLocked || isCreditOriginLine) ? 'disabled' : '';
+    const designDisabled = (fiscalLocked || isCreditOriginLine) ? 'disabled' : '';
+    const unidadeDisabled = (fiscalLocked || isCreditOriginLine) ? 'disabled' : '';
+    const tabivaDisabled = (fiscalLocked || isCreditOriginLine) ? 'disabled' : '';
+    const ivainclDisabled = (fiscalLocked || isCreditOriginLine) ? 'disabled' : '';
     const needsMiseimp = isZeroIva(line);
     const code = lineCode(line);
     const desc = getMiseimpDescription(code);
@@ -1653,25 +1776,33 @@ function openMiseimpModal(rowId) {
 function updateEditableState() {
   const emitida = Number(header.ESTADO || 0) === 1;
   const anulada = Number(header.ANULADA || 0) === 1;
-  isBlocked = Number(header.BLOQUEADO || 0) === 1;
+  const transportOnlyEditable = isTransportTransportOnlyPhase();
+  const transportPrinted = isCurrentTransportDoc() && currentTransportState() === 'IMPRESSO';
+  isBlocked = anulada || transportPrinted || (Number(header.BLOQUEADO || 0) === 1 && !transportOnlyEditable);
+  const fiscalLocked = isBlocked || transportOnlyEditable;
+  const transportDisabled = !isCurrentTransportDoc() || isBlocked;
 
   [ndocSel, fdataInput, pdataInput, ccustoSel, descontoInput, moedaInput, cambioInput, clientDetailBtn, addLineBtn, btnCopiarOrigem].forEach((element) => {
-    if (element) element.disabled = isBlocked;
+    if (element) element.disabled = fiscalLocked;
   });
   if (nomeInput) {
-    nomeInput.disabled = isBlocked;
+    nomeInput.disabled = fiscalLocked;
     nomeInput.readOnly = isCurrentFsDoc();
   }
-  if (isBlocked || isCurrentFsDoc()) {
+  if (fiscalLocked || isCurrentFsDoc()) {
     renderClientSuggestions([]);
   }
-  if (addLineBtn && isCurrentNcDoc()) addLineBtn.disabled = true;
-  if (motivoReferenciaInput) motivoReferenciaInput.disabled = isBlocked || !isCurrentNcDoc();
-  if (clienteApplyBtn) clienteApplyBtn.disabled = isBlocked;
+  if (addLineBtn && (isCurrentNcDoc() || transportOnlyEditable)) addLineBtn.disabled = true;
+  if (motivoReferenciaInput) motivoReferenciaInput.disabled = fiscalLocked || !isCurrentNcDoc();
+  if (clienteApplyBtn) clienteApplyBtn.disabled = fiscalLocked;
+  [localCargaSel, localDescargaSel, dataHoraInicioTransporteInput, matriculaInput, codigoAtInput].forEach((element) => {
+    if (element) element.disabled = transportDisabled;
+  });
 
   if (btnGuardar) btnGuardar.disabled = isBlocked;
-  if (btnEmitir) btnEmitir.disabled = isBlocked;
-  if (btnAnular) btnAnular.disabled = anulada || !emitida;
+  if (btnEmitir) btnEmitir.disabled = isBlocked || emitida;
+  if (btnAnular) btnAnular.disabled = anulada || !emitida || transportPrinted;
+  updateTransportUi();
 }
 
 async function loadDoc() {
@@ -1690,6 +1821,7 @@ async function loadDoc() {
   header.PDATA = safeDate(header.PDATA || header.FDATA);
   lines = Array.isArray(data.lines) ? data.lines.map((line, index) => normalizeLine(line, index)) : [];
   await loadFts();
+  await loadTransportLocais();
   mapHeaderToUi();
   if (isCurrentFsDoc() && n(header.NO, 0) <= 0 && !String(header.NOME || '').trim()) {
     await applyFsConfiguredClient(true);
@@ -1792,8 +1924,32 @@ function openNewTab(url) {
   window.location.href = url;
 }
 
-function imprimirDoc() {
-  openNewTab(`/api/faturacao/ft/${encodeURIComponent(ftStamp)}/pdf?force_html=1&_ts=${Date.now()}`);
+async function imprimirDoc(showValues = true) {
+  if (!isCurrentTransportDoc()) {
+    openNewTab(`/api/faturacao/ft/${encodeURIComponent(ftStamp)}/pdf?force_html=1&_ts=${Date.now()}`);
+    return;
+  }
+  const transportState = currentTransportState();
+  if (transportState === 'IMPRESSO') {
+    openNewTab(`/api/faturacao/ft/${encodeURIComponent(ftStamp)}/pdf?final=1&show_values=${showValues ? '1' : '0'}&_ts=${Date.now()}`);
+    return;
+  }
+  const validationError = validateTransportForFinalPrint();
+  if (validationError) {
+    alertMessage(validationError);
+    return;
+  }
+  showOverlay('A preparar documento de transporte...');
+  try {
+    const saved = await saveDoc(false, true);
+    if (!saved) return;
+    openNewTab(`/api/faturacao/ft/${encodeURIComponent(ftStamp)}/pdf?final=1&show_values=${showValues ? '1' : '0'}&_ts=${Date.now()}`);
+    window.setTimeout(() => {
+      loadDoc().catch(() => {});
+    }, 1200);
+  } finally {
+    hideOverlay();
+  }
 }
 
 function verHtmlDoc() {
@@ -1819,6 +1975,10 @@ async function cancelarDoc() {
 }
 
 function newLine() {
+  if (isTransportTransportOnlyPhase()) {
+    alertMessage('Depois de emitido, o documento de transporte só permite editar os dados de transporte.');
+    return;
+  }
   if (isCurrentNcDoc()) {
     alertMessage('As linhas da nota de crÃ©dito tÃªm de vir do documento de origem.');
     return;
@@ -2012,12 +2172,31 @@ clientDetailBtn?.addEventListener('click', openClientDetail);
 clienteApplyBtn?.addEventListener('click', applyClientModalToHeader);
 btnCalc?.addEventListener('click', openCalcModal);
 btnCopiarOrigem?.addEventListener('click', openCopyOrigemModal);
+localCargaSel?.addEventListener('change', () => {
+  header.LOCAL_CARGA_ID = String(localCargaSel.value || '').trim();
+  updateTransportUi();
+});
+localDescargaSel?.addEventListener('change', () => {
+  header.LOCAL_DESCARGA_ID = String(localDescargaSel.value || '').trim();
+  updateTransportUi();
+});
+dataHoraInicioTransporteInput?.addEventListener('change', () => {
+  header.DATA_HORA_INICIO_TRANSPORTE = String(dataHoraInicioTransporteInput.value || '').trim();
+  updateTransportUi();
+});
+matriculaInput?.addEventListener('input', () => {
+  header.MATRICULA = String(matriculaInput.value || '').trim();
+});
+codigoAtInput?.addEventListener('input', () => {
+  header.CODIGO_AT = String(codigoAtInput.value || '').trim();
+});
 
 ndocSel?.addEventListener('change', async () => {
   const previousDocType = currentDocType();
   header.NDOC = n(ndocSel.value, 0);
   syncSeriesFromHeader();
   updateOrigemUi();
+  await loadTransportLocais();
   updateEditableState();
   if (currentDocType() === 'FS' && previousDocType !== 'FS') {
     const applied = await applyFsConfiguredClient(true);
@@ -2043,6 +2222,8 @@ descontoInput?.addEventListener('blur', () => {
 fdataInput?.addEventListener('change', async () => {
   header.FDATA = fdataInput.value || todayISO();
   await loadFts();
+  await loadTransportLocais();
+  updateEditableState();
 });
 
 btnGuardar?.addEventListener('click', () => { saveDoc(true, true); });
@@ -2050,7 +2231,8 @@ btnEmitir?.addEventListener('click', emitirDoc);
 btnCancelar?.addEventListener('click', cancelarDoc);
 btnAnular?.addEventListener('click', anularDoc);
 btnDuplicar?.addEventListener('click', duplicarDoc);
-btnImprimir?.addEventListener('click', imprimirDoc);
+btnImprimir?.addEventListener('click', () => { imprimirDoc(true); });
+btnImprimirSemValores?.addEventListener('click', () => { imprimirDoc(false); });
 btnVerHtml?.addEventListener('click', verHtmlDoc);
 addLineBtn?.addEventListener('click', newLine);
 origemIncludeUsed?.addEventListener('change', () => {

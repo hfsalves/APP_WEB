@@ -48,12 +48,6 @@
     width: 9.25rem;
   }
 
-  .daily-summary-generated {
-    color: var(--sz-color-text-muted);
-    font-size: var(--sz-font-size-sm);
-    white-space: nowrap;
-  }
-
   .daily-summary-content {
     display: grid;
     gap: var(--sz-space-3);
@@ -235,6 +229,13 @@
     font-size: var(--sz-font-size-xs);
   }
 
+  .daily-summary-item-subtitle_row {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    flex-wrap: wrap;
+  }
+
   .daily-summary-item-value {
     font-size: var(--sz-font-size-md);
     font-weight: var(--sz-font-weight-bold);
@@ -299,10 +300,14 @@
     .daily-summary-toolbar {
       width: 100%;
       justify-content: flex-start;
+      flex-wrap: nowrap;
+      gap: .45rem;
     }
 
     .daily-summary-toolbar .sz_input {
-      width: 100%;
+      width: auto;
+      min-width: 0;
+      flex: 1 1 auto;
     }
 
     .daily-summary-accordion > summary,
@@ -314,6 +319,12 @@
     .daily-summary-accordion-right {
       justify-content: flex-start;
     }
+
+    .daily-summary-toolbar .sz_button {
+      flex: 0 0 auto;
+      min-width: 2.75rem;
+      padding-inline: .7rem;
+    }
   }
 </style>
 {% endblock %}
@@ -324,18 +335,13 @@
     <header class="sz_contextbar sz_page_contextbar daily-summary-contextbar">
       <div class="sz_contextbar_left">
         <div class="sz_page_title">Resumo Diário</div>
-        <div class="sz_page_subtitle">Resumo compacto do dia {{ state.selected_date_label }}.</div>
       </div>
       <div class="sz_contextbar_right">
         <form method="get" class="daily-summary-toolbar">
           <a href="{{ url_for('resumo_diario_page', data=prev_date) }}" class="sz_button sz_button_ghost" aria-label="Dia anterior">
             <i class="fa-solid fa-chevron-left"></i>
           </a>
-          <input type="date" name="data" value="{{ state.selected_date }}" class="sz_input">
-          <button type="submit" class="sz_button sz_button_secondary">
-            <i class="fa-solid fa-calendar-day"></i>
-            <span>Ler</span>
-          </button>
+          <input type="date" name="data" value="{{ state.selected_date }}" class="sz_input" onchange="this.form.submit()">
           <a href="{{ url_for('resumo_diario_page', data=next_date) }}" class="sz_button sz_button_ghost" aria-label="Dia seguinte">
             <i class="fa-solid fa-chevron-right"></i>
           </a>
@@ -343,7 +349,6 @@
             <i class="fa-solid fa-location-crosshairs"></i>
             <span>Hoje</span>
           </a>
-          <div class="daily-summary-generated">Gerado em {{ state.generated_at }}</div>
         </form>
       </div>
     </header>
@@ -394,16 +399,6 @@
             </div>
           </summary>
           <div class="daily-summary-accordion-body">
-            <div class="daily-summary-mini-grid">
-              <article class="daily-summary-mini">
-                <div class="daily-summary-mini-label">Líquido total</div>
-                <div class="daily-summary-mini-value">{{ state.kpis.reservas_liquido_total_label }}</div>
-              </article>
-              <article class="daily-summary-mini">
-                <div class="daily-summary-mini-label">Limpezas nas reservas</div>
-                <div class="daily-summary-mini-value">{{ state.kpis.reservas_limpeza_total_label }}</div>
-              </article>
-            </div>
             {% if state.reservas %}
               <div class="daily-summary-list">
                 {% for row in state.reservas %}
@@ -411,14 +406,21 @@
                     <div class="daily-summary-item-top">
                       <div>
                         <div class="daily-summary-item-title">{{ row.hospede or 'Sem hóspede' }}</div>
-                        <div class="daily-summary-item-subtitle">{{ row.reserva or 'Sem referência' }}</div>
+                        <div class="daily-summary-item-subtitle_row">
+                          <div class="daily-summary-item-subtitle">{{ row.reserva or 'Sem referência' }}</div>
+                          {% if row.regime == 'EXPLORACAO' %}
+                            <span class="sz_badge sz_badge_info">Exploração</span>
+                          {% elif row.regime == 'GESTAO' %}
+                            <span class="sz_badge sz_badge_success">Gestão</span>
+                          {% endif %}
+                        </div>
                       </div>
                       <div class="daily-summary-item-value">{{ row.total_liquido_label }}</div>
                     </div>
                     <div class="daily-summary-item-grid">
                       <div class="daily-summary-item-meta">
                         <div class="daily-summary-item-meta-label">Alojamento</div>
-                        <div class="daily-summary-item-meta-value">{{ row.alojamento or '--' }}</div>
+                        <div class="daily-summary-item-meta-value">{{ row.alojamento or "--" }}</div>
                       </div>
                       <div class="daily-summary-item-meta">
                         <div class="daily-summary-item-meta-label">Check-in</div>
@@ -436,6 +438,12 @@
                         <div class="daily-summary-item-meta-label">Limpeza</div>
                         <div class="daily-summary-item-meta-value">{{ row.limpeza_label }}</div>
                       </div>
+                      {% if row.comissao_aplicada_label %}
+                      <div class="daily-summary-item-meta">
+                        <div class="daily-summary-item-meta-label">Comissão</div>
+                        <div class="daily-summary-item-meta-value">{{ row.comissao_aplicada_label }}</div>
+                      </div>
+                      {% endif %}
                     </div>
                   </article>
                 {% endfor %}
@@ -480,79 +488,6 @@
           </div>
         </details>
 
-        <details class="daily-summary-accordion">
-          <summary>
-            <div class="daily-summary-accordion-left">
-              <div class="daily-summary-accordion-title">Limpezas</div>
-              <div class="daily-summary-accordion-subtitle">Utilizadores, duração e tarefas concluídas no dia.</div>
-            </div>
-            <div class="daily-summary-accordion-right">
-              <span class="sz_badge sz_badge_info">{{ state.kpis.limpezas_count_label }} limpezas</span>
-              <span class="daily-summary-accordion-value">{{ state.kpis.limpezas_total_duration_label }}</span>
-              <i class="fa-solid fa-chevron-down daily-summary-chevron"></i>
-            </div>
-          </summary>
-          <div class="daily-summary-accordion-body">
-            <div class="daily-summary-mini-grid">
-              <article class="daily-summary-mini">
-                <div class="daily-summary-mini-label">Limpezas</div>
-                <div class="daily-summary-mini-value">{{ state.kpis.limpezas_count_label }}</div>
-              </article>
-              <article class="daily-summary-mini">
-                <div class="daily-summary-mini-label">Utilizadores</div>
-                <div class="daily-summary-mini-value">{{ state.kpis.limpezas_users_count }}</div>
-              </article>
-            </div>
-            {% if state.limpezas_por_user %}
-              <div class="daily-summary-list">
-                {% for row in state.limpezas_por_user %}
-                  <article class="daily-summary-item">
-                    <div class="daily-summary-item-top">
-                      <div>
-                        <div class="daily-summary-item-title">{{ row.utilizador }}</div>
-                        <div class="daily-summary-item-subtitle">{{ row.limpezas }} limpezas concluídas</div>
-                      </div>
-                      <div class="daily-summary-item-value">{{ row.duracao_total_label }}</div>
-                    </div>
-                    <div class="daily-summary-item-grid">
-                      <div class="daily-summary-item-meta">
-                        <div class="daily-summary-item-meta-label">Média</div>
-                        <div class="daily-summary-item-meta-value">{{ row.duracao_media_label }}</div>
-                      </div>
-                    </div>
-                  </article>
-                {% endfor %}
-              </div>
-            {% endif %}
-            {% if state.limpezas %}
-              <div class="daily-summary-list">
-                {% for row in state.limpezas %}
-                  <article class="daily-summary-item">
-                    <div class="daily-summary-item-top">
-                      <div>
-                        <div class="daily-summary-item-title">{{ row.alojamento or '--' }}</div>
-                        <div class="daily-summary-item-subtitle">{{ row.utilizador or '--' }}</div>
-                      </div>
-                      <div class="daily-summary-item-value">{{ row.duracao_label }}</div>
-                    </div>
-                    <div class="daily-summary-item-grid">
-                      <div class="daily-summary-item-meta">
-                        <div class="daily-summary-item-meta-label">Início</div>
-                        <div class="daily-summary-item-meta-value">{{ row.inicio }}</div>
-                      </div>
-                      <div class="daily-summary-item-meta">
-                        <div class="daily-summary-item-meta-label">Fim</div>
-                        <div class="daily-summary-item-meta-value">{{ row.fim }}</div>
-                      </div>
-                    </div>
-                  </article>
-                {% endfor %}
-              </div>
-            {% elif not state.limpezas_por_user %}
-              <div class="daily-summary-empty">Sem limpezas concluídas neste dia.</div>
-            {% endif %}
-          </div>
-        </details>
       </div>
     </section>
   </div>

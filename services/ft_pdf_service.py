@@ -28,6 +28,8 @@ NON_FISCAL_DOC_TYPES = {"PF", "OR"}
 def _to_decimal(value, default="0"):
     if value is None or (isinstance(value, str) and value.strip() == ""):
         return Decimal(default)
+    if isinstance(value, bool):
+        return Decimal("1" if value else "0")
     try:
         return Decimal(str(value).replace(",", "."))
     except (InvalidOperation, ValueError):
@@ -46,6 +48,73 @@ def fmt_money_pt(value, places=2):
 
 def _safe_text(value) -> str:
     return str(value or "").strip()
+
+
+def _table_has_columns(session, table_name: str, *column_names: str) -> bool:
+    wanted = {str(name or "").strip().upper() for name in (column_names or []) if str(name or "").strip()}
+    if not wanted:
+        return True
+    rows = session.execute(text("""
+        SELECT UPPER(COLUMN_NAME) AS CN
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'dbo'
+          AND TABLE_NAME = :table_name
+    """), {"table_name": str(table_name or "").strip()}).mappings().all()
+    existing = {str(row.get("CN") or "").upper() for row in rows}
+    return wanted.issubset(existing)
+
+
+def _locais_table_available(session) -> bool:
+    row = session.execute(text("""
+        SELECT TOP 1 1
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = 'dbo'
+          AND TABLE_NAME = 'LOCAIS'
+    """)).first()
+    return bool(row)
+
+
+def _load_local_by_stamp(session, localstamp: str):
+    localstamp = _safe_text(localstamp)
+    if not localstamp or not _locais_table_available(session):
+        return None
+    row = session.execute(text("""
+        SELECT TOP 1
+            LTRIM(RTRIM(ISNULL(LOCALSTAMP, ''))) AS LOCALSTAMP,
+            LTRIM(RTRIM(ISNULL(DESIGNACAO, ''))) AS DESIGNACAO,
+            LTRIM(RTRIM(ISNULL(MORADA, ''))) AS MORADA,
+            LTRIM(RTRIM(ISNULL(MORADA2, ''))) AS MORADA2,
+            LTRIM(RTRIM(ISNULL(CP, ''))) AS CP,
+            LTRIM(RTRIM(ISNULL(LOCALIDADE, ''))) AS LOCALIDADE,
+            LTRIM(RTRIM(ISNULL(PAIS, ''))) AS PAIS
+        FROM dbo.LOCAIS
+        WHERE LOCALSTAMP = :localstamp
+    """), {"localstamp": localstamp}).mappings().first()
+    return dict(row) if row else None
+
+
+def _local_label(local_row: dict | None) -> str:
+    if not local_row:
+        return ""
+    parts = [
+        _safe_text(local_row.get("DESIGNACAO")),
+        _safe_text(local_row.get("MORADA")),
+        _safe_text(local_row.get("LOCALIDADE")),
+    ]
+    return " · ".join(part for part in parts if part)
+
+
+def _fmt_datetime_display(value) -> str:
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d %H:%M")
+    raw = _safe_text(value)
+    if not raw:
+        return ""
+    normalized = raw.replace(" ", "T")
+    try:
+        return datetime.fromisoformat(normalized[:19]).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return raw
 
 
 def _fmt_date_display(value) -> str:
@@ -98,7 +167,13 @@ def get_ft_doc_type(ft: dict) -> str:
     return "FT"
 
 
+def is_transport_doc(ft: dict) -> bool:
+    return int(_to_decimal((ft or {}).get("IS_DOC_TRANSPORTE"), "0")) == 1
+
+
 def is_ft_non_fiscal(ft: dict) -> bool:
+    if is_transport_doc(ft):
+        return False
     return get_ft_doc_type(ft) in NON_FISCAL_DOC_TYPES
 
 
@@ -114,6 +189,7 @@ def get_ft_display_title(ft: dict) -> str:
 
 
 def get_ft_data(session, ftstamp: str):
+    fts_transport_available = _table_has_columns(session, "FTS", "IS_DOC_TRANSPORTE")
     ft = session.execute(text("""
         SELECT TOP 1 *
         FROM dbo.FT
@@ -132,6 +208,7 @@ def get_ft_data(session, ftstamp: str):
             SELECT TOP 1
                 ISNULL(TIPOSAFT, '') AS TIPOSAFT,
                 ISNULL(NO_SAFT, 0) AS NO_SAFT
+                """ + (", ISNULL(IS_DOC_TRANSPORTE, 0) AS IS_DOC_TRANSPORTE" if fts_transport_available else ", CAST(0 AS bit) AS IS_DOC_TRANSPORTE") + """
             FROM dbo.FTS
             WHERE
                 FESTAMP=:festamp
@@ -147,6 +224,19 @@ def get_ft_data(session, ftstamp: str):
         if srow:
             ft["TIPOSAFT"] = _safe_text(srow.get("TIPOSAFT"))
             ft["NO_SAFT"] = int(_to_decimal(srow.get("NO_SAFT"), "0"))
+            if int(_to_decimal(ft.get("IS_DOC_TRANSPORTE"), "0")) != 1 and int(_to_decimal(srow.get("IS_DOC_TRANSPORTE"), "0")) == 1:
+                ft["IS_DOC_TRANSPORTE"] = 1
+    is_transport = is_transport_doc(ft)
+    if is_transport:
+        ft["LOCAL_CARGA_ID"] = _safe_text(ft.get("LOCAL_CARGA_ID"))
+        ft["LOCAL_DESCARGA_ID"] = _safe_text(ft.get("LOCAL_DESCARGA_ID"))
+        ft["MATRICULA"] = _safe_text(ft.get("MATRICULA"))
+        ft["CODIGO_AT"] = _safe_text(ft.get("CODIGO_AT"))
+        ft["DOC_TRANSPORTE_ESTADO"] = _safe_text(ft.get("DOC_TRANSPORTE_ESTADO")) or ("RASCUNHO" if int(_to_decimal(ft.get("ESTADO"), "0")) == 0 else "EMITIDO")
+        local_carga = _load_local_by_stamp(session, ft.get("LOCAL_CARGA_ID") or "")
+        local_descarga = _load_local_by_stamp(session, ft.get("LOCAL_DESCARGA_ID") or "")
+        ft["LOCAL_CARGA_LABEL"] = _local_label(local_carga)
+        ft["LOCAL_DESCARGA_LABEL"] = _local_label(local_descarga)
     fi_rows = session.execute(text("""
         SELECT *
         FROM dbo.FI
@@ -211,19 +301,36 @@ def build_qr_base64(payload: str) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def build_logo_base64(rel_path: str = "static/images/guestspa.png") -> str:
+def build_logo_payload(rel_path: str = "static/images/guestspa.png") -> dict:
+    fallback_path = "static/images/guestspa.png"
+    mime_map = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }
     try:
-        abs_path = os.path.join(current_app.root_path, rel_path.replace("/", os.sep))
-        if not os.path.isfile(abs_path):
-            return ""
-        with open(abs_path, "rb") as fh:
-            return base64.b64encode(fh.read()).decode("ascii")
+        for candidate in [rel_path, fallback_path]:
+            normalized = str(candidate or "").strip()
+            if not normalized:
+                continue
+            abs_path = os.path.join(current_app.root_path, normalized.replace("/", os.sep))
+            if not os.path.isfile(abs_path):
+                continue
+            ext = os.path.splitext(abs_path)[1].lower()
+            with open(abs_path, "rb") as fh:
+                return {
+                    "b64": base64.b64encode(fh.read()).decode("ascii"),
+                    "mime": mime_map.get(ext, "image/png"),
+                }
     except Exception:
-        return ""
+        return {"b64": "", "mime": "image/png"}
+    return {"b64": "", "mime": "image/png"}
 
 
-def render_ft_pdf_html(ft: dict, fi_rows: list[dict], fe: dict, qr_b64: str, at_certificado: str = "", modo_teste: bool = False) -> str:
+def render_ft_pdf_html(ft: dict, fi_rows: list[dict], fe: dict, qr_b64: str, at_certificado: str = "", modo_teste: bool = False, show_values: bool = True) -> str:
     is_non_fiscal = is_ft_non_fiscal(ft)
+    is_transport = is_transport_doc(ft)
     display_title = get_ft_display_title(ft)
     if is_non_fiscal:
         qr_b64 = ""
@@ -297,7 +404,9 @@ def render_ft_pdf_html(ft: dict, fi_rows: list[dict], fe: dict, qr_b64: str, at_
         "vat_total": fmt_money_pt(vat_total, 2),
         "gross_total": fmt_money_pt((net_total + vat_total).quantize(dec2, rounding=ROUND_HALF_UP), 2),
     }
-    status = "RASCUNHO" if int((ft or {}).get("BLOQUEADO") or 0) == 0 else ("ANULADO" if int((ft or {}).get("ANULADA") or 0) == 1 else "EMITIDO")
+    transport_state = _safe_text((ft or {}).get("DOC_TRANSPORTE_ESTADO")).upper() or ("RASCUNHO" if int((ft or {}).get("ESTADO") or 0) == 0 else "EMITIDO")
+    is_draft = transport_state == "RASCUNHO" if is_transport else int((ft or {}).get("BLOQUEADO") or 0) == 0
+    status = transport_state if is_transport else ("RASCUNHO" if int((ft or {}).get("BLOQUEADO") or 0) == 0 else ("ANULADO" if int((ft or {}).get("ANULADA") or 0) == 1 else "EMITIDO"))
     return render_template(
         "faturacao/ft_pdf.html",
         ft=ft or {},
@@ -310,8 +419,10 @@ def render_ft_pdf_html(ft: dict, fi_rows: list[dict], fe: dict, qr_b64: str, at_
         document_type=get_ft_doc_type(ft),
         document_number=_doc_number(ft),
         is_non_fiscal=is_non_fiscal,
-        logo_b64=build_logo_base64(),
-        is_draft=int((ft or {}).get("BLOQUEADO") or 0) == 0,
+        is_transport_doc=is_transport,
+        transport_state=transport_state,
+        logo=build_logo_payload(_safe_text((fe or {}).get("LOGOTIPO_PATH")) or "static/images/guestspa.png"),
+        is_draft=is_draft,
         is_annulled=int((ft or {}).get("ANULADA") or 0) == 1,
         status=status,
         at_certificado=(at_certificado or "").strip(),
@@ -319,6 +430,8 @@ def render_ft_pdf_html(ft: dict, fi_rows: list[dict], fe: dict, qr_b64: str, at_
         hash4=("" if is_non_fiscal else _hash_print4(ft)),
         source_number=_safe_text((ft or {}).get("NUMDOC_ORIGEM")),
         source_date=_fmt_date_display((ft or {}).get("DATA_ORIGEM")),
+        show_values=bool(show_values),
+        transport_data_inicio=_fmt_datetime_display((ft or {}).get("DATA_HORA_INICIO_TRANSPORTE")),
         modo_teste=bool(modo_teste),
         fmt_money=fmt_money_pt,
     )

@@ -359,11 +359,31 @@
   }
 
   .sz_pricing_cell.occupied {
-    background: linear-gradient(180deg, color-mix(in srgb, var(--sz-color-primary) 14%, var(--sz-color-surface)) 0%, color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface)) 100%);
-    border-color: color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 12%, transparent),
-      inset 0 -2px 0 color-mix(in srgb, var(--sz-color-primary) 26%, transparent);
+    background: var(--sz-color-primary);
+    border-color: var(--sz-color-primary);
+    box-shadow: none;
+    color: #fff;
+  }
+
+  .sz_pricing_cell.occupied:hover:not(.empty) {
+    background: var(--sz-color-primary);
+    border-color: var(--sz-color-primary);
+    box-shadow: none;
+  }
+
+  .sz_pricing_cell.occupied .sz_pricing_day_num,
+  .sz_pricing_cell.occupied .sz_pricing_day_price,
+  .sz_pricing_cell.occupied .sz_pricing_day_price.is-occupied,
+  .sz_pricing_cell.occupied .sz_pricing_day_effective {
+    color: inherit;
+  }
+
+  [data-sz-theme="dark"] .sz_pricing_cell.occupied {
+    color: #08111a;
+  }
+
+  [data-sz-theme="geek"] .sz_pricing_cell.occupied {
+    color: #021305;
   }
 
   .sz_pricing_cell.event-day {
@@ -413,14 +433,14 @@
   .sz_pricing_day_price.is-occupied {
     margin-top: 0.1rem;
     font-size: 0.58rem;
-    color: var(--sz-color-text-muted);
+    color: color-mix(in srgb, var(--sz-color-primary) 72%, var(--sz-color-text));
   }
 
   .sz_pricing_day_effective {
     margin-top: auto;
     font-size: 0.58rem;
     font-weight: var(--sz-font-weight-bold);
-    color: var(--sz-color-danger);
+    color: color-mix(in srgb, var(--sz-color-danger) 78%, var(--sz-color-text));
     line-height: 1;
   }
 
@@ -705,6 +725,7 @@
   const overridesEl = document.getElementById('pricingOverrides');
   const overrideForm = document.getElementById('pricingOverrideForm');
   const overrideStatusEl = document.getElementById('pricingOverrideStatus');
+  const autoCreatedAlojamentos = {{ (auto_created_alojamentos or [])|tojson }};
 
   let dayMap = new Map();
   let selectedDay = null;
@@ -1361,7 +1382,10 @@
       }));
       renderPlanner(startInput.value);
       const metaText = buildAlojamentoMetaText(config);
-      setStatus(`${payload.days.length} dias carregados para ${alojamento}.${metaText ? ` • ${metaText}` : ''}`);
+      const autoCreatedText = autoCreatedAlojamentos.length
+        ? ` • ${autoCreatedAlojamentos.length} alojamento(s) adicionados a PR_ALOJAMENTO`
+        : '';
+      setStatus(`${payload.days.length} dias carregados para ${alojamento}.${metaText ? ` • ${metaText}` : ''}${autoCreatedText}`);
     } catch (error) {
       gridEl.innerHTML = '';
       setStatus(error.message, true);

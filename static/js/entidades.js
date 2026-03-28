@@ -12,6 +12,7 @@
     edit: !!window.FE_CAN_EDIT,
     delete: !!window.FE_CAN_DELETE,
   };
+  const logoEnabled = !!window.FE_LOGO_ENABLED;
 
   const els = {
     list: document.getElementById('entList'),
@@ -28,6 +29,13 @@
     btnSaveBottom: document.getElementById('entBtnSaveBottom'),
     btnCancel: document.getElementById('entBtnCancel'),
     btnDelete: document.getElementById('entBtnDelete'),
+    btnUploadLogo: document.getElementById('entBtnUploadLogo'),
+    btnRemoveLogo: document.getElementById('entBtnRemoveLogo'),
+    logoFile: document.getElementById('entLogoFile'),
+    logoPreview: document.getElementById('entLogoPreview'),
+    logoImg: document.getElementById('entLogoImg'),
+    logoPlaceholder: document.getElementById('entLogoPlaceholder'),
+    logoStatus: document.getElementById('entLogoStatus'),
     fields: {
       FESTAMP: document.getElementById('entFESTAMP'),
       NIF: document.getElementById('entNIF'),
@@ -54,6 +62,7 @@
       AT_WS_AMBIENTE: document.getElementById('entAT_WS_AMBIENTE'),
       AT_WS_USER: document.getElementById('entAT_WS_USER'),
       AT_WS_PASS: document.getElementById('entAT_WS_PASS'),
+      LOGOTIPO_PATH: document.getElementById('entLOGOTIPO_PATH'),
       DTCriacao: document.getElementById('entDTCriacao'),
       DTAlteracao: document.getElementById('entDTAlteracao'),
       USERCRIACAO: document.getElementById('entUSERCRIACAO'),
@@ -106,6 +115,7 @@
       AT_WS_AMBIENTE: '',
       AT_WS_USER: '',
       AT_WS_PASS: '',
+      LOGOTIPO_PATH: '',
       DTCriacao: '',
       DTAlteracao: '',
       USERCRIACAO: '',
@@ -179,6 +189,39 @@
     });
   }
 
+  function currentLogoUrl() {
+    const festamp = String(els.fields.FESTAMP?.value || '').trim();
+    const path = String(els.fields.LOGOTIPO_PATH?.value || '').trim();
+    if (!logoEnabled || !festamp || !path) return '';
+    return `/api/entidades/${encodeURIComponent(festamp)}/logo?_ts=${Date.now()}`;
+  }
+
+  function renderLogo() {
+    if (!els.logoPreview) return;
+    const festamp = String(els.fields.FESTAMP?.value || '').trim();
+    const path = String(els.fields.LOGOTIPO_PATH?.value || '').trim();
+    const canWrite = canWriteCurrent();
+    const hasLogo = Boolean(festamp && path);
+    if (els.btnUploadLogo) els.btnUploadLogo.disabled = !logoEnabled || !festamp || !canWrite;
+    if (els.btnRemoveLogo) els.btnRemoveLogo.disabled = !logoEnabled || !hasLogo || !canWrite;
+    if (els.logoStatus) {
+      if (!logoEnabled) els.logoStatus.textContent = 'A base de dados ainda não tem o campo LOGOTIPO_PATH.';
+      else if (!festamp) els.logoStatus.textContent = 'Guarde a entidade primeiro para carregar um logotipo.';
+      else if (hasLogo) els.logoStatus.textContent = 'Logotipo carregado no servidor.';
+      else els.logoStatus.textContent = 'Sem logotipo associado.';
+    }
+    if (els.logoImg) {
+      if (hasLogo) {
+        els.logoImg.src = currentLogoUrl();
+        els.logoImg.style.display = '';
+      } else {
+        els.logoImg.removeAttribute('src');
+        els.logoImg.style.display = 'none';
+      }
+    }
+    if (els.logoPlaceholder) els.logoPlaceholder.style.display = hasLogo ? 'none' : '';
+  }
+
   function updateButtons() {
     const existing = isExisting();
     const canWrite = canWriteCurrent();
@@ -188,6 +231,7 @@
     if (els.btnSaveBottom) els.btnSaveBottom.disabled = !canWrite;
     if (els.btnDelete) els.btnDelete.disabled = !existing || !permissions.delete;
     renderModules();
+    renderLogo();
   }
 
   function updateSummary(row) {
@@ -242,6 +286,7 @@
       AT_WS_AMBIENTE: String(els.fields.AT_WS_AMBIENTE?.value || '').trim(),
       AT_WS_USER: String(els.fields.AT_WS_USER?.value || '').trim(),
       AT_WS_PASS: String(els.fields.AT_WS_PASS?.value || '').trim(),
+      LOGOTIPO_PATH: String(els.fields.LOGOTIPO_PATH?.value || '').trim(),
       MODULES: state.modules.map((item) => ({
         MODSTAMP: String(item.MODSTAMP || '').trim(),
         ATIVO: Number(item.ATIVO || 0),
@@ -376,6 +421,43 @@
     }
   }
 
+  async function uploadLogo(file) {
+    const festamp = String(els.fields.FESTAMP?.value || '').trim();
+    if (!logoEnabled || !festamp || !file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch(`/api/entidades/${encodeURIComponent(festamp)}/upload_logo`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar logotipo.');
+      if (els.fields.LOGOTIPO_PATH) els.fields.LOGOTIPO_PATH.value = String(data.LOGOTIPO_PATH || '').trim();
+      renderLogo();
+      showToast('Logotipo carregado.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Erro ao carregar logotipo.', 'danger');
+    } finally {
+      if (els.logoFile) els.logoFile.value = '';
+    }
+  }
+
+  async function removeLogo() {
+    const festamp = String(els.fields.FESTAMP?.value || '').trim();
+    if (!logoEnabled || !festamp || !String(els.fields.LOGOTIPO_PATH?.value || '').trim()) return;
+    try {
+      const res = await fetch(`/api/entidades/${encodeURIComponent(festamp)}/delete_logo`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao remover logotipo.');
+      if (els.fields.LOGOTIPO_PATH) els.fields.LOGOTIPO_PATH.value = '';
+      renderLogo();
+      showToast('Logotipo removido.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Erro ao remover logotipo.', 'danger');
+    }
+  }
+
   async function deleteEntity() {
     const festamp = String(els.fields.FESTAMP?.value || '').trim();
     if (!festamp || !permissions.delete) return;
@@ -408,6 +490,22 @@
     els.btnSaveBottom?.addEventListener('click', saveEntity);
     els.btnCancel?.addEventListener('click', cancelEdit);
     els.btnDelete?.addEventListener('click', deleteEntity);
+    els.btnUploadLogo?.addEventListener('click', () => {
+      if (!logoEnabled) {
+        showToast('A base de dados ainda não tem o campo LOGOTIPO_PATH.', 'danger');
+        return;
+      }
+      if (!String(els.fields.FESTAMP?.value || '').trim()) {
+        showToast('Guarde primeiro a entidade antes de carregar o logotipo.', 'warning');
+        return;
+      }
+      els.logoFile?.click();
+    });
+    els.btnRemoveLogo?.addEventListener('click', removeLogo);
+    els.logoFile?.addEventListener('change', () => {
+      const file = els.logoFile?.files?.[0];
+      if (file) uploadLogo(file);
+    });
     els.search?.addEventListener('input', () => {
       window.clearTimeout(state.searchTimer);
       state.searchTimer = window.setTimeout(loadList, 250);
