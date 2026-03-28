@@ -1535,7 +1535,7 @@ def create_app():
                     mostrar = False  # SÃ³ serÃ¡ True se algum filho for permitido (mais abaixo)
                 # Todos os outros: sÃ³ se tem acesso
                 else:
-                    mostrar = user_is_admin or perms.get(m.tabela, {}).get('consultar', False)
+                    mostrar = user_is_admin or perms.get(str(m.tabela or '').strip().upper(), {}).get('consultar', False)
 
                 # CriaÃ§Ã£o do grupo ou item
                 if m.ordem % 100 == 0:
