@@ -9,6 +9,7 @@ from xml.etree import ElementTree as ET
 from sqlalchemy import text
 
 from services.hash_service import ft_invoice_no, ft_system_entry_datetime
+from services.miseimp_service import load_miseimp_map
 from services.qr_atcud_service import get_param as qr_get_param
 
 
@@ -208,13 +209,18 @@ def _doc_where_sql(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 
 def _load_headers(session, filters: dict[str, Any]) -> list[dict[str, Any]]:
     where_sql, params = _doc_where_sql(filters)
+    cl_cols = _table_columns(session, "CL")
+    cliente_codpais_expr = "''"
+    if "CODPAIS" in cl_cols:
+        cliente_codpais_expr = "LTRIM(RTRIM(ISNULL(CL.CODPAIS,'')))"
     rows = session.execute(text(f"""
         SELECT
             FT.*,
             ISNULL(FTS.TIPOSAFT, '') AS TIPOSAFT,
             ISNULL(FTS.DESCR, '') AS SERIE_DESCR,
             ISNULL(FTSX.HASHVER, '') AS SERIE_HASHVER,
-            ISNULL(FTSX.COD_VALIDACAO_SERIE, '') AS COD_VALIDACAO_SERIE
+            ISNULL(FTSX.COD_VALIDACAO_SERIE, '') AS COD_VALIDACAO_SERIE,
+            {cliente_codpais_expr} AS CLIENTE_CODPAIS
         FROM dbo.FT AS FT
         INNER JOIN dbo.FTS AS FTS
           ON FTS.FESTAMP = FT.FESTAMP
@@ -223,6 +229,9 @@ def _load_headers(session, filters: dict[str, Any]) -> list[dict[str, Any]]:
          AND ISNULL(FTS.ANO,0) = ISNULL(FT.FTANO,0)
         LEFT JOIN dbo.FTSX AS FTSX
           ON FTSX.FTSSTAMP = FTS.FTSSTAMP
+        LEFT JOIN dbo.CL AS CL
+          ON CL.NO = FT.NO
+         AND ISNULL(CL.FEID, 0) = ISNULL(FT.FEID, 0)
         WHERE {where_sql}
         ORDER BY CAST(FT.FDATA AS date), LTRIM(RTRIM(ISNULL(FT.SERIE,''))), ISNULL(FT.FNO,0)
     """), params).mappings().all()
@@ -238,7 +247,8 @@ def _load_lines(session, filters: dict[str, Any]) -> dict[str, list[dict[str, An
             FT.NMDOC AS FT_NMDOC,
             FT.SERIE AS FT_SERIE,
             FT.FNO AS FT_FNO,
-            FT.FDATA AS FT_FDATA
+            FT.FDATA AS FT_FDATA,
+            LTRIM(RTRIM(ISNULL(ST.TIPOPROD, ''))) AS ST_TIPOPROD
         FROM dbo.FI AS FI
         INNER JOIN dbo.FT AS FT
           ON FT.FTSTAMP = FI.FTSTAMP
@@ -247,6 +257,10 @@ def _load_lines(session, filters: dict[str, Any]) -> dict[str, list[dict[str, An
          AND FTS.NDOC = FT.NDOC
          AND LTRIM(RTRIM(ISNULL(FTS.SERIE,''))) = LTRIM(RTRIM(ISNULL(FT.SERIE,'')))
          AND ISNULL(FTS.ANO,0) = ISNULL(FT.FTANO,0)
+        LEFT JOIN dbo.ST AS ST
+          ON ISNULL(ST.FEID, 0) = ISNULL(FT.FEID, 0)
+         AND LTRIM(RTRIM(ISNULL(ST.REF, ''))) COLLATE DATABASE_DEFAULT
+             = LTRIM(RTRIM(ISNULL(FI.REF, ''))) COLLATE DATABASE_DEFAULT
         WHERE {where_sql}
         ORDER BY CAST(FT.FDATA AS date), LTRIM(RTRIM(ISNULL(FT.SERIE,''))), ISNULL(FT.FNO,0), ISNULL(FI.LORDEM,0), FI.FISTAMP
     """), params).mappings().all()
@@ -271,6 +285,7 @@ def _pick_first(row: dict[str, Any], *keys: str, default: str = "") -> str:
 def _load_emitter(session, festamp: str) -> dict[str, Any]:
     fe_cols = _table_columns(session, "FE")
     name_expr = "ISNULL(NOME,'')" if "NOME" in fe_cols else "''"
+    nome_fiscal_expr = "ISNULL(NOMEFISCAL,'')" if "NOMEFISCAL" in fe_cols else "''"
     nome_com_expr = "ISNULL(NOMECOM,'')" if "NOMECOM" in fe_cols else "''"
     morada_expr = "ISNULL(MORADA,'')" if "MORADA" in fe_cols else "''"
     local_expr = "ISNULL(LOCAL,'')" if "LOCAL" in fe_cols else "''"
@@ -280,6 +295,7 @@ def _load_emitter(session, festamp: str) -> dict[str, Any]:
         SELECT TOP 1
             FE.*,
             {name_expr} AS FE_NOME,
+            {nome_fiscal_expr} AS FE_NOMEFISCAL,
             {nome_com_expr} AS FE_NOMECOM,
             {morada_expr} AS FE_MORADA,
             {local_expr} AS FE_LOCAL,
@@ -381,9 +397,9 @@ def _line_unit_price(line: dict[str, Any]) -> Decimal | None:
 
 
 def _doc_label(doc: dict[str, Any]) -> str:
-    nmdoc = _safe_text(doc.get("NMDOC"))
-    serie = _safe_text(doc.get("SERIE"))
-    fno = int(_to_decimal(doc.get("FNO"), "0"))
+    nmdoc = _pick_first(doc, "NMDOC", "FT_NMDOC", default="")
+    serie = _pick_first(doc, "SERIE", "FT_SERIE", default="")
+    fno = int(_to_decimal(doc.get("FNO") if doc.get("FNO") not in (None, "") else doc.get("FT_FNO"), "0"))
     if nmdoc and serie:
         return f"{nmdoc} {serie}/{fno}"
     if serie:
@@ -446,6 +462,28 @@ def _reference_reason(value: Any) -> str:
     return _safe_text(value)[:50]
 
 
+def _tax_exemption_code(line: dict[str, Any]) -> str:
+    return _safe_text(line.get("MISEIMP")).upper()[:3]
+
+
+def _line_exemption_metadata(line: dict[str, Any], miseimp_map: dict[str, str]) -> tuple[str, str]:
+    rate = _line_tax_rate(line)
+    if rate != Decimal("0.00"):
+        return "", ""
+    code = _tax_exemption_code(line)
+    reason = _safe_text(line.get("MISEIMP_DESCRICAO") or miseimp_map.get(code) or "")
+    if not code:
+        raise SaftValidationError(f"{_doc_label(line)} linha sem TaxExemptionCode para IVA 0%.")
+    if not reason:
+        raise SaftValidationError(f"{_doc_label(line)} linha com motivo de isenção inválido ({code}).")
+    expected_reason = _safe_text(miseimp_map.get(code))
+    if not expected_reason:
+        raise SaftValidationError(f"{_doc_label(line)} usa código de isenção inexistente em MISEIMP ({code}).")
+    if reason != expected_reason:
+        raise SaftValidationError(f"{_doc_label(line)} tem motivo de isenção divergente da MISEIMP ({code}).")
+    return code, reason
+
+
 def _normalize_doc_currency_code(value: Any) -> str:
     raw = _safe_text(value).upper()
     return raw or "EUR"
@@ -502,25 +540,51 @@ def _software_certificate_number(value: Any) -> str:
     return str(int(parsed))
 
 
-def _prepare_doc_for_saft(header_row: dict[str, Any], lines: list[dict[str, Any]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def _prepare_doc_for_saft(header_row: dict[str, Any], lines: list[dict[str, Any]], miseimp_map: dict[str, str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     currency_ctx = _doc_currency_context(header_row)
     prepared_header = dict(header_row)
     prepared_lines: list[dict[str, Any]] = []
+    header_discount_pct = _to_decimal(header_row.get("DESCONTO"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    line_net_before_header_total = Decimal("0.00")
+    header_discount_total = Decimal("0.00")
+    final_tax_total = Decimal("0.00")
+    final_gross_total = Decimal("0.00")
 
     for line in lines:
         prepared_line = dict(line)
-        prepared_line["_SAFT_NET_AMOUNT"] = _to_decimal(prepared_line.get("ETILIQUIDO"), "0").quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
-        prepared_line["_SAFT_VAT_AMOUNT"] = _line_doc_vat_amount(prepared_line)
-        prepared_line["_SAFT_UNIT_PRICE"] = _line_unit_price(prepared_line)
-        prepared_lines.append(prepared_line)
+        quantity = _to_decimal(prepared_line.get("QTT"), "0").quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        unit_price_gross = _to_decimal(prepared_line.get("EPV"), "0").quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        line_discount_pct = _to_decimal(prepared_line.get("DESCONTO"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        rate = _line_tax_rate(prepared_line)
+        gross_line_total = (quantity * unit_price_gross).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        line_discount_value = (gross_line_total * line_discount_pct / Decimal("100.00")).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        net_before_header = (gross_line_total - line_discount_value).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        header_discount_value = (net_before_header * header_discount_pct / Decimal("100.00")).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        final_net = (net_before_header - header_discount_value).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        final_vat = (final_net * rate / Decimal("100.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if rate > Decimal("0.00") else Decimal("0.00")
 
-    prepared_header["_SAFT_NET_TOTAL"] = _to_decimal(header_row.get("ETTILIQ"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    prepared_header["_SAFT_TAX_TOTAL"] = _to_decimal(header_row.get("ETTIVA"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    prepared_header["_SAFT_GROSS_TOTAL"] = _to_decimal(header_row.get("ETOTAL"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        exempt_code, exempt_reason = _line_exemption_metadata(prepared_line, miseimp_map)
+        prepared_line["MISEIMP"] = exempt_code
+        prepared_line["MISEIMP_DESCRICAO"] = exempt_reason
+        prepared_line["_SAFT_NET_AMOUNT"] = net_before_header
+        prepared_line["_SAFT_HEADER_SETTLEMENT"] = header_discount_value
+        prepared_line["_SAFT_FINAL_NET_AMOUNT"] = final_net
+        prepared_line["_SAFT_VAT_AMOUNT"] = final_vat
+        prepared_line["_SAFT_UNIT_PRICE"] = (net_before_header / quantity).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP) if quantity != Decimal("0.000000") else None
+        prepared_lines.append(prepared_line)
+        line_net_before_header_total += net_before_header
+        header_discount_total += header_discount_value
+        final_tax_total += final_vat
+        final_gross_total += (final_net + final_vat).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    prepared_header["_SAFT_NET_TOTAL"] = line_net_before_header_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    prepared_header["_SAFT_SETTLEMENT_TOTAL"] = header_discount_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    prepared_header["_SAFT_TAX_TOTAL"] = final_tax_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    prepared_header["_SAFT_GROSS_TOTAL"] = final_gross_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     prepared_header["_SAFT_CURRENCY_CODE"] = currency_ctx["code"] if currency_ctx["is_foreign"] else ""
     prepared_header["_SAFT_EXCHANGE_RATE"] = currency_ctx["rate"] if currency_ctx["is_foreign"] else None
     prepared_header["_SAFT_CURRENCY_AMOUNT"] = (
-        _to_decimal(header_row.get("ETOTAL"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        final_gross_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if currency_ctx["is_foreign"] else None
     )
     return prepared_header, prepared_lines
@@ -577,10 +641,11 @@ def _build_dataset(session, filters: dict[str, Any]) -> dict[str, Any]:
     customers: dict[str, dict[str, Any]] = {}
     products: dict[str, dict[str, Any]] = {}
     tax_table: dict[str, dict[str, Any]] = {}
+    miseimp_map = load_miseimp_map(session)
 
     for header in valid_headers:
         ftstamp = _safe_text(header.get("FTSTAMP"))
-        prepared_header, prepared_lines = _prepare_doc_for_saft(header, lines_by_doc.get(ftstamp, []))
+        prepared_header, prepared_lines = _prepare_doc_for_saft(header, lines_by_doc.get(ftstamp, []), miseimp_map)
         prepared_headers.append(prepared_header)
         prepared_lines_by_doc[ftstamp] = prepared_lines
 
@@ -590,22 +655,26 @@ def _build_dataset(session, filters: dict[str, Any]) -> dict[str, Any]:
 
         customer_id = _customer_id_from_doc(prepared_header)
         if customer_id not in customers:
+            customer_address = _pick_first(prepared_header, "MORADA", default="") or "Desconhecido"
+            customer_city = _pick_first(prepared_header, "LOCAL", default="") or "Desconhecido"
+            customer_postal = _pick_first(prepared_header, "CODPOST", default="") or "0000-000"
             customers[customer_id] = {
                 "CustomerID": customer_id,
                 "AccountID": customer_id,
                 "CustomerTaxID": _customer_tax_id(prepared_header, warnings, customer_warning_keys),
                 "CompanyName": _pick_first(prepared_header, "NOME", default="Consumidor final"),
-                "AddressDetail": _pick_first(prepared_header, "MORADA", default=""),
-                "City": _pick_first(prepared_header, "LOCAL", default=""),
-                "PostalCode": _pick_first(prepared_header, "CODPOST", default=""),
-                "Country": _country_code(_pick_first(prepared_header, "PAIS", default="PT")),
+                "AddressDetail": customer_address,
+                "City": customer_city,
+                "PostalCode": customer_postal,
+                "Country": _country_code(_pick_first(prepared_header, "CLIENTE_CODPAIS", "CODPAIS", "PAIS", default="PT")),
             }
 
         for line in prepared_lines:
             product_code = _product_code(line, warnings, product_warning_keys)
             if product_code not in products:
+                product_type = _safe_text(line.get("ST_TIPOPROD"), "P").upper()[:1] or "P"
                 products[product_code] = {
-                    "ProductType": "P",
+                    "ProductType": product_type,
                     "ProductCode": product_code,
                     "ProductGroup": _safe_text(line.get("FAMILIA"))[:50],
                     "Description": _safe_text(line.get("DESIGN"), "Linha faturação")[:200],
@@ -628,14 +697,18 @@ def _build_dataset(session, filters: dict[str, Any]) -> dict[str, Any]:
         emitter,
         "FE_NOMECOM",
         "FE_NOME",
+        "FE_NOMEFISCAL",
         "NOMECOM",
         "NOME",
+        "NOMEFISCAL",
         default=_safe_text(app_params.get("EMP_NOME_COM") or app_params.get("EMP_NOME") or "StationZero"),
     )
     business_name = _pick_first(
         emitter,
+        "FE_NOMEFISCAL",
         "FE_NOME",
         "FE_NOMECOM",
+        "NOMEFISCAL",
         "NOME",
         "NOMECOM",
         default=_safe_text(app_params.get("EMP_NOME") or company_name),
@@ -832,27 +905,27 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
             unit_price = line.get("_SAFT_UNIT_PRICE")
             net_amount = _to_decimal(line.get("_SAFT_NET_AMOUNT"), "0").copy_abs()
             tax_percentage = _to_decimal(line.get("IVA"), "0").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            order_ref = _safe_text(header_row.get("NUMDOC_ORIGEM"))
+            order_date = _fmt_date(header_row.get("DATA_ORIGEM"))
+            reference_reason = _reference_reason(header_row.get("MOTIVO_REFERENCIA"))
+            product_description = _safe_text(line.get("DESIGN"), "Linha faturacao")
+            if doc_type == "NC" and reference_reason:
+                product_description = f"{product_description} - {reference_reason}"[:200]
 
             _append_text(line_el, "LineNumber", str(line_number))
-            if doc_type == "NC" and (_safe_text(header_row.get("NUMDOC_ORIGEM")) or _reference_reason(header_row.get("MOTIVO_REFERENCIA"))):
-                refs_el = ET.SubElement(line_el, _ns("References"))
-                if _safe_text(header_row.get("NUMDOC_ORIGEM")):
-                    _append_text(refs_el, "Reference", header_row.get("NUMDOC_ORIGEM"))
-                if _reference_reason(header_row.get("MOTIVO_REFERENCIA")):
-                    _append_text(refs_el, "Reason", _reference_reason(header_row.get("MOTIVO_REFERENCIA")))
-            elif _safe_text(header_row.get("NUMDOC_ORIGEM")) or _fmt_date(header_row.get("DATA_ORIGEM")):
+            if order_ref or order_date:
                 order_refs_el = ET.SubElement(line_el, _ns("OrderReferences"))
-                if _safe_text(header_row.get("NUMDOC_ORIGEM")):
-                    _append_text(order_refs_el, "OriginatingON", header_row.get("NUMDOC_ORIGEM"))
-                if _fmt_date(header_row.get("DATA_ORIGEM")):
-                    _append_text(order_refs_el, "OrderDate", _fmt_date(header_row.get("DATA_ORIGEM")))
+                if order_ref:
+                    _append_text(order_refs_el, "OriginatingON", order_ref)
+                if order_date:
+                    _append_text(order_refs_el, "OrderDate", order_date)
             _append_text(line_el, "ProductCode", product_code)
-            _append_text(line_el, "ProductDescription", _safe_text(line.get("DESIGN"), "Linha faturação"))
+            _append_text(line_el, "ProductDescription", product_description)
             _append_text(line_el, "Quantity", format(quantity, "f"))
             _append_text(line_el, "UnitOfMeasure", _safe_text(line.get("UNIDADE"), "UN"))
             _append_text(line_el, "UnitPrice", _decimal_6((unit_price or Decimal("0.000000")).copy_abs()))
             _append_text(line_el, "TaxPointDate", _fmt_date(header_row.get("FDATA")))
-            _append_text(line_el, "Description", _safe_text(line.get("DESIGN"), "Linha faturação"))
+            _append_text(line_el, "Description", product_description)
             if doc_type == "NC":
                 _append_text(line_el, "CreditAmount", _money(net_amount))
             else:
@@ -863,6 +936,9 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
             _append_text(tax_el, "TaxCountryRegion", "PT")
             _append_text(tax_el, "TaxCode", _tax_code_from_percentage(tax_percentage))
             _append_text(tax_el, "TaxPercentage", _money(tax_percentage))
+            if tax_percentage == Decimal("0.00"):
+                _append_text(line_el, "TaxExemptionReason", _safe_text(line.get("MISEIMP_DESCRICAO")))
+                _append_text(line_el, "TaxExemptionCode", _safe_text(line.get("MISEIMP")))
 
         totals_el = ET.SubElement(invoice_el, _ns("DocumentTotals"))
         _append_text(totals_el, "TaxPayable", _money(header_row.get("_SAFT_TAX_TOTAL")))
@@ -873,6 +949,9 @@ def _build_xml_tree(dataset: dict[str, Any]) -> ET.Element:
             _append_text(currency_el, "CurrencyCode", header_row.get("_SAFT_CURRENCY_CODE"))
             _append_text(currency_el, "CurrencyAmount", _money(header_row.get("_SAFT_CURRENCY_AMOUNT")))
             _append_text(currency_el, "ExchangeRate", _decimal_6(header_row.get("_SAFT_EXCHANGE_RATE")))
+        if _to_decimal(header_row.get("_SAFT_SETTLEMENT_TOTAL"), "0") > Decimal("0.00"):
+            settlement_el = ET.SubElement(totals_el, _ns("Settlement"))
+            _append_text(settlement_el, "SettlementAmount", _money(header_row.get("_SAFT_SETTLEMENT_TOTAL")))
 
     return root
 

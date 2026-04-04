@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="sz_dynamic_form_page">
+  <header class="sz_contextbar sz_dynamic_form_contextbar">
+    <div class="sz_contextbar_left">
+      <div class="sz_page_title">Promoções</div>
+      <div class="sz_breadcrumbs">PRICE MANAGER / PROMOÇÕES</div>
+      <div class="sz_page_subtitle">Descontos percentuais por perfil e período, aplicados antes do override.</div>
+    </div>
+    <div class="sz_contextbar_right">
+      <span id="promoTotalBadge" class="sz_badge sz_badge_info">0 promoções</span>
+      <span id="promoActiveBadge" class="sz_badge sz_badge_success">0 ativas</span>
+    </div>
+  </header>
+
+  <section class="sz_dynamic_form_scroll">
+    <div class="sz_sidebar_layout">
+      <section class="sz_panel sz_stack">
+        <div class="sz_inline">
+          <div class="sz_stack">
+            <div class="sz_h4">Lista</div>
+            <div class="sz_text_muted">Promoções registadas em `PR_PROMO`.</div>
+          </div>
+        </div>
+
+        <div id="promoListEmpty" class="sz_text_muted" hidden>Sem promoções.</div>
+
+        <div class="sz_table_wrap">
+          <table class="sz_table sz_table_compact">
+            <thead class="sz_table_head">
+              <tr>
+                <th class="sz_table_cell">Perfil</th>
+                <th class="sz_table_cell">Intervalo</th>
+                <th class="sz_table_cell">Promo %</th>
+                <th class="sz_table_cell">Estado</th>
+                <th class="sz_table_cell">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="promoListBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="sz_stack">
+        <section class="sz_panel sz_stack">
+          <div class="sz_stack">
+            <div class="sz_caption">Detalhe</div>
+            <div id="promoEditorTitle" class="sz_h2">Nova promoção</div>
+            <div class="sz_text_muted">O desconto é aplicado ao perfil inteiro durante o intervalo definido.</div>
+          </div>
+
+          <div class="sz_field_group">
+            <label class="sz_field">
+              <span class="sz_label" for="promoPerfilId">Perfil</span>
+              <select id="promoPerfilId" class="sz_select"></select>
+            </label>
+            <label class="sz_field">
+              <span class="sz_label" for="promoDescontoPct">Promoção %</span>
+              <input id="promoDescontoPct" class="sz_input_number" type="number" step="0.01" min="0" max="100">
+            </label>
+            <label class="sz_field">
+              <span class="sz_label" for="promoDataIni">Data ini</span>
+              <input id="promoDataIni" class="sz_input" type="date">
+            </label>
+            <label class="sz_field">
+              <span class="sz_label" for="promoDataFim">Data fim</span>
+              <input id="promoDataFim" class="sz_input" type="date">
+            </label>
+          </div>
+
+          <label class="sz_field">
+            <span class="sz_label" for="promoNota">Nota</span>
+            <input id="promoNota" class="sz_input" type="text" maxlength="200">
+          </label>
+
+          <label class="sz_checkbox">
+            <input id="promoAtivo" type="checkbox" checked>
+            <span>Promoção ativa</span>
+          </label>
+
+          <div id="promoStatus" class="sz_text_muted"></div>
+        </section>
+
+        <section class="sz_panel sz_stack">
+          <div class="sz_h4">Regra no cálculo</div>
+          <div class="sz_text_muted">Base → sazonalidade → pickup → last minute → promoção → clamp → suavização → override.</div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <footer class="sz_actionbar sz_dynamic_form_actionbar">
+    <div class="sz_actionbar_left">
+      <button id="promoNewBtn" type="button" class="sz_button sz_button_secondary">
+        <i class="fa-solid fa-plus"></i>
+        <span>Nova</span>
+      </button>
+      <button id="promoDeleteBtn" type="button" class="sz_button sz_button_danger">
+        <i class="fa-solid fa-trash"></i>
+        <span>Remover</span>
+      </button>
+    </div>
+    <div class="sz_actionbar_right">
+      <button id="promoCancelBtn" type="button" class="sz_button sz_button_ghost">
+        <i class="fa-solid fa-ban"></i>
+        <span>Cancelar</span>
+      </button>
+      <button id="promoSaveBtn" type="button" class="sz_button sz_button_primary">
+        <i class="fa-solid fa-floppy-disk"></i>
+        <span>Gravar</span>
+      </button>
+    </div>
+  </footer>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(() => {
+  const seed = {{ initial_state|tojson }};
+
+  const promoListBody = document.getElementById('promoListBody');
+  const promoListEmpty = document.getElementById('promoListEmpty');
+  const promoTotalBadge = document.getElementById('promoTotalBadge');
+  const promoActiveBadge = document.getElementById('promoActiveBadge');
+  const promoEditorTitle = document.getElementById('promoEditorTitle');
+  const promoPerfilId = document.getElementById('promoPerfilId');
+  const promoDescontoPct = document.getElementById('promoDescontoPct');
+  const promoDataIni = document.getElementById('promoDataIni');
+  const promoDataFim = document.getElementById('promoDataFim');
+  const promoNota = document.getElementById('promoNota');
+  const promoAtivo = document.getElementById('promoAtivo');
+  const promoStatus = document.getElementById('promoStatus');
+
+  let state = seed;
+  let selectedPromoId = null;
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function setStatus(text, isError = false) {
+    promoStatus.textContent = text || '';
+    promoStatus.className = isError ? 'sz_error' : 'sz_text_muted';
+  }
+
+  function fillProfiles() {
+    promoPerfilId.innerHTML = (state.profiles || []).map((item) =>
+      `<option value="${item.perfil_id}">${escapeHtml(item.nome)}</option>`
+    ).join('');
+  }
+
+  function updateBadges() {
+    const total = (state.promotions || []).length;
+    const active = (state.promotions || []).filter((item) => item.ativo).length;
+    promoTotalBadge.textContent = `${total} promoções`;
+    promoActiveBadge.textContent = `${active} ativas`;
+  }
+
+  function resetForm() {
+    selectedPromoId = null;
+    promoEditorTitle.textContent = 'Nova promoção';
+    if (promoPerfilId.options.length) promoPerfilId.selectedIndex = 0;
+    promoDescontoPct.value = '';
+    promoDataIni.value = '';
+    promoDataFim.value = '';
+    promoNota.value = '';
+    promoAtivo.checked = true;
+    setStatus('');
+    renderList();
+  }
+
+  function selectPromo(promoId) {
+    const item = (state.promotions || []).find((promo) => promo.promo_id === promoId);
+    if (!item) return;
+    selectedPromoId = promoId;
+    promoEditorTitle.textContent = `Promoção #${promoId}`;
+    promoPerfilId.value = String(item.perfil_id);
+    promoDescontoPct.value = String(item.desconto_pct ?? '');
+    promoDataIni.value = item.data_ini || '';
+    promoDataFim.value = item.data_fim || '';
+    promoNota.value = item.nota || '';
+    promoAtivo.checked = Boolean(item.ativo);
+    setStatus('');
+    renderList();
+  }
+
+  function renderList() {
+    const promotions = state.promotions || [];
+    promoListBody.innerHTML = '';
+    promoListEmpty.hidden = promotions.length > 0;
+
+    if (!promotions.length) {
+      return;
+    }
+
+    promoListBody.innerHTML = promotions.map((item) => {
+      const activeBadge = item.ativo
+        ? '<span class="sz_badge sz_badge_success">Ativa</span>'
+        : '<span class="sz_badge sz_badge_warning">Inativa</span>';
+      const selectedBadge = selectedPromoId === item.promo_id
+        ? ' <span class="sz_badge sz_badge_info">Selecionada</span>'
+        : '';
+      return `
+        <tr class="sz_table_row">
+          <td class="sz_table_cell">
+            <div>${escapeHtml(item.perfil_nome)}${selectedBadge}</div>
+            <div class="sz_text_muted">${escapeHtml(item.nota || '')}</div>
+          </td>
+          <td class="sz_table_cell">${escapeHtml(item.data_ini)} → ${escapeHtml(item.data_fim)}</td>
+          <td class="sz_table_cell">${escapeHtml(Number(item.desconto_pct || 0).toFixed(2))}%</td>
+          <td class="sz_table_cell">${activeBadge}</td>
+          <td class="sz_table_cell">
+            <span class="sz_table_actions">
+              <button type="button" class="sz_button sz_button_ghost" data-promo-id="${item.promo_id}">Editar</button>
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function refreshState(nextSelectedPromoId = selectedPromoId) {
+    const response = await fetch('/pricing/api/promotions/state');
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Erro ao ler promoções');
+    state = payload;
+    fillProfiles();
+    updateBadges();
+    renderList();
+    if (nextSelectedPromoId) {
+      const exists = (state.promotions || []).some((item) => item.promo_id === nextSelectedPromoId);
+      if (exists) {
+        selectPromo(nextSelectedPromoId);
+        return;
+      }
+    }
+    resetForm();
+  }
+
+  async function savePromo() {
+    setStatus('A gravar...');
+    try {
+      const response = await fetch('/pricing/api/promotions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          promo_id: selectedPromoId,
+          perfil_id: promoPerfilId.value,
+          desconto_pct: promoDescontoPct.value,
+          data_ini: promoDataIni.value,
+          data_fim: promoDataFim.value,
+          nota: promoNota.value,
+          ativo: promoAtivo.checked,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a gravar promoção');
+      await refreshState(payload.promo_id || selectedPromoId);
+      const changedRows = payload.recalc?.changed_rows ?? 0;
+      setStatus(`Promoção gravada. ${changedRows} linhas recalculadas.`);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
+  async function deletePromo() {
+    if (!selectedPromoId) {
+      setStatus('Selecione uma promoção para remover.', true);
+      return;
+    }
+    setStatus('A remover...');
+    try {
+      const response = await fetch(`/pricing/api/promotions/${selectedPromoId}`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro a remover promoção');
+      await refreshState(null);
+      const changedRows = payload.recalc?.changed_rows ?? 0;
+      setStatus(`Promoção removida. ${changedRows} linhas recalculadas.`);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
+  document.getElementById('promoNewBtn').addEventListener('click', resetForm);
+  document.getElementById('promoCancelBtn').addEventListener('click', resetForm);
+  document.getElementById('promoSaveBtn').addEventListener('click', savePromo);
+  document.getElementById('promoDeleteBtn').addEventListener('click', deletePromo);
+  promoListBody.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-promo-id]');
+    if (!btn) return;
+    selectPromo(Number(btn.dataset.promoId));
+  });
+
+  fillProfiles();
+  updateBadges();
+  resetForm();
+})();
+</script>
+{% endblock %}

@@ -124,6 +124,7 @@ let clientTimer = null;
 let artigoTimer = null;
 let artigoPickRowId = null;
 let miseimpPickRowId = null;
+let lastLineCursorRowId = null;
 let refAutocompleteMenu = null;
 let refAutocompleteInput = null;
 let refAutocompleteRowId = null;
@@ -304,11 +305,30 @@ async function confirmReplaceCurrentLines() {
   return window.confirm(message);
 }
 
-function normalizeLineOrder() {
-  lines.sort((a, b) => n(a.LORDEM, 0) - n(b.LORDEM, 0));
+function normalizeLineOrder(preserveCurrentOrder = false) {
+  if (!preserveCurrentOrder) {
+    lines.sort((a, b) => n(a.LORDEM, 0) - n(b.LORDEM, 0));
+  }
   lines.forEach((line, index) => {
     line.LORDEM = (index + 1) * 10;
   });
+}
+
+function resolveNewLineInsertIndex() {
+  normalizeLineOrder();
+  const anchorId = String(lastLineCursorRowId || '').trim();
+  if (!anchorId) return lines.length;
+  const currentIndex = lines.findIndex((line) => line.FISTAMP === anchorId);
+  return currentIndex >= 0 ? currentIndex + 1 : lines.length;
+}
+
+function focusLineField(rowId, field = 'REF') {
+  if (!linesBody || !rowId) return;
+  const selector = `tr[data-id="${String(rowId).trim()}"] [data-f="${field}"]`;
+  const target = linesBody.querySelector(selector);
+  if (!target) return;
+  target.focus();
+  if (typeof target.select === 'function') target.select();
 }
 
 function getMiseimpDescription(code) {
@@ -1983,7 +2003,7 @@ function newLine() {
     alertMessage('As linhas da nota de crÃ©dito tÃªm de vir do documento de origem.');
     return;
   }
-  lines.push(normalizeLine({
+  const line = normalizeLine({
     FISTAMP: stamp(),
     FTSTAMP: ftStamp,
     NDOC: header.NDOC,
@@ -1995,9 +2015,14 @@ function newLine() {
     IVAINCL: 0,
     TABIVA: '',
     FICCUSTO: header.CCUSTO || ''
-  }, lines.length));
+  }, lines.length);
+  const insertIndex = resolveNewLineInsertIndex();
+  lines.splice(insertIndex, 0, line);
+  normalizeLineOrder(true);
+  lastLineCursorRowId = line.FISTAMP;
   renderLines();
   recalcAll();
+  focusLineField(line.FISTAMP);
 }
 
 function getLineByRow(target) {
@@ -2005,6 +2030,12 @@ function getLineByRow(target) {
   if (!rowEl) return null;
   return lines.find((line) => line.FISTAMP === rowEl.dataset.id) || null;
 }
+
+linesBody?.addEventListener('focusin', (event) => {
+  const rowEl = event.target.closest('tr[data-id]');
+  if (!rowEl) return;
+  lastLineCursorRowId = String(rowEl.dataset.id || '').trim() || null;
+});
 
 linesBody?.addEventListener('click', async (event) => {
   const actionEl = event.target.closest('[data-a]');
@@ -2040,6 +2071,22 @@ linesBody?.addEventListener('click', async (event) => {
     recalcAll();
     renderLines();
   }
+});
+
+document.addEventListener('focusin', (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (target.closest('#ftLinesBody')) return;
+  if (target.closest('#ftAddLinha')) return;
+  lastLineCursorRowId = null;
+});
+
+document.addEventListener('pointerdown', (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (target.closest('#ftLinesBody')) return;
+  if (target.closest('#ftAddLinha')) return;
+  lastLineCursorRowId = null;
 });
 
 linesBody?.addEventListener('change', async (event) => {

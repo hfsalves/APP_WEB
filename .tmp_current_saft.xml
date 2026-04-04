@@ -1,0 +1,691 @@
+<?xml version='1.0' encoding='utf-8'?>
+<AuditFile xmlns="urn:OECD:StandardAuditFile-Tax:PT_1.04_01">
+  <Header>
+    <AuditFileVersion>1.04_01</AuditFileVersion>
+    <CompanyID>505453770</CompanyID>
+    <TaxRegistrationNumber>505453770</TaxRegistrationNumber>
+    <TaxAccountingBasis>F</TaxAccountingBasis>
+    <CompanyName>Malheiro &amp; Filhos</CompanyName>
+    <BusinessName>MALHEIRO &amp; FILHOS, LDA</BusinessName>
+    <CompanyAddress>
+      <AddressDetail>TV. DR BARROS, 5</AddressDetail>
+      <City>S. M. INFESTA</City>
+      <PostalCode>4465-038</PostalCode>
+      <Country>PT</Country>
+    </CompanyAddress>
+    <FiscalYear>2026</FiscalYear>
+    <StartDate>2026-01-01</StartDate>
+    <EndDate>2026-12-31</EndDate>
+    <CurrencyCode>EUR</CurrencyCode>
+    <DateCreated>2026-03-30</DateCreated>
+    <TaxEntity>PT</TaxEntity>
+    <ProductCompanyTaxID>505453770</ProductCompanyTaxID>
+    <SoftwareCertificateNumber>9999</SoftwareCertificateNumber>
+    <ProductID>StationZero/StationZero</ProductID>
+    <ProductVersion>dev</ProductVersion>
+  </Header>
+  <MasterFiles>
+    <Customer>
+      <CustomerID>C3</CustomerID>
+      <AccountID>C3</AccountID>
+      <CustomerTaxID>310453356</CustomerTaxID>
+      <CompanyName>Consumidor Final</CompanyName>
+      <BillingAddress>
+        <AddressDetail>Desconhecido</AddressDetail>
+        <City>Desconhecido</City>
+        <PostalCode>0000-000</PostalCode>
+        <Country>PT</Country>
+      </BillingAddress>
+      <SelfBillingIndicator>0</SelfBillingIndicator>
+    </Customer>
+    <Customer>
+      <CustomerID>C2</CustomerID>
+      <AccountID>C2</AccountID>
+      <CustomerTaxID>215734173</CustomerTaxID>
+      <CompanyName>HUGO FILIPE SIMÃO ALVES</CompanyName>
+      <BillingAddress>
+        <AddressDetail>R DOUTOR JOAQUIM PIRES DE LIMA 204, PORTO</AddressDetail>
+        <City>PORTO</City>
+        <PostalCode>4200-348</PostalCode>
+        <Country>PT</Country>
+      </BillingAddress>
+      <SelfBillingIndicator>0</SelfBillingIndicator>
+    </Customer>
+    <Customer>
+      <CustomerID>C1</CustomerID>
+      <AccountID>C1</AccountID>
+      <CustomerTaxID>518401057</CustomerTaxID>
+      <CompanyName>GUESTSPATUR HABITAÇÃO E TURISMO UNIPESSOAL LDA</CompanyName>
+      <BillingAddress>
+        <AddressDetail>RUA DO BOLHÃO N 149 3 ESQ, PORTO</AddressDetail>
+        <City>PORTO</City>
+        <PostalCode>4000-112</PostalCode>
+        <Country>PT</Country>
+      </BillingAddress>
+      <SelfBillingIndicator>0</SelfBillingIndicator>
+    </Customer>
+    <Customer>
+      <CustomerID>C4</CustomerID>
+      <AccountID>C4</AccountID>
+      <CustomerTaxID>206506287</CustomerTaxID>
+      <CompanyName>PEDRO NUNO SIMÃO ALVES</CompanyName>
+      <BillingAddress>
+        <AddressDetail>R DE COSTA CABRAL 113 2 D, PORTO</AddressDetail>
+        <City>PORTO</City>
+        <PostalCode>4200-221</PostalCode>
+        <Country>PT</Country>
+      </BillingAddress>
+      <SelfBillingIndicator>0</SelfBillingIndicator>
+    </Customer>
+    <Customer>
+      <CustomerID>C5</CustomerID>
+      <AccountID>C5</AccountID>
+      <CustomerTaxID>843271598</CustomerTaxID>
+      <CompanyName>Sweet Valley Foods LLC</CompanyName>
+      <BillingAddress>
+        <AddressDetail>2458 Maple Grove Road - Lancaster</AddressDetail>
+        <City>Pennsylvania (PA)</City>
+        <PostalCode>17601</PostalCode>
+        <Country>US</Country>
+      </BillingAddress>
+      <SelfBillingIndicator>0</SelfBillingIndicator>
+    </Customer>
+    <Customer>
+      <CustomerID>C7</CustomerID>
+      <AccountID>C7</AccountID>
+      <CustomerTaxID>999999990</CustomerTaxID>
+      <CompanyName>John Doe</CompanyName>
+      <BillingAddress>
+        <AddressDetail>Rua Professor Joaquim Bastos, 223</AddressDetail>
+        <City>Porto</City>
+        <PostalCode>4200-604</PostalCode>
+        <Country>PT</Country>
+      </BillingAddress>
+      <SelfBillingIndicator>0</SelfBillingIndicator>
+    </Customer>
+    <Product>
+      <ProductType>P</ProductType>
+      <ProductCode>ATC-P1301</ProductCode>
+      <ProductGroup>PROD-13</ProductGroup>
+      <ProductDescription>Pequeno-Almoco Box</ProductDescription>
+      <ProductNumberCode>ATC-P1301</ProductNumberCode>
+    </Product>
+    <Product>
+      <ProductType>P</ProductType>
+      <ProductCode>ATC-P0603</ProductCode>
+      <ProductGroup>PROD-06</ProductGroup>
+      <ProductDescription>Mel Artesanal</ProductDescription>
+      <ProductNumberCode>ATC-P0603</ProductNumberCode>
+    </Product>
+    <Product>
+      <ProductType>P</ProductType>
+      <ProductCode>ATC-P0602</ProductCode>
+      <ProductGroup>PROD-06</ProductGroup>
+      <ProductDescription>Compota Caseira</ProductDescription>
+      <ProductNumberCode>ATC-P0602</ProductNumberCode>
+    </Product>
+    <Product>
+      <ProductType>S</ProductType>
+      <ProductCode>ATC-SIS03</ProductCode>
+      <ProductGroup>SERV-IS</ProductGroup>
+      <ProductDescription>Seguro Viagem Isento</ProductDescription>
+      <ProductNumberCode>ATC-SIS03</ProductNumberCode>
+    </Product>
+    <Product>
+      <ProductType>P</ProductType>
+      <ProductCode>ATC-P1304</ProductCode>
+      <ProductGroup>PROD-13</ProductGroup>
+      <ProductDescription>Menu Degustacao</ProductDescription>
+      <ProductNumberCode>ATC-P1304</ProductNumberCode>
+    </Product>
+    <Product>
+      <ProductType>P</ProductType>
+      <ProductCode>ATC-P2304</ProductCode>
+      <ProductGroup>PROD-23</ProductGroup>
+      <ProductDescription>Amenities Deluxe</ProductDescription>
+      <ProductNumberCode>ATC-P2304</ProductNumberCode>
+    </Product>
+    <Product>
+      <ProductType>P</ProductType>
+      <ProductCode>ATC-P0604</ProductCode>
+      <ProductGroup>PROD-06</ProductGroup>
+      <ProductDescription>Azeite Virgem</ProductDescription>
+      <ProductNumberCode>ATC-P0604</ProductNumberCode>
+    </Product>
+    <Product>
+      <ProductType>P</ProductType>
+      <ProductCode>ATC-P2302</ProductCode>
+      <ProductGroup>PROD-23</ProductGroup>
+      <ProductDescription>Vinho Casa Reserva</ProductDescription>
+      <ProductNumberCode>ATC-P2302</ProductNumberCode>
+    </Product>
+    <TaxTable>
+      <TaxTableEntry>
+        <TaxType>IVA</TaxType>
+        <TaxCountryRegion>PT</TaxCountryRegion>
+        <TaxCode>INT</TaxCode>
+        <Description>IVA 13.00%</Description>
+        <TaxPercentage>13.00</TaxPercentage>
+      </TaxTableEntry>
+      <TaxTableEntry>
+        <TaxType>IVA</TaxType>
+        <TaxCountryRegion>PT</TaxCountryRegion>
+        <TaxCode>RED</TaxCode>
+        <Description>IVA 6.00%</Description>
+        <TaxPercentage>6.00</TaxPercentage>
+      </TaxTableEntry>
+      <TaxTableEntry>
+        <TaxType>IVA</TaxType>
+        <TaxCountryRegion>PT</TaxCountryRegion>
+        <TaxCode>ISE</TaxCode>
+        <Description>IVA 0.00%</Description>
+        <TaxPercentage>0.00</TaxPercentage>
+      </TaxTableEntry>
+      <TaxTableEntry>
+        <TaxType>IVA</TaxType>
+        <TaxCountryRegion>PT</TaxCountryRegion>
+        <TaxCode>NOR</TaxCode>
+        <Description>IVA 23.00%</Description>
+        <TaxPercentage>23.00</TaxPercentage>
+      </TaxTableEntry>
+    </TaxTable>
+  </MasterFiles>
+  <SourceDocuments>
+    <SalesInvoices>
+      <NumberOfEntries>8</NumberOfEntries>
+      <TotalDebit>3522.48</TotalDebit>
+      <TotalCredit>1955.70</TotalCredit>
+      <Invoice>
+        <InvoiceNo>FS FS/1</InvoiceNo>
+        <ATCUD>AA123458-1</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-03-30T17:50:32</InvoiceStatusDate>
+          <SourceID>admin</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>jo+uEjcXioL/aDvYpgq9HhgLjTjv46kTfd2WsKEYjWFBmmydiEWP2UefSNST4fJRfqT1/arP0o7x1EEcdUHexul3lDLyTH18gYdG7UMFasj6Bm7IGiwFKS4C0eRpicyUA5Zd8B86cDBktm41mwp61KMI3mm78SArG9Kq7yXZDU8=</Hash>
+        <HashControl>1</HashControl>
+        <Period>2</Period>
+        <InvoiceDate>2026-02-28</InvoiceDate>
+        <InvoiceType>FS</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>admin</SourceID>
+        <SystemEntryDate>2026-03-30T17:50:32</SystemEntryDate>
+        <CustomerID>C3</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <ProductCode>ATC-P1301</ProductCode>
+          <ProductDescription>Pequeno-Almoco Box</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>3.750000</UnitPrice>
+          <TaxPointDate>2026-02-28</TaxPointDate>
+          <Description>Pequeno-Almoco Box</Description>
+          <DebitAmount>3.75</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>INT</TaxCode>
+            <TaxPercentage>13.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>0.49</TaxPayable>
+          <NetTotal>3.75</NetTotal>
+          <GrossTotal>4.24</GrossTotal>
+        </DocumentTotals>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>FT FT/1</InvoiceNo>
+        <ATCUD>AA123456-1</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>A</InvoiceStatus>
+          <InvoiceStatusDate>2026-03-30T17:58:45</InvoiceStatusDate>
+          <Reason>Preço errado</Reason>
+          <SourceID>admin</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>YwExpgHwY/y+gQBlyi3itKlox/6FlLMYBt4Rb5uI7IVowai23oiKfeNZBL4VwSI5qfW7LBzq489tXM4uj4fTC747g3INIhiBZ/zbMZtup2St7pI2OwQ7Gr9GXMqK5vI+R4NHJOo+tPChPr0N/Hlcw4DGJlxMJOcS4Hle33QEkAo=</Hash>
+        <HashControl>1</HashControl>
+        <Period>3</Period>
+        <InvoiceDate>2026-03-30</InvoiceDate>
+        <InvoiceType>FT</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>admin</SourceID>
+        <SystemEntryDate>2026-03-30T17:58:27</SystemEntryDate>
+        <CustomerID>C2</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <ProductCode>ATC-P0603</ProductCode>
+          <ProductDescription>Mel Artesanal</ProductDescription>
+          <Quantity>200.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>4.037500</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Mel Artesanal</Description>
+          <DebitAmount>807.50</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>48.45</TaxPayable>
+          <NetTotal>807.50</NetTotal>
+          <GrossTotal>855.95</GrossTotal>
+        </DocumentTotals>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>FT FT/2</InvoiceNo>
+        <ATCUD>AA123456-2</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-03-30T18:04:28</InvoiceStatusDate>
+          <SourceID>admin</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>E6lDzcbwai0+qCeTDTLddDiiNd9u81Du+olCspB4YtVLql7WIHjVmjTRcAtDy5mqkaepPKFNZTqXErVzBw4XdKch85CCyRcsg87Pg6QpwhFVZi9mN5YvVxbBz6pBRiQBLzr3cxInR37Cbzz+fw0nVXsGPKeW/4lt78sn0IFaEcA=</Hash>
+        <HashControl>1</HashControl>
+        <Period>3</Period>
+        <InvoiceDate>2026-03-30</InvoiceDate>
+        <InvoiceType>FT</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>admin</SourceID>
+        <SystemEntryDate>2026-03-30T18:04:28</SystemEntryDate>
+        <CustomerID>C1</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <OrderReferences>
+            <OriginatingON>GT GT/1</OriginatingON>
+            <OrderDate>2026-03-30</OrderDate>
+          </OrderReferences>
+          <ProductCode>ATC-P0602</ProductCode>
+          <ProductDescription>Compota Caseira</ProductDescription>
+          <Quantity>200.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>1.575000</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Compota Caseira</Description>
+          <DebitAmount>315.00</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <Line>
+          <LineNumber>2</LineNumber>
+          <OrderReferences>
+            <OriginatingON>GT GT/1</OriginatingON>
+            <OrderDate>2026-03-30</OrderDate>
+          </OrderReferences>
+          <ProductCode>ATC-P0603</ProductCode>
+          <ProductDescription>Mel Artesanal</ProductDescription>
+          <Quantity>400.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>3.825000</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Mel Artesanal</Description>
+          <DebitAmount>1530.00</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>110.70</TaxPayable>
+          <NetTotal>1845.00</NetTotal>
+          <GrossTotal>1955.70</GrossTotal>
+        </DocumentTotals>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>FT FT/3</InvoiceNo>
+        <ATCUD>AA123456-3</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-03-30T18:16:44</InvoiceStatusDate>
+          <SourceID>admin</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>Er4ApTtfrHdC1Yv8Jvu0y5hoIvKyfpSkWo+aSjWt/rrsIyHjR3xrNozOqEqaW0UaIYIrMwtbtIfLgz4DbTt+5gIHvclcQ6QxCfE9YOE1seTHIcuDum9XaSKMjdmPQmC46j9vV+Nzq7tipLFU0Ld7Vi6NDlxS22tmuX6oAimH6Gs=</Hash>
+        <HashControl>1</HashControl>
+        <Period>3</Period>
+        <InvoiceDate>2026-03-30</InvoiceDate>
+        <InvoiceType>FT</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>admin</SourceID>
+        <SystemEntryDate>2026-03-30T18:16:44</SystemEntryDate>
+        <CustomerID>C2</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <ProductCode>ATC-P0602</ProductCode>
+          <ProductDescription>Compota Caseira</ProductDescription>
+          <Quantity>2.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>1.750000</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Compota Caseira</Description>
+          <DebitAmount>3.50</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <Line>
+          <LineNumber>2</LineNumber>
+          <ProductCode>ATC-SIS03</ProductCode>
+          <ProductDescription>Seguro Viagem Isento</ProductDescription>
+          <Quantity>2.000</Quantity>
+          <UnitOfMeasure>SERV</UnitOfMeasure>
+          <UnitPrice>24.500000</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Seguro Viagem Isento</Description>
+          <DebitAmount>49.00</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>ISE</TaxCode>
+            <TaxPercentage>0.00</TaxPercentage>
+          </Tax>
+          <TaxExemptionReason>Isento artigo 9.º do CIVA</TaxExemptionReason>
+          <TaxExemptionCode>M07</TaxExemptionCode>
+        </Line>
+        <Line>
+          <LineNumber>3</LineNumber>
+          <ProductCode>ATC-P1304</ProductCode>
+          <ProductDescription>Menu Degustacao</ProductDescription>
+          <Quantity>2.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>12.750000</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Menu Degustacao</Description>
+          <DebitAmount>25.50</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>INT</TaxCode>
+            <TaxPercentage>13.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <Line>
+          <LineNumber>4</LineNumber>
+          <ProductCode>ATC-P2304</ProductCode>
+          <ProductDescription>Amenities Deluxe</ProductDescription>
+          <Quantity>2.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>6.250000</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Amenities Deluxe</Description>
+          <DebitAmount>12.50</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>NOR</TaxCode>
+            <TaxPercentage>23.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>6.41</TaxPayable>
+          <NetTotal>90.50</NetTotal>
+          <GrossTotal>96.91</GrossTotal>
+        </DocumentTotals>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>FT FT/4</InvoiceNo>
+        <ATCUD>AA123456-4</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-03-30T18:19:28</InvoiceStatusDate>
+          <SourceID>admin</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>I5gkjIe/8GCNcTOp7jRcfe0/phsUamKDexPaY15T9OQNjvpAQ+Cj7V7xZvN4eWx2K99K2GcZcphAlSJ77yjQfap3M9DqIymlhxbiMear4EreaiBWaDRTkiHiXVXKw8x5ZJl7rzEjUTSUkYp5hLq+mqQtIfzD8dJClMre3aId9LU=</Hash>
+        <HashControl>1</HashControl>
+        <Period>3</Period>
+        <InvoiceDate>2026-03-30</InvoiceDate>
+        <InvoiceType>FT</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>admin</SourceID>
+        <SystemEntryDate>2026-03-30T18:19:27</SystemEntryDate>
+        <CustomerID>C4</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <ProductCode>ATC-P0602</ProductCode>
+          <ProductDescription>Compota Caseira</ProductDescription>
+          <Quantity>100.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>0.501600</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Compota Caseira</Description>
+          <DebitAmount>50.16</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <Line>
+          <LineNumber>2</LineNumber>
+          <ProductCode>ATC-P0603</ProductCode>
+          <ProductDescription>Mel Artesanal</ProductDescription>
+          <Quantity>20.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>4.250000</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Mel Artesanal</Description>
+          <DebitAmount>85.00</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>7.30</TaxPayable>
+          <NetTotal>135.16</NetTotal>
+          <GrossTotal>128.94</GrossTotal>
+          <Settlement>
+            <SettlementAmount>13.52</SettlementAmount>
+          </Settlement>
+        </DocumentTotals>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>FT FT/5</InvoiceNo>
+        <ATCUD>AA123456-5</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-03-30T18:22:49</InvoiceStatusDate>
+          <SourceID>admin</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>ON+72p1Dd45lOWYqo51kU+TUcn8czPvCucJHrfNEtD1lR/0C8dFNpAkTmdmgDqFF3jN69xtJkuaFdmnA8SKwKI6VcbMIH5YxsDn/tq6x5/jO8kET6KUpdW7ZznWl3TC7O56pkowh7qGqfq7jDYDc42Dizp2Y61jtWW4wGFAKPH8=</Hash>
+        <HashControl>1</HashControl>
+        <Period>3</Period>
+        <InvoiceDate>2026-03-30</InvoiceDate>
+        <InvoiceType>FT</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>admin</SourceID>
+        <SystemEntryDate>2026-03-30T18:22:49</SystemEntryDate>
+        <CustomerID>C5</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <ProductCode>ATC-P0604</ProductCode>
+          <ProductDescription>Azeite Virgem</ProductDescription>
+          <Quantity>100.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>4.650000</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Azeite Virgem</Description>
+          <DebitAmount>465.00</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>ISE</TaxCode>
+            <TaxPercentage>0.00</TaxPercentage>
+          </Tax>
+          <TaxExemptionReason>Isento artigo 14.º do CIVA</TaxExemptionReason>
+          <TaxExemptionCode>M05</TaxExemptionCode>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>0.00</TaxPayable>
+          <NetTotal>465.00</NetTotal>
+          <GrossTotal>465.00</GrossTotal>
+          <Currency>
+            <CurrencyCode>USD</CurrencyCode>
+            <CurrencyAmount>465.00</CurrencyAmount>
+            <ExchangeRate>1.148400</ExchangeRate>
+          </Currency>
+        </DocumentTotals>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>FT FT/6</InvoiceNo>
+        <ATCUD>AA123456-6</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-03-30T18:24:49</InvoiceStatusDate>
+          <SourceID>admin</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>UM/+63S0z1HLrSKuEUM+cYj9HyLLQi6y6KGBVHXjQXYVIEnFFKHGt1rpWrVSvnAUwZR6Jiqy8z9gUW43eVOL6gLfqQEyXx5M6g/7lChBESKwEWAljqv/zxY87pZIqziZJm2YDC8QloqysnwK83HHsvqHJbYraS+C92Ara7a+0g8=</Hash>
+        <HashControl>1</HashControl>
+        <Period>3</Period>
+        <InvoiceDate>2026-03-30</InvoiceDate>
+        <InvoiceType>FT</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>admin</SourceID>
+        <SystemEntryDate>2026-03-30T18:24:48</SystemEntryDate>
+        <CustomerID>C7</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <ProductCode>ATC-P2302</ProductCode>
+          <ProductDescription>Vinho Casa Reserva</ProductDescription>
+          <Quantity>1.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>12.800000</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Vinho Casa Reserva</Description>
+          <DebitAmount>12.80</DebitAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>NOR</TaxCode>
+            <TaxPercentage>23.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>2.94</TaxPayable>
+          <NetTotal>12.80</NetTotal>
+          <GrossTotal>15.74</GrossTotal>
+        </DocumentTotals>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>NC NC/1</InvoiceNo>
+        <ATCUD>AA123459-1</ATCUD>
+        <DocumentStatus>
+          <InvoiceStatus>N</InvoiceStatus>
+          <InvoiceStatusDate>2026-03-30T18:06:43</InvoiceStatusDate>
+          <SourceID>admin</SourceID>
+          <SourceBilling>P</SourceBilling>
+        </DocumentStatus>
+        <Hash>DVutMjw6J6HH0dEnvZXDYbrDu7GpK8DBf73nqm6+BQRzSOOXFwsWtKbpj72eSKHDbMXRL3lK2R5VQ3n1/88YHIDitiRs24CO9ieq4OptMGlzRN3fA1Cu+1a6xyiJ8571Q9+klFlgHZzawBmU4Xf6u7u3INvoFvKJD+OozHoh4xs=</Hash>
+        <HashControl>1</HashControl>
+        <Period>3</Period>
+        <InvoiceDate>2026-03-30</InvoiceDate>
+        <InvoiceType>NC</InvoiceType>
+        <SpecialRegimes>
+          <SelfBillingIndicator>0</SelfBillingIndicator>
+          <CashVATSchemeIndicator>0</CashVATSchemeIndicator>
+          <ThirdPartiesBillingIndicator>0</ThirdPartiesBillingIndicator>
+        </SpecialRegimes>
+        <SourceID>admin</SourceID>
+        <SystemEntryDate>2026-03-30T18:06:43</SystemEntryDate>
+        <CustomerID>C1</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <OrderReferences>
+            <OriginatingON>FT FT/2</OriginatingON>
+            <OrderDate>2026-03-30</OrderDate>
+          </OrderReferences>
+          <ProductCode>ATC-P0602</ProductCode>
+          <ProductDescription>Compota Caseira - Produto não conforme</ProductDescription>
+          <Quantity>200.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>1.575000</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Compota Caseira - Produto não conforme</Description>
+          <CreditAmount>315.00</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <Line>
+          <LineNumber>2</LineNumber>
+          <OrderReferences>
+            <OriginatingON>FT FT/2</OriginatingON>
+            <OrderDate>2026-03-30</OrderDate>
+          </OrderReferences>
+          <ProductCode>ATC-P0603</ProductCode>
+          <ProductDescription>Mel Artesanal - Produto não conforme</ProductDescription>
+          <Quantity>400.000</Quantity>
+          <UnitOfMeasure>UN</UnitOfMeasure>
+          <UnitPrice>3.825000</UnitPrice>
+          <TaxPointDate>2026-03-30</TaxPointDate>
+          <Description>Mel Artesanal - Produto não conforme</Description>
+          <CreditAmount>1530.00</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxCode>RED</TaxCode>
+            <TaxPercentage>6.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>110.70</TaxPayable>
+          <NetTotal>1845.00</NetTotal>
+          <GrossTotal>1955.70</GrossTotal>
+        </DocumentTotals>
+      </Invoice>
+    </SalesInvoices>
+  </SourceDocuments>
+</AuditFile>

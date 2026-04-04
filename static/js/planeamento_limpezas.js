@@ -152,7 +152,8 @@ const buildPlanner2Rows = (data) => {
         time: row.cleaning_time,
         team: row.cleaning_team,
         id: row.cleaning_id,
-        typology: row.typology || row.tp
+        typology: row.typology || row.tp,
+        cleaningMinutes: Number(row.cleaning_minutes || 0)
       });
     }
   });
@@ -251,7 +252,10 @@ const renderPlanner2TeamCards = () => {
       const teamName = String(cl.team || '').trim();
       if (!teamName) return;
       const typology = String(cl.typology || row.typology || row.tp || '').trim() || '-';
-      const duration = getCleaningDuration(cl.typology || row.typology || row.tp);
+      const duration = getCleaningDuration(
+        { ...cl, cleaningMinutes: Number(cl.cleaningMinutes || row.cleaning_minutes || 0) },
+        row.typology || row.tp || ''
+      );
       const startMinutes = timeToMinutes(cl.time || '');
       const lodgingStamp = String(row.al_stamp || '').trim();
       const lodgingName = row.lodging || '';
@@ -968,7 +972,10 @@ const renderRows = (data, slots) => {
         const { h, m } = parseTime(cl.time, '10:00');
         let startIdx = timeToIndex(h, m);
         if (startIdx < 0) startIdx = 0;
-        const duration = getCleaningDuration(cl.typology || row.typology || row.tp);
+        const duration = getCleaningDuration(
+          { ...cl, cleaningMinutes: Number(cl.cleaningMinutes || row.cleaning_minutes || 0) },
+          row.typology || row.tp || ''
+        );
         const slotsCount = Math.max(1, Math.ceil(duration / 30));
         const totalSlots = slots.length;
         const cappedSlots = Math.min(slotsCount, Math.max(0, totalSlots - startIdx));
@@ -1126,7 +1133,20 @@ const openPlanner2CleaningMenu = (bar, row, cl) => {
   }, 0);
 };
 
-const getCleaningDuration = (typology) => {
+const getCleaningDuration = (source, fallbackTypology = '') => {
+  const configuredMinutes = Number(
+    typeof source === 'object' && source !== null
+      ? (source.cleaningMinutes ?? source.cleaning_minutes ?? source.lpTempo ?? source.lp_tempo ?? 0)
+      : 0
+  );
+  if (Number.isFinite(configuredMinutes) && configuredMinutes > 0) {
+    return configuredMinutes;
+  }
+
+  const typology = typeof source === 'string'
+    ? source
+    : (source?.typology || source?.tp || fallbackTypology || '');
+
   switch ((typology || '').trim()) {
     case 'T0':
     case 'T1':
@@ -1281,6 +1301,7 @@ const openPlanner2TeamDropdown = (cell, row, slot) => {
         time: slot,
         team: team.NOME,
         typology: row.typology || row.tp,
+        cleaningMinutes: Number(row.cleaning_minutes || 0),
         _tmpId: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`
       });
       row.cleanings = existing;

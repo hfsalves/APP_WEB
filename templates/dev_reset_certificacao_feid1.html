@@ -45,6 +45,10 @@
             <div class="cert-reset-kpi-label">FTSX</div>
             <div class="cert-reset-kpi-value" id="crFtsx">{{ preview_counts.get('ftsx', 0) }}</div>
           </article>
+          <article class="sz_panel cert-reset-kpi">
+            <div class="cert-reset-kpi-label">Artigos teste</div>
+            <div class="cert-reset-kpi-value" id="crSampleArticles">{{ preview_counts.get('sample_articles', 0) }}</div>
+          </article>
         </section>
 
         <section class="sz_panel cert-reset-plan">
@@ -123,6 +127,7 @@
 
             <div class="cert-reset-extra">
               <div class="sz_text_muted">PDF cache removida: <strong id="crResultPdf">0</strong></div>
+              <div class="sz_text_muted">Artigos teste recriados: <strong id="crResultSampleArticles">0</strong></div>
               <div class="sz_text_muted">Series recriadas</div>
               <div id="crResultSeriesList" class="cert-reset-series-list"></div>
             </div>
@@ -273,10 +278,12 @@
       document.getElementById('crResultSeries').textContent = deleted.series ?? 0;
       document.getElementById('crResultFtsx').textContent = deleted.ftsx ?? 0;
       document.getElementById('crResultPdf').textContent = result.pdf_cache_removed ?? 0;
+      document.getElementById('crResultSampleArticles').textContent = result.sample_articles_seeded ?? 0;
       document.getElementById('crDocLines').textContent = '0';
       document.getElementById('crDocHeaders').textContent = '0';
       document.getElementById('crSeries').textContent = recreated.length;
       document.getElementById('crFtsx').textContent = recreated.length;
+      document.getElementById('crSampleArticles').textContent = result.sample_articles_seeded ?? 0;
       document.getElementById('crResultSeriesList').innerHTML = recreated
         .map((label) => `<span class="sz_badge sz_badge_info">${String(label)}</span>`)
         .join('');

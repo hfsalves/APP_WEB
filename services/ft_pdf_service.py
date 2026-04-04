@@ -11,6 +11,7 @@ from urllib.parse import quote
 
 from flask import current_app, render_template
 from sqlalchemy import text
+from services.miseimp_service import load_miseimp_map
 
 
 NON_FISCAL_DOC_TYPES = {"PF", "OR"}
@@ -237,18 +238,24 @@ def get_ft_data(session, ftstamp: str):
         local_descarga = _load_local_by_stamp(session, ft.get("LOCAL_DESCARGA_ID") or "")
         ft["LOCAL_CARGA_LABEL"] = _local_label(local_carga)
         ft["LOCAL_DESCARGA_LABEL"] = _local_label(local_descarga)
+    miseimp_map = load_miseimp_map(session)
     fi_rows = session.execute(text("""
         SELECT *
         FROM dbo.FI
         WHERE FTSTAMP=:s
         ORDER BY ISNULL(LORDEM,0), FISTAMP
     """), {"s": ftstamp}).mappings().all()
+    fi_rows = [dict(r) for r in fi_rows]
+    for row in fi_rows:
+        code = _safe_text(row.get("MISEIMP")).upper()
+        row["MISEIMP"] = code
+        row["MISEIMP_DESCRICAO"] = miseimp_map.get(code, "")
     fe = session.execute(text("""
         SELECT TOP 1 *
         FROM dbo.FE
         WHERE FESTAMP=:f
     """), {"f": str(ft.get("FESTAMP") or "").strip()}).mappings().first()
-    return ft, [dict(r) for r in fi_rows], (dict(fe) if fe else {})
+    return ft, fi_rows, (dict(fe) if fe else {})
 
 
 def discover_pdf_engines():
@@ -347,6 +354,7 @@ def render_ft_pdf_html(ft: dict, fi_rows: list[dict], fe: dict, qr_b64: str, at_
     vat_total = Decimal("0.00")
     buckets: dict[str, dict[str, Decimal]] = {}
     lines = []
+    exempt_lines = []
     for row in fi_rows or []:
         qtt = _to_decimal(row.get("QTT"), "0").quantize(dec6, rounding=ROUND_HALF_UP)
         epv = _to_decimal(row.get("EPV"), "0").quantize(dec6, rounding=ROUND_HALF_UP)
@@ -381,6 +389,15 @@ def render_ft_pdf_html(ft: dict, fi_rows: list[dict], fe: dict, qr_b64: str, at_
             "_IVA_VAL": fmt_money_pt(iva_val, 2),
             "_TOTAL": fmt_money_pt(total_apos_desc_linha, 2),
         })
+        exempt_code = _safe_text(row.get("MISEIMP")).upper()
+        exempt_desc = _safe_text(row.get("MISEIMP_DESCRICAO"))
+        if rate == 0 and exempt_code:
+            exempt_lines.append({
+                "ref": _safe_text(row.get("REF")),
+                "design": _safe_text(row.get("DESIGN")),
+                "code": exempt_code,
+                "description": exempt_desc or "Motivo de isen??o n?o definido",
+            })
     iva_breakdown = []
     for bucket in sorted(buckets.values(), key=lambda item: item["rate"]):
         tx = bucket["rate"].quantize(dec2, rounding=ROUND_HALF_UP)
@@ -414,6 +431,7 @@ def render_ft_pdf_html(ft: dict, fi_rows: list[dict], fe: dict, qr_b64: str, at_
         lines=lines,
         summary=summary,
         iva_breakdown=iva_breakdown,
+        exempt_lines=exempt_lines,
         qr_b64=qr_b64 or "",
         document_title=display_title,
         document_type=get_ft_doc_type(ft),

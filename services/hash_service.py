@@ -77,7 +77,7 @@ def ft_invoice_no(ft: dict) -> str:
 
 
 def ft_system_entry_datetime(ft: dict) -> str:
-    return _fmt_datetime(ft.get("DTAlteracao") or ft.get("DTCriacao"))
+    return _fmt_datetime(ft.get("SYSTEM_ENTRY_DATE") or ft.get("DTAlteracao") or ft.get("DTCriacao"))
 
 
 def ft_signature_gross_total(ft: dict) -> str:

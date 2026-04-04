@@ -7,7 +7,7 @@ from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import click
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from models import db
 from services.qr_atcud_service import get_param as qr_get_param
@@ -477,6 +477,25 @@ def ensure_pricing_schema(session):
             );
         END
         """,
+        """
+        IF OBJECT_ID('dbo.PR_PROMO', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.PR_PROMO (
+                PROMO_ID INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                PERFIL_ID INT NOT NULL,
+                DATA_INI DATE NOT NULL,
+                DATA_FIM DATE NOT NULL,
+                DESCONTO_PCT DECIMAL(9,2) NOT NULL,
+                NOTA NVARCHAR(200) NULL,
+                ATIVO BIT NOT NULL CONSTRAINT DF_PR_PROMO_ATIVO DEFAULT (1),
+                CRIADO_EM DATETIME2(0) NOT NULL CONSTRAINT DF_PR_PROMO_CRIADO_EM DEFAULT (SYSUTCDATETIME()),
+                CRIADO_POR NVARCHAR(60) NULL,
+                CONSTRAINT FK_PR_PROMO_PERFIL FOREIGN KEY (PERFIL_ID) REFERENCES dbo.PR_PERFIL (PERFIL_ID),
+                CONSTRAINT CK_PR_PROMO_INTERVALO CHECK (DATA_FIM >= DATA_INI),
+                CONSTRAINT CK_PR_PROMO_PCT CHECK (DESCONTO_PCT >= 0 AND DESCONTO_PCT <= 100)
+            );
+        END
+        """,
         f"""
         IF OBJECT_ID('dbo.PR_OVERRIDE', 'U') IS NULL
         BEGIN
@@ -548,6 +567,16 @@ def ensure_pricing_schema(session):
         )
         BEGIN
             CREATE NONCLUSTERED INDEX IX_PR_CALC_DAY_AL_NOME_DATA ON dbo.PR_CALC_DAY (AL_NOME, [DATA]);
+        END
+        """,
+        """
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = 'IX_PR_PROMO_PERFIL_DATA'
+              AND object_id = OBJECT_ID('dbo.PR_PROMO')
+        )
+        BEGIN
+            CREATE NONCLUSTERED INDEX IX_PR_PROMO_PERFIL_DATA ON dbo.PR_PROMO (PERFIL_ID, DATA_INI, DATA_FIM);
         END
         """,
         """
@@ -633,6 +662,7 @@ def _load_pricing_inputs(session, start_date, end_date, alojamento=None):
             "event_years": {},
             "pickup_curves": {},
             "monthly_pickup_curves": {},
+            "promotions": {},
             "overrides": {},
             "reserved_days": {},
             "week_occupancy": {},
@@ -764,6 +794,39 @@ def _load_pricing_inputs(session, start_date, end_date, alojamento=None):
     except Exception:
         monthly_pickup_curves = {}
 
+    promotions = {}
+    if profile_ids:
+        placeholders = ", ".join(f":pm{idx}" for idx in range(len(profile_ids)))
+        promo_params = {
+            "start_date": start_date,
+            "end_date": end_date,
+            **{f"pm{idx}": profile_ids[idx] for idx in range(len(profile_ids))},
+        }
+        promo_rows = session.execute(
+            text(
+                f"""
+                SELECT
+                    PROMO_ID,
+                    PERFIL_ID,
+                    DATA_INI,
+                    DATA_FIM,
+                    DESCONTO_PCT,
+                    ISNULL(NOTA, '') AS NOTA,
+                    CRIADO_EM,
+                    ISNULL(CRIADO_POR, '') AS CRIADO_POR
+                FROM dbo.PR_PROMO
+                WHERE ISNULL(ATIVO, 0) = 1
+                  AND DATA_INI <= :end_date
+                  AND DATA_FIM >= :start_date
+                  AND PERFIL_ID IN ({placeholders})
+                ORDER BY PERFIL_ID ASC, CRIADO_EM DESC, PROMO_ID DESC
+                """
+            ),
+            promo_params,
+        ).mappings().all()
+        for row in promo_rows:
+            promotions.setdefault(int(row["PERFIL_ID"]), []).append(row)
+
     override_sql = """
         SELECT
             OVR_ID,
@@ -864,6 +927,7 @@ def _load_pricing_inputs(session, start_date, end_date, alojamento=None):
         "event_years": event_years,
         "pickup_curves": pickup_curves,
         "monthly_pickup_curves": monthly_pickup_curves,
+        "promotions": promotions,
         "overrides": overrides,
         "reserved_days": reserved_days,
         "week_occupancy": week_occupancy,
@@ -918,6 +982,13 @@ def _match_override(overrides, day_value):
     for override in overrides or []:
         if override.get("DATA_INI") <= day_value <= override.get("DATA_FIM"):
             return override
+    return None
+
+
+def _match_promotion(promotions, day_value):
+    for promo in promotions or []:
+        if promo.get("DATA_INI") <= day_value <= promo.get("DATA_FIM"):
+            return promo
     return None
 
 
@@ -1046,6 +1117,20 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                 )
             price_after_last_min = preco
 
+            promo_row = _match_promotion(inputs["promotions"].get(profile_id), day_value)
+            promo_info = None
+            if promo_row:
+                promo_pct = _safe_decimal(promo_row.get("DESCONTO_PCT"), "0")
+                preco *= Decimal("1") - (promo_pct / Decimal("100"))
+                promo_info = {
+                    "promo_id": int(promo_row.get("PROMO_ID")),
+                    "perfil_id": profile_id,
+                    "desconto_pct": _to_float(promo_pct.quantize(Decimal("0.01"))),
+                    "nota": promo_row.get("NOTA") or "",
+                    "criado_por": promo_row.get("CRIADO_POR") or "",
+                }
+            price_after_promo = preco
+
             preco = _clamp(preco, price_min, price_max)
             price_after_clamp = preco
 
@@ -1103,6 +1188,7 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                         "after_pickup_month": _to_float(_quantize_money(price_after_month_pickup)),
                         "after_pickup": _to_float(_quantize_money(price_after_pickup)),
                         "after_last_min": _to_float(_quantize_money(price_after_last_min)),
+                        "after_promo": _to_float(_quantize_money(price_after_promo)),
                         "after_clamp": _to_float(_quantize_money(price_after_clamp)),
                         "after_smooth": _to_float(_quantize_money(price_after_smooth)),
                     },
@@ -1167,6 +1253,14 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
                         **smooth_info,
                         "result": _to_float(_quantize_money(price_after_smooth)),
                     },
+                    "promo": (
+                        {
+                            **promo_info,
+                            "result": _to_float(_quantize_money(price_after_promo)),
+                        }
+                        if promo_info
+                        else None
+                    ),
                     "override": override_info,
                     "result": {
                         "preco_calc": _to_float(preco_calc),
@@ -1579,6 +1673,8 @@ PICKUP_CURVE_SCOPE_OPTIONS = {
     "monthly_low": {"kind": "monthly", "season": "BAIXA", "label": "Mensal · Low Season"},
 }
 PICKUP_CURVE_HORIZON_OPTIONS = (60, 90, 120, 150, 180)
+PICKUP_CURVE_EXPLORACAO_VALUE = "__EXPLORACAO__"
+PICKUP_CURVE_EXPLORACAO_LABEL = "EXPLORACAO"
 
 
 def _validate_pickup_curve_scope(scope):
@@ -1597,6 +1693,61 @@ def _validate_pickup_curve_horizon(value):
     if horizon_days not in PICKUP_CURVE_HORIZON_OPTIONS:
         raise ValueError("Horizonte inválido.")
     return horizon_days
+
+
+def _pickup_curve_alojamento_rows():
+    ensure_pricing_schema(db.session)
+    rows = db.session.execute(
+        text(
+            """
+            SELECT DISTINCT
+                LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) AS AL_NOME,
+                UPPER(LTRIM(RTRIM(ISNULL(al.TIPO, '')))) AS REGIME
+            FROM dbo.PR_ALOJAMENTO pa
+            LEFT JOIN dbo.AL al
+              ON al.NOME = pa.AL_NOME
+            WHERE ISNULL(pa.ATIVO, 0) = 1
+              AND LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) <> ''
+            ORDER BY LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) ASC
+            """
+        )
+    ).mappings().all()
+    return [
+        {
+            "alojamento": _normalize_alojamento(row.get("AL_NOME")),
+            "regime": str(row.get("REGIME") or "").strip().upper(),
+        }
+        for row in rows
+        if _normalize_alojamento(row.get("AL_NOME"))
+    ]
+
+
+def _pickup_curve_alojamento_options():
+    rows = _pickup_curve_alojamento_rows()
+    options = []
+    if any(item["regime"] == "EXPLORACAO" for item in rows):
+        options.append({"value": PICKUP_CURVE_EXPLORACAO_VALUE, "label": PICKUP_CURVE_EXPLORACAO_LABEL})
+    options.extend({"value": item["alojamento"], "label": item["alojamento"]} for item in rows)
+    return options
+
+
+def _resolve_pickup_curve_target(alojamento):
+    raw = str(alojamento or "").strip()
+    rows = _pickup_curve_alojamento_rows()
+    if raw == PICKUP_CURVE_EXPLORACAO_VALUE:
+        items = [item["alojamento"] for item in rows if item["regime"] == "EXPLORACAO"]
+        return {
+            "value": PICKUP_CURVE_EXPLORACAO_VALUE,
+            "label": PICKUP_CURVE_EXPLORACAO_LABEL,
+            "items": items,
+        }
+
+    normalized = _normalize_alojamento(raw)
+    return {
+        "value": normalized,
+        "label": normalized,
+        "items": [normalized] if normalized else [],
+    }
 
 
 def _pickup_curve_grid(horizon_days):
@@ -1736,59 +1887,67 @@ def _parse_pickup_curve_period(scope, period_value):
 
 
 def _period_occupancy_pct(alojamento, start_date, end_date):
-    alojamento = _normalize_alojamento(alojamento)
-    if not alojamento:
+    target = _resolve_pickup_curve_target(alojamento)
+    target_items = [item for item in target["items"] if item]
+    if not target_items:
         return Decimal("0")
 
     rows = db.session.execute(
         text(
             """
             SELECT
+                LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
                 CAST(RS.DATAIN AS date) AS DATA_INI,
                 CAST(RS.DATAOUT AS date) AS DATA_FIM
             FROM dbo.RS
-            WHERE LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) = :alojamento
+            WHERE LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) IN :alojamentos
               AND RS.DATAIN IS NOT NULL
               AND RS.DATAOUT IS NOT NULL
               AND ISNULL(RS.CANCELADA, 0) = 0
               AND CAST(RS.DATAOUT AS date) > :start_date
               AND CAST(RS.DATAIN AS date) <= :end_date
             """
-        ),
-        {"alojamento": alojamento, "start_date": start_date, "end_date": end_date},
+        ).bindparams(bindparam("alojamentos", expanding=True)),
+        {"alojamentos": target_items, "start_date": start_date, "end_date": end_date},
     ).mappings().all()
 
-    occupied_days = set()
+    occupied_slots = set()
     period_end_exclusive = end_date + timedelta(days=1)
     for row in rows:
         stay_start = max(row.get("DATA_INI"), start_date)
         stay_end_exclusive = min(row.get("DATA_FIM"), period_end_exclusive)
         if not stay_start or not stay_end_exclusive or stay_start >= stay_end_exclusive:
             continue
+        aloj_key = _normalize_alojamento(row.get("ALOJAMENTO"))
         cursor = stay_start
         while cursor < stay_end_exclusive:
-            occupied_days.add(cursor)
+            occupied_slots.add((aloj_key, cursor))
             cursor += timedelta(days=1)
 
     total_days = (end_date - start_date).days + 1
     if total_days <= 0:
         return Decimal("0")
-    return (Decimal(len(occupied_days)) / Decimal(total_days)) * Decimal("100")
+    total_slots = total_days * len(target_items)
+    if total_slots <= 0:
+        return Decimal("0")
+    return (Decimal(len(occupied_slots)) / Decimal(total_slots)) * Decimal("100")
 
 
 def _period_occupancy_pct_by_booking_date(alojamento, start_date, end_date, booked_until):
-    alojamento = _normalize_alojamento(alojamento)
-    if not alojamento:
+    target = _resolve_pickup_curve_target(alojamento)
+    target_items = [item for item in target["items"] if item]
+    if not target_items:
         return Decimal("0")
 
     rows = db.session.execute(
         text(
             """
             SELECT
+                LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
                 CAST(RS.DATAIN AS date) AS DATA_INI,
                 CAST(RS.DATAOUT AS date) AS DATA_FIM
             FROM dbo.RS
-            WHERE LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) = :alojamento
+            WHERE LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) IN :alojamentos
               AND RS.DATAIN IS NOT NULL
               AND RS.DATAOUT IS NOT NULL
               AND RS.RDATA IS NOT NULL
@@ -1797,37 +1956,42 @@ def _period_occupancy_pct_by_booking_date(alojamento, start_date, end_date, book
               AND CAST(RS.DATAOUT AS date) > :start_date
               AND CAST(RS.DATAIN AS date) <= :end_date
             """
-        ),
+        ).bindparams(bindparam("alojamentos", expanding=True)),
         {
-            "alojamento": alojamento,
+            "alojamentos": target_items,
             "booked_until": booked_until,
             "start_date": start_date,
             "end_date": end_date,
         },
     ).mappings().all()
 
-    occupied_days = set()
+    occupied_slots = set()
     period_end_exclusive = end_date + timedelta(days=1)
     for row in rows:
         stay_start = max(row.get("DATA_INI"), start_date)
         stay_end_exclusive = min(row.get("DATA_FIM"), period_end_exclusive)
         if not stay_start or not stay_end_exclusive or stay_start >= stay_end_exclusive:
             continue
+        aloj_key = _normalize_alojamento(row.get("ALOJAMENTO"))
         cursor = stay_start
         while cursor < stay_end_exclusive:
-            occupied_days.add(cursor)
+            occupied_slots.add((aloj_key, cursor))
             cursor += timedelta(days=1)
 
     total_days = (end_date - start_date).days + 1
     if total_days <= 0:
         return Decimal("0")
-    return (Decimal(len(occupied_days)) / Decimal(total_days)) * Decimal("100")
+    total_slots = total_days * len(target_items)
+    if total_slots <= 0:
+        return Decimal("0")
+    return (Decimal(len(occupied_slots)) / Decimal(total_slots)) * Decimal("100")
 
 
 def _load_pickup_curve_comparison(scope, horizon_days, alojamento=None, period_value=None, perfil_id=None):
     scope_key, scope_config = _validate_pickup_curve_scope(scope)
     horizon_days = _validate_pickup_curve_horizon(horizon_days)
     period = _parse_pickup_curve_period(scope_key, period_value)
+    target = _resolve_pickup_curve_target(alojamento)
     source_points = _pickup_curve_source_points(scope_key, perfil_id=perfil_id)
     grid = _pickup_curve_grid(horizon_days)
     today_value = date.today()
@@ -1857,7 +2021,7 @@ def _load_pickup_curve_comparison(scope, horizon_days, alojamento=None, period_v
         )
 
     return {
-        "alojamento": alojamento or "",
+        "alojamento": target["label"],
         "period_value": period["value"],
         "period_label": period["label"],
         "period_start": period["start_date"].isoformat(),
@@ -2058,6 +2222,119 @@ def _load_pricing_events_state():
         )
 
     return {"events": events}
+
+
+def _load_pricing_promotions_state():
+    ensure_pricing_schema(db.session)
+
+    profile_rows = db.session.execute(
+        text(
+            """
+            SELECT PERFIL_ID, NOME
+            FROM dbo.PR_PERFIL
+            ORDER BY NOME ASC, PERFIL_ID ASC
+            """
+        )
+    ).mappings().all()
+
+    promo_rows = db.session.execute(
+        text(
+            """
+            SELECT
+                P.PROMO_ID,
+                P.PERFIL_ID,
+                PF.NOME AS PERFIL_NOME,
+                P.DATA_INI,
+                P.DATA_FIM,
+                P.DESCONTO_PCT,
+                ISNULL(P.NOTA, '') AS NOTA,
+                ISNULL(P.ATIVO, 0) AS ATIVO,
+                P.CRIADO_EM,
+                ISNULL(P.CRIADO_POR, '') AS CRIADO_POR,
+                (
+                    SELECT COUNT(*)
+                    FROM dbo.PR_ALOJAMENTO AS PA
+                    WHERE PA.PERFIL_ID = P.PERFIL_ID
+                      AND ISNULL(PA.ATIVO, 0) = 1
+                ) AS ALOJAMENTOS_COUNT
+            FROM dbo.PR_PROMO AS P
+            INNER JOIN dbo.PR_PERFIL AS PF
+              ON PF.PERFIL_ID = P.PERFIL_ID
+            ORDER BY
+                ISNULL(P.ATIVO, 0) DESC,
+                P.DATA_INI DESC,
+                P.PROMO_ID DESC
+            """
+        )
+    ).mappings().all()
+
+    return {
+        "profiles": [
+            {
+                "perfil_id": int(row["PERFIL_ID"]),
+                "nome": row.get("NOME") or "",
+            }
+            for row in profile_rows
+        ],
+        "promotions": [
+            {
+                "promo_id": int(row["PROMO_ID"]),
+                "perfil_id": int(row["PERFIL_ID"]),
+                "perfil_nome": row.get("PERFIL_NOME") or "",
+                "data_ini": row.get("DATA_INI").isoformat() if row.get("DATA_INI") else "",
+                "data_fim": row.get("DATA_FIM").isoformat() if row.get("DATA_FIM") else "",
+                "desconto_pct": _to_float(row.get("DESCONTO_PCT")),
+                "nota": row.get("NOTA") or "",
+                "ativo": bool(row.get("ATIVO")),
+                "criado_em": row.get("CRIADO_EM").isoformat() if row.get("CRIADO_EM") else "",
+                "criado_por": row.get("CRIADO_POR") or "",
+                "alojamentos_count": int(row.get("ALOJAMENTOS_COUNT") or 0),
+            }
+            for row in promo_rows
+        ],
+    }
+
+
+def _recalc_promotions_for_profiles(profile_ids, start_date, end_date):
+    ensure_pricing_schema(db.session)
+    valid_profile_ids = sorted({int(item) for item in (profile_ids or []) if item is not None})
+    if not valid_profile_ids or not start_date or not end_date:
+        return {
+            "profiles": [],
+            "alojamentos": [],
+            "changed_rows": 0,
+            "total_rows": 0,
+            "skipped_threshold": 0,
+        }
+
+    placeholders = ", ".join(f":pf{idx}" for idx in range(len(valid_profile_ids)))
+    rows = db.session.execute(
+        text(
+            f"""
+            SELECT LTRIM(RTRIM(AL_NOME)) AS AL_NOME
+            FROM dbo.PR_ALOJAMENTO
+            WHERE ISNULL(ATIVO, 0) = 1
+              AND PERFIL_ID IN ({placeholders})
+            ORDER BY AL_NOME ASC
+            """
+        ),
+        {f"pf{idx}": valid_profile_ids[idx] for idx in range(len(valid_profile_ids))},
+    ).mappings().all()
+
+    alojamentos = [_normalize_alojamento(row.get("AL_NOME")) for row in rows if _normalize_alojamento(row.get("AL_NOME"))]
+    totals = {
+        "profiles": valid_profile_ids,
+        "alojamentos": alojamentos,
+        "changed_rows": 0,
+        "total_rows": 0,
+        "skipped_threshold": 0,
+    }
+    for alojamento in alojamentos:
+        result = recalculate_prices(alojamento=alojamento, from_date=start_date, to_date=end_date)
+        totals["changed_rows"] += int(result.get("changed_rows") or 0)
+        totals["total_rows"] += int(result.get("total_rows") or 0)
+        totals["skipped_threshold"] += int(result.get("skipped_threshold") or 0)
+    return totals
 
 
 def _load_pricing_sync_monitor_state():
@@ -2365,7 +2642,7 @@ def pricing_sync_monitor():
 @pricing_bp.route("/pickup-curves")
 @login_required
 def pricing_pickup_curves():
-    alojamentos = _load_ui_alojamentos()
+    alojamentos = _pickup_curve_alojamento_options()
     profiles = _pickup_curve_profiles()
     initial_state = {
         "scopes": [
@@ -2375,6 +2652,7 @@ def pricing_pickup_curves():
         "horizons": list(PICKUP_CURVE_HORIZON_OPTIONS),
         "profiles": profiles,
         "alojamentos": alojamentos,
+        "default_scope": "monthly_high",
         "today": {
             "date": date.today().isoformat(),
             "iso_week": int(date.today().isocalendar()[1]),
@@ -2396,6 +2674,13 @@ def pricing_settings():
 def pricing_events():
     state = _load_pricing_events_state()
     return render_template("pricing_events.html", initial_state=state, page_title="Price Manager Events")
+
+
+@pricing_bp.route("/promotions")
+@login_required
+def pricing_promotions():
+    state = _load_pricing_promotions_state()
+    return render_template("pricing_promotions.html", initial_state=state, page_title="Price Manager Promocoes")
 
 
 @pricing_bp.route("/api/settings/state")
@@ -2424,11 +2709,11 @@ def pricing_api_sync_monitor_detail():
 @login_required
 def pricing_api_pickup_curves_state():
     try:
-        scope = request.args.get("scope") or "weekly"
+        scope = request.args.get("scope") or "monthly_high"
         horizon_days = request.args.get("horizon_days")
         perfil_id_raw = request.args.get("perfil_id")
         perfil_id = int(perfil_id_raw) if str(perfil_id_raw or "").strip() else None
-        alojamento = _normalize_alojamento(request.args.get("alojamento"))
+        alojamento = str(request.args.get("alojamento") or "").strip()
         if horizon_days in (None, ""):
             horizon_days = _default_pickup_curve_horizon(scope, perfil_id=perfil_id)
         else:
@@ -2442,7 +2727,7 @@ def pricing_api_pickup_curves_state():
             ],
             "horizons": list(PICKUP_CURVE_HORIZON_OPTIONS),
             "profiles": _pickup_curve_profiles(),
-            "alojamentos": _load_ui_alojamentos(),
+            "alojamentos": _pickup_curve_alojamento_options(),
             "period_options": period_options,
             "selected_period_value": period_value,
             "curve": _load_pickup_curve_points(scope, horizon_days, perfil_id=perfil_id),
@@ -2485,6 +2770,12 @@ def pricing_api_pickup_curves_save():
 @login_required
 def pricing_api_events_state():
     return jsonify(_load_pricing_events_state())
+
+
+@pricing_bp.route("/api/promotions/state")
+@login_required
+def pricing_api_promotions_state():
+    return jsonify(_load_pricing_promotions_state())
 
 
 @pricing_bp.route("/api/alojamento-config")
@@ -2782,6 +3073,146 @@ def pricing_api_events_year_delete(evento_id, ano):
     )
     db.session.commit()
     return jsonify({"ok": True})
+
+
+@pricing_bp.route("/api/promotions", methods=["POST"])
+@login_required
+def pricing_api_promotions_save():
+    ensure_pricing_schema(db.session)
+    payload = request.get_json(silent=True) or request.form
+
+    promo_id_raw = payload.get("promo_id")
+    promo_id = int(promo_id_raw) if str(promo_id_raw or "").strip() else None
+
+    try:
+        perfil_id = int(payload.get("perfil_id"))
+    except Exception:
+        return jsonify({"error": "PERFIL_ID invalido."}), 400
+
+    data_ini = _parse_date(payload.get("data_ini"), "data_ini")
+    data_fim = _parse_date(payload.get("data_fim"), "data_fim")
+    if not data_ini or not data_fim:
+        return jsonify({"error": "DATA_INI e DATA_FIM sao obrigatorias."}), 400
+    if data_fim < data_ini:
+        return jsonify({"error": "DATA_FIM nao pode ser inferior a DATA_INI."}), 400
+
+    desconto_pct = _safe_decimal(payload.get("desconto_pct"), "0")
+    if desconto_pct < 0 or desconto_pct > 100:
+        return jsonify({"error": "DESCONTO_PCT tem de estar entre 0 e 100."}), 400
+
+    nota = str(payload.get("nota") or "").strip()
+    ativo = 1 if _as_bool(payload.get("ativo", True)) else 0
+
+    perfil_exists = db.session.execute(
+        text("SELECT COUNT(*) FROM dbo.PR_PERFIL WHERE PERFIL_ID = :perfil_id"),
+        {"perfil_id": perfil_id},
+    ).scalar_one()
+    if int(perfil_exists or 0) == 0:
+        return jsonify({"error": "Perfil nao encontrado."}), 404
+
+    affected_profile_ids = {perfil_id}
+    affected_start = data_ini
+    affected_end = data_fim
+
+    if promo_id is None:
+        new_id = db.session.execute(
+            text(
+                """
+                INSERT INTO dbo.PR_PROMO (
+                    PERFIL_ID, DATA_INI, DATA_FIM, DESCONTO_PCT, NOTA, ATIVO, CRIADO_EM, CRIADO_POR
+                )
+                OUTPUT INSERTED.PROMO_ID
+                VALUES (
+                    :perfil_id, :data_ini, :data_fim, :desconto_pct, :nota, :ativo, SYSUTCDATETIME(), :criado_por
+                )
+                """
+            ),
+            {
+                "perfil_id": perfil_id,
+                "data_ini": data_ini,
+                "data_fim": data_fim,
+                "desconto_pct": desconto_pct,
+                "nota": nota,
+                "ativo": ativo,
+                "criado_por": getattr(current_user, "LOGIN", "") or "",
+            },
+        ).scalar_one()
+        db.session.commit()
+        recalc = _recalc_promotions_for_profiles(affected_profile_ids, affected_start, affected_end)
+        return jsonify({"ok": True, "promo_id": int(new_id), "recalc": recalc})
+
+    current_row = db.session.execute(
+        text(
+            """
+            SELECT PERFIL_ID, DATA_INI, DATA_FIM
+            FROM dbo.PR_PROMO
+            WHERE PROMO_ID = :promo_id
+            """
+        ),
+        {"promo_id": promo_id},
+    ).mappings().first()
+    if not current_row:
+        return jsonify({"error": "Promocao nao encontrada."}), 404
+
+    affected_profile_ids.add(int(current_row["PERFIL_ID"]))
+    affected_start = min(affected_start, current_row.get("DATA_INI") or affected_start)
+    affected_end = max(affected_end, current_row.get("DATA_FIM") or affected_end)
+
+    db.session.execute(
+        text(
+            """
+            UPDATE dbo.PR_PROMO
+            SET PERFIL_ID = :perfil_id,
+                DATA_INI = :data_ini,
+                DATA_FIM = :data_fim,
+                DESCONTO_PCT = :desconto_pct,
+                NOTA = :nota,
+                ATIVO = :ativo
+            WHERE PROMO_ID = :promo_id
+            """
+        ),
+        {
+            "promo_id": promo_id,
+            "perfil_id": perfil_id,
+            "data_ini": data_ini,
+            "data_fim": data_fim,
+            "desconto_pct": desconto_pct,
+            "nota": nota,
+            "ativo": ativo,
+        },
+    )
+    db.session.commit()
+    recalc = _recalc_promotions_for_profiles(affected_profile_ids, affected_start, affected_end)
+    return jsonify({"ok": True, "promo_id": promo_id, "recalc": recalc})
+
+
+@pricing_bp.route("/api/promotions/<int:promo_id>", methods=["DELETE"])
+@login_required
+def pricing_api_promotions_delete(promo_id):
+    ensure_pricing_schema(db.session)
+
+    row = db.session.execute(
+        text(
+            """
+            SELECT PERFIL_ID, DATA_INI, DATA_FIM
+            FROM dbo.PR_PROMO
+            WHERE PROMO_ID = :promo_id
+            """
+        ),
+        {"promo_id": promo_id},
+    ).mappings().first()
+    if not row:
+        return jsonify({"error": "Promocao nao encontrada."}), 404
+
+    db.session.execute(text("DELETE FROM dbo.PR_PROMO WHERE PROMO_ID = :promo_id"), {"promo_id": promo_id})
+    db.session.commit()
+
+    recalc = _recalc_promotions_for_profiles(
+        [int(row["PERFIL_ID"])],
+        row.get("DATA_INI"),
+        row.get("DATA_FIM"),
+    )
+    return jsonify({"ok": True, "recalc": recalc})
 
 
 @pricing_bp.route("/api/settings/profile", methods=["POST"])
@@ -3143,6 +3574,47 @@ def pricing_api_day():
     if not row:
         return jsonify({"error": "Dia nao materializado."}), 404
 
+    profile_row = db.session.execute(
+        text(
+            """
+            SELECT PERFIL_ID
+            FROM dbo.PR_ALOJAMENTO
+            WHERE AL_NOME = :alojamento
+            """
+        ),
+        {"alojamento": alojamento},
+    ).mappings().first()
+    perfil_id = int(profile_row["PERFIL_ID"]) if profile_row and profile_row.get("PERFIL_ID") is not None else None
+
+    promotions = []
+    if perfil_id is not None:
+        promotions = db.session.execute(
+            text(
+                """
+                SELECT
+                    P.PROMO_ID,
+                    P.PERFIL_ID,
+                    PF.NOME AS PERFIL_NOME,
+                    P.DATA_INI,
+                    P.DATA_FIM,
+                    P.DESCONTO_PCT,
+                    ISNULL(P.NOTA, '') AS NOTA,
+                    ISNULL(P.ATIVO, 0) AS ATIVO,
+                    P.CRIADO_EM,
+                    ISNULL(P.CRIADO_POR, '') AS CRIADO_POR
+                FROM dbo.PR_PROMO AS P
+                INNER JOIN dbo.PR_PERFIL AS PF
+                  ON PF.PERFIL_ID = P.PERFIL_ID
+                WHERE P.PERFIL_ID = :perfil_id
+                  AND ISNULL(P.ATIVO, 0) = 1
+                  AND P.DATA_INI <= :day_value
+                  AND P.DATA_FIM >= :day_value
+                ORDER BY P.CRIADO_EM DESC, P.PROMO_ID DESC
+                """
+            ),
+            {"perfil_id": perfil_id, "day_value": day_value},
+        ).mappings().all()
+
     overrides = db.session.execute(
         text(
             """
@@ -3176,6 +3648,21 @@ def pricing_api_day():
             "synced_at": row.get("SYNCED_AT").isoformat() if row.get("SYNCED_AT") else "",
             "flags": flags,
             "updated_at": row.get("UPDATED_AT").isoformat() if row.get("UPDATED_AT") else "",
+            "promotions": [
+                {
+                    "promo_id": int(item["PROMO_ID"]),
+                    "perfil_id": int(item["PERFIL_ID"]),
+                    "perfil_nome": item.get("PERFIL_NOME") or "",
+                    "data_ini": item.get("DATA_INI").isoformat() if item.get("DATA_INI") else "",
+                    "data_fim": item.get("DATA_FIM").isoformat() if item.get("DATA_FIM") else "",
+                    "desconto_pct": _to_float(item.get("DESCONTO_PCT")),
+                    "nota": item.get("NOTA") or "",
+                    "ativo": bool(item.get("ATIVO")),
+                    "criado_em": item.get("CRIADO_EM").isoformat() if item.get("CRIADO_EM") else "",
+                    "criado_por": item.get("CRIADO_POR") or "",
+                }
+                for item in promotions
+            ],
             "overrides": [
                 {
                     "ovr_id": int(item["OVR_ID"]),
@@ -3346,6 +3833,9 @@ def register_pricing(app):
     def _pricing_events_legacy():
         return redirect(url_for("pricing.pricing_events"))
 
+    def _pricing_promotions_legacy():
+        return redirect(url_for("pricing.pricing_promotions"))
+
     def _pricing_pickup_curves_legacy():
         return redirect(url_for("pricing.pricing_pickup_curves"))
 
@@ -3360,6 +3850,8 @@ def register_pricing(app):
     app.add_url_rule("/pricing_settings/", endpoint="pricing_settings_legacy_alt_slash", view_func=_pricing_settings_legacy)
     app.add_url_rule("/pricing_events", endpoint="pricing_events_legacy", view_func=_pricing_events_legacy)
     app.add_url_rule("/pricing_events/", endpoint="pricing_events_legacy_slash", view_func=_pricing_events_legacy)
+    app.add_url_rule("/pricing_promotions", endpoint="pricing_promotions_legacy", view_func=_pricing_promotions_legacy)
+    app.add_url_rule("/pricing_promotions/", endpoint="pricing_promotions_legacy_slash", view_func=_pricing_promotions_legacy)
     app.add_url_rule("/pickup_curves", endpoint="pricing_pickup_curves_legacy", view_func=_pricing_pickup_curves_legacy)
     app.add_url_rule("/pickup_curves/", endpoint="pricing_pickup_curves_legacy_slash", view_func=_pricing_pickup_curves_legacy)
     app.add_url_rule("/pickup-curves", endpoint="pricing_pickup_curves_legacy_alt", view_func=_pricing_pickup_curves_legacy)

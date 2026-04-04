@@ -46,6 +46,9 @@
     .doc-title-main { font-size: 14pt; font-weight: 800; color: #111827; }
     .doc-title-number { margin-top: 2px; font-size: 10.8pt; font-weight: 700; color: #334155; }
     .origin-ref { margin-top: 10px; padding: 7px 10px; border: 1px solid #d7dce4; background: #f8fafc; font-size: 8.4pt; }
+    .exempt-box { margin-top: 10px; padding: 7px 10px; border: 1px solid #d7dce4; background: #fffdf5; font-size: 8.4pt; }
+    .exempt-box .head { font-weight: 800; margin-bottom: 4px; }
+    .exempt-box .row + .row { margin-top: 3px; }
     .origin-ref .label { font-weight: 800; margin-right: 4px; }
     .non-fiscal-banner { display: inline-block; margin-top: 8px; padding: 8px 10px; border: 1px solid #cbd5e1; background: #f8fafc; text-align: left; }
     .non-fiscal-banner .head { font-weight: 700; color: #7f1d1d; letter-spacing: 0.02em; }
@@ -182,6 +185,20 @@
       {% endif %}
     </tbody>
   </table>
+
+  {% if exempt_lines %}
+  <div class="exempt-box">
+    <div class="head">Motivos de isen&ccedil;&atilde;o de IVA</div>
+    {% for item in exempt_lines %}
+    <div class="row">
+      <strong>{{ item.code }}</strong> - {{ item.description }}
+      {% if item.ref or item.design %}
+      <span>({% if item.ref %}{{ item.ref }}{% endif %}{% if item.ref and item.design %} - {% endif %}{% if item.design %}{{ item.design }}{% endif %})</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   {% if is_transport_doc %}
   <div class="origin-ref">

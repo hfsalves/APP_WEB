@@ -1069,13 +1069,24 @@ def fo_search_artigos():
     if len(term) < 2:
         return jsonify([])
     try:
+        current_feid = _current_feid_or_abort()
+        unidade_select = "LTRIM(RTRIM(ISNULL(S.UNIDADE, ''))) AS UNIDADE," if _column_exists('ST', 'UNIDADE') else "CAST('' AS varchar(10)) AS UNIDADE,"
         sql = text("""
-            SELECT TOP 10 REF, DESIGN, TABIVA, FAMILIA
-            FROM V_ST
-            WHERE REF LIKE :t OR DESIGN LIKE :t
-            ORDER BY REF
+            SELECT TOP 10
+                LTRIM(RTRIM(ISNULL(S.REF, ''))) AS REF,
+                LTRIM(RTRIM(ISNULL(S.DESIGN, ''))) AS DESIGN,
+                """ + unidade_select + """
+                ISNULL(S.TABIVA, 0) AS TABIVA,
+                LTRIM(RTRIM(ISNULL(S.FAMILIA, ''))) AS FAMILIA
+            FROM dbo.ST AS S
+            WHERE ISNULL(S.FEID, 0) = :feid
+              AND (
+                LTRIM(RTRIM(ISNULL(S.REF, ''))) LIKE :t
+                OR LTRIM(RTRIM(ISNULL(S.DESIGN, ''))) LIKE :t
+              )
+            ORDER BY LTRIM(RTRIM(ISNULL(S.REF, '')))
         """)
-        rows = db.session.execute(sql, {'t': f'%{term}%'}).fetchall()
+        rows = db.session.execute(sql, {'feid': current_feid, 't': f'%{term}%'}).fetchall()
         return jsonify([dict(r._mapping) for r in rows])
     except Exception as e:
         current_app.logger.exception('Erro em fo_search_artigos')
@@ -1091,7 +1102,9 @@ def fo_artigos():
       - limit (opcional): mÃ¡ximo de registos (default 200, max 500)
     """
     try:
+        current_feid = _current_feid_or_abort()
         term = (request.args.get('q') or '').strip()
+        unidade_select = "LTRIM(RTRIM(ISNULL(s.UNIDADE, ''))) AS UNIDADE," if _column_exists('ST', 'UNIDADE') else "CAST('' AS varchar(10)) AS UNIDADE,"
         try:
             limit = int(request.args.get('limit', 200))
         except Exception:
@@ -1104,35 +1117,41 @@ def fo_artigos():
         if term:
             sql = text(f"""
                 SELECT TOP {limit}
-                    s.REF,
-                    s.DESIGN,
-                    s.FAMILIA,
+                    LTRIM(RTRIM(ISNULL(s.REF, ''))) AS REF,
+                    LTRIM(RTRIM(ISNULL(s.DESIGN, ''))) AS DESIGN,
+                    {unidade_select}
+                    LTRIM(RTRIM(ISNULL(s.FAMILIA, ''))) AS FAMILIA,
                     f.NOME AS FAMILIA_NOME,
-                    s.TABIVA
-                FROM V_ST s
+                    ISNULL(s.TABIVA, 0) AS TABIVA
+                FROM dbo.ST s
                 LEFT JOIN V_STFAMI f
-                  ON f.REF = s.FAMILIA
-                WHERE s.REF LIKE :t
-                   OR s.DESIGN LIKE :t
-                   OR s.FAMILIA LIKE :t
+                  ON f.REF = LTRIM(RTRIM(ISNULL(s.FAMILIA, '')))
+                WHERE ISNULL(s.FEID, 0) = :feid
+                  AND (
+                   LTRIM(RTRIM(ISNULL(s.REF, ''))) LIKE :t
+                   OR LTRIM(RTRIM(ISNULL(s.DESIGN, ''))) LIKE :t
+                   OR LTRIM(RTRIM(ISNULL(s.FAMILIA, ''))) LIKE :t
                    OR f.NOME LIKE :t
-                ORDER BY s.REF
+                  )
+                ORDER BY LTRIM(RTRIM(ISNULL(s.REF, '')))
             """)
-            params = {'t': f'%{term}%'}
+            params = {'feid': current_feid, 't': f'%{term}%'}
         else:
             sql = text(f"""
                 SELECT TOP {limit}
-                    s.REF,
-                    s.DESIGN,
-                    s.FAMILIA,
+                    LTRIM(RTRIM(ISNULL(s.REF, ''))) AS REF,
+                    LTRIM(RTRIM(ISNULL(s.DESIGN, ''))) AS DESIGN,
+                    {unidade_select}
+                    LTRIM(RTRIM(ISNULL(s.FAMILIA, ''))) AS FAMILIA,
                     f.NOME AS FAMILIA_NOME,
-                    s.TABIVA
-                FROM V_ST s
+                    ISNULL(s.TABIVA, 0) AS TABIVA
+                FROM dbo.ST s
                 LEFT JOIN V_STFAMI f
-                  ON f.REF = s.FAMILIA
-                ORDER BY s.REF
+                  ON f.REF = LTRIM(RTRIM(ISNULL(s.FAMILIA, '')))
+                WHERE ISNULL(s.FEID, 0) = :feid
+                ORDER BY LTRIM(RTRIM(ISNULL(s.REF, '')))
             """)
-            params = {}
+            params = {'feid': current_feid}
 
         rows = db.session.execute(sql, params).fetchall()
         return jsonify([dict(r._mapping) for r in rows])
@@ -1144,10 +1163,11 @@ def fo_artigos():
 @login_required
 def fo_artigos_familia():
     """
-    Devolve FAMILIA por REF, usando a view V_ST.
+    Devolve FAMILIA por REF, usando a tabela ST.
     Body: { "refs": ["A1", "B2", ...] }
     """
     try:
+        current_feid = _current_feid_or_abort()
         body = request.get_json(silent=True) or {}
         refs = body.get('refs') or []
         if not isinstance(refs, list):
@@ -1171,12 +1191,15 @@ def fo_artigos_familia():
             return jsonify({})
 
         sql = text("""
-            SELECT REF, FAMILIA
-            FROM V_ST
-            WHERE REF IN :refs
+            SELECT
+                LTRIM(RTRIM(ISNULL(REF, ''))) AS REF,
+                LTRIM(RTRIM(ISNULL(FAMILIA, ''))) AS FAMILIA
+            FROM dbo.ST
+            WHERE ISNULL(FEID, 0) = :feid
+              AND REF IN :refs
         """).bindparams(bindparam('refs', expanding=True))
 
-        rows = db.session.execute(sql, {'refs': cleaned}).fetchall()
+        rows = db.session.execute(sql, {'feid': current_feid, 'refs': cleaned}).fetchall()
         out = {}
         for r in rows:
             ref = (r._mapping.get('REF') or '').strip()
@@ -2731,6 +2754,7 @@ def api_cleaning_plan():
     al_codpost_expr = build_al_expr('CODPOST', 'al_codpost')
     al_local_expr = build_al_expr('LOCAL', 'al_local')
     al_morada_expr = build_al_expr('MORADA', 'al_morada')
+    al_lptempo_expr = "ISNULL(al.[LPTEMPO], 0) AS cleaning_minutes" if 'LPTEMPO' in al_cols else "0 AS cleaning_minutes"
 
     sql = text(f"""
         SELECT
@@ -2738,6 +2762,7 @@ def api_cleaning_plan():
           al.NOME                 AS lodging,
           al.TIPOLOGIA            AS typology,
           al.ZONA                 AS zone,
+          {al_lptempo_expr},
           {al_codpost_expr},
           {al_local_expr},
           {al_morada_expr},

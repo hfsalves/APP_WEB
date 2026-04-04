@@ -6,7 +6,6 @@
     <header class="sz_contextbar sz_page_contextbar sz_pricing_contextbar">
       <div class="sz_contextbar_left">
         <div class="sz_page_title">Planner de Preços</div>
-        <div class="sz_breadcrumbs">PRICE MANAGER / PLANNER</div>
         <div class="sz_page_subtitle">Calendário mensal com preços, ocupação, eventos e overrides por alojamento.</div>
       </div>
       <div class="sz_contextbar_right">
@@ -552,6 +551,10 @@
     gap: var(--sz-space-3);
   }
 
+  .sz_pricing_spacer {
+    height: var(--sz-space-1);
+  }
+
   .sz_pricing_info_card {
     border: 1px solid var(--sz-color-border);
     border-radius: var(--sz-radius-md);
@@ -1048,6 +1051,14 @@
     }
     if (values.after_last_min != null) current = values.after_last_min;
 
+    if (values.after_promo == null) {
+      const promoPct = numOrNull(normalizedFlags?.promo?.desconto_pct);
+      values.after_promo = current != null && promoPct != null
+        ? current * (1 - (promoPct / 100))
+        : numOrNull(normalizedFlags?.promo?.result) ?? current;
+    }
+    if (values.after_promo != null) current = values.after_promo;
+
     if (values.after_clamp == null) {
       values.after_clamp = clampNumber(
         current,
@@ -1062,6 +1073,7 @@
         ?? numOrNull(normalizedFlags?.smooth?.result)
         ?? current;
     }
+    if (values.after_smooth != null) current = values.after_smooth;
 
     return values;
   }
@@ -1219,6 +1231,15 @@
       chip('Aplicado', normalizedFlags.last_min?.applied ? 'Sim' : 'Não'),
       chip('Desconto %', normalizedFlags.last_min?.discount_pct ?? '-'),
     ], '', stageResult(normalizedFlags.last_min?.result ?? stageValues.after_last_min)));
+
+    if (normalizedFlags.promo) {
+      sections.push(infoCard('Promocao', [
+        chip('Promo %', `${normalizedFlags.promo?.desconto_pct ?? '-'}%`),
+        chip('Perfil', normalizedFlags.promo?.perfil_id ?? '-'),
+        ...(normalizedFlags.promo?.nota ? [chip('Nota', normalizedFlags.promo.nota)] : []),
+        ...(normalizedFlags.promo?.criado_por ? [chip('Criado por', normalizedFlags.promo.criado_por)] : []),
+      ], '', stageResult(normalizedFlags.promo?.result ?? stageValues.after_promo)));
+    }
 
     sections.push(infoCard('Clamp e Suavização', [
       ...(normalizedFlags.clamp?.min_base != null ? [chip('Min base', fmtMoney(normalizedFlags.clamp?.min_base))] : []),

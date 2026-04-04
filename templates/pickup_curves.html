@@ -533,7 +533,7 @@
     scopeSelect.innerHTML = seed.scopes.map((item) =>
       `<option value="${item.value}">${item.label}</option>`
     ).join('');
-    scopeSelect.value = 'weekly';
+    scopeSelect.value = seed.default_scope || 'monthly_high';
 
     profileSelect.innerHTML = seed.profiles.map((item) =>
       `<option value="${item.perfil_id}">${item.nome}</option>`
@@ -547,10 +547,10 @@
     ).join('');
 
     alojamentoSelect.innerHTML = seed.alojamentos.map((item) =>
-      `<option value="${item}">${item}</option>`
+      `<option value="${item.value}">${item.label}</option>`
     ).join('');
     if (seed.alojamentos.length) {
-      alojamentoSelect.value = seed.alojamentos[0];
+      alojamentoSelect.value = seed.alojamentos[0].value;
     }
   }
 

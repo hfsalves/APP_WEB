@@ -31,6 +31,7 @@ from services.qr_atcud_service import (
     get_param as qr_get_param,
     get_serie_validation_code,
     validate_requirements as qr_validate_requirements,
+    validate_validation_code as qr_validate_validation_code,
     build_atcud,
     build_qr_payload,
 )
@@ -3317,6 +3318,7 @@ def create_app():
 
     CERT_RESET_FEID = 1
     CERT_RESET_CONFIRM_PHRASE = 'RESET FEID 1'
+    CERT_RESET_SAMPLE_ARTICLE_PREFIX = 'ATC-'
 
     def _cert_reset_feid1_allowed() -> bool:
         try:
@@ -3349,6 +3351,7 @@ def create_app():
         return row
 
     def _cert_reset_feid1_existing_series_rows():
+        codigo_validacao_select = "LTRIM(RTRIM(ISNULL(S.CODIGO_VALIDACAO_AT, ''))) AS CODIGO_VALIDACAO_AT," if _fts_codigo_validacao_at_available() else "CAST('' AS varchar(50)) AS CODIGO_VALIDACAO_AT,"
         return [dict(row) for row in db.session.execute(text("""
             SELECT
                 S.FTSSTAMP,
@@ -3362,6 +3365,7 @@ def create_app():
                 ISNULL(S.ULTIMO_FNO, 0) AS ULTIMO_FNO,
                 ISNULL(S.NO_SAFT, 0) AS NO_SAFT,
                 UPPER(LTRIM(RTRIM(ISNULL(S.TIPOSAFT, '')))) AS TIPOSAFT,
+                """ + codigo_validacao_select + """
                 """ + ("ISNULL(S.IS_DOC_TRANSPORTE, 0) AS IS_DOC_TRANSPORTE," if _fts_transport_flag_available() else "CAST(0 AS bit) AS IS_DOC_TRANSPORTE,") + """
                 LTRIM(RTRIM(ISNULL(X.FTSXSTAMP, ''))) AS FTSXSTAMP,
                 LTRIM(RTRIM(ISNULL(X.COD_VALIDACAO_SERIE, ''))) AS COD_VALIDACAO_SERIE,
@@ -3378,79 +3382,107 @@ def create_app():
 
     def _cert_reset_feid1_default_series():
         return [
-            {'doc_type': 'FT', 'ndoc': 1, 'serie': 'AT', 'descr': 'FT AT', 'tiposaft': 'FT', 'no_saft': 0, 'ativa': 1, 'estado': 0, 'is_transport': 0},
-            {'doc_type': 'FR', 'ndoc': 5, 'serie': 'AT', 'descr': 'FR AT', 'tiposaft': 'FR', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 0},
-            {'doc_type': 'FS', 'ndoc': 7, 'serie': 'AT', 'descr': 'FS AT', 'tiposaft': 'FS', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 0},
-            {'doc_type': 'NC', 'ndoc': 2, 'serie': 'AT', 'descr': 'NC AT', 'tiposaft': 'NC', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 0},
-            {'doc_type': 'PF', 'ndoc': 9, 'serie': 'AT', 'descr': 'PF AT', 'tiposaft': 'PF', 'no_saft': 1, 'ativa': 1, 'estado': 1, 'is_transport': 0},
-            {'doc_type': 'GT', 'ndoc': 11, 'serie': 'AT', 'descr': 'GT AT', 'tiposaft': 'GT', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 1},
+            {'doc_type': 'FT', 'ndoc': 1, 'serie': 'FT', 'descr': 'Fatura', 'tiposaft': 'FT', 'no_saft': 0, 'ativa': 1, 'estado': 0, 'is_transport': 0},
+            {'doc_type': 'FR', 'ndoc': 5, 'serie': 'FR', 'descr': 'Fatura-Recibo', 'tiposaft': 'FR', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 0},
+            {'doc_type': 'FS', 'ndoc': 7, 'serie': 'FS', 'descr': 'Fatura Simplificada', 'tiposaft': 'FS', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 0},
+            {'doc_type': 'NC', 'ndoc': 2, 'serie': 'NC', 'descr': 'Nota de Crédito', 'tiposaft': 'NC', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 0},
+            {'doc_type': 'PF', 'ndoc': 9, 'serie': 'PF', 'descr': 'Fatura Proforma', 'tiposaft': 'PF', 'no_saft': 1, 'ativa': 1, 'estado': 1, 'is_transport': 0},
+            {'doc_type': 'GT', 'ndoc': 11, 'serie': 'GT', 'descr': 'Guia de Transporte', 'tiposaft': 'GT', 'no_saft': 0, 'ativa': 1, 'estado': 1, 'is_transport': 1},
         ]
 
+    def _cert_reset_feid1_validation_code_map():
+        return {
+            'FT': 'AA123456',
+            'FR': 'AA123457',
+            'FS': 'AA123458',
+            'NC': 'AA123459',
+            'PF': 'AA12345A',
+            'GT': 'AA12345B',
+        }
+
     def _cert_reset_feid1_build_series_plan(existing_rows=None):
-        existing_rows = list(existing_rows or [])
-        by_type = {}
-        by_ndoc = {}
-        validation_code = ''
-        validation_state = 0
-        validation_date = None
-        validation_msg = ''
-
-        for row in existing_rows:
-            row = dict(row or {})
-            doc_type = str(row.get('TIPOSAFT') or '').strip().upper()
-            ndoc = _to_int(row.get('NDOC'), 0)
-            if doc_type and doc_type not in by_type:
-                by_type[doc_type] = row
-            if ndoc > 0 and ndoc not in by_ndoc:
-                by_ndoc[ndoc] = row
-            code = str(row.get('COD_VALIDACAO_SERIE') or '').strip()
-            if code and not validation_code:
-                validation_code = code
-                validation_state = _to_int(row.get('AT_SERIE_ESTADO'), 1)
-                validation_date = row.get('AT_SERIE_DATA') or datetime.now()
-                validation_msg = str(row.get('AT_SERIE_MSG') or '').strip()
-
+        _ = existing_rows
+        now = datetime.now()
+        validation_codes = _cert_reset_feid1_validation_code_map()
         plan = []
         for base in _cert_reset_feid1_default_series():
-            existing = by_type.get(base['doc_type']) or by_ndoc.get(base['ndoc']) or {}
-            serie = base['serie']
-            descr = base['descr']
-            ativa = 1 if _to_int(existing.get('ATIVA'), base['ativa']) == 1 else 0
-            estado = _to_int(existing.get('ESTADO'), base['estado'])
-            no_saft = 1 if _to_int(existing.get('NO_SAFT'), base['no_saft']) == 1 else 0
-            is_transport = 1 if int(base['is_transport']) == 1 else 0
-            code = str(existing.get('COD_VALIDACAO_SERIE') or '').strip() or validation_code
-            prefix = str(existing.get('ATCUD_PREFIX') or '').strip()
-            if not prefix and code:
-                prefix = f"{base['doc_type']}-{code}"
-            at_state = _to_int(existing.get('AT_SERIE_ESTADO'), validation_state if code else 0)
-            at_date = existing.get('AT_SERIE_DATA') or validation_date or (datetime.now() if code else datetime(1900, 1, 1))
-            at_msg = str(existing.get('AT_SERIE_MSG') or '').strip() or (validation_msg if code else '')
-            if code and not at_msg:
-                at_msg = 'Reset certificacao FEID 1'
+            validation_code = str(validation_codes.get(base['doc_type']) or '').strip().upper()
             plan.append({
                 'doc_type': base['doc_type'],
                 'ndoc': base['ndoc'],
-                'serie': serie,
-                'descr': descr,
+                'serie': base['serie'],
+                'descr': base['descr'],
                 'tiposaft': base['tiposaft'],
-                'no_saft': no_saft,
-                'ativa': ativa,
-                'estado': estado,
-                'is_transport': is_transport,
+                'no_saft': int(base['no_saft']),
+                'ativa': int(base['ativa']),
+                'estado': int(base['estado']),
+                'is_transport': int(base['is_transport']),
+                'codigo_validacao_at': validation_code,
                 'ftsx': {
-                    'COD_VALIDACAO_SERIE': code,
-                    'ATCUD_PREFIX': prefix,
-                    'AT_SERIE_ESTADO': at_state,
-                    'AT_SERIE_DATA': at_date,
-                    'AT_SERIE_MSG': at_msg,
+                    'COD_VALIDACAO_SERIE': validation_code,
+                    'ATCUD_PREFIX': '',
+                    'AT_SERIE_ESTADO': 1,
+                    'AT_SERIE_DATA': now,
+                    'AT_SERIE_MSG': 'Reset certificacao FEID 1',
                 },
-                'label': f"{base['doc_type']} {serie}",
+                'label': f"{base['serie']} · {base['descr']}",
             })
         return plan
 
+    def _cert_reset_feid1_sample_articles():
+        return [
+            {'REF': 'ATC-P2301', 'DESIGN': 'Snack Bar Premium', 'FAMILIA': 'PROD-23', 'FAMINOME': 'Mercadorias 23%', 'EPV': 3.50, 'TABIVA': 2, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P2302', 'DESIGN': 'Vinho Casa Reserva', 'FAMILIA': 'PROD-23', 'FAMINOME': 'Mercadorias 23%', 'EPV': 12.50, 'TABIVA': 2, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P2303', 'DESIGN': 'Cabaz Regional', 'FAMILIA': 'PROD-23', 'FAMINOME': 'Mercadorias 23%', 'EPV': 24.90, 'TABIVA': 2, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P2304', 'DESIGN': 'Amenities Deluxe', 'FAMILIA': 'PROD-23', 'FAMINOME': 'Mercadorias 23%', 'EPV': 9.80, 'TABIVA': 2, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P2305', 'DESIGN': 'Kit Bebe Conforto', 'FAMILIA': 'PROD-23', 'FAMINOME': 'Mercadorias 23%', 'EPV': 15.00, 'TABIVA': 2, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P0601', 'DESIGN': 'Agua Mineral 1,5L', 'FAMILIA': 'PROD-06', 'FAMINOME': 'Mercadorias 6%', 'EPV': 1.20, 'TABIVA': 1, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P0602', 'DESIGN': 'Compota Caseira', 'FAMILIA': 'PROD-06', 'FAMINOME': 'Mercadorias 6%', 'EPV': 4.80, 'TABIVA': 1, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P0603', 'DESIGN': 'Mel Artesanal', 'FAMILIA': 'PROD-06', 'FAMINOME': 'Mercadorias 6%', 'EPV': 6.50, 'TABIVA': 1, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P0604', 'DESIGN': 'Azeite Virgem', 'FAMILIA': 'PROD-06', 'FAMINOME': 'Mercadorias 6%', 'EPV': 8.90, 'TABIVA': 1, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P0605', 'DESIGN': 'Livro Guia Porto', 'FAMILIA': 'PROD-06', 'FAMINOME': 'Mercadorias 6%', 'EPV': 11.00, 'TABIVA': 1, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P1301', 'DESIGN': 'Pequeno-Almoco Box', 'FAMILIA': 'PROD-13', 'FAMINOME': 'Mercadorias 13%', 'EPV': 9.50, 'TABIVA': 3, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P1302', 'DESIGN': 'Brunch Menu', 'FAMILIA': 'PROD-13', 'FAMINOME': 'Mercadorias 13%', 'EPV': 14.00, 'TABIVA': 3, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P1303', 'DESIGN': 'Tabua de Queijos', 'FAMILIA': 'PROD-13', 'FAMINOME': 'Mercadorias 13%', 'EPV': 18.00, 'TABIVA': 3, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P1304', 'DESIGN': 'Menu Degustacao', 'FAMILIA': 'PROD-13', 'FAMINOME': 'Mercadorias 13%', 'EPV': 22.50, 'TABIVA': 3, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-P1305', 'DESIGN': 'Cabaz Breakfast', 'FAMILIA': 'PROD-13', 'FAMINOME': 'Mercadorias 13%', 'EPV': 17.90, 'TABIVA': 3, 'TIPOPROD': 'P', 'UNIDADE': 'UN'},
+            {'REF': 'ATC-S2301', 'DESIGN': 'Limpeza Extra', 'FAMILIA': 'SERV-23', 'FAMINOME': 'Servicos 23%', 'EPV': 35.00, 'TABIVA': 2, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-S2302', 'DESIGN': 'Late Checkout', 'FAMILIA': 'SERV-23', 'FAMINOME': 'Servicos 23%', 'EPV': 25.00, 'TABIVA': 2, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-S2303', 'DESIGN': 'Early Check-in', 'FAMILIA': 'SERV-23', 'FAMINOME': 'Servicos 23%', 'EPV': 20.00, 'TABIVA': 2, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-S2304', 'DESIGN': 'Transfer Aeroporto', 'FAMILIA': 'SERV-23', 'FAMINOME': 'Servicos 23%', 'EPV': 45.00, 'TABIVA': 2, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-S2305', 'DESIGN': 'Lavandaria Express', 'FAMILIA': 'SERV-23', 'FAMINOME': 'Servicos 23%', 'EPV': 18.00, 'TABIVA': 2, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-S2306', 'DESIGN': 'Aluguer Bicicleta', 'FAMILIA': 'SERV-23', 'FAMINOME': 'Servicos 23%', 'EPV': 22.00, 'TABIVA': 2, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-S1301', 'DESIGN': 'Pequeno-Almoco Servico', 'FAMILIA': 'SERV-13', 'FAMINOME': 'Servicos 13%', 'EPV': 8.50, 'TABIVA': 3, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-S1302', 'DESIGN': 'Jantar Privado', 'FAMILIA': 'SERV-13', 'FAMINOME': 'Servicos 13%', 'EPV': 45.00, 'TABIVA': 3, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-S1303', 'DESIGN': 'Chef ao Domicilio', 'FAMILIA': 'SERV-13', 'FAMINOME': 'Servicos 13%', 'EPV': 75.00, 'TABIVA': 3, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-S1304', 'DESIGN': 'Menu Room Service', 'FAMILIA': 'SERV-13', 'FAMINOME': 'Servicos 13%', 'EPV': 19.50, 'TABIVA': 3, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-S0601', 'DESIGN': 'Visita Museu Guiada', 'FAMILIA': 'SERV-06', 'FAMINOME': 'Servicos 6%', 'EPV': 16.00, 'TABIVA': 1, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-S0602', 'DESIGN': 'Bilhete Evento Cultural', 'FAMILIA': 'SERV-06', 'FAMINOME': 'Servicos 6%', 'EPV': 20.00, 'TABIVA': 1, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-SIS01', 'DESIGN': 'Formacao Isenta', 'FAMILIA': 'SERV-IS', 'FAMINOME': 'Servicos Isentos', 'EPV': 60.00, 'TABIVA': 4, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-SIS02', 'DESIGN': 'Servico Medico Isento', 'FAMILIA': 'SERV-IS', 'FAMINOME': 'Servicos Isentos', 'EPV': 80.00, 'TABIVA': 4, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+            {'REF': 'ATC-SIS03', 'DESIGN': 'Seguro Viagem Isento', 'FAMILIA': 'SERV-IS', 'FAMINOME': 'Servicos Isentos', 'EPV': 14.00, 'TABIVA': 4, 'TIPOPROD': 'S', 'UNIDADE': 'SERV'},
+        ]
+
+    def _cert_reset_feid1_sample_article_refs():
+        return [str(item.get('REF') or '').strip().upper() for item in _cert_reset_feid1_sample_articles() if str(item.get('REF') or '').strip()]
+
     def _cert_reset_feid1_collect_status():
         target = _cert_reset_feid1_target_entity()
+        sample_refs = _cert_reset_feid1_sample_article_refs()
+        sample_article_count = 0
+        if sample_refs:
+            params = {'feid': CERT_RESET_FEID}
+            placeholders = []
+            for index, ref in enumerate(sample_refs):
+                key = f'ref{index}'
+                params[key] = ref
+                placeholders.append(f':{key}')
+            sample_article_count = _to_int(db.session.execute(text(f"""
+                SELECT COUNT(1)
+                FROM dbo.ST
+                WHERE ISNULL(FEID, 0) = :feid
+                  AND UPPER(LTRIM(RTRIM(ISNULL(REF, '')))) IN ({', '.join(placeholders)})
+            """), params).scalar(), 0)
         doc_headers = _to_int(db.session.execute(text("""
             SELECT COUNT(1)
             FROM dbo.FT
@@ -3487,6 +3519,7 @@ def create_app():
                 'doc_lines': doc_lines,
                 'series': series_count,
                 'ftsx': ftsx_count,
+                'sample_articles': sample_article_count,
             },
             'series_plan': _cert_reset_feid1_build_series_plan(existing_rows),
         }
@@ -3544,12 +3577,30 @@ def create_app():
                     WHERE ISNULL(FEID, 0) = :feid
                 )
             """), {'feid': CERT_RESET_FEID}).scalar(), 0),
+            'sample_articles': 0,
         }
+        sample_articles = _cert_reset_feid1_sample_articles()
+        sample_refs = _cert_reset_feid1_sample_article_refs()
+        if sample_refs:
+            sample_params = {'feid': CERT_RESET_FEID}
+            sample_placeholders = []
+            for index, ref in enumerate(sample_refs):
+                key = f'ref{index}'
+                sample_params[key] = ref
+                sample_placeholders.append(f':{key}')
+            deleted_counts['sample_articles'] = _to_int(db.session.execute(text(f"""
+                SELECT COUNT(1)
+                FROM dbo.ST
+                WHERE ISNULL(FEID, 0) = :feid
+                  AND UPPER(LTRIM(RTRIM(ISNULL(REF, '')))) IN ({', '.join(sample_placeholders)})
+            """), sample_params).scalar(), 0)
 
         now = datetime.now()
         user_login = (user_login or '').strip() or 'dev-reset'
         transport_columns = ", IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ""
         transport_values = ", :IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ""
+        st_unidade_columns = ", UNIDADE" if _st_unidade_available() else ""
+        st_unidade_values = ", :UNIDADE" if _st_unidade_available() else ""
         recreated_series = []
 
         db.session.execute(text("""
@@ -3576,16 +3627,24 @@ def create_app():
             DELETE FROM dbo.FTS
             WHERE ISNULL(FEID, 0) = :feid
         """), {'feid': CERT_RESET_FEID})
+        if sample_refs:
+            db.session.execute(text(f"""
+                DELETE FROM dbo.ST
+                WHERE ISNULL(FEID, 0) = :feid
+                  AND UPPER(LTRIM(RTRIM(ISNULL(REF, '')))) IN ({', '.join(sample_placeholders)})
+            """), sample_params)
 
         for item in series_plan:
             ftsstamp = _new_stamp_25()
+            codigo_validacao_columns = ", CODIGO_VALIDACAO_AT" if _fts_codigo_validacao_at_available() else ""
+            codigo_validacao_values = ", :CODIGO_VALIDACAO_AT" if _fts_codigo_validacao_at_available() else ""
             db.session.execute(text("""
                 INSERT INTO dbo.FTS (
                     FTSSTAMP, FESTAMP, NDOC, SERIE, DESCR, ATIVA, ESTADO, ANO, ULTIMO_FNO,
-                    DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO, NO_SAFT, TIPOSAFT, FEID""" + transport_columns + """
+                    DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO, NO_SAFT, TIPOSAFT, FEID""" + codigo_validacao_columns + transport_columns + """
                 ) VALUES (
                     :FTSSTAMP, :FESTAMP, :NDOC, :SERIE, :DESCR, :ATIVA, :ESTADO, :ANO, :ULTIMO_FNO,
-                    :DTCriacao, :DTAlteracao, :USERCRIACAO, :USERALTERACAO, :NO_SAFT, :TIPOSAFT, :FEID""" + transport_values + """
+                    :DTCriacao, :DTAlteracao, :USERCRIACAO, :USERALTERACAO, :NO_SAFT, :TIPOSAFT, :FEID""" + codigo_validacao_values + transport_values + """
                 )
             """), {
                 'FTSSTAMP': ftsstamp,
@@ -3604,10 +3663,39 @@ def create_app():
                 'NO_SAFT': int(item['no_saft']),
                 'TIPOSAFT': item['tiposaft'],
                 'FEID': CERT_RESET_FEID,
+                'CODIGO_VALIDACAO_AT': str(item.get('codigo_validacao_at') or '').strip(),
                 'IS_DOC_TRANSPORTE': int(item['is_transport']),
             })
             _ftsx_create_for_series(ftsstamp, target, item.get('ftsx') or {})
             recreated_series.append(item['label'])
+
+        for item in sample_articles:
+            epv = round(float(item.get('EPV') or 0), 2)
+            tipoprod = str(item.get('TIPOPROD') or '').strip().upper()[:1]
+            stock = 100 if tipoprod == 'P' else 0
+            cpoc = round(epv * 0.55, 2) if tipoprod == 'P' else 0.0
+            tabiva = _to_int(item.get('TABIVA'), 0)
+            db.session.execute(text("""
+                INSERT INTO dbo.ST (
+                    STSTAMP, REF, DESIGN, FAMILIA, FAMINOME, STOCK, EPV, CPOC, TIPOPROD""" + st_unidade_columns + """, TABIVA, MOTISEIMP, FEID
+                ) VALUES (
+                    :STSTAMP, :REF, :DESIGN, :FAMILIA, :FAMINOME, :STOCK, :EPV, :CPOC, :TIPOPROD""" + st_unidade_values + """, :TABIVA, :MOTISEIMP, :FEID
+                )
+            """), {
+                'STSTAMP': _new_stamp_25(),
+                'REF': str(item.get('REF') or '').strip()[:18],
+                'DESIGN': str(item.get('DESIGN') or '').strip()[:60],
+                'FAMILIA': str(item.get('FAMILIA') or '').strip()[:18],
+                'FAMINOME': str(item.get('FAMINOME') or '').strip()[:60],
+                'STOCK': stock,
+                'EPV': epv,
+                'CPOC': cpoc,
+                'TIPOPROD': tipoprod,
+                'UNIDADE': str(item.get('UNIDADE') or '').strip()[:10],
+                'TABIVA': tabiva,
+                'MOTISEIMP': 'M99' if tabiva == 4 else '',
+                'FEID': CERT_RESET_FEID,
+            })
 
         db.session.commit()
         pdf_cache_removed = _cert_reset_feid1_clear_pdf_cache(ftstamps)
@@ -3624,6 +3712,7 @@ def create_app():
             'target': target,
             'deleted_counts': deleted_counts,
             'recreated_series': recreated_series,
+            'sample_articles_seeded': len(sample_articles),
             'pdf_cache_removed': pdf_cache_removed,
             'executed_at': now.isoformat(sep=' ', timespec='seconds'),
             'executed_by': user_login,
@@ -4297,6 +4386,12 @@ def create_app():
 
     def _fts_transport_flag_available():
         return _table_has_columns('FTS', 'IS_DOC_TRANSPORTE')
+
+    def _fts_codigo_validacao_at_available():
+        return _table_has_columns('FTS', 'CODIGO_VALIDACAO_AT')
+
+    def _st_unidade_available():
+        return _table_has_columns('ST', 'UNIDADE')
 
     def _ft_transport_columns_available():
         return _table_has_columns(
@@ -6657,9 +6752,14 @@ def create_app():
         {'value': 1, 'label': '1'},
     ]
     FTSX_ALLOWED_AT_ESTADOS = {int(item['value']) for item in FTSX_AT_ESTADO_OPTIONS}
+    FTS_FISCAL_TIPOSAFT = {'FT', 'FS', 'FR', 'NC', 'GT', 'GR'}
+
+    def _fts_tiposaft_requires_atcud(tiposaft: str) -> bool:
+        return str(tiposaft or '').strip().upper() in FTS_FISCAL_TIPOSAFT
 
     def _fts_base_query():
         transport_select = "ISNULL(S.IS_DOC_TRANSPORTE, 0) AS IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else "CAST(0 AS bit) AS IS_DOC_TRANSPORTE"
+        codigo_validacao_select = "ISNULL(S.CODIGO_VALIDACAO_AT, '') AS CODIGO_VALIDACAO_AT," if _fts_codigo_validacao_at_available() else "CAST('' AS varchar(50)) AS CODIGO_VALIDACAO_AT,"
         return """
             SELECT
                 S.FTSSTAMP,
@@ -6675,6 +6775,7 @@ def create_app():
                 ISNULL(S.ULTIMO_FNO, 0) AS ULTIMO_FNO,
                 ISNULL(S.NO_SAFT, 0) AS NO_SAFT,
                 ISNULL(S.TIPOSAFT, '') AS TIPOSAFT,
+                """ + codigo_validacao_select + """
                 """ + transport_select + """,
                 S.DTCriacao,
                 S.DTAlteracao,
@@ -6755,6 +6856,7 @@ def create_app():
         no_saft = _fts_parse_bit(payload.get('NO_SAFT'), 0)
         is_doc_transporte = _fts_parse_bit(payload.get('IS_DOC_TRANSPORTE'), 0)
         tiposaft = str(payload.get('TIPOSAFT') or '').strip().upper()
+        codigo_validacao_at = str(payload.get('CODIGO_VALIDACAO_AT') or '').strip().upper()
         if ndoc <= 0:
             raise ValueError('NDOC obrigatório.')
         if not serie:
@@ -6765,6 +6867,11 @@ def create_app():
             raise ValueError('ESTADO inválido.')
         if tiposaft not in FTS_ALLOWED_TIPOSAFT:
             raise ValueError('TIPOSAFT inválido.')
+        if _fts_tiposaft_requires_atcud(tiposaft) and ativa == 1 and no_saft != 1:
+            try:
+                codigo_validacao_at = qr_validate_validation_code(codigo_validacao_at)
+            except ValueError:
+                raise ValueError('Série não comunicada à AT ou sem código de validação.')
         return {
             'NDOC': ndoc,
             'SERIE': serie,
@@ -6774,15 +6881,17 @@ def create_app():
             'NO_SAFT': no_saft,
             'TIPOSAFT': tiposaft,
             'IS_DOC_TRANSPORTE': is_doc_transporte,
+            'CODIGO_VALIDACAO_AT': codigo_validacao_at,
         }
 
-    def _ftsx_payload_from_request(payload: dict):
+    def _ftsx_payload_from_request(payload: dict, existing: dict | None = None):
         at_serie_estado = _fts_parse_int(payload.get('AT_SERIE_ESTADO'), 0)
         if at_serie_estado not in FTSX_ALLOWED_AT_ESTADOS:
             raise ValueError('AT_SERIE_ESTADO inválido.')
+        existing = dict(existing or {})
         return {
-            'COD_VALIDACAO_SERIE': str(payload.get('COD_VALIDACAO_SERIE') or '').strip(),
-            'ATCUD_PREFIX': str(payload.get('ATCUD_PREFIX') or '').strip(),
+            'COD_VALIDACAO_SERIE': str(payload.get('COD_VALIDACAO_SERIE') if 'COD_VALIDACAO_SERIE' in payload else existing.get('COD_VALIDACAO_SERIE') or '').strip(),
+            'ATCUD_PREFIX': str(payload.get('ATCUD_PREFIX') if 'ATCUD_PREFIX' in payload else existing.get('ATCUD_PREFIX') or '').strip(),
             'AT_SERIE_ESTADO': at_serie_estado,
             'AT_SERIE_DATA': _fts_parse_datetime(payload.get('AT_SERIE_DATA')),
             'AT_SERIE_MSG': str(payload.get('AT_SERIE_MSG') or '').strip(),
@@ -6882,6 +6991,7 @@ def create_app():
             'ULTIMO_FNO': row.get('ULTIMO_FNO') or 0,
             'NO_SAFT': row.get('NO_SAFT') or 0,
             'TIPOSAFT': row.get('TIPOSAFT') or '',
+            'CODIGO_VALIDACAO_AT': row.get('CODIGO_VALIDACAO_AT') or '',
             'IS_DOC_TRANSPORTE': row.get('IS_DOC_TRANSPORTE') or 0,
             'DTCriacao': row.get('DTCriacao') or '',
             'DTAlteracao': row.get('DTAlteracao') or '',
@@ -6910,13 +7020,15 @@ def create_app():
             user_login = _fts_user_login()
             transport_columns = ", IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ""
             transport_values = ", :IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ""
+            codigo_validacao_columns = ", CODIGO_VALIDACAO_AT" if _fts_codigo_validacao_at_available() else ""
+            codigo_validacao_values = ", :CODIGO_VALIDACAO_AT" if _fts_codigo_validacao_at_available() else ""
             db.session.execute(text("""
                 INSERT INTO dbo.FTS (
                     FTSSTAMP, FESTAMP, NDOC, SERIE, DESCR, ATIVA, ESTADO, ANO, ULTIMO_FNO,
-                    DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO, NO_SAFT, TIPOSAFT, FEID""" + transport_columns + """
+                    DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO, NO_SAFT, TIPOSAFT, FEID""" + codigo_validacao_columns + transport_columns + """
                 ) VALUES (
                     :FTSSTAMP, :FESTAMP, :NDOC, :SERIE, :DESCR, :ATIVA, :ESTADO, :ANO, :ULTIMO_FNO,
-                    :DTCriacao, :DTAlteracao, :USERCRIACAO, :USERALTERACAO, :NO_SAFT, :TIPOSAFT, :FEID""" + transport_values + """
+                    :DTCriacao, :DTAlteracao, :USERCRIACAO, :USERALTERACAO, :NO_SAFT, :TIPOSAFT, :FEID""" + codigo_validacao_values + transport_values + """
                 )
             """), {
                 'FTSSTAMP': stamp,
@@ -6935,6 +7047,7 @@ def create_app():
                 'NO_SAFT': clean['NO_SAFT'],
                 'TIPOSAFT': clean['TIPOSAFT'],
                 'FEID': int(current_entity.get('FEID') or 0),
+                'CODIGO_VALIDACAO_AT': clean['CODIGO_VALIDACAO_AT'],
                 'IS_DOC_TRANSPORTE': clean['IS_DOC_TRANSPORTE'],
             })
             db.session.commit()
@@ -6966,6 +7079,7 @@ def create_app():
             if _fts_duplicate_exists(current_entity, clean['NDOC'], clean['SERIE'], ano, exclude_stamp=ftsstamp):
                 return jsonify({'error': 'Já existe uma série com NDOC, SERIE e ANO para a entidade atual.'}), 400
             transport_set_sql = ", IS_DOC_TRANSPORTE=:IS_DOC_TRANSPORTE" if _fts_transport_flag_available() else ""
+            codigo_validacao_set_sql = ", CODIGO_VALIDACAO_AT=:CODIGO_VALIDACAO_AT" if _fts_codigo_validacao_at_available() else ""
             db.session.execute(text("""
                 UPDATE dbo.FTS
                 SET NDOC=:NDOC,
@@ -6974,7 +7088,7 @@ def create_app():
                     ATIVA=:ATIVA,
                     ESTADO=:ESTADO,
                     NO_SAFT=:NO_SAFT,
-                    TIPOSAFT=:TIPOSAFT""" + transport_set_sql + """,
+                    TIPOSAFT=:TIPOSAFT""" + codigo_validacao_set_sql + transport_set_sql + """,
                     DTAlteracao=:DTAlteracao,
                     USERALTERACAO=:USERALTERACAO
                 WHERE FTSSTAMP=:FTSSTAMP
@@ -6987,6 +7101,7 @@ def create_app():
                 'ESTADO': clean['ESTADO'],
                 'NO_SAFT': clean['NO_SAFT'],
                 'TIPOSAFT': clean['TIPOSAFT'],
+                'CODIGO_VALIDACAO_AT': clean['CODIGO_VALIDACAO_AT'],
                 'IS_DOC_TRANSPORTE': clean['IS_DOC_TRANSPORTE'],
                 'DTAlteracao': datetime.now(),
                 'USERALTERACAO': _fts_user_login(),
@@ -7121,7 +7236,14 @@ def create_app():
 
         try:
             payload = request.get_json(silent=True) or {}
-            clean = _ftsx_payload_from_request(payload)
+            existing = db.session.execute(text("""
+                SELECT TOP 1
+                    ISNULL(COD_VALIDACAO_SERIE, '') AS COD_VALIDACAO_SERIE,
+                    ISNULL(ATCUD_PREFIX, '') AS ATCUD_PREFIX
+                FROM dbo.FTSX
+                WHERE FTSXSTAMP = :ftsxstamp
+            """), {'ftsxstamp': (ftsxstamp or '').strip()}).mappings().first()
+            clean = _ftsx_payload_from_request(payload, existing)
             db.session.execute(text("""
                 UPDATE dbo.FTSX
                 SET COD_VALIDACAO_SERIE = :COD_VALIDACAO_SERIE,
@@ -9461,7 +9583,6 @@ def create_app():
                 DATA_IMPRESSAO_FINAL = GETDATE(),
                 USER_IMPRESSAO_FINAL = :USER_IMPRESSAO_FINAL,
                 BLOQUEADO = 1,
-                DTAlteracao = GETDATE(),
                 USERALTERACAO = :USERALTERACAO
             WHERE FTSTAMP = :FTSTAMP
         """ + _ft_entity_scope_sql('FT')), {
@@ -9685,7 +9806,6 @@ def create_app():
                     MATRICULA = :MATRICULA,
                     CODIGO_AT = :CODIGO_AT,
                     DOC_TRANSPORTE_ESTADO = :DOC_TRANSPORTE_ESTADO,
-                    DTAlteracao = GETDATE(),
                     USERALTERACAO = :USERALTERACAO
                 WHERE FTSTAMP = :FTSTAMP
             """ + _ft_entity_scope_sql('FT')), {
@@ -9900,6 +10020,8 @@ def create_app():
     def _ft_emit_is_non_fiscal(row: dict, srow: dict | None = None) -> bool:
         if _ft_is_transport_doc_context(row, srow):
             return False
+        if int(_to_int((srow or {}).get('NO_SAFT'), 0)) == 1:
+            return True
         return _ft_doc_type_from_emit_context(row, srow) in {'PF', 'OR'}
 
     def _finalize_non_fiscal_ft_emit(ftstamp_emit: str, ftsstamp: str, new_fno: int, user_login_emit: str):
@@ -10009,6 +10131,7 @@ def create_app():
               IVATX1=:IVATX1, IVATX2=:IVATX2, IVATX3=:IVATX3, IVATX4=:IVATX4, IVATX5=:IVATX5, IVATX6=:IVATX6, IVATX7=:IVATX7, IVATX8=:IVATX8, IVATX9=:IVATX9,
               EIVAIN1=:EIVAIN1, EIVAIN2=:EIVAIN2, EIVAIN3=:EIVAIN3, EIVAIN4=:EIVAIN4, EIVAIN5=:EIVAIN5, EIVAIN6=:EIVAIN6, EIVAIN7=:EIVAIN7, EIVAIN8=:EIVAIN8, EIVAIN9=:EIVAIN9,
               EIVAV1=:EIVAV1, EIVAV2=:EIVAV2, EIVAV3=:EIVAV3, EIVAV4=:EIVAV4, EIVAV5=:EIVAV5, EIVAV6=:EIVAV6, EIVAV7=:EIVAV7, EIVAV8=:EIVAV8, EIVAV9=:EIVAV9,
+              SYSTEM_ENTRY_DATE=ISNULL(SYSTEM_ENTRY_DATE, GETDATE()),
               DTAlteracao=GETDATE(), USERALTERACAO=:u
             WHERE FTSTAMP=:s
         """), {
@@ -10038,12 +10161,15 @@ def create_app():
         certificado = str(qr_get_param(db.session, 'AT_CERTIFICADO', '') or '').strip()
         qr_version = str(qr_get_param(db.session, 'QR_VERSION', '') or '').strip()
         cod_validacao, ftsstamp_for_qr = get_serie_validation_code(db.session, ft_emit)
-        if modo_teste and not cod_validacao:
-            cod_validacao = 'TESTE'
         if modo_teste and not certificado:
             certificado = '12345'
-        qr_validate_requirements(modo_teste, cod_validacao, certificado, bool(ftsstamp_for_qr))
-        atcud = build_atcud(cod_validacao, _to_int(ft_emit.get('FNO'), 0))
+        try:
+            qr_validate_requirements(modo_teste, cod_validacao, certificado, bool(ftsstamp_for_qr))
+            atcud = build_atcud({'SERIE': ft_emit.get('SERIE'), 'CODIGO_VALIDACAO_AT': cod_validacao}, _to_int(ft_emit.get('FNO'), 0))
+        except ValueError as exc:
+            if 'codigo de validacao' in str(exc).lower() or 'serie nao comunicada' in str(exc).lower():
+                raise ValueError('Série não comunicada à AT ou sem código de validação')
+            raise
         ft_for_qr = dict(ft_emit); ft_for_qr['HASH'] = signed.get('HASH') or ''; ft_for_qr['ASSINATURA'] = signed.get('ASSINATURA') or ''; ft_for_qr['_QR_VERSION'] = qr_version
         codigo_qr = build_qr_payload(ft_for_qr, fe_row, atcud, certificado, modo_teste)
         transport_state = 'PRONTO' if _ft_transport_fields_complete({
@@ -10193,6 +10319,7 @@ def create_app():
                     IVATX1=:IVATX1, IVATX2=:IVATX2, IVATX3=:IVATX3, IVATX4=:IVATX4, IVATX5=:IVATX5, IVATX6=:IVATX6, IVATX7=:IVATX7, IVATX8=:IVATX8, IVATX9=:IVATX9,
                     EIVAIN1=:EIVAIN1, EIVAIN2=:EIVAIN2, EIVAIN3=:EIVAIN3, EIVAIN4=:EIVAIN4, EIVAIN5=:EIVAIN5, EIVAIN6=:EIVAIN6, EIVAIN7=:EIVAIN7, EIVAIN8=:EIVAIN8, EIVAIN9=:EIVAIN9,
                     EIVAV1=:EIVAV1, EIVAV2=:EIVAV2, EIVAV3=:EIVAV3, EIVAV4=:EIVAV4, EIVAV5=:EIVAV5, EIVAV6=:EIVAV6, EIVAV7=:EIVAV7, EIVAV8=:EIVAV8, EIVAV9=:EIVAV9,
+                    SYSTEM_ENTRY_DATE=ISNULL(SYSTEM_ENTRY_DATE, GETDATE()),
                     DTAlteracao=GETDATE(), USERALTERACAO=:u
                 WHERE FTSTAMP=:s
             """), {
@@ -10238,12 +10365,15 @@ def create_app():
             qr_version = str(qr_get_param(db.session, 'QR_VERSION', '') or '').strip()
 
             cod_validacao, ftsstamp_for_qr = get_serie_validation_code(db.session, ft_emit)
-            if modo_teste and not cod_validacao:
-                cod_validacao = 'TESTE'
             if modo_teste and not certificado:
                 certificado = '12345'
-            qr_validate_requirements(modo_teste, cod_validacao, certificado, bool(ftsstamp_for_qr))
-            atcud = build_atcud(cod_validacao, _to_int(ft_emit.get('FNO'), 0))
+            try:
+                qr_validate_requirements(modo_teste, cod_validacao, certificado, bool(ftsstamp_for_qr))
+                atcud = build_atcud({'SERIE': ft_emit.get('SERIE'), 'CODIGO_VALIDACAO_AT': cod_validacao}, _to_int(ft_emit.get('FNO'), 0))
+            except ValueError as exc:
+                if 'codigo de validacao' in str(exc).lower() or 'serie nao comunicada' in str(exc).lower():
+                    raise ValueError('Série não comunicada à AT ou sem código de validação')
+                raise
 
             ft_for_qr = dict(ft_emit)
             ft_for_qr['HASH'] = signed.get('HASH') or ''
@@ -10360,8 +10490,8 @@ def create_app():
               S.FTSSTAMP,
               S.NDOC,
               CASE
-                WHEN LTRIM(RTRIM(ISNULL(T.NMDOC, ''))) <> '' THEN LTRIM(RTRIM(ISNULL(T.NMDOC, '')))
-                WHEN LTRIM(RTRIM(ISNULL(S.DESCR, ''))) <> '' THEN LTRIM(RTRIM(ISNULL(S.DESCR, '')))
+                WHEN LTRIM(RTRIM(ISNULL(T.NMDOC COLLATE DATABASE_DEFAULT, ''))) <> '' THEN LTRIM(RTRIM(ISNULL(T.NMDOC COLLATE DATABASE_DEFAULT, '')))
+                WHEN LTRIM(RTRIM(ISNULL(S.DESCR COLLATE DATABASE_DEFAULT, ''))) <> '' THEN LTRIM(RTRIM(ISNULL(S.DESCR COLLATE DATABASE_DEFAULT, '')))
                 ELSE ''
               END AS NMDOC,
               ISNULL(S.SERIE,'') AS SERIE,
@@ -10431,6 +10561,20 @@ def create_app():
         if not srow:
             raise ValueError('Série inválida/inativa (TIPOSAFT deve ser FR) para a entidade emissora.')
         srow = dict(srow)
+
+        fe_row = db.session.execute(text("""
+            SELECT TOP 1
+              FEID,
+              FESTAMP
+            FROM dbo.FE
+            WHERE FESTAMP = :festamp
+        """), {'festamp': festamp}).mappings().first()
+        if not fe_row:
+            raise ValueError('Entidade emissora inválida.')
+        fe_row = dict(fe_row)
+        current_feid = int(fe_row.get('FEID') or 0)
+        if current_feid <= 0:
+            raise ValueError('Entidade emissora sem FEID válido.')
 
         ft_cols = db.session.execute(text("""
             SELECT UPPER(COLUMN_NAME) AS CN
@@ -10539,6 +10683,7 @@ def create_app():
 
                     payload = _default_ft_payload(user_login)
                     payload.update({
+                        'FEID': current_feid,
                         'NDOC': _to_int(srow.get('NDOC'), 0),
                         'NMDOC': (srow.get('NMDOC') or '').strip(),
                         'FESTAMP': festamp,
@@ -10561,7 +10706,7 @@ def create_app():
 
                     db.session.execute(text("""
                         INSERT INTO dbo.FT
-                        (FTSTAMP, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA, CAMBIO,
+                        (FTSTAMP, FEID, NDOC, NMDOC, FNO, TIPO, NO, NOME, MORADA, CODPOST, PAIS, LOCAL, NCONT, MOEDA, CAMBIO,
                          FDATA, FTANO, PDATA, PLANO, TPSTAMP, TPDESC, DESCONTO, ETTILIQ, ETTIVA, ETOTAL, CCUSTO,
                          IVATX1, IVATX2, IVATX3, IVATX4, IVATX5, IVATX6, IVATX7, IVATX8, IVATX9,
                          EIVAIN1, EIVAIN2, EIVAIN3, EIVAIN4, EIVAIN5, EIVAIN6, EIVAIN7, EIVAIN8, EIVAIN9,
@@ -10571,7 +10716,7 @@ def create_app():
                          ANULADA, ANULDATA, ANULUSER, ANULMOTIVO,
                          FTREFSTAMP, AT_ENVIO_ESTADO, AT_ENVIO_DATA, AT_ENVIO_MSG)
                         VALUES
-                        (:FTSTAMP, :NDOC, :NMDOC, :FNO, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA, :CAMBIO,
+                        (:FTSTAMP, :FEID, :NDOC, :NMDOC, :FNO, :TIPO, :NO, :NOME, :MORADA, :CODPOST, :PAIS, :LOCAL, :NCONT, :MOEDA, :CAMBIO,
                          :FDATA, :FTANO, :PDATA, :PLANO, :TPSTAMP, :TPDESC, :DESCONTO, :ETTILIQ, :ETTIVA, :ETOTAL, :CCUSTO,
                          0,0,0,0,0,0,0,0,0,
                          0,0,0,0,0,0,0,0,0,
@@ -10590,9 +10735,9 @@ def create_app():
 
                     fi_insert_sql = text("""
                         INSERT INTO dbo.FI
-                        (FISTAMP, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA, DESCONTO, MISEIMP)
+                        (FISTAMP, FEID, NMDOC, FNO, REF, DESIGN, QTT, ETILIQUIDO, UNIDADE, IVA, IVAINCL, TABIVA, NDOC, LORDEM, FTSTAMP, FICCUSTO, EPV, FAMILIA, DESCONTO, MISEIMP)
                         VALUES
-                        (:FISTAMP, :NMDOC, 0, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA, :DESCONTO, :MISEIMP)
+                        (:FISTAMP, :FEID, :NMDOC, 0, :REF, :DESIGN, :QTT, :ETILIQUIDO, :UNIDADE, :IVA, :IVAINCL, :TABIVA, :NDOC, :LORDEM, :FTSTAMP, :FICCUSTO, :EPV, :FAMILIA, :DESCONTO, :MISEIMP)
                     """)
 
                     # Até 2026-03-02 (inclusive): 2 linhas (ESTADIA 6% + LIMPEZA 23%).
@@ -10601,6 +10746,7 @@ def create_app():
                         if estadia_val > 0:
                             db.session.execute(fi_insert_sql, {
                                 'FISTAMP': _new_stamp_25(),
+                                'FEID': current_feid,
                                 'NMDOC': payload['NMDOC'],
                                 'REF': 'ESTADIA',
                                 'DESIGN': desc[:60],
@@ -10622,6 +10768,7 @@ def create_app():
                         if limpeza_val > 0:
                             db.session.execute(fi_insert_sql, {
                                 'FISTAMP': _new_stamp_25(),
+                                'FEID': current_feid,
                                 'NMDOC': payload['NMDOC'],
                                 'REF': 'LIMPEZA',
                                 'DESIGN': 'Taxa de Limpeza',
@@ -10643,6 +10790,7 @@ def create_app():
                     else:
                         db.session.execute(fi_insert_sql, {
                             'FISTAMP': _new_stamp_25(),
+                            'FEID': current_feid,
                             'NMDOC': payload['NMDOC'],
                             'REF': 'ESTADIA',
                             'DESIGN': desc[:60],
@@ -10779,7 +10927,7 @@ def create_app():
         db.session.execute(text("""
             UPDATE dbo.FT
             SET ANULADA=1, ESTADO=2, BLOQUEADO=1, ANULDATA=GETDATE(), ANULUSER=:u, ANULMOTIVO=:m,
-                DTAlteracao=GETDATE(), USERALTERACAO=:u
+                USERALTERACAO=:u
             WHERE FTSTAMP=:s
         """ + _ft_entity_scope_sql('FT')), {
             'u': user_login,

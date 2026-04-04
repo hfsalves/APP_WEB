@@ -136,7 +136,11 @@
                       {% for option in fts_tiposaft_options %}
                       <option value="{{ option.value }}">{{ option.label }}</option>
                       {% endfor %}
-                    </select>
+                      </select>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="ftsCODIGO_VALIDACAO_AT">Codigo validacao AT</label>
+                    <input id="ftsCODIGO_VALIDACAO_AT" class="sz_input" maxlength="50" placeholder="AA12345678">
                   </div>
                   <div class="sz_field">
                     <label class="sz_label" for="ftsESTADO">ESTADO</label>
@@ -198,14 +202,6 @@
                     <div class="sz_field">
                       <label class="sz_label" for="ftsxHASHVER">HASHVER</label>
                       <input id="ftsxHASHVER" class="sz_input" readonly>
-                    </div>
-                    <div class="sz_field sz_fts_span_2">
-                      <label class="sz_label" for="ftsxCOD_VALIDACAO_SERIE">COD_VALIDACAO_SERIE</label>
-                      <input id="ftsxCOD_VALIDACAO_SERIE" class="sz_input" maxlength="20">
-                    </div>
-                    <div class="sz_field sz_fts_span_2">
-                      <label class="sz_label" for="ftsxATCUD_PREFIX">ATCUD_PREFIX</label>
-                      <input id="ftsxATCUD_PREFIX" class="sz_input" maxlength="30">
                     </div>
                     <div class="sz_field">
                       <label class="sz_label" for="ftsxAT_SERIE_ESTADO">AT_SERIE_ESTADO</label>

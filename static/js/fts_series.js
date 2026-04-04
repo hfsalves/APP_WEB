@@ -47,6 +47,7 @@
         SERIE: document.getElementById('ftsSERIE'),
         DESCR: document.getElementById('ftsDESCR'),
         TIPOSAFT: document.getElementById('ftsTIPOSAFT'),
+        CODIGO_VALIDACAO_AT: document.getElementById('ftsCODIGO_VALIDACAO_AT'),
         ESTADO: document.getElementById('ftsESTADO'),
         ULTIMO_FNO: document.getElementById('ftsULTIMO_FNO'),
         ATIVA: document.getElementById('ftsATIVA'),
@@ -62,8 +63,6 @@
         FTSSTAMP: document.getElementById('ftsxFTSSTAMP'),
         FEID: document.getElementById('ftsxFEID'),
         HASHVER: document.getElementById('ftsxHASHVER'),
-        COD_VALIDACAO_SERIE: document.getElementById('ftsxCOD_VALIDACAO_SERIE'),
-        ATCUD_PREFIX: document.getElementById('ftsxATCUD_PREFIX'),
         AT_SERIE_ESTADO: document.getElementById('ftsxAT_SERIE_ESTADO'),
         AT_SERIE_DATA: document.getElementById('ftsxAT_SERIE_DATA'),
         AT_SERIE_MSG: document.getElementById('ftsxAT_SERIE_MSG'),
@@ -75,8 +74,8 @@
     },
   };
 
-  const ftsEditableKeys = ['NDOC', 'SERIE', 'DESCR', 'ATIVA', 'ESTADO', 'NO_SAFT', 'TIPOSAFT', 'IS_DOC_TRANSPORTE'];
-  const ftsxEditableKeys = ['COD_VALIDACAO_SERIE', 'ATCUD_PREFIX', 'AT_SERIE_ESTADO', 'AT_SERIE_DATA', 'AT_SERIE_MSG'];
+  const ftsEditableKeys = ['NDOC', 'SERIE', 'DESCR', 'ATIVA', 'ESTADO', 'NO_SAFT', 'TIPOSAFT', 'CODIGO_VALIDACAO_AT', 'IS_DOC_TRANSPORTE'];
+  const ftsxEditableKeys = ['AT_SERIE_ESTADO', 'AT_SERIE_DATA', 'AT_SERIE_MSG'];
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (match) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[match]
@@ -122,6 +121,7 @@
       ULTIMO_FNO: 0,
       NO_SAFT: 0,
       TIPOSAFT: '',
+      CODIGO_VALIDACAO_AT: '',
       IS_DOC_TRANSPORTE: 0,
       DTCriacao: '',
       DTAlteracao: '',
@@ -138,8 +138,6 @@
       FEID: Number(currentEntity.FEID || 0),
       HASHVER: '',
       LAST_HASH: '',
-      COD_VALIDACAO_SERIE: '',
-      ATCUD_PREFIX: '',
       AT_SERIE_ESTADO: 0,
       AT_SERIE_DATA: '',
       AT_SERIE_MSG: '',
@@ -252,8 +250,7 @@
           <span><strong>NO_SAFT:</strong> ${Number(row.NO_SAFT || 0) === 1 ? '1' : '0'}</span>
           <span><strong>Transporte:</strong> ${Number(row.IS_DOC_TRANSPORTE || 0) === 1 ? '1' : '0'}</span>
           <span><strong>TIPOSAFT:</strong> ${esc(row.TIPOSAFT || '—')}</span>
-          <span><strong>COD:</strong> ${esc(row.COD_VALIDACAO_SERIE || '—')}</span>
-          <span><strong>Prefixo:</strong> ${esc(row.ATCUD_PREFIX || '—')}</span>
+          <span><strong>Codigo AT:</strong> ${esc(row.CODIGO_VALIDACAO_AT || '—')}</span>
         </div>
       </div>
     `;
@@ -441,14 +438,13 @@
       NO_SAFT: els.fields.fts.NO_SAFT?.checked ? 1 : 0,
       IS_DOC_TRANSPORTE: els.fields.fts.IS_DOC_TRANSPORTE?.checked ? 1 : 0,
       TIPOSAFT: String(els.fields.fts.TIPOSAFT?.value || '').trim().toUpperCase(),
+      CODIGO_VALIDACAO_AT: String(els.fields.fts.CODIGO_VALIDACAO_AT?.value || '').trim().toUpperCase(),
     };
   }
 
   function collectFtsxPayload() {
     return {
       FTSSTAMP: String(els.fields.ftsx.FTSSTAMP?.value || '').trim(),
-      COD_VALIDACAO_SERIE: String(els.fields.ftsx.COD_VALIDACAO_SERIE?.value || '').trim(),
-      ATCUD_PREFIX: String(els.fields.ftsx.ATCUD_PREFIX?.value || '').trim(),
       AT_SERIE_ESTADO: String(els.fields.ftsx.AT_SERIE_ESTADO?.value || '').trim(),
       AT_SERIE_DATA: String(els.fields.ftsx.AT_SERIE_DATA?.value || '').trim(),
       AT_SERIE_MSG: String(els.fields.ftsx.AT_SERIE_MSG?.value || '').trim(),

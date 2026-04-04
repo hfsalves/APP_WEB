@@ -19,6 +19,7 @@
   --sz-scrollbar-track: color-mix(in srgb, var(--sz-color-surface) 70%, transparent);
   --sz-scrollbar-thumb: color-mix(in srgb, var(--sz-color-text-muted) 34%, transparent);
   --sz-scrollbar-thumb-hover: color-mix(in srgb, var(--sz-color-text-secondary) 46%, transparent);
+  --sz-datepicker-icon-filter: brightness(0) saturate(100%) invert(11%) sepia(28%) saturate(821%) hue-rotate(176deg) brightness(94%) contrast(89%);
 
   --sz-max-width: 1140px;
   --sz-max-width-narrow: 820px;
@@ -685,6 +686,19 @@ input.sz_input_number[type="number"]:not([data-sz-int="true"]):not([step="1"]):n
   background-size: 6px 6px, 6px 6px;
   background-repeat: no-repeat;
   padding-right: 2rem;
+}
+
+input.sz_input[type="date"]::-webkit-calendar-picker-indicator,
+input.sz_input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input.sz_input[type="month"]::-webkit-calendar-picker-indicator,
+input.sz_input[type="time"]::-webkit-calendar-picker-indicator,
+input.sz_date[type="date"]::-webkit-calendar-picker-indicator,
+input.sz_date[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input.sz_date[type="month"]::-webkit-calendar-picker-indicator,
+input.sz_date[type="time"]::-webkit-calendar-picker-indicator {
+  filter: var(--sz-datepicker-icon-filter);
+  opacity: 1;
+  cursor: pointer;
 }
 
 .sz_checkbox,
@@ -3729,6 +3743,7 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   --sz-scrollbar-track: rgba(19, 34, 53, 0.42);
   --sz-scrollbar-thumb: rgba(145, 168, 197, 0.28);
   --sz-scrollbar-thumb-hover: rgba(191, 208, 231, 0.4);
+  --sz-datepicker-icon-filter: brightness(0) saturate(100%) invert(95%) sepia(11%) saturate(577%) hue-rotate(176deg) brightness(101%) contrast(95%);
 }
 
 [data-sz-theme="dark"] .sz-base-shell .app-header .user-dropdown-floating,
@@ -3786,6 +3801,7 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   --sz-scrollbar-track: rgba(4, 10, 6, 0.5);
   --sz-scrollbar-thumb: rgba(117, 255, 132, 0.28);
   --sz-scrollbar-thumb-hover: rgba(117, 255, 132, 0.44);
+  --sz-datepicker-icon-filter: brightness(0) saturate(100%) invert(86%) sepia(55%) saturate(2290%) hue-rotate(60deg) brightness(105%) contrast(103%);
 }
 
 [data-sz-theme="geek"] .sz_button_primary,
