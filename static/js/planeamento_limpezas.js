@@ -350,7 +350,7 @@ const renderPlanner2TeamCards = () => {
         entries.push({
           type: 'clean',
           label: `${item.lodging}`,
-          meta: `${minutesToTime(startMinutes)} Â· ${item.typology} Â· ${formatMinutes(item.duration)}`,
+          meta: `${minutesToTime(startMinutes)} · ${item.typology} · ${formatMinutes(item.duration)}`,
           address: item.address,
           stamp: item.stamp,
           lodging: item.lodging,
@@ -368,7 +368,7 @@ const renderPlanner2TeamCards = () => {
           if (entry.start != null && entry.end != null && lunchStart >= entry.start && lunchStart <= entry.end) {
             entries.splice(i + 1, 0, {
               type: 'lunch',
-              label: `AlmoÃ§o ${minutesToTime(entry.end)}`,
+              label: `Almoço ${minutesToTime(entry.end)}`,
               start: entry.end,
               end: entry.end + lunchMinutes
             });
@@ -379,7 +379,7 @@ const renderPlanner2TeamCards = () => {
         if (!inserted) {
           entries.push({
             type: 'lunch',
-            label: `AlmoÃ§o ${minutesToTime(lunchStart)}`,
+            label: `Almoço ${minutesToTime(lunchStart)}`,
             start: lunchStart,
             end: lunchStart + lunchMinutes
           });
@@ -498,7 +498,7 @@ const renderPlanner2TeamCards = () => {
         if (current > latestStart) {
           if (allowViolations) {
             penalty += 100000;
-            alerts.push('Sem tempo para almoÃ§o');
+            alerts.push('Sem tempo para almoço');
             lunchTaken = true;
             lunchStart = current;
             return true;
@@ -509,7 +509,7 @@ const renderPlanner2TeamCards = () => {
         if (lunchAt > latestStart) {
           if (allowViolations) {
             penalty += 100000;
-            alerts.push('AlmoÃ§o fora da janela');
+            alerts.push('Almoço fora da janela');
             lunchTaken = true;
             lunchStart = lunchAt;
             return true;
@@ -527,7 +527,7 @@ const renderPlanner2TeamCards = () => {
 
       for (let i = 0; i <= order.length; i += 1) {
         if (i === lunchIndex) {
-          if (!insertLunch()) return { valid: false, penalty: Infinity, alerts: ['Sem almoÃ§o'] };
+          if (!insertLunch()) return { valid: false, penalty: Infinity, alerts: ['Sem almoço'] };
         }
         if (i === order.length) break;
         const item = order[i];
@@ -565,16 +565,16 @@ const renderPlanner2TeamCards = () => {
       }
 
       if (!lunchTaken) {
-        if (!insertLunch()) return { valid: false, penalty: Infinity, alerts: ['Sem almoÃ§o'] };
+        if (!insertLunch()) return { valid: false, penalty: Infinity, alerts: ['Sem almoço'] };
       }
 
       if (current > teamEndMin) {
         const overtime = current - teamEndMin;
         if (allowViolations) {
           penalty += overtime * 500;
-          alerts.push('Fim apÃ³s horÃ¡rio');
+          alerts.push('Fim após horário');
         } else {
-          return { valid: false, penalty: Infinity, alerts: ['Fim apÃ³s horÃ¡rio'] };
+          return { valid: false, penalty: Infinity, alerts: ['Fim após horário'] };
         }
       }
 
@@ -653,7 +653,7 @@ const renderPlanner2TeamCards = () => {
           startTime: chosen && Array.isArray(chosen.scheduleTimes) && chosen.scheduleTimes.length ? chosen.scheduleTimes[0] : teamStartMin,
           lunchMinutes,
           lunchStart: chosen ? chosen.lunchStart : null,
-          alerts: chosen ? chosen.alerts : ['Sem soluÃ§Ã£o vÃ¡lida'],
+          alerts: chosen ? chosen.alerts : ['Sem solução válida'],
           valid: !!(chosen && chosen.valid)
         }
       };
@@ -708,7 +708,7 @@ const renderPlanner2TeamCards = () => {
       plannedMeta.className = 'planner2-team-section-meta';
       const travelMinutes = Math.round((plannedMetrics.travelSeconds || 0) / 60);
       const endText = minutesToTime(plannedMetrics.endTime || teamStartMin);
-      plannedMeta.textContent = `${Number(plannedMetrics.totalKm || 0).toFixed(2)} km Â· Desloc. ${formatMinutes(travelMinutes)} Â· Espera ${formatMinutes(plannedMetrics.waitMinutes || 0)} Â· Fim ${endText} Â· AlmoÃ§o ${plannedMetrics.lunchMinutes || 0}m`;
+      plannedMeta.textContent = `${Number(plannedMetrics.totalKm || 0).toFixed(2)} km · Desloc. ${formatMinutes(travelMinutes)} · Espera ${formatMinutes(plannedMetrics.waitMinutes || 0)} · Fim ${endText} · Almoço ${plannedMetrics.lunchMinutes || 0}m`;
       plannedWrap.appendChild(plannedMeta);
     }
 
@@ -739,14 +739,14 @@ const renderPlanner2TeamCards = () => {
       + (suggestionMetrics.totalKm || 0)
     ) : null;
     const suggestionWorseOrEqual = plannedScore != null && suggestedScore != null && suggestedScore >= plannedScore;
-    suggestedTitle.textContent = 'SugestÃ£o';
+    suggestedTitle.textContent = 'Sugestão';
     if (!sameOrder && !suggestionWorseOrEqual) {
       const metaLine = document.createElement('div');
       metaLine.className = 'planner2-team-section-meta';
       const travelMinutes = Math.round((suggestionMetrics.travelSeconds || 0) / 60);
       const fallbackStart = plannedTimes.length ? plannedTimes[0] : 0;
       const endText = minutesToTime(suggestionMetrics.endTime || fallbackStart);
-      metaLine.textContent = `${Number(suggestionMetrics.totalKm || 0).toFixed(2)} km Â· Desloc. ${formatMinutes(travelMinutes)} Â· Espera ${formatMinutes(suggestionMetrics.waitMinutes || 0)} Â· Fim ${endText} Â· AlmoÃ§o ${suggestionMetrics.lunchMinutes || 0}m`;
+      metaLine.textContent = `${Number(suggestionMetrics.totalKm || 0).toFixed(2)} km · Desloc. ${formatMinutes(travelMinutes)} · Espera ${formatMinutes(suggestionMetrics.waitMinutes || 0)} · Fim ${endText} · Almoço ${suggestionMetrics.lunchMinutes || 0}m`;
       const applyBtn = document.createElement('button');
       applyBtn.type = 'button';
       applyBtn.className = 'btn btn-sm btn-outline-primary planner2-team-apply';
@@ -911,7 +911,7 @@ const renderRows = (data, slots) => {
       const guests = Number(row.checkin_people || 0);
       const nights = Number(row.checkin_nights || 0);
       const checkinTimeLabel = checkinHasDefinedTime ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}` : 'N/D';
-      const checkinLabel = `${checkinTimeLabel} Â· ${guests}P Â· ${nights}N`;
+      const checkinLabel = `${checkinTimeLabel} · ${guests}P · ${nights}N`;
       const bar = document.createElement('div');
       bar.className = 'planner2-bar planner2-bar-checkin';
       bar.style.left = `${lodgeWidth + startIdx * PLANNER2.slotWidth}px`;
@@ -956,7 +956,7 @@ const renderRows = (data, slots) => {
       attachTooltip(bar, tooltipLines.join('\n'), tooltip);
       const label = document.createElement('span');
       label.className = 'planner2-bar-label planner2-bar-label-left';
-      label.textContent = guests && nights ? `${guests}P Â· ${nights}N` : '';
+      label.textContent = guests && nights ? `${guests}P · ${nights}N` : '';
       bar.appendChild(label);
       tr.appendChild(bar);
     }

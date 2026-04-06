@@ -26,9 +26,20 @@
             <label class="sz_label" for="pickupCurveAlojamento">Alojamento</label>
             <select id="pickupCurveAlojamento" class="sz_select"></select>
           </div>
-          <div class="sz_field">
-            <label class="sz_label" for="pickupCurvePeriod">Período</label>
+          <div class="sz_field" id="pickupCurvePeriodField">
+            <label class="sz_label" for="pickupCurvePeriod">Per&iacute;odo</label>
             <select id="pickupCurvePeriod" class="sz_select"></select>
+          </div>
+          <div class="sz_field" id="pickupCurveMonthField">
+            <label class="sz_label" for="pickupCurveMonth">M&ecirc;s</label>
+            <input id="pickupCurveMonth" type="month" class="sz_input">
+          </div>
+          <div class="sz_field sz_pickup_curves_apply_field">
+            <label class="sz_label sz_label_hidden" for="pickupCurveApply">Aplicar</label>
+            <button id="pickupCurveApply" type="button" class="sz_button sz_button_primary sz_button_full">
+              <i class="fa-solid fa-filter-circle-check"></i>
+              <span>Aplicar</span>
+            </button>
           </div>
         </div>
       </div>
@@ -97,7 +108,7 @@
   .sz_pickup_curves_contextbar .sz_contextbar_right {
     flex: 1 1 auto;
     justify-content: flex-end;
-    min-width: min(100%, 64rem);
+    min-width: min(100%, 84rem);
   }
 
   .sz_pickup_curves_contextbar .sz_contextbar_left {
@@ -107,7 +118,14 @@
 
   .sz_pickup_curves_controls {
     display: grid;
-    grid-template-columns: minmax(14rem, 1.3fr) minmax(14rem, 1fr) minmax(7rem, 0.5fr) minmax(16rem, 1.5fr) minmax(12rem, 1fr);
+    grid-template-columns:
+      minmax(14rem, 1.25fr)
+      minmax(12rem, 0.9fr)
+      minmax(7rem, 0.5fr)
+      minmax(13rem, 1fr)
+      minmax(12rem, 0.95fr)
+      minmax(12rem, 0.95fr)
+      auto;
     gap: var(--sz-space-3);
     align-items: end;
     width: 100%;
@@ -119,6 +137,20 @@
 
   .sz_pickup_curves_controls .sz_select,
   .sz_pickup_curves_controls .sz_input {
+    width: 100%;
+  }
+
+  .sz_pickup_curves_apply_field {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .sz_pickup_curves_apply_field .sz_label {
+    visibility: hidden;
+  }
+
+  .sz_pickup_curves_apply_field .sz_button {
     width: 100%;
   }
 
@@ -453,7 +485,11 @@
   const profileSelect = document.getElementById('pickupCurveProfile');
   const horizonSelect = document.getElementById('pickupCurveHorizon');
   const alojamentoSelect = document.getElementById('pickupCurveAlojamento');
+  const periodField = document.getElementById('pickupCurvePeriodField');
   const periodSelect = document.getElementById('pickupCurvePeriod');
+  const monthField = document.getElementById('pickupCurveMonthField');
+  const monthInput = document.getElementById('pickupCurveMonth');
+  const applyBtn = document.getElementById('pickupCurveApply');
   const panelTitle = document.getElementById('pickupCurvePanelTitle');
   const panelMeta = document.getElementById('pickupCurvePanelMeta');
   const comparisonEl = document.getElementById('pickupCurveComparison');
@@ -465,23 +501,124 @@
   const saveBtn = document.getElementById('pickupCurveSave');
   const cancelBtn = document.getElementById('pickupCurveCancel');
 
+  const POST_START_LEADS = [-5, -10, -15, -20, -25, -30, -35];
+
   let currentCurve = null;
   let currentComparison = null;
   let savedSnapshot = '';
   let activeDrag = null;
+  let pickupBusyCount = 0;
 
   function setStatus(text, isError = false) {
     statusEl.textContent = text || '';
     statusEl.className = isError ? 'sz_pickup_curves_status_error' : 'sz_text_muted';
   }
 
+  function getLoadingOverlayRefs() {
+    const overlay = document.getElementById('loadingOverlay');
+    return {
+      overlay,
+      text: overlay ? overlay.querySelector('.loading-text') : null,
+    };
+  }
+
+  function showPickupOverlay(message = 'A carregar...') {
+    const { overlay, text } = getLoadingOverlayRefs();
+    if (!overlay) return;
+    pickupBusyCount += 1;
+    if (text) text.textContent = message;
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => {
+      overlay.style.opacity = '1';
+    });
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+
+  function hidePickupOverlay() {
+    const { overlay, text } = getLoadingOverlayRefs();
+    if (!overlay) return;
+    pickupBusyCount = Math.max(0, pickupBusyCount - 1);
+    if (pickupBusyCount > 0) return;
+    overlay.style.opacity = '0';
+    overlay.setAttribute('aria-hidden', 'true');
+    setTimeout(() => {
+      if (pickupBusyCount === 0) {
+        overlay.style.display = 'none';
+        if (text) text.textContent = 'A carregar...';
+      }
+    }, 250);
+  }
+
   function isWeeklyScope() {
     return scopeSelect.value === 'weekly';
+  }
+
+  function isMonthlyScope() {
+    return !isWeeklyScope();
   }
 
   function currentProfileId() {
     const raw = profileSelect.value;
     return raw ? Number(raw) : null;
+  }
+
+  function clampCurveValue(value) {
+    const number = Number(value);
+    if (Number.isNaN(number)) return 0;
+    return Math.max(0, Math.min(100, Math.round(number)));
+  }
+
+  function toYMD(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function parseDate(value) {
+    if (!value) return null;
+    const normalized = String(value).trim();
+    if (!normalized) return null;
+    const candidate = new Date(`${normalized.length === 7 ? `${normalized}-01` : normalized}T00:00:00`);
+    return Number.isNaN(candidate.getTime()) ? null : candidate;
+  }
+
+  function addDays(dateValue, days) {
+    const copy = new Date(dateValue.getTime());
+    copy.setDate(copy.getDate() + Number(days || 0));
+    return copy;
+  }
+
+  function startOfIsoWeek(dateValue) {
+    const copy = new Date(dateValue.getTime());
+    const weekday = copy.getDay() || 7;
+    copy.setDate(copy.getDate() - weekday + 1);
+    copy.setHours(0, 0, 0, 0);
+    return copy;
+  }
+
+  function isoWeekParts(dateValue) {
+    const monday = startOfIsoWeek(dateValue);
+    const thursday = addDays(monday, 3);
+    const firstThursday = new Date(thursday.getFullYear(), 0, 4);
+    const firstWeekStart = startOfIsoWeek(firstThursday);
+    const week = 1 + Math.round((monday - firstWeekStart) / (7 * 24 * 60 * 60 * 1000));
+    return { year: thursday.getFullYear(), week };
+  }
+
+  function defaultMonthlyScopeForMonth(monthNumber) {
+    const month = Number(monthNumber || 0);
+    if (month === 3) return 'monthly_mid';
+    if ([11, 12, 1, 2].includes(month)) return 'monthly_low';
+    return 'monthly_high';
+  }
+
+  function currentMonthValue() {
+    return monthInput.value || seed.default_month_value || String(seed.today?.date || '').slice(0, 7);
+  }
+
+  function currentPeriodValue() {
+    return isWeeklyScope() ? (periodSelect.value || '') : currentMonthValue();
   }
 
   function currentPayload() {
@@ -505,42 +642,68 @@
     cancelBtn.disabled = !currentCurve || snapshotPayload() === savedSnapshot;
   }
 
-  function clampCurveValue(value) {
-    const number = Number(value);
-    if (Number.isNaN(number)) return 0;
-    return Math.max(0, Math.min(100, Math.round(number)));
-  }
-
-  function applyCurveValue(index, value) {
-    if (!currentCurve?.points?.[index]) return;
-    const nextValue = clampCurveValue(value);
-    currentCurve.points[index].ocup_alvo = nextValue;
-    const barEl = chartEl.querySelector(`.sz_pickup_curve_bar[data-index="${index}"]`);
-    const valueEl = barEl?.querySelector('.sz_pickup_curve_value');
-    if (valueEl) valueEl.textContent = `${nextValue}%`;
-    if (barEl) barEl.style.setProperty('--curve-value', nextValue);
-    requestAnimationFrame(renderOverlayLines);
-    updateDirtyState();
-  }
-
   function valueFromPointer(event, wrapEl) {
     const rect = wrapEl.getBoundingClientRect();
     const ratio = 1 - ((event.clientY - rect.top) / rect.height);
     return clampCurveValue(ratio * 100);
   }
 
+  function buildWeeklyPeriodOptions() {
+    const todayValue = parseDate(seed.today?.date) || new Date();
+    const horizonDays = Number(horizonSelect.value || seed.horizons?.[0] || 60);
+    const horizonEnd = addDays(todayValue, horizonDays);
+    const options = [];
+    let cursor = startOfIsoWeek(todayValue);
+    const lastWeekStart = startOfIsoWeek(horizonEnd);
+    while (cursor <= lastWeekStart) {
+      const { year, week } = isoWeekParts(cursor);
+      options.push({
+        value: `${year}-W${String(week).padStart(2, '0')}`,
+        label: `Semana ${String(week).padStart(2, '0')}`,
+      });
+      cursor = addDays(cursor, 7);
+    }
+    return options;
+  }
+
+  function renderPeriods(options, selectedValue) {
+    periodSelect.innerHTML = (options || []).map((item) =>
+      `<option value="${item.value}">${item.label}</option>`
+    ).join('');
+    if (selectedValue && Array.from(periodSelect.options).some((option) => option.value === selectedValue)) {
+      periodSelect.value = selectedValue;
+    } else if (periodSelect.options.length) {
+      periodSelect.selectedIndex = 0;
+    }
+  }
+
+  function updateFilterVisibility() {
+    const weekly = isWeeklyScope();
+    profileField.hidden = !weekly;
+    periodField.hidden = !weekly;
+    monthField.hidden = weekly;
+    if (weekly) {
+      renderPeriods(buildWeeklyPeriodOptions(), periodSelect.value || '');
+    } else if (!monthInput.value) {
+      monthInput.value = seed.default_month_value || String(seed.today?.date || '').slice(0, 7);
+    }
+  }
+
+  function markFiltersDirty() {
+    updateFilterVisibility();
+    setStatus('Filtros alterados. Clique em Aplicar.');
+  }
+
   function renderControls() {
     scopeSelect.innerHTML = seed.scopes.map((item) =>
       `<option value="${item.value}">${item.label}</option>`
     ).join('');
-    scopeSelect.value = seed.default_scope || 'monthly_high';
+    scopeSelect.value = seed.default_scope || defaultMonthlyScopeForMonth(seed.today?.month || new Date().getMonth() + 1);
 
     profileSelect.innerHTML = seed.profiles.map((item) =>
       `<option value="${item.perfil_id}">${item.nome}</option>`
     ).join('');
-    if (seed.profiles.length) {
-      profileSelect.value = String(seed.profiles[0].perfil_id);
-    }
+    if (seed.profiles.length) profileSelect.value = String(seed.profiles[0].perfil_id);
 
     horizonSelect.innerHTML = seed.horizons.map((value) =>
       `<option value="${value}">${value}</option>`
@@ -549,9 +712,10 @@
     alojamentoSelect.innerHTML = seed.alojamentos.map((item) =>
       `<option value="${item.value}">${item.label}</option>`
     ).join('');
-    if (seed.alojamentos.length) {
-      alojamentoSelect.value = seed.alojamentos[0].value;
-    }
+    if (seed.alojamentos.length) alojamentoSelect.value = seed.alojamentos[0].value;
+
+    monthInput.value = seed.default_month_value || String(seed.today?.date || '').slice(0, 7);
+    updateFilterVisibility();
   }
 
   function renderComparison() {
@@ -575,17 +739,61 @@
     ].join('');
   }
 
-  function buildActualPointLookup() {
+  function formatLeadLabel(leadDays) {
+    const lead = Number(leadDays || 0);
+    if (lead > 0) return `D${lead}`;
+    if (lead === 0) return 'D0';
+    return `+${Math.abs(lead)}`;
+  }
+
+  function getDisplayPoints() {
+    if (!currentCurve?.points?.length) return [];
+    const basePoints = currentCurve.points.map((item, index) => ({
+      lead_days: Number(item.lead_days),
+      ocup_alvo: Number(item.ocup_alvo) || 0,
+      editable: true,
+      curveIndex: index,
+    }));
+    if (isWeeklyScope()) return basePoints;
+    const targetLookup = new Map((currentComparison?.actual_points || []).map((item) => [Number(item.lead_days), Number(item.target_occ) || 0]));
+    const d0Value = Number(basePoints[basePoints.length - 1]?.ocup_alvo || 0);
+    const extras = POST_START_LEADS.map((leadDays) => ({
+      lead_days: leadDays,
+      ocup_alvo: targetLookup.has(leadDays) ? targetLookup.get(leadDays) : d0Value,
+      editable: false,
+      curveIndex: null,
+    }));
+    return [...basePoints, ...extras];
+  }
+
+  function buildActualPointLookup(displayPoints) {
     const lookup = new Map((currentComparison?.actual_points || []).map((item) => [Number(item.lead_days), { ...item }]));
     if (!currentComparison) return lookup;
 
     const liveLeadDays = Number(currentComparison.lead_days);
     const liveRealOcc = Number(currentComparison.real_occ);
-    if (Number.isNaN(liveLeadDays) || Number.isNaN(liveRealOcc) || liveLeadDays < 0) return lookup;
+    if (Number.isNaN(liveLeadDays) || Number.isNaN(liveRealOcc)) return lookup;
 
-    const snappedLeadDays = Math.max(0, Math.floor(liveLeadDays / 5) * 5);
-    const existingPoint = lookup.get(snappedLeadDays);
-    if (!existingPoint || !existingPoint.known) {
+    const availableLeadDays = [...new Set((displayPoints || []).map((item) => Number(item.lead_days)).filter((value) => Number.isFinite(value)))].sort((a, b) => a - b);
+    let snappedLeadDays = null;
+
+    if (liveLeadDays >= 0) {
+      const reached = availableLeadDays.filter((value) => value >= 0 && value <= liveLeadDays);
+      snappedLeadDays = reached.length ? reached[reached.length - 1] : 0;
+    } else {
+      const negativePoints = availableLeadDays.filter((value) => value < 0);
+      const reached = negativePoints.filter((value) => value <= liveLeadDays);
+      if (reached.length) {
+        snappedLeadDays = Math.max(...reached);
+      } else if (negativePoints.length) {
+        snappedLeadDays = Math.min(...negativePoints);
+      } else {
+        const nonPositive = availableLeadDays.filter((value) => value <= 0);
+        snappedLeadDays = nonPositive.length ? nonPositive[nonPositive.length - 1] : null;
+      }
+    }
+
+    if (snappedLeadDays !== null) {
       lookup.set(snappedLeadDays, {
         lead_days: snappedLeadDays,
         real_occ: liveRealOcc,
@@ -618,23 +826,22 @@
       return;
     }
 
+    const displayPoints = getDisplayPoints();
+    const actualLookup = buildActualPointLookup(displayPoints);
     const chartRect = chartEl.getBoundingClientRect();
     overlayEl.setAttribute('viewBox', `0 0 ${Math.max(chartRect.width, 1)} ${Math.max(chartRect.height, 1)}`);
     overlayEl.innerHTML = '';
 
     const expectedPoints = [];
     const actualPoints = [];
-    const actualLookup = buildActualPointLookup();
 
     chartEl.querySelectorAll('.sz_pickup_curve_bar').forEach((barEl) => {
-      const index = Number(barEl.dataset.index);
-      const curvePoint = currentCurve?.points?.[index];
-      if (!curvePoint) return;
-
-      const expectedPoint = barCenterPoint(barEl, Number(curvePoint.ocup_alvo) || 0);
+      const leadDays = Number(barEl.dataset.leadDays);
+      const expectedValue = Number(barEl.dataset.expectedValue);
+      const expectedPoint = barCenterPoint(barEl, expectedValue);
       if (expectedPoint) expectedPoints.push(expectedPoint);
 
-      const actualPointData = actualLookup.get(Number(curvePoint.lead_days));
+      const actualPointData = actualLookup.get(leadDays);
       if (actualPointData?.known) {
         const actualPoint = barCenterPoint(barEl, Number(actualPointData.real_occ) || 0);
         if (actualPoint) actualPoints.push(actualPoint);
@@ -669,54 +876,54 @@
 
     panelTitle.textContent = currentCurve.label || 'Curva';
     panelMeta.textContent = isWeeklyScope()
-      ? `${currentCurve.horizon_days} dias · Perfil ${profileSelect.options[profileSelect.selectedIndex]?.text || ''}`
+      ? `${currentCurve.horizon_days} dias | Perfil ${profileSelect.options[profileSelect.selectedIndex]?.text || ''}`
       : `${currentCurve.horizon_days} dias`;
 
     emptyEl.hidden = true;
     editorEl.hidden = false;
 
-    const actualLookup = buildActualPointLookup();
-    chartEl.innerHTML = (currentCurve.points || []).map((item, index) => `
-      <div class="sz_pickup_curve_bar" data-index="${index}" style="--curve-value:${Math.round(Number(item.ocup_alvo) || 0)}; --actual-value:${Number(actualLookup.get(Number(item.lead_days))?.real_occ ?? 0)};">
-        <div class="sz_pickup_curve_label_stack">
-          ${actualLookup.get(Number(item.lead_days))?.known ? `<div class="sz_pickup_curve_actual_value">${Math.round(Number(actualLookup.get(Number(item.lead_days)).real_occ) || 0)}%</div>` : ''}
-          <div class="sz_pickup_curve_value">${Math.round(Number(item.ocup_alvo) || 0)}%</div>
+    const displayPoints = getDisplayPoints();
+    const actualLookup = buildActualPointLookup(displayPoints);
+
+    chartEl.innerHTML = displayPoints.map((item, index) => {
+      const leadDays = Number(item.lead_days);
+      const expectedValue = Math.round(Number(item.ocup_alvo) || 0);
+      const actualPoint = actualLookup.get(leadDays);
+      const actualValue = actualPoint?.known ? Math.round(Number(actualPoint.real_occ) || 0) : null;
+      const readOnly = !item.editable;
+      return `
+        <div class="sz_pickup_curve_bar${readOnly ? ' is-readonly' : ''}" data-index="${index}" data-lead-days="${leadDays}" data-expected-value="${expectedValue}" style="--curve-value:${expectedValue}; --actual-value:${actualValue ?? 0};">
+          <div class="sz_pickup_curve_label_stack">
+            ${actualValue !== null ? `<div class="sz_pickup_curve_actual_value">${actualValue}%</div>` : ''}
+            <div class="sz_pickup_curve_value">${expectedValue}%</div>
+          </div>
+          <div class="sz_pickup_curve_slider_wrap">
+            <div class="sz_pickup_curve_track"></div>
+            <div class="sz_pickup_curve_fill"></div>
+            ${readOnly ? '' : '<div class="sz_pickup_curve_thumb"></div>'}
+            ${actualValue !== null ? `<div class="sz_pickup_curve_actual_marker" title="Real: ${actualValue}%"></div>` : ''}
+            ${readOnly ? '' : `
+              <button
+                type="button"
+                class="sz_pickup_curve_hitbox"
+                aria-label="Ajustar valor para o dia ${leadDays}"
+                data-curve-index="${item.curveIndex}"></button>
+            `}
+          </div>
+          <div class="sz_pickup_curve_day">${formatLeadLabel(leadDays)}</div>
         </div>
-        <div class="sz_pickup_curve_slider_wrap">
-          <div class="sz_pickup_curve_track"></div>
-          <div class="sz_pickup_curve_fill"></div>
-          <div class="sz_pickup_curve_thumb"></div>
-          ${actualLookup.get(Number(item.lead_days))?.known ? `<div class="sz_pickup_curve_actual_marker" title="Real: ${actualLookup.get(Number(item.lead_days)).real_occ}%"></div>` : ''}
-          <button
-            type="button"
-            class="sz_pickup_curve_hitbox"
-            aria-label="Ajustar valor para o dia ${item.lead_days}"
-            data-index="${index}"></button>
-        </div>
-        <div class="sz_pickup_curve_day">D${item.lead_days}</div>
-      </div>
-    `).join('');
-    chartEl.style.gridTemplateColumns = `repeat(${Math.max((currentCurve.points || []).length, 1)}, minmax(2.8rem, 1fr))`;
+      `;
+    }).join('');
+    chartEl.style.gridTemplateColumns = `repeat(${Math.max(displayPoints.length, 1)}, minmax(2.8rem, 1fr))`;
 
     renderComparison();
     requestAnimationFrame(renderOverlayLines);
     updateDirtyState();
   }
 
-  function renderPeriods(options, selectedValue) {
-    periodSelect.innerHTML = (options || []).map((item) =>
-      `<option value="${item.value}">${item.label}</option>`
-    ).join('');
-    if (selectedValue && Array.from(periodSelect.options).some((option) => option.value === selectedValue)) {
-      periodSelect.value = selectedValue;
-    } else if (periodSelect.options.length) {
-      periodSelect.selectedIndex = 0;
-    }
-  }
-
-  async function loadCurve(useDefaultHorizon = false) {
+  async function loadCurve({ useDefaultHorizon = false, showOverlay = false } = {}) {
     const perfilId = currentProfileId();
-    profileField.hidden = !isWeeklyScope();
+    updateFilterVisibility();
 
     if (isWeeklyScope() && !perfilId) {
       currentCurve = null;
@@ -725,6 +932,7 @@
       return;
     }
 
+    if (showOverlay) showPickupOverlay('A carregar...');
     setStatus('A carregar curva...');
     try {
       const params = new URLSearchParams({
@@ -735,17 +943,26 @@
       }
       if (isWeeklyScope() && perfilId) params.set('perfil_id', String(perfilId));
       if (alojamentoSelect.value) params.set('alojamento', alojamentoSelect.value);
-      if (!useDefaultHorizon && periodSelect.value) params.set('period_value', periodSelect.value);
+      const periodValue = currentPeriodValue();
+      if (!useDefaultHorizon && periodValue) params.set('period_value', periodValue);
+      if (useDefaultHorizon && isMonthlyScope() && currentMonthValue()) {
+        params.set('period_value', currentMonthValue());
+      }
 
       const response = await fetch(`/pricing/api/pickup-curves/state?${params.toString()}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Erro a ler curva');
+
       currentCurve = payload.curve;
       currentComparison = payload.comparison || null;
       if (String(horizonSelect.value) !== String(currentCurve.horizon_days)) {
         horizonSelect.value = String(currentCurve.horizon_days);
       }
-      renderPeriods(payload.period_options || [], payload.selected_period_value || '');
+      if (isWeeklyScope()) {
+        renderPeriods(payload.period_options || buildWeeklyPeriodOptions(), payload.selected_period_value || '');
+      } else if (payload.selected_period_value) {
+        monthInput.value = String(payload.selected_period_value).slice(0, 7);
+      }
       savedSnapshot = snapshotPayload();
       renderCurve();
       setStatus('Curva carregada.');
@@ -753,7 +970,9 @@
       currentCurve = null;
       currentComparison = null;
       renderCurve();
-      setStatus(error.message, true);
+      setStatus(error.message || 'Erro a ler curva.', true);
+    } finally {
+      if (showOverlay) hidePickupOverlay();
     }
   }
 
@@ -770,7 +989,7 @@
       if (!response.ok) throw new Error(payload.error || 'Erro a gravar curva');
       currentCurve = payload.curve;
       savedSnapshot = snapshotPayload();
-      await loadCurve(false);
+      await loadCurve({ useDefaultHorizon: false, showOverlay: false });
       setStatus('Curva gravada.');
     } catch (error) {
       setStatus(error.message, true);
@@ -792,48 +1011,55 @@
     setStatus('Alterações descartadas.');
   }
 
+  function applyCurveValue(curveIndex, value) {
+    if (!currentCurve?.points?.[curveIndex]) return;
+    const nextValue = clampCurveValue(value);
+    currentCurve.points[curveIndex].ocup_alvo = nextValue;
+    renderCurve();
+  }
+
   chartEl.addEventListener('pointerdown', (event) => {
     const hitbox = event.target.closest('.sz_pickup_curve_hitbox');
     if (!hitbox || !currentCurve) return;
-    const index = Number(hitbox.dataset.index);
+    const curveIndex = Number(hitbox.dataset.curveIndex);
     const wrapEl = hitbox.closest('.sz_pickup_curve_slider_wrap');
-    if (!Number.isInteger(index) || !wrapEl) return;
-    activeDrag = { index, wrapEl };
+    if (!Number.isInteger(curveIndex) || !wrapEl) return;
+    activeDrag = { curveIndex, wrapEl };
     hitbox.setPointerCapture?.(event.pointerId);
-    applyCurveValue(index, valueFromPointer(event, wrapEl));
+    applyCurveValue(curveIndex, valueFromPointer(event, wrapEl));
     event.preventDefault();
   });
 
   chartEl.addEventListener('keydown', (event) => {
     const hitbox = event.target.closest('.sz_pickup_curve_hitbox');
     if (!hitbox || !currentCurve) return;
-    const index = Number(hitbox.dataset.index);
-    if (!Number.isInteger(index) || !currentCurve.points[index]) return;
-    const currentValue = Number(currentCurve.points[index].ocup_alvo) || 0;
+    const curveIndex = Number(hitbox.dataset.curveIndex);
+    if (!Number.isInteger(curveIndex) || !currentCurve.points[curveIndex]) return;
+    const currentValue = Number(currentCurve.points[curveIndex].ocup_alvo) || 0;
     if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
-      applyCurveValue(index, currentValue + 1);
+      applyCurveValue(curveIndex, currentValue + 1);
       event.preventDefault();
     } else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
-      applyCurveValue(index, currentValue - 1);
+      applyCurveValue(curveIndex, currentValue - 1);
       event.preventDefault();
     } else if (event.key === 'PageUp') {
-      applyCurveValue(index, currentValue + 5);
+      applyCurveValue(curveIndex, currentValue + 5);
       event.preventDefault();
     } else if (event.key === 'PageDown') {
-      applyCurveValue(index, currentValue - 5);
+      applyCurveValue(curveIndex, currentValue - 5);
       event.preventDefault();
     } else if (event.key === 'Home') {
-      applyCurveValue(index, 0);
+      applyCurveValue(curveIndex, 0);
       event.preventDefault();
     } else if (event.key === 'End') {
-      applyCurveValue(index, 100);
+      applyCurveValue(curveIndex, 100);
       event.preventDefault();
     }
   });
 
   document.addEventListener('pointermove', (event) => {
     if (!activeDrag) return;
-    applyCurveValue(activeDrag.index, valueFromPointer(event, activeDrag.wrapEl));
+    applyCurveValue(activeDrag.curveIndex, valueFromPointer(event, activeDrag.wrapEl));
   });
 
   document.addEventListener('pointerup', () => {
@@ -844,16 +1070,25 @@
     requestAnimationFrame(renderOverlayLines);
   });
 
-  scopeSelect.addEventListener('change', () => loadCurve(true));
-  profileSelect.addEventListener('change', () => loadCurve(true));
-  horizonSelect.addEventListener('change', () => loadCurve(false));
-  alojamentoSelect.addEventListener('change', () => loadCurve(false));
-  periodSelect.addEventListener('change', () => loadCurve(false));
+  scopeSelect.addEventListener('change', markFiltersDirty);
+  profileSelect.addEventListener('change', markFiltersDirty);
+  horizonSelect.addEventListener('change', markFiltersDirty);
+  alojamentoSelect.addEventListener('change', markFiltersDirty);
+  periodSelect.addEventListener('change', markFiltersDirty);
+  monthInput.addEventListener('change', () => {
+    const raw = monthInput.value || '';
+    if (raw && isMonthlyScope()) {
+      const monthNumber = Number(raw.split('-')[1] || 0);
+      if (monthNumber) scopeSelect.value = defaultMonthlyScopeForMonth(monthNumber);
+    }
+    markFiltersDirty();
+  });
+  applyBtn.addEventListener('click', () => loadCurve({ useDefaultHorizon: false, showOverlay: true }));
   saveBtn.addEventListener('click', saveCurve);
   cancelBtn.addEventListener('click', cancelChanges);
 
   renderControls();
-  loadCurve(true);
+  loadCurve({ useDefaultHorizon: true, showOverlay: false });
 })();
 </script>
 {% endblock %}

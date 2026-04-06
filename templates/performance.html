@@ -39,7 +39,7 @@
     <div class="sz_page_body">
       <div class="sz_page_content">
         <div id="topSummary" class="sz_performance_summary_grid">
-          <div class="sz_card sz_performance_metric_card">
+          <button id="perfOccSummaryBtn" type="button" class="sz_card sz_performance_metric_card sz_performance_metric_card_button">
             <div class="sz_caption">Ocupação</div>
             <div class="sz_performance_metric_rows">
               <div class="sz_performance_metric_row">
@@ -55,7 +55,7 @@
                 <strong id="exploracaoOccText" class="sz_h4 sz_performance_metric_info">--%</strong>
               </div>
             </div>
-          </div>
+          </button>
 
           <div class="sz_card sz_performance_metric_card">
             <div class="sz_caption">Disponibilidade</div>
@@ -113,6 +113,59 @@
         </div>
 
         <div id="cardsGrid" class="sz_performance_cards_grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="perfOccSummaryModal" tabindex="-1" aria-labelledby="perfOccSummaryTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content sz_performance_modal_content">
+      <div class="modal-header sz_modal_header sz_performance_modal_header">
+        <div class="sz_stack sz_gap_1">
+          <h5 class="modal-title sz_modal_title" id="perfOccSummaryTitle">Ocupação</h5>
+          <div id="perfOccSummarySubtitle" class="sz_text_muted">Taxa de ocupação separada por gestão e exploração.</div>
+        </div>
+        <button type="button" class="sz_button sz_button_ghost sz_performance_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body sz_modal_body sz_performance_modal_body">
+        <div class="sz_stack">
+          <section class="sz_card sz_stack">
+            <div class="sz_stack sz_gap_1">
+              <div class="sz_h4">Até hoje</div>
+              <div id="perfOccUntilMeta" class="sz_text_muted">--</div>
+            </div>
+            <div class="sz_performance_detail_metrics sz_performance_detail_metrics_inline sz_performance_occ_metrics">
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Gestão</span>
+                <strong id="perfOccUntilGestao" class="sz_h4 sz_performance_metric_success">--%</strong>
+              </div>
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Exploração</span>
+                <strong id="perfOccUntilExploracao" class="sz_h4 sz_performance_metric_info">--%</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="sz_card sz_stack">
+            <div class="sz_stack sz_gap_1">
+              <div class="sz_h4">A partir de hoje</div>
+              <div id="perfOccFromMeta" class="sz_text_muted">--</div>
+            </div>
+            <div class="sz_performance_detail_metrics sz_performance_detail_metrics_inline sz_performance_occ_metrics">
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Gestão</span>
+                <strong id="perfOccFromGestao" class="sz_h4 sz_performance_metric_success">--%</strong>
+              </div>
+              <div class="sz_card sz_performance_detail_metric">
+                <span class="sz_text_muted">Exploração</span>
+                <strong id="perfOccFromExploracao" class="sz_h4 sz_performance_metric_info">--%</strong>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   </div>
@@ -188,6 +241,42 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+  .sz_performance_metric_card_button {
+    width: 100%;
+    text-align: left;
+    color: inherit;
+    background: var(--sz-color-surface);
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+  }
+
+  .sz_performance_metric_card_button:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--sz-shadow-2);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 40%, var(--sz-color-border));
+  }
+
+  .sz_performance_metric_card_button:focus-visible {
+    outline: 2px solid var(--sz-color-primary);
+    outline-offset: 2px;
+  }
+
+  .sz_performance_occ_metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: var(--sz-space-4);
+  }
+
+  .sz_performance_occ_metrics .sz_performance_detail_metric {
+    min-width: 0;
+  }
+
+  @media (max-width: 560px) {
+    .sz_performance_occ_metrics {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
 <script>
   const fmtEUR0 = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
   const fmtNum = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -247,6 +336,7 @@
   let perfCompareEnabled = false;
   let perfDetailNome = '';
   let perfDetailModalInstance = null;
+  let perfOccSummaryModalInstance = null;
   let perfCompareCloseTimer = null;
 
   async function loadData() {
@@ -470,6 +560,60 @@
     if (compareLabel) compareLabel.textContent = monthLabelText(compareMonth(currentMonth));
   }
 
+  function fmtPct(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return '--%';
+    return `${fmtNum.format(num)}%`;
+  }
+
+  function fmtDatePt(value) {
+    if (!value) return '--';
+    const parts = String(value).split('-');
+    if (parts.length !== 3) return value;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+
+  function perfOccMonthRangeText(segment) {
+    if (!segment || !segment.start || !segment.end) return 'Sem intervalo aplicável.';
+    return `${fmtDatePt(segment.start)} → ${fmtDatePt(segment.end)}`;
+  }
+
+  function fillPerfOccSummary(segment, prefix) {
+    const metaEl = document.getElementById(`perfOcc${prefix}Meta`);
+    const gestaoEl = document.getElementById(`perfOcc${prefix}Gestao`);
+    const exploracaoEl = document.getElementById(`perfOcc${prefix}Exploracao`);
+    if (metaEl) metaEl.textContent = perfOccMonthRangeText(segment);
+    if (gestaoEl) gestaoEl.textContent = fmtPct(segment?.gestao_pct);
+    if (exploracaoEl) exploracaoEl.textContent = fmtPct(segment?.exploracao_pct);
+  }
+
+  async function openPerfOccSummary() {
+    if (!perfOccSummaryModalInstance) {
+      perfOccSummaryModalInstance = new bootstrap.Modal(document.getElementById('perfOccSummaryModal'));
+    }
+
+    const subtitleEl = document.getElementById('perfOccSummarySubtitle');
+    fillPerfOccSummary(null, 'Until');
+    fillPerfOccSummary(null, 'From');
+    if (subtitleEl) subtitleEl.textContent = `Taxa de ocupação do mês ${monthLabelText(currentMonth)}, separada por gestão e exploração.`;
+
+    try {
+      const ini = toYMD(firstDayOfMonth(currentMonth));
+      const fim = toYMD(lastDayOfMonth(currentMonth));
+      const res = await fetch(`/api/performance/ocupacao-resumo?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
+      const data = await res.json();
+      if (data?.error) throw new Error(data.error);
+      fillPerfOccSummary(data.until_today, 'Until');
+      fillPerfOccSummary(data.from_today, 'From');
+    } catch (error) {
+      if (subtitleEl) subtitleEl.textContent = error.message || 'Erro ao carregar ocupação.';
+      fillPerfOccSummary(null, 'Until');
+      fillPerfOccSummary(null, 'From');
+    }
+
+    perfOccSummaryModalInstance.show();
+  }
+
   async function fetchPerfOccupacao(nome, baseMonth) {
     const ini = toYMD(firstDayOfMonth(baseMonth));
     const fim = toYMD(lastDayOfMonth(baseMonth));
@@ -548,6 +692,7 @@
     const picker = document.getElementById('monthPicker');
     const btnName = document.getElementById('btnSortName');
     const btnOcc = document.getElementById('btnSortOcc');
+    const occSummaryBtn = document.getElementById('perfOccSummaryBtn');
     const cardsGrid = document.getElementById('cardsGrid');
     const compareBtn = document.getElementById('perfCompareToggle');
 
@@ -595,6 +740,10 @@
         const nome = decodeURIComponent(card.dataset.nome || '');
         openPerfDetail(nome);
       });
+    }
+
+    if (occSummaryBtn) {
+      occSummaryBtn.addEventListener('click', openPerfOccSummary);
     }
 
     if (compareBtn) {

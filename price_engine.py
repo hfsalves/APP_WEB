@@ -11,6 +11,7 @@ from sqlalchemy import bindparam, text
 
 from models import db
 from services.qr_atcud_service import get_param as qr_get_param
+from services.multiempresa_service import MissingCurrentEntityError, get_current_feid
 
 
 DEFAULT_HORIZON_DAYS = 400
@@ -96,6 +97,14 @@ def _normalize_alojamento(value):
 
 def _aloj_cache_key(value):
     return _normalize_alojamento(value).upper()
+
+
+def _pricing_current_feid_or_none():
+    try:
+        current_feid = int(get_current_feid() or 0)
+    except (MissingCurrentEntityError, TypeError, ValueError):
+        return None
+    return current_feid if current_feid > 0 else None
 
 
 def _parse_date(value, field_name="data"):
@@ -1673,6 +1682,16 @@ PICKUP_CURVE_SCOPE_OPTIONS = {
     "monthly_low": {"kind": "monthly", "season": "BAIXA", "label": "Mensal · Low Season"},
 }
 PICKUP_CURVE_HORIZON_OPTIONS = (60, 90, 120, 150, 180)
+PICKUP_CURVE_POST_START_STEPS = (
+    (5, Decimal("0.30")),
+    (10, Decimal("0.25")),
+    (15, Decimal("0.20")),
+    (20, Decimal("0.15")),
+    (25, Decimal("0.05")),
+    (30, Decimal("0.05")),
+    (35, Decimal("0.00")),
+)
+PICKUP_CURVE_POST_START_LEADS = tuple(-step_days for step_days, _share in PICKUP_CURVE_POST_START_STEPS)
 PICKUP_CURVE_EXPLORACAO_VALUE = "__EXPLORACAO__"
 PICKUP_CURVE_EXPLORACAO_LABEL = "EXPLORACAO"
 
@@ -1697,20 +1716,36 @@ def _validate_pickup_curve_horizon(value):
 
 def _pickup_curve_alojamento_rows():
     ensure_pricing_schema(db.session)
+    current_feid = _pricing_current_feid_or_none()
+    fe_scope_sql = ""
+    params = {}
+    if current_feid is not None:
+        fe_scope_sql = """
+          AND (
+                ISNULL(al.FEID, 0) = :current_feid
+             OR ISNULL(al.FEID_GESTOR, 0) = :current_feid
+          )
+        """
+        params["current_feid"] = current_feid
     rows = db.session.execute(
         text(
-            """
+            f"""
             SELECT DISTINCT
                 LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) AS AL_NOME,
                 UPPER(LTRIM(RTRIM(ISNULL(al.TIPO, '')))) AS REGIME
             FROM dbo.PR_ALOJAMENTO pa
-            LEFT JOIN dbo.AL al
+            INNER JOIN dbo.AL al
               ON al.NOME = pa.AL_NOME
             WHERE ISNULL(pa.ATIVO, 0) = 1
+              AND ISNULL(al.INATIVO, 0) = 0
+              AND ISNULL(al.FECHADO, 0) = 0
               AND LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) <> ''
+              {fe_scope_sql}
             ORDER BY LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) ASC
             """
         )
+        ,
+        params,
     ).mappings().all()
     return [
         {
@@ -1752,6 +1787,46 @@ def _resolve_pickup_curve_target(alojamento):
 
 def _pickup_curve_grid(horizon_days):
     return list(range(horizon_days, -1, -5))
+
+
+def _pickup_curve_comparison_grid(horizon_days, kind="monthly"):
+    grid = _pickup_curve_grid(horizon_days)
+    if str(kind or "").strip().lower() != "monthly":
+        return grid
+    for lead_days in PICKUP_CURVE_POST_START_LEADS:
+        if lead_days not in grid:
+            grid.append(lead_days)
+    return grid
+
+
+def _pickup_curve_default_monthly_scope(today_value=None):
+    today_value = today_value or date.today()
+    month = int(today_value.month)
+    if month == 3:
+        return "monthly_mid"
+    if month in {11, 12, 1, 2}:
+        return "monthly_low"
+    return "monthly_high"
+
+
+def _pickup_curve_monthly_target_occ(source_points, lead_days):
+    base_value = _interpolate_curve(source_points, 0)
+    lead_value = int(lead_days)
+    if lead_value >= 0:
+        return _interpolate_curve(source_points, lead_value)
+
+    gap_to_full = Decimal("100") - base_value
+    if gap_to_full <= 0:
+        return Decimal("100")
+
+    cumulative_share = Decimal("0")
+    post_start_points = [(0, base_value)]
+    for step_days, share in PICKUP_CURVE_POST_START_STEPS:
+        cumulative_share += share
+        cumulative_share = min(cumulative_share, Decimal("1"))
+        post_start_points.append((-step_days, base_value + (gap_to_full * cumulative_share)))
+
+    return _interpolate_curve(post_start_points, lead_value)
 
 
 def _pickup_curve_source_points(scope, perfil_id=None):
@@ -1891,24 +1966,44 @@ def _period_occupancy_pct(alojamento, start_date, end_date):
     target_items = [item for item in target["items"] if item]
     if not target_items:
         return Decimal("0")
+    current_feid = _pricing_current_feid_or_none()
+    fe_scope_sql = ""
+    params = {
+        "alojamentos": target_items,
+        "start_date": start_date,
+        "end_date": end_date,
+    }
+    if current_feid is not None:
+        fe_scope_sql = """
+              AND (
+                    ISNULL(AL.FEID, 0) = :current_feid
+                 OR ISNULL(AL.FEID_GESTOR, 0) = :current_feid
+              )
+        """
+        params["current_feid"] = current_feid
 
     rows = db.session.execute(
         text(
-            """
+            f"""
             SELECT
                 LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
                 CAST(RS.DATAIN AS date) AS DATA_INI,
                 CAST(RS.DATAOUT AS date) AS DATA_FIM
             FROM dbo.RS
+            INNER JOIN dbo.AL AS AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+             AND ISNULL(AL.INATIVO, 0) = 0
+             AND ISNULL(AL.FECHADO, 0) = 0
             WHERE LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) IN :alojamentos
               AND RS.DATAIN IS NOT NULL
               AND RS.DATAOUT IS NOT NULL
               AND ISNULL(RS.CANCELADA, 0) = 0
               AND CAST(RS.DATAOUT AS date) > :start_date
               AND CAST(RS.DATAIN AS date) <= :end_date
+              {fe_scope_sql}
             """
         ).bindparams(bindparam("alojamentos", expanding=True)),
-        {"alojamentos": target_items, "start_date": start_date, "end_date": end_date},
+        params,
     ).mappings().all()
 
     occupied_slots = set()
@@ -1938,15 +2033,35 @@ def _period_occupancy_pct_by_booking_date(alojamento, start_date, end_date, book
     target_items = [item for item in target["items"] if item]
     if not target_items:
         return Decimal("0")
+    current_feid = _pricing_current_feid_or_none()
+    fe_scope_sql = ""
+    params = {
+        "alojamentos": target_items,
+        "booked_until": booked_until,
+        "start_date": start_date,
+        "end_date": end_date,
+    }
+    if current_feid is not None:
+        fe_scope_sql = """
+              AND (
+                    ISNULL(AL.FEID, 0) = :current_feid
+                 OR ISNULL(AL.FEID_GESTOR, 0) = :current_feid
+              )
+        """
+        params["current_feid"] = current_feid
 
     rows = db.session.execute(
         text(
-            """
+            f"""
             SELECT
                 LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
                 CAST(RS.DATAIN AS date) AS DATA_INI,
                 CAST(RS.DATAOUT AS date) AS DATA_FIM
             FROM dbo.RS
+            INNER JOIN dbo.AL AS AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+             AND ISNULL(AL.INATIVO, 0) = 0
+             AND ISNULL(AL.FECHADO, 0) = 0
             WHERE LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) IN :alojamentos
               AND RS.DATAIN IS NOT NULL
               AND RS.DATAOUT IS NOT NULL
@@ -1955,14 +2070,10 @@ def _period_occupancy_pct_by_booking_date(alojamento, start_date, end_date, book
               AND CAST(RS.RDATA AS date) <= :booked_until
               AND CAST(RS.DATAOUT AS date) > :start_date
               AND CAST(RS.DATAIN AS date) <= :end_date
+              {fe_scope_sql}
             """
         ).bindparams(bindparam("alojamentos", expanding=True)),
-        {
-            "alojamentos": target_items,
-            "booked_until": booked_until,
-            "start_date": start_date,
-            "end_date": end_date,
-        },
+        params,
     ).mappings().all()
 
     occupied_slots = set()
@@ -1993,10 +2104,16 @@ def _load_pickup_curve_comparison(scope, horizon_days, alojamento=None, period_v
     period = _parse_pickup_curve_period(scope_key, period_value)
     target = _resolve_pickup_curve_target(alojamento)
     source_points = _pickup_curve_source_points(scope_key, perfil_id=perfil_id)
-    grid = _pickup_curve_grid(horizon_days)
+    grid = _pickup_curve_comparison_grid(horizon_days, scope_config["kind"])
     today_value = date.today()
     lead_days = (period["start_date"] - today_value).days
-    target_occ = _interpolate_curve(source_points, lead_days) if source_points else Decimal("0")
+    if source_points:
+        if scope_config["kind"] == "monthly":
+            target_occ = _pickup_curve_monthly_target_occ(source_points, lead_days)
+        else:
+            target_occ = _interpolate_curve(source_points, lead_days)
+    else:
+        target_occ = Decimal("0")
     real_occ = _period_occupancy_pct_by_booking_date(alojamento, period["start_date"], period["end_date"], today_value)
     deviation = real_occ - target_occ
     nearest_lead_days = min(grid, key=lambda item: abs(item - lead_days)) if grid else 0
@@ -2016,7 +2133,13 @@ def _load_pickup_curve_comparison(scope, horizon_days, alojamento=None, period_v
                 "booked_until": booked_until.isoformat(),
                 "known": bool(known),
                 "real_occ": _to_float(actual_pct.quantize(Decimal("0.01"))),
-                "target_occ": _to_float(_interpolate_curve(source_points, point_lead_days).quantize(Decimal("0.01"))) if source_points else 0,
+                "target_occ": _to_float(
+                    (
+                        _pickup_curve_monthly_target_occ(source_points, point_lead_days)
+                        if scope_config["kind"] == "monthly"
+                        else _interpolate_curve(source_points, point_lead_days)
+                    ).quantize(Decimal("0.01"))
+                ) if source_points else 0,
             }
         )
 
@@ -2652,7 +2775,8 @@ def pricing_pickup_curves():
         "horizons": list(PICKUP_CURVE_HORIZON_OPTIONS),
         "profiles": profiles,
         "alojamentos": alojamentos,
-        "default_scope": "monthly_high",
+        "default_scope": _pickup_curve_default_monthly_scope(date.today()),
+        "default_month_value": date.today().strftime("%Y-%m"),
         "today": {
             "date": date.today().isoformat(),
             "iso_week": int(date.today().isocalendar()[1]),
@@ -2734,7 +2858,8 @@ def pricing_api_pickup_curves_state():
             "comparison": None,
         }
         valid_period_values = {item["value"] for item in period_options}
-        if period_value not in valid_period_values and period_options:
+        scope_key, scope_config = _validate_pickup_curve_scope(scope)
+        if scope_config["kind"] == "weekly" and period_value not in valid_period_values and period_options:
             period_value = period_options[0]["value"]
             payload["selected_period_value"] = period_value
         if alojamento and period_value:

@@ -193,6 +193,36 @@
   line-height: 1.2;
 }
 
+.sz_radar_card_link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.15rem 0.1rem;
+  color: var(--sz-color-text);
+  text-decoration: none;
+  border-radius: var(--sz-radius-sm);
+  transition:
+    color var(--sz-transition-fast),
+    background-color var(--sz-transition-fast),
+    transform var(--sz-transition-fast);
+}
+
+.sz_radar_card_link:hover,
+.sz_radar_card_link:focus-visible {
+  color: var(--sz-color-primary);
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
+  outline: none;
+}
+
+.sz_radar_card_link:active {
+  transform: translateY(1px);
+}
+
+.sz_radar_card_link i {
+  font-size: 0.72rem;
+  opacity: 0.72;
+}
+
 .sz_radar_card_badges {
   display: flex;
   flex-wrap: wrap;

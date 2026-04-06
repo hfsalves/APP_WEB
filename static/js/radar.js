@@ -66,6 +66,8 @@
     "'": '&#39;'
   }[s] || s));
 
+  const plannerUrlFor = (alojamento) => `/pricing/planner?alojamento=${encodeURIComponent(String(alojamento || '').trim())}`;
+
   const normalizeText = (value) => String(value ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -146,11 +148,17 @@
     const tipo = String(row.TIPO || '').toUpperCase();
     const tipoLabel = typeLabels[tipo] || String(row.TIPO || '-');
     const actionBadgeClass = badgeClasses[nivel] || badgeClasses.green;
+    const alojamento = String(row.Alojamento || '').trim();
     return `
       <article class="sz_card sz_stack sz_radar_card is-${nivel}">
         <header class="sz_radar_card_header">
           <div>
-            <h3 class="sz_radar_card_title">${escapeHtml(row.Alojamento || '')}</h3>
+            <h3 class="sz_radar_card_title">
+              <a class="sz_radar_card_link" href="${plannerUrlFor(alojamento)}" title="Abrir no Price Manager">
+                <span>${escapeHtml(alojamento)}</span>
+                <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+              </a>
+            </h3>
           </div>
           <div class="sz_radar_card_badges">
             <span class="sz_badge sz_badge_info sz_radar_badge_type">${escapeHtml(tipoLabel)}</span>

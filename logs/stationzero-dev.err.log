@@ -4,27 +4,1766 @@ Press CTRL+C to quit
  * Restarting with stat
  * Debugger is active!
  * Debugger PIN: 116-957-291
-127.0.0.1 - - [04/Apr/2026 12:44:11] "GET /service-worker.js HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:16] "GET /pricing/pickup-curves HTTP/1.1" 200 -
-127.0.0.1 - - [04/Apr/2026 12:44:16] "GET /static/css/style.css HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:16] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:16] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:17] "GET /static/js/ui.js HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:17] "GET /static/manifest.json HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:17] "GET /static/js/push.js?v=1775303050 HTTP/1.1" 200 -
-127.0.0.1 - - [04/Apr/2026 12:44:17] "GET /static/images/favicon.ico HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:17] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:19] "GET /service-worker.js HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:33] "GET /pricing/pickup-curves HTTP/1.1" 200 -
-127.0.0.1 - - [04/Apr/2026 12:44:33] "GET /static/css/style.css HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:33] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:33] "GET /static/js/ui.js HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:33] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:33] "GET /static/manifest.json HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:34] "GET /static/js/push.js?v=1775303050 HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:34] "GET /static/images/favicon.ico HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:34] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:36] "GET /service-worker.js HTTP/1.1" 304 -
-127.0.0.1 - - [04/Apr/2026 12:44:36] "GET /pricing/api/pickup-curves/state?scope=monthly_high&alojamento=__EXPLORACAO__ HTTP/1.1" 200 -
-127.0.0.1 - - [04/Apr/2026 12:44:56] "GET /pricing/api/pickup-curves/state?scope=monthly_high&alojamento=__EXPLORACAO__ HTTP/1.1" 200 -
-127.0.0.1 - - [04/Apr/2026 12:46:13] "GET /pricing/api/pickup-curves/state?scope=monthly_high&horizon_days=90&alojamento=__EXPLORACAO__&period_value=2026-05 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:45:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:45:43] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:45:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:45:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:45:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:45:55] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:45:58] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:01] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:04] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:04] "GET /radar HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:04] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:05] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:05] "GET /static/css/radar.css?v=1775468740 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:05] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:05] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:05] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:05] "GET /static/js/radar.js?v=1775468740 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:05] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:05] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:05] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:07] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:10] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:14] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:16] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:22] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:28] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:34] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:35] "GET /pricing/planner?alojamento=BONFIM%203F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:35] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:35] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:35] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:35] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:35] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:35] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:36] "GET /pricing/api/planner?alojamento=BONFIM%203F&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:36] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:36] "GET /pricing/api/alojamento-config?alojamento=BONFIM%203F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:37] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:38] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:42] "GET /radar HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:42] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:43] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:43] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:43] "GET /static/css/radar.css?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:43] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:43] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:43] "GET /static/js/radar.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:43] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:43] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:43] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:45] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:46] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:46] "GET /pricing/planner?alojamento=SECRET%20GARDEN HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:46] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:47] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:47] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:47] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:47] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:47] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:47] "GET /pricing/api/planner?alojamento=SECRET%20GARDEN&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:47] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:48] "GET /pricing/api/alojamento-config?alojamento=SECRET%20GARDEN HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:49] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:50] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:53] "GET /radar HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:53] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:53] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:53] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:53] "GET /static/css/radar.css?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:54] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:54] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:54] "GET /static/js/radar.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:54] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:54] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:56] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:46:56] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:46:58] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:00] "GET /pricing/planner?alojamento=SECRET%20GARDEN HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:00] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:00] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:00] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:00] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:00] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:00] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:00] "GET /pricing/api/planner?alojamento=SECRET%20GARDEN&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:00] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:01] "GET /pricing/api/alojamento-config?alojamento=SECRET%20GARDEN HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:01] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:02] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:04] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:06] "GET /radar HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:07] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:07] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:07] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:07] "GET /static/css/radar.css?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:07] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:07] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:07] "GET /static/js/radar.js?v=1775468740 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:07] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:07] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:07] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:09] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:13] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:16] "GET /radar HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:16] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:16] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:16] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:16] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:16] "GET /static/css/radar.css?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:16] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:16] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:16] "GET /pricing/api/planner-sync?alojamento=SECRET%20GARDEN&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:16] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:17] "GET /static/js/radar.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:17] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:17] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:18] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:21] "GET /radar HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:21] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:21] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:21] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:21] "GET /static/css/radar.css?v=1775468740 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:21] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:22] "GET /static/js/radar.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:22] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:22] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:22] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:22] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:23] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:28] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:32] "GET /pricing/api/planner-sync?alojamento=SECRET%20GARDEN&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:34] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:35] "GET /pricing/planner?alojamento=Douro%20River%20View HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:36] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:36] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:36] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:36] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:36] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:36] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:36] "GET /pricing/api/planner?alojamento=SECRET%20GARDEN&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:36] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:37] "GET /pricing/api/alojamento-config?alojamento=SECRET%20GARDEN HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:37] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:38] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:40] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:44] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:46] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:50] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:52] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:52] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [06/Apr/2026 10:47:53] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:53] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:54] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:54] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:54] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:54] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:54] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:54] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:54] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:54] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:55] "POST /api/widgets/INS_HOJE/run HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:55] "POST /api/widgets/MN_ABERTO/run HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:55] "POST /api/widgets/FATURACAO_ANUAL_CHART/run HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:56] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:56] "POST /api/widgets/SALDOS_TESOURARIA/run HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:56] "POST /api/widgets/FATURACAO_ANUAL/run HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:47:58] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:47:58] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:00] "GET /radar HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:00] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:00] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:00] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:01] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:01] "GET /static/css/radar.css?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:01] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:01] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:01] "GET /static/js/radar.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:01] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:02] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:02] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:04] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:05] "GET /pricing/planner?alojamento=Douro%20River%20View HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:05] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:05] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:05] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:05] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:06] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:06] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:06] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:06] "GET /pricing/api/planner?alojamento=SECRET%20GARDEN&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:07] "GET /pricing/api/alojamento-config?alojamento=SECRET%20GARDEN HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:07] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:08] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:10] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:12] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:13] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:15] "GET /pricing/planner?alojamento=BONFIM%203F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:15] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:15] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:15] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:16] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:16] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:16] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:16] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:16] "GET /pricing/api/planner?alojamento=BONFIM%203F&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:16] "GET /pricing/api/alojamento-config?alojamento=BONFIM%203F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:18] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:20] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:22] "GET /pricing/planner?alojamento=Douro%20River%20View HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:22] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:22] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:22] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:22] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:22] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:22] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:22] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:23] "GET /pricing/api/planner?alojamento=BONFIM%203F&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:23] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:23] "GET /pricing/api/alojamento-config?alojamento=BONFIM%203F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:24] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:25] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:29] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:29] "GET /pricing/planner?alojamento=Belas%20Artes%201 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:29] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:29] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:29] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:29] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:29] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:29] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:30] "GET /pricing/api/planner?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:30] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:30] "GET /pricing/api/alojamento-config?alojamento=Belas%20Artes%201 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:31] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:32] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:32] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:34] "GET /pricing/planner?alojamento=Douro%20River%20View HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:34] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:34] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:34] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:34] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:34] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:34] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:35] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:35] "GET /pricing/api/planner?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:35] "GET /pricing/api/alojamento-config?alojamento=Belas%20Artes%201 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:36] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:37] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:48:37] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:43] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:55] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:48:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:01] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:07] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:08] "GET /pricing/planner?alojamento=PORTO%20LAPA HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:08] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:08] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:08] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:08] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:08] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:08] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:09] "GET /pricing/api/planner?alojamento=PORTO%20LAPA&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:09] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:09] "GET /pricing/api/alojamento-config?alojamento=PORTO%20LAPA HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:10] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:10] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:13] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:13] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:15] "GET /pricing/planner?alojamento=Clérigos HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:15] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:16] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:16] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:16] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:16] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:16] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:16] "GET /pricing/api/planner?alojamento=Clérigos&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:16] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:17] "GET /pricing/api/alojamento-config?alojamento=Clérigos HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:18] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:20] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:22] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:28] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:34] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:38] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:40] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:44] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:45] "GET /pricing/planner?alojamento=Belas%20Artes%201 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:45] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:46] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:46] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:46] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:46] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:46] "GET /static/js/push.js?v=1775468740 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:46] "GET /pricing/api/planner?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:46] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:46] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:47] "GET /pricing/api/alojamento-config?alojamento=Belas%20Artes%201 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:48] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:49:50] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:52] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:56] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:49:58] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:02] "GET /pricing/api/planner-sync?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:02] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:04] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:10] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:14] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:16] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:17] "GET /pricing/api/planner-sync?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:22] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:28] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:31] "GET /pricing/api/planner-sync?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:34] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:38] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:40] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:44] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:46] "GET /pricing/api/planner-sync?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:55] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:50:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:01] "GET /pricing/api/planner-sync?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:02] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:04] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:10] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:14] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:16] "GET /pricing/api/planner-sync?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:19] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+ * Detected change in 'C:\\APP_WEB\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 116-957-291
+127.0.0.1 - - [06/Apr/2026 10:51:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:28] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:31] "GET /pricing/api/planner-sync?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:34] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:38] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:40] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:44] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:46] "GET /pricing/api/planner-sync?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:55] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:51:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:01] "GET /pricing/api/planner-sync?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:02] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:04] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:10] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:14] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:16] "GET /pricing/api/planner-sync?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:19] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:25] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:29] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:31] "GET /pricing/api/planner-sync?alojamento=Belas%20Artes%201&start=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:34] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:38] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:40] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:44] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:45] "GET /monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:45] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:46] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:46] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:46] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:46] "GET /static/js/push.js?v=1775469086 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:46] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:46] "GET /static/js/monitor.js?v=3 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:46] "GET /generic/api/options?query=SELECT%20LOGIN%20FROM%20US%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:46] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:46] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:46] "GET /generic/api/monitor/mn-nao-agendadas HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:46] "GET /generic/api/monitor_tasks_filtered?only_mine=1&start=2026-03-30&end=2026-04-13&_=1775469166406 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/monitor/fs-nao-agendadas HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/182EE8D6CD714D3A950EF24D6 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/05639F3E836448D6880540352 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/1D31CC82-5A3F-49D0-803E-4 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/E5C04259-044B-4F92-BC13-1 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/44E1864C-057E-4745-B639-B HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/8D29B218-82F2-4A96-B089-0 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/5C35211A-AA14-4E64-9A21-2 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/69C2D0D6-B38D-44B3-9008-C HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/34E36A7E-03F2-4F85-9455-0 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/26BE9612-554E-4F6A-A72F-8 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/3C21DC46-2BF2-438E-9302-A HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/41134755-F54C-4C39-8D6A-C HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/20924CE0-1BB1-4249-9260-3 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/12D35B7D-4FCF-40F7-8874-D HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/927737D7-1413-4C59-B7C1-D HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:47] "GET /generic/api/tarefa_origin/B53A2922-A62E-47C7-BA64-F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/3C31E167-C4BF-4299-B543-2 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/802A2E86-9D07-481F-AEDD-E HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/BCF8E7B9-FA84-4CD2-9F6E-7 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/C2CEA735-2F00-4EB7-BF43-D HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/83EDEA73-5104-480F-B200-4 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/05C780B5-D82A-43EC-B499-8 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/48556D1B-6E44-4FBF-97C7-1 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/3176D8CE-17BF-4098-8B44-3 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/AF40F96B-8E25-4CC1-9DC6-3 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/BBC7043B-7D84-4A11-BC87-2 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/1890EA41-0251-41E4-8A4C-F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/4BAAE73A-854A-42F4-B7B1-C HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:48] "GET /generic/api/tarefa_origin/83C2B0F6-2FBC-4ACA-AAF4-4 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/71A442C0-B580-477E-9775-3 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/95F2D39F-6273-437C-B33E-D HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/DBB37B72-8E13-42D8-A2D8-5 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/582BCF48-3F9F-4B60-A3A6-F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/DA26CF3F-2132-48A9-8E54-7 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/9DFA8FB3-8D49-4C63-9346-C HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/882E978B-F833-4363-B742-2 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/B72413D5-6EA2-4500-ABCA-5 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /historico_reservas HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/0AAA392E-39CD-467B-9F4B-F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/1DA18C67-360E-4650-B1F4-3 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/FD6DE00C-8BAF-4756-971A-E HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:49] "GET /generic/api/tarefa_origin/DDB18A4C-6ACC-4FEF-91C7-8 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/0D578B673CAC431CBDDA6E66D HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/79FAF920BC19415A97B81529F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/3F78DCBA12D74E908017BD3F3 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/779250E801D34544B2D7F6BCD HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/8E6DF6759B3841DB9877DBA32 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/1511F2947D664D1EBB767DD49 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/E12A43B9CDE44DF8881E9FD0F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/0C3F33380FB449BB9A2FFD489 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/7CD9B2DC3715424680A13885D HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/CFA1273793B645FE8D2B6F5F8 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/D1E8E29D107C4E4CB6FA144D1 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/3D662CD542CB4DD3B9025A328 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/1CD8CB5DA36244A4AA7C4966D HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:50] "GET /generic/api/FS/923228C0A8944949A7C8980EE HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/D72526D2F18241E781C2ACC69 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/40F729D413C346F28B12F76C8 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/B3CB06DE16664DE7BCF6C8CE4 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/90DC6EE213CC4538B67D5EE5C HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/DFB40919358F40299BE6AFCFB HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/142EC13EA341496997022FCD6 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/59938F791D6C46FB8F279C6C9 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/8622E1E41C88488BB2C73FD0F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/EC16E4F6A80F4AC9B18FA25F8 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/F56BF8C61DEC4ABFA9ED9C568 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/C81F981EA6B04E8190FE36117 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/D69D32628F6342EEA91E953A1 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/C6AC2FF98DF8464DBC805266F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/BBF90F73B45B495EBCCC79305 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/493AB77536AE40959A26896BC HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:51] "GET /generic/api/FS/1B985B4A81F0432BB77FDCAE7 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /generic/api/FS/732209ECD1CD4829AF7B14D43 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /generic/api/FS/7F30B4C115DB4101A14DDBF8E HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /generic/api/FS/9BABFCE2C7BD40D8B1CCC87E2 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /generic/api/FS/4825D9799625478AA25C8EE68 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /generic/api/FS/1525C0FC8FE043B685288053A HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /static/js/historico_reservas.js?v=1775469086 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /static/js/push.js?v=1775469086 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /api/historico_reservas_users HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:52:52] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:52:53] "GET /api/historico_reservas?data=2026-04-05 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:00] "GET /api/historico_reservas?data=2026-04-03 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:02] "GET /api/historico_reservas?data=2026-04-01 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:02] "GET /api/historico_reservas?data=2026-03-30 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:02] "GET /api/historico_reservas?data=2026-03-29 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:02] "GET /api/historico_reservas?data=2026-03-28 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:03] "GET /api/historico_reservas?data=2026-03-27 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:03] "GET /api/historico_reservas?data=2026-03-26 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:03] "GET /api/historico_reservas?data=2026-03-25 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:03] "GET /api/historico_reservas?data=2026-03-24 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:03] "GET /api/historico_reservas?data=2026-03-23 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:03] "GET /api/historico_reservas?data=2026-03-22 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:53:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:54:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:55:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:56:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:57:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:58:33] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 10:58:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 10:59:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:00:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:01:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:02:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:03:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:04:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:05:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:06:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:07:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:08:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:09:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:10:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:11:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:12:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:13:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:14:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:15:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:16:34] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:16:37] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:16:40] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:16:40] "GET /pricing/api/sync-monitor/detail?alojamento=Valentino HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:16:43] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:16:46] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:16:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:16:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:16:55] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:16:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:01] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:07] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:13] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:19] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:25] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:29] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:31] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:37] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:43] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:55] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:17:58] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:01] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:04] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:07] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:13] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:19] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:25] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:29] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:31] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:37] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:43] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:55] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:18:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:01] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:07] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:13] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:19] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:25] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:29] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:31] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:37] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:43] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:55] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:19:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:01] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:07] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:13] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:19] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:25] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:29] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:31] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:37] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:43] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:55] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:20:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:01] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:07] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:13] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:19] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:25] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:29] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:31] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:37] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:43] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:55] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:21:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:01] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:07] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:13] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:19] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:25] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:29] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:31] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:37] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:43] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:55] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:22:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:23:01] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:23:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:23:07] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:23:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:24:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:25:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:26:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:27:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:28:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:29:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:30:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:31:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:32:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:33:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:34:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:35:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:36:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:37:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:38:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:39:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:40:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:41:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:42:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:43:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:44:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:45:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:46:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:47:58] "GET /pricing/api/sync-monitor HTTP/1.1" 500 -
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('08S01', '[08S01] [Microsoft][ODBC Driver 17 for SQL Server]TCP Provider: Uma ligação existente foi forçada a fechar pelo anfitrião remoto.\r\n (10054) (SQLExecDirectW); [08S01] [Microsoft][ODBC Driver 17 for SQL Server]Communication link failure (10054)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\utils.py", line 284, in decorated_view
+    elif not current_user.is_authenticated:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\werkzeug\local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "C:\APP_WEB\.venv\Lib\site-packages\werkzeug\local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "C:\APP_WEB\app.py", line 1601, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "C:\APP_WEB\services\auth_service.py", line 143, in get_user_by_stamp
+    row = session.execute(sql, {"stamp": (user_stamp or "").strip()}).mappings().first()
+          ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\scoping.py", line 779, in execute
+    return self._proxied.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2260, in _execute_internal
+    result = conn.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('08S01', '[08S01] [Microsoft][ODBC Driver 17 for SQL Server]TCP Provider: Uma ligação existente foi forçada a fechar pelo anfitrião remoto.\r\n (10054) (SQLExecDirectW); [08S01] [Microsoft][ODBC Driver 17 for SQL Server]Communication link failure (10054)')
+[SQL: 
+        SELECT USSTAMP, LOGIN, NOME, EMAIL, COR, PASSWORD, ADMIN, EQUIPA, DEV, HOME, MNADMIN, LPADMIN, LSADMIN, FOTO, TEMPOS, VIEWMODE, PASSWORD_HASH, PASSWORD_ALGO, PASSWORD_MIGRADA, PASSWORD_CHANGED_AT, PASSWORD_RESET_REQUIRED, FAILED_LOGIN_COUNT, LOCKED_UNTIL, LAST_LOGIN_AT, IS_ACTIVE, INATIVO
+          FROM US
+         WHERE USSTAMP = ?
+        ]
+[parameters: ('52A05B3E-2732-46D4-93C8-B',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+127.0.0.1 - - [06/Apr/2026 11:48:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:04] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:31] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:48:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:49:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:34] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:50:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:51:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:40] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:52:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:53:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:54:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:55:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:56:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:57:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:58:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 11:59:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:00:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:01:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:02:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:03:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:04:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:05:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:06:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:07:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:08:58] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:09:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:10:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:11:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:12:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:13:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:14:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:15:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:16:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:17:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:18:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:19:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:20:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:21:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:22:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:23:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:24:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:25:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:26:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:27:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:28:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:29:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:30:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:31:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:32:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:33:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:34:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:35:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:36:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:37:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:38:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:39:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:40:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:41:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:42:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:43:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:44:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:45:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:46:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:38] "GET /pricing/api/sync-monitor/detail?alojamento=Valentino HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:38] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:44] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:50] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:56] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:47:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:02] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:14] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:38] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:48:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:11] "GET /pricing/api/sync-monitor HTTP/1.1" 500 -
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.Error: ('40001', '[40001] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Transaction (Process ID 73) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction. (1205) (SQLExecDirectW)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
+    return current_app.ensure_sync(func)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\price_engine.py", line 2819, in pricing_api_sync_monitor
+    return jsonify(_load_pricing_sync_monitor_state())
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\APP_WEB\price_engine.py", line 2466, in _load_pricing_sync_monitor_state
+    rows = db.session.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\scoping.py", line 779, in execute
+    return self._proxied.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2260, in _execute_internal
+    result = conn.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.DBAPIError: (pyodbc.Error) ('40001', '[40001] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Transaction (Process ID 73) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction. (1205) (SQLExecDirectW)')
+[SQL: 
+            SELECT
+                LTRIM(RTRIM(D.AL_NOME)) AS Alojamento,
+                COUNT(*) AS RegistosPorSincronizar,
+                MIN(CAST(D.[DATA] AS date)) AS PrimeiraData,
+                MAX(CAST(D.[DATA] AS date)) AS UltimaData
+            FROM dbo.PR_CALC_DAY AS D
+            JOIN dbo.PR_ALOJAMENTO AS P
+              ON P.AL_NOME = D.AL_NOME
+            JOIN dbo.AL AS AL
+              ON AL.NOME = D.AL_NOME
+            WHERE
+                P.SYNC = 1
+                AND ISNULL(D.SYNC, 0) = 0
+                AND D.[DATA] >= CAST(GETDATE() AS date)
+                AND D.[DATA] < DATEADD(day, 375, CAST(GETDATE() AS date))
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.RS
+                    WHERE RS.ALOJAMENTO = D.AL_NOME
+                      AND ISNULL(RS.CANCELADA, 0) = 0
+                      AND CAST(RS.DATAIN AS date) <= D.[DATA]
+                      AND CAST(RS.DATAOUT AS date) > D.[DATA]
+                )
+            GROUP BY
+                LTRIM(RTRIM(D.AL_NOME))
+            ORDER BY
+                LTRIM(RTRIM(D.AL_NOME)) ASC
+            ]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+127.0.0.1 - - [06/Apr/2026 12:49:19] "GET /pricing/api/sync-monitor HTTP/1.1" 500 -
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.Error: ('40001', '[40001] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Transaction (Process ID 78) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction. (1205) (SQLExecDirectW)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
+    return current_app.ensure_sync(func)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\price_engine.py", line 2819, in pricing_api_sync_monitor
+    return jsonify(_load_pricing_sync_monitor_state())
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\APP_WEB\price_engine.py", line 2466, in _load_pricing_sync_monitor_state
+    rows = db.session.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\scoping.py", line 779, in execute
+    return self._proxied.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2260, in _execute_internal
+    result = conn.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.DBAPIError: (pyodbc.Error) ('40001', '[40001] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Transaction (Process ID 78) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction. (1205) (SQLExecDirectW)')
+[SQL: 
+            SELECT
+                LTRIM(RTRIM(D.AL_NOME)) AS Alojamento,
+                COUNT(*) AS RegistosPorSincronizar,
+                MIN(CAST(D.[DATA] AS date)) AS PrimeiraData,
+                MAX(CAST(D.[DATA] AS date)) AS UltimaData
+            FROM dbo.PR_CALC_DAY AS D
+            JOIN dbo.PR_ALOJAMENTO AS P
+              ON P.AL_NOME = D.AL_NOME
+            JOIN dbo.AL AS AL
+              ON AL.NOME = D.AL_NOME
+            WHERE
+                P.SYNC = 1
+                AND ISNULL(D.SYNC, 0) = 0
+                AND D.[DATA] >= CAST(GETDATE() AS date)
+                AND D.[DATA] < DATEADD(day, 375, CAST(GETDATE() AS date))
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.RS
+                    WHERE RS.ALOJAMENTO = D.AL_NOME
+                      AND ISNULL(RS.CANCELADA, 0) = 0
+                      AND CAST(RS.DATAIN AS date) <= D.[DATA]
+                      AND CAST(RS.DATAOUT AS date) > D.[DATA]
+                )
+            GROUP BY
+                LTRIM(RTRIM(D.AL_NOME))
+            ORDER BY
+                LTRIM(RTRIM(D.AL_NOME)) ASC
+            ]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+127.0.0.1 - - [06/Apr/2026 12:49:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:49:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:14] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:29] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:38] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:50:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:51:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:02] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:10] "GET /pricing/api/sync-monitor/detail?alojamento=Valentino HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:14] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:25] "GET /pricing/api/sync-monitor/detail?alojamento=Valentino HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:52:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:53:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:54:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:55:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:56:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:57:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:58:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 12:59:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:00:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:01:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:02:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:03:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:04:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:05:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:06:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:07:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:08:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:09:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:10:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:11:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:12:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:13:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:14:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:15:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:16:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:17:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:18:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:19:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:20:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:21:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:22:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:23:49] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:24:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:24:38] "GET /pricing/api/sync-monitor/detail?alojamento=Valentino HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:24:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:24:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:24:44] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:24:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:24:50] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:24:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:24:56] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:24:56] "GET /pricing/api/sync-monitor/detail?alojamento=Casa%20da%20Praça HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:24:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:01] "GET /pricing/api/sync-monitor/detail?alojamento=PALACIO%20RCT HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:02] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:05] "GET /pricing/api/sync-monitor/detail?alojamento=PORTO%20PRIME%20STUDIOS%20E HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:09] "GET /pricing/api/sync-monitor/detail?alojamento=TRINDADE%20STUDIO HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:14] "GET /pricing/api/sync-monitor/detail?alojamento=Valentino HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:14] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:44] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:50] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:56] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:25:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:06] "GET /pricing/api/sync-monitor/detail?alojamento=Campanhã%203E HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:12] "GET /pricing/api/sync-monitor/detail?alojamento=PALACIO%202F HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:14] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:25] "GET /pricing/api/sync-monitor/detail?alojamento=PORTO%20PRIME%20STUDIOS%20E HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:29] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:30] "GET /pricing/api/sync-monitor/detail?alojamento=PORTO%20PRIME%20STUDIOS%20C HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:36] "GET /pricing/api/sync-monitor/detail?alojamento=PORTO%20PRIME%20STUDIOS%20C HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:38] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:44] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:50] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:56] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:26:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:28] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:27:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:28] "GET /pricing/api/sync-monitor HTTP/1.1" 500 -
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.Error: ('40001', '[40001] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Transaction (Process ID 78) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction. (1205) (SQLExecDirectW)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
+    return current_app.ensure_sync(func)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\price_engine.py", line 2819, in pricing_api_sync_monitor
+    return jsonify(_load_pricing_sync_monitor_state())
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\APP_WEB\price_engine.py", line 2466, in _load_pricing_sync_monitor_state
+    rows = db.session.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\scoping.py", line 779, in execute
+    return self._proxied.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2260, in _execute_internal
+    result = conn.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.DBAPIError: (pyodbc.Error) ('40001', '[40001] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Transaction (Process ID 78) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction. (1205) (SQLExecDirectW)')
+[SQL: 
+            SELECT
+                LTRIM(RTRIM(D.AL_NOME)) AS Alojamento,
+                COUNT(*) AS RegistosPorSincronizar,
+                MIN(CAST(D.[DATA] AS date)) AS PrimeiraData,
+                MAX(CAST(D.[DATA] AS date)) AS UltimaData
+            FROM dbo.PR_CALC_DAY AS D
+            JOIN dbo.PR_ALOJAMENTO AS P
+              ON P.AL_NOME = D.AL_NOME
+            JOIN dbo.AL AS AL
+              ON AL.NOME = D.AL_NOME
+            WHERE
+                P.SYNC = 1
+                AND ISNULL(D.SYNC, 0) = 0
+                AND D.[DATA] >= CAST(GETDATE() AS date)
+                AND D.[DATA] < DATEADD(day, 375, CAST(GETDATE() AS date))
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.RS
+                    WHERE RS.ALOJAMENTO = D.AL_NOME
+                      AND ISNULL(RS.CANCELADA, 0) = 0
+                      AND CAST(RS.DATAIN AS date) <= D.[DATA]
+                      AND CAST(RS.DATAOUT AS date) > D.[DATA]
+                )
+            GROUP BY
+                LTRIM(RTRIM(D.AL_NOME))
+            ORDER BY
+                LTRIM(RTRIM(D.AL_NOME)) ASC
+            ]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+127.0.0.1 - - [06/Apr/2026 13:28:41] "GET /pricing/api/sync-monitor HTTP/1.1" 500 -
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.Error: ('40001', '[40001] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Transaction (Process ID 65) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction. (1205) (SQLExecDirectW)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
+    return current_app.ensure_sync(func)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\price_engine.py", line 2819, in pricing_api_sync_monitor
+    return jsonify(_load_pricing_sync_monitor_state())
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\APP_WEB\price_engine.py", line 2466, in _load_pricing_sync_monitor_state
+    rows = db.session.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\scoping.py", line 779, in execute
+    return self._proxied.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2260, in _execute_internal
+    result = conn.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.DBAPIError: (pyodbc.Error) ('40001', '[40001] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Transaction (Process ID 65) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction. (1205) (SQLExecDirectW)')
+[SQL: 
+            SELECT
+                LTRIM(RTRIM(D.AL_NOME)) AS Alojamento,
+                COUNT(*) AS RegistosPorSincronizar,
+                MIN(CAST(D.[DATA] AS date)) AS PrimeiraData,
+                MAX(CAST(D.[DATA] AS date)) AS UltimaData
+            FROM dbo.PR_CALC_DAY AS D
+            JOIN dbo.PR_ALOJAMENTO AS P
+              ON P.AL_NOME = D.AL_NOME
+            JOIN dbo.AL AS AL
+              ON AL.NOME = D.AL_NOME
+            WHERE
+                P.SYNC = 1
+                AND ISNULL(D.SYNC, 0) = 0
+                AND D.[DATA] >= CAST(GETDATE() AS date)
+                AND D.[DATA] < DATEADD(day, 375, CAST(GETDATE() AS date))
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.RS
+                    WHERE RS.ALOJAMENTO = D.AL_NOME
+                      AND ISNULL(RS.CANCELADA, 0) = 0
+                      AND CAST(RS.DATAIN AS date) <= D.[DATA]
+                      AND CAST(RS.DATAOUT AS date) > D.[DATA]
+                )
+            GROUP BY
+                LTRIM(RTRIM(D.AL_NOME))
+            ORDER BY
+                LTRIM(RTRIM(D.AL_NOME)) ASC
+            ]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+127.0.0.1 - - [06/Apr/2026 13:28:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:28:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:29:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:18] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:21] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:27] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:30] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:33] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:36] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:39] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:42] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:45] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:48] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:51] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:54] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:30:57] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:00] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:06] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:09] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:12] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:15] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:20] "GET /pricing/api/sync-monitor/detail?alojamento=Valentino HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:24] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:26] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:29] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:32] "GET /pricing/api/sync-monitor/detail?alojamento=BALCONY HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:32] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:35] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:38] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:41] "GET /pricing/api/sync-monitor/detail?alojamento=Casa%20da%20Praça HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:41] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:44] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:45] "GET /pricing/api/sync-monitor/detail?alojamento=Valentino HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:47] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:50] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:53] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:56] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:31:59] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:03] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:05] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:08] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:11] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:14] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:16] "GET /planeamento_limpezas HTTP/1.1" 302 -
+127.0.0.1 - - [06/Apr/2026 13:32:17] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:20] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:22] "GET /generic/planeamento_limpezas/ HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:23] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:32:23] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:32:23] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:32:23] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:32:23] "GET /static/js/push.js?v=1775469086 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:32:23] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:32:23] "GET /static/js/planeamento_limpezas.js HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:23] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:32:23] "GET /generic/api/planner2_teams HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:23] "GET /pricing/api/sync-monitor HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:24] "GET /generic/api/cleaning_plan?date=2026-04-06 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:32:25] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:32:27] "POST /generic/api/osm_distances HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:33:18] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:33:18] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:33:18] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:33:18] "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 -
+127.0.0.1 - - [06/Apr/2026 13:36:31] "GET /generic/planeamento_limpezas/ HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:36:32] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:36:32] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:36:32] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:36:32] "GET /static/js/push.js?v=1775469086 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:36:32] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:36:32] "GET /static/js/planeamento_limpezas.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:36:32] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:36:32] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:36:32] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:36:33] "GET /generic/api/planner2_teams HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:36:33] "GET /generic/api/cleaning_plan?date=2026-04-06 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:36:34] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:36:35] "POST /generic/api/osm_distances HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:37:29] "GET /generic/planeamento_limpezas/ HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:37:29] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:37:29] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:37:30] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:37:30] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:37:30] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:37:30] "GET /static/js/planeamento_limpezas.js HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:37:30] "GET /static/js/push.js?v=1775469086 HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:37:30] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:37:30] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:37:30] "GET /generic/api/planner2_teams HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:37:31] "GET /generic/api/cleaning_plan?date=2026-04-06 HTTP/1.1" 200 -
+127.0.0.1 - - [06/Apr/2026 13:37:32] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [06/Apr/2026 13:37:33] "POST /generic/api/osm_distances HTTP/1.1" 200 -

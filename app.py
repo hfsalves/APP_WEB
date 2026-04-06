@@ -11982,7 +11982,7 @@ Aloj AS (
     WHERE 1=1
       -- aplica aqui os teus filtros (fechados/inativos)
       AND ISNULL(al.FECHADO, 0) = 0
-      -- AND ISNULL(al.ATIVO, 1) = 1
+      AND ISNULL(al.INATIVO, 0) = 0
 ),
 Cal AS (
     SELECT @DataInicio AS [DATA]
@@ -11992,13 +11992,22 @@ Cal AS (
     WHERE [DATA] < @DataFim
 ),
 Occ AS (
-    -- ocupadas = existem na view
+    -- ocupadas = existe reserva a dormir nessa noite
     SELECT DISTINCT
-        v.CCUSTO,
-        CAST(v.[DATA] AS date) AS [DATA]
-    FROM dbo.v_diario_all v
-    WHERE v.[DATA] BETWEEN @DataInicio AND @DataFim
-      AND ISNULL(v.VALOR, 0) <> 0
+        a.CCUSTO,
+        c.[DATA]
+    FROM Aloj a
+    CROSS JOIN Cal c
+    WHERE EXISTS (
+        SELECT 1
+        FROM dbo.RS rs
+        WHERE LTRIM(RTRIM(ISNULL(rs.ALOJAMENTO, ''))) = a.CCUSTO
+          AND rs.DATAIN IS NOT NULL
+          AND rs.DATAOUT IS NOT NULL
+          AND ISNULL(rs.CANCELADA, 0) = 0
+          AND CAST(rs.DATAIN AS date) <= c.[DATA]
+          AND CAST(rs.DATAOUT AS date) > c.[DATA]
+    )
 ),
 Livres AS (
     -- livres = (alojamento x calendário) sem registo em Occ
@@ -12013,22 +12022,30 @@ Livres AS (
       AND o.[DATA] = c.[DATA]
     WHERE o.CCUSTO IS NULL
 ),
-HojeAmanha AS (
+HojeAmanhaRaw AS (
     SELECT
         a.CCUSTO,
-        MAX(CASE WHEN o.[DATA] = @Hoje THEN 1 ELSE 0 END) AS Ocupado_Hoje,
-        MAX(CASE WHEN o.[DATA] = DATEADD(day, 1, @Hoje) THEN 1 ELSE 0 END) AS Ocupado_Amanha
+        d.[DATA],
+        CASE WHEN EXISTS (
+            SELECT 1
+            FROM dbo.RS rs
+            WHERE LTRIM(RTRIM(ISNULL(rs.ALOJAMENTO, ''))) = a.CCUSTO
+              AND rs.DATAIN IS NOT NULL
+              AND rs.DATAOUT IS NOT NULL
+              AND ISNULL(rs.CANCELADA, 0) = 0
+              AND CAST(rs.DATAIN AS date) <= d.[DATA]
+              AND CAST(rs.DATAOUT AS date) > d.[DATA]
+        ) THEN 1 ELSE 0 END AS Ocupado
     FROM Aloj a
-    LEFT JOIN (
-        SELECT DISTINCT
-            v.CCUSTO,
-            CAST(v.[DATA] AS date) AS [DATA]
-        FROM dbo.v_diario_all v
-        WHERE v.[DATA] BETWEEN @Hoje AND DATEADD(day, 1, @Hoje)
-          AND ISNULL(v.VALOR, 0) <> 0
-    ) o
-      ON o.CCUSTO = a.CCUSTO
-    GROUP BY a.CCUSTO
+    CROSS JOIN (VALUES (@Hoje), (DATEADD(day, 1, @Hoje))) d([DATA])
+),
+HojeAmanha AS (
+    SELECT
+        CCUSTO,
+        MAX(CASE WHEN [DATA] = @Hoje THEN Ocupado ELSE 0 END) AS Ocupado_Hoje,
+        MAX(CASE WHEN [DATA] = DATEADD(day, 1, @Hoje) THEN Ocupado ELSE 0 END) AS Ocupado_Amanha
+    FROM HojeAmanhaRaw
+    GROUP BY CCUSTO
 ),
 LivresComGrupo AS (
     -- ilhas de livres consecutivas
@@ -15433,6 +15450,120 @@ OPTION (MAXRECURSION 32767);
     def performance_page():
         return render_template('performance.html', page_title='Performance')
 
+    def _performance_parse_dates(qs_ini, qs_fim):
+        today = date.today()
+        first_day = date(today.year, today.month, 1)
+        if today.month == 12:
+            next_month_first = date(today.year + 1, 1, 1)
+        else:
+            next_month_first = date(today.year, today.month + 1, 1)
+        last_day = next_month_first - timedelta(days=1)
+
+        def parse_d(dstr, fallback):
+            try:
+                return datetime.strptime(dstr, '%Y-%m-%d').date()
+            except Exception:
+                return fallback
+
+        return parse_d(qs_ini, first_day), parse_d(qs_fim, last_day)
+
+    def _performance_allowed_alojamentos(current_feid):
+        rows = db.session.execute(
+            text(
+                """
+                SELECT
+                    LTRIM(RTRIM(ISNULL(A.NOME, ''))) AS NOME,
+                    UPPER(LTRIM(RTRIM(ISNULL(A.TIPO, '')))) AS TIPO
+                FROM dbo.AL AS A
+                WHERE ISNULL(A.INATIVO, 0) = 0
+                  AND ISNULL(A.FECHADO, 0) = 0
+                  AND (
+                        ISNULL(A.FEID, 0) = :current_feid
+                     OR ISNULL(A.FEID_GESTOR, 0) = :current_feid
+                  )
+                ORDER BY LTRIM(RTRIM(ISNULL(A.NOME, '')))
+                """
+            ),
+            {'current_feid': current_feid},
+        ).mappings().all()
+
+        alojamentos = []
+        for row in rows:
+            nome = str(row.get('NOME') or '').strip()
+            if not nome:
+                continue
+            tipo = str(row.get('TIPO') or '').strip().upper()
+            grupo = 'GESTAO' if tipo == 'GESTAO' else 'EXPLORACAO'
+            alojamentos.append({'nome': nome, 'grupo': grupo})
+        return alojamentos
+
+    def _performance_occ_map(current_feid, data_inicio, data_fim):
+        sql = text(
+            """
+            SELECT DISTINCT
+                LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))) AS NOME,
+                CAST(V.data AS date) AS DIA
+            FROM dbo.v_diario_all AS V
+            JOIN dbo.AL AS A
+              ON V.CCUSTO = A.NOME
+             AND ISNULL(A.INATIVO, 0) = 0
+             AND ISNULL(A.FECHADO, 0) = 0
+             AND (
+                   ISNULL(A.FEID, 0) = :current_feid
+                OR ISNULL(A.FEID_GESTOR, 0) = :current_feid
+             )
+            WHERE ISNULL(V.valor, 0) <> 0
+              AND V.data BETWEEN :data_inicio AND :data_fim
+            """
+        )
+        rows = db.session.execute(
+            sql,
+            {
+                'current_feid': current_feid,
+                'data_inicio': data_inicio,
+                'data_fim': data_fim,
+            },
+        ).mappings().all()
+
+        occ_map = {}
+        for row in rows:
+            nome = str(row.get('NOME') or '').strip()
+            dia = row.get('DIA')
+            if not nome or not dia:
+                continue
+            occ_map.setdefault(nome, set()).add(dia)
+        return occ_map
+
+    def _performance_segment_stats(segment_start, segment_end, alojamentos, occ_map):
+        if not segment_start or not segment_end or segment_end < segment_start:
+            return {
+                'start': '',
+                'end': '',
+                'gestao_pct': None,
+                'exploracao_pct': None,
+            }
+
+        segment_days = (segment_end - segment_start).days + 1
+        segment_set = {segment_start + timedelta(days=offset) for offset in range(segment_days)}
+        gestao_names = [item['nome'] for item in alojamentos if item['grupo'] == 'GESTAO']
+        exploracao_names = [item['nome'] for item in alojamentos if item['grupo'] == 'EXPLORACAO']
+
+        def calc_pct(names):
+            total_slots = len(names) * segment_days
+            if total_slots <= 0:
+                return None
+            occupied_slots = 0
+            for nome in names:
+                occupied_slots += len((occ_map.get(nome) or set()) & segment_set)
+            return round((occupied_slots / total_slots) * 100.0, 2)
+
+        return {
+            'start': segment_start.strftime('%Y-%m-%d'),
+            'end': segment_end.strftime('%Y-%m-%d'),
+            'gestao_pct': calc_pct(gestao_names),
+            'exploracao_pct': calc_pct(exploracao_names),
+        }
+
     # API: Alojamentos performance aggregation
     @app.route('/api/performance')
     @login_required
@@ -15444,25 +15575,9 @@ OPTION (MAXRECURSION 32767);
             # Parse dates or default to current month
             qs_ini = (request.args.get('data_inicio') or '').strip()
             qs_fim = (request.args.get('data_fim') or '').strip()
-
             today = date.today()
             first_day = date(today.year, today.month, 1)
-            # Compute last day of month
-            if today.month == 12:
-                next_month_first = date(today.year + 1, 1, 1)
-            else:
-                next_month_first = date(today.year, today.month + 1, 1)
-            from datetime import timedelta
-            last_day = next_month_first - timedelta(days=1)
-
-            def parse_d(dstr, fallback):
-                try:
-                    return datetime.strptime(dstr, '%Y-%m-%d').date()
-                except Exception:
-                    return fallback
-
-            data_inicio = parse_d(qs_ini, first_day)
-            data_fim = parse_d(qs_fim, last_day)
+            data_inicio, data_fim = _performance_parse_dates(qs_ini, qs_fim)
 
             # Nights total in the period (1 per day, inclusive)
             noites_totais = (data_fim - data_inicio).days + 1
@@ -15638,6 +15753,47 @@ OPTION (MAXRECURSION 32767);
                 'rows': result,
                 'data_inicio': data_inicio.strftime('%Y-%m-%d'),
                 'data_fim': data_fim.strftime('%Y-%m-%d')
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/performance/ocupacao-resumo')
+    @login_required
+    def api_performance_ocupacao_resumo():
+        try:
+            current_feid, error_response = _current_feid_or_json_error()
+            if error_response:
+                return error_response
+
+            qs_ini = (request.args.get('data_inicio') or '').strip()
+            qs_fim = (request.args.get('data_fim') or '').strip()
+            data_inicio, data_fim = _performance_parse_dates(qs_ini, qs_fim)
+            if data_fim < data_inicio:
+                return jsonify({'error': 'Intervalo de datas inválido'}), 400
+
+            today = date.today()
+            alojamentos = _performance_allowed_alojamentos(current_feid)
+            occ_map = _performance_occ_map(current_feid, data_inicio, data_fim)
+
+            until_today = _performance_segment_stats(
+                data_inicio,
+                min(data_fim, today),
+                alojamentos,
+                occ_map,
+            )
+            from_today = _performance_segment_stats(
+                max(data_inicio, today),
+                data_fim,
+                alojamentos,
+                occ_map,
+            )
+
+            return jsonify({
+                'until_today': until_today,
+                'from_today': from_today,
+                'data_inicio': data_inicio.strftime('%Y-%m-%d'),
+                'data_fim': data_fim.strftime('%Y-%m-%d'),
+                'today': today.strftime('%Y-%m-%d'),
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
