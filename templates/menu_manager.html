@@ -1,0 +1,557 @@
+{% extends "base.html" %}
+
+{% block title %}Gestor de Menu{% endblock %}
+
+{% block content %}
+<div class="sz_page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Gestor de Menu</div>
+        <div class="sz_page_subtitle">Gerir MENU, módulos associados, acessos por utilizador e ordenação.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <button id="menuMgrBtnNew" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-plus"></i>
+          <span>Novo</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content">
+        <section class="sz_panel sz_stack sz_menu_manager_panel">
+          <div class="sz_grid sz_grid_2 sz_menu_manager_filters">
+            <div class="sz_field">
+              <label class="sz_label" for="menuMgrSearch">Pesquisa</label>
+              <input id="menuMgrSearch" type="text" class="sz_input" placeholder="Nome, tabela ou URL">
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="menuMgrKindFilter">Tipo</label>
+              <select id="menuMgrKindFilter" class="sz_select">
+                <option value="">Todos</option>
+                <option value="group">Agrupadores</option>
+                <option value="item">Submenus</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="sz_inline">
+            <span id="menuMgrListSummary" class="sz_text_muted">A carregar...</span>
+          </div>
+
+          <div id="menuMgrList" class="sz_stack sz_menu_manager_cards">
+            <div class="sz_panel sz_menu_manager_empty">A carregar...</div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal fade" id="menuMgrEditorModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable sz_menu_manager_modal_dialog">
+    <div class="modal-content sz_panel sz_menu_manager_modal">
+      <div class="modal-header sz_modal_header">
+        <div class="sz_stack">
+          <h5 id="menuMgrEditorTitle" class="modal-title sz_modal_title">Novo registo</h5>
+                <div class="sz_inline sz_menu_manager_editor_meta">
+                  <span id="menuMgrKindBadge" class="sz_badge sz_badge_info">Submenu</span>
+                  <span id="menuMgrInactiveBadge" class="sz_badge sz_badge_warning sz_hidden">Inativo</span>
+                  <button id="menuMgrOpenModules" type="button" class="sz_button sz_button_ghost sz_button_xs">
+                    <i class="fa-solid fa-cubes"></i>
+                    <span>Módulos <strong id="menuMgrModuleCount">0</strong></span>
+                  </button>
+            <button id="menuMgrOpenUsers" type="button" class="sz_button sz_button_ghost sz_button_xs">
+              <i class="fa-solid fa-users"></i>
+              <span>Users <strong id="menuMgrUserCount">0</strong></span>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body sz_stack">
+        <form id="menuMgrForm" class="sz_stack" autocomplete="off">
+          <section class="sz_panel sz_stack">
+            <div class="sz_label">Identificação</div>
+            <div class="sz_grid sz_grid_3">
+              <div class="sz_field">
+                <label class="sz_label" for="menuMgrMENUSTAMP">MENUSTAMP</label>
+                <input id="menuMgrMENUSTAMP" class="sz_input" readonly>
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="menuMgrORDEM">Ordem</label>
+                <input id="menuMgrORDEM" type="number" class="sz_input_number" min="0" step="1">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="menuMgrICONE">Ícone</label>
+                <div class="sz_menu_manager_icon_field">
+                  <button id="menuMgrIconPickerBtn" type="button" class="sz_button sz_button_ghost sz_menu_manager_icon_picker_btn" title="Escolher ícone">
+                    <span class="sz_menu_manager_icon_picker_preview">
+                      <i id="menuMgrIconPreview" class="fa-solid fa-folder-open"></i>
+                    </span>
+                  </button>
+                  <input id="menuMgrICONE" class="sz_input" maxlength="100" placeholder="fa-solid fa-table-list">
+                </div>
+              </div>
+              <div class="sz_field sz_menu_manager_span_2">
+                <label class="sz_label" for="menuMgrNOME">Nome</label>
+                <input id="menuMgrNOME" class="sz_input" maxlength="60">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label">Opções</label>
+                <div class="sz_inline sz_menu_manager_flags">
+                  <label class="sz_checkbox">
+                    <input id="menuMgrADMIN" type="checkbox">
+                    <span>Só admin</span>
+                  </label>
+                  <label class="sz_checkbox">
+                    <input id="menuMgrINATIVO" type="checkbox">
+                    <span>Inativo</span>
+                  </label>
+                  <label class="sz_checkbox">
+                    <input id="menuMgrNOVO" type="checkbox">
+                    <span>Botão novo</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="sz_panel sz_stack">
+            <div class="sz_label">Navegação</div>
+            <div class="sz_grid sz_grid_2">
+              <div class="sz_field">
+                <label class="sz_label" for="menuMgrTABELA">Tabela</label>
+                <input id="menuMgrTABELA" class="sz_input" maxlength="18" placeholder="Ex.: FT">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="menuMgrURL">URL</label>
+                <input id="menuMgrURL" class="sz_input" maxlength="200" placeholder="Ex.: /generic/view/FT/">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="menuMgrFORM">Form</label>
+                <input id="menuMgrFORM" class="sz_input" maxlength="200" placeholder="Ex.: /generic/form/FT">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="menuMgrORDERBY">ORDER BY</label>
+                <input id="menuMgrORDERBY" class="sz_input" maxlength="200" placeholder="Ex.: DATA DESC">
+              </div>
+            </div>
+          </section>
+        </form>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button id="menuMgrBtnUp" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-arrow-up"></i>
+          <span>Subir</span>
+        </button>
+        <button id="menuMgrBtnDown" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-arrow-down"></i>
+          <span>Descer</span>
+        </button>
+        <button id="menuMgrBtnDelete" type="button" class="sz_button sz_button_danger">
+          <i class="fa-solid fa-trash"></i>
+          <span>Eliminar</span>
+        </button>
+        <button id="menuMgrBtnCancel" type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button id="menuMgrBtnSave" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="menuMgrModulesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable sz_menu_manager_modal_dialog">
+    <div class="modal-content sz_panel sz_menu_manager_modal">
+      <div class="modal-header sz_modal_header">
+        <div class="sz_stack">
+          <h5 class="modal-title sz_modal_title">Módulos do menu</h5>
+          <div id="menuMgrModulesSubtitle" class="sz_text_muted">Seleciona os módulos onde este menu deve aparecer.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body sz_stack">
+        <div class="sz_field">
+          <label class="sz_label" for="menuMgrModulesSearch">Pesquisa</label>
+          <input id="menuMgrModulesSearch" type="text" class="sz_input" placeholder="Código, nome ou descrição">
+        </div>
+        <div class="sz_table_host">
+          <table class="sz_table sz_table_compact">
+            <thead class="sz_table_head">
+              <tr class="sz_table_row">
+                <th class="sz_table_cell sz_col_fit"></th>
+                <th class="sz_table_cell">Código</th>
+                <th class="sz_table_cell">Nome</th>
+                <th class="sz_table_cell">Descrição</th>
+              </tr>
+            </thead>
+            <tbody id="menuMgrModulesBody">
+              <tr class="sz_table_row">
+                <td colspan="4" class="sz_table_cell sz_text_muted">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button id="menuMgrModulesSave" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar módulos</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="menuMgrUsersModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable sz_menu_manager_modal_dialog">
+    <div class="modal-content sz_panel sz_menu_manager_modal">
+      <div class="modal-header sz_modal_header">
+        <div class="sz_stack">
+          <h5 class="modal-title sz_modal_title">Utilizadores com acesso</h5>
+          <div id="menuMgrUsersSubtitle" class="sz_text_muted">Define permissões em ACESSOS para a tabela do menu.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body sz_stack">
+        <div id="menuMgrUsersNotice" class="sz_card sz_stack sz_menu_manager_notice sz_hidden">
+          <strong>Sem tabela</strong>
+          <span>Os agrupadores sem tabela não têm acessos próprios.</span>
+        </div>
+
+        <div class="sz_field">
+          <label class="sz_label" for="menuMgrUsersSearch">Pesquisa</label>
+          <input id="menuMgrUsersSearch" type="text" class="sz_input" placeholder="Nome ou login">
+        </div>
+
+        <div class="sz_table_host">
+          <table class="sz_table sz_table_compact">
+            <thead class="sz_table_head">
+              <tr class="sz_table_row">
+                <th class="sz_table_cell">Utilizador</th>
+                <th class="sz_table_cell sz_col_fit">Consultar</th>
+                <th class="sz_table_cell sz_col_fit">Inserir</th>
+                <th class="sz_table_cell sz_col_fit">Editar</th>
+                <th class="sz_table_cell sz_col_fit">Eliminar</th>
+              </tr>
+            </thead>
+            <tbody id="menuMgrUsersBody">
+              <tr class="sz_table_row">
+                <td colspan="5" class="sz_table_cell sz_text_muted">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button id="menuMgrUsersSave" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar acessos</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="menuMgrIconsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable sz_menu_manager_modal_dialog">
+    <div class="modal-content sz_panel sz_menu_manager_modal">
+      <div class="modal-header sz_modal_header">
+        <div class="sz_stack">
+          <h5 class="modal-title sz_modal_title">Escolher ícone</h5>
+          <div class="sz_text_muted">Catálogo local de ícones Font Awesome Free.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body sz_stack">
+        <div class="sz_field">
+          <label class="sz_label" for="menuMgrIconsSearch">Pesquisa</label>
+          <input id="menuMgrIconsSearch" type="text" class="sz_input" placeholder="Ex.: calendar, file, chart, user">
+        </div>
+        <div id="menuMgrIconsGrid" class="sz_menu_manager_icons_grid">
+          <div class="sz_panel sz_menu_manager_empty">A carregar...</div>
+        </div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.MENU_MANAGER_INITIAL_MENUSTAMP = {{ initial_menustamp|tojson }};
+  window.MENU_MANAGER_CAN_CREATE = {{ menu_mgr_can_create|tojson }};
+  window.MENU_MANAGER_CAN_EDIT = {{ menu_mgr_can_edit|tojson }};
+  window.MENU_MANAGER_CAN_DELETE = {{ menu_mgr_can_delete|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/menu_manager_icons.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+<script src="{{ url_for('static', filename='js/menu_manager.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+
+<style>
+  .sz_menu_manager_panel {
+    gap: 1rem;
+  }
+
+  .sz_menu_manager_filters {
+    align-items: end;
+  }
+
+  .sz_menu_manager_cards {
+    gap: .75rem;
+  }
+
+  .sz_menu_manager_card {
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .65rem;
+    padding: .55rem .8rem;
+    transition: border-color .18s ease, transform .18s ease;
+    cursor: grab;
+  }
+
+  .sz_menu_manager_card:hover {
+    border-color: var(--sz-color-primary);
+    transform: translateY(-1px);
+  }
+
+  .sz_menu_manager_card.is-dragging {
+    opacity: .55;
+    cursor: grabbing;
+  }
+
+  .sz_menu_manager_card.is-drop-before {
+    box-shadow: inset 0 3px 0 0 var(--sz-color-primary);
+  }
+
+  .sz_menu_manager_card.is-drop-after {
+    box-shadow: inset 0 -3px 0 0 var(--sz-color-primary);
+  }
+
+  .sz_menu_manager_card.is-selected {
+    border-color: var(--sz-color-primary);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 28%, transparent);
+  }
+
+  .sz_menu_manager_card.is-inactive {
+    opacity: .72;
+  }
+
+  .sz_menu_manager_card.is-child {
+    margin-left: 1.2rem;
+  }
+
+  .sz_menu_manager_card_icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--sz-color-primary) 18%, var(--sz-color-surface-alt));
+    color: var(--sz-color-primary);
+    font-size: .88rem;
+    flex: 0 0 auto;
+    cursor: pointer;
+  }
+
+  .sz_menu_manager_card_icon i {
+    display: inline-block;
+    line-height: 1;
+  }
+
+  .sz_menu_manager_card_body {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .sz_menu_manager_card_line1,
+  .sz_menu_manager_card_line2 {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+
+  .sz_menu_manager_card_name {
+    font-weight: 600;
+    color: var(--sz-color-text);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sz_menu_manager_card_meta {
+    min-width: 0;
+    color: var(--sz-color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sz_menu_manager_card_actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .25rem;
+    flex-wrap: nowrap;
+    cursor: default;
+  }
+
+  .sz_menu_manager_card_btn {
+    min-width: 1.9rem;
+    height: 1.9rem;
+    padding: 0 .45rem;
+  }
+
+  .sz_menu_manager_count_btn {
+    min-height: 1.9rem;
+    padding: 0 .45rem;
+  }
+
+  .sz_menu_manager_icon_field {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .5rem;
+    align-items: center;
+  }
+
+  .sz_menu_manager_icon_picker_btn {
+    min-width: 2.6rem;
+    width: 2.6rem;
+    height: 2.6rem;
+    padding: 0;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .sz_menu_manager_icon_picker_preview {
+    width: 100%;
+    height: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+  }
+
+  .sz_menu_manager_icons_grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: .75rem;
+  }
+
+  .sz_menu_manager_icon_option {
+    min-height: 6rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .55rem;
+    text-align: center;
+    padding: .8rem .65rem;
+  }
+
+  .sz_menu_manager_icon_option.is-selected {
+    border-color: var(--sz-color-primary);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 28%, transparent);
+  }
+
+  .sz_menu_manager_icon_option i {
+    font-size: 1.25rem;
+  }
+
+  .sz_menu_manager_icon_option_label {
+    font-size: .82rem;
+    line-height: 1.2;
+    color: var(--sz-color-text-muted);
+    word-break: break-word;
+  }
+
+  .sz_menu_manager_modal_dialog {
+    max-width: min(1120px, calc(100vw - 2rem));
+  }
+
+  .sz_menu_manager_modal {
+    background: var(--sz-color-surface);
+  }
+
+  .sz_menu_manager_editor_meta {
+    gap: .5rem;
+    flex-wrap: wrap;
+  }
+
+  .sz_menu_manager_span_2 {
+    grid-column: span 2;
+  }
+
+  .sz_menu_manager_flags {
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .sz_menu_manager_notice {
+    border: 1px dashed var(--sz-color-border);
+  }
+
+  .sz_menu_manager_empty {
+    color: var(--sz-color-text-muted);
+  }
+
+  .sz_hidden {
+    display: none !important;
+  }
+
+  @media (max-width: 1080px) {
+    .sz_menu_manager_card {
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: flex-start;
+    }
+
+    .sz_menu_manager_card_actions {
+      grid-column: 1 / -1;
+      justify-content: flex-start;
+      padding-left: 2.65rem;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .sz_menu_manager_filters {
+      grid-template-columns: 1fr;
+    }
+
+    .sz_menu_manager_card {
+      padding: .6rem .7rem;
+    }
+
+    .sz_menu_manager_card_line1 {
+      flex-wrap: wrap;
+      row-gap: .25rem;
+    }
+  }
+</style>
+{% endblock %}

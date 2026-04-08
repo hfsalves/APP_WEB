@@ -4,9 +4,15 @@
 document.addEventListener('DOMContentLoaded', () => {
   const tableName       = window.TABLE_NAME;
   const gridDiv         = document.getElementById('grid');
+  const btnSortToggle   = document.getElementById('btnSortToggle');
   const btnFilterToggle = document.getElementById('btnFilterToggle');
   const btnNewAttachment= document.getElementById('btnNewAttachment');
   const btnNew          = document.getElementById('btnNew');
+  const modalSort       = document.getElementById('modalSort');
+  const closeSortBtn    = document.getElementById('closeSortModal');
+  const closeSortTopBtn = document.getElementById('closeSortModalTop');
+  const applySortBtn    = document.getElementById('applySort');
+  const sortFieldList   = document.getElementById('sortFieldList');
   const modalFiltros    = document.getElementById('modalFiltros');
   const closeFiltersBtn = document.getElementById('closeFiltersModal');
   const closeFiltersTopBtn = document.getElementById('closeFiltersModalTop');
@@ -14,8 +20,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const userPerms       = window.USER_PERMS[tableName] || {};
   const isFoList        = (tableName || '').toUpperCase() === 'FO';
   const tableForm       = (window.TABLE_FORM || '').trim();
+  const menuStamp       = (window.MENU_STAMP || '').trim();
   const listUrl         = window.location.pathname + window.location.search;
   let currentCols       = [];
+  let mobileCardCols    = [];
+  let listUseExactWidths = false;
+  const mobileListQuery = window.matchMedia('(max-width: 768px)');
+  let pendingSortField  = null;
+  let pendingSortDir    = 1;
+
+  const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  const isMobileCardView = () => !!mobileListQuery.matches && Array.isArray(mobileCardCols) && mobileCardCols.length > 0;
 
 
 
@@ -23,14 +44,22 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnFilterToggle) {
     btnFilterToggle.innerHTML = '<i class="fa fa-filter"></i><span>Filtrar</span>';
     btnFilterToggle.className = 'sz_button sz_button_ghost';
+    btnFilterToggle.setAttribute('aria-label', 'Filtrar');
+  }
+  if (btnSortToggle) {
+    btnSortToggle.innerHTML = '<i class="fa fa-arrow-down-wide-short"></i><span>Ordenar</span>';
+    btnSortToggle.className = 'sz_button sz_button_ghost';
+    btnSortToggle.setAttribute('aria-label', 'Ordenar');
   }
   if (btnNew) {
     btnNew.innerHTML = '<i class="fa fa-plus"></i><span>Novo</span>';
     btnNew.className = 'sz_button sz_button_primary';
+    btnNew.setAttribute('aria-label', 'Novo');
   }
   if (btnNewAttachment) {
     btnNewAttachment.innerHTML = '<i class="fa fa-paperclip"></i><span>+ Anexo</span>';
     btnNewAttachment.classList.add('btn-attach-custom');
+    btnNewAttachment.setAttribute('aria-label', 'Novo anexo');
   }
   // removido botão de anexo específico
 
@@ -52,18 +81,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const resolveFormUrl = (stamp = '') => {
     const upperTable = (tableName || '').toUpperCase();
+    const appendMenuStamp = (url) => {
+      if (!menuStamp) return url;
+      const sep = url.includes('?') ? '&' : '?';
+      return `${url}${sep}menustamp=${encodeURIComponent(menuStamp)}`;
+    };
     if (upperTable === 'FT') {
-      return stamp ? `/faturacao/ft/${stamp}` : '/faturacao/ft/new';
+      return appendMenuStamp(stamp ? `/faturacao/ft/${stamp}` : '/faturacao/ft/new');
     }
     if (upperTable === 'RS') {
-      return stamp ? `/reservas/rs/${stamp}` : '/reservas/rs/new';
+      return appendMenuStamp(stamp ? `/reservas/rs/${stamp}` : '/reservas/rs/new');
     }
     if (tableForm) {
       const pref = tableForm.startsWith('/') ? tableForm : `/generic/${tableForm}`;
       const base = sanitizeBaseForm(pref).toLowerCase(); // rotas registadas em minúsculas
-      return stamp ? `${base}/${stamp}` : `${base}/`;
+      return appendMenuStamp(stamp ? `${base}/${stamp}` : `${base}/`);
     }
-    return `/generic/form/${tableName}/${stamp || ''}`;
+    return appendMenuStamp(`/generic/form/${tableName}/${stamp || ''}`);
   };
 
   const withReturnTo = (url) => {
@@ -89,13 +123,101 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.remove('modal-filtros-open');
   }
 
+  function getVisibleSortColumns() {
+    const source = isMobileCardView() ? mobileCardCols : currentCols;
+    return (Array.isArray(source) ? source : []).filter((col) => String(col?.name || '').trim());
+  }
+
+  function compareRowsByColumn(col, leftRow, rightRow, direction = 1) {
+    if (!col) return 0;
+    const fieldName = String(col.name || '').trim();
+    const kind = String(col.tipo || '').trim().toUpperCase();
+    const leftValue = leftRow?.[fieldName];
+    const rightValue = rightRow?.[fieldName];
+    let result = 0;
+    switch (kind) {
+      case 'INT':
+      case 'DECIMAL':
+        result = (Number(leftValue) || 0) - (Number(rightValue) || 0);
+        break;
+      case 'DATE':
+        result = (new Date(leftValue).getTime() || 0) - (new Date(rightValue).getTime() || 0);
+        break;
+      case 'BIT':
+        result = ((leftValue ? 1 : 0) - (rightValue ? 1 : 0));
+        break;
+      default:
+        result = String(leftValue || '').localeCompare(String(rightValue || ''), 'pt', { sensitivity: 'base', numeric: true });
+        break;
+    }
+    return result * (direction >= 0 ? 1 : -1);
+  }
+
+  function applyActiveSort() {
+    if (!Array.isArray(dataRows) || !dataRows.length || !sortField) return;
+    const col = getVisibleSortColumns().find((item) => String(item?.name || '') === String(sortField || ''));
+    if (!col) return;
+    dataRows.sort((leftRow, rightRow) => compareRowsByColumn(col, leftRow, rightRow, sortDir));
+  }
+
+  function renderSortOptions() {
+    if (!sortFieldList) return;
+    const cols = getVisibleSortColumns();
+    if (!cols.length) {
+      sortFieldList.innerHTML = '<div class="sz_text_muted">Sem campos visíveis para ordenar.</div>';
+      return;
+    }
+    sortFieldList.innerHTML = cols.map((col) => {
+      const fieldName = String(col?.name || '').trim();
+      const active = fieldName && fieldName === String(pendingSortField || '');
+      const direction = active && Number(pendingSortDir || 1) < 0 ? 'DESC' : 'ASC';
+      const icon = active
+        ? (direction === 'DESC' ? 'fa-arrow-down-wide-short' : 'fa-arrow-up-short-wide')
+        : 'fa-minus';
+      return `
+        <button type="button" class="sz_button sz_button_ghost sz_dynamic_sort_option${active ? ' is-active' : ''}" data-sort-field="${escapeHtml(fieldName)}">
+          <span class="sz_dynamic_sort_option_main">
+            <span class="sz_dynamic_sort_option_label">${escapeHtml(col.descricao || fieldName)}</span>
+            <span class="sz_dynamic_sort_option_hint">${escapeHtml(active ? `Ordenação ${direction}` : 'Toque para ordenar')}</span>
+          </span>
+          <span class="sz_dynamic_sort_option_state" aria-hidden="true">
+            <i class="fa-solid ${icon}"></i>
+          </span>
+        </button>
+      `;
+    }).join('');
+  }
+
+  function openSortModal() {
+    if (!modalSort) return;
+    pendingSortField = sortField;
+    pendingSortDir = sortDir;
+    renderSortOptions();
+    document.body.classList.add('modal-sort-open');
+    modalSort.classList.add('sz_is_open');
+    modalSort.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeSortModal() {
+    if (!modalSort) return;
+    modalSort.classList.remove('sz_is_open');
+    modalSort.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-sort-open');
+  }
+
   // Move o modal de filtros para <body> (fora de containers com overflow)
   if (modalFiltros) { document.body.appendChild(modalFiltros); }
+  if (modalSort) { document.body.appendChild(modalSort); }
 
   // Botão Filtrar abre modal
   if (btnFilterToggle && modalFiltros) {
     btnFilterToggle.addEventListener('click', () => {
       openFiltersModal();
+    });
+  }
+  if (btnSortToggle && modalSort) {
+    btnSortToggle.addEventListener('click', () => {
+      openSortModal();
     });
   }
   if (closeFiltersBtn) {
@@ -111,11 +233,52 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+  if (closeSortBtn) {
+    closeSortBtn.addEventListener('click', closeSortModal);
+  }
+  if (closeSortTopBtn) {
+    closeSortTopBtn.addEventListener('click', closeSortModal);
+  }
+  if (modalSort) {
+    modalSort.addEventListener('click', (e) => {
+      if (e.target === modalSort) {
+        closeSortModal();
+      }
+    });
+  }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && modalFiltros && modalFiltros.classList.contains('sz_is_open')) {
       closeFiltersModal();
     }
+    if (e.key === 'Escape' && modalSort && modalSort.classList.contains('sz_is_open')) {
+      closeSortModal();
+    }
   });
+
+  if (sortFieldList) {
+    sortFieldList.addEventListener('click', (event) => {
+      const option = event.target.closest('[data-sort-field]');
+      if (!option) return;
+      const nextField = String(option.dataset.sortField || '').trim();
+      if (!nextField) return;
+      if (pendingSortField === nextField) {
+        pendingSortDir = Number(pendingSortDir || 1) * -1;
+      } else {
+        pendingSortField = nextField;
+        pendingSortDir = 1;
+      }
+      renderSortOptions();
+    });
+  }
+  if (applySortBtn) {
+    applySortBtn.addEventListener('click', () => {
+      sortField = pendingSortField;
+      sortDir = Number(pendingSortDir || 1) >= 0 ? 1 : -1;
+      applyActiveSort();
+      renderGrid();
+      closeSortModal();
+    });
+  }
 
   if (btnNew) {
     btnNew.addEventListener('click', () => {
@@ -155,6 +318,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const applyFiltersBtn = document.getElementById('applyFilters');
   if (applyFiltersBtn && filterForm) {
     applyFiltersBtn.addEventListener('click', () => filterForm.requestSubmit());
+  }
+
+  const handleViewportModeChange = () => {
+    if (!Array.isArray(dataRows) || !dataRows.length) {
+      renderGrid();
+      return;
+    }
+    renderGrid();
+  };
+  if (typeof mobileListQuery.addEventListener === 'function') {
+    mobileListQuery.addEventListener('change', handleViewportModeChange);
+  } else if (typeof mobileListQuery.addListener === 'function') {
+    mobileListQuery.addListener(handleViewportModeChange);
   }
 
   // 6) InicializaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o da lista
@@ -282,9 +458,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // a) Describe para metadados
     let meta;
     try {
-      const res = await fetch(`/generic/api/${tableName}?action=describe`);
+      const params = new URLSearchParams({
+        action: 'describe',
+        include_screen_meta: '1'
+      });
+      if (menuStamp) params.set('menustamp', menuStamp);
+      const res = await fetch(`/generic/api/${tableName}?${params.toString()}`);
       if (!res.ok) throw new Error(res.statusText);
-      meta = await res.json();
+      const payload = await res.json();
+      meta = Array.isArray(payload) ? payload : (Array.isArray(payload?.columns) ? payload.columns : []);
+      listUseExactWidths = !!payload?.screen?.list_use_exact_widths;
     } catch (e) {
       console.error('Falha ao carregar metadados:', e);
       gridDiv.innerHTML = `<p class="text-danger">Erro ao carregar filtros.</p>`;
@@ -292,7 +475,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // b) Separa colunas de filtros e de listagem
     const filterCols = meta.filter(c => c.filtro);
-    currentCols      = meta.filter(c => c.lista);
+    currentCols      = meta
+      .filter(c => c.lista)
+      .sort((a, b) => {
+        const orderDiff = (Number(a.ordem_lista || 0) - Number(b.ordem_lista || 0));
+        if (orderDiff !== 0) return orderDiff;
+        return Number(a.ordem || 0) - Number(b.ordem || 0);
+      });
+    mobileCardCols   = meta
+      .filter(c => Number(c.ordem_lista_mobile || 0) > 0)
+      .sort((a, b) => {
+        const orderDiff = Number(a.ordem_lista_mobile || 0) - Number(b.ordem_lista_mobile || 0);
+        if (orderDiff !== 0) return orderDiff;
+        return Number(a.ordem_lista || 0) - Number(b.ordem_lista || 0);
+      });
 
     // c) Monta filtros no modal
     renderFilters(filterCols);
@@ -509,6 +705,65 @@ document.addEventListener('DOMContentLoaded', () => {
       cntEl.textContent = n + (n === 1 ? ' registo' : ' registos');
     }
     if(cntEl){ const n = (dataRows||[]).length; cntEl.textContent = n + (n===1? ' registo' : ' registos'); }
+    applyActiveSort();
+    renderGrid();
+  }
+
+  function formatListValue(col, rawValue) {
+    let value = rawValue;
+    if (col?.tipo === 'DATE' && value) {
+      const d = new Date(value);
+      if (!isNaN(d)) {
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        value = `${dd}.${mm}.${yyyy}`;
+      }
+    }
+    if (col?.tipo === 'BIT') {
+      return (value === 1 || value === '1' || value === true) ? 'Yes' : 'No';
+    }
+    return value ?? '';
+  }
+
+  function getDesktopListColWidth(col, colsList) {
+    const width = Math.max(5, Number(col?.tam_lista || col?.tam || 5));
+    if (listUseExactWidths) return `${width}%`;
+    const total = (Array.isArray(colsList) ? colsList : []).reduce((acc, item) => (
+      acc + Math.max(5, Number(item?.tam_lista || item?.tam || 5))
+    ), 0) || 1;
+    return `${(width / total) * 100}%`;
+  }
+
+  function getMobileCardColWidth(col, rowCols) {
+    const width = Math.max(5, Number(col?.tam_lista_mobile || col?.tam_mobile || col?.tam_lista || col?.tam || 5));
+    if (listUseExactWidths) return `${width}%`;
+    const total = (Array.isArray(rowCols) ? rowCols : []).reduce((acc, item) => (
+      acc + Math.max(5, Number(item?.tam_lista_mobile || item?.tam_mobile || item?.tam_lista || item?.tam || 5))
+    ), 0) || 1;
+    return `${(width / total) * 100}%`;
+  }
+
+  function getMobileCardRows(cols) {
+    const groups = new Map();
+    (Array.isArray(cols) ? cols : []).forEach((col) => {
+      const order = Number(col?.ordem_lista_mobile || 0);
+      if (order <= 0) return;
+      const rowId = Math.max(1, Math.floor(order / 10));
+      if (!groups.has(rowId)) groups.set(rowId, []);
+      groups.get(rowId).push(col);
+    });
+    return [...groups.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([, rowCols]) => rowCols.sort((a, b) => Number(a?.ordem_lista_mobile || 0) - Number(b?.ordem_lista_mobile || 0)));
+  }
+
+  function renderGrid() {
+    gridDiv.classList.toggle('is-mobile-cards', isMobileCardView());
+    if (isMobileCardView()) {
+      renderMobileCards(mobileCardCols, dataRows);
+      return;
+    }
     renderTable(currentCols, dataRows);
   }
 
@@ -518,6 +773,16 @@ document.addEventListener('DOMContentLoaded', () => {
     tableWrap.classList.add('sz_table_wrap');
     const table = document.createElement('table');
     table.classList.add('sz_table');
+    table.style.width = '100%';
+    table.style.tableLayout = 'fixed';
+
+    const colgroup = document.createElement('colgroup');
+    cols.forEach((c) => {
+      const col = document.createElement('col');
+      col.style.width = getDesktopListColWidth(c, cols);
+      colgroup.append(col);
+    });
+    table.append(colgroup);
 
     // CabeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§alho com ordenaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o
     const thead = document.createElement('thead');
@@ -532,18 +797,8 @@ document.addEventListener('DOMContentLoaded', () => {
       th.addEventListener('click', () => {
         sortDir   = (sortField === c.name) ? -sortDir : 1;
         sortField = c.name;
-        dataRows.sort((a, b) => {
-          let va = a[c.name], vb = b[c.name], res = 0;
-          switch (c.tipo) {
-            case 'INT':    res = (Number(va)||0) - (Number(vb)||0); break;
-            case 'DECIMAL':res = (Number(va)||0) - (Number(vb)||0); break;
-            case 'DATE':   res = new Date(va) - new Date(vb);      break;
-            case 'BIT':    res = ((va?1:0) - (vb?1:0));             break;
-            default:       res = String(va||'').localeCompare(String(vb||''));
-          }
-          return res * sortDir;
-        });
-        renderTable(cols, dataRows);
+        applyActiveSort();
+        renderGrid();
       });
       trh.append(th);
     });
@@ -559,24 +814,12 @@ document.addEventListener('DOMContentLoaded', () => {
       cols.forEach(c => {
         const td = document.createElement('td');
         td.classList.add('sz_table_cell');
-        let v = r[c.name];
-
-        // formata datas
-        if (c.tipo==='DATE' && v) {
-          const d = new Date(v);
-          if (!isNaN(d)) {
-            const dd   = String(d.getDate()).padStart(2,'0');
-            const mm   = String(d.getMonth()+1).padStart(2,'0');
-            const yyyy = d.getFullYear();
-            v = `${dd}.${mm}.${yyyy}`;
-          }
-        }
-        // BIT como ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“
+        const v = r[c.name];
         if (c.tipo==='BIT') {
           const isTrue = (v === 1 || v === '1' || v === true);
           td.innerHTML = isTrue ? '<i class="fa fa-check"></i>' : '';
         } else {
-          td.textContent = v ?? '';
+          td.textContent = formatListValue(c, v);
         }
         tr.append(td);
       });
@@ -591,6 +834,75 @@ document.addEventListener('DOMContentLoaded', () => {
     table.append(tbody);
     tableWrap.append(table);
     gridDiv.append(tableWrap);
+  }
+
+  function renderMobileCards(cols, rows) {
+    gridDiv.innerHTML = '';
+    const host = document.createElement('div');
+    host.className = 'sz_dynamic_list_cards';
+
+    if (!Array.isArray(rows) || !rows.length) {
+      host.innerHTML = '<div class="sz_card sz_dynamic_list_card sz_dynamic_list_card_empty"><div class="sz_text_muted">Sem registos.</div></div>';
+      gridDiv.append(host);
+      return;
+    }
+
+    const cardRows = getMobileCardRows(cols);
+    rows.forEach((row) => {
+      const pk = row[`${tableName.toUpperCase()}STAMP`];
+      const card = document.createElement('article');
+      card.className = 'sz_card sz_dynamic_list_card';
+      card.tabIndex = 0;
+
+      cardRows.forEach((rowCols) => {
+        const cardRow = document.createElement('div');
+        cardRow.className = 'sz_dynamic_list_card_row';
+        rowCols.forEach((col) => {
+          const cell = document.createElement('div');
+          cell.className = 'sz_dynamic_list_card_cell';
+          cell.style.flex = `0 0 ${getMobileCardColWidth(col, rowCols)}`;
+          cell.style.maxWidth = getMobileCardColWidth(col, rowCols);
+
+          const showLabel = col.lista_mobile_show_label !== false;
+          const labelText = String(col.lista_mobile_label || col.descricao || col.name || '').trim();
+          const valueText = String(formatListValue(col, row[col.name]) || '').trim();
+
+          if (showLabel && labelText) {
+            const label = document.createElement('div');
+            label.className = 'sz_dynamic_list_card_label';
+            label.textContent = labelText;
+            cell.append(label);
+          }
+
+          const value = document.createElement('div');
+          value.className = 'sz_dynamic_list_card_value';
+          if (col.lista_mobile_bold) value.classList.add('is-bold');
+          if (col.lista_mobile_italic) value.classList.add('is-italic');
+          if (col.tipo === 'BIT') {
+            value.innerHTML = valueText === 'Yes'
+              ? '<i class="fa fa-check"></i>'
+              : '<span class="sz_text_muted">No</span>';
+          } else {
+            value.textContent = valueText || ' ';
+          }
+          cell.append(value);
+          cardRow.append(cell);
+        });
+        card.append(cardRow);
+      });
+
+      card.addEventListener('click', () => {
+        location.href = withReturnTo(resolveFormUrl(pk));
+      });
+      card.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        location.href = withReturnTo(resolveFormUrl(pk));
+      });
+      host.append(card);
+    });
+
+    gridDiv.append(host);
   }
 
 });

@@ -64,11 +64,14 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   const TABLE_NAME_UPPER = String(TABLE_NAME || '').toUpperCase();
   const RECORD_STAMP = window.RECORD_STAMP;
   const isAdminUser  = window.IS_ADMIN_USER;
+  const MENU_STAMP = String(window.MENU_STAMP || '').trim();
+  const useExactWidths = Boolean(window.DYNAMIC_FORM_EXACT_WIDTHS);
   const DEV_MODE = window.DEV_MODE || false;
   const isPartnerForm = ['CL', 'FL'].includes(TABLE_NAME_UPPER);
   const partnerApiBase = `/generic/api/${String(TABLE_NAME || '').toLowerCase()}`;
 
   console.log('[dynamic_form.js] TABLE_NAME:', TABLE_NAME);
+  console.log('[dynamic_form.js] exact widths:', useExactWidths);
 
   // ─── Guardar para onde voltar + que detalhe ancorar ───
   // Captura o return_to (e detail_* se vierem) da URL
@@ -91,8 +94,19 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
 // 2. CONSTRUÇÃO DO FORMULÁRIO
 // ===============================
 
-  const res  = await fetch(`/generic/api/${TABLE_NAME}?action=describe`);
-  const cols = await res.json();
+  const describeParams = new URLSearchParams({ action: 'describe' });
+  if (MENU_STAMP) describeParams.set('menustamp', MENU_STAMP);
+  describeParams.set('include_screen_meta', '1');
+  const res  = await fetch(`/generic/api/${TABLE_NAME}?${describeParams.toString()}`);
+  const describePayload = await res.json();
+  const cols = Array.isArray(describePayload)
+    ? describePayload
+    : Array.isArray(describePayload?.columns)
+    ? describePayload.columns
+    : [];
+  const screenMeta = !Array.isArray(describePayload) && describePayload && typeof describePayload === 'object'
+    ? (describePayload.screen && typeof describePayload.screen === 'object' ? describePayload.screen : {})
+    : {};
 
   console.log("🧠 Metadados recebidos:", cols);
 
@@ -149,10 +163,1172 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   tam_mobile: c.tam_mobile
   })));
 
+  const layoutWidthUnits = useExactWidths ? (isMobile ? 40 : 100) : null;
+  const isColumnVisible = col => !(col && (col.visivel === false || Number(col.visivel) === 0));
+  const isUiOnlyColumn = col => !!(col && (col.ui_only || col.is_menu_object));
+  const getColumnProperties = col => (col && typeof col.propriedades === 'object' && col.propriedades) ? col.propriedades : {};
+  const setFormStateValue = (key, value) => {
+    const rawKey = String(key || '').trim();
+    if (!rawKey) return;
+    formState[rawKey] = value;
+    formState[rawKey.toUpperCase()] = value;
+  };
+  const normalizeBoundVariableName = value => String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 60);
+  const getBoundVariableName = col => normalizeBoundVariableName(getColumnProperties(col).variable_name);
+  const hasBoundVariable = col => !!getBoundVariableName(col);
+  const getBoundVariableDefault = col => {
+    const props = getColumnProperties(col);
+    return props.variable_default === undefined || props.variable_default === null
+      ? ''
+      : String(props.variable_default).trim();
+  };
+  const isButtonEnabled = col => {
+    const props = getColumnProperties(col);
+    if (!Object.prototype.hasOwnProperty.call(props, 'enabled')) return true;
+    return isTruthyLike(props.enabled);
+  };
+  const getButtonClickAction = col => String(getColumnProperties(col).click_action || '').trim();
+  const getButtonClickFlow = col => {
+    const props = getColumnProperties(col);
+    const events = props && typeof props.events === 'object' && props.events ? props.events : {};
+    const flow = events && typeof events.click === 'object' && events.click ? events.click : null;
+    return flow && Array.isArray(flow.lines) ? flow : null;
+  };
+  const getScreenEvents = () => (screenMeta && typeof screenMeta.events === 'object' && screenMeta.events) ? screenMeta.events : {};
+  const getScreenEventFlow = eventName => {
+    const key = String(eventName || '').trim().toLowerCase();
+    const flow = key ? getScreenEvents()[key] : null;
+    return flow && typeof flow === 'object' && Array.isArray(flow.lines) ? flow : null;
+  };
+  const hasScreenEventFlow = eventName => hasMeaningfulVisualEventFlow(getScreenEventFlow(eventName));
+  const isTruthyLike = value => {
+    if (typeof value === 'boolean') return value;
+    const raw = String(value ?? '').trim().toLowerCase();
+    return ['1', 'true', 'yes', 'sim', 'on'].includes(raw);
+  };
+  const toDisplayDateValue = value => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+      const [y, m, d] = raw.slice(0, 10).split('-');
+      return `${d}.${m}.${y}`;
+    }
+    const parts = raw.split(/[./-]/).filter(Boolean);
+    if (parts.length === 3) {
+      if (parts[0].length === 4) return `${parts[2].padStart(2, '0')}.${parts[1].padStart(2, '0')}.${parts[0]}`;
+      return `${parts[0].padStart(2, '0')}.${parts[1].padStart(2, '0')}.${parts[2].padStart(4, '0')}`;
+    }
+    return raw;
+  };
+  const toColorValue = value => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '#000000';
+    const normalized = raw.startsWith('#') ? raw : `#${raw}`;
+    return /^#[0-9a-fA-F]{6}$/.test(normalized) ? normalized : '#000000';
+  };
+  const boundVariableInputs = new Map();
+  const boundVariableState = {};
+  const isEditableBoundObject = col => hasBoundVariable(col) && !col.readonly && !['SPACE', 'BUTTON'].includes((col.tipo || '').toUpperCase());
+  const applyBoundValueToInput = (col, input, rawValue) => {
+    if (!input) return;
+    if (input.type === 'checkbox') {
+      input.checked = isTruthyLike(rawValue);
+      return;
+    }
+    if (input.type === 'color') {
+      input.value = toColorValue(rawValue);
+      return;
+    }
+    if (input.classList.contains('flatpickr-date')) {
+      input.value = toDisplayDateValue(rawValue);
+      return;
+    }
+    if (isDecimalInput(input)) {
+      input.value = toDisplayDecimal(rawValue, getDecimalPlacesForInput(input));
+      return;
+    }
+    input.value = rawValue === undefined || rawValue === null ? '' : String(rawValue);
+  };
+  const syncBoundVariableValue = (variableName, nextValue, { source = null } = {}) => {
+    const key = normalizeBoundVariableName(variableName);
+    if (!key) return;
+    boundVariableState[key] = nextValue;
+    const items = boundVariableInputs.get(key) || [];
+    items.forEach(({ col, input }) => {
+      if (!input) return;
+      if (input !== source) {
+        applyBoundValueToInput(col, input, nextValue);
+      }
+      const inputValue = readValueForState(input);
+      if (input.name) setFormStateValue(input.name, inputValue);
+    });
+    setFormStateValue(key, items.length && items[0]?.input ? readValueForState(items[0].input) : nextValue);
+  };
+  const registerBoundVariableInput = (col, input) => {
+    const variableName = getBoundVariableName(col);
+    if (!variableName || !input) return false;
+    input.dataset.variableName = variableName;
+    const items = boundVariableInputs.get(variableName) || [];
+    items.push({ col, input });
+    boundVariableInputs.set(variableName, items);
+    if (!Object.prototype.hasOwnProperty.call(boundVariableState, variableName)) {
+      boundVariableState[variableName] = getBoundVariableDefault(col);
+    }
+    applyBoundValueToInput(col, input, boundVariableState[variableName]);
+    const currentValue = readValueForState(input);
+    if (input.name) setFormStateValue(input.name, currentValue);
+    setFormStateValue(variableName, currentValue);
+    return true;
+  };
+  const bindVariableInputEvents = input => {
+    if (!input || !input.dataset?.variableName) return;
+    const handler = () => {
+      syncBoundVariableValue(input.dataset.variableName, readValueForState(input), { source: input });
+      aplicarCondicoesDeVisibilidade();
+    };
+    input.addEventListener('input', handler);
+    input.addEventListener('change', handler);
+  };
+  const syncAllBoundVariableInputs = () => {
+    boundVariableInputs.forEach((items, variableName) => {
+      if (!items.length) return;
+      const current = Object.prototype.hasOwnProperty.call(boundVariableState, variableName)
+        ? boundVariableState[variableName]
+        : getBoundVariableDefault(items[0].col);
+      syncBoundVariableValue(variableName, current);
+    });
+  };
+  const getLayoutFieldSize = col => {
+    const rawValue = Number(isMobile ? col.tam_mobile : col.tam);
+    if (Number.isFinite(rawValue) && rawValue > 0) {
+      if (!useExactWidths || !Number.isFinite(layoutWidthUnits)) {
+        return rawValue;
+      }
+      return Math.min(rawValue, layoutWidthUnits);
+    }
+    return useExactWidths ? 5 : 1;
+  };
+
 
   // 2. Prepara o form
   const form = document.getElementById('editForm');
   const DECIMAL_SEPARATOR = ',';
+
+  function getVisualEventLines(flow) {
+    const rawLines = Array.isArray(flow?.lines) ? flow.lines : [];
+    return rawLines
+      .map(line => {
+        const kind = String(line?.kind || line?.type || 'command').trim().toLowerCase() === 'empty'
+          ? 'empty'
+          : 'command';
+        return {
+          kind,
+          command: kind === 'command'
+            ? String(line?.command || line?.id || line?.type || '').trim().toUpperCase()
+            : '',
+          config: line?.config && typeof line.config === 'object' && !Array.isArray(line.config)
+            ? { ...line.config }
+            : {},
+        };
+      })
+      .filter(line => line.kind === 'empty' || line.command);
+  }
+
+  function hasMeaningfulVisualEventFlow(flow) {
+    return getVisualEventLines(flow).some(line => (
+      line.kind !== 'empty'
+      && !['START', 'ELSE', 'ENDIF', 'ENDWHILE', 'ENDFOR', 'ENDCURSOR_SCAN'].includes(line.command)
+    ));
+  }
+
+  function getFieldInputByName(fieldName) {
+    const rawName = String(fieldName || '').trim();
+    if (!rawName) return null;
+    return camposByName[rawName]
+      || camposByName[rawName.toUpperCase()]
+      || camposByName[rawName.toLowerCase()]
+      || null;
+  }
+
+  function getFieldWrapperByName(fieldName) {
+    const input = getFieldInputByName(fieldName);
+    if (!input?.closest) return null;
+    return input.closest('.col-12') || input.closest('.sz_field') || input.closest('.sz_checkbox') || input.closest('.mb-3');
+  }
+
+  function getFieldCurrentValue(fieldName) {
+    const rawName = String(fieldName || '').trim();
+    if (!rawName) return '';
+    if (Object.prototype.hasOwnProperty.call(formState, rawName)) return formState[rawName];
+    if (Object.prototype.hasOwnProperty.call(formState, rawName.toUpperCase())) return formState[rawName.toUpperCase()];
+    const input = getFieldInputByName(rawName);
+    return input ? readValueForState(input) : '';
+  }
+
+  function deepReadValue(source, path) {
+    if (!path) return source;
+    return String(path)
+      .split('.')
+      .filter(Boolean)
+      .reduce((acc, key) => {
+        if (acc === undefined || acc === null) return undefined;
+        if (Array.isArray(acc) && /^\d+$/.test(key)) return acc[Number(key)];
+        return acc[key];
+      }, source);
+  }
+
+  function storeRuntimeValue(runtime, key, value) {
+    const rawKey = String(key || '').trim();
+    if (!rawKey) return value;
+    runtime.vars[rawKey] = value;
+    runtime.vars[rawKey.toUpperCase()] = value;
+    setFormStateValue(rawKey, value);
+    return value;
+  }
+
+  function readRuntimeValue(runtime, value) {
+    if (value === undefined || value === null) return '';
+    if (typeof value !== 'string') return value;
+    const raw = String(value).trim();
+    if (!raw) return '';
+    if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+      return raw.slice(1, -1);
+    }
+    if (/^-?\d+(?:[.,]\d+)?$/.test(raw)) {
+      return Number(raw.replace(',', '.'));
+    }
+    if (/^(true|false)$/i.test(raw)) {
+      return /^true$/i.test(raw);
+    }
+    if (/^(yes|no|sim|nao|não|on|off)$/i.test(raw)) {
+      return isTruthyLike(raw);
+    }
+    if (Object.prototype.hasOwnProperty.call(runtime.vars, raw)) return runtime.vars[raw];
+    if (Object.prototype.hasOwnProperty.call(runtime.vars, raw.toUpperCase())) return runtime.vars[raw.toUpperCase()];
+    if (raw.includes('.')) {
+      const [head, ...tail] = raw.split('.');
+      const path = tail.join('.');
+      const activeCursorRow = getActiveCursorScanRow(runtime, head);
+      if (activeCursorRow && path) return deepReadValue(activeCursorRow, path);
+      if (Object.prototype.hasOwnProperty.call(runtime.vars, head)) return deepReadValue(runtime.vars[head], path);
+      if (Object.prototype.hasOwnProperty.call(runtime.vars, head.toUpperCase())) return deepReadValue(runtime.vars[head.toUpperCase()], path);
+      if (Object.prototype.hasOwnProperty.call(formState, head)) return deepReadValue(formState[head], path);
+      if (Object.prototype.hasOwnProperty.call(formState, head.toUpperCase())) return deepReadValue(formState[head.toUpperCase()], path);
+    }
+    if (Object.prototype.hasOwnProperty.call(formState, raw)) return formState[raw];
+    if (Object.prototype.hasOwnProperty.call(formState, raw.toUpperCase())) return formState[raw.toUpperCase()];
+    if (raw === 'TABLE_NAME') return TABLE_NAME;
+    if (raw === 'RECORD_STAMP') return RECORD_STAMP;
+    if (raw === 'MENU_STAMP') return MENU_STAMP;
+    if (raw === 'USER' || raw === 'CURRENT_USER') return window.CURRENT_USER || window.USERNAME || '';
+    if (raw === 'FEID') return window.FEID || window.EMPRESA_FEID || '';
+    const input = getFieldInputByName(raw);
+    if (input) return readValueForState(input);
+    return raw;
+  }
+
+  function evaluateRuntimeExpression(runtime, expr) {
+    const rawExpr = String(expr || '').trim();
+    if (!rawExpr) return false;
+    const scope = {
+      TABLE_NAME,
+      RECORD_STAMP,
+      MENU_STAMP,
+      USER: window.CURRENT_USER || window.USERNAME || '',
+      CURRENT_USER: window.CURRENT_USER || window.USERNAME || '',
+      FEID: window.FEID || window.EMPRESA_FEID || '',
+      ...formState,
+      ...runtime.vars,
+    };
+    const keys = Object.keys(scope).filter(key => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key));
+    const values = keys.map(key => scope[key]);
+    try {
+      const fn = new Function(...keys, `'use strict'; return (${rawExpr});`);
+      return !!fn(...values);
+    } catch (_) {
+      return !!readRuntimeValue(runtime, rawExpr);
+    }
+  }
+
+  function normalizeRuntimeComparableValue(value) {
+    if (value === undefined || value === null) return value;
+    if (typeof value === 'string') {
+      const raw = value.trim();
+      if (!raw) return '';
+      if (/^-?\d+(?:[.,]\d+)?$/.test(raw)) {
+        return Number(raw.replace(',', '.'));
+      }
+      if (/^(true|false)$/i.test(raw)) {
+        return /^true$/i.test(raw);
+      }
+      if (/^(yes|no|sim|nao|nÃ£o|on|off)$/i.test(raw)) {
+        return isTruthyLike(raw);
+      }
+      return raw;
+    }
+    return value;
+  }
+
+  function isVisualEventCancelResult(value) {
+    if (value === false || value === 0) return true;
+    if (typeof value === 'string') {
+      const raw = value.trim().toLowerCase();
+      return ['false', '0', 'no', 'nao', 'não', 'off'].includes(raw);
+    }
+    return false;
+  }
+
+  function normalizeToList(value) {
+    if (Array.isArray(value)) return value;
+    if (value === undefined || value === null || value === '') return [];
+    return [value];
+  }
+
+  function ensureVisualEventRuntime(runtime) {
+    if (!runtime || typeof runtime !== 'object') return { vars: {}, cursors: {}, cursorScanStack: [] };
+    if (!runtime.vars || typeof runtime.vars !== 'object') runtime.vars = {};
+    if (!runtime.cursors || typeof runtime.cursors !== 'object') runtime.cursors = {};
+    if (!Array.isArray(runtime.cursorScanStack)) runtime.cursorScanStack = [];
+    return runtime;
+  }
+
+  function getCursorRuntimeKey(cursorName) {
+    return String(cursorName || '').trim().toUpperCase();
+  }
+
+  function normalizeCursorSchemaEntry(entry = {}) {
+    const name = String(entry?.name || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 60);
+    const allowed = ['TEXT', 'MEMO', 'INT', 'DECIMAL', 'DATE', 'BOOL', 'JSON'];
+    const type = String(entry?.type || 'TEXT').trim().toUpperCase();
+    return {
+      name,
+      type: allowed.includes(type) ? type : 'TEXT',
+    };
+  }
+
+  function normalizeCursorSchema(schema = []) {
+    return (Array.isArray(schema) ? schema : [])
+      .map(normalizeCursorSchemaEntry)
+      .filter(entry => entry.name);
+  }
+
+  function detectCursorFieldType(value) {
+    if (value === undefined || value === null || value === '') return 'TEXT';
+    if (typeof value === 'boolean') return 'BOOL';
+    if (typeof value === 'number') return Number.isInteger(value) ? 'INT' : 'DECIMAL';
+    if (value instanceof Date) return 'DATE';
+    if (Array.isArray(value) || (value && typeof value === 'object')) return 'JSON';
+    const raw = String(value).trim();
+    if (!raw) return 'TEXT';
+    if (/^(true|false|yes|no|sim|nao|não|on|off)$/i.test(raw)) return 'BOOL';
+    if (/^-?\d+$/.test(raw)) return 'INT';
+    if (/^-?\d+(?:[.,]\d+)?$/.test(raw)) return 'DECIMAL';
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return 'DATE';
+    if ((raw.startsWith('{') && raw.endsWith('}')) || (raw.startsWith('[') && raw.endsWith(']'))) return 'JSON';
+    return 'TEXT';
+  }
+
+  function coerceCursorValue(value, type = 'TEXT') {
+    const normalizedType = String(type || 'TEXT').trim().toUpperCase();
+    if (value === undefined || value === null || value === '') {
+      if (['TEXT', 'MEMO', 'DATE'].includes(normalizedType)) return '';
+      return null;
+    }
+    if (normalizedType === 'BOOL') return isTruthyLike(value);
+    if (normalizedType === 'INT') {
+      const parsed = Number.parseInt(String(value).replace(',', '.'), 10);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    if (normalizedType === 'DECIMAL') {
+      const parsed = Number(String(value).replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    if (normalizedType === 'JSON') {
+      if (typeof value === 'object') return value;
+      const raw = String(value).trim();
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch (_) {
+        return raw;
+      }
+    }
+    return String(value);
+  }
+
+  function parseCursorSourceValue(value) {
+    if (value === undefined || value === null || value === '') return null;
+    if (typeof value === 'object') return value;
+    const raw = String(value).trim();
+    if (!raw) return null;
+    if ((raw.startsWith('{') && raw.endsWith('}')) || (raw.startsWith('[') && raw.endsWith(']'))) {
+      try {
+        return JSON.parse(raw);
+      } catch (_) {
+        return raw;
+      }
+    }
+    return raw;
+  }
+
+  function createBlankCursorRow(cursor) {
+    const row = {};
+    normalizeCursorSchema(cursor?.schema || []).forEach((field) => {
+      row[field.name] = coerceCursorValue('', field.type);
+    });
+    return row;
+  }
+
+  function getValueFromObjectCaseInsensitive(source, key) {
+    if (!source || typeof source !== 'object') return undefined;
+    if (Object.prototype.hasOwnProperty.call(source, key)) return source[key];
+    const upperKey = String(key || '').trim().toUpperCase();
+    const foundKey = Object.keys(source).find((item) => String(item || '').trim().toUpperCase() === upperKey);
+    return foundKey ? source[foundKey] : undefined;
+  }
+
+  function materializeCursorRow(cursor, sourceValue) {
+    const parsedSource = parseCursorSourceValue(sourceValue);
+    const schema = normalizeCursorSchema(cursor?.schema || []);
+    if (!schema.length) {
+      if (parsedSource && typeof parsedSource === 'object' && !Array.isArray(parsedSource)) {
+        return { ...parsedSource };
+      }
+      return {};
+    }
+    const row = createBlankCursorRow(cursor);
+    if (parsedSource && typeof parsedSource === 'object' && !Array.isArray(parsedSource)) {
+      schema.forEach((field) => {
+        row[field.name] = coerceCursorValue(getValueFromObjectCaseInsensitive(parsedSource, field.name), field.type);
+      });
+      return row;
+    }
+    if (schema.length === 1 && parsedSource !== null) {
+      row[schema[0].name] = coerceCursorValue(parsedSource, schema[0].type);
+    }
+    return row;
+  }
+
+  function inferCursorSchemaFromRows(rows = [], columns = []) {
+    const columnNames = Array.isArray(columns) && columns.length
+      ? columns
+      : Array.from(new Set((Array.isArray(rows) ? rows : []).flatMap((row) => Object.keys(row || {}))));
+    return columnNames.map((name) => {
+      const sampleRow = (Array.isArray(rows) ? rows : []).find((row) => getValueFromObjectCaseInsensitive(row, name) !== undefined && getValueFromObjectCaseInsensitive(row, name) !== null);
+      const sampleValue = sampleRow ? getValueFromObjectCaseInsensitive(sampleRow, name) : undefined;
+      return normalizeCursorSchemaEntry({
+        name,
+        type: detectCursorFieldType(sampleValue),
+      });
+    }).filter((entry) => entry.name);
+  }
+
+  function setRuntimeCursor(runtime, cursorName, cursor) {
+    ensureVisualEventRuntime(runtime);
+    const key = getCursorRuntimeKey(cursorName);
+    if (!key) return null;
+    runtime.cursors[key] = {
+      name: String(cursorName || '').trim(),
+      schema: normalizeCursorSchema(cursor?.schema || []),
+      rows: Array.isArray(cursor?.rows) ? cursor.rows : [],
+    };
+    runtime.vars[cursorName] = runtime.cursors[key].rows;
+    runtime.vars[key] = runtime.cursors[key].rows;
+    return runtime.cursors[key];
+  }
+
+  function getRuntimeCursor(runtime, cursorName) {
+    ensureVisualEventRuntime(runtime);
+    const key = getCursorRuntimeKey(cursorName);
+    if (!key) return null;
+    return runtime.cursors[key] || null;
+  }
+
+  function clearRuntimeCursor(runtime, cursorName) {
+    ensureVisualEventRuntime(runtime);
+    const key = getCursorRuntimeKey(cursorName);
+    if (!key) return;
+    delete runtime.cursors[key];
+    delete runtime.vars[cursorName];
+    delete runtime.vars[key];
+  }
+
+  function getActiveCursorScanContext(runtime, cursorName = '') {
+    ensureVisualEventRuntime(runtime);
+    const key = getCursorRuntimeKey(cursorName);
+    for (let index = runtime.cursorScanStack.length - 1; index >= 0; index -= 1) {
+      const item = runtime.cursorScanStack[index];
+      if (!key || item.cursorKey === key) return item;
+    }
+    return null;
+  }
+
+  function getActiveCursorScanRow(runtime, cursorName = '') {
+    const context = getActiveCursorScanContext(runtime, cursorName);
+    if (!context) return null;
+    const cursor = runtime?.cursors?.[context.cursorKey];
+    if (!cursor || !Array.isArray(cursor.rows)) return null;
+    return cursor.rows[context.index] || null;
+  }
+
+  function syncCursorDeleteWithScanStack(runtime, cursorName, deletedIndex) {
+    ensureVisualEventRuntime(runtime);
+    const key = getCursorRuntimeKey(cursorName);
+    runtime.cursorScanStack.forEach((item) => {
+      if (item.cursorKey !== key) return;
+      if (item.index > deletedIndex) item.index -= 1;
+      if (item.index === deletedIndex) item.deletedCurrent = true;
+    });
+  }
+
+  function resolveCursorRowIndex(runtime, cursorName, rowRef) {
+    const cursor = getRuntimeCursor(runtime, cursorName);
+    if (!cursor) return -1;
+    const resolved = rowRef === undefined || rowRef === null || rowRef === ''
+      ? ''
+      : readRuntimeValue(runtime, rowRef);
+    if (resolved === '' || resolved === undefined || resolved === null) {
+      const context = getActiveCursorScanContext(runtime, cursorName);
+      return context ? context.index : -1;
+    }
+    if (typeof resolved === 'number' && Number.isFinite(resolved)) {
+      return Math.max(0, Math.trunc(resolved));
+    }
+    if (typeof resolved === 'string' && /^\d+$/.test(resolved.trim())) {
+      return Number(resolved.trim());
+    }
+    if (typeof resolved === 'object') {
+      return cursor.rows.findIndex((row) => row === resolved);
+    }
+    return -1;
+  }
+
+  function serializeCursorSqlParamValue(value) {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+    if (value instanceof Date) return value.toISOString();
+    try {
+      return JSON.stringify(value);
+    } catch (_) {
+      return String(value);
+    }
+  }
+
+  function buildCursorSqlParams(runtime) {
+    ensureVisualEventRuntime(runtime);
+    const params = {};
+    const assignValues = (source) => {
+      Object.entries(source || {}).forEach(([key, value]) => {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(String(key || ''))) return;
+        const normalized = serializeCursorSqlParamValue(value);
+        if (normalized === undefined) return;
+        params[key] = normalized;
+      });
+    };
+    assignValues(formState);
+    assignValues(runtime.vars);
+    params.TABLE_NAME = TABLE_NAME;
+    params.RECORD_STAMP = RECORD_STAMP;
+    params.MENU_STAMP = MENU_STAMP;
+    params.CURRENT_USER = window.CURRENT_USER || window.USERNAME || '';
+    params.USER = window.CURRENT_USER || window.USERNAME || '';
+    params.FEID = window.FEID || window.EMPRESA_FEID || '';
+    return params;
+  }
+
+  async function runCursorSqlQuery(runtime, sqlQuery) {
+    const response = await fetch('/generic/api/event/cursor_query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        table_name: TABLE_NAME,
+        menustamp: MENU_STAMP,
+        sql: sqlQuery,
+        params: buildCursorSqlParams(runtime),
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.success === false) {
+      throw new Error(data?.error || 'Nao foi possivel executar a query do cursor.');
+    }
+    return {
+      rows: Array.isArray(data?.rows) ? data.rows : [],
+      columns: Array.isArray(data?.columns) ? data.columns : [],
+    };
+  }
+
+  function updateFieldValue(fieldName, nextValue) {
+    const input = getFieldInputByName(fieldName);
+    if (!input) return false;
+    if (input.type === 'checkbox') {
+      input.checked = isTruthyLike(nextValue);
+    } else if (input.type === 'color') {
+      input.value = toColorValue(nextValue);
+    } else if (isDecimalInput(input)) {
+      input.value = toDisplayDecimal(nextValue, getDecimalPlacesForInput(input));
+    } else {
+      input.value = nextValue === undefined || nextValue === null ? '' : String(nextValue);
+    }
+    const normalizedValue = readValueForState(input);
+    if (input.name) setFormStateValue(input.name, normalizedValue);
+    if (input.dataset?.variableName) {
+      syncBoundVariableValue(input.dataset.variableName, normalizedValue, { source: input });
+    }
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    aplicarCondicoesDeVisibilidade();
+    return true;
+  }
+
+  async function showVisualMessage(message) {
+    const text = String(message ?? '').trim();
+    if (typeof window.szAlert === 'function') {
+      await window.szAlert(text, { title: 'Mensagem' });
+      return;
+    }
+    showDynamicFormToast(text || 'Mensagem', 'info');
+  }
+
+  async function showVisualConfirm(message) {
+    const text = String(message ?? '').trim();
+    if (typeof window.szConfirm === 'function') {
+      return !!(await window.szConfirm(text, { title: 'Confirmar' }));
+    }
+    return window.confirm(text);
+  }
+
+  function findIfMarkers(lines, startIndex, endExclusive = lines.length) {
+    let depth = 0;
+    let elseIndex = -1;
+    for (let i = startIndex + 1; i < endExclusive; i += 1) {
+      const command = String(lines[i]?.command || '').trim().toUpperCase();
+      if (command === 'IF') {
+        depth += 1;
+        continue;
+      }
+      if (command === 'ENDIF') {
+        if (depth === 0) {
+          return { elseIndex, endIndex: i };
+        }
+        depth -= 1;
+        continue;
+      }
+      if (command === 'ELSE' && depth === 0 && elseIndex < 0) {
+        elseIndex = i;
+      }
+    }
+    return { elseIndex, endIndex: endExclusive };
+  }
+
+  function findBlockEnd(lines, startIndex, openCommand, closeCommand, endExclusive = lines.length) {
+    let depth = 0;
+    for (let i = startIndex + 1; i < endExclusive; i += 1) {
+      const command = String(lines[i]?.command || '').trim().toUpperCase();
+      if (command === openCommand) {
+        depth += 1;
+        continue;
+      }
+      if (command === closeCommand) {
+        if (depth === 0) return i;
+        depth -= 1;
+      }
+    }
+    return endExclusive;
+  }
+
+  async function executeVisualEventCommand(line, runtime) {
+    ensureVisualEventRuntime(runtime);
+    const command = String(line?.command || '').trim().toUpperCase();
+    const config = line?.config && typeof line.config === 'object' ? line.config : {};
+    const outputName = String(config.store_as || '').trim();
+    const left = readRuntimeValue(runtime, config.left);
+    const right = readRuntimeValue(runtime, config.right);
+    switch (command) {
+      case 'START':
+      case 'ELSE':
+      case 'ENDIF':
+      case 'ENDWHILE':
+      case 'ENDFOR':
+      case 'ENDCURSOR_SCAN':
+        return { type: 'continue' };
+      case 'MESSAGE':
+        await showVisualMessage(readRuntimeValue(runtime, config.message));
+        return { type: 'continue' };
+      case 'CONFIRM':
+        storeRuntimeValue(runtime, outputName, await showVisualConfirm(readRuntimeValue(runtime, config.message)));
+        return { type: 'continue' };
+      case 'INPUT_BOX': {
+        const answer = window.prompt(
+          String(readRuntimeValue(runtime, config.prompt) ?? ''),
+          String(readRuntimeValue(runtime, config.default_value) ?? '')
+        );
+        storeRuntimeValue(runtime, outputName, answer === null ? '' : answer);
+        return { type: 'continue' };
+      }
+      case 'RETURN':
+        return { type: 'return', value: readRuntimeValue(runtime, config.value) };
+      case 'DELAY': {
+        const durationMs = Math.max(0, Number(readRuntimeValue(runtime, config.duration_ms)) || 0);
+        await new Promise(resolve => window.setTimeout(resolve, durationMs));
+        return { type: 'continue' };
+      }
+      case 'DEFINE_VARIABLE':
+        storeRuntimeValue(runtime, config.name, readRuntimeValue(runtime, config.default_value));
+        return { type: 'continue' };
+      case 'GET_VALUE':
+        storeRuntimeValue(runtime, outputName, readRuntimeValue(runtime, config.source));
+        return { type: 'continue' };
+      case 'SET_VALUE':
+        storeRuntimeValue(runtime, config.target, readRuntimeValue(runtime, config.value));
+        return { type: 'continue' };
+      case 'COPY_VALUE':
+        storeRuntimeValue(runtime, config.target, readRuntimeValue(runtime, config.source));
+        return { type: 'continue' };
+      case 'CREATE_OBJECT':
+        storeRuntimeValue(runtime, config.name, {});
+        return { type: 'continue' };
+      case 'CREATE_LIST':
+        storeRuntimeValue(runtime, config.name, []);
+        return { type: 'continue' };
+      case 'ADD_TO_LIST': {
+        const listName = String(config.list_name || '').trim();
+        const current = normalizeToList(readRuntimeValue(runtime, listName));
+        current.push(readRuntimeValue(runtime, config.value));
+        storeRuntimeValue(runtime, listName, current);
+        return { type: 'continue' };
+      }
+      case 'GET_ITEM': {
+        const list = normalizeToList(readRuntimeValue(runtime, config.list_name));
+        const index = Number(readRuntimeValue(runtime, config.index)) || 0;
+        storeRuntimeValue(runtime, outputName, list[index]);
+        return { type: 'continue' };
+      }
+      case 'COUNT': {
+        const source = readRuntimeValue(runtime, config.source);
+        const count = Array.isArray(source)
+          ? source.length
+          : typeof source === 'string'
+          ? source.length
+          : source && typeof source === 'object'
+          ? Object.keys(source).length
+          : 0;
+        storeRuntimeValue(runtime, outputName, count);
+        return { type: 'continue' };
+      }
+      case 'IS_EMPTY': {
+        const source = readRuntimeValue(runtime, config.source);
+        const empty = Array.isArray(source)
+          ? source.length === 0
+          : source && typeof source === 'object'
+          ? Object.keys(source).length === 0
+          : String(source ?? '').trim() === '';
+        storeRuntimeValue(runtime, outputName, empty);
+        return { type: 'continue' };
+      }
+      case 'CURSOR_NEW': {
+        const cursorName = String(config.cursor_name || '').trim();
+        if (!cursorName) {
+          throw new Error('Cursor name is required.');
+        }
+        const cursorMode = String(readRuntimeValue(runtime, config.cursor_mode) ?? 'manual').trim().toLowerCase() || 'manual';
+        if (cursorMode === 'sql') {
+          const sqlQuery = String(readRuntimeValue(runtime, config.sql_query) ?? '').trim();
+          if (!sqlQuery) {
+            throw new Error('SQL query is required for Cursor New in SQL mode.');
+          }
+          const queryResult = await runCursorSqlQuery(runtime, sqlQuery);
+          const schema = inferCursorSchemaFromRows(queryResult.rows, queryResult.columns);
+          const cursor = setRuntimeCursor(runtime, cursorName, {
+            name: cursorName,
+            schema,
+            rows: queryResult.rows.map((row) => materializeCursorRow({ schema }, row)),
+          });
+          if (outputName) storeRuntimeValue(runtime, outputName, cursor?.rows || []);
+          return { type: 'continue' };
+        }
+        const schema = normalizeCursorSchema(Array.isArray(config.cursor_fields) ? config.cursor_fields : []);
+        if (!schema.length) {
+          throw new Error('Manual Cursor New requires at least one field.');
+        }
+        const cursor = setRuntimeCursor(runtime, cursorName, {
+          name: cursorName,
+          schema,
+          rows: [],
+        });
+        if (outputName) storeRuntimeValue(runtime, outputName, cursor?.rows || []);
+        return { type: 'continue' };
+      }
+      case 'CURSOR_RECCOUNT': {
+        const cursorName = String(config.cursor_name || '').trim();
+        const cursor = getRuntimeCursor(runtime, cursorName);
+        if (!cursor) throw new Error(`Cursor not found: ${cursorName || '?'}`);
+        storeRuntimeValue(runtime, outputName, cursor.rows.length);
+        return { type: 'continue' };
+      }
+      case 'CURSOR_APPEND': {
+        const cursorName = String(config.cursor_name || '').trim();
+        const cursor = getRuntimeCursor(runtime, cursorName);
+        if (!cursor) throw new Error(`Cursor not found: ${cursorName || '?'}`);
+        const rowValue = readRuntimeValue(runtime, config.value);
+        const row = materializeCursorRow(cursor, rowValue);
+        cursor.rows.push(row);
+        if (outputName) storeRuntimeValue(runtime, outputName, row);
+        return { type: 'continue' };
+      }
+      case 'CURSOR_DELETE': {
+        const cursorName = String(config.cursor_name || '').trim();
+        const cursor = getRuntimeCursor(runtime, cursorName);
+        if (!cursor) throw new Error(`Cursor not found: ${cursorName || '?'}`);
+        const rowIndex = resolveCursorRowIndex(runtime, cursorName, config.row_ref);
+        if (rowIndex >= 0 && rowIndex < cursor.rows.length) {
+          cursor.rows.splice(rowIndex, 1);
+          syncCursorDeleteWithScanStack(runtime, cursorName, rowIndex);
+        }
+        return { type: 'continue' };
+      }
+      case 'CURSOR_REPLACE': {
+        const cursorName = String(config.cursor_name || '').trim();
+        const cursor = getRuntimeCursor(runtime, cursorName);
+        if (!cursor) throw new Error(`Cursor not found: ${cursorName || '?'}`);
+        const rowIndex = resolveCursorRowIndex(runtime, cursorName, config.row_ref);
+        if (rowIndex < 0 || rowIndex >= cursor.rows.length) return { type: 'continue' };
+        const rawFieldName = String(readRuntimeValue(runtime, config.field_name) ?? '').trim().toUpperCase();
+        if (!rawFieldName) throw new Error('Cursor Replace requires a field name.');
+        let fieldMeta = normalizeCursorSchema(cursor.schema).find((entry) => entry.name === rawFieldName) || null;
+        if (!fieldMeta) {
+          fieldMeta = normalizeCursorSchemaEntry({
+            name: rawFieldName,
+            type: detectCursorFieldType(readRuntimeValue(runtime, config.value)),
+          });
+          cursor.schema.push(fieldMeta);
+        }
+        cursor.rows[rowIndex][fieldMeta.name] = coerceCursorValue(readRuntimeValue(runtime, config.value), fieldMeta.type);
+        return { type: 'continue' };
+      }
+      case 'CURSOR_CLOSE': {
+        const cursorName = String(config.cursor_name || '').trim();
+        clearRuntimeCursor(runtime, cursorName);
+        return { type: 'continue' };
+      }
+      case 'EQUALS':
+        storeRuntimeValue(
+          runtime,
+          outputName,
+          normalizeRuntimeComparableValue(left) === normalizeRuntimeComparableValue(right),
+        );
+        return { type: 'continue' };
+      case 'NOT_EQUALS':
+        storeRuntimeValue(
+          runtime,
+          outputName,
+          normalizeRuntimeComparableValue(left) !== normalizeRuntimeComparableValue(right),
+        );
+        return { type: 'continue' };
+      case 'GREATER':
+        storeRuntimeValue(runtime, outputName, Number(left) > Number(right));
+        return { type: 'continue' };
+      case 'LESS':
+        storeRuntimeValue(runtime, outputName, Number(left) < Number(right));
+        return { type: 'continue' };
+      case 'AND':
+        storeRuntimeValue(runtime, outputName, !!left && !!right);
+        return { type: 'continue' };
+      case 'OR':
+        storeRuntimeValue(runtime, outputName, !!left || !!right);
+        return { type: 'continue' };
+      case 'NOT':
+        storeRuntimeValue(runtime, outputName, !isTruthyLike(readRuntimeValue(runtime, config.value)));
+        return { type: 'continue' };
+      case 'SUM':
+        storeRuntimeValue(runtime, outputName, (Number(left) || 0) + (Number(right) || 0));
+        return { type: 'continue' };
+      case 'SUBTRACT':
+        storeRuntimeValue(runtime, outputName, (Number(left) || 0) - (Number(right) || 0));
+        return { type: 'continue' };
+      case 'MULTIPLY':
+        storeRuntimeValue(runtime, outputName, (Number(left) || 0) * (Number(right) || 0));
+        return { type: 'continue' };
+      case 'DIVIDE':
+        storeRuntimeValue(runtime, outputName, Number(right) ? (Number(left) || 0) / Number(right) : 0);
+        return { type: 'continue' };
+      case 'ROUND':
+        storeRuntimeValue(runtime, outputName, Number(Number(readRuntimeValue(runtime, config.value) || 0).toFixed(Math.max(0, Number(readRuntimeValue(runtime, config.decimals)) || 0))));
+        return { type: 'continue' };
+      case 'CONCAT':
+        storeRuntimeValue(runtime, outputName, `${left ?? ''}${right ?? ''}`);
+        return { type: 'continue' };
+      case 'SUBSTRING': {
+        const value = String(readRuntimeValue(runtime, config.value) ?? '');
+        const start = Math.max(0, Number(readRuntimeValue(runtime, config.start)) || 0);
+        const length = Number(readRuntimeValue(runtime, config.length));
+        storeRuntimeValue(runtime, outputName, Number.isFinite(length) ? value.substring(start, start + length) : value.substring(start));
+        return { type: 'continue' };
+      }
+      case 'TRIM':
+        storeRuntimeValue(runtime, outputName, String(readRuntimeValue(runtime, config.value) ?? '').trim());
+        return { type: 'continue' };
+      case 'UPPER':
+        storeRuntimeValue(runtime, outputName, String(readRuntimeValue(runtime, config.value) ?? '').toUpperCase());
+        return { type: 'continue' };
+      case 'LOWER':
+        storeRuntimeValue(runtime, outputName, String(readRuntimeValue(runtime, config.value) ?? '').toLowerCase());
+        return { type: 'continue' };
+      case 'DATE_ADD': {
+        const base = new Date(readRuntimeValue(runtime, config.date_value));
+        const delta = String(readRuntimeValue(runtime, config.delta) ?? '').trim().toLowerCase();
+        if (Number.isNaN(base.getTime())) {
+          storeRuntimeValue(runtime, outputName, '');
+          return { type: 'continue' };
+        }
+        const match = delta.match(/^([+-]?\d+)\s*([dmyh])$/);
+        if (match) {
+          const amount = Number(match[1]) || 0;
+          const unit = match[2];
+          if (unit === 'd') base.setDate(base.getDate() + amount);
+          if (unit === 'm') base.setMonth(base.getMonth() + amount);
+          if (unit === 'y') base.setFullYear(base.getFullYear() + amount);
+          if (unit === 'h') base.setHours(base.getHours() + amount);
+        }
+        storeRuntimeValue(runtime, outputName, base.toISOString());
+        return { type: 'continue' };
+      }
+      case 'DATE_DIFF': {
+        const startDate = new Date(readRuntimeValue(runtime, config.date_start));
+        const endDate = new Date(readRuntimeValue(runtime, config.date_end));
+        const diff = (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()))
+          ? Math.round((endDate.getTime() - startDate.getTime()) / 86400000)
+          : 0;
+        storeRuntimeValue(runtime, outputName, diff);
+        return { type: 'continue' };
+      }
+      case 'OPEN_MODAL':
+        document.dispatchEvent(new CustomEvent('dynamic-form:open-modal', { detail: { name: readRuntimeValue(runtime, config.modal_name), button: runtime.button, col: runtime.col } }));
+        return { type: 'continue' };
+      case 'CLOSE_MODAL':
+        document.dispatchEvent(new CustomEvent('dynamic-form:close-modal', { detail: { name: readRuntimeValue(runtime, config.modal_name), button: runtime.button, col: runtime.col } }));
+        return { type: 'continue' };
+      case 'FOCUS_FIELD': {
+        const input = getFieldInputByName(config.field_name);
+        input?.focus?.();
+        return { type: 'continue' };
+      }
+      case 'SHOW_HIDE': {
+        const wrapper = getFieldWrapperByName(config.target);
+        if (wrapper) wrapper.style.display = String(config.mode || '').trim().toLowerCase() === 'hide' ? 'none' : '';
+        return { type: 'continue' };
+      }
+      case 'ENABLE_DISABLE': {
+        const input = getFieldInputByName(config.target);
+        if (input) input.disabled = String(config.mode || '').trim().toLowerCase() === 'disable';
+        return { type: 'continue' };
+      }
+      case 'SET_REQUIRED': {
+        const input = getFieldInputByName(config.field_name);
+        if (input) input.required = String(config.mode || '').trim().toLowerCase() === 'required';
+        return { type: 'continue' };
+      }
+      case 'REFRESH_SCREEN':
+        window.location.reload();
+        return { type: 'return', value: undefined };
+      case 'REFRESH_GRID':
+        document.dispatchEvent(new CustomEvent('dynamic-form:refresh-grid', { detail: { name: readRuntimeValue(runtime, config.grid_name), button: runtime.button, col: runtime.col } }));
+        return { type: 'continue' };
+      case 'GET_SYSTEM_VALUE': {
+        const systemKey = String(readRuntimeValue(runtime, config.system_key) ?? '').trim().toUpperCase();
+        const systemValueMap = {
+          USER: window.CURRENT_USER || window.USERNAME || '',
+          CURRENT_USER: window.CURRENT_USER || window.USERNAME || '',
+          FEID: window.FEID || window.EMPRESA_FEID || '',
+          TABLE_NAME,
+          RECORD_STAMP,
+          MENU_STAMP,
+        };
+        storeRuntimeValue(runtime, outputName, systemValueMap[systemKey] ?? '');
+        return { type: 'continue' };
+      }
+      case 'CALL_API': {
+        const endpoint = String(readRuntimeValue(runtime, config.endpoint) ?? '').trim();
+        const method = String(readRuntimeValue(runtime, config.method) ?? 'GET').trim().toUpperCase() || 'GET';
+        const response = await fetch(endpoint, { method, headers: { 'Content-Type': 'application/json' } });
+        const data = await response.json().catch(() => ({}));
+        runtime.lastApiResponse = data;
+        storeRuntimeValue(runtime, outputName, data);
+        return { type: 'continue' };
+      }
+      case 'GET_API_VALUE':
+        storeRuntimeValue(runtime, outputName, deepReadValue(runtime.lastApiResponse, readRuntimeValue(runtime, config.path)));
+        return { type: 'continue' };
+      case 'CALL_SCREEN_ACTION': {
+        const actionName = String(readRuntimeValue(runtime, config.action_name) ?? '').trim();
+        const fn = actionName && typeof window[actionName] === 'function' ? window[actionName] : null;
+        if (fn) {
+          await Promise.resolve(fn({ TABLE_NAME, RECORD_STAMP, MENU_STAMP, formState, camposByName, button: runtime.button, col: runtime.col }));
+        }
+        return { type: 'continue' };
+      }
+      case 'EMIT_EVENT': {
+        const eventName = String(readRuntimeValue(runtime, config.event_name) ?? '').trim();
+        if (eventName) {
+          document.dispatchEvent(new CustomEvent(eventName, { detail: { TABLE_NAME, RECORD_STAMP, MENU_STAMP, formState, camposByName, button: runtime.button, col: runtime.col } }));
+        }
+        return { type: 'continue' };
+      }
+      case 'LOG_DEBUG':
+        console.debug('[dynamic_form][event]', readRuntimeValue(runtime, config.message), { formState, vars: runtime.vars, col: runtime.col });
+        return { type: 'continue' };
+      case 'GET_FIELD':
+        storeRuntimeValue(runtime, outputName, getFieldCurrentValue(config.field_name));
+        return { type: 'continue' };
+      case 'SET_FIELD':
+        updateFieldValue(config.field_name, readRuntimeValue(runtime, config.value));
+        return { type: 'continue' };
+      case 'GET_ROW':
+        storeRuntimeValue(runtime, outputName, readRuntimeValue(runtime, config.row_ref));
+        return { type: 'continue' };
+      case 'SET_ROW':
+        storeRuntimeValue(runtime, config.row_ref, readRuntimeValue(runtime, config.value));
+        return { type: 'continue' };
+      case 'GET_SELECTED_ROWS':
+        storeRuntimeValue(runtime, outputName, []);
+        return { type: 'continue' };
+      case 'VALIDATE_FIELD': {
+        const input = getFieldInputByName(config.field_name);
+        const valid = input ? input.checkValidity() : false;
+        storeRuntimeValue(runtime, outputName, valid);
+        return { type: 'continue' };
+      }
+      case 'VALIDATE_FORM': {
+        const valid = !!form?.checkValidity?.();
+        storeRuntimeValue(runtime, outputName, valid);
+        return { type: 'continue' };
+      }
+      case 'BREAK':
+        return { type: 'break' };
+      case 'CONTINUE':
+        return { type: 'continue_loop' };
+      default:
+        throw new Error(`Comando visual ainda nao suportado: ${command}`);
+    }
+  }
+
+  async function executeVisualEventRange(lines, runtime, startIndex = 0, endExclusive = lines.length) {
+    ensureVisualEventRuntime(runtime);
+    for (let index = startIndex; index < endExclusive; index += 1) {
+      const line = lines[index];
+      if (!line || line.kind === 'empty') continue;
+      const command = String(line.command || '').trim().toUpperCase();
+      if (command === 'ELSE' || command === 'ENDIF' || command === 'ENDWHILE' || command === 'ENDFOR' || command === 'ENDCURSOR_SCAN') {
+        continue;
+      }
+      if (command === 'IF') {
+        const { elseIndex, endIndex } = findIfMarkers(lines, index, endExclusive);
+        const condition = evaluateRuntimeExpression(runtime, line.config?.condition);
+        const result = condition
+          ? await executeVisualEventRange(lines, runtime, index + 1, elseIndex >= 0 ? elseIndex : endIndex)
+          : elseIndex >= 0
+          ? await executeVisualEventRange(lines, runtime, elseIndex + 1, endIndex)
+          : { type: 'continue' };
+        if (result.type !== 'continue') return result;
+        index = endIndex;
+        continue;
+      }
+      if (command === 'WHILE') {
+        const endIndex = findBlockEnd(lines, index, 'WHILE', 'ENDWHILE', endExclusive);
+        let guard = 0;
+        while (evaluateRuntimeExpression(runtime, line.config?.condition)) {
+          guard += 1;
+          if (guard > 100) throw new Error('Loop WHILE excedeu o limite de 100 iteracoes.');
+          const result = await executeVisualEventRange(lines, runtime, index + 1, endIndex);
+          if (result.type === 'return') return result;
+          if (result.type === 'break') break;
+          if (result.type !== 'continue' && result.type !== 'continue_loop') return result;
+        }
+        index = endIndex;
+        continue;
+      }
+      if (command === 'FOR_EACH') {
+        const endIndex = findBlockEnd(lines, index, 'FOR_EACH', 'ENDFOR', endExclusive);
+        const items = normalizeToList(readRuntimeValue(runtime, line.config?.source));
+        const itemName = String(line.config?.item_name || 'ITEM').trim() || 'ITEM';
+        for (const item of items) {
+          storeRuntimeValue(runtime, itemName, item);
+          const result = await executeVisualEventRange(lines, runtime, index + 1, endIndex);
+          if (result.type === 'return') return result;
+          if (result.type === 'break') break;
+          if (result.type !== 'continue' && result.type !== 'continue_loop') return result;
+        }
+        index = endIndex;
+        continue;
+      }
+      if (command === 'CURSOR_SCAN') {
+        const cursorName = String(line.config?.cursor_name || '').trim();
+        const cursor = getRuntimeCursor(runtime, cursorName);
+        if (!cursor) throw new Error(`Cursor not found: ${cursorName || '?'}`);
+        const endIndex = findBlockEnd(lines, index, 'CURSOR_SCAN', 'ENDCURSOR_SCAN', endExclusive);
+        const rowName = String(line.config?.row_name || 'ROW').trim() || 'ROW';
+        let pointer = 0;
+        while (pointer < cursor.rows.length) {
+          const currentRow = cursor.rows[pointer];
+          const scanContext = {
+            cursorKey: getCursorRuntimeKey(cursorName),
+            cursorName,
+            index: pointer,
+            rowName,
+            deletedCurrent: false,
+          };
+          runtime.cursorScanStack.push(scanContext);
+          storeRuntimeValue(runtime, rowName, currentRow);
+          const result = await executeVisualEventRange(lines, runtime, index + 1, endIndex);
+          runtime.cursorScanStack.pop();
+          if (result.type === 'return') return result;
+          if (result.type === 'break') break;
+          if (result.type !== 'continue' && result.type !== 'continue_loop') return result;
+          if (cursor.rows[pointer] === currentRow && !scanContext.deletedCurrent) {
+            pointer += 1;
+          }
+        }
+        index = endIndex;
+        continue;
+      }
+      const result = await executeVisualEventCommand(line, runtime);
+      if (result.type === 'return' || result.type === 'break' || result.type === 'continue_loop') {
+        return result;
+      }
+    }
+    return { type: 'continue' };
+  }
+
+  async function executeVisualEventFlow(flow, runtime) {
+    const lines = getVisualEventLines(flow);
+    if (!lines.length) return undefined;
+    const preparedRuntime = ensureVisualEventRuntime(runtime || {});
+    const result = await executeVisualEventRange(lines, preparedRuntime, 0, lines.length);
+    return result.value;
+  }
+
+  async function runScreenEventHook(eventName) {
+    const flow = getScreenEventFlow(eventName);
+    if (!hasMeaningfulVisualEventFlow(flow)) return undefined;
+    return executeVisualEventFlow(flow, {
+      vars: {},
+      button: null,
+      col: null,
+      lastApiResponse: null,
+    });
+  }
 
   async function prepareClientNoField() {
     if (!isPartnerForm) return;
@@ -559,7 +1735,11 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   function handleFieldChange(e) {
     const target = e.target;
     if (!target || !target.name) return;
-    formState[target.name.toUpperCase()] = readValueForState(target);
+    const nextValue = readValueForState(target);
+    setFormStateValue(target.name, nextValue);
+    if (target.dataset?.variableName) {
+      syncBoundVariableValue(target.dataset.variableName, nextValue, { source: target });
+    }
     aplicarCondicoesDeVisibilidade();
   }
   // ——— Montagem customizada por ORDEM (uma row por dezena) ———
@@ -570,7 +1750,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   // agrupa por dezena de ORDEM
   const grupos = {};
   cols
-    .filter(c => !c.admin || isAdminUser)
+    .filter(c => (!c.admin || isAdminUser) && isColumnVisible(c))
     .sort((a, b) => {
       const oa = isMobile ? a.ordem_mobile : a.ordem;
       const ob = isMobile ? b.ordem_mobile : b.ordem;
@@ -593,7 +1773,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
       row.className = 'row gx-3 gy-2';
 
       // soma total dos TAM para calcular proporções
-      const totalTam = fields.reduce((acc, f) => acc + (isMobile ? f.tam_mobile : f.tam || 1), 0);
+      const totalTam = fields.reduce((acc, f) => acc + getLayoutFieldSize(f), 0);
 
 
       row.style.display = 'flex';
@@ -601,11 +1781,14 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
 
 
       fields.forEach(col => {
-        const tamUsado = isMobile ? col.tam_mobile : col.tam;
-        const fraction = (tamUsado || 1) / totalTam;
+        const tamUsado = getLayoutFieldSize(col);
+        const fraction = useExactWidths
+          ? (tamUsado / layoutWidthUnits)
+          : (tamUsado / totalTam);
         const colDiv = document.createElement('div');
         // fixa largura proporcional e impede flex-grow/shrink
         colDiv.style.flex = `0 0 ${fraction * 100}%`;
+        colDiv.style.maxWidth = `${fraction * 100}%`;
         colDiv.style.boxSizing = 'border-box';
         // mantém o mesmo comportamento de responsive para mobile
         colDiv.classList.add('col-12');
@@ -617,6 +1800,87 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
           return;
         }
 
+        if ((col.tipo || '').toUpperCase() === 'SPACE') {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'mb-3 sz_field';
+
+          const marker = document.createElement('input');
+          marker.type = 'text';
+          marker.name = col.name;
+          marker.dataset.uiOnly = 'true';
+          marker.disabled = true;
+          marker.hidden = true;
+          camposByName[col.name] = marker;
+          formState[col.name] = '';
+
+          const spacer = document.createElement('div');
+          spacer.className = 'sz_surface_alt';
+          spacer.style.minHeight = '2.25rem';
+          spacer.style.border = '1px dashed var(--sz-color-border)';
+          spacer.style.borderRadius = 'var(--sz-radius-md)';
+          spacer.style.background = 'transparent';
+
+          wrapper.appendChild(marker);
+          wrapper.appendChild(spacer);
+          colDiv.appendChild(wrapper);
+          return;
+        }
+
+        if ((col.tipo || '').toUpperCase() === 'BUTTON') {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'mb-3 sz_field';
+
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.name = col.name;
+          button.id = col.name;
+          button.className = 'sz_button sz_button_secondary';
+          button.style.width = '100%';
+          button.textContent = String(col.descricao || col.name || 'Button').trim() || 'Button';
+          button.dataset.uiOnly = 'true';
+          button.disabled = !isButtonEnabled(col);
+
+          const clickFlow = getButtonClickFlow(col);
+          const clickAction = getButtonClickAction(col);
+          if ((hasMeaningfulVisualEventFlow(clickFlow) || clickAction) && !button.disabled) {
+            button.addEventListener('click', async event => {
+              event.preventDefault();
+              try {
+                if (hasMeaningfulVisualEventFlow(clickFlow)) {
+                  await executeVisualEventFlow(clickFlow, {
+                    vars: {},
+                    button,
+                    col,
+                    lastApiResponse: null,
+                  });
+                  return;
+                }
+                const fn = new Function(
+                  'TABLE_NAME',
+                  'RECORD_STAMP',
+                  'MENU_STAMP',
+                  'formState',
+                  'button',
+                  'camposByName',
+                  'col',
+                  clickAction
+                );
+                await Promise.resolve(fn(TABLE_NAME, RECORD_STAMP, MENU_STAMP, formState, button, camposByName, col));
+              } catch (error) {
+                console.error('Erro ao executar click do botao personalizado:', error);
+                showDynamicFormToast(`Erro ao executar evento do botao: ${error.message}`, 'danger');
+              }
+            });
+          }
+
+          camposByName[col.name] = button;
+          setFormStateValue(col.name, '');
+
+          wrapper.appendChild(button);
+          colDiv.appendChild(wrapper);
+          return;
+        }
+
         // NOVO: campo COLOR
         if ((col.tipo || '').toUpperCase() === 'COLOR') {
           let input = document.createElement('input');
@@ -625,12 +1889,18 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
           input.name = col.name;
           input.id = col.name;
           input.value = col.valor || col.valorAtual || col.VALORDEFAULT || '#000000';
-          formState[col.name] = input.value;
+          setFormStateValue(col.name, input.value);
           camposByName[col.name] = input;
-          input.addEventListener('change', e => {
-            formState[col.name] = e.target.value;
-            aplicarCondicoesDeVisibilidade();
-          });
+          input.addEventListener('change', handleFieldChange);
+          const isBound = registerBoundVariableInput(col, input);
+          if (isBound) bindVariableInputEvents(input);
+          if (isUiOnlyColumn(col)) {
+            input.dataset.uiOnly = 'true';
+            if (!isEditableBoundObject(col)) {
+              input.disabled = true;
+              input.classList.add('sz_surface_alt');
+            }
+          }
 
           const wrapper = document.createElement('div');
           wrapper.className = 'mb-3 sz_field';
@@ -664,10 +1934,19 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
               label.append(input, text);
               wrapper.appendChild(label);
 
-              formState[col.name] = false;
+              setFormStateValue(col.name, false);
               camposByName[col.name] = input;
 
               input.addEventListener('change', handleFieldChange);
+              const isBound = registerBoundVariableInput(col, input);
+              if (isBound) bindVariableInputEvents(input);
+              if (isUiOnlyColumn(col)) {
+                input.dataset.uiOnly = 'true';
+                if (!isEditableBoundObject(col)) {
+                  input.disabled = true;
+                  input.classList.add('sz_surface_alt');
+                }
+              }
             } else {
               const label = document.createElement('label');
               label.setAttribute('for', col.name);
@@ -754,7 +2033,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
               input.name = col.name;
               input.innerHTML = '<option value="">---</option>';
 
-              formState[col.name] = '';
+              setFormStateValue(col.name, '');
               input.addEventListener('change', handleFieldChange);
 
 
@@ -768,7 +2047,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
               input.name = col.name;
               input.rows = 4;
 
-              formState[col.name] = '';
+              setFormStateValue(col.name, '');
               input.addEventListener('change', handleFieldChange);
 
             } else {
@@ -784,6 +2063,12 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
               const decimalPlaces = Number.isFinite(Number(col.decimais))
                 ? Number(col.decimais)
                 : 2;
+              const minValue = col.minimo !== undefined && col.minimo !== null && String(col.minimo).trim() !== ''
+                ? String(col.minimo).trim()
+                : '';
+              const maxValue = col.maximo !== undefined && col.maximo !== null && String(col.maximo).trim() !== ''
+                ? String(col.maximo).trim()
+                : '';
 
               if (col.tipo === 'DATE') {
                 input.type = 'text';
@@ -796,8 +2081,12 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
                 input.type = 'number';
                 input.step = '1';
                 input.inputMode = 'numeric';
+                if (minValue) input.min = minValue;
+                if (maxValue) input.max = maxValue;
               } else if (col.tipo === 'DECIMAL') {
                 attachDecimalInputBehavior(input, decimalPlaces);
+                if (minValue) input.dataset.minValue = minValue;
+                if (maxValue) input.dataset.maxValue = maxValue;
               } else {
                 input.type = 'text';
               }
@@ -807,8 +2096,29 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
                 input.classList.add('sz_surface_alt');
               }
 
-              formState[col.name] = '';
+              setFormStateValue(col.name, '');
               input.addEventListener('change', handleFieldChange);
+            }
+
+            const isBound = registerBoundVariableInput(col, input);
+            if (isBound) bindVariableInputEvents(input);
+
+            if (isUiOnlyColumn(col)) {
+              input.dataset.uiOnly = 'true';
+              input.required = false;
+              if (!isEditableBoundObject(col)) {
+                if (input.tagName === 'SELECT' || input.type === 'checkbox' || input.type === 'color' || input.type === 'time' || input.classList.contains('flatpickr-date')) {
+                  input.disabled = true;
+                } else {
+                  input.readOnly = true;
+                }
+                input.classList.add('sz_surface_alt');
+              }
+            }
+
+            const props = getColumnProperties(col);
+            if (props.placeholder && 'placeholder' in input) {
+              input.placeholder = String(props.placeholder);
             }
 
             wrapper.appendChild(input);
@@ -865,6 +2175,8 @@ await Promise.all(
       })
   );
 
+  syncAllBoundVariableInputs();
+
     // 5. Preenche defaults a partir da query string (para inserção de linhas)
   {
     const urlParams = new URLSearchParams(window.location.search);
@@ -875,22 +2187,34 @@ await Promise.all(
         // garante que o <select> já tem as <option>
         if ([...el.options].some(o => o.value === val)) {
           el.value = val;
-          formState[el.name.toUpperCase()] = el.value;
+          setFormStateValue(el.name, el.value);
+          if (el.dataset?.variableName) {
+            syncBoundVariableValue(el.dataset.variableName, readValueForState(el), { source: el });
+          }
           aplicarCondicoesDeVisibilidade();
         }
       }
       else if (el.type === 'checkbox') {
         el.checked = ['1','true','True'].includes(val);
-        formState[el.name.toUpperCase()] = el.checked;
+        setFormStateValue(el.name, el.checked);
+        if (el.dataset?.variableName) {
+          syncBoundVariableValue(el.dataset.variableName, readValueForState(el), { source: el });
+        }
         aplicarCondicoesDeVisibilidade();
       } else if (isDecimalInput(el)) {
         const places = getDecimalPlacesForInput(el);
         el.value = toDisplayDecimal(val, places);
-        formState[el.name.toUpperCase()] = toServerDecimal(el.value, places);
+        setFormStateValue(el.name, toServerDecimal(el.value, places));
+        if (el.dataset?.variableName) {
+          syncBoundVariableValue(el.dataset.variableName, readValueForState(el), { source: el });
+        }
         aplicarCondicoesDeVisibilidade();
       } else {
         el.value = val;
-        formState[el.name.toUpperCase()] = el.value;
+        setFormStateValue(el.name, el.value);
+        if (el.dataset?.variableName) {
+          syncBoundVariableValue(el.dataset.variableName, readValueForState(el), { source: el });
+        }
         aplicarCondicoesDeVisibilidade();
       }
     });
@@ -917,10 +2241,10 @@ if (RECORD_STAMP) {
           const match = [...el.options].find(o => o.textContent.trim() === desired);
           el.value = match ? match.value : '';
         }
-        formState[nome] = el.value;
+        setFormStateValue(nome, el.value);
       } else if (el.type === 'checkbox') {
         el.checked = !!val;
-        formState[nome] = el.checked;
+        setFormStateValue(nome, el.checked);
       } else if (el.classList.contains('flatpickr-date')) {
         if (val) {
           let d, m, y;
@@ -936,26 +2260,31 @@ if (RECORD_STAMP) {
         } else {
           el.value = '';
         }
-        formState[nome] = el.value;
+        setFormStateValue(nome, el.value);
         } else if (el.type === 'color') {
         // se a cor vier sem "#", adiciona
         let cor = (val || '').toString().trim();
         if (cor && !cor.startsWith('#')) cor = '#' + cor;
         el.value = cor || '#000000';
-        formState[nome] = el.value;
+        setFormStateValue(nome, el.value);
       } else if (isDecimalInput(el)) {
         const places = getDecimalPlacesForInput(el);
         const display = toDisplayDecimal(val ?? '', places);
         el.value = display;
-        formState[nome] = toServerDecimal(display, places);
+        setFormStateValue(nome, toServerDecimal(display, places));
       } else {
         el.value = val;
-        formState[nome] = el.value;
+        setFormStateValue(nome, el.value);
+      }
+      if (el.dataset?.variableName) {
+        syncBoundVariableValue(el.dataset.variableName, readValueForState(el), { source: el });
       }
     });
   } catch (e) {
     console.error('Erro ao carregar registro:', e);
   }
+
+  syncAllBoundVariableInputs();
 } else {
   document.getElementById('btnDelete')?.style.setProperty('display', 'none');
 }
@@ -987,6 +2316,15 @@ hideLoading()
         }
       });
     });
+  }
+  if (hasScreenEventFlow('init')) {
+    try {
+      await runScreenEventHook('init');
+      aplicarCondicoesDeVisibilidade();
+    } catch (error) {
+      console.error('Erro ao executar evento init do ecrã:', error);
+      showDynamicFormToast(`Erro ao executar evento init: ${error.message}`, 'danger');
+    }
   }
     // ===============================
 // 6. GESTÃO DE DETALHES (1:N)
@@ -1929,6 +3267,21 @@ hideLoading()
     // Eliminar
     document.getElementById('btnDelete')?.addEventListener('click', async () => {
       if (!RECORD_STAMP || !TABLE_NAME) return;
+
+      if (hasScreenEventFlow('before_delete')) {
+        try {
+          const beforeDeleteResult = await runScreenEventHook('before_delete');
+          if (isVisualEventCancelResult(beforeDeleteResult)) {
+            showDynamicFormToast('Eliminação cancelada pelo evento before delete.', 'info');
+            return;
+          }
+        } catch (error) {
+          console.error('Erro ao executar evento before delete:', error);
+          showDynamicFormToast(`Erro ao executar before delete: ${error.message}`, 'danger');
+          return;
+        }
+      }
+
       if (!(await (window.szConfirmDelete?.('Pretende eliminar este registo?') ?? Promise.resolve(confirm('Confirmar elimina??o?'))))) return;
 
       try {
@@ -2024,6 +3377,20 @@ hideLoading()
       }
     });
 
+    if (hasScreenEventFlow('before_save')) {
+      try {
+        const beforeSaveResult = await runScreenEventHook('before_save');
+        if (isVisualEventCancelResult(beforeSaveResult)) {
+          showDynamicFormToast('Gravação cancelada pelo evento before save.', 'info');
+          return;
+        }
+      } catch (error) {
+        console.error('Erro ao executar evento before save:', error);
+        showDynamicFormToast(`Erro ao executar before save: ${error.message}`, 'danger');
+        return;
+      }
+    }
+
     if (!form.checkValidity()) {
       form.classList.add('was-validated');
       showDynamicFormToast('Existem campos obrigat?rios por preencher.', 'warning');
@@ -2032,10 +3399,18 @@ hideLoading()
 
     const data = {};
     new FormData(form).forEach((v, k) => data[k] = v);
+    form.querySelectorAll('[data-ui-only="true"]').forEach(input => {
+      if (!input.name) return;
+      delete data[input.name];
+    });
     // BIT para booleano
-    form.querySelectorAll('input[type="checkbox"]').forEach(cb => data[cb.name] = cb.checked);
+    form.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      if (!cb.name || cb.dataset.uiOnly === 'true') return;
+      data[cb.name] = cb.checked;
+    });
     // Decimais usam vírgula mas o backend espera ponto
     form.querySelectorAll('input[data-decimal="true"]').forEach(input => {
+      if (!input.name || input.dataset.uiOnly === 'true') return;
       data[input.name] = toServerDecimal(
         input.value,
         getDecimalPlacesForInput(input)
@@ -2043,6 +3418,7 @@ hideLoading()
     });
     // Datas para ISO
     form.querySelectorAll('.flatpickr-date').forEach(input => {
+      if (!input.name || input.dataset.uiOnly === 'true') return;
       const raw = input.value.trim();
       if (raw) {
         const [d,m,y] = raw.split(/\D+/);

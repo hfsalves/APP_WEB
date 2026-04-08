@@ -103,6 +103,85 @@
       min-height: 0;
     }
 
+    @media (max-width: 768px) {
+      body.sz-base-shell.authenticated {
+        min-height: 100dvh;
+        height: 100dvh;
+        overflow: hidden;
+      }
+
+      body.sz-base-shell.authenticated .app-header.glass-header {
+        position: fixed !important;
+        top: 0;
+        left: 0 !important;
+        right: 0;
+        width: auto !important;
+        margin-left: 0 !important;
+        z-index: 1200;
+      }
+
+      body.sz-base-shell.authenticated.sidebar-open .app-header.glass-header {
+        left: var(--sidebar-width) !important;
+        right: auto !important;
+        width: calc(100% - var(--sidebar-width)) !important;
+      }
+
+      body.sz-base-shell.authenticated .sz_entity_header_slot {
+        max-width: min(60vw, 26rem);
+      }
+
+      body.sz-base-shell.authenticated.sidebar-open .sz_entity_header_slot {
+        max-width: 0;
+        opacity: 0;
+        transform: translateX(-0.12rem) scale(.985);
+        pointer-events: none;
+      }
+
+      body.sz-base-shell.authenticated .app-container {
+        margin-top: var(--header-height);
+        min-height: calc(100dvh - var(--header-height));
+        height: calc(100dvh - var(--header-height));
+        overflow: hidden;
+      }
+
+      body.sz-base-shell.authenticated .main-content {
+        min-height: 0;
+        height: 100%;
+        overflow: hidden;
+        position: relative;
+        isolation: isolate;
+        transition:
+          margin-left .34s cubic-bezier(.22, 1, .36, 1),
+          opacity .3s ease,
+          transform .34s cubic-bezier(.22, 1, .36, 1);
+      }
+
+      body.sz-base-shell.authenticated .main-content::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: color-mix(in srgb, var(--sz-color-bg-main) 22%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        opacity: 0;
+        pointer-events: none;
+        transition:
+          opacity .32s ease,
+          backdrop-filter .34s ease,
+          -webkit-backdrop-filter .34s ease;
+        z-index: 80;
+      }
+
+      body.sz-base-shell.authenticated.sidebar-open .main-content {
+        pointer-events: none;
+        transform: scale(.988);
+      }
+
+      body.sz-base-shell.authenticated.sidebar-open .main-content::after {
+        opacity: 1;
+      }
+    }
+
     .sz_entity_switch_trigger {
       appearance: none;
       border: 1px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
@@ -147,6 +226,24 @@
       outline: 2px solid var(--sz-color-primary);
       outline-offset: 4px;
       border-radius: var(--sz-radius-md);
+    }
+
+    .sz_entity_header_slot {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 1;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      opacity: 1;
+      transform: translateX(0);
+      transform-origin: left center;
+      will-change: max-width, opacity, transform;
+      transition:
+        max-width .46s cubic-bezier(.22, 1, .36, 1),
+        opacity .32s ease-out,
+        transform .38s cubic-bezier(.22, 1, .36, 1);
     }
 
     .sz_entity_switch_dialog {
@@ -326,14 +423,16 @@
         <div class="page-meta">
           <h1 class="page-title">
             {% if can_switch_entity %}
-              <span class="d-inline-flex align-items-center gap-2">
+              <span class="sz_entity_header_slot">
                 <a href="{{ url_for('home_page') }}" class="sz_entity_home_link">{{ (current_entity.NOME if current_entity else None) or 'StationZero' }}</a>
                 <button type="button" id="currentEntitySwitcherToggle" class="sz_entity_switch_trigger" aria-label="Mudar empresa" title="Mudar empresa">
                   <i class="fa-solid fa-chevron-down"></i>
                 </button>
               </span>
             {% else %}
-              <a href="{{ url_for('home_page') }}" class="sz_entity_home_link">{{ (current_entity.NOME if current_entity else None) or 'StationZero' }}</a>
+              <span class="sz_entity_header_slot">
+                <a href="{{ url_for('home_page') }}" class="sz_entity_home_link">{{ (current_entity.NOME if current_entity else None) or 'StationZero' }}</a>
+              </span>
             {% endif %}
           </h1>
         </div>

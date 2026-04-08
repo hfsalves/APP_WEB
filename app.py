@@ -1422,11 +1422,16 @@ def create_app():
 
             # 1) Carrega todos os menus (filtra admin se for caso)
             if getattr(current_user, 'ADMIN', False):
-                menu_items = Menu.query.order_by(Menu.ordem).all()
+                menu_items = (
+                    Menu.query
+                        .filter_by(inativo=False)
+                        .order_by(Menu.ordem)
+                        .all()
+                )
             else:
                 menu_items = (
                     Menu.query
-                        .filter_by(admin=False)
+                        .filter_by(admin=False, inativo=False)
                         .order_by(Menu.ordem)
                         .all()
                 )
@@ -2898,6 +2903,259 @@ def create_app():
         except Exception:
             return False
 
+    def _menu_manager_allowed() -> bool:
+        try:
+            return bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False))
+        except Exception:
+            return False
+
+    def _menu_manager_active_users():
+        current_feid = int(get_current_feid() or 0)
+        try:
+            return _load_screen_wizard_acl_users(current_feid)
+        except Exception:
+            rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(U.USSTAMP, ''))) AS USSTAMP,
+                    LTRIM(RTRIM(ISNULL(U.LOGIN, ''))) AS LOGIN,
+                    LTRIM(RTRIM(ISNULL(U.NOME, ''))) AS NOME,
+                    ISNULL(U.ADMIN, 0) AS ADMIN_USER,
+                    0 AS IN_CURRENT_FE
+                FROM dbo.US U
+                WHERE ISNULL(U.IS_ACTIVE, 1) = 1
+                  AND ISNULL(U.INATIVO, 0) = 0
+                ORDER BY LTRIM(RTRIM(ISNULL(U.NOME, ''))), LTRIM(RTRIM(ISNULL(U.LOGIN, '')))
+            """)).mappings().all()
+            return [dict(row) for row in rows]
+
+    def _menu_manager_child_counts(rows):
+        counts = {}
+        current_group = None
+        for row in rows:
+            if row.get('IS_GROUP'):
+                current_group = str(row.get('MENUSTAMP') or '').strip()
+                counts.setdefault(current_group, 0)
+                continue
+            if current_group:
+                counts[current_group] = counts.get(current_group, 0) + 1
+        return counts
+
+    def _menu_manager_annotate_rows(rows):
+        annotated = []
+        current_group = None
+        for raw in rows or []:
+            row = dict(raw or {})
+            menustamp = str(row.get('MENUSTAMP') or row.get('menustamp') or '').strip()
+            ordem = _to_int(row.get('ORDEM', row.get('ordem')), 0)
+            tabela = str(row.get('TABELA') or row.get('tabela') or '').strip().upper()
+            url = str(row.get('URL') or row.get('url') or '').strip()
+            nome = str(row.get('NOME') or row.get('nome') or '').strip()
+            is_group = (ordem % 100 == 0)
+            if is_group:
+                current_group = menustamp
+            indent = 1 if (current_group and not is_group) else 0
+            annotated.append({
+                **row,
+                'MENUSTAMP': menustamp,
+                'ORDEM': ordem,
+                'NOME': nome,
+                'TABELA': tabela,
+                'URL': url,
+                'IS_GROUP': bool(is_group),
+                'INDENT': indent,
+                'PARENT_GROUP': current_group if indent else '',
+                'INATIVO': 1 if row.get('INATIVO') else 0,
+                'MODULE_COUNT': _to_int(row.get('MODULE_COUNT'), 0),
+                'USER_COUNT': _to_int(row.get('USER_COUNT'), 0),
+            })
+
+        child_counts = _menu_manager_child_counts(annotated)
+        for row in annotated:
+            row['CHILD_COUNT'] = child_counts.get(str(row.get('MENUSTAMP') or '').strip(), 0) if row.get('IS_GROUP') else 0
+        return annotated
+
+    def _menu_manager_fetch_all_rows():
+        _ensure_mod_objetos_table()
+        rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(M.MENUSTAMP, ''))) AS MENUSTAMP,
+                ISNULL(M.ORDEM, 0) AS ORDEM,
+                LTRIM(RTRIM(ISNULL(M.NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(M.TABELA, ''))) AS TABELA,
+                LTRIM(RTRIM(ISNULL(M.URL, ''))) AS URL,
+                ISNULL(M.ADMIN, 0) AS ADMIN,
+                ISNULL(M.INATIVO, 0) AS INATIVO,
+                LTRIM(RTRIM(ISNULL(M.ICONE, ''))) AS ICONE,
+                LTRIM(RTRIM(ISNULL(M.FORM, ''))) AS FORM,
+                LTRIM(RTRIM(ISNULL(M.ORDERBY, ''))) AS ORDERBY,
+                ISNULL(M.NOVO, 0) AS NOVO,
+                ISNULL(MO.MODULE_COUNT, 0) AS MODULE_COUNT,
+                ISNULL(ACL.USER_COUNT, 0) AS USER_COUNT
+            FROM dbo.MENU M
+            LEFT JOIN (
+                SELECT
+                    LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) AS MENUSTAMP,
+                    COUNT(DISTINCT LTRIM(RTRIM(ISNULL(MODSTAMP, '')))) AS MODULE_COUNT
+                FROM dbo.MOD_OBJETOS
+                WHERE ISNULL(ATIVO, 0) = 1
+                  AND LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) <> ''
+                GROUP BY LTRIM(RTRIM(ISNULL(MENUSTAMP, '')))
+            ) MO
+              ON MO.MENUSTAMP = LTRIM(RTRIM(ISNULL(M.MENUSTAMP, '')))
+            LEFT JOIN (
+                SELECT
+                    UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) AS TABELA_KEY,
+                    COUNT(DISTINCT LTRIM(RTRIM(ISNULL(UTILIZADOR, '')))) AS USER_COUNT
+                FROM dbo.ACESSOS
+                WHERE ISNULL(CONSULTAR, 0) = 1
+                  AND LTRIM(RTRIM(ISNULL(TABELA, ''))) <> ''
+                GROUP BY UPPER(LTRIM(RTRIM(ISNULL(TABELA, ''))))
+            ) ACL
+              ON ACL.TABELA_KEY = UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, ''))))
+            ORDER BY ISNULL(M.ORDEM, 0), LTRIM(RTRIM(ISNULL(M.NOME, ''))), LTRIM(RTRIM(ISNULL(M.MENUSTAMP, '')))
+        """)).mappings().all()
+        return _menu_manager_annotate_rows(rows)
+
+    def _menu_manager_fetch_row(menustamp: str):
+        target = str(menustamp or '').strip()
+        if not target:
+            return None
+        rows = _menu_manager_fetch_all_rows()
+        for row in rows:
+            if str(row.get('MENUSTAMP') or '').strip() == target:
+                return row
+        return None
+
+    def _menu_manager_module_rows(menustamp: str):
+        menu_row = _menu_manager_fetch_row(menustamp)
+        if not menu_row:
+            return None
+        _ensure_mod_objetos_table()
+        rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(M.MODSTAMP, ''))) AS MODSTAMP,
+                LTRIM(RTRIM(ISNULL(M.CODIGO, ''))) AS CODIGO,
+                LTRIM(RTRIM(ISNULL(M.NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(M.DESCR, ''))) AS DESCR,
+                ISNULL(M.ORDEM, 0) AS ORDEM,
+                ISNULL(M.ATIVO, 0) AS ATIVO,
+                CASE WHEN MO.MODOBJSTAMP IS NULL THEN 0 ELSE 1 END AS SELECTED
+            FROM dbo.MODULOS M
+            LEFT JOIN (
+                SELECT
+                    MODSTAMP,
+                    MAX(MODOBJSTAMP) AS MODOBJSTAMP
+                FROM dbo.MOD_OBJETOS
+                WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+                GROUP BY MODSTAMP
+            ) MO
+              ON MO.MODSTAMP = M.MODSTAMP
+            WHERE ISNULL(M.ATIVO, 0) = 1
+            ORDER BY ISNULL(M.ORDEM, 0), LTRIM(RTRIM(ISNULL(M.NOME, '')))
+        """), {'menustamp': menu_row['MENUSTAMP']}).mappings().all()
+        return [dict(row) for row in rows]
+
+    def _menu_manager_acl_rows(table_name: str):
+        tabela = str(table_name or '').strip().upper()
+        if not tabela:
+            return {
+                'supported': False,
+                'rows': [],
+            }
+
+        active_users = _menu_manager_active_users()
+        perms_rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(UTILIZADOR, ''))) AS UTILIZADOR,
+                MAX(CASE WHEN ISNULL(CONSULTAR, 0) = 1 THEN 1 ELSE 0 END) AS CONSULTAR,
+                MAX(CASE WHEN ISNULL(INSERIR, 0) = 1 THEN 1 ELSE 0 END) AS INSERIR,
+                MAX(CASE WHEN ISNULL(EDITAR, 0) = 1 THEN 1 ELSE 0 END) AS EDITAR,
+                MAX(CASE WHEN ISNULL(ELIMINAR, 0) = 1 THEN 1 ELSE 0 END) AS ELIMINAR
+            FROM dbo.ACESSOS
+            WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :tabela
+            GROUP BY LTRIM(RTRIM(ISNULL(UTILIZADOR, '')))
+        """), {'tabela': tabela}).mappings().all()
+        perms_map = {
+            str(row.get('UTILIZADOR') or '').strip(): dict(row)
+            for row in perms_rows
+            if str(row.get('UTILIZADOR') or '').strip()
+        }
+
+        rows = []
+        for user in active_users:
+            login = str(user.get('LOGIN') or '').strip()
+            perm = perms_map.get(login, {})
+            rows.append({
+                'usstamp': str(user.get('USSTAMP') or '').strip(),
+                'utilizador': login,
+                'nome': str(user.get('NOME') or '').strip(),
+                'admin_user': 1 if user.get('ADMIN_USER') else 0,
+                'in_current_fe': 1 if user.get('IN_CURRENT_FE') else 0,
+                'consultar': 1 if _to_int(perm.get('CONSULTAR'), 0) else 0,
+                'inserir': 1 if _to_int(perm.get('INSERIR'), 0) else 0,
+                'editar': 1 if _to_int(perm.get('EDITAR'), 0) else 0,
+                'eliminar': 1 if _to_int(perm.get('ELIMINAR'), 0) else 0,
+            })
+
+        return {
+            'supported': True,
+            'rows': rows,
+        }
+
+    def _menu_manager_resequence_rows(rows):
+        ordered = [dict(row or {}) for row in rows or []]
+        top_order = 0
+        group_index = 0
+        current_group_base = None
+        child_offset = 0
+
+        for row in ordered:
+            is_group = bool(row.get('IS_GROUP'))
+            if is_group:
+                group_index += 1
+                current_group_base = group_index * 100
+                child_offset = 0
+                row['NEW_ORDEM'] = current_group_base
+                continue
+
+            if current_group_base is None:
+                top_order += 10
+                row['NEW_ORDEM'] = top_order
+            else:
+                child_offset += 1
+                row['NEW_ORDEM'] = current_group_base + child_offset
+
+        return ordered
+
+    def _menu_manager_persist_resequence(rows):
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        for row in rows or []:
+            new_ordem = _to_int(row.get('NEW_ORDEM'), _to_int(row.get('ORDEM'), 0))
+            if new_ordem == _to_int(row.get('ORDEM'), 0):
+                continue
+            menustamp = str(row.get('MENUSTAMP') or '').strip()
+            if not menustamp:
+                continue
+            db.session.execute(text("""
+                UPDATE dbo.MENU
+                SET ORDEM = :ordem
+                WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+            """), {
+                'ordem': new_ordem,
+                'menustamp': menustamp,
+            })
+            db.session.execute(text("""
+                UPDATE dbo.MOD_OBJETOS
+                SET ORDEM = :ordem,
+                    DTALT = GETDATE(),
+                    USERALTERACAO = :user_login
+                WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+            """), {
+                'ordem': new_ordem,
+                'user_login': user_login,
+                'menustamp': menustamp,
+            })
+
     def _fo_has_permission(action='consultar'):
         try:
             if getattr(current_user, 'ADMIN', False):
@@ -3315,6 +3573,1531 @@ def create_app():
                 LTRIM(RTRIM(ISNULL(U.LOGIN, '')))
         """), {'feid': int(current_feid)}).mappings().all()
         return [dict(row) for row in rows]
+
+    def _ensure_menu_objetos_table():
+        exists = db.session.execute(text("""
+            SELECT TOP 1 1
+            FROM sys.tables T
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE S.name = 'dbo'
+              AND UPPER(T.name) = 'MENU_OBJETOS'
+        """)).scalar()
+        if exists:
+            return
+
+        with db.engine.begin() as conn:
+            conn.execute(text("""
+                IF OBJECT_ID('dbo.MENU_OBJETOS', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.MENU_OBJETOS
+                    (
+                        MENUOBJSTAMP      varchar(25)   NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_STAMP DEFAULT LEFT(CONVERT(varchar(36), NEWID()), 25),
+                        MENUSTAMP         varchar(25)   NOT NULL,
+                        NMCAMPO           varchar(50)   NOT NULL,
+                        DESCRICAO         varchar(100)  NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_DESCRICAO DEFAULT '',
+                        TIPO              varchar(20)   NOT NULL,
+                        ORDEM             int           NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_ORDEM DEFAULT 0,
+                        TAM               int           NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_TAM DEFAULT 5,
+                        ORDEM_MOBILE      int           NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_ORDEM_MOBILE DEFAULT 0,
+                        TAM_MOBILE        int           NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_TAM_MOBILE DEFAULT 5,
+                        VISIVEL           bit           NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_VISIVEL DEFAULT 1,
+                        RONLY             bit           NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_RONLY DEFAULT 0,
+                        OBRIGATORIO       bit           NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_OBRIGATORIO DEFAULT 0,
+                        CONDICAO_VISIVEL  varchar(200)  NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_CONDICAO_VISIVEL DEFAULT '',
+                        COMBO             nvarchar(max) NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_COMBO DEFAULT N'',
+                        DECIMAIS          int           NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_DECIMAIS DEFAULT 0,
+                        MINIMO            decimal(18,6) NULL,
+                        MAXIMO            decimal(18,6) NULL,
+                        PROPRIEDADES      nvarchar(max) NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_PROPRIEDADES DEFAULT N'{}',
+                        ATIVO             bit           NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_ATIVO DEFAULT 1,
+                        DTCRI             datetime2(0)  NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_DTCRI DEFAULT GETDATE(),
+                        DTALT             datetime2(0)  NULL,
+                        USERCRIACAO       varchar(50)   NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_USERCRIACAO DEFAULT '',
+                        USERALTERACAO     varchar(50)   NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_USERALTERACAO DEFAULT '',
+                        CONSTRAINT PK_MENU_OBJETOS PRIMARY KEY CLUSTERED (MENUOBJSTAMP),
+                        CONSTRAINT FK_MENU_OBJETOS_MENU FOREIGN KEY (MENUSTAMP) REFERENCES dbo.MENU(MENUSTAMP),
+                        CONSTRAINT UQ_MENU_OBJETOS_MENU_NMCAMPO UNIQUE (MENUSTAMP, NMCAMPO)
+                    );
+
+                    CREATE INDEX IX_MENU_OBJETOS_MENU_ORDEM
+                        ON dbo.MENU_OBJETOS (MENUSTAMP, ORDEM, NMCAMPO);
+
+                    CREATE INDEX IX_MENU_OBJETOS_MENU_ORDEM_MOBILE
+                        ON dbo.MENU_OBJETOS (MENUSTAMP, ORDEM_MOBILE, NMCAMPO);
+                END
+            """))
+
+    def _ensure_menu_variaveis_table():
+        exists = db.session.execute(text("""
+            SELECT TOP 1 1
+            FROM sys.tables T
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE S.name = 'dbo'
+              AND UPPER(T.name) = 'MENU_VARIAVEIS'
+        """)).scalar()
+        if exists:
+            return
+
+        with db.engine.begin() as conn:
+            conn.execute(text("""
+                IF OBJECT_ID('dbo.MENU_VARIAVEIS', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.MENU_VARIAVEIS
+                    (
+                        MENUVARSTAMP      varchar(25)   NOT NULL
+                            CONSTRAINT DF_MENU_VARIAVEIS_STAMP DEFAULT LEFT(CONVERT(varchar(36), NEWID()), 25),
+                        MENUSTAMP         varchar(25)   NOT NULL,
+                        NOME              varchar(60)   NOT NULL,
+                        DESCRICAO         varchar(100)  NOT NULL
+                            CONSTRAINT DF_MENU_VARIAVEIS_DESCRICAO DEFAULT '',
+                        TIPO              varchar(20)   NOT NULL
+                            CONSTRAINT DF_MENU_VARIAVEIS_TIPO DEFAULT 'TEXT',
+                        VALOR_DEFAULT     nvarchar(max) NOT NULL
+                            CONSTRAINT DF_MENU_VARIAVEIS_VALOR_DEFAULT DEFAULT N'',
+                        ORDEM             int           NOT NULL
+                            CONSTRAINT DF_MENU_VARIAVEIS_ORDEM DEFAULT 0,
+                        PROPRIEDADES      nvarchar(max) NOT NULL
+                            CONSTRAINT DF_MENU_VARIAVEIS_PROPRIEDADES DEFAULT N'{}',
+                        ATIVO             bit           NOT NULL
+                            CONSTRAINT DF_MENU_VARIAVEIS_ATIVO DEFAULT 1,
+                        DTCRI             datetime2(0)  NOT NULL
+                            CONSTRAINT DF_MENU_VARIAVEIS_DTCRI DEFAULT GETDATE(),
+                        DTALT             datetime2(0)  NULL,
+                        USERCRIACAO       varchar(50)   NOT NULL
+                            CONSTRAINT DF_MENU_VARIAVEIS_USERCRIACAO DEFAULT '',
+                        USERALTERACAO     varchar(50)   NOT NULL
+                            CONSTRAINT DF_MENU_VARIAVEIS_USERALTERACAO DEFAULT '',
+                        CONSTRAINT PK_MENU_VARIAVEIS PRIMARY KEY CLUSTERED (MENUVARSTAMP),
+                        CONSTRAINT FK_MENU_VARIAVEIS_MENU FOREIGN KEY (MENUSTAMP) REFERENCES dbo.MENU(MENUSTAMP),
+                        CONSTRAINT UQ_MENU_VARIAVEIS_MENU_NOME UNIQUE (MENUSTAMP, NOME)
+                    );
+
+                    CREATE INDEX IX_MENU_VARIAVEIS_MENU_ORDEM
+                        ON dbo.MENU_VARIAVEIS (MENUSTAMP, ORDEM, NOME);
+                END
+            """))
+
+    def _ensure_menu_eventos_table():
+        exists = db.session.execute(text("""
+            SELECT TOP 1 1
+            FROM sys.tables T
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE S.name = 'dbo'
+              AND UPPER(T.name) = 'MENU_EVENTOS'
+        """)).scalar()
+        if exists:
+            return
+
+        with db.engine.begin() as conn:
+            conn.execute(text("""
+                IF OBJECT_ID('dbo.MENU_EVENTOS', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.MENU_EVENTOS
+                    (
+                        MENUEVENTOSTAMP  varchar(25)   NOT NULL
+                            CONSTRAINT DF_MENU_EVENTOS_STAMP DEFAULT LEFT(CONVERT(varchar(36), NEWID()), 25),
+                        MENUSTAMP        varchar(25)   NOT NULL,
+                        EVENTO           varchar(40)   NOT NULL,
+                        FLUXO            nvarchar(max) NOT NULL
+                            CONSTRAINT DF_MENU_EVENTOS_FLUXO DEFAULT N'{}',
+                        ATIVO            bit           NOT NULL
+                            CONSTRAINT DF_MENU_EVENTOS_ATIVO DEFAULT 1,
+                        DTCRI            datetime2(0)  NOT NULL
+                            CONSTRAINT DF_MENU_EVENTOS_DTCRI DEFAULT GETDATE(),
+                        DTALT            datetime2(0)  NULL,
+                        USERCRIACAO      varchar(50)   NOT NULL
+                            CONSTRAINT DF_MENU_EVENTOS_USERCRIACAO DEFAULT '',
+                        USERALTERACAO    varchar(50)   NOT NULL
+                            CONSTRAINT DF_MENU_EVENTOS_USERALTERACAO DEFAULT '',
+                        CONSTRAINT PK_MENU_EVENTOS PRIMARY KEY CLUSTERED (MENUEVENTOSTAMP),
+                        CONSTRAINT FK_MENU_EVENTOS_MENU FOREIGN KEY (MENUSTAMP) REFERENCES dbo.MENU(MENUSTAMP),
+                        CONSTRAINT UQ_MENU_EVENTOS_MENU_EVENTO UNIQUE (MENUSTAMP, EVENTO)
+                    );
+
+                    CREATE INDEX IX_MENU_EVENTOS_MENU_EVENTO
+                        ON dbo.MENU_EVENTOS (MENUSTAMP, EVENTO);
+                END
+            """))
+
+    def _ensure_screen_personalizer_list_layout_columns():
+        with db.engine.begin() as conn:
+            ordem_lista_exists = conn.execute(text("""
+                SELECT COL_LENGTH('dbo.CAMPOS', 'ORDEM_LISTA')
+            """)).scalar()
+            if ordem_lista_exists is None:
+                conn.execute(text("""
+                    ALTER TABLE dbo.CAMPOS
+                    ADD ORDEM_LISTA int NOT NULL
+                        CONSTRAINT DF_CAMPOS_ORDEM_LISTA DEFAULT 0
+                """))
+                conn.execute(text("""
+                    UPDATE dbo.CAMPOS
+                    SET ORDEM_LISTA = CASE
+                        WHEN ISNULL(LISTA, 0) = 1 THEN ISNULL(ORDEM, 0)
+                        ELSE 0
+                    END
+                """))
+
+            tam_lista_exists = conn.execute(text("""
+                SELECT COL_LENGTH('dbo.CAMPOS', 'TAM_LISTA')
+            """)).scalar()
+            if tam_lista_exists is None:
+                conn.execute(text("""
+                    ALTER TABLE dbo.CAMPOS
+                    ADD TAM_LISTA int NOT NULL
+                        CONSTRAINT DF_CAMPOS_TAM_LISTA DEFAULT 5
+                """))
+                conn.execute(text("""
+                    UPDATE dbo.CAMPOS
+                    SET TAM_LISTA = CASE
+                        WHEN ISNULL(TAM, 0) > 0 THEN ISNULL(TAM, 5)
+                        ELSE 5
+                    END
+                """))
+
+            larguras_lista_exists = conn.execute(text("""
+                SELECT COL_LENGTH('dbo.MENU', 'LARGURAS_EXATAS_LISTA')
+            """)).scalar()
+            if larguras_lista_exists is None:
+                conn.execute(text("""
+                    ALTER TABLE dbo.MENU
+                    ADD LARGURAS_EXATAS_LISTA bit NOT NULL
+                        CONSTRAINT DF_MENU_LARGURAS_EXATAS_LISTA DEFAULT 0
+                """))
+
+            ordem_lista_mobile_exists = conn.execute(text("""
+                SELECT COL_LENGTH('dbo.CAMPOS', 'ORDEM_LISTA_MOBILE')
+            """)).scalar()
+            if ordem_lista_mobile_exists is None:
+                conn.execute(text("""
+                    ALTER TABLE dbo.CAMPOS
+                    ADD ORDEM_LISTA_MOBILE int NOT NULL
+                        CONSTRAINT DF_CAMPOS_ORDEM_LISTA_MOBILE DEFAULT 0
+                """))
+                conn.execute(text("""
+                    UPDATE dbo.CAMPOS
+                    SET ORDEM_LISTA_MOBILE = CASE
+                        WHEN ISNULL(LISTA, 0) = 1 AND ISNULL(ORDEM_MOBILE, 0) > 0 THEN ISNULL(ORDEM_MOBILE, 0)
+                        WHEN ISNULL(LISTA, 0) = 1 AND ISNULL(ORDEM_LISTA, 0) > 0 THEN ISNULL(ORDEM_LISTA, 0)
+                        WHEN ISNULL(LISTA, 0) = 1 AND ISNULL(ORDEM, 0) > 0 THEN ISNULL(ORDEM, 0)
+                        ELSE 0
+                    END
+                """))
+
+            tam_lista_mobile_exists = conn.execute(text("""
+                SELECT COL_LENGTH('dbo.CAMPOS', 'TAM_LISTA_MOBILE')
+            """)).scalar()
+            if tam_lista_mobile_exists is None:
+                conn.execute(text("""
+                    ALTER TABLE dbo.CAMPOS
+                    ADD TAM_LISTA_MOBILE int NOT NULL
+                        CONSTRAINT DF_CAMPOS_TAM_LISTA_MOBILE DEFAULT 5
+                """))
+                conn.execute(text("""
+                    UPDATE dbo.CAMPOS
+                    SET TAM_LISTA_MOBILE = CASE
+                        WHEN ISNULL(TAM_MOBILE, 0) > 0 THEN ISNULL(TAM_MOBILE, 5)
+                        WHEN ISNULL(TAM_LISTA, 0) > 0 THEN ISNULL(TAM_LISTA, 5)
+                        WHEN ISNULL(TAM, 0) > 0 THEN ISNULL(TAM, 5)
+                        ELSE 5
+                    END
+                """))
+
+            lista_mobile_bold_exists = conn.execute(text("""
+                SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_BOLD')
+            """)).scalar()
+            if lista_mobile_bold_exists is None:
+                conn.execute(text("""
+                    ALTER TABLE dbo.CAMPOS
+                    ADD LISTA_MOBILE_BOLD bit NOT NULL
+                        CONSTRAINT DF_CAMPOS_LISTA_MOBILE_BOLD DEFAULT 0
+                """))
+
+            lista_mobile_italic_exists = conn.execute(text("""
+                SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_ITALIC')
+            """)).scalar()
+            if lista_mobile_italic_exists is None:
+                conn.execute(text("""
+                    ALTER TABLE dbo.CAMPOS
+                    ADD LISTA_MOBILE_ITALIC bit NOT NULL
+                        CONSTRAINT DF_CAMPOS_LISTA_MOBILE_ITALIC DEFAULT 0
+                """))
+
+            lista_mobile_show_label_exists = conn.execute(text("""
+                SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_SHOW_LABEL')
+            """)).scalar()
+            if lista_mobile_show_label_exists is None:
+                conn.execute(text("""
+                    ALTER TABLE dbo.CAMPOS
+                    ADD LISTA_MOBILE_SHOW_LABEL bit NOT NULL
+                        CONSTRAINT DF_CAMPOS_LISTA_MOBILE_SHOW_LABEL DEFAULT 1
+                """))
+
+            lista_mobile_label_exists = conn.execute(text("""
+                SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_LABEL')
+            """)).scalar()
+            if lista_mobile_label_exists is None:
+                conn.execute(text("""
+                    ALTER TABLE dbo.CAMPOS
+                    ADD LISTA_MOBILE_LABEL varchar(100) NOT NULL
+                        CONSTRAINT DF_CAMPOS_LISTA_MOBILE_LABEL DEFAULT ''
+                """))
+                conn.execute(text("""
+                    UPDATE dbo.CAMPOS
+                    SET LISTA_MOBILE_LABEL = LTRIM(RTRIM(ISNULL(DESCRICAO, '')))
+                    WHERE LTRIM(RTRIM(ISNULL(LISTA_MOBILE_LABEL, ''))) = ''
+                """))
+
+    _SCREEN_PERSONALIZER_VARIABLE_TYPES = {
+        'TEXT',
+        'MEMO',
+        'INT',
+        'DECIMAL',
+        'DATE',
+        'BOOL',
+        'JSON',
+    }
+    _SCREEN_PERSONALIZER_MENU_EVENTS = {
+        'init',
+        'before_save',
+        'before_delete',
+    }
+
+    def _screen_personalizer_properties_object(value, fallback=None):
+        base = {}
+        if isinstance(fallback, dict):
+            base.update(fallback)
+        elif fallback not in (None, ''):
+            try:
+                parsed_fallback = json.loads(str(fallback))
+                if isinstance(parsed_fallback, dict):
+                    base.update(parsed_fallback)
+            except Exception:
+                pass
+
+        if isinstance(value, dict):
+            base.update(value)
+            return base
+
+        raw = str(value or '').strip()
+        if not raw:
+            return base
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                base.update(parsed)
+        except Exception:
+            pass
+        return base
+
+    def _screen_personalizer_properties_dump(value, fallback=None):
+        props = _screen_personalizer_properties_object(value, fallback)
+        try:
+            return json.dumps(props, ensure_ascii=False, separators=(',', ':'))
+        except Exception:
+            return '{}'
+
+    def _screen_personalizer_variable_name(value, fallback=''):
+        raw = str(value or fallback or '').strip().upper()
+        if not raw:
+            return ''
+        raw = re.sub(r'[^A-Z0-9_]+', '_', raw)
+        raw = re.sub(r'_+', '_', raw).strip('_')
+        return raw[:60]
+
+    def _screen_personalizer_variable_type(value, fallback='TEXT'):
+        raw = str(value or fallback or 'TEXT').strip().upper() or 'TEXT'
+        if raw in _SCREEN_PERSONALIZER_VARIABLE_TYPES:
+            return raw
+        fallback_type = str(fallback or 'TEXT').strip().upper() or 'TEXT'
+        return fallback_type if fallback_type in _SCREEN_PERSONALIZER_VARIABLE_TYPES else 'TEXT'
+
+    def _screen_personalizer_event_name(value, fallback=''):
+        raw = str(value or fallback or '').strip().lower()
+        if not raw:
+            return ''
+        raw = re.sub(r'[^a-z0-9_]+', '_', raw)
+        raw = re.sub(r'_+', '_', raw).strip('_')
+        return raw if raw in _SCREEN_PERSONALIZER_MENU_EVENTS else ''
+
+    def _screen_personalizer_event_flow_object(value, fallback=None):
+        base = {}
+        if isinstance(fallback, dict):
+            base.update(fallback)
+        elif fallback not in (None, ''):
+            try:
+                parsed_fallback = json.loads(str(fallback))
+                if isinstance(parsed_fallback, dict):
+                    base.update(parsed_fallback)
+            except Exception:
+                pass
+
+        if isinstance(value, dict):
+            base.update(value)
+        elif value not in (None, ''):
+            try:
+                parsed = json.loads(str(value))
+                if isinstance(parsed, dict):
+                    base.update(parsed)
+            except Exception:
+                pass
+
+        raw_lines = base.get('lines') if isinstance(base.get('lines'), list) else []
+        lines = []
+        for line in raw_lines:
+            if not isinstance(line, dict):
+                continue
+            kind = 'empty' if str(line.get('kind') or line.get('type') or '').strip().lower() == 'empty' else 'command'
+            if kind == 'empty':
+                lines.append({'kind': 'empty'})
+                continue
+            command = str(line.get('command') or line.get('id') or line.get('type') or '').strip().upper()
+            if not command:
+                continue
+            config = line.get('config') if isinstance(line.get('config'), dict) else {}
+            lines.append({
+                'kind': 'command',
+                'command': command[:50],
+                'config': dict(config),
+            })
+
+        return {
+            'version': 1,
+            'source': str(base.get('source') or 'visual-editor').strip() or 'visual-editor',
+            'lines': lines,
+            'pseudo_code': str(base.get('pseudo_code') or '').strip(),
+        }
+
+    def _screen_personalizer_event_flow_dump(value, fallback=None):
+        flow = _screen_personalizer_event_flow_object(value, fallback)
+        try:
+            return json.dumps(flow, ensure_ascii=False, separators=(',', ':'))
+        except Exception:
+            return '{}'
+
+    def _screen_personalizer_event_flow_has_meaningful_commands(flow) -> bool:
+        data = _screen_personalizer_event_flow_object(flow)
+        for line in data.get('lines') or []:
+            if not isinstance(line, dict):
+                continue
+            if str(line.get('kind') or '').strip().lower() == 'empty':
+                continue
+            command = str(line.get('command') or '').strip().upper()
+            if command and command not in {'START', 'ELSE', 'ENDIF', 'ENDWHILE', 'ENDFOR'}:
+                return True
+        return False
+
+    def _load_screen_personalizer_objects(menustamp: str):
+        stamp = str(menustamp or '').strip()
+        if not stamp:
+            return []
+
+        _ensure_menu_objetos_table()
+        rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(MENUOBJSTAMP, ''))) AS CAMPOSSTAMP,
+                LTRIM(RTRIM(ISNULL(NMCAMPO, ''))) AS NMCAMPO,
+                LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS DESCRICAO,
+                UPPER(LTRIM(RTRIM(ISNULL(TIPO, 'TEXT')))) AS TIPO,
+                ISNULL(ORDEM, 0) AS ORDEM,
+                ISNULL(TAM, 5) AS TAM,
+                ISNULL(ORDEM_MOBILE, ISNULL(ORDEM, 0)) AS ORDEM_MOBILE,
+                ISNULL(TAM_MOBILE, ISNULL(TAM, 5)) AS TAM_MOBILE,
+                ISNULL(RONLY, 0) AS RONLY,
+                ISNULL(OBRIGATORIO, 0) AS OBRIGATORIO,
+                ISNULL(VISIVEL, 1) AS VISIVEL,
+                ISNULL(DECIMAIS, 0) AS DECIMAIS,
+                MINIMO AS MINIMO,
+                MAXIMO AS MAXIMO,
+                LTRIM(RTRIM(ISNULL(COMBO, ''))) AS COMBO,
+                LTRIM(RTRIM(ISNULL(CONDICAO_VISIVEL, ''))) AS CONDICAO_VISIVEL,
+                ISNULL(PROPRIEDADES, '{}') AS PROPRIEDADES
+            FROM dbo.MENU_OBJETOS
+            WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :stamp
+              AND ISNULL(ATIVO, 1) = 1
+            ORDER BY ISNULL(ORDEM, 0), LTRIM(RTRIM(ISNULL(DESCRICAO, ''))), LTRIM(RTRIM(ISNULL(NMCAMPO, '')))
+        """), {'stamp': stamp}).mappings().all()
+
+        objects = []
+        for row in rows:
+            item = dict(row)
+            item['DECIMAIS'] = _to_int(item.get('DECIMAIS'), 0)
+            item['MINIMO'] = '' if item.get('MINIMO') is None else str(item.get('MINIMO')).strip()
+            item['MAXIMO'] = '' if item.get('MAXIMO') is None else str(item.get('MAXIMO')).strip()
+            item['HAS_COMBO'] = bool(str(item.get('COMBO') or '').strip())
+            item['PROPRIEDADES'] = _screen_personalizer_properties_object(item.get('PROPRIEDADES'))
+            item['_SPV_ORIGIN'] = 'object'
+            objects.append(item)
+        return objects
+
+    def _load_screen_personalizer_variables(menustamp: str):
+        stamp = str(menustamp or '').strip()
+        if not stamp:
+            return []
+
+        _ensure_menu_variaveis_table()
+        rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(MENUVARSTAMP, ''))) AS VARIAVELSTAMP,
+                LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS DESCRICAO,
+                UPPER(LTRIM(RTRIM(ISNULL(TIPO, 'TEXT')))) AS TIPO,
+                LTRIM(RTRIM(ISNULL(VALOR_DEFAULT, ''))) AS VALOR_DEFAULT,
+                ISNULL(ORDEM, 0) AS ORDEM,
+                ISNULL(PROPRIEDADES, '{}') AS PROPRIEDADES
+            FROM dbo.MENU_VARIAVEIS
+            WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :stamp
+              AND ISNULL(ATIVO, 1) = 1
+            ORDER BY ISNULL(ORDEM, 0), LTRIM(RTRIM(ISNULL(DESCRICAO, ''))), LTRIM(RTRIM(ISNULL(NOME, '')))
+        """), {'stamp': stamp}).mappings().all()
+
+        variables = []
+        for row in rows:
+            item = dict(row)
+            item['PROPRIEDADES'] = _screen_personalizer_properties_object(item.get('PROPRIEDADES'))
+            item['_SPV_ORIGIN'] = 'variable'
+            variables.append(item)
+        return variables
+
+    def _load_screen_personalizer_menu_events(menustamp: str):
+        stamp = str(menustamp or '').strip()
+        if not stamp:
+            return {}
+
+        _ensure_menu_eventos_table()
+        rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(EVENTO, ''))) AS EVENTO,
+                ISNULL(FLUXO, '{}') AS FLUXO
+            FROM dbo.MENU_EVENTOS
+            WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :stamp
+              AND ISNULL(ATIVO, 1) = 1
+            ORDER BY LTRIM(RTRIM(ISNULL(EVENTO, '')))
+        """), {'stamp': stamp}).mappings().all()
+
+        events = {}
+        for row in rows:
+            event_name = _screen_personalizer_event_name(row.get('EVENTO'))
+            if not event_name:
+                continue
+            flow = _screen_personalizer_event_flow_object(row.get('FLUXO'))
+            if _screen_personalizer_event_flow_has_meaningful_commands(flow):
+                events[event_name] = flow
+        return events
+
+    def _screen_personalizer_allowed() -> bool:
+        return _screen_wizard_allowed()
+
+    def _load_screen_personalizer_screens():
+        _ensure_screen_personalizer_list_layout_columns()
+        menu_exact_widths_select = "ISNULL(M.LARGURAS_EXATAS, 0) AS LARGURAS_EXATAS," if _menu_exact_widths_available() else "CAST(0 AS bit) AS LARGURAS_EXATAS,"
+        menu_list_exact_widths_select = "ISNULL(M.LARGURAS_EXATAS_LISTA, 0) AS LARGURAS_EXATAS_LISTA," if _table_has_columns('MENU', 'LARGURAS_EXATAS_LISTA') else "CAST(0 AS bit) AS LARGURAS_EXATAS_LISTA,"
+        rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(M.MENUSTAMP, ''))) AS MENUSTAMP,
+                LTRIM(RTRIM(ISNULL(M.NOME, ''))) AS NOME,
+                UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, '')))) AS TABELA,
+                LTRIM(RTRIM(ISNULL(M.URL, ''))) AS URL,
+                LTRIM(RTRIM(ISNULL(M.ICONE, ''))) AS ICONE,
+                ISNULL(M.ORDEM, 0) AS ORDEM,
+                ISNULL(M.INATIVO, 0) AS INATIVO,
+                """ + menu_exact_widths_select + """
+                """ + menu_list_exact_widths_select + """
+                (
+                    SELECT COUNT(*)
+                    FROM dbo.CAMPOS C
+                    WHERE UPPER(LTRIM(RTRIM(ISNULL(C.TABELA, '')))) = UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, ''))))
+                ) AS CAMPO_COUNT
+            FROM dbo.MENU M
+            WHERE LTRIM(RTRIM(ISNULL(M.TABELA, ''))) <> ''
+              AND EXISTS (
+                    SELECT 1
+                    FROM dbo.CAMPOS C
+                    WHERE UPPER(LTRIM(RTRIM(ISNULL(C.TABELA, '')))) = UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, ''))))
+                  )
+            ORDER BY LTRIM(RTRIM(ISNULL(M.NOME, ''))), UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, ''))))
+        """)).mappings().all()
+        return [dict(row) for row in rows]
+
+    def _screen_personalizer_default_width(field_type: str, char_len=0) -> int:
+        type_name = str(field_type or '').strip().upper()
+        length = _to_int(char_len, 0)
+        if type_name == 'BIT':
+            return 5
+        if type_name in {'DATE', 'HOUR'}:
+            return 10
+        if type_name in {'INT', 'DECIMAL'}:
+            return 10
+        if type_name == 'MEMO':
+            return 25
+        if length and length <= 10:
+            return 10
+        if length and length <= 30:
+            return 15
+        return 20
+
+    def _screen_personalizer_decimal_or_none(value, fallback=None):
+        candidate = value
+        if candidate is None or str(candidate).strip() == '':
+            candidate = fallback
+        if candidate is None or str(candidate).strip() == '':
+            return None
+        raw = str(candidate).strip().replace(',', '.')
+        try:
+            return Decimal(raw)
+        except Exception:
+            return None
+
+    def _load_screen_personalizer_missing_fields(table_name: str, configured_names: set[str]):
+        table = str(table_name or '').strip().upper()
+        if not table:
+            return []
+
+        missing = []
+        configured = {
+            str(name or '').strip().upper()
+            for name in (configured_names or set())
+            if str(name or '').strip()
+        }
+        for column in _load_screen_wizard_columns(table):
+            column_name = str(column.get('name') or '').strip().upper()
+            if not column_name or column_name in configured:
+                continue
+            if not bool(column.get('supported')):
+                continue
+            field_type = _screen_wizard_infer_field_type(column.get('sql_type'), column.get('char_len'))
+            width = _screen_personalizer_default_width(field_type, column.get('char_len'))
+            missing.append({
+                'CAMPOSSTAMP': f'SQL::{table}::{column_name}',
+                'NMCAMPO': column_name,
+                'DESCRICAO': str(column.get('default_label') or column_name).strip(),
+                'TIPO': field_type,
+                'ORDEM': 0,
+                'TAM': width,
+                'ORDEM_MOBILE': 0,
+                'TAM_MOBILE': width,
+                'ORDEM_LISTA': 0,
+                'TAM_LISTA': width,
+                'ORDEM_LISTA_MOBILE': 0,
+                'TAM_LISTA_MOBILE': width,
+                'LISTA_MOBILE_BOLD': 0,
+                'LISTA_MOBILE_ITALIC': 0,
+                'LISTA_MOBILE_SHOW_LABEL': 1,
+                'LISTA_MOBILE_LABEL': str(column.get('default_label') or column_name).strip()[:100],
+                'RONLY': 0,
+                'OBRIGATORIO': 0,
+                'VISIVEL': 1,
+                'LISTA': 0,
+                'FILTRO': 0,
+                'DECIMAIS': _to_int(column.get('scale'), 2) if field_type == 'DECIMAL' else 0,
+                'MINIMO': '',
+                'MAXIMO': '',
+                'COMBO': '',
+                'HAS_COMBO': False,
+                '_SPV_ORIGIN': 'sql',
+                '_SPV_MISSING': 1,
+                '_SPV_SQL_TYPE': str(column.get('sql_type') or '').strip().lower(),
+                '_SPV_SQL_CHAR_LEN': _to_int(column.get('char_len'), 0),
+            })
+        return missing
+
+    def _load_screen_personalizer_layout(menustamp: str):
+        stamp = str(menustamp or '').strip()
+        if not stamp:
+            return None
+
+        _ensure_screen_personalizer_list_layout_columns()
+        menu_exact_widths_select = "ISNULL(M.LARGURAS_EXATAS, 0) AS LARGURAS_EXATAS" if _menu_exact_widths_available() else "CAST(0 AS bit) AS LARGURAS_EXATAS"
+        menu_list_exact_widths_select = "ISNULL(M.LARGURAS_EXATAS_LISTA, 0) AS LARGURAS_EXATAS_LISTA" if _table_has_columns('MENU', 'LARGURAS_EXATAS_LISTA') else "CAST(0 AS bit) AS LARGURAS_EXATAS_LISTA"
+        menu_row = db.session.execute(text("""
+            SELECT TOP 1
+                LTRIM(RTRIM(ISNULL(M.MENUSTAMP, ''))) AS MENUSTAMP,
+                LTRIM(RTRIM(ISNULL(M.NOME, ''))) AS NOME,
+                UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, '')))) AS TABELA,
+                LTRIM(RTRIM(ISNULL(M.URL, ''))) AS URL,
+                LTRIM(RTRIM(ISNULL(M.ICONE, ''))) AS ICONE,
+                ISNULL(M.ORDEM, 0) AS ORDEM,
+                ISNULL(M.INATIVO, 0) AS INATIVO,
+                """ + menu_exact_widths_select + """,
+                """ + menu_list_exact_widths_select + """
+            FROM dbo.MENU M
+            WHERE LTRIM(RTRIM(ISNULL(M.MENUSTAMP, ''))) = :stamp
+        """), {'stamp': stamp}).mappings().first()
+        if not menu_row:
+            return None
+
+        menu_data = dict(menu_row)
+        menu_data['EVENTS'] = _load_screen_personalizer_menu_events(stamp)
+        objects = _load_screen_personalizer_objects(stamp)
+        variables = _load_screen_personalizer_variables(stamp)
+        table_name = str(menu_row.get('TABELA') or '').strip().upper()
+        if not table_name:
+            return {'menu': menu_data, 'fields': [], 'objects': objects, 'variables': variables}
+
+        campo_rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(CAMPOSSTAMP, ''))) AS CAMPOSSTAMP,
+                LTRIM(RTRIM(ISNULL(NMCAMPO, ''))) AS NMCAMPO,
+                LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS DESCRICAO,
+                UPPER(LTRIM(RTRIM(ISNULL(TIPO, 'TEXT')))) AS TIPO,
+                ISNULL(ORDEM, 0) AS ORDEM,
+                ISNULL(TAM, 1) AS TAM,
+                ISNULL(ORDEM_MOBILE, ISNULL(ORDEM, 0)) AS ORDEM_MOBILE,
+                ISNULL(TAM_MOBILE, ISNULL(TAM, 1)) AS TAM_MOBILE,
+                ISNULL(ORDEM_LISTA, CASE WHEN ISNULL(LISTA, 0) = 1 THEN ISNULL(ORDEM, 0) ELSE 0 END) AS ORDEM_LISTA,
+                ISNULL(TAM_LISTA, ISNULL(TAM, 1)) AS TAM_LISTA,
+                ISNULL(ORDEM_LISTA_MOBILE, 0) AS ORDEM_LISTA_MOBILE,
+                ISNULL(TAM_LISTA_MOBILE, ISNULL(TAM_MOBILE, ISNULL(TAM, 1))) AS TAM_LISTA_MOBILE,
+                ISNULL(LISTA_MOBILE_BOLD, 0) AS LISTA_MOBILE_BOLD,
+                ISNULL(LISTA_MOBILE_ITALIC, 0) AS LISTA_MOBILE_ITALIC,
+                ISNULL(LISTA_MOBILE_SHOW_LABEL, 1) AS LISTA_MOBILE_SHOW_LABEL,
+                LTRIM(RTRIM(ISNULL(LISTA_MOBILE_LABEL, ''))) AS LISTA_MOBILE_LABEL,
+                ISNULL(RONLY, 0) AS RONLY,
+                ISNULL(OBRIGATORIO, 0) AS OBRIGATORIO,
+                ISNULL(VISIVEL, 1) AS VISIVEL,
+                ISNULL(LISTA, 0) AS LISTA,
+                ISNULL(FILTRO, 0) AS FILTRO,
+                ISNULL(DECIMAIS, 0) AS DECIMAIS,
+                MINIMO AS MINIMO,
+                MAXIMO AS MAXIMO,
+                LTRIM(RTRIM(ISNULL(COMBO, ''))) AS COMBO
+            FROM dbo.CAMPOS
+            WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
+            ORDER BY ISNULL(ORDEM, 0), LTRIM(RTRIM(ISNULL(DESCRICAO, ''))), LTRIM(RTRIM(ISNULL(NMCAMPO, '')))
+        """), {'table_name': table_name}).mappings().all()
+
+        fields = []
+        configured_names = set()
+        for row in campo_rows:
+            item = dict(row)
+            item['DECIMAIS'] = _to_int(item.get('DECIMAIS'), 0)
+            item['MINIMO'] = '' if item.get('MINIMO') is None else str(item.get('MINIMO')).strip()
+            item['MAXIMO'] = '' if item.get('MAXIMO') is None else str(item.get('MAXIMO')).strip()
+            item['HAS_COMBO'] = bool(str(item.get('COMBO') or '').strip())
+            item['_SPV_ORIGIN'] = 'field'
+            configured_names.add(str(item.get('NMCAMPO') or '').strip().upper())
+            fields.append(item)
+
+        fields.extend(_load_screen_personalizer_missing_fields(table_name, configured_names))
+
+        return {
+            'menu': menu_data,
+            'fields': fields,
+            'objects': objects,
+            'variables': variables,
+        }
+
+    def _screen_personalizer_snap_width(value, default=5, max_value=100):
+        raw = _to_int(value, default)
+        snapped = int(round(raw / 5.0) * 5) if raw else int(default)
+        limit = max(5, _to_int(max_value, 100))
+        return max(5, min(limit, snapped or int(default)))
+
+    def _normalize_screen_personalizer_save_fields(table_name: str, raw_fields, existing_map, available_map):
+        table = str(table_name or '').strip().upper()
+        if not table:
+            raise ValueError('Tabela inválida para gravação do layout.')
+
+        normalized = []
+        seen_names = set()
+        rows = raw_fields if isinstance(raw_fields, list) else []
+
+        for raw in rows:
+            if not isinstance(raw, dict):
+                continue
+
+            origin = str(raw.get('_SPV_ORIGIN') or raw.get('ORIGIN') or 'field').strip().lower()
+            if origin == 'object':
+                continue
+
+            field_name = str(raw.get('NMCAMPO') or '').strip().upper()
+            if not field_name:
+                continue
+            if field_name in seen_names:
+                raise ValueError(f'O campo "{field_name}" foi enviado mais do que uma vez.')
+            seen_names.add(field_name)
+
+            existing = existing_map.get(field_name)
+            column = available_map.get(field_name)
+            if not existing and not column:
+                raise ValueError(f'O campo "{field_name}" já não existe na tabela {table}.')
+            if column and not bool(column.get('supported')):
+                raise ValueError(f'O campo "{field_name}" não é suportado neste editor.')
+
+            field_type = str(
+                raw.get('TIPO')
+                or (existing.get('TIPO') if existing else '')
+                or _screen_wizard_infer_field_type(column.get('sql_type'), column.get('char_len'))
+                or 'TEXT'
+            ).strip().upper() or 'TEXT'
+            default_width = _screen_personalizer_default_width(
+                field_type,
+                column.get('char_len') if column else 0,
+            )
+
+            ordem = max(0, _to_int(raw.get('ORDEM'), 0))
+            ordem_mobile = max(0, _to_int(raw.get('ORDEM_MOBILE'), 0))
+            ordem_lista = max(0, _to_int(raw.get('ORDEM_LISTA'), _to_int((existing or {}).get('ORDEM_LISTA'), 0)))
+            ordem_lista_mobile = max(0, _to_int(raw.get('ORDEM_LISTA_MOBILE'), _to_int((existing or {}).get('ORDEM_LISTA_MOBILE'), 0)))
+            tam = _screen_personalizer_snap_width(raw.get('TAM'), default_width, 100)
+            tam_mobile = _screen_personalizer_snap_width(raw.get('TAM_MOBILE'), default_width, 100)
+            tam_lista = _screen_personalizer_snap_width(raw.get('TAM_LISTA'), default_width, 100)
+            tam_lista_mobile = _screen_personalizer_snap_width(raw.get('TAM_LISTA_MOBILE'), default_width, 100)
+            description = str(
+                raw.get('DESCRICAO')
+                or (existing.get('DESCRICAO') if existing else '')
+                or (column.get('default_label') if column else '')
+                or field_name
+            ).strip()
+            lista_mobile_label = str(
+                raw.get('LISTA_MOBILE_LABEL')
+                if raw.get('LISTA_MOBILE_LABEL') is not None
+                else (existing.get('LISTA_MOBILE_LABEL') if existing else '')
+            ).strip()
+            if not lista_mobile_label:
+                lista_mobile_label = description
+
+            normalized.append({
+                'CAMPOSSTAMP': str((existing or {}).get('CAMPOSSTAMP') or raw.get('CAMPOSSTAMP') or '').strip(),
+                'NMCAMPO': field_name[:25],
+                'DESCRICAO': description[:60],
+                'TIPO': field_type[:20],
+                'TABELA': table,
+                'ORDEM': ordem,
+                'TAM': tam,
+                'ORDEM_MOBILE': ordem_mobile,
+                'TAM_MOBILE': tam_mobile,
+                'ORDEM_LISTA': ordem_lista,
+                'TAM_LISTA': tam_lista,
+                'ORDEM_LISTA_MOBILE': ordem_lista_mobile,
+                'TAM_LISTA_MOBILE': tam_lista_mobile,
+                'LISTA_MOBILE_BOLD': _to_int(raw.get('LISTA_MOBILE_BOLD'), _to_int((existing or {}).get('LISTA_MOBILE_BOLD'), 0)),
+                'LISTA_MOBILE_ITALIC': _to_int(raw.get('LISTA_MOBILE_ITALIC'), _to_int((existing or {}).get('LISTA_MOBILE_ITALIC'), 0)),
+                'LISTA_MOBILE_SHOW_LABEL': _to_int(raw.get('LISTA_MOBILE_SHOW_LABEL'), _to_int((existing or {}).get('LISTA_MOBILE_SHOW_LABEL'), 1)),
+                'LISTA_MOBILE_LABEL': lista_mobile_label[:100],
+                'RONLY': _to_int(raw.get('RONLY'), _to_int((existing or {}).get('RONLY'), 0)),
+                'OBRIGATORIO': _to_int(raw.get('OBRIGATORIO'), _to_int((existing or {}).get('OBRIGATORIO'), 0)),
+                'VISIVEL': _to_int(raw.get('VISIVEL'), _to_int((existing or {}).get('VISIVEL'), 1)),
+                'LISTA': _to_int(raw.get('LISTA'), _to_int((existing or {}).get('LISTA'), 0)),
+                'FILTRO': _to_int(raw.get('FILTRO'), _to_int((existing or {}).get('FILTRO'), 0)),
+                'DECIMAIS': max(0, _to_int(raw.get('DECIMAIS'), _to_int((existing or {}).get('DECIMAIS'), 2 if field_type == 'DECIMAL' else 0))),
+                'MINIMO': _screen_personalizer_decimal_or_none(raw.get('MINIMO'), (existing or {}).get('MINIMO')),
+                'MAXIMO': _screen_personalizer_decimal_or_none(raw.get('MAXIMO'), (existing or {}).get('MAXIMO')),
+                'COMBO': str(raw.get('COMBO') or (existing or {}).get('COMBO') or '').strip(),
+                '_EXISTS': bool(existing),
+                '_ORIGIN': origin,
+            })
+
+        return normalized
+
+    def _normalize_screen_personalizer_save_objects(menustamp: str, raw_objects, existing_map):
+        stamp = str(menustamp or '').strip()
+        if not stamp:
+            raise ValueError('MENUSTAMP inválido para gravação de objetos.')
+
+        normalized = []
+        seen_names = set()
+        rows = raw_objects if isinstance(raw_objects, list) else []
+
+        for raw in rows:
+            if not isinstance(raw, dict):
+                continue
+
+            origin = str(raw.get('_SPV_ORIGIN') or raw.get('ORIGIN') or 'object').strip().lower()
+            if origin != 'object':
+                continue
+
+            field_name = str(raw.get('NMCAMPO') or '').strip().upper()
+            if not field_name:
+                raise ValueError('Os objetos personalizados devem ter um nome interno.')
+            if field_name in seen_names:
+                raise ValueError(f'O objeto "{field_name}" foi enviado mais do que uma vez.')
+            seen_names.add(field_name)
+
+            existing = existing_map.get(field_name)
+            field_type = str(raw.get('TIPO') or (existing or {}).get('TIPO') or 'TEXT').strip().upper() or 'TEXT'
+            default_width = _screen_personalizer_default_width(field_type, 0)
+            ordem = max(0, _to_int(raw.get('ORDEM'), 0))
+            ordem_mobile = max(0, _to_int(raw.get('ORDEM_MOBILE'), 0))
+            tam = _screen_personalizer_snap_width(raw.get('TAM'), default_width, 100)
+            tam_mobile = _screen_personalizer_snap_width(raw.get('TAM_MOBILE'), default_width, 100)
+            description = str(
+                raw.get('DESCRICAO')
+                or (existing or {}).get('DESCRICAO')
+                or field_name
+            ).strip()
+
+            normalized.append({
+                'MENUOBJSTAMP': str((existing or {}).get('MENUOBJSTAMP') or raw.get('CAMPOSSTAMP') or '').strip(),
+                'MENUSTAMP': stamp,
+                'NMCAMPO': field_name[:50],
+                'DESCRICAO': description[:100],
+                'TIPO': field_type[:20],
+                'ORDEM': ordem,
+                'TAM': tam,
+                'ORDEM_MOBILE': ordem_mobile,
+                'TAM_MOBILE': tam_mobile,
+                'VISIVEL': _to_int(raw.get('VISIVEL'), _to_int((existing or {}).get('VISIVEL'), 1)),
+                'RONLY': _to_int(raw.get('RONLY'), _to_int((existing or {}).get('RONLY'), 0)),
+                'OBRIGATORIO': _to_int(raw.get('OBRIGATORIO'), _to_int((existing or {}).get('OBRIGATORIO'), 0)),
+                'CONDICAO_VISIVEL': str(
+                    raw.get('CONDICAO_VISIVEL')
+                    or (existing or {}).get('CONDICAO_VISIVEL')
+                    or ''
+                ).strip()[:200],
+                'COMBO': str(raw.get('COMBO') or (existing or {}).get('COMBO') or '').strip(),
+                'DECIMAIS': max(0, _to_int(raw.get('DECIMAIS'), _to_int((existing or {}).get('DECIMAIS'), 2 if field_type == 'DECIMAL' else 0))),
+                'MINIMO': _screen_personalizer_decimal_or_none(raw.get('MINIMO'), (existing or {}).get('MINIMO')),
+                'MAXIMO': _screen_personalizer_decimal_or_none(raw.get('MAXIMO'), (existing or {}).get('MAXIMO')),
+                'PROPRIEDADES': _screen_personalizer_properties_dump(
+                    raw.get('PROPRIEDADES'),
+                    (existing or {}).get('PROPRIEDADES'),
+                ),
+                '_EXISTS': bool(existing),
+            })
+
+        return normalized
+
+    def _normalize_screen_personalizer_save_variables(menustamp: str, raw_variables, existing_map):
+        stamp = str(menustamp or '').strip()
+        if not stamp:
+            raise ValueError('MENUSTAMP invalido para gravacao de variaveis.')
+
+        normalized = []
+        seen_names = set()
+        rows = raw_variables if isinstance(raw_variables, list) else []
+
+        for index, raw in enumerate(rows):
+            if not isinstance(raw, dict):
+                continue
+
+            existing = None
+            fallback_name = _screen_personalizer_variable_name(raw.get('NOME'))
+            if fallback_name:
+                existing = existing_map.get(fallback_name)
+            if not existing:
+                existing = existing_map.get(_screen_personalizer_variable_name(raw.get('NAME')))
+
+            variable_name = _screen_personalizer_variable_name(
+                raw.get('NOME') or raw.get('NAME') or raw.get('DESCRICAO'),
+                (existing or {}).get('NOME'),
+            )
+            if not variable_name:
+                raise ValueError('As variaveis devem ter um nome interno.')
+            if variable_name in seen_names:
+                raise ValueError(f'A variavel "{variable_name}" foi enviada mais do que uma vez.')
+            seen_names.add(variable_name)
+
+            if existing is None:
+                existing = existing_map.get(variable_name)
+
+            variable_type = _screen_personalizer_variable_type(
+                raw.get('TIPO'),
+                (existing or {}).get('TIPO') or 'TEXT',
+            )
+            default_value = (
+                raw.get('VALOR_DEFAULT')
+                if 'VALOR_DEFAULT' in raw
+                else raw.get('DEFAULT_VALUE')
+            )
+            if default_value is None and 'VALOR_DEFAULT' not in raw and 'DEFAULT_VALUE' not in raw:
+                default_value = (existing or {}).get('VALOR_DEFAULT')
+            description = str(
+                raw.get('DESCRICAO')
+                or (existing or {}).get('DESCRICAO')
+                or variable_name
+            ).strip()
+
+            normalized.append({
+                'MENUVARSTAMP': str((existing or {}).get('MENUVARSTAMP') or raw.get('VARIAVELSTAMP') or raw.get('MENUVARSTAMP') or '').strip(),
+                'MENUSTAMP': stamp,
+                'NOME': variable_name[:60],
+                'DESCRICAO': description[:100],
+                'TIPO': variable_type[:20],
+                'VALOR_DEFAULT': '' if default_value is None else str(default_value).strip(),
+                'ORDEM': max(0, _to_int(raw.get('ORDEM'), _to_int((existing or {}).get('ORDEM'), (index + 1) * 10))),
+                'PROPRIEDADES': _screen_personalizer_properties_dump(
+                    raw.get('PROPRIEDADES'),
+                    (existing or {}).get('PROPRIEDADES'),
+                ),
+                '_EXISTS': bool(existing),
+            })
+
+        return normalized
+
+    def _normalize_screen_personalizer_save_screen_events(menustamp: str, raw_events, existing_map):
+        stamp = str(menustamp or '').strip()
+        if not stamp:
+            raise ValueError('MENUSTAMP invalido para gravacao de eventos.')
+
+        incoming = raw_events if isinstance(raw_events, dict) else {}
+        normalized = []
+
+        for event_name in _SCREEN_PERSONALIZER_MENU_EVENTS:
+            raw_flow = None
+            for raw_key, raw_value in incoming.items():
+                if _screen_personalizer_event_name(raw_key) == event_name:
+                    raw_flow = raw_value
+                    break
+            if raw_flow is None:
+                continue
+
+            existing = existing_map.get(event_name)
+            flow = _screen_personalizer_event_flow_object(raw_flow, (existing or {}).get('FLUXO'))
+            if not _screen_personalizer_event_flow_has_meaningful_commands(flow):
+                continue
+
+            normalized.append({
+                'MENUEVENTOSTAMP': str((existing or {}).get('MENUEVENTOSTAMP') or '').strip(),
+                'MENUSTAMP': stamp,
+                'EVENTO': event_name,
+                'FLUXO': _screen_personalizer_event_flow_dump(flow),
+                '_EXISTS': bool(existing),
+            })
+
+        return normalized
+
+    def _save_screen_personalizer_layout(menustamp: str, body):
+        stamp = str(menustamp or '').strip()
+        if not stamp:
+            raise ValueError('MENUSTAMP obrigatório.')
+
+        _ensure_screen_personalizer_list_layout_columns()
+        detail = _load_screen_personalizer_layout(stamp)
+        if not detail:
+            raise ValueError('Ecrã não encontrado.')
+
+        menu = dict(detail.get('menu') or {})
+        table_name = str(menu.get('TABELA') or '').strip().upper()
+        if not table_name:
+            raise ValueError('O menu selecionado não tem tabela associada.')
+
+        schema_columns = _load_screen_wizard_columns(table_name)
+        available_map = {
+            str(col.get('name') or '').strip().upper(): dict(col)
+            for col in (schema_columns or [])
+            if str(col.get('name') or '').strip()
+        }
+
+        existing_rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(CAMPOSSTAMP, ''))) AS CAMPOSSTAMP,
+                UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) AS NMCAMPO,
+                LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS DESCRICAO,
+                UPPER(LTRIM(RTRIM(ISNULL(TIPO, 'TEXT')))) AS TIPO,
+                ISNULL(RONLY, 0) AS RONLY,
+                ISNULL(OBRIGATORIO, 0) AS OBRIGATORIO,
+                ISNULL(VISIVEL, 1) AS VISIVEL,
+                ISNULL(LISTA, 0) AS LISTA,
+                ISNULL(FILTRO, 0) AS FILTRO,
+                ISNULL(DECIMAIS, 0) AS DECIMAIS,
+                MINIMO AS MINIMO,
+                MAXIMO AS MAXIMO,
+                LTRIM(RTRIM(ISNULL(COMBO, ''))) AS COMBO,
+                ISNULL(ORDEM_LISTA, CASE WHEN ISNULL(LISTA, 0) = 1 THEN ISNULL(ORDEM, 0) ELSE 0 END) AS ORDEM_LISTA,
+                ISNULL(TAM_LISTA, ISNULL(TAM, 1)) AS TAM_LISTA,
+                ISNULL(ORDEM_LISTA_MOBILE, 0) AS ORDEM_LISTA_MOBILE,
+                ISNULL(TAM_LISTA_MOBILE, ISNULL(TAM_MOBILE, ISNULL(TAM, 1))) AS TAM_LISTA_MOBILE,
+                ISNULL(LISTA_MOBILE_BOLD, 0) AS LISTA_MOBILE_BOLD,
+                ISNULL(LISTA_MOBILE_ITALIC, 0) AS LISTA_MOBILE_ITALIC,
+                ISNULL(LISTA_MOBILE_SHOW_LABEL, 1) AS LISTA_MOBILE_SHOW_LABEL,
+                LTRIM(RTRIM(ISNULL(LISTA_MOBILE_LABEL, ''))) AS LISTA_MOBILE_LABEL
+            FROM dbo.CAMPOS
+            WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
+        """), {'table_name': table_name}).mappings().all()
+        existing_map = {
+            str(row.get('NMCAMPO') or '').strip().upper(): dict(row)
+            for row in existing_rows
+        }
+
+        normalized_fields = _normalize_screen_personalizer_save_fields(
+            table_name,
+            (body or {}).get('fields'),
+            existing_map,
+            available_map,
+        )
+        normalized_objects = None
+        existing_object_rows = []
+        normalized_variables = None
+        existing_variable_rows = []
+        normalized_screen_events = None
+        existing_screen_event_rows = []
+        if isinstance(body, dict) and 'objects' in body:
+            _ensure_menu_objetos_table()
+            existing_object_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(MENUOBJSTAMP, ''))) AS MENUOBJSTAMP,
+                    UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) AS NMCAMPO,
+                    LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS DESCRICAO,
+                    UPPER(LTRIM(RTRIM(ISNULL(TIPO, 'TEXT')))) AS TIPO,
+                    ISNULL(VISIVEL, 1) AS VISIVEL,
+                    ISNULL(RONLY, 0) AS RONLY,
+                    ISNULL(OBRIGATORIO, 0) AS OBRIGATORIO,
+                    ISNULL(DECIMAIS, 0) AS DECIMAIS,
+                    MINIMO AS MINIMO,
+                    MAXIMO AS MAXIMO,
+                    LTRIM(RTRIM(ISNULL(COMBO, ''))) AS COMBO,
+                    LTRIM(RTRIM(ISNULL(CONDICAO_VISIVEL, ''))) AS CONDICAO_VISIVEL,
+                    ISNULL(PROPRIEDADES, '{}') AS PROPRIEDADES
+                FROM dbo.MENU_OBJETOS
+                WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+            """), {'menustamp': stamp}).mappings().all()
+            existing_object_map = {
+                str(row.get('NMCAMPO') or '').strip().upper(): dict(row)
+                for row in existing_object_rows
+            }
+            normalized_objects = _normalize_screen_personalizer_save_objects(
+                stamp,
+                body.get('objects'),
+                existing_object_map,
+            )
+        if isinstance(body, dict) and 'variables' in body:
+            _ensure_menu_variaveis_table()
+            existing_variable_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(MENUVARSTAMP, ''))) AS MENUVARSTAMP,
+                    UPPER(LTRIM(RTRIM(ISNULL(NOME, '')))) AS NOME,
+                    LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS DESCRICAO,
+                    UPPER(LTRIM(RTRIM(ISNULL(TIPO, 'TEXT')))) AS TIPO,
+                    LTRIM(RTRIM(ISNULL(VALOR_DEFAULT, ''))) AS VALOR_DEFAULT,
+                    ISNULL(ORDEM, 0) AS ORDEM,
+                    ISNULL(PROPRIEDADES, '{}') AS PROPRIEDADES
+                FROM dbo.MENU_VARIAVEIS
+                WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+            """), {'menustamp': stamp}).mappings().all()
+            existing_variable_map = {
+                str(row.get('NOME') or '').strip().upper(): dict(row)
+                for row in existing_variable_rows
+            }
+            normalized_variables = _normalize_screen_personalizer_save_variables(
+                stamp,
+                body.get('variables'),
+                existing_variable_map,
+            )
+        if isinstance(body, dict) and 'screen_events' in body:
+            _ensure_menu_eventos_table()
+            existing_screen_event_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(MENUEVENTOSTAMP, ''))) AS MENUEVENTOSTAMP,
+                    LTRIM(RTRIM(ISNULL(EVENTO, ''))) AS EVENTO,
+                    ISNULL(FLUXO, '{}') AS FLUXO
+                FROM dbo.MENU_EVENTOS
+                WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+            """), {'menustamp': stamp}).mappings().all()
+            existing_screen_event_map = {
+                _screen_personalizer_event_name(row.get('EVENTO')): dict(row)
+                for row in existing_screen_event_rows
+                if _screen_personalizer_event_name(row.get('EVENTO'))
+            }
+            normalized_screen_events = _normalize_screen_personalizer_save_screen_events(
+                stamp,
+                body.get('screen_events'),
+                existing_screen_event_map,
+            )
+        current_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+
+        if _menu_exact_widths_available():
+            db.session.execute(text("""
+                UPDATE dbo.MENU
+                SET LARGURAS_EXATAS = :larguras_exatas
+                WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+            """), {
+                'larguras_exatas': 1 if body.get('use_exact_widths') else 0,
+                'menustamp': stamp,
+            })
+        if _table_has_columns('MENU', 'LARGURAS_EXATAS_LISTA'):
+            db.session.execute(text("""
+                UPDATE dbo.MENU
+                SET LARGURAS_EXATAS_LISTA = :larguras_exatas_lista
+                WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+            """), {
+                'larguras_exatas_lista': 1 if body.get('use_exact_widths_list') else 0,
+                'menustamp': stamp,
+            })
+
+        for field in normalized_fields:
+            if field.get('_EXISTS'):
+                db.session.execute(text("""
+                    UPDATE dbo.CAMPOS
+                    SET DESCRICAO = :DESCRICAO,
+                        VISIVEL = :VISIVEL,
+                        RONLY = :RONLY,
+                        OBRIGATORIO = :OBRIGATORIO,
+                        LISTA = :LISTA,
+                        FILTRO = :FILTRO,
+                        DECIMAIS = :DECIMAIS,
+                        MINIMO = :MINIMO,
+                        MAXIMO = :MAXIMO,
+                        ORDEM = :ORDEM,
+                        TAM = :TAM,
+                        ORDEM_MOBILE = :ORDEM_MOBILE,
+                        TAM_MOBILE = :TAM_MOBILE,
+                        ORDEM_LISTA = :ORDEM_LISTA,
+                        TAM_LISTA = :TAM_LISTA,
+                        ORDEM_LISTA_MOBILE = :ORDEM_LISTA_MOBILE,
+                        TAM_LISTA_MOBILE = :TAM_LISTA_MOBILE,
+                        LISTA_MOBILE_BOLD = :LISTA_MOBILE_BOLD,
+                        LISTA_MOBILE_ITALIC = :LISTA_MOBILE_ITALIC,
+                        LISTA_MOBILE_SHOW_LABEL = :LISTA_MOBILE_SHOW_LABEL,
+                        LISTA_MOBILE_LABEL = :LISTA_MOBILE_LABEL
+                    WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :TABELA
+                      AND UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) = :NMCAMPO
+                """), {
+                    'DESCRICAO': field['DESCRICAO'],
+                    'VISIVEL': field['VISIVEL'],
+                    'RONLY': field['RONLY'],
+                    'OBRIGATORIO': field['OBRIGATORIO'],
+                    'LISTA': field['LISTA'],
+                    'FILTRO': field['FILTRO'],
+                    'DECIMAIS': field['DECIMAIS'],
+                    'MINIMO': field['MINIMO'],
+                    'MAXIMO': field['MAXIMO'],
+                    'ORDEM': field['ORDEM'],
+                    'TAM': field['TAM'],
+                    'ORDEM_MOBILE': field['ORDEM_MOBILE'],
+                    'TAM_MOBILE': field['TAM_MOBILE'],
+                    'ORDEM_LISTA': field['ORDEM_LISTA'],
+                    'TAM_LISTA': field['TAM_LISTA'],
+                    'ORDEM_LISTA_MOBILE': field['ORDEM_LISTA_MOBILE'],
+                    'TAM_LISTA_MOBILE': field['TAM_LISTA_MOBILE'],
+                    'LISTA_MOBILE_BOLD': field['LISTA_MOBILE_BOLD'],
+                    'LISTA_MOBILE_ITALIC': field['LISTA_MOBILE_ITALIC'],
+                    'LISTA_MOBILE_SHOW_LABEL': field['LISTA_MOBILE_SHOW_LABEL'],
+                    'LISTA_MOBILE_LABEL': field['LISTA_MOBILE_LABEL'],
+                    'TABELA': field['TABELA'],
+                    'NMCAMPO': field['NMCAMPO'],
+                })
+                continue
+
+            if field['ORDEM'] <= 0 and field['ORDEM_MOBILE'] <= 0 and field['ORDEM_LISTA'] <= 0 and field['ORDEM_LISTA_MOBILE'] <= 0:
+                continue
+
+            db.session.execute(text("""
+                INSERT INTO dbo.CAMPOS
+                (
+                    CAMPOSSTAMP, ORDEM, NMCAMPO, DESCRICAO, TIPO, TABELA,
+                    LISTA, FILTRO, FILTRODEFAULT, ADMIN, RONLY, COMBO, VIRTUAL, VISIVEL,
+                    DECIMAIS, MINIMO, MAXIMO,
+                    TAM, ORDEM_MOBILE, TAM_MOBILE, ORDEM_LISTA, TAM_LISTA,
+                    ORDEM_LISTA_MOBILE, TAM_LISTA_MOBILE,
+                    LISTA_MOBILE_BOLD, LISTA_MOBILE_ITALIC, LISTA_MOBILE_SHOW_LABEL, LISTA_MOBILE_LABEL,
+                    CONDICAO_VISIVEL, OBRIGATORIO
+                )
+                VALUES
+                (
+                    :CAMPOSSTAMP, :ORDEM, :NMCAMPO, :DESCRICAO, :TIPO, :TABELA,
+                    :LISTA, :FILTRO, '', 0, :RONLY, :COMBO, '', :VISIVEL,
+                    :DECIMAIS, :MINIMO, :MAXIMO,
+                    :TAM, :ORDEM_MOBILE, :TAM_MOBILE, :ORDEM_LISTA, :TAM_LISTA,
+                    :ORDEM_LISTA_MOBILE, :TAM_LISTA_MOBILE,
+                    :LISTA_MOBILE_BOLD, :LISTA_MOBILE_ITALIC, :LISTA_MOBILE_SHOW_LABEL, :LISTA_MOBILE_LABEL,
+                    '', :OBRIGATORIO
+                )
+            """), {
+                'CAMPOSSTAMP': (
+                    str(field.get('CAMPOSSTAMP') or '').strip()
+                    if str(field.get('CAMPOSSTAMP') or '').strip()
+                    and len(str(field.get('CAMPOSSTAMP') or '').strip()) <= 25
+                    and str(field.get('_ORIGIN') or '').strip().lower() != 'sql'
+                    else _new_stamp_25()
+                ),
+                'ORDEM': field['ORDEM'],
+                'NMCAMPO': field['NMCAMPO'],
+                'DESCRICAO': field['DESCRICAO'],
+                'TIPO': field['TIPO'],
+                'TABELA': field['TABELA'],
+                'LISTA': field['LISTA'],
+                'FILTRO': field['FILTRO'],
+                'RONLY': field['RONLY'],
+                'COMBO': field['COMBO'],
+                'VISIVEL': field['VISIVEL'],
+                'DECIMAIS': field['DECIMAIS'],
+                'MINIMO': field['MINIMO'],
+                'MAXIMO': field['MAXIMO'],
+                'TAM': field['TAM'],
+                'ORDEM_MOBILE': field['ORDEM_MOBILE'],
+                'TAM_MOBILE': field['TAM_MOBILE'],
+                'ORDEM_LISTA': field['ORDEM_LISTA'],
+                'TAM_LISTA': field['TAM_LISTA'],
+                'ORDEM_LISTA_MOBILE': field['ORDEM_LISTA_MOBILE'],
+                'TAM_LISTA_MOBILE': field['TAM_LISTA_MOBILE'],
+                'LISTA_MOBILE_BOLD': field['LISTA_MOBILE_BOLD'],
+                'LISTA_MOBILE_ITALIC': field['LISTA_MOBILE_ITALIC'],
+                'LISTA_MOBILE_SHOW_LABEL': field['LISTA_MOBILE_SHOW_LABEL'],
+                'LISTA_MOBILE_LABEL': field['LISTA_MOBILE_LABEL'],
+                'OBRIGATORIO': field['OBRIGATORIO'],
+            })
+
+        if normalized_objects is not None:
+            incoming_object_names = {
+                str(row.get('NMCAMPO') or '').strip().upper()
+                for row in normalized_objects
+                if str(row.get('NMCAMPO') or '').strip()
+            }
+            for row in existing_object_rows:
+                row_name = str(row.get('NMCAMPO') or '').strip().upper()
+                if row_name in incoming_object_names:
+                    continue
+                db.session.execute(text("""
+                    DELETE FROM dbo.MENU_OBJETOS
+                    WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+                      AND UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) = :nmcampo
+                """), {
+                    'menustamp': stamp,
+                    'nmcampo': row_name,
+                })
+
+            for obj in normalized_objects:
+                if obj.get('_EXISTS'):
+                    db.session.execute(text("""
+                        UPDATE dbo.MENU_OBJETOS
+                        SET DESCRICAO = :DESCRICAO,
+                            TIPO = :TIPO,
+                            ORDEM = :ORDEM,
+                            TAM = :TAM,
+                            ORDEM_MOBILE = :ORDEM_MOBILE,
+                            TAM_MOBILE = :TAM_MOBILE,
+                            VISIVEL = :VISIVEL,
+                            RONLY = :RONLY,
+                            OBRIGATORIO = :OBRIGATORIO,
+                            CONDICAO_VISIVEL = :CONDICAO_VISIVEL,
+                            COMBO = :COMBO,
+                            DECIMAIS = :DECIMAIS,
+                            MINIMO = :MINIMO,
+                            MAXIMO = :MAXIMO,
+                            PROPRIEDADES = :PROPRIEDADES,
+                            ATIVO = 1,
+                            DTALT = GETDATE(),
+                            USERALTERACAO = :USERALTERACAO
+                        WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :MENUSTAMP
+                          AND UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) = :NMCAMPO
+                    """), {
+                        'DESCRICAO': obj['DESCRICAO'],
+                        'TIPO': obj['TIPO'],
+                        'ORDEM': obj['ORDEM'],
+                        'TAM': obj['TAM'],
+                        'ORDEM_MOBILE': obj['ORDEM_MOBILE'],
+                        'TAM_MOBILE': obj['TAM_MOBILE'],
+                        'VISIVEL': obj['VISIVEL'],
+                        'RONLY': obj['RONLY'],
+                        'OBRIGATORIO': obj['OBRIGATORIO'],
+                        'CONDICAO_VISIVEL': obj['CONDICAO_VISIVEL'],
+                        'COMBO': obj['COMBO'],
+                        'DECIMAIS': obj['DECIMAIS'],
+                        'MINIMO': obj['MINIMO'],
+                        'MAXIMO': obj['MAXIMO'],
+                        'PROPRIEDADES': obj['PROPRIEDADES'],
+                        'USERALTERACAO': current_login,
+                        'MENUSTAMP': obj['MENUSTAMP'],
+                        'NMCAMPO': obj['NMCAMPO'],
+                    })
+                    continue
+
+                db.session.execute(text("""
+                    INSERT INTO dbo.MENU_OBJETOS
+                    (
+                        MENUOBJSTAMP, MENUSTAMP, NMCAMPO, DESCRICAO, TIPO,
+                        ORDEM, TAM, ORDEM_MOBILE, TAM_MOBILE,
+                        VISIVEL, RONLY, OBRIGATORIO, CONDICAO_VISIVEL,
+                        COMBO, DECIMAIS, MINIMO, MAXIMO, PROPRIEDADES,
+                        ATIVO, DTCRI, DTALT, USERCRIACAO, USERALTERACAO
+                    )
+                    VALUES
+                    (
+                        :MENUOBJSTAMP, :MENUSTAMP, :NMCAMPO, :DESCRICAO, :TIPO,
+                        :ORDEM, :TAM, :ORDEM_MOBILE, :TAM_MOBILE,
+                        :VISIVEL, :RONLY, :OBRIGATORIO, :CONDICAO_VISIVEL,
+                        :COMBO, :DECIMAIS, :MINIMO, :MAXIMO, :PROPRIEDADES,
+                        1, GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO
+                    )
+                """), {
+                    'MENUOBJSTAMP': (
+                        str(obj.get('MENUOBJSTAMP') or '').strip()
+                        if str(obj.get('MENUOBJSTAMP') or '').strip()
+                        and len(str(obj.get('MENUOBJSTAMP') or '').strip()) <= 25
+                        else _new_stamp_25()
+                    ),
+                    'MENUSTAMP': obj['MENUSTAMP'],
+                    'NMCAMPO': obj['NMCAMPO'],
+                    'DESCRICAO': obj['DESCRICAO'],
+                    'TIPO': obj['TIPO'],
+                    'ORDEM': obj['ORDEM'],
+                    'TAM': obj['TAM'],
+                    'ORDEM_MOBILE': obj['ORDEM_MOBILE'],
+                    'TAM_MOBILE': obj['TAM_MOBILE'],
+                    'VISIVEL': obj['VISIVEL'],
+                    'RONLY': obj['RONLY'],
+                    'OBRIGATORIO': obj['OBRIGATORIO'],
+                    'CONDICAO_VISIVEL': obj['CONDICAO_VISIVEL'],
+                    'COMBO': obj['COMBO'],
+                    'DECIMAIS': obj['DECIMAIS'],
+                    'MINIMO': obj['MINIMO'],
+                    'MAXIMO': obj['MAXIMO'],
+                    'PROPRIEDADES': obj['PROPRIEDADES'],
+                    'USERCRIACAO': current_login,
+                    'USERALTERACAO': current_login,
+                })
+
+        if normalized_variables is not None:
+            incoming_variable_names = {
+                str(row.get('NOME') or '').strip().upper()
+                for row in normalized_variables
+                if str(row.get('NOME') or '').strip()
+            }
+            for row in existing_variable_rows:
+                row_name = str(row.get('NOME') or '').strip().upper()
+                if row_name in incoming_variable_names:
+                    continue
+                db.session.execute(text("""
+                    DELETE FROM dbo.MENU_VARIAVEIS
+                    WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+                      AND UPPER(LTRIM(RTRIM(ISNULL(NOME, '')))) = :nome
+                """), {
+                    'menustamp': stamp,
+                    'nome': row_name,
+                })
+
+            for var in normalized_variables:
+                if var.get('_EXISTS'):
+                    db.session.execute(text("""
+                        UPDATE dbo.MENU_VARIAVEIS
+                        SET DESCRICAO = :DESCRICAO,
+                            TIPO = :TIPO,
+                            VALOR_DEFAULT = :VALOR_DEFAULT,
+                            ORDEM = :ORDEM,
+                            PROPRIEDADES = :PROPRIEDADES,
+                            ATIVO = 1,
+                            DTALT = GETDATE(),
+                            USERALTERACAO = :USERALTERACAO
+                        WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :MENUSTAMP
+                          AND UPPER(LTRIM(RTRIM(ISNULL(NOME, '')))) = :NOME
+                    """), {
+                        'DESCRICAO': var['DESCRICAO'],
+                        'TIPO': var['TIPO'],
+                        'VALOR_DEFAULT': var['VALOR_DEFAULT'],
+                        'ORDEM': var['ORDEM'],
+                        'PROPRIEDADES': var['PROPRIEDADES'],
+                        'USERALTERACAO': current_login,
+                        'MENUSTAMP': var['MENUSTAMP'],
+                        'NOME': var['NOME'],
+                    })
+                    continue
+
+                db.session.execute(text("""
+                    INSERT INTO dbo.MENU_VARIAVEIS
+                    (
+                        MENUVARSTAMP, MENUSTAMP, NOME, DESCRICAO, TIPO,
+                        VALOR_DEFAULT, ORDEM, PROPRIEDADES,
+                        ATIVO, DTCRI, DTALT, USERCRIACAO, USERALTERACAO
+                    )
+                    VALUES
+                    (
+                        :MENUVARSTAMP, :MENUSTAMP, :NOME, :DESCRICAO, :TIPO,
+                        :VALOR_DEFAULT, :ORDEM, :PROPRIEDADES,
+                        1, GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO
+                    )
+                """), {
+                    'MENUVARSTAMP': (
+                        str(var.get('MENUVARSTAMP') or '').strip()
+                        if str(var.get('MENUVARSTAMP') or '').strip()
+                        and len(str(var.get('MENUVARSTAMP') or '').strip()) <= 25
+                        else _new_stamp_25()
+                    ),
+                    'MENUSTAMP': var['MENUSTAMP'],
+                    'NOME': var['NOME'],
+                    'DESCRICAO': var['DESCRICAO'],
+                    'TIPO': var['TIPO'],
+                    'VALOR_DEFAULT': var['VALOR_DEFAULT'],
+                    'ORDEM': var['ORDEM'],
+                    'PROPRIEDADES': var['PROPRIEDADES'],
+                    'USERCRIACAO': current_login,
+                    'USERALTERACAO': current_login,
+                })
+
+        if normalized_screen_events is not None:
+            incoming_event_names = {
+                _screen_personalizer_event_name(row.get('EVENTO'))
+                for row in normalized_screen_events
+                if _screen_personalizer_event_name(row.get('EVENTO'))
+            }
+            for row in existing_screen_event_rows:
+                row_name = _screen_personalizer_event_name(row.get('EVENTO'))
+                if row_name in incoming_event_names:
+                    continue
+                db.session.execute(text("""
+                    DELETE FROM dbo.MENU_EVENTOS
+                    WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+                      AND LTRIM(RTRIM(ISNULL(EVENTO, ''))) = :evento
+                """), {
+                    'menustamp': stamp,
+                    'evento': row_name,
+                })
+
+            for event_row in normalized_screen_events:
+                if event_row.get('_EXISTS'):
+                    db.session.execute(text("""
+                        UPDATE dbo.MENU_EVENTOS
+                        SET FLUXO = :FLUXO,
+                            ATIVO = 1,
+                            DTALT = GETDATE(),
+                            USERALTERACAO = :USERALTERACAO
+                        WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :MENUSTAMP
+                          AND LTRIM(RTRIM(ISNULL(EVENTO, ''))) = :EVENTO
+                    """), {
+                        'FLUXO': event_row['FLUXO'],
+                        'USERALTERACAO': current_login,
+                        'MENUSTAMP': event_row['MENUSTAMP'],
+                        'EVENTO': event_row['EVENTO'],
+                    })
+                    continue
+
+                db.session.execute(text("""
+                    INSERT INTO dbo.MENU_EVENTOS
+                    (
+                        MENUEVENTOSTAMP, MENUSTAMP, EVENTO, FLUXO,
+                        ATIVO, DTCRI, DTALT, USERCRIACAO, USERALTERACAO
+                    )
+                    VALUES
+                    (
+                        :MENUEVENTOSTAMP, :MENUSTAMP, :EVENTO, :FLUXO,
+                        1, GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO
+                    )
+                """), {
+                    'MENUEVENTOSTAMP': (
+                        str(event_row.get('MENUEVENTOSTAMP') or '').strip()
+                        if str(event_row.get('MENUEVENTOSTAMP') or '').strip()
+                        and len(str(event_row.get('MENUEVENTOSTAMP') or '').strip()) <= 25
+                        else _new_stamp_25()
+                    ),
+                    'MENUSTAMP': event_row['MENUSTAMP'],
+                    'EVENTO': event_row['EVENTO'],
+                    'FLUXO': event_row['FLUXO'],
+                    'USERCRIACAO': current_login,
+                    'USERALTERACAO': current_login,
+                })
+
+        db.session.commit()
+        return _load_screen_personalizer_layout(stamp)
 
     CERT_RESET_FEID = 1
     CERT_RESET_CONFIRM_PHRASE = 'RESET FEID 1'
@@ -4393,6 +6176,9 @@ def create_app():
     def _st_unidade_available():
         return _table_has_columns('ST', 'UNIDADE')
 
+    def _menu_exact_widths_available():
+        return _table_has_columns('MENU', 'LARGURAS_EXATAS')
+
     def _ft_transport_columns_available():
         return _table_has_columns(
             'FT',
@@ -5338,6 +7124,33 @@ def create_app():
             mod_can_create=_mod_has_permission('inserir'),
             mod_can_edit=_mod_has_permission('editar'),
             mod_can_delete=_mod_has_permission('eliminar'),
+        )
+
+    @app.route('/menu_manager')
+    @app.route('/menu_manager/<menustamp>')
+    @login_required
+    def menu_manager_page(menustamp=None):
+        if not _menu_manager_allowed():
+            abort(403)
+        return render_template(
+            'menu_manager.html',
+            page_title='Gestor de Menu',
+            initial_menustamp=(menustamp or '').strip(),
+            menu_mgr_can_create=_menu_manager_allowed(),
+            menu_mgr_can_edit=_menu_manager_allowed(),
+            menu_mgr_can_delete=_menu_manager_allowed(),
+        )
+
+    @app.route('/screen_personalizer')
+    @app.route('/screen_personalizer/<menustamp>')
+    @login_required
+    def screen_personalizer_page(menustamp=None):
+        if not _screen_personalizer_allowed():
+            abort(403)
+        return render_template(
+            'screen_personalizer.html',
+            page_title='Personalização de Ecrãs',
+            initial_menustamp=(menustamp or '').strip(),
         )
 
     @app.route('/faturacao/ft/new')
@@ -7609,6 +9422,480 @@ def create_app():
             app.logger.exception('Erro ao eliminar módulo.')
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/api/menu_manager', methods=['GET'])
+    @login_required
+    def api_menu_manager_list():
+        if not _menu_manager_allowed():
+            return jsonify({'error': 'Sem permissão para consultar o gestor de menu.'}), 403
+
+        q = str(request.args.get('q') or '').strip().lower()
+        kind = str(request.args.get('kind') or '').strip().lower()
+        rows = _menu_manager_fetch_all_rows()
+
+        if kind in {'group', 'groups', 'agrupador', 'agrupadores'}:
+            rows = [row for row in rows if row.get('IS_GROUP')]
+        elif kind in {'item', 'items', 'submenu', 'submenus'}:
+            rows = [row for row in rows if not row.get('IS_GROUP')]
+
+        if q:
+            rows = [
+                row for row in rows
+                if q in str(row.get('NOME') or '').lower()
+                or q in str(row.get('TABELA') or '').lower()
+                or q in str(row.get('URL') or '').lower()
+            ]
+
+        return jsonify({'rows': rows})
+
+    @app.route('/api/menu_manager/<menustamp>', methods=['GET'])
+    @login_required
+    def api_menu_manager_detail(menustamp):
+        if not _menu_manager_allowed():
+            return jsonify({'error': 'Sem permissão para consultar o gestor de menu.'}), 403
+        row = _menu_manager_fetch_row(menustamp)
+        if not row:
+            return jsonify({'error': 'Registo de menu não encontrado.'}), 404
+        return jsonify({'row': row})
+
+    @app.route('/api/menu_manager/<menustamp>/modules', methods=['GET'])
+    @login_required
+    def api_menu_manager_modules(menustamp):
+        if not _menu_manager_allowed():
+            return jsonify({'error': 'Sem permissão para consultar módulos do menu.'}), 403
+        rows = _menu_manager_module_rows(menustamp)
+        if rows is None:
+            return jsonify({'error': 'Registo de menu não encontrado.'}), 404
+        return jsonify({'rows': rows})
+
+    @app.route('/api/menu_manager/<menustamp>/modules/save', methods=['POST'])
+    @login_required
+    def api_menu_manager_modules_save(menustamp):
+        if not _menu_manager_allowed():
+            return jsonify({'error': 'Sem permissão para editar módulos do menu.'}), 403
+
+        menu_row = _menu_manager_fetch_row(menustamp)
+        if not menu_row:
+            return jsonify({'error': 'Registo de menu não encontrado.'}), 404
+
+        body = request.get_json(silent=True) or {}
+        raw_modules = body.get('module_stamps') if isinstance(body.get('module_stamps'), list) else []
+        module_stamps = []
+        for raw in raw_modules:
+            modstamp = str(raw or '').strip()
+            if modstamp and modstamp not in module_stamps:
+                module_stamps.append(modstamp)
+
+        valid_rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(MODSTAMP, ''))) AS MODSTAMP
+            FROM dbo.MODULOS
+            WHERE MODSTAMP IN :modstamps
+              AND ISNULL(ATIVO, 0) = 1
+        """).bindparams(bindparam('modstamps', expanding=True)), {
+            'modstamps': module_stamps or [''],
+        }).mappings().all() if module_stamps else []
+        valid_stamps = {str(row.get('MODSTAMP') or '').strip() for row in valid_rows}
+        if any(modstamp not in valid_stamps for modstamp in module_stamps):
+            return jsonify({'error': 'Existem módulos inválidos ou inativos selecionados.'}), 400
+
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        try:
+            _ensure_mod_objetos_table()
+            db.session.execute(text("""
+                DELETE FROM dbo.MOD_OBJETOS
+                WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+            """), {'menustamp': menu_row['MENUSTAMP']})
+
+            for index, modstamp in enumerate(module_stamps, start=1):
+                db.session.execute(text("""
+                    INSERT INTO dbo.MOD_OBJETOS
+                    (
+                        MODOBJSTAMP, MODSTAMP, TIPO, OBJKEY, OBJNOME, OBJROTA,
+                        MENUSTAMP, ORDEM, ATIVO, DTCRI, DTALT, USERCRIACAO, USERALTERACAO
+                    )
+                    VALUES
+                    (
+                        :MODOBJSTAMP, :MODSTAMP, :TIPO, :OBJKEY, :OBJNOME, :OBJROTA,
+                        :MENUSTAMP, :ORDEM, :ATIVO, GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO
+                    )
+                """), {
+                    'MODOBJSTAMP': _new_stamp_25(),
+                    'MODSTAMP': modstamp,
+                    'TIPO': 'MENU',
+                    'OBJKEY': f"MENU:{menu_row['MENUSTAMP']}",
+                    'OBJNOME': menu_row['NOME'],
+                    'OBJROTA': menu_row['URL'],
+                    'MENUSTAMP': menu_row['MENUSTAMP'],
+                    'ORDEM': index * 10,
+                    'ATIVO': 1,
+                    'USERCRIACAO': user_login,
+                    'USERALTERACAO': user_login,
+                })
+
+            db.session.commit()
+            return jsonify({'ok': True, 'count': len(module_stamps)})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar módulos do menu.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/menu_manager/<menustamp>/users', methods=['GET'])
+    @login_required
+    def api_menu_manager_users(menustamp):
+        if not _menu_manager_allowed():
+            return jsonify({'error': 'Sem permissão para consultar utilizadores do menu.'}), 403
+        menu_row = _menu_manager_fetch_row(menustamp)
+        if not menu_row:
+            return jsonify({'error': 'Registo de menu não encontrado.'}), 404
+        acl = _menu_manager_acl_rows(menu_row.get('TABELA'))
+        return jsonify({
+            'supported': acl['supported'],
+            'table_name': menu_row.get('TABELA') or '',
+            'rows': acl['rows'],
+        })
+
+    @app.route('/api/menu_manager/<menustamp>/users/save', methods=['POST'])
+    @login_required
+    def api_menu_manager_users_save(menustamp):
+        if not _menu_manager_allowed():
+            return jsonify({'error': 'Sem permissão para editar utilizadores do menu.'}), 403
+        menu_row = _menu_manager_fetch_row(menustamp)
+        if not menu_row:
+            return jsonify({'error': 'Registo de menu não encontrado.'}), 404
+
+        table_name = str(menu_row.get('TABELA') or '').strip().upper()
+        if not table_name:
+            return jsonify({'error': 'Agrupadores sem tabela não têm acessos próprios.'}), 400
+
+        body = request.get_json(silent=True) or {}
+        acl_rows = _normalize_screen_wizard_acl_rows(body.get('rows'))
+        current_feid = int(get_current_feid() or 0)
+
+        try:
+            db.session.execute(text("""
+                DELETE FROM dbo.ACESSOS
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :tabela
+            """), {'tabela': table_name})
+
+            for acl_row in acl_rows:
+                db.session.execute(text("""
+                    INSERT INTO dbo.ACESSOS
+                    (
+                        ACESSOSSTAMP, UTILIZADOR, TABELA,
+                        CONSULTAR, INSERIR, EDITAR, ELIMINAR,
+                        USSTAMP, FEID
+                    )
+                    VALUES
+                    (
+                        :ACESSOSSTAMP, :UTILIZADOR, :TABELA,
+                        :CONSULTAR, :INSERIR, :EDITAR, :ELIMINAR,
+                        :USSTAMP, :FEID
+                    )
+                """), {
+                    'ACESSOSSTAMP': _new_stamp_25(),
+                    'UTILIZADOR': acl_row['UTILIZADOR'],
+                    'TABELA': table_name,
+                    'CONSULTAR': acl_row['CONSULTAR'],
+                    'INSERIR': acl_row['INSERIR'],
+                    'EDITAR': acl_row['EDITAR'],
+                    'ELIMINAR': acl_row['ELIMINAR'],
+                    'USSTAMP': acl_row['USSTAMP'],
+                    'FEID': current_feid,
+                })
+
+            db.session.commit()
+            return jsonify({'ok': True, 'count': len(acl_rows)})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar utilizadores do menu.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/menu_manager/save', methods=['POST'])
+    @login_required
+    def api_menu_manager_save():
+        if not _menu_manager_allowed():
+            return jsonify({'error': 'Sem permissão para editar o gestor de menu.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        raw = body.get('row') if isinstance(body.get('row'), dict) else body
+        if not isinstance(raw, dict):
+            return jsonify({'error': 'Payload inválido.'}), 400
+
+        menustamp = str(raw.get('MENUSTAMP') or '').strip()
+        existing = _menu_manager_fetch_row(menustamp) if menustamp else None
+
+        nome = str(raw.get('NOME') or '').strip()[:60]
+        tabela = str(raw.get('TABELA') or '').strip().upper()[:18]
+        url = str(raw.get('URL') or '').strip()[:200]
+        icone = str(raw.get('ICONE') or '').strip()[:100]
+        form = str(raw.get('FORM') or '').strip()[:200]
+        orderby = str(raw.get('ORDERBY') or '').strip()[:200]
+        ordem = _to_int(raw.get('ORDEM'), 0)
+        admin_only = 1 if raw.get('ADMIN') else 0
+        novo = 1 if raw.get('NOVO') else 0
+        inativo = 1 if raw.get('INATIVO') else 0
+
+        if not nome:
+            return jsonify({'error': 'O campo Nome é obrigatório.'}), 400
+        if not icone:
+            return jsonify({'error': 'O campo Ícone é obrigatório.'}), 400
+        if ordem < 0:
+            return jsonify({'error': 'A ordem tem de ser positiva.'}), 400
+
+        is_group = (ordem % 100 == 0)
+        if not is_group and not url:
+            return jsonify({'error': 'Os submenus precisam de URL.'}), 400
+
+        duplicate_table = None
+        if tabela:
+            duplicate_table = db.session.execute(text("""
+                SELECT TOP 1 MENUSTAMP
+                FROM dbo.MENU
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :tabela
+                  AND LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) <> :menustamp
+            """), {'tabela': tabela, 'menustamp': menustamp}).scalar()
+        if duplicate_table:
+            return jsonify({'error': 'Já existe um menu associado a essa tabela.'}), 400
+
+        duplicate_url = None
+        if url:
+            duplicate_url = db.session.execute(text("""
+                SELECT TOP 1 MENUSTAMP
+                FROM dbo.MENU
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(URL, '')))) = :url
+                  AND LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) <> :menustamp
+            """), {'url': url.upper(), 'menustamp': menustamp}).scalar()
+        if duplicate_url:
+            return jsonify({'error': 'Já existe um menu com esse URL.'}), 400
+
+        payload = {
+            'MENUSTAMP': menustamp or _new_stamp_25(),
+            'ORDEM': ordem,
+            'NOME': nome,
+            'TABELA': tabela,
+            'URL': url,
+            'ADMIN': admin_only,
+            'INATIVO': inativo,
+            'ICONE': icone,
+            'FORM': form or '',
+            'ORDERBY': orderby or '',
+            'NOVO': novo,
+        }
+
+        try:
+            if existing:
+                old_table = str(existing.get('TABELA') or '').strip().upper()
+                db.session.execute(text("""
+                    UPDATE dbo.MENU
+                    SET ORDEM = :ORDEM,
+                        NOME = :NOME,
+                        TABELA = :TABELA,
+                        URL = :URL,
+                        ADMIN = :ADMIN,
+                        INATIVO = :INATIVO,
+                        ICONE = :ICONE,
+                        FORM = :FORM,
+                        ORDERBY = :ORDERBY,
+                        NOVO = :NOVO
+                    WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :MENUSTAMP
+                """), payload)
+
+                db.session.execute(text("""
+                    UPDATE dbo.MOD_OBJETOS
+                    SET OBJNOME = :OBJNOME,
+                        OBJROTA = :OBJROTA,
+                        ORDEM = :ORDEM,
+                        USERALTERACAO = :USERALTERACAO,
+                        DTALT = GETDATE()
+                    WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :MENUSTAMP
+                """), {
+                    'OBJNOME': nome,
+                    'OBJROTA': url,
+                    'ORDEM': ordem,
+                    'USERALTERACAO': (getattr(current_user, 'LOGIN', '') or '').strip(),
+                    'MENUSTAMP': payload['MENUSTAMP'],
+                })
+
+                if old_table and old_table != tabela and not db.session.execute(text("""
+                    SELECT TOP 1 1
+                    FROM dbo.MENU
+                    WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :tabela
+                      AND LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) <> :menustamp
+                """), {'tabela': old_table, 'menustamp': payload['MENUSTAMP']}).scalar():
+                    if tabela:
+                        db.session.execute(text("""
+                            UPDATE dbo.ACESSOS
+                            SET TABELA = :new_table
+                            WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :old_table
+                        """), {'new_table': tabela, 'old_table': old_table})
+                    else:
+                        db.session.execute(text("""
+                            DELETE FROM dbo.ACESSOS
+                            WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :old_table
+                        """), {'old_table': old_table})
+            else:
+                db.session.execute(text("""
+                    INSERT INTO dbo.MENU
+                    (
+                        MENUSTAMP, ORDEM, NOME, TABELA, URL,
+                        ADMIN, INATIVO, ICONE, FORM, ORDERBY, NOVO
+                    )
+                    VALUES
+                    (
+                        :MENUSTAMP, :ORDEM, :NOME, :TABELA, :URL,
+                        :ADMIN, :INATIVO, :ICONE, :FORM, :ORDERBY, :NOVO
+                    )
+                """), payload)
+
+            db.session.commit()
+            refreshed_row = _menu_manager_fetch_row(payload['MENUSTAMP'])
+            return jsonify({'ok': True, 'menustamp': payload['MENUSTAMP'], 'row': refreshed_row})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar registo do menu.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/menu_manager/<menustamp>/move', methods=['POST'])
+    @login_required
+    def api_menu_manager_move(menustamp):
+        if not _menu_manager_allowed():
+            return jsonify({'error': 'Sem permissão para reordenar o menu.'}), 403
+
+        target = str(menustamp or '').strip()
+        if not target:
+            return jsonify({'error': 'MENUSTAMP obrigatório.'}), 400
+
+        body = request.get_json(silent=True) or {}
+        direction = str(body.get('direction') or '').strip().lower()
+        if direction not in {'up', 'down'}:
+            return jsonify({'error': 'Direção inválida.'}), 400
+
+        rows = _menu_manager_fetch_all_rows()
+        current_index = next((idx for idx, row in enumerate(rows) if str(row.get('MENUSTAMP') or '').strip() == target), None)
+        if current_index is None:
+            return jsonify({'error': 'Registo de menu não encontrado.'}), 404
+
+        swap_index = current_index - 1 if direction == 'up' else current_index + 1
+        if swap_index < 0 or swap_index >= len(rows):
+            return jsonify({'ok': True, 'menustamp': target})
+
+        rows[current_index], rows[swap_index] = rows[swap_index], rows[current_index]
+        resequenced = _menu_manager_resequence_rows(rows)
+
+        try:
+            _menu_manager_persist_resequence(resequenced)
+            db.session.commit()
+            return jsonify({'ok': True, 'menustamp': target})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao reordenar o menu.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/menu_manager/reorder', methods=['POST'])
+    @login_required
+    def api_menu_manager_reorder():
+        if not _menu_manager_allowed():
+            return jsonify({'error': 'Sem permissão para reordenar o menu.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        raw_order = body.get('menustamps')
+        if not isinstance(raw_order, list) or not raw_order:
+            return jsonify({'error': 'Lista de MENUSTAMPs obrigatória.'}), 400
+
+        target_order = []
+        seen = set()
+        for value in raw_order:
+            menustamp = str(value or '').strip()
+            if not menustamp or menustamp in seen:
+                continue
+            seen.add(menustamp)
+            target_order.append(menustamp)
+
+        if not target_order:
+            return jsonify({'error': 'Lista de MENUSTAMPs inválida.'}), 400
+
+        all_rows = _menu_manager_fetch_all_rows()
+        row_map = {
+            str(row.get('MENUSTAMP') or '').strip(): dict(row)
+            for row in all_rows
+            if str(row.get('MENUSTAMP') or '').strip()
+        }
+
+        if any(menustamp not in row_map for menustamp in target_order):
+            return jsonify({'error': 'Existem MENUSTAMPs inválidos na ordenação.'}), 400
+
+        visible_positions = [
+            index for index, row in enumerate(all_rows)
+            if str(row.get('MENUSTAMP') or '').strip() in seen
+        ]
+        if len(visible_positions) != len(target_order):
+            return jsonify({'error': 'Ordenação incompleta para os registos visíveis.'}), 400
+
+        reordered_rows = [dict(row) for row in all_rows]
+        for index, menustamp in zip(visible_positions, target_order):
+            reordered_rows[index] = dict(row_map[menustamp])
+
+        resequenced = _menu_manager_resequence_rows(reordered_rows)
+
+        try:
+            _menu_manager_persist_resequence(resequenced)
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao reordenar o menu via drag and drop.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/menu_manager/<menustamp>/delete', methods=['POST'])
+    @login_required
+    def api_menu_manager_delete(menustamp):
+        if not _menu_manager_allowed():
+            return jsonify({'error': 'Sem permissão para eliminar registos do menu.'}), 403
+
+        row = _menu_manager_fetch_row(menustamp)
+        if not row:
+            return jsonify({'error': 'Registo de menu não encontrado.'}), 404
+
+        if row.get('IS_GROUP') and _to_int(row.get('CHILD_COUNT'), 0) > 0:
+            return jsonify({'error': 'Não é possível eliminar um agrupador com submenus.'}), 400
+
+        table_name = str(row.get('TABELA') or '').strip().upper()
+        has_same_table_elsewhere = False
+        if table_name:
+            has_same_table_elsewhere = bool(db.session.execute(text("""
+                SELECT TOP 1 1
+                FROM dbo.MENU
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :tabela
+                  AND LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) <> :menustamp
+            """), {'tabela': table_name, 'menustamp': row['MENUSTAMP']}).scalar())
+
+        try:
+            db.session.execute(text("""
+                DELETE FROM dbo.MOD_OBJETOS
+                WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+            """), {'menustamp': row['MENUSTAMP']})
+
+            if table_name and not has_same_table_elsewhere:
+                db.session.execute(text("""
+                    DELETE FROM dbo.ACESSOS
+                    WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :tabela
+                """), {'tabela': table_name})
+
+            result = db.session.execute(text("""
+                DELETE FROM dbo.MENU
+                WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+            """), {'menustamp': row['MENUSTAMP']})
+            if not result.rowcount:
+                db.session.rollback()
+                return jsonify({'error': 'Registo de menu não encontrado.'}), 404
+
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao eliminar registo do menu.')
+            return jsonify({'error': str(exc)}), 500
+
     @app.route('/wizard_ecras')
     @app.route('/screen_wizard')
     @login_required
@@ -7762,7 +10049,7 @@ def create_app():
             'admin': admin_only,
             'icone': icon,
             'form': form_url,
-            'orderby': orderby or None,
+            'orderby': orderby or '',
             'novo': novo,
         }
 
@@ -7866,6 +10153,59 @@ def create_app():
         except Exception as exc:
             db.session.rollback()
             app.logger.exception('Erro ao gravar screen wizard.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/screen_personalizer/bootstrap', methods=['GET'])
+    @login_required
+    def api_screen_personalizer_bootstrap():
+        if not _screen_personalizer_allowed():
+            return jsonify({'error': 'Sem permissão para usar a personalização de ecrãs.'}), 403
+
+        screens = _load_screen_personalizer_screens()
+        requested = str(request.args.get('menustamp') or '').strip()
+        selected = requested or (str(screens[0].get('MENUSTAMP') or '').strip() if screens else '')
+        detail = _load_screen_personalizer_layout(selected) if selected else None
+        return jsonify({
+            'screens': screens,
+            'selected_menustamp': selected,
+            'detail': detail,
+        })
+
+    @app.route('/api/screen_personalizer/layout', methods=['GET'])
+    @login_required
+    def api_screen_personalizer_layout():
+        if not _screen_personalizer_allowed():
+            return jsonify({'error': 'Sem permissão para usar a personalização de ecrãs.'}), 403
+
+        menustamp = str(request.args.get('menustamp') or '').strip()
+        if not menustamp:
+            return jsonify({'error': 'MENUSTAMP obrigatório.'}), 400
+
+        detail = _load_screen_personalizer_layout(menustamp)
+        if not detail:
+            return jsonify({'error': 'Ecrã não encontrado.'}), 404
+        return jsonify(detail)
+
+    @app.route('/api/screen_personalizer/save', methods=['POST'])
+    @login_required
+    def api_screen_personalizer_save():
+        if not _screen_personalizer_allowed():
+            return jsonify({'error': 'Sem permissão para usar a personalização de ecrãs.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        menustamp = str(body.get('menustamp') or '').strip()
+        if not menustamp:
+            return jsonify({'error': 'MENUSTAMP obrigatório.'}), 400
+
+        try:
+            detail = _save_screen_personalizer_layout(menustamp, body)
+            return jsonify({'ok': True, 'detail': detail})
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar screen_personalizer.')
             return jsonify({'error': str(exc)}), 500
 
     @app.route('/dev/reset_certificacao_feid1')

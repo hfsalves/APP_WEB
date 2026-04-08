@@ -7,10 +7,11 @@ from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
 from services.multiempresa_service import get_current_feid, MissingCurrentEntityError
 import uuid
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import json
 import re
 import os
+from decimal import Decimal
 import xml.etree.ElementTree as ET
 from urllib import request as urllib_request, error as urllib_error
 from werkzeug.utils import secure_filename
@@ -21,6 +22,11 @@ ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 VIES_CHECKVAT_URL = 'https://ec.europa.eu/taxation_customs/vies/services/checkVatService'
 VIES_SOAP_NS = 'http://schemas.xmlsoap.org/soap/envelope/'
 VIES_TYPES_NS = 'urn:ec.europa.eu:taxud:vies:services:checkVat:types'
+EVENT_CURSOR_SQL_PARAM_RE = re.compile(r'\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}')
+EVENT_CURSOR_SQL_FORBIDDEN_RE = re.compile(
+    r'\b(insert|update|delete|drop|alter|create|exec|execute|merge|truncate|grant|revoke|backup|restore|use|into)\b',
+    re.IGNORECASE,
+)
 
 # --------------------------------------------------
 # FO: pagamento (V_FC) helper
@@ -113,6 +119,294 @@ def has_cleaning_planner_access() -> bool:
     except Exception:
         return False
     return False
+
+
+def _menu_uses_exact_widths(table_name: str) -> bool:
+    table_key = (table_name or '').strip().upper()
+    if not table_key:
+        return False
+    if not _column_exists('MENU', 'LARGURAS_EXATAS'):
+        return False
+    row = db.session.execute(text("""
+        SELECT TOP 1 ISNULL(LARGURAS_EXATAS, 0) AS LARGURAS_EXATAS
+          FROM dbo.MENU
+         WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
+         ORDER BY ISNULL(ORDEM, 0), LTRIM(RTRIM(ISNULL(MENUSTAMP, '')))
+    """), {'table_name': table_key}).mappings().first()
+    return bool(row and int(row.get('LARGURAS_EXATAS') or 0) == 1)
+
+
+def _menu_uses_list_exact_widths(menu_stamp: str = '', table_name: str = '') -> bool:
+    if not _column_exists('MENU', 'LARGURAS_EXATAS_LISTA'):
+        return False
+    stamp = (menu_stamp or '').strip()
+    table_key = (table_name or '').strip().upper()
+    if stamp:
+        row = db.session.execute(text("""
+            SELECT TOP 1 ISNULL(LARGURAS_EXATAS_LISTA, 0) AS LARGURAS_EXATAS_LISTA
+              FROM dbo.MENU
+             WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+        """), {'menustamp': stamp}).mappings().first()
+        return bool(row and int(row.get('LARGURAS_EXATAS_LISTA') or 0) == 1)
+    if not table_key:
+        return False
+    row = db.session.execute(text("""
+        SELECT TOP 1 ISNULL(LARGURAS_EXATAS_LISTA, 0) AS LARGURAS_EXATAS_LISTA
+          FROM dbo.MENU
+         WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
+         ORDER BY ISNULL(ORDEM, 0), LTRIM(RTRIM(ISNULL(MENUSTAMP, '')))
+    """), {'table_name': table_key}).mappings().first()
+    return bool(row and int(row.get('LARGURAS_EXATAS_LISTA') or 0) == 1)
+
+
+def _resolve_menu_stamp(table_name: str, requested_menustamp: str = '') -> str:
+    requested = (requested_menustamp or '').strip()
+    table_key = (table_name or '').strip().upper()
+    if requested:
+        row = db.session.execute(text("""
+            SELECT TOP 1 LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) AS MENUSTAMP
+            FROM dbo.MENU
+            WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+              AND UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
+        """), {'menustamp': requested, 'table_name': table_key}).mappings().first()
+        if row:
+            return str(row.get('MENUSTAMP') or '').strip()
+    if not table_key:
+        return ''
+    row = db.session.execute(text("""
+        SELECT TOP 1 LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) AS MENUSTAMP
+        FROM dbo.MENU
+        WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
+        ORDER BY ISNULL(ORDEM, 0), LTRIM(RTRIM(ISNULL(MENUSTAMP, '')))
+    """), {'table_name': table_key}).mappings().first()
+    return str(row.get('MENUSTAMP') or '').strip() if row else ''
+
+
+def _prepare_event_cursor_sql(raw_sql: str):
+    sql = (raw_sql or '').strip()
+    if not sql:
+        raise ValueError('SQL em falta.')
+    if ';' in sql:
+        raise ValueError('A query do cursor so pode conter uma instrucao.')
+    if not re.match(r'^\s*(select|with)\b', sql, re.IGNORECASE):
+        raise ValueError('A query do cursor tem de comecar por SELECT ou WITH.')
+    if EVENT_CURSOR_SQL_FORBIDDEN_RE.search(sql):
+        raise ValueError('A query do cursor so permite leitura.')
+
+    param_names = []
+
+    def replace_param(match):
+        name = str(match.group(1) or '').strip()
+        if name and name not in param_names:
+            param_names.append(name)
+        return f':{name}'
+
+    compiled_sql = EVENT_CURSOR_SQL_PARAM_RE.sub(replace_param, sql)
+    return compiled_sql, param_names
+
+
+def _normalize_event_cursor_param_value(value):
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    try:
+        return json.dumps(value, ensure_ascii=False)
+    except Exception:
+        return str(value)
+
+
+def _event_cursor_json_value(value):
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if isinstance(value, list):
+        return [_event_cursor_json_value(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _event_cursor_json_value(item) for key, item in value.items()}
+    return str(value)
+
+
+def _normalize_menu_variable_name(value: str) -> str:
+    raw = re.sub(r'[^A-Z0-9_]+', '_', str(value or '').strip().upper())
+    raw = re.sub(r'_+', '_', raw).strip('_')
+    return raw[:60]
+
+
+def _load_menu_variables_for_menu(menustamp: str) -> dict[str, dict]:
+    stamp = (menustamp or '').strip()
+    if not stamp or not _column_exists('MENU_VARIAVEIS', 'MENUVARSTAMP'):
+        return {}
+
+    rows = db.session.execute(text("""
+        SELECT
+            LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+            LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS DESCRICAO,
+            UPPER(LTRIM(RTRIM(ISNULL(TIPO, 'TEXT')))) AS TIPO,
+            LTRIM(RTRIM(ISNULL(VALOR_DEFAULT, ''))) AS VALOR_DEFAULT,
+            ISNULL(PROPRIEDADES, '{}') AS PROPRIEDADES
+        FROM dbo.MENU_VARIAVEIS
+        WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+          AND ISNULL(ATIVO, 1) = 1
+        ORDER BY ISNULL(ORDEM, 0), LTRIM(RTRIM(ISNULL(DESCRICAO, ''))), LTRIM(RTRIM(ISNULL(NOME, '')))
+    """), {'menustamp': stamp}).mappings().all()
+
+    variables = {}
+    for row in rows:
+        props = {}
+        raw_props = row.get('PROPRIEDADES')
+        if isinstance(raw_props, dict):
+            props = dict(raw_props)
+        else:
+            try:
+                parsed = json.loads(str(raw_props or '').strip() or '{}')
+                if isinstance(parsed, dict):
+                    props = parsed
+            except Exception:
+                props = {}
+        variable_name = _normalize_menu_variable_name(row.get('NOME'))
+        if not variable_name:
+            continue
+        variables[variable_name] = {
+            'name': variable_name,
+            'descricao': str(row.get('DESCRICAO') or '').strip(),
+            'tipo': str(row.get('TIPO') or 'TEXT').strip().upper(),
+            'valor_default': str(row.get('VALOR_DEFAULT') or '').strip(),
+            'propriedades': props,
+        }
+    return variables
+
+
+def _load_menu_objects_for_menu(menustamp: str) -> list[dict]:
+    stamp = (menustamp or '').strip()
+    if not stamp or not _column_exists('MENU_OBJETOS', 'MENUOBJSTAMP'):
+        return []
+    variables_map = _load_menu_variables_for_menu(stamp)
+
+    rows = db.session.execute(text("""
+        SELECT
+            LTRIM(RTRIM(ISNULL(NMCAMPO, ''))) AS NMCAMPO,
+            LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS DESCRICAO,
+            UPPER(LTRIM(RTRIM(ISNULL(TIPO, 'TEXT')))) AS TIPO,
+            ISNULL(ORDEM, 0) AS ORDEM,
+            ISNULL(TAM, 5) AS TAM,
+            ISNULL(ORDEM_MOBILE, ISNULL(ORDEM, 0)) AS ORDEM_MOBILE,
+            ISNULL(TAM_MOBILE, ISNULL(TAM, 5)) AS TAM_MOBILE,
+            ISNULL(VISIVEL, 1) AS VISIVEL,
+            ISNULL(RONLY, 0) AS RONLY,
+            ISNULL(OBRIGATORIO, 0) AS OBRIGATORIO,
+            LTRIM(RTRIM(ISNULL(CONDICAO_VISIVEL, ''))) AS CONDICAO_VISIVEL,
+            LTRIM(RTRIM(ISNULL(COMBO, ''))) AS COMBO,
+            ISNULL(DECIMAIS, 0) AS DECIMAIS,
+            MINIMO AS MINIMO,
+            MAXIMO AS MAXIMO,
+            ISNULL(PROPRIEDADES, '{}') AS PROPRIEDADES
+        FROM dbo.MENU_OBJETOS
+        WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+          AND ISNULL(ATIVO, 1) = 1
+        ORDER BY ISNULL(ORDEM, 0), LTRIM(RTRIM(ISNULL(DESCRICAO, ''))), LTRIM(RTRIM(ISNULL(NMCAMPO, '')))
+    """), {'menustamp': stamp}).mappings().all()
+
+    objects = []
+    for row in rows:
+        props = {}
+        raw_props = row.get('PROPRIEDADES')
+        if isinstance(raw_props, dict):
+            props = dict(raw_props)
+        else:
+            try:
+                parsed = json.loads(str(raw_props or '').strip() or '{}')
+                if isinstance(parsed, dict):
+                    props = parsed
+            except Exception:
+                props = {}
+        variable_name = _normalize_menu_variable_name(props.get('variable_name'))
+        bound_variable = variables_map.get(variable_name) if variable_name else None
+        if bound_variable:
+            props['variable_name'] = bound_variable['name']
+            props['variable_label'] = bound_variable['descricao'] or bound_variable['name']
+            props['variable_type'] = bound_variable['tipo']
+            props['variable_default'] = bound_variable['valor_default']
+            props['variable_help_text'] = str((bound_variable.get('propriedades') or {}).get('help_text') or '').strip()
+        objects.append({
+            'name': str(row.get('NMCAMPO') or '').strip(),
+            'descricao': str(row.get('DESCRICAO') or '').strip(),
+            'tipo': str(row.get('TIPO') or 'TEXT').strip().upper(),
+            'lista': False,
+            'filtro': False,
+            'filtrodefault': '',
+            'admin': False,
+            'primary_key': False,
+            'readonly': bool(int(row.get('RONLY') or 0) == 1),
+            'combo': str(row.get('COMBO') or '').strip(),
+            'virtual': None,
+            'ordem': int(row.get('ORDEM') or 0),
+            'tam': int(row.get('TAM') or 5),
+            'ordem_mobile': int(row.get('ORDEM_MOBILE') or 0),
+            'tam_mobile': int(row.get('TAM_MOBILE') or 5),
+            'condicao_visivel': str(row.get('CONDICAO_VISIVEL') or '').strip(),
+            'visivel': bool(int(row.get('VISIVEL') or 0) == 1),
+            'obrigatorio': bool(int(row.get('OBRIGATORIO') or 0) == 1),
+            'precisao': None,
+            'decimais': int(row.get('DECIMAIS') or 0),
+            'minimo': None if row.get('MINIMO') is None else str(row.get('MINIMO')).strip(),
+            'maximo': None if row.get('MAXIMO') is None else str(row.get('MAXIMO')).strip(),
+            'is_menu_object': True,
+            'ui_only': True,
+            'propriedades': props,
+        })
+    return objects
+
+
+def _normalize_menu_event_name(value: str) -> str:
+    raw = re.sub(r'[^a-z0-9_]+', '_', str(value or '').strip().lower())
+    raw = re.sub(r'_+', '_', raw).strip('_')
+    return raw
+
+
+def _load_menu_screen_events(menustamp: str) -> dict[str, dict]:
+    stamp = (menustamp or '').strip()
+    if not stamp or not _column_exists('MENU_EVENTOS', 'MENUEVENTOSTAMP'):
+        return {}
+
+    rows = db.session.execute(text("""
+        SELECT
+            LTRIM(RTRIM(ISNULL(EVENTO, ''))) AS EVENTO,
+            ISNULL(FLUXO, '{}') AS FLUXO
+        FROM dbo.MENU_EVENTOS
+        WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+          AND ISNULL(ATIVO, 1) = 1
+        ORDER BY LTRIM(RTRIM(ISNULL(EVENTO, '')))
+    """), {'menustamp': stamp}).mappings().all()
+
+    events = {}
+    for row in rows:
+        event_name = _normalize_menu_event_name(row.get('EVENTO'))
+        if not event_name:
+            continue
+        flow = {}
+        raw_flow = row.get('FLUXO')
+        if isinstance(raw_flow, dict):
+            flow = dict(raw_flow)
+        else:
+            try:
+                parsed = json.loads(str(raw_flow or '').strip() or '{}')
+                if isinstance(parsed, dict):
+                    flow = parsed
+            except Exception:
+                flow = {}
+        if isinstance(flow.get('lines'), list):
+            events[event_name] = flow
+    return events
 
 # --------------------------------------------------
 # Helper: reflect a table by name
@@ -500,13 +794,19 @@ def view_calendar():
 @bp.route('/view/<table_name>/<record_stamp>')
 @login_required
 def view_table(table_name, record_stamp):
-    menu_item  = Menu.query.filter_by(tabela=table_name).first()
+    requested_menu_stamp = (request.args.get('menustamp') or '').strip()
+    menu_item = None
+    if requested_menu_stamp:
+        menu_item = Menu.query.filter_by(menustamp=requested_menu_stamp, tabela=table_name).first()
+    if menu_item is None:
+        menu_item = Menu.query.filter_by(tabela=table_name).first()
     menu_label = menu_item.nome if menu_item else table_name.capitalize()
     return render_template(
         'dynamic_list.html',
         table_name=table_name,
         record_stamp=record_stamp,
-        menu_label=menu_label
+        menu_label=menu_label,
+        menu_stamp=(menu_item.menustamp if menu_item else '')
     )
 
 @bp.route('/form/<table_name>/', defaults={'record_stamp': None})
@@ -514,8 +814,14 @@ def view_table(table_name, record_stamp):
 @login_required
 def edit_table(table_name, record_stamp):
     from models import MenuBotoes
-    menu_item  = Menu.query.filter_by(tabela=table_name).first()
+    requested_menu_stamp = (request.args.get('menustamp') or '').strip()
+    menu_item = None
+    if requested_menu_stamp:
+        menu_item = Menu.query.filter_by(menustamp=requested_menu_stamp, tabela=table_name).first()
+    if menu_item is None:
+        menu_item = Menu.query.filter_by(tabela=table_name).first()
     menu_label = menu_item.nome if menu_item else table_name.capitalize()
+    exact_widths = _menu_uses_exact_widths(table_name)
 
     botoes_query = MenuBotoes.query.filter_by(
         TABELA=table_name, ATIVO=True
@@ -541,7 +847,9 @@ def edit_table(table_name, record_stamp):
         record_stamp=record_stamp,
         menu_label=menu_label,
         botoes=botoes,
-        linhas_exist=linhas_exist  # <-- adiciona aqui
+        linhas_exist=linhas_exist,
+        exact_widths=exact_widths,
+        menu_stamp=(menu_item.menustamp if menu_item else '')
     )
 
 
@@ -1322,9 +1630,80 @@ def fo_contrato_linhas(bostamp):
 @login_required
 def list_or_describe(table_name):
     if request.args.get('action') == 'describe':
+        include_screen_meta = str(request.args.get('include_screen_meta') or '').strip().lower() in {'1', 'true', 'yes'}
         table = get_table(table_name)
         column_meta = {col.name.upper(): col for col in table.columns} if table is not None else {}
         campos = Campo.query.filter_by(tabela=table_name).order_by(Campo.ordem).all()
+        menu_stamp = _resolve_menu_stamp(table_name, request.args.get('menustamp') or '')
+        visible_map = {}
+        numeric_meta_map = {}
+        list_layout_map = {}
+        if _column_exists(table_name='CAMPOS', column_name='VISIVEL'):
+            visible_rows = db.session.execute(text("""
+                SELECT
+                    UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) AS NMCAMPO,
+                    ISNULL(VISIVEL, 1) AS VISIVEL
+                FROM dbo.CAMPOS
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
+            """), {'table_name': str(table_name or '').strip().upper()}).mappings().all()
+            visible_map = {
+                str(row.get('NMCAMPO') or '').strip().upper(): bool(int(row.get('VISIVEL') or 0) == 1)
+                for row in visible_rows
+            }
+        if _column_exists(table_name='CAMPOS', column_name='DECIMAIS') or _column_exists(table_name='CAMPOS', column_name='MINIMO') or _column_exists(table_name='CAMPOS', column_name='MAXIMO'):
+            numeric_rows = db.session.execute(text("""
+                SELECT
+                    UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) AS NMCAMPO,
+                    ISNULL(DECIMAIS, 0) AS DECIMAIS,
+                    MINIMO AS MINIMO,
+                    MAXIMO AS MAXIMO
+                FROM dbo.CAMPOS
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
+            """), {'table_name': str(table_name or '').strip().upper()}).mappings().all()
+            numeric_meta_map = {
+                str(row.get('NMCAMPO') or '').strip().upper(): {
+                    'decimais': int(row.get('DECIMAIS') or 0),
+                    'minimo': None if row.get('MINIMO') is None else str(row.get('MINIMO')).strip(),
+                    'maximo': None if row.get('MAXIMO') is None else str(row.get('MAXIMO')).strip(),
+                }
+                for row in numeric_rows
+            }
+        if _column_exists(table_name='CAMPOS', column_name='ORDEM_LISTA') or _column_exists(table_name='CAMPOS', column_name='TAM_LISTA'):
+            list_order_select = "ISNULL(ORDEM_LISTA, CASE WHEN ISNULL(LISTA, 0) = 1 THEN ISNULL(ORDEM, 0) ELSE 0 END) AS ORDEM_LISTA" if _column_exists(table_name='CAMPOS', column_name='ORDEM_LISTA') else "CASE WHEN ISNULL(LISTA, 0) = 1 THEN ISNULL(ORDEM, 0) ELSE 0 END AS ORDEM_LISTA"
+            list_width_select = "ISNULL(TAM_LISTA, ISNULL(TAM, 5)) AS TAM_LISTA" if _column_exists(table_name='CAMPOS', column_name='TAM_LISTA') else "ISNULL(TAM, 5) AS TAM_LISTA"
+            list_mobile_order_select = "ISNULL(ORDEM_LISTA_MOBILE, 0) AS ORDEM_LISTA_MOBILE" if _column_exists(table_name='CAMPOS', column_name='ORDEM_LISTA_MOBILE') else "CAST(0 AS int) AS ORDEM_LISTA_MOBILE"
+            list_mobile_width_select = "ISNULL(TAM_LISTA_MOBILE, ISNULL(TAM_MOBILE, ISNULL(TAM, 5))) AS TAM_LISTA_MOBILE" if _column_exists(table_name='CAMPOS', column_name='TAM_LISTA_MOBILE') else "ISNULL(TAM_MOBILE, ISNULL(TAM, 5)) AS TAM_LISTA_MOBILE"
+            list_mobile_bold_select = "ISNULL(LISTA_MOBILE_BOLD, 0) AS LISTA_MOBILE_BOLD" if _column_exists(table_name='CAMPOS', column_name='LISTA_MOBILE_BOLD') else "CAST(0 AS bit) AS LISTA_MOBILE_BOLD"
+            list_mobile_italic_select = "ISNULL(LISTA_MOBILE_ITALIC, 0) AS LISTA_MOBILE_ITALIC" if _column_exists(table_name='CAMPOS', column_name='LISTA_MOBILE_ITALIC') else "CAST(0 AS bit) AS LISTA_MOBILE_ITALIC"
+            list_mobile_show_label_select = "ISNULL(LISTA_MOBILE_SHOW_LABEL, 1) AS LISTA_MOBILE_SHOW_LABEL" if _column_exists(table_name='CAMPOS', column_name='LISTA_MOBILE_SHOW_LABEL') else "CAST(1 AS bit) AS LISTA_MOBILE_SHOW_LABEL"
+            list_mobile_label_select = "LTRIM(RTRIM(ISNULL(LISTA_MOBILE_LABEL, ''))) AS LISTA_MOBILE_LABEL" if _column_exists(table_name='CAMPOS', column_name='LISTA_MOBILE_LABEL') else "LTRIM(RTRIM(ISNULL(DESCRICAO, ''))) AS LISTA_MOBILE_LABEL"
+            list_rows = db.session.execute(text("""
+                SELECT
+                    UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) AS NMCAMPO,
+                    """ + list_order_select + """,
+                    """ + list_width_select + """,
+                    """ + list_mobile_order_select + """,
+                    """ + list_mobile_width_select + """,
+                    """ + list_mobile_bold_select + """,
+                    """ + list_mobile_italic_select + """,
+                    """ + list_mobile_show_label_select + """,
+                    """ + list_mobile_label_select + """
+                FROM dbo.CAMPOS
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
+            """), {'table_name': str(table_name or '').strip().upper()}).mappings().all()
+            list_layout_map = {
+                str(row.get('NMCAMPO') or '').strip().upper(): {
+                    'ordem_lista': int(row.get('ORDEM_LISTA') or 0),
+                    'tam_lista': int(row.get('TAM_LISTA') or 5),
+                    'ordem_lista_mobile': int(row.get('ORDEM_LISTA_MOBILE') or 0),
+                    'tam_lista_mobile': int(row.get('TAM_LISTA_MOBILE') or 5),
+                    'lista_mobile_bold': bool(row.get('LISTA_MOBILE_BOLD')),
+                    'lista_mobile_italic': bool(row.get('LISTA_MOBILE_ITALIC')),
+                    'lista_mobile_show_label': bool(row.get('LISTA_MOBILE_SHOW_LABEL') if row.get('LISTA_MOBILE_SHOW_LABEL') is not None else 1),
+                    'lista_mobile_label': str(row.get('LISTA_MOBILE_LABEL') or '').strip(),
+                }
+                for row in list_rows
+            }
         pk_name = f"{table_name.upper()}STAMP"
         cols = []
         for c in campos:
@@ -1332,6 +1711,8 @@ def list_or_describe(table_name):
             col_type = getattr(col_ref, 'type', None) if col_ref is not None else None
             precision = getattr(col_type, 'precision', None) if col_type is not None else None
             scale = getattr(col_type, 'scale', None) if col_type is not None else None
+            numeric_meta = numeric_meta_map.get(c.nmcampo.upper(), {})
+            list_layout = list_layout_map.get(c.nmcampo.upper(), {})
             cols.append({
                 'name':             c.nmcampo,
                 'descricao':        c.descricao,
@@ -1346,12 +1727,33 @@ def list_or_describe(table_name):
                 'virtual':          c.virtual if c.tipo == 'VIRTUAL' else None,
                 'ordem':            c.ordem,
                 'tam':              c.tam,
+                'ordem_lista':      list_layout.get('ordem_lista', c.ordem if bool(c.lista) else 0),
+                'tam_lista':        list_layout.get('tam_lista', c.tam),
+                'ordem_lista_mobile': list_layout.get('ordem_lista_mobile', 0),
+                'tam_lista_mobile': list_layout.get('tam_lista_mobile', c.tam_mobile if getattr(c, 'tam_mobile', None) else c.tam),
+                'lista_mobile_bold': bool(list_layout.get('lista_mobile_bold', False)),
+                'lista_mobile_italic': bool(list_layout.get('lista_mobile_italic', False)),
+                'lista_mobile_show_label': bool(list_layout.get('lista_mobile_show_label', True)),
+                'lista_mobile_label': str(list_layout.get('lista_mobile_label', c.descricao or c.nmcampo) or '').strip(),
                 'ordem_mobile':     c.ordem_mobile,
                 'tam_mobile':       c.tam_mobile,
                 'condicao_visivel': c.condicao_visivel,
+                'visivel':          visible_map.get(c.nmcampo.upper(), True),
                 'obrigatorio':      c.obrigatorio,
                 'precisao':         precision,
-                'decimais':         scale
+                'decimais':         numeric_meta.get('decimais') if 'decimais' in numeric_meta else scale,
+                'minimo':           numeric_meta.get('minimo'),
+                'maximo':           numeric_meta.get('maximo'),
+            })
+        cols.extend(_load_menu_objects_for_menu(menu_stamp))
+        if include_screen_meta:
+            return jsonify({
+                'columns': cols,
+                'screen': {
+                    'menustamp': menu_stamp,
+                    'events': _load_menu_screen_events(menu_stamp),
+                    'list_use_exact_widths': _menu_uses_list_exact_widths(menu_stamp=menu_stamp, table_name=table_name),
+                },
             })
         return jsonify(cols)
 
@@ -3621,6 +4023,47 @@ def api_monitor_proximos():
         return jsonify(out)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/event/cursor_query', methods=['POST'])
+@login_required
+def event_cursor_query():
+    try:
+        payload = request.get_json(silent=True) or {}
+        table_name = str(payload.get('table_name') or '').strip()
+        if not table_name:
+            return jsonify({'success': False, 'error': 'table_name em falta.'}), 400
+        if not (
+            getattr(current_user, 'ADMIN', False)
+            or has_permission(table_name, 'consultar')
+            or has_permission(table_name, 'editar')
+            or has_permission(table_name, 'inserir')
+        ):
+            return jsonify({'success': False, 'error': 'Sem permissao para executar o cursor SQL neste ecra.'}), 403
+
+        compiled_sql, param_names = _prepare_event_cursor_sql(payload.get('sql') or '')
+        raw_params = payload.get('params') if isinstance(payload.get('params'), dict) else {}
+        bind_params = {
+            name: _normalize_event_cursor_param_value(raw_params.get(name))
+            for name in param_names
+        }
+
+        result = db.session.execute(text(compiled_sql), bind_params)
+        columns = [str(col) for col in result.keys()]
+        rows = [
+            {str(key): _event_cursor_json_value(value) for key, value in dict(row).items()}
+            for row in result.mappings().all()
+        ]
+        return jsonify({
+            'success': True,
+            'columns': columns,
+            'rows': rows,
+        })
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception('Erro ao executar cursor SQL do editor de eventos')
+        return jsonify({'success': False, 'error': str(exc)}), 500
 
 @bp.route('/api/monitor/outs', methods=['GET'])
 @login_required

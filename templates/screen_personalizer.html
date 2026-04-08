@@ -1,0 +1,1713 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Personalização de Ecrãs{% endblock %}
+
+{% block content %}
+<div class="sz_page spv-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Personalização de Ecrãs</div>
+        <div id="spvPageSubtitle" class="sz_page_subtitle">Visualização da disposição dos `CAMPOS` usados no `dynamic_form`.</div>
+      </div>
+      <div class="sz_contextbar_right spv-contextbar-right">
+        <div class="spv-screen-picker">
+          <div class="spv-screen-toolbar">
+            <div class="spv-toolbar-groups">
+              <div class="spv-toolbar-group spv-toolbar-group-screen">
+                <label class="sz_label spv-toolbar-group-label spv-toolbar-group-label-screen" for="spvScreenSelect">Ecrã</label>
+                <select id="spvScreenSelect" class="sz_select">
+                  <option value="">A carregar...</option>
+                </select>
+              </div>
+              <div class="spv-toolbar-group">
+                <div class="sz_label spv-toolbar-group-label">Layout</div>
+                <div class="spv-toggle spv-toggle-compact" role="group" aria-label="Modo de layout">
+                  <button id="spvFormModeBtn" type="button" class="sz_button sz_button_secondary" title="Form">
+                    <i class="fa-solid fa-window-maximize"></i>
+                  </button>
+                  <button id="spvListModeBtn" type="button" class="sz_button sz_button_ghost" title="Lista">
+                    <i class="fa-solid fa-table"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="spv-toolbar-group">
+                <div class="sz_label spv-toolbar-group-label">Vista</div>
+                <div class="spv-toggle spv-toggle-compact" role="group" aria-label="Viewport">
+                  <button id="spvDesktopModeBtn" type="button" class="sz_button sz_button_secondary" title="Desktop">
+                    <i class="fa-solid fa-desktop"></i>
+                  </button>
+                  <button id="spvMobileModeBtn" type="button" class="sz_button sz_button_ghost" title="Mobile">
+                    <i class="fa-solid fa-mobile-screen-button"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="spv-toolbar-group">
+                <div class="sz_label spv-toolbar-group-label">Larguras</div>
+                <div class="spv-toggle spv-toggle-compact" role="group" aria-label="Modo de larguras">
+                  <button id="spvProportionalWidthsBtn" type="button" class="sz_button sz_button_ghost" title="Larguras proporcionais">
+                    <i class="fa-solid fa-percent"></i>
+                  </button>
+                  <button id="spvExactWidthsBtn" type="button" class="sz_button sz_button_secondary" title="Larguras exatas">
+                    <i class="fa-solid fa-ruler-combined"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div id="spvLayout" class="sz_sidebar_layout spv-layout">
+        <aside id="spvSidebar" class="sz_panel sz_stack spv-sidebar">
+          <div class="sz_inline spv-sidebar-head">
+            <div class="sz_stack spv-sidebar-head-main">
+              <div id="spvSidebarTitle" class="sz_h4">Campos</div>
+            </div>
+            <div class="spv-sidebar-tools">
+              <div class="spv-toggle spv-toggle-compact spv-sidebar-mode-toggle" role="group" aria-label="Conteúdo da sidebar">
+                <button id="spvSidebarFieldsBtn" type="button" class="sz_button sz_button_secondary" title="Campos">
+                  <i class="fa-solid fa-table-list"></i>
+                </button>
+                <button id="spvSidebarObjectsBtn" type="button" class="sz_button sz_button_ghost" title="Objetos">
+                  <i class="fa-solid fa-cubes-stacked"></i>
+                </button>
+                <button id="spvSidebarVariablesBtn" type="button" class="sz_button sz_button_ghost" title="Variaveis">
+                  <i class="fa-solid fa-code"></i>
+                </button>
+                <button id="spvSidebarAddBtn" type="button" class="sz_button sz_button_ghost" title="Adicionar objeto">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+              </div>
+              <button id="spvSidebarCollapseBtn" type="button" class="sz_button sz_button_ghost spv-sidebar-collapse-btn" title="Encolher painel">
+                <i class="fa-solid fa-angles-left"></i>
+              </button>
+            </div>
+          </div>
+          <div id="spvSidebarBody" class="spv-sidebar-body">
+            <div id="spvFieldsList" class="sz_stack">
+            <div class="sz_text_muted">Seleciona um ecrã.</div>
+            </div>
+          </div>
+        </aside>
+
+        <div class="sz_page_content spv-main">
+          <section class="sz_panel sz_stack spv-preview-panel">
+            <div id="spvPreviewEmpty" class="sz_card sz_stack spv-preview-empty">
+              <div class="sz_h4">Sem layout</div>
+              <div class="sz_text_muted">Seleciona um ecrã do menu para visualizar a disposição dos campos.</div>
+            </div>
+
+            <div id="spvPreviewStage" class="spv-preview-stage sz_hidden">
+              <div id="spvPreviewScale" class="spv-preview-scale"></div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="sz_panel sz_stack spv-properties-panel">
+          <div class="sz_inline spv-sidebar-head">
+            <div class="sz_stack">
+              <div class="sz_h4">Propriedades</div>
+            </div>
+          </div>
+
+          <div id="spvPropertiesContent" class="sz_stack spv-properties-placeholder">
+            <div class="spv-field-icon"><i class="fa-solid fa-sliders"></i></div>
+            <div class="sz_text_muted">Clica num campo no visualizador para ver as propriedades.</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar sz_screen_personalizer_sectionbar">
+      <div class="sz_actionbar_left">
+        <div id="spvStatus" class="sz_text_muted">Modo visualização.</div>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="spvSaveBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar</span>
+        </button>
+        <button id="spvCancelBtn" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button id="spvBackBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div class="modal fade" id="spvVariableModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <form id="spvVariableForm" class="modal-content spv-variable-modal">
+      <div class="modal-header">
+        <div>
+          <h5 id="spvVariableModalTitle" class="modal-title">Nova variavel</h5>
+          <div class="spv-variable-modal-subtitle">Associada ao menu selecionado.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <input id="spvVariableStamp" type="hidden" value="">
+        <div class="spv-variable-form-grid">
+          <div class="sz_field">
+            <label class="sz_label" for="spvVariableName">Nome interno</label>
+            <input id="spvVariableName" type="text" class="sz_input" maxlength="60" placeholder="EX: ESTADO_RESERVA">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="spvVariableDescription">Descricao</label>
+            <input id="spvVariableDescription" type="text" class="sz_input" maxlength="100" placeholder="Ex: Estado da reserva">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="spvVariableType">Tipo</label>
+            <select id="spvVariableType" class="sz_select"></select>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="spvVariableDefault">Default</label>
+            <textarea id="spvVariableDefault" class="sz_textarea" rows="3" placeholder="Valor default"></textarea>
+            <div id="spvVariableDefaultHint" class="sz_text_muted spv-variable-hint"></div>
+          </div>
+          <div class="sz_field spv-variable-form-span">
+            <label class="sz_label" for="spvVariableHelp">Ajuda</label>
+            <textarea id="spvVariableHelp" class="sz_textarea" rows="3" placeholder="Notas, contexto de uso, formato esperado..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="spvVariableDeleteBtn" type="button" class="sz_button sz_button_ghost sz_hidden">
+          <i class="fa-solid fa-trash"></i>
+          <span>Eliminar</span>
+        </button>
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Cancelar</button>
+        <button id="spvVariableSaveBtn" type="submit" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Guardar variavel</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal fade" id="spvEventEditorModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl spv-event-modal-dialog">
+    <div class="modal-content spv-event-modal">
+      <div class="modal-header">
+        <div>
+          <h5 id="spvEventEditorTitle" class="modal-title">Editor de evento</h5>
+          <div id="spvEventEditorContext" class="spv-variable-modal-subtitle">Construtor visual de pseudo-codigo para este ecra.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="spvEventEditorLegacy" class="spv-event-legacy sz_hidden"></div>
+        <div class="spv-event-layout">
+          <aside class="spv-event-toolbox sz_panel">
+            <div class="spv-event-panel-head">
+              <div class="spv-event-panel-title">Comandos</div>
+            </div>
+            <div id="spvEventToolbox" class="spv-event-toolbox-groups"></div>
+          </aside>
+          <section class="spv-event-builder-panel sz_panel">
+            <div class="spv-event-panel-head">
+              <div class="spv-event-panel-title">Algoritmo</div>
+              <div class="sz_text_muted">Arrasta os comandos para o fluxo.</div>
+            </div>
+            <div id="spvEventBuilder" class="spv-event-builder"></div>
+            <div class="spv-event-config-panel sz_panel">
+              <div class="spv-event-panel-title">Propriedades</div>
+              <div id="spvEventConfig" class="spv-event-config"></div>
+            </div>
+          </section>
+          <aside class="spv-event-code-panel sz_panel">
+            <div class="spv-event-panel-head">
+              <div class="spv-event-panel-title">Pseudo-codigo</div>
+              <div class="sz_text_muted">Vista gerada automaticamente.</div>
+            </div>
+            <pre id="spvEventCode" class="spv-event-code"></pre>
+          </aside>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="spvEventClearBtn" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-eraser"></i>
+          <span>Limpar evento</span>
+        </button>
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Cancelar</button>
+        <button id="spvEventSaveBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Guardar evento</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.SCREEN_PERSONALIZER_CONFIG = {
+    bootstrapUrl: "{{ url_for('api_screen_personalizer_bootstrap') }}",
+    layoutUrl: "{{ url_for('api_screen_personalizer_layout') }}",
+    saveUrl: "{{ url_for('api_screen_personalizer_save') }}",
+    initialMenustamp: {{ initial_menustamp|tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/screen_personalizer.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+
+<style>
+  .spv-page .sz_page_container {
+    min-height: calc(100vh - 8.5rem);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .spv-page .sz_page_body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .spv-contextbar-right {
+    display: flex;
+    gap: .75rem;
+    align-items: flex-end;
+    min-width: min(620px, 100%);
+  }
+
+  .spv-screen-picker {
+    width: min(620px, 100%);
+    margin: 0;
+  }
+
+  .spv-screen-toolbar {
+    display: block;
+    width: 100%;
+  }
+
+  .spv-toolbar-groups {
+    display: flex;
+    align-items: flex-start;
+    gap: .9rem;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .spv-toolbar-group {
+    display: flex;
+    flex-direction: column;
+    gap: .28rem;
+    flex: 0 0 auto;
+  }
+
+  .spv-toolbar-group-screen {
+    flex: 1 1 20rem;
+    min-width: min(20rem, 100%);
+  }
+
+  .spv-toolbar-group-label {
+    font-size: .64rem;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--sz-color-text-secondary);
+    min-height: .9rem;
+    display: inline-flex;
+    align-items: center;
+    padding-left: .12rem;
+    margin: 0;
+  }
+
+  .spv-toolbar-group-label-screen {
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .spv-toggle {
+    display: flex;
+    gap: .4rem;
+  }
+
+  .spv-screen-toolbar .sz_select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .spv-toggle .sz_button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .spv-toggle-compact {
+    flex: 0 0 auto;
+    gap: .25rem;
+  }
+
+  .spv-toggle-compact .sz_button {
+    width: 2.3rem;
+    min-width: 2.3rem;
+    height: 2.3rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-width: 1px;
+  }
+
+  .spv-toggle-compact .sz_button i {
+    font-size: .95rem;
+  }
+
+  .spv-toggle-compact .sz_button.sz_button_secondary {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 32%, transparent);
+  }
+
+  .spv-layout {
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(260px, 320px);
+    align-items: stretch;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .spv-layout.is-sidebar-collapsed {
+    grid-template-columns: 4.4rem minmax(0, 1fr) minmax(260px, 320px);
+  }
+
+  .spv-sidebar,
+  .spv-preview-panel,
+  .spv-properties-panel {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .spv-sidebar {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .spv-main {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .spv-sidebar,
+  .spv-preview-panel {
+    overflow: hidden;
+  }
+
+  .spv-properties-panel {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .spv-preview-panel {
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+  }
+
+  .spv-sidebar-head {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: .75rem;
+  }
+
+  .spv-sidebar-head-main {
+    min-width: 0;
+  }
+
+  .spv-sidebar-tools {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex-wrap: nowrap;
+    justify-self: end;
+    align-self: start;
+  }
+
+  .spv-sidebar-mode-toggle {
+    gap: .2rem;
+  }
+
+  .spv-sidebar-collapse-btn {
+    width: 2.3rem;
+    min-width: 2.3rem;
+    height: 2.3rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .spv-sidebar-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .spv-field-card {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: .6rem;
+    align-items: center;
+    padding: .55rem .7rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface-alt);
+    cursor: grab;
+  }
+
+  .spv-field-card.is-hidden {
+    opacity: .72;
+  }
+
+  .spv-field-card.is-selected {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 70%, var(--sz-color-border));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 24%, transparent);
+  }
+
+  .spv-field-card.is-sql {
+    border-style: dashed;
+    background: color-mix(in srgb, var(--sz-color-info) 10%, var(--sz-color-surface-alt));
+  }
+
+  .spv-field-card.is-sql .spv-field-icon {
+    background: color-mix(in srgb, var(--sz-color-info) 18%, transparent);
+    color: var(--sz-color-info);
+  }
+
+  .spv-field-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--sz-radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, transparent);
+    color: var(--sz-color-primary);
+  }
+
+  .spv-field-name {
+    font-weight: 700;
+    color: var(--sz-color-text);
+    line-height: 1.1;
+  }
+
+  .spv-field-card-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .1rem;
+  }
+
+  .spv-variable-card {
+    cursor: pointer;
+  }
+
+  .spv-variable-card .spv-field-icon {
+    background: color-mix(in srgb, var(--sz-color-warning) 18%, transparent);
+    color: var(--sz-color-warning);
+  }
+
+  .spv-card-subline {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex-wrap: wrap;
+    margin-top: .2rem;
+  }
+
+  .spv-card-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .12rem .38rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
+    color: var(--sz-color-text-secondary);
+    font-size: .74rem;
+    line-height: 1;
+  }
+
+  .spv-field-key {
+    color: var(--sz-color-text-secondary);
+    font-size: .82rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #spvFieldsList {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: .15rem;
+  }
+
+  .spv-layout.is-sidebar-collapsed .spv-sidebar {
+    padding-inline: .4rem;
+  }
+
+  .spv-layout.is-sidebar-collapsed .spv-sidebar-head {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    gap: .45rem;
+    min-height: 0;
+  }
+
+  .spv-layout.is-sidebar-collapsed .spv-sidebar-head-main,
+  .spv-layout.is-sidebar-collapsed .spv-sidebar-body {
+    display: none;
+  }
+
+  .spv-layout.is-sidebar-collapsed .spv-sidebar-tools {
+    position: static;
+    margin-left: 0;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+    gap: .45rem;
+    justify-self: auto;
+    align-self: auto;
+  }
+
+  .spv-layout.is-sidebar-collapsed .spv-sidebar-mode-toggle {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .spv-layout.is-sidebar-collapsed .spv-sidebar-collapse-btn {
+    order: -1;
+  }
+
+  .spv-preview-empty {
+    align-items: center;
+    justify-content: center;
+    min-height: 18rem;
+    text-align: center;
+  }
+
+  .spv-preview-stage {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    overflow: auto;
+  }
+
+  .spv-preview-scale {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .spv-preview-screen {
+    width: 100%;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    background: var(--sz-color-bg-panel);
+    box-shadow: var(--sz-shadow-md);
+    overflow: hidden;
+    font-size: clamp(.88rem, .16vw + .84rem, 1rem);
+    box-sizing: border-box;
+  }
+
+  .spv-preview-screen.is-mobile {
+    max-width: 28rem;
+    margin-inline: auto;
+  }
+
+  .spv-preview-body {
+    padding: .5rem;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+  }
+
+  .spv-preview-row {
+    display: grid;
+    gap: .3rem;
+    align-items: stretch;
+    grid-auto-flow: row;
+    padding: .1rem;
+    border-radius: var(--sz-radius-md);
+    transition: background-color .16s ease, box-shadow .16s ease;
+  }
+
+  .spv-preview-insert-gap {
+    min-height: 1rem;
+    margin: .04rem 0;
+    border-radius: var(--sz-radius-sm);
+    display: flex;
+    align-items: stretch;
+    transition: background-color .16s ease, min-height .16s ease, box-shadow .16s ease;
+  }
+
+  .spv-preview-insert-gap-inner {
+    flex: 1 1 auto;
+    border-radius: inherit;
+    border: 1px dashed transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .72rem;
+    font-weight: 700;
+    color: transparent;
+  }
+
+  .spv-preview-insert-gap.is-drop-target {
+    min-height: 2.1rem;
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 24%, transparent);
+  }
+
+  .spv-preview-insert-gap.is-drop-target .spv-preview-insert-gap-inner {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 70%, var(--sz-color-border));
+    color: var(--sz-color-primary);
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, transparent);
+  }
+
+  .spv-preview-col {
+    min-width: 0;
+    box-sizing: border-box;
+    display: flex;
+    align-items: stretch;
+  }
+
+  .spv-preview-row.is-drop-target {
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 26%, transparent);
+  }
+
+  .spv-preview-row.is-drop-invalid {
+    background: color-mix(in srgb, var(--sz-color-danger) 9%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-danger) 30%, transparent);
+  }
+
+  .spv-preview-row.is-new-row {
+    min-height: 2.9rem;
+  }
+
+  .spv-preview-field {
+    position: relative;
+    flex: 1 1 auto;
+    padding: .32rem .36rem;
+    border: 1px dashed color-mix(in srgb, var(--sz-color-border) 92%, transparent);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 84%, transparent);
+    overflow: hidden;
+    box-sizing: border-box;
+    cursor: grab;
+  }
+
+  .spv-preview-field-list {
+    min-height: 4.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: .28rem;
+    justify-content: center;
+  }
+
+  .spv-list-preview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    min-width: 0;
+    padding-right: .55rem;
+  }
+
+  .spv-list-preview-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+    font-size: .78em;
+    color: var(--sz-color-text);
+  }
+
+  .spv-list-preview-type {
+    flex: 0 0 auto;
+    font-size: .66em;
+    color: var(--sz-color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+
+  .spv-list-preview-sample {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .7em;
+    color: var(--sz-color-text-secondary);
+  }
+
+  .spv-list-preview-mobile-placeholder {
+    min-height: 8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    text-align: center;
+  }
+
+  .spv-preview-frame {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    min-height: 12rem;
+    padding: .8rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-border) 94%, transparent);
+    border-radius: calc(var(--sz-radius-lg) - 2px);
+    background: color-mix(in srgb, var(--sz-color-bg-panel) 92%, var(--sz-color-surface));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-border) 18%, transparent);
+  }
+
+  .spv-preview-frame-head {
+    display: flex;
+    flex-direction: column;
+    gap: .12rem;
+    padding-bottom: .2rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--sz-color-border) 88%, transparent);
+  }
+
+  .spv-preview-frame-title {
+    font-size: .9rem;
+    font-weight: 700;
+    color: var(--sz-color-text);
+  }
+
+  .spv-preview-frame-subtitle {
+    font-size: .74rem;
+    color: var(--sz-color-text-secondary);
+  }
+
+  .spv-preview-frame-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+    gap: .35rem;
+  }
+
+  .spv-list-mobile-card {
+    min-height: 12rem;
+  }
+
+  .spv-list-mobile-card-head {
+    display: flex;
+  }
+
+  .spv-list-mobile-card-title {
+    display: block;
+  }
+
+  .spv-list-mobile-card-subtitle {
+    display: block;
+  }
+
+  .spv-preview-row-card {
+    gap: .45rem;
+    padding-inline: 0;
+  }
+
+  .spv-preview-field-list-mobile {
+    min-height: 3.9rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: .18rem;
+    padding-right: .78rem;
+  }
+
+  .spv-list-mobile-field {
+    display: flex;
+    flex-direction: column;
+    gap: .18rem;
+    min-width: 0;
+  }
+
+  .spv-list-mobile-label {
+    font-size: .66rem;
+    line-height: 1.1;
+    color: var(--sz-color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .spv-list-mobile-value {
+    font-size: .84rem;
+    line-height: 1.3;
+    color: var(--sz-color-text);
+    word-break: break-word;
+  }
+
+  .spv-list-mobile-value.is-bold {
+    font-weight: 700;
+  }
+
+  .spv-list-mobile-value.is-italic {
+    font-style: italic;
+  }
+
+  .spv-preview-field.is-selected {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 78%, var(--sz-color-border));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 24%, transparent);
+  }
+
+  .spv-preview-field.is-drag-source {
+    opacity: .45;
+    border-style: solid;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 18%, transparent);
+  }
+
+  .spv-preview-field .sz_label {
+    margin-bottom: .14rem;
+    display: inline-flex;
+    gap: .25rem;
+    align-items: center;
+    max-width: 100%;
+    font-size: .72em;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .spv-required {
+    color: var(--sz-color-danger);
+    font-weight: 700;
+  }
+
+  .spv-readonly-badge {
+    margin-left: .35rem;
+  }
+
+  .spv-preview-control,
+  .spv-preview-field .sz_input,
+  .spv-preview-field .sz_input_number,
+  .spv-preview-field .sz_select,
+  .spv-preview-field .sz_date,
+  .spv-preview-field .sz_textarea,
+  .spv-preview-field .spv-preview-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 1.55rem;
+    padding: .18rem .32rem;
+    font-size: .76em;
+    box-sizing: border-box;
+  }
+
+  .spv-preview-field .spv-preview-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+  }
+
+  .spv-preview-control.sz_textarea {
+    min-height: 2.45rem;
+    resize: none;
+  }
+
+  .spv-preview-checkbox {
+    min-height: 1.45rem;
+    display: inline-flex;
+    align-items: center;
+    font-size: .74em;
+  }
+
+  .spv-preview-spacer {
+    min-height: 1.55rem;
+    border-radius: var(--sz-radius-sm);
+    border: 1px dashed color-mix(in srgb, var(--sz-color-border) 86%, transparent);
+    background:
+      repeating-linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--sz-color-primary) 10%, transparent) 0,
+        color-mix(in srgb, var(--sz-color-primary) 10%, transparent) 10px,
+        transparent 10px,
+        transparent 18px
+      );
+    opacity: .55;
+  }
+
+  .spv-drop-placeholder-col {
+    min-width: 0;
+    display: flex;
+    align-items: stretch;
+  }
+
+  .spv-drop-placeholder {
+    min-height: 2.25rem;
+    flex: 1 1 auto;
+    border-radius: var(--sz-radius-md);
+    border: 1px dashed color-mix(in srgb, var(--sz-color-primary) 70%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: .4rem;
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--sz-color-primary);
+    text-align: center;
+  }
+
+  .spv-drop-placeholder.is-invalid {
+    border-color: color-mix(in srgb, var(--sz-color-danger) 78%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-danger) 12%, transparent);
+    color: var(--sz-color-danger);
+  }
+
+  .spv-drop-placeholder-inline {
+    grid-column: 1 / -1;
+    min-height: 2.1rem;
+  }
+
+  .spv-row-hint {
+    grid-column: 1 / -1;
+    min-height: 2.3rem;
+    border: 1px dashed color-mix(in srgb, var(--sz-color-border) 88%, transparent);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 42%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .76rem;
+    font-weight: 700;
+    color: var(--sz-color-text-secondary);
+  }
+
+  .spv-resize-handle {
+    position: absolute;
+    top: .18rem;
+    right: .08rem;
+    bottom: .18rem;
+    width: .5rem;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: ew-resize;
+    opacity: .38;
+  }
+
+  .spv-resize-handle::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: .14rem;
+    width: 2px;
+    height: .9rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-primary) 82%, white 18%);
+    transform: translateY(-50%);
+    box-shadow: -3px 0 0 color-mix(in srgb, var(--sz-color-primary) 32%, transparent);
+  }
+
+  .spv-preview-field:hover .spv-resize-handle,
+  .spv-resize-handle:focus-visible {
+    opacity: .9;
+  }
+
+  body.spv-resizing,
+  body.spv-resizing * {
+    cursor: ew-resize !important;
+    user-select: none !important;
+  }
+
+  body.spv-dragging,
+  body.spv-dragging * {
+    cursor: grabbing !important;
+    user-select: none !important;
+  }
+
+  .spv-properties-placeholder {
+    flex: 1 1 auto;
+    min-height: 16rem;
+  }
+
+  .spv-prop-title {
+    font-weight: 700;
+    color: var(--sz-color-text);
+  }
+
+  .spv-prop-grid {
+    display: grid;
+    gap: .75rem;
+  }
+
+  #spvPropertiesContent {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .spv-prop-row {
+    display: grid;
+    gap: .2rem;
+    padding: .55rem .65rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 82%, transparent);
+  }
+
+  .spv-prop-row-event {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: .62rem .7rem;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+  }
+
+  .spv-prop-row-event:hover,
+  .spv-prop-row-event:focus-visible {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 72%, white);
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-alt));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--sz-color-primary) 14%, transparent);
+    outline: none;
+  }
+
+  .spv-prop-name {
+    font-size: .78rem;
+    color: var(--sz-color-text-secondary);
+  }
+
+  .spv-prop-value {
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--sz-color-text);
+  }
+
+  .spv-prop-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .spv-prop-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .spv-variable-actions {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+  }
+
+  #spvVariableModal .modal-content {
+    border: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+  }
+
+  #spvVariableModal .modal-header,
+  #spvVariableModal .modal-footer {
+    border-color: var(--sz-color-border);
+  }
+
+  .spv-variable-modal-subtitle {
+    color: var(--sz-color-text-secondary);
+    font-size: .9rem;
+  }
+
+  .spv-variable-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .85rem;
+  }
+
+  .spv-variable-form-span {
+    grid-column: 1 / -1;
+  }
+
+  .spv-variable-hint {
+    margin-top: .35rem;
+    font-size: .82rem;
+  }
+
+  .spv-prop-event {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .45rem;
+  }
+
+  .spv-prop-event-trigger {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    color: var(--sz-color-text);
+    font-weight: 700;
+  }
+
+  .spv-prop-event-main {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+  }
+
+  .spv-prop-event-icon {
+    width: 1.7rem;
+    height: 1.7rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-primary) 16%, transparent);
+    color: color-mix(in srgb, var(--sz-color-primary) 82%, white);
+    flex: 0 0 auto;
+  }
+
+  .spv-prop-event-label {
+    font-size: .92rem;
+    line-height: 1.2;
+  }
+
+  .spv-prop-event-status {
+    width: 1rem;
+    height: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--sz-color-text-secondary) 82%, transparent);
+    font-size: .72rem;
+    flex: 0 0 auto;
+    transition: color .15s ease, transform .15s ease;
+  }
+
+  .spv-prop-row-event:hover .spv-prop-event-status,
+  .spv-prop-row-event:focus-visible .spv-prop-event-status {
+    color: color-mix(in srgb, var(--sz-color-primary) 72%, white);
+  }
+
+  .spv-prop-event-status.is-configured {
+    color: color-mix(in srgb, var(--sz-color-primary) 78%, white);
+  }
+
+  .spv-prop-row-event.is-configured .spv-prop-event-icon {
+    background: color-mix(in srgb, var(--sz-color-primary) 20%, transparent);
+  }
+
+  .spv-prop-event-note {
+    color: var(--sz-color-text-secondary);
+    font-size: .82rem;
+    line-height: 1.35;
+  }
+
+  #spvEventEditorModal .modal-content {
+    border: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+  }
+
+  .spv-event-modal-dialog {
+    max-width: min(97vw, 1760px);
+  }
+
+  .spv-event-modal {
+    height: min(90vh, calc(100vh - 2rem));
+    display: flex;
+    flex-direction: column;
+  }
+
+  #spvEventEditorModal .modal-header,
+  #spvEventEditorModal .modal-footer {
+    border-color: var(--sz-color-border);
+  }
+
+  .spv-event-modal .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: .95rem;
+    padding-bottom: .95rem;
+  }
+
+  .spv-event-layout {
+    display: grid;
+    grid-template-columns: minmax(220px, 20%) minmax(0, 1.2fr) minmax(300px, .95fr);
+    gap: 1rem;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .spv-event-toolbox,
+  .spv-event-builder-panel,
+  .spv-event-code-panel {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .spv-event-toolbox {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: .75rem;
+    padding: 1rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    box-shadow: var(--sz-shadow-1);
+  }
+
+  .spv-event-builder-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: .75rem;
+    padding: 1rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    box-shadow: var(--sz-shadow-1);
+  }
+
+  .spv-event-code-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: .75rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    box-shadow: var(--sz-shadow-1);
+    padding: 1rem;
+  }
+
+  .spv-event-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: .75rem;
+  }
+
+  .spv-event-panel-title {
+    font-size: .95rem;
+    font-weight: 700;
+  }
+
+  .spv-event-toolbox-groups {
+    flex: 1 1 auto;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+    padding-right: .15rem;
+  }
+
+  .spv-event-group {
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface-alt);
+    box-shadow: var(--sz-shadow-1);
+    padding: .55rem;
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+  }
+
+  .spv-event-group.is-collapsed {
+    gap: 0;
+  }
+
+  .spv-event-group-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .spv-event-group-title {
+    font-size: .84rem;
+    font-weight: 700;
+    color: var(--sz-color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  .spv-event-group-chevron {
+    width: 1.25rem;
+    height: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--sz-color-text-secondary);
+    transition: transform .15s ease, color .15s ease;
+    flex: 0 0 auto;
+  }
+
+  .spv-event-group.is-open .spv-event-group-chevron {
+    transform: rotate(0deg);
+  }
+
+  .spv-event-group.is-collapsed .spv-event-group-chevron {
+    transform: rotate(-90deg);
+  }
+
+  .spv-event-group-header:hover .spv-event-group-chevron,
+  .spv-event-group-header:focus-visible .spv-event-group-chevron {
+    color: color-mix(in srgb, var(--sz-color-primary) 70%, white);
+  }
+
+  .spv-event-command-list {
+    display: grid;
+    gap: .28rem;
+  }
+
+  .spv-event-command {
+    width: 100%;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    text-align: left;
+    padding: .42rem .55rem;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    box-shadow: var(--sz-shadow-1);
+    transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+
+  .spv-event-command:hover {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border));
+    box-shadow: var(--sz-shadow-2);
+    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+  }
+
+  .spv-event-command:active {
+    cursor: grabbing;
+  }
+
+  .spv-event-command-label {
+    display: block;
+    font-weight: 600;
+    font-size: .78rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .spv-event-command-desc {
+    display: none;
+  }
+
+  .spv-event-builder {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--sz-color-surface-alt) 88%, var(--sz-color-surface)) 0%,
+      color-mix(in srgb, var(--sz-color-surface) 84%, transparent) 100%
+    );
+    padding: .65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .spv-event-gap {
+    min-height: .38rem;
+    border-radius: 10px;
+    border: 1px dashed transparent;
+    background: transparent;
+    transition: border-color .15s ease, background .15s ease;
+  }
+
+  .spv-event-gap.spv-event-gap-blank {
+    min-height: .95rem;
+  }
+
+  .spv-event-gap.is-over {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 80%, white);
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, white);
+  }
+
+  .spv-event-builder.is-over {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sz-color-primary) 45%, transparent);
+  }
+
+  .spv-event-line {
+    width: 100%;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    text-align: left;
+    padding: .46rem .58rem;
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    box-shadow: var(--sz-shadow-1);
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+
+  .spv-event-line.is-draggable {
+    cursor: grab;
+  }
+
+  .spv-event-line.is-draggable:active {
+    cursor: grabbing;
+  }
+
+  .spv-event-line.is-selected {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 78%, white);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sz-color-primary) 14%, white);
+  }
+
+  .spv-event-line.is-over-before {
+    box-shadow:
+      inset 0 3px 0 0 color-mix(in srgb, var(--sz-color-primary) 82%, white),
+      var(--sz-shadow-1);
+  }
+
+  .spv-event-line.is-over-after {
+    box-shadow:
+      inset 0 -3px 0 0 color-mix(in srgb, var(--sz-color-primary) 82%, white),
+      var(--sz-shadow-1);
+  }
+
+  .spv-event-line.is-structural {
+    background: color-mix(in srgb, var(--sz-color-warning) 10%, var(--sz-color-surface));
+  }
+
+  .spv-event-line-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: .3rem;
+  }
+
+  .spv-event-line-title {
+    font-weight: 700;
+    font-size: .78rem;
+    white-space: nowrap;
+  }
+
+  .spv-event-line-summary {
+    display: inline;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--sz-color-text-secondary);
+    font-size: .72rem;
+    white-space: nowrap;
+    word-break: break-word;
+  }
+
+  .spv-event-config-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 8rem;
+    max-height: min(36vh, 22rem);
+    overflow: auto;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    box-shadow: var(--sz-shadow-1);
+    padding: .85rem;
+  }
+
+  .spv-event-config {
+    display: flex;
+    flex-direction: column;
+    gap: .8rem;
+  }
+
+  .spv-event-config-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .8rem;
+  }
+
+  .spv-event-config-span {
+    grid-column: 1 / -1;
+  }
+
+  .spv-event-config-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+
+  .spv-event-cursor-schema {
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+  }
+
+  .spv-event-cursor-schema-list {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+  }
+
+  .spv-event-cursor-schema-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, .9fr) auto;
+    gap: .45rem;
+    align-items: center;
+  }
+
+  .spv-event-cursor-schema-remove {
+    min-width: 2.4rem;
+    justify-content: center;
+    padding-inline: .55rem;
+  }
+
+  .spv-event-note {
+    color: var(--sz-color-text-secondary);
+    font-size: .82rem;
+    line-height: 1.4;
+  }
+
+  .spv-event-code {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+    padding: .95rem 1rem;
+    overflow: auto;
+    font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", "Consolas", "Courier New", monospace;
+    font-size: .84rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+  }
+
+  .spv-event-legacy {
+    margin-bottom: .9rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-warning) 40%, var(--sz-color-border));
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--sz-color-warning) 14%, white);
+    color: var(--sz-color-text);
+    padding: .75rem .9rem;
+    font-size: .84rem;
+    line-height: 1.45;
+  }
+
+  @media (max-width: 1180px) {
+    .spv-layout {
+      grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+      height: auto;
+      overflow: visible;
+    }
+
+    .spv-properties-panel {
+      grid-column: 1 / -1;
+    }
+
+    .spv-sidebar,
+    .spv-preview-panel,
+    .spv-properties-panel {
+      min-height: 0;
+      height: auto;
+    }
+
+    .spv-event-layout {
+      grid-template-columns: 1fr;
+      min-height: 0;
+    }
+
+    .spv-event-modal {
+      height: auto;
+      max-height: calc(100vh - 1rem);
+    }
+
+    .spv-event-modal .modal-body {
+      overflow: auto;
+    }
+  }
+
+  @media (max-width: 860px) {
+    .spv-layout {
+      grid-template-columns: 1fr;
+      height: auto;
+      overflow: visible;
+    }
+
+    .spv-contextbar-right {
+      min-width: 0;
+      width: 100%;
+      flex-direction: column;
+    }
+
+    .spv-screen-picker {
+      width: 100%;
+    }
+
+    .spv-screen-toolbar {
+      width: 100%;
+    }
+
+    .spv-toolbar-groups {
+      width: 100%;
+      gap: .4rem;
+    }
+
+    .spv-toolbar-group {
+      flex: 1 1 auto;
+    }
+
+    .spv-toolbar-group-screen {
+      flex-basis: 100%;
+    }
+
+    .spv-variable-form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .spv-event-config-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .spv-event-cursor-schema-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+

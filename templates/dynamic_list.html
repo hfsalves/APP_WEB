@@ -5,13 +5,17 @@
 <div class="sz_page">
   <div class="sz_page_container sz_dynamic_list_container">
     <header class="sz_page_header">
-      <div class="sz_contextbar sz_page_contextbar">
-        <div class="sz_contextbar_left">
+      <div class="sz_contextbar sz_page_contextbar sz_dynamic_list_contextbar">
+        <div class="sz_contextbar_left sz_dynamic_list_contextbar_left">
           <h1 class="sz_page_title">{{ page_name or page_title or (table_name|upper) }}</h1>
           <p id="recordCount" class="sz_page_subtitle"></p>
         </div>
-        <div class="sz_contextbar_right">
+        <div class="sz_contextbar_right sz_dynamic_list_contextbar_right">
           <div class="dynamic-list-actions sz_dynamic_list_actions">
+            <button id="btnSortToggle" class="sz_button sz_button_ghost" aria-label="Ordenar" title="Ordenar">
+              <i class="fa fa-arrow-down-wide-short"></i>
+              <span>Ordenar</span>
+            </button>
             <button id="btnFilterToggle" class="sz_button sz_button_ghost">
               <i class="fa fa-filter"></i>
               <span>Filtrar</span>
@@ -35,6 +39,31 @@
 
     <div class="sz_page_body sz_dynamic_list_body">
       <section id="grid" class="sz_table_host"></section>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Ordenação -->
+<div id="modalSort" class="sz_modal" aria-labelledby="modalSortLabel" aria-hidden="true">
+  <div class="sz_panel sz_dynamic_filters_modal_panel sz_dynamic_sort_modal_panel">
+    <div class="sz_modal_header sz_dynamic_filters_header">
+      <h3 class="sz_h4 sz_modal_title" id="modalSortLabel">Ordenação</h3>
+      <button type="button" id="closeSortModalTop" class="sz_button sz_button_ghost" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body sz_dynamic_filters_modal_body sz_dynamic_sort_modal_body">
+      <div id="sortFieldList" class="sz_stack sz_dynamic_sort_field_list"></div>
+    </div>
+    <div class="sz_modal_footer">
+      <button type="button" id="closeSortModal" class="sz_button sz_button_secondary">
+        <i class="fa-solid fa-ban"></i>
+        <span>Cancelar</span>
+      </button>
+      <button type="button" id="applySort" class="sz_button sz_button_primary">
+        <i class="fa-solid fa-check"></i>
+        <span>Aplicar</span>
+      </button>
     </div>
   </div>
 </div>
@@ -72,6 +101,250 @@
 <script>
   window.TABLE_NAME = "{{ table_name }}";
   window.TABLE_FORM = {{ menu_forms.get(table_name)|tojson }};
+  window.MENU_STAMP = {{ menu_stamp|tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/dynamic_list.js') }}"></script>
+<style>
+  .sz_dynamic_sort_modal_panel {
+    max-width: min(32rem, calc(100vw - 1.5rem));
+  }
+
+  .sz_dynamic_sort_modal_body {
+    min-height: 0;
+  }
+
+  .sz_dynamic_sort_field_list {
+    gap: .5rem;
+  }
+
+  .sz_dynamic_sort_option {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+    padding: .8rem .9rem;
+    border-radius: var(--sz-radius-md);
+  }
+
+  .sz_dynamic_sort_option.is-active {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 72%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 22%, transparent);
+  }
+
+  .sz_dynamic_sort_option_main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .16rem;
+  }
+
+  .sz_dynamic_sort_option_label {
+    font-weight: 700;
+    color: var(--sz-color-text);
+  }
+
+  .sz_dynamic_sort_option_hint {
+    font-size: .75rem;
+    color: var(--sz-color-text-secondary);
+  }
+
+  .sz_dynamic_sort_option_state {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    color: var(--sz-color-primary);
+  }
+
+  .sz_dynamic_list_cards {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    align-items: stretch;
+  }
+
+  .sz_dynamic_list_card {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    padding: .85rem .9rem;
+    width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+    cursor: pointer;
+  }
+
+  .sz_dynamic_list_card_empty {
+    cursor: default;
+  }
+
+  .sz_dynamic_list_card_row {
+    display: flex;
+    gap: .75rem;
+    align-items: flex-start;
+  }
+
+  .sz_dynamic_list_card_cell {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .16rem;
+  }
+
+  .sz_dynamic_list_card_label {
+    font-size: .72rem;
+    line-height: 1.1;
+    color: var(--sz-color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+
+  .sz_dynamic_list_card_value {
+    min-width: 0;
+    color: var(--sz-color-text);
+    font-size: .96rem;
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
+  .sz_dynamic_list_card_value.is-bold {
+    font-weight: 700;
+  }
+
+  .sz_dynamic_list_card_value.is-italic {
+    font-style: italic;
+  }
+
+  .sz_dynamic_list_body > #grid.sz_table_host.is-mobile-cards {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    flex: none;
+    scrollbar-gutter: auto;
+    scrollbar-width: none;
+    overflow: visible !important;
+  }
+
+  .sz_dynamic_list_body > #grid.sz_table_host.is-mobile-cards::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .sz_dynamic_list_body {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .sz_dynamic_list_body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    .sz_dynamic_list_contextbar {
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: flex-start;
+      margin: 0 0 .55rem;
+      padding: .55rem;
+      gap: .55rem;
+    }
+
+    .sz_dynamic_list_contextbar_left {
+      width: auto;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .sz_dynamic_list_contextbar_right {
+      flex: 0 0 auto;
+      min-width: 0;
+      align-items: flex-end;
+    }
+
+    .sz_dynamic_list_actions {
+      gap: .45rem;
+      width: auto;
+      flex-wrap: nowrap;
+    }
+
+    .sz_dynamic_list_actions .sz_button {
+      width: 2.8rem;
+      min-width: 2.8rem;
+      height: 2.8rem;
+      padding: 0;
+    }
+
+    .sz_dynamic_list_actions .sz_button span {
+      display: none;
+    }
+
+    .sz_dynamic_list_actions .sz_button i {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    body.sz-base-shell.sz-dynamic-list-layout .main-content,
+    body.sz-base-shell.sz-dynamic-list-layout .sz_page_body,
+    body.sz-base-shell.sz-dynamic-list-layout .sz_dynamic_list_body {
+      scrollbar-width: none !important;
+      -ms-overflow-style: none;
+      scrollbar-gutter: auto !important;
+    }
+
+    body.sz-base-shell.sz-dynamic-list-layout .main-content::-webkit-scrollbar,
+    body.sz-base-shell.sz-dynamic-list-layout .sz_page_body::-webkit-scrollbar,
+    body.sz-base-shell.sz-dynamic-list-layout .sz_dynamic_list_body::-webkit-scrollbar {
+      width: 0 !important;
+      height: 0 !important;
+      display: none !important;
+    }
+
+    .sz_dynamic_list_container {
+      padding: .35rem .35rem 0 !important;
+      row-gap: .4rem;
+    }
+
+    .sz_dynamic_sort_modal_panel {
+      max-width: calc(100vw - .8rem);
+    }
+
+    .sz_dynamic_list_body {
+      padding: 0 !important;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-gutter: auto;
+    }
+
+    .sz_dynamic_list_body > #grid.sz_table_host.is-mobile-cards {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .sz_dynamic_list_cards {
+      gap: .55rem;
+    }
+
+    .sz_dynamic_list_card {
+      padding: .72rem .78rem;
+    }
+
+    .sz_dynamic_list_card_row {
+      gap: .55rem;
+    }
+  }
+</style>
 {% endblock %}

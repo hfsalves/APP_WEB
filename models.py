@@ -18,6 +18,7 @@ class Menu(db.Model):
     orderby   = db.Column('ORDERBY', db.String(200), nullable=True)
 
     novo      = db.Column(db.Boolean, nullable=False, default=False)
+    inativo   = db.Column('INATIVO', db.Boolean, nullable=False, default=False)
 
 class Campo(db.Model):
     __tablename__ = 'CAMPOS'
@@ -39,6 +40,60 @@ class Campo(db.Model):
     tam_mobile        = db.Column(db.Integer, nullable=False)
     condicao_visivel  = db.Column(db.String(200), nullable=True)
     obrigatorio       = db.Column(db.Boolean, default=False, nullable=False)
+
+class MenuObjeto(db.Model):
+    __tablename__ = 'MENU_OBJETOS'
+    menuobjstamp      = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
+    menustamp         = db.Column(db.String(25), nullable=False)
+    nmcampo           = db.Column(db.String(50), nullable=False)
+    descricao         = db.Column(db.String(100), nullable=False, default='')
+    tipo              = db.Column(db.String(20), nullable=False)
+    ordem             = db.Column(db.Integer, nullable=False, default=0)
+    tam               = db.Column(db.Integer, nullable=False, default=5)
+    ordem_mobile      = db.Column(db.Integer, nullable=False, default=0)
+    tam_mobile        = db.Column(db.Integer, nullable=False, default=5)
+    visivel           = db.Column(db.Boolean, nullable=False, default=True)
+    ronly             = db.Column(db.Boolean, nullable=False, default=False)
+    obrigatorio       = db.Column(db.Boolean, nullable=False, default=False)
+    condicao_visivel  = db.Column(db.String(200), nullable=False, default='')
+    combo             = db.Column(db.Text, nullable=False, default='')
+    decimais          = db.Column(db.Integer, nullable=False, default=0)
+    minimo            = db.Column(db.Numeric(18, 6), nullable=True)
+    maximo            = db.Column(db.Numeric(18, 6), nullable=True)
+    propriedades      = db.Column(db.Text, nullable=False, default='{}')
+    ativo             = db.Column(db.Boolean, nullable=False, default=True)
+    dtcri             = db.Column('DTCRI', db.DateTime, nullable=False)
+    dtalt             = db.Column('DTALT', db.DateTime, nullable=True)
+    usercriacao       = db.Column(db.String(50), nullable=False, default='')
+    useralteracao     = db.Column(db.String(50), nullable=False, default='')
+
+class MenuVariavel(db.Model):
+    __tablename__ = 'MENU_VARIAVEIS'
+    menuvarstamp      = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
+    menustamp         = db.Column(db.String(25), nullable=False)
+    nome              = db.Column(db.String(60), nullable=False)
+    descricao         = db.Column(db.String(100), nullable=False, default='')
+    tipo              = db.Column(db.String(20), nullable=False, default='TEXT')
+    valor_default     = db.Column(db.Text, nullable=False, default='')
+    ordem             = db.Column(db.Integer, nullable=False, default=0)
+    propriedades      = db.Column(db.Text, nullable=False, default='{}')
+    ativo             = db.Column(db.Boolean, nullable=False, default=True)
+    dtcri             = db.Column('DTCRI', db.DateTime, nullable=False)
+    dtalt             = db.Column('DTALT', db.DateTime, nullable=True)
+    usercriacao       = db.Column(db.String(50), nullable=False, default='')
+    useralteracao     = db.Column(db.String(50), nullable=False, default='')
+
+class MenuEvento(db.Model):
+    __tablename__ = 'MENU_EVENTOS'
+    menueventostamp   = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
+    menustamp         = db.Column(db.String(25), nullable=False)
+    evento            = db.Column(db.String(40), nullable=False)
+    fluxo             = db.Column(db.Text, nullable=False, default='{}')
+    ativo             = db.Column(db.Boolean, nullable=False, default=True)
+    dtcri             = db.Column('DTCRI', db.DateTime, nullable=False)
+    dtalt             = db.Column('DTALT', db.DateTime, nullable=True)
+    usercriacao       = db.Column(db.String(50), nullable=False, default='')
+    useralteracao     = db.Column(db.String(50), nullable=False, default='')
 
 class US(UserMixin, db.Model):
     __tablename__ = 'US'
