@@ -150,3 +150,56 @@ Login falhado: utilizador inexistente
 127.0.0.1 - - [09/Apr/2026 18:01:09] "GET /api/dashboard HTTP/1.1" 200 -
 127.0.0.1 - - [09/Apr/2026 18:01:10] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
 127.0.0.1 - - [09/Apr/2026 18:01:11] "GET /service-worker.js HTTP/1.1" 304 -
+ * Detected change in 'C:\\APP_WEB\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 116-957-291
+ * Detected change in 'C:\\APP_WEB\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 116-957-291
+ * Detected change in 'C:\\APP_WEB\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 116-957-291
+127.0.0.1 - - [09/Apr/2026 18:06:59] "GET /logout HTTP/1.1" 302 -
+127.0.0.1 - - [09/Apr/2026 18:07:00] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [09/Apr/2026 18:07:00] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Apr/2026 18:07:00] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [09/Apr/2026 18:07:00] "GET /static/js/push.js?v=1775754384 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Apr/2026 18:07:00] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [09/Apr/2026 18:07:00] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [09/Apr/2026 18:07:00] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Apr/2026 18:07:00] "GET /static/images/icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [09/Apr/2026 18:07:02] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [09/Apr/2026 18:07:05] "POST /login HTTP/1.1" 302 -
+127.0.0.1 - - [09/Apr/2026 18:07:05] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [09/Apr/2026 18:07:06] "GET /database_consistency HTTP/1.1" 200 -
+127.0.0.1 - - [09/Apr/2026 18:07:06] "GET /static/css/sz_styles.css?v=1775754384 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Apr/2026 18:07:06] "GET /static/css/style.css?v=1775754384 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Apr/2026 18:07:06] "GET /static/css/database_consistency.css?v=1775754384 HTTP/1.1" 200 -
+127.0.0.1 - - [09/Apr/2026 18:07:08] "GET /service-worker.js HTTP/1.1" 304 -
+ * Detected change in 'C:\\APP_WEB\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 116-957-291
+ * Detected change in 'C:\\APP_WEB\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 116-957-291
+ * Detected change in 'C:\\APP_WEB\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 116-957-291
+ * Detected change in 'C:\\APP_WEB\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 116-957-291
+ * Detected change in 'C:\\APP_WEB\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 116-957-291
+ * Detected change in 'C:\\APP_WEB\\app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 116-957-291
