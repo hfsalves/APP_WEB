@@ -2,8 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const cfg = window.DATABASE_MANAGER_CONFIG || {};
   const els = {
     subtitle: document.getElementById('dbmSubtitle'),
+    repoMeta: document.getElementById('dbmRepoMeta'),
     tableSearch: document.getElementById('dbmTableSearch'),
     refreshBtn: document.getElementById('dbmRefreshBtn'),
+    syncSchemaBtn: document.getElementById('dbmSyncSchemaBtn'),
     actionRefreshBtn: document.getElementById('dbmActionRefreshBtn'),
     backBtn: document.getElementById('dbmBackBtn'),
     sortTablesBtn: document.getElementById('dbmSortTablesBtn'),
@@ -12,6 +14,17 @@ document.addEventListener('DOMContentLoaded', () => {
     sortModalCloseTop: document.getElementById('dbmSortModalCloseTop'),
     sortApply: document.getElementById('dbmSortApply'),
     sortOptionList: document.getElementById('dbmSortOptionList'),
+    indexMaintModal: document.getElementById('dbmIndexMaintModal'),
+    indexMaintClose: document.getElementById('dbmIndexMaintClose'),
+    indexMaintCloseTop: document.getElementById('dbmIndexMaintCloseTop'),
+    indexMaintStart: document.getElementById('dbmIndexMaintStart'),
+    indexMaintTableLabel: document.getElementById('dbmIndexMaintTableLabel'),
+    indexMaintModeList: document.getElementById('dbmIndexMaintModeList'),
+    indexMaintPlanMeta: document.getElementById('dbmIndexMaintPlanMeta'),
+    indexMaintPlanList: document.getElementById('dbmIndexMaintPlanList'),
+    indexMaintRunState: document.getElementById('dbmIndexMaintRunState'),
+    indexMaintJobSummary: document.getElementById('dbmIndexMaintJobSummary'),
+    indexMaintJobItems: document.getElementById('dbmIndexMaintJobItems'),
     tablesMeta: document.getElementById('dbmTablesMeta'),
     tablesList: document.getElementById('dbmTablesList'),
     columnsMeta: document.getElementById('dbmColumnsMeta'),
@@ -31,6 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
     sortDir: 1,
     pendingSortField: 'name',
     pendingSortDir: 1,
+    indexMaintMode: 'auto',
+    pendingIndexMaintMode: 'auto',
+    indexMaintJobId: '',
+    indexMaintJobPayload: null,
+    indexMaintPollTimer: null,
+    schemaRepository: {
+      state: null,
+      warning: '',
+    },
   };
 
   function escapeHtml(value) {
@@ -72,6 +94,43 @@ document.addEventListener('DOMContentLoaded', () => {
   function currentTableLabel() {
     const summary = state.detail?.summary || null;
     return summary ? `${summary.schema}.${summary.name}` : '';
+  }
+
+  function renderSchemaRepositoryState() {
+    if (!els.repoMeta) return;
+    const repo = state.schemaRepository || {};
+    const info = repo.state || null;
+    const warning = String(repo.warning || '').trim();
+
+    els.repoMeta.classList.toggle('is-error', !!warning || String(info?.last_sync_status || '').trim().toLowerCase() === 'error');
+
+    if (!info) {
+      els.repoMeta.textContent = warning || 'Repositorio de estrutura indisponivel.';
+      return;
+    }
+
+    const counts = info.counts || {};
+    const scopeLabel = info.is_development_source ? 'DEV SOURCE' : 'TARGET DB';
+    const databaseLabel = String(info.database_name || '').trim() || 'DB';
+    const syncLabel = info.last_sync_at
+      ? `Sync ${formatDateTime(info.last_sync_at)}`
+      : 'Sem sync';
+    const sourceLabel = info.last_sync_source
+      ? `via ${String(info.last_sync_source).toUpperCase()}`
+      : 'sem origem';
+    const byLabel = info.last_sync_requested_by ? `por ${info.last_sync_requested_by}` : '';
+    const countLabel = `${formatInt(counts.table_count)} tabelas, ${formatInt(counts.column_count)} campos, ${formatInt(counts.index_count)} indices`;
+    const messageLabel = warning || info.last_sync_message || '';
+
+    els.repoMeta.textContent = [
+      `Repositorio: ${scopeLabel}`,
+      databaseLabel,
+      syncLabel,
+      sourceLabel,
+      byLabel,
+      countLabel,
+      messageLabel,
+    ].filter(Boolean).join(' | ');
   }
 
   function filteredTables() {
@@ -171,6 +230,278 @@ document.addEventListener('DOMContentLoaded', () => {
     els.sortModal.classList.remove('sz_is_open');
     els.sortModal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('modal-sort-open');
+  }
+
+  function closeIndexMaintPoll() {
+    if (!state.indexMaintPollTimer) return;
+    window.clearInterval(state.indexMaintPollTimer);
+    state.indexMaintPollTimer = null;
+  }
+
+  function normalizeIndexMaintMode(value) {
+    const mode = String(value || '').trim().toLowerCase();
+    return ['auto', 'reorganize', 'rebuild'].includes(mode) ? mode : 'auto';
+  }
+
+  function indexMaintStateBadgeClass(value) {
+    switch (String(value || '').trim().toLowerCase()) {
+      case 'running':
+        return 'dbm-badge is-primary';
+      case 'done':
+        return 'dbm-badge is-success';
+      case 'error':
+        return 'dbm-badge is-danger';
+      case 'skipped':
+        return 'dbm-badge is-warning';
+      default:
+        return 'dbm-badge';
+    }
+  }
+
+  function computeIndexMaintPlanItem(index, mode) {
+    const requestedMode = normalizeIndexMaintMode(mode);
+    const typeName = String(index?.type || '').trim().toUpperCase();
+    const indexName = String(index?.name || '').trim();
+    const pageCount = Number(index?.page_count || 0);
+    const fragmentation = index?.fragmentation_pct == null ? null : Number(index.fragmentation_pct);
+    const allowPageLocks = !!index?.allow_page_locks;
+    const isDisabled = !!index?.is_disabled;
+    let plannedAction = '';
+    let stateValue = 'pending';
+    let message = '';
+
+    if (!indexName) {
+      stateValue = 'skipped';
+      message = 'Índice sem nome.';
+    } else if (isDisabled) {
+      stateValue = 'skipped';
+      message = 'Índice desativado.';
+    } else if (!['CLUSTERED', 'NONCLUSTERED'].includes(typeName)) {
+      stateValue = 'skipped';
+      message = `Tipo não suportado: ${typeName || 'n/a'}.`;
+    } else if (pageCount <= 0) {
+      stateValue = 'skipped';
+      message = 'Sem páginas para otimizar.';
+    } else if (requestedMode === 'rebuild') {
+      plannedAction = 'REBUILD';
+      message = 'REBUILD forçado.';
+    } else if (requestedMode === 'reorganize') {
+      if (!allowPageLocks) {
+        stateValue = 'skipped';
+        message = 'REORGANIZE requer ALLOW_PAGE_LOCKS = ON.';
+      } else {
+        plannedAction = 'REORGANIZE';
+        message = 'REORGANIZE forçado.';
+      }
+    } else if (fragmentation == null || Number.isNaN(fragmentation)) {
+      stateValue = 'skipped';
+      message = 'Sem métricas de fragmentação.';
+    } else if (pageCount < 1000) {
+      stateValue = 'skipped';
+      message = 'Abaixo do limiar mínimo de páginas (1000).';
+    } else if (fragmentation < 10) {
+      stateValue = 'skipped';
+      message = 'Fragmentação abaixo de 10%.';
+    } else if (fragmentation >= 30) {
+      plannedAction = 'REBUILD';
+      message = `Auto: REBUILD com fragmentação ${formatDecimal(fragmentation)}%.`;
+    } else if (!allowPageLocks) {
+      plannedAction = 'REBUILD';
+      message = 'Auto: fallback para REBUILD porque ALLOW_PAGE_LOCKS = OFF.';
+    } else {
+      plannedAction = 'REORGANIZE';
+      message = `Auto: REORGANIZE com fragmentação ${formatDecimal(fragmentation)}%.`;
+    }
+
+    return {
+      index_id: Number(index?.id || 0),
+      index_name: indexName,
+      index_type: typeName,
+      fragmentation_pct: fragmentation == null || Number.isNaN(fragmentation) ? null : fragmentation,
+      page_count: pageCount,
+      planned_action: plannedAction,
+      state: stateValue,
+      message,
+    };
+  }
+
+  function buildIndexMaintPlan(mode) {
+    const indexes = Array.isArray(state.detail?.indexes) ? state.detail.indexes : [];
+    return indexes.map((index, idx) => ({
+      seq_no: idx + 1,
+      ...computeIndexMaintPlanItem(index, mode),
+    }));
+  }
+
+  function renderIndexMaintModeOptions() {
+    if (!els.indexMaintModeList) return;
+    const options = [
+      { field: 'auto', label: 'Auto', hint: 'Reorganize >10% e Rebuild >30%' },
+      { field: 'reorganize', label: 'Reorganize', hint: 'Força REORGANIZE nos elegíveis' },
+      { field: 'rebuild', label: 'Rebuild', hint: 'Força REBUILD nos elegíveis' },
+    ];
+    els.indexMaintModeList.innerHTML = options.map((option) => {
+      const active = option.field === String(state.pendingIndexMaintMode || '');
+      return `
+        <button type="button" class="sz_button sz_button_ghost dbm-sort-option${active ? ' is-active' : ''}" data-db-index-maint-mode="${escapeHtml(option.field)}">
+          <span class="dbm-sort-option-main">
+            <span class="dbm-sort-option-label">${escapeHtml(option.label)}</span>
+            <span class="dbm-sort-option-hint">${escapeHtml(option.hint)}</span>
+          </span>
+          <span class="dbm-sort-option-state" aria-hidden="true">
+            <i class="fa-solid ${active ? 'fa-check' : 'fa-minus'}"></i>
+          </span>
+        </button>
+      `;
+    }).join('');
+  }
+
+  function renderIndexMaintPlan() {
+    if (!els.indexMaintPlanList || !els.indexMaintPlanMeta) return;
+    const plan = buildIndexMaintPlan(state.pendingIndexMaintMode);
+    const actionable = plan.filter((item) => item.planned_action);
+    els.indexMaintPlanMeta.textContent = `${formatInt(actionable.length)} / ${formatInt(plan.length)}`;
+    if (!plan.length) {
+      els.indexMaintPlanList.innerHTML = '<div class="dbm-empty">Sem índices na tabela selecionada.</div>';
+      if (els.indexMaintStart) els.indexMaintStart.disabled = true;
+      return;
+    }
+
+    els.indexMaintPlanList.innerHTML = plan.map((item) => `
+      <div class="dbm-maint-plan-row ${item.planned_action ? 'is-actionable' : 'is-skipped'}">
+        <div class="dbm-maint-plan-head">
+          <div class="dbm-maint-plan-title">${escapeHtml(item.index_name || `(index ${item.index_id})`)}</div>
+          <span class="${indexMaintStateBadgeClass(item.planned_action ? item.planned_action.toLowerCase() : 'skipped')}">${escapeHtml(item.planned_action || 'Ignorar')}</span>
+        </div>
+        <div class="dbm-maint-plan-meta">
+          ${escapeHtml(item.index_type || 'n/a')} | ${item.fragmentation_pct == null ? 'Frag n/a' : `Frag ${formatDecimal(item.fragmentation_pct)}%`} | ${formatInt(item.page_count)} páginas
+        </div>
+        <div class="dbm-maint-plan-meta">${escapeHtml(item.message || '')}</div>
+      </div>
+    `).join('');
+    if (els.indexMaintStart) {
+      els.indexMaintStart.disabled = actionable.length <= 0;
+    }
+  }
+
+  function renderIndexMaintJob(payload) {
+    state.indexMaintJobPayload = payload || null;
+    const job = payload?.job || null;
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    const running = ['running', 'stopping'].includes(String(job?.state || '').trim().toLowerCase());
+
+    if (els.indexMaintRunState) {
+      if (!job) {
+        els.indexMaintRunState.className = 'dbm-badge';
+        els.indexMaintRunState.textContent = 'Inativa';
+      } else {
+        els.indexMaintRunState.className = indexMaintStateBadgeClass(job.state);
+        els.indexMaintRunState.textContent = String(job.state || 'n/a').toUpperCase();
+      }
+    }
+
+    if (els.indexMaintJobSummary) {
+      if (!job) {
+        els.indexMaintJobSummary.textContent = 'Sem job em execução.';
+      } else {
+        els.indexMaintJobSummary.textContent =
+          `${formatInt(job.processed)} / ${formatInt(job.total)} processados | ${formatInt(job.executed)} executados | ${formatInt(job.skipped)} ignorados | ${formatInt(job.errors)} erros${job.message ? ` | ${job.message}` : ''}`;
+      }
+    }
+
+    if (!els.indexMaintJobItems) return;
+    if (!job) {
+      els.indexMaintJobItems.innerHTML = '<div class="dbm-empty">Ainda não existe execução para esta tabela.</div>';
+      if (els.indexMaintStart) {
+        renderIndexMaintPlan();
+      }
+      return;
+    }
+    els.indexMaintJobItems.innerHTML = items.map((item) => `
+      <div class="dbm-maint-job-row is-${escapeHtml(item.state || 'pending')}">
+        <div class="dbm-maint-job-head">
+          <div class="dbm-maint-job-title">${escapeHtml(item.index_name || `(index ${item.index_id})`)}</div>
+          <span class="${indexMaintStateBadgeClass(item.state)}">${escapeHtml(item.executed_action || item.planned_action || item.state || 'n/a')}</span>
+        </div>
+        <div class="dbm-maint-job-meta">
+          ${escapeHtml(item.index_type || 'n/a')} | ${item.fragmentation_pct == null ? 'Frag n/a' : `Frag ${formatDecimal(item.fragmentation_pct)}%`} | ${formatInt(item.page_count)} páginas
+        </div>
+        <div class="dbm-maint-job-meta">${escapeHtml(item.message || '')}</div>
+      </div>
+    `).join('') || '<div class="dbm-empty">Sem itens registados.</div>';
+    if (els.indexMaintStart) {
+      if (running) {
+        els.indexMaintStart.disabled = true;
+      } else {
+        renderIndexMaintPlan();
+      }
+    }
+  }
+
+  async function loadIndexMaintStatus(params) {
+    const query = new URLSearchParams(params || {});
+    const payload = await fetchJson(`/api/database_manager/index_maintenance/status?${query.toString()}`);
+    state.indexMaintJobId = String(payload?.job?.job_id || '').trim();
+    renderIndexMaintJob(payload);
+    return payload;
+  }
+
+  async function pollIndexMaintStatus(jobId) {
+    if (!jobId) return;
+    try {
+      const payload = await loadIndexMaintStatus({ job_id: jobId });
+      const stateValue = String(payload?.job?.state || '').trim().toLowerCase();
+      if (!['running', 'stopping'].includes(stateValue)) {
+        closeIndexMaintPoll();
+        if (state.selectedTable) {
+          loadTableDetail(state.selectedTable);
+        }
+      }
+    } catch (error) {
+      closeIndexMaintPoll();
+      setStatus(error.message || 'Erro ao consultar o job de manutenção.', true);
+    }
+  }
+
+  function startIndexMaintPoll(jobId) {
+    closeIndexMaintPoll();
+    if (!jobId) return;
+    state.indexMaintPollTimer = window.setInterval(() => {
+      pollIndexMaintStatus(jobId);
+    }, 2000);
+  }
+
+  async function openIndexMaintModal() {
+    if (!els.indexMaintModal) return;
+    state.pendingIndexMaintMode = normalizeIndexMaintMode(state.indexMaintMode);
+    if (els.indexMaintTableLabel) {
+      els.indexMaintTableLabel.textContent = currentTableLabel() || 'Seleciona uma tabela.';
+    }
+    renderIndexMaintModeOptions();
+    renderIndexMaintPlan();
+    renderIndexMaintJob(null);
+    document.body.classList.add('modal-db-index-maint-open');
+    els.indexMaintModal.classList.add('sz_is_open');
+    els.indexMaintModal.setAttribute('aria-hidden', 'false');
+    if (currentTableLabel()) {
+      try {
+        const payload = await loadIndexMaintStatus({ table: currentTableLabel() });
+        const currentState = String(payload?.job?.state || '').trim().toLowerCase();
+        if (state.indexMaintJobId && ['running', 'stopping'].includes(currentState)) {
+          startIndexMaintPoll(state.indexMaintJobId);
+        }
+      } catch (error) {
+        renderIndexMaintJob(null);
+      }
+    }
+  }
+
+  function closeIndexMaintModal() {
+    if (!els.indexMaintModal) return;
+    closeIndexMaintPoll();
+    els.indexMaintModal.classList.remove('sz_is_open');
+    els.indexMaintModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-db-index-maint-open');
   }
 
   function renderTables() {
@@ -403,7 +734,13 @@ document.addEventListener('DOMContentLoaded', () => {
         <section class="dbm-section-card">
           <div class="dbm-section-head">
             <h3 class="dbm-section-title">Índices</h3>
-            <span class="dbm-badge">${formatInt(state.detail.indexes.length)}</span>
+            <div class="dbm-inline-list">
+              <span class="dbm-badge">${formatInt(state.detail.indexes.length)}</span>
+              <button type="button" class="sz_button sz_button_ghost dbm-inline-action-btn" data-db-index-maint-open ${state.detail.indexes.length ? '' : 'disabled'}>
+                <i class="fa-solid fa-screwdriver-wrench"></i>
+                <span>Otimizar</span>
+              </button>
+            </div>
           </div>
           <div class="dbm-section-list">
             ${renderIndexes(state.detail.indexes)}
@@ -434,22 +771,54 @@ document.addEventListener('DOMContentLoaded', () => {
     return data;
   }
 
-  async function loadBootstrap() {
+  async function sendJson(url, options = {}, acceptedStatuses = []) {
+    const response = await fetch(url, {
+      credentials: 'same-origin',
+      ...options,
+      headers: {
+        Accept: 'application/json',
+        ...(options.headers || {}),
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    const accepted = Array.isArray(acceptedStatuses) ? acceptedStatuses : [];
+    const statusAccepted = accepted.includes(response.status);
+    if ((!response.ok && !statusAccepted) || (data.error && !statusAccepted)) {
+      const error = new Error(data.error || `HTTP ${response.status}`);
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
+    return { status: response.status, data };
+  }
+
+  async function loadBootstrap(options = {}) {
+    const skipRepoSync = !!options.skipRepoSync;
+    const successStatus = String(options.successStatus || '').trim();
     state.loading = true;
     setStatus('A carregar metadata da base de dados...');
     try {
       const params = new URLSearchParams();
       if (state.selectedTable) params.set('table', state.selectedTable);
+      if (skipRepoSync) params.set('skip_repo_sync', '1');
       const data = await fetchJson(`/api/database_manager/bootstrap?${params.toString()}`);
       state.tables = Array.isArray(data.tables) ? data.tables : [];
       state.selectedTable = String(data.selected_table || '').trim();
       state.detail = data.detail || null;
+      state.schemaRepository = data.schema_repository || { state: null, warning: '' };
       renderTables();
       renderColumns();
       renderDetail();
+      renderSchemaRepositoryState();
       updateUrl(state.selectedTable);
-      setStatus(`${formatInt(state.tables.length)} tabelas carregadas.`);
+      if (state.schemaRepository?.warning) {
+        setStatus(state.schemaRepository.warning, true);
+      } else {
+        setStatus(successStatus || `${formatInt(state.tables.length)} tabelas carregadas.`);
+      }
     } catch (error) {
+      state.schemaRepository = { state: null, warning: error.message || '' };
+      renderSchemaRepositoryState();
       els.tablesList.innerHTML = `<div class="dbm-empty">${escapeHtml(error.message || 'Erro ao carregar tabelas.')}</div>`;
       els.columnsList.innerHTML = '<div class="dbm-empty">Sem dados.</div>';
       els.detailContent.innerHTML = '<div class="dbm-empty">Sem detalhe.</div>';
@@ -479,6 +848,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function syncSchemaRepository() {
+    if (!els.syncSchemaBtn) return;
+    els.syncSchemaBtn.disabled = true;
+    setStatus('A sincronizar o repositorio de estrutura...');
+    try {
+      const { data } = await sendJson('/api/database_manager/schema_repository/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      state.schemaRepository = {
+        state: data?.state || null,
+        warning: '',
+      };
+      renderSchemaRepositoryState();
+      await loadBootstrap({
+        skipRepoSync: true,
+        successStatus: 'Repositorio de estrutura sincronizado e metadata atualizada.',
+      });
+    } catch (error) {
+      state.schemaRepository = {
+        state: error?.data?.state || state.schemaRepository?.state || null,
+        warning: error.message || 'Erro ao sincronizar o repositorio de estrutura.',
+      };
+      renderSchemaRepositoryState();
+      setStatus(error.message || 'Erro ao sincronizar o repositorio de estrutura.', true);
+    } finally {
+      els.syncSchemaBtn.disabled = false;
+    }
+  }
+
   els.tableSearch?.addEventListener('input', (event) => {
     state.search = String(event.target.value || '');
     renderTables();
@@ -486,6 +886,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (els.sortModal) {
     document.body.appendChild(els.sortModal);
+  }
+  if (els.indexMaintModal) {
+    document.body.appendChild(els.indexMaintModal);
   }
 
   els.sortTablesBtn?.addEventListener('click', openSortModal);
@@ -519,6 +922,80 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.key === 'Escape' && els.sortModal?.classList.contains('sz_is_open')) {
       closeSortModal();
     }
+    if (event.key === 'Escape' && els.indexMaintModal?.classList.contains('sz_is_open')) {
+      closeIndexMaintModal();
+    }
+  });
+
+  els.detailContent?.addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-db-index-maint-open]');
+    if (!trigger) return;
+    event.preventDefault();
+    openIndexMaintModal();
+  });
+
+  els.indexMaintClose?.addEventListener('click', closeIndexMaintModal);
+  els.indexMaintCloseTop?.addEventListener('click', closeIndexMaintModal);
+  els.indexMaintModal?.addEventListener('click', (event) => {
+    if (event.target === els.indexMaintModal) {
+      closeIndexMaintModal();
+    }
+  });
+  els.indexMaintModeList?.addEventListener('click', (event) => {
+    const option = event.target.closest('[data-db-index-maint-mode]');
+    if (!option) return;
+    state.pendingIndexMaintMode = normalizeIndexMaintMode(option.dataset.dbIndexMaintMode || 'auto');
+    renderIndexMaintModeOptions();
+    renderIndexMaintPlan();
+  });
+  els.indexMaintStart?.addEventListener('click', async () => {
+    const tableKey = currentTableLabel();
+    if (!tableKey) {
+      setStatus('Seleciona uma tabela antes de iniciar a manutenção.', true);
+      return;
+    }
+    const plan = buildIndexMaintPlan(state.pendingIndexMaintMode);
+    const actionable = plan.filter((item) => item.planned_action);
+    if (!actionable.length) {
+      setStatus('Não existem índices elegíveis para a ação selecionada.', true);
+      return;
+    }
+
+    els.indexMaintStart.disabled = true;
+    try {
+      const { status, data } = await sendJson('/api/database_manager/index_maintenance/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: tableKey,
+          mode: state.pendingIndexMaintMode,
+        }),
+      }, [409]);
+
+      state.indexMaintMode = normalizeIndexMaintMode(state.pendingIndexMaintMode);
+      state.indexMaintJobId = String(data?.job?.job_id || '').trim();
+      renderIndexMaintJob(data);
+
+      if (status === 409) {
+        setStatus(data?.error || 'Já existe uma manutenção de índices em execução.', true);
+      } else {
+        setStatus(`Manutenção de índices iniciada para ${tableKey}.`);
+      }
+
+      const jobState = String(data?.job?.state || '').trim().toLowerCase();
+      if (state.indexMaintJobId && ['running', 'stopping'].includes(jobState)) {
+        startIndexMaintPoll(state.indexMaintJobId);
+      } else if (state.selectedTable) {
+        loadTableDetail(state.selectedTable);
+      }
+    } catch (error) {
+      setStatus(error.message || 'Erro ao iniciar a manutenção de índices.', true);
+    } finally {
+      renderIndexMaintPlan();
+      if (!state.indexMaintJobId || !['running', 'stopping'].includes(String(state.indexMaintJobPayload?.job?.state || '').trim().toLowerCase())) {
+        els.indexMaintStart.disabled = false;
+      }
+    }
   });
 
   els.tablesList?.addEventListener('click', (event) => {
@@ -533,6 +1010,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadBootstrap();
   }
 
+  els.syncSchemaBtn?.addEventListener('click', syncSchemaRepository);
   els.refreshBtn?.addEventListener('click', refreshCurrent);
   els.actionRefreshBtn?.addEventListener('click', refreshCurrent);
   els.backBtn?.addEventListener('click', () => {

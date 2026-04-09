@@ -18,7 +18,7 @@ import logging
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from decimal import Decimal, ROUND_HALF_UP
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response, abort
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response, abort, has_request_context
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date, timedelta, time as dtime
 from sqlalchemy import text, bindparam
@@ -133,21 +133,131 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
     # Cache-busting para assets estÃ¡ticos (evita o browser usar JS antigo)
     app.config['STATIC_VERSION'] = int(time.time())
-    app.config['SQLALCHEMY_DATABASE_URI'] = (
-        "mssql+pyodbc://sa:enterprise@hfsalves.mooo.com,50002/GESTAO"
-        "?driver=ODBC+Driver+17+for+SQL+Server"
-        "&TrustServerCertificate=Yes&protocol=TCP&application_name=SZERO"
+
+    db_target_session_key = 'DB_TARGET'
+    db_consistency_unlocked_target_session_key = 'DB_CONSISTENCY_UNLOCKED_TARGET'
+    db_consistency_apply_result_session_key = 'DB_CONSISTENCY_APPLY_RESULT'
+    db_target_prod = 'prod'
+    db_target_client = 'client'
+
+    def _build_sqlalchemy_mssql_uri(server: str, database: str, username: str, password: str, port: str = '') -> str:
+        server_value = str(server or '').strip()
+        database_value = str(database or '').strip() or 'GESTAO'
+        username_value = str(username or '').strip()
+        password_value = str(password or '').strip()
+        port_value = str(port or '').strip()
+        host_part = f"{server_value},{port_value}" if port_value else server_value
+        return (
+            f"mssql+pyodbc://{quote(username_value)}:{quote(password_value)}@{host_part}/{database_value}"
+            "?driver=ODBC+Driver+17+for+SQL+Server"
+            "&TrustServerCertificate=Yes&protocol=TCP&application_name=SZERO"
+        )
+
+    def _build_pyodbc_conn_str(server: str, database: str, username: str, password: str, port: str = '') -> str:
+        server_value = str(server or '').strip()
+        port_value = str(port or '').strip()
+        host_part = f"{server_value},{port_value}" if port_value else server_value
+        return (
+            "DRIVER={ODBC Driver 17 for SQL Server};"
+            f"SERVER={host_part};"
+            f"DATABASE={str(database or '').strip() or 'GESTAO'};"
+            f"UID={str(username or '').strip()};"
+            f"PWD={str(password or '').strip()};"
+            "TrustServerCertificate=Yes;"
+            "Application Name=SZERO"
+        )
+
+    prod_db_uri = (
+        os.environ.get('DATABASE_URL_PROD')
+        or os.environ.get('DATABASE_URL')
+        or _build_sqlalchemy_mssql_uri(
+            server=os.environ.get('DB_PROD_SERVER', 'sql.szeroapp.com'),
+            port=os.environ.get('DB_PROD_PORT', '50002'),
+            database=os.environ.get('DB_PROD_NAME', 'GESTAO'),
+            username=os.environ.get('DB_PROD_USER', 'sa'),
+            password=os.environ.get('DB_PROD_PASSWORD', 'enterprise'),
+        )
     )
+    client_db_uri = (
+        os.environ.get('DATABASE_URL_CLIENT')
+        or _build_sqlalchemy_mssql_uri(
+            server=os.environ.get('DB_CLIENT_SERVER', '10.0.1.12'),
+            port=os.environ.get('DB_CLIENT_PORT', ''),
+            database=os.environ.get('DB_CLIENT_NAME', 'GR360_CORE'),
+            username=os.environ.get('DB_CLIENT_USER', 'sa'),
+            password=os.environ.get('DB_CLIENT_PASSWORD', 'H$ols2020'),
+        )
+    )
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = prod_db_uri
+    app.config['SQLALCHEMY_BINDS'] = {
+        db_target_prod: prod_db_uri,
+        db_target_client: client_db_uri,
+    }
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    radar_conn_str = os.environ.get('RADAR_CONN_STR') or (
-        "DRIVER={ODBC Driver 17 for SQL Server};"
-        "SERVER=hfsalves.mooo.com,50002;"
-        "DATABASE=GESTAO;"
-        "UID=sa;"
-        "PWD=enterprise;"
-        "TrustServerCertificate=Yes;"
-        "Application Name=SZERO"
-    )
+    app.config['DB_TARGETS'] = {
+        db_target_prod: {
+            'label': 'SZERO Server',
+            'hint': 'szeroapp.com -> sql.szeroapp.com',
+        },
+        db_target_client: {
+            'label': 'GR360_CORE',
+            'hint': 'planning.hsols.local -> 10.0.1.12',
+        },
+    }
+    app.config['DB_HOST_TARGETS'] = {
+        'szeroapp.com': db_target_prod,
+        'www.szeroapp.com': db_target_prod,
+        'hfsalves.mooo.com': db_target_prod,
+        'planning.hsols.local': db_target_client,
+    }
+    app.config['DB_DEFAULT_TARGET'] = db_target_prod
+    app.config['DB_LOCAL_DEFAULT_TARGET'] = str(
+        os.environ.get('DB_LOCAL_DEFAULT_TARGET', db_target_prod)
+    ).strip().lower() or db_target_prod
+    app.config['DB_FORCED_TARGET'] = str(
+        os.environ.get('APP_DB_TARGET', '')
+    ).strip().lower()
+    app.config['DB_CONN_STRS'] = {
+        db_target_prod: _build_pyodbc_conn_str(
+            server=os.environ.get('DB_PROD_SERVER', 'sql.szeroapp.com'),
+            port=os.environ.get('DB_PROD_PORT', '50002'),
+            database=os.environ.get('DB_PROD_NAME', 'GESTAO'),
+            username=os.environ.get('DB_PROD_USER', 'sa'),
+            password=os.environ.get('DB_PROD_PASSWORD', 'enterprise'),
+        ),
+        db_target_client: _build_pyodbc_conn_str(
+            server=os.environ.get('DB_CLIENT_SERVER', '10.0.1.12'),
+            port=os.environ.get('DB_CLIENT_PORT', ''),
+            database=os.environ.get('DB_CLIENT_NAME', 'GR360_CORE'),
+            username=os.environ.get('DB_CLIENT_USER', 'sa'),
+            password=os.environ.get('DB_CLIENT_PASSWORD', 'H$ols2020'),
+        ),
+    }
+
+    app.config['RADAR_CONN_STRS'] = {
+        db_target_prod: (
+            os.environ.get('RADAR_CONN_STR_PROD')
+            or os.environ.get('RADAR_CONN_STR')
+            or _build_pyodbc_conn_str(
+                server=os.environ.get('DB_PROD_SERVER', 'sql.szeroapp.com'),
+                port=os.environ.get('DB_PROD_PORT', '50002'),
+                database=os.environ.get('DB_PROD_NAME', 'GESTAO'),
+                username=os.environ.get('DB_PROD_USER', 'sa'),
+                password=os.environ.get('DB_PROD_PASSWORD', 'enterprise'),
+            )
+        ),
+        db_target_client: (
+            os.environ.get('RADAR_CONN_STR_CLIENT')
+            or _build_pyodbc_conn_str(
+                server=os.environ.get('DB_CLIENT_SERVER', '10.0.1.12'),
+                port=os.environ.get('DB_CLIENT_PORT', ''),
+                database=os.environ.get('DB_CLIENT_NAME', 'GR360_CORE'),
+                username=os.environ.get('DB_CLIENT_USER', 'sa'),
+                password=os.environ.get('DB_CLIENT_PASSWORD', 'H$ols2020'),
+            )
+        ),
+    }
 
     # Garantir JSON e respostas com UTF-8 para evitar problemas de acentuaÃ§Ã£o
     try:
@@ -177,9 +287,75 @@ def create_app():
         host = raw_host.split(':', 1)[0].strip().lower()
         return host
 
+    def _is_localhost_host(hostname: str) -> bool:
+        host = (hostname or '').strip().lower()
+        return host in {'localhost', '127.0.0.1'}
+
     def _is_local_dev_host(hostname: str) -> bool:
         host = (hostname or '').strip().lower()
         return host in {'localhost', '127.0.0.1'} or host.startswith('192.168.') or host.startswith('10.')
+
+    def _normalize_db_target(value: str | None) -> str:
+        candidate = str(value or '').strip().lower()
+        return candidate if candidate in app.config['DB_TARGETS'] else ''
+
+    def _db_target_options() -> list[dict]:
+        options = []
+        for key, meta in (app.config.get('DB_TARGETS') or {}).items():
+            options.append({
+                'value': key,
+                'label': str(meta.get('label') or key),
+                'hint': str(meta.get('hint') or '').strip(),
+            })
+        return options
+
+    def _resolve_db_target(preferred: str | None = None) -> str:
+        preferred_target = _normalize_db_target(preferred)
+        if preferred_target:
+            return preferred_target
+
+        forced_target = _normalize_db_target(app.config.get('DB_FORCED_TARGET'))
+        if forced_target:
+            return forced_target
+
+        host = ''
+        if has_request_context():
+            try:
+                host = _normalized_request_host()
+            except Exception:
+                host = ''
+
+        host_target = _normalize_db_target((app.config.get('DB_HOST_TARGETS') or {}).get(host))
+        if host_target:
+            return host_target
+
+        if _is_localhost_host(host):
+            session_target = _normalize_db_target(session.get(db_target_session_key))
+            if session_target:
+                return session_target
+            local_default_target = _normalize_db_target(app.config.get('DB_LOCAL_DEFAULT_TARGET'))
+            if local_default_target:
+                return local_default_target
+
+        return _normalize_db_target(app.config.get('DB_DEFAULT_TARGET')) or db_target_prod
+
+    def _get_radar_conn_str(preferred_target: str | None = None) -> str:
+        target = _resolve_db_target(preferred_target)
+        radar_map = app.config.get('RADAR_CONN_STRS') or {}
+        return (
+            radar_map.get(target)
+            or radar_map.get(_normalize_db_target(app.config.get('DB_DEFAULT_TARGET')))
+            or ''
+        )
+
+    def _get_db_conn_str(preferred_target: str | None = None) -> str:
+        target = _resolve_db_target(preferred_target)
+        conn_map = app.config.get('DB_CONN_STRS') or {}
+        return (
+            conn_map.get(target)
+            or conn_map.get(_normalize_db_target(app.config.get('DB_DEFAULT_TARGET')))
+            or ''
+        )
 
     def _guest_host_invalid_response():
         return render_template('r_public.html', invalid=True, page_data={}), 404
@@ -191,7 +367,7 @@ def create_app():
             return None
 
         guest_hosts = {'szeroguests.com', 'www.szeroguests.com'}
-        app_hosts = {'szeroapp.com', 'www.szeroapp.com', 'hfsalves.mooo.com'}
+        app_hosts = set((app.config.get('DB_HOST_TARGETS') or {}).keys())
 
         path = (request.path or '/').strip() or '/'
         is_guest_public_path = (
@@ -214,6 +390,23 @@ def create_app():
         return ('Not Found', 404)
 
     db.init_app(app)
+    session_cls = db.session.session_factory.class_
+    session_cls._szero_original_get_bind = getattr(session_cls, '_szero_original_get_bind', session_cls.get_bind)
+
+    def _szero_routed_get_bind(self, mapper=None, clause=None, bind=None, **kwargs):
+        engine = session_cls._szero_original_get_bind(self, mapper=mapper, clause=clause, bind=bind, **kwargs)
+        try:
+            engines = db.engines
+        except Exception:
+            return engine
+
+        default_engine = engines.get(None)
+        if default_engine is None or engine is not default_engine:
+            return engine
+
+        return engines.get(_resolve_db_target()) or engine
+
+    session_cls.get_bind = _szero_routed_get_bind
     login_manager.init_app(app)
     login_manager.login_view = 'login'
 
@@ -1407,6 +1600,25 @@ def create_app():
         current_entity = None
         current_user_entities = []
         can_switch_entity = False
+        endpoint = str(request.endpoint or '').strip()
+
+        if endpoint == 'database_consistency_page':
+            return {
+                'menu_items'     : menu_items,
+                'menu_structure' : menu_structure,
+                'user_perms'     : perms,
+                'page_name'      : page_name,
+                'menu_botoes'    : menu_botoes,
+                'menu_forms'     : menu_forms,
+                'is_dev'         : False,
+                'can_open_mn'    : False,
+                'can_open_fs'    : False,
+                'static_version' : app.config.get('STATIC_VERSION', 1),
+                'app_params'     : {},
+                'current_entity' : None,
+                'current_user_entities': [],
+                'can_switch_entity': False,
+            }
 
         if current_user.is_authenticated:
             if session.get('current_feid') not in (None, ''):
@@ -1617,9 +1829,29 @@ def create_app():
     # Rotas de autenticação
     @app.route('/login', methods=['GET', 'POST'])
     def login():
+        def _render_login(error: str = '', selected_target: str = ''):
+            host = _normalized_request_host() if has_request_context() else ''
+            show_db_target_select = _is_localhost_host(host)
+            resolved_target = (
+                _normalize_db_target(selected_target)
+                or _resolve_db_target()
+            )
+            return render_template(
+                'login.html',
+                error=error,
+                show_db_target_select=show_db_target_select,
+                db_target_options=_db_target_options(),
+                selected_db_target=resolved_target,
+            )
+
         if request.method == 'POST':
             login_ = request.form['login']
             pwd = request.form['password']
+            if _is_localhost_host(_normalized_request_host()):
+                selected_target = _normalize_db_target(request.form.get('db_target'))
+                if not selected_target:
+                    return _render_login(error='Base de dados inválida.', selected_target=request.form.get('db_target'))
+                session[db_target_session_key] = selected_target
             try:
                 result = authenticate_user(db.session, login_, pwd)
                 if result.success and result.row:
@@ -1633,7 +1865,7 @@ def create_app():
                             'Login recusado: utilizador sem entidades ativas',
                             extra={'login': result.row.get('LOGIN'), 'usstamp': result.row.get('USSTAMP')},
                         )
-                        return render_template('login.html', error=str(entity_error))
+                        return _render_login(error=str(entity_error))
 
                     user = US()
                     for k, v in result.row.items():
@@ -1655,14 +1887,102 @@ def create_app():
                         app.config['PARA_VALUES'] = para_map
                     except Exception:
                         session['APP_PARAMS'] = {}
+                    target_after_login = _resolve_db_target()
+                    if target_after_login == db_target_prod:
+                        session.pop(db_consistency_unlocked_target_session_key, None)
+                    else:
+                        session.pop(db_consistency_unlocked_target_session_key, None)
+                    session.pop(db_consistency_apply_result_session_key, None)
                     return redirect(request.args.get('next') or url_for('home_page'))
 
-                return render_template('login.html', error=result.user_message)
+                return _render_login(error=result.user_message)
             except Exception:
                 db.session.rollback()
                 auth_logger.exception('Erro inesperado durante autenticação', extra={'login': login_})
-                return render_template('login.html', error='Erro interno na autenticação')
-        return render_template('login.html')
+                return _render_login(error='Erro interno na autenticação')
+        return _render_login()
+
+    def _database_consistency_allow_request() -> bool:
+        if not current_user.is_authenticated:
+            return True
+        target = _resolve_db_target()
+        if target == db_target_prod:
+            return True
+        unlocked_target = _normalize_db_target(session.get(db_consistency_unlocked_target_session_key))
+        if unlocked_target == target:
+            return True
+        endpoint = str(request.endpoint or '').strip()
+        if endpoint in {
+            'database_consistency_page',
+            'database_consistency_apply',
+            'database_consistency_continue',
+            'login',
+            'logout',
+            'service_worker',
+            'static',
+        }:
+            return True
+        if endpoint.startswith('api_database_consistency'):
+            return True
+        return False
+
+    @app.before_request
+    def _enforce_database_consistency():
+        if _database_consistency_allow_request():
+            return None
+        if not current_user.is_authenticated:
+            return None
+        return redirect(url_for('database_consistency_page'))
+
+    @app.route('/database_consistency', methods=['GET'])
+    @login_required
+    def database_consistency_page():
+        report = _load_database_consistency_report()
+        target = _resolve_db_target()
+        if target == db_target_prod:
+            session[db_consistency_unlocked_target_session_key] = target
+            return redirect(url_for('home_page'))
+        can_continue = bool(report.get('is_ok'))
+        if can_continue:
+            session[db_consistency_unlocked_target_session_key] = target
+        else:
+            session.pop(db_consistency_unlocked_target_session_key, None)
+        apply_result = session.pop(db_consistency_apply_result_session_key, None)
+        return render_template(
+            'database_consistency.html',
+            report=report,
+            can_continue=can_continue,
+            can_apply=bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False)),
+            apply_result=apply_result,
+        )
+
+    @app.route('/database_consistency/apply', methods=['POST'])
+    @login_required
+    def database_consistency_apply():
+        if not (getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False)):
+            abort(403)
+        try:
+            result = _database_consistency_apply_reference_structure(
+                requested_by=str(getattr(current_user, 'LOGIN', '') or '').strip()
+            )
+        except Exception as exc:
+            result = {
+                'status': 'error',
+                'applied': [],
+                'failed': [{'type': 'apply', 'name': 'estrutura', 'error': str(exc)}],
+                'skipped': [],
+            }
+        session[db_consistency_apply_result_session_key] = _database_consistency_compact_result(result)
+        return redirect(url_for('database_consistency_page'))
+
+    @app.route('/database_consistency/continue', methods=['POST'])
+    @login_required
+    def database_consistency_continue():
+        report = _load_database_consistency_report()
+        if not report.get('is_ok'):
+            return redirect(url_for('database_consistency_page'))
+        session[db_consistency_unlocked_target_session_key] = _resolve_db_target()
+        return redirect(url_for('home_page'))
 
     @app.route('/r/<token>')
     @app.route('/r/<token>/')
@@ -2786,6 +3106,9 @@ def create_app():
         session.pop('APP_PARAMS', None)
         session.pop('current_feid', None)
         session.pop('current_entity_name', None)
+        session.pop(db_consistency_unlocked_target_session_key, None)
+        session.pop(db_consistency_apply_result_session_key, None)
+        session.pop(db_target_session_key, None)
         logout_user()
         return redirect(url_for('login'))
 
@@ -3546,6 +3869,7 @@ def create_app():
             schema_name = str(row.get('SCHEMA_NAME') or '').strip()
             table_name = str(row.get('TABLE_NAME') or '').strip()
             items.append({
+                'object_id': _to_int(row.get('OBJECT_ID'), 0),
                 'key': f'{schema_name}.{table_name}',
                 'schema': schema_name,
                 'name': table_name,
@@ -3730,8 +4054,10 @@ def create_app():
                 C.is_nullable AS IS_NULLABLE,
                 C.is_identity AS IS_IDENTITY,
                 C.is_computed AS IS_COMPUTED,
+                ISNULL(CC.is_persisted, 0) AS IS_PERSISTED,
                 C.collation_name AS COLLATION_NAME,
                 DC.definition AS DEFAULT_DEFINITION,
+                CC.definition AS COMPUTED_DEFINITION,
                 CONVERT(nvarchar(128), IC.seed_value) AS IDENTITY_SEED,
                 CONVERT(nvarchar(128), IC.increment_value) AS IDENTITY_INCREMENT,
                 CASE WHEN PKCOL.column_id IS NULL THEN 0 ELSE 1 END AS IS_PRIMARY_KEY,
@@ -3745,6 +4071,9 @@ def create_app():
                 ON TY.user_type_id = C.user_type_id
             LEFT JOIN sys.default_constraints DC
                 ON DC.object_id = C.default_object_id
+            LEFT JOIN sys.computed_columns CC
+                ON CC.object_id = C.object_id
+               AND CC.column_id = C.column_id
             LEFT JOIN sys.identity_columns IC
                 ON IC.object_id = C.object_id
                AND IC.column_id = C.column_id
@@ -3811,9 +4140,11 @@ def create_app():
                 'is_nullable': bool(_to_int(row.get('IS_NULLABLE'), 0)),
                 'is_identity': bool(_to_int(row.get('IS_IDENTITY'), 0)),
                 'is_computed': bool(_to_int(row.get('IS_COMPUTED'), 0)),
+                'is_persisted': bool(_to_int(row.get('IS_PERSISTED'), 0)),
                 'is_primary_key': bool(_to_int(row.get('IS_PRIMARY_KEY'), 0)),
                 'is_foreign_key': bool(_to_int(row.get('IS_FOREIGN_KEY'), 0)),
                 'default_definition': str(row.get('DEFAULT_DEFINITION') or '').strip(),
+                'computed_definition': str(row.get('COMPUTED_DEFINITION') or '').strip(),
                 'collation_name': str(row.get('COLLATION_NAME') or '').strip(),
                 'identity_seed': (_num(row.get('IDENTITY_SEED'), 0) if row.get('IDENTITY_SEED') is not None else None),
                 'identity_increment': (_num(row.get('IDENTITY_INCREMENT'), 0) if row.get('IDENTITY_INCREMENT') is not None else None),
@@ -4110,6 +4441,3780 @@ def create_app():
             'foreign_keys': foreign_keys,
             'indexes': indexes,
             'triggers': triggers,
+        }
+
+    database_manager_schema_repo_sync_lock = threading.Lock()
+    database_manager_index_maint_workers = {}
+    database_manager_index_maint_workers_lock = threading.Lock()
+
+    def _database_manager_schema_repo_database_name() -> str:
+        try:
+            value = db.session.execute(text("SELECT DB_NAME() AS DB_NAME")).scalar()
+            return str(value or '').strip()
+        except Exception:
+            return ''
+
+    def _ensure_database_manager_schema_repo_tables():
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.DB_SCHEMA_REPO_STATE', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_SCHEMA_REPO_STATE
+                (
+                    StateId int NOT NULL PRIMARY KEY,
+                    DatabaseName nvarchar(128) NOT NULL,
+                    IsDevelopmentSource bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_STATE_IS_DEV DEFAULT 1,
+                    LastSyncStamp varchar(36) NULL,
+                    LastSyncAt datetime NULL,
+                    LastSyncStatus varchar(20) NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_STATE_STATUS DEFAULT 'never',
+                    LastSyncSource varchar(20) NULL,
+                    LastSyncRequestedBy varchar(100) NULL,
+                    LastSyncMessage nvarchar(1000) NULL,
+                    LastTableCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_STATE_TABLES DEFAULT 0,
+                    LastColumnCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_STATE_COLUMNS DEFAULT 0,
+                    LastIndexCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_STATE_INDEXES DEFAULT 0,
+                    LastIndexColumnCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_STATE_INDEX_COLUMNS DEFAULT 0,
+                    LastForeignKeyCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_STATE_FKS DEFAULT 0,
+                    LastForeignKeyColumnCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_STATE_FK_COLUMNS DEFAULT 0,
+                    LastTriggerCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_STATE_TRIGGERS DEFAULT 0,
+                    UpdatedAt datetime NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_STATE_UPDATED DEFAULT GETDATE()
+                );
+            END
+
+            IF OBJECT_ID('dbo.DB_SCHEMA_REPO_SYNC', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_SCHEMA_REPO_SYNC
+                (
+                    SyncId varchar(36) NOT NULL PRIMARY KEY,
+                    SyncStamp varchar(36) NOT NULL,
+                    DatabaseName nvarchar(128) NOT NULL,
+                    StartedAt datetime NOT NULL,
+                    FinishedAt datetime NULL,
+                    Status varchar(20) NOT NULL,
+                    Source varchar(20) NOT NULL,
+                    RequestedBy varchar(100) NULL,
+                    Message nvarchar(1000) NULL,
+                    TableCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_SYNC_TABLES DEFAULT 0,
+                    ColumnCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_SYNC_COLUMNS DEFAULT 0,
+                    IndexCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_SYNC_INDEXES DEFAULT 0,
+                    IndexColumnCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_SYNC_INDEX_COLUMNS DEFAULT 0,
+                    ForeignKeyCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_SYNC_FKS DEFAULT 0,
+                    ForeignKeyColumnCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_SYNC_FK_COLUMNS DEFAULT 0,
+                    TriggerCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_SYNC_TRIGGERS DEFAULT 0
+                );
+            END
+
+            IF OBJECT_ID('dbo.DB_SCHEMA_REPO_TABLE', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_SCHEMA_REPO_TABLE
+                (
+                    SyncStamp varchar(36) NOT NULL,
+                    DatabaseName nvarchar(128) NOT NULL,
+                    TableKey nvarchar(260) NOT NULL,
+                    SchemaName nvarchar(128) NOT NULL,
+                    TableName nvarchar(128) NOT NULL,
+                    ObjectId int NOT NULL,
+                    CreatedAt datetime NULL,
+                    ModifiedAt datetime NULL,
+                    [RowCount] bigint NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_TABLE_ROWCOUNT DEFAULT 0,
+                    ColumnCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_TABLE_COLUMNCOUNT DEFAULT 0,
+                    IndexCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_TABLE_INDEXCOUNT DEFAULT 0,
+                    TriggerCount int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_TABLE_TRIGGERCOUNT DEFAULT 0,
+                    ReservedMb decimal(18, 2) NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_TABLE_RESERVED DEFAULT 0,
+                    DataMb decimal(18, 2) NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_TABLE_DATA DEFAULT 0,
+                    IndexMb decimal(18, 2) NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_TABLE_INDEX DEFAULT 0,
+                    CONSTRAINT PK_DB_SCHEMA_REPO_TABLE PRIMARY KEY (SyncStamp, TableKey)
+                );
+            END
+
+            IF OBJECT_ID('dbo.DB_SCHEMA_REPO_COLUMN', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_SCHEMA_REPO_COLUMN
+                (
+                    SyncStamp varchar(36) NOT NULL,
+                    DatabaseName nvarchar(128) NOT NULL,
+                    TableKey nvarchar(260) NOT NULL,
+                    SchemaName nvarchar(128) NOT NULL,
+                    TableName nvarchar(128) NOT NULL,
+                    ObjectId int NOT NULL,
+                    ColumnName nvarchar(128) NOT NULL,
+                    OrdinalPosition int NOT NULL,
+                    DataType nvarchar(128) NOT NULL,
+                    TypeLabel nvarchar(128) NOT NULL,
+                    MaxLength int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_COLUMN_MAXLEN DEFAULT 0,
+                    NumericPrecision int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_COLUMN_PREC DEFAULT 0,
+                    NumericScale int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_COLUMN_SCALE DEFAULT 0,
+                    IsNullable bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_COLUMN_NULLABLE DEFAULT 0,
+                    IsIdentity bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_COLUMN_IDENTITY DEFAULT 0,
+                    IsComputed bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_COLUMN_COMPUTED DEFAULT 0,
+                    IsPersisted bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_COLUMN_PERSISTED DEFAULT 0,
+                    IsPrimaryKey bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_COLUMN_PK DEFAULT 0,
+                    IsForeignKey bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_COLUMN_FK DEFAULT 0,
+                    DefaultDefinition nvarchar(max) NULL,
+                    ComputedDefinition nvarchar(max) NULL,
+                    CollationName nvarchar(128) NULL,
+                    IdentitySeed nvarchar(128) NULL,
+                    IdentityIncrement nvarchar(128) NULL,
+                    ForeignKeyName nvarchar(128) NULL,
+                    ReferenceSchemaName nvarchar(128) NULL,
+                    ReferenceTableName nvarchar(128) NULL,
+                    ReferenceColumnName nvarchar(128) NULL,
+                    CONSTRAINT PK_DB_SCHEMA_REPO_COLUMN PRIMARY KEY (SyncStamp, TableKey, ColumnName)
+                );
+            END
+
+            IF OBJECT_ID('dbo.DB_SCHEMA_REPO_INDEX', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_SCHEMA_REPO_INDEX
+                (
+                    SyncStamp varchar(36) NOT NULL,
+                    DatabaseName nvarchar(128) NOT NULL,
+                    TableKey nvarchar(260) NOT NULL,
+                    SchemaName nvarchar(128) NOT NULL,
+                    TableName nvarchar(128) NOT NULL,
+                    ObjectId int NOT NULL,
+                    IndexId int NOT NULL,
+                    IndexName nvarchar(128) NULL,
+                    IndexType nvarchar(128) NULL,
+                    IsPrimaryKey bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_PK DEFAULT 0,
+                    IsUnique bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_UNIQUE DEFAULT 0,
+                    IsUniqueConstraint bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_UQ DEFAULT 0,
+                    IsDisabled bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_DISABLED DEFAULT 0,
+                    [FillFactor] int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_FILL DEFAULT 0,
+                    HasFilter bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_FILTER DEFAULT 0,
+                    FilterDefinition nvarchar(max) NULL,
+                    AllowRowLocks bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_ROWLOCK DEFAULT 0,
+                    AllowPageLocks bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_PAGELOCK DEFAULT 0,
+                    [RowCount] bigint NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_ROWCOUNT DEFAULT 0,
+                    FragmentationPct decimal(10, 2) NULL,
+                    PageCount bigint NULL,
+                    KeyColumns nvarchar(max) NULL,
+                    IncludedColumns nvarchar(max) NULL,
+                    CONSTRAINT PK_DB_SCHEMA_REPO_INDEX PRIMARY KEY (SyncStamp, TableKey, IndexId)
+                );
+            END
+
+            IF OBJECT_ID('dbo.DB_SCHEMA_REPO_INDEX_COLUMN', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_SCHEMA_REPO_INDEX_COLUMN
+                (
+                    SyncStamp varchar(36) NOT NULL,
+                    DatabaseName nvarchar(128) NOT NULL,
+                    TableKey nvarchar(260) NOT NULL,
+                    SchemaName nvarchar(128) NOT NULL,
+                    TableName nvarchar(128) NOT NULL,
+                    ObjectId int NOT NULL,
+                    IndexId int NOT NULL,
+                    IndexName nvarchar(128) NULL,
+                    IndexColumnId int NOT NULL,
+                    ColumnName nvarchar(128) NOT NULL,
+                    KeyOrdinal int NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_COLUMN_KEYORD DEFAULT 0,
+                    IsDescending bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_COLUMN_DESC DEFAULT 0,
+                    IsIncluded bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_INDEX_COLUMN_INCLUDED DEFAULT 0,
+                    CONSTRAINT PK_DB_SCHEMA_REPO_INDEX_COLUMN PRIMARY KEY (SyncStamp, TableKey, IndexId, IndexColumnId)
+                );
+            END
+
+            IF OBJECT_ID('dbo.DB_SCHEMA_REPO_FOREIGN_KEY', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_SCHEMA_REPO_FOREIGN_KEY
+                (
+                    SyncStamp varchar(36) NOT NULL,
+                    DatabaseName nvarchar(128) NOT NULL,
+                    TableKey nvarchar(260) NOT NULL,
+                    SchemaName nvarchar(128) NOT NULL,
+                    TableName nvarchar(128) NOT NULL,
+                    ObjectId int NOT NULL,
+                    ForeignKeyObjectId int NOT NULL,
+                    ForeignKeyName nvarchar(128) NOT NULL,
+                    ReferenceSchemaName nvarchar(128) NOT NULL,
+                    ReferenceTableName nvarchar(128) NOT NULL,
+                    DeleteAction nvarchar(60) NULL,
+                    UpdateAction nvarchar(60) NULL,
+                    IsDisabled bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_FK_DISABLED DEFAULT 0,
+                    ColumnNames nvarchar(max) NULL,
+                    ReferenceColumnNames nvarchar(max) NULL,
+                    CONSTRAINT PK_DB_SCHEMA_REPO_FOREIGN_KEY PRIMARY KEY (SyncStamp, TableKey, ForeignKeyObjectId)
+                );
+            END
+
+            IF OBJECT_ID('dbo.DB_SCHEMA_REPO_FOREIGN_KEY_COLUMN', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_SCHEMA_REPO_FOREIGN_KEY_COLUMN
+                (
+                    SyncStamp varchar(36) NOT NULL,
+                    DatabaseName nvarchar(128) NOT NULL,
+                    TableKey nvarchar(260) NOT NULL,
+                    SchemaName nvarchar(128) NOT NULL,
+                    TableName nvarchar(128) NOT NULL,
+                    ObjectId int NOT NULL,
+                    ForeignKeyObjectId int NOT NULL,
+                    ForeignKeyName nvarchar(128) NOT NULL,
+                    ConstraintColumnId int NOT NULL,
+                    ParentColumnName nvarchar(128) NOT NULL,
+                    ReferenceSchemaName nvarchar(128) NOT NULL,
+                    ReferenceTableName nvarchar(128) NOT NULL,
+                    ReferenceColumnName nvarchar(128) NOT NULL,
+                    CONSTRAINT PK_DB_SCHEMA_REPO_FK_COLUMN PRIMARY KEY (SyncStamp, TableKey, ForeignKeyObjectId, ConstraintColumnId)
+                );
+            END
+
+            IF OBJECT_ID('dbo.DB_SCHEMA_REPO_TRIGGER', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_SCHEMA_REPO_TRIGGER
+                (
+                    SyncStamp varchar(36) NOT NULL,
+                    DatabaseName nvarchar(128) NOT NULL,
+                    TableKey nvarchar(260) NOT NULL,
+                    SchemaName nvarchar(128) NOT NULL,
+                    TableName nvarchar(128) NOT NULL,
+                    ObjectId int NOT NULL,
+                    TriggerObjectId int NOT NULL,
+                    TriggerName nvarchar(128) NOT NULL,
+                    IsDisabled bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_TRIGGER_DISABLED DEFAULT 0,
+                    IsInsteadOfTrigger bit NOT NULL CONSTRAINT DF_DB_SCHEMA_REPO_TRIGGER_INSTEAD DEFAULT 0,
+                    EventList nvarchar(max) NULL,
+                    DefinitionSql nvarchar(max) NULL,
+                    CONSTRAINT PK_DB_SCHEMA_REPO_TRIGGER PRIMARY KEY (SyncStamp, TableKey, TriggerObjectId)
+                );
+            END
+        """))
+
+        db.session.execute(text("""
+            IF COL_LENGTH('dbo.DB_SCHEMA_REPO_COLUMN', 'IsPersisted') IS NULL
+            BEGIN
+                ALTER TABLE dbo.DB_SCHEMA_REPO_COLUMN
+                ADD IsPersisted bit NOT NULL
+                    CONSTRAINT DF_DB_SCHEMA_REPO_COLUMN_PERSISTED DEFAULT 0;
+            END
+
+            IF COL_LENGTH('dbo.DB_SCHEMA_REPO_COLUMN', 'ComputedDefinition') IS NULL
+            BEGIN
+                ALTER TABLE dbo.DB_SCHEMA_REPO_COLUMN
+                ADD ComputedDefinition nvarchar(max) NULL;
+            END
+        """))
+
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.DB_SCHEMA_REPO_APPDATA_ROW', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_SCHEMA_REPO_APPDATA_ROW
+                (
+                    SyncStamp varchar(36) NOT NULL,
+                    DatabaseName nvarchar(128) NOT NULL,
+                    SourceTable nvarchar(128) NOT NULL,
+                    RecordKey nvarchar(400) NOT NULL,
+                    RecordLabel nvarchar(260) NULL,
+                    PayloadJson nvarchar(max) NOT NULL,
+                    PayloadHash varchar(64) NOT NULL,
+                    CONSTRAINT PK_DB_SCHEMA_REPO_APPDATA_ROW PRIMARY KEY (SyncStamp, SourceTable, RecordKey)
+                );
+                CREATE INDEX IX_DB_SCHEMA_REPO_APPDATA_ROW_TABLE
+                    ON dbo.DB_SCHEMA_REPO_APPDATA_ROW (SourceTable, RecordKey);
+            END
+        """))
+
+        db.session.execute(text("""
+            IF NOT EXISTS (SELECT 1 FROM dbo.DB_SCHEMA_REPO_STATE WHERE StateId = 1)
+            BEGIN
+                INSERT INTO dbo.DB_SCHEMA_REPO_STATE
+                (
+                    StateId, DatabaseName, IsDevelopmentSource, LastSyncStatus, UpdatedAt
+                )
+                VALUES
+                (
+                    1, DB_NAME(), 1, 'never', GETDATE()
+                );
+            END
+            ELSE
+            BEGIN
+                UPDATE dbo.DB_SCHEMA_REPO_STATE
+                SET DatabaseName = DB_NAME()
+                WHERE StateId = 1
+                  AND ISNULL(DatabaseName, '') <> DB_NAME();
+            END
+        """))
+
+    def _database_manager_schema_repo_serialize_state(row):
+        if not row:
+            return None
+        return {
+            'database_name': str(row.get('DatabaseName') or '').strip(),
+            'is_development_source': bool(_to_int(row.get('IsDevelopmentSource'), 0)),
+            'last_sync_stamp': str(row.get('LastSyncStamp') or '').strip(),
+            'last_sync_at': (row.get('LastSyncAt').isoformat() if row.get('LastSyncAt') else None),
+            'last_sync_status': str(row.get('LastSyncStatus') or '').strip().lower(),
+            'last_sync_source': str(row.get('LastSyncSource') or '').strip().lower(),
+            'last_sync_requested_by': str(row.get('LastSyncRequestedBy') or '').strip(),
+            'last_sync_message': str(row.get('LastSyncMessage') or '').strip(),
+            'updated_at': (row.get('UpdatedAt').isoformat() if row.get('UpdatedAt') else None),
+            'counts': {
+                'table_count': _to_int(row.get('LastTableCount'), 0),
+                'column_count': _to_int(row.get('LastColumnCount'), 0),
+                'index_count': _to_int(row.get('LastIndexCount'), 0),
+                'index_column_count': _to_int(row.get('LastIndexColumnCount'), 0),
+                'foreign_key_count': _to_int(row.get('LastForeignKeyCount'), 0),
+                'foreign_key_column_count': _to_int(row.get('LastForeignKeyColumnCount'), 0),
+                'trigger_count': _to_int(row.get('LastTriggerCount'), 0),
+            },
+        }
+
+    def _load_database_manager_schema_repo_state():
+        _ensure_database_manager_schema_repo_tables()
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                StateId,
+                DatabaseName,
+                IsDevelopmentSource,
+                LastSyncStamp,
+                LastSyncAt,
+                LastSyncStatus,
+                LastSyncSource,
+                LastSyncRequestedBy,
+                LastSyncMessage,
+                LastTableCount,
+                LastColumnCount,
+                LastIndexCount,
+                LastIndexColumnCount,
+                LastForeignKeyCount,
+                LastForeignKeyColumnCount,
+                LastTriggerCount,
+                UpdatedAt
+            FROM dbo.DB_SCHEMA_REPO_STATE
+            WHERE StateId = 1
+        """)).mappings().first()
+        return _database_manager_schema_repo_serialize_state(row)
+
+    def _load_database_consistency_local_snapshot():
+        database_name = str(
+            db.session.execute(text("SELECT DB_NAME() AS DB_NAME")).scalar() or ''
+        ).strip()
+
+        table_rows = db.session.execute(text("""
+            SELECT
+                CONCAT(S.name, '.', T.name) AS TableKey,
+                S.name AS SchemaName,
+                T.name AS TableName
+            FROM sys.tables T
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE T.is_ms_shipped = 0
+            ORDER BY S.name, T.name
+        """)).mappings().all()
+
+        column_rows = db.session.execute(text("""
+            SELECT
+                CONCAT(S.name, '.', T.name) AS TableKey,
+                C.name AS ColumnName
+            FROM sys.tables T
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            INNER JOIN sys.columns C
+                ON C.object_id = T.object_id
+            WHERE T.is_ms_shipped = 0
+            ORDER BY S.name, T.name, C.column_id
+        """)).mappings().all()
+
+        index_rows = db.session.execute(text("""
+            SELECT
+                CONCAT(S.name, '.', T.name) AS TableKey,
+                I.index_id AS IndexId,
+                I.name AS IndexName,
+                I.type_desc AS IndexType,
+                I.is_primary_key AS IsPrimaryKey,
+                I.is_unique AS IsUnique,
+                I.is_unique_constraint AS IsUniqueConstraint,
+                I.has_filter AS HasFilter,
+                I.filter_definition AS FilterDefinition
+            FROM sys.indexes I
+            INNER JOIN sys.tables T
+                ON T.object_id = I.object_id
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE T.is_ms_shipped = 0
+              AND I.is_hypothetical = 0
+              AND I.index_id > 0
+              AND ISNULL(I.name, '') <> ''
+            ORDER BY S.name, T.name, I.index_id
+        """)).mappings().all()
+
+        index_column_rows = db.session.execute(text("""
+            SELECT
+                CONCAT(S.name, '.', T.name) AS TableKey,
+                I.index_id AS IndexId,
+                I.name AS IndexName,
+                IC.index_column_id AS IndexColumnId,
+                C.name AS ColumnName,
+                IC.key_ordinal AS KeyOrdinal,
+                IC.is_descending_key AS IsDescending,
+                IC.is_included_column AS IsIncluded
+            FROM sys.index_columns IC
+            INNER JOIN sys.indexes I
+                ON I.object_id = IC.object_id
+               AND I.index_id = IC.index_id
+            INNER JOIN sys.columns C
+                ON C.object_id = IC.object_id
+               AND C.column_id = IC.column_id
+            INNER JOIN sys.tables T
+                ON T.object_id = IC.object_id
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE T.is_ms_shipped = 0
+              AND I.is_hypothetical = 0
+              AND I.index_id > 0
+              AND ISNULL(I.name, '') <> ''
+            ORDER BY S.name, T.name, I.index_id, IC.index_column_id
+        """)).mappings().all()
+
+        foreign_key_rows = db.session.execute(text("""
+            SELECT
+                CONCAT(S.name, '.', T.name) AS TableKey,
+                FK.name AS ForeignKeyName
+            FROM sys.foreign_keys FK
+            INNER JOIN sys.tables T
+                ON T.object_id = FK.parent_object_id
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE T.is_ms_shipped = 0
+            ORDER BY S.name, T.name, FK.name
+        """)).mappings().all()
+
+        trigger_rows = db.session.execute(text("""
+            SELECT
+                CONCAT(S.name, '.', T.name) AS TableKey,
+                TR.name AS TriggerName
+            FROM sys.triggers TR
+            INNER JOIN sys.tables T
+                ON T.object_id = TR.parent_id
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE TR.parent_class = 1
+              AND TR.is_ms_shipped = 0
+              AND T.is_ms_shipped = 0
+            ORDER BY S.name, T.name, TR.name
+        """)).mappings().all()
+
+        tables = {}
+        for row in table_rows:
+            table_key = str(row.get('TableKey') or '').strip()
+            if not table_key:
+                continue
+            tables[table_key] = {
+                'table_key': table_key,
+                'schema_name': str(row.get('SchemaName') or '').strip(),
+                'table_name': str(row.get('TableName') or '').strip(),
+            }
+
+        columns = {}
+        for row in column_rows:
+            table_key = str(row.get('TableKey') or '').strip()
+            column_name = str(row.get('ColumnName') or '').strip()
+            if not table_key or not column_name:
+                continue
+            columns[(table_key, column_name.upper())] = {
+                'table_key': table_key,
+                'column_name': column_name,
+            }
+
+        indexes = {}
+        for row in index_rows:
+            table_key = str(row.get('TableKey') or '').strip()
+            index_id = _to_int(row.get('IndexId'), 0)
+            index_name = str(row.get('IndexName') or '').strip()
+            if not table_key or not index_name:
+                continue
+            indexes[(table_key, index_name.upper())] = {
+                'table_key': table_key,
+                'index_id': index_id,
+                'index_name': index_name,
+                'index_type': str(row.get('IndexType') or '').strip(),
+                'is_primary_key': bool(_to_int(row.get('IsPrimaryKey'), 0)),
+                'is_unique': bool(_to_int(row.get('IsUnique'), 0)),
+                'is_unique_constraint': bool(_to_int(row.get('IsUniqueConstraint'), 0)),
+                'has_filter': bool(_to_int(row.get('HasFilter'), 0)),
+                'filter_definition': str(row.get('FilterDefinition') or '').strip(),
+                'columns': [],
+            }
+
+        for row in index_column_rows:
+            table_key = str(row.get('TableKey') or '').strip()
+            index_id = _to_int(row.get('IndexId'), 0)
+            index_name = str(row.get('IndexName') or '').strip()
+            object_key = (table_key, (index_name or f'INDEX_{index_id}').upper())
+            bucket = indexes.get(object_key)
+            if not bucket:
+                continue
+            bucket['columns'].append({
+                'index_column_id': _to_int(row.get('IndexColumnId'), 0),
+                'column_name': str(row.get('ColumnName') or '').strip(),
+                'key_ordinal': _to_int(row.get('KeyOrdinal'), 0),
+                'is_descending': bool(_to_int(row.get('IsDescending'), 0)),
+                'is_included': bool(_to_int(row.get('IsIncluded'), 0)),
+            })
+
+        foreign_keys = {}
+        for row in foreign_key_rows:
+            table_key = str(row.get('TableKey') or '').strip()
+            fk_name = str(row.get('ForeignKeyName') or '').strip()
+            if not table_key or not fk_name:
+                continue
+            foreign_keys[(table_key, fk_name.upper())] = {
+                'table_key': table_key,
+                'fk_name': fk_name,
+            }
+
+        triggers = {}
+        for row in trigger_rows:
+            table_key = str(row.get('TableKey') or '').strip()
+            trigger_name = str(row.get('TriggerName') or '').strip()
+            if not table_key or not trigger_name:
+                continue
+            triggers[(table_key, trigger_name.upper())] = {
+                'table_key': table_key,
+                'trigger_name': trigger_name,
+            }
+
+        return {
+            'database_name': database_name,
+            'tables': tables,
+            'columns': columns,
+            'indexes': indexes,
+            'index_signatures': _database_consistency_collect_index_signatures(indexes),
+            'foreign_keys': foreign_keys,
+            'triggers': triggers,
+            'structural_data': _database_consistency_load_structural_data_snapshot(),
+        }
+
+    def _load_database_consistency_reference_snapshot():
+        conn_str = _get_db_conn_str(db_target_prod)
+        if not conn_str:
+            raise RuntimeError('Sem ligação configurada para o servidor principal.')
+
+        with pyodbc.connect(conn_str) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT TOP 1
+                    DatabaseName,
+                    IsDevelopmentSource,
+                    LastSyncStamp,
+                    LastSyncAt,
+                    LastSyncStatus,
+                    LastSyncMessage
+                FROM dbo.DB_SCHEMA_REPO_STATE
+                WHERE StateId = 1
+            """)
+            row = cur.fetchone()
+            if not row:
+                raise RuntimeError('O repositório de estrutura não está inicializado no servidor principal.')
+
+            reference_database_name = str(row[0] or '').strip()
+            is_development_source = bool(_to_int(row[1], 0))
+            sync_stamp = str(row[2] or '').strip()
+            sync_at = row[3]
+            sync_status = str(row[4] or '').strip().lower()
+            sync_message = str(row[5] or '').strip()
+
+            if not is_development_source:
+                raise RuntimeError('O servidor principal não está marcado como origem de desenvolvimento.')
+            if not sync_stamp:
+                raise RuntimeError('O repositório de estrutura no servidor principal ainda não tem sincronização.')
+            if sync_status and sync_status != 'done':
+                raise RuntimeError(
+                    f"O último estado do repositório principal é '{sync_status}'"
+                    + (f": {sync_message}" if sync_message else '.')
+                )
+
+            cur.execute("""
+                SELECT
+                    TableKey,
+                    SchemaName,
+                    TableName
+                FROM dbo.DB_SCHEMA_REPO_TABLE
+                WHERE SyncStamp = ?
+                ORDER BY SchemaName, TableName
+            """, sync_stamp)
+            table_rows = cur.fetchall()
+
+            cur.execute("""
+                SELECT
+                    CAST(CASE WHEN COL_LENGTH('dbo.DB_SCHEMA_REPO_COLUMN', 'ComputedDefinition') IS NOT NULL THEN 1 ELSE 0 END AS bit) AS HasComputedDefinition,
+                    CAST(CASE WHEN COL_LENGTH('dbo.DB_SCHEMA_REPO_COLUMN', 'IsPersisted') IS NOT NULL THEN 1 ELSE 0 END AS bit) AS HasIsPersisted
+            """)
+            metadata_flags = cur.fetchone() or (False, False)
+            has_computed_definition = bool(metadata_flags[0])
+            has_is_persisted = bool(metadata_flags[1])
+            persisted_sql = 'IsPersisted AS IsPersisted' if has_is_persisted else 'CAST(0 AS bit) AS IsPersisted'
+            computed_sql = 'ComputedDefinition AS ComputedDefinition' if has_computed_definition else 'CAST(NULL AS nvarchar(max)) AS ComputedDefinition'
+
+            cur.execute(f"""
+                SELECT
+                    TableKey,
+                    ColumnName,
+                    DataType,
+                    TypeLabel,
+                    OrdinalPosition,
+                    IsNullable,
+                    IsIdentity,
+                    IsComputed,
+                    {persisted_sql},
+                    DefaultDefinition,
+                    {computed_sql},
+                    CollationName,
+                    IdentitySeed,
+                    IdentityIncrement
+                FROM dbo.DB_SCHEMA_REPO_COLUMN
+                WHERE SyncStamp = ?
+                ORDER BY SchemaName, TableName, OrdinalPosition
+            """, sync_stamp)
+            column_rows = cur.fetchall()
+
+            cur.execute("""
+                SELECT
+                    TableKey,
+                    IndexId,
+                    IndexName,
+                    IndexType,
+                    IsPrimaryKey,
+                    IsUnique,
+                    IsUniqueConstraint,
+                    IsDisabled,
+                    [FillFactor],
+                    HasFilter,
+                    FilterDefinition,
+                    AllowRowLocks,
+                    AllowPageLocks
+                FROM dbo.DB_SCHEMA_REPO_INDEX
+                WHERE SyncStamp = ?
+                ORDER BY SchemaName, TableName, IndexId
+            """, sync_stamp)
+            index_rows = cur.fetchall()
+
+            cur.execute("""
+                SELECT
+                    TableKey,
+                    IndexId,
+                    IndexName,
+                    IndexColumnId,
+                    ColumnName,
+                    KeyOrdinal,
+                    IsDescending,
+                    IsIncluded
+                FROM dbo.DB_SCHEMA_REPO_INDEX_COLUMN
+                WHERE SyncStamp = ?
+                ORDER BY TableKey, IndexId, IndexColumnId
+            """, sync_stamp)
+            index_column_rows = cur.fetchall()
+
+            cur.execute("""
+                SELECT
+                    TableKey,
+                    ForeignKeyObjectId,
+                    ForeignKeyName,
+                    ReferenceSchemaName,
+                    ReferenceTableName,
+                    DeleteAction,
+                    UpdateAction,
+                    IsDisabled
+                FROM dbo.DB_SCHEMA_REPO_FOREIGN_KEY
+                WHERE SyncStamp = ?
+                ORDER BY SchemaName, TableName, ForeignKeyName
+            """, sync_stamp)
+            foreign_key_rows = cur.fetchall()
+
+            cur.execute("""
+                SELECT
+                    TableKey,
+                    ForeignKeyObjectId,
+                    ForeignKeyName,
+                    ConstraintColumnId,
+                    ParentColumnName,
+                    ReferenceSchemaName,
+                    ReferenceTableName,
+                    ReferenceColumnName
+                FROM dbo.DB_SCHEMA_REPO_FOREIGN_KEY_COLUMN
+                WHERE SyncStamp = ?
+                ORDER BY TableKey, ForeignKeyObjectId, ConstraintColumnId
+            """, sync_stamp)
+            foreign_key_column_rows = cur.fetchall()
+
+            cur.execute("""
+                SELECT
+                    TableKey,
+                    TriggerObjectId,
+                    TriggerName,
+                    IsDisabled,
+                    IsInsteadOfTrigger,
+                    EventList,
+                    DefinitionSql
+                FROM dbo.DB_SCHEMA_REPO_TRIGGER
+                WHERE SyncStamp = ?
+                ORDER BY SchemaName, TableName, TriggerName
+            """, sync_stamp)
+            trigger_rows = cur.fetchall()
+
+        tables = {}
+        for row in table_rows:
+            table_key = str(row[0] or '').strip()
+            if not table_key:
+                continue
+            tables[table_key] = {
+                'table_key': table_key,
+                'schema_name': str(row[1] or '').strip(),
+                'table_name': str(row[2] or '').strip(),
+            }
+
+        columns = {}
+        for row in column_rows:
+            table_key = str(row[0] or '').strip()
+            column_name = str(row[1] or '').strip()
+            if not table_key or not column_name:
+                continue
+            columns[(table_key, column_name.upper())] = {
+                'table_key': table_key,
+                'column_name': column_name,
+                'data_type': str(row[2] or '').strip(),
+                'type_label': str(row[3] or '').strip(),
+                'ordinal_position': _to_int(row[4], 0),
+                'is_nullable': bool(_to_int(row[5], 0)),
+                'is_identity': bool(_to_int(row[6], 0)),
+                'is_computed': bool(_to_int(row[7], 0)),
+                'is_persisted': bool(_to_int(row[8], 0)),
+                'default_definition': str(row[9] or '').strip(),
+                'computed_definition': str(row[10] or '').strip(),
+                'collation_name': str(row[11] or '').strip(),
+                'identity_seed': (row[12] if row[12] is not None else None),
+                'identity_increment': (row[13] if row[13] is not None else None),
+            }
+
+        indexes = {}
+        for row in index_rows:
+            table_key = str(row[0] or '').strip()
+            index_id = _to_int(row[1], 0)
+            index_name = str(row[2] or '').strip()
+            object_key = (table_key, (index_name or f'INDEX_{index_id}').upper())
+            indexes[object_key] = {
+                'table_key': table_key,
+                'index_id': index_id,
+                'index_name': index_name or f'INDEX_{index_id}',
+                'index_type': str(row[3] or '').strip(),
+                'is_primary_key': bool(_to_int(row[4], 0)),
+                'is_unique': bool(_to_int(row[5], 0)),
+                'is_unique_constraint': bool(_to_int(row[6], 0)),
+                'is_disabled': bool(_to_int(row[7], 0)),
+                'fill_factor': _to_int(row[8], 0),
+                'has_filter': bool(_to_int(row[9], 0)),
+                'filter_definition': str(row[10] or '').strip(),
+                'allow_row_locks': bool(_to_int(row[11], 0)),
+                'allow_page_locks': bool(_to_int(row[12], 0)),
+                'columns': [],
+            }
+
+        for row in index_column_rows:
+            table_key = str(row[0] or '').strip()
+            index_id = _to_int(row[1], 0)
+            index_name = str(row[2] or '').strip()
+            object_key = (table_key, (index_name or f'INDEX_{index_id}').upper())
+            bucket = indexes.get(object_key)
+            if not bucket:
+                continue
+            bucket['columns'].append({
+                'index_column_id': _to_int(row[3], 0),
+                'column_name': str(row[4] or '').strip(),
+                'key_ordinal': _to_int(row[5], 0),
+                'is_descending': bool(_to_int(row[6], 0)),
+                'is_included': bool(_to_int(row[7], 0)),
+            })
+
+        foreign_keys = {}
+        for row in foreign_key_rows:
+            table_key = str(row[0] or '').strip()
+            fk_object_id = _to_int(row[1], 0)
+            fk_name = str(row[2] or '').strip()
+            object_key = (table_key, (fk_name or f'FK_{fk_object_id}').upper())
+            foreign_keys[object_key] = {
+                'table_key': table_key,
+                'fk_object_id': fk_object_id,
+                'fk_name': fk_name or f'FK_{fk_object_id}',
+                'reference_schema_name': str(row[3] or '').strip(),
+                'reference_table_name': str(row[4] or '').strip(),
+                'delete_action': str(row[5] or '').strip(),
+                'update_action': str(row[6] or '').strip(),
+                'is_disabled': bool(_to_int(row[7], 0)),
+                'columns': [],
+            }
+
+        for row in foreign_key_column_rows:
+            table_key = str(row[0] or '').strip()
+            fk_object_id = _to_int(row[1], 0)
+            fk_name = str(row[2] or '').strip()
+            object_key = (table_key, (fk_name or f'FK_{fk_object_id}').upper())
+            bucket = foreign_keys.get(object_key)
+            if not bucket:
+                continue
+            bucket['columns'].append({
+                'constraint_column_id': _to_int(row[3], 0),
+                'parent_column_name': str(row[4] or '').strip(),
+                'reference_schema_name': str(row[5] or '').strip(),
+                'reference_table_name': str(row[6] or '').strip(),
+                'reference_column_name': str(row[7] or '').strip(),
+            })
+
+        triggers = {}
+        for row in trigger_rows:
+            table_key = str(row[0] or '').strip()
+            trigger_object_id = _to_int(row[1], 0)
+            trigger_name = str(row[2] or '').strip()
+            object_key = (table_key, (trigger_name or f'TR_{trigger_object_id}').upper())
+            triggers[object_key] = {
+                'table_key': table_key,
+                'trigger_object_id': trigger_object_id,
+                'trigger_name': trigger_name or f'TR_{trigger_object_id}',
+                'is_disabled': bool(_to_int(row[3], 0)),
+                'is_instead_of_trigger': bool(_to_int(row[4], 0)),
+                'event_list': str(row[5] or '').strip(),
+                'definition_sql': str(row[6] or '').strip(),
+            }
+
+        return {
+            'database_name': reference_database_name,
+            'sync_stamp': sync_stamp,
+            'sync_at': (sync_at.isoformat() if isinstance(sync_at, (datetime, date)) else None),
+            'tables': tables,
+            'columns': columns,
+            'indexes': indexes,
+            'index_signatures': _database_consistency_collect_index_signatures(indexes),
+            'foreign_keys': foreign_keys,
+            'triggers': triggers,
+            'structural_data': _database_consistency_reference_load_structural_data(sync_stamp),
+        }
+
+    def _database_consistency_table_exists(table_name: str) -> bool:
+        row = db.session.execute(text("""
+            SELECT TOP 1 1
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'dbo'
+              AND TABLE_NAME = :table_name
+        """), {'table_name': str(table_name or '').strip()}).first()
+        return bool(row)
+
+    def _database_consistency_appdata_json_value(value):
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return 1 if value else 0
+        if isinstance(value, Decimal):
+            return _database_consistency_number_literal(value, '')
+        if isinstance(value, (datetime, date)):
+            return value.isoformat()
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    def _database_consistency_payload_hash(payload: dict) -> str:
+        raw = json.dumps(payload or {}, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+        return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+    def _database_consistency_make_structural_data_row(source_table: str, record_key: str, record_label: str, payload: dict, compare_payload: dict | None = None) -> dict:
+        compare_payload = compare_payload if compare_payload is not None else payload
+        normalized_payload = {
+            str(key or '').strip(): _database_consistency_appdata_json_value(value)
+            for key, value in (payload or {}).items()
+        }
+        normalized_compare_payload = {
+            str(key or '').strip(): _database_consistency_appdata_json_value(value)
+            for key, value in (compare_payload or {}).items()
+        }
+        return {
+            'source_table': str(source_table or '').strip().upper(),
+            'record_key': str(record_key or '').strip(),
+            'record_label': str(record_label or '').strip(),
+            'payload': normalized_payload,
+            'compare_hash': _database_consistency_payload_hash(normalized_compare_payload),
+        }
+
+    def _database_consistency_load_menu_structural_data():
+        required = (
+            'MENUSTAMP', 'ORDEM', 'NOME', 'TABELA', 'URL', 'ADMIN', 'ICONE',
+            'FORM', 'ORDERBY', 'NOVO', 'INATIVO', 'LARGURAS_EXATAS', 'LARGURAS_EXATAS_LISTA',
+        )
+        if not _database_consistency_table_exists('MENU'):
+            return {'schema_ready': False, 'rows': {}, 'missing_schema': ['MENU']}
+        if not _table_has_columns('MENU', *required):
+            return {'schema_ready': False, 'rows': {}, 'missing_schema': ['MENU']}
+
+        rows = db.session.execute(text("""
+            SELECT
+                MENUSTAMP, ORDEM, NOME, TABELA, URL, ADMIN, ICONE, FORM,
+                [ORDERBY] AS ORDERBY,
+                NOVO, INATIVO, LARGURAS_EXATAS, LARGURAS_EXATAS_LISTA
+            FROM dbo.MENU
+        """)).mappings().all()
+
+        items = {}
+        for row in rows:
+            table_name = str(row.get('TABELA') or '').strip()
+            if not table_name:
+                continue
+            record_key = table_name.upper()
+            payload = {
+                'MENUSTAMP': str(row.get('MENUSTAMP') or '').strip(),
+                'ORDEM': _to_int(row.get('ORDEM'), 0),
+                'NOME': str(row.get('NOME') or '').strip(),
+                'TABELA': table_name,
+                'URL': str(row.get('URL') or '').strip(),
+                'ADMIN': 1 if bool(_to_int(row.get('ADMIN'), 0)) else 0,
+                'ICONE': str(row.get('ICONE') or '').strip(),
+                'FORM': str(row.get('FORM') or '').strip(),
+                'ORDERBY': str(row.get('ORDERBY') or '').strip(),
+                'NOVO': 1 if bool(_to_int(row.get('NOVO'), 0)) else 0,
+                'INATIVO': 1 if bool(_to_int(row.get('INATIVO'), 0)) else 0,
+                'LARGURAS_EXATAS': 1 if bool(_to_int(row.get('LARGURAS_EXATAS'), 0)) else 0,
+                'LARGURAS_EXATAS_LISTA': 1 if bool(_to_int(row.get('LARGURAS_EXATAS_LISTA'), 0)) else 0,
+            }
+            compare_payload = dict(payload)
+            compare_payload.pop('MENUSTAMP', None)
+            items[record_key] = _database_consistency_make_structural_data_row(
+                'MENU',
+                record_key,
+                f"{payload['TABELA']} · {payload['NOME']}",
+                payload,
+                compare_payload,
+            )
+        return {'schema_ready': True, 'rows': items, 'missing_schema': []}
+
+    def _database_consistency_load_campos_structural_data():
+        required = (
+            'CAMPOSSTAMP', 'ORDEM', 'NMCAMPO', 'DESCRICAO', 'TIPO', 'TABELA', 'LISTA', 'FILTRO',
+            'FILTRODEFAULT', 'ADMIN', 'RONLY', 'COMBO', 'VIRTUAL', 'TAM', 'ORDEM_MOBILE',
+            'TAM_MOBILE', 'CONDICAO_VISIVEL', 'OBRIGATORIO', 'VISIVEL', 'DECIMAIS', 'MINIMO',
+            'MAXIMO', 'ORDEM_LISTA', 'TAM_LISTA', 'ORDEM_LISTA_MOBILE', 'TAM_LISTA_MOBILE',
+            'LISTA_MOBILE_BOLD', 'LISTA_MOBILE_ITALIC', 'LISTA_MOBILE_SHOW_LABEL', 'LISTA_MOBILE_LABEL',
+        )
+        if not _database_consistency_table_exists('CAMPOS'):
+            return {'schema_ready': False, 'rows': {}, 'missing_schema': ['CAMPOS']}
+        if not _table_has_columns('CAMPOS', *required):
+            return {'schema_ready': False, 'rows': {}, 'missing_schema': ['CAMPOS']}
+
+        rows = db.session.execute(text("""
+            SELECT
+                CAMPOSSTAMP, ORDEM, NMCAMPO, DESCRICAO, TIPO, TABELA, LISTA, FILTRO,
+                FILTRODEFAULT, ADMIN, RONLY, COMBO, VIRTUAL, TAM, ORDEM_MOBILE,
+                TAM_MOBILE, CONDICAO_VISIVEL, OBRIGATORIO, VISIVEL, DECIMAIS, MINIMO,
+                MAXIMO, ORDEM_LISTA, TAM_LISTA, ORDEM_LISTA_MOBILE, TAM_LISTA_MOBILE,
+                LISTA_MOBILE_BOLD, LISTA_MOBILE_ITALIC, LISTA_MOBILE_SHOW_LABEL, LISTA_MOBILE_LABEL
+            FROM dbo.CAMPOS
+        """)).mappings().all()
+
+        items = {}
+        for row in rows:
+            table_name = str(row.get('TABELA') or '').strip()
+            field_name = str(row.get('NMCAMPO') or '').strip()
+            if not table_name or not field_name:
+                continue
+            record_key = f"{table_name.upper()}::{field_name.upper()}"
+            payload = {
+                'CAMPOSSTAMP': str(row.get('CAMPOSSTAMP') or '').strip(),
+                'ORDEM': _to_int(row.get('ORDEM'), 0),
+                'NMCAMPO': field_name,
+                'DESCRICAO': str(row.get('DESCRICAO') or '').strip(),
+                'TIPO': str(row.get('TIPO') or '').strip(),
+                'TABELA': table_name,
+                'LISTA': 1 if bool(_to_int(row.get('LISTA'), 0)) else 0,
+                'FILTRO': 1 if bool(_to_int(row.get('FILTRO'), 0)) else 0,
+                'FILTRODEFAULT': str(row.get('FILTRODEFAULT') or '').strip(),
+                'ADMIN': 1 if bool(_to_int(row.get('ADMIN'), 0)) else 0,
+                'RONLY': 1 if bool(_to_int(row.get('RONLY'), 0)) else 0,
+                'COMBO': str(row.get('COMBO') or '').strip(),
+                'VIRTUAL': str(row.get('VIRTUAL') or '').strip(),
+                'TAM': _to_int(row.get('TAM'), 0),
+                'ORDEM_MOBILE': _to_int(row.get('ORDEM_MOBILE'), 0),
+                'TAM_MOBILE': _to_int(row.get('TAM_MOBILE'), 0),
+                'CONDICAO_VISIVEL': str(row.get('CONDICAO_VISIVEL') or '').strip(),
+                'OBRIGATORIO': 1 if bool(_to_int(row.get('OBRIGATORIO'), 0)) else 0,
+                'VISIVEL': 1 if bool(_to_int(row.get('VISIVEL'), 0)) else 0,
+                'DECIMAIS': _to_int(row.get('DECIMAIS'), 0),
+                'MINIMO': _database_consistency_appdata_json_value(row.get('MINIMO')),
+                'MAXIMO': _database_consistency_appdata_json_value(row.get('MAXIMO')),
+                'ORDEM_LISTA': _to_int(row.get('ORDEM_LISTA'), 0),
+                'TAM_LISTA': _to_int(row.get('TAM_LISTA'), 0),
+                'ORDEM_LISTA_MOBILE': _to_int(row.get('ORDEM_LISTA_MOBILE'), 0),
+                'TAM_LISTA_MOBILE': _to_int(row.get('TAM_LISTA_MOBILE'), 0),
+                'LISTA_MOBILE_BOLD': 1 if bool(_to_int(row.get('LISTA_MOBILE_BOLD'), 0)) else 0,
+                'LISTA_MOBILE_ITALIC': 1 if bool(_to_int(row.get('LISTA_MOBILE_ITALIC'), 0)) else 0,
+                'LISTA_MOBILE_SHOW_LABEL': 1 if bool(_to_int(row.get('LISTA_MOBILE_SHOW_LABEL'), 0)) else 0,
+                'LISTA_MOBILE_LABEL': str(row.get('LISTA_MOBILE_LABEL') or '').strip(),
+            }
+            compare_payload = dict(payload)
+            compare_payload.pop('CAMPOSSTAMP', None)
+            items[record_key] = _database_consistency_make_structural_data_row(
+                'CAMPOS',
+                record_key,
+                f"{table_name}.{field_name}",
+                payload,
+                compare_payload,
+            )
+        return {'schema_ready': True, 'rows': items, 'missing_schema': []}
+
+    def _database_consistency_load_menu_objetos_structural_data():
+        required_menu = ('MENUSTAMP', 'TABELA')
+        required = (
+            'MENUOBJSTAMP', 'MENUSTAMP', 'NMCAMPO', 'DESCRICAO', 'TIPO', 'ORDEM', 'TAM',
+            'ORDEM_MOBILE', 'TAM_MOBILE', 'VISIVEL', 'RONLY', 'OBRIGATORIO',
+            'CONDICAO_VISIVEL', 'COMBO', 'DECIMAIS', 'MINIMO', 'MAXIMO', 'PROPRIEDADES', 'ATIVO',
+        )
+        if not _database_consistency_table_exists('MENU_OBJETOS'):
+            return {'schema_ready': False, 'rows': {}, 'missing_schema': ['MENU_OBJETOS']}
+        if not _table_has_columns('MENU', *required_menu) or not _table_has_columns('MENU_OBJETOS', *required):
+            return {'schema_ready': False, 'rows': {}, 'missing_schema': ['MENU', 'MENU_OBJETOS']}
+
+        rows = db.session.execute(text("""
+            SELECT
+                MO.MENUOBJSTAMP, M.TABELA AS MENU_TABLE, MO.NMCAMPO, MO.DESCRICAO, MO.TIPO,
+                MO.ORDEM, MO.TAM, MO.ORDEM_MOBILE, MO.TAM_MOBILE, MO.VISIVEL, MO.RONLY,
+                MO.OBRIGATORIO, MO.CONDICAO_VISIVEL, MO.COMBO, MO.DECIMAIS, MO.MINIMO,
+                MO.MAXIMO, MO.PROPRIEDADES, MO.ATIVO
+            FROM dbo.MENU_OBJETOS MO
+            INNER JOIN dbo.MENU M
+                ON M.MENUSTAMP = MO.MENUSTAMP
+        """)).mappings().all()
+
+        items = {}
+        for row in rows:
+            menu_table = str(row.get('MENU_TABLE') or '').strip()
+            object_name = str(row.get('NMCAMPO') or '').strip()
+            if not menu_table or not object_name:
+                continue
+            record_key = f"{menu_table.upper()}::{object_name.upper()}"
+            payload = {
+                'MENUOBJSTAMP': str(row.get('MENUOBJSTAMP') or '').strip(),
+                'MENU_TABLE': menu_table,
+                'NMCAMPO': object_name,
+                'DESCRICAO': str(row.get('DESCRICAO') or '').strip(),
+                'TIPO': str(row.get('TIPO') or '').strip(),
+                'ORDEM': _to_int(row.get('ORDEM'), 0),
+                'TAM': _to_int(row.get('TAM'), 0),
+                'ORDEM_MOBILE': _to_int(row.get('ORDEM_MOBILE'), 0),
+                'TAM_MOBILE': _to_int(row.get('TAM_MOBILE'), 0),
+                'VISIVEL': 1 if bool(_to_int(row.get('VISIVEL'), 0)) else 0,
+                'RONLY': 1 if bool(_to_int(row.get('RONLY'), 0)) else 0,
+                'OBRIGATORIO': 1 if bool(_to_int(row.get('OBRIGATORIO'), 0)) else 0,
+                'CONDICAO_VISIVEL': str(row.get('CONDICAO_VISIVEL') or '').strip(),
+                'COMBO': str(row.get('COMBO') or '').strip(),
+                'DECIMAIS': _to_int(row.get('DECIMAIS'), 0),
+                'MINIMO': _database_consistency_appdata_json_value(row.get('MINIMO')),
+                'MAXIMO': _database_consistency_appdata_json_value(row.get('MAXIMO')),
+                'PROPRIEDADES': str(row.get('PROPRIEDADES') or '').strip(),
+                'ATIVO': 1 if bool(_to_int(row.get('ATIVO'), 0)) else 0,
+            }
+            compare_payload = dict(payload)
+            compare_payload.pop('MENUOBJSTAMP', None)
+            items[record_key] = _database_consistency_make_structural_data_row(
+                'MENU_OBJETOS',
+                record_key,
+                f"{menu_table}.{object_name}",
+                payload,
+                compare_payload,
+            )
+        return {'schema_ready': True, 'rows': items, 'missing_schema': []}
+
+    def _database_consistency_load_menu_variaveis_structural_data():
+        required_menu = ('MENUSTAMP', 'TABELA')
+        required = (
+            'MENUVARSTAMP', 'MENUSTAMP', 'NOME', 'DESCRICAO', 'TIPO',
+            'VALOR_DEFAULT', 'ORDEM', 'PROPRIEDADES', 'ATIVO',
+        )
+        if not _database_consistency_table_exists('MENU_VARIAVEIS'):
+            return {'schema_ready': False, 'rows': {}, 'missing_schema': ['MENU_VARIAVEIS']}
+        if not _table_has_columns('MENU', *required_menu) or not _table_has_columns('MENU_VARIAVEIS', *required):
+            return {'schema_ready': False, 'rows': {}, 'missing_schema': ['MENU', 'MENU_VARIAVEIS']}
+
+        rows = db.session.execute(text("""
+            SELECT
+                MV.MENUVARSTAMP, M.TABELA AS MENU_TABLE, MV.NOME, MV.DESCRICAO, MV.TIPO,
+                MV.VALOR_DEFAULT, MV.ORDEM, MV.PROPRIEDADES, MV.ATIVO
+            FROM dbo.MENU_VARIAVEIS MV
+            INNER JOIN dbo.MENU M
+                ON M.MENUSTAMP = MV.MENUSTAMP
+        """)).mappings().all()
+
+        items = {}
+        for row in rows:
+            menu_table = str(row.get('MENU_TABLE') or '').strip()
+            variable_name = str(row.get('NOME') or '').strip()
+            if not menu_table or not variable_name:
+                continue
+            record_key = f"{menu_table.upper()}::{variable_name.upper()}"
+            payload = {
+                'MENUVARSTAMP': str(row.get('MENUVARSTAMP') or '').strip(),
+                'MENU_TABLE': menu_table,
+                'NOME': variable_name,
+                'DESCRICAO': str(row.get('DESCRICAO') or '').strip(),
+                'TIPO': str(row.get('TIPO') or '').strip(),
+                'VALOR_DEFAULT': str(row.get('VALOR_DEFAULT') or '').strip(),
+                'ORDEM': _to_int(row.get('ORDEM'), 0),
+                'PROPRIEDADES': str(row.get('PROPRIEDADES') or '').strip(),
+                'ATIVO': 1 if bool(_to_int(row.get('ATIVO'), 0)) else 0,
+            }
+            compare_payload = dict(payload)
+            compare_payload.pop('MENUVARSTAMP', None)
+            items[record_key] = _database_consistency_make_structural_data_row(
+                'MENU_VARIAVEIS',
+                record_key,
+                f"{menu_table}.{variable_name}",
+                payload,
+                compare_payload,
+            )
+        return {'schema_ready': True, 'rows': items, 'missing_schema': []}
+
+    def _database_consistency_load_menu_eventos_structural_data():
+        required_menu = ('MENUSTAMP', 'TABELA')
+        required = ('MENUEVENTOSTAMP', 'MENUSTAMP', 'EVENTO', 'FLUXO', 'ATIVO')
+        if not _database_consistency_table_exists('MENU_EVENTOS'):
+            return {'schema_ready': False, 'rows': {}, 'missing_schema': ['MENU_EVENTOS']}
+        if not _table_has_columns('MENU', *required_menu) or not _table_has_columns('MENU_EVENTOS', *required):
+            return {'schema_ready': False, 'rows': {}, 'missing_schema': ['MENU', 'MENU_EVENTOS']}
+
+        rows = db.session.execute(text("""
+            SELECT
+                ME.MENUEVENTOSTAMP, M.TABELA AS MENU_TABLE, ME.EVENTO, ME.FLUXO, ME.ATIVO
+            FROM dbo.MENU_EVENTOS ME
+            INNER JOIN dbo.MENU M
+                ON M.MENUSTAMP = ME.MENUSTAMP
+        """)).mappings().all()
+
+        items = {}
+        for row in rows:
+            menu_table = str(row.get('MENU_TABLE') or '').strip()
+            event_name = str(row.get('EVENTO') or '').strip()
+            if not menu_table or not event_name:
+                continue
+            record_key = f"{menu_table.upper()}::{event_name.upper()}"
+            payload = {
+                'MENUEVENTOSTAMP': str(row.get('MENUEVENTOSTAMP') or '').strip(),
+                'MENU_TABLE': menu_table,
+                'EVENTO': event_name,
+                'FLUXO': str(row.get('FLUXO') or '').strip(),
+                'ATIVO': 1 if bool(_to_int(row.get('ATIVO'), 0)) else 0,
+            }
+            compare_payload = dict(payload)
+            compare_payload.pop('MENUEVENTOSTAMP', None)
+            items[record_key] = _database_consistency_make_structural_data_row(
+                'MENU_EVENTOS',
+                record_key,
+                f"{menu_table}.{event_name}",
+                payload,
+                compare_payload,
+            )
+        return {'schema_ready': True, 'rows': items, 'missing_schema': []}
+
+    def _database_consistency_load_structural_data_snapshot():
+        loaders = {
+            'MENU': _database_consistency_load_menu_structural_data,
+            'CAMPOS': _database_consistency_load_campos_structural_data,
+            'MENU_OBJETOS': _database_consistency_load_menu_objetos_structural_data,
+            'MENU_VARIAVEIS': _database_consistency_load_menu_variaveis_structural_data,
+            'MENU_EVENTOS': _database_consistency_load_menu_eventos_structural_data,
+        }
+        structural_data = {}
+        for source_table, loader in loaders.items():
+            try:
+                structural_data[source_table] = loader()
+            except Exception as exc:
+                structural_data[source_table] = {
+                    'schema_ready': False,
+                    'rows': {},
+                    'missing_schema': [f'{source_table}: {exc}'],
+                }
+        return structural_data
+
+    def _database_consistency_reference_load_structural_data(sync_stamp: str):
+        conn_str = _get_db_conn_str(db_target_prod)
+        if not conn_str:
+            return {}
+
+        with pyodbc.connect(conn_str) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT OBJECT_ID('dbo.DB_SCHEMA_REPO_APPDATA_ROW', 'U')")
+            exists_row = cur.fetchone()
+            if not exists_row or not exists_row[0]:
+                return {}
+            cur.execute("""
+                SELECT
+                    SourceTable,
+                    RecordKey,
+                    RecordLabel,
+                    PayloadJson,
+                    PayloadHash
+                FROM dbo.DB_SCHEMA_REPO_APPDATA_ROW
+                WHERE SyncStamp = ?
+                ORDER BY SourceTable, RecordKey
+            """, sync_stamp)
+            rows = cur.fetchall()
+
+        structural_data = {}
+        for row in rows:
+            source_table = str(row[0] or '').strip().upper()
+            record_key = str(row[1] or '').strip()
+            if not source_table or not record_key:
+                continue
+            bucket = structural_data.setdefault(source_table, {
+                'schema_ready': True,
+                'rows': {},
+                'missing_schema': [],
+            })
+            try:
+                payload = json.loads(str(row[3] or '{}'))
+            except Exception:
+                payload = {}
+            bucket['rows'][record_key] = {
+                'source_table': source_table,
+                'record_key': record_key,
+                'record_label': str(row[2] or '').strip(),
+                'payload': payload,
+                'compare_hash': str(row[4] or '').strip() or _database_consistency_payload_hash(payload),
+            }
+        return structural_data
+
+    def _database_consistency_group_named_objects(entries, item_key_name='name', subtitle_key='subtitle'):
+        grouped = {}
+        for entry in entries:
+            table_key = str(entry.get('table_key') or '').strip()
+            if not table_key:
+                continue
+            bucket = grouped.setdefault(table_key, {
+                'table_key': table_key,
+                'schema_name': str(entry.get('schema_name') or '').strip(),
+                'table_name': str(entry.get('table_name') or '').strip(),
+                'items': [],
+            })
+            bucket['items'].append({
+                item_key_name: str(entry.get(item_key_name) or '').strip(),
+                subtitle_key: str(entry.get(subtitle_key) or '').strip(),
+            })
+
+        result = []
+        for table_key in sorted(grouped):
+            bucket = grouped[table_key]
+            bucket['items'].sort(key=lambda item: (item.get(item_key_name) or '').upper())
+            bucket['missing_count'] = len(bucket['items'])
+            result.append(bucket)
+        return result
+
+    def _load_database_consistency_report():
+        target = _resolve_db_target()
+        report = {
+            'target': target,
+            'target_label': str((app.config.get('DB_TARGETS') or {}).get(target, {}).get('label') or target),
+            'is_required': (target != db_target_prod),
+            'is_ok': False,
+            'is_blocking': True,
+            'error': '',
+            'reference': {},
+            'local': {},
+            'summary': {},
+            'missing_tables': [],
+            'missing_columns': [],
+            'missing_indexes': [],
+            'missing_foreign_keys': [],
+            'missing_triggers': [],
+            'missing_structural_data': [],
+            'changed_structural_data': [],
+        }
+
+        if target == db_target_prod:
+            report['is_ok'] = True
+            report['is_blocking'] = False
+            report['summary'] = {'message': 'A base ativa já é a origem principal.'}
+            return report
+
+        try:
+            reference_snapshot = _load_database_consistency_reference_snapshot()
+            local_snapshot = _load_database_consistency_local_snapshot()
+
+            missing_tables = []
+            local_tables = local_snapshot['tables']
+            for table_key in sorted(reference_snapshot['tables']):
+                if table_key in local_tables:
+                    continue
+                table_meta = reference_snapshot['tables'][table_key]
+                missing_tables.append({
+                    'table_key': table_meta['table_key'],
+                    'schema_name': table_meta['schema_name'],
+                    'table_name': table_meta['table_name'],
+                })
+
+            missing_columns_map = {}
+            local_columns = local_snapshot['columns']
+            for (table_key, column_key), column_meta in reference_snapshot['columns'].items():
+                if table_key not in local_tables:
+                    continue
+                if (table_key, column_key) in local_columns:
+                    continue
+                table_bucket = missing_columns_map.setdefault(table_key, {
+                    'table_key': table_key,
+                    'schema_name': reference_snapshot['tables'].get(table_key, {}).get('schema_name', ''),
+                    'table_name': reference_snapshot['tables'].get(table_key, {}).get('table_name', ''),
+                    'columns': [],
+                })
+                table_bucket['columns'].append({
+                    'column_name': column_meta['column_name'],
+                    'data_type': column_meta['data_type'],
+                    'type_label': column_meta['type_label'],
+                    'ordinal_position': column_meta['ordinal_position'],
+                })
+
+            missing_columns = []
+            for table_key in sorted(missing_columns_map):
+                bucket = missing_columns_map[table_key]
+                bucket['columns'].sort(key=lambda item: (item.get('ordinal_position') or 0, item.get('column_name') or ''))
+                bucket['missing_count'] = len(bucket['columns'])
+                missing_columns.append(bucket)
+
+            missing_indexes_raw = []
+            local_index_signatures = local_snapshot.get('index_signatures') or {}
+            for (table_key, index_key), index_meta in reference_snapshot['indexes'].items():
+                if table_key not in local_tables:
+                    continue
+                if (table_key, index_key) in local_snapshot['indexes']:
+                    continue
+                index_signature = _database_consistency_index_signature(index_meta)
+                if index_signature and index_signature in (local_index_signatures.get(table_key) or set()):
+                    continue
+                table_meta = reference_snapshot['tables'].get(table_key, {})
+                missing_indexes_raw.append({
+                    'table_key': table_key,
+                    'schema_name': table_meta.get('schema_name', ''),
+                    'table_name': table_meta.get('table_name', ''),
+                    'name': index_meta.get('index_name'),
+                    'subtitle': index_meta.get('index_type'),
+                })
+
+            missing_foreign_keys_raw = []
+            for (table_key, fk_key), fk_meta in reference_snapshot['foreign_keys'].items():
+                if table_key not in local_tables:
+                    continue
+                if (table_key, fk_key) in local_snapshot['foreign_keys']:
+                    continue
+                table_meta = reference_snapshot['tables'].get(table_key, {})
+                ref_schema = str(fk_meta.get('reference_schema_name') or '').strip()
+                ref_table = str(fk_meta.get('reference_table_name') or '').strip()
+                target_ref = f'{ref_schema}.{ref_table}' if ref_schema and ref_table else ref_table
+                missing_foreign_keys_raw.append({
+                    'table_key': table_key,
+                    'schema_name': table_meta.get('schema_name', ''),
+                    'table_name': table_meta.get('table_name', ''),
+                    'name': fk_meta.get('fk_name'),
+                    'subtitle': target_ref,
+                })
+
+            missing_triggers_raw = []
+            for (table_key, trigger_key), trigger_meta in reference_snapshot['triggers'].items():
+                if table_key not in local_tables:
+                    continue
+                if (table_key, trigger_key) in local_snapshot['triggers']:
+                    continue
+                table_meta = reference_snapshot['tables'].get(table_key, {})
+                missing_triggers_raw.append({
+                    'table_key': table_key,
+                    'schema_name': table_meta.get('schema_name', ''),
+                    'table_name': table_meta.get('table_name', ''),
+                    'name': trigger_meta.get('trigger_name'),
+                    'subtitle': trigger_meta.get('event_list'),
+                })
+
+            missing_structural_data_raw = []
+            changed_structural_data_raw = []
+            local_structural_data = local_snapshot.get('structural_data') or {}
+            reference_structural_data = reference_snapshot.get('structural_data') or {}
+            for source_table, reference_bucket in reference_structural_data.items():
+                local_bucket = local_structural_data.get(source_table) or {}
+                if not local_bucket.get('schema_ready'):
+                    continue
+                local_rows = local_bucket.get('rows') or {}
+                for record_key, reference_row in (reference_bucket.get('rows') or {}).items():
+                    local_row = local_rows.get(record_key)
+                    if not local_row:
+                        missing_structural_data_raw.append({
+                            'table_key': source_table,
+                            'schema_name': '',
+                            'table_name': source_table,
+                            'name': reference_row.get('record_label') or record_key,
+                            'subtitle': 'Registo em falta',
+                        })
+                        continue
+                    if str(local_row.get('compare_hash') or '').strip() != str(reference_row.get('compare_hash') or '').strip():
+                        changed_structural_data_raw.append({
+                            'table_key': source_table,
+                            'schema_name': '',
+                            'table_name': source_table,
+                            'name': reference_row.get('record_label') or record_key,
+                            'subtitle': 'Configuração desalinhada',
+                        })
+
+            missing_indexes = _database_consistency_group_named_objects(missing_indexes_raw)
+            missing_foreign_keys = _database_consistency_group_named_objects(missing_foreign_keys_raw)
+            missing_triggers = _database_consistency_group_named_objects(missing_triggers_raw)
+            missing_structural_data = _database_consistency_group_named_objects(missing_structural_data_raw)
+            changed_structural_data = _database_consistency_group_named_objects(changed_structural_data_raw)
+
+            missing_column_count = sum(item['missing_count'] for item in missing_columns)
+            missing_index_count = sum(item['missing_count'] for item in missing_indexes)
+            missing_foreign_key_count = sum(item['missing_count'] for item in missing_foreign_keys)
+            missing_trigger_count = sum(item['missing_count'] for item in missing_triggers)
+            missing_structural_data_count = sum(item['missing_count'] for item in missing_structural_data)
+            changed_structural_data_count = sum(item['missing_count'] for item in changed_structural_data)
+            is_ok = not (
+                missing_tables or missing_columns or missing_indexes or missing_foreign_keys or missing_triggers
+                or missing_structural_data or changed_structural_data
+            )
+
+            report.update({
+                'is_ok': is_ok,
+                'is_blocking': not is_ok,
+                'reference': {
+                    'database_name': reference_snapshot['database_name'],
+                    'sync_stamp': reference_snapshot['sync_stamp'],
+                    'sync_at': reference_snapshot['sync_at'],
+                    'table_count': len(reference_snapshot['tables']),
+                    'column_count': len(reference_snapshot['columns']),
+                    'index_count': len(reference_snapshot['indexes']),
+                    'foreign_key_count': len(reference_snapshot['foreign_keys']),
+                    'trigger_count': len(reference_snapshot['triggers']),
+                    'structural_data_count': sum(
+                        len((bucket.get('rows') or {}))
+                        for bucket in reference_structural_data.values()
+                    ),
+                },
+                'local': {
+                    'database_name': local_snapshot['database_name'],
+                    'table_count': len(local_snapshot['tables']),
+                    'column_count': len(local_snapshot['columns']),
+                    'index_count': len(local_snapshot['indexes']),
+                    'foreign_key_count': len(local_snapshot['foreign_keys']),
+                    'trigger_count': len(local_snapshot['triggers']),
+                    'structural_data_count': sum(
+                        len((bucket.get('rows') or {}))
+                        for bucket in local_structural_data.values()
+                        if bucket.get('schema_ready')
+                    ),
+                },
+                'summary': {
+                    'missing_table_count': len(missing_tables),
+                    'missing_column_group_count': len(missing_columns),
+                    'missing_column_count': missing_column_count,
+                    'missing_index_count': missing_index_count,
+                    'missing_foreign_key_count': missing_foreign_key_count,
+                    'missing_trigger_count': missing_trigger_count,
+                    'missing_structural_data_count': missing_structural_data_count,
+                    'changed_structural_data_count': changed_structural_data_count,
+                },
+                'missing_tables': missing_tables,
+                'missing_columns': missing_columns,
+                'missing_indexes': missing_indexes,
+                'missing_foreign_keys': missing_foreign_keys,
+                'missing_triggers': missing_triggers,
+                'missing_structural_data': missing_structural_data,
+                'changed_structural_data': changed_structural_data,
+            })
+        except Exception as exc:
+            report['error'] = str(exc)
+            report['is_ok'] = False
+            report['is_blocking'] = True
+
+        return report
+
+    def _database_consistency_quote_ident(raw_value: str) -> str:
+        return f"[{str(raw_value or '').replace(']', ']]')}]"
+
+    def _database_consistency_full_table_name(schema_name: str, table_name: str) -> str:
+        return f"{_database_consistency_quote_ident(schema_name)}.{_database_consistency_quote_ident(table_name)}"
+
+    def _database_consistency_engine():
+        return db.engines.get(_resolve_db_target()) or db.engine
+
+    def _database_consistency_exec_driver_sql(sql: str):
+        engine = _database_consistency_engine()
+        with engine.connect() as conn:
+            trans = conn.begin()
+            try:
+                conn.exec_driver_sql(sql)
+                trans.commit()
+            except Exception:
+                trans.rollback()
+                raise
+
+    def _database_consistency_number_literal(value, fallback: str = '0') -> str:
+        if value in (None, ''):
+            return fallback
+        if isinstance(value, Decimal):
+            raw = format(value.normalize(), 'f')
+        else:
+            raw = str(value).strip()
+        if raw.endswith('.0'):
+            raw = raw[:-2]
+        return raw or fallback
+
+    def _database_consistency_is_char_type(data_type: str) -> bool:
+        return str(data_type or '').strip().lower() in {
+            'char', 'varchar', 'text', 'nchar', 'nvarchar', 'ntext'
+        }
+
+    def _database_consistency_render_column_definition(column_meta: dict) -> str:
+        column_name = _database_consistency_quote_ident(column_meta.get('column_name'))
+        if column_meta.get('is_computed'):
+            computed_definition = str(column_meta.get('computed_definition') or '').strip()
+            if not computed_definition:
+                raise ValueError(f"Sem definição da coluna calculada {column_meta.get('column_name')}.")
+            sql = f"{column_name} AS {computed_definition}"
+            if column_meta.get('is_persisted'):
+                sql += " PERSISTED"
+            return sql
+
+        type_label = str(column_meta.get('type_label') or '').strip()
+        if not type_label:
+            raise ValueError(f"Sem tipo para a coluna {column_meta.get('column_name')}.")
+
+        sql = f"{column_name} {type_label}"
+        collation_name = str(column_meta.get('collation_name') or '').strip()
+        if collation_name and _database_consistency_is_char_type(column_meta.get('data_type')):
+            sql += f" COLLATE {collation_name}"
+
+        if column_meta.get('is_identity'):
+            seed = _database_consistency_number_literal(column_meta.get('identity_seed'), '1')
+            increment = _database_consistency_number_literal(column_meta.get('identity_increment'), '1')
+            sql += f" IDENTITY({seed},{increment})"
+
+        default_definition = str(column_meta.get('default_definition') or '').strip()
+        if default_definition:
+            sql += f" DEFAULT {default_definition}"
+
+        sql += " NULL" if column_meta.get('is_nullable') else " NOT NULL"
+        return sql
+
+    def _database_consistency_local_table_has_rows(table_key: str) -> bool:
+        table_meta = _load_database_consistency_local_snapshot()['tables'].get(table_key) or {}
+        schema_name = str(table_meta.get('schema_name') or '').strip()
+        table_name = str(table_meta.get('table_name') or '').strip()
+        if not schema_name or not table_name:
+            return False
+        full_name = _database_consistency_full_table_name(schema_name, table_name)
+        return bool(db.session.execute(text(f"SELECT TOP 1 1 FROM {full_name}")).scalar())
+
+    def _database_consistency_index_type_keyword(index_type: str) -> str:
+        upper_value = str(index_type or '').strip().upper()
+        if 'NONCLUSTERED' in upper_value:
+            return 'NONCLUSTERED'
+        if 'CLUSTERED' in upper_value:
+            return 'CLUSTERED'
+        return ''
+
+    def _database_consistency_normalize_sql_fragment(raw_value: str) -> str:
+        return re.sub(r'\s+', ' ', str(raw_value or '').strip()).upper()
+
+    def _database_consistency_sorted_index_columns(index_meta: dict, included: bool | None = None) -> list[dict]:
+        items = []
+        for item in (index_meta.get('columns') or []):
+            is_included = bool(item.get('is_included'))
+            if included is None or is_included == included:
+                items.append(item)
+        if included:
+            items.sort(key=lambda item: _to_int(item.get('index_column_id'), 0))
+        else:
+            items.sort(key=lambda item: (
+                _to_int(item.get('key_ordinal'), 0) or 2147483647,
+                _to_int(item.get('index_column_id'), 0),
+            ))
+        return items
+
+    def _database_consistency_index_signature(index_meta: dict):
+        key_columns = tuple(
+            (
+                str(item.get('column_name') or '').strip().upper(),
+                bool(item.get('is_descending')),
+            )
+            for item in _database_consistency_sorted_index_columns(index_meta, included=False)
+            if str(item.get('column_name') or '').strip()
+        )
+        if not key_columns:
+            return None
+
+        include_columns = tuple(
+            str(item.get('column_name') or '').strip().upper()
+            for item in _database_consistency_sorted_index_columns(index_meta, included=True)
+            if str(item.get('column_name') or '').strip()
+        )
+
+        is_primary_key = bool(index_meta.get('is_primary_key'))
+        is_unique_constraint = bool(index_meta.get('is_unique_constraint'))
+        return (
+            1 if is_primary_key else 0,
+            1 if is_unique_constraint else 0,
+            1 if index_meta.get('is_unique') else 0,
+            _database_consistency_index_type_keyword(index_meta.get('index_type')),
+            1 if index_meta.get('has_filter') else 0,
+            _database_consistency_normalize_sql_fragment(index_meta.get('filter_definition')),
+            key_columns,
+            tuple() if (is_primary_key or is_unique_constraint) else include_columns,
+        )
+
+    def _database_consistency_collect_index_signatures(indexes: dict) -> dict:
+        signatures = {}
+        for index_meta in (indexes or {}).values():
+            table_key = str(index_meta.get('table_key') or '').strip()
+            signature = _database_consistency_index_signature(index_meta)
+            if not table_key or not signature:
+                continue
+            signatures.setdefault(table_key, set()).add(signature)
+        return signatures
+
+    def _database_consistency_index_options(index_meta: dict) -> str:
+        options = [
+            f"ALLOW_ROW_LOCKS = {'ON' if index_meta.get('allow_row_locks') else 'OFF'}",
+            f"ALLOW_PAGE_LOCKS = {'ON' if index_meta.get('allow_page_locks') else 'OFF'}",
+        ]
+        fill_factor = _to_int(index_meta.get('fill_factor'), 0)
+        if fill_factor > 0:
+            options.insert(0, f"FILLFACTOR = {fill_factor}")
+        return f" WITH ({', '.join(options)})" if options else ''
+
+    def _database_consistency_build_index_sql(table_meta: dict, index_meta: dict) -> tuple[str, str]:
+        schema_name = table_meta.get('schema_name')
+        table_name = table_meta.get('table_name')
+        full_table_name = _database_consistency_full_table_name(schema_name, table_name)
+        index_name = str(index_meta.get('index_name') or '').strip()
+        if not index_name:
+            raise ValueError('Índice sem nome.')
+
+        key_columns = _database_consistency_sorted_index_columns(index_meta, included=False)
+        if not key_columns:
+            raise ValueError(f"Índice {index_name} sem colunas-chave.")
+
+        key_sql = ', '.join(
+            f"{_database_consistency_quote_ident(item.get('column_name'))}"
+            + (' DESC' if item.get('is_descending') else '')
+            for item in key_columns
+        )
+        included_columns = _database_consistency_sorted_index_columns(index_meta, included=True)
+        include_sql = ''
+        if included_columns and not index_meta.get('is_primary_key') and not index_meta.get('is_unique_constraint'):
+            include_sql = ' INCLUDE (' + ', '.join(
+                _database_consistency_quote_ident(item.get('column_name'))
+                for item in included_columns
+            ) + ')'
+
+        cluster_keyword = _database_consistency_index_type_keyword(index_meta.get('index_type'))
+        if index_meta.get('is_primary_key'):
+            sql = (
+                f"ALTER TABLE {full_table_name} ADD CONSTRAINT {_database_consistency_quote_ident(index_name)} "
+                f"PRIMARY KEY {cluster_keyword or 'NONCLUSTERED'} ({key_sql})"
+            )
+            return sql, ''
+
+        if index_meta.get('is_unique_constraint'):
+            sql = (
+                f"ALTER TABLE {full_table_name} ADD CONSTRAINT {_database_consistency_quote_ident(index_name)} "
+                f"UNIQUE {cluster_keyword or 'NONCLUSTERED'} ({key_sql})"
+            )
+            return sql, ''
+
+        create_sql = (
+            f"CREATE {'UNIQUE ' if index_meta.get('is_unique') else ''}{cluster_keyword + ' ' if cluster_keyword else ''}"
+            f"INDEX {_database_consistency_quote_ident(index_name)} ON {full_table_name} ({key_sql})"
+            f"{include_sql}"
+        )
+        if index_meta.get('has_filter') and str(index_meta.get('filter_definition') or '').strip():
+            create_sql += f" WHERE {str(index_meta.get('filter_definition') or '').strip()}"
+        create_sql += _database_consistency_index_options(index_meta)
+
+        post_sql = ''
+        if index_meta.get('is_disabled'):
+            post_sql = (
+                f"ALTER INDEX {_database_consistency_quote_ident(index_name)} "
+                f"ON {full_table_name} DISABLE"
+            )
+        return create_sql, post_sql
+
+    def _database_consistency_build_foreign_key_sql(table_meta: dict, foreign_key_meta: dict) -> tuple[str, str]:
+        schema_name = table_meta.get('schema_name')
+        table_name = table_meta.get('table_name')
+        full_table_name = _database_consistency_full_table_name(schema_name, table_name)
+        fk_name = str(foreign_key_meta.get('fk_name') or '').strip()
+        if not fk_name:
+            raise ValueError('Foreign key sem nome.')
+
+        fk_columns = list(foreign_key_meta.get('columns') or [])
+        fk_columns.sort(key=lambda item: _to_int(item.get('constraint_column_id'), 0))
+        if not fk_columns:
+            raise ValueError(f"Foreign key {fk_name} sem colunas.")
+
+        parent_columns_sql = ', '.join(
+            _database_consistency_quote_ident(item.get('parent_column_name'))
+            for item in fk_columns
+        )
+        ref_schema_name = str(foreign_key_meta.get('reference_schema_name') or '').strip()
+        ref_table_name = str(foreign_key_meta.get('reference_table_name') or '').strip()
+        if not ref_schema_name or not ref_table_name:
+            raise ValueError(f"Foreign key {fk_name} sem tabela de referência.")
+        ref_columns_sql = ', '.join(
+            _database_consistency_quote_ident(item.get('reference_column_name'))
+            for item in fk_columns
+        )
+        sql = (
+            f"ALTER TABLE {full_table_name} WITH CHECK ADD CONSTRAINT {_database_consistency_quote_ident(fk_name)} "
+            f"FOREIGN KEY ({parent_columns_sql}) REFERENCES "
+            f"{_database_consistency_full_table_name(ref_schema_name, ref_table_name)} ({ref_columns_sql})"
+        )
+
+        delete_action = str(foreign_key_meta.get('delete_action') or '').strip().upper()
+        if delete_action and delete_action != 'NO_ACTION':
+            sql += f" ON DELETE {delete_action.replace('_', ' ')}"
+        update_action = str(foreign_key_meta.get('update_action') or '').strip().upper()
+        if update_action and update_action != 'NO_ACTION':
+            sql += f" ON UPDATE {update_action.replace('_', ' ')}"
+
+        post_sql = ''
+        if foreign_key_meta.get('is_disabled'):
+            post_sql = (
+                f"ALTER TABLE {full_table_name} NOCHECK CONSTRAINT {_database_consistency_quote_ident(fk_name)}"
+            )
+        return sql, post_sql
+
+    def _database_consistency_compact_result(result: dict) -> dict:
+        def _compact_entries(entries):
+            compact = []
+            for item in (entries or [])[:20]:
+                compact.append({
+                    'type': str(item.get('type') or '').strip()[:40],
+                    'name': str(item.get('name') or '').strip()[:180],
+                    'error': str(item.get('error') or '').strip()[:260],
+                    'reason': str(item.get('reason') or '').strip()[:180],
+                })
+            return compact
+
+        return {
+            'status': str(result.get('status') or '').strip() or 'done',
+            'applied_count': len(result.get('applied') or []),
+            'failed_count': len(result.get('failed') or []),
+            'skipped_count': len(result.get('skipped') or []),
+            'applied_preview': _compact_entries(result.get('applied')),
+            'failed_preview': _compact_entries(result.get('failed')),
+            'skipped_preview': _compact_entries(result.get('skipped')),
+        }
+
+    def _database_consistency_local_structural_rows(source_table: str):
+        snapshot = _database_consistency_load_structural_data_snapshot()
+        bucket = snapshot.get(str(source_table or '').strip().upper()) or {}
+        return bucket.get('schema_ready', False), dict(bucket.get('rows') or {})
+
+    def _database_consistency_local_menu_stamp_map(local_menu_rows: dict) -> dict:
+        mapping = {}
+        for row in (local_menu_rows or {}).values():
+            payload = row.get('payload') or {}
+            table_name = str(payload.get('TABELA') or '').strip()
+            menu_stamp = str(payload.get('MENUSTAMP') or '').strip()
+            if table_name and menu_stamp:
+                mapping[table_name.upper()] = menu_stamp
+        return mapping
+
+    def _database_consistency_apply_structural_data(reference_snapshot: dict, result: dict):
+        reference_structural = reference_snapshot.get('structural_data') or {}
+
+        menu_ready, local_menu_rows = _database_consistency_local_structural_rows('MENU')
+        if menu_ready:
+            for record_key, reference_row in (reference_structural.get('MENU') or {}).get('rows', {}).items():
+                payload = dict(reference_row.get('payload') or {})
+                local_row = local_menu_rows.get(record_key)
+                if local_row and str(local_row.get('compare_hash') or '').strip() == str(reference_row.get('compare_hash') or '').strip():
+                    continue
+                params = {
+                    'MENUSTAMP': str(payload.get('MENUSTAMP') or '').strip(),
+                    'ORDEM': _to_int(payload.get('ORDEM'), 0),
+                    'NOME': str(payload.get('NOME') or '').strip(),
+                    'TABELA': str(payload.get('TABELA') or '').strip(),
+                    'URL': str(payload.get('URL') or '').strip(),
+                    'ADMIN': _to_int(payload.get('ADMIN'), 0),
+                    'ICONE': str(payload.get('ICONE') or '').strip(),
+                    'FORM': str(payload.get('FORM') or '').strip(),
+                    'ORDERBY': str(payload.get('ORDERBY') or '').strip(),
+                    'NOVO': _to_int(payload.get('NOVO'), 0),
+                    'INATIVO': _to_int(payload.get('INATIVO'), 0),
+                    'LARGURAS_EXATAS': _to_int(payload.get('LARGURAS_EXATAS'), 0),
+                    'LARGURAS_EXATAS_LISTA': _to_int(payload.get('LARGURAS_EXATAS_LISTA'), 0),
+                }
+                try:
+                    if local_row:
+                        db.session.execute(text("""
+                            UPDATE dbo.MENU
+                            SET ORDEM = :ORDEM,
+                                NOME = :NOME,
+                                URL = :URL,
+                                ADMIN = :ADMIN,
+                                ICONE = :ICONE,
+                                FORM = :FORM,
+                                [ORDERBY] = :ORDERBY,
+                                NOVO = :NOVO,
+                                INATIVO = :INATIVO,
+                                LARGURAS_EXATAS = :LARGURAS_EXATAS,
+                                LARGURAS_EXATAS_LISTA = :LARGURAS_EXATAS_LISTA
+                            WHERE TABELA = :TABELA
+                        """), params)
+                    else:
+                        db.session.execute(text("""
+                            INSERT INTO dbo.MENU
+                            (
+                                MENUSTAMP, ORDEM, NOME, TABELA, URL, ADMIN, ICONE, FORM,
+                                [ORDERBY], NOVO, INATIVO, LARGURAS_EXATAS, LARGURAS_EXATAS_LISTA
+                            )
+                            VALUES
+                            (
+                                :MENUSTAMP, :ORDEM, :NOME, :TABELA, :URL, :ADMIN, :ICONE, :FORM,
+                                :ORDERBY, :NOVO, :INATIVO, :LARGURAS_EXATAS, :LARGURAS_EXATAS_LISTA
+                            )
+                        """), params)
+                    db.session.commit()
+                    result['applied'].append({'type': 'config', 'name': f"MENU.{params['TABELA']}"})
+                except Exception as exc:
+                    db.session.rollback()
+                    result['failed'].append({'type': 'config', 'name': f"MENU.{params['TABELA']}", 'error': str(exc)})
+
+        menu_ready, local_menu_rows = _database_consistency_local_structural_rows('MENU')
+        local_menu_stamp_map = _database_consistency_local_menu_stamp_map(local_menu_rows)
+
+        campos_ready, local_campos_rows = _database_consistency_local_structural_rows('CAMPOS')
+        if campos_ready:
+            for record_key, reference_row in (reference_structural.get('CAMPOS') or {}).get('rows', {}).items():
+                payload = dict(reference_row.get('payload') or {})
+                local_row = local_campos_rows.get(record_key)
+                if local_row and str(local_row.get('compare_hash') or '').strip() == str(reference_row.get('compare_hash') or '').strip():
+                    continue
+                params = {key: payload.get(key) for key in (
+                    'CAMPOSSTAMP', 'ORDEM', 'NMCAMPO', 'DESCRICAO', 'TIPO', 'TABELA', 'LISTA', 'FILTRO',
+                    'FILTRODEFAULT', 'ADMIN', 'RONLY', 'COMBO', 'VIRTUAL', 'TAM', 'ORDEM_MOBILE',
+                    'TAM_MOBILE', 'CONDICAO_VISIVEL', 'OBRIGATORIO', 'VISIVEL', 'DECIMAIS', 'MINIMO',
+                    'MAXIMO', 'ORDEM_LISTA', 'TAM_LISTA', 'ORDEM_LISTA_MOBILE', 'TAM_LISTA_MOBILE',
+                    'LISTA_MOBILE_BOLD', 'LISTA_MOBILE_ITALIC', 'LISTA_MOBILE_SHOW_LABEL', 'LISTA_MOBILE_LABEL',
+                )}
+                try:
+                    if local_row:
+                        db.session.execute(text("""
+                            UPDATE dbo.CAMPOS
+                            SET ORDEM = :ORDEM,
+                                DESCRICAO = :DESCRICAO,
+                                TIPO = :TIPO,
+                                LISTA = :LISTA,
+                                FILTRO = :FILTRO,
+                                FILTRODEFAULT = :FILTRODEFAULT,
+                                ADMIN = :ADMIN,
+                                RONLY = :RONLY,
+                                COMBO = :COMBO,
+                                VIRTUAL = :VIRTUAL,
+                                TAM = :TAM,
+                                ORDEM_MOBILE = :ORDEM_MOBILE,
+                                TAM_MOBILE = :TAM_MOBILE,
+                                CONDICAO_VISIVEL = :CONDICAO_VISIVEL,
+                                OBRIGATORIO = :OBRIGATORIO,
+                                VISIVEL = :VISIVEL,
+                                DECIMAIS = :DECIMAIS,
+                                MINIMO = :MINIMO,
+                                MAXIMO = :MAXIMO,
+                                ORDEM_LISTA = :ORDEM_LISTA,
+                                TAM_LISTA = :TAM_LISTA,
+                                ORDEM_LISTA_MOBILE = :ORDEM_LISTA_MOBILE,
+                                TAM_LISTA_MOBILE = :TAM_LISTA_MOBILE,
+                                LISTA_MOBILE_BOLD = :LISTA_MOBILE_BOLD,
+                                LISTA_MOBILE_ITALIC = :LISTA_MOBILE_ITALIC,
+                                LISTA_MOBILE_SHOW_LABEL = :LISTA_MOBILE_SHOW_LABEL,
+                                LISTA_MOBILE_LABEL = :LISTA_MOBILE_LABEL
+                            WHERE TABELA = :TABELA
+                              AND NMCAMPO = :NMCAMPO
+                        """), params)
+                    else:
+                        db.session.execute(text("""
+                            INSERT INTO dbo.CAMPOS
+                            (
+                                CAMPOSSTAMP, ORDEM, NMCAMPO, DESCRICAO, TIPO, TABELA, LISTA, FILTRO,
+                                FILTRODEFAULT, ADMIN, RONLY, COMBO, VIRTUAL, TAM, ORDEM_MOBILE,
+                                TAM_MOBILE, CONDICAO_VISIVEL, OBRIGATORIO, VISIVEL, DECIMAIS, MINIMO,
+                                MAXIMO, ORDEM_LISTA, TAM_LISTA, ORDEM_LISTA_MOBILE, TAM_LISTA_MOBILE,
+                                LISTA_MOBILE_BOLD, LISTA_MOBILE_ITALIC, LISTA_MOBILE_SHOW_LABEL, LISTA_MOBILE_LABEL
+                            )
+                            VALUES
+                            (
+                                :CAMPOSSTAMP, :ORDEM, :NMCAMPO, :DESCRICAO, :TIPO, :TABELA, :LISTA, :FILTRO,
+                                :FILTRODEFAULT, :ADMIN, :RONLY, :COMBO, :VIRTUAL, :TAM, :ORDEM_MOBILE,
+                                :TAM_MOBILE, :CONDICAO_VISIVEL, :OBRIGATORIO, :VISIVEL, :DECIMAIS, :MINIMO,
+                                :MAXIMO, :ORDEM_LISTA, :TAM_LISTA, :ORDEM_LISTA_MOBILE, :TAM_LISTA_MOBILE,
+                                :LISTA_MOBILE_BOLD, :LISTA_MOBILE_ITALIC, :LISTA_MOBILE_SHOW_LABEL, :LISTA_MOBILE_LABEL
+                            )
+                        """), params)
+                    db.session.commit()
+                    result['applied'].append({'type': 'config', 'name': f"CAMPOS.{params['TABELA']}.{params['NMCAMPO']}"})
+                except Exception as exc:
+                    db.session.rollback()
+                    result['failed'].append({'type': 'config', 'name': f"CAMPOS.{params['TABELA']}.{params['NMCAMPO']}", 'error': str(exc)})
+
+        def _apply_menu_child_table(source_table: str, natural_name_field: str, insert_sql: str, update_sql: str, ordered_columns: tuple[str, ...]):
+            ready, local_rows = _database_consistency_local_structural_rows(source_table)
+            if not ready:
+                return
+            for record_key, reference_row in (reference_structural.get(source_table) or {}).get('rows', {}).items():
+                payload = dict(reference_row.get('payload') or {})
+                local_row = local_rows.get(record_key)
+                if local_row and str(local_row.get('compare_hash') or '').strip() == str(reference_row.get('compare_hash') or '').strip():
+                    continue
+                menu_table = str(payload.get('MENU_TABLE') or '').strip()
+                local_menu_stamp = local_menu_stamp_map.get(menu_table.upper())
+                if not local_menu_stamp:
+                    result['skipped'].append({'type': 'config', 'name': f"{source_table}.{record_key}", 'reason': 'MENU pai ainda inexistente.'})
+                    continue
+                params = {key: payload.get(key) for key in ordered_columns}
+                params['MENUSTAMP'] = local_menu_stamp
+                try:
+                    if local_row:
+                        db.session.execute(text(update_sql), params)
+                    else:
+                        db.session.execute(text(insert_sql), params)
+                    db.session.commit()
+                    result['applied'].append({'type': 'config', 'name': f"{source_table}.{menu_table}.{params.get(natural_name_field)}"})
+                except Exception as exc:
+                    db.session.rollback()
+                    result['failed'].append({'type': 'config', 'name': f"{source_table}.{menu_table}.{params.get(natural_name_field)}", 'error': str(exc)})
+
+        _apply_menu_child_table(
+            'MENU_OBJETOS',
+            'NMCAMPO',
+            """
+                INSERT INTO dbo.MENU_OBJETOS
+                (
+                    MENUOBJSTAMP, MENUSTAMP, NMCAMPO, DESCRICAO, TIPO, ORDEM, TAM,
+                    ORDEM_MOBILE, TAM_MOBILE, VISIVEL, RONLY, OBRIGATORIO,
+                    CONDICAO_VISIVEL, COMBO, DECIMAIS, MINIMO, MAXIMO, PROPRIEDADES, ATIVO
+                )
+                VALUES
+                (
+                    :MENUOBJSTAMP, :MENUSTAMP, :NMCAMPO, :DESCRICAO, :TIPO, :ORDEM, :TAM,
+                    :ORDEM_MOBILE, :TAM_MOBILE, :VISIVEL, :RONLY, :OBRIGATORIO,
+                    :CONDICAO_VISIVEL, :COMBO, :DECIMAIS, :MINIMO, :MAXIMO, :PROPRIEDADES, :ATIVO
+                )
+            """,
+            """
+                UPDATE dbo.MENU_OBJETOS
+                SET DESCRICAO = :DESCRICAO,
+                    TIPO = :TIPO,
+                    ORDEM = :ORDEM,
+                    TAM = :TAM,
+                    ORDEM_MOBILE = :ORDEM_MOBILE,
+                    TAM_MOBILE = :TAM_MOBILE,
+                    VISIVEL = :VISIVEL,
+                    RONLY = :RONLY,
+                    OBRIGATORIO = :OBRIGATORIO,
+                    CONDICAO_VISIVEL = :CONDICAO_VISIVEL,
+                    COMBO = :COMBO,
+                    DECIMAIS = :DECIMAIS,
+                    MINIMO = :MINIMO,
+                    MAXIMO = :MAXIMO,
+                    PROPRIEDADES = :PROPRIEDADES,
+                    ATIVO = :ATIVO
+                WHERE MENUSTAMP = :MENUSTAMP
+                  AND NMCAMPO = :NMCAMPO
+            """,
+            ('MENUOBJSTAMP', 'MENU_TABLE', 'NMCAMPO', 'DESCRICAO', 'TIPO', 'ORDEM', 'TAM', 'ORDEM_MOBILE', 'TAM_MOBILE', 'VISIVEL', 'RONLY', 'OBRIGATORIO', 'CONDICAO_VISIVEL', 'COMBO', 'DECIMAIS', 'MINIMO', 'MAXIMO', 'PROPRIEDADES', 'ATIVO'),
+        )
+
+        _apply_menu_child_table(
+            'MENU_VARIAVEIS',
+            'NOME',
+            """
+                INSERT INTO dbo.MENU_VARIAVEIS
+                (
+                    MENUVARSTAMP, MENUSTAMP, NOME, DESCRICAO, TIPO, VALOR_DEFAULT, ORDEM, PROPRIEDADES, ATIVO
+                )
+                VALUES
+                (
+                    :MENUVARSTAMP, :MENUSTAMP, :NOME, :DESCRICAO, :TIPO, :VALOR_DEFAULT, :ORDEM, :PROPRIEDADES, :ATIVO
+                )
+            """,
+            """
+                UPDATE dbo.MENU_VARIAVEIS
+                SET DESCRICAO = :DESCRICAO,
+                    TIPO = :TIPO,
+                    VALOR_DEFAULT = :VALOR_DEFAULT,
+                    ORDEM = :ORDEM,
+                    PROPRIEDADES = :PROPRIEDADES,
+                    ATIVO = :ATIVO
+                WHERE MENUSTAMP = :MENUSTAMP
+                  AND NOME = :NOME
+            """,
+            ('MENUVARSTAMP', 'MENU_TABLE', 'NOME', 'DESCRICAO', 'TIPO', 'VALOR_DEFAULT', 'ORDEM', 'PROPRIEDADES', 'ATIVO'),
+        )
+
+        _apply_menu_child_table(
+            'MENU_EVENTOS',
+            'EVENTO',
+            """
+                INSERT INTO dbo.MENU_EVENTOS
+                (
+                    MENUEVENTOSTAMP, MENUSTAMP, EVENTO, FLUXO, ATIVO
+                )
+                VALUES
+                (
+                    :MENUEVENTOSTAMP, :MENUSTAMP, :EVENTO, :FLUXO, :ATIVO
+                )
+            """,
+            """
+                UPDATE dbo.MENU_EVENTOS
+                SET FLUXO = :FLUXO,
+                    ATIVO = :ATIVO
+                WHERE MENUSTAMP = :MENUSTAMP
+                  AND EVENTO = :EVENTO
+            """,
+            ('MENUEVENTOSTAMP', 'MENU_TABLE', 'EVENTO', 'FLUXO', 'ATIVO'),
+        )
+
+    def _database_consistency_apply_reference_structure(requested_by: str = '') -> dict:
+        target = _resolve_db_target()
+        if target == db_target_prod:
+            raise ValueError('A atualização estrutural só pode correr fora da base principal.')
+
+        reference_snapshot = _load_database_consistency_reference_snapshot()
+        local_snapshot = _load_database_consistency_local_snapshot()
+        result = {
+            'status': 'done',
+            'requested_by': str(requested_by or '').strip(),
+            'target': target,
+            'target_label': str((app.config.get('DB_TARGETS') or {}).get(target, {}).get('label') or target),
+            'reference_database_name': reference_snapshot.get('database_name'),
+            'sync_stamp': reference_snapshot.get('sync_stamp'),
+            'applied': [],
+            'failed': [],
+            'skipped': [],
+        }
+
+        local_tables = dict(local_snapshot.get('tables') or {})
+        local_columns = dict(local_snapshot.get('columns') or {})
+        local_indexes = dict(local_snapshot.get('indexes') or {})
+        local_index_signatures = {
+            table_key: set(items)
+            for table_key, items in (local_snapshot.get('index_signatures') or {}).items()
+        }
+        local_foreign_keys = dict(local_snapshot.get('foreign_keys') or {})
+        local_triggers = dict(local_snapshot.get('triggers') or {})
+        local_schemas = {
+            str(item.get('schema_name') or '').strip().upper()
+            for item in local_tables.values()
+            if str(item.get('schema_name') or '').strip()
+        }
+
+        required_schemas = {
+            str(item.get('schema_name') or '').strip()
+            for item in reference_snapshot.get('tables', {}).values()
+            if str(item.get('schema_name') or '').strip()
+        }
+        required_schemas.update({
+            str(item.get('reference_schema_name') or '').strip()
+            for item in reference_snapshot.get('foreign_keys', {}).values()
+            if str(item.get('reference_schema_name') or '').strip()
+        })
+
+        for schema_name in sorted(required_schemas):
+            if not schema_name or schema_name.upper() in local_schemas:
+                continue
+            try:
+                _database_consistency_exec_driver_sql(f"CREATE SCHEMA {_database_consistency_quote_ident(schema_name)}")
+                local_schemas.add(schema_name.upper())
+                result['applied'].append({'type': 'schema', 'name': schema_name})
+            except Exception as exc:
+                result['failed'].append({'type': 'schema', 'name': schema_name, 'error': str(exc)})
+
+        columns_by_table = {}
+        for (table_key, _), column_meta in (reference_snapshot.get('columns') or {}).items():
+            columns_by_table.setdefault(table_key, []).append(column_meta)
+
+        for table_key in sorted(reference_snapshot.get('tables') or {}):
+            if table_key in local_tables:
+                continue
+            table_meta = reference_snapshot['tables'][table_key]
+            column_items = list(columns_by_table.get(table_key) or [])
+            column_items.sort(key=lambda item: (_to_int(item.get('ordinal_position'), 0), str(item.get('column_name') or '').upper()))
+            if not column_items:
+                result['failed'].append({'type': 'table', 'name': table_key, 'error': 'Tabela sem colunas no repositório.'})
+                continue
+            try:
+                definitions = [
+                    _database_consistency_render_column_definition(item)
+                    for item in column_items
+                ]
+                create_sql = (
+                    f"CREATE TABLE {_database_consistency_full_table_name(table_meta.get('schema_name'), table_meta.get('table_name'))} (\n    "
+                    + ",\n    ".join(definitions)
+                    + "\n)"
+                )
+                _database_consistency_exec_driver_sql(create_sql)
+                local_tables[table_key] = table_meta
+                for column_meta in column_items:
+                    local_columns[(table_key, str(column_meta.get('column_name') or '').strip().upper())] = {
+                        'table_key': table_key,
+                        'column_name': str(column_meta.get('column_name') or '').strip(),
+                    }
+                result['applied'].append({'type': 'table', 'name': table_key})
+            except Exception as exc:
+                result['failed'].append({'type': 'table', 'name': table_key, 'error': str(exc)})
+
+        for (table_key, column_key), column_meta in sorted(
+            (reference_snapshot.get('columns') or {}).items(),
+            key=lambda item: (
+                item[0][0],
+                _to_int(item[1].get('ordinal_position'), 0),
+                str(item[1].get('column_name') or '').upper(),
+            ),
+        ):
+            if (table_key, column_key) in local_columns:
+                continue
+            table_meta = local_tables.get(table_key)
+            if not table_meta:
+                result['skipped'].append({'type': 'column', 'name': f"{table_key}.{column_meta.get('column_name')}", 'reason': 'Tabela ainda em falta.'})
+                continue
+            try:
+                if (
+                    not column_meta.get('is_nullable')
+                    and not column_meta.get('default_definition')
+                    and not column_meta.get('is_identity')
+                    and not column_meta.get('is_computed')
+                    and _database_consistency_local_table_has_rows(table_key)
+                ):
+                    raise ValueError('Coluna NOT NULL sem default em tabela com dados. Requer intervenção manual.')
+                sql = (
+                    f"ALTER TABLE {_database_consistency_full_table_name(table_meta.get('schema_name'), table_meta.get('table_name'))} "
+                    f"ADD {_database_consistency_render_column_definition(column_meta)}"
+                )
+                _database_consistency_exec_driver_sql(sql)
+                local_columns[(table_key, column_key)] = {
+                    'table_key': table_key,
+                    'column_name': str(column_meta.get('column_name') or '').strip(),
+                }
+                result['applied'].append({'type': 'column', 'name': f"{table_key}.{column_meta.get('column_name')}"})
+            except Exception as exc:
+                result['failed'].append({'type': 'column', 'name': f"{table_key}.{column_meta.get('column_name')}", 'error': str(exc)})
+
+        for (table_key, index_key), index_meta in sorted(
+            (reference_snapshot.get('indexes') or {}).items(),
+            key=lambda item: (item[0][0], str(item[1].get('index_name') or '').upper()),
+        ):
+            index_signature = _database_consistency_index_signature(index_meta)
+            if (table_key, index_key) in local_indexes:
+                continue
+            if index_signature and index_signature in (local_index_signatures.get(table_key) or set()):
+                local_indexes[(table_key, index_key)] = {'table_key': table_key, 'index_name': index_meta.get('index_name')}
+                continue
+            table_meta = local_tables.get(table_key)
+            if not table_meta:
+                result['skipped'].append({'type': 'index', 'name': f"{table_key}.{index_meta.get('index_name')}", 'reason': 'Tabela ainda em falta.'})
+                continue
+            missing_dependency = next((
+                col for col in (index_meta.get('columns') or [])
+                if (table_key, str(col.get('column_name') or '').strip().upper()) not in local_columns
+            ), None)
+            if missing_dependency:
+                result['skipped'].append({'type': 'index', 'name': f"{table_key}.{index_meta.get('index_name')}", 'reason': 'Ainda faltam colunas do índice.'})
+                continue
+            try:
+                create_sql, post_sql = _database_consistency_build_index_sql(table_meta, index_meta)
+                _database_consistency_exec_driver_sql(create_sql)
+                if post_sql:
+                    _database_consistency_exec_driver_sql(post_sql)
+                local_indexes[(table_key, index_key)] = {'table_key': table_key, 'index_name': index_meta.get('index_name')}
+                if index_signature:
+                    local_index_signatures.setdefault(table_key, set()).add(index_signature)
+                result['applied'].append({'type': 'index', 'name': f"{table_key}.{index_meta.get('index_name')}"})
+            except Exception as exc:
+                result['failed'].append({'type': 'index', 'name': f"{table_key}.{index_meta.get('index_name')}", 'error': str(exc)})
+
+        for (table_key, fk_key), fk_meta in sorted(
+            (reference_snapshot.get('foreign_keys') or {}).items(),
+            key=lambda item: (item[0][0], str(item[1].get('fk_name') or '').upper()),
+        ):
+            if (table_key, fk_key) in local_foreign_keys:
+                continue
+            table_meta = local_tables.get(table_key)
+            if not table_meta:
+                result['skipped'].append({'type': 'foreign_key', 'name': f"{table_key}.{fk_meta.get('fk_name')}", 'reason': 'Tabela ainda em falta.'})
+                continue
+            ref_table_key = f"{fk_meta.get('reference_schema_name')}.{fk_meta.get('reference_table_name')}"
+            if ref_table_key not in local_tables:
+                result['skipped'].append({'type': 'foreign_key', 'name': f"{table_key}.{fk_meta.get('fk_name')}", 'reason': 'Tabela de referência ainda em falta.'})
+                continue
+            missing_parent_col = next((
+                col for col in (fk_meta.get('columns') or [])
+                if (table_key, str(col.get('parent_column_name') or '').strip().upper()) not in local_columns
+            ), None)
+            missing_ref_col = next((
+                col for col in (fk_meta.get('columns') or [])
+                if (ref_table_key, str(col.get('reference_column_name') or '').strip().upper()) not in local_columns
+            ), None)
+            if missing_parent_col or missing_ref_col:
+                result['skipped'].append({'type': 'foreign_key', 'name': f"{table_key}.{fk_meta.get('fk_name')}", 'reason': 'Ainda faltam colunas da foreign key.'})
+                continue
+            try:
+                create_sql, post_sql = _database_consistency_build_foreign_key_sql(table_meta, fk_meta)
+                _database_consistency_exec_driver_sql(create_sql)
+                if post_sql:
+                    _database_consistency_exec_driver_sql(post_sql)
+                local_foreign_keys[(table_key, fk_key)] = {'table_key': table_key, 'fk_name': fk_meta.get('fk_name')}
+                result['applied'].append({'type': 'foreign_key', 'name': f"{table_key}.{fk_meta.get('fk_name')}"})
+            except Exception as exc:
+                result['failed'].append({'type': 'foreign_key', 'name': f"{table_key}.{fk_meta.get('fk_name')}", 'error': str(exc)})
+
+        for (table_key, trigger_key), trigger_meta in sorted(
+            (reference_snapshot.get('triggers') or {}).items(),
+            key=lambda item: (item[0][0], str(item[1].get('trigger_name') or '').upper()),
+        ):
+            if (table_key, trigger_key) in local_triggers:
+                continue
+            table_meta = local_tables.get(table_key)
+            if not table_meta:
+                result['skipped'].append({'type': 'trigger', 'name': f"{table_key}.{trigger_meta.get('trigger_name')}", 'reason': 'Tabela ainda em falta.'})
+                continue
+            definition_sql = str(trigger_meta.get('definition_sql') or '').strip()
+            if not definition_sql:
+                result['failed'].append({'type': 'trigger', 'name': f"{table_key}.{trigger_meta.get('trigger_name')}", 'error': 'Trigger sem definição SQL no repositório.'})
+                continue
+            try:
+                _database_consistency_exec_driver_sql(definition_sql)
+                if trigger_meta.get('is_disabled'):
+                    _database_consistency_exec_driver_sql(
+                        f"DISABLE TRIGGER {_database_consistency_quote_ident(trigger_meta.get('trigger_name'))} "
+                        f"ON {_database_consistency_full_table_name(table_meta.get('schema_name'), table_meta.get('table_name'))}"
+                    )
+                local_triggers[(table_key, trigger_key)] = {'table_key': table_key, 'trigger_name': trigger_meta.get('trigger_name')}
+                result['applied'].append({'type': 'trigger', 'name': f"{table_key}.{trigger_meta.get('trigger_name')}"})
+            except Exception as exc:
+                result['failed'].append({'type': 'trigger', 'name': f"{table_key}.{trigger_meta.get('trigger_name')}", 'error': str(exc)})
+
+        _database_consistency_apply_structural_data(reference_snapshot, result)
+
+        if result['failed']:
+            result['status'] = 'partial'
+        return result
+
+    def _database_manager_schema_repo_update_failure(sync_id: str, database_name: str, source: str, requested_by: str, message: str):
+        finished_at = datetime.now()
+        db.session.execute(text("""
+            UPDATE dbo.DB_SCHEMA_REPO_SYNC
+            SET FinishedAt = :finished_at,
+                Status = 'error',
+                Message = :message
+            WHERE SyncId = :sync_id
+        """), {
+            'sync_id': sync_id,
+            'finished_at': finished_at,
+            'message': str(message or '').strip()[:1000],
+        })
+        db.session.execute(text("""
+            UPDATE dbo.DB_SCHEMA_REPO_STATE
+            SET DatabaseName = :database_name,
+                LastSyncStamp = :sync_id,
+                LastSyncAt = :finished_at,
+                LastSyncStatus = 'error',
+                LastSyncSource = :source,
+                LastSyncRequestedBy = :requested_by,
+                LastSyncMessage = :message,
+                UpdatedAt = :finished_at
+            WHERE StateId = 1
+        """), {
+            'database_name': str(database_name or '').strip(),
+            'sync_id': sync_id,
+            'finished_at': finished_at,
+            'source': str(source or '').strip(),
+            'requested_by': str(requested_by or '').strip()[:100],
+            'message': str(message or '').strip()[:1000],
+        })
+
+    def _database_manager_schema_repo_prune_sync_history(limit: int = 200):
+        db.session.execute(text("""
+            ;WITH ordered AS (
+                SELECT
+                    SyncId,
+                    ROW_NUMBER() OVER (ORDER BY StartedAt DESC, SyncId DESC) AS RN
+                FROM dbo.DB_SCHEMA_REPO_SYNC
+            )
+            DELETE FROM dbo.DB_SCHEMA_REPO_SYNC
+            WHERE SyncId IN (
+                SELECT SyncId
+                FROM ordered
+                WHERE RN > :limit
+            )
+        """), {'limit': max(10, int(limit or 200))})
+
+    def _database_manager_schema_repo_datetime_param(value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            return datetime.combine(value, datetime.min.time())
+        raw = str(value or '').strip()
+        if not raw:
+            return None
+        normalized = raw.replace('T', ' ').replace('Z', '')
+        try:
+            return datetime.fromisoformat(normalized[:26])
+        except Exception:
+            try:
+                return datetime.combine(date.fromisoformat(normalized[:10]), datetime.min.time())
+            except Exception:
+                return None
+
+    def _load_database_manager_repo_columns():
+        rows = db.session.execute(text("""
+            SELECT
+                S.name AS SCHEMA_NAME,
+                T.name AS TABLE_NAME,
+                C.object_id AS OBJECT_ID,
+                C.column_id AS ORDINAL_POSITION,
+                C.name AS COLUMN_NAME,
+                TY.name AS DATA_TYPE,
+                CASE
+                    WHEN C.max_length = -1 THEN -1
+                    WHEN TY.name IN ('nvarchar', 'nchar') THEN C.max_length / 2
+                    ELSE C.max_length
+                END AS MAX_LENGTH,
+                C.precision AS NUMERIC_PRECISION,
+                C.scale AS NUMERIC_SCALE,
+                C.is_nullable AS IS_NULLABLE,
+                C.is_identity AS IS_IDENTITY,
+                C.is_computed AS IS_COMPUTED,
+                C.collation_name AS COLLATION_NAME,
+                DC.definition AS DEFAULT_DEFINITION,
+                CONVERT(nvarchar(128), IC.seed_value) AS IDENTITY_SEED,
+                CONVERT(nvarchar(128), IC.increment_value) AS IDENTITY_INCREMENT,
+                CASE WHEN PKCOL.column_id IS NULL THEN 0 ELSE 1 END AS IS_PRIMARY_KEY,
+                CASE WHEN FKREF.FK_NAME IS NULL THEN 0 ELSE 1 END AS IS_FOREIGN_KEY,
+                FKREF.FK_NAME,
+                FKREF.REF_SCHEMA_NAME,
+                FKREF.REF_TABLE_NAME,
+                FKREF.REF_COLUMN_NAME
+            FROM sys.tables T
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            INNER JOIN sys.columns C
+                ON C.object_id = T.object_id
+            INNER JOIN sys.types TY
+                ON TY.user_type_id = C.user_type_id
+            LEFT JOIN sys.default_constraints DC
+                ON DC.object_id = C.default_object_id
+            LEFT JOIN sys.identity_columns IC
+                ON IC.object_id = C.object_id
+               AND IC.column_id = C.column_id
+            LEFT JOIN (
+                SELECT
+                    ICX.object_id,
+                    ICX.column_id
+                FROM sys.indexes I
+                INNER JOIN sys.index_columns ICX
+                    ON ICX.object_id = I.object_id
+                   AND ICX.index_id = I.index_id
+                WHERE I.is_primary_key = 1
+                GROUP BY ICX.object_id, ICX.column_id
+            ) PKCOL
+                ON PKCOL.object_id = C.object_id
+               AND PKCOL.column_id = C.column_id
+            OUTER APPLY (
+                SELECT TOP 1
+                    FK.name AS FK_NAME,
+                    RS.name AS REF_SCHEMA_NAME,
+                    RT.name AS REF_TABLE_NAME,
+                    RC.name AS REF_COLUMN_NAME
+                FROM sys.foreign_key_columns FKC
+                INNER JOIN sys.foreign_keys FK
+                    ON FK.object_id = FKC.constraint_object_id
+                INNER JOIN sys.tables RT
+                    ON RT.object_id = FKC.referenced_object_id
+                INNER JOIN sys.schemas RS
+                    ON RS.schema_id = RT.schema_id
+                INNER JOIN sys.columns RC
+                    ON RC.object_id = FKC.referenced_object_id
+                   AND RC.column_id = FKC.referenced_column_id
+                WHERE FKC.parent_object_id = C.object_id
+                  AND FKC.parent_column_id = C.column_id
+                ORDER BY FK.name
+            ) FKREF
+            WHERE T.is_ms_shipped = 0
+              AND UPPER(T.name) <> 'SYSDIAGRAMS'
+            ORDER BY UPPER(S.name), UPPER(T.name), C.column_id
+        """)).mappings().all()
+
+        items = []
+        for row in rows:
+            schema_name = str(row.get('SCHEMA_NAME') or '').strip()
+            table_name = str(row.get('TABLE_NAME') or '').strip()
+            items.append({
+                'table_key': f'{schema_name}.{table_name}',
+                'schema_name': schema_name,
+                'table_name': table_name,
+                'object_id': _to_int(row.get('OBJECT_ID'), 0),
+                'column_name': str(row.get('COLUMN_NAME') or '').strip(),
+                'ordinal': _to_int(row.get('ORDINAL_POSITION'), 0),
+                'data_type': str(row.get('DATA_TYPE') or '').strip().lower(),
+                'type_label': _database_manager_sql_type_label({
+                    'DATA_TYPE': row.get('DATA_TYPE'),
+                    'max_length': row.get('MAX_LENGTH'),
+                    'numeric_precision': row.get('NUMERIC_PRECISION'),
+                    'numeric_scale': row.get('NUMERIC_SCALE'),
+                }),
+                'max_length': _to_int(row.get('MAX_LENGTH'), 0),
+                'numeric_precision': _to_int(row.get('NUMERIC_PRECISION'), 0),
+                'numeric_scale': _to_int(row.get('NUMERIC_SCALE'), 0),
+                'is_nullable': bool(_to_int(row.get('IS_NULLABLE'), 0)),
+                'is_identity': bool(_to_int(row.get('IS_IDENTITY'), 0)),
+                'is_computed': bool(_to_int(row.get('IS_COMPUTED'), 0)),
+                'is_primary_key': bool(_to_int(row.get('IS_PRIMARY_KEY'), 0)),
+                'is_foreign_key': bool(_to_int(row.get('IS_FOREIGN_KEY'), 0)),
+                'default_definition': str(row.get('DEFAULT_DEFINITION') or '').strip(),
+                'collation_name': str(row.get('COLLATION_NAME') or '').strip(),
+                'identity_seed': str(row.get('IDENTITY_SEED') or '').strip(),
+                'identity_increment': str(row.get('IDENTITY_INCREMENT') or '').strip(),
+                'foreign_key_name': str(row.get('FK_NAME') or '').strip(),
+                'reference_schema_name': str(row.get('REF_SCHEMA_NAME') or '').strip(),
+                'reference_table_name': str(row.get('REF_TABLE_NAME') or '').strip(),
+                'reference_column_name': str(row.get('REF_COLUMN_NAME') or '').strip(),
+            })
+        return items
+
+    def _load_database_manager_repo_indexes():
+        sql_with_frag = """
+            WITH table_base AS (
+                SELECT
+                    T.object_id,
+                    S.name AS SCHEMA_NAME,
+                    T.name AS TABLE_NAME
+                FROM sys.tables T
+                INNER JOIN sys.schemas S
+                    ON S.schema_id = T.schema_id
+                WHERE T.is_ms_shipped = 0
+                  AND UPPER(T.name) <> 'SYSDIAGRAMS'
+            ),
+            index_row_stats AS (
+                SELECT
+                    PS.object_id,
+                    PS.index_id,
+                    SUM(PS.row_count) AS ROW_COUNT
+                FROM sys.dm_db_partition_stats PS
+                INNER JOIN table_base TB
+                    ON TB.object_id = PS.object_id
+                GROUP BY PS.object_id, PS.index_id
+            ),
+            index_fragmentation AS (
+                SELECT
+                    IPS.object_id,
+                    IPS.index_id,
+                    CAST(MAX(IPS.avg_fragmentation_in_percent) AS decimal(10, 2)) AS FRAGMENTATION_PCT,
+                    SUM(IPS.page_count) AS PAGE_COUNT
+                FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED') IPS
+                INNER JOIN table_base TB
+                    ON TB.object_id = IPS.object_id
+                WHERE IPS.index_level = 0
+                GROUP BY IPS.object_id, IPS.index_id
+            )
+            SELECT
+                TB.SCHEMA_NAME,
+                TB.TABLE_NAME,
+                I.object_id AS OBJECT_ID,
+                I.index_id AS INDEX_ID,
+                I.name AS INDEX_NAME,
+                I.type_desc AS INDEX_TYPE,
+                I.is_primary_key AS IS_PRIMARY_KEY,
+                I.is_unique AS IS_UNIQUE,
+                I.is_unique_constraint AS IS_UNIQUE_CONSTRAINT,
+                I.is_disabled AS IS_DISABLED,
+                I.fill_factor AS FILL_FACTOR,
+                I.has_filter AS HAS_FILTER,
+                I.filter_definition AS FILTER_DEFINITION,
+                I.allow_row_locks AS ALLOW_ROW_LOCKS,
+                I.allow_page_locks AS ALLOW_PAGE_LOCKS,
+                ISNULL(IRS.ROW_COUNT, 0) AS ROW_COUNT,
+                IFR.FRAGMENTATION_PCT AS FRAGMENTATION_PCT,
+                IFR.PAGE_COUNT AS PAGE_COUNT,
+                STUFF((
+                    SELECT ', ' + C.name + CASE WHEN IC2.is_descending_key = 1 THEN ' DESC' ELSE '' END
+                    FROM sys.index_columns IC2
+                    INNER JOIN sys.columns C
+                        ON C.object_id = IC2.object_id
+                       AND C.column_id = IC2.column_id
+                    WHERE IC2.object_id = I.object_id
+                      AND IC2.index_id = I.index_id
+                      AND IC2.is_included_column = 0
+                    ORDER BY IC2.key_ordinal, IC2.index_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS KEY_COLUMNS,
+                STUFF((
+                    SELECT ', ' + C.name
+                    FROM sys.index_columns IC3
+                    INNER JOIN sys.columns C
+                        ON C.object_id = IC3.object_id
+                       AND C.column_id = IC3.column_id
+                    WHERE IC3.object_id = I.object_id
+                      AND IC3.index_id = I.index_id
+                      AND IC3.is_included_column = 1
+                    ORDER BY IC3.index_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS INCLUDED_COLUMNS
+            FROM sys.indexes I
+            INNER JOIN table_base TB
+                ON TB.object_id = I.object_id
+            LEFT JOIN index_row_stats IRS
+                ON IRS.object_id = I.object_id
+               AND IRS.index_id = I.index_id
+            LEFT JOIN index_fragmentation IFR
+                ON IFR.object_id = I.object_id
+               AND IFR.index_id = I.index_id
+            WHERE I.is_hypothetical = 0
+              AND I.index_id > 0
+            ORDER BY UPPER(TB.SCHEMA_NAME), UPPER(TB.TABLE_NAME), I.is_primary_key DESC, I.is_unique DESC, I.index_id
+        """
+
+        sql_without_frag = """
+            WITH table_base AS (
+                SELECT
+                    T.object_id,
+                    S.name AS SCHEMA_NAME,
+                    T.name AS TABLE_NAME
+                FROM sys.tables T
+                INNER JOIN sys.schemas S
+                    ON S.schema_id = T.schema_id
+                WHERE T.is_ms_shipped = 0
+                  AND UPPER(T.name) <> 'SYSDIAGRAMS'
+            ),
+            index_row_stats AS (
+                SELECT
+                    PS.object_id,
+                    PS.index_id,
+                    SUM(PS.row_count) AS ROW_COUNT
+                FROM sys.dm_db_partition_stats PS
+                INNER JOIN table_base TB
+                    ON TB.object_id = PS.object_id
+                GROUP BY PS.object_id, PS.index_id
+            )
+            SELECT
+                TB.SCHEMA_NAME,
+                TB.TABLE_NAME,
+                I.object_id AS OBJECT_ID,
+                I.index_id AS INDEX_ID,
+                I.name AS INDEX_NAME,
+                I.type_desc AS INDEX_TYPE,
+                I.is_primary_key AS IS_PRIMARY_KEY,
+                I.is_unique AS IS_UNIQUE,
+                I.is_unique_constraint AS IS_UNIQUE_CONSTRAINT,
+                I.is_disabled AS IS_DISABLED,
+                I.fill_factor AS FILL_FACTOR,
+                I.has_filter AS HAS_FILTER,
+                I.filter_definition AS FILTER_DEFINITION,
+                I.allow_row_locks AS ALLOW_ROW_LOCKS,
+                I.allow_page_locks AS ALLOW_PAGE_LOCKS,
+                ISNULL(IRS.ROW_COUNT, 0) AS ROW_COUNT,
+                NULL AS FRAGMENTATION_PCT,
+                NULL AS PAGE_COUNT,
+                STUFF((
+                    SELECT ', ' + C.name + CASE WHEN IC2.is_descending_key = 1 THEN ' DESC' ELSE '' END
+                    FROM sys.index_columns IC2
+                    INNER JOIN sys.columns C
+                        ON C.object_id = IC2.object_id
+                       AND C.column_id = IC2.column_id
+                    WHERE IC2.object_id = I.object_id
+                      AND IC2.index_id = I.index_id
+                      AND IC2.is_included_column = 0
+                    ORDER BY IC2.key_ordinal, IC2.index_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS KEY_COLUMNS,
+                STUFF((
+                    SELECT ', ' + C.name
+                    FROM sys.index_columns IC3
+                    INNER JOIN sys.columns C
+                        ON C.object_id = IC3.object_id
+                       AND C.column_id = IC3.column_id
+                    WHERE IC3.object_id = I.object_id
+                      AND IC3.index_id = I.index_id
+                      AND IC3.is_included_column = 1
+                    ORDER BY IC3.index_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS INCLUDED_COLUMNS
+            FROM sys.indexes I
+            INNER JOIN table_base TB
+                ON TB.object_id = I.object_id
+            LEFT JOIN index_row_stats IRS
+                ON IRS.object_id = I.object_id
+               AND IRS.index_id = I.index_id
+            WHERE I.is_hypothetical = 0
+              AND I.index_id > 0
+            ORDER BY UPPER(TB.SCHEMA_NAME), UPPER(TB.TABLE_NAME), I.is_primary_key DESC, I.is_unique DESC, I.index_id
+        """
+
+        try:
+            rows = db.session.execute(text(sql_with_frag)).mappings().all()
+        except Exception:
+            rows = db.session.execute(text(sql_without_frag)).mappings().all()
+
+        items = []
+        for row in rows:
+            schema_name = str(row.get('SCHEMA_NAME') or '').strip()
+            table_name = str(row.get('TABLE_NAME') or '').strip()
+            fragmentation = row.get('FRAGMENTATION_PCT')
+            items.append({
+                'table_key': f'{schema_name}.{table_name}',
+                'schema_name': schema_name,
+                'table_name': table_name,
+                'object_id': _to_int(row.get('OBJECT_ID'), 0),
+                'index_id': _to_int(row.get('INDEX_ID'), 0),
+                'index_name': str(row.get('INDEX_NAME') or '').strip(),
+                'index_type': str(row.get('INDEX_TYPE') or '').strip(),
+                'is_primary_key': bool(_to_int(row.get('IS_PRIMARY_KEY'), 0)),
+                'is_unique': bool(_to_int(row.get('IS_UNIQUE'), 0)),
+                'is_unique_constraint': bool(_to_int(row.get('IS_UNIQUE_CONSTRAINT'), 0)),
+                'is_disabled': bool(_to_int(row.get('IS_DISABLED'), 0)),
+                'fill_factor': _to_int(row.get('FILL_FACTOR'), 0),
+                'has_filter': bool(_to_int(row.get('HAS_FILTER'), 0)),
+                'filter_definition': str(row.get('FILTER_DEFINITION') or '').strip(),
+                'allow_row_locks': bool(_to_int(row.get('ALLOW_ROW_LOCKS'), 0)),
+                'allow_page_locks': bool(_to_int(row.get('ALLOW_PAGE_LOCKS'), 0)),
+                'row_count': _to_int(row.get('ROW_COUNT'), 0),
+                'fragmentation_pct': (round(_num(fragmentation, 0), 2) if fragmentation is not None else None),
+                'page_count': (_to_int(row.get('PAGE_COUNT'), 0) if row.get('PAGE_COUNT') is not None else None),
+                'key_columns': str(row.get('KEY_COLUMNS') or '').strip(),
+                'included_columns': str(row.get('INCLUDED_COLUMNS') or '').strip(),
+            })
+        return items
+
+    def _load_database_manager_repo_index_columns():
+        rows = db.session.execute(text("""
+            SELECT
+                S.name AS SCHEMA_NAME,
+                T.name AS TABLE_NAME,
+                I.object_id AS OBJECT_ID,
+                I.index_id AS INDEX_ID,
+                I.name AS INDEX_NAME,
+                IC.index_column_id AS INDEX_COLUMN_ID,
+                C.name AS COLUMN_NAME,
+                IC.key_ordinal AS KEY_ORDINAL,
+                IC.is_descending_key AS IS_DESCENDING_KEY,
+                IC.is_included_column AS IS_INCLUDED_COLUMN
+            FROM sys.index_columns IC
+            INNER JOIN sys.indexes I
+                ON I.object_id = IC.object_id
+               AND I.index_id = IC.index_id
+            INNER JOIN sys.columns C
+                ON C.object_id = IC.object_id
+               AND C.column_id = IC.column_id
+            INNER JOIN sys.tables T
+                ON T.object_id = IC.object_id
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE T.is_ms_shipped = 0
+              AND UPPER(T.name) <> 'SYSDIAGRAMS'
+              AND I.is_hypothetical = 0
+              AND I.index_id > 0
+            ORDER BY
+                UPPER(S.name),
+                UPPER(T.name),
+                I.index_id,
+                CASE WHEN IC.is_included_column = 1 THEN 1 ELSE 0 END,
+                CASE WHEN IC.key_ordinal = 0 THEN 2147483647 ELSE IC.key_ordinal END,
+                IC.index_column_id
+        """)).mappings().all()
+
+        items = []
+        for row in rows:
+            schema_name = str(row.get('SCHEMA_NAME') or '').strip()
+            table_name = str(row.get('TABLE_NAME') or '').strip()
+            items.append({
+                'table_key': f'{schema_name}.{table_name}',
+                'schema_name': schema_name,
+                'table_name': table_name,
+                'object_id': _to_int(row.get('OBJECT_ID'), 0),
+                'index_id': _to_int(row.get('INDEX_ID'), 0),
+                'index_name': str(row.get('INDEX_NAME') or '').strip(),
+                'index_column_id': _to_int(row.get('INDEX_COLUMN_ID'), 0),
+                'column_name': str(row.get('COLUMN_NAME') or '').strip(),
+                'key_ordinal': _to_int(row.get('KEY_ORDINAL'), 0),
+                'is_descending': bool(_to_int(row.get('IS_DESCENDING_KEY'), 0)),
+                'is_included': bool(_to_int(row.get('IS_INCLUDED_COLUMN'), 0)),
+            })
+        return items
+
+    def _load_database_manager_repo_foreign_keys():
+        rows = db.session.execute(text("""
+            SELECT
+                S.name AS SCHEMA_NAME,
+                T.name AS TABLE_NAME,
+                FK.parent_object_id AS OBJECT_ID,
+                FK.object_id AS FK_OBJECT_ID,
+                FK.name AS FK_NAME,
+                RS.name AS REF_SCHEMA_NAME,
+                RT.name AS REF_TABLE_NAME,
+                FK.delete_referential_action_desc AS DELETE_ACTION,
+                FK.update_referential_action_desc AS UPDATE_ACTION,
+                FK.is_disabled AS IS_DISABLED,
+                STUFF((
+                    SELECT ', ' + PC.name
+                    FROM sys.foreign_key_columns FKC2
+                    INNER JOIN sys.columns PC
+                        ON PC.object_id = FKC2.parent_object_id
+                       AND PC.column_id = FKC2.parent_column_id
+                    WHERE FKC2.constraint_object_id = FK.object_id
+                    ORDER BY FKC2.constraint_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS COLUMN_NAMES,
+                STUFF((
+                    SELECT ', ' + RC.name
+                    FROM sys.foreign_key_columns FKC3
+                    INNER JOIN sys.columns RC
+                        ON RC.object_id = FKC3.referenced_object_id
+                       AND RC.column_id = FKC3.referenced_column_id
+                    WHERE FKC3.constraint_object_id = FK.object_id
+                    ORDER BY FKC3.constraint_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS REF_COLUMN_NAMES
+            FROM sys.foreign_keys FK
+            INNER JOIN sys.tables T
+                ON T.object_id = FK.parent_object_id
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            INNER JOIN sys.tables RT
+                ON RT.object_id = FK.referenced_object_id
+            INNER JOIN sys.schemas RS
+                ON RS.schema_id = RT.schema_id
+            WHERE T.is_ms_shipped = 0
+              AND UPPER(T.name) <> 'SYSDIAGRAMS'
+            ORDER BY UPPER(S.name), UPPER(T.name), FK.name
+        """)).mappings().all()
+
+        items = []
+        for row in rows:
+            schema_name = str(row.get('SCHEMA_NAME') or '').strip()
+            table_name = str(row.get('TABLE_NAME') or '').strip()
+            items.append({
+                'table_key': f'{schema_name}.{table_name}',
+                'schema_name': schema_name,
+                'table_name': table_name,
+                'object_id': _to_int(row.get('OBJECT_ID'), 0),
+                'fk_object_id': _to_int(row.get('FK_OBJECT_ID'), 0),
+                'fk_name': str(row.get('FK_NAME') or '').strip(),
+                'reference_schema_name': str(row.get('REF_SCHEMA_NAME') or '').strip(),
+                'reference_table_name': str(row.get('REF_TABLE_NAME') or '').strip(),
+                'delete_action': str(row.get('DELETE_ACTION') or '').strip(),
+                'update_action': str(row.get('UPDATE_ACTION') or '').strip(),
+                'is_disabled': bool(_to_int(row.get('IS_DISABLED'), 0)),
+                'column_names': str(row.get('COLUMN_NAMES') or '').strip(),
+                'reference_column_names': str(row.get('REF_COLUMN_NAMES') or '').strip(),
+            })
+        return items
+
+    def _load_database_manager_repo_foreign_key_columns():
+        rows = db.session.execute(text("""
+            SELECT
+                S.name AS SCHEMA_NAME,
+                T.name AS TABLE_NAME,
+                FK.parent_object_id AS OBJECT_ID,
+                FK.object_id AS FK_OBJECT_ID,
+                FK.name AS FK_NAME,
+                FKC.constraint_column_id AS CONSTRAINT_COLUMN_ID,
+                PC.name AS PARENT_COLUMN_NAME,
+                RS.name AS REF_SCHEMA_NAME,
+                RT.name AS REF_TABLE_NAME,
+                RC.name AS REF_COLUMN_NAME
+            FROM sys.foreign_key_columns FKC
+            INNER JOIN sys.foreign_keys FK
+                ON FK.object_id = FKC.constraint_object_id
+            INNER JOIN sys.tables T
+                ON T.object_id = FK.parent_object_id
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            INNER JOIN sys.columns PC
+                ON PC.object_id = FKC.parent_object_id
+               AND PC.column_id = FKC.parent_column_id
+            INNER JOIN sys.tables RT
+                ON RT.object_id = FKC.referenced_object_id
+            INNER JOIN sys.schemas RS
+                ON RS.schema_id = RT.schema_id
+            INNER JOIN sys.columns RC
+                ON RC.object_id = FKC.referenced_object_id
+               AND RC.column_id = FKC.referenced_column_id
+            WHERE T.is_ms_shipped = 0
+              AND UPPER(T.name) <> 'SYSDIAGRAMS'
+            ORDER BY UPPER(S.name), UPPER(T.name), FK.name, FKC.constraint_column_id
+        """)).mappings().all()
+
+        items = []
+        for row in rows:
+            schema_name = str(row.get('SCHEMA_NAME') or '').strip()
+            table_name = str(row.get('TABLE_NAME') or '').strip()
+            items.append({
+                'table_key': f'{schema_name}.{table_name}',
+                'schema_name': schema_name,
+                'table_name': table_name,
+                'object_id': _to_int(row.get('OBJECT_ID'), 0),
+                'fk_object_id': _to_int(row.get('FK_OBJECT_ID'), 0),
+                'fk_name': str(row.get('FK_NAME') or '').strip(),
+                'constraint_column_id': _to_int(row.get('CONSTRAINT_COLUMN_ID'), 0),
+                'parent_column_name': str(row.get('PARENT_COLUMN_NAME') or '').strip(),
+                'reference_schema_name': str(row.get('REF_SCHEMA_NAME') or '').strip(),
+                'reference_table_name': str(row.get('REF_TABLE_NAME') or '').strip(),
+                'reference_column_name': str(row.get('REF_COLUMN_NAME') or '').strip(),
+            })
+        return items
+
+    def _load_database_manager_repo_triggers():
+        rows = db.session.execute(text("""
+            SELECT
+                S.name AS SCHEMA_NAME,
+                T.name AS TABLE_NAME,
+                TR.parent_id AS OBJECT_ID,
+                TR.object_id AS TRIGGER_OBJECT_ID,
+                TR.name AS TRIGGER_NAME,
+                TR.is_disabled AS IS_DISABLED,
+                TR.is_instead_of_trigger AS IS_INSTEAD_OF_TRIGGER,
+                SM.definition AS SQL_DEFINITION,
+                STUFF((
+                    SELECT ', ' + UPPER(TE.type_desc)
+                    FROM sys.trigger_events TE
+                    WHERE TE.object_id = TR.object_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS EVENT_LIST
+            FROM sys.triggers TR
+            INNER JOIN sys.tables T
+                ON T.object_id = TR.parent_id
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            LEFT JOIN sys.sql_modules SM
+                ON SM.object_id = TR.object_id
+            WHERE TR.parent_class = 1
+              AND TR.is_ms_shipped = 0
+              AND T.is_ms_shipped = 0
+              AND UPPER(T.name) <> 'SYSDIAGRAMS'
+            ORDER BY UPPER(S.name), UPPER(T.name), TR.name
+        """)).mappings().all()
+
+        items = []
+        for row in rows:
+            schema_name = str(row.get('SCHEMA_NAME') or '').strip()
+            table_name = str(row.get('TABLE_NAME') or '').strip()
+            items.append({
+                'table_key': f'{schema_name}.{table_name}',
+                'schema_name': schema_name,
+                'table_name': table_name,
+                'object_id': _to_int(row.get('OBJECT_ID'), 0),
+                'trigger_object_id': _to_int(row.get('TRIGGER_OBJECT_ID'), 0),
+                'trigger_name': str(row.get('TRIGGER_NAME') or '').strip(),
+                'is_disabled': bool(_to_int(row.get('IS_DISABLED'), 0)),
+                'is_instead_of_trigger': bool(_to_int(row.get('IS_INSTEAD_OF_TRIGGER'), 0)),
+                'event_list': str(row.get('EVENT_LIST') or '').strip(),
+                'definition_sql': str(row.get('SQL_DEFINITION') or '').strip(),
+            })
+        return items
+
+    def _database_manager_repo_structural_data_rows():
+        structural_data = _database_consistency_load_structural_data_snapshot()
+        rows = []
+        for source_table, bucket in (structural_data or {}).items():
+            if not bucket.get('schema_ready'):
+                continue
+            for row in (bucket.get('rows') or {}).values():
+                payload = row.get('payload') or {}
+                rows.append({
+                    'SourceTable': source_table,
+                    'RecordKey': str(row.get('record_key') or '').strip(),
+                    'RecordLabel': str(row.get('record_label') or '').strip(),
+                    'PayloadJson': json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')),
+                    'PayloadHash': str(row.get('compare_hash') or '').strip(),
+                })
+        rows.sort(key=lambda item: (item['SourceTable'], item['RecordKey']))
+        return rows
+
+    def _database_manager_sync_schema_repository(source: str = 'manual', requested_by: str = ''):
+        source_value = str(source or '').strip().lower() or 'manual'
+        requested_by_value = str(requested_by or '').strip()[:100]
+        lock_acquired = database_manager_schema_repo_sync_lock.acquire(blocking=False)
+        if not lock_acquired:
+            raise ValueError('Ja existe uma sincronizacao da estrutura em curso.')
+
+        sync_id = str(uuid.uuid4())
+        database_name = ''
+
+        try:
+            _ensure_database_manager_schema_repo_tables()
+            database_name = _database_manager_schema_repo_database_name()
+            started_at = datetime.now()
+
+            db.session.execute(text("""
+                INSERT INTO dbo.DB_SCHEMA_REPO_SYNC
+                (
+                    SyncId, SyncStamp, DatabaseName, StartedAt, FinishedAt, Status,
+                    Source, RequestedBy, Message,
+                    TableCount, ColumnCount, IndexCount, IndexColumnCount,
+                    ForeignKeyCount, ForeignKeyColumnCount, TriggerCount
+                )
+                VALUES
+                (
+                    :sync_id, :sync_id, :database_name, :started_at, NULL, 'running',
+                    :source, :requested_by, :message,
+                    0, 0, 0, 0, 0, 0, 0
+                )
+            """), {
+                'sync_id': sync_id,
+                'database_name': database_name,
+                'started_at': started_at,
+                'source': source_value,
+                'requested_by': requested_by_value,
+                'message': 'A sincronizar estrutura da base de dados.',
+            })
+
+            db.session.execute(text("""
+                UPDATE dbo.DB_SCHEMA_REPO_STATE
+                SET DatabaseName = :database_name,
+                    LastSyncStamp = :sync_id,
+                    LastSyncAt = :started_at,
+                    LastSyncStatus = 'running',
+                    LastSyncSource = :source,
+                    LastSyncRequestedBy = :requested_by,
+                    LastSyncMessage = :message,
+                    UpdatedAt = :started_at
+                WHERE StateId = 1
+            """), {
+                'database_name': database_name,
+                'sync_id': sync_id,
+                'started_at': started_at,
+                'source': source_value,
+                'requested_by': requested_by_value,
+                'message': 'A sincronizar estrutura da base de dados.',
+            })
+            db.session.commit()
+
+            tables = _load_database_manager_tables()
+            columns = _load_database_manager_repo_columns()
+            indexes = _load_database_manager_repo_indexes()
+            index_columns = _load_database_manager_repo_index_columns()
+            foreign_keys = _load_database_manager_repo_foreign_keys()
+            foreign_key_columns = _load_database_manager_repo_foreign_key_columns()
+            triggers = _load_database_manager_repo_triggers()
+            structural_data_rows = _database_manager_repo_structural_data_rows()
+
+            finished_at = datetime.now()
+            db.session.execute(text("DELETE FROM dbo.DB_SCHEMA_REPO_APPDATA_ROW"))
+            db.session.execute(text("DELETE FROM dbo.DB_SCHEMA_REPO_TRIGGER"))
+            db.session.execute(text("DELETE FROM dbo.DB_SCHEMA_REPO_FOREIGN_KEY_COLUMN"))
+            db.session.execute(text("DELETE FROM dbo.DB_SCHEMA_REPO_FOREIGN_KEY"))
+            db.session.execute(text("DELETE FROM dbo.DB_SCHEMA_REPO_INDEX_COLUMN"))
+            db.session.execute(text("DELETE FROM dbo.DB_SCHEMA_REPO_INDEX"))
+            db.session.execute(text("DELETE FROM dbo.DB_SCHEMA_REPO_COLUMN"))
+            db.session.execute(text("DELETE FROM dbo.DB_SCHEMA_REPO_TABLE"))
+
+            if tables:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DB_SCHEMA_REPO_TABLE
+                    (
+                        SyncStamp, DatabaseName, TableKey, SchemaName, TableName, ObjectId,
+                        CreatedAt, ModifiedAt, [RowCount], ColumnCount, IndexCount, TriggerCount,
+                        ReservedMb, DataMb, IndexMb
+                    )
+                    VALUES
+                    (
+                        :SyncStamp, :DatabaseName, :TableKey, :SchemaName, :TableName, :ObjectId,
+                        :CreatedAt, :ModifiedAt, :RowCount, :ColumnCount, :IndexCount, :TriggerCount,
+                        :ReservedMb, :DataMb, :IndexMb
+                    )
+                """), [{
+                    'SyncStamp': sync_id,
+                    'DatabaseName': database_name,
+                    'TableKey': str(item.get('key') or '').strip(),
+                    'SchemaName': str(item.get('schema') or '').strip(),
+                    'TableName': str(item.get('name') or '').strip(),
+                    'ObjectId': _to_int(item.get('object_id'), 0),
+                    'CreatedAt': _database_manager_schema_repo_datetime_param(item.get('created_at')),
+                    'ModifiedAt': _database_manager_schema_repo_datetime_param(item.get('modified_at')),
+                    'RowCount': _to_int(item.get('row_count'), 0),
+                    'ColumnCount': _to_int(item.get('column_count'), 0),
+                    'IndexCount': _to_int(item.get('index_count'), 0),
+                    'TriggerCount': _to_int(item.get('trigger_count'), 0),
+                    'ReservedMb': round(_num(item.get('reserved_mb'), 0), 2),
+                    'DataMb': round(_num(item.get('data_mb'), 0), 2),
+                    'IndexMb': round(_num(item.get('index_mb'), 0), 2),
+                } for item in tables])
+
+            if columns:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DB_SCHEMA_REPO_COLUMN
+                    (
+                        SyncStamp, DatabaseName, TableKey, SchemaName, TableName, ObjectId,
+                        ColumnName, OrdinalPosition, DataType, TypeLabel, MaxLength,
+                        NumericPrecision, NumericScale, IsNullable, IsIdentity, IsComputed,
+                        IsPersisted, IsPrimaryKey, IsForeignKey, DefaultDefinition, ComputedDefinition, CollationName,
+                        IdentitySeed, IdentityIncrement, ForeignKeyName,
+                        ReferenceSchemaName, ReferenceTableName, ReferenceColumnName
+                    )
+                    VALUES
+                    (
+                        :SyncStamp, :DatabaseName, :TableKey, :SchemaName, :TableName, :ObjectId,
+                        :ColumnName, :OrdinalPosition, :DataType, :TypeLabel, :MaxLength,
+                        :NumericPrecision, :NumericScale, :IsNullable, :IsIdentity, :IsComputed,
+                        :IsPersisted, :IsPrimaryKey, :IsForeignKey, :DefaultDefinition, :ComputedDefinition, :CollationName,
+                        :IdentitySeed, :IdentityIncrement, :ForeignKeyName,
+                        :ReferenceSchemaName, :ReferenceTableName, :ReferenceColumnName
+                    )
+                """), [{
+                    'SyncStamp': sync_id,
+                    'DatabaseName': database_name,
+                    'TableKey': item.get('table_key'),
+                    'SchemaName': item.get('schema_name'),
+                    'TableName': item.get('table_name'),
+                    'ObjectId': item.get('object_id'),
+                    'ColumnName': item.get('column_name'),
+                    'OrdinalPosition': item.get('ordinal'),
+                    'DataType': item.get('data_type'),
+                    'TypeLabel': item.get('type_label'),
+                    'MaxLength': item.get('max_length'),
+                    'NumericPrecision': item.get('numeric_precision'),
+                    'NumericScale': item.get('numeric_scale'),
+                    'IsNullable': 1 if item.get('is_nullable') else 0,
+                    'IsIdentity': 1 if item.get('is_identity') else 0,
+                    'IsComputed': 1 if item.get('is_computed') else 0,
+                    'IsPersisted': 1 if item.get('is_persisted') else 0,
+                    'IsPrimaryKey': 1 if item.get('is_primary_key') else 0,
+                    'IsForeignKey': 1 if item.get('is_foreign_key') else 0,
+                    'DefaultDefinition': item.get('default_definition') or None,
+                    'ComputedDefinition': item.get('computed_definition') or None,
+                    'CollationName': item.get('collation_name') or None,
+                    'IdentitySeed': item.get('identity_seed') or None,
+                    'IdentityIncrement': item.get('identity_increment') or None,
+                    'ForeignKeyName': item.get('foreign_key_name') or None,
+                    'ReferenceSchemaName': item.get('reference_schema_name') or None,
+                    'ReferenceTableName': item.get('reference_table_name') or None,
+                    'ReferenceColumnName': item.get('reference_column_name') or None,
+                } for item in columns])
+
+            if indexes:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DB_SCHEMA_REPO_INDEX
+                    (
+                        SyncStamp, DatabaseName, TableKey, SchemaName, TableName, ObjectId,
+                        IndexId, IndexName, IndexType, IsPrimaryKey, IsUnique,
+                        IsUniqueConstraint, IsDisabled, [FillFactor], HasFilter, FilterDefinition,
+                        AllowRowLocks, AllowPageLocks, [RowCount], FragmentationPct, PageCount,
+                        KeyColumns, IncludedColumns
+                    )
+                    VALUES
+                    (
+                        :SyncStamp, :DatabaseName, :TableKey, :SchemaName, :TableName, :ObjectId,
+                        :IndexId, :IndexName, :IndexType, :IsPrimaryKey, :IsUnique,
+                        :IsUniqueConstraint, :IsDisabled, :FillFactor, :HasFilter, :FilterDefinition,
+                        :AllowRowLocks, :AllowPageLocks, :RowCount, :FragmentationPct, :PageCount,
+                        :KeyColumns, :IncludedColumns
+                    )
+                """), [{
+                    'SyncStamp': sync_id,
+                    'DatabaseName': database_name,
+                    'TableKey': item.get('table_key'),
+                    'SchemaName': item.get('schema_name'),
+                    'TableName': item.get('table_name'),
+                    'ObjectId': item.get('object_id'),
+                    'IndexId': item.get('index_id'),
+                    'IndexName': item.get('index_name') or None,
+                    'IndexType': item.get('index_type') or None,
+                    'IsPrimaryKey': 1 if item.get('is_primary_key') else 0,
+                    'IsUnique': 1 if item.get('is_unique') else 0,
+                    'IsUniqueConstraint': 1 if item.get('is_unique_constraint') else 0,
+                    'IsDisabled': 1 if item.get('is_disabled') else 0,
+                    'FillFactor': item.get('fill_factor'),
+                    'HasFilter': 1 if item.get('has_filter') else 0,
+                    'FilterDefinition': item.get('filter_definition') or None,
+                    'AllowRowLocks': 1 if item.get('allow_row_locks') else 0,
+                    'AllowPageLocks': 1 if item.get('allow_page_locks') else 0,
+                    'RowCount': item.get('row_count'),
+                    'FragmentationPct': item.get('fragmentation_pct'),
+                    'PageCount': item.get('page_count'),
+                    'KeyColumns': item.get('key_columns') or None,
+                    'IncludedColumns': item.get('included_columns') or None,
+                } for item in indexes])
+
+            if index_columns:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DB_SCHEMA_REPO_INDEX_COLUMN
+                    (
+                        SyncStamp, DatabaseName, TableKey, SchemaName, TableName, ObjectId,
+                        IndexId, IndexName, IndexColumnId, ColumnName, KeyOrdinal,
+                        IsDescending, IsIncluded
+                    )
+                    VALUES
+                    (
+                        :SyncStamp, :DatabaseName, :TableKey, :SchemaName, :TableName, :ObjectId,
+                        :IndexId, :IndexName, :IndexColumnId, :ColumnName, :KeyOrdinal,
+                        :IsDescending, :IsIncluded
+                    )
+                """), [{
+                    'SyncStamp': sync_id,
+                    'DatabaseName': database_name,
+                    'TableKey': item.get('table_key'),
+                    'SchemaName': item.get('schema_name'),
+                    'TableName': item.get('table_name'),
+                    'ObjectId': item.get('object_id'),
+                    'IndexId': item.get('index_id'),
+                    'IndexName': item.get('index_name') or None,
+                    'IndexColumnId': item.get('index_column_id'),
+                    'ColumnName': item.get('column_name'),
+                    'KeyOrdinal': item.get('key_ordinal'),
+                    'IsDescending': 1 if item.get('is_descending') else 0,
+                    'IsIncluded': 1 if item.get('is_included') else 0,
+                } for item in index_columns])
+
+            if foreign_keys:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DB_SCHEMA_REPO_FOREIGN_KEY
+                    (
+                        SyncStamp, DatabaseName, TableKey, SchemaName, TableName, ObjectId,
+                        ForeignKeyObjectId, ForeignKeyName, ReferenceSchemaName, ReferenceTableName,
+                        DeleteAction, UpdateAction, IsDisabled, ColumnNames, ReferenceColumnNames
+                    )
+                    VALUES
+                    (
+                        :SyncStamp, :DatabaseName, :TableKey, :SchemaName, :TableName, :ObjectId,
+                        :ForeignKeyObjectId, :ForeignKeyName, :ReferenceSchemaName, :ReferenceTableName,
+                        :DeleteAction, :UpdateAction, :IsDisabled, :ColumnNames, :ReferenceColumnNames
+                    )
+                """), [{
+                    'SyncStamp': sync_id,
+                    'DatabaseName': database_name,
+                    'TableKey': item.get('table_key'),
+                    'SchemaName': item.get('schema_name'),
+                    'TableName': item.get('table_name'),
+                    'ObjectId': item.get('object_id'),
+                    'ForeignKeyObjectId': item.get('fk_object_id'),
+                    'ForeignKeyName': item.get('fk_name'),
+                    'ReferenceSchemaName': item.get('reference_schema_name'),
+                    'ReferenceTableName': item.get('reference_table_name'),
+                    'DeleteAction': item.get('delete_action') or None,
+                    'UpdateAction': item.get('update_action') or None,
+                    'IsDisabled': 1 if item.get('is_disabled') else 0,
+                    'ColumnNames': item.get('column_names') or None,
+                    'ReferenceColumnNames': item.get('reference_column_names') or None,
+                } for item in foreign_keys])
+
+            if foreign_key_columns:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DB_SCHEMA_REPO_FOREIGN_KEY_COLUMN
+                    (
+                        SyncStamp, DatabaseName, TableKey, SchemaName, TableName, ObjectId,
+                        ForeignKeyObjectId, ForeignKeyName, ConstraintColumnId, ParentColumnName,
+                        ReferenceSchemaName, ReferenceTableName, ReferenceColumnName
+                    )
+                    VALUES
+                    (
+                        :SyncStamp, :DatabaseName, :TableKey, :SchemaName, :TableName, :ObjectId,
+                        :ForeignKeyObjectId, :ForeignKeyName, :ConstraintColumnId, :ParentColumnName,
+                        :ReferenceSchemaName, :ReferenceTableName, :ReferenceColumnName
+                    )
+                """), [{
+                    'SyncStamp': sync_id,
+                    'DatabaseName': database_name,
+                    'TableKey': item.get('table_key'),
+                    'SchemaName': item.get('schema_name'),
+                    'TableName': item.get('table_name'),
+                    'ObjectId': item.get('object_id'),
+                    'ForeignKeyObjectId': item.get('fk_object_id'),
+                    'ForeignKeyName': item.get('fk_name'),
+                    'ConstraintColumnId': item.get('constraint_column_id'),
+                    'ParentColumnName': item.get('parent_column_name'),
+                    'ReferenceSchemaName': item.get('reference_schema_name'),
+                    'ReferenceTableName': item.get('reference_table_name'),
+                    'ReferenceColumnName': item.get('reference_column_name'),
+                } for item in foreign_key_columns])
+
+            if triggers:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DB_SCHEMA_REPO_TRIGGER
+                    (
+                        SyncStamp, DatabaseName, TableKey, SchemaName, TableName, ObjectId,
+                        TriggerObjectId, TriggerName, IsDisabled, IsInsteadOfTrigger,
+                        EventList, DefinitionSql
+                    )
+                    VALUES
+                    (
+                        :SyncStamp, :DatabaseName, :TableKey, :SchemaName, :TableName, :ObjectId,
+                        :TriggerObjectId, :TriggerName, :IsDisabled, :IsInsteadOfTrigger,
+                        :EventList, :DefinitionSql
+                    )
+                """), [{
+                    'SyncStamp': sync_id,
+                    'DatabaseName': database_name,
+                    'TableKey': item.get('table_key'),
+                    'SchemaName': item.get('schema_name'),
+                    'TableName': item.get('table_name'),
+                    'ObjectId': item.get('object_id'),
+                    'TriggerObjectId': item.get('trigger_object_id'),
+                    'TriggerName': item.get('trigger_name'),
+                    'IsDisabled': 1 if item.get('is_disabled') else 0,
+                    'IsInsteadOfTrigger': 1 if item.get('is_instead_of_trigger') else 0,
+                    'EventList': item.get('event_list') or None,
+                    'DefinitionSql': item.get('definition_sql') or None,
+                } for item in triggers])
+
+            if structural_data_rows:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DB_SCHEMA_REPO_APPDATA_ROW
+                    (
+                        SyncStamp, DatabaseName, SourceTable, RecordKey,
+                        RecordLabel, PayloadJson, PayloadHash
+                    )
+                    VALUES
+                    (
+                        :SyncStamp, :DatabaseName, :SourceTable, :RecordKey,
+                        :RecordLabel, :PayloadJson, :PayloadHash
+                    )
+                """), [{
+                    'SyncStamp': sync_id,
+                    'DatabaseName': database_name,
+                    'SourceTable': item.get('SourceTable'),
+                    'RecordKey': item.get('RecordKey'),
+                    'RecordLabel': item.get('RecordLabel') or None,
+                    'PayloadJson': item.get('PayloadJson') or '{}',
+                    'PayloadHash': item.get('PayloadHash') or '',
+                } for item in structural_data_rows])
+
+            success_message = (
+                f'Estrutura sincronizada: {len(tables)} tabelas, {len(columns)} campos, '
+                f'{len(indexes)} indices, {len(triggers)} triggers, '
+                f'{len(structural_data_rows)} registos estruturais.'
+            )
+
+            db.session.execute(text("""
+                UPDATE dbo.DB_SCHEMA_REPO_SYNC
+                SET FinishedAt = :finished_at,
+                    Status = 'done',
+                    Message = :message,
+                    TableCount = :table_count,
+                    ColumnCount = :column_count,
+                    IndexCount = :index_count,
+                    IndexColumnCount = :index_column_count,
+                    ForeignKeyCount = :foreign_key_count,
+                    ForeignKeyColumnCount = :foreign_key_column_count,
+                    TriggerCount = :trigger_count
+                WHERE SyncId = :sync_id
+            """), {
+                'sync_id': sync_id,
+                'finished_at': finished_at,
+                'message': success_message,
+                'table_count': len(tables),
+                'column_count': len(columns),
+                'index_count': len(indexes),
+                'index_column_count': len(index_columns),
+                'foreign_key_count': len(foreign_keys),
+                'foreign_key_column_count': len(foreign_key_columns),
+                'trigger_count': len(triggers),
+            })
+
+            db.session.execute(text("""
+                UPDATE dbo.DB_SCHEMA_REPO_STATE
+                SET DatabaseName = :database_name,
+                    LastSyncStamp = :sync_id,
+                    LastSyncAt = :finished_at,
+                    LastSyncStatus = 'done',
+                    LastSyncSource = :source,
+                    LastSyncRequestedBy = :requested_by,
+                    LastSyncMessage = :message,
+                    LastTableCount = :table_count,
+                    LastColumnCount = :column_count,
+                    LastIndexCount = :index_count,
+                    LastIndexColumnCount = :index_column_count,
+                    LastForeignKeyCount = :foreign_key_count,
+                    LastForeignKeyColumnCount = :foreign_key_column_count,
+                    LastTriggerCount = :trigger_count,
+                    UpdatedAt = :finished_at
+                WHERE StateId = 1
+            """), {
+                'database_name': database_name,
+                'sync_id': sync_id,
+                'finished_at': finished_at,
+                'source': source_value,
+                'requested_by': requested_by_value,
+                'message': success_message,
+                'table_count': len(tables),
+                'column_count': len(columns),
+                'index_count': len(indexes),
+                'index_column_count': len(index_columns),
+                'foreign_key_count': len(foreign_keys),
+                'foreign_key_column_count': len(foreign_key_columns),
+                'trigger_count': len(triggers),
+            })
+
+            _database_manager_schema_repo_prune_sync_history()
+            db.session.commit()
+            return _load_database_manager_schema_repo_state()
+        except Exception as exc:
+            db.session.rollback()
+            try:
+                _ensure_database_manager_schema_repo_tables()
+                _database_manager_schema_repo_update_failure(
+                    sync_id=sync_id,
+                    database_name=database_name or _database_manager_schema_repo_database_name(),
+                    source=source_value,
+                    requested_by=requested_by_value,
+                    message=str(exc),
+                )
+                _database_manager_schema_repo_prune_sync_history()
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+            raise
+        finally:
+            if lock_acquired:
+                database_manager_schema_repo_sync_lock.release()
+
+    def _database_manager_index_maint_quote_ident(raw_value: str) -> str:
+        return '[' + str(raw_value or '').replace(']', ']]') + ']'
+
+    def _database_manager_index_maint_normalize_mode(raw_value: str) -> str:
+        value = str(raw_value or '').strip().lower()
+        if value in {'auto', 'reorganize', 'rebuild'}:
+            return value
+        return 'auto'
+
+    def _database_manager_index_maint_is_stale(job_row, seconds=600):
+        if not job_row:
+            return False
+        ts = job_row.get('UpdatedAt') or job_row.get('StartedAt')
+        if not ts:
+            return False
+        if isinstance(ts, str):
+            try:
+                ts = datetime.fromisoformat(ts)
+            except Exception:
+                return False
+        return (datetime.now() - ts).total_seconds() > seconds
+
+    def _database_manager_index_maint_worker_alive(job_id: str) -> bool:
+        with database_manager_index_maint_workers_lock:
+            worker = database_manager_index_maint_workers.get(str(job_id or '').strip())
+        try:
+            return bool(worker and worker.is_alive())
+        except Exception:
+            return False
+
+    def _ensure_database_manager_index_maintenance_tables():
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.DB_INDEX_MAINT_JOB', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_INDEX_MAINT_JOB(
+                    JobId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                    TableKey VARCHAR(261) NOT NULL,
+                    SchemaName SYSNAME NOT NULL,
+                    TableName SYSNAME NOT NULL,
+                    ObjectId INT NOT NULL,
+                    RequestedMode VARCHAR(20) NOT NULL,
+                    State VARCHAR(20) NOT NULL,
+                    Total INT NOT NULL,
+                    Processed INT NOT NULL,
+                    Executed INT NOT NULL,
+                    Skipped INT NOT NULL,
+                    Errors INT NOT NULL,
+                    StartedAt DATETIME NULL,
+                    UpdatedAt DATETIME NULL,
+                    FinishedAt DATETIME NULL,
+                    Message NVARCHAR(255) NULL,
+                    RequestedBy VARCHAR(50) NULL
+                );
+                CREATE INDEX IX_DB_INDEX_MAINT_JOB_TableKey
+                    ON dbo.DB_INDEX_MAINT_JOB(TableKey, StartedAt DESC);
+            END
+
+            IF OBJECT_ID('dbo.DB_INDEX_MAINT_JOB_ITEM', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DB_INDEX_MAINT_JOB_ITEM(
+                    ItemId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                    JobId UNIQUEIDENTIFIER NOT NULL,
+                    SeqNo INT NOT NULL,
+                    IndexId INT NOT NULL,
+                    IndexName SYSNAME NULL,
+                    IndexType VARCHAR(60) NULL,
+                    FragmentationPct DECIMAL(10, 2) NULL,
+                    PageCount INT NULL,
+                    PlannedAction VARCHAR(20) NULL,
+                    ExecutedAction VARCHAR(20) NULL,
+                    State VARCHAR(20) NOT NULL,
+                    Message NVARCHAR(4000) NULL,
+                    StartedAt DATETIME NULL,
+                    UpdatedAt DATETIME NULL,
+                    FinishedAt DATETIME NULL
+                );
+                CREATE INDEX IX_DB_INDEX_MAINT_JOB_ITEM_JobId
+                    ON dbo.DB_INDEX_MAINT_JOB_ITEM(JobId, SeqNo);
+            END
+        """))
+        db.session.commit()
+
+    def _database_manager_index_maint_update_job(job_id, **fields):
+        if not fields:
+            return
+        sets = []
+        params = {'JobId': job_id}
+        for key, value in fields.items():
+            sets.append(f"{key} = :{key}")
+            params[key] = value
+        sql = f"UPDATE dbo.DB_INDEX_MAINT_JOB SET {', '.join(sets)} WHERE JobId = :JobId"
+        db.session.execute(text(sql), params)
+        db.session.commit()
+
+    def _database_manager_index_maint_update_item(item_id, **fields):
+        if not fields:
+            return
+        sets = []
+        params = {'ItemId': item_id}
+        for key, value in fields.items():
+            sets.append(f"{key} = :{key}")
+            params[key] = value
+        sql = f"UPDATE dbo.DB_INDEX_MAINT_JOB_ITEM SET {', '.join(sets)} WHERE ItemId = :ItemId"
+        db.session.execute(text(sql), params)
+        db.session.commit()
+
+    def _database_manager_index_maint_get_job(job_id):
+        row = db.session.execute(text("""
+            SELECT *
+            FROM dbo.DB_INDEX_MAINT_JOB
+            WHERE JobId = :JobId
+        """), {'JobId': str(job_id or '').strip()}).mappings().first()
+        return dict(row) if row else None
+
+    def _database_manager_index_maint_get_items(job_id):
+        rows = db.session.execute(text("""
+            SELECT *
+            FROM dbo.DB_INDEX_MAINT_JOB_ITEM
+            WHERE JobId = :JobId
+            ORDER BY SeqNo
+        """), {'JobId': str(job_id or '').strip()}).mappings().all()
+        return [dict(row) for row in rows]
+
+    def _database_manager_index_maint_get_running():
+        row = db.session.execute(text("""
+            SELECT TOP 1 *
+            FROM dbo.DB_INDEX_MAINT_JOB
+            WHERE State IN ('running', 'stopping')
+            ORDER BY StartedAt DESC
+        """)).mappings().first()
+        return dict(row) if row else None
+
+    def _database_manager_index_maint_get_latest_for_table(table_key: str):
+        normalized = _database_manager_normalize_table_key(table_key)
+        if not normalized:
+            return None
+        row = db.session.execute(text("""
+            SELECT TOP 1 *
+            FROM dbo.DB_INDEX_MAINT_JOB
+            WHERE UPPER(TableKey) = :TableKey
+            ORDER BY StartedAt DESC
+        """), {'TableKey': normalized.upper()}).mappings().first()
+        return dict(row) if row else None
+
+    def _database_manager_index_maint_cleanup_running_job():
+        running = _database_manager_index_maint_get_running()
+        if not running:
+            return None
+        job_id = str(running.get('JobId') or '').strip()
+        if _database_manager_index_maint_worker_alive(job_id):
+            return running
+        if _database_manager_index_maint_is_stale(running, seconds=90):
+            _database_manager_index_maint_update_job(
+                job_id,
+                State='error',
+                Message='Job interrompido ou sem worker ativo.',
+                UpdatedAt=datetime.now(),
+                FinishedAt=datetime.now(),
+            )
+            return None
+        return running
+
+    def _database_manager_index_maint_serialize_job(job_row):
+        if not job_row:
+            return None
+        return {
+            'job_id': str(job_row.get('JobId') or '').strip(),
+            'table_key': str(job_row.get('TableKey') or '').strip(),
+            'schema_name': str(job_row.get('SchemaName') or '').strip(),
+            'table_name': str(job_row.get('TableName') or '').strip(),
+            'requested_mode': str(job_row.get('RequestedMode') or '').strip().lower(),
+            'state': str(job_row.get('State') or '').strip().lower(),
+            'total': _to_int(job_row.get('Total'), 0),
+            'processed': _to_int(job_row.get('Processed'), 0),
+            'executed': _to_int(job_row.get('Executed'), 0),
+            'skipped': _to_int(job_row.get('Skipped'), 0),
+            'errors': _to_int(job_row.get('Errors'), 0),
+            'pending': max(0, _to_int(job_row.get('Total'), 0) - _to_int(job_row.get('Processed'), 0)),
+            'message': str(job_row.get('Message') or '').strip(),
+            'started_at': (job_row.get('StartedAt').isoformat() if job_row.get('StartedAt') else None),
+            'updated_at': (job_row.get('UpdatedAt').isoformat() if job_row.get('UpdatedAt') else None),
+            'finished_at': (job_row.get('FinishedAt').isoformat() if job_row.get('FinishedAt') else None),
+            'requested_by': str(job_row.get('RequestedBy') or '').strip(),
+        }
+
+    def _database_manager_index_maint_serialize_items(rows):
+        items = []
+        for row in rows or []:
+            items.append({
+                'item_id': str(row.get('ItemId') or '').strip(),
+                'job_id': str(row.get('JobId') or '').strip(),
+                'seq_no': _to_int(row.get('SeqNo'), 0),
+                'index_id': _to_int(row.get('IndexId'), 0),
+                'index_name': str(row.get('IndexName') or '').strip(),
+                'index_type': str(row.get('IndexType') or '').strip(),
+                'fragmentation_pct': (round(_num(row.get('FragmentationPct'), 0), 2) if row.get('FragmentationPct') is not None else None),
+                'page_count': (_to_int(row.get('PageCount'), 0) if row.get('PageCount') is not None else None),
+                'planned_action': str(row.get('PlannedAction') or '').strip().upper(),
+                'executed_action': str(row.get('ExecutedAction') or '').strip().upper(),
+                'state': str(row.get('State') or '').strip().lower(),
+                'message': str(row.get('Message') or '').strip(),
+                'started_at': (row.get('StartedAt').isoformat() if row.get('StartedAt') else None),
+                'updated_at': (row.get('UpdatedAt').isoformat() if row.get('UpdatedAt') else None),
+                'finished_at': (row.get('FinishedAt').isoformat() if row.get('FinishedAt') else None),
+            })
+        return items
+
+    def _database_manager_index_maint_plan_item(index_row: dict, requested_mode: str):
+        type_name = str(index_row.get('type') or '').strip().upper()
+        index_name = str(index_row.get('name') or '').strip()
+        fragmentation = index_row.get('fragmentation_pct')
+        page_count = _to_int(index_row.get('page_count'), 0)
+        allow_page_locks = bool(index_row.get('allow_page_locks'))
+        is_disabled = bool(index_row.get('is_disabled'))
+
+        planned_action = ''
+        state = 'pending'
+        message = ''
+
+        if not index_name:
+            state = 'skipped'
+            message = 'Índice sem nome.'
+        elif is_disabled:
+            state = 'skipped'
+            message = 'Índice desativado.'
+        elif type_name not in {'CLUSTERED', 'NONCLUSTERED'}:
+            state = 'skipped'
+            message = f'Tipo não suportado nesta fase: {type_name or "n/a"}.'
+        elif page_count <= 0:
+            state = 'skipped'
+            message = 'Sem páginas para otimizar.'
+        elif requested_mode == 'rebuild':
+            planned_action = 'REBUILD'
+            message = 'REBUILD forçado.'
+        elif requested_mode == 'reorganize':
+            if not allow_page_locks:
+                state = 'skipped'
+                message = 'REORGANIZE requer ALLOW_PAGE_LOCKS = ON.'
+            else:
+                planned_action = 'REORGANIZE'
+                message = 'REORGANIZE forçado.'
+        else:
+            frag_value = (_num(fragmentation, 0) if fragmentation is not None else None)
+            if frag_value is None:
+                state = 'skipped'
+                message = 'Sem métricas de fragmentação.'
+            elif page_count < 1000:
+                state = 'skipped'
+                message = 'Abaixo do limiar mínimo de páginas (1000).'
+            elif frag_value < 10:
+                state = 'skipped'
+                message = 'Fragmentação abaixo de 10%.'
+            elif frag_value >= 30:
+                planned_action = 'REBUILD'
+                message = f'Auto: REBUILD com fragmentação {round(frag_value, 2)}%.'
+            elif not allow_page_locks:
+                planned_action = 'REBUILD'
+                message = 'Auto: fallback para REBUILD porque ALLOW_PAGE_LOCKS = OFF.'
+            else:
+                planned_action = 'REORGANIZE'
+                message = f'Auto: REORGANIZE com fragmentação {round(frag_value, 2)}%.'
+
+        return {
+            'index_id': _to_int(index_row.get('id'), 0),
+            'index_name': index_name,
+            'index_type': type_name,
+            'fragmentation_pct': (round(_num(fragmentation, 0), 2) if fragmentation is not None else None),
+            'page_count': page_count,
+            'planned_action': planned_action,
+            'state': state,
+            'message': message,
+        }
+
+    def _database_manager_index_maint_build_plan(indexes, requested_mode: str):
+        items = []
+        for seq_no, index_row in enumerate(indexes or [], start=1):
+            planned = _database_manager_index_maint_plan_item(index_row or {}, requested_mode)
+            planned['seq_no'] = seq_no
+            items.append(planned)
+        return items
+
+    def _database_manager_index_maint_apply_action(schema_name: str, table_name: str, index_name: str, action: str):
+        schema_sql = _database_manager_index_maint_quote_ident(schema_name)
+        table_sql = _database_manager_index_maint_quote_ident(table_name)
+        index_sql = _database_manager_index_maint_quote_ident(index_name)
+        action_value = str(action or '').strip().upper()
+        if action_value == 'REORGANIZE':
+            sql = f"ALTER INDEX {index_sql} ON {schema_sql}.{table_sql} REORGANIZE"
+        elif action_value == 'REBUILD':
+            sql = f"ALTER INDEX {index_sql} ON {schema_sql}.{table_sql} REBUILD WITH (ONLINE = OFF)"
+        else:
+            raise ValueError('Ação de manutenção inválida.')
+        db.session.execute(text(sql))
+        db.session.commit()
+
+    def _database_manager_index_maint_run_job(job_id: str):
+        with app.app_context():
+            try:
+                job_row = _database_manager_index_maint_get_job(job_id)
+                if not job_row:
+                    return
+
+                table_key = str(job_row.get('TableKey') or '').strip()
+                requested_mode = _database_manager_index_maint_normalize_mode(job_row.get('RequestedMode'))
+                resolved = _database_manager_resolve_table(table_key)
+                if not resolved:
+                    _database_manager_index_maint_update_job(
+                        job_id,
+                        State='error',
+                        Message='Tabela já não existe.',
+                        UpdatedAt=datetime.now(),
+                        FinishedAt=datetime.now(),
+                    )
+                    return
+
+                summary = _load_database_manager_summary(_to_int(resolved.get('object_id'), 0)) or {}
+                if bool(summary.get('is_memory_optimized')):
+                    _database_manager_index_maint_update_job(
+                        job_id,
+                        State='error',
+                        Message='Tabelas memory optimized não são suportadas nesta fase.',
+                        UpdatedAt=datetime.now(),
+                        FinishedAt=datetime.now(),
+                    )
+                    return
+
+                items = _database_manager_index_maint_get_items(job_id)
+                actionable = [item for item in items if str(item.get('State') or '').strip().lower() == 'pending']
+                if not actionable:
+                    _database_manager_index_maint_update_job(
+                        job_id,
+                        State='done',
+                        Message='Sem índices elegíveis para otimizar.',
+                        UpdatedAt=datetime.now(),
+                        FinishedAt=datetime.now(),
+                    )
+                    return
+
+                processed = _to_int(job_row.get('Processed'), 0)
+                executed = _to_int(job_row.get('Executed'), 0)
+                skipped = _to_int(job_row.get('Skipped'), 0)
+                errors = _to_int(job_row.get('Errors'), 0)
+
+                _database_manager_index_maint_update_job(
+                    job_id,
+                    State='running',
+                    Message=f'A otimizar índices de {table_key}...',
+                    UpdatedAt=datetime.now(),
+                )
+
+                for item in actionable:
+                    item_id = str(item.get('ItemId') or '').strip()
+                    index_name = str(item.get('IndexName') or '').strip()
+                    planned_action = str(item.get('PlannedAction') or '').strip().upper()
+                    start_dt = datetime.now()
+                    _database_manager_index_maint_update_item(
+                        item_id,
+                        State='running',
+                        StartedAt=start_dt,
+                        UpdatedAt=start_dt,
+                        Message=f'A executar {planned_action or "ação"}...',
+                    )
+
+                    try:
+                        _database_manager_index_maint_apply_action(
+                            str(resolved.get('schema_name') or '').strip(),
+                            str(resolved.get('table_name') or '').strip(),
+                            index_name,
+                            planned_action,
+                        )
+                        processed += 1
+                        executed += 1
+                        end_dt = datetime.now()
+                        _database_manager_index_maint_update_item(
+                            item_id,
+                            State='done',
+                            ExecutedAction=planned_action,
+                            Message=f'{planned_action} concluído.',
+                            UpdatedAt=end_dt,
+                            FinishedAt=end_dt,
+                        )
+                        _database_manager_index_maint_update_job(
+                            job_id,
+                            Processed=processed,
+                            Executed=executed,
+                            Skipped=skipped,
+                            Errors=errors,
+                            Message=f'{planned_action} em {index_name}',
+                            UpdatedAt=end_dt,
+                        )
+                    except Exception as exc:
+                        db.session.rollback()
+                        processed += 1
+                        errors += 1
+                        end_dt = datetime.now()
+                        _database_manager_index_maint_update_item(
+                            item_id,
+                            State='error',
+                            ExecutedAction=planned_action,
+                            Message=str(exc)[:4000],
+                            UpdatedAt=end_dt,
+                            FinishedAt=end_dt,
+                        )
+                        _database_manager_index_maint_update_job(
+                            job_id,
+                            Processed=processed,
+                            Executed=executed,
+                            Skipped=skipped,
+                            Errors=errors,
+                            Message=f'Erro em {index_name}',
+                            UpdatedAt=end_dt,
+                        )
+
+                final_message = (
+                    f'Concluído: {executed} executados, {skipped} ignorados, {errors} com erro.'
+                )
+                _database_manager_index_maint_update_job(
+                    job_id,
+                    State='done',
+                    Processed=processed,
+                    Executed=executed,
+                    Skipped=skipped,
+                    Errors=errors,
+                    Message=final_message[:255],
+                    UpdatedAt=datetime.now(),
+                    FinishedAt=datetime.now(),
+                )
+            except Exception as exc:
+                db.session.rollback()
+                try:
+                    _database_manager_index_maint_update_job(
+                        job_id,
+                        State='error',
+                        Message=str(exc)[:255],
+                        UpdatedAt=datetime.now(),
+                        FinishedAt=datetime.now(),
+                    )
+                except Exception:
+                    db.session.rollback()
+            finally:
+                with database_manager_index_maint_workers_lock:
+                    database_manager_index_maint_workers.pop(str(job_id or '').strip(), None)
+
+    def _database_manager_index_maint_job_payload(job_row):
+        if not job_row:
+            return {'job': None, 'items': []}
+        return {
+            'job': _database_manager_index_maint_serialize_job(job_row),
+            'items': _database_manager_index_maint_serialize_items(
+                _database_manager_index_maint_get_items(job_row.get('JobId'))
+            ),
         }
 
     def _screen_wizard_prettify_label(raw_name: str) -> str:
@@ -10913,6 +15018,14 @@ def create_app():
         if not _database_manager_allowed():
             return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
 
+        schema_repo_warning = ''
+        schema_repo_state = None
+        try:
+            schema_repo_state = _load_database_manager_schema_repo_state()
+        except Exception as exc:
+            db.session.rollback()
+            schema_repo_warning = str(exc)
+
         tables = _load_database_manager_tables()
         table_lookup = {
             str(item.get('key') or '').strip().upper(): str(item.get('key') or '').strip()
@@ -10928,6 +15041,10 @@ def create_app():
             'tables': tables,
             'selected_table': selected_table,
             'detail': detail,
+            'schema_repository': {
+                'state': schema_repo_state,
+                'warning': schema_repo_warning,
+            },
         })
 
     @app.route('/api/database_manager/table', methods=['GET'])
@@ -10944,6 +15061,196 @@ def create_app():
         if not detail:
             return jsonify({'error': 'Tabela não encontrada.'}), 404
         return jsonify(detail)
+
+    @app.route('/api/database_manager/schema_repository/sync', methods=['POST'])
+    @login_required
+    def api_database_manager_schema_repository_sync():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        try:
+            state = _database_manager_sync_schema_repository(
+                source='manual',
+                requested_by=str(getattr(current_user, 'LOGIN', '') or '').strip(),
+            )
+            return jsonify({'ok': True, 'state': state})
+        except ValueError as exc:
+            db.session.rollback()
+            current_state = None
+            try:
+                current_state = _load_database_manager_schema_repo_state()
+            except Exception:
+                db.session.rollback()
+            return jsonify({'error': str(exc), 'state': current_state}), 409
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao sincronizar o repositorio de estrutura do Database Manager.')
+            current_state = None
+            try:
+                current_state = _load_database_manager_schema_repo_state()
+            except Exception:
+                db.session.rollback()
+            return jsonify({'error': str(exc), 'state': current_state}), 500
+
+    @app.route('/api/database_manager/index_maintenance/start', methods=['POST'])
+    @login_required
+    def api_database_manager_index_maintenance_start():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        table_key = _database_manager_normalize_table_key(body.get('table') or '')
+        requested_mode = _database_manager_index_maint_normalize_mode(body.get('mode'))
+        if not table_key:
+            return jsonify({'error': 'Tabela obrigatória.'}), 400
+
+        resolved = _database_manager_resolve_table(table_key)
+        if not resolved:
+            return jsonify({'error': 'Tabela não encontrada.'}), 404
+
+        try:
+            _ensure_database_manager_index_maintenance_tables()
+        except Exception as exc:
+            db.session.rollback()
+            return jsonify({'error': f'Não foi possível preparar as tabelas de jobs: {exc}'}), 500
+
+        running = _database_manager_index_maint_cleanup_running_job()
+        if running and str(running.get('State') or '').strip().lower() in {'running', 'stopping'}:
+            return jsonify({
+                'error': 'Já existe uma manutenção de índices em execução.',
+                **_database_manager_index_maint_job_payload(running),
+            }), 409
+
+        summary = _load_database_manager_summary(_to_int(resolved.get('object_id'), 0)) or {}
+        if bool(summary.get('is_memory_optimized')):
+            return jsonify({'error': 'Tabelas memory optimized não são suportadas nesta fase.'}), 400
+
+        indexes = _load_database_manager_indexes(_to_int(resolved.get('object_id'), 0))
+        plan = _database_manager_index_maint_build_plan(indexes, requested_mode)
+        total = len(plan)
+        skipped = sum(1 for item in plan if str(item.get('state') or '').strip().lower() == 'skipped')
+        processed = skipped
+        executable = total - skipped
+
+        job_id = str(uuid.uuid4())
+        requested_by = str(getattr(current_user, 'LOGIN', '') or '').strip()
+        now_dt = datetime.now()
+
+        try:
+            db.session.execute(text("""
+                INSERT INTO dbo.DB_INDEX_MAINT_JOB
+                (
+                    JobId, TableKey, SchemaName, TableName, ObjectId, RequestedMode,
+                    State, Total, Processed, Executed, Skipped, Errors,
+                    StartedAt, UpdatedAt, FinishedAt, Message, RequestedBy
+                )
+                VALUES
+                (
+                    :JobId, :TableKey, :SchemaName, :TableName, :ObjectId, :RequestedMode,
+                    :State, :Total, :Processed, 0, :Skipped, 0,
+                    :StartedAt, :UpdatedAt, :FinishedAt, :Message, :RequestedBy
+                )
+            """), {
+                'JobId': job_id,
+                'TableKey': str(resolved.get('key') or '').strip(),
+                'SchemaName': str(resolved.get('schema_name') or '').strip(),
+                'TableName': str(resolved.get('table_name') or '').strip(),
+                'ObjectId': _to_int(resolved.get('object_id'), 0),
+                'RequestedMode': requested_mode,
+                'State': ('done' if executable <= 0 else 'running'),
+                'Total': total,
+                'Processed': processed,
+                'Skipped': skipped,
+                'StartedAt': now_dt,
+                'UpdatedAt': now_dt,
+                'FinishedAt': (now_dt if executable <= 0 else None),
+                'Message': (
+                    'Sem índices elegíveis para otimizar.'
+                    if executable <= 0 else
+                    f'A preparar manutenção em {resolved.get("key")}.'
+                ),
+                'RequestedBy': requested_by,
+            })
+
+            if plan:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DB_INDEX_MAINT_JOB_ITEM
+                    (
+                        ItemId, JobId, SeqNo, IndexId, IndexName, IndexType,
+                        FragmentationPct, PageCount, PlannedAction, ExecutedAction,
+                        State, Message, StartedAt, UpdatedAt, FinishedAt
+                    )
+                    VALUES
+                    (
+                        :ItemId, :JobId, :SeqNo, :IndexId, :IndexName, :IndexType,
+                        :FragmentationPct, :PageCount, :PlannedAction, NULL,
+                        :State, :Message, NULL, :UpdatedAt, :FinishedAt
+                    )
+                """), [{
+                    'ItemId': str(uuid.uuid4()),
+                    'JobId': job_id,
+                    'SeqNo': _to_int(item.get('seq_no'), 0),
+                    'IndexId': _to_int(item.get('index_id'), 0),
+                    'IndexName': str(item.get('index_name') or '').strip(),
+                    'IndexType': str(item.get('index_type') or '').strip(),
+                    'FragmentationPct': item.get('fragmentation_pct'),
+                    'PageCount': item.get('page_count'),
+                    'PlannedAction': str(item.get('planned_action') or '').strip().upper() or None,
+                    'State': str(item.get('state') or '').strip().lower(),
+                    'Message': str(item.get('message') or '').strip(),
+                    'UpdatedAt': now_dt,
+                    'FinishedAt': (now_dt if str(item.get('state') or '').strip().lower() == 'skipped' else None),
+                } for item in plan])
+
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            return jsonify({'error': f'Não foi possível criar o job: {exc}'}), 500
+
+        if executable > 0:
+            worker = threading.Thread(
+                target=_database_manager_index_maint_run_job,
+                args=(job_id,),
+                daemon=True,
+                name=f'db-index-maint-{job_id[:8]}',
+            )
+            with database_manager_index_maint_workers_lock:
+                database_manager_index_maint_workers[job_id] = worker
+            worker.start()
+
+        job_row = _database_manager_index_maint_get_job(job_id)
+        return jsonify({
+            'ok': True,
+            **_database_manager_index_maint_job_payload(job_row),
+        })
+
+    @app.route('/api/database_manager/index_maintenance/status', methods=['GET'])
+    @login_required
+    def api_database_manager_index_maintenance_status():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        try:
+            _ensure_database_manager_index_maintenance_tables()
+        except Exception as exc:
+            db.session.rollback()
+            return jsonify({'error': f'Não foi possível preparar as tabelas de jobs: {exc}'}), 500
+
+        _database_manager_index_maint_cleanup_running_job()
+
+        job_id = str(request.args.get('job_id') or '').strip()
+        table_key = _database_manager_normalize_table_key(request.args.get('table') or '')
+
+        job_row = None
+        if job_id:
+            job_row = _database_manager_index_maint_get_job(job_id)
+        elif table_key:
+            job_row = _database_manager_index_maint_get_latest_for_table(table_key)
+
+        if not job_row:
+            return jsonify({'job': None, 'items': []})
+
+        return jsonify(_database_manager_index_maint_job_payload(job_row))
 
     @app.route('/api/screen_personalizer/layout', methods=['GET'])
     @login_required
@@ -14928,7 +19235,7 @@ ORDER BY CCUSTO, DATA, DTPESQUISA DESC;
         blocos = []
         pesquisas = []
         try:
-            with pyodbc.connect(radar_conn_str) as conn:
+            with pyodbc.connect(_get_radar_conn_str()) as conn:
                 cur = conn.cursor()
                 cur.execute(sql_blocos)
                 cols = [c[0] for c in cur.description]
@@ -14966,7 +19273,7 @@ ORDER BY CCUSTO, DATA, DTPESQUISA DESC;
         if not stamp:
             return jsonify({"error": "stamp obrigatório"}), 400
         try:
-            with pyodbc.connect(radar_conn_str) as conn:
+            with pyodbc.connect(_get_radar_conn_str()) as conn:
                 cur = conn.cursor()
                 cur.execute("DELETE FROM PESQUISAS WHERE PESQUISASSTAMP = ?", stamp)
                 conn.commit()
@@ -14984,7 +19291,7 @@ ORDER BY CCUSTO, DATA, DTPESQUISA DESC;
         if not stamp:
             return jsonify({"error": "stamp obrigatório"}), 400
         try:
-            with pyodbc.connect(radar_conn_str) as conn:
+            with pyodbc.connect(_get_radar_conn_str()) as conn:
                 cur = conn.cursor()
                 cur.execute("""
                     SELECT CCUSTO, DATA, NOITES, HOSPEDES, NMAIRBNB
@@ -15052,7 +19359,7 @@ VALUES
         """
 
         try:
-            with pyodbc.connect(radar_conn_str) as conn:
+            with pyodbc.connect(_get_radar_conn_str()) as conn:
                 cur = conn.cursor()
                 cur.execute(insert_sql, stamp, ccusto, data_obj, str(noites_int), hospedes_int, nmairbnb)
                 conn.commit()
@@ -15293,7 +19600,7 @@ OPTION (MAXRECURSION 32767);
         """
 
         try:
-            with pyodbc.connect(radar_conn_str) as conn:
+            with pyodbc.connect(_get_radar_conn_str()) as conn:
                 cur = conn.cursor()
                 cur.execute(radar_sql)
                 cols = [c[0] for c in cur.description]

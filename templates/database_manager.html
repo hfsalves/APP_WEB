@@ -19,6 +19,7 @@
       <div class="sz_contextbar_left">
         <div class="sz_page_title">Database Manager</div>
         <div id="dbmSubtitle" class="sz_page_subtitle">Explora tabelas, campos, chaves, índices, triggers e indicadores físicos da base de dados.</div>
+        <div id="dbmRepoMeta" class="sz_text_muted dbm-repo-meta">Repositorio de estrutura por sincronizar.</div>
       </div>
       <div class="sz_contextbar_right dbm-contextbar_right">
         <div class="sz_field dbm-search-field">
@@ -80,6 +81,10 @@
         <div id="dbmStatus" class="sz_text_muted">Modo leitura.</div>
       </div>
       <div class="sz_actionbar_right">
+        <button id="dbmSyncSchemaBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-database"></i>
+          <span>Sincronizar estrutura</span>
+        </button>
         <button id="dbmActionRefreshBtn" type="button" class="sz_button sz_button_primary">
           <i class="fa-solid fa-rotate"></i>
           <span>Atualizar</span>
@@ -112,6 +117,55 @@
       <button type="button" id="dbmSortApply" class="sz_button sz_button_primary">
         <i class="fa-solid fa-check"></i>
         <span>Aplicar</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="dbmIndexMaintModal" class="sz_modal" aria-labelledby="dbmIndexMaintModalLabel" aria-hidden="true">
+  <div class="sz_panel dbm-maint-modal-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 class="sz_h4 sz_modal_title" id="dbmIndexMaintModalLabel">Otimização de índices</h3>
+        <div id="dbmIndexMaintTableLabel" class="sz_text_muted">Seleciona uma tabela.</div>
+      </div>
+      <button type="button" id="dbmIndexMaintCloseTop" class="sz_button sz_button_ghost" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body dbm-maint-modal-body">
+      <section class="dbm-maint-section">
+        <div class="dbm-section-head">
+          <h4 class="dbm-section-title">Modo</h4>
+        </div>
+        <div id="dbmIndexMaintModeList" class="dbm-sort-option-list"></div>
+      </section>
+
+      <section class="dbm-maint-section">
+        <div class="dbm-section-head">
+          <h4 class="dbm-section-title">Plano</h4>
+          <span id="dbmIndexMaintPlanMeta" class="dbm-badge">0</span>
+        </div>
+        <div id="dbmIndexMaintPlanList" class="dbm-maint-plan-list"></div>
+      </section>
+
+      <section class="dbm-maint-section">
+        <div class="dbm-section-head">
+          <h4 class="dbm-section-title">Execução</h4>
+          <span id="dbmIndexMaintRunState" class="dbm-badge">Inativa</span>
+        </div>
+        <div id="dbmIndexMaintJobSummary" class="dbm-maint-job-summary sz_text_muted">Sem job em execução.</div>
+        <div id="dbmIndexMaintJobItems" class="dbm-maint-job-list"></div>
+      </section>
+    </div>
+    <div class="sz_modal_footer">
+      <button type="button" id="dbmIndexMaintClose" class="sz_button sz_button_secondary">
+        <i class="fa-solid fa-ban"></i>
+        <span>Fechar</span>
+      </button>
+      <button type="button" id="dbmIndexMaintStart" class="sz_button sz_button_primary">
+        <i class="fa-solid fa-screwdriver-wrench"></i>
+        <span>Iniciar</span>
       </button>
     </div>
   </div>

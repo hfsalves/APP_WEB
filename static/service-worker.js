@@ -54,6 +54,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-self.addEventListener('fetch', (event) => {
-  event.respondWith(fetch(event.request));
-});
+// This service worker is only used for push notifications.
+// Let the browser handle network requests directly instead of proxying
+// every fetch through the worker, which can surface noisy "Failed to fetch"
+// errors for requests the worker should not handle.

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consistência de BD</title>
+  <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
+  <link rel="shortcut icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/sz_styles.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/database_consistency.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+</head>
+<body class="dbc-body">
+  <main class="dbc-shell">
+    <section class="sz_panel dbc-panel">
+      <header class="dbc-hero">
+        <div>
+          <div class="dbc-kicker">Verificação obrigatória</div>
+          <h1 class="dbc-title">Consistência de BD</h1>
+          <p class="dbc-subtitle">
+            A base ativa não é a principal de desenvolvimento. Antes de entrar na aplicação, valida-se a estrutura local
+            contra o repositório da origem principal para evitar erros por tabelas ou campos em falta.
+          </p>
+        </div>
+        <div class="dbc-target-pill">
+          <i class="fa-solid fa-database"></i>
+          <span>{{ report.target_label }}</span>
+        </div>
+      </header>
+
+      <section class="dbc-meta-grid">
+        <article class="dbc-meta-card">
+          <div class="dbc-meta-label">Base ativa</div>
+          <div class="dbc-meta-value">{{ report.local.database_name or 'n/d' }}</div>
+          <div class="dbc-meta-note">{{ report.local.table_count or 0 }} tabelas · {{ report.local.column_count or 0 }} campos · {{ report.local.structural_data_count or 0 }} registos estruturais</div>
+        </article>
+        <article class="dbc-meta-card">
+          <div class="dbc-meta-label">Origem principal</div>
+          <div class="dbc-meta-value">{{ report.reference.database_name or 'n/d' }}</div>
+          <div class="dbc-meta-note">
+            {% if report.reference.sync_at %}
+              Último snapshot: {{ report.reference.sync_at[:19].replace('T', ' ') }}
+            {% else %}
+              Sem snapshot disponível
+            {% endif %}
+          </div>
+        </article>
+        <article class="dbc-meta-card">
+          <div class="dbc-meta-label">Faltas detetadas</div>
+          <div class="dbc-meta-value">{{ report.summary.missing_table_count or 0 }} tabelas · {{ report.summary.missing_column_count or 0 }} campos</div>
+          <div class="dbc-meta-note">
+            {% if report.is_ok %}
+              Estrutura alinhada com a origem principal.
+            {% else %}
+              {{ report.summary.missing_index_count or 0 }} índices · {{ report.summary.missing_foreign_key_count or 0 }} FKs · {{ report.summary.missing_trigger_count or 0 }} triggers · {{ report.summary.missing_structural_data_count or 0 }} registos em falta · {{ report.summary.changed_structural_data_count or 0 }} registos desalinhados.
+            {% endif %}
+          </div>
+        </article>
+      </section>
+
+      {% if report.error %}
+        <section class="dbc-alert dbc-alert-danger">
+          <div class="dbc-alert-title"><i class="fa-solid fa-triangle-exclamation"></i> Não foi possível validar a consistência</div>
+          <div class="dbc-alert-body">{{ report.error }}</div>
+        </section>
+      {% elif report.is_ok %}
+        <section class="dbc-alert dbc-alert-success">
+          <div class="dbc-alert-title"><i class="fa-solid fa-circle-check"></i> Estrutura validada</div>
+          <div class="dbc-alert-body">Não foram encontradas tabelas nem campos em falta face ao repositório principal.</div>
+        </section>
+      {% else %}
+        <section class="dbc-alert dbc-alert-warning">
+          <div class="dbc-alert-title"><i class="fa-solid fa-bug"></i> Estrutura incompleta</div>
+          <div class="dbc-alert-body">
+            A navegação normal fica bloqueada até a base local ficar alinhada com a origem principal.
+          </div>
+        </section>
+      {% endif %}
+
+      {% if apply_result %}
+        <section class="dbc-alert {% if apply_result.failed_count %}dbc-alert-warning{% else %}dbc-alert-success{% endif %}">
+          <div class="dbc-alert-title">
+            <i class="fa-solid {% if apply_result.failed_count %}fa-screwdriver-wrench{% else %}fa-circle-check{% endif %}"></i>
+            Resultado da atualização estrutural
+          </div>
+          <div class="dbc-alert-body">
+            {{ apply_result.applied_count or 0 }} aplicado(s) ·
+            {{ apply_result.failed_count or 0 }} falha(s) ·
+            {{ apply_result.skipped_count or 0 }} ignorado(s).
+          </div>
+          {% if apply_result.failed_preview %}
+            <div class="dbc-preview-list">
+              {% for item in apply_result.failed_preview %}
+                <div class="dbc-preview-item">
+                  <strong>{{ item.type }}</strong>
+                  <span>{{ item.name }}</span>
+                  <small>{{ item.error }}</small>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </section>
+      {% endif %}
+
+      <section class="dbc-sections">
+        <article class="sz_panel dbc-section-card">
+          <div class="dbc-section-head">
+            <h2 class="dbc-section-title">Tabelas em falta</h2>
+            <span class="dbc-section-badge">{{ report.summary.missing_table_count or 0 }}</span>
+          </div>
+          {% if report.missing_tables %}
+            <div class="dbc-list">
+              {% for item in report.missing_tables %}
+                <div class="dbc-list-item">
+                  <div class="dbc-list-title">{{ item.table_key }}</div>
+                  <div class="dbc-list-subtitle">{{ item.schema_name }} · {{ item.table_name }}</div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="dbc-empty">Não foram detetadas tabelas em falta.</div>
+          {% endif %}
+        </article>
+
+        <article class="sz_panel dbc-section-card">
+          <div class="dbc-section-head">
+            <h2 class="dbc-section-title">Campos em falta</h2>
+            <span class="dbc-section-badge">{{ report.summary.missing_column_count or 0 }}</span>
+          </div>
+          {% if report.missing_columns %}
+            <div class="dbc-group-list">
+              {% for item in report.missing_columns %}
+                <section class="dbc-group-card">
+                  <div class="dbc-group-head">
+                    <div>
+                      <div class="dbc-list-title">{{ item.table_key }}</div>
+                      <div class="dbc-list-subtitle">{{ item.missing_count }} campo(s) em falta</div>
+                    </div>
+                  </div>
+                  <div class="dbc-inline-tags">
+                    {% for col in item.columns %}
+                      <span class="dbc-tag" title="{{ col.type_label or col.data_type }}">
+                        {{ col.column_name }}
+                        {% if col.type_label %}
+                          <small>{{ col.type_label }}</small>
+                        {% elif col.data_type %}
+                          <small>{{ col.data_type }}</small>
+                        {% endif %}
+                      </span>
+                    {% endfor %}
+                  </div>
+                </section>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="dbc-empty">Não foram detetados campos em falta.</div>
+          {% endif %}
+        </article>
+      </section>
+
+      <section class="dbc-sections dbc-sections-secondary">
+        <article class="sz_panel dbc-section-card">
+          <div class="dbc-section-head">
+            <h2 class="dbc-section-title">Índices em falta</h2>
+            <span class="dbc-section-badge">{{ report.summary.missing_index_count or 0 }}</span>
+          </div>
+          {% if report.missing_indexes %}
+            <div class="dbc-group-list">
+              {% for item in report.missing_indexes %}
+                <section class="dbc-group-card">
+                  <div class="dbc-group-head">
+                    <div>
+                      <div class="dbc-list-title">{{ item.table_key }}</div>
+                      <div class="dbc-list-subtitle">{{ item.missing_count }} índice(s) em falta</div>
+                    </div>
+                  </div>
+                  <div class="dbc-inline-tags">
+                    {% for obj in item['items'] %}
+                      <span class="dbc-tag">
+                        {{ obj.name }}
+                        {% if obj.subtitle %}
+                          <small>{{ obj.subtitle }}</small>
+                        {% endif %}
+                      </span>
+                    {% endfor %}
+                  </div>
+                </section>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="dbc-empty">Não foram detetados índices em falta.</div>
+          {% endif %}
+        </article>
+
+        <article class="sz_panel dbc-section-card">
+          <div class="dbc-section-head">
+            <h2 class="dbc-section-title">Foreign Keys em falta</h2>
+            <span class="dbc-section-badge">{{ report.summary.missing_foreign_key_count or 0 }}</span>
+          </div>
+          {% if report.missing_foreign_keys %}
+            <div class="dbc-group-list">
+              {% for item in report.missing_foreign_keys %}
+                <section class="dbc-group-card">
+                  <div class="dbc-group-head">
+                    <div>
+                      <div class="dbc-list-title">{{ item.table_key }}</div>
+                      <div class="dbc-list-subtitle">{{ item.missing_count }} FK(s) em falta</div>
+                    </div>
+                  </div>
+                  <div class="dbc-inline-tags">
+                    {% for obj in item['items'] %}
+                      <span class="dbc-tag">
+                        {{ obj.name }}
+                        {% if obj.subtitle %}
+                          <small>{{ obj.subtitle }}</small>
+                        {% endif %}
+                      </span>
+                    {% endfor %}
+                  </div>
+                </section>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="dbc-empty">Não foram detetadas foreign keys em falta.</div>
+          {% endif %}
+        </article>
+
+        <article class="sz_panel dbc-section-card">
+          <div class="dbc-section-head">
+            <h2 class="dbc-section-title">Triggers em falta</h2>
+            <span class="dbc-section-badge">{{ report.summary.missing_trigger_count or 0 }}</span>
+          </div>
+          {% if report.missing_triggers %}
+            <div class="dbc-group-list">
+              {% for item in report.missing_triggers %}
+                <section class="dbc-group-card">
+                  <div class="dbc-group-head">
+                    <div>
+                      <div class="dbc-list-title">{{ item.table_key }}</div>
+                      <div class="dbc-list-subtitle">{{ item.missing_count }} trigger(s) em falta</div>
+                    </div>
+                  </div>
+                  <div class="dbc-inline-tags">
+                    {% for obj in item['items'] %}
+                      <span class="dbc-tag">
+                        {{ obj.name }}
+                        {% if obj.subtitle %}
+                          <small>{{ obj.subtitle }}</small>
+                        {% endif %}
+                      </span>
+                    {% endfor %}
+                  </div>
+                </section>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="dbc-empty">Não foram detetadas triggers em falta.</div>
+          {% endif %}
+        </article>
+      </section>
+
+      <section class="dbc-sections dbc-sections-secondary">
+        <article class="sz_panel dbc-section-card">
+          <div class="dbc-section-head">
+            <h2 class="dbc-section-title">Dados estruturais em falta</h2>
+            <span class="dbc-section-badge">{{ report.summary.missing_structural_data_count or 0 }}</span>
+          </div>
+          {% if report.missing_structural_data %}
+            <div class="dbc-group-list">
+              {% for item in report.missing_structural_data %}
+                <section class="dbc-group-card">
+                  <div class="dbc-group-head">
+                    <div>
+                      <div class="dbc-list-title">{{ item.table_key }}</div>
+                      <div class="dbc-list-subtitle">{{ item.missing_count }} registo(s) em falta</div>
+                    </div>
+                  </div>
+                  <div class="dbc-inline-tags">
+                    {% for obj in item['items'] %}
+                      <span class="dbc-tag">
+                        {{ obj.name }}
+                        {% if obj.subtitle %}
+                          <small>{{ obj.subtitle }}</small>
+                        {% endif %}
+                      </span>
+                    {% endfor %}
+                  </div>
+                </section>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="dbc-empty">Não foram detetados registos estruturais em falta.</div>
+          {% endif %}
+        </article>
+
+        <article class="sz_panel dbc-section-card">
+          <div class="dbc-section-head">
+            <h2 class="dbc-section-title">Dados estruturais desalinhados</h2>
+            <span class="dbc-section-badge">{{ report.summary.changed_structural_data_count or 0 }}</span>
+          </div>
+          {% if report.changed_structural_data %}
+            <div class="dbc-group-list">
+              {% for item in report.changed_structural_data %}
+                <section class="dbc-group-card">
+                  <div class="dbc-group-head">
+                    <div>
+                      <div class="dbc-list-title">{{ item.table_key }}</div>
+                      <div class="dbc-list-subtitle">{{ item.missing_count }} registo(s) com diferenças</div>
+                    </div>
+                  </div>
+                  <div class="dbc-inline-tags">
+                    {% for obj in item['items'] %}
+                      <span class="dbc-tag">
+                        {{ obj.name }}
+                        {% if obj.subtitle %}
+                          <small>{{ obj.subtitle }}</small>
+                        {% endif %}
+                      </span>
+                    {% endfor %}
+                  </div>
+                </section>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="dbc-empty">Não foram detetados registos estruturais desalinhados.</div>
+          {% endif %}
+        </article>
+      </section>
+
+      <footer class="dbc-actions">
+        <a class="sz_button sz_button_secondary" href="{{ url_for('database_consistency_page') }}">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Reanalisar</span>
+        </a>
+        <a class="sz_button sz_button_ghost" href="{{ url_for('logout') }}">
+          <i class="fa-solid fa-right-from-bracket"></i>
+          <span>Terminar sessão</span>
+        </a>
+        {% if can_apply and not report.error and not report.is_ok %}
+          <form method="post" action="{{ url_for('database_consistency_apply') }}">
+            <button type="submit" class="sz_button sz_button_primary">
+              <i class="fa-solid fa-screwdriver-wrench"></i>
+              <span>Atualizar estrutura local</span>
+            </button>
+          </form>
+        {% endif %}
+        {% if can_continue %}
+          <form method="post" action="{{ url_for('database_consistency_continue') }}">
+            <button type="submit" class="sz_button sz_button_primary">
+              <i class="fa-solid fa-arrow-right"></i>
+              <span>Entrar na aplicação</span>
+            </button>
+          </form>
+        {% endif %}
+      </footer>
+    </section>
+  </main>
+</body>
+</html>
