@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Database Manager{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/database_manager.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+  <script>
+    window.DATABASE_MANAGER_CONFIG = {
+      initialTableKey: {{ (initial_table_key or '')|tojson }}
+    };
+  </script>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page dbm-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar dbm-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Database Manager</div>
+        <div id="dbmSubtitle" class="sz_page_subtitle">Explora tabelas, campos, chaves, índices, triggers e indicadores físicos da base de dados.</div>
+      </div>
+      <div class="sz_contextbar_right dbm-contextbar_right">
+        <div class="sz_field dbm-search-field">
+          <label class="sz_label" for="dbmTableSearch">Pesquisar tabela</label>
+          <input id="dbmTableSearch" class="sz_input" type="search" placeholder="Ex: ACESSOS">
+        </div>
+        <button id="dbmRefreshBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="dbm-layout">
+        <aside class="sz_panel dbm-panel">
+          <div class="dbm-panel-head">
+            <div>
+              <div class="sz_h4">Tabelas</div>
+              <div id="dbmTablesMeta" class="sz_text_muted">A carregar...</div>
+            </div>
+            <button id="dbmSortTablesBtn" type="button" class="sz_button sz_button_ghost dbm-panel-icon-btn" aria-label="Ordenar tabelas" title="Ordenar tabelas">
+              <i class="fa-solid fa-arrow-down-wide-short"></i>
+            </button>
+          </div>
+          <div id="dbmTablesList" class="dbm-panel-body">
+            <div class="dbm-empty">A carregar tabelas...</div>
+          </div>
+        </aside>
+
+        <section class="sz_panel dbm-panel">
+          <div class="dbm-panel-head">
+            <div>
+              <div class="sz_h4">Campos</div>
+              <div id="dbmColumnsMeta" class="sz_text_muted">Seleciona uma tabela.</div>
+            </div>
+          </div>
+          <div id="dbmColumnsList" class="dbm-panel-body">
+            <div class="dbm-empty">Seleciona uma tabela para ver os campos.</div>
+          </div>
+        </section>
+
+        <aside class="sz_panel dbm-panel">
+          <div class="dbm-panel-head">
+            <div>
+              <div class="sz_h4">Características</div>
+              <div id="dbmDetailMeta" class="sz_text_muted">Estado e metadados da tabela.</div>
+            </div>
+          </div>
+          <div id="dbmDetailContent" class="dbm-panel-body">
+            <div class="dbm-empty">Seleciona uma tabela para ver o detalhe.</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left">
+        <div id="dbmStatus" class="sz_text_muted">Modo leitura.</div>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="dbmActionRefreshBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+        <button id="dbmBackBtn" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div id="dbmSortModal" class="sz_modal" aria-labelledby="dbmSortModalLabel" aria-hidden="true">
+  <div class="sz_panel dbm-sort-modal-panel">
+    <div class="sz_modal_header">
+      <h3 class="sz_h4 sz_modal_title" id="dbmSortModalLabel">Ordenação das tabelas</h3>
+      <button type="button" id="dbmSortModalCloseTop" class="sz_button sz_button_ghost" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body dbm-sort-modal-body">
+      <div id="dbmSortOptionList" class="dbm-sort-option-list"></div>
+    </div>
+    <div class="sz_modal_footer">
+      <button type="button" id="dbmSortModalClose" class="sz_button sz_button_secondary">
+        <i class="fa-solid fa-ban"></i>
+        <span>Cancelar</span>
+      </button>
+      <button type="button" id="dbmSortApply" class="sz_button sz_button_primary">
+        <i class="fa-solid fa-check"></i>
+        <span>Aplicar</span>
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/database_manager.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+{% endblock %}

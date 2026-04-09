@@ -3393,6 +3393,725 @@ def create_app():
         except Exception:
             return False
 
+    def _database_manager_allowed() -> bool:
+        return _screen_wizard_allowed()
+
+    def _database_manager_normalize_table_key(raw_value: str) -> str:
+        value = str(raw_value or '').strip().replace('[', '').replace(']', '')
+        if not value:
+            return ''
+        parts = [part.strip() for part in value.split('.', 1)]
+        if len(parts) == 1:
+            schema_name, table_name = 'dbo', parts[0]
+        else:
+            schema_name, table_name = parts[0], parts[1]
+        if not schema_name or not table_name:
+            return ''
+        return f'{schema_name}.{table_name}'
+
+    def _database_manager_resolve_table(raw_value: str):
+        normalized = _database_manager_normalize_table_key(raw_value)
+        if not normalized:
+            return None
+        schema_name, table_name = normalized.split('.', 1)
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                T.object_id AS OBJECT_ID,
+                S.name AS SCHEMA_NAME,
+                T.name AS TABLE_NAME
+            FROM sys.tables T
+            INNER JOIN sys.schemas S
+                ON S.schema_id = T.schema_id
+            WHERE T.is_ms_shipped = 0
+              AND UPPER(S.name) = :schema_name
+              AND UPPER(T.name) = :table_name
+        """), {
+            'schema_name': schema_name.upper(),
+            'table_name': table_name.upper(),
+        }).mappings().first()
+        if not row:
+            return None
+        schema_name = str(row.get('SCHEMA_NAME') or '').strip()
+        table_name = str(row.get('TABLE_NAME') or '').strip()
+        return {
+            'object_id': _to_int(row.get('OBJECT_ID'), 0),
+            'schema_name': schema_name,
+            'table_name': table_name,
+            'key': f'{schema_name}.{table_name}',
+        }
+
+    def _database_manager_sql_type_label(row: dict) -> str:
+        data_type = str(row.get('data_type') or row.get('DATA_TYPE') or '').strip().lower()
+        max_length = row.get('max_length')
+        precision = row.get('numeric_precision')
+        scale = row.get('numeric_scale')
+
+        if data_type in {'varchar', 'char', 'nvarchar', 'nchar', 'binary', 'varbinary'}:
+            if _to_int(max_length, 0) < 0:
+                return f'{data_type}(max)'
+            return f'{data_type}({_to_int(max_length, 0)})'
+        if data_type in {'decimal', 'numeric'}:
+            return f'{data_type}({_to_int(precision, 0)},{_to_int(scale, 0)})'
+        if data_type in {'datetime2', 'datetimeoffset', 'time'} and scale not in (None, ''):
+            return f'{data_type}({_to_int(scale, 0)})'
+        return data_type
+
+    def _database_manager_preview_sql(raw_value: str, limit: int = 220) -> str:
+        text_value = re.sub(r'\s+', ' ', str(raw_value or '').strip())
+        if len(text_value) <= limit:
+            return text_value
+        return text_value[:max(0, limit - 3)].rstrip() + '...'
+
+    def _load_database_manager_tables():
+        rows = db.session.execute(text("""
+            WITH table_base AS (
+                SELECT
+                    T.object_id,
+                    S.name AS SCHEMA_NAME,
+                    T.name AS TABLE_NAME,
+                    T.create_date AS CREATE_DATE,
+                    T.modify_date AS MODIFY_DATE
+                FROM sys.tables T
+                INNER JOIN sys.schemas S
+                    ON S.schema_id = T.schema_id
+                WHERE T.is_ms_shipped = 0
+                  AND UPPER(T.name) <> 'SYSDIAGRAMS'
+            ),
+            size_stats AS (
+                SELECT
+                    PS.object_id,
+                    SUM(CASE WHEN PS.index_id IN (0, 1) THEN PS.row_count ELSE 0 END) AS ROW_COUNT,
+                    SUM(PS.reserved_page_count) * 8.0 / 1024 AS RESERVED_MB,
+                    SUM(PS.used_page_count) * 8.0 / 1024 AS USED_MB,
+                    SUM(PS.in_row_data_page_count + PS.lob_used_page_count + PS.row_overflow_used_page_count) * 8.0 / 1024 AS DATA_MB
+                FROM sys.dm_db_partition_stats PS
+                GROUP BY PS.object_id
+            ),
+            column_stats AS (
+                SELECT
+                    C.object_id,
+                    COUNT(*) AS COLUMN_COUNT
+                FROM sys.columns C
+                GROUP BY C.object_id
+            ),
+            trigger_stats AS (
+                SELECT
+                    TR.parent_id AS object_id,
+                    COUNT(*) AS TRIGGER_COUNT
+                FROM sys.triggers TR
+                WHERE TR.parent_class = 1
+                  AND TR.is_ms_shipped = 0
+                GROUP BY TR.parent_id
+            ),
+            index_stats AS (
+                SELECT
+                    I.object_id,
+                    COUNT(*) AS INDEX_COUNT
+                FROM sys.indexes I
+                WHERE I.is_hypothetical = 0
+                  AND I.index_id > 0
+                GROUP BY I.object_id
+            )
+            SELECT
+                TB.object_id AS OBJECT_ID,
+                TB.SCHEMA_NAME,
+                TB.TABLE_NAME,
+                TB.CREATE_DATE,
+                TB.MODIFY_DATE,
+                ISNULL(SS.ROW_COUNT, 0) AS ROW_COUNT,
+                ISNULL(CS.COLUMN_COUNT, 0) AS COLUMN_COUNT,
+                ISNULL(TS.TRIGGER_COUNT, 0) AS TRIGGER_COUNT,
+                ISNULL(IX.INDEX_COUNT, 0) AS INDEX_COUNT,
+                CAST(ISNULL(SS.RESERVED_MB, 0) AS decimal(18, 2)) AS RESERVED_MB,
+                CAST(ISNULL(SS.DATA_MB, 0) AS decimal(18, 2)) AS DATA_MB,
+                CAST(CASE
+                    WHEN ISNULL(SS.USED_MB, 0) > ISNULL(SS.DATA_MB, 0)
+                        THEN ISNULL(SS.USED_MB, 0) - ISNULL(SS.DATA_MB, 0)
+                    ELSE 0
+                END AS decimal(18, 2)) AS INDEX_MB
+            FROM table_base TB
+            LEFT JOIN size_stats SS
+                ON SS.object_id = TB.object_id
+            LEFT JOIN column_stats CS
+                ON CS.object_id = TB.object_id
+            LEFT JOIN trigger_stats TS
+                ON TS.object_id = TB.object_id
+            LEFT JOIN index_stats IX
+                ON IX.object_id = TB.object_id
+            ORDER BY UPPER(TB.SCHEMA_NAME), UPPER(TB.TABLE_NAME)
+        """)).mappings().all()
+
+        items = []
+        for row in rows:
+            schema_name = str(row.get('SCHEMA_NAME') or '').strip()
+            table_name = str(row.get('TABLE_NAME') or '').strip()
+            items.append({
+                'key': f'{schema_name}.{table_name}',
+                'schema': schema_name,
+                'name': table_name,
+                'row_count': _to_int(row.get('ROW_COUNT'), 0),
+                'column_count': _to_int(row.get('COLUMN_COUNT'), 0),
+                'index_count': _to_int(row.get('INDEX_COUNT'), 0),
+                'trigger_count': _to_int(row.get('TRIGGER_COUNT'), 0),
+                'reserved_mb': round(_num(row.get('RESERVED_MB'), 0), 2),
+                'data_mb': round(_num(row.get('DATA_MB'), 0), 2),
+                'index_mb': round(_num(row.get('INDEX_MB'), 0), 2),
+                'created_at': (row.get('CREATE_DATE').isoformat() if row.get('CREATE_DATE') else None),
+                'modified_at': (row.get('MODIFY_DATE').isoformat() if row.get('MODIFY_DATE') else None),
+            })
+        return items
+
+    def _load_database_manager_summary(object_id: int):
+        row = db.session.execute(text("""
+            WITH table_base AS (
+                SELECT
+                    T.object_id,
+                    S.name AS SCHEMA_NAME,
+                    T.name AS TABLE_NAME,
+                    T.create_date AS CREATE_DATE,
+                    T.modify_date AS MODIFY_DATE,
+                    T.lock_escalation_desc AS LOCK_ESCALATION_DESC,
+                    T.temporal_type_desc AS TEMPORAL_TYPE_DESC,
+                    T.is_memory_optimized AS IS_MEMORY_OPTIMIZED,
+                    T.is_filetable AS IS_FILETABLE
+                FROM sys.tables T
+                INNER JOIN sys.schemas S
+                    ON S.schema_id = T.schema_id
+                WHERE T.object_id = :object_id
+            ),
+            size_stats AS (
+                SELECT
+                    PS.object_id,
+                    SUM(CASE WHEN PS.index_id IN (0, 1) THEN PS.row_count ELSE 0 END) AS ROW_COUNT,
+                    SUM(PS.reserved_page_count) * 8.0 / 1024 AS RESERVED_MB,
+                    SUM(PS.used_page_count) * 8.0 / 1024 AS USED_MB,
+                    SUM(PS.in_row_data_page_count + PS.lob_used_page_count + PS.row_overflow_used_page_count) * 8.0 / 1024 AS DATA_MB
+                FROM sys.dm_db_partition_stats PS
+                WHERE PS.object_id = :object_id
+                GROUP BY PS.object_id
+            ),
+            column_meta AS (
+                SELECT
+                    C.object_id,
+                    COUNT(*) AS COLUMN_COUNT,
+                    SUM(CASE WHEN C.is_nullable = 1 THEN 1 ELSE 0 END) AS NULLABLE_COUNT,
+                    SUM(CASE WHEN C.is_identity = 1 THEN 1 ELSE 0 END) AS IDENTITY_COUNT,
+                    SUM(CASE WHEN C.is_computed = 1 THEN 1 ELSE 0 END) AS COMPUTED_COUNT,
+                    SUM(CASE WHEN C.default_object_id > 0 THEN 1 ELSE 0 END) AS DEFAULT_COUNT
+                FROM sys.columns C
+                WHERE C.object_id = :object_id
+                GROUP BY C.object_id
+            ),
+            trigger_stats AS (
+                SELECT
+                    TR.parent_id AS object_id,
+                    COUNT(*) AS TRIGGER_COUNT
+                FROM sys.triggers TR
+                WHERE TR.parent_class = 1
+                  AND TR.is_ms_shipped = 0
+                  AND TR.parent_id = :object_id
+                GROUP BY TR.parent_id
+            ),
+            index_stats AS (
+                SELECT
+                    I.object_id,
+                    COUNT(*) AS INDEX_COUNT
+                FROM sys.indexes I
+                WHERE I.is_hypothetical = 0
+                  AND I.index_id > 0
+                  AND I.object_id = :object_id
+                GROUP BY I.object_id
+            ),
+            foreign_key_stats AS (
+                SELECT
+                    FK.parent_object_id AS object_id,
+                    COUNT(*) AS FOREIGN_KEY_COUNT
+                FROM sys.foreign_keys FK
+                WHERE FK.parent_object_id = :object_id
+                GROUP BY FK.parent_object_id
+            ),
+            incoming_foreign_key_stats AS (
+                SELECT
+                    FK.referenced_object_id AS object_id,
+                    COUNT(*) AS INCOMING_FOREIGN_KEY_COUNT
+                FROM sys.foreign_keys FK
+                WHERE FK.referenced_object_id = :object_id
+                GROUP BY FK.referenced_object_id
+            )
+            SELECT TOP 1
+                TB.object_id AS OBJECT_ID,
+                TB.SCHEMA_NAME,
+                TB.TABLE_NAME,
+                TB.CREATE_DATE,
+                TB.MODIFY_DATE,
+                TB.LOCK_ESCALATION_DESC,
+                TB.TEMPORAL_TYPE_DESC,
+                ISNULL(TB.IS_MEMORY_OPTIMIZED, 0) AS IS_MEMORY_OPTIMIZED,
+                ISNULL(TB.IS_FILETABLE, 0) AS IS_FILETABLE,
+                ISNULL(SS.ROW_COUNT, 0) AS ROW_COUNT,
+                ISNULL(CM.COLUMN_COUNT, 0) AS COLUMN_COUNT,
+                ISNULL(CM.NULLABLE_COUNT, 0) AS NULLABLE_COUNT,
+                ISNULL(CM.IDENTITY_COUNT, 0) AS IDENTITY_COUNT,
+                ISNULL(CM.COMPUTED_COUNT, 0) AS COMPUTED_COUNT,
+                ISNULL(CM.DEFAULT_COUNT, 0) AS DEFAULT_COUNT,
+                ISNULL(TS.TRIGGER_COUNT, 0) AS TRIGGER_COUNT,
+                ISNULL(IX.INDEX_COUNT, 0) AS INDEX_COUNT,
+                ISNULL(FKS.FOREIGN_KEY_COUNT, 0) AS FOREIGN_KEY_COUNT,
+                ISNULL(IFKS.INCOMING_FOREIGN_KEY_COUNT, 0) AS INCOMING_FOREIGN_KEY_COUNT,
+                CAST(ISNULL(SS.RESERVED_MB, 0) AS decimal(18, 2)) AS RESERVED_MB,
+                CAST(ISNULL(SS.DATA_MB, 0) AS decimal(18, 2)) AS DATA_MB,
+                CAST(CASE
+                    WHEN ISNULL(SS.USED_MB, 0) > ISNULL(SS.DATA_MB, 0)
+                        THEN ISNULL(SS.USED_MB, 0) - ISNULL(SS.DATA_MB, 0)
+                    ELSE 0
+                END AS decimal(18, 2)) AS INDEX_MB,
+                CAST(CASE
+                    WHEN ISNULL(SS.RESERVED_MB, 0) > ISNULL(SS.USED_MB, 0)
+                        THEN ISNULL(SS.RESERVED_MB, 0) - ISNULL(SS.USED_MB, 0)
+                    ELSE 0
+                END AS decimal(18, 2)) AS UNUSED_MB
+            FROM table_base TB
+            LEFT JOIN size_stats SS
+                ON SS.object_id = TB.object_id
+            LEFT JOIN column_meta CM
+                ON CM.object_id = TB.object_id
+            LEFT JOIN trigger_stats TS
+                ON TS.object_id = TB.object_id
+            LEFT JOIN index_stats IX
+                ON IX.object_id = TB.object_id
+            LEFT JOIN foreign_key_stats FKS
+                ON FKS.object_id = TB.object_id
+            LEFT JOIN incoming_foreign_key_stats IFKS
+                ON IFKS.object_id = TB.object_id
+        """), {'object_id': int(object_id)}).mappings().first()
+        if not row:
+            return None
+        schema_name = str(row.get('SCHEMA_NAME') or '').strip()
+        table_name = str(row.get('TABLE_NAME') or '').strip()
+        return {
+            'key': f'{schema_name}.{table_name}',
+            'schema': schema_name,
+            'name': table_name,
+            'row_count': _to_int(row.get('ROW_COUNT'), 0),
+            'column_count': _to_int(row.get('COLUMN_COUNT'), 0),
+            'nullable_count': _to_int(row.get('NULLABLE_COUNT'), 0),
+            'identity_count': _to_int(row.get('IDENTITY_COUNT'), 0),
+            'computed_count': _to_int(row.get('COMPUTED_COUNT'), 0),
+            'default_count': _to_int(row.get('DEFAULT_COUNT'), 0),
+            'trigger_count': _to_int(row.get('TRIGGER_COUNT'), 0),
+            'index_count': _to_int(row.get('INDEX_COUNT'), 0),
+            'foreign_key_count': _to_int(row.get('FOREIGN_KEY_COUNT'), 0),
+            'incoming_foreign_key_count': _to_int(row.get('INCOMING_FOREIGN_KEY_COUNT'), 0),
+            'reserved_mb': round(_num(row.get('RESERVED_MB'), 0), 2),
+            'data_mb': round(_num(row.get('DATA_MB'), 0), 2),
+            'index_mb': round(_num(row.get('INDEX_MB'), 0), 2),
+            'unused_mb': round(_num(row.get('UNUSED_MB'), 0), 2),
+            'created_at': (row.get('CREATE_DATE').isoformat() if row.get('CREATE_DATE') else None),
+            'modified_at': (row.get('MODIFY_DATE').isoformat() if row.get('MODIFY_DATE') else None),
+            'lock_escalation': str(row.get('LOCK_ESCALATION_DESC') or '').strip(),
+            'temporal_type': str(row.get('TEMPORAL_TYPE_DESC') or '').strip(),
+            'is_memory_optimized': bool(_to_int(row.get('IS_MEMORY_OPTIMIZED'), 0)),
+            'is_filetable': bool(_to_int(row.get('IS_FILETABLE'), 0)),
+        }
+
+    def _load_database_manager_columns(object_id: int):
+        rows = db.session.execute(text("""
+            SELECT
+                C.column_id AS ORDINAL_POSITION,
+                C.name AS COLUMN_NAME,
+                TY.name AS DATA_TYPE,
+                CASE
+                    WHEN C.max_length = -1 THEN -1
+                    WHEN TY.name IN ('nvarchar', 'nchar') THEN C.max_length / 2
+                    ELSE C.max_length
+                END AS MAX_LENGTH,
+                C.precision AS NUMERIC_PRECISION,
+                C.scale AS NUMERIC_SCALE,
+                C.is_nullable AS IS_NULLABLE,
+                C.is_identity AS IS_IDENTITY,
+                C.is_computed AS IS_COMPUTED,
+                C.collation_name AS COLLATION_NAME,
+                DC.definition AS DEFAULT_DEFINITION,
+                CONVERT(nvarchar(128), IC.seed_value) AS IDENTITY_SEED,
+                CONVERT(nvarchar(128), IC.increment_value) AS IDENTITY_INCREMENT,
+                CASE WHEN PKCOL.column_id IS NULL THEN 0 ELSE 1 END AS IS_PRIMARY_KEY,
+                CASE WHEN FKREF.FK_NAME IS NULL THEN 0 ELSE 1 END AS IS_FOREIGN_KEY,
+                FKREF.FK_NAME,
+                FKREF.REF_SCHEMA_NAME,
+                FKREF.REF_TABLE_NAME,
+                FKREF.REF_COLUMN_NAME
+            FROM sys.columns C
+            INNER JOIN sys.types TY
+                ON TY.user_type_id = C.user_type_id
+            LEFT JOIN sys.default_constraints DC
+                ON DC.object_id = C.default_object_id
+            LEFT JOIN sys.identity_columns IC
+                ON IC.object_id = C.object_id
+               AND IC.column_id = C.column_id
+            LEFT JOIN (
+                SELECT
+                    ICX.object_id,
+                    ICX.column_id
+                FROM sys.indexes I
+                INNER JOIN sys.index_columns ICX
+                    ON ICX.object_id = I.object_id
+                   AND ICX.index_id = I.index_id
+                WHERE I.is_primary_key = 1
+                GROUP BY ICX.object_id, ICX.column_id
+            ) PKCOL
+                ON PKCOL.object_id = C.object_id
+               AND PKCOL.column_id = C.column_id
+            OUTER APPLY (
+                SELECT TOP 1
+                    FK.name AS FK_NAME,
+                    RS.name AS REF_SCHEMA_NAME,
+                    RT.name AS REF_TABLE_NAME,
+                    RC.name AS REF_COLUMN_NAME
+                FROM sys.foreign_key_columns FKC
+                INNER JOIN sys.foreign_keys FK
+                    ON FK.object_id = FKC.constraint_object_id
+                INNER JOIN sys.tables RT
+                    ON RT.object_id = FKC.referenced_object_id
+                INNER JOIN sys.schemas RS
+                    ON RS.schema_id = RT.schema_id
+                INNER JOIN sys.columns RC
+                    ON RC.object_id = FKC.referenced_object_id
+                   AND RC.column_id = FKC.referenced_column_id
+                WHERE FKC.parent_object_id = C.object_id
+                  AND FKC.parent_column_id = C.column_id
+                ORDER BY FK.name
+            ) FKREF
+            WHERE C.object_id = :object_id
+            ORDER BY C.column_id
+        """), {'object_id': int(object_id)}).mappings().all()
+
+        columns = []
+        for row in rows:
+            ref_schema = str(row.get('REF_SCHEMA_NAME') or '').strip()
+            ref_table = str(row.get('REF_TABLE_NAME') or '').strip()
+            ref_column = str(row.get('REF_COLUMN_NAME') or '').strip()
+            reference_target = ''
+            if ref_schema and ref_table:
+                reference_target = f'{ref_schema}.{ref_table}'
+                if ref_column:
+                    reference_target += f' ({ref_column})'
+            columns.append({
+                'ordinal': _to_int(row.get('ORDINAL_POSITION'), 0),
+                'name': str(row.get('COLUMN_NAME') or '').strip(),
+                'data_type': str(row.get('DATA_TYPE') or '').strip().lower(),
+                'type_label': _database_manager_sql_type_label({
+                    'DATA_TYPE': row.get('DATA_TYPE'),
+                    'max_length': row.get('MAX_LENGTH'),
+                    'numeric_precision': row.get('NUMERIC_PRECISION'),
+                    'numeric_scale': row.get('NUMERIC_SCALE'),
+                }),
+                'max_length': _to_int(row.get('MAX_LENGTH'), 0),
+                'numeric_precision': _to_int(row.get('NUMERIC_PRECISION'), 0),
+                'numeric_scale': _to_int(row.get('NUMERIC_SCALE'), 0),
+                'is_nullable': bool(_to_int(row.get('IS_NULLABLE'), 0)),
+                'is_identity': bool(_to_int(row.get('IS_IDENTITY'), 0)),
+                'is_computed': bool(_to_int(row.get('IS_COMPUTED'), 0)),
+                'is_primary_key': bool(_to_int(row.get('IS_PRIMARY_KEY'), 0)),
+                'is_foreign_key': bool(_to_int(row.get('IS_FOREIGN_KEY'), 0)),
+                'default_definition': str(row.get('DEFAULT_DEFINITION') or '').strip(),
+                'collation_name': str(row.get('COLLATION_NAME') or '').strip(),
+                'identity_seed': (_num(row.get('IDENTITY_SEED'), 0) if row.get('IDENTITY_SEED') is not None else None),
+                'identity_increment': (_num(row.get('IDENTITY_INCREMENT'), 0) if row.get('IDENTITY_INCREMENT') is not None else None),
+                'foreign_key_name': str(row.get('FK_NAME') or '').strip(),
+                'reference_target': reference_target,
+            })
+        return columns
+
+    def _load_database_manager_foreign_keys(object_id: int):
+        rows = db.session.execute(text("""
+            SELECT
+                FK.name AS FK_NAME,
+                RS.name AS REF_SCHEMA_NAME,
+                RT.name AS REF_TABLE_NAME,
+                FK.delete_referential_action_desc AS DELETE_ACTION,
+                FK.update_referential_action_desc AS UPDATE_ACTION,
+                FK.is_disabled AS IS_DISABLED,
+                STUFF((
+                    SELECT ', ' + PC.name
+                    FROM sys.foreign_key_columns FKC2
+                    INNER JOIN sys.columns PC
+                        ON PC.object_id = FKC2.parent_object_id
+                       AND PC.column_id = FKC2.parent_column_id
+                    WHERE FKC2.constraint_object_id = FK.object_id
+                    ORDER BY FKC2.constraint_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS COLUMN_NAMES,
+                STUFF((
+                    SELECT ', ' + RC.name
+                    FROM sys.foreign_key_columns FKC3
+                    INNER JOIN sys.columns RC
+                        ON RC.object_id = FKC3.referenced_object_id
+                       AND RC.column_id = FKC3.referenced_column_id
+                    WHERE FKC3.constraint_object_id = FK.object_id
+                    ORDER BY FKC3.constraint_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS REF_COLUMN_NAMES
+            FROM sys.foreign_keys FK
+            INNER JOIN sys.tables RT
+                ON RT.object_id = FK.referenced_object_id
+            INNER JOIN sys.schemas RS
+                ON RS.schema_id = RT.schema_id
+            WHERE FK.parent_object_id = :object_id
+            ORDER BY FK.name
+        """), {'object_id': int(object_id)}).mappings().all()
+
+        items = []
+        for row in rows:
+            ref_schema = str(row.get('REF_SCHEMA_NAME') or '').strip()
+            ref_table = str(row.get('REF_TABLE_NAME') or '').strip()
+            ref_columns = str(row.get('REF_COLUMN_NAMES') or '').strip()
+            target = f'{ref_schema}.{ref_table}' if ref_schema and ref_table else ref_table
+            if target and ref_columns:
+                target += f' ({ref_columns})'
+            items.append({
+                'name': str(row.get('FK_NAME') or '').strip(),
+                'columns': str(row.get('COLUMN_NAMES') or '').strip(),
+                'references': target,
+                'delete_action': str(row.get('DELETE_ACTION') or '').strip(),
+                'update_action': str(row.get('UPDATE_ACTION') or '').strip(),
+                'is_disabled': bool(_to_int(row.get('IS_DISABLED'), 0)),
+            })
+        return items
+
+    def _load_database_manager_indexes(object_id: int):
+        sql_with_frag = """
+            WITH index_row_stats AS (
+                SELECT
+                    PS.object_id,
+                    PS.index_id,
+                    SUM(PS.row_count) AS ROW_COUNT
+                FROM sys.dm_db_partition_stats PS
+                WHERE PS.object_id = :object_id
+                GROUP BY PS.object_id, PS.index_id
+            ),
+            index_fragmentation AS (
+                SELECT
+                    IPS.object_id,
+                    IPS.index_id,
+                    CAST(MAX(IPS.avg_fragmentation_in_percent) AS decimal(10, 2)) AS FRAGMENTATION_PCT,
+                    SUM(IPS.page_count) AS PAGE_COUNT
+                FROM sys.dm_db_index_physical_stats(DB_ID(), :object_id, NULL, NULL, 'LIMITED') IPS
+                WHERE IPS.index_level = 0
+                GROUP BY IPS.object_id, IPS.index_id
+            )
+            SELECT
+                I.index_id AS INDEX_ID,
+                I.name AS INDEX_NAME,
+                I.type_desc AS INDEX_TYPE,
+                I.is_primary_key AS IS_PRIMARY_KEY,
+                I.is_unique AS IS_UNIQUE,
+                I.is_unique_constraint AS IS_UNIQUE_CONSTRAINT,
+                I.is_disabled AS IS_DISABLED,
+                I.fill_factor AS FILL_FACTOR,
+                I.has_filter AS HAS_FILTER,
+                I.filter_definition AS FILTER_DEFINITION,
+                I.allow_row_locks AS ALLOW_ROW_LOCKS,
+                I.allow_page_locks AS ALLOW_PAGE_LOCKS,
+                ISNULL(IRS.ROW_COUNT, 0) AS ROW_COUNT,
+                ISNULL(IFR.FRAGMENTATION_PCT, 0) AS FRAGMENTATION_PCT,
+                ISNULL(IFR.PAGE_COUNT, 0) AS PAGE_COUNT,
+                STUFF((
+                    SELECT ', ' + C.name + CASE WHEN IC2.is_descending_key = 1 THEN ' DESC' ELSE '' END
+                    FROM sys.index_columns IC2
+                    INNER JOIN sys.columns C
+                        ON C.object_id = IC2.object_id
+                       AND C.column_id = IC2.column_id
+                    WHERE IC2.object_id = I.object_id
+                      AND IC2.index_id = I.index_id
+                      AND IC2.is_included_column = 0
+                    ORDER BY IC2.key_ordinal, IC2.index_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS KEY_COLUMNS,
+                STUFF((
+                    SELECT ', ' + C.name
+                    FROM sys.index_columns IC3
+                    INNER JOIN sys.columns C
+                        ON C.object_id = IC3.object_id
+                       AND C.column_id = IC3.column_id
+                    WHERE IC3.object_id = I.object_id
+                      AND IC3.index_id = I.index_id
+                      AND IC3.is_included_column = 1
+                    ORDER BY IC3.index_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS INCLUDED_COLUMNS
+            FROM sys.indexes I
+            LEFT JOIN index_row_stats IRS
+                ON IRS.object_id = I.object_id
+               AND IRS.index_id = I.index_id
+            LEFT JOIN index_fragmentation IFR
+                ON IFR.object_id = I.object_id
+               AND IFR.index_id = I.index_id
+            WHERE I.object_id = :object_id
+              AND I.is_hypothetical = 0
+              AND I.index_id > 0
+            ORDER BY I.is_primary_key DESC, I.is_unique DESC, I.index_id
+        """
+
+        sql_without_frag = """
+            WITH index_row_stats AS (
+                SELECT
+                    PS.object_id,
+                    PS.index_id,
+                    SUM(PS.row_count) AS ROW_COUNT
+                FROM sys.dm_db_partition_stats PS
+                WHERE PS.object_id = :object_id
+                GROUP BY PS.object_id, PS.index_id
+            )
+            SELECT
+                I.index_id AS INDEX_ID,
+                I.name AS INDEX_NAME,
+                I.type_desc AS INDEX_TYPE,
+                I.is_primary_key AS IS_PRIMARY_KEY,
+                I.is_unique AS IS_UNIQUE,
+                I.is_unique_constraint AS IS_UNIQUE_CONSTRAINT,
+                I.is_disabled AS IS_DISABLED,
+                I.fill_factor AS FILL_FACTOR,
+                I.has_filter AS HAS_FILTER,
+                I.filter_definition AS FILTER_DEFINITION,
+                I.allow_row_locks AS ALLOW_ROW_LOCKS,
+                I.allow_page_locks AS ALLOW_PAGE_LOCKS,
+                ISNULL(IRS.ROW_COUNT, 0) AS ROW_COUNT,
+                NULL AS FRAGMENTATION_PCT,
+                NULL AS PAGE_COUNT,
+                STUFF((
+                    SELECT ', ' + C.name + CASE WHEN IC2.is_descending_key = 1 THEN ' DESC' ELSE '' END
+                    FROM sys.index_columns IC2
+                    INNER JOIN sys.columns C
+                        ON C.object_id = IC2.object_id
+                       AND C.column_id = IC2.column_id
+                    WHERE IC2.object_id = I.object_id
+                      AND IC2.index_id = I.index_id
+                      AND IC2.is_included_column = 0
+                    ORDER BY IC2.key_ordinal, IC2.index_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS KEY_COLUMNS,
+                STUFF((
+                    SELECT ', ' + C.name
+                    FROM sys.index_columns IC3
+                    INNER JOIN sys.columns C
+                        ON C.object_id = IC3.object_id
+                       AND C.column_id = IC3.column_id
+                    WHERE IC3.object_id = I.object_id
+                      AND IC3.index_id = I.index_id
+                      AND IC3.is_included_column = 1
+                    ORDER BY IC3.index_column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS INCLUDED_COLUMNS
+            FROM sys.indexes I
+            LEFT JOIN index_row_stats IRS
+                ON IRS.object_id = I.object_id
+               AND IRS.index_id = I.index_id
+            WHERE I.object_id = :object_id
+              AND I.is_hypothetical = 0
+              AND I.index_id > 0
+            ORDER BY I.is_primary_key DESC, I.is_unique DESC, I.index_id
+        """
+
+        try:
+            rows = db.session.execute(text(sql_with_frag), {'object_id': int(object_id)}).mappings().all()
+        except Exception:
+            rows = db.session.execute(text(sql_without_frag), {'object_id': int(object_id)}).mappings().all()
+
+        items = []
+        for row in rows:
+            fragmentation = row.get('FRAGMENTATION_PCT')
+            items.append({
+                'id': _to_int(row.get('INDEX_ID'), 0),
+                'name': str(row.get('INDEX_NAME') or '').strip(),
+                'type': str(row.get('INDEX_TYPE') or '').strip(),
+                'is_primary_key': bool(_to_int(row.get('IS_PRIMARY_KEY'), 0)),
+                'is_unique': bool(_to_int(row.get('IS_UNIQUE'), 0)),
+                'is_unique_constraint': bool(_to_int(row.get('IS_UNIQUE_CONSTRAINT'), 0)),
+                'is_disabled': bool(_to_int(row.get('IS_DISABLED'), 0)),
+                'fill_factor': _to_int(row.get('FILL_FACTOR'), 0),
+                'has_filter': bool(_to_int(row.get('HAS_FILTER'), 0)),
+                'filter_definition': str(row.get('FILTER_DEFINITION') or '').strip(),
+                'allow_row_locks': bool(_to_int(row.get('ALLOW_ROW_LOCKS'), 0)),
+                'allow_page_locks': bool(_to_int(row.get('ALLOW_PAGE_LOCKS'), 0)),
+                'row_count': _to_int(row.get('ROW_COUNT'), 0),
+                'fragmentation_pct': (round(_num(fragmentation, 0), 2) if fragmentation is not None else None),
+                'page_count': (_to_int(row.get('PAGE_COUNT'), 0) if row.get('PAGE_COUNT') is not None else None),
+                'key_columns': str(row.get('KEY_COLUMNS') or '').strip(),
+                'included_columns': str(row.get('INCLUDED_COLUMNS') or '').strip(),
+            })
+        return items
+
+    def _load_database_manager_triggers(object_id: int):
+        rows = db.session.execute(text("""
+            SELECT
+                TR.name AS TRIGGER_NAME,
+                TR.is_disabled AS IS_DISABLED,
+                TR.is_instead_of_trigger AS IS_INSTEAD_OF_TRIGGER,
+                SM.definition AS SQL_DEFINITION,
+                STUFF((
+                    SELECT ', ' + UPPER(TE.type_desc)
+                    FROM sys.trigger_events TE
+                    WHERE TE.object_id = TR.object_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)'), 1, 2, '') AS EVENT_LIST
+            FROM sys.triggers TR
+            LEFT JOIN sys.sql_modules SM
+                ON SM.object_id = TR.object_id
+            WHERE TR.parent_class = 1
+              AND TR.parent_id = :object_id
+              AND TR.is_ms_shipped = 0
+            ORDER BY TR.name
+        """), {'object_id': int(object_id)}).mappings().all()
+
+        items = []
+        for row in rows:
+            items.append({
+                'name': str(row.get('TRIGGER_NAME') or '').strip(),
+                'events': str(row.get('EVENT_LIST') or '').strip(),
+                'is_disabled': bool(_to_int(row.get('IS_DISABLED'), 0)),
+                'is_instead_of_trigger': bool(_to_int(row.get('IS_INSTEAD_OF_TRIGGER'), 0)),
+                'definition_preview': _database_manager_preview_sql(row.get('SQL_DEFINITION')),
+            })
+        return items
+
+    def _load_database_manager_detail(table_key: str):
+        resolved = _database_manager_resolve_table(table_key)
+        if not resolved:
+            return None
+
+        object_id = _to_int(resolved.get('object_id'), 0)
+        summary = _load_database_manager_summary(object_id)
+        if not summary:
+            return None
+
+        columns = _load_database_manager_columns(object_id)
+        foreign_keys = _load_database_manager_foreign_keys(object_id)
+        indexes = _load_database_manager_indexes(object_id)
+        triggers = _load_database_manager_triggers(object_id)
+        primary_key_columns = [col.get('name') for col in columns if col.get('is_primary_key')]
+
+        fragmentation_values = [
+            _num(index.get('fragmentation_pct'), 0)
+            for index in indexes
+            if index.get('fragmentation_pct') is not None and _to_int(index.get('page_count'), 0) > 0
+        ]
+        summary.update({
+            'primary_key_columns': primary_key_columns,
+            'average_fragmentation_pct': (
+                round(sum(fragmentation_values) / len(fragmentation_values), 2)
+                if fragmentation_values else None
+            ),
+            'max_fragmentation_pct': (round(max(fragmentation_values), 2) if fragmentation_values else None),
+        })
+
+        return {
+            'summary': summary,
+            'columns': columns,
+            'foreign_keys': foreign_keys,
+            'indexes': indexes,
+            'triggers': triggers,
+        }
+
     def _screen_wizard_prettify_label(raw_name: str) -> str:
         value = str(raw_name or '').strip().replace('_', ' ')
         value = re.sub(r'\s+', ' ', value)
@@ -7153,6 +7872,23 @@ def create_app():
             initial_menustamp=(menustamp or '').strip(),
         )
 
+    @app.route('/database_manager')
+    @app.route('/database-manager')
+    @app.route('/database_manager/<path:table_key>')
+    @app.route('/database-manager/<path:table_key>')
+    @login_required
+    def database_manager_page(table_key=None):
+        if not _database_manager_allowed():
+            abort(403)
+        initial_table_key = _database_manager_normalize_table_key(
+            table_key or request.args.get('table') or ''
+        )
+        return render_template(
+            'database_manager.html',
+            page_title='Database Manager',
+            initial_table_key=initial_table_key,
+        )
+
     @app.route('/faturacao/ft/new')
     @login_required
     def faturacao_ft_new():
@@ -10170,6 +10906,44 @@ def create_app():
             'selected_menustamp': selected,
             'detail': detail,
         })
+
+    @app.route('/api/database_manager/bootstrap', methods=['GET'])
+    @login_required
+    def api_database_manager_bootstrap():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        tables = _load_database_manager_tables()
+        table_lookup = {
+            str(item.get('key') or '').strip().upper(): str(item.get('key') or '').strip()
+            for item in tables
+            if str(item.get('key') or '').strip()
+        }
+        requested_key = _database_manager_normalize_table_key(request.args.get('table') or '')
+        selected_table = table_lookup.get(requested_key.upper(), '') if requested_key else ''
+        if not selected_table and tables:
+            selected_table = str(tables[0].get('key') or '').strip()
+        detail = _load_database_manager_detail(selected_table) if selected_table else None
+        return jsonify({
+            'tables': tables,
+            'selected_table': selected_table,
+            'detail': detail,
+        })
+
+    @app.route('/api/database_manager/table', methods=['GET'])
+    @login_required
+    def api_database_manager_table():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        table_key = _database_manager_normalize_table_key(request.args.get('table') or '')
+        if not table_key:
+            return jsonify({'error': 'Tabela obrigatória.'}), 400
+
+        detail = _load_database_manager_detail(table_key)
+        if not detail:
+            return jsonify({'error': 'Tabela não encontrada.'}), 404
+        return jsonify(detail)
 
     @app.route('/api/screen_personalizer/layout', methods=['GET'])
     @login_required

@@ -2782,14 +2782,14 @@ def create_record(table_name):
         pass
 
     try:
-        ins = table.insert().values(**clean)
+        ins = table.insert().inline().values(**clean)
         db.session.execute(ins)
         db.session.commit()
         return jsonify({'success': True}), 201
     except Exception as e:
         current_app.logger.exception(f"Falha ao criar {table_name}")
         db.session.rollback()
-    return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 
 # --------------------------------------------------
