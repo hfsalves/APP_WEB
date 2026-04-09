@@ -147,13 +147,43 @@
       body.sz-base-shell.authenticated .main-content {
         min-height: 0;
         height: 100%;
-        overflow: hidden;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
         position: relative;
         isolation: isolate;
         transition:
           margin-left .34s cubic-bezier(.22, 1, .36, 1),
           opacity .3s ease,
           transform .34s cubic-bezier(.22, 1, .36, 1);
+      }
+
+      body.sz-base-shell.authenticated.sz-ui-layout .main-content,
+      body.sz-base-shell.authenticated.sz-budget-layout .main-content,
+      body.sz-base-shell.authenticated.sz-reconciliation-layout .main-content,
+      body.sz-base-shell.authenticated.sz-treasury-layout .main-content,
+      body.sz-base-shell.authenticated.sz-analysis-layout .main-content,
+      body.sz-base-shell.authenticated.sz-performance-layout .main-content,
+      body.sz-base-shell.authenticated.sz-management-map-layout .main-content,
+      body.sz-base-shell.authenticated.sz-cc-layout .main-content,
+      body.sz-base-shell.authenticated.sz-dynamic-list-layout .main-content,
+      body.sz-base-shell.authenticated.sz-dynamic-form-layout .main-content {
+        overflow: hidden;
+      }
+
+      body.sz-base-shell.authenticated .main-content::-webkit-scrollbar {
+        width: 0 !important;
+        height: 0 !important;
+        display: none !important;
+      }
+
+      body.sz-base-shell.authenticated .main-content.sz_dashboard_host,
+      body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page) {
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
       }
 
       body.sz-base-shell.authenticated .main-content::after {
@@ -174,6 +204,7 @@
 
       body.sz-base-shell.authenticated.sidebar-open .main-content {
         pointer-events: none;
+        overflow: hidden;
         transform: scale(.988);
       }
 
