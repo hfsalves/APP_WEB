@@ -577,23 +577,25 @@
     }
 
     @media (max-width: 720px) {
-      .sz-base-shell .main-content {
-        overflow-y: auto !important;
-        overflow-x: hidden !important;
-        height: auto !important;
-        min-height: 100dvh;
-        display: block !important;
+      .turn-page {
+        height: 100%;
+        min-height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
       }
 
-      .turn-page {
-        height: auto;
-        min-height: 100dvh;
-        overflow: visible;
+      .turn-page::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        display: none;
       }
 
       .turn-page .sz_page_container {
         height: auto;
-        min-height: 100dvh;
+        min-height: max-content;
         display: block;
       }
 

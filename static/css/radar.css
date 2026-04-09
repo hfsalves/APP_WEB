@@ -339,3 +339,24 @@
     min-width: 0;
   }
 }
+
+@media (max-width: 768px) {
+  .sz_radar_page {
+    display: block;
+    height: auto;
+    min-height: max-content;
+    overflow: visible;
+  }
+
+  .sz_radar_page_container {
+    display: block;
+    height: auto;
+    min-height: max-content;
+  }
+
+  .sz_radar_page .sz_page_body {
+    height: auto;
+    min-height: auto;
+    overflow: visible !important;
+  }
+}

@@ -160,13 +160,29 @@
   };
 })();
 
+function hoistBootstrapModals(root = document) {
+  if (!document.body) return;
+  const scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+  scope.querySelectorAll('.modal').forEach((modalEl) => {
+    if (!(modalEl instanceof HTMLElement)) return;
+    if (modalEl.parentElement === document.body) return;
+    document.body.appendChild(modalEl);
+  });
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   window.szEnhanceDecimalInputs?.(document);
+  hoistBootstrapModals(document);
   if (document.body && typeof MutationObserver === 'function') {
     const decimalObserver = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
           if (!(node instanceof HTMLElement)) return;
+          if (node.matches?.('.modal')) {
+            hoistBootstrapModals(node.parentElement || document);
+          } else if (node.querySelectorAll) {
+            hoistBootstrapModals(node);
+          }
           if (node.matches?.('input')) {
             window.szEnhanceDecimalInputs?.(node.parentElement || document);
           } else if (node.querySelectorAll) {

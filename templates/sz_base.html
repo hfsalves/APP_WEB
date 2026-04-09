@@ -147,11 +147,11 @@
       body.sz-base-shell.authenticated .main-content {
         min-height: 0;
         height: 100%;
-        overflow-x: hidden;
-        overflow-y: auto;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
         -webkit-overflow-scrolling: touch;
-        scrollbar-width: none !important;
-        -ms-overflow-style: none !important;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
         position: relative;
         isolation: isolate;
         transition:
@@ -160,30 +160,10 @@
           transform .34s cubic-bezier(.22, 1, .36, 1);
       }
 
-      body.sz-base-shell.authenticated.sz-ui-layout .main-content,
-      body.sz-base-shell.authenticated.sz-budget-layout .main-content,
-      body.sz-base-shell.authenticated.sz-reconciliation-layout .main-content,
-      body.sz-base-shell.authenticated.sz-treasury-layout .main-content,
-      body.sz-base-shell.authenticated.sz-analysis-layout .main-content,
-      body.sz-base-shell.authenticated.sz-performance-layout .main-content,
-      body.sz-base-shell.authenticated.sz-management-map-layout .main-content,
-      body.sz-base-shell.authenticated.sz-cc-layout .main-content,
-      body.sz-base-shell.authenticated.sz-dynamic-list-layout .main-content,
-      body.sz-base-shell.authenticated.sz-dynamic-form-layout .main-content {
-        overflow: hidden;
-      }
-
       body.sz-base-shell.authenticated .main-content::-webkit-scrollbar {
-        width: 0 !important;
-        height: 0 !important;
-        display: none !important;
-      }
-
-      body.sz-base-shell.authenticated .main-content.sz_dashboard_host,
-      body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page) {
-        overflow-x: hidden !important;
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch;
+        width: 0;
+        height: 0;
+        display: none;
       }
 
       body.sz-base-shell.authenticated .main-content::after {
@@ -204,12 +184,37 @@
 
       body.sz-base-shell.authenticated.sidebar-open .main-content {
         pointer-events: none;
-        overflow: hidden;
+        overflow: hidden !important;
         transform: scale(.988);
       }
 
       body.sz-base-shell.authenticated.sidebar-open .main-content::after {
         opacity: 1;
+      }
+
+      body.sz-base-shell.modal-open .app-header,
+      body.sz-base-shell.modal-open .app-container {
+        pointer-events: none;
+      }
+
+      body.sz-base-shell.modal-open .main-content {
+        overflow: hidden !important;
+        touch-action: none;
+      }
+
+      body.sz-base-shell.modal-open .modal,
+      body.sz-base-shell.modal-open .modal-dialog,
+      body.sz-base-shell.modal-open .modal-content,
+      body.sz-base-shell.modal-open .modal-backdrop {
+        pointer-events: auto !important;
+      }
+
+      body.sz-base-shell.modal-open .modal {
+        z-index: 2000;
+      }
+
+      body.sz-base-shell.modal-open .modal-backdrop {
+        z-index: 1990;
       }
     }
 

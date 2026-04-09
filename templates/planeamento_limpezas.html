@@ -88,6 +88,62 @@
         flex-wrap: wrap;
       }
     }
+
+    @media (max-width: 768px) {
+      .planner2-page {
+        display: block;
+        min-height: max-content;
+        height: auto;
+        overflow: visible !important;
+      }
+
+      .planner2-page .sz_page_container {
+        display: block;
+        height: auto;
+        min-height: max-content;
+      }
+
+      .planner2-page .sz_page_body {
+        height: auto;
+        min-height: auto;
+        overflow: visible !important;
+      }
+
+      .planner2-page .sz_page_content {
+        display: block;
+        height: auto;
+        min-height: max-content;
+      }
+
+      .planner2-page .planner2-card {
+        display: block;
+        flex: 0 0 auto;
+        min-height: max-content;
+      }
+
+      .planner2-page .planner2-body,
+      .planner2-page .planner2-gantt,
+      .planner2-page .planner2-side {
+        flex: 0 0 auto !important;
+        min-height: max-content;
+        height: auto !important;
+      }
+
+      .planner2-page .planner2-table-wrap {
+        flex: 0 0 auto !important;
+        height: auto !important;
+        min-height: max-content;
+        overflow-x: auto;
+        overflow-y: visible !important;
+        max-height: none;
+      }
+
+      .planner2-page .planner2-side-card {
+        height: auto !important;
+        max-height: none;
+        overflow: visible !important;
+      }
+    }
   </style>
 {% endblock %}
 
