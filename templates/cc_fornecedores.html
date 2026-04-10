@@ -24,6 +24,10 @@
               <input type="checkbox" id="ccPendentesOnly">
               <span>Apenas pendentes</span>
             </label>
+            <label class="sz_checkbox ccf_pending_toggle" for="ccExcluirIntragrupo">
+              <input type="checkbox" id="ccExcluirIntragrupo">
+              <span>Excluir Intragrupo</span>
+            </label>
           </div>
           <div class="sz_text_muted ccf_status" id="ccStatus"></div>
         </div>
@@ -250,9 +254,16 @@
     min-height: 0;
   }
 
+  .ccf_main_column {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
   .ccf_table_panel {
     display: flex;
     flex-direction: column;
+    height: 100%;
     padding: 0;
     overflow: hidden;
   }
@@ -261,6 +272,15 @@
     flex: 1 1 auto;
     min-height: 0;
     height: 100%;
+    overflow: auto;
+  }
+
+  .ccf_table_host thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--sz-color-surface-alt);
+    box-shadow: 0 1px 0 0 var(--sz-color-border);
   }
 
   .ccf_sortable,

@@ -1,6 +1,7 @@
 // static/js/cc_fornecedores.js
 
 const ccPendentesOnly = document.getElementById('ccPendentesOnly');
+const ccExcluirIntragrupo = document.getElementById('ccExcluirIntragrupo');
 const ccSearch = document.getElementById('ccSearch');
 const ccStatus = document.getElementById('ccStatus');
 const ccTotalDivida = document.getElementById('ccTotalDivida');
@@ -31,6 +32,7 @@ const payTableBody = document.querySelector('#payTable tbody');
 const payTable = document.getElementById('payTable');
 
 let ccRows = [];
+let ccAllRows = [];
 let ccDebounce = null;
 let currentFornecedor = null; // { no, nome }
 let ccSortKey = 'SALDO_ABERTO';
@@ -164,9 +166,10 @@ function renderPayRows(rows) {
 async function loadPendentesForWizard(term) {
   if (!payWizardModal) return;
   const q = (term || '').toString().trim();
+  const excluirIntragrupo = ccExcluirIntragrupo?.checked ? '1' : '0';
   setPayStatus('A carregar...');
   if (payTableBody) payTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="8" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
-  const res = await fetch(`/api/cc_fornecedores/pendentes?q=${encodeURIComponent(q)}`);
+  const res = await fetch(`/api/cc_fornecedores/pendentes?q=${encodeURIComponent(q)}&excluir_intragrupo=${excluirIntragrupo}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = err.error || res.statusText;
@@ -219,6 +222,39 @@ function renderResumo(rows) {
     `;
     ccTableBody.appendChild(tr);
   });
+}
+
+function fornecedorMatchesQuery(row, query) {
+  const q = (query || '').toString().trim().toLocaleLowerCase('pt-PT');
+  if (!q) return true;
+  const no = String(row?.NO ?? '').toLocaleLowerCase('pt-PT');
+  const nome = String(row?.NOME ?? '').toLocaleLowerCase('pt-PT');
+  return no.includes(q) || nome.includes(q);
+}
+
+function applyResumoFilters() {
+  const q = (ccSearch?.value || '').toString().trim();
+  const pendentes = !!ccPendentesOnly?.checked;
+  const excluirIntragrupo = !!ccExcluirIntragrupo?.checked;
+  const source = Array.isArray(ccAllRows) ? ccAllRows : [];
+  ccRows = source.filter(row => {
+    const saldo = Number(row?.SALDO_ABERTO || 0);
+    const intragrupo = Number(row?.INTRAGRUPO || 0) === 1;
+    if (excluirIntragrupo && intragrupo) return false;
+    if (pendentes && Math.abs(saldo) <= 0.005) return false;
+    if (!fornecedorMatchesQuery(row, q)) return false;
+    return true;
+  });
+
+  let totalDivida = 0;
+  ccRows.forEach(row => {
+    const saldo = Number(row?.SALDO_ABERTO || 0);
+    if (saldo > 0) totalDivida += saldo;
+  });
+  if (ccTotalDivida) ccTotalDivida.textContent = fmtMoney(totalDivida);
+  if (ccCountFornecedores) ccCountFornecedores.textContent = String(ccRows.length);
+  applySortAndRender();
+  setStatus(ccRows.length ? '' : 'Sem fornecedores para os filtros atuais.');
 }
 
 function updateSortIndicators() {
@@ -280,11 +316,9 @@ function escapeHtml(s) {
 }
 
 async function loadResumo() {
-  const q = (ccSearch?.value || '').toString().trim();
-  const pend = ccPendentesOnly?.checked ? '1' : '0';
   setStatus('A carregar...');
   if (ccTableBody) ccTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="3" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
-  const res = await fetch(`/api/cc_fornecedores/resumo?q=${encodeURIComponent(q)}&pendentes=${pend}`);
+  const res = await fetch('/api/cc_fornecedores/resumo');
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = err.error || res.statusText;
@@ -293,17 +327,15 @@ async function loadResumo() {
     return;
   }
   const data = await res.json();
-  ccRows = data.items || [];
-  if (ccTotalDivida) ccTotalDivida.textContent = fmtMoney(data.total_divida);
-  if (ccCountFornecedores) ccCountFornecedores.textContent = String(data.count_fornecedores || 0);
-  applySortAndRender();
-  setStatus('');
+  ccAllRows = Array.isArray(data.items) ? data.items : [];
+  applyResumoFilters();
 }
 
 async function loadDetalhe(no, pendentes) {
   if (!ccModalTableBody) return;
+  const excluirIntragrupo = ccExcluirIntragrupo?.checked ? '1' : '0';
   ccModalTableBody.innerHTML = '<tr class="sz_table_row"><td colspan="9" class="sz_table_cell sz_text_muted">A carregar...</td></tr>';
-  const res = await fetch(`/api/cc_fornecedores/detalhe?no=${encodeURIComponent(no)}&pendentes=${pendentes ? '1' : '0'}`);
+  const res = await fetch(`/api/cc_fornecedores/detalhe?no=${encodeURIComponent(no)}&pendentes=${pendentes ? '1' : '0'}&excluir_intragrupo=${excluirIntragrupo}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const msg = err.error || res.statusText;
@@ -518,10 +550,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   ccSearch?.addEventListener('input', () => {
     clearTimeout(ccDebounce);
-    ccDebounce = setTimeout(() => loadResumo().catch(e => setStatus('Erro: ' + e.message)), 250);
+    ccDebounce = setTimeout(() => applyResumoFilters(), 150);
   });
   ccPendentesOnly?.addEventListener('change', () => {
-    loadResumo().catch(e => setStatus('Erro: ' + e.message));
+    applyResumoFilters();
+  });
+  ccExcluirIntragrupo?.addEventListener('change', () => {
+    applyResumoFilters();
   });
 
   ccTableBody?.addEventListener('click', (e) => {

@@ -429,6 +429,9 @@ def create_app():
     from blueprints.push_notifications import bp as push_notifications_bp
     app.register_blueprint(push_notifications_bp)
 
+    from blueprints.document_ai import bp as document_ai_bp
+    app.register_blueprint(document_ai_bp)
+
     register_pricing(app)
 
     @app.route('/service-worker.js')
@@ -467,6 +470,12 @@ def create_app():
                 continue
             out[key] = _para_value_from_row(r)
         return out
+
+    try:
+        with app.app_context():
+            app.config['PARA_VALUES'] = _load_para_map()
+    except Exception:
+        app.config['PARA_VALUES'] = {}
 
     def _token_expired(exp_value) -> bool:
         if exp_value is None:
@@ -5633,45 +5642,237 @@ def create_app():
 
         with pyodbc.connect(conn_str) as conn:
             cur = conn.cursor()
-            cur.execute("SELECT OBJECT_ID('dbo.DB_SCHEMA_REPO_APPDATA_ROW', 'U')")
-            exists_row = cur.fetchone()
-            if not exists_row or not exists_row[0]:
-                return {}
-            cur.execute("""
-                SELECT
-                    SourceTable,
-                    RecordKey,
-                    RecordLabel,
-                    PayloadJson,
-                    PayloadHash
-                FROM dbo.DB_SCHEMA_REPO_APPDATA_ROW
-                WHERE SyncStamp = ?
-                ORDER BY SourceTable, RecordKey
-            """, sync_stamp)
-            rows = cur.fetchall()
+            def _ref_table_exists(table_name: str) -> bool:
+                cur.execute("""
+                    SELECT TOP 1 1
+                    FROM INFORMATION_SCHEMA.TABLES
+                    WHERE TABLE_SCHEMA = 'dbo'
+                      AND TABLE_NAME = ?
+                """, table_name)
+                return bool(cur.fetchone())
 
-        structural_data = {}
-        for row in rows:
-            source_table = str(row[0] or '').strip().upper()
-            record_key = str(row[1] or '').strip()
-            if not source_table or not record_key:
-                continue
-            bucket = structural_data.setdefault(source_table, {
-                'schema_ready': True,
-                'rows': {},
-                'missing_schema': [],
-            })
-            try:
-                payload = json.loads(str(row[3] or '{}'))
-            except Exception:
-                payload = {}
-            bucket['rows'][record_key] = {
-                'source_table': source_table,
-                'record_key': record_key,
-                'record_label': str(row[2] or '').strip(),
-                'payload': payload,
-                'compare_hash': str(row[4] or '').strip() or _database_consistency_payload_hash(payload),
-            }
+            def _ref_has_columns(table_name: str, *column_names: str) -> bool:
+                wanted = {
+                    str(name or '').strip().upper()
+                    for name in (column_names or [])
+                    if str(name or '').strip()
+                }
+                if not wanted:
+                    return True
+                cur.execute("""
+                    SELECT UPPER(COLUMN_NAME) AS CN
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = 'dbo'
+                      AND TABLE_NAME = ?
+                """, table_name)
+                existing = {str((row[0] if row else '') or '').strip().upper() for row in cur.fetchall()}
+                return wanted.issubset(existing)
+
+            def _fetch_dicts(sql: str, params=()):
+                cur.execute(sql, params)
+                columns = [str(col[0] or '').strip() for col in (cur.description or [])]
+                rows = []
+                for item in cur.fetchall():
+                    rows.append({
+                        columns[idx]: item[idx]
+                        for idx in range(len(columns))
+                    })
+                return rows
+
+            structural_data = {}
+
+            menu_required = (
+                'MENUSTAMP', 'ORDEM', 'NOME', 'TABELA', 'URL', 'ADMIN', 'ICONE',
+                'FORM', 'ORDERBY', 'NOVO', 'INATIVO', 'LARGURAS_EXATAS', 'LARGURAS_EXATAS_LISTA',
+            )
+            if _ref_table_exists('MENU') and _ref_has_columns('MENU', *menu_required):
+                menu_rows = _fetch_dicts("""
+                    SELECT
+                        MENUSTAMP, ORDEM, NOME, TABELA, URL, ADMIN, ICONE, FORM,
+                        [ORDERBY] AS ORDERBY, NOVO, INATIVO, LARGURAS_EXATAS, LARGURAS_EXATAS_LISTA
+                    FROM dbo.MENU
+                """)
+                bucket = {'schema_ready': True, 'rows': {}, 'missing_schema': []}
+                for row in menu_rows:
+                    table_name = str(row.get('TABELA') or '').strip()
+                    if not table_name:
+                        continue
+                    record_key = table_name.upper()
+                    payload = {
+                        'MENUSTAMP': str(row.get('MENUSTAMP') or '').strip(),
+                        'ORDEM': _to_int(row.get('ORDEM'), 0),
+                        'NOME': str(row.get('NOME') or '').strip(),
+                        'TABELA': table_name,
+                        'URL': str(row.get('URL') or '').strip(),
+                        'ADMIN': 1 if bool(_to_int(row.get('ADMIN'), 0)) else 0,
+                        'ICONE': str(row.get('ICONE') or '').strip(),
+                        'FORM': str(row.get('FORM') or '').strip(),
+                        'ORDERBY': str(row.get('ORDERBY') or '').strip(),
+                        'NOVO': 1 if bool(_to_int(row.get('NOVO'), 0)) else 0,
+                        'INATIVO': 1 if bool(_to_int(row.get('INATIVO'), 0)) else 0,
+                        'LARGURAS_EXATAS': 1 if bool(_to_int(row.get('LARGURAS_EXATAS'), 0)) else 0,
+                        'LARGURAS_EXATAS_LISTA': 1 if bool(_to_int(row.get('LARGURAS_EXATAS_LISTA'), 0)) else 0,
+                    }
+                    compare_payload = dict(payload)
+                    compare_payload.pop('MENUSTAMP', None)
+                    bucket['rows'][record_key] = _database_consistency_make_structural_data_row(
+                        'MENU',
+                        record_key,
+                        f"{payload['TABELA']} · {payload['NOME']}",
+                        payload,
+                        compare_payload,
+                    )
+                structural_data['MENU'] = bucket
+
+            campos_required = (
+                'CAMPOSSTAMP', 'ORDEM', 'NMCAMPO', 'DESCRICAO', 'TIPO', 'TABELA', 'LISTA', 'FILTRO',
+                'FILTRODEFAULT', 'ADMIN', 'RONLY', 'COMBO', 'VIRTUAL', 'TAM', 'ORDEM_MOBILE',
+                'TAM_MOBILE', 'CONDICAO_VISIVEL', 'OBRIGATORIO', 'VISIVEL', 'DECIMAIS', 'MINIMO',
+                'MAXIMO', 'ORDEM_LISTA', 'TAM_LISTA', 'ORDEM_LISTA_MOBILE', 'TAM_LISTA_MOBILE',
+                'LISTA_MOBILE_BOLD', 'LISTA_MOBILE_ITALIC', 'LISTA_MOBILE_SHOW_LABEL', 'LISTA_MOBILE_LABEL',
+            )
+            if _ref_table_exists('CAMPOS') and _ref_has_columns('CAMPOS', *campos_required):
+                field_rows = _fetch_dicts("""
+                    SELECT
+                        CAMPOSSTAMP, ORDEM, NMCAMPO, DESCRICAO, TIPO, TABELA, LISTA, FILTRO,
+                        FILTRODEFAULT, ADMIN, RONLY, COMBO, VIRTUAL, TAM, ORDEM_MOBILE,
+                        TAM_MOBILE, CONDICAO_VISIVEL, OBRIGATORIO, VISIVEL, DECIMAIS, MINIMO,
+                        MAXIMO, ORDEM_LISTA, TAM_LISTA, ORDEM_LISTA_MOBILE, TAM_LISTA_MOBILE,
+                        LISTA_MOBILE_BOLD, LISTA_MOBILE_ITALIC, LISTA_MOBILE_SHOW_LABEL, LISTA_MOBILE_LABEL
+                    FROM dbo.CAMPOS
+                """)
+                bucket = {'schema_ready': True, 'rows': {}, 'missing_schema': []}
+                for row in field_rows:
+                    table_name = str(row.get('TABELA') or '').strip()
+                    field_name = str(row.get('NMCAMPO') or '').strip()
+                    if not table_name or not field_name:
+                        continue
+                    record_key = f"{table_name.upper()}::{field_name.upper()}"
+                    payload = {
+                        'CAMPOSSTAMP': str(row.get('CAMPOSSTAMP') or '').strip(),
+                        'ORDEM': _to_int(row.get('ORDEM'), 0),
+                        'NMCAMPO': field_name,
+                        'DESCRICAO': str(row.get('DESCRICAO') or '').strip(),
+                        'TIPO': str(row.get('TIPO') or '').strip(),
+                        'TABELA': table_name,
+                        'LISTA': 1 if bool(_to_int(row.get('LISTA'), 0)) else 0,
+                        'FILTRO': 1 if bool(_to_int(row.get('FILTRO'), 0)) else 0,
+                        'FILTRODEFAULT': str(row.get('FILTRODEFAULT') or '').strip(),
+                        'ADMIN': 1 if bool(_to_int(row.get('ADMIN'), 0)) else 0,
+                        'RONLY': 1 if bool(_to_int(row.get('RONLY'), 0)) else 0,
+                        'COMBO': str(row.get('COMBO') or '').strip(),
+                        'VIRTUAL': str(row.get('VIRTUAL') or '').strip(),
+                        'TAM': _to_int(row.get('TAM'), 0),
+                        'ORDEM_MOBILE': _to_int(row.get('ORDEM_MOBILE'), 0),
+                        'TAM_MOBILE': _to_int(row.get('TAM_MOBILE'), 0),
+                        'CONDICAO_VISIVEL': str(row.get('CONDICAO_VISIVEL') or '').strip(),
+                        'OBRIGATORIO': 1 if bool(_to_int(row.get('OBRIGATORIO'), 0)) else 0,
+                        'VISIVEL': 1 if bool(_to_int(row.get('VISIVEL'), 0)) else 0,
+                        'DECIMAIS': _to_int(row.get('DECIMAIS'), 0),
+                        'MINIMO': _database_consistency_appdata_json_value(row.get('MINIMO')),
+                        'MAXIMO': _database_consistency_appdata_json_value(row.get('MAXIMO')),
+                        'ORDEM_LISTA': _to_int(row.get('ORDEM_LISTA'), 0),
+                        'TAM_LISTA': _to_int(row.get('TAM_LISTA'), 0),
+                        'ORDEM_LISTA_MOBILE': _to_int(row.get('ORDEM_LISTA_MOBILE'), 0),
+                        'TAM_LISTA_MOBILE': _to_int(row.get('TAM_LISTA_MOBILE'), 0),
+                        'LISTA_MOBILE_BOLD': 1 if bool(_to_int(row.get('LISTA_MOBILE_BOLD'), 0)) else 0,
+                        'LISTA_MOBILE_ITALIC': 1 if bool(_to_int(row.get('LISTA_MOBILE_ITALIC'), 0)) else 0,
+                        'LISTA_MOBILE_SHOW_LABEL': 1 if bool(_to_int(row.get('LISTA_MOBILE_SHOW_LABEL'), 0)) else 0,
+                        'LISTA_MOBILE_LABEL': str(row.get('LISTA_MOBILE_LABEL') or '').strip(),
+                    }
+                    compare_payload = dict(payload)
+                    compare_payload.pop('CAMPOSSTAMP', None)
+                    bucket['rows'][record_key] = _database_consistency_make_structural_data_row(
+                        'CAMPOS',
+                        record_key,
+                        f"{table_name}.{field_name}",
+                        payload,
+                        compare_payload,
+                    )
+                structural_data['CAMPOS'] = bucket
+
+            child_definitions = [
+                (
+                    'MENU_OBJETOS',
+                    (
+                        'MENUOBJSTAMP', 'MENUSTAMP', 'NMCAMPO', 'DESCRICAO', 'TIPO', 'ORDEM', 'TAM',
+                        'ORDEM_MOBILE', 'TAM_MOBILE', 'VISIVEL', 'RONLY', 'OBRIGATORIO',
+                        'CONDICAO_VISIVEL', 'COMBO', 'DECIMAIS', 'MINIMO', 'MAXIMO', 'PROPRIEDADES', 'ATIVO',
+                    ),
+                    """
+                        SELECT
+                            MO.MENUOBJSTAMP, M.TABELA AS MENU_TABLE, MO.NMCAMPO, MO.DESCRICAO, MO.TIPO,
+                            MO.ORDEM, MO.TAM, MO.ORDEM_MOBILE, MO.TAM_MOBILE, MO.VISIVEL, MO.RONLY,
+                            MO.OBRIGATORIO, MO.CONDICAO_VISIVEL, MO.COMBO, MO.DECIMAIS, MO.MINIMO,
+                            MO.MAXIMO, MO.PROPRIEDADES, MO.ATIVO
+                        FROM dbo.MENU_OBJETOS MO
+                        INNER JOIN dbo.MENU M ON M.MENUSTAMP = MO.MENUSTAMP
+                    """,
+                    'MENUOBJSTAMP',
+                    'NMCAMPO',
+                ),
+                (
+                    'MENU_VARIAVEIS',
+                    (
+                        'MENUVARSTAMP', 'MENUSTAMP', 'NOME', 'DESCRICAO', 'TIPO',
+                        'VALOR_DEFAULT', 'ORDEM', 'PROPRIEDADES', 'ATIVO',
+                    ),
+                    """
+                        SELECT
+                            MV.MENUVARSTAMP, M.TABELA AS MENU_TABLE, MV.NOME, MV.DESCRICAO, MV.TIPO,
+                            MV.VALOR_DEFAULT, MV.ORDEM, MV.PROPRIEDADES, MV.ATIVO
+                        FROM dbo.MENU_VARIAVEIS MV
+                        INNER JOIN dbo.MENU M ON M.MENUSTAMP = MV.MENUSTAMP
+                    """,
+                    'MENUVARSTAMP',
+                    'NOME',
+                ),
+                (
+                    'MENU_EVENTOS',
+                    ('MENUEVENTOSTAMP', 'MENUSTAMP', 'EVENTO', 'FLUXO', 'ATIVO'),
+                    """
+                        SELECT
+                            ME.MENUEVENTOSTAMP, M.TABELA AS MENU_TABLE, ME.EVENTO, ME.FLUXO, ME.ATIVO
+                        FROM dbo.MENU_EVENTOS ME
+                        INNER JOIN dbo.MENU M ON M.MENUSTAMP = ME.MENUSTAMP
+                    """,
+                    'MENUEVENTOSTAMP',
+                    'EVENTO',
+                ),
+            ]
+
+            for source_table, required_columns, sql, stamp_field, natural_field in child_definitions:
+                if not _ref_table_exists(source_table):
+                    continue
+                if not _ref_has_columns('MENU', 'MENUSTAMP', 'TABELA') or not _ref_has_columns(source_table, *required_columns):
+                    continue
+                rows = _fetch_dicts(sql)
+                bucket = {'schema_ready': True, 'rows': {}, 'missing_schema': []}
+                for row in rows:
+                    menu_table = str(row.get('MENU_TABLE') or '').strip()
+                    natural_value = str(row.get(natural_field) or '').strip()
+                    if not menu_table or not natural_value:
+                        continue
+                    record_key = f"{menu_table.upper()}::{natural_value.upper()}"
+                    payload = {key: _database_consistency_appdata_json_value(row.get(key)) for key in row.keys()}
+                    payload['MENU_TABLE'] = menu_table
+                    if source_table == 'MENU_OBJETOS':
+                        payload['NMCAMPO'] = natural_value
+                    elif source_table == 'MENU_VARIAVEIS':
+                        payload['NOME'] = natural_value
+                    elif source_table == 'MENU_EVENTOS':
+                        payload['EVENTO'] = natural_value
+                    compare_payload = dict(payload)
+                    compare_payload.pop(stamp_field, None)
+                    bucket['rows'][record_key] = _database_consistency_make_structural_data_row(
+                        source_table,
+                        record_key,
+                        f"{menu_table}.{natural_value}",
+                        payload,
+                        compare_payload,
+                    )
+                structural_data[source_table] = bucket
+
         return structural_data
 
     def _database_consistency_group_named_objects(entries, item_key_name='name', subtitle_key='subtitle'):
@@ -8992,6 +9193,15 @@ def create_app():
         except Exception:
             return None
 
+    def _screen_personalizer_decimal_or_default(value, fallback=None, default=0):
+        parsed = _screen_personalizer_decimal_or_none(value, fallback)
+        if parsed is not None:
+            return parsed
+        try:
+            return Decimal(str(default).replace(',', '.'))
+        except Exception:
+            return Decimal('0')
+
     def _load_screen_personalizer_missing_fields(table_name: str, configured_names: set[str]):
         table = str(table_name or '').strip().upper()
         if not table:
@@ -9225,8 +9435,8 @@ def create_app():
                 'LISTA': _to_int(raw.get('LISTA'), _to_int((existing or {}).get('LISTA'), 0)),
                 'FILTRO': _to_int(raw.get('FILTRO'), _to_int((existing or {}).get('FILTRO'), 0)),
                 'DECIMAIS': max(0, _to_int(raw.get('DECIMAIS'), _to_int((existing or {}).get('DECIMAIS'), 2 if field_type == 'DECIMAL' else 0))),
-                'MINIMO': _screen_personalizer_decimal_or_none(raw.get('MINIMO'), (existing or {}).get('MINIMO')),
-                'MAXIMO': _screen_personalizer_decimal_or_none(raw.get('MAXIMO'), (existing or {}).get('MAXIMO')),
+                'MINIMO': _screen_personalizer_decimal_or_default(raw.get('MINIMO'), (existing or {}).get('MINIMO'), 0),
+                'MAXIMO': _screen_personalizer_decimal_or_default(raw.get('MAXIMO'), (existing or {}).get('MAXIMO'), 0),
                 'COMBO': str(raw.get('COMBO') or (existing or {}).get('COMBO') or '').strip(),
                 '_EXISTS': bool(existing),
                 '_ORIGIN': origin,
@@ -26025,6 +26235,7 @@ OPTION (MAXRECURSION 32767);
         try:
             q = (request.args.get('q') or '').strip()
             pendentes = (request.args.get('pendentes') or '').strip() in ('1', 'true', 'True')
+            excluir_intragrupo = (request.args.get('excluir_intragrupo') or '').strip() in ('1', 'true', 'True')
 
             # Fonte: dbo.V_FC (BD GESTAO).
             # Fornecedores: a dÃ­vida em aberto deve ficar positiva (normalmente vem do lado do crÃ©dito).
@@ -26036,6 +26247,8 @@ OPTION (MAXRECURSION 32767);
             if q:
                 where.append("(CAST(NO AS varchar(50)) LIKE :q OR NOME LIKE :q)")
                 params['q'] = f"%{q}%"
+            if excluir_intragrupo:
+                where.append("NOT EXISTS (SELECT 1 FROM dbo.FL AS F WHERE F.NO = V_FC.NO AND ISNULL(F.INTRAGRUPO, 0) = 1)")
 
             where_sql = ("WHERE " + " AND ".join(where)) if where else ""
             having_sql = f"HAVING ABS(SUM({open_expr})) > 0.005" if pendentes else ""
@@ -26044,8 +26257,14 @@ OPTION (MAXRECURSION 32767);
                 SELECT
                     NO,
                     MAX(NOME) AS NOME,
-                    SUM({open_expr}) AS SALDO_ABERTO
-                FROM dbo.V_FC
+                    SUM({open_expr}) AS SALDO_ABERTO,
+                    MAX(CAST(ISNULL(FLX.INTRAGRUPO, 0) AS int)) AS INTRAGRUPO
+                FROM dbo.V_FC AS V_FC
+                OUTER APPLY (
+                    SELECT TOP 1 CAST(ISNULL(F.INTRAGRUPO, 0) AS int) AS INTRAGRUPO
+                    FROM dbo.FL AS F
+                    WHERE F.NO = V_FC.NO
+                ) AS FLX
                 {where_sql}
                 GROUP BY NO
                 {having_sql}
@@ -26067,7 +26286,8 @@ OPTION (MAXRECURSION 32767);
                     'NO': int(no) if str(no).isdigit() else no,
                     'NOME': nome,
                     'SALDO_ABERTO': round(saldo, 2),
-                    'DIVIDA': round(divida, 2)
+                    'DIVIDA': round(divida, 2),
+                    'INTRAGRUPO': 1 if int(r.get('INTRAGRUPO') or 0) == 1 else 0
                 })
 
             return jsonify({
@@ -26093,10 +26313,12 @@ OPTION (MAXRECURSION 32767);
             if not no:
                 return jsonify({'error': 'Parâmetro no obrigatório'}), 400
             pendentes = (request.args.get('pendentes') or '').strip() in ('1', 'true', 'True')
+            excluir_intragrupo = (request.args.get('excluir_intragrupo') or '').strip() in ('1', 'true', 'True')
 
             open_expr = "(ISNULL(ECRED,0) - ISNULL(ECREDF,0)) - (ISNULL(EDEB,0) - ISNULL(EDEBF,0))"
 
             where_pend = f"AND ABS({open_expr}) > 0.005" if pendentes else ""
+            where_intragrupo = "AND NOT EXISTS (SELECT 1 FROM dbo.FL AS F WHERE F.NO = V_FC.NO AND ISNULL(F.INTRAGRUPO, 0) = 1)" if excluir_intragrupo else ""
             sql = text(f"""
                 SELECT
                     FCSTAMP,
@@ -26112,9 +26334,10 @@ OPTION (MAXRECURSION 32767);
                     ISNULL(CCUSTO,'') AS CCUSTO,
                     ISNULL(FOSTAMP,'') AS FOSTAMP,
                     {open_expr} AS ABERTO
-                FROM dbo.V_FC
+                FROM dbo.V_FC AS V_FC
                 WHERE NO = :no
                 {where_pend}
+                {where_intragrupo}
                 ORDER BY CAST(DATALC AS date), FCSTAMP
             """)
             rows = db.session.execute(sql, {'no': no}).mappings().all()
@@ -26158,6 +26381,7 @@ OPTION (MAXRECURSION 32767);
         """
         try:
             q = (request.args.get('q') or '').strip()
+            excluir_intragrupo = (request.args.get('excluir_intragrupo') or '').strip() in ('1', 'true', 'True')
 
             open_expr = "(ISNULL(ECRED,0) - ISNULL(ECREDF,0)) - (ISNULL(EDEB,0) - ISNULL(EDEBF,0))"
             where = [f"ABS(({open_expr})) > 0.005"]
@@ -26165,6 +26389,8 @@ OPTION (MAXRECURSION 32767);
             if q:
                 where.append("(CAST(NO AS varchar(50)) LIKE :q OR NOME LIKE :q OR ADOC LIKE :q OR CMDESC LIKE :q)")
                 params['q'] = f"%{q}%"
+            if excluir_intragrupo:
+                where.append("NOT EXISTS (SELECT 1 FROM dbo.FL AS F WHERE F.NO = V_FC.NO AND ISNULL(F.INTRAGRUPO, 0) = 1)")
 
             where_sql = "WHERE " + " AND ".join(where)
 
@@ -26184,7 +26410,7 @@ OPTION (MAXRECURSION 32767);
                         ISNULL(CCUSTO,'') AS CCUSTO,
                         ISNULL(FOSTAMP,'') AS FOSTAMP,
                         {open_expr} AS ABERTO
-                    FROM dbo.V_FC
+                    FROM dbo.V_FC AS V_FC
                     {where_sql}
                     ORDER BY ISNULL(NOME,''), CAST(DATAVEN AS date), CAST(DATALC AS date), FCSTAMP
                 """)

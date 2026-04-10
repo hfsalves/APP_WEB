@@ -95,6 +95,122 @@ class MenuEvento(db.Model):
     usercriacao       = db.Column(db.String(50), nullable=False, default='')
     useralteracao     = db.Column(db.String(50), nullable=False, default='')
 
+
+class DocParser(db.Model):
+    __tablename__ = 'DOC_PARSER'
+
+    docparserstamp    = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
+    codigo            = db.Column(db.String(60), nullable=False, unique=True)
+    nome              = db.Column(db.String(100), nullable=False)
+    descricao         = db.Column(db.Text, nullable=False, default='')
+    familia           = db.Column(db.String(40), nullable=False, default='text_rules')
+    versao            = db.Column(db.String(20), nullable=False, default='1.0')
+    schema_output_json = db.Column(db.Text, nullable=False, default='{}')
+    ativo             = db.Column(db.Boolean, nullable=False, default=True)
+    dtcri             = db.Column('DTCRI', db.DateTime, nullable=False)
+    dtalt             = db.Column('DTALT', db.DateTime, nullable=True)
+    usercriacao       = db.Column(db.String(50), nullable=False, default='')
+    useralteracao     = db.Column(db.String(50), nullable=False, default='')
+
+
+class DocTemplate(db.Model):
+    __tablename__ = 'DOC_TEMPLATE'
+
+    doctemplatestamp  = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
+    nome              = db.Column(db.String(120), nullable=False)
+    descricao         = db.Column(db.Text, nullable=False, default='')
+    fornecedor_no     = db.Column(db.Integer, nullable=True)
+    doc_type          = db.Column(db.String(30), nullable=False, default='unknown')
+    idioma            = db.Column(db.String(20), nullable=True)
+    fingerprint       = db.Column(db.String(255), nullable=True)
+    score_minimo_match = db.Column(db.Numeric(8, 4), nullable=False, default=0.55)
+    regras_identificacao_json = db.Column(db.Text, nullable=False, default='{}')
+    definition_json   = db.Column(db.Text, nullable=False, default='{}')
+    docparserstamp    = db.Column(db.String(25), nullable=True)
+    parser_version    = db.Column(db.String(20), nullable=True)
+    ativo             = db.Column(db.Boolean, nullable=False, default=True)
+    dtcri             = db.Column('DTCRI', db.DateTime, nullable=False)
+    dtalt             = db.Column('DTALT', db.DateTime, nullable=True)
+    usercriacao       = db.Column(db.String(50), nullable=False, default='')
+    useralteracao     = db.Column(db.String(50), nullable=False, default='')
+
+
+class DocTemplateField(db.Model):
+    __tablename__ = 'DOC_TEMPLATE_FIELD'
+
+    doctemplatefieldstamp = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
+    doctemplatestamp  = db.Column(db.String(25), nullable=False)
+    field_key         = db.Column(db.String(60), nullable=False)
+    label             = db.Column(db.String(100), nullable=False, default='')
+    ordem             = db.Column(db.Integer, nullable=False, default=0)
+    required          = db.Column(db.Boolean, nullable=False, default=False)
+    match_mode        = db.Column(db.String(30), nullable=False, default='anchor_regex')
+    anchors_json      = db.Column(db.Text, nullable=False, default='[]')
+    regex_pattern     = db.Column(db.Text, nullable=True)
+    aliases_json      = db.Column(db.Text, nullable=False, default='[]')
+    postprocess       = db.Column(db.String(40), nullable=True)
+    config_json       = db.Column(db.Text, nullable=False, default='{}')
+    ativo             = db.Column(db.Boolean, nullable=False, default=True)
+    dtcri             = db.Column('DTCRI', db.DateTime, nullable=False)
+    dtalt             = db.Column('DTALT', db.DateTime, nullable=True)
+    usercriacao       = db.Column(db.String(50), nullable=False, default='')
+    useralteracao     = db.Column(db.String(50), nullable=False, default='')
+
+
+class DocInbox(db.Model):
+    __tablename__ = 'DOC_INBOX'
+
+    docinstamp        = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
+    feid              = db.Column(db.Integer, nullable=True)
+    anexosstamp       = db.Column(db.String(25), nullable=True)
+    source_table      = db.Column(db.String(50), nullable=True)
+    source_recstamp   = db.Column(db.String(50), nullable=True)
+    file_name         = db.Column(db.String(260), nullable=False, default='')
+    file_path         = db.Column(db.String(400), nullable=False, default='')
+    file_ext          = db.Column(db.String(20), nullable=False, default='')
+    mime_type         = db.Column(db.String(100), nullable=False, default='')
+    file_hash         = db.Column(db.String(128), nullable=True)
+    file_size         = db.Column(db.BigInteger, nullable=False, default=0)
+    extracted_text    = db.Column(db.Text, nullable=False, default='')
+    extraction_method = db.Column(db.String(40), nullable=False, default='failed')
+    extraction_quality_score = db.Column(db.Numeric(8, 4), nullable=False, default=0)
+    extraction_notes_json = db.Column(db.Text, nullable=False, default='{}')
+    preprocessed_image_path = db.Column(db.String(400), nullable=True)
+    ocr_raw_json      = db.Column(db.Text, nullable=False, default='{}')
+    text_blocks_json  = db.Column(db.Text, nullable=False, default='[]')
+    processing_stage  = db.Column(db.String(40), nullable=False, default='new')
+    last_processing_error = db.Column(db.Text, nullable=False, default='')
+    doc_type_detected = db.Column(db.String(30), nullable=False, default='unknown')
+    fornecedor_no     = db.Column(db.Integer, nullable=True)
+    fornecedor_nif_detetado = db.Column(db.String(40), nullable=True)
+    fornecedor_nome_detetado = db.Column(db.String(120), nullable=True)
+    doctemplatestamp  = db.Column(db.String(25), nullable=True)
+    docparserstamp    = db.Column(db.String(25), nullable=True)
+    parser_version    = db.Column(db.String(20), nullable=True)
+    confidence_score  = db.Column(db.Numeric(8, 4), nullable=False, default=0)
+    processing_status = db.Column(db.String(30), nullable=False, default='new')
+    json_resultado    = db.Column(db.Text, nullable=False, default='{}')
+    warnings_json     = db.Column(db.Text, nullable=False, default='[]')
+    errors_json       = db.Column(db.Text, nullable=False, default='[]')
+    processing_meta_json = db.Column(db.Text, nullable=False, default='{}')
+    dtproc            = db.Column('DTPROC', db.DateTime, nullable=True)
+    dtcri             = db.Column('DTCRI', db.DateTime, nullable=False)
+    dtalt             = db.Column('DTALT', db.DateTime, nullable=True)
+    usercriacao       = db.Column(db.String(50), nullable=False, default='')
+    useralteracao     = db.Column(db.String(50), nullable=False, default='')
+
+
+class DocProcessLog(db.Model):
+    __tablename__ = 'DOC_PROCESS_LOG'
+
+    docprocesslogstamp = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
+    docinstamp        = db.Column(db.String(25), nullable=False)
+    fase              = db.Column(db.String(40), nullable=False)
+    status            = db.Column(db.String(20), nullable=False, default='info')
+    mensagem          = db.Column(db.String(255), nullable=False, default='')
+    detalhe_json      = db.Column(db.Text, nullable=False, default='{}')
+    dtcri             = db.Column('DTCRI', db.DateTime, nullable=False)
+
 class US(UserMixin, db.Model):
     __tablename__ = 'US'
     USSTAMP  = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])

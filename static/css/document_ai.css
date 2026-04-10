@@ -1,0 +1,701 @@
+.docai-page,
+.docai-page .sz_page_container {
+  height: 100%;
+  min-height: 0;
+}
+
+.docai-page {
+  color: var(--sz-color-text);
+}
+
+.docai-page .sz_page_container_wide {
+  max-width: none;
+  width: 100%;
+}
+
+.docai-page .sz_page_body {
+  min-height: 0;
+  width: 100%;
+}
+
+.docai-contextbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sz-space-4);
+  align-items: end;
+}
+
+.docai-contextbar-right {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sz-space-3);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.docai-contextbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sz-space-2);
+  flex-wrap: nowrap;
+}
+
+.docai-contextbar-right .sz_field {
+  min-width: 15rem;
+}
+
+.docai-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  font-size: var(--sz-font-size-xs);
+  border: 1px solid var(--sz-color-border);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 88%, transparent);
+}
+
+.docai-status-chip.status-parsed_ok,
+.docai-state-badge.status-parsed_ok {
+  color: var(--sz-color-success);
+  border-color: color-mix(in srgb, var(--sz-color-success) 36%, transparent);
+  background: color-mix(in srgb, var(--sz-color-success) 12%, transparent);
+}
+
+.docai-status-chip.status-review_required,
+.docai-state-badge.status-review_required,
+.docai-status-chip.status-template_unknown,
+.docai-state-badge.status-template_unknown {
+  color: var(--sz-color-warning);
+  border-color: color-mix(in srgb, var(--sz-color-warning) 36%, transparent);
+  background: color-mix(in srgb, var(--sz-color-warning) 12%, transparent);
+}
+
+.docai-status-chip.status-parse_error,
+.docai-state-badge.status-parse_error {
+  color: var(--sz-color-danger);
+  border-color: color-mix(in srgb, var(--sz-color-danger) 36%, transparent);
+  background: color-mix(in srgb, var(--sz-color-danger) 12%, transparent);
+}
+
+.docai-status-chip.status-new,
+.docai-status-chip.status-text_extracted,
+.docai-state-badge.status-new,
+.docai-state-badge.status-text_extracted {
+  color: var(--sz-color-info);
+  border-color: color-mix(in srgb, var(--sz-color-info) 36%, transparent);
+  background: color-mix(in srgb, var(--sz-color-info) 12%, transparent);
+}
+
+.docai-inbox-stack,
+.docai-template-layout,
+.docai-review-layout {
+  display: grid;
+  gap: var(--sz-space-3);
+  min-height: 0;
+}
+
+.docai-inbox-stack {
+  grid-template-columns: minmax(16.5rem, 19rem) minmax(0, 1fr);
+  height: 100%;
+  align-items: stretch;
+}
+
+.docai-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.8fr) repeat(4, minmax(8rem, 1fr));
+  gap: var(--sz-space-3);
+}
+
+.docai-inbox-filters-panel {
+  max-width: 19rem;
+}
+
+.docai-inbox-table-panel {
+  min-width: 0;
+}
+
+.docai-filters-column {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sz-space-3);
+}
+
+.docai-filter-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sz-space-2);
+  margin-top: 0.2rem;
+}
+
+.docai-filter-actions .sz_button {
+  width: 100%;
+}
+
+.docai-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sz-space-2);
+  justify-content: flex-end;
+}
+
+.docai-count-card {
+  min-width: 7rem;
+  padding: 0.72rem 0.82rem;
+  border-radius: var(--sz-radius-md);
+  border: 1px solid var(--sz-color-border);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 90%, transparent);
+  color: var(--sz-color-text);
+}
+
+.docai-count-card .count {
+  font-size: var(--sz-font-size-xl);
+  font-weight: var(--sz-font-weight-bold);
+  color: var(--sz-color-text);
+}
+
+.docai-count-card .label {
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-sm);
+}
+
+.docai-inbox-panel,
+.docai-review-panel,
+.docai-template-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.docai-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sz-space-3);
+  padding-bottom: var(--sz-space-3);
+  margin-bottom: var(--sz-space-3);
+  border-bottom: 1px solid var(--sz-color-border);
+}
+
+.docai-table-wrap,
+.docai-list-wrap,
+.docai-preview-body,
+.docai-ocr-body,
+.docai-sidebar-body,
+.docai-template-list,
+.docai-template-editor {
+  min-height: 0;
+  overflow: auto;
+}
+
+.docai-table-wrap {
+  flex: 1 1 auto;
+}
+
+.docai-state-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.22rem 0.65rem;
+  font-size: var(--sz-font-size-xs);
+  border: 1px solid var(--sz-color-border);
+}
+
+.docai-pipeline-stack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.docai-pipeline-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.22rem 0.62rem;
+  font-size: var(--sz-font-size-xs);
+  border: 1px solid var(--sz-color-border);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 92%, transparent);
+  color: var(--sz-color-text);
+}
+
+.docai-pipeline-badge.method-direct_pdf_text,
+.docai-pipeline-badge.method-plain_text {
+  color: var(--sz-color-info);
+  border-color: color-mix(in srgb, var(--sz-color-info) 34%, transparent);
+  background: color-mix(in srgb, var(--sz-color-info) 10%, transparent);
+}
+
+.docai-pipeline-badge.method-ocr_image_fallback,
+.docai-pipeline-badge.method-direct_image_ocr {
+  color: var(--sz-color-warning);
+  border-color: color-mix(in srgb, var(--sz-color-warning) 34%, transparent);
+  background: color-mix(in srgb, var(--sz-color-warning) 12%, transparent);
+}
+
+.docai-pipeline-badge.method-failed {
+  color: var(--sz-color-danger);
+  border-color: color-mix(in srgb, var(--sz-color-danger) 34%, transparent);
+  background: color-mix(in srgb, var(--sz-color-danger) 12%, transparent);
+}
+
+.docai-row-actions {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.docai-row-actions .sz_button {
+  min-width: 0;
+  padding-inline: 0.55rem;
+}
+
+.docai-review-layout {
+  grid-template-columns: minmax(20rem, 1.25fr) minmax(20rem, 1fr) minmax(21rem, 0.95fr);
+  height: 100%;
+}
+
+.docai-review-preview,
+.docai-review-ocr,
+.docai-review-sidebar {
+  min-height: 0;
+}
+
+.docai-review-page .docai-contextbar-right {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.docai-review-page .docai-contextbar-right .sz_button {
+  white-space: nowrap;
+}
+
+.docai-review-page .docai-review-preview {
+  min-height: 0;
+}
+
+.docai-review-page .docai-preview-body {
+  flex: 1 1 auto;
+  display: block;
+  min-height: 0;
+  overflow: auto;
+}
+
+.docai-preview-stage,
+.docai-preview-image-host,
+.docai-preview-frame,
+.docai-preview-image,
+.docai-preview-empty {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.docai-preview-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sz-color-border) 88%, transparent);
+}
+
+.docai-preview-stage.is-pdf {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
+
+.docai-preview-image-host {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  flex: 0 1 auto;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.docai-preview-image-host.is-pdf {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none;
+  max-height: none;
+}
+
+.docai-preview-frame {
+  border: 0;
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 90%, transparent);
+  border-radius: var(--sz-radius-md);
+}
+
+.docai-preview-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 90%, transparent);
+  border-radius: var(--sz-radius-md);
+  flex: 0 0 auto;
+}
+
+.docai-preview-image.is-pdf {
+  width: 100%;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  object-fit: initial;
+}
+
+.docai-preview-empty {
+  display: grid;
+  place-items: center;
+  min-height: 22rem;
+  border: 1px dashed var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  color: var(--sz-color-text-muted);
+}
+
+.docai-preview-highlight {
+  position: absolute;
+  border: 3px solid #ffd34d;
+  background: color-mix(in srgb, #ffd34d 38%, transparent);
+  box-shadow:
+    0 0 0 2px rgba(15, 23, 42, 0.65),
+    0 0 24px rgba(255, 211, 77, 0.75),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 0 0 9999px rgba(0, 0, 0, 0.08);
+  border-radius: 0.55rem;
+  pointer-events: none;
+  transition: all 140ms ease;
+  animation: docai-highlight-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes docai-highlight-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgba(15, 23, 42, 0.65),
+      0 0 18px rgba(255, 211, 77, 0.58),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+      0 0 0 9999px rgba(0, 0, 0, 0.08);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(15, 23, 42, 0.72),
+      0 0 34px rgba(255, 211, 77, 0.95),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+      0 0 0 9999px rgba(0, 0, 0, 0.12);
+  }
+}
+
+.docai-preview-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.docai-preview-page-label {
+  min-width: 4rem;
+  text-align: center;
+  font-size: var(--sz-font-size-sm);
+  color: var(--sz-color-text-muted);
+}
+
+.docai-ocr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.docai-ocr-toolbar {
+  margin-bottom: 0.75rem;
+}
+
+.docai-ocr-line {
+  width: 100%;
+  text-align: left;
+  padding: 0.68rem 0.78rem;
+  border-radius: var(--sz-radius-md);
+  border: 1px solid var(--sz-color-border);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 90%, transparent);
+  color: var(--sz-color-text);
+  font: inherit;
+  transition: border-color 140ms ease, transform 140ms ease, background 140ms ease;
+}
+
+.docai-ocr-line:hover,
+.docai-template-item:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 40%, var(--sz-color-border));
+  transform: translateY(-1px);
+}
+
+.docai-ocr-line.is-active,
+.docai-template-item.is-active {
+  border-color: var(--sz-color-primary);
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-alt));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 26%, transparent);
+}
+
+.docai-ocr-line-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+  font-size: var(--sz-font-size-xs);
+  color: var(--sz-color-text-muted);
+}
+
+.docai-sidebar-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-3);
+}
+
+.docai-info-card {
+  padding: 0.9rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 88%, transparent);
+  color: var(--sz-color-text);
+}
+
+.docai-info-card h4 {
+  font-size: var(--sz-font-size-md);
+  margin: 0 0 0.65rem;
+  color: var(--sz-color-text);
+}
+
+.docai-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sz-space-3);
+}
+
+.docai-field-grid .full {
+  grid-column: 1 / -1;
+}
+
+.docai-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sz-space-2);
+}
+
+.docai-meta-pill {
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  padding: 0.65rem 0.75rem;
+  background: color-mix(in srgb, var(--sz-color-surface) 82%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.docai-meta-pill .label {
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-xs);
+}
+
+.docai-meta-pill strong {
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.docai-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.docai-selection-text {
+  min-height: 5rem;
+  padding: 0.8rem;
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface);
+  border: 1px solid var(--sz-color-border);
+  color: var(--sz-color-text);
+  resize: vertical;
+  width: 100%;
+}
+
+.docai-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.docai-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.58rem;
+  border-radius: 999px;
+  border: 1px solid var(--sz-color-border);
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, transparent);
+  font-size: var(--sz-font-size-xs);
+  color: var(--sz-color-text);
+}
+
+.docai-template-layout {
+  grid-template-columns: minmax(20rem, 24rem) minmax(0, 1fr);
+  height: 100%;
+}
+
+.docai-template-item {
+  width: 100%;
+  text-align: left;
+  padding: 0.8rem 0.85rem;
+  border-radius: var(--sz-radius-md);
+  border: 1px solid var(--sz-color-border);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 90%, transparent);
+  color: var(--sz-color-text);
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.docai-template-item-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.docai-template-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: var(--sz-space-3);
+}
+
+.docai-template-tab {
+  min-width: 0;
+}
+
+.docai-template-tab.is-active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 24%, transparent);
+}
+
+.docai-tab-pane {
+  display: none;
+}
+
+.docai-tab-pane.is-active {
+  display: block;
+}
+
+.docai-inline-grid {
+  display: grid;
+  gap: var(--sz-space-3);
+}
+
+.docai-inline-grid.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.docai-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.docai-field-item {
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  padding: 0.75rem;
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 88%, transparent);
+  color: var(--sz-color-text);
+}
+
+.docai-field-item-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sz-space-2);
+}
+
+.docai-json-box {
+  min-height: 18rem;
+  font-family: var(--sz-font-family-mono);
+  resize: vertical;
+}
+
+.docai-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 23, 38, 0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  z-index: 1800;
+}
+
+.docai-modal.is-open {
+  display: flex;
+}
+
+.docai-modal-panel {
+  width: min(58rem, 100%);
+  max-height: min(82vh, 52rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.docai-modal-body {
+  min-height: 0;
+  overflow: auto;
+}
+
+@media (max-width: 1280px) {
+  .docai-inbox-stack,
+  .docai-review-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .docai-template-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .docai-inbox-filters-panel {
+    max-width: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .docai-contextbar,
+  .docai-filter-grid,
+  .docai-meta-grid,
+  .docai-field-grid,
+  .docai-inline-grid.cols-2,
+  .docai-field-item-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .docai-contextbar-right {
+    justify-content: stretch;
+  }
+
+  .docai-review-page .docai-contextbar-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .docai-contextbar-right .sz_field {
+    min-width: 0;
+    width: 100%;
+  }
+}

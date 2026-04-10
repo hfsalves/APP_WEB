@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Processamento Documental{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/document_ai.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page docai-page docai-inbox-page">
+  <div class="sz_page_container sz_page_container_wide">
+    <header class="sz_contextbar sz_page_contextbar docai-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Processamento documental</div>
+        <div class="sz_page_subtitle">Inbox de documentos de compra com extração textual, match de fornecedor, classificação e parsing por template.</div>
+      </div>
+      <div class="sz_contextbar_right docai-contextbar-right">
+        <button id="docAiUploadBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-file-arrow-up"></i>
+          <span>Importar documento</span>
+        </button>
+        <button id="docAiTemplatesBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>Modelos</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="docai-inbox-stack">
+        <section class="sz_panel docai-inbox-panel docai-inbox-filters-panel">
+          <div class="docai-panel-head">
+            <div>
+              <div class="sz_h4">Filtros</div>
+              <div class="sz_text_muted">Pesquisa e segmentação da inbox.</div>
+            </div>
+          </div>
+          <div class="docai-filters-column">
+            <div class="sz_field">
+              <label class="sz_label" for="docAiSearch">Pesquisa</label>
+              <input id="docAiSearch" class="sz_input" type="search" placeholder="Ficheiro, fornecedor ou template">
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="docAiStatusFilter">Estado</label>
+              <select id="docAiStatusFilter" class="sz_select"></select>
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="docAiTypeFilter">Tipo</label>
+              <select id="docAiTypeFilter" class="sz_select"></select>
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="docAiSupplierFilter">Fornecedor</label>
+              <input id="docAiSupplierFilter" class="sz_input" type="search" placeholder="Nome ou nº fornecedor">
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="docAiDateFrom">Desde</label>
+              <input id="docAiDateFrom" class="sz_input" type="date">
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="docAiDateTo">Até</label>
+              <input id="docAiDateTo" class="sz_input" type="date">
+            </div>
+            <div class="docai-filter-actions">
+              <button id="docAiApplyFilters" type="button" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-filter"></i>
+                <span>Aplicar</span>
+              </button>
+              <button id="docAiResetFilters" type="button" class="sz_button sz_button_ghost">
+                <i class="fa-solid fa-rotate-left"></i>
+                <span>Limpar</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="sz_panel docai-inbox-panel docai-inbox-table-panel">
+          <div class="docai-panel-head">
+            <div>
+              <div class="sz_h4">Inbox</div>
+              <div id="docAiInboxMeta" class="sz_text_muted">A carregar documentos...</div>
+            </div>
+            <div id="docAiCounts" class="docai-counts"></div>
+          </div>
+          <div class="docai-table-wrap sz_table_host">
+            <div class="sz_table_wrap">
+              <table class="sz_table">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th>Ficheiro</th>
+                    <th>Fornecedor</th>
+                    <th>Tipo</th>
+                    <th>Template</th>
+                    <th>Confiança</th>
+                    <th>Pipeline</th>
+                    <th>Estado</th>
+                    <th>Criação</th>
+                    <th>Processamento</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="docAiInboxBody">
+                  <tr><td colspan="10" class="sz_text_muted">A carregar...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left">
+        <div id="docAiInboxStatus" class="sz_text_muted">Pronto.</div>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="docAiRefreshBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+        <button id="docAiOpenTemplatesBottom" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>Modelos</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<input id="docAiUploadInput" type="file" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp" hidden>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/document_ai_inbox.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+{% endblock %}

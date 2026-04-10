@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Modelos Documentais{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/document_ai.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page docai-page docai-templates-page">
+  <div class="sz_page_container sz_page_container_wide">
+    <header class="sz_contextbar sz_page_contextbar docai-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Modelos documentais</div>
+        <div class="sz_page_subtitle">Gestão de templates de parsing por fornecedor, tipo documental e parser textual.</div>
+      </div>
+      <div class="sz_contextbar_right docai-contextbar-right">
+        <div class="sz_field">
+          <label class="sz_label" for="docAiTemplateSearch">Pesquisa</label>
+          <input id="docAiTemplateSearch" class="sz_input" type="search" placeholder="Template ou fornecedor">
+        </div>
+        <button id="docAiNewTemplateBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-plus"></i>
+          <span>Novo template</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="docai-template-layout">
+        <aside class="sz_panel docai-template-panel">
+          <div class="docai-panel-head">
+            <div>
+              <div class="sz_h4">Lista</div>
+              <div id="docAiTemplatesMeta" class="sz_text_muted">A carregar templates...</div>
+            </div>
+          </div>
+          <div class="docai-inline-grid cols-2" style="margin-bottom: var(--sz-space-3);">
+            <div class="sz_field">
+              <label class="sz_label" for="docAiTemplateDocTypeFilter">Tipo</label>
+              <select id="docAiTemplateDocTypeFilter" class="sz_select"></select>
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="docAiTemplateActiveFilter">Estado</label>
+              <select id="docAiTemplateActiveFilter" class="sz_select">
+                <option value="">Todos</option>
+                <option value="active">Ativos</option>
+                <option value="inactive">Inativos</option>
+              </select>
+            </div>
+          </div>
+          <div id="docAiTemplateList" class="docai-template-list"></div>
+        </aside>
+
+        <section class="sz_panel docai-template-panel">
+          <div class="docai-panel-head">
+            <div>
+              <div class="sz_h4">Editor</div>
+              <div id="docAiTemplateEditorMeta" class="sz_text_muted">Seleciona um template ou cria um novo.</div>
+            </div>
+            <div class="docai-row-actions">
+              <button id="docAiToggleTemplateBtn" type="button" class="sz_button sz_button_ghost">
+                <i class="fa-solid fa-power-off"></i>
+                <span>Ativar / Inativar</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="docai-template-editor">
+            <div class="docai-template-tabs">
+              <button type="button" class="sz_button sz_button_secondary docai-template-tab is-active" data-tab="identification">Identificação</button>
+              <button type="button" class="sz_button sz_button_ghost docai-template-tab" data-tab="match">Regras match</button>
+              <button type="button" class="sz_button sz_button_ghost docai-template-tab" data-tab="fields">Campos</button>
+              <button type="button" class="sz_button sz_button_ghost docai-template-tab" data-tab="lines">Linhas</button>
+              <button type="button" class="sz_button sz_button_ghost docai-template-tab" data-tab="advanced">Avançado</button>
+            </div>
+
+            <div id="docAiTabIdentification" class="docai-tab-pane is-active">
+              <div class="docai-inline-grid cols-2">
+                <div class="sz_field">
+                  <label class="sz_label" for="docAiTemplateName">Nome</label>
+                  <input id="docAiTemplateName" class="sz_input" type="text">
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="docAiTemplateSupplierNo">Fornecedor Nº</label>
+                  <input id="docAiTemplateSupplierNo" class="sz_input" type="number" step="1">
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="docAiTemplateDocType">Tipo documento</label>
+                  <select id="docAiTemplateDocType" class="sz_select"></select>
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="docAiTemplateLanguage">Idioma</label>
+                  <input id="docAiTemplateLanguage" class="sz_input" type="text" placeholder="pt, en, fr...">
+                </div>
+                <div class="sz_field full">
+                  <label class="sz_label" for="docAiTemplateDescription">Descrição</label>
+                  <textarea id="docAiTemplateDescription" class="sz_textarea"></textarea>
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="docAiTemplateParser">Parser</label>
+                  <select id="docAiTemplateParser" class="sz_select"></select>
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="docAiTemplateScoreMin">Score mínimo</label>
+                  <input id="docAiTemplateScoreMin" class="sz_input" type="number" step="0.01">
+                </div>
+                <div class="sz_field full">
+                  <label class="sz_label" for="docAiTemplateFingerprint">Fingerprint textual</label>
+                  <input id="docAiTemplateFingerprint" class="sz_input" type="text">
+                </div>
+              </div>
+            </div>
+
+            <div id="docAiTabMatch" class="docai-tab-pane">
+              <div class="docai-inline-grid">
+                <div class="sz_field">
+                  <label class="sz_label" for="docAiMatchKeywords">Keywords</label>
+                  <input id="docAiMatchKeywords" class="sz_input" type="text" placeholder="invoice,total,vat">
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="docAiMatchRequired">Obrigatórios</label>
+                  <input id="docAiMatchRequired" class="sz_input" type="text" placeholder="total,date">
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="docAiMatchForbidden">Proibidos</label>
+                  <input id="docAiMatchForbidden" class="sz_input" type="text" placeholder="credit note">
+                </div>
+              </div>
+            </div>
+
+            <div id="docAiTabFields" class="docai-tab-pane">
+              <div class="docai-panel-head" style="padding-bottom: var(--sz-space-2); margin-bottom: var(--sz-space-2);">
+                <div class="sz_text_muted">Campos estruturados do template.</div>
+                <button id="docAiAddFieldBtn" type="button" class="sz_button sz_button_secondary">
+                  <i class="fa-solid fa-plus"></i>
+                  <span>Adicionar campo</span>
+                </button>
+              </div>
+              <div id="docAiTemplateFields" class="docai-field-list"></div>
+            </div>
+
+            <div id="docAiTabLines" class="docai-tab-pane">
+              <div class="docai-inline-grid cols-2">
+                <div class="sz_field">
+                  <label class="sz_label" for="docAiLinesEnabled">Deteção linhas</label>
+                  <select id="docAiLinesEnabled" class="sz_select">
+                    <option value="1">Ativa</option>
+                    <option value="0">Inativa</option>
+                  </select>
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="docAiLinesHeaderAliases">Header aliases</label>
+                  <input id="docAiLinesHeaderAliases" class="sz_input" type="text" placeholder="ref,description,qty,price">
+                </div>
+                <div class="sz_field full">
+                  <label class="sz_label" for="docAiLinesStopKeywords">Stop keywords</label>
+                  <input id="docAiLinesStopKeywords" class="sz_input" type="text" placeholder="total,subtotal,iva">
+                </div>
+              </div>
+            </div>
+
+            <div id="docAiTabAdvanced" class="docai-tab-pane">
+              <div class="sz_field">
+                <label class="sz_label" for="docAiAdvancedJson">JSON do template</label>
+                <textarea id="docAiAdvancedJson" class="sz_textarea docai-json-box"></textarea>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left">
+        <div id="docAiTemplateStatus" class="sz_text_muted">Pronto.</div>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="docAiSuggestTemplateBtn" type="button" class="sz_button sz_button_ghost" disabled>
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>Sugerir automaticamente</span>
+        </button>
+        <button id="docAiTestTemplateBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-vial"></i>
+          <span>Testar</span>
+        </button>
+        <button id="docAiSaveTemplateBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Guardar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div id="docAiTemplateTestModal" class="docai-modal" aria-hidden="true">
+  <div class="sz_panel docai-modal-panel">
+    <div class="sz_modal_header">
+      <h3 class="sz_h4">Testar template</h3>
+      <button id="docAiCloseTestModalTop" type="button" class="sz_button sz_button_ghost">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body docai-modal-body">
+      <div class="sz_field">
+        <label class="sz_label" for="docAiTestDocument">Documento</label>
+        <select id="docAiTestDocument" class="sz_select"></select>
+      </div>
+      <div class="sz_field" style="margin-top: var(--sz-space-3);">
+        <label class="sz_label" for="docAiTestResult">Resultado</label>
+        <textarea id="docAiTestResult" class="sz_textarea docai-json-box" readonly></textarea>
+      </div>
+    </div>
+    <div class="sz_modal_footer">
+      <button id="docAiCloseTestModal" type="button" class="sz_button sz_button_secondary">Fechar</button>
+      <button id="docAiRunTemplateTestBtn" type="button" class="sz_button sz_button_primary">Executar teste</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/document_ai_templates.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+{% endblock %}

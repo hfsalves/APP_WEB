@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Validação Documental{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/document_ai.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+  <script>
+    window.DOCUMENT_AI_REVIEW_CONFIG = {
+      documentId: {{ (docinstamp or '')|tojson }}
+    };
+  </script>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page docai-page docai-review-page">
+  <div class="sz_page_container sz_page_container_wide">
+    <header class="sz_contextbar sz_page_contextbar docai-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Validação documental</div>
+        <div id="docAiReviewSubtitle" class="sz_page_subtitle">Documento em análise.</div>
+      </div>
+      <div class="sz_contextbar_right docai-contextbar-right">
+        <div class="docai-contextbar-actions">
+          <button id="docAiSuggestBtn" type="button" class="sz_button sz_button_ghost" disabled>
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Sugerir automaticamente</span>
+          </button>
+          <div id="docAiReviewState" class="docai-status-chip status-new">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>A carregar</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="docai-review-layout">
+        <section class="sz_panel docai-review-panel docai-review-preview">
+          <div class="docai-panel-head">
+            <div>
+              <div class="sz_h4">Preview</div>
+              <div id="docAiPreviewMeta" class="sz_text_muted">Documento original.</div>
+            </div>
+            <div class="docai-preview-nav">
+              <button id="docAiPreviewPrev" type="button" class="sz_button sz_button_ghost" title="Página anterior">
+                <i class="fa-solid fa-chevron-left"></i>
+              </button>
+              <div id="docAiPreviewPageLabel" class="docai-preview-page-label">1 / 1</div>
+              <button id="docAiPreviewNext" type="button" class="sz_button sz_button_ghost" title="Página seguinte">
+                <i class="fa-solid fa-chevron-right"></i>
+              </button>
+            </div>
+          </div>
+          <div id="docAiPreviewBody" class="docai-preview-body">
+            <div class="docai-preview-empty">A carregar preview...</div>
+          </div>
+        </section>
+
+        <section class="sz_panel docai-review-panel docai-review-ocr">
+          <div class="docai-panel-head">
+            <div>
+              <div class="sz_h4">Texto OCR / extraído</div>
+              <div id="docAiOcrMeta" class="sz_text_muted">Seleciona uma linha para atribuir campos.</div>
+            </div>
+          </div>
+          <div class="docai-ocr-toolbar">
+            <div class="sz_field">
+              <input id="docAiOcrSearch" class="sz_input" type="search" placeholder="Pesquisar no OCR...">
+            </div>
+          </div>
+          <div class="docai-ocr-body">
+            <div id="docAiOcrList" class="docai-ocr-list"></div>
+          </div>
+        </section>
+
+        <aside class="sz_panel docai-review-panel docai-review-sidebar">
+          <div class="docai-panel-head">
+            <div>
+              <div class="sz_h4">Validação</div>
+              <div id="docAiSidebarMeta" class="sz_text_muted">Campos, template, totais e revisão humana.</div>
+            </div>
+          </div>
+          <div class="docai-sidebar-body">
+            <div class="docai-sidebar-sections">
+              <section class="docai-info-card">
+                <h4>Seleção atual</h4>
+                <textarea id="docAiSelectedText" class="docai-selection-text" rows="3" placeholder="Seleciona uma linha de texto à esquerda e, se necessário, ajusta o texto antes de atribuir ao campo."></textarea>
+                <div class="docai-selection-actions">
+                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="document_number">Nº documento</button>
+                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="document_date">Data</button>
+                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="net_total">Base</button>
+                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="tax_total">IVA</button>
+                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="gross_total">Total</button>
+                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="currency">Moeda</button>
+                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="customer_name">Cliente</button>
+                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="supplier_tax_id">NIF fornecedor</button>
+                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="supplier_name">Nome fornecedor</button>
+                </div>
+              </section>
+
+              <section class="docai-info-card">
+                <h4>Documento</h4>
+                <div class="docai-field-grid">
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiDocType">Tipo documento</label>
+                    <select id="docAiDocType" class="sz_select"></select>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiSupplierNo">Fornecedor Nº</label>
+                    <input id="docAiSupplierNo" class="sz_input" type="number" step="1">
+                  </div>
+                  <div class="sz_field full">
+                    <label class="sz_label" for="docAiSupplierName">Fornecedor</label>
+                    <input id="docAiSupplierName" class="sz_input" type="text">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiTemplateSelect">Template</label>
+                    <select id="docAiTemplateSelect" class="sz_select"></select>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiConfidence">Confiança</label>
+                    <input id="docAiConfidence" class="sz_input" type="number" step="0.01">
+                  </div>
+                </div>
+              </section>
+
+              <section class="docai-info-card">
+                <h4>Processamento</h4>
+                <div class="docai-meta-grid">
+                  <div class="docai-meta-pill">
+                    <span class="label">Método</span>
+                    <strong id="docAiExtractionMethod">n/a</strong>
+                  </div>
+                  <div class="docai-meta-pill">
+                    <span class="label">Qualidade</span>
+                    <strong id="docAiExtractionQuality">0%</strong>
+                  </div>
+                  <div class="docai-meta-pill">
+                    <span class="label">Fallback visual</span>
+                    <strong id="docAiExtractionFallback">Não</strong>
+                  </div>
+                  <div class="docai-meta-pill">
+                    <span class="label">Fase</span>
+                    <strong id="docAiProcessingStage">n/a</strong>
+                  </div>
+                </div>
+                <div id="docAiExtractionError" class="sz_text_muted" style="margin-top:0.7rem;"></div>
+              </section>
+
+              <section class="docai-info-card">
+                <h4>Campos extraídos</h4>
+                <div class="docai-field-grid">
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiDocumentNumber">Número documento</label>
+                    <input id="docAiDocumentNumber" class="sz_input" type="text">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiDocumentDate">Data documento</label>
+                    <input id="docAiDocumentDate" class="sz_input" type="date">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiCurrency">Moeda</label>
+                    <input id="docAiCurrency" class="sz_input" type="text">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiCustomerName">Cliente</label>
+                    <input id="docAiCustomerName" class="sz_input" type="text">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiNetTotal">Total líquido</label>
+                    <input id="docAiNetTotal" class="sz_input" type="number" step="0.01">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiTaxTotal">IVA</label>
+                    <input id="docAiTaxTotal" class="sz_input" type="number" step="0.01">
+                  </div>
+                  <div class="sz_field full">
+                    <label class="sz_label" for="docAiGrossTotal">Total bruto</label>
+                    <input id="docAiGrossTotal" class="sz_input" type="number" step="0.01">
+                  </div>
+                </div>
+              </section>
+
+              <section class="docai-info-card">
+                <h4>Linhas / avisos</h4>
+                <div id="docAiLinesSummary" class="sz_text_muted">Sem linhas carregadas.</div>
+                <div id="docAiWarnings" class="docai-tags" style="margin-top:0.7rem;"></div>
+                <div id="docAiErrors" class="docai-tags" style="margin-top:0.7rem;"></div>
+              </section>
+
+              <section class="docai-info-card">
+                <h4>Template em edição</h4>
+                <div class="docai-field-grid">
+                  <div class="sz_field full">
+                    <label class="sz_label" for="docAiTemplateName">Nome template</label>
+                    <input id="docAiTemplateName" class="sz_input" type="text">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiTemplateFingerprint">Fingerprint</label>
+                    <input id="docAiTemplateFingerprint" class="sz_input" type="text">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="docAiTemplateScoreMin">Score mínimo</label>
+                    <input id="docAiTemplateScoreMin" class="sz_input" type="number" step="0.01">
+                  </div>
+                  <div class="sz_field full">
+                    <label class="sz_label" for="docAiTemplateKeywords">Keywords de match</label>
+                    <input id="docAiTemplateKeywords" class="sz_input" type="text" placeholder="invoice,total,vat">
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left">
+        <div id="docAiReviewStatus" class="sz_text_muted">Pronto.</div>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="docAiReprocessBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Reprocessar auto</span>
+        </button>
+        <button id="docAiReprocessOcrBtn" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-file-waveform"></i>
+          <span>Reprocessar com OCR</span>
+        </button>
+        <button id="docAiReprocessFallbackBtn" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-image"></i>
+          <span>Fallback visual</span>
+        </button>
+        <button id="docAiSaveTemplateBtn" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Guardar template</span>
+        </button>
+        <button id="docAiValidateBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-check"></i>
+          <span>Confirmar parsing</span>
+        </button>
+        <button id="docAiBackBtn" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div id="docAiLinesModal" class="docai-modal" aria-hidden="true">
+  <div class="sz_panel docai-modal-panel">
+    <div class="sz_modal_header">
+      <h3 class="sz_h4">Linhas detetadas</h3>
+      <button id="docAiCloseLinesModal" type="button" class="sz_button sz_button_ghost">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div id="docAiLinesModalBody" class="sz_modal_body docai-modal-body"></div>
+    <div class="sz_modal_footer">
+      <button id="docAiCloseLinesModalBottom" type="button" class="sz_button sz_button_secondary">Fechar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/document_ai_review.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+{% endblock %}
