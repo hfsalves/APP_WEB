@@ -1078,8 +1078,6 @@ const openPlanner2CleaningMenu = (bar, row, cl) => {
   const rect = bar.getBoundingClientRect();
   const menu = document.createElement('div');
   menu.className = 'planner2-cleaning-menu';
-  menu.style.left = `${rect.left}px`;
-  menu.style.top = `${rect.bottom + 6}px`;
   const items = [
     { label: 'Abrir', icon: 'fa-regular fa-pen-to-square' },
     { label: 'Eliminar', icon: 'fa-regular fa-trash-can' }
@@ -1126,7 +1124,34 @@ const openPlanner2CleaningMenu = (bar, row, cl) => {
     });
     menu.appendChild(item);
   });
+  menu.style.visibility = 'hidden';
   document.body.appendChild(menu);
+  const viewportPadding = 8;
+  const gap = 6;
+  const menuRect = menu.getBoundingClientRect();
+  const menuWidth = Math.ceil(menuRect.width || 150);
+  const menuHeight = Math.ceil(menuRect.height || 0);
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const anchorMidY = rect.top + (rect.height / 2);
+
+  let left = rect.left;
+  if (left + menuWidth > viewportWidth - viewportPadding) {
+    left = Math.max(viewportPadding, viewportWidth - menuWidth - viewportPadding);
+  }
+  if (left < viewportPadding) left = viewportPadding;
+
+  let top = anchorMidY > (viewportHeight / 2)
+    ? rect.top - menuHeight - gap
+    : rect.bottom + gap;
+  if (top < viewportPadding) top = viewportPadding;
+  if (top + menuHeight > viewportHeight - viewportPadding) {
+    top = Math.max(viewportPadding, viewportHeight - menuHeight - viewportPadding);
+  }
+
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = `${Math.round(top)}px`;
+  menu.style.visibility = '';
   planner2CleaningMenu = menu;
   setTimeout(() => {
     window.addEventListener('click', closePlanner2Menu, { once: true });
@@ -1282,8 +1307,6 @@ const openPlanner2TeamDropdown = (cell, row, slot) => {
   const rect = cell.getBoundingClientRect();
   const dropdown = document.createElement('div');
   dropdown.className = 'planner2-team-dropdown';
-  dropdown.style.left = `${rect.left}px`;
-  dropdown.style.top = `${rect.bottom + 4}px`;
   planner2Teams.forEach((team) => {
     const item = document.createElement('div');
     item.className = 'planner2-team-item';
@@ -1317,7 +1340,34 @@ const openPlanner2TeamDropdown = (cell, row, slot) => {
     });
     dropdown.appendChild(item);
   });
+  dropdown.style.visibility = 'hidden';
   document.body.appendChild(dropdown);
+  const viewportPadding = 8;
+  const gap = 4;
+  const dropdownRect = dropdown.getBoundingClientRect();
+  const dropdownWidth = Math.ceil(dropdownRect.width || 180);
+  const dropdownHeight = Math.ceil(dropdownRect.height || 0);
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const anchorMidY = rect.top + (rect.height / 2);
+
+  let left = rect.left;
+  if (left + dropdownWidth > viewportWidth - viewportPadding) {
+    left = Math.max(viewportPadding, viewportWidth - dropdownWidth - viewportPadding);
+  }
+  if (left < viewportPadding) left = viewportPadding;
+
+  let top = anchorMidY > (viewportHeight / 2)
+    ? rect.top - dropdownHeight - gap
+    : rect.bottom + gap;
+  if (top + dropdownHeight > viewportHeight - viewportPadding) {
+    top = Math.max(viewportPadding, viewportHeight - dropdownHeight - viewportPadding);
+  }
+  if (top < viewportPadding) top = viewportPadding;
+
+  dropdown.style.left = `${Math.round(left)}px`;
+  dropdown.style.top = `${Math.round(top)}px`;
+  dropdown.style.visibility = '';
   planner2OpenDropdown = dropdown;
 };
 
