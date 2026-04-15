@@ -3296,10 +3296,14 @@ def api_planner2_teams():
         if 'ORDEM' in eq_cols:
             order_expr = 'ORDER BY ORDEM, NOME'
 
+        where_clauses = ["LTRIM(RTRIM(ISNULL(NOME,''))) <> ''"]
+        if 'INATIVO' in eq_cols:
+            where_clauses.append("ISNULL(INATIVO, 0) = 0")
+
         sql = text(f"""
             SELECT {', '.join(select_cols)}
             FROM dbo.EQ
-            WHERE LTRIM(RTRIM(ISNULL(NOME,''))) <> ''
+            WHERE {' AND '.join(where_clauses)}
             {order_expr}
         """)
         rows = db.session.execute(sql).mappings().all()

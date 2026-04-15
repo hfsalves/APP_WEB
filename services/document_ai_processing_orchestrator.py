@@ -3,7 +3,7 @@ from typing import Any
 
 from flask import current_app
 
-from services.document_ai_image_preprocessor import default_preprocess_config, preprocess_document_image
+from services.document_ai_image_preprocessor import apply_manual_adjustments, default_preprocess_config, preprocess_document_image
 from services.document_ai_ocr_service import extract_image_text_from_object, ocr_engine_available
 from services.document_ai_quality_evaluator import evaluate_text_quality
 from services.document_ai_text_extractor import (
@@ -50,6 +50,7 @@ def _ocr_pages(pages: list[dict[str, Any]]) -> dict[str, Any]:
     all_text = []
     all_blocks = []
     raw_pages = []
+    engines = []
     for page in pages:
         payload = extract_image_text_from_object(
             page.get('image'),
@@ -57,17 +58,24 @@ def _ocr_pages(pages: list[dict[str, Any]]) -> dict[str, Any]:
             page_label=str(page.get('page') or ''),
         )
         warnings.extend(payload.get('warnings') or [])
+        engine = str(payload.get('engine') or '').strip()
+        if engine:
+            engines.append(engine)
         if payload.get('text'):
             all_text.append(payload.get('text') or '')
         all_blocks.extend(payload.get('blocks') or [])
         raw_pages.append({
             'page': int(page.get('page') or 1),
             'raw_json': payload.get('raw_json') or {},
-            'engine': payload.get('engine'),
+            'engine': engine,
         })
+    engine_name = ''
+    if engines:
+        unique = list(dict.fromkeys(engines))
+        engine_name = unique[0] if len(unique) == 1 else '+'.join(unique)
     return {
         'ok': bool('\n'.join(all_text).strip()),
-        'engine': 'pytesseract' if ocr_engine_available() else None,
+        'engine': engine_name or (None if not ocr_engine_available() else ''),
         'text': '\n'.join(chunk for chunk in all_text if chunk).strip(),
         'blocks': all_blocks,
         'raw_json': {'pages': raw_pages},
@@ -104,6 +112,7 @@ def extract_document_with_cascade(
     mime_type: str = '',
     document_stamp: str = '',
     force_mode: str = 'auto',
+    manual_adjustments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not os.path.isfile(file_path):
         return {
@@ -197,12 +206,14 @@ def extract_document_with_cascade(
         processed_pages = []
         processing_notes = []
         for page in page_source.get('pages') or []:
-            processed = preprocess_document_image(page.get('image'), preprocess_cfg)
+            manual = apply_manual_adjustments(page.get('image'), manual_adjustments, page_number=page.get('page') or 1)
+            processed = preprocess_document_image(manual.get('image'), preprocess_cfg)
             visual_warnings.extend(processed.get('warnings') or [])
+            visual_warnings.extend(manual.get('warnings') or [])
             processing_notes.append({
                 'page': int(page.get('page') or 1),
                 'steps': processed.get('applied_steps') or [],
-                'notes': processed.get('notes') or [],
+                'notes': (processed.get('notes') or []) + (manual.get('notes') or []),
                 'geometry_changed': bool(processed.get('geometry_changed')),
             })
             processed_pages.append({
@@ -241,6 +252,7 @@ def extract_document_with_cascade(
         'selected_method': selected.get('method') or 'failed',
         'source_kind': source_kind,
         'fallback_triggered': bool(visual_attempt and source_kind == 'pdf'),
+        'manual_adjustments': manual_adjustments or {},
     }
     selected['last_error'] = '' if selected.get('ok') else 'no_usable_text'
     return selected

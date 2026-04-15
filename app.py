@@ -15213,11 +15213,27 @@ def create_app():
             return jsonify({'error': 'Sem permissão para usar a personalização de ecrãs.'}), 403
 
         screens = _load_screen_personalizer_screens()
+        sql_tables = []
+        try:
+            sql_tables = [
+                {
+                    'key': str(item.get('key') or '').strip(),
+                    'label': str(item.get('key') or '').strip(),
+                    'schema': str(item.get('schema') or '').strip(),
+                    'table': str(item.get('table') or '').strip(),
+                }
+                for item in _load_database_manager_tables()
+                if str(item.get('key') or '').strip()
+            ]
+        except Exception:
+            db.session.rollback()
+            sql_tables = []
         requested = str(request.args.get('menustamp') or '').strip()
         selected = requested or (str(screens[0].get('MENUSTAMP') or '').strip() if screens else '')
         detail = _load_screen_personalizer_layout(selected) if selected else None
         return jsonify({
             'screens': screens,
+            'sql_tables': sql_tables,
             'selected_menustamp': selected,
             'detail': detail,
         })

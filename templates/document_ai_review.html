@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Validação Documental{% endblock %}
+{% block title %}Valida&ccedil;&atilde;o Documental{% endblock %}
 
 {% block extra_head %}
   {{ super() }}
@@ -17,8 +17,8 @@
   <div class="sz_page_container sz_page_container_wide">
     <header class="sz_contextbar sz_page_contextbar docai-contextbar">
       <div class="sz_contextbar_left">
-        <div class="sz_page_title">Validação documental</div>
-        <div id="docAiReviewSubtitle" class="sz_page_subtitle">Documento em análise.</div>
+        <div class="sz_page_title">Valida&ccedil;&atilde;o documental</div>
+        <div id="docAiReviewSubtitle" class="sz_page_subtitle">Documento em an&aacute;lise.</div>
       </div>
       <div class="sz_contextbar_right docai-contextbar-right">
         <div class="docai-contextbar-actions">
@@ -42,14 +42,30 @@
               <div class="sz_h4">Preview</div>
               <div id="docAiPreviewMeta" class="sz_text_muted">Documento original.</div>
             </div>
-            <div class="docai-preview-nav">
-              <button id="docAiPreviewPrev" type="button" class="sz_button sz_button_ghost" title="Página anterior">
-                <i class="fa-solid fa-chevron-left"></i>
-              </button>
-              <div id="docAiPreviewPageLabel" class="docai-preview-page-label">1 / 1</div>
-              <button id="docAiPreviewNext" type="button" class="sz_button sz_button_ghost" title="Página seguinte">
-                <i class="fa-solid fa-chevron-right"></i>
-              </button>
+            <div class="docai-preview-controls">
+              <div class="docai-preview-tools">
+                <button id="docAiCropToggle" type="button" class="sz_button sz_button_ghost" title="Recortar">
+                  <i class="fa-solid fa-crop"></i>
+                </button>
+                <button id="docAiCropClear" type="button" class="sz_button sz_button_ghost" title="Limpar recorte">
+                  <i class="fa-solid fa-eraser"></i>
+                </button>
+                <button id="docAiRotateLeft" type="button" class="sz_button sz_button_ghost" title="Rodar para a esquerda">
+                  <i class="fa-solid fa-rotate-left"></i>
+                </button>
+                <button id="docAiRotateRight" type="button" class="sz_button sz_button_ghost" title="Rodar para a direita">
+                  <i class="fa-solid fa-rotate-right"></i>
+                </button>
+              </div>
+              <div class="docai-preview-nav">
+                <button id="docAiPreviewPrev" type="button" class="sz_button sz_button_ghost" title="P&aacute;gina anterior">
+                  <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <div id="docAiPreviewPageLabel" class="docai-preview-page-label">1 / 1</div>
+                <button id="docAiPreviewNext" type="button" class="sz_button sz_button_ghost" title="P&aacute;gina seguinte">
+                  <i class="fa-solid fa-chevron-right"></i>
+                </button>
+              </div>
             </div>
           </div>
           <div id="docAiPreviewBody" class="docai-preview-body">
@@ -60,8 +76,8 @@
         <section class="sz_panel docai-review-panel docai-review-ocr">
           <div class="docai-panel-head">
             <div>
-              <div class="sz_h4">Texto OCR / extraído</div>
-              <div id="docAiOcrMeta" class="sz_text_muted">Seleciona uma linha para atribuir campos.</div>
+              <div class="sz_h4">Texto OCR / extra&iacute;do</div>
+              <div id="docAiOcrMeta" class="sz_text_muted">Arrasta os blocos do OCR para as &aacute;reas da valida&ccedil;&atilde;o.</div>
             </div>
           </div>
           <div class="docai-ocr-toolbar">
@@ -77,59 +93,225 @@
         <aside class="sz_panel docai-review-panel docai-review-sidebar">
           <div class="docai-panel-head">
             <div>
-              <div class="sz_h4">Validação</div>
-              <div id="docAiSidebarMeta" class="sz_text_muted">Campos, template, totais e revisão humana.</div>
+              <div class="sz_h4">Valida&ccedil;&atilde;o</div>
+              <div id="docAiSidebarMeta" class="sz_text_muted">Arrasta blocos OCR para os slots do documento e define as linhas.</div>
             </div>
           </div>
           <div class="docai-sidebar-body">
             <div class="docai-sidebar-sections">
-              <section class="docai-info-card">
-                <h4>Seleção atual</h4>
-                <textarea id="docAiSelectedText" class="docai-selection-text" rows="3" placeholder="Seleciona uma linha de texto à esquerda e, se necessário, ajusta o texto antes de atribuir ao campo."></textarea>
-                <div class="docai-selection-actions">
-                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="document_number">Nº documento</button>
-                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="document_date">Data</button>
-                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="net_total">Base</button>
-                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="tax_total">IVA</button>
-                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="gross_total">Total</button>
-                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="currency">Moeda</button>
-                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="customer_name">Cliente</button>
-                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="supplier_tax_id">NIF fornecedor</button>
-                  <button type="button" class="sz_button sz_button_ghost docai-assign-btn" data-field="supplier_name">Nome fornecedor</button>
+              <textarea id="docAiSelectedText" class="docai-selection-text docai-selection-text-hidden" rows="2" hidden></textarea>
+
+              <section class="docai-info-card docai-info-card-compact">
+                <h4>Template</h4>
+                <div class="docai-compact-grid">
+                  <div class="docai-static-field">
+                    <label class="docai-drop-label" for="docAiDocType">Tipo documento</label>
+                    <select id="docAiDocType" class="sz_select docai-compact-select"></select>
+                  </div>
+                  <div class="docai-static-field">
+                    <label class="docai-drop-label" for="docAiTemplateSelect">Template</label>
+                    <select id="docAiTemplateSelect" class="sz_select docai-compact-select"></select>
+                  </div>
+                  <div class="docai-static-field">
+                    <div class="docai-drop-label">Confian&ccedil;a</div>
+                    <div id="docAiConfidenceDisplay" class="docai-static-value">--</div>
+                    <input id="docAiConfidence" type="hidden">
+                  </div>
                 </div>
               </section>
 
-              <section class="docai-info-card">
+              <section class="docai-info-card docai-info-card-compact">
                 <h4>Documento</h4>
-                <div class="docai-field-grid">
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiDocType">Tipo documento</label>
-                    <select id="docAiDocType" class="sz_select"></select>
+                <div class="docai-drop-grid docai-drop-grid-2">
+                  <div class="docai-drop-slot" data-drop-field="document_number">
+                    <div class="docai-drop-label">N&ordm; Documento</div>
+                    <div class="docai-drop-value" data-field-display="document_number">--</div>
+                    <input id="docAiDocumentNumber" type="hidden">
                   </div>
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiSupplierNo">Fornecedor Nº</label>
-                    <input id="docAiSupplierNo" class="sz_input" type="number" step="1">
+                  <div class="docai-drop-slot" data-drop-field="document_date">
+                    <div class="docai-drop-label">Data</div>
+                    <div class="docai-drop-value" data-field-display="document_date">--</div>
+                    <input id="docAiDocumentDate" type="hidden">
                   </div>
-                  <div class="sz_field full">
-                    <label class="sz_label" for="docAiSupplierName">Fornecedor</label>
-                    <input id="docAiSupplierName" class="sz_input" type="text">
+                  <div class="docai-drop-slot" data-drop-field="due_date">
+                    <div class="docai-drop-label">Data Vencimento</div>
+                    <div class="docai-drop-value" data-field-display="due_date">--</div>
+                    <input id="docAiDueDate" type="hidden">
                   </div>
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiTemplateSelect">Template</label>
-                    <select id="docAiTemplateSelect" class="sz_select"></select>
-                  </div>
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiConfidence">Confiança</label>
-                    <input id="docAiConfidence" class="sz_input" type="number" step="0.01">
+                  <div class="docai-drop-slot" data-drop-field="currency">
+                    <div class="docai-drop-label">Moeda</div>
+                    <div class="docai-drop-value" data-field-display="currency">--</div>
+                    <input id="docAiCurrency" type="hidden">
                   </div>
                 </div>
               </section>
 
-              <section class="docai-info-card">
+              <section class="docai-info-card docai-info-card-compact">
+                <h4>Fornecedor</h4>
+                <div class="docai-drop-grid docai-drop-grid-2">
+                  <div class="docai-drop-slot" data-drop-field="supplier_tax_id">
+                    <div class="docai-drop-label">NIF</div>
+                    <div class="docai-drop-value" data-field-display="supplier_tax_id">--</div>
+                    <input id="docAiSupplierTaxId" type="hidden">
+                  </div>
+                  <div class="docai-static-field">
+                    <div class="docai-drop-label">N&ordm;</div>
+                    <div id="docAiSupplierNoDisplay" class="docai-static-value">--</div>
+                    <input id="docAiSupplierNo" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot docai-drop-slot-full" data-drop-field="supplier_name">
+                    <div class="docai-drop-label">Nome</div>
+                    <div class="docai-drop-value" data-field-display="supplier_name">--</div>
+                    <input id="docAiSupplierName" type="hidden">
+                  </div>
+                </div>
+              </section>
+
+              <section class="docai-info-card docai-info-card-compact">
+                <h4>Cliente</h4>
+                <div class="docai-drop-grid docai-drop-grid-2">
+                  <div class="docai-drop-slot" data-drop-field="customer_tax_id">
+                    <div class="docai-drop-label">NIF</div>
+                    <div class="docai-drop-value" data-field-display="customer_tax_id">--</div>
+                    <input id="docAiCustomerTaxId" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot docai-drop-slot-full" data-drop-field="customer_name">
+                    <div class="docai-drop-label">Nome</div>
+                    <div class="docai-drop-value" data-field-display="customer_name">--</div>
+                    <input id="docAiCustomerName" type="hidden">
+                  </div>
+                </div>
+              </section>
+
+              <section class="docai-info-card docai-info-card-compact">
+                <h4>Linhas</h4>
+                <div class="docai-lines-toolbar">
+                  <button id="docAiLineAreaBtn" type="button" class="sz_button sz_button_ghost sz_button_small">
+                    <i class="fa-solid fa-vector-square"></i>
+                    <span>Definir &aacute;rea</span>
+                  </button>
+                  <button id="docAiOpenLinesDetailBtn" type="button" class="sz_button sz_button_ghost sz_button_small">
+                    <i class="fa-solid fa-table-list"></i>
+                    <span>Detalhe</span>
+                  </button>
+                </div>
+                <div id="docAiLinesSummary" class="sz_text_muted docai-lines-summary">Sem linhas detetadas.</div>
+                <div id="docAiLineAreaStatus" class="sz_text_muted docai-lines-summary">Sem &aacute;rea definida.</div>
+                <div class="docai-line-config-grid">
+                  <div class="docai-drop-slot docai-drop-slot-full" data-drop-field="line_start_anchor">
+                    <div class="docai-drop-label">In&iacute;cio</div>
+                    <div class="docai-drop-value" data-field-display="line_start_anchor">--</div>
+                    <input id="docAiLineStartAnchor" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot docai-drop-slot-full" data-drop-field="line_end_anchor">
+                    <div class="docai-drop-label">Fim</div>
+                    <div class="docai-drop-value" data-field-display="line_end_anchor">--</div>
+                    <input id="docAiLineEndAnchor" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="line_ref_anchor">
+                    <div class="docai-drop-label">Refer&ecirc;ncia</div>
+                    <div class="docai-drop-value" data-field-display="line_ref_anchor">--</div>
+                    <input id="docAiLineRefAnchor" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="line_description_anchor">
+                    <div class="docai-drop-label">Designa&ccedil;&atilde;o</div>
+                    <div class="docai-drop-value" data-field-display="line_description_anchor">--</div>
+                    <input id="docAiLineDescriptionAnchor" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="line_qty_anchor">
+                    <div class="docai-drop-label">Quantidade</div>
+                    <div class="docai-drop-value" data-field-display="line_qty_anchor">--</div>
+                    <input id="docAiLineQtyAnchor" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="line_unit_price_anchor">
+                    <div class="docai-drop-label">Pre&ccedil;o</div>
+                    <div class="docai-drop-value" data-field-display="line_unit_price_anchor">--</div>
+                    <input id="docAiLineUnitPriceAnchor" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="line_discount_anchor">
+                    <div class="docai-drop-label">Desconto</div>
+                    <div class="docai-drop-value" data-field-display="line_discount_anchor">--</div>
+                    <input id="docAiLineDiscountAnchor" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="line_total_anchor">
+                    <div class="docai-drop-label">Total</div>
+                    <div class="docai-drop-value" data-field-display="line_total_anchor">--</div>
+                    <input id="docAiLineTotalAnchor" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="line_vat_anchor">
+                    <div class="docai-drop-label">IVA</div>
+                    <div class="docai-drop-value" data-field-display="line_vat_anchor">--</div>
+                    <input id="docAiLineVatAnchor" type="hidden">
+                  </div>
+                </div>
+              </section>
+
+              <section class="docai-info-card docai-info-card-compact">
+                <h4>Bases e IVA por Taxa</h4>
+                <div class="docai-drop-grid docai-drop-grid-3">
+                  <div class="docai-drop-slot" data-drop-field="tax_base_0">
+                    <div class="docai-drop-label">Base 0%</div>
+                    <div class="docai-drop-value" data-field-display="tax_base_0">--</div>
+                    <input id="docAiTaxBase0" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="tax_amount_0">
+                    <div class="docai-drop-label">IVA 0%</div>
+                    <div class="docai-drop-value" data-field-display="tax_amount_0">--</div>
+                    <input id="docAiTaxAmount0" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="tax_base_6">
+                    <div class="docai-drop-label">Base 6%</div>
+                    <div class="docai-drop-value" data-field-display="tax_base_6">--</div>
+                    <input id="docAiTaxBase6" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="tax_amount_6">
+                    <div class="docai-drop-label">IVA 6%</div>
+                    <div class="docai-drop-value" data-field-display="tax_amount_6">--</div>
+                    <input id="docAiTaxAmount6" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="tax_base_13">
+                    <div class="docai-drop-label">Base 13%</div>
+                    <div class="docai-drop-value" data-field-display="tax_base_13">--</div>
+                    <input id="docAiTaxBase13" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="tax_amount_13">
+                    <div class="docai-drop-label">IVA 13%</div>
+                    <div class="docai-drop-value" data-field-display="tax_amount_13">--</div>
+                    <input id="docAiTaxAmount13" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="tax_base_23">
+                    <div class="docai-drop-label">Base 23%</div>
+                    <div class="docai-drop-value" data-field-display="tax_base_23">--</div>
+                    <input id="docAiTaxBase23" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="tax_amount_23">
+                    <div class="docai-drop-label">IVA 23%</div>
+                    <div class="docai-drop-value" data-field-display="tax_amount_23">--</div>
+                    <input id="docAiTaxAmount23" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="net_total">
+                    <div class="docai-drop-label">Base</div>
+                    <div class="docai-drop-value" data-field-display="net_total">--</div>
+                    <input id="docAiNetTotal" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="tax_total">
+                    <div class="docai-drop-label">IVA</div>
+                    <div class="docai-drop-value" data-field-display="tax_total">--</div>
+                    <input id="docAiTaxTotal" type="hidden">
+                  </div>
+                  <div class="docai-drop-slot" data-drop-field="gross_total">
+                    <div class="docai-drop-label">Total Documento</div>
+                    <div class="docai-drop-value" data-field-display="gross_total">--</div>
+                    <input id="docAiGrossTotal" type="hidden">
+                  </div>
+                </div>
+              </section>
+
+              <section class="docai-info-card docai-info-card-compact">
                 <h4>Processamento</h4>
                 <div class="docai-meta-grid">
                   <div class="docai-meta-pill">
-                    <span class="label">Método</span>
+                    <span class="label">M&eacute;todo</span>
                     <strong id="docAiExtractionMethod">n/a</strong>
                   </div>
                   <div class="docai-meta-pill">
@@ -138,7 +320,7 @@
                   </div>
                   <div class="docai-meta-pill">
                     <span class="label">Fallback visual</span>
-                    <strong id="docAiExtractionFallback">Não</strong>
+                    <strong id="docAiExtractionFallback">N&atilde;o</strong>
                   </div>
                   <div class="docai-meta-pill">
                     <span class="label">Fase</span>
@@ -148,68 +330,16 @@
                 <div id="docAiExtractionError" class="sz_text_muted" style="margin-top:0.7rem;"></div>
               </section>
 
-              <section class="docai-info-card">
-                <h4>Campos extraídos</h4>
-                <div class="docai-field-grid">
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiDocumentNumber">Número documento</label>
-                    <input id="docAiDocumentNumber" class="sz_input" type="text">
-                  </div>
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiDocumentDate">Data documento</label>
-                    <input id="docAiDocumentDate" class="sz_input" type="date">
-                  </div>
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiCurrency">Moeda</label>
-                    <input id="docAiCurrency" class="sz_input" type="text">
-                  </div>
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiCustomerName">Cliente</label>
-                    <input id="docAiCustomerName" class="sz_input" type="text">
-                  </div>
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiNetTotal">Total líquido</label>
-                    <input id="docAiNetTotal" class="sz_input" type="number" step="0.01">
-                  </div>
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiTaxTotal">IVA</label>
-                    <input id="docAiTaxTotal" class="sz_input" type="number" step="0.01">
-                  </div>
-                  <div class="sz_field full">
-                    <label class="sz_label" for="docAiGrossTotal">Total bruto</label>
-                    <input id="docAiGrossTotal" class="sz_input" type="number" step="0.01">
-                  </div>
-                </div>
-              </section>
-
-              <section class="docai-info-card">
-                <h4>Linhas / avisos</h4>
-                <div id="docAiLinesSummary" class="sz_text_muted">Sem linhas carregadas.</div>
-                <div id="docAiWarnings" class="docai-tags" style="margin-top:0.7rem;"></div>
+              <section class="docai-info-card docai-info-card-compact">
+                <h4>Avisos</h4>
+                <div id="docAiWarnings" class="docai-tags"></div>
                 <div id="docAiErrors" class="docai-tags" style="margin-top:0.7rem;"></div>
               </section>
 
-              <section class="docai-info-card">
-                <h4>Template em edição</h4>
-                <div class="docai-field-grid">
-                  <div class="sz_field full">
-                    <label class="sz_label" for="docAiTemplateName">Nome template</label>
-                    <input id="docAiTemplateName" class="sz_input" type="text">
-                  </div>
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiTemplateFingerprint">Fingerprint</label>
-                    <input id="docAiTemplateFingerprint" class="sz_input" type="text">
-                  </div>
-                  <div class="sz_field">
-                    <label class="sz_label" for="docAiTemplateScoreMin">Score mínimo</label>
-                    <input id="docAiTemplateScoreMin" class="sz_input" type="number" step="0.01">
-                  </div>
-                  <div class="sz_field full">
-                    <label class="sz_label" for="docAiTemplateKeywords">Keywords de match</label>
-                    <input id="docAiTemplateKeywords" class="sz_input" type="text" placeholder="invoice,total,vat">
-                  </div>
-                </div>
-              </section>
+              <input id="docAiTemplateName" type="hidden">
+              <input id="docAiTemplateFingerprint" type="hidden">
+              <input id="docAiTemplateScoreMin" type="hidden">
+              <input id="docAiTemplateKeywords" type="hidden">
             </div>
           </div>
         </aside>
@@ -261,6 +391,32 @@
     <div id="docAiLinesModalBody" class="sz_modal_body docai-modal-body"></div>
     <div class="sz_modal_footer">
       <button id="docAiCloseLinesModalBottom" type="button" class="sz_button sz_button_secondary">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div id="docAiValueModal" class="docai-modal" aria-hidden="true">
+  <div class="sz_panel docai-modal-panel docai-value-modal-panel">
+    <div class="sz_modal_header">
+      <h3 class="sz_h4">Ajustar valor do campo</h3>
+      <button id="docAiCloseValueModal" type="button" class="sz_button sz_button_ghost">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body docai-modal-body">
+      <div class="docai-value-editor">
+        <div class="docai-value-editor-head">
+          <div id="docAiValueModalFieldLabel" class="sz_text_muted">Campo</div>
+          <div class="sz_text_muted">Seleciona no texto a parte que queres usar.</div>
+        </div>
+        <div id="docAiValueSource" class="docai-value-source" tabindex="0"></div>
+        <div class="docai-drop-label" style="margin-top:0.8rem;">Valor escolhido</div>
+        <div id="docAiValuePreview" class="docai-drop-value docai-drop-value-selected">--</div>
+      </div>
+    </div>
+    <div class="sz_modal_footer">
+      <button id="docAiApplyValueModal" type="button" class="sz_button sz_button_primary">Aplicar</button>
+      <button id="docAiCloseValueModalBottom" type="button" class="sz_button sz_button_secondary">Fechar</button>
     </div>
   </div>
 </div>

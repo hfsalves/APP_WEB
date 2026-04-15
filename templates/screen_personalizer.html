@@ -954,6 +954,87 @@
     opacity: .55;
   }
 
+  .spv-preview-table-block {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    width: 100%;
+  }
+
+  .spv-preview-table-title {
+    font-size: .78em;
+    font-weight: 700;
+    color: var(--sz-color-text);
+    line-height: 1.2;
+  }
+
+  .spv-preview-table-toolbar {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .spv-preview-table-action {
+    min-height: 1.8rem;
+    padding: .22rem .55rem;
+    font-size: .7em;
+    gap: .3rem;
+  }
+
+  .spv-preview-table {
+    width: 100%;
+    min-height: 7.5rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-border) 86%, transparent);
+    border-radius: var(--sz-radius-sm);
+    background: color-mix(in srgb, var(--sz-color-surface) 88%, transparent);
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto repeat(3, minmax(1.45rem, auto));
+  }
+
+  .spv-preview-table-head,
+  .spv-preview-table-row {
+    display: grid;
+    grid-template-columns: 4rem 1fr 5.5rem;
+    gap: .4rem;
+    align-items: center;
+    padding: .38rem .5rem;
+    font-size: .72em;
+  }
+
+  .spv-preview-table-head:has(> :nth-child(4)),
+  .spv-preview-table-row:has(> :nth-child(4)) {
+    grid-template-columns: 4rem 1fr 5.5rem 2rem;
+  }
+
+  .spv-preview-table-head {
+    font-weight: 700;
+    color: var(--sz-color-text);
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+    border-bottom: 1px solid color-mix(in srgb, var(--sz-color-border) 88%, transparent);
+  }
+
+  .spv-preview-table-row {
+    color: var(--sz-color-text-secondary);
+    border-bottom: 1px solid color-mix(in srgb, var(--sz-color-border) 76%, transparent);
+  }
+
+  .spv-preview-table-row:last-child {
+    border-bottom: none;
+  }
+
+  .spv-preview-table-delete {
+    border: none;
+    background: transparent;
+    color: var(--sz-color-text-secondary);
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: var(--sz-radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: .75;
+  }
+
   .spv-drop-placeholder-col {
     min-width: 0;
     display: flex;

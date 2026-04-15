@@ -5,19 +5,45 @@ from urllib import error as urllib_error
 from urllib import request as urllib_request
 
 from flask import current_app
+from sqlalchemy import text
+
+from models import db
 
 
 def _para_value(code: str, default: str = '') -> str:
+    key = str(code or '').strip()
+    if not key:
+        return default
     try:
         para_map = current_app.config.get('PARA_VALUES') or {}
+        value = para_map.get(key)
+        if value in (None, ''):
+            value = para_map.get(key.upper())
+        if value not in (None, ''):
+            return str(value).strip()
     except Exception:
-        para_map = {}
-    value = para_map.get(code)
-    if value in (None, ''):
-        value = para_map.get(str(code or '').strip().upper())
-    if value in (None, ''):
+        pass
+    try:
+        row = db.session.execute(
+            text("""
+                SELECT TOP 1 PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+                FROM dbo.PARA
+                WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) = UPPER(LTRIM(RTRIM(:code)))
+            """),
+            {'code': key},
+        ).mappings().first()
+        if not row:
+            return default
+        tipo = str(row.get('TIPO') or '').strip().upper()
+        if tipo == 'N':
+            return str(row.get('NVALOR') or '')
+        if tipo == 'D':
+            return str(row.get('DVALOR') or '')
+        if tipo == 'L':
+            return '1' if bool(row.get('LVALOR') or 0) else '0'
+        return str(row.get('CVALOR') or '').strip() or default
+    except Exception:
         return default
-    return str(value).strip()
 
 
 def _document_ai_api_key() -> str:

@@ -234,7 +234,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   };
   const boundVariableInputs = new Map();
   const boundVariableState = {};
-  const isEditableBoundObject = col => hasBoundVariable(col) && !col.readonly && !['SPACE', 'BUTTON'].includes((col.tipo || '').toUpperCase());
+  const isEditableBoundObject = col => hasBoundVariable(col) && !col.readonly && !['SPACE', 'BUTTON', 'TABLE'].includes((col.tipo || '').toUpperCase());
   const applyBoundValueToInput = (col, input, rawValue) => {
     if (!input) return;
     if (input.type === 'checkbox') {
@@ -1877,6 +1877,116 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
           setFormStateValue(col.name, '');
 
           wrapper.appendChild(button);
+          colDiv.appendChild(wrapper);
+          return;
+        }
+
+        if ((col.tipo || '').toUpperCase() === 'TABLE') {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'mb-3 sz_field';
+          const props = col.properties && typeof col.properties === 'object' ? col.properties : {};
+          const showAddButton = !!Number(props.show_add_button || 0);
+          const showDeleteButton = !!Number(props.show_delete_button || 0);
+
+          const marker = document.createElement('input');
+          marker.type = 'text';
+          marker.name = col.name;
+          marker.dataset.uiOnly = 'true';
+          marker.disabled = true;
+          marker.hidden = true;
+          camposByName[col.name] = marker;
+          setFormStateValue(col.name, '');
+
+          const host = document.createElement('div');
+          host.className = 'sz_surface_alt';
+          host.style.border = '1px solid var(--sz-color-border)';
+          host.style.borderRadius = 'var(--sz-radius-md)';
+          host.style.overflow = 'hidden';
+          host.style.minHeight = '10rem';
+          host.style.background = 'color-mix(in srgb, var(--sz-color-surface) 90%, transparent)';
+          host.style.display = 'flex';
+          host.style.flexDirection = 'column';
+          host.style.gap = '.45rem';
+          host.style.padding = '.6rem';
+
+          const title = document.createElement('div');
+          title.textContent = String(col.name || col.descricao || 'TABLE').trim() || 'TABLE';
+          title.style.fontSize = '.92rem';
+          title.style.fontWeight = '700';
+          title.style.color = 'var(--sz-color-text)';
+          host.appendChild(title);
+
+          if (showAddButton) {
+            const toolbar = document.createElement('div');
+            toolbar.style.display = 'flex';
+            toolbar.style.justifyContent = 'flex-end';
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = 'sz_button sz_button_secondary';
+            addBtn.disabled = true;
+            addBtn.innerHTML = '<i class="fa-solid fa-plus"></i><span>Adicionar linha</span>';
+            toolbar.appendChild(addBtn);
+            host.appendChild(toolbar);
+          }
+
+          const table = document.createElement('div');
+          table.style.display = 'grid';
+          table.style.gridTemplateRows = 'auto repeat(3, minmax(2rem, auto))';
+
+          const makeRow = (cells, { head = false } = {}) => {
+            const rowEl = document.createElement('div');
+            rowEl.style.display = 'grid';
+            rowEl.style.gridTemplateColumns = showDeleteButton ? '4rem 1fr 6rem 2rem' : '4rem 1fr 6rem';
+            rowEl.style.gap = '.4rem';
+            rowEl.style.alignItems = 'center';
+            rowEl.style.padding = '.45rem .6rem';
+            rowEl.style.fontSize = '.82rem';
+            rowEl.style.borderBottom = head ? '1px solid var(--sz-color-border)' : '1px solid color-mix(in srgb, var(--sz-color-border) 70%, transparent)';
+            if (head) {
+              rowEl.style.fontWeight = '700';
+              rowEl.style.color = 'var(--sz-color-text)';
+              rowEl.style.background = 'color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface))';
+            } else {
+              rowEl.style.color = 'var(--sz-color-text-secondary)';
+            }
+            cells.forEach((cell) => {
+              const span = document.createElement('span');
+              span.textContent = cell;
+              rowEl.appendChild(span);
+            });
+            if (!head && showDeleteButton) {
+              const actionWrap = document.createElement('div');
+              actionWrap.style.display = 'flex';
+              actionWrap.style.justifyContent = 'center';
+              const deleteBtn = document.createElement('button');
+              deleteBtn.type = 'button';
+              deleteBtn.disabled = true;
+              deleteBtn.title = 'Eliminar';
+              deleteBtn.style.border = 'none';
+              deleteBtn.style.background = 'transparent';
+              deleteBtn.style.color = 'var(--sz-color-text-secondary)';
+              deleteBtn.style.width = '1.75rem';
+              deleteBtn.style.height = '1.75rem';
+              deleteBtn.style.borderRadius = 'var(--sz-radius-sm)';
+              deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+              actionWrap.appendChild(deleteBtn);
+              rowEl.appendChild(actionWrap);
+            } else if (head && showDeleteButton) {
+              rowEl.appendChild(document.createElement('span'));
+            }
+            return rowEl;
+          };
+
+          table.appendChild(makeRow(['ID', 'Descricao', 'Valor'], { head: true }));
+          table.appendChild(makeRow(['1', 'Registo exemplo', '123,45']));
+          table.appendChild(makeRow(['2', 'Outra linha', '67,89']));
+          const lastRow = makeRow(['3', 'Mais uma linha', '10,00']);
+          lastRow.style.borderBottom = 'none';
+          table.appendChild(lastRow);
+
+          host.appendChild(table);
+          wrapper.appendChild(marker);
+          wrapper.appendChild(host);
           colDiv.appendChild(wrapper);
           return;
         }

@@ -167,6 +167,8 @@ def api_document_ai_document_reprocess(docinstamp: str):
             requested_by=_current_login(),
             forced_template_stamp=body.get('template_id', ''),
             reprocess_mode=str(body.get('reprocess_mode') or 'auto').strip() or 'auto',
+            manual_adjustments=body.get('manual_adjustments') or None,
+            working_template_payload=body.get('current_template') or None,
         )
         return jsonify(payload)
     except Exception as exc:

@@ -56,6 +56,7 @@ DOC_AI_CANONICAL_SCHEMA = {
     'customer': {'tax_id': '', 'name': ''},
     'document_number': '',
     'document_date': '',
+    'due_date': '',
     'currency': '',
     'totals': {'net_total': 0, 'tax_total': 0, 'gross_total': 0},
     'taxes': [],
@@ -73,6 +74,12 @@ DOC_AI_GENERIC_FIELD_CONFIGS = {
     'document_date': {
         'label': 'Data documento',
         'anchors': ['invoice date', 'date', 'document date', 'data', 'datum'],
+        'regex': r'(\d{4}[-/]\d{2}[-/]\d{2}|\d{2}[-/]\d{2}[-/]\d{4})',
+        'postprocess': 'date',
+    },
+    'due_date': {
+        'label': 'Data vencimento',
+        'anchors': ['due date', 'payment due', 'data vencimento', 'vencimento'],
         'regex': r'(\d{4}[-/]\d{2}[-/]\d{2}|\d{2}[-/]\d{2}[-/]\d{4})',
         'postprocess': 'date',
     },
@@ -130,6 +137,9 @@ DOC_AI_DEFAULT_LINE_RULES = {
     'enabled': True,
     'header_aliases': ['ref', 'reference', 'description', 'designação', 'descricao', 'qty', 'quantidade', 'price', 'preço', 'amount', 'valor'],
     'stop_keywords': ['total', 'subtotal', 'iva', 'vat', 'amount due'],
+    'start_anchor': '',
+    'end_anchor': '',
+    'columns': {},
 }
 
 _schema_ready_databases: set[str] = set()
@@ -926,6 +936,9 @@ def _set_nested_result(target: dict[str, Any], field_key: str, value: Any):
     if field_key == 'document_date':
         target['document_date'] = str(value or '').strip()
         return
+    if field_key == 'due_date':
+        target['due_date'] = str(value or '').strip()
+        return
     if field_key == 'currency':
         target['currency'] = str(value or '').strip()
         return
@@ -950,6 +963,31 @@ def _set_nested_result(target: dict[str, Any], field_key: str, value: Any):
     if field_key == 'tax_total':
         target['totals']['tax_total'] = float(value or 0)
         return
+    if field_key.startswith('tax_base_') or field_key.startswith('tax_amount_'):
+        suffix = field_key.split('_')[-1]
+        try:
+            rate = int(suffix)
+        except Exception:
+            rate = 0
+        taxes = target.setdefault('taxes', [])
+        bucket = next((item for item in taxes if int(item.get('tax_rate') or 0) == rate), None)
+        numeric_value = float(value or 0)
+        if bucket is None and numeric_value == 0:
+            return
+        if bucket is None:
+            bucket = {
+                'tax_rate': rate,
+                'taxable_base': 0.0,
+                'tax_amount': 0.0,
+                'gross_total': 0.0,
+            }
+            taxes.append(bucket)
+        if field_key.startswith('tax_base_'):
+            bucket['taxable_base'] = numeric_value
+        else:
+            bucket['tax_amount'] = numeric_value
+        bucket['gross_total'] = round(float(bucket.get('taxable_base') or 0) + float(bucket.get('tax_amount') or 0), 2)
+        return
     target[field_key] = value
 
 
@@ -960,24 +998,182 @@ def _extract_lines_table(lines: list[str], line_rules: dict[str, Any] | None = N
     if not rules.get('enabled'):
         return []
 
+    def _find_anchor_index(items: list[str], anchor: str, start: int = 0) -> int:
+        normalized_anchor = _normalize_text(anchor)
+        if not normalized_anchor:
+            return -1
+        for idx in range(max(0, start), len(items)):
+            if normalized_anchor in _normalize_text(items[idx]):
+                return idx
+        return -1
+
+    def _parse_line_with_columns(raw_line: str, positions: list[tuple[str, int]]) -> dict[str, Any] | None:
+        if not positions:
+            return None
+        normalized_line = _normalize_text(raw_line)
+        if len(normalized_line) < 2:
+            return None
+        row_values: dict[str, str] = {}
+        for idx, (column_key, start_pos) in enumerate(positions):
+            end_pos = positions[idx + 1][1] if idx + 1 < len(positions) else len(raw_line)
+            segment = raw_line[start_pos:end_pos].strip(' \t|')
+            row_values[column_key] = segment
+
+        if not any(item for item in row_values.values()):
+            return None
+
+        ref_value = row_values.get('ref', '')
+        description_value = row_values.get('description', '')
+        qty_value = _safe_decimal(row_values.get('qty', '')) or 0
+        unit_price_value = _safe_decimal(row_values.get('unit_price', '')) or 0
+        discount_value = _safe_decimal(row_values.get('discount', '')) or 0
+        total_value = _safe_decimal(row_values.get('total', '')) or 0
+        vat_value = _safe_decimal(row_values.get('vat', '')) or 0
+
+        if not description_value and not ref_value and not total_value:
+            return None
+
+        return {
+            'ref': str(ref_value or '')[:120],
+            'description': str(description_value or raw_line).strip()[:400],
+            'qty': qty_value,
+            'unit': '',
+            'unit_price': unit_price_value,
+            'discount': discount_value,
+            'tax_rate': vat_value,
+            'net_amount': total_value,
+            'tax_amount': round(total_value * (vat_value / 100.0), 2) if vat_value else 0,
+            'gross_amount': round(total_value + (total_value * (vat_value / 100.0)), 2) if vat_value else total_value,
+        }
+
+    def _parse_line_by_tokens(raw_line: str, configured_columns: dict[str, Any]) -> dict[str, Any] | None:
+        text_value = re.sub(r'\s+', ' ', str(raw_line or '').replace('*1', ' ').replace('*I', ' ')).strip()
+        if len(text_value) < 4:
+            return None
+
+        money_matches = list(re.finditer(r'-?\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})|-?\d+(?:[.,]\d{2})', text_value))
+        percent_matches = list(re.finditer(r'(\d+(?:[.,]\d+)?)\s*%', text_value))
+        if not money_matches:
+            return None
+
+        first_money = money_matches[0]
+        prefix = text_value[:first_money.start()].strip()
+        prefix_tokens = prefix.split()
+        qty_index = -1
+        qty_value = 0.0
+        for idx in range(len(prefix_tokens) - 1, -1, -1):
+            token = prefix_tokens[idx].strip()
+            if re.fullmatch(r'\d+(?:[.,]\d+)?', token):
+                qty_index = idx
+                qty_value = _safe_decimal(token) or 0.0
+                break
+
+        ref_value = ''
+        description_value = ''
+        unit_value = ''
+        if prefix_tokens:
+            if qty_index >= 0:
+                has_ref = bool((configured_columns or {}).get('ref'))
+                ref_value = prefix_tokens[0] if has_ref else ''
+                desc_start = 1 if has_ref and len(prefix_tokens) > 1 else 0
+                description_tokens = prefix_tokens[desc_start:qty_index]
+                description_value = ' '.join(description_tokens).strip()
+                unit_value = ' '.join(prefix_tokens[qty_index + 1:]).strip()
+            else:
+                has_ref = bool((configured_columns or {}).get('ref'))
+                ref_value = prefix_tokens[0] if has_ref else ''
+                description_tokens = prefix_tokens[1:] if has_ref else prefix_tokens
+                description_value = ' '.join(description_tokens).strip()
+
+        money_values = [_safe_decimal(match.group(0)) or 0.0 for match in money_matches]
+        unit_price_value = money_values[0] if money_values else 0.0
+        total_value = money_values[-1] if money_values else 0.0
+        discount_value = 0.0
+        if len(money_values) >= 3 and bool((configured_columns or {}).get('discount')):
+            discount_value = money_values[-2]
+        vat_value = _safe_decimal(percent_matches[-1].group(1)) if percent_matches else 0.0
+
+        if not description_value and not ref_value:
+            description_value = text_value
+
+        if not description_value and not total_value and not qty_value:
+            return None
+
+        tax_amount_value = round(total_value * ((vat_value or 0.0) / 100.0), 2) if vat_value else 0.0
+        gross_amount_value = round(total_value + tax_amount_value, 2) if total_value else 0.0
+        return {
+            'ref': str(ref_value or '')[:120],
+            'description': str(description_value or text_value).strip()[:400],
+            'qty': qty_value,
+            'unit': str(unit_value or '')[:20],
+            'unit_price': unit_price_value,
+            'discount': discount_value,
+            'tax_rate': vat_value or 0.0,
+            'net_amount': total_value,
+            'tax_amount': tax_amount_value,
+            'gross_amount': gross_amount_value or total_value,
+        }
+
     header_aliases = [_normalize_text(item) for item in (rules.get('header_aliases') or []) if str(item or '').strip()]
     stop_keywords = [_normalize_text(item) for item in (rules.get('stop_keywords') or []) if str(item or '').strip()]
-    header_index = -1
-    for idx, line in enumerate(lines):
-        normalized_line = _normalize_text(line)
-        hits = sum(1 for alias in header_aliases if alias and alias in normalized_line)
-        if hits >= 2:
-            header_index = idx
-            break
+    start_anchor = str(rules.get('start_anchor') or '').strip()
+    end_anchor = str(rules.get('end_anchor') or '').strip()
+    columns = rules.get('columns') or {}
+
+    header_index = _find_anchor_index(lines, start_anchor) if start_anchor else -1
+    if header_index < 0:
+        for idx, line in enumerate(lines):
+            normalized_line = _normalize_text(line)
+            hits = sum(1 for alias in header_aliases if alias and alias in normalized_line)
+            if hits >= 2:
+                header_index = idx
+                break
     if header_index < 0:
         return []
 
+    data_start_index = header_index + 1
+    if start_anchor and 0 <= header_index < len(lines):
+        header_line_normalized = _normalize_text(lines[header_index])
+        configured_column_anchors = [
+            _normalize_text((config or {}).get('anchor'))
+            for config in (columns.values() if isinstance(columns, dict) else [])
+            if _normalize_text((config or {}).get('anchor'))
+        ]
+        looks_like_header = any(anchor in header_line_normalized for anchor in configured_column_anchors) or (
+            sum(1 for alias in header_aliases if alias and alias in header_line_normalized) >= 2
+        )
+        if not looks_like_header:
+            data_start_index = header_index
+
+    end_index = _find_anchor_index(lines, end_anchor, header_index + 1) if end_anchor else -1
+    end_index = end_index if end_index >= 0 else len(lines)
+
+    normalized_header = _normalize_text(lines[header_index])
+    column_positions: list[tuple[str, int]] = []
+    for column_key, config in (columns.items() if isinstance(columns, dict) else []):
+        anchor = str((config or {}).get('anchor') or '').strip()
+        normalized_anchor = _normalize_text(anchor)
+        if not normalized_anchor:
+            continue
+        position = normalized_header.find(normalized_anchor)
+        if position >= 0:
+            column_positions.append((column_key, position))
+    column_positions.sort(key=lambda item: item[1])
+
     results = []
-    for raw_line in lines[header_index + 1:]:
+    for raw_line in lines[data_start_index:end_index]:
         normalized_line = _normalize_text(raw_line)
         if any(keyword in normalized_line for keyword in stop_keywords):
             break
         if len(raw_line.strip()) < 4:
+            continue
+        heuristic = _parse_line_by_tokens(raw_line, columns if isinstance(columns, dict) else {})
+        if heuristic:
+            results.append(heuristic)
+            continue
+        structured = _parse_line_with_columns(raw_line, column_positions)
+        if structured:
+            results.append(structured)
             continue
         amounts = re.findall(r'-?\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})|-?\d+(?:[.,]\d{2})', raw_line)
         qty_match = re.search(r'(^|\s)(\d+(?:[.,]\d+)?)\s+', raw_line)
@@ -999,6 +1195,258 @@ def _extract_lines_table(lines: list[str], line_rules: dict[str, Any] | None = N
             'tax_amount': 0,
             'gross_amount': gross or 0,
         })
+    return results
+
+
+def _group_text_blocks_rows(blocks: list[dict[str, Any]], line_rules: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    area = (line_rules or {}).get('area') if isinstance(line_rules, dict) else None
+    area_page = _safe_int((area or {}).get('page'), 0) or None
+    area_left = _safe_decimal((area or {}).get('left')) if isinstance(area, dict) else None
+    area_top = _safe_decimal((area or {}).get('top')) if isinstance(area, dict) else None
+    area_width = _safe_decimal((area or {}).get('width')) if isinstance(area, dict) else None
+    area_height = _safe_decimal((area or {}).get('height')) if isinstance(area, dict) else None
+    use_area = all(value is not None and value > 0 for value in (area_width, area_height)) and area_left is not None and area_top is not None
+
+    filtered = []
+    for block in blocks or []:
+        text_value = str(block.get('text') or '').strip()
+        if not text_value:
+            continue
+        page_no = _safe_int(block.get('page'), 0) or 1
+        if area_page and page_no != area_page:
+            continue
+        if use_area:
+            page_width = _safe_decimal(block.get('page_width')) or 0
+            page_height = _safe_decimal(block.get('page_height')) or 0
+            left = _safe_decimal(block.get('left')) or 0
+            top = _safe_decimal(block.get('top')) or 0
+            width = _safe_decimal(block.get('width')) or 0
+            height = _safe_decimal(block.get('height')) or 0
+            if page_width > 0 and page_height > 0 and width > 0 and height > 0:
+                center_x = (left + (width / 2.0)) / page_width
+                center_y = (top + (height / 2.0)) / page_height
+                if not (
+                    area_left <= center_x <= (area_left + area_width)
+                    and area_top <= center_y <= (area_top + area_height)
+                ):
+                    continue
+        filtered.append({
+            'page': page_no,
+            'line_no': _safe_int(block.get('line_no'), 0),
+            'top': _safe_decimal(block.get('top')) or 0,
+            'left': _safe_decimal(block.get('left')) or 0,
+            'height': _safe_decimal(block.get('height')) or 0,
+            'text': text_value,
+        })
+
+    if not filtered:
+        return [
+            {
+                'page': _safe_int(block.get('page'), 0) or 1,
+                'line_no': _safe_int(block.get('line_no'), 0),
+                'text': str(block.get('text') or '').strip(),
+                'blocks': [block],
+            }
+            for block in blocks or []
+            if str(block.get('text') or '').strip()
+        ]
+
+    grouped: list[list[dict[str, Any]]] = []
+    filtered.sort(key=lambda item: (item['page'], item['line_no'] if item['line_no'] > 0 else 999999, item['top'], item['left']))
+    for block in filtered:
+        appended = False
+        if grouped:
+            last_group = grouped[-1]
+            last = last_group[-1]
+            same_page = last['page'] == block['page']
+            same_line_no = block['line_no'] > 0 and last['line_no'] > 0 and last['line_no'] == block['line_no']
+            top_tolerance = max(float(last.get('height') or 0) * 0.65, float(block.get('height') or 0) * 0.65, 10.0)
+            same_visual_row = abs(float(last.get('top') or 0) - float(block.get('top') or 0)) <= top_tolerance
+            if same_page and (same_line_no or same_visual_row):
+                last_group.append(block)
+                appended = True
+        if not appended:
+            grouped.append([block])
+
+    rows = []
+    for row_blocks in grouped:
+        row_blocks.sort(key=lambda item: item['left'])
+        row_text = ' '.join(str(item.get('text') or '').strip() for item in row_blocks if str(item.get('text') or '').strip())
+        row_text = re.sub(r'\s{2,}', ' ', row_text).strip()
+        if row_text:
+            rows.append({
+                'page': row_blocks[0].get('page'),
+                'line_no': row_blocks[0].get('line_no'),
+                'text': row_text,
+                'blocks': row_blocks,
+            })
+    return rows
+
+
+def _group_text_blocks_for_lines(blocks: list[dict[str, Any]], line_rules: dict[str, Any] | None = None) -> list[str]:
+    return [str(item.get('text') or '').strip() for item in _group_text_blocks_rows(blocks, line_rules) if str(item.get('text') or '').strip()]
+
+
+def _extract_lines_from_grouped_rows(block_rows: list[dict[str, Any]], line_rules: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    rules = dict(DOC_AI_DEFAULT_LINE_RULES)
+    if line_rules:
+        rules.update(line_rules)
+    if not rules.get('enabled'):
+        return []
+
+    rows = [item for item in (block_rows or []) if str(item.get('text') or '').strip()]
+    if not rows:
+        return []
+
+    def _find_row_index(anchor: str, start: int = 0) -> int:
+        normalized_anchor = _normalize_text(anchor)
+        if not normalized_anchor:
+            return -1
+        for idx in range(max(0, start), len(rows)):
+            if normalized_anchor in _normalize_text(rows[idx].get('text') or ''):
+                return idx
+        return -1
+
+    def _text_from_blocks(items: list[dict[str, Any]]) -> str:
+        ordered = sorted(items or [], key=lambda item: (_safe_decimal(item.get('left')) or 0))
+        return re.sub(r'\s{2,}', ' ', ' '.join(str(item.get('text') or '').strip() for item in ordered if str(item.get('text') or '').strip())).strip()
+
+    def _find_header_block(anchor: str, header_blocks: list[dict[str, Any]]) -> dict[str, Any] | None:
+        normalized_anchor = _normalize_text(anchor)
+        if not normalized_anchor:
+            return None
+        best = None
+        best_score = -1
+        for item in header_blocks or []:
+            block_text = _normalize_text(item.get('text') or '')
+            if not block_text:
+                continue
+            if normalized_anchor in block_text or block_text in normalized_anchor:
+                score = min(len(normalized_anchor), len(block_text))
+                if normalized_anchor == block_text:
+                    score += 1000
+                if score > best_score:
+                    best = item
+                    best_score = score
+        return best
+
+    def _extract_percent(raw: str) -> float:
+        match = re.search(r'(\d+(?:[.,]\d+)?)\s*%', str(raw or ''))
+        return _safe_decimal(match.group(1)) if match else (_safe_decimal(raw) or 0.0)
+
+    start_anchor = str(rules.get('start_anchor') or '').strip()
+    end_anchor = str(rules.get('end_anchor') or '').strip()
+    header_aliases = [_normalize_text(item) for item in (rules.get('header_aliases') or []) if str(item or '').strip()]
+    stop_keywords = [_normalize_text(item) for item in (rules.get('stop_keywords') or []) if str(item or '').strip()]
+    columns = rules.get('columns') or {}
+
+    header_index = _find_row_index(start_anchor) if start_anchor else -1
+    if header_index < 0:
+        for idx, row in enumerate(rows):
+            normalized_row = _normalize_text(row.get('text') or '')
+            hits = sum(1 for alias in header_aliases if alias and alias in normalized_row)
+            if hits >= 2:
+                header_index = idx
+                break
+    if header_index < 0:
+        return []
+
+    end_index = _find_row_index(end_anchor, header_index + 1) if end_anchor else -1
+    end_index = end_index if end_index >= 0 else len(rows)
+    header_blocks = list(rows[header_index].get('blocks') or [])
+
+    column_defs = []
+    for column_key, config in (columns.items() if isinstance(columns, dict) else []):
+        anchor = str((config or {}).get('anchor') or '').strip()
+        header_block = _find_header_block(anchor, header_blocks)
+        if not header_block:
+            continue
+        left = _safe_decimal(header_block.get('left')) or 0.0
+        width = _safe_decimal(header_block.get('width')) or 0.0
+        right = left + width
+        center = left + (width / 2.0)
+        column_defs.append({
+            'key': column_key,
+            'anchor': anchor,
+            'left': left,
+            'right': right,
+            'center': center,
+        })
+
+    column_defs.sort(key=lambda item: item['center'])
+    if not column_defs:
+        return []
+
+    boundaries = []
+    for idx, item in enumerate(column_defs):
+        left_boundary = -10**9 if idx == 0 else (column_defs[idx - 1]['center'] + item['center']) / 2.0
+        right_boundary = 10**9 if idx == len(column_defs) - 1 else (item['center'] + column_defs[idx + 1]['center']) / 2.0
+        boundaries.append((item['key'], left_boundary, right_boundary, item))
+
+    qty_def = next((item for item in column_defs if item['key'] == 'qty'), None)
+    price_def = next((item for item in column_defs if item['key'] == 'unit_price'), None)
+
+    results = []
+    for row in rows[header_index + 1:end_index]:
+        normalized_row = _normalize_text(row.get('text') or '')
+        if any(keyword in normalized_row for keyword in stop_keywords):
+            break
+        row_blocks = list(row.get('blocks') or [])
+        if not row_blocks:
+            continue
+
+        assigned: dict[str, list[dict[str, Any]]] = {item['key']: [] for item in column_defs}
+        unit_blocks: list[dict[str, Any]] = []
+        for block in row_blocks:
+            block_text = str(block.get('text') or '').strip()
+            if not block_text:
+                continue
+            left = _safe_decimal(block.get('left')) or 0.0
+            width = _safe_decimal(block.get('width')) or 0.0
+            center = left + (width / 2.0)
+
+            if qty_def and price_def and qty_def['center'] < center < price_def['center']:
+                if re.fullmatch(r'[A-Z]{1,6}', block_text.strip(), re.IGNORECASE):
+                    unit_blocks.append(block)
+                    continue
+
+            chosen_key = None
+            for key, left_boundary, right_boundary, _meta in boundaries:
+                if left_boundary <= center < right_boundary:
+                    chosen_key = key
+                    break
+            if chosen_key:
+                assigned.setdefault(chosen_key, []).append(block)
+
+        ref_value = _text_from_blocks(assigned.get('ref', []))
+        description_value = _text_from_blocks(assigned.get('description', []))
+        qty_value = _safe_decimal(_text_from_blocks(assigned.get('qty', []))) or 0.0
+        unit_value = _text_from_blocks(unit_blocks)
+        unit_price_value = _safe_decimal(_text_from_blocks(assigned.get('unit_price', []))) or 0.0
+        discount_raw = _text_from_blocks(assigned.get('discount', []))
+        discount_value = _safe_decimal(discount_raw) or 0.0
+        total_value = _safe_decimal(_text_from_blocks(assigned.get('total', []))) or 0.0
+        vat_raw = _text_from_blocks(assigned.get('vat', []))
+        vat_value = _extract_percent(vat_raw)
+
+        if not description_value and not ref_value:
+            continue
+
+        tax_amount_value = round(total_value * ((vat_value or 0.0) / 100.0), 2) if vat_value else 0.0
+        gross_amount_value = round(total_value + tax_amount_value, 2) if total_value else 0.0
+        results.append({
+            'ref': str(ref_value or '')[:120],
+            'description': str(description_value or '').strip()[:400],
+            'qty': qty_value,
+            'unit': str(unit_value or '')[:20],
+            'unit_price': unit_price_value,
+            'discount': discount_value,
+            'tax_rate': vat_value or 0.0,
+            'net_amount': total_value,
+            'tax_amount': tax_amount_value,
+            'gross_amount': gross_amount_value or total_value,
+        })
+
     return results
 
 
@@ -1028,7 +1476,11 @@ def _execute_template_parse(text_value: str, blocks: list[dict[str, Any]], templ
         field_confidences.append(float(extracted.get('confidence') or 0))
 
     line_rules = definition.get('lines') if isinstance(definition.get('lines'), dict) else DOC_AI_DEFAULT_LINE_RULES
-    parsed_lines = _extract_lines_table(lines, line_rules)
+    grouped_line_rows = _group_text_blocks_rows(blocks, line_rules)
+    grouped_line_texts = [str(item.get('text') or '').strip() for item in grouped_line_rows if str(item.get('text') or '').strip()]
+    parsed_lines = _extract_lines_from_grouped_rows(grouped_line_rows, line_rules)
+    if not parsed_lines:
+        parsed_lines = _extract_lines_table(grouped_line_texts or lines, line_rules)
     if parsed_lines:
         result['lines'] = parsed_lines
     warnings = []
@@ -1167,6 +1619,7 @@ def extract_document_text(
     mime_type: str = '',
     document_stamp: str = '',
     force_mode: str = 'auto',
+    manual_adjustments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return extract_document_with_cascade(
         file_path=file_path,
@@ -1174,6 +1627,7 @@ def extract_document_text(
         mime_type=mime_type,
         document_stamp=document_stamp,
         force_mode=force_mode,
+        manual_adjustments=manual_adjustments,
     )
 
 
@@ -1510,6 +1964,8 @@ def process_document(
     requested_by: str = '',
     forced_template_stamp: str = '',
     reprocess_mode: str = 'auto',
+    manual_adjustments: dict[str, Any] | None = None,
+    working_template_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     _ensure_document_ai_schema()
     _ensure_default_parser()
@@ -1526,6 +1982,7 @@ def process_document(
         'file_name': document.file_name,
         'requested_by': requested_by,
         'reprocess_mode': reprocess_mode,
+        'manual_adjustments': manual_adjustments or {},
     })
 
     try:
@@ -1537,6 +1994,7 @@ def process_document(
             document.mime_type,
             document_stamp=document.docinstamp,
             force_mode=reprocess_mode,
+            manual_adjustments=manual_adjustments,
         )
         document.extracted_text = str(extraction.get('text') or '').strip()
         document.extraction_method = str(extraction.get('method') or 'failed').strip() or 'failed'
@@ -1589,6 +2047,7 @@ def process_document(
 
         document.processing_stage = 'template_match'
         pre_template_doc_type = classify_document_type(document.extracted_text or '', supplier_match, None)
+        runtime_template = _build_runtime_template_payload(working_template_payload, requested_by) if working_template_payload else None
         template_match = None
         if forced_template_stamp:
             forced_template = db.session.get(DocTemplate, str(forced_template_stamp or '').strip())
@@ -1599,6 +2058,13 @@ def process_document(
                     'reasons': ['forced'],
                     'doc_type': forced_template.doc_type or pre_template_doc_type.get('doc_type') or 'unknown',
                 }
+        if not template_match and runtime_template:
+            template_match = {
+                'template': runtime_template,
+                'score': 0.99,
+                'reasons': ['working_template'],
+                'doc_type': runtime_template.get('doc_type') or pre_template_doc_type.get('doc_type') or 'unknown',
+            }
         if not template_match:
             template_match = _choose_best_template(
                 document.extracted_text or '',
@@ -1606,7 +2072,11 @@ def process_document(
                 pre_template_doc_type.get('doc_type') or 'unknown',
             )
         _document_log(document.docinstamp, 'template_match', 'ok' if template_match else 'warning', 'Template selecionado.' if template_match else 'Sem template válido.', {
-            'template_id': template_match['template'].doctemplatestamp if template_match else '',
+            'template_id': (
+                str((template_match.get('template') or {}).get('id') or '').strip()
+                if template_match and isinstance(template_match.get('template'), dict)
+                else (template_match['template'].doctemplatestamp if template_match else '')
+            ),
             'score': template_match.get('score') if template_match else 0,
             'reasons': template_match.get('reasons') if template_match else [],
         })
@@ -1619,13 +2089,22 @@ def process_document(
         template_payload = None
         if template_match:
             template = template_match.get('template')
-            document.doctemplatestamp = template.doctemplatestamp
-            document.docparserstamp = template.docparserstamp or ''
-            document.parser_version = template.parser_version or ''
-            template_payload = {
-                'template': _serialize_template(template, include_definition=True),
-                'definition': _template_definition_payload(template),
-            }
+            if isinstance(template, dict):
+                document.doctemplatestamp = str(template.get('id') or '').strip() or None
+                document.docparserstamp = str(template.get('parser_id') or '').strip()
+                document.parser_version = str(template.get('parser_version') or '').strip()
+                template_payload = {
+                    'template': template,
+                    'definition': template.get('definition') or {},
+                }
+            else:
+                document.doctemplatestamp = template.doctemplatestamp
+                document.docparserstamp = template.docparserstamp or ''
+                document.parser_version = template.parser_version or ''
+                template_payload = {
+                    'template': _serialize_template(template, include_definition=True),
+                    'definition': _template_definition_payload(template),
+                }
         else:
             default_parser = _ensure_default_parser()
             document.doctemplatestamp = None
@@ -1669,7 +2148,11 @@ def process_document(
             'supplier_match': supplier_match,
             'doc_type': doc_type_info,
             'template_match': {
-                'template_id': template_match['template'].doctemplatestamp,
+                'template_id': (
+                    str((template_match.get('template') or {}).get('id') or '').strip()
+                    if template_match and isinstance(template_match.get('template'), dict)
+                    else template_match['template'].doctemplatestamp
+                ),
                 'score': template_match.get('score'),
                 'reasons': template_match.get('reasons'),
             } if template_match else {},
@@ -1699,7 +2182,10 @@ def process_document(
         })
 
         db.session.commit()
-        return get_document_detail(document.docinstamp)
+        payload = get_document_detail(document.docinstamp)
+        if runtime_template:
+            payload['template_draft'] = runtime_template
+        return payload
     except Exception as exc:
         current_app.logger.exception('Erro no processamento documental')
         db.session.rollback()
@@ -1787,13 +2273,63 @@ def reprocess_document(
     requested_by: str,
     forced_template_stamp: str = '',
     reprocess_mode: str = 'auto',
+    manual_adjustments: dict[str, Any] | None = None,
+    working_template_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return process_document(
         document_stamp,
         requested_by=requested_by,
         forced_template_stamp=forced_template_stamp,
         reprocess_mode=reprocess_mode,
+        manual_adjustments=manual_adjustments,
+        working_template_payload=working_template_payload,
     )
+
+
+def _build_runtime_template_payload(payload: dict[str, Any] | None, requested_by: str = '') -> dict[str, Any] | None:
+    if not isinstance(payload, dict) or not payload:
+        return None
+    normalized = _normalize_template_payload(payload, requested_by or '')
+    definition = _json_loads(normalized.get('definition_json'), {})
+    match_rules = _json_loads(normalized.get('match_rules_json'), {})
+    parser = db.session.get(DocParser, normalized.get('parser_id')) if normalized.get('parser_id') else None
+    runtime_template = {
+        'id': str(payload.get('id') or '').strip(),
+        'name': normalized.get('name') or 'Template runtime',
+        'description': normalized.get('description') or '',
+        'supplier_no': normalized.get('supplier_no'),
+        'supplier_name': '',
+        'doc_type': normalized.get('doc_type') or 'unknown',
+        'language': normalized.get('language') or '',
+        'fingerprint': normalized.get('fingerprint') or '',
+        'score_min_match': float(normalized.get('score_min_match') or 0.55),
+        'parser': _serialize_parser(parser),
+        'parser_id': normalized.get('parser_id') or '',
+        'parser_version': normalized.get('parser_version') or '',
+        'active': bool(normalized.get('active', True)),
+        'match_rules': match_rules,
+        'definition': definition,
+        'fields': [],
+        'lines': definition.get('lines') or {},
+    }
+    runtime_template['fields'] = [
+        {
+            'id': '',
+            'field_key': item.get('field_key') or '',
+            'label': item.get('label') or item.get('field_key') or '',
+            'order': item.get('order') or (idx + 1),
+            'required': bool(item.get('required')),
+            'match_mode': item.get('match_mode') or 'anchor_regex',
+            'anchors': list(item.get('anchors') or []),
+            'regex': item.get('regex') or '',
+            'aliases': list(item.get('aliases') or []),
+            'postprocess': item.get('postprocess') or '',
+            'config': item.get('config') or {},
+            'active': bool(item.get('active', True)),
+        }
+        for idx, item in enumerate(normalized.get('fields') or [])
+    ]
+    return runtime_template
 
 
 def save_document_review(document_stamp: str, payload: dict[str, Any], requested_by: str) -> dict[str, Any]:

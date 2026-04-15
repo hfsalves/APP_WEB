@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const state = {
     screens: [],
+    sqlTables: [],
     selectedMenustamp: String(cfg.initialMenustamp || '').trim(),
     detail: null,
     loading: false,
@@ -87,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
     MEMO: { icon: 'fa-solid fa-align-left', label: 'Memo' },
     BIT: { icon: 'fa-solid fa-square-check', label: 'Bit' },
     BUTTON: { icon: 'fa-solid fa-square', label: 'Botao' },
+    TABLE: { icon: 'fa-solid fa-table', label: 'Tabela' },
     COLOR: { icon: 'fa-solid fa-palette', label: 'Cor' },
     LINK: { icon: 'fa-solid fa-link', label: 'Link' },
     SPACE: { icon: 'fa-solid fa-left-right', label: 'Espaço' },
@@ -101,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     MEMO: 'Memo',
     BIT: 'Checkbox',
     BUTTON: 'Button',
+    TABLE: 'Table',
     COLOR: 'Color',
     LINK: 'Link',
     SPACE: 'Spacer',
@@ -117,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { id: 'MEMO', icon: TYPE_META.MEMO.icon, label: 'Memo', key: 'MEMO' },
     { id: 'BIT', icon: TYPE_META.BIT.icon, label: 'Checkbox', key: 'BIT' },
     { id: 'BUTTON', icon: TYPE_META.BUTTON.icon, label: 'Button', key: 'BUTTON' },
+    { id: 'TABLE', icon: TYPE_META.TABLE.icon, label: 'Table', key: 'TABLE' },
     { id: 'COLOR', icon: TYPE_META.COLOR.icon, label: 'Color', key: 'COLOR' },
     { id: 'LINK', icon: TYPE_META.LINK.icon, label: 'Link', key: 'LINK' },
     { id: 'SPACE', icon: TYPE_META.SPACE.icon, label: 'Spacer', key: 'SPACE' },
@@ -1459,14 +1463,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!template) return null;
     const stamp = nextCustomObjectStamp();
     const baseName = `OBJ_${template.id}_${state.customObjectSeq}`;
-    const defaultWidth = template.id === 'BUTTON' ? 15 : 5;
+    const defaultWidth = template.id === 'TABLE' ? 100 : (template.id === 'BUTTON' ? 15 : 5);
+    const defaultMobileWidth = template.id === 'TABLE' ? 40 : defaultWidth;
     const objectRow = normalizeCampoRow({
       CAMPOSSTAMP: stamp,
       NMCAMPO: baseName,
       DESCRICAO: template.label,
       TIPO: template.id,
       TAM: defaultWidth,
-      TAM_MOBILE: defaultWidth,
+      TAM_MOBILE: defaultMobileWidth,
       ORDEM: 0,
       ORDEM_MOBILE: 0,
       RONLY: 0,
@@ -1924,8 +1929,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const boundVariable = getFieldBoundVariable(field);
     const boundValue = getFieldBoundVariableDefault(field);
     const isButton = type === 'BUTTON';
+    const isTable = type === 'TABLE';
     const enabled = isFieldEnabled(field);
-    const label = `${escapeHtml(fieldLabel(field))}${!isButton && Number(field.OBRIGATORIO || 0) ? ' <span class="spv-required">*</span>' : ''}${boundVariable ? ` <span class="sz_badge sz_badge_warning spv-readonly-badge">${escapeHtml(boundVariable.NOME || 'VAR')}</span>` : ''}${!isButton && Number(field.RONLY || 0) ? ' <span class="sz_badge sz_badge_warning spv-readonly-badge">R/O</span>' : ''}${isButton && hasFieldEventConfigured(field, 'click') ? ' <span class="sz_badge sz_badge_warning spv-readonly-badge">Click</span>' : ''}`;
+    const label = `${escapeHtml(fieldLabel(field))}${!isButton && !isTable && Number(field.OBRIGATORIO || 0) ? ' <span class="spv-required">*</span>' : ''}${boundVariable ? ` <span class="sz_badge sz_badge_warning spv-readonly-badge">${escapeHtml(boundVariable.NOME || 'VAR')}</span>` : ''}${!isButton && !isTable && Number(field.RONLY || 0) ? ' <span class="sz_badge sz_badge_warning spv-readonly-badge">R/O</span>' : ''}${isButton && hasFieldEventConfigured(field, 'click') ? ' <span class="sz_badge sz_badge_warning spv-readonly-badge">Click</span>' : ''}`;
     const placeholder = escapeHtml(boundValue || field.NMCAMPO || fieldLabel(field));
     const handle = buildResizeHandle(field);
 
@@ -1949,6 +1955,52 @@ document.addEventListener('DOMContentLoaded', () => {
     if (type === 'BUTTON') {
       return `
         <button type="button" class="sz_button sz_button_secondary spv-preview-button" ${enabled ? '' : 'disabled'}>${escapeHtml(fieldLabel(field))}</button>
+        ${handle}
+      `;
+    }
+
+    if (type === 'TABLE') {
+      const props = getFieldProperties(field);
+      const showAddButton = isTruthyLike(props.show_add_button);
+      const showDeleteButton = isTruthyLike(props.show_delete_button);
+      return `
+        <div class="spv-preview-table-block" aria-hidden="true">
+          <div class="spv-preview-table-title">${escapeHtml(String(field.NMCAMPO || fieldLabel(field) || 'TABLE').trim() || 'TABLE')}</div>
+          ${showAddButton ? `
+            <div class="spv-preview-table-toolbar">
+              <button type="button" class="sz_button sz_button_secondary spv-preview-table-action" disabled>
+                <i class="fa-solid fa-plus"></i>
+                <span>Add line</span>
+              </button>
+            </div>
+          ` : ''}
+        <div class="spv-preview-table">
+          <div class="spv-preview-table-head">
+            <span>ID</span>
+            <span>Descricao</span>
+            <span>Valor</span>
+            ${showDeleteButton ? '<span></span>' : ''}
+          </div>
+          <div class="spv-preview-table-row">
+            <span>1</span>
+            <span>${escapeHtml(fieldLabel(field))}</span>
+            <span>123,45</span>
+            ${showDeleteButton ? '<button type="button" class="spv-preview-table-delete" disabled><i class="fa-solid fa-trash"></i></button>' : ''}
+          </div>
+          <div class="spv-preview-table-row">
+            <span>2</span>
+            <span>Registo exemplo</span>
+            <span>67,89</span>
+            ${showDeleteButton ? '<button type="button" class="spv-preview-table-delete" disabled><i class="fa-solid fa-trash"></i></button>' : ''}
+          </div>
+          <div class="spv-preview-table-row">
+            <span>3</span>
+            <span>Mais uma linha</span>
+            <span>10,00</span>
+            ${showDeleteButton ? '<button type="button" class="spv-preview-table-delete" disabled><i class="fa-solid fa-trash"></i></button>' : ''}
+          </div>
+        </div>
+        </div>
         ${handle}
       `;
     }
@@ -2247,8 +2299,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const listMode = isListLayoutMode();
     const listMobileMode = isListMobileLayoutMode();
     const editableName = isCustomObject(field);
-    const canBindVariable = isCustomObject(field) && !['SPACE', 'BUTTON'].includes(fieldType);
+    const canBindVariable = isCustomObject(field) && !['SPACE', 'BUTTON', 'TABLE'].includes(fieldType);
     const boundVariable = getFieldBoundVariable(field);
+    const fieldProps = getFieldProperties(field);
+    const tableSourceType = String(fieldProps.source_type || 'sql_table').trim() || 'sql_table';
+    const sqlTableOptions = state.sqlTables.length
+      ? state.sqlTables.map((table) => ({
+          value: String(table.key || '').trim(),
+          label: String(table.label || table.key || '').trim(),
+        }))
+      : [{ value: '', label: 'Sem tabelas disponiveis' }];
     const lineValue = listMode
       ? (listMobileMode
         ? (Number(field.ORDEM_LISTA_MOBILE || 0) > 0 ? `Row ${Math.max(1, Number(field._SPV_ROW_LIST_MOBILE || getFieldRowId(field) || 1))} · Pos ${Math.max(1, Number(field._SPV_POS_LIST_MOBILE ?? getFieldPos(field)) + 1)}` : 'Out of mobile card')
@@ -2329,7 +2389,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : 'O evento passa a ser desenhado por comandos visuais e pseudo-codigo.',
         },
       );
-    } else if (!listMode) {
+    } else if (!listMode && fieldType !== 'TABLE') {
       props.push(
         {
           name: 'Required',
@@ -2342,6 +2402,59 @@ document.addEventListener('DOMContentLoaded', () => {
           value: Number(field.RONLY || 0) ? 'Yes' : 'No',
           editor: 'RONLY',
           editorType: 'boolean',
+        },
+      );
+    }
+    if (!listMode && fieldType === 'TABLE') {
+      props.push(
+        {
+          name: 'Source Type',
+          value: tableSourceType,
+          editor: 'TABLE_SOURCE_TYPE',
+          editorType: 'select',
+          options: [
+            { value: 'sql_table', label: 'SQL Table' },
+            { value: 'cursor', label: 'Cursor' },
+          ],
+        },
+        (
+          tableSourceType === 'cursor'
+            ? {
+                name: 'Source',
+                value: String(fieldProps.source || '').trim(),
+                editor: 'TABLE_SOURCE',
+              }
+            : {
+                name: 'Source',
+                value: String(fieldProps.source || '').trim(),
+                editor: 'TABLE_SOURCE',
+                editorType: 'select',
+                options: [{ value: '', label: 'Seleciona uma tabela' }, ...sqlTableOptions],
+              }
+        ),
+        {
+          name: 'Field Link',
+          value: String(fieldProps.field_link || '').trim(),
+          editor: 'TABLE_FIELD_LINK',
+        },
+        {
+          name: 'Source Link',
+          value: String(fieldProps.source_link || '').trim(),
+          editor: 'TABLE_SOURCE_LINK',
+        },
+        {
+          name: 'Show Add Button',
+          value: isTruthyLike(fieldProps.show_add_button) ? 'Yes' : 'No',
+          editor: 'TABLE_SHOW_ADD_BUTTON',
+          editorType: 'boolean',
+          editorValue: isTruthyLike(fieldProps.show_add_button) ? '1' : '0',
+        },
+        {
+          name: 'Show Delete Button',
+          value: isTruthyLike(fieldProps.show_delete_button) ? 'Yes' : 'No',
+          editor: 'TABLE_SHOW_DELETE_BUTTON',
+          editorType: 'boolean',
+          editorValue: isTruthyLike(fieldProps.show_delete_button) ? '1' : '0',
         },
       );
     }
@@ -2493,6 +2606,54 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         delete field.PROPRIEDADES.variable_name;
       }
+    } else if (propName === 'TABLE_SOURCE_TYPE') {
+      if (detectFieldType(field) !== 'TABLE') return;
+      if (!field.PROPRIEDADES || typeof field.PROPRIEDADES !== 'object') {
+        field.PROPRIEDADES = {};
+      }
+      field.PROPRIEDADES.source_type = value === 'cursor' ? 'cursor' : 'sql_table';
+    } else if (propName === 'TABLE_SOURCE') {
+      if (detectFieldType(field) !== 'TABLE') return;
+      if (!field.PROPRIEDADES || typeof field.PROPRIEDADES !== 'object') {
+        field.PROPRIEDADES = {};
+      }
+      if (value) {
+        field.PROPRIEDADES.source = value;
+      } else {
+        delete field.PROPRIEDADES.source;
+      }
+    } else if (propName === 'TABLE_FIELD_LINK') {
+      if (detectFieldType(field) !== 'TABLE') return;
+      if (!field.PROPRIEDADES || typeof field.PROPRIEDADES !== 'object') {
+        field.PROPRIEDADES = {};
+      }
+      if (value) {
+        field.PROPRIEDADES.field_link = value;
+      } else {
+        delete field.PROPRIEDADES.field_link;
+      }
+    } else if (propName === 'TABLE_SOURCE_LINK') {
+      if (detectFieldType(field) !== 'TABLE') return;
+      if (!field.PROPRIEDADES || typeof field.PROPRIEDADES !== 'object') {
+        field.PROPRIEDADES = {};
+      }
+      if (value) {
+        field.PROPRIEDADES.source_link = value;
+      } else {
+        delete field.PROPRIEDADES.source_link;
+      }
+    } else if (propName === 'TABLE_SHOW_ADD_BUTTON') {
+      if (detectFieldType(field) !== 'TABLE') return;
+      if (!field.PROPRIEDADES || typeof field.PROPRIEDADES !== 'object') {
+        field.PROPRIEDADES = {};
+      }
+      field.PROPRIEDADES.show_add_button = Number(nextValue) ? 1 : 0;
+    } else if (propName === 'TABLE_SHOW_DELETE_BUTTON') {
+      if (detectFieldType(field) !== 'TABLE') return;
+      if (!field.PROPRIEDADES || typeof field.PROPRIEDADES !== 'object') {
+        field.PROPRIEDADES = {};
+      }
+      field.PROPRIEDADES.show_delete_button = Number(nextValue) ? 1 : 0;
     } else if (propName === 'DECIMAIS') {
       field.DECIMAIS = Math.max(0, Number.parseInt(String(nextValue || '').trim(), 10) || 0);
     } else if (propName === 'MINIMO' || propName === 'MAXIMO') {
@@ -3230,6 +3391,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .filter((field) => {
         const type = detectFieldType(field);
         if (type === 'SPACE') return false;
+        if (type === 'TABLE') return false;
         if (!includeButtons && type === 'BUTTON') return false;
         return true;
       })
@@ -4560,6 +4722,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (state.selectedMenustamp) params.set('menustamp', state.selectedMenustamp);
       const payload = await fetchJson(`${cfg.bootstrapUrl}${params.toString() ? `?${params}` : ''}`);
       state.screens = Array.isArray(payload.screens) ? payload.screens.map(normalizeMenuRow) : [];
+      state.sqlTables = Array.isArray(payload.sql_tables)
+        ? payload.sql_tables.map((table) => ({
+            key: String(table?.key || '').trim(),
+            label: String(table?.label || table?.key || '').trim(),
+            schema: String(table?.schema || '').trim(),
+            table: String(table?.table || '').trim(),
+          })).filter((table) => table.key)
+        : [];
       state.selectedMenustamp = String(payload.selected_menustamp || state.selectedMenustamp || '').trim();
       if (payload.detail) {
         const hydrated = hydrateLoadedDetail(payload.detail);

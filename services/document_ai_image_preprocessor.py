@@ -49,6 +49,55 @@ def _deskew_image(gray_image, cv2, np):
     return rotated, float(angle)
 
 
+def apply_manual_adjustments(image, adjustments: dict[str, Any] | None, page_number: int = 1) -> dict[str, Any]:
+    if not adjustments:
+        return {'image': image, 'notes': [], 'warnings': []}
+    notes = []
+    warnings = []
+    out = image
+    rotate = adjustments.get('rotate')
+    if rotate:
+        try:
+            angle = float(rotate)
+            if angle % 360:
+                out = out.rotate(-angle, expand=True, fillcolor=(255, 255, 255))
+                notes.append({'rotate': angle})
+        except Exception as exc:
+            warnings.append(f'Rotate failed: {exc}')
+
+    crop = adjustments.get('crop') or {}
+    try:
+        crop_page = int(crop.get('page') or 1)
+    except Exception:
+        crop_page = 1
+    if crop and crop_page == int(page_number or 1):
+        try:
+            unit = str(crop.get('unit') or 'ratio')
+            left = float(crop.get('left') or 0)
+            top = float(crop.get('top') or 0)
+            width = float(crop.get('width') or 0)
+            height = float(crop.get('height') or 0)
+            if unit == 'ratio':
+                img_w, img_h = out.size
+                x0 = int(max(0, min(img_w - 1, left * img_w)))
+                y0 = int(max(0, min(img_h - 1, top * img_h)))
+                x1 = int(max(1, min(img_w, (left + width) * img_w)))
+                y1 = int(max(1, min(img_h, (top + height) * img_h)))
+            else:
+                img_w, img_h = out.size
+                x0 = int(max(0, min(img_w - 1, left)))
+                y0 = int(max(0, min(img_h - 1, top)))
+                x1 = int(max(1, min(img_w, left + width)))
+                y1 = int(max(1, min(img_h, top + height)))
+            if x1 > x0 and y1 > y0:
+                out = out.crop((x0, y0, x1, y1))
+                notes.append({'crop': {'x0': x0, 'y0': y0, 'x1': x1, 'y1': y1, 'unit': unit}})
+        except Exception as exc:
+            warnings.append(f'Crop failed: {exc}')
+
+    return {'image': out, 'notes': notes, 'warnings': warnings}
+
+
 def preprocess_document_image(image, config: dict[str, Any] | None = None) -> dict[str, Any]:
     cfg = default_preprocess_config(config)
     if not opencv_available():
