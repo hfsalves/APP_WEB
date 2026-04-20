@@ -1,0 +1,2744 @@
+.gr_planning_page {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  background: var(--sz-color-bg-main);
+}
+
+.gr-planning-shell {
+  display: grid !important;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+  grid-auto-flow: row;
+  align-content: stretch;
+}
+
+.gr-planning-actionbar {
+  display: flex;
+}
+
+.gr-planning-contextbar,
+.gr-planning-page-body,
+.gr-planning-page-footer {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+}
+
+.gr-planning-page-footer {
+  justify-self: stretch;
+  align-self: end;
+  padding-top: var(--sz-space-2);
+}
+
+.gr-planning-page-footer > .gr-planning-actionbar {
+  width: 100%;
+}
+
+.gr-planning-page-body {
+  display: flex;
+  min-height: 0;
+  padding-top: 0;
+  overflow: hidden;
+}
+
+.gr-planning-contextbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--sz-space-3);
+  width: 100%;
+  overflow: visible;
+}
+
+.gr-planning-contextbar > .sz_contextbar_left {
+  display: block;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  align-self: flex-start;
+}
+
+.gr-planning-contextbar > .sz_contextbar_right {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: var(--sz-space-2);
+  width: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  flex-wrap: nowrap;
+  overflow: visible;
+}
+
+.gr-planning-contextbar > .sz_contextbar_right > .filters-form,
+.gr-planning-contextbar > .sz_contextbar_right > .production-close-button,
+.gr-planning-contextbar > .sz_contextbar_right > .production-control-card {
+  position: static;
+  margin: 0;
+}
+
+.gr-planning-contextbar > .sz_contextbar_right > .filters-form {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  overflow: visible;
+}
+
+.gr-planning-contextbar > .sz_contextbar_right > .production-close-button,
+.gr-planning-contextbar > .sz_contextbar_right > .production-control-card {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.gr-planning-contextbar .gr-planning-context-form {
+  display: grid;
+  grid-template-columns: 17rem 26rem 14rem auto;
+  gap: var(--sz-space-2);
+  align-items: end;
+  overflow: visible;
+}
+
+.gr-planning-contextbar .gr-planning-context-form .filter-control {
+  min-width: 0;
+  gap: 0;
+}
+
+.gr-planning-contextbar .gr-planning-context-form .filter-control > label,
+.gr-planning-contextbar .gr-planning-context-form .filter-control > .filter-label {
+  display: none;
+}
+
+.gr-planning-contextbar .week-picker-group {
+  width: 100%;
+  gap: 0.3rem;
+}
+
+.gr-planning-contextbar .filter-control.filter-week {
+  min-width: 16.75rem;
+}
+
+.gr-planning-contextbar .filter-control.filter-markets {
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 28rem;
+}
+
+.gr-planning-contextbar .filter-control.filter-types {
+  min-width: 0;
+}
+
+.gr-planning-contextbar .week-picker-group input[type="week"] {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--sz-button-height);
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--sz-radius-sm);
+  border: 1px solid var(--sz-color-border);
+  background: var(--sz-color-bg-elevated);
+  color: var(--sz-color-text);
+  box-shadow: none;
+  font-size: calc(var(--sz-font-size-sm) - 2px);
+  font-weight: var(--sz-font-weight-medium);
+}
+
+.gr-planning-contextbar .filter-dropdown {
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.gr-planning-contextbar .filter-dropdown summary {
+  width: 100%;
+}
+
+.gr-planning-contextbar .filter-pill-text {
+  max-width: 100%;
+}
+
+.gr-planning-contextbar .filter-actions {
+  margin-left: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sz-space-2);
+  justify-content: flex-end;
+}
+
+.gr-planning-contextbar .filter-pill {
+  min-height: var(--sz-button-height);
+  border-radius: var(--sz-radius-sm);
+  border: 1px solid var(--sz-color-border);
+  background: var(--sz-color-bg-elevated);
+  color: var(--sz-color-text);
+  font-size: calc(var(--sz-font-size-sm) - 2px);
+  font-weight: var(--sz-font-weight-semibold);
+  padding: 0.55rem 0.7rem;
+}
+
+.gr-planning-contextbar .filter-dropdown-panel {
+  z-index: 120;
+  min-width: 100%;
+  border-radius: var(--sz-radius-sm);
+  border: 1px solid var(--sz-color-border);
+  background: var(--sz-color-surface);
+  box-shadow: var(--sz-shadow-2);
+}
+
+.gr-planning-contextbar .filter-dropdown-panel .market-option {
+  display: grid;
+}
+
+.gr-planning-contextbar .market-option {
+  color: var(--sz-color-text);
+}
+
+.gr-planning-contextbar .week-nav-button,
+.gr-planning-contextbar .filters-submit,
+.gr-planning-contextbar .production-close-button {
+  min-height: var(--sz-button-height);
+  border-radius: var(--sz-radius-sm);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-planning-contextbar .week-nav-button {
+  min-width: var(--sz-button-height);
+  padding-inline: 0;
+}
+
+.gr-planning-contextbar .week-nav-button.sz_button_ghost {
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border));
+  background: transparent;
+  color: var(--sz-color-primary);
+  box-shadow: none;
+}
+
+.gr-planning-contextbar .week-nav-button.sz_button_ghost:hover {
+  background: color-mix(in srgb, var(--sz-color-primary) 14%, transparent);
+}
+
+.gr-planning-contextbar .filters-submit {
+  min-width: 4.5rem;
+  letter-spacing: 0.01em;
+}
+
+.gr-planning-contextbar .filters-submit.sz_button_secondary {
+  border: 1px solid var(--sz-color-border);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text-secondary);
+  box-shadow: none;
+}
+
+.gr-planning-contextbar .filters-submit.sz_button_secondary:hover {
+  background: color-mix(in srgb, var(--sz-color-surface) 80%, var(--sz-color-primary) 20%);
+}
+
+.gr-planning-contextbar .production-close-button {
+  width: auto;
+  min-width: 0;
+  padding: 0 var(--sz-space-4);
+}
+
+.gr-planning-contextbar .production-close-button.sz_button_primary {
+  border: 1px solid var(--sz-color-primary);
+  background: var(--sz-color-primary);
+  color: #fff;
+  box-shadow: none;
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+.gr-planning-contextbar .production-close-button.sz_button_primary:hover {
+  background: var(--sz-color-primary-hover);
+  border-color: var(--sz-color-primary-hover);
+  box-shadow: var(--sz-shadow-1);
+}
+
+.gr-planning-page-host {
+  --page-pad-y: clamp(0.35rem, 1vw, 0.75rem);
+  --page-pad-x: clamp(0.3rem, 1vw, 1rem);
+  --header-height: 0px;
+  --filters-height: 0px;
+  --sticky-offset: 0px;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  overflow: hidden;
+  background: transparent;
+}
+
+.gr-planning-page-host > .planning-head-card,
+.gr-planning-page-host > .dashboard-main {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.gr-planning-page-host .dashboard-wrapper {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow: hidden;
+  background: transparent;
+}
+
+.gr-planning-page-host .dashboard-header {
+  display: none !important;
+}
+
+.gr-planning-page-host .modal-overlay {
+  z-index: 5000;
+}
+
+.gr-planning-page-host .modal-dialog {
+  margin: 0;
+  pointer-events: auto;
+  transform: none;
+}
+
+.gr-planning-page-host .modal-dialog * {
+  pointer-events: auto;
+}
+
+.gr-planning-page-host .planning-head-card,
+.gr-planning-page-host .planning-card,
+.gr-planning-page-host .filters-card,
+.gr-planning-page-host .production-control-card,
+.gr-planning-page-host .editing-bar {
+  box-sizing: border-box;
+}
+
+.gr-planning-page-host .editing-bar {
+  display: none !important;
+}
+
+.gr-planning-page-host .planning-head-card {
+  top: 0;
+  padding: 0;
+}
+
+.gr-planning-page-host .dashboard-main {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding-bottom: 0 !important;
+}
+
+.gr-planning-page-host .planning-body-card {
+  min-height: 0;
+  width: 100%;
+}
+
+.gr-planning-page-host .planning-body-scroll {
+  min-height: 0;
+  padding-bottom: calc(var(--page-pad-y) + 1.5rem);
+  box-sizing: border-box;
+}
+
+.gr-planning-page-host .planning-table {
+  margin-bottom: 1.5rem;
+}
+
+.gr-planning-page-host .filters-layout {
+  display: none !important;
+}
+
+.gr-planning-page-host {
+  --content-bg: var(--sz-color-surface);
+  --content-elevated: color-mix(in srgb, var(--sz-color-surface-alt) 74%, var(--sz-color-surface));
+  --accent: var(--sz-color-primary);
+  --accent-dark: color-mix(in srgb, var(--sz-color-primary) 78%, #04101c);
+  --text-primary: var(--sz-color-text);
+  --text-secondary: var(--sz-color-text-secondary);
+  --border-soft: color-mix(in srgb, var(--sz-color-border) 84%, transparent);
+  --bg-gradient-start: var(--sz-color-bg-main);
+  --bg-gradient-end: color-mix(in srgb, var(--sz-color-bg-main) 90%, #01050b);
+  --gr-planning-surface: color-mix(in srgb, var(--sz-color-surface) 96%, transparent);
+  --gr-planning-surface-alt: color-mix(in srgb, var(--sz-color-surface-alt) 78%, var(--sz-color-surface));
+  --gr-planning-surface-soft: color-mix(in srgb, var(--sz-color-surface-alt) 55%, var(--sz-color-bg-main));
+  --gr-planning-border: color-mix(in srgb, var(--sz-color-border) 88%, transparent);
+  --gr-planning-border-strong: color-mix(in srgb, var(--sz-color-border) 100%, var(--sz-color-surface));
+  --gr-planning-row-alt: color-mix(in srgb, var(--sz-color-surface-alt) 44%, var(--sz-color-surface));
+  --gr-planning-row-hover: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+  --gr-planning-chip-bg: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface-alt));
+  --gr-planning-chip-bg-muted: color-mix(in srgb, var(--sz-color-surface-alt) 88%, var(--sz-color-surface));
+  --gr-planning-chip-border: color-mix(in srgb, var(--sz-color-primary) 32%, var(--sz-color-border));
+  --gr-planning-chip-text: color-mix(in srgb, var(--sz-color-text) 90%, var(--sz-color-primary));
+  --gr-planning-active-bg: color-mix(in srgb, var(--sz-color-primary) 14%, var(--sz-color-surface-alt));
+  --gr-planning-active-border: color-mix(in srgb, var(--sz-color-primary) 48%, var(--sz-color-border));
+  --gr-planning-focus-ring: 0 0 0 3px color-mix(in srgb, var(--sz-color-primary) 18%, transparent);
+  color: var(--sz-color-text);
+  font-family: var(--sz-font-family);
+}
+
+.gr-planning-page-host,
+.gr-planning-page-host table,
+.gr-planning-page-host input,
+.gr-planning-page-host button,
+.gr-planning-page-host select,
+.gr-planning-page-host textarea {
+  font-family: var(--sz-font-family);
+}
+
+.gr-planning-page-host .dashboard-wrapper {
+  gap: var(--sz-space-4);
+}
+
+.gr-planning-page-host .planning-head-card,
+.gr-planning-page-host .planning-card {
+  background: var(--gr-planning-surface);
+  border: 1px solid var(--gr-planning-border);
+  border-radius: var(--sz-radius-lg);
+  box-shadow: var(--sz-shadow-1);
+  backdrop-filter: none;
+  background-clip: padding-box;
+}
+
+.gr-planning-page-host .planning-head-card {
+  padding: 0.2rem 0.45rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), 0 8px 18px rgba(2, 5, 10, 0.16);
+}
+
+.gr-planning-page-host .planning-card {
+  box-shadow: var(--sz-shadow-1);
+}
+
+.gr-planning-page-host .planning-head-bar {
+  min-height: 3.45rem;
+  background: var(--gr-planning-surface);
+}
+
+.gr-planning-page-host .planning-head-scroll {
+  background: var(--gr-planning-surface);
+}
+
+.gr-planning-page-host .planning-head-bar .head-cell {
+  padding: 0.42rem 0.55rem;
+  color: var(--sz-color-text-muted);
+}
+
+.gr-planning-page-host .planning-head-bar .day-head {
+  justify-content: center;
+  gap: 0.15rem;
+  border-left: 1px solid color-mix(in srgb, var(--gr-planning-border) 80%, transparent);
+}
+
+.gr-planning-page-host .planning-head-bar .day-label {
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.gr-planning-page-host .planning-head-bar .day-date {
+  font-size: var(--sz-font-size-xs);
+  color: var(--sz-color-text-muted);
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.gr-planning-page-host .planning-head-bar .site-head {
+  background: linear-gradient(180deg, var(--gr-planning-surface-alt), var(--gr-planning-surface));
+  box-shadow: inset -1px 0 0 var(--gr-planning-border-strong);
+  backdrop-filter: none;
+  gap: 0.22rem;
+}
+
+.gr-planning-page-host .planning-head-bar .site-head-label {
+  color: var(--sz-color-text-muted);
+}
+
+.gr-planning-page-host .planning-head-bar .site-head-search {
+  min-height: 1.9rem;
+  padding: 0 0.62rem;
+  border: 1px solid var(--gr-planning-border-strong);
+  border-radius: var(--sz-radius-sm);
+  background: color-mix(in srgb, var(--sz-color-surface) 84%, var(--sz-color-surface-alt));
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-medium);
+  letter-spacing: normal;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.gr-planning-page-host .planning-head-bar .site-head-search::placeholder {
+  color: var(--sz-color-text-muted);
+}
+
+.gr-planning-page-host .planning-head-bar .site-head-search:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 34%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-surface) 94%, var(--sz-color-surface-alt));
+}
+
+.gr-planning-page-host .planning-head-bar .site-head-search:focus {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+  box-shadow: var(--gr-planning-focus-ring);
+  background: var(--sz-color-surface);
+}
+
+.gr-planning-page-host .planning-body-scroll {
+  background: var(--gr-planning-surface);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.gr-planning-page-host .planning-body-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.gr-planning-page-host .planning-body-scroll::-webkit-scrollbar-thumb {
+  background: var(--sz-scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.gr-planning-page-host .planning-body-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--sz-scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+.gr-planning-page-host .planning-body-scroll::-webkit-scrollbar-track {
+  background: var(--sz-scrollbar-track);
+}
+
+.gr-planning-page-host .planning-table {
+  margin-bottom: 0;
+  background: var(--gr-planning-surface);
+}
+
+.gr-planning-page-host .planning-table > tbody > tr {
+  transition: background-color 0.18s ease;
+}
+
+.gr-planning-page-host .planning-table > tbody > tr > td {
+  padding: 0.16rem 0.2rem;
+  border-top: 1px solid var(--gr-planning-border);
+}
+
+.gr-planning-page-host .planning-table > tbody > tr:first-child > td {
+  border-top: 0;
+}
+
+.gr-planning-page-host .planning-table > tbody > tr:nth-child(even) > td:first-child {
+  background: color-mix(in srgb, var(--gr-planning-row-alt) 76%, var(--gr-planning-surface-alt));
+}
+
+.gr-planning-page-host .planning-table > tbody > tr:hover > td:first-child {
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--gr-planning-surface-alt));
+}
+
+.gr-planning-page-host .planning-table td:first-child {
+  background: var(--gr-planning-surface-alt);
+  box-shadow: inset -1px 0 0 var(--gr-planning-border-strong);
+  backdrop-filter: none;
+}
+
+.gr-planning-page-host .planning-table td.site-cell {
+  padding: 0.35rem 0.45rem;
+}
+
+.gr-planning-page-host .site-meta {
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.gr-planning-page-host .flag-icon {
+  width: 28px;
+  height: 18px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.24);
+}
+
+.gr-planning-page-host .site-code {
+  font-size: calc(var(--sz-font-size-sm) - 2px);
+  font-weight: var(--sz-font-weight-semibold);
+  letter-spacing: 0.02em;
+  color: var(--sz-color-text);
+}
+
+.gr-planning-page-host .site-name {
+  margin-top: 0.05rem;
+  color: var(--sz-color-text-secondary);
+  font-size: calc(0.82rem - 2px);
+  line-height: 1.35;
+}
+
+.gr-planning-page-host .site-code.is-maintenance,
+.gr-planning-page-host .site-name.is-maintenance,
+.gr-planning-page-host .site-code.is-maintenance.is-shared,
+.gr-planning-page-host .site-name.is-maintenance.is-shared {
+  color: var(--sz-color-warning);
+}
+
+.gr-planning-page-host .site-code.is-shared,
+.gr-planning-page-host .site-name.is-shared,
+.gr-planning-page-host .site-shared-icon {
+  color: var(--sz-color-primary);
+}
+
+.gr-planning-page-host .site-shared-icon {
+  filter: none;
+}
+
+.gr-planning-page-host .site-origin-badge {
+  padding: 0.12rem 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 38%, transparent);
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+  box-shadow: none;
+  color: var(--sz-color-primary);
+}
+
+.gr-planning-page-host .day-cell {
+  min-height: 2.2rem;
+  padding: 0.14rem;
+  border-top: 1px solid var(--gr-planning-border);
+  border-left: 1px solid color-mix(in srgb, var(--gr-planning-border) 72%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sz-color-surface) 92%, var(--sz-color-bg-main));
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.gr-planning-page-host .planning-table > tbody > tr:first-child .day-cell {
+  border-top-color: transparent;
+}
+
+.gr-planning-page-host .planning-table > tbody > tr:nth-child(even) .day-cell:not(.active) {
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 78%, var(--sz-color-surface));
+}
+
+.gr-planning-page-host .planning-table > tbody > tr:hover .day-cell:not(.active) {
+  background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface-alt));
+}
+
+.gr-planning-page-host .day-cell:hover,
+.gr-planning-page-host .day-cell:focus-visible {
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface-alt));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 26%, var(--sz-color-border));
+  outline: none;
+}
+
+.gr-planning-page-host .day-cell.active {
+  background: var(--gr-planning-active-bg);
+  box-shadow: inset 0 0 0 1px var(--gr-planning-active-border);
+}
+
+.gr-planning-page-host .day-cell.active:hover,
+.gr-planning-page-host .day-cell.active:focus-visible {
+  background: color-mix(in srgb, var(--sz-color-primary) 18%, var(--sz-color-surface-alt));
+}
+
+.gr-planning-page-host .day-assignments {
+  align-content: flex-start;
+  gap: 0.18rem;
+}
+
+.gr-planning-page-host .assignment-chip {
+  max-width: 100%;
+  min-height: 1.25rem;
+  padding: 0.04rem 0.38rem;
+  gap: 0.22rem;
+  border: 1px solid var(--gr-planning-chip-border);
+  border-radius: 999px;
+  background: var(--gr-planning-chip-bg);
+  box-shadow: none;
+  color: var(--gr-planning-chip-text);
+  font-size: 0.7rem;
+  font-weight: var(--sz-font-weight-semibold);
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.gr-planning-page-host .assignment-chip:hover,
+.gr-planning-page-host .assignment-chip:focus-visible {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 46%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 16%, var(--sz-color-surface-alt));
+  outline: none;
+}
+
+.gr-planning-page-host .day-cell:not(.active) .assignment-chip {
+  background: var(--gr-planning-chip-bg-muted);
+  border-color: color-mix(in srgb, var(--sz-color-border) 92%, transparent);
+  color: var(--sz-color-text-secondary);
+  box-shadow: none;
+}
+
+.gr-planning-page-host .assignment-chip.has-lines {
+  gap: 0.3rem;
+}
+
+.gr-planning-page-host .assignment-chip-icon {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0;
+  border: 1px solid color-mix(in srgb, var(--sz-color-border) 86%, transparent);
+  background: color-mix(in srgb, var(--sz-color-text-secondary) 22%, var(--sz-color-surface));
+}
+
+.gr-planning-page-host .assignment-chip-icon::before {
+  font-size: 0.56rem;
+  color: var(--sz-color-surface);
+}
+
+.gr-planning-page-host .assignment-chip-icon.is-closed {
+  border-color: color-mix(in srgb, var(--sz-color-success) 44%, transparent);
+  background: var(--sz-color-success);
+}
+
+.gr-planning-page-host .assignment-chip-icon.is-mismatch {
+  border-color: color-mix(in srgb, var(--sz-color-danger) 44%, transparent);
+  background: var(--sz-color-danger);
+}
+
+.gr-planning-page-host .assignment-chip-icon.is-fulfilled {
+  border-color: color-mix(in srgb, var(--sz-color-info) 44%, transparent);
+  background: var(--sz-color-info);
+}
+
+.gr-planning-page-host .assignment-chip-cash {
+  margin-left: 0.1rem;
+  color: var(--sz-color-warning);
+}
+
+.gr-planning-page-host .assignment-chip-cash svg {
+  width: 0.82rem;
+  height: 0.82rem;
+}
+
+.gr-planning-page-host .assignment-chip--conflict {
+  border-color: color-mix(in srgb, var(--sz-color-danger) 56%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-danger) 14%, var(--sz-color-surface-alt));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-danger) 18%, transparent);
+  color: color-mix(in srgb, var(--sz-color-danger) 42%, var(--sz-color-text));
+}
+
+.gr-planning-page-host .assignment-chip-menu {
+  padding: 0.35rem;
+  border: 1px solid var(--gr-planning-border-strong);
+  border-radius: var(--sz-radius-md);
+  background: var(--gr-planning-surface-alt);
+  box-shadow: var(--sz-shadow-2);
+}
+
+.gr-planning-page-host .assignment-chip-menu-item {
+  padding: 0.5rem 0.625rem;
+  border-radius: calc(var(--sz-radius-sm) - 2px);
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-medium);
+}
+
+.gr-planning-page-host .assignment-chip-menu-item + .assignment-chip-menu-item {
+  margin-top: 0.15rem;
+}
+
+.gr-planning-page-host .assignment-chip-menu-item:hover,
+.gr-planning-page-host .assignment-chip-menu-item:focus-visible {
+  background: var(--gr-planning-row-hover);
+  color: var(--sz-color-text);
+}
+
+.gr-planning-page-host .assignment-chip-menu-item:focus-visible {
+  outline: none;
+  box-shadow: var(--gr-planning-focus-ring);
+}
+
+.gr-planning-page-host .assignment-chip-menu-divider {
+  margin: 0.25rem 0;
+  background: var(--gr-planning-border);
+}
+
+.gr-planning-page-host .empty-cell {
+  padding: 2.5rem 1rem;
+  border-top: 0;
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 70%, var(--sz-color-surface));
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-planning-page-host .modal-overlay {
+  padding: 1rem;
+  background: color-mix(in srgb, var(--sz-color-bg-main) 76%, rgba(2, 6, 12, 0.36));
+  backdrop-filter: blur(10px);
+}
+
+.gr-planning-page-host .modal-dialog {
+  color: var(--sz-color-text);
+  background: var(--sz-color-surface);
+  border: 1px solid var(--gr-planning-border-strong);
+  border-radius: calc(var(--sz-radius-lg) + 2px);
+  box-shadow: var(--sz-shadow-3);
+  padding: 1.1rem 1.2rem;
+  gap: 0.9rem;
+  background-clip: padding-box;
+}
+
+.gr-planning-page-host .modal-dialog.production-form-dialog,
+.gr-planning-page-host .modal-dialog.production-records-dialog {
+  background: var(--sz-color-surface);
+}
+
+.gr-planning-page-host .modal-header {
+  align-items: stretch;
+  gap: 0.75rem;
+  text-align: left;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--gr-planning-border);
+}
+
+.gr-planning-page-host .modal-header-top {
+  width: 100%;
+}
+
+.gr-planning-page-host .modal-header h2 {
+  color: var(--sz-color-text);
+  font-size: 1.3rem;
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-planning-page-host .modal-project-meta {
+  margin-top: 0;
+  gap: 0.85rem;
+}
+
+.gr-planning-page-host .modal-project-info {
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-planning-page-host .modal-project-label,
+.gr-planning-page-host .modal-period-label {
+  color: var(--sz-color-text-muted);
+}
+
+.gr-planning-page-host .modal-project-code,
+.gr-planning-page-host .modal-project-name,
+.gr-planning-page-host .modal-period-summary {
+  color: var(--sz-color-text);
+}
+
+.gr-planning-page-host .modal-period-trigger {
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 34%, var(--sz-color-border));
+  background: var(--sz-color-surface-alt);
+  color: var(--sz-color-text);
+  box-shadow: none;
+}
+
+.gr-planning-page-host .modal-period-trigger:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 52%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface-alt));
+}
+
+.gr-planning-page-host .modal-period-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--gr-planning-focus-ring);
+}
+
+.gr-planning-page-host .modal-period-chevron {
+  border-right-color: var(--sz-color-primary);
+  border-bottom-color: var(--sz-color-primary);
+}
+
+.gr-planning-page-host .modal-period-panel {
+  border: 1px solid var(--gr-planning-border);
+  background: var(--gr-planning-surface-alt);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.gr-planning-page-host .modal-period-option {
+  border: 1px solid var(--gr-planning-border);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-planning-page-host .modal-period-option:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 34%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 6%, var(--sz-color-surface-alt));
+}
+
+.gr-planning-page-host .modal-period-option.is-active {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 14%, var(--sz-color-surface-alt));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 18%, transparent);
+  color: var(--sz-color-text);
+}
+
+.gr-planning-page-host .modal-period-field,
+.gr-planning-page-host .production-form-row label,
+.gr-planning-page-host .production-pair-field label,
+.gr-planning-page-host .production-field label,
+.gr-planning-page-host .other-options-label {
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-planning-page-host .modal-body {
+  padding-right: 0.15rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sz-scrollbar-thumb) var(--sz-scrollbar-track);
+}
+
+.gr-planning-page-host .modal-body::-webkit-scrollbar,
+.gr-planning-page-host .assignment-item-list::-webkit-scrollbar,
+.gr-planning-page-host .team-groups-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.gr-planning-page-host .modal-body::-webkit-scrollbar-thumb,
+.gr-planning-page-host .assignment-item-list::-webkit-scrollbar-thumb,
+.gr-planning-page-host .team-groups-container::-webkit-scrollbar-thumb {
+  background: var(--sz-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+.gr-planning-page-host .modal-body::-webkit-scrollbar-track,
+.gr-planning-page-host .team-groups-container::-webkit-scrollbar-track {
+  background: var(--sz-scrollbar-track);
+}
+
+.gr-planning-page-host .modal-actions {
+  justify-content: flex-end;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--gr-planning-border);
+}
+
+.gr-planning-page-host .modal-button {
+  min-height: var(--sz-button-height);
+  padding: 0 var(--sz-space-4);
+  border-radius: var(--sz-radius-sm);
+  border: 1px solid var(--sz-color-border);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+  box-shadow: none;
+}
+
+.gr-planning-page-host .modal-button:hover {
+  background: var(--sz-color-surface-alt);
+  border-color: color-mix(in srgb, var(--sz-color-primary) 34%, var(--sz-color-border));
+  box-shadow: var(--sz-shadow-1);
+}
+
+.gr-planning-page-host .modal-button:focus-visible {
+  outline: none;
+  box-shadow: var(--gr-planning-focus-ring);
+}
+
+.gr-planning-page-host .modal-button.modal-ok {
+  border-color: var(--sz-color-primary);
+  background: var(--sz-color-primary);
+  color: #fff;
+}
+
+.gr-planning-page-host .modal-button.modal-ok:hover {
+  filter: none;
+  background: color-mix(in srgb, var(--sz-color-primary) 90%, #ffffff);
+  border-color: color-mix(in srgb, var(--sz-color-primary) 90%, #ffffff);
+}
+
+.gr-planning-page-host .modal-empty {
+  border: 1px dashed var(--gr-planning-border);
+  background: var(--sz-color-surface-alt);
+  color: var(--sz-color-text-muted);
+}
+
+.gr-planning-page-host .team-groups,
+.gr-planning-page-host .assignment-modal-content,
+.gr-planning-page-host .production-records-container,
+.gr-planning-page-host .other-options-content {
+  gap: var(--sz-space-3);
+}
+
+.gr-planning-page-host .team-group,
+.gr-planning-page-host .other-options-meta {
+  border: 1px solid var(--gr-planning-border);
+  border-radius: var(--sz-radius-lg);
+  background: var(--sz-color-surface-alt);
+  box-shadow: none;
+}
+
+.gr-planning-page-host .team-group {
+  padding: 0.85rem;
+}
+
+.gr-planning-page-host .team-group-title {
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-planning-page-host .team-group-grid,
+.gr-planning-page-host .other-options-fields {
+  gap: 0.65rem;
+}
+
+.gr-planning-page-host .team-card,
+.gr-planning-page-host .assignment-item-card,
+.gr-planning-page-host .production-records-item {
+  border: 1px solid var(--gr-planning-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface);
+  box-shadow: none;
+  color: var(--sz-color-text);
+}
+
+.gr-planning-page-host .team-card.team-card--planning:hover,
+.gr-planning-page-host .assignment-item-card:hover,
+.gr-planning-page-host .production-records-item:hover,
+.gr-planning-page-host .production-records-item:focus-visible {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 44%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface-alt));
+  box-shadow: var(--sz-shadow-1);
+}
+
+.gr-planning-page-host .team-card.team-card--planning.is-selected,
+.gr-planning-page-host .assignment-item-card.is-selected {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 60%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 14%, var(--sz-color-surface-alt));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 18%, transparent);
+}
+
+.gr-planning-page-host .team-card.team-card--planning:focus-visible,
+.gr-planning-page-host .assignment-item-card:focus-visible {
+  outline: none;
+  box-shadow: var(--gr-planning-focus-ring);
+}
+
+.gr-planning-page-host .team-card-code,
+.gr-planning-page-host .assignment-item-title .assignment-item-code,
+.gr-planning-page-host .production-records-item-code,
+.gr-planning-page-host .production-records-draft-code {
+  color: var(--sz-color-primary);
+}
+
+.gr-planning-page-host .team-card-name,
+.gr-planning-page-host .assignment-item-title,
+.gr-planning-page-host .assignment-item-title .assignment-item-desc,
+.gr-planning-page-host .production-records-item-title,
+.gr-planning-page-host .production-records-item-description,
+.gr-planning-page-host .production-records-draft-description,
+.gr-planning-page-host .production-records-draft-summary {
+  color: var(--sz-color-text);
+  opacity: 1;
+}
+
+.gr-planning-page-host .assignment-item-meta,
+.gr-planning-page-host .production-records-item-meta,
+.gr-planning-page-host .production-records-draft-note,
+.gr-planning-page-host .production-records-drafts-title,
+.gr-planning-page-host .production-form-feedback,
+.gr-planning-page-host .other-options-feedback {
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-planning-page-host .production-records-draft-card {
+  border: 1px solid color-mix(in srgb, var(--sz-color-danger) 38%, var(--sz-color-border));
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-danger) 10%, var(--sz-color-surface-alt));
+  color: var(--sz-color-text);
+}
+
+.gr-planning-page-host .production-records-draft-badge {
+  color: var(--sz-color-danger);
+}
+
+.gr-planning-page-host .other-options-meta {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem 0.95rem;
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-planning-page-host .other-options-meta p {
+  margin: 0;
+}
+
+.gr-planning-page-host .other-options-meta strong {
+  color: var(--sz-color-text);
+}
+
+.gr-planning-page-host .other-options-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.gr-planning-page-host .other-options-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.gr-planning-page-host .modal-dialog input[type="text"],
+.gr-planning-page-host .modal-dialog input[type="date"],
+.gr-planning-page-host .modal-dialog input[type="month"],
+.gr-planning-page-host .modal-dialog input[type="number"],
+.gr-planning-page-host .modal-dialog select,
+.gr-planning-page-host .modal-dialog textarea {
+  border: 1px solid var(--gr-planning-border-strong);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text);
+  box-shadow: none;
+  color-scheme: light;
+}
+
+.gr-planning-page-host .modal-dialog input[type="text"]:hover,
+.gr-planning-page-host .modal-dialog input[type="date"]:hover,
+.gr-planning-page-host .modal-dialog input[type="month"]:hover,
+.gr-planning-page-host .modal-dialog input[type="number"]:hover,
+.gr-planning-page-host .modal-dialog select:hover,
+.gr-planning-page-host .modal-dialog textarea:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 34%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-surface) 94%, var(--sz-color-surface-alt));
+}
+
+.gr-planning-page-host .modal-dialog input[type="text"]:focus,
+.gr-planning-page-host .modal-dialog input[type="date"]:focus,
+.gr-planning-page-host .modal-dialog input[type="month"]:focus,
+.gr-planning-page-host .modal-dialog input[type="number"]:focus,
+.gr-planning-page-host .modal-dialog select:focus,
+.gr-planning-page-host .modal-dialog textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+  box-shadow: var(--gr-planning-focus-ring);
+  background: var(--sz-color-surface);
+}
+
+.gr-planning-page-host .production-display-input[readonly],
+.gr-planning-page-host .modal-dialog input[readonly] {
+  background: var(--sz-color-surface-alt);
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-planning-page-host .modal-date-input input[type="date"]::-webkit-calendar-picker-indicator,
+.gr-planning-page-host .production-form-row input[type="date"]::-webkit-calendar-picker-indicator,
+.gr-planning-page-host .team-form-row input[type="date"]::-webkit-calendar-picker-indicator,
+.gr-planning-page-host .team-form-row input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: var(--sz-datepicker-icon-filter);
+  opacity: 0.85;
+}
+
+.gr-planning-page-host .production-lines,
+.gr-planning-page-host .production-lines-actions {
+  border-color: var(--gr-planning-border);
+}
+
+.gr-planning-page-host .production-lines-header,
+.gr-planning-page-host .production-lines-message,
+.gr-planning-page-host .production-form-toggle {
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-planning-page-host .production-lines-row {
+  background: var(--sz-color-surface-alt);
+  border-color: var(--gr-planning-border);
+  color: var(--sz-color-text);
+}
+
+.gr-planning-page-host .production-lines-button {
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+  color: var(--sz-color-primary);
+}
+
+.gr-planning-page-host .production-lines-button:hover {
+  background: color-mix(in srgb, var(--sz-color-primary) 16%, var(--sz-color-surface-alt));
+}
+
+.gr-planning-page-host .production-lines-button:focus {
+  box-shadow: var(--gr-planning-focus-ring);
+}
+
+.gr-planning-page-host .production-lines-input,
+.gr-planning-page-host .production-lines-cell--metric .production-decimal-input.production-lines-input,
+.gr-planning-page-host .production-lines-cell--name .production-lines-select {
+  background: var(--sz-color-surface);
+  border-color: var(--gr-planning-border-strong);
+  color: var(--sz-color-text);
+}
+
+.gr-planning-page-host .production-lines-delete {
+  border: 1px solid color-mix(in srgb, var(--sz-color-danger) 28%, var(--sz-color-border));
+  background: var(--sz-color-surface);
+  color: var(--sz-color-danger);
+}
+
+.gr-planning-page-host .production-lines-delete:hover {
+  background: color-mix(in srgb, var(--sz-color-danger) 12%, var(--sz-color-surface-alt));
+  color: var(--sz-color-danger);
+}
+
+.gr-planning-page-host .production-lines-delete:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sz-color-danger) 18%, transparent);
+}
+
+.gr-planning-page-host .production-input-mismatch,
+.gr-planning-page-host .production-input-mismatch:hover,
+.gr-planning-page-host .production-input-mismatch:focus {
+  border-color: color-mix(in srgb, var(--sz-color-danger) 60%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-danger) 10%, var(--sz-color-surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sz-color-danger) 16%, transparent);
+}
+
+@media (max-width: 640px) {
+  .gr-planning-page-host .modal-dialog {
+    padding: 0.9rem;
+  }
+
+  .gr-planning-page-host .modal-project-meta {
+    align-items: stretch;
+  }
+
+  .gr-planning-page-host .modal-actions {
+    justify-content: stretch;
+    flex-wrap: wrap;
+  }
+
+  .gr-planning-page-host .modal-button {
+    flex: 1 1 10rem;
+  }
+
+  .gr-planning-page-host .other-options-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1380px) {
+  .gr-planning-contextbar > .sz_contextbar_right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .gr-planning-contextbar > .sz_contextbar_right > .filters-form {
+    width: 100%;
+  }
+}
+
+@media (max-width: 1200px) {
+  .gr-planning-context-form {
+    grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 1fr) minmax(12rem, 14rem) auto;
+  }
+}
+
+@media (max-width: 1024px) {
+  .gr-planning-contextbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gr-planning-contextbar > .sz_contextbar_left {
+    width: 100%;
+  }
+
+  .gr-planning-contextbar > .sz_contextbar_right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 960px) {
+  .gr-planning-contextbar .gr-planning-context-form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .gr-planning-contextbar > .sz_contextbar_right {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gr-planning-contextbar > .sz_contextbar_right > .production-close-button,
+  .gr-planning-contextbar > .sz_contextbar_right > .production-control-card {
+    min-width: 0;
+  }
+
+  .gr-planning-contextbar .gr-planning-context-form {
+    grid-template-columns: 1fr;
+  }
+
+  .gr-planning-page-host .dashboard-wrapper {
+    height: 100%;
+  }
+}
+
+.gr-team-management-shell {
+  grid-template-rows: auto minmax(0, 1fr) !important;
+}
+
+.gr-team-management-page-body {
+  display: block;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.gr-team-management-page-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.gr-team-management-contextbar > .sz_contextbar_right {
+  align-items: center;
+}
+
+.gr-team-management-contextbar .gr-team-management-context-form {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sz-space-2);
+}
+
+.gr-team-management-contextbar .gr-team-management-context-form .filter-control {
+  min-width: 0;
+  gap: 0;
+}
+
+.gr-team-management-contextbar .gr-team-management-context-form .filter-control > label {
+  display: none;
+}
+
+.gr-team-management-contextbar .filter-control.filter-date {
+  flex: 0 0 11.25rem;
+  min-width: 11.25rem;
+}
+
+.gr-team-management-contextbar .filter-control.filter-date input[type="date"] {
+  width: 100%;
+  min-height: var(--sz-button-height);
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text);
+  box-shadow: none;
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-medium);
+  color-scheme: light;
+}
+
+.gr-team-management-contextbar .filter-control.filter-date input[type="date"]:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 34%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-surface) 94%, var(--sz-color-surface-alt));
+}
+
+.gr-team-management-contextbar .filter-control.filter-date input[type="date"]:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+  box-shadow: var(--gr-planning-focus-ring);
+  background: var(--sz-color-surface);
+}
+
+.gr-team-management-contextbar .filter-control.filter-date input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: var(--sz-datepicker-icon-filter);
+  opacity: 0.88;
+}
+
+.gr-team-management-contextbar .filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sz-space-2);
+  margin-left: 0;
+}
+
+.gr-team-management-contextbar .filters-submit,
+.gr-team-management-contextbar .table-export-button {
+  min-height: var(--sz-button-height);
+  border-radius: var(--sz-radius-sm);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-team-management-contextbar .filters-submit.sz_button_secondary {
+  border: 1px solid var(--sz-color-border);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text-secondary);
+  box-shadow: none;
+}
+
+.gr-team-management-contextbar .filters-submit.sz_button_secondary:hover {
+  background: color-mix(in srgb, var(--sz-color-surface) 82%, var(--sz-color-primary) 18%);
+}
+
+.gr-team-management-contextbar .table-export-button.sz_button_ghost {
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
+  background: transparent;
+  color: var(--sz-color-text-secondary);
+  box-shadow: none;
+}
+
+.gr-team-management-contextbar .table-export-button.sz_button_ghost:hover {
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
+  color: var(--sz-color-text);
+}
+
+.gr-team-management-host {
+  height: auto;
+  min-height: 100%;
+  display: block;
+  overflow: visible;
+  padding-bottom: var(--sz-space-2);
+}
+
+.gr-team-management-host .dashboard-wrapper {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
+
+.gr-team-management-host .error {
+  margin: 0 0 var(--sz-space-3);
+  padding: 0.8rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--sz-color-danger) 22%, var(--gr-planning-border));
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-danger) 8%, var(--sz-color-surface));
+  color: var(--sz-color-danger);
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-team-management-host .team-management-layout {
+  display: grid;
+  grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+  gap: var(--sz-space-4);
+  align-items: start;
+  min-height: auto;
+  overflow: visible;
+}
+
+.gr-team-management-host .team-management-layout > * {
+  min-height: 0;
+}
+
+.gr-team-management-host .team-unassigned-panel,
+.gr-team-management-host .team-group-card {
+  border: 1px solid var(--gr-planning-border);
+  border-radius: calc(var(--sz-radius-lg) + 2px);
+  background: var(--gr-planning-surface);
+  box-shadow: var(--sz-shadow-1);
+}
+
+.gr-team-management-host .team-unassigned-panel {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  max-height: calc(100vh - 11rem);
+  padding: 0.85rem 0.95rem;
+  overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.gr-team-management-host .team-unassigned-panel::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.gr-team-management-host .team-groups-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.gr-team-management-host .team-unassigned-panel .panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.gr-team-management-host .team-unassigned-panel .panel-header h2,
+.gr-team-management-host .team-group-header h2 {
+  margin: 0;
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-team-management-host .team-unassigned-panel .panel-meta,
+.gr-team-management-host .team-card-empty,
+.gr-team-management-host .team-groups-empty,
+.gr-team-management-host .team-unassigned-empty {
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-team-management-host .team-unassigned-list,
+.gr-team-management-host .team-card-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.gr-team-management-host .team-unassigned-list {
+  gap: 0.45rem;
+}
+
+.gr-team-management-host .team-unassigned-item,
+.gr-team-management-host .team-member-chip {
+  border: 1px solid var(--gr-planning-border);
+  border-radius: calc(var(--sz-radius-sm) + 2px);
+  background: var(--gr-planning-chip-bg-muted);
+  color: var(--sz-color-text);
+  box-shadow: none;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.gr-team-management-host .team-unassigned-item {
+  padding: 0.5rem 0.65rem;
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-team-management-host .team-unassigned-item:hover,
+.gr-team-management-host .team-unassigned-item:focus-visible,
+.gr-team-management-host .team-member-chip:hover,
+.gr-team-management-host .team-member-chip:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--sz-color-primary) 44%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-alt));
+  box-shadow: var(--sz-shadow-1);
+  transform: translateY(-1px);
+}
+
+.gr-team-management-host .team-unassigned-name,
+.gr-team-management-host .team-member-name {
+  font-weight: var(--sz-font-weight-medium);
+  line-height: 1.3;
+}
+
+.gr-team-management-host .team-group-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem 1.05rem;
+}
+
+.gr-team-management-host .team-group-header,
+.gr-team-management-host .team-absence-list-header,
+.gr-team-management-host .team-role-list-header,
+.gr-team-management-host .team-regularization-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sz-space-2);
+}
+
+.gr-team-management-host .team-group-count,
+.gr-team-management-host [data-team-absence-reference],
+.gr-team-management-host [data-team-regularization-month-badge] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface-alt));
+  color: var(--sz-color-primary);
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-team-management-host .team-group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 0.75rem;
+}
+
+.gr-team-management-host .team-card {
+  border: 1px solid var(--gr-planning-border);
+  border-radius: var(--sz-radius-md);
+  padding: 0.75rem 0.85rem;
+  background: var(--sz-color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  box-shadow: none;
+}
+
+.gr-team-management-host .team-card.team-card--planning {
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gr-team-management-host .team-card.team-card--planning:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 44%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface-alt));
+  box-shadow: var(--sz-shadow-1);
+}
+
+.gr-team-management-host .team-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.gr-team-management-host .team-card-code {
+  margin: 0;
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-bold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--sz-color-primary);
+}
+
+.gr-team-management-host .team-card-name {
+  margin: 0;
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+  color: var(--sz-color-text);
+}
+
+.gr-team-management-host .team-card-members {
+  gap: 0.45rem;
+}
+
+.gr-team-management-host .team-member-chip {
+  padding: 0.45rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-team-management-host .team-member-chip.is-lead {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface-alt));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 14%, transparent);
+}
+
+.gr-team-management-host .team-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.gr-team-management-host .team-form-row label,
+.gr-team-management-host .team-form-toggle,
+.gr-team-management-host .team-period-custom label {
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-medium);
+}
+
+.gr-team-management-host .team-form-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.gr-team-management-host .team-form-toggle input[type="checkbox"],
+.gr-team-management-host .team-period-options input[type="radio"] {
+  accent-color: var(--sz-color-primary);
+}
+
+.gr-team-management-host .team-form-row input[type="date"],
+.gr-team-management-host .team-form-row input[type="month"] {
+  color-scheme: light;
+}
+
+.gr-team-management-host .team-form-fieldset {
+  margin: 0;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--gr-planning-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface-alt);
+}
+
+.gr-team-management-host .team-form-fieldset legend {
+  padding: 0 0.35rem;
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-team-management-host .team-period-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.gr-team-management-host .team-period-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.7rem;
+  border: 1px solid var(--gr-planning-border);
+  border-radius: 999px;
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-team-management-host .team-period-panel {
+  margin-top: 0.85rem;
+}
+
+.gr-team-management-host .team-period-reference,
+.gr-team-management-host .team-period-specific,
+.gr-team-management-host .team-period-custom {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--sz-space-3);
+}
+
+.gr-team-management-host .team-period-reference[hidden],
+.gr-team-management-host .team-period-specific[hidden],
+.gr-team-management-host .team-period-custom[hidden] {
+  display: none !important;
+}
+
+.gr-team-management-host .team-absence-form-grid,
+.gr-team-management-host .team-role-form-grid,
+.gr-team-management-host .team-regularization-form-grid {
+  gap: var(--sz-space-3);
+}
+
+.gr-team-management-host .team-absence-inline-actions,
+.gr-team-management-host .team-role-inline-actions,
+.gr-team-management-host .team-regularization-inline-actions,
+.gr-team-management-host .team-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sz-space-2);
+}
+
+.gr-team-management-host .team-modal-context,
+.gr-team-management-host .team-modal-feedback {
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-team-management-host .team-modal-feedback {
+  min-height: 1.2rem;
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-team-management-host .team-modal-feedback.is-success {
+  color: var(--sz-color-success);
+}
+
+.gr-team-management-host .team-absence-list-section,
+.gr-team-management-host .team-role-list-section,
+.gr-team-management-host .team-regularization-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.gr-team-management-host .team-absence-list-header h3,
+.gr-team-management-host .team-role-list-header h3,
+.gr-team-management-host .team-regularization-list-header h3 {
+  margin: 0;
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-team-management-host .team-absence-table-wrapper,
+.gr-team-management-host .team-role-table-wrapper,
+.gr-team-management-host .team-regularization-table-wrapper {
+  border: 1px solid var(--gr-planning-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface);
+  overflow: auto;
+}
+
+.gr-team-management-host .team-absence-table,
+.gr-team-management-host .team-role-table,
+.gr-team-management-host .team-regularization-table {
+  width: 100%;
+  min-width: 38rem;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.gr-team-management-host .team-absence-table th,
+.gr-team-management-host .team-absence-table td,
+.gr-team-management-host .team-role-table th,
+.gr-team-management-host .team-role-table td,
+.gr-team-management-host .team-regularization-table th,
+.gr-team-management-host .team-regularization-table td {
+  padding: 0.68rem 0.8rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.gr-team-management-host .team-absence-table th,
+.gr-team-management-host .team-role-table th,
+.gr-team-management-host .team-regularization-table th {
+  border-bottom: 1px solid var(--gr-planning-border);
+  background: var(--sz-color-surface-alt);
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gr-team-management-host .team-absence-table tbody td,
+.gr-team-management-host .team-role-table tbody td,
+.gr-team-management-host .team-regularization-table tbody td {
+  border-top: 1px solid var(--gr-planning-border);
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-team-management-host .team-absence-table tbody tr:first-child td,
+.gr-team-management-host .team-role-table tbody tr:first-child td,
+.gr-team-management-host .team-regularization-table tbody tr:first-child td {
+  border-top: 0;
+}
+
+.gr-team-management-host .team-absence-table tbody tr:hover,
+.gr-team-management-host .team-role-table tbody tr:hover,
+.gr-team-management-host .team-regularization-table tbody tr:hover {
+  background: var(--gr-planning-row-hover);
+}
+
+.gr-team-management-host .team-absence-actions,
+.gr-team-management-host .team-role-actions,
+.gr-team-management-host .team-regularization-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.gr-team-management-host .team-absence-action-button,
+.gr-team-management-host .team-role-action-button,
+.gr-team-management-host .team-regularization-action-button {
+  min-height: 2rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--gr-planning-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-semibold);
+  box-shadow: none;
+}
+
+.gr-team-management-host .team-absence-action-button:hover,
+.gr-team-management-host .team-absence-action-button:focus-visible,
+.gr-team-management-host .team-role-action-button:hover,
+.gr-team-management-host .team-role-action-button:focus-visible,
+.gr-team-management-host .team-regularization-action-button:hover,
+.gr-team-management-host .team-regularization-action-button:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--sz-color-primary) 38%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface-alt));
+  box-shadow: var(--sz-shadow-1);
+}
+
+.gr-team-management-host .team-absence-action-button.is-delete,
+.gr-team-management-host .team-role-action-button.is-delete,
+.gr-team-management-host .team-regularization-action-button.is-delete {
+  border-color: color-mix(in srgb, var(--sz-color-danger) 26%, var(--sz-color-border));
+  color: var(--sz-color-danger);
+}
+
+.gr-team-management-host .team-absence-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 6rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-team-management-host .team-absence-status.is-current {
+  background: color-mix(in srgb, var(--sz-color-success) 14%, var(--sz-color-surface-alt));
+  color: var(--sz-color-success);
+}
+
+.gr-team-management-host .team-absence-status.is-future {
+  background: color-mix(in srgb, var(--sz-color-info) 12%, var(--sz-color-surface-alt));
+  color: var(--sz-color-info);
+}
+
+@media (max-width: 1180px) {
+  .gr-team-management-contextbar .gr-team-management-context-form {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1080px) {
+  .gr-team-management-host .team-management-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .gr-team-management-host .team-unassigned-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .gr-team-management-contextbar .gr-team-management-context-form {
+    align-items: stretch;
+  }
+
+  .gr-team-management-contextbar .filter-control.filter-date {
+    flex-basis: auto;
+    min-width: 0;
+  }
+
+  .gr-team-management-host .team-group-grid,
+  .gr-team-management-host .team-period-reference,
+  .gr-team-management-host .team-period-specific,
+  .gr-team-management-host .team-period-custom,
+  .gr-team-management-host .team-absence-form-grid,
+  .gr-team-management-host .team-role-form-grid,
+  .gr-team-management-host .team-regularization-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gr-team-management-host .team-absence-list-header,
+  .gr-team-management-host .team-role-list-header,
+  .gr-team-management-host .team-regularization-list-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.gr-monthly-page-body {
+  display: block;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.gr-monthly-page-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.gr-monthly-contextbar > .sz_contextbar_right {
+  align-items: center;
+  overflow: visible;
+}
+
+.gr-monthly-contextbar .gr-monthly-context-form {
+  display: grid;
+  grid-template-columns: 12rem minmax(18rem, 24rem) auto;
+  align-items: end;
+  gap: var(--sz-space-2);
+  overflow: visible;
+}
+
+.gr-monthly-contextbar .gr-monthly-context-form .filter-control {
+  min-width: 0;
+  gap: 0;
+}
+
+.gr-monthly-contextbar .gr-monthly-context-form .filter-control > label,
+.gr-monthly-contextbar .gr-monthly-context-form .filter-control > .filter-label {
+  display: none;
+}
+
+.gr-monthly-contextbar .filter-control.filter-date,
+.gr-monthly-contextbar .filter-control.filter-teams {
+  min-width: 0;
+}
+
+.gr-monthly-contextbar .filter-control.filter-date input[type="month"] {
+  width: 100%;
+  min-height: var(--sz-button-height);
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text);
+  box-shadow: none;
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-medium);
+  color-scheme: light;
+}
+
+.gr-monthly-contextbar .filter-control.filter-date input[type="month"]:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 34%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-surface) 94%, var(--sz-color-surface-alt));
+}
+
+.gr-monthly-contextbar .filter-control.filter-date input[type="month"]:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+  box-shadow: var(--gr-planning-focus-ring);
+  background: var(--sz-color-surface);
+}
+
+.gr-monthly-contextbar .filter-control.filter-date input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: var(--sz-datepicker-icon-filter);
+  opacity: 0.88;
+}
+
+.gr-monthly-contextbar .filter-dropdown {
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.gr-monthly-contextbar .filter-dropdown summary {
+  width: 100%;
+}
+
+.gr-monthly-contextbar .filter-pill {
+  min-height: var(--sz-button-height);
+  border-radius: var(--sz-radius-sm);
+  border: 1px solid var(--sz-color-border);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+  padding: 0.55rem 0.7rem;
+}
+
+.gr-monthly-contextbar .filter-pill-text {
+  max-width: 100%;
+}
+
+.gr-monthly-contextbar .filter-dropdown-panel {
+  z-index: 120;
+  min-width: 100%;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  box-shadow: var(--sz-shadow-2);
+}
+
+.gr-monthly-contextbar .filter-dropdown-panel .market-option {
+  display: grid;
+}
+
+.gr-monthly-contextbar .market-option {
+  color: var(--sz-color-text);
+}
+
+.gr-monthly-contextbar .filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sz-space-2);
+  margin-left: 0;
+}
+
+.gr-monthly-contextbar .filters-submit {
+  min-height: var(--sz-button-height);
+  min-width: 4.5rem;
+  border-radius: var(--sz-radius-sm);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-monthly-contextbar .filters-submit.sz_button_secondary {
+  border: 1px solid var(--sz-color-border);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text-secondary);
+  box-shadow: none;
+}
+
+.gr-monthly-contextbar .filters-submit.sz_button_secondary:hover {
+  background: color-mix(in srgb, var(--sz-color-surface) 82%, var(--sz-color-primary) 18%);
+}
+
+.gr-monthly-host {
+  height: auto;
+  min-height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.gr-monthly-host .filters-layout {
+  display: none !important;
+}
+
+.gr-monthly-host .dashboard-main {
+  width: 100%;
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-4);
+  padding-bottom: 0 !important;
+}
+
+.gr-monthly-host .error {
+  margin: 0;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--sz-color-danger) 22%, var(--gr-planning-border));
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-danger) 8%, var(--sz-color-surface));
+  color: var(--sz-color-danger);
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-monthly-host .table-card.monthly-summary-card {
+  border: 1px solid var(--gr-planning-border);
+  border-radius: calc(var(--sz-radius-lg) + 2px);
+  background: var(--gr-planning-surface);
+  box-shadow: var(--sz-shadow-1);
+  overflow: hidden;
+}
+
+.gr-monthly-host .table-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sz-space-3);
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--gr-planning-border);
+  background: var(--sz-color-surface-alt);
+}
+
+.gr-monthly-host .table-card-header h2 {
+  margin: 0;
+  color: var(--sz-color-text);
+  font-size: 1rem;
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-monthly-host .table-card-body {
+  padding: 0;
+  background: var(--sz-color-surface);
+}
+
+.gr-monthly-host .table-responsive {
+  overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.gr-monthly-host .table-responsive::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.gr-monthly-host .monthly-summary-table {
+  width: 100%;
+  min-width: 72rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-monthly-host .monthly-summary-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--gr-planning-border);
+  background: var(--sz-color-surface-alt);
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.gr-monthly-host .monthly-summary-table tbody td,
+.gr-monthly-host .monthly-summary-table tfoot td {
+  padding: 0.48rem 0.7rem;
+  border-bottom: 1px solid var(--gr-planning-border);
+  color: var(--sz-color-text);
+}
+
+.gr-monthly-host .monthly-summary-table tbody tr:nth-child(odd) {
+  background: var(--gr-planning-row-alt);
+}
+
+.gr-monthly-host .monthly-summary-table tbody tr:nth-child(even) {
+  background: var(--sz-color-surface);
+}
+
+.gr-monthly-host .monthly-summary-table tbody tr:hover {
+  background: var(--gr-planning-row-hover);
+}
+
+.gr-monthly-host .monthly-summary-table tbody tr.is-chief {
+  background: color-mix(in srgb, var(--sz-color-warning) 8%, var(--sz-color-surface));
+}
+
+.gr-monthly-host .monthly-summary-table tbody tr.is-chief td {
+  color: var(--sz-color-text);
+}
+
+.gr-monthly-host .monthly-summary-table tfoot tr {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface-alt));
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-monthly-host .monthly-summary-table tfoot td {
+  border-top: 1px solid var(--gr-planning-border);
+  border-bottom: 0;
+  color: var(--sz-color-primary);
+}
+
+.gr-monthly-host .monthly-summary-table th.team-col,
+.gr-monthly-host .monthly-summary-table td.team-col {
+  width: 6rem;
+  white-space: nowrap;
+}
+
+.gr-monthly-host .monthly-summary-table th.numeric,
+.gr-monthly-host .monthly-summary-table td.numeric {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gr-monthly-host .monthly-maintenance-input {
+  width: 5.7rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--gr-planning-border-strong);
+  border-radius: calc(var(--sz-radius-sm) - 2px);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text);
+  text-align: right;
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-monthly-host .monthly-maintenance-input:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 34%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-surface) 94%, var(--sz-color-surface-alt));
+}
+
+.gr-monthly-host .monthly-maintenance-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+  box-shadow: var(--gr-planning-focus-ring);
+}
+
+.gr-monthly-host .monthly-maintenance-input.is-custom {
+  border-color: color-mix(in srgb, var(--sz-color-warning) 46%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-warning) 10%, var(--sz-color-surface));
+  color: var(--sz-color-text);
+}
+
+.gr-monthly-actionbar[hidden] {
+  display: none !important;
+}
+
+.gr-monthly-host .monthly-detail-modal .modal-dialog {
+  width: min(94vw, 1320px);
+  max-width: 1320px;
+}
+
+.gr-monthly-host .monthly-detail-modal .modal-body {
+  overflow: auto;
+  padding-right: 0.1rem;
+}
+
+.gr-monthly-host .monthly-detail-modal .table-responsive {
+  overflow: auto;
+}
+
+.gr-monthly-host .monthly-detail-table {
+  width: 100%;
+  min-width: 72rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-monthly-host .monthly-detail-table th,
+.gr-monthly-host .monthly-detail-table td {
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--gr-planning-border);
+}
+
+.gr-monthly-host .monthly-detail-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--sz-color-surface-alt);
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.gr-monthly-host .monthly-detail-table td {
+  color: var(--sz-color-text);
+}
+
+.gr-monthly-host .monthly-detail-table td.numeric,
+.gr-monthly-host .monthly-detail-table th.numeric {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gr-monthly-host .monthly-detail-table tr.total-row td,
+.gr-monthly-host .monthly-detail-table tfoot tr td {
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface-alt));
+  color: var(--sz-color-primary);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-monthly-host .modal-project-meta[data-detail-employee] {
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-sm);
+}
+
+@media (max-width: 1180px) {
+  .gr-monthly-contextbar > .sz_contextbar_right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .gr-monthly-contextbar .gr-monthly-context-form {
+    grid-template-columns: minmax(12rem, 14rem) minmax(16rem, 1fr) auto;
+    width: 100%;
+  }
+}
+
+@media (max-width: 960px) {
+  .gr-monthly-contextbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gr-monthly-contextbar > .sz_contextbar_left,
+  .gr-monthly-contextbar > .sz_contextbar_right {
+    width: 100%;
+  }
+
+  .gr-monthly-contextbar .gr-monthly-context-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .gr-monthly-contextbar .filter-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .gr-monthly-contextbar .gr-monthly-context-form {
+    grid-template-columns: 1fr;
+  }
+
+  .gr-monthly-host .table-card-header {
+    align-items: flex-start;
+  }
+
+  .gr-monthly-host .monthly-detail-modal .modal-dialog {
+    width: calc(100vw - 1rem);
+  }
+}
+
+.gr-monthly-intersol-contextbar > .sz_contextbar_right {
+  align-items: center;
+  overflow: visible;
+}
+
+.gr-monthly-intersol-contextbar .gr-monthly-intersol-context-form {
+  display: grid;
+  grid-template-columns: 12rem minmax(18rem, 24rem) auto;
+  align-items: end;
+  gap: var(--sz-space-2);
+  overflow: visible;
+}
+
+.gr-monthly-intersol-contextbar .gr-monthly-intersol-context-form .filter-control {
+  min-width: 0;
+  gap: 0;
+}
+
+.gr-monthly-intersol-contextbar .gr-monthly-intersol-context-form .filter-control > label,
+.gr-monthly-intersol-contextbar .gr-monthly-intersol-context-form .filter-control > .filter-label {
+  display: none;
+}
+
+.gr-monthly-intersol-contextbar .filter-control.filter-date,
+.gr-monthly-intersol-contextbar .filter-control.filter-teams {
+  min-width: 0;
+}
+
+.gr-monthly-intersol-contextbar .filter-control.filter-date input[type="month"] {
+  width: 100%;
+  min-height: var(--sz-button-height);
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text);
+  box-shadow: none;
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-medium);
+  color-scheme: light;
+}
+
+.gr-monthly-intersol-contextbar .filter-control.filter-date input[type="month"]:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 34%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-surface) 94%, var(--sz-color-surface-alt));
+}
+
+.gr-monthly-intersol-contextbar .filter-control.filter-date input[type="month"]:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+  box-shadow: var(--gr-planning-focus-ring);
+  background: var(--sz-color-surface);
+}
+
+.gr-monthly-intersol-contextbar .filter-control.filter-date input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: var(--sz-datepicker-icon-filter);
+  opacity: 0.88;
+}
+
+.gr-monthly-intersol-contextbar .filter-dropdown {
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.gr-monthly-intersol-contextbar .filter-dropdown summary {
+  width: 100%;
+}
+
+.gr-monthly-intersol-contextbar .filter-pill {
+  min-height: var(--sz-button-height);
+  border-radius: var(--sz-radius-sm);
+  border: 1px solid var(--sz-color-border);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+  padding: 0.55rem 0.7rem;
+}
+
+.gr-monthly-intersol-contextbar .filter-pill-text {
+  max-width: 100%;
+}
+
+.gr-monthly-intersol-contextbar .filter-dropdown-panel {
+  z-index: 120;
+  min-width: 100%;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  box-shadow: var(--sz-shadow-2);
+}
+
+.gr-monthly-intersol-contextbar .filter-dropdown-panel .market-option {
+  display: grid;
+}
+
+.gr-monthly-intersol-contextbar .market-option {
+  color: var(--sz-color-text);
+}
+
+.gr-monthly-intersol-contextbar .filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sz-space-2);
+  margin-left: 0;
+}
+
+.gr-monthly-intersol-contextbar .filters-submit {
+  min-height: var(--sz-button-height);
+  min-width: 4.5rem;
+  border-radius: var(--sz-radius-sm);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-monthly-intersol-contextbar .filters-submit.sz_button_secondary {
+  border: 1px solid var(--sz-color-border);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text-secondary);
+  box-shadow: none;
+}
+
+.gr-monthly-intersol-contextbar .filters-submit.sz_button_secondary:hover {
+  background: color-mix(in srgb, var(--sz-color-surface) 82%, var(--sz-color-primary) 18%);
+}
+
+.gr-monthly-intersol-host .filters-layout {
+  display: none !important;
+}
+
+.gr-monthly-intersol-host .dashboard-main {
+  width: 100%;
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-4);
+  padding-bottom: 0 !important;
+}
+
+.gr-monthly-intersol-host .table-card-caption {
+  margin: 0.2rem 0 0;
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-monthly-intersol-host .table-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sz-space-2);
+  flex-wrap: wrap;
+}
+
+.gr-monthly-intersol-host .table-export-button,
+.gr-monthly-intersol-host .table-prime-button {
+  min-height: var(--sz-button-height);
+  padding: 0 var(--sz-space-4);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-sm);
+  font-weight: var(--sz-font-weight-semibold);
+  box-shadow: none;
+}
+
+.gr-monthly-intersol-host .table-export-button:hover,
+.gr-monthly-intersol-host .table-prime-button:hover,
+.gr-monthly-intersol-host .table-export-button:focus-visible,
+.gr-monthly-intersol-host .table-prime-button:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--sz-color-primary) 38%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface-alt));
+  box-shadow: var(--sz-shadow-1);
+}
+
+.gr-monthly-intersol-host .table-prime-button {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 36%, var(--sz-color-border));
+  color: var(--sz-color-primary);
+}
+
+.gr-monthly-intersol-host .monthly-summary-table {
+  min-width: 108rem;
+  font-size: calc(var(--sz-font-size-sm) - 4px);
+}
+
+.gr-monthly-intersol-host .monthly-summary-table th,
+.gr-monthly-intersol-host .monthly-summary-table td {
+  white-space: nowrap;
+}
+
+.gr-monthly-intersol-host .monthly-summary-table thead th {
+  font-size: calc(var(--sz-font-size-xs) - 4px);
+}
+
+.gr-monthly-intersol-host .monthly-summary-table td.monthly-effort-prime-pending,
+.gr-monthly-intersol-host .monthly-summary-table tfoot td.monthly-effort-prime-pending {
+  color: var(--sz-color-danger);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-monthly-intersol-host .monthly-detail-modal .modal-dialog {
+  width: min(94vw, 1480px);
+  max-width: 1480px;
+}
+
+.gr-monthly-intersol-host .monthly-detail-table {
+  min-width: 88rem;
+  font-size: calc(var(--sz-font-size-sm) - 3px);
+}
+
+.gr-monthly-intersol-host .monthly-detail-table th {
+  font-size: calc(var(--sz-font-size-xs) - 3px);
+}
+
+.gr-monthly-intersol-host .monthly-detail-table td.monthly-detail-base-value.is-forfait {
+  color: var(--sz-color-warning);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-monthly-intersol-host .monthly-detail-table td.monthly-detail-effort-prime.is-pending {
+  color: var(--sz-color-danger);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-monthly-intersol-host .monthly-detail-table td.monthly-detail-total-value.is-pending {
+  color: var(--sz-color-primary);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-monthly-intersol-host .monthly-detail-table tr.monthly-detail-regularization-row td {
+  background: color-mix(in srgb, var(--sz-color-warning) 10%, var(--sz-color-surface));
+  color: var(--sz-color-text);
+}
+
+.gr-monthly-intersol-host .monthly-detail-table tr.monthly-detail-regularization-row td:last-child {
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-monthly-intersol-host .modal-totals {
+  margin-top: 0.8rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--gr-planning-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface-alt);
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-sm);
+  line-height: 1.45;
+}
+
+.gr-monthly-intersol-host .modal-totals strong {
+  color: var(--sz-color-text);
+}
+
+.gr-monthly-intersol-host .prime-records-modal .modal-dialog {
+  width: min(94vw, 1240px);
+  max-width: 1240px;
+}
+
+.gr-monthly-intersol-host .prime-records-table {
+  width: 100%;
+  min-width: 62rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--sz-font-size-sm);
+}
+
+.gr-monthly-intersol-host .prime-records-table th,
+.gr-monthly-intersol-host .prime-records-table td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--gr-planning-border);
+  text-align: left;
+}
+
+.gr-monthly-intersol-host .prime-records-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--sz-color-surface-alt);
+  color: var(--sz-color-text-secondary);
+  font-size: var(--sz-font-size-xs);
+  font-weight: var(--sz-font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gr-monthly-intersol-host .prime-records-table td.numeric,
+.gr-monthly-intersol-host .prime-records-table th.numeric {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gr-monthly-intersol-host .prime-record-status {
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.gr-monthly-intersol-host .prime-record-status.is-validated {
+  color: var(--sz-color-success);
+}
+
+.gr-monthly-intersol-host .prime-record-status.is-pending {
+  color: var(--sz-color-danger);
+}
+
+.gr-monthly-intersol-host .prime-record-toggle {
+  min-width: 7.5rem;
+}
+
+.gr-monthly-intersol-host .prime-record-toggle.is-pending {
+  border-color: color-mix(in srgb, var(--sz-color-success) 34%, var(--sz-color-border));
+  color: var(--sz-color-success);
+}
+
+.gr-monthly-intersol-host .prime-record-toggle.is-validated {
+  border-color: color-mix(in srgb, var(--sz-color-danger) 28%, var(--sz-color-border));
+  color: var(--sz-color-danger);
+}
+
+.gr-monthly-intersol-host .prime-record-toggle.is-loading {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+@media (max-width: 1180px) {
+  .gr-monthly-intersol-contextbar > .sz_contextbar_right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .gr-monthly-intersol-contextbar .gr-monthly-intersol-context-form {
+    grid-template-columns: minmax(12rem, 14rem) minmax(16rem, 1fr) auto;
+    width: 100%;
+  }
+}
+
+@media (max-width: 960px) {
+  .gr-monthly-intersol-contextbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gr-monthly-intersol-contextbar > .sz_contextbar_left,
+  .gr-monthly-intersol-contextbar > .sz_contextbar_right {
+    width: 100%;
+  }
+
+  .gr-monthly-intersol-contextbar .gr-monthly-intersol-context-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .gr-monthly-intersol-contextbar .filter-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .gr-monthly-intersol-contextbar .gr-monthly-intersol-context-form {
+    grid-template-columns: 1fr;
+  }
+
+  .gr-monthly-intersol-host .table-card-header {
+    align-items: flex-start;
+  }
+
+  .gr-monthly-intersol-host .monthly-detail-modal .modal-dialog,
+  .gr-monthly-intersol-host .prime-records-modal .modal-dialog {
+    width: calc(100vw - 1rem);
+  }
+}

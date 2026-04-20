@@ -1,0 +1,21 @@
+﻿<details class="app-menu" data-app-menu>
+    <summary class="app-menu-toggle" role="button" aria-label="{{ t.menu_toggle_label }}">
+        <span class="app-menu-icon" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+        </span>
+    </summary>
+    <nav class="app-menu-panel" aria-label="{{ t.menu_navigation_label }}">
+        <a class="app-menu-link{% if request.endpoint == 'index' %} is-active{% endif %}" href="{{ url_for('index') }}">{{ t.menu_item_planning }}</a>
+        {% if (session.get('user') or {}).get('u_admin') or (session.get('user') or {}).get('u_teams') %}
+            <a class="app-menu-link{% if request.endpoint == 'team_management' %} is-active{% endif %}" href="{{ url_for('team_management') }}">{{ t.menu_item_team_management }}</a>
+        {% endif %}
+        {% if (session.get('user') or {}).get('u_admin') %}
+            <a class="app-menu-link{% if request.endpoint == 'folha_mensal' %} is-active{% endif %}" href="{{ url_for('folha_mensal') }}">{{ t.menu_item_monthly_sheet }}</a>
+        {% endif %}
+        {% if (session.get('user') or {}).get('u_adminis') %}
+            <a class="app-menu-link{% if request.endpoint == 'folha_mensal_intersol' %} is-active{% endif %}" href="{{ url_for('folha_mensal_intersol') }}">Mapa Mensal INTERSOL</a>
+        {% endif %}
+    </nav>
+</details>

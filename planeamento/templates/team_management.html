@@ -1,0 +1,546 @@
+{% set next_url = request.full_path.rstrip('?') %}
+{% set current_option = (languages | selectattr('code', 'equalto', current_lang) | list | first) or (languages | first) %}
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t.teams_heading }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='main.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='filter-state.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='team-management.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='team-absences.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='team-roles.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='team-regularizations.js') }}" defer></script>
+</head>
+<body class="dashboard-page team-management-page" data-reference-date="{{ reference_date_value }}" data-week-start="{{ week_start_value }}" data-week-end="{{ week_end_value }}" data-team-options='{{ team_options|tojson }}'>
+    <div class="dashboard-wrapper">
+        <header class="dashboard-header">
+            <div>
+                <h1>{{ t.teams_heading }}</h1>
+                <p class="user-meta">{{ t.dashboard_user_label }}: {{ user.username }} ({{ user.usercode }})</p>
+            </div>
+            <div class="header-actions">
+                <details class="language-dropdown" data-language-area>
+                    <summary>
+                        <span class="chip-flag">{{ current_option.flag }}</span>
+                        <span class="chip-label">{{ current_option.label }}</span>
+                        <span class="chip-chevron" aria-hidden="true"></span>
+                    </summary>
+                    <ul class="language-dropdown-list" role="menu">
+                        {% for option in languages %}
+                            <li>
+                                {% if option.code == current_lang %}
+                                    <span class="language-option active" aria-current="true">
+                                        <span class="chip-flag">{{ option.flag }}</span>
+                                        <span class="chip-label">{{ option.label }}</span>
+                                    </span>
+                                {% else %}
+                                    <a class="language-option" href="{{ url_for('change_language', lang_code=option.code, next=next_url) }}" role="menuitem">
+                                        <span class="chip-flag">{{ option.flag }}</span>
+                                        <span class="chip-label">{{ option.label }}</span>
+                                    </a>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </details>
+                <a class="logout" data-logout-link href="{{ url_for('logout') }}">{{ t.logout_link }}</a>
+                {% include '_app_menu.html' %}
+            </div>
+        </header>
+
+        <section class="filters-card" data-filters-area>
+            <form method="get" action="{{ url_for('team_management') }}" class="filters-form">
+                <div class="filter-control filter-date">
+                    <label for="date-filter">{{ t.teams_filter_date_label }}</label>
+                    <input type="date" id="date-filter" name="date" value="{{ reference_date_value }}">
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="filters-submit" disabled>{{ t.teams_filter_apply }}</button>
+                    <button type="button" class="table-export-button" data-team-absences-open>{{ t.get('teams_absences_button', 'Ausências') }}</button>
+                    <button type="button" class="table-export-button" data-team-regularizations-open>{{ t.get('teams_regularizations_button', 'Regularizações de paie') }}</button>
+                    <button type="button" class="table-export-button" data-team-roles-open>{{ t.get('teams_roles_button', 'Roles INTERSOL') }}</button>
+                </div>
+            </form>
+        </section>
+
+        {% if db_error %}
+            <p class="error">{{ db_error }}</p>
+        {% endif %}
+
+        <div class="team-management-layout" data-team-management>
+            <aside class="team-unassigned-panel">
+                <div class="panel-header">
+                    <h2>{{ t.teams_unassigned_heading }}</h2>
+                    <span class="panel-meta">{{ reference_date_label }}</span>
+                </div>
+                {% if unassigned_employees %}
+                    <ul class="team-unassigned-list">
+                        {% for employee in unassigned_employees %}
+                            <li class="team-unassigned-item" data-team-action-trigger data-employee-state="unassigned" data-employee-number="{{ employee.number }}" data-employee-name="{{ employee.name }}" data-employee-origin="{{ employee.origin }}">
+                                <span class="team-unassigned-name">{{ employee.name }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="team-unassigned-empty">{{ t.teams_unassigned_empty }}</p>
+                {% endif %}
+            </aside>
+
+            <section class="team-groups-container">
+                {% for group in team_groups %}
+                    <article class="team-group-card">
+                        <header class="team-group-header">
+                            <h2>{{ group.label }}</h2>
+                            <span class="team-group-count">{{ group.teams|length }}</span>
+                        </header>
+                        <div class="team-group-grid">
+                            {% for team in group.teams %}
+                                <div class="team-card">
+                                    <header class="team-card-header">
+                                        <p class="team-card-code">{{ team.code }}</p>
+                                        <p class="team-card-name">{{ team.name }}</p>
+                                    </header>
+                                    {% if team.members %}
+                                        <ul class="team-card-members">
+                                            {% for member in team.members %}
+                                                <li class="team-member-chip {% if member.is_lead %}is-lead{% endif %}" data-team-action-trigger data-employee-state="assigned" data-employee-number="{{ member.number }}" data-employee-name="{{ member.name }}" data-employee-origin="{{ member.origin }}" data-team-code="{{ team.code }}" data-team-name="{{ team.name }}" data-team-stamp="{{ team.stamp }}" data-is-lead="{{ '1' if member.is_lead else '0' }}" data-membership-stamp="{{ member.stamp }}" data-membership-start="{{ member.start.isoformat() if member.start }}" data-membership-end="{{ member.end.isoformat() if member.end }}">
+                                                    <span class="team-member-name">{{ member.name }}</span>
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <p class="team-card-empty">{{ t.teams_team_empty }}</p>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </article>
+                {% else %}
+                    <p class="team-groups-empty">{{ t.teams_no_teams }}</p>
+                {% endfor %}
+            </section>
+        </div>
+    </div>
+<div id="team-action-modal" class="modal-overlay" hidden aria-hidden="true"
+     data-error-generic="{{ t.teams_modal_error_generic }}"
+     data-success-message="{{ t.teams_modal_success }}"
+     data-context-unassigned="{{ t.teams_modal_context_unassigned }}"
+     data-context-assigned="{{ t.teams_modal_context_assigned }}"
+     data-team-placeholder="{{ t.teams_modal_team_placeholder }}"
+     data-error-map='{{ {
+        "invalid_payload": t.teams_modal_error_generic,
+        "invalid_action": t.teams_modal_error_generic,
+        "missing_employee_number": t.teams_modal_error_generic,
+        "missing_target_team": t.teams_modal_error_missing_team,
+        "employee_not_found": t.teams_modal_error_employee,
+        "team_not_found": t.teams_modal_error_team,
+        "employee_not_assigned": t.teams_modal_error_not_assigned,
+        "employee_already_assigned": t.teams_modal_error_conflict,
+        "team_incomplete": t.teams_modal_error_team,
+        "no_team_change": t.teams_modal_error_no_change,
+        "no_operations_generated": t.teams_modal_error_generic,
+        "missing_custom_start": t.teams_modal_error_missing_dates,
+        "missing_specific_date": t.teams_modal_error_missing_specific,
+        "invalid_custom_range": t.teams_modal_error_invalid_range,
+        "invalid_period_type": t.teams_modal_error_generic,
+        "database_error": t.teams_modal_error_generic
+    }|tojson }}'>
+    <div class="modal-dialog team-action-modal" role="dialog" aria-modal="true" aria-labelledby="team-action-modal-title">
+        <header class="modal-header">
+            <h2 id="team-action-modal-title">{{ t.teams_modal_title }}</h2>
+            <p class="team-modal-context" data-team-modal-context></p>
+        </header>
+        <div class="modal-body">
+            <form class="team-action-form" data-team-action-form>
+                <div class="team-form-row">
+                    <label for="team-action-select">{{ t.teams_modal_action_label }}</label>
+                    <select id="team-action-select" data-team-action-select>
+                        <option value="assign">{{ t.teams_modal_action_assign }}</option>
+                        <option value="transfer">{{ t.teams_modal_action_transfer }}</option>
+                        <option value="remove">{{ t.teams_modal_action_remove }}</option>
+                        <option value="lead">{{ t.teams_modal_action_lead }}</option>
+                    </select>
+                </div>
+                <div class="team-form-row" data-team-select-row>
+                    <label for="team-target-select">{{ t.teams_modal_team_label }}</label>
+                    <select id="team-target-select" data-team-target-select></select>
+                </div>
+                <div class="team-form-row" data-lead-toggle-row>
+                    <label class="team-form-toggle">
+                        <input type="checkbox" data-team-lead-toggle>
+                        <span>{{ t.teams_modal_lead_toggle }}</span>
+                    </label>
+                </div>
+                <fieldset class="team-form-fieldset">
+
+                    <legend>{{ t.teams_modal_period_label }}</legend>
+
+                    <div class="team-period-options">
+
+                        <label>
+
+                            <input type="radio" name="team-period" value="reference" data-team-period-option checked>
+
+                            <span data-team-reference-label data-reference-base="{{ t.teams_modal_period_reference }}">{{ t.teams_modal_period_reference }}</span>
+
+                        </label>
+
+                        <label>
+
+                            <input type="radio" name="team-period" value="specific" data-team-period-option>
+
+                            <span>{{ t.teams_modal_period_specific }}</span>
+
+                        </label>
+
+                        <label>
+
+                            <input type="radio" name="team-period" value="week" data-team-period-option>
+
+                            <span data-team-week-label data-week-base="{{ t.teams_modal_period_week }}">{{ t.teams_modal_period_week }}</span>
+
+                        </label>
+
+                        <label>
+
+                            <input type="radio" name="team-period" value="custom" data-team-period-option>
+
+                            <span>{{ t.teams_modal_period_custom }}</span>
+
+                        </label>
+
+                    </div>
+
+                    <div class="team-period-reference team-period-panel" data-team-period-reference hidden>
+
+                        <div class="filter-control filter-date">
+
+                            <label for="team-period-reference-date">{{ t.teams_modal_reference_value_label }}</label>
+
+                            <input type="date" id="team-period-reference-date" data-team-reference-input disabled>
+
+                        </div>
+
+                    </div>
+
+                    <div class="team-period-specific team-period-panel" data-team-period-specific hidden>
+
+                        <div class="filter-control filter-date">
+
+                            <label for="team-period-specific-date">{{ t.teams_modal_specific_date_label }}</label>
+
+                            <input type="date" id="team-period-specific-date" data-team-specific-date>
+
+                        </div>
+
+                    </div>
+
+                    <div class="team-period-custom team-period-panel" data-team-period-custom hidden>
+
+                        <div class="filter-control filter-date">
+
+                            <label for="team-period-custom-start">{{ t.teams_modal_custom_start }}</label>
+
+                            <input type="date" id="team-period-custom-start" data-team-custom-start>
+
+                        </div>
+
+                        <div class="filter-control filter-date">
+
+                            <label for="team-period-custom-end">{{ t.teams_modal_custom_end }}</label>
+
+                            <input type="date" id="team-period-custom-end" data-team-custom-end>
+
+                        </div>
+
+                    </div>
+
+                </fieldset>
+                <div class="team-modal-feedback" data-team-modal-error></div>
+            </form>
+        </div>
+        <div class="modal-actions team-modal-actions">
+            <button type="button" class="modal-button modal-cancel" data-team-action-cancel>{{ t.teams_modal_cancel }}</button>
+            <button type="button" class="modal-button modal-ok" data-team-action-confirm data-loading-text="{{ t.teams_modal_submit_loading }}">{{ t.teams_modal_submit }}</button>
+        </div>
+    </div>
+</div>
+
+<div id="team-absence-modal" class="modal-overlay" hidden aria-hidden="true"
+     data-title="{{ t.get('teams_absences_title', 'Ausências') }}"
+     data-reference-label="{{ t.get('teams_absences_reference_label', 'Data de referência') }}"
+     data-employee-label="{{ t.get('teams_absences_employee_label', 'Colaborador') }}"
+     data-employee-placeholder="{{ t.get('teams_absences_employee_placeholder', 'Selecione um colaborador') }}"
+     data-start-label="{{ t.get('teams_absences_start_label', 'Data inicial') }}"
+     data-end-label="{{ t.get('teams_absences_end_label', 'Data final') }}"
+     data-obs-label="{{ t.get('teams_absences_obs_label', 'Observações') }}"
+     data-status-label="{{ t.get('teams_absences_status_label', 'Estado') }}"
+     data-status-current="{{ t.get('teams_absences_status_current', 'Em curso') }}"
+     data-status-future="{{ t.get('teams_absences_status_future', 'Futura') }}"
+     data-list-title="{{ t.get('teams_absences_list_title', 'Ausências presentes e futuras') }}"
+     data-empty-message="{{ t.get('teams_absences_empty', 'Sem ausências presentes ou futuras.') }}"
+     data-load-error="{{ t.get('teams_absences_load_error', 'Não foi possível carregar as ausências.') }}"
+     data-save-error="{{ t.get('teams_absences_save_error', 'Não foi possível guardar a ausência.') }}"
+     data-delete-error="{{ t.get('teams_absences_delete_error', 'Não foi possível eliminar a ausência.') }}"
+     data-missing-employee="{{ t.get('teams_absences_missing_employee', 'Selecione um colaborador.') }}"
+     data-missing-dates="{{ t.get('teams_absences_missing_dates', 'Indique as datas da ausência.') }}"
+     data-invalid-range="{{ t.get('teams_absences_invalid_range', 'A data final deve ser posterior ou igual à data inicial.') }}"
+     data-delete-confirm="{{ t.get('teams_absences_delete_confirm', 'Eliminar esta ausência?') }}"
+     data-save-label="{{ t.get('teams_absences_save', 'Guardar') }}"
+     data-update-label="{{ t.get('teams_absences_update', 'Atualizar') }}"
+     data-reset-label="{{ t.get('teams_absences_reset', 'Limpar') }}"
+     data-close-label="{{ t.get('teams_absences_close', 'Fechar') }}"
+     data-saving-label="{{ t.get('teams_absences_saving', 'A guardar...') }}"
+     data-edit-label="{{ t.get('teams_absences_edit', 'Editar') }}"
+     data-delete-label="{{ t.get('teams_absences_delete', 'Eliminar') }}"
+     data-loading-label="{{ t.get('teams_absences_loading', 'A carregar...') }}">
+    <div class="modal-dialog team-absence-modal" role="dialog" aria-modal="true" aria-labelledby="team-absence-modal-title">
+        <header class="modal-header">
+            <h2 id="team-absence-modal-title">{{ t.get('teams_absences_title', 'Ausências') }}</h2>
+            <p class="team-modal-context">
+                {{ t.get('teams_absences_reference_label', 'Data de referência') }}: {{ reference_date_label }}
+            </p>
+        </header>
+        <div class="modal-body">
+            <form class="team-absence-form" data-team-absence-form>
+                <input type="hidden" data-absence-stamp>
+                <div class="team-absence-form-grid">
+                    <div class="team-form-row team-absence-form-field team-absence-form-field--employee">
+                        <label for="absence-employee-select">{{ t.get('teams_absences_employee_label', 'Colaborador') }}</label>
+                        <select id="absence-employee-select" data-absence-employee-select>
+                            <option value="">{{ t.get('teams_absences_employee_placeholder', 'Selecione um colaborador') }}</option>
+                        </select>
+                    </div>
+                    <div class="team-form-row team-absence-form-field">
+                        <label for="absence-start-date">{{ t.get('teams_absences_start_label', 'Data inicial') }}</label>
+                        <input type="date" id="absence-start-date" data-absence-start-date>
+                    </div>
+                    <div class="team-form-row team-absence-form-field">
+                        <label for="absence-end-date">{{ t.get('teams_absences_end_label', 'Data final') }}</label>
+                        <input type="date" id="absence-end-date" data-absence-end-date>
+                    </div>
+                    <div class="team-form-row team-absence-form-field team-absence-form-field--full">
+                        <label for="absence-obs">{{ t.get('teams_absences_obs_label', 'Observações') }}</label>
+                        <textarea id="absence-obs" rows="3" data-absence-obs></textarea>
+                    </div>
+                    <div class="team-absence-inline-actions">
+                        <button type="submit" class="modal-button modal-ok" data-absence-save>{{ t.get('teams_absences_save', 'Guardar') }}</button>
+                        <button type="button" class="modal-button modal-cancel" data-absence-reset>{{ t.get('teams_absences_reset', 'Limpar') }}</button>
+                    </div>
+                </div>
+                <div class="team-modal-feedback team-absence-feedback" data-team-absence-feedback></div>
+            </form>
+
+            <section class="team-absence-list-section">
+                <div class="team-absence-list-header">
+                    <h3>{{ t.get('teams_absences_list_title', 'Ausências presentes e futuras') }}</h3>
+                    <span class="team-group-count" data-team-absence-reference>{{ reference_date_label }}</span>
+                </div>
+                <div class="table-responsive team-absence-table-wrapper">
+                    <table class="team-absence-table">
+                        <thead>
+                            <tr>
+                                <th>{{ t.get('teams_absences_table_number', 'Nº') }}</th>
+                                <th>{{ t.get('teams_absences_table_name', 'Nome') }}</th>
+                                <th>{{ t.get('teams_absences_start_label', 'Data inicial') }}</th>
+                                <th>{{ t.get('teams_absences_end_label', 'Data final') }}</th>
+                                <th>{{ t.get('teams_absences_status_label', 'Estado') }}</th>
+                                <th>{{ t.get('teams_absences_table_actions', 'Ações') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody data-team-absence-rows>
+                            <tr>
+                                <td colspan="6" class="modal-empty">{{ t.get('teams_absences_loading', 'A carregar...') }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        <div class="modal-actions team-modal-actions">
+            <button type="button" class="modal-button modal-cancel" data-team-absence-close>{{ t.get('teams_absences_close', 'Fechar') }}</button>
+        </div>
+    </div>
+</div>
+
+<div id="team-role-modal" class="modal-overlay" hidden aria-hidden="true"
+     data-title="{{ t.get('teams_roles_title', 'Roles INTERSOL') }}"
+     data-employee-label="{{ t.get('teams_roles_employee_label', 'Colaborador') }}"
+     data-employee-placeholder="{{ t.get('teams_roles_employee_placeholder', 'Selecione um colaborador') }}"
+     data-role-label="{{ t.get('teams_roles_role_label', 'Role') }}"
+     data-role-placeholder="{{ t.get('teams_roles_role_placeholder', 'Selecione um role') }}"
+     data-list-title="{{ t.get('teams_roles_list_title', 'Roles configurados') }}"
+     data-empty-message="{{ t.get('teams_roles_empty', 'Sem roles configurados.') }}"
+     data-load-error="{{ t.get('teams_roles_load_error', 'Não foi possível carregar os roles INTERSOL.') }}"
+     data-save-error="{{ t.get('teams_roles_save_error', 'Não foi possível guardar o role INTERSOL.') }}"
+     data-delete-error="{{ t.get('teams_roles_delete_error', 'Não foi possível remover o role INTERSOL.') }}"
+     data-missing-employee="{{ t.get('teams_roles_missing_employee', 'Selecione um colaborador.') }}"
+     data-missing-role="{{ t.get('teams_roles_missing_role', 'Selecione um role.') }}"
+     data-delete-confirm="{{ t.get('teams_roles_delete_confirm', 'Remover este role INTERSOL?') }}"
+     data-save-label="{{ t.get('teams_roles_save', 'Guardar') }}"
+     data-update-label="{{ t.get('teams_roles_update', 'Atualizar') }}"
+     data-reset-label="{{ t.get('teams_roles_reset', 'Limpar') }}"
+     data-close-label="{{ t.get('teams_roles_close', 'Fechar') }}"
+     data-saving-label="{{ t.get('teams_roles_saving', 'A guardar...') }}"
+     data-edit-label="{{ t.get('teams_roles_edit', 'Editar') }}"
+     data-delete-label="{{ t.get('teams_roles_delete', 'Remover') }}"
+     data-loading-label="{{ t.get('teams_roles_loading', 'A carregar...') }}">
+    <div class="modal-dialog team-role-modal" role="dialog" aria-modal="true" aria-labelledby="team-role-modal-title">
+        <header class="modal-header">
+            <h2 id="team-role-modal-title">{{ t.get('teams_roles_title', 'Roles INTERSOL') }}</h2>
+            <p class="team-modal-context">{{ t.get('teams_roles_context', 'Configuracao manual por colaborador') }}</p>
+        </header>
+        <div class="modal-body">
+            <form class="team-role-form" data-team-role-form>
+                <input type="hidden" data-team-role-number>
+                <div class="team-role-form-grid">
+                    <div class="team-form-row team-role-form-field team-role-form-field--employee">
+                        <label for="team-role-employee-select">{{ t.get('teams_roles_employee_label', 'Colaborador') }}</label>
+                        <select id="team-role-employee-select" data-team-role-employee-select>
+                            <option value="">{{ t.get('teams_roles_employee_placeholder', 'Selecione um colaborador') }}</option>
+                        </select>
+                    </div>
+                    <div class="team-form-row team-role-form-field">
+                        <label for="team-role-select">{{ t.get('teams_roles_role_label', 'Role') }}</label>
+                        <select id="team-role-select" data-team-role-select>
+                            <option value="">{{ t.get('teams_roles_role_placeholder', 'Selecione um role') }}</option>
+                            <option value="CHEF_EQUIPE">Chef d'equipe</option>
+                            <option value="POLISSEUR">Polisseur</option>
+                            <option value="AIDE_POLISSEUR">Aide-polisseur</option>
+                            <option value="SCIEUR">Scieur</option>
+                        </select>
+                    </div>
+                    <div class="team-role-inline-actions">
+                        <button type="submit" class="modal-button modal-ok" data-team-role-save>{{ t.get('teams_roles_save', 'Guardar') }}</button>
+                        <button type="button" class="modal-button modal-cancel" data-team-role-reset>{{ t.get('teams_roles_reset', 'Limpar') }}</button>
+                    </div>
+                </div>
+                <div class="team-modal-feedback team-role-feedback" data-team-role-feedback></div>
+            </form>
+
+            <section class="team-role-list-section">
+                <div class="team-role-list-header">
+                    <h3>{{ t.get('teams_roles_list_title', 'Roles configurados') }}</h3>
+                </div>
+                <div class="table-responsive team-role-table-wrapper">
+                    <table class="team-role-table">
+                        <thead>
+                            <tr>
+                                <th>{{ t.get('teams_roles_table_number', 'Nº') }}</th>
+                                <th>{{ t.get('teams_roles_table_name', 'Nome') }}</th>
+                                <th>{{ t.get('teams_roles_role_label', 'Role') }}</th>
+                                <th>{{ t.get('teams_roles_table_actions', 'Ações') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody data-team-role-rows>
+                            <tr>
+                                <td colspan="4" class="modal-empty">{{ t.get('teams_roles_loading', 'A carregar...') }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        <div class="modal-actions team-modal-actions">
+            <button type="button" class="modal-button modal-cancel" data-team-role-close>{{ t.get('teams_roles_close', 'Fechar') }}</button>
+        </div>
+    </div>
+</div>
+
+<div id="team-regularization-modal" class="modal-overlay" hidden aria-hidden="true"
+     data-title="{{ t.get('teams_regularizations_title', 'Regularizações de paie') }}"
+     data-month-label="{{ t.get('teams_regularizations_month_label', 'Mês') }}"
+     data-employee-label="{{ t.get('teams_regularizations_employee_label', 'Colaborador') }}"
+     data-employee-placeholder="{{ t.get('teams_regularizations_employee_placeholder', 'Selecione um colaborador') }}"
+     data-obs-label="{{ t.get('teams_regularizations_obs_label', 'Observações') }}"
+     data-value-label="{{ t.get('teams_regularizations_value_label', 'Valor') }}"
+     data-list-title="{{ t.get('teams_regularizations_list_title', 'Regularizações do mês') }}"
+     data-empty-message="{{ t.get('teams_regularizations_empty', 'Sem regularizações neste mês.') }}"
+     data-load-error="{{ t.get('teams_regularizations_load_error', 'Não foi possível carregar as regularizações.') }}"
+     data-save-error="{{ t.get('teams_regularizations_save_error', 'Não foi possível guardar a regularização.') }}"
+     data-delete-error="{{ t.get('teams_regularizations_delete_error', 'Não foi possível remover a regularização.') }}"
+     data-missing-employee="{{ t.get('teams_regularizations_missing_employee', 'Selecione um colaborador.') }}"
+     data-missing-month="{{ t.get('teams_regularizations_missing_month', 'Indique o mês.') }}"
+     data-missing-value="{{ t.get('teams_regularizations_missing_value', 'Indique o valor da regularização.') }}"
+     data-delete-confirm="{{ t.get('teams_regularizations_delete_confirm', 'Remover esta regularização?') }}"
+     data-save-label="{{ t.get('teams_regularizations_save', 'Guardar') }}"
+     data-update-label="{{ t.get('teams_regularizations_update', 'Atualizar') }}"
+     data-reset-label="{{ t.get('teams_regularizations_reset', 'Limpar') }}"
+     data-close-label="{{ t.get('teams_regularizations_close', 'Fechar') }}"
+     data-saving-label="{{ t.get('teams_regularizations_saving', 'A guardar...') }}"
+     data-edit-label="{{ t.get('teams_regularizations_edit', 'Editar') }}"
+     data-delete-label="{{ t.get('teams_regularizations_delete', 'Remover') }}"
+     data-loading-label="{{ t.get('teams_regularizations_loading', 'A carregar...') }}">
+    <div class="modal-dialog team-regularization-modal" role="dialog" aria-modal="true" aria-labelledby="team-regularization-modal-title">
+        <header class="modal-header">
+            <h2 id="team-regularization-modal-title">{{ t.get('teams_regularizations_title', 'Regularizações de paie') }}</h2>
+            <p class="team-modal-context">{{ t.get('teams_regularizations_context', 'Ajustes mensais por colaborador') }}</p>
+        </header>
+        <div class="modal-body">
+            <form class="team-regularization-form" data-team-regularization-form>
+                <input type="hidden" data-team-regularization-stamp>
+                <div class="team-regularization-form-grid">
+                    <div class="team-form-row team-regularization-form-field">
+                        <label for="team-regularization-month">{{ t.get('teams_regularizations_month_label', 'Mês') }}</label>
+                        <input type="month" id="team-regularization-month" data-team-regularization-month value="{{ reference_date_value[:7] }}">
+                    </div>
+                    <div class="team-form-row team-regularization-form-field team-regularization-form-field--employee">
+                        <label for="team-regularization-employee-select">{{ t.get('teams_regularizations_employee_label', 'Colaborador') }}</label>
+                        <select id="team-regularization-employee-select" data-team-regularization-employee-select>
+                            <option value="">{{ t.get('teams_regularizations_employee_placeholder', 'Selecione um colaborador') }}</option>
+                        </select>
+                    </div>
+                    <div class="team-form-row team-regularization-form-field">
+                        <label for="team-regularization-value">{{ t.get('teams_regularizations_value_label', 'Valor') }}</label>
+                        <input type="number" id="team-regularization-value" step="0.01" data-team-regularization-value>
+                    </div>
+                    <div class="team-form-row team-regularization-form-field team-regularization-form-field--full">
+                        <label for="team-regularization-obs">{{ t.get('teams_regularizations_obs_label', 'Observações') }}</label>
+                        <textarea id="team-regularization-obs" rows="3" data-team-regularization-obs></textarea>
+                    </div>
+                    <div class="team-regularization-inline-actions">
+                        <button type="submit" class="modal-button modal-ok" data-team-regularization-save>{{ t.get('teams_regularizations_save', 'Guardar') }}</button>
+                        <button type="button" class="modal-button modal-cancel" data-team-regularization-reset>{{ t.get('teams_regularizations_reset', 'Limpar') }}</button>
+                    </div>
+                </div>
+                <div class="team-modal-feedback team-regularization-feedback" data-team-regularization-feedback></div>
+            </form>
+
+            <section class="team-regularization-list-section">
+                <div class="team-regularization-list-header">
+                    <h3>{{ t.get('teams_regularizations_list_title', 'Regularizações do mês') }}</h3>
+                    <span class="team-group-count" data-team-regularization-month-badge>{{ reference_date_value[:7] }}</span>
+                </div>
+                <div class="table-responsive team-regularization-table-wrapper">
+                    <table class="team-regularization-table">
+                        <thead>
+                            <tr>
+                                <th>{{ t.get('teams_regularizations_table_month', 'Mês') }}</th>
+                                <th>{{ t.get('teams_regularizations_table_number', 'Nº') }}</th>
+                                <th>{{ t.get('teams_regularizations_table_name', 'Nome') }}</th>
+                                <th>{{ t.get('teams_regularizations_obs_label', 'Observações') }}</th>
+                                <th class="numeric">{{ t.get('teams_regularizations_value_label', 'Valor') }}</th>
+                                <th>{{ t.get('teams_regularizations_table_actions', 'Ações') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody data-team-regularization-rows>
+                            <tr>
+                                <td colspan="6" class="modal-empty">{{ t.get('teams_regularizations_loading', 'A carregar...') }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        <div class="modal-actions team-modal-actions">
+            <button type="button" class="modal-button modal-cancel" data-team-regularization-close>{{ t.get('teams_regularizations_close', 'Fechar') }}</button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

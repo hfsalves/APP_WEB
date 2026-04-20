@@ -1,0 +1,1040 @@
+{% macro flag_icon(market, cls="") %}
+
+    {% if market.flag_asset %}
+
+        <img class="flag-icon {{ cls }}" src="{{ url_for('static', filename=market.flag_asset) }}" alt="{{ market.label }}">
+
+    {% elif market.emoji %}
+
+        <span class="flag-emoji {{ cls }}">{{ market.emoji }}</span>
+
+    {% else %}
+
+        <span class="flag-placeholder {{ cls }}">{{ market.code }}</span>
+
+    {% endif %}
+
+{% endmacro %}
+
+<!DOCTYPE html>
+
+<html lang="{{ current_lang }}">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{{ t.app_title }}</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <script src="{{ url_for('static', filename='main.js') }}" defer></script>
+
+    <script src="{{ url_for('static', filename='week-navigation.js') }}" defer></script>
+
+    <script src="{{ url_for('static', filename='filter-state.js') }}" defer></script>
+
+    <script src="{{ url_for('static', filename='planning-project-filter.js') }}" defer></script>
+
+    <script src="{{ url_for('static', filename='assignment-lines.js') }}" defer></script>
+
+    <script src="{{ url_for('static', filename='assignment-menu.js') }}" defer></script>
+
+    <script src="{{ url_for('static', filename='production-close.js') }}" defer></script>
+
+    <script src="{{ url_for('static', filename='planning-debug.js') }}" defer></script>
+
+</head>
+
+<body class="dashboard-page" data-week-start="{{ week_start.isoformat() }}" data-week-end="{{ week_end.isoformat() }}">
+
+    {% set next_url = request.full_path.rstrip('?') %}
+
+    {% set current_option = (languages | selectattr('code', 'equalto', current_lang) | list | first) or (languages | first) %}
+
+    {% set day_labels = [
+
+        t.planning_day_mon,
+
+        t.planning_day_tue,
+
+        t.planning_day_wed,
+
+        t.planning_day_thu,
+
+        t.planning_day_fri,
+
+        t.planning_day_sat,
+
+        t.planning_day_sun,
+
+    ] %}
+
+    {% set selected_ns = namespace(items=[]) %}
+
+    {% for market in available_markets %}
+
+        {% if market.code in selected_market_codes %}
+
+            {% set _ = selected_ns.items.append(market) %}
+
+        {% endif %}
+
+    {% endfor %}
+
+    {% set selected_summary = selected_ns.items | map(attribute='label') | join(', ') %}
+
+    {% if not selected_summary %}
+
+        {% set selected_summary = t.planning_market_all %}
+
+    {% endif %}
+
+    <div class="dashboard-wrapper">
+
+        <header class="dashboard-header">
+
+            <div>
+
+                <h1>{{ t.planning_heading }}</h1>
+
+                <p class="user-meta">{{ t.dashboard_user_label }}: {{ user.username }} ({{ user.usercode }})</p>
+
+            </div>
+
+            <div class="header-actions">
+
+                <details class="language-dropdown" data-language-area>
+
+                    <summary>
+
+                        <span class="chip-flag">{{ current_option.flag }}</span>
+
+                        <span class="chip-label">{{ current_option.label }}</span>
+
+                        <span class="chip-chevron" aria-hidden="true"></span>
+
+                    </summary>
+
+                    <ul class="language-dropdown-list" role="menu">
+
+                        {% for option in languages %}
+
+                            <li>
+
+                                {% if option.code == current_lang %}
+
+                                    <span class="language-option active" aria-current="true">
+
+                                        <span class="chip-flag">{{ option.flag }}</span>
+
+                                        <span class="chip-label">{{ option.label }}</span>
+
+                                    </span>
+
+                                {% else %}
+
+                                    <a class="language-option" href="{{ url_for('change_language', lang_code=option.code, next=next_url) }}" role="menuitem">
+
+                                        <span class="chip-flag">{{ option.flag }}</span>
+
+                                        <span class="chip-label">{{ option.label }}</span>
+
+                                    </a>
+
+                                {% endif %}
+
+                            </li>
+
+                        {% endfor %}
+
+                    </ul>
+
+                </details>
+
+                <a class="logout" data-logout-link href="{{ url_for('logout') }}">{{ t.logout_link }}</a>
+
+                {% include '_app_menu.html' %}
+
+            </div>
+
+        </header>
+
+        <div class="filters-layout">
+
+            <section class="filters-card" data-filters-area>
+
+            <form method="get" action="{{ url_for('index') }}" class="filters-form">
+
+                <div class="filter-control filter-week">
+
+                    <label for="week-picker">{{ t.planning_week_label }}</label>
+
+                    <div class="week-picker-group" data-week-navigation>
+
+                        <button type="button" class="week-nav-button week-nav-previous" data-week-nav="prev" aria-label="{{ t.planning_week_prev }}">
+
+                            <span aria-hidden="true">&lsaquo;</span>
+
+                        </button>
+
+                        <input type="week" id="week-picker" name="week" value="{{ resolved_week }}" data-default-week="{{ resolved_week }}">
+
+                        <button type="button" class="week-nav-button week-nav-next" data-week-nav="next" aria-label="{{ t.planning_week_next }}">
+
+                            <span aria-hidden="true">&rsaquo;</span>
+
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <div class="filter-control filter-markets">
+
+                    <span class="filter-label">{{ t.planning_market_label }}</span>
+
+                    <details class="filter-dropdown">
+
+                        <summary>
+
+                            <span class="filter-pill">
+
+                                <span class="filter-pill-text">{{ selected_summary }}</span>
+
+                                <span class="chip-chevron" aria-hidden="true"></span>
+
+                            </span>
+
+                        </summary>
+
+                        <div class="filter-dropdown-panel">
+
+                            {% for market in available_markets %}
+
+                                {% set checkbox_id = 'market-' ~ market.code|lower %}
+
+                                <label class="market-option" for="{{ checkbox_id }}">
+
+                                    <input id="{{ checkbox_id }}" type="checkbox" name="markets" value="{{ market.code }}" {% if market.code in selected_market_codes %}checked{% endif %}>
+
+                                    {{ flag_icon(market, 'flag-icon-sm') }}
+
+                                    <span class="option-label">{{ market.label }}</span>
+
+                                </label>
+
+                            {% endfor %}
+
+                        </div>
+
+                    </details>
+
+                </div>
+
+                <div class="filter-control filter-types">
+
+                    <span class="filter-label">{{ t.planning_type_label }}</span>
+
+                    <details class="filter-dropdown">
+
+                        <summary>
+
+                            <span class="filter-pill">
+
+                                {% set types_summary_ns = namespace(items=[]) %}
+
+                                {% if 'obra' in selected_types %}{% set _ = types_summary_ns.items.append(t.planning_type_obra) %}{% endif %}
+
+                                {% if 'manutencao' in selected_types %}{% set _ = types_summary_ns.items.append(t.planning_type_manutencao) %}{% endif %}
+
+                                {% set types_summary = types_summary_ns.items | join(', ') %}
+
+                                {% if not types_summary %}{% set types_summary = t.planning_type_both %}{% endif %}
+
+                                <span class="filter-pill-text">{{ types_summary }}</span>
+
+                                <span class="chip-chevron" aria-hidden="true"></span>
+
+                            </span>
+
+                        </summary>
+
+                        <div class="filter-dropdown-panel">
+
+                            <label class="market-option" for="type-obra">
+
+                                <input id="type-obra" type="checkbox" name="types" value="obra" {% if 'obra' in selected_types %}checked{% endif %}>
+
+                                <span class="option-label">{{ t.planning_type_obra }}</span>
+
+                            </label>
+
+                            <label class="market-option" for="type-manutencao">
+
+                                <input id="type-manutencao" type="checkbox" name="types" value="manutencao" {% if 'manutencao' in selected_types %}checked{% endif %}>
+
+                                <span class="option-label">{{ t.planning_type_manutencao }}</span>
+
+                            </label>
+
+                        </div>
+
+                    </details>
+
+                </div>
+
+                <div class="filter-actions">
+
+                    <button type="submit" class="filters-submit">OK</button>
+
+                </div>
+
+            </form>
+
+            {% if db_error %}
+
+                <p class="error">{{ db_error }}</p>
+
+            {% endif %}
+
+            </section>
+
+            <section class="production-control-card">
+
+                <button type="button"
+                        class="production-close-button"
+                        data-production-close
+                        data-loading-text="{{ t.planning_close_production_loading | default('A fechar...') }}"
+                        data-success-text="{{ t.planning_close_production_success | default('Produção fechada em {count} registos.') }}"
+                        data-error-text="{{ t.planning_close_production_error | default('Não foi possível fechar a produção.') }}"
+                        data-week-missing-text="{{ t.planning_close_production_week_missing | default('Não foi possível determinar a semana ativa.') }}"
+                        data-empty-text="{{ t.planning_close_production_empty | default('Não foram encontrados registos para fechar nesta semana.') }}"
+                        data-confirm-text="{{ t.planning_close_production_confirm | default('Tem a certeza que pretende fechar a produção desta semana?') }}">
+                    {{ t.planning_close_production_button | default('Fechar Produção') }}
+                </button>
+
+            </section>
+
+        </div>
+
+        <section class="planning-head-card">
+
+            <div class="planning-head-scroll">
+
+                <div class="planning-head-bar">
+
+                    <div class="head-cell site-head">
+
+                        <span class="site-head-label">{{ t.planning_site_header }}</span>
+
+                        <input
+                            type="search"
+                            class="site-head-search"
+                            data-project-search-input
+                            placeholder="{{ t.get('planning_project_search_placeholder', 'Procurar obra, cliente ou código') }}"
+                            aria-label="{{ t.get('planning_project_search_label', 'Filtrar obras') }}"
+                            autocomplete="off"
+                            spellcheck="false"
+                        >
+
+                    </div>
+
+                    {% for day in week_days %}
+
+                        <div class="head-cell day-head">
+
+                            <span class="day-label">{{ day_labels[loop.index0] }}</span>
+
+                            <span class="day-date">{{ day.strftime('%d/%m') }}</span>
+
+                        </div>
+
+                    {% endfor %}
+
+                </div>
+
+            </div>
+
+        </section>
+
+        <main class="dashboard-main">
+
+            <section class="planning-card planning-body-card">
+
+                <div class="planning-body-scroll">
+
+                    <table class="planning-table" aria-label="{{ t.planning_heading }}" data-chip-menu-assign="{{ t.planning_chip_menu_assign }}" data-chip-menu-production="{{ t.planning_chip_menu_production }}" data-chip-menu-other="{{ t.planning_chip_menu_other }}" data-is-admin="{{ 1 if user.get('u_admin') else 0 }}">
+
+                        <tbody>
+
+                            {% if planning_rows %}
+
+                                {% for row in planning_rows %}
+
+                                    <tr
+                                        data-project-search-row
+                                        data-project-search="{{ ((row.code or '') ~ ' ' ~ (row.name or '') ~ ' ' ~ (row.description or ''))|trim|e }}"
+                                    >
+
+                                        <td class="site-cell">
+
+                                            <div class="site-meta">
+
+                                                {{ flag_icon(row.market) }}
+
+                                                <div>
+
+                                                    <p class="site-code{% if row.maintenance %} is-maintenance{% endif %}{% if row.shared_planning %} is-shared{% endif %}">{{ row.code }}{% if row.maintenance %} <span class="site-maintenance-icon" title="Manutenção" aria-label="Manutenção">&#9881;</span>{% endif %}{% if row.shared_planning %}<i class="site-shared-icon fa-solid fa-right-left" title="Obra partilhada entre mercados" aria-hidden="true"></i><span class="site-origin-badge">{{ row.origin_raw }}</span><span class="sr-only">Obra partilhada entre mercados</span>{% endif %}</p>
+
+                                                    <p class="site-name{% if row.maintenance %} is-maintenance{% endif %}{% if row.shared_planning %} is-shared{% endif %}">{{ row.description or row.name }}</p>
+
+                                                </div>
+
+                                            </div>
+
+                                        </td>
+
+                                        {% for day_state in row.days %}
+
+                                            <td
+
+                                                class="day-cell {{ 'active' if day_state.active else '' }}"
+
+                                                data-project-code="{{ row.code }}"
+
+                                                data-project-name="{{ (row.name or '')|e }}"
+
+                                                data-project-description="{{ (row.description or '')|e }}"
+
+                                                data-date="{{ day_state.date.isoformat() }}"
+
+                                                data-date-label="{{ day_state.date.strftime('%d/%m/%Y') }}"
+
+                                                data-weekday-label="{{ day_labels[loop.index0] }}"
+
+                                                data-week-start="{{ week_start.isoformat() }}"
+
+                                                data-week-end="{{ week_end.isoformat() }}"
+
+                                                data-week-start-label="{{ week_start.strftime('%d/%m/%Y') }}"
+
+                                                data-week-end-label="{{ week_end.strftime('%d/%m/%Y') }}"
+
+                                                data-assignments='{{ day_state.assignments | tojson | safe }}'
+
+                                                tabindex="0"
+
+                                                role="button"
+
+                                                aria-label="{{ (row.code ~ ' - ' if row.code else '') ~ (row.description or row.name or '') ~ ' - ' ~ day_labels[loop.index0] ~ ' ' ~ day_state.date.strftime('%d/%m') }}"
+
+                                            >
+
+                                                {% if day_state.assignments %}
+
+                                                    <div class="day-assignments">
+
+                                                        {% for assignment in day_state.assignments %}
+
+                                                            {% set chip_label = (assignment.name or assignment.code or "") %}
+
+                                                            <span class="assignment-chip{% if assignment.has_lines %} has-lines{% endif %}" data-team-code="{{ (assignment.code or '')|upper }}" data-plan-stamp="{{ assignment.plan_stamp }}" data-plan-team-name="{{ assignment.plan_fref_name|default('') }}" data-plan-project-name="{{ assignment.plan_processo_name|default('') }}" data-plan-fref="{{ assignment.plan_fref|default('') }}" data-plan-process="{{ assignment.plan_processo|default('') }}" data-plan-date="{{ assignment.plan_date|default('') }}" data-plan-lines='{{ (assignment.plan_lines or []) | tojson }}' data-plan-fixo="{{ assignment.plan_fixo if assignment.plan_fixo is not none else '' }}" data-plan-premio="{{ assignment.plan_premio if assignment.plan_premio is not none else '' }}" title="{{ chip_label }}" data-tooltip="{{ chip_label }}" tabindex="0">{% if assignment.has_lines %}<span class="assignment-chip-icon" aria-hidden="true"></span>{% endif %}{{ assignment.code or assignment.name }}{% if user.get('u_admin') and (assignment.plan_fixo or assignment.plan_premio) %}<span class="assignment-chip-cash" title="Valores económicos" aria-hidden="true"><svg viewBox="0 0 512 512" focusable="false"><path d="M256 32c-17 0-32.7 8.9-41.4 23.6L5.1 423.5C-7.6 445.9 8.5 472 33.4 472H478.6c24.9 0 41-26.1 28.3-48.5L297.4 55.6C288.7 40.9 273 32 256 32zm0 128c13.3 0 24 10.7 24 24v96c0 13.3-10.7 24-24 24s-24-10.7-24-24V184c0-13.3 10.7-24 24-24zm32 232c0 17.7-14.3 32-32 32s-32-14.3-32-32s14.3-32 32-32s32 14.3 32 32z"/></svg></span><span class="sr-only">Valores económicos</span>{% endif %}</span>
+
+                                                        {% endfor %}
+
+                                                    </div>
+
+                                                {% endif %}
+
+                                            </td>
+
+                                        {% endfor %}
+
+                                    </tr>
+
+                                {% endfor %}
+
+                            {% else %}
+
+                                <tr>
+
+                                    <td class="empty-cell" colspan="8">{{ t.planning_no_data }}</td>
+
+                                </tr>
+
+                            {% endif %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </section>
+
+        </main>
+
+        <div class="editing-bar" data-editing-bar hidden>
+
+            <div class="editing-bar-content">
+
+                <p class="editing-bar-message">
+
+                    <span class="editing-bar-indicator" aria-hidden="true"></span>
+
+                    {{ t.planning_editing_message }}
+
+                </p>
+
+                <div class="editing-bar-actions">
+
+                    <button type="button" class="editing-button editing-cancel" data-editing-cancel>{{ t.planning_cancel_button }}</button>
+
+                    <button type="button" class="editing-button editing-save" data-editing-save>{{ t.planning_save_button }}</button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div id="assignment-modal" class="modal-overlay" hidden aria-hidden="true"
+
+        data-assignment-loading="{{ t.assignment_modal_loading | safe }}"
+
+        data-assignment-empty="{{ t.assignment_modal_empty | safe }}"
+
+        data-assignment-error="{{ t.assignment_modal_error | safe }}"
+
+        data-assignment-qty="{{ t.assignment_modal_qty | safe }}"
+
+        data-assignment-measured="{{ t.assignment_modal_measured | safe }}"
+        data-assignment-missing="{{ t.assignment_modal_missing | safe }}">
+
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="assignment-modal-title" tabindex="-1">
+
+            <header class="modal-header">
+
+                <h2 id="assignment-modal-title">{{ t.assignment_modal_title | safe }}</h2>
+
+            </header>
+
+            <div class="modal-body">
+
+                <div class="assignment-modal-content">
+
+                    <p class="modal-empty" data-assignment-placeholder>{{ t.assignment_modal_loading | safe }}</p>
+
+                    <div class="assignment-item-list" data-assignment-list hidden></div>
+
+                </div>
+
+            </div>
+
+            <div class="modal-actions">
+
+                <button type="button" class="modal-button modal-cancel" data-assignment-cancel>{{ t.modal_cancel }}</button>
+
+                <button type="button" class="modal-button modal-ok" data-assignment-ok>{{ t.modal_ok }}</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div id="production-records-modal" class="modal-overlay" hidden aria-hidden="true"
+
+        data-loading="{{ t.production_records_loading }}"
+
+        data-error="{{ t.production_records_error }}"
+
+        data-empty="{{ t.production_records_empty }}"
+
+        data-draft-label="{{ t.production_records_draft_label }}"
+
+        data-draft-note="{{ t.production_records_draft_note }}">
+
+        <div class="modal-dialog production-records-dialog" role="dialog" aria-modal="true" aria-labelledby="production-records-title" tabindex="-1">
+
+            <header class="modal-header">
+
+                <h2 id="production-records-title">{{ t.production_records_menu_title }}</h2>
+
+            </header>
+
+            <div class="modal-body">
+
+                <div class="production-records-container">
+
+                    <p class="modal-empty" data-production-records-message hidden></p>
+
+                    <ul class="production-records-list" data-production-records-list hidden></ul>
+
+                    <div class="production-records-drafts" data-production-records-drafts hidden>
+
+                        <h3 class="production-records-drafts-title">{{ t.production_records_drafts_title }}</h3>
+
+                        <ul class="production-records-list production-records-list--drafts" data-production-records-drafts-list></ul>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="modal-actions production-records-actions">
+
+                <button type="button" class="modal-button modal-cancel" data-production-records-cancel>{{ t.modal_cancel }}</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div id="production-modal" class="modal-overlay" hidden aria-hidden="true">
+
+        <div class="modal-dialog production-form-dialog" role="dialog" aria-modal="true" aria-labelledby="production-modal-title">
+
+            <header class="modal-header">
+
+                <h2 id="production-modal-title">{{ t.production_modal_title }}</h2>
+
+            </header>
+
+            <div class="modal-body">
+
+                <form class="production-form" data-production-form>
+
+                    <div class="production-row production-row--primary">
+
+                        <div class="production-field production-field--fref">
+
+                            <label for="production-fref">{{ t.production_form_fref_label }}</label>
+
+                            <input type="text" id="production-fref" name="fref" data-production-field="fref" autocomplete="off" class="production-code-input">
+
+                        </div>
+
+                        <div class="production-field production-field--team">
+
+                            <label for="production-team-name">{{ t.production_form_team_name_label }}</label>
+
+                            <input type="text" id="production-team-name" class="production-display-input" data-production-display="team-name" readonly tabindex="-1" placeholder="-">
+
+                        </div>
+
+                        <div class="production-field production-field--processo">
+
+                            <label for="production-processo">{{ t.production_form_processo_label }}</label>
+
+                            <input type="text" id="production-processo" name="processo" data-production-field="processo" autocomplete="off" class="production-code-input">
+
+                        </div>
+
+                        <div class="production-field production-field--project">
+
+                            <label for="production-project-name">{{ t.production_form_project_name_label }}</label>
+
+                            <input type="text" id="production-project-name" class="production-display-input" data-production-display="project-name" readonly tabindex="-1" placeholder="-">
+
+                        </div>
+
+                    </div>
+
+                    <div class="production-row production-row--details">
+
+                        <div class="production-field production-field--date">
+
+                            <label for="production-data">{{ t.production_form_data_label }}</label>
+
+                            <input type="date" id="production-data" name="data" data-production-field="data" class="production-code-input">
+
+                        </div>
+
+                        <div class="production-field production-field--item">
+
+                            <label for="production-litem">{{ t.production_form_litem_label }}</label>
+
+                            <input type="text" id="production-litem" name="litem" data-production-field="litem" autocomplete="off" class="production-code-input">
+
+                        </div>
+
+                        <div class="production-field production-field--finish">
+
+                            <label for="production-acabamento">{{ t.production_form_acabamento_label or 'Acabamento' }}</label>
+
+                            <select id="production-acabamento" name="acabamento" data-production-field="acabamento" class="production-code-input">
+                                <option value="">{{ t.production_form_acabamento_placeholder or '-- selecionar --' }}</option>
+                            </select>
+
+                        </div>
+
+                        <div class="production-field production-field--description">
+
+                            <label for="production-dgeral">{{ t.production_form_dgeral_label }}</label>
+
+                            <input type="text" id="production-dgeral" name="dgeral" data-production-field="dgeral" autocomplete="off" class="production-description-input">
+
+                        </div>
+
+                        <div class="production-field production-field--missing">
+
+                            <label for="production-missing">{{ t.assignment_modal_missing | safe }}</label>
+
+                            <input type="text" id="production-missing" class="production-display-input" data-production-display="missing-qtt" readonly tabindex="-1" placeholder="-">
+
+                        </div>
+
+                    </div>
+
+                    <div class="production-row production-row--metrics">
+
+                        <div class="production-field production-field--metric">
+
+                            <label for="production-qtt">{{ t.production_form_qtt_label }}</label>
+
+                            <input type="text" id="production-qtt" class="production-code-input production-decimal-input" name="qtt" data-production-field="qtt" inputmode="decimal">
+
+                        </div>
+
+                        <div class="production-field production-field--metric">
+
+                            <label for="production-kgferro">{{ t.production_form_kgferro_label }}</label>
+
+                            <input type="text" id="production-kgferro" class="production-code-input production-decimal-input" name="kgferro" data-production-field="kgferro" inputmode="decimal">
+
+                        </div>
+
+                        <div class="production-field production-field--metric">
+
+                            <label for="production-m2serragem">{{ t.production_form_m2serragem_label }}</label>
+
+                            <input type="text" id="production-m2serragem" class="production-code-input production-decimal-input" name="m2serragem" data-production-field="m2serragem" inputmode="decimal">
+
+                        </div>
+
+                        <div class="production-field production-field--metric">
+
+                            <label for="production-m3bomba">{{ t.production_form_m3bomba_label }}</label>
+
+                            <input type="text" id="production-m3bomba" class="production-code-input production-decimal-input" name="m3bomba" data-production-field="m3bomba" inputmode="decimal">
+
+                        </div>
+
+                        <div class="production-field production-field--metric">
+
+                            <label for="production-m3betao">{{ t.production_form_m3betao_label }}</label>
+
+                            <input type="text" id="production-m3betao" class="production-code-input production-decimal-input" name="m3betao" data-production-field="m3betao" inputmode="decimal">
+
+                        </div>
+
+                    </div>
+
+        <div class="production-lines" data-production-lines hidden
+
+                        data-loading="{{ t.production_lines_loading }}"
+
+                        data-empty="{{ t.production_lines_empty }}"
+
+                        data-error="{{ t.production_lines_error }}"
+
+                        data-delete-label="{{ t.production_lines_delete }}"
+
+                        data-delete-confirm="{{ t.production_lines_delete_confirm }}">
+
+                        <div class="production-lines-header">
+
+                            <div class="production-lines-actions">
+
+                                <button type="button" class="production-lines-button" data-production-lines-distribute>{{ t.production_lines_distribute }}</button>
+
+                                <button type="button" class="production-lines-button" data-production-lines-add>{{ t.production_lines_add }}</button>
+
+                                <label class="production-form-toggle">
+
+                                    <input type="checkbox" data-production-closed>
+
+                                    <span>{{ t.production_form_closed_label }}</span>
+
+                                </label>
+
+                            </div>
+
+                            <div class="production-lines-header-row">
+
+                                <span>{{ t.production_lines_header_name }}</span>
+
+                                <span>{{ t.production_lines_header_qtt }}</span>
+
+                                <span>{{ t.production_lines_header_kgferro }}</span>
+
+                                <span>{{ t.production_lines_header_m2serragem }}</span>
+
+                                <span>{{ t.production_lines_header_prime or 'Premio' }}</span>
+
+                                <span>{{ t.production_lines_header_actions }}</span>
+
+                            </div>
+
+                        </div>
+
+                        <div class="production-lines-body" data-production-lines-body></div>
+
+                        <p class="production-lines-message" data-production-lines-message hidden></p>
+
+                    </div>
+
+                </form>
+
+                <p class="production-form-feedback" data-production-feedback hidden></p>
+
+            </div>
+
+            <div class="modal-actions production-form-actions">
+
+                <button type="button" class="modal-button modal-cancel" data-production-close>{{ t.modal_cancel }}</button>
+
+                <button type="button" class="modal-button modal-ok" data-production-save data-loading-text="{{ t.production_form_save_loading }}">{{ t.production_form_save_label }}</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div id="other-options-modal" class="modal-overlay" hidden aria-hidden="true"
+        data-loading-text="{{ t.planning_other_options_loading }}"
+        data-error-text="{{ t.planning_other_options_error }}"
+        data-pending-text="{{ t.planning_other_options_pending }}"
+        data-saved-text="{{ t.planning_other_options_saved }}">
+
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="other-options-title" tabindex="-1">
+
+            <header class="modal-header">
+
+                <h2 id="other-options-title">{{ t.planning_other_options_title }}</h2>
+
+            </header>
+
+            <div class="modal-body">
+
+                <div class="other-options-content">
+
+                    <div class="other-options-meta">
+
+                        <p><strong>{{ t.planning_other_options_date }}:</strong> <span data-other-options-date>--</span></p>
+
+                        <p><strong>{{ t.planning_other_options_project }}:</strong> <span data-other-options-project>--</span></p>
+
+                        <p><strong>{{ t.planning_other_options_team }}:</strong> <span data-other-options-team>--</span></p>
+
+                    </div>
+
+                    <div class="other-options-fields">
+
+                        <label class="other-options-field">
+
+                            <span class="other-options-label">{{ t.planning_other_options_fixo }}</span>
+
+                            <input type="text" class="production-code-input production-decimal-input" inputmode="decimal" data-other-options-field="fixo" autocomplete="off">
+
+                        </label>
+
+                        <label class="other-options-field">
+
+                            <span class="other-options-label">{{ t.planning_other_options_premio }}</span>
+
+                            <input type="text" class="production-code-input production-decimal-input" inputmode="decimal" data-other-options-field="premio" autocomplete="off">
+
+                        </label>
+
+                    </div>
+
+                    <p class="other-options-feedback" data-other-options-feedback hidden></p>
+
+                </div>
+
+            </div>
+
+            <div class="modal-actions">
+
+                <button type="button" class="modal-button modal-cancel" data-other-options-close>{{ t.modal_cancel }}</button>
+
+                <button type="button" class="modal-button modal-ok" data-other-options-save>{{ t.planning_other_options_save }}</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+<div id="team-modal" class="modal-overlay" hidden aria-hidden="true"
+
+        data-period-label="{{ t.modal_period_label }}"
+
+        data-period-single-day="{{ t.modal_period_single_day }}"
+
+        data-period-all-week="{{ t.modal_period_all_week }}"
+
+        data-period-custom="{{ t.modal_period_custom }}"
+
+        data-period-from-label="{{ t.modal_period_from }}"
+
+        data-period-to-label="{{ t.modal_period_to }}">
+
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="team-modal-title">
+
+            <header class="modal-header">
+
+                <div class="modal-header-top">
+
+                    <h2 id="team-modal-title">{{ t.modal_select_teams_heading }}</h2>
+
+                </div>
+
+                <div class="modal-project-meta">
+
+                    <div class="modal-project-info">
+
+                        <span class="modal-project-label">{{ t.modal_project_label }}:</span>
+
+                        <span class="modal-project-code" data-modal-project-code>--</span>
+
+                        <span class="modal-project-name" data-modal-project-name></span>
+
+                    </div>
+
+                    <div class="modal-period-control">
+
+                        <span class="modal-period-label">{{ t.modal_period_label }}</span>
+
+                        <button type="button" class="modal-period-trigger" data-period-toggle aria-expanded="false">
+
+                            <span class="modal-period-summary" data-period-summary></span>
+
+                            <span class="modal-period-chevron" aria-hidden="true"></span>
+
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-period-panel" data-period-panel hidden>
+
+                    <div class="modal-period-options">
+
+                        <button type="button" class="modal-period-option" data-period-option="day">{{ t.modal_period_single_day }}</button>
+
+                        <button type="button" class="modal-period-option" data-period-option="week">{{ t.modal_period_all_week }}</button>
+
+                        <button type="button" class="modal-period-option" data-period-option="custom">{{ t.modal_period_custom }}</button>
+
+                    </div>
+
+                    <div class="modal-period-custom" data-period-custom hidden>
+
+                        <label class="modal-period-field">
+
+                            <span>{{ t.modal_period_from }}</span>
+
+                            <div class="modal-date-input">
+
+                                <input type="date" data-period-from>
+
+                            </div>
+
+                        </label>
+
+                        <label class="modal-period-field">
+
+                            <span>{{ t.modal_period_to }}</span>
+
+                            <div class="modal-date-input">
+
+                                <input type="date" data-period-to>
+
+                            </div>
+
+                        </label>
+
+                    </div>
+
+                </div>
+
+            </header>
+
+            <div class="modal-body">
+
+                {% if planning_team_groups %}
+
+                    <div class="team-groups">
+
+                        {% for group in planning_team_groups %}
+
+                            <section class="team-group" aria-label="{{ group.label }}">
+
+                                <h3 class="team-group-title">{{ group.label }}</h3>
+
+                                <div class="team-group-grid">
+
+                                    {% for team in group.teams %}
+
+                                        <button type="button" class="team-card team-card--planning" data-team-code="{{ team.code }}" data-team-name="{{ team.name|default('', true) }}" data-team-group="{{ team.group_key|default('') }}" data-team-group-label="{{ team.group_label|default('') }}" aria-pressed="false">
+
+                                            <span class="team-card-code">{{ team.code }}</span>
+
+                                            {% if team.name %}
+
+                                                <span class="team-card-name">{{ team.name }}</span>
+
+                                            {% endif %}
+
+                                        </button>
+
+                                    {% endfor %}
+
+                                </div>
+
+                            </section>
+
+                        {% endfor %}
+
+                    </div>
+
+                {% else %}
+
+                    <p class="modal-empty">{{ t.modal_no_teams }}</p>
+
+                {% endif %}
+
+            </div>
+
+            <div class="modal-actions">
+
+                <button type="button" class="modal-button modal-cancel" data-modal-cancel>{{ t.modal_cancel }}</button>
+
+                <button type="button" class="modal-button modal-ok" data-modal-ok>{{ t.modal_ok }}</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</body>
+
+</html>
+
+ 

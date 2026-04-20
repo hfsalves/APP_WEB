@@ -3,8 +3,11 @@
     rows: [],
     current: null,
     modules: [],
+    clusterMembers: [],
+    clusterCandidates: [],
     selectedFestamp: String(window.ENTIDADES_INITIAL_FESTAMP || '').trim(),
     searchTimer: null,
+    clusterSearchTimer: null,
   };
 
   const permissions = {
@@ -13,6 +16,7 @@
     delete: !!window.FE_CAN_DELETE,
   };
   const logoEnabled = !!window.FE_LOGO_ENABLED;
+  const clusterEnabled = !!window.FE_CLUSTER_ENABLED;
 
   const els = {
     list: document.getElementById('entList'),
@@ -23,6 +27,13 @@
     wsEstado: document.getElementById('entWsEstado'),
     modulesList: document.getElementById('entModulesList'),
     modulesSummary: document.getElementById('entModulesSummary'),
+    clusterSection: document.getElementById('entClusterSection'),
+    clusterHint: document.getElementById('entClusterHint'),
+    clusterSummary: document.getElementById('entClusterSummary'),
+    clusterMembersList: document.getElementById('entClusterMembersList'),
+    clusterCandidateSearch: document.getElementById('entClusterCandidateSearch'),
+    clusterCandidate: document.getElementById('entClusterCandidate'),
+    btnAddClusterMember: document.getElementById('entBtnAddClusterMember'),
     search: document.getElementById('entSearch'),
     activeFilter: document.getElementById('entActiveFilter'),
     btnNewTop: document.getElementById('entBtnNewTop'),
@@ -50,6 +61,7 @@
       EMAIL: document.getElementById('entEMAIL'),
       TELEFONE: document.getElementById('entTELEFONE'),
       ATIVA: document.getElementById('entATIVA'),
+      E_CLUSTER: document.getElementById('entECLUSTER'),
       OBS: document.getElementById('entOBS'),
       CERTNUM: document.getElementById('entCERTNUM'),
       ATCUD_PREFIX: document.getElementById('entATCUD_PREFIX'),
@@ -72,7 +84,7 @@
 
   const editableKeys = [
     'NIF', 'NOME', 'NOMEFISCAL', 'ATIVIDADE', 'MORADA', 'MORADA2', 'CODPOST', 'LOCAL', 'PAISISO2',
-    'EMAIL', 'TELEFONE', 'ATIVA', 'OBS', 'CERTNUM', 'ATCUD_PREFIX', 'QRVER', 'HASHVER', 'KEYID',
+    'EMAIL', 'TELEFONE', 'ATIVA', 'E_CLUSTER', 'OBS', 'CERTNUM', 'ATCUD_PREFIX', 'QRVER', 'HASHVER', 'KEYID',
     'RSA_PRIV_PATH', 'RSA_PUB_PATH', 'AT_WS_ATIVO', 'AT_WS_AMBIENTE', 'AT_WS_USER', 'AT_WS_PASS',
   ];
 
@@ -103,6 +115,7 @@
       EMAIL: '',
       TELEFONE: '',
       ATIVA: 1,
+      E_CLUSTER: 0,
       OBS: '',
       CERTNUM: '',
       ATCUD_PREFIX: '',
@@ -122,6 +135,8 @@
       USERALTERACAO: '',
       SERIES_TOTAL: 0,
       SERIES_ATIVAS: 0,
+      CLUSTER_MEMBER_COUNT: 0,
+      CLUSTER_PARENT_COUNT: 0,
     };
   }
 
@@ -189,6 +204,196 @@
     });
   }
 
+  function clusterSummaryText() {
+    const total = state.clusterMembers.length;
+    return `${total} entidade${total === 1 ? '' : 's'} associada${total === 1 ? '' : 's'}`;
+  }
+
+  function renderClusterCandidates() {
+    if (!els.clusterCandidate) return;
+    const canWrite = canWriteCurrent();
+    const existing = isExisting();
+    const isCluster = !!els.fields.E_CLUSTER?.checked;
+
+    els.clusterCandidate.disabled = !clusterEnabled || !existing || !isCluster || !canWrite;
+    if (els.btnAddClusterMember) els.btnAddClusterMember.disabled = !clusterEnabled || !existing || !isCluster || !canWrite;
+    if (els.clusterCandidateSearch) els.clusterCandidateSearch.disabled = !clusterEnabled || !existing || !isCluster;
+
+    if (!clusterEnabled || !existing || !isCluster) {
+      els.clusterCandidate.innerHTML = '<option value="">Sem entidades disponíveis</option>';
+      return;
+    }
+
+    const rows = Array.isArray(state.clusterCandidates) ? state.clusterCandidates : [];
+    if (!rows.length) {
+      els.clusterCandidate.innerHTML = '<option value="">Sem entidades disponíveis</option>';
+      return;
+    }
+
+    els.clusterCandidate.innerHTML = [
+      '<option value="">Seleciona uma entidade...</option>',
+      ...rows.map((row) => {
+        const label = [row.NIF ? `NIF ${row.NIF}` : '', row.NOME || row.NOMEFISCAL || '', row.LOCAL || '']
+          .filter(Boolean)
+          .join(' • ');
+        return `<option value="${esc(row.FESTAMP)}">${esc(label)}</option>`;
+      }),
+    ].join('');
+  }
+
+  function renderClusterMembers() {
+    if (!els.clusterMembersList) return;
+
+    const existing = isExisting();
+    const isCluster = !!els.fields.E_CLUSTER?.checked;
+    const canWrite = canWriteCurrent();
+
+    if (els.clusterSection) {
+      els.clusterSection.style.display = clusterEnabled && isCluster ? '' : 'none';
+    }
+    if (!clusterEnabled || !isCluster) return;
+
+    if (els.clusterSummary) els.clusterSummary.textContent = clusterSummaryText();
+
+    if (els.clusterHint) {
+      if (!existing) {
+        els.clusterHint.textContent = 'Guarde a entidade primeiro para gerir os membros do cluster.';
+      } else if (!state.clusterMembers.length) {
+        els.clusterHint.textContent = 'Sem entidades associadas ao cluster.';
+      } else {
+        els.clusterHint.textContent = 'Gerir entidades FE normais associadas a este cluster.';
+      }
+    }
+
+    if (!state.clusterMembers.length) {
+      els.clusterMembersList.innerHTML = `
+        <tr class="sz_table_row">
+          <td colspan="5" class="sz_table_cell sz_text_muted">Sem entidades associadas.</td>
+        </tr>
+      `;
+      return;
+    }
+
+    els.clusterMembersList.innerHTML = state.clusterMembers.map((row) => `
+      <tr class="sz_table_row">
+        <td class="sz_table_cell">${esc(row.NIF || '')}</td>
+        <td class="sz_table_cell">${esc(row.NOME || row.NOMEFISCAL || '')}</td>
+        <td class="sz_table_cell">${esc(row.LOCAL || '-')}</td>
+        <td class="sz_table_cell">${Number(row.ATIVA || 0) === 1 ? 'Ativa' : 'Inativa'}</td>
+        <td class="sz_table_cell sz_text_right">
+          <button
+            type="button"
+            class="sz_button sz_button_ghost sz_entities_cluster_remove"
+            data-remove-cluster-member="${esc(row.FESTAMP_ENTIDADE || '')}"
+            ${!canWrite ? 'disabled' : ''}
+          >
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+
+    els.clusterMembersList.querySelectorAll('[data-remove-cluster-member]').forEach((node) => {
+      node.addEventListener('click', async () => {
+        const memberFestamp = String(node.getAttribute('data-remove-cluster-member') || '').trim();
+        if (!memberFestamp) return;
+        await removeClusterMember(memberFestamp);
+      });
+    });
+  }
+
+  async function loadClusterMembers() {
+    if (!clusterEnabled || !isExisting() || !els.fields.E_CLUSTER?.checked) {
+      state.clusterMembers = [];
+      state.clusterCandidates = [];
+      renderClusterMembers();
+      renderClusterCandidates();
+      return;
+    }
+    const festamp = String(els.fields.FESTAMP?.value || '').trim();
+    try {
+      const [membersRes, candidatesRes] = await Promise.all([
+        fetch(`/api/entidades/${encodeURIComponent(festamp)}/cluster-members`),
+        fetch(`/api/entidades/${encodeURIComponent(festamp)}/cluster-candidates`),
+      ]);
+      const membersData = await membersRes.json().catch(() => ({}));
+      const candidatesData = await candidatesRes.json().catch(() => ({}));
+      if (!membersRes.ok || membersData.error) throw new Error(membersData.error || 'Erro ao carregar membros do cluster.');
+      if (!candidatesRes.ok || candidatesData.error) throw new Error(candidatesData.error || 'Erro ao carregar candidatos do cluster.');
+      state.clusterMembers = Array.isArray(membersData.rows) ? membersData.rows : [];
+      state.clusterCandidates = Array.isArray(candidatesData.rows) ? candidatesData.rows : [];
+    } catch (error) {
+      state.clusterMembers = [];
+      state.clusterCandidates = [];
+      showToast(error.message || 'Erro ao carregar dados do cluster.', 'danger');
+    }
+    renderClusterMembers();
+    renderClusterCandidates();
+  }
+
+  async function loadClusterCandidates() {
+    if (!clusterEnabled || !isExisting() || !els.fields.E_CLUSTER?.checked) {
+      state.clusterCandidates = [];
+      renderClusterCandidates();
+      return;
+    }
+    const festamp = String(els.fields.FESTAMP?.value || '').trim();
+    const qs = new URLSearchParams();
+    const q = String(els.clusterCandidateSearch?.value || '').trim();
+    if (q) qs.set('q', q);
+    try {
+      const res = await fetch(`/api/entidades/${encodeURIComponent(festamp)}/cluster-candidates?${qs.toString()}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar candidatos.');
+      state.clusterCandidates = Array.isArray(data.rows) ? data.rows : [];
+    } catch (error) {
+      state.clusterCandidates = [];
+      showToast(error.message || 'Erro ao carregar candidatos.', 'danger');
+    }
+    renderClusterCandidates();
+  }
+
+  async function addClusterMember() {
+    if (!clusterEnabled) return;
+    const festamp = String(els.fields.FESTAMP?.value || '').trim();
+    const memberFestamp = String(els.clusterCandidate?.value || '').trim();
+    if (!festamp || !memberFestamp) return;
+    try {
+      const res = await fetch(`/api/entidades/${encodeURIComponent(festamp)}/cluster-members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ member_festamp: memberFestamp }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao adicionar entidade ao cluster.');
+      state.clusterMembers = Array.isArray(data.rows) ? data.rows : [];
+      showToast('Entidade adicionada ao cluster.', 'success');
+      await loadClusterCandidates();
+      renderClusterMembers();
+      if (els.clusterCandidate) els.clusterCandidate.value = '';
+    } catch (error) {
+      showToast(error.message || 'Erro ao adicionar entidade ao cluster.', 'danger');
+    }
+  }
+
+  async function removeClusterMember(memberFestamp) {
+    const festamp = String(els.fields.FESTAMP?.value || '').trim();
+    if (!festamp || !memberFestamp) return;
+    try {
+      const res = await fetch(`/api/entidades/${encodeURIComponent(festamp)}/cluster-members/${encodeURIComponent(memberFestamp)}/delete`, {
+        method: 'POST',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao remover entidade do cluster.');
+      state.clusterMembers = Array.isArray(data.rows) ? data.rows : [];
+      showToast('Entidade removida do cluster.', 'success');
+      await loadClusterCandidates();
+      renderClusterMembers();
+    } catch (error) {
+      showToast(error.message || 'Erro ao remover entidade do cluster.', 'danger');
+    }
+  }
+
   function currentLogoUrl() {
     const festamp = String(els.fields.FESTAMP?.value || '').trim();
     const path = String(els.fields.LOGOTIPO_PATH?.value || '').trim();
@@ -232,6 +437,8 @@
     if (els.btnDelete) els.btnDelete.disabled = !existing || !permissions.delete;
     renderModules();
     renderLogo();
+    renderClusterMembers();
+    renderClusterCandidates();
   }
 
   function updateSummary(row) {
@@ -274,6 +481,7 @@
       EMAIL: String(els.fields.EMAIL?.value || '').trim(),
       TELEFONE: String(els.fields.TELEFONE?.value || '').trim(),
       ATIVA: els.fields.ATIVA?.checked ? 1 : 0,
+      E_CLUSTER: els.fields.E_CLUSTER?.checked ? 1 : 0,
       OBS: String(els.fields.OBS?.value || '').trim(),
       CERTNUM: String(els.fields.CERTNUM?.value || '').trim(),
       ATCUD_PREFIX: String(els.fields.ATCUD_PREFIX?.value || '').trim(),
@@ -304,13 +512,17 @@
             <div class="sz_label">${esc(row.NOME || row.NOMEFISCAL || '(Sem nome)')}</div>
             <div class="sz_text_muted">NIF ${esc(row.NIF || '')}</div>
           </div>
-          <span class="sz_entities_badge ${active ? 'sz_is_active' : 'sz_is_inactive'}">${active ? 'Ativa' : 'Inativa'}</span>
+          <div class="sz_inline">
+            ${Number(row.E_CLUSTER || 0) === 1 ? '<span class="sz_entities_badge">Cluster</span>' : ''}
+            <span class="sz_entities_badge ${active ? 'sz_is_active' : 'sz_is_inactive'}">${active ? 'Ativa' : 'Inativa'}</span>
+          </div>
         </div>
         <div class="sz_entities_meta">
           <span><strong>Local:</strong> ${esc(row.LOCAL || '-')}</span>
           <span><strong>País:</strong> ${esc(row.PAISISO2 || '-')}</span>
           <span><strong>Séries:</strong> ${esc(row.SERIES_ATIVAS || 0)}/${esc(row.SERIES_TOTAL || 0)}</span>
           <span><strong>Cert.:</strong> ${esc(row.CERTNUM || '-')}</span>
+          ${Number(row.E_CLUSTER || 0) === 1 ? `<span><strong>Membros:</strong> ${esc(row.CLUSTER_MEMBER_COUNT || 0)}</span>` : '<span></span>'}
         </div>
       </div>
     `;
@@ -380,6 +592,7 @@
       state.selectedFestamp = normalized;
       state.modules = Array.isArray(data.modules) ? data.modules : [];
       fillForm(data.row || {});
+      await loadClusterMembers();
       renderList();
     } catch (error) {
       if (!options.silent) showToast(error.message || 'Erro ao carregar entidade.', 'danger');
@@ -388,6 +601,8 @@
 
   async function newEntity() {
     state.selectedFestamp = '';
+    state.clusterMembers = [];
+    state.clusterCandidates = [];
     try {
       const res = await fetch('/api/entidades/modules');
       const data = await res.json().catch(() => ({}));

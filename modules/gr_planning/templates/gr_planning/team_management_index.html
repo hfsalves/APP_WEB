@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Gestao de Equipas{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_planning.legacy_static', filename='styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('gr_planning.static', filename='gr_planning_host.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr_planning_page gr_team_management_page">
+  <div class="sz_page_container gr-planning-shell gr-team-management-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-planning-contextbar gr-team-management-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Gestao de Equipas</div>
+      </div>
+      <div class="sz_contextbar_right" data-gr-team-management-context-host></div>
+    </header>
+
+    <section class="sz_page_body gr-planning-page-body gr-team-management-page-body">
+      <div class="gr-planning-page-host gr-team-management-host" data-gr-team-management-host>
+        {{ team_management_html | safe }}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      document.body.classList.add('team-management-page');
+      document.body.dataset.referenceDate = {{ page_meta.reference_date|tojson }};
+      document.body.dataset.weekStart = {{ page_meta.week_start|tojson }};
+      document.body.dataset.weekEnd = {{ page_meta.week_end|tojson }};
+      document.body.dataset.teamOptions = {{ page_meta.team_options|tojson }};
+    })();
+  </script>
+  <script src="{{ url_for('gr_planning.static', filename='gr_planning_fetch_proxy.js') }}"></script>
+  {% for script_name in legacy_script_files %}
+    <script src="{{ url_for('gr_planning.legacy_static', filename=script_name) }}" defer></script>
+  {% endfor %}
+  <script src="{{ url_for('gr_planning.static', filename='gr_planning_layout.js') }}" defer></script>
+{% endblock %}

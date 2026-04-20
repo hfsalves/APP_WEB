@@ -1,0 +1,710 @@
+{% set next_url = request.full_path.rstrip('?') %}
+{% set current_option = (languages | selectattr('code', 'equalto', current_lang) | list | first) or (languages | first) %}
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Mensal - INTERSOL</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='main.js') }}" defer></script>
+</head>
+<body class="dashboard-page">
+    <div class="dashboard-wrapper">
+        <header class="dashboard-header">
+            <div>
+                <h1>Mapa Mensal - INTERSOL</h1>
+                <p class="user-meta">{{ t.dashboard_user_label }}: {{ user.username }} ({{ user.usercode }})</p>
+            </div>
+            <div class="header-actions">
+                <details class="language-dropdown" data-language-area>
+                    <summary>
+                        <span class="chip-flag">{{ current_option.flag }}</span>
+                        <span class="chip-label">{{ current_option.label }}</span>
+                        <span class="chip-chevron" aria-hidden="true"></span>
+                    </summary>
+                    <ul class="language-dropdown-list" role="menu">
+                        {% for option in languages %}
+                            <li>
+                                {% if option.code == current_lang %}
+                                    <span class="language-option active" aria-current="true">
+                                        <span class="chip-flag">{{ option.flag }}</span>
+                                        <span class="chip-label">{{ option.label }}</span>
+                                    </span>
+                                {% else %}
+                                    <a class="language-option" href="{{ url_for('change_language', lang_code=option.code, next=next_url) }}" role="menuitem">
+                                        <span class="chip-flag">{{ option.flag }}</span>
+                                        <span class="chip-label">{{ option.label }}</span>
+                                    </a>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </details>
+                <a class="logout" data-logout-link href="{{ url_for('logout') }}">{{ t.logout_link }}</a>
+                {% include '_app_menu.html' %}
+            </div>
+        </header>
+
+        <div class="filters-layout">
+            <section class="filters-card" data-filters-area>
+                <form method="get" action="{{ url_for('folha_mensal_intersol') }}" class="filters-form">
+                    <div class="filter-control filter-date">
+                        <label for="month-filter">Mês</label>
+                        <input type="month" id="month-filter" name="month" value="{{ selected_month }}">
+                    </div>
+                    {% if team_options %}
+                    <div class="filter-control filter-teams">
+                        <span class="filter-label">Equipas</span>
+                        <details class="filter-dropdown">
+                            <summary>
+                                <span class="filter-pill">
+                                    <span class="filter-pill-text">
+                                        {% if selected_team_codes %}
+                                            {{ selected_team_codes|join(', ') }}
+                                        {% else %}
+                                            Todas
+                                        {% endif %}
+                                    </span>
+                                    <span class="chip-chevron" aria-hidden="true"></span>
+                                </span>
+                            </summary>
+                            <div class="filter-dropdown-panel">
+                                {% for team in team_options %}
+                                    {% set checkbox_id = 'team-' ~ team.code %}
+                                    <label class="market-option" for="{{ checkbox_id }}">
+                                        <input id="{{ checkbox_id }}" type="checkbox" name="teams" value="{{ team.code }}" {% if team.code in selected_team_codes %}checked{% endif %}>
+                                        <span class="option-label">{{ team.code }}</span>
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        </details>
+                    </div>
+                    {% endif %}
+                    <div class="filter-actions">
+                        <button type="submit" class="filters-submit">OK</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+
+        <main class="dashboard-main">
+            {% if monthly_error %}
+                <p class="error">{{ monthly_error }}</p>
+            {% endif %}
+
+            {% if monthly_summary %}
+                <div class="table-card monthly-summary-card">
+                    <div class="table-card-header">
+                        <div>
+                            <h2>Mapa Mensal - INTERSOL{% if month_label %} - {{ month_label }}{% endif %}</h2>
+                            {% if period_label %}
+                                <p class="table-card-caption">{{ period_label }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="table-card-actions">
+                            {% if can_manage_primes %}
+                                <button type="button" class="filters-submit table-prime-button" data-prime-modal-open>Prémios</button>
+                            {% endif %}
+                            <button type="button" class="filters-submit table-export-button" data-export-monthly>Exportar Excel</button>
+                        </div>
+                    </div>
+                    <div class="table-card-body">
+                        <div class="table-responsive">
+                            <table class="monthly-summary-table" aria-label="Mapa Mensal INTERSOL" data-year="{{ selected_year }}" data-month="{{ selected_month_number }}">
+                                <thead>
+                                    <tr>
+                                        <th class="team-col">Equipa</th>
+                                        <th>Colaborador</th>
+                                        <th class="numeric">Dias trab.</th>
+                                        <th class="numeric">Dias úteis</th>
+                                        <th class="numeric">M2 finitions</th>
+                                        <th class="numeric">Total finitions €</th>
+                                        <th class="numeric">M2 scie</th>
+                                        <th class="numeric">Total scie €</th>
+                                        <th class="numeric">Kg ferro</th>
+                                        <th class="numeric">Total ferro €</th>
+                                        <th class="numeric">Prime chantier</th>
+                                        <th class="numeric">Prime chef</th>
+                                        <th class="numeric">Prime dépôt</th>
+                                        <th class="numeric">Prime d'effort</th>
+                                        <th class="numeric">Intempéries</th>
+                                        <th class="numeric">Compl. mínimo</th>
+                                        <th class="numeric">Panier</th>
+                                        <th class="numeric">GD</th>
+                                        <th class="numeric">Z1</th>
+                                        <th class="numeric">Z2</th>
+                                        <th class="numeric">Z3</th>
+                                        <th class="numeric">Z4</th>
+                                        <th class="numeric">Z5</th>
+                                        <th class="numeric">TOTAL €</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in monthly_summary %}
+                                        <tr data-employee-number="{{ row.employee_number }}" data-employee-name="{{ row.employee_name }}">
+                                            <td class="team-col">{{ row.team_code }}</td>
+                                            <td>{{ row.employee_name }}</td>
+                                            <td class="numeric">{{ row.worked_days }}</td>
+                                            <td class="numeric">{{ row.business_days }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.m2_total) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.finitions_pay) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.scie_total_m2) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.scie_pay) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.kg_total) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.kg_pay) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.prime_multiple) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.prime_chef) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.prime_depot) }}</td>
+                                            <td class="numeric{% if row.prime_effort_pending > 0 %} monthly-effort-prime-pending{% endif %}"{% if row.prime_effort_pending > 0 %} title="Validado: {{ '%.2f'|format(row.prime_effort_validated) }} | Pendente: {{ '%.2f'|format(row.prime_effort_pending) }}"{% endif %}>{{ "%.2f"|format(row.prime_effort) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.intemperies_total) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.complement_minimum) }}</td>
+                                            <td class="numeric">{{ row.panier_repas }}</td>
+                                            <td class="numeric">{{ row.grand_deplacement }}</td>
+                                            <td class="numeric">{{ row.zone_counts['z1'] }}</td>
+                                            <td class="numeric">{{ row.zone_counts['z2'] }}</td>
+                                            <td class="numeric">{{ row.zone_counts['z3'] }}</td>
+                                            <td class="numeric">{{ row.zone_counts['z4'] }}</td>
+                                            <td class="numeric">{{ row.zone_counts['z5'] }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.total) }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr class="total-row">
+                                        <td class="team-col">{{ monthly_totals.team_code }}</td>
+                                        <td>Total</td>
+                                        <td class="numeric">{{ monthly_totals.worked_days }}</td>
+                                        <td class="numeric">{{ monthly_totals.business_days }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.m2_total) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.finitions_pay) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.scie_total) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.scie_pay) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.kg_total) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.kg_pay) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.prime_multiple) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.prime_chef) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.prime_depot) }}</td>
+                                        <td class="numeric{% if monthly_totals.prime_effort_pending > 0 %} monthly-effort-prime-pending{% endif %}"{% if monthly_totals.prime_effort_pending > 0 %} title="Validado: {{ '%.2f'|format(monthly_totals.prime_effort_validated) }} | Pendente: {{ '%.2f'|format(monthly_totals.prime_effort_pending) }}"{% endif %}>{{ "%.2f"|format(monthly_totals.prime_effort) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.intemperies_total) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.complement_minimum) }}</td>
+                                        <td class="numeric">{{ monthly_totals.panier_repas }}</td>
+                                        <td class="numeric">{{ monthly_totals.gd }}</td>
+                                        <td class="numeric">{{ monthly_totals['z1'] }}</td>
+                                        <td class="numeric">{{ monthly_totals['z2'] }}</td>
+                                        <td class="numeric">{{ monthly_totals['z3'] }}</td>
+                                        <td class="numeric">{{ monthly_totals['z4'] }}</td>
+                                        <td class="numeric">{{ monthly_totals['z5'] }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.total) }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <p>Sem dados para este mês.</p>
+            {% endif %}
+        </main>
+
+</div>
+
+<div id="monthly-detail-modal" class="modal-overlay monthly-detail-modal" hidden aria-hidden="true">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="monthly-detail-title" tabindex="-1">
+        <header class="modal-header">
+            <h2 id="monthly-detail-title">Detalhe do colaborador</h2>
+            <p class="modal-project-meta" data-detail-employee></p>
+        </header>
+        <div class="modal-body">
+            <div class="table-responsive">
+                <table class="monthly-detail-table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Chantier</th>
+                            <th>Acabamento</th>
+                            <th class="numeric">M2</th>
+                            <th class="numeric">M2 total chantier</th>
+                            <th class="numeric">Valor finitions</th>
+                            <th class="numeric">M2 scie</th>
+                            <th class="numeric">Valor scie</th>
+                            <th class="numeric">Kg</th>
+                            <th class="numeric">Valor kg</th>
+                            <th class="numeric">Prime chantier</th>
+                            <th class="numeric">Prime d'effort</th>
+                            <th class="numeric">Base/forfait</th>
+                            <th class="numeric">Pago</th>
+                            <th class="numeric">Total dia</th>
+                        </tr>
+                    </thead>
+                    <tbody data-detail-body>
+                        <tr><td colspan="15">A carregar...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-totals" data-detail-totals></div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="modal-button modal-cancel" data-detail-close>{{ t.modal_cancel }}</button>
+        </div>
+    </div>
+</div>
+{% if can_manage_primes %}
+<div id="prime-records-modal" class="modal-overlay prime-records-modal" hidden aria-hidden="true">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="prime-records-title" tabindex="-1">
+        <header class="modal-header">
+            <h2 id="prime-records-title">Prémios d'effort</h2>
+            <p class="modal-project-meta">{{ period_label }}</p>
+        </header>
+        <div class="modal-body">
+            <div class="table-responsive">
+                <table class="prime-records-table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Equipa</th>
+                            <th>Chantier</th>
+                            <th>Nº</th>
+                            <th>Colaborador</th>
+                            <th class="numeric">Prémio</th>
+                            <th>Estado</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody data-prime-records-body>
+                        {% if prime_records %}
+                            {% for record in prime_records %}
+                                <tr data-line-stamp="{{ record.u_amlstamp }}" data-employee-number="{{ record.employee_number }}">
+                                    <td>{{ record.date_label }}</td>
+                                    <td>{{ record.team_code }}</td>
+                                    <td>{{ record.chantier }}</td>
+                                    <td>{{ record.employee_number }}</td>
+                                    <td>{{ record.employee_name }}</td>
+                                    <td class="numeric">{{ "%.2f"|format(record.prime) }}</td>
+                                    <td class="prime-record-status{% if record.validated %} is-validated{% else %} is-pending{% endif %}" data-prime-status>
+                                        {% if record.validated %}Validado{% else %}Pendente{% endif %}
+                                    </td>
+                                    <td>
+                                        <button
+                                            type="button"
+                                            class="modal-button prime-record-toggle{% if record.validated %} is-validated{% else %} is-pending{% endif %}"
+                                            data-prime-toggle
+                                            data-line-stamp="{{ record.u_amlstamp }}"
+                                            data-validated="{{ 1 if record.validated else 0 }}"
+                                        >
+                                            {% if record.validated %}Remover{% else %}Validar{% endif %}
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="8">Sem registos com prémio neste período.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="modal-button modal-cancel" data-prime-modal-close>{{ t.modal_cancel }}</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+</body>
+</html>
+<script>
+    (function() {
+        function ready(fn) {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', fn);
+            } else {
+                fn();
+            }
+        }
+        function formatDecimalValue(value, decimalPlaces) {
+            var places = typeof decimalPlaces === 'number' && decimalPlaces >= 0 ? decimalPlaces : 2;
+            var parsed = parseFloat(value);
+            if (!isFinite(parsed)) {
+                return '0.00';
+            }
+            return parsed.toFixed(places);
+        }
+        function formatIntegerValue(value) {
+            var parsed = parseInt(value, 10);
+            if (!isFinite(parsed)) {
+                return '0';
+            }
+            return String(parsed);
+        }
+        function openModalBox(modal) {
+            if (!modal) return;
+            modal.classList.add('is-open');
+            modal.removeAttribute('hidden');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+        function closeModalBox(modal) {
+            if (!modal) return;
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            modal.setAttribute('hidden', 'hidden');
+        }
+        function getSelectedMonthValue(table) {
+            var params = new URLSearchParams(window.location.search || '');
+            var monthValue = params.get('month');
+            if (monthValue) {
+                return monthValue;
+            }
+            if (table && table.dataset.year && table.dataset.month) {
+                return String(table.dataset.year) + '-' + String(table.dataset.month).padStart(2, '0');
+            }
+            return '';
+        }
+        function collectSelectedTeams() {
+            var params = new URLSearchParams(window.location.search || '');
+            var appliedTeams = params.getAll('teams').filter(function (value) {
+                return value && String(value).trim().length > 0;
+            });
+            if (appliedTeams.length) {
+                return appliedTeams;
+            }
+            var teams = [];
+            document.querySelectorAll('input[name="teams"]:checked').forEach(function (input) {
+                var value = input && input.value ? String(input.value).trim() : '';
+                if (value) {
+                    teams.push(value);
+                }
+            });
+            return teams;
+        }
+        function applyEffortPrimeCell(cell, totalValue, validatedValue, pendingValue) {
+            if (!cell) return;
+            var pending = parseFloat(pendingValue || 0);
+            cell.textContent = formatDecimalValue(totalValue || 0, 2);
+            if (pending > 0) {
+                cell.classList.add('monthly-effort-prime-pending');
+                cell.title = 'Validado: ' + formatDecimalValue(validatedValue || 0, 2) + ' | Pendente: ' + formatDecimalValue(pendingValue || 0, 2);
+            } else {
+                cell.classList.remove('monthly-effort-prime-pending');
+                cell.removeAttribute('title');
+            }
+        }
+        function updateSummaryRow(rowElement, data) {
+            if (!rowElement || !data) return;
+            var cells = rowElement.querySelectorAll('td');
+            if (!cells || cells.length < 24) return;
+            cells[0].textContent = data.team_code || '';
+            cells[1].textContent = data.employee_name || '';
+            cells[2].textContent = formatIntegerValue(data.worked_days || 0);
+            cells[3].textContent = formatIntegerValue(data.business_days || 0);
+            cells[4].textContent = formatDecimalValue(data.m2_total || 0, 2);
+            cells[5].textContent = formatDecimalValue(data.finitions_pay || 0, 2);
+            cells[6].textContent = formatDecimalValue(data.scie_total_m2 || 0, 2);
+            cells[7].textContent = formatDecimalValue(data.scie_pay || 0, 2);
+            cells[8].textContent = formatDecimalValue(data.kg_total || 0, 2);
+            cells[9].textContent = formatDecimalValue(data.kg_pay || 0, 2);
+            cells[10].textContent = formatDecimalValue(data.prime_multiple || 0, 2);
+            cells[11].textContent = formatDecimalValue(data.prime_chef || 0, 2);
+            cells[12].textContent = formatDecimalValue(data.prime_depot || 0, 2);
+            applyEffortPrimeCell(cells[13], data.prime_effort || 0, data.prime_effort_validated || 0, data.prime_effort_pending || 0);
+            cells[14].textContent = formatDecimalValue(data.intemperies_total || 0, 2);
+            cells[15].textContent = formatDecimalValue(data.complement_minimum || 0, 2);
+            cells[16].textContent = formatIntegerValue(data.panier_repas || 0);
+            cells[17].textContent = formatIntegerValue(data.grand_deplacement || 0);
+            var zones = data.zone_counts || {};
+            cells[18].textContent = formatIntegerValue(zones.z1 || 0);
+            cells[19].textContent = formatIntegerValue(zones.z2 || 0);
+            cells[20].textContent = formatIntegerValue(zones.z3 || 0);
+            cells[21].textContent = formatIntegerValue(zones.z4 || 0);
+            cells[22].textContent = formatIntegerValue(zones.z5 || 0);
+            cells[23].textContent = formatDecimalValue(data.total || 0, 2);
+        }
+        function updateSummaryFooter(table, totals) {
+            if (!table || !totals) return;
+            var footerRow = table.querySelector('tfoot tr');
+            if (!footerRow) return;
+            var cells = footerRow.querySelectorAll('td');
+            if (!cells || cells.length < 24) return;
+            cells[0].textContent = totals.team_code || 'Total';
+            cells[1].textContent = 'Total';
+            cells[2].textContent = formatIntegerValue(totals.worked_days || 0);
+            cells[3].textContent = formatIntegerValue(totals.business_days || 0);
+            cells[4].textContent = formatDecimalValue(totals.m2_total || 0, 2);
+            cells[5].textContent = formatDecimalValue(totals.finitions_pay || 0, 2);
+            cells[6].textContent = formatDecimalValue(totals.scie_total || 0, 2);
+            cells[7].textContent = formatDecimalValue(totals.scie_pay || 0, 2);
+            cells[8].textContent = formatDecimalValue(totals.kg_total || 0, 2);
+            cells[9].textContent = formatDecimalValue(totals.kg_pay || 0, 2);
+            cells[10].textContent = formatDecimalValue(totals.prime_multiple || 0, 2);
+            cells[11].textContent = formatDecimalValue(totals.prime_chef || 0, 2);
+            cells[12].textContent = formatDecimalValue(totals.prime_depot || 0, 2);
+            applyEffortPrimeCell(cells[13], totals.prime_effort || 0, totals.prime_effort_validated || 0, totals.prime_effort_pending || 0);
+            cells[14].textContent = formatDecimalValue(totals.intemperies_total || 0, 2);
+            cells[15].textContent = formatDecimalValue(totals.complement_minimum || 0, 2);
+            cells[16].textContent = formatIntegerValue(totals.panier_repas || 0);
+            cells[17].textContent = formatIntegerValue(totals.gd || 0);
+            cells[18].textContent = formatIntegerValue(totals.z1 || 0);
+            cells[19].textContent = formatIntegerValue(totals.z2 || 0);
+            cells[20].textContent = formatIntegerValue(totals.z3 || 0);
+            cells[21].textContent = formatIntegerValue(totals.z4 || 0);
+            cells[22].textContent = formatIntegerValue(totals.z5 || 0);
+            cells[23].textContent = formatDecimalValue(totals.total || 0, 2);
+        }
+        function updatePrimeRecordPresentation(rowElement, lineData) {
+            if (!rowElement || !lineData) return;
+            var validated = !!lineData.validated;
+            var statusCell = rowElement.querySelector('[data-prime-status]');
+            var toggleButton = rowElement.querySelector('[data-prime-toggle]');
+            if (statusCell) {
+                statusCell.textContent = validated ? 'Validado' : 'Pendente';
+                statusCell.classList.toggle('is-validated', validated);
+                statusCell.classList.toggle('is-pending', !validated);
+            }
+            if (toggleButton) {
+                toggleButton.dataset.validated = validated ? '1' : '0';
+                toggleButton.textContent = validated ? 'Remover' : 'Validar';
+                toggleButton.classList.toggle('is-validated', validated);
+                toggleButton.classList.toggle('is-pending', !validated);
+                toggleButton.classList.remove('is-loading');
+                toggleButton.disabled = false;
+            }
+        }
+        function togglePrimeValidation(button, table) {
+            if (!button) return;
+            var lineStamp = button.dataset.lineStamp || '';
+            if (!lineStamp) return;
+            var nextValidated = button.dataset.validated !== '1';
+            button.disabled = true;
+            button.classList.add('is-loading');
+            fetch('/api/intersol/prime-records/' + encodeURIComponent(lineStamp) + '/validation', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    validated: nextValidated ? 1 : 0,
+                    month: getSelectedMonthValue(table),
+                    teams: collectSelectedTeams()
+                })
+            })
+                .then(function (resp) {
+                    if (!resp.ok) {
+                        return resp.json().catch(function () { return {}; }).then(function (data) {
+                            var error = new Error('update_failed');
+                            error.data = data;
+                            throw error;
+                        });
+                    }
+                    return resp.json();
+                })
+                .then(function (data) {
+                    var rowElement = button.closest('tr');
+                    updatePrimeRecordPresentation(rowElement, data.line || { validated: nextValidated });
+                    if (table && data && data.employee && data.employee.employee_number) {
+                        var summaryRow = table.querySelector('tbody tr[data-employee-number="' + data.employee.employee_number + '"]');
+                        updateSummaryRow(summaryRow, data.employee);
+                    }
+                    if (table && data && data.totals) {
+                        updateSummaryFooter(table, data.totals);
+                    }
+                })
+                .catch(function (error) {
+                    button.disabled = false;
+                    button.classList.remove('is-loading');
+                    var message = 'Não foi possível atualizar o prémio.';
+                    if (error && error.data) {
+                        if (typeof error.data.details === 'string' && error.data.details.length) {
+                            message = error.data.details;
+                        } else if (typeof error.data.error === 'string' && error.data.error.length) {
+                            message = error.data.error;
+                        }
+                    }
+                    window.alert(message);
+                });
+        }
+        function exportTableToExcel(table) {
+            if (!table) return;
+            var params = new URLSearchParams(window.location.search);
+            if (!params.get('month') && table.dataset.year && table.dataset.month) {
+                var monthValue = String(table.dataset.month).padStart(2, '0');
+                params.set('month', String(table.dataset.year) + '-' + monthValue);
+            }
+            var exportUrl = '/api/intersol/monthly-export';
+            var query = params.toString();
+            if (query) {
+                exportUrl += '?' + query;
+            }
+            window.location.href = exportUrl;
+        }
+        function openDetailModal(employeeNumber, employeeName) {
+            var modal = document.getElementById('monthly-detail-modal');
+            var table = document.querySelector('.monthly-summary-table');
+            if (!modal || !table) return;
+            var body = modal.querySelector('[data-detail-body]');
+            var totalsBox = modal.querySelector('[data-detail-totals]');
+            var title = modal.querySelector('[data-detail-employee]');
+            if (title) {
+                title.textContent = employeeNumber + ' - ' + employeeName;
+            }
+            if (body) {
+                body.innerHTML = '<tr><td colspan="15">A carregar...</td></tr>';
+            }
+            if (totalsBox) totalsBox.textContent = '';
+
+            openModalBox(modal);
+
+            fetch('/api/intersol/monthly-detail?year=' + table.dataset.year + '&month=' + table.dataset.month + '&employee_number=' + encodeURIComponent(employeeNumber), { credentials: 'same-origin' })
+                .then(function (resp) {
+                    if (!resp.ok) {
+                        throw new Error('load_failed');
+                    }
+                    return resp.json();
+                })
+                .then(function (data) {
+                    if (!body) return;
+                    body.innerHTML = '';
+                    if (!data || !Array.isArray(data.rows) || !data.rows.length) {
+                        body.innerHTML = '<tr><td colspan="15">Sem dados</td></tr>';
+                        return;
+                    }
+                    data.rows.forEach(function (r) {
+                        var tr = document.createElement('tr');
+                        if (r.is_regularization) {
+                            tr.className = 'monthly-detail-regularization-row';
+                            tr.innerHTML = [
+                                '<td>' + (r.date || '') + '</td>',
+                                '<td>' + (r.chantier || '') + '</td>',
+                                '<td>' + (r.finish_type || '') + '</td>',
+                                '<td class="numeric"></td>',
+                                '<td class="numeric"></td>',
+                                '<td class="numeric"></td>',
+                                '<td class="numeric"></td>',
+                                '<td class="numeric"></td>',
+                                '<td class="numeric"></td>',
+                                '<td class="numeric"></td>',
+                                '<td class="numeric"></td>',
+                                '<td class="numeric"></td>',
+                                '<td class="numeric"></td>',
+                                '<td class="numeric"></td>',
+                                '<td class="numeric monthly-detail-total-value">' + formatDecimalValue(r.display_total || 0, 2) + '</td>'
+                            ].join('');
+                            body.appendChild(tr);
+                            return;
+                        }
+                        var baseLabel = formatDecimalValue(r.base_value || 0, 2);
+                        var paidLabel = parseFloat(r.paid_value || 0) !== 0 ? formatDecimalValue(r.paid_value || 0, 2) : '';
+                        var baseCellClass = 'numeric monthly-detail-base-value';
+                        var totalCellClass = 'numeric monthly-detail-total-value';
+                        var effortPrimeClass = 'numeric monthly-detail-effort-prime';
+                        if (r.forfait_used) {
+                            baseCellClass += ' is-forfait';
+                        }
+                        if (r.is_pending_period) {
+                            totalCellClass += ' is-pending';
+                        }
+                        if (parseFloat(r.prime_effort_pending || 0) > 0) {
+                            effortPrimeClass += ' is-pending';
+                        }
+                        var effortPrimeTitle = '';
+                        if (parseFloat(r.prime_effort_pending || 0) > 0) {
+                            effortPrimeTitle = ' title="Validado: ' + formatDecimalValue(r.prime_effort_validated || 0, 2) + ' | Pendente: ' + formatDecimalValue(r.prime_effort_pending || 0, 2) + '"';
+                        }
+                        tr.innerHTML = [
+                            '<td>' + (r.date || '') + '</td>',
+                            '<td>' + (r.chantier || '') + '</td>',
+                            '<td>' + (r.finish_type || '') + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.m2, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.chantier_total_m2 || 0, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.finitions_value || 0, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.m2_scie || 0, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.scie_value || 0, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.kg || 0, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.steel_value || 0, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.prime_multiple || 0, 2) + '</td>',
+                            '<td class="' + effortPrimeClass + '"' + effortPrimeTitle + '>' + formatDecimalValue(r.prime_effort || 0, 2) + '</td>',
+                            '<td class="' + baseCellClass + '">' + baseLabel + '</td>',
+                            '<td class="numeric">' + paidLabel + '</td>',
+                            '<td class="' + totalCellClass + '">' + formatDecimalValue(r.display_total || 0, 2) + '</td>'
+                        ].join('');
+                        body.appendChild(tr);
+                    });
+                    if (data.totals && totalsBox) {
+                        var t = data.totals;
+                        totalsBox.innerHTML = [
+                            '<strong>Totais:</strong>',
+                            ' Finitions € ' + formatDecimalValue(t.finitions_pay || 0, 2),
+                            ' | Scie € ' + formatDecimalValue(t.scie_pay || 0, 2),
+                            ' | Ferro € ' + formatDecimalValue(t.kg_pay || 0, 2),
+                            ' | Prime chantier € ' + formatDecimalValue(t.prime_multiple || 0, 2),
+                            " | Prime d'effort ? " + formatDecimalValue(t.prime_effort || 0, 2),
+                            ' | Intempéries € ' + formatDecimalValue(t.intemperies_total || 0, 2),
+                            ' | Compl. mínimo € ' + formatDecimalValue(t.complement_minimum || 0, 2),
+                            ' | Regularizações € ' + formatDecimalValue(t.regularizations_total || 0, 2),
+                            ' | Pago € ' + formatDecimalValue(t.paid_total || 0, 2),
+                            ' | Total € ' + formatDecimalValue(t.total || 0, 2)
+                        ].join('');
+                    }
+                })
+                .catch(function () {
+                    if (body) {
+                        body.innerHTML = '<tr><td colspan="15">Erro a carregar.</td></tr>';
+                    }
+                });
+        }
+        ready(function () {
+            var table = document.querySelector('.monthly-summary-table');
+            var modal = document.getElementById('monthly-detail-modal');
+            var detailClose = modal ? modal.querySelector('[data-detail-close]') : null;
+            var exportButton = document.querySelector('[data-export-monthly]');
+            var primeModal = document.getElementById('prime-records-modal');
+            var primeModalOpen = document.querySelector('[data-prime-modal-open]');
+            var primeModalClose = primeModal ? primeModal.querySelector('[data-prime-modal-close]') : null;
+            if (table && modal) {
+                table.querySelectorAll('tbody tr').forEach(function (row) {
+                    row.addEventListener('click', function () {
+                        var employeeNumber = row.dataset.employeeNumber;
+                        var employeeName = row.dataset.employeeName;
+                        if (employeeNumber) {
+                            openDetailModal(employeeNumber, employeeName);
+                        }
+                    });
+                });
+                modal.addEventListener('click', function (event) {
+                    if (event.target === modal || event.target === detailClose) {
+                        closeModalBox(modal);
+                    }
+                });
+                detailClose && detailClose.addEventListener('click', function () {
+                    closeModalBox(modal);
+                });
+            }
+            if (table && exportButton) {
+                exportButton.addEventListener('click', function () {
+                    exportTableToExcel(table);
+                });
+            }
+            if (primeModal && primeModalOpen) {
+                primeModalOpen.addEventListener('click', function () {
+                    openModalBox(primeModal);
+                });
+                primeModal.addEventListener('click', function (event) {
+                    if (event.target === primeModal || event.target === primeModalClose) {
+                        closeModalBox(primeModal);
+                    }
+                });
+                primeModalClose && primeModalClose.addEventListener('click', function () {
+                    closeModalBox(primeModal);
+                });
+                primeModal.querySelectorAll('[data-prime-toggle]').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        togglePrimeValidation(button, table);
+                    });
+                });
+            }
+        });
+    })();
+</script>

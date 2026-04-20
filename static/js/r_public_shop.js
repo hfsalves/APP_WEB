@@ -1,6 +1,6 @@
 (function () {
   const INITIAL_PAGE = window.R_PUBLIC_SHOP || {};
-  const PUBLIC_TOKEN = String(INITIAL_PAGE.token || "").trim();
+  const PUBLIC_RESERVA = String(INITIAL_PAGE.public_code || INITIAL_PAGE.reserva || "").trim();
   const LANG_KEY = "r_public_lang";
   const LOCALES = { pt: "pt-PT", en: "en-GB", fr: "fr-FR", es: "es-ES" };
   const FLAG_META = {
@@ -931,7 +931,7 @@
     if (els.error) els.error.classList.add("d-none");
     if (els.sections) els.sections.classList.add("d-none");
     try {
-      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/bootstrap`);
+      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/shop/bootstrap`);
       state.reservation = data.reservation || null;
       state.shopState = data.shop_state || state.shopState;
       state.families = Array.isArray(data.catalog?.families) ? data.catalog.families : [];
@@ -967,7 +967,7 @@
     if (!code) return;
     const fallback = state.productsByCode[code];
     try {
-      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/products/${encodeURIComponent(code)}`);
+      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/shop/products/${encodeURIComponent(code)}`);
       state.currentProduct = data.product || fallback || null;
     } catch (_) {
       state.currentProduct = fallback || null;
@@ -995,7 +995,7 @@
     if (!skipOptimisticCartRender) renderCart();
     renderCurrentProduct();
     try {
-      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/cart/items`, {
+      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/shop/cart/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -1029,7 +1029,7 @@
       return;
     }
     try {
-      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/checkout`, {
+      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/shop/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1083,7 +1083,7 @@
     if (els.checkoutMsg) els.checkoutMsg.textContent = t("checkout_pending_confirmation");
     if (els.deliveryMsg) els.deliveryMsg.textContent = "";
     try {
-      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/shop/checkout/confirm?session_id=${encodeURIComponent(sessionId)}`);
+      const data = await fetchJson(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/shop/checkout/confirm?session_id=${encodeURIComponent(sessionId)}`);
       state.cart = data.cart || state.cart;
       state.shopState = data.shop_state || state.shopState;
       if (!selectedDeliveryOption()) {

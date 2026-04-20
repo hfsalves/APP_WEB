@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t.app_title }} - {{ t.login_title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body class="login-page">
+    <div class="main-wrapper">
+        {% set next_url = request.full_path.rstrip('?') %}
+        {% set current_option = (languages | selectattr('code', 'equalto', current_lang) | list | first) %}
+        <section class="login-card">
+            <div class="login-card-header">
+                <div class="login-card-headline">
+                    <h1>{{ t.login_title }}</h1>
+                    <p class="subtitle">{{ t.login_subtitle }}</p>
+                </div>
+                <details class="language-dropdown">
+                    <summary>
+                        <span class="chip-flag">{{ current_option.flag }}</span>
+                        <span class="chip-label">{{ current_option.label }}</span>
+                        <span class="chip-chevron" aria-hidden="true"></span>
+                    </summary>
+                    <ul class="language-dropdown-list" role="menu">
+                        {% for option in languages %}
+                            <li>
+                                {% if option.code == current_lang %}
+                                    <span class="language-option active" aria-current="true">
+                                        <span class="chip-flag">{{ option.flag }}</span>
+                                        <span class="chip-label">{{ option.label }}</span>
+                                    </span>
+                                {% else %}
+                                    <a class="language-option" href="{{ url_for('change_language', lang_code=option.code, next=next_url) }}" role="menuitem">
+                                        <span class="chip-flag">{{ option.flag }}</span>
+                                        <span class="chip-label">{{ option.label }}</span>
+                                    </a>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </details>
+            </div>
+            {% if error %}
+                <p class="error">{{ error }}</p>
+            {% endif %}
+            <form action="{{ url_for('login') }}" method="post" class="login-form">
+                <label>
+                    {{ t.login_username_label }}
+                    <input type="text" name="username" autocomplete="username" required>
+                </label>
+                <label>
+                    {{ t.login_password_label }}
+                    <input type="password" name="password" autocomplete="current-password" required>
+                </label>
+                <button type="submit">{{ t.login_submit }}</button>
+            </form>
+        </section>
+        <footer>
+            &copy; {{ t.login_footer }}
+        </footer>
+    </div>
+</body>
+</html>

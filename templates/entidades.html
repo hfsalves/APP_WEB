@@ -94,6 +94,13 @@
                     </label>
                   </div>
                   <div class="sz_field">
+                    <label class="sz_label" for="entECLUSTER">Cluster</label>
+                    <label class="sz_checkbox sz_entities_checkbox">
+                      <input id="entECLUSTER" type="checkbox">
+                      <span>É cluster</span>
+                    </label>
+                  </div>
+                  <div class="sz_field">
                     <label class="sz_label" for="entNOME">Nome</label>
                     <input id="entNOME" class="sz_input">
                   </div>
@@ -129,6 +136,51 @@
                     </div>
                     <input id="entLogoFile" type="file" accept=".png,.jpg,.jpeg,.webp" style="display:none;">
                   </div>
+                </div>
+              </section>
+
+              <section id="entClusterSection" class="sz_panel sz_stack" style="display:none;">
+                <div class="sz_entities_modules_head">
+                  <div class="sz_label">Entidades do cluster</div>
+                  <div id="entClusterSummary" class="sz_text_muted">0 entidades associadas</div>
+                </div>
+                <div id="entClusterHint" class="sz_text_muted">Guarde a entidade e marque "É cluster" para gerir os membros.</div>
+                <div class="sz_grid sz_entities_cluster_controls">
+                  <div class="sz_field">
+                    <label class="sz_label" for="entClusterCandidateSearch">Pesquisa</label>
+                    <input id="entClusterCandidateSearch" type="text" class="sz_input" placeholder="Nome, NIF ou localidade">
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="entClusterCandidate">Adicionar entidade</label>
+                    <select id="entClusterCandidate" class="sz_select">
+                      <option value="">Sem entidades disponíveis</option>
+                    </select>
+                  </div>
+                  <div class="sz_field sz_entities_cluster_action">
+                    <label class="sz_label">&nbsp;</label>
+                    <button id="entBtnAddClusterMember" type="button" class="sz_button sz_button_secondary">
+                      <i class="fa-solid fa-plus"></i>
+                      <span>Adicionar</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="sz_table_host">
+                  <table class="sz_table sz_table_compact">
+                    <thead class="sz_table_head">
+                      <tr class="sz_table_row">
+                        <th class="sz_table_cell">NIF</th>
+                        <th class="sz_table_cell">Nome</th>
+                        <th class="sz_table_cell">Local</th>
+                        <th class="sz_table_cell">Estado</th>
+                        <th class="sz_table_cell sz_text_right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody id="entClusterMembersList">
+                      <tr class="sz_table_row">
+                        <td colspan="5" class="sz_table_cell sz_text_muted">Sem entidades associadas.</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </section>
 
@@ -308,6 +360,7 @@
   window.FE_CAN_EDIT = {{ fe_can_edit|tojson }};
   window.FE_CAN_DELETE = {{ fe_can_delete|tojson }};
   window.FE_LOGO_ENABLED = {{ fe_logo_enabled|tojson }};
+  window.FE_CLUSTER_ENABLED = {{ fe_cluster_enabled|tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/entidades.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
 <style>
@@ -449,6 +502,20 @@
     align-items: start;
   }
 
+  .sz_entities_cluster_controls {
+    grid-template-columns: minmax(220px, .8fr) minmax(280px, 1.2fr) auto;
+    align-items: end;
+  }
+
+  .sz_entities_cluster_action {
+    min-width: 150px;
+  }
+
+  .sz_entities_cluster_remove {
+    min-width: auto;
+    padding-inline: .75rem;
+  }
+
   .sz_entities_logo_preview {
     display: flex;
     align-items: center;
@@ -503,6 +570,10 @@
      }
 
      .sz_entities_logo_block {
+       grid-template-columns: 1fr;
+     }
+
+     .sz_entities_cluster_controls {
        grid-template-columns: 1fr;
      }
 

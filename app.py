@@ -22,6 +22,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date, timedelta, time as dtime
 from sqlalchemy import text, bindparam
+from sqlalchemy.exc import OperationalError
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
@@ -193,6 +194,10 @@ def create_app():
     app.config['SQLALCHEMY_BINDS'] = {
         db_target_prod: prod_db_uri,
         db_target_client: client_db_uri,
+    }
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 1800,
     }
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['DB_TARGETS'] = {
@@ -432,6 +437,9 @@ def create_app():
     from blueprints.document_ai import bp as document_ai_bp
     app.register_blueprint(document_ai_bp)
 
+    from modules.gr_planning.routes import bp as gr_planning_bp
+    app.register_blueprint(gr_planning_bp)
+
     register_pricing(app)
 
     @app.route('/service-worker.js')
@@ -495,12 +503,13 @@ def create_app():
         except Exception:
             return False
 
-    def _public_token_invalid(token_value: str) -> bool:
-        tok = (token_value or '').strip()
-        return (not tok) or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok)
+    def _public_reserva_code_invalid(reserva_value: str) -> bool:
+        code = (reserva_value or '').strip()
+        return (not code) or len(code) > 120 or re.search(r'[\x00-\x1f\x7f/]', code) is not None
 
-    def _public_reserva_row(token_value: str):
-        if _public_token_invalid(token_value):
+    def _public_reserva_row(reserva_value: str):
+        reserva_code = (reserva_value or '').strip()
+        if _public_reserva_code_invalid(reserva_code):
             return None
         row = db.session.execute(text("""
             SELECT TOP 1
@@ -515,9 +524,6 @@ def create_app():
                 RS.ADULTOS,
                 RS.CRIANCAS,
                 RS.NOITES,
-                RS.GUIDE_TOKEN,
-                RS.GUIDE_TOKEN_EXPIRES,
-                RS.GUIDE_TOKEN_REVOKED,
                 ISNULL(RS.FTNOME,'') AS FTNOME,
                 ISNULL(RS.FTMORADA,'') AS FTMORADA,
                 ISNULL(RS.FTLOCAL,'') AS FTLOCAL,
@@ -534,14 +540,11 @@ def create_app():
             LEFT JOIN dbo.AL AL
               ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
                = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
-            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
+            WHERE LTRIM(RTRIM(ISNULL(RS.RESERVA,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                = LTRIM(RTRIM(:r)) COLLATE SQL_Latin1_General_CP1_CI_AI
             ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
-        """), {'t': token_value}).mappings().first()
+        """), {'r': reserva_code}).mappings().first()
         if not row:
-            return None
-        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
-            return None
-        if _token_expired(row.get('GUIDE_TOKEN_EXPIRES')):
             return None
         return dict(row)
 
@@ -694,10 +697,23 @@ def create_app():
         return options
 
     def _public_shop_state(row):
+        if not _shop_enabled():
+            return {
+                'is_enabled': False,
+                'is_available': False,
+                'reason': 'shop_disabled',
+                'deadline_at': '',
+                'deadline_label': '',
+                'message': 'A shop esta temporariamente indisponivel.',
+                'delivery_options': [],
+                'default_delivery_method': '',
+            }
+
         datain = _parse_public_date((row or {}).get('DATAIN'))
         dataout = _parse_public_date((row or {}).get('DATAOUT'))
         if not datain or not dataout:
             return {
+                'is_enabled': True,
                 'is_available': False,
                 'reason': 'missing_checkin',
                 'deadline_at': '',
@@ -712,6 +728,7 @@ def create_app():
         deadline_label = _format_public_datetime_label(deadline_at)
         if now > deadline_at:
             return {
+                'is_enabled': True,
                 'is_available': False,
                 'reason': 'past_cutoff',
                 'deadline_at': deadline_at.isoformat(timespec='minutes'),
@@ -734,6 +751,7 @@ def create_app():
             is_available = False
             reason = 'no_delivery_window'
         return {
+            'is_enabled': True,
             'is_available': is_available,
             'reason': reason,
             'deadline_at': deadline_at.isoformat(timespec='minutes'),
@@ -743,14 +761,14 @@ def create_app():
             'default_delivery_method': default_delivery_method,
         }
 
-    def _public_shop_session_key(token_value: str) -> str:
-        return f"SHOP::{(token_value or '').strip()}"
+    def _public_shop_session_key(public_code: str) -> str:
+        return f"SHOP::{(public_code or '').strip()}"
 
-    def _public_shop_cart_raw(token_value: str):
+    def _public_shop_cart_raw(public_code: str):
         carts = session.get('PUBLIC_SHOP_CARTS') or {}
-        return dict(carts.get(_public_shop_session_key(token_value), {}) or {})
+        return dict(carts.get(_public_shop_session_key(public_code), {}) or {})
 
-    def _public_shop_cart_save(token_value: str, lines):
+    def _public_shop_cart_save(public_code: str, lines):
         carts = dict(session.get('PUBLIC_SHOP_CARTS') or {})
         norm = {}
         for product_code, qty in (lines or {}).items():
@@ -763,7 +781,7 @@ def create_app():
                 quantity = 0
             if quantity > 0:
                 norm[code] = quantity
-        carts[_public_shop_session_key(token_value)] = norm
+        carts[_public_shop_session_key(public_code)] = norm
         session['PUBLIC_SHOP_CARTS'] = carts
         session.modified = True
         return norm
@@ -813,9 +831,9 @@ def create_app():
                 return variant
         return variants[0]
 
-    def _public_shop_cart_clear(token_value: str):
+    def _public_shop_cart_clear(public_code: str):
         carts = dict(session.get('PUBLIC_SHOP_CARTS') or {})
-        carts.pop(_public_shop_session_key(token_value), None)
+        carts.pop(_public_shop_session_key(public_code), None)
         session['PUBLIC_SHOP_CARTS'] = carts
         session.modified = True
 
@@ -868,6 +886,22 @@ def create_app():
             return _para_value_from_row(row)
         except Exception:
             return default
+
+    def _shop_enabled() -> bool:
+        raw = _shop_para_value('SHOP_ENABLED', True)
+        if isinstance(raw, bool):
+            return raw
+        if raw is None:
+            return True
+        try:
+            if isinstance(raw, (int, float, Decimal)):
+                return float(raw) != 0
+        except Exception:
+            pass
+        value = str(raw).strip().lower()
+        if not value:
+            return True
+        return value not in {'0', 'false', 'f', 'no', 'n', 'off', 'nao', 'não'}
 
     def _shop_stripe_secret_key():
         return (
@@ -997,8 +1031,8 @@ def create_app():
         ).scalar_one()
         return int(state_id)
 
-    def _shop_build_checkout_cart(token_value: str):
-        raw_lines = _public_shop_cart_raw(token_value)
+    def _shop_build_checkout_cart(public_code: str):
+        raw_lines = _public_shop_cart_raw(public_code)
         items = []
         subtotal = Decimal('0.00')
         currency = 'EUR'
@@ -1838,7 +1872,7 @@ def create_app():
     # Rotas de autenticação
     @app.route('/login', methods=['GET', 'POST'])
     def login():
-        def _render_login(error: str = '', selected_target: str = ''):
+        def _render_login(error: str = '', selected_target: str = '', verify_db: bool = False):
             host = _normalized_request_host() if has_request_context() else ''
             show_db_target_select = _is_localhost_host(host)
             resolved_target = (
@@ -1851,15 +1885,22 @@ def create_app():
                 show_db_target_select=show_db_target_select,
                 db_target_options=_db_target_options(),
                 selected_db_target=resolved_target,
+                verify_db=bool(verify_db),
+                db_target_prod=db_target_prod,
             )
 
         if request.method == 'POST':
             login_ = request.form['login']
             pwd = request.form['password']
+            verify_db_requested = str(request.form.get('verify_db') or '').strip() in {'1', 'true', 'on', 'yes'}
             if _is_localhost_host(_normalized_request_host()):
                 selected_target = _normalize_db_target(request.form.get('db_target'))
                 if not selected_target:
-                    return _render_login(error='Base de dados inválida.', selected_target=request.form.get('db_target'))
+                    return _render_login(
+                        error='Base de dados inválida.',
+                        selected_target=request.form.get('db_target'),
+                        verify_db=verify_db_requested,
+                    )
                 session[db_target_session_key] = selected_target
             try:
                 result = authenticate_user(db.session, login_, pwd)
@@ -1874,7 +1915,11 @@ def create_app():
                             'Login recusado: utilizador sem entidades ativas',
                             extra={'login': result.row.get('LOGIN'), 'usstamp': result.row.get('USSTAMP')},
                         )
-                        return _render_login(error=str(entity_error))
+                        return _render_login(
+                            error=str(entity_error),
+                            selected_target=request.form.get('db_target'),
+                            verify_db=verify_db_requested,
+                        )
 
                     user = US()
                     for k, v in result.row.items():
@@ -1897,18 +1942,33 @@ def create_app():
                     except Exception:
                         session['APP_PARAMS'] = {}
                     target_after_login = _resolve_db_target()
-                    if target_after_login == db_target_prod:
+                    must_open_consistency = (
+                        _is_localhost_host(_normalized_request_host())
+                        and target_after_login != db_target_prod
+                        and verify_db_requested
+                    )
+                    if target_after_login == db_target_prod or must_open_consistency:
                         session.pop(db_consistency_unlocked_target_session_key, None)
                     else:
-                        session.pop(db_consistency_unlocked_target_session_key, None)
+                        session[db_consistency_unlocked_target_session_key] = target_after_login
                     session.pop(db_consistency_apply_result_session_key, None)
+                    if must_open_consistency:
+                        return redirect(url_for('database_consistency_page'))
                     return redirect(request.args.get('next') or url_for('home_page'))
 
-                return _render_login(error=result.user_message)
+                return _render_login(
+                    error=result.user_message,
+                    selected_target=request.form.get('db_target'),
+                    verify_db=verify_db_requested,
+                )
             except Exception:
                 db.session.rollback()
                 auth_logger.exception('Erro inesperado durante autenticação', extra={'login': login_})
-                return _render_login(error='Erro interno na autenticação')
+                return _render_login(
+                    error='Erro interno na autenticação',
+                    selected_target=request.form.get('db_target'),
+                    verify_db=verify_db_requested,
+                )
         return _render_login()
 
     def _database_consistency_allow_request() -> bool:
@@ -1993,15 +2053,16 @@ def create_app():
         session[db_consistency_unlocked_target_session_key] = _resolve_db_target()
         return redirect(url_for('home_page'))
 
-    @app.route('/r/<token>')
-    @app.route('/r/<token>/')
-    def public_reserva_page(token):
-        tok = (token or '').strip()
-        if _public_token_invalid(tok):
+    @app.route('/r/<reserva_code>')
+    @app.route('/r/<reserva_code>/')
+    def public_reserva_page(reserva_code):
+        public_code = (reserva_code or '').strip()
+        if _public_reserva_code_invalid(public_code):
             return render_template('r_public.html', invalid=True, page_data={})
-        row = _public_reserva_row(tok)
+        row = _public_reserva_row(public_code)
         if not row:
             return render_template('r_public.html', invalid=True, page_data={})
+        canonical_reserva_code = (row.get('RESERVA') or public_code).strip()
 
         lat = row.get('LAT')
         lon = row.get('LON')
@@ -2029,8 +2090,8 @@ def create_app():
         shop_state = _public_shop_state(row)
 
         page_data = {
-            'token': tok,
-            'reserva': (row.get('RESERVA') or '').strip(),
+            'public_code': canonical_reserva_code,
+            'reserva': canonical_reserva_code,
             'alojamento': (row.get('ALOJAMENTO') or '').strip(),
             'alojamento_cover_url': _public_al_cover_url(row.get('ALSTAMP')),
             'checkin_data': _fmt_public_date(row.get('DATAIN')),
@@ -2055,10 +2116,11 @@ def create_app():
             'lat': lat,
             'lon': lon,
             'maps_url': maps_url,
+            'shop_enabled': bool(shop_state.get('is_enabled', True)),
             'shop_available': bool(shop_state.get('is_available')),
             'shop_message': shop_state.get('message') or '',
             'shop_deadline_label': shop_state.get('deadline_label') or '',
-            'shop_url': url_for('public_reserva_shop_page', token=tok),
+            'shop_url': url_for('public_reserva_shop_page', reserva_code=canonical_reserva_code),
         }
 
         # POI associados ao alojamento (agrupados por grupo)
@@ -2155,48 +2217,51 @@ def create_app():
         page_data['poi_groups'] = [poi_groups_map[k] for k in poi_groups_order]
         return render_template('r_public.html', invalid=False, page_data=page_data)
 
-    @app.route('/r/<token>/shop')
-    @app.route('/r/<token>/shop/')
-    def public_reserva_shop_page(token):
-        tok = (token or '').strip()
-        if _public_token_invalid(tok):
+    @app.route('/r/<reserva_code>/shop')
+    @app.route('/r/<reserva_code>/shop/')
+    def public_reserva_shop_page(reserva_code):
+        public_code = (reserva_code or '').strip()
+        if _public_reserva_code_invalid(public_code):
             return render_template('r_public_shop.html', invalid=True, page_data={}), 404
 
-        row = _public_reserva_row(tok)
+        row = _public_reserva_row(public_code)
         if not row:
             return render_template('r_public_shop.html', invalid=True, page_data={}), 404
+        canonical_reserva_code = (row.get('RESERVA') or public_code).strip()
 
         shop_state = _public_shop_state(row)
         page_data = {
-            'token': tok,
-            'reserva': (row.get('RESERVA') or '').strip(),
+            'public_code': canonical_reserva_code,
+            'reserva': canonical_reserva_code,
             'alojamento': (row.get('ALOJAMENTO') or '').strip(),
             'checkin_data': _fmt_public_date(row.get('DATAIN')),
             'checkin_hora': (row.get('HORAIN') or '').strip(),
             'checkout_data': _fmt_public_date(row.get('DATAOUT')),
             'checkout_hora': (row.get('HORAOUT') or '').strip(),
+            'shop_enabled': bool(shop_state.get('is_enabled', True)),
             'shop_available': bool(shop_state.get('is_available')),
             'shop_message': shop_state.get('message') or '',
             'shop_deadline_label': shop_state.get('deadline_label') or '',
-            'back_url': url_for('public_reserva_page', token=tok),
+            'back_url': url_for('public_reserva_page', reserva_code=canonical_reserva_code),
         }
         return render_template('r_public_shop.html', invalid=False, page_data=page_data)
 
-    @app.route('/api/r/<token>/shop/bootstrap', methods=['GET'])
-    def public_reserva_shop_bootstrap(token):
-        tok = (token or '').strip()
-        row = _public_reserva_row(tok)
+    @app.route('/api/r/<reserva_code>/shop/bootstrap', methods=['GET'])
+    def public_reserva_shop_bootstrap(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
         if not row:
-            return jsonify({'error': 'Link invalido ou expirado'}), 404
+            return jsonify({'error': 'Reserva invalida ou nao encontrada'}), 404
+        canonical_reserva_code = (row.get('RESERVA') or public_code).strip()
 
         shop_state = _public_shop_state(row)
         catalog = get_shop_catalog_data()
-        cart = build_shop_cart(_public_shop_cart_raw(tok))
+        cart = build_shop_cart(_public_shop_cart_raw(canonical_reserva_code))
         return jsonify({
             'ok': True,
             'reservation': {
-                'token': tok,
-                'reserva': (row.get('RESERVA') or '').strip(),
+                'public_code': canonical_reserva_code,
+                'reserva': canonical_reserva_code,
                 'alojamento': (row.get('ALOJAMENTO') or '').strip(),
                 'checkin_data': _fmt_public_date(row.get('DATAIN')),
                 'checkin_hora': (row.get('HORAIN') or '').strip(),
@@ -2213,12 +2278,12 @@ def create_app():
             'backend_mode': f"session_{catalog.get('source', 'fallback')}",
         })
 
-    @app.route('/api/r/<token>/shop/products/<product_code>', methods=['GET'])
-    def public_reserva_shop_product_detail(token, product_code):
-        tok = (token or '').strip()
-        row = _public_reserva_row(tok)
+    @app.route('/api/r/<reserva_code>/shop/products/<product_code>', methods=['GET'])
+    def public_reserva_shop_product_detail(reserva_code, product_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
         if not row:
-            return jsonify({'error': 'Link invalido ou expirado'}), 404
+            return jsonify({'error': 'Reserva invalida ou nao encontrada'}), 404
 
         product = get_shop_product_by_code(product_code)
         if not product:
@@ -2230,12 +2295,13 @@ def create_app():
             'shop_state': _public_shop_state(row),
         })
 
-    @app.route('/api/r/<token>/shop/cart', methods=['GET', 'POST'])
-    def public_reserva_shop_cart(token):
-        tok = (token or '').strip()
-        row = _public_reserva_row(tok)
+    @app.route('/api/r/<reserva_code>/shop/cart', methods=['GET', 'POST'])
+    def public_reserva_shop_cart(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
         if not row:
-            return jsonify({'error': 'Link invalido ou expirado'}), 404
+            return jsonify({'error': 'Reserva invalida ou nao encontrada'}), 404
+        canonical_reserva_code = (row.get('RESERVA') or public_code).strip()
         shop_state = _public_shop_state(row)
 
         if request.method == 'POST':
@@ -2260,20 +2326,21 @@ def create_app():
                     quantity = 0
                 if quantity > 0:
                     next_lines[_public_shop_line_key(code, variant.get('id') if variant else None)] = quantity
-            _public_shop_cart_save(tok, next_lines)
+            _public_shop_cart_save(canonical_reserva_code, next_lines)
 
         return jsonify({
             'ok': True,
-            'cart': build_shop_cart(_public_shop_cart_raw(tok)),
+            'cart': build_shop_cart(_public_shop_cart_raw(canonical_reserva_code)),
             'shop_state': shop_state,
         })
 
-    @app.route('/api/r/<token>/shop/cart/items', methods=['POST'])
-    def public_reserva_shop_cart_items(token):
-        tok = (token or '').strip()
-        row = _public_reserva_row(tok)
+    @app.route('/api/r/<reserva_code>/shop/cart/items', methods=['POST'])
+    def public_reserva_shop_cart_items(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
         if not row:
-            return jsonify({'error': 'Link invalido ou expirado'}), 404
+            return jsonify({'error': 'Reserva invalida ou nao encontrada'}), 404
+        canonical_reserva_code = (row.get('RESERVA') or public_code).strip()
         shop_state = _public_shop_state(row)
         if not shop_state.get('is_available'):
             return jsonify({'error': 'A janela para encomendas desta reserva ja terminou.', 'shop_state': shop_state}), 400
@@ -2292,7 +2359,7 @@ def create_app():
         if variant is False:
             return jsonify({'error': 'Variante invalida para o artigo selecionado'}), 400
 
-        current = _public_shop_cart_raw(tok)
+        current = _public_shop_cart_raw(canonical_reserva_code)
         if not line_key:
             line_key = _public_shop_line_key(product_code, variant.get('id') if variant else None)
         current_qty = int(current.get(line_key) or 0)
@@ -2307,20 +2374,21 @@ def create_app():
             return jsonify({'error': 'Quantidade invalida'}), 400
 
         current[line_key] = max(0, next_qty)
-        _public_shop_cart_save(tok, current)
+        _public_shop_cart_save(canonical_reserva_code, current)
 
         return jsonify({
             'ok': True,
-            'cart': build_shop_cart(_public_shop_cart_raw(tok)),
+            'cart': build_shop_cart(_public_shop_cart_raw(canonical_reserva_code)),
             'shop_state': shop_state,
         })
 
-    @app.route('/api/r/<token>/shop/checkout', methods=['POST'])
-    def public_reserva_shop_checkout(token):
-        tok = (token or '').strip()
-        row = _public_reserva_row(tok)
+    @app.route('/api/r/<reserva_code>/shop/checkout', methods=['POST'])
+    def public_reserva_shop_checkout(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
         if not row:
-            return jsonify({'error': 'Link invalido ou expirado'}), 404
+            return jsonify({'error': 'Reserva invalida ou nao encontrada'}), 404
+        canonical_reserva_code = (row.get('RESERVA') or public_code).strip()
 
         shop_state = _public_shop_state(row)
         if not shop_state.get('is_available'):
@@ -2334,7 +2402,7 @@ def create_app():
         delivery_code = str(body.get('delivery_method') or '').strip().upper()
         stripe_locale = lang if lang in {'pt', 'en', 'fr', 'es'} else 'auto'
         try:
-            checkout_cart = _shop_build_checkout_cart(tok)
+            checkout_cart = _shop_build_checkout_cart(canonical_reserva_code)
         except RuntimeError as exc:
             return jsonify({'error': str(exc)}), 400
         if not _shop_stripe_secret_key():
@@ -2360,14 +2428,14 @@ def create_app():
         checkout_placeholder = '__CHECKOUT_SESSION_ID__'
         success_url = url_for(
             'public_reserva_shop_page',
-            token=tok,
+            reserva_code=canonical_reserva_code,
             checkout='success',
             session_id=checkout_placeholder,
             _external=True,
         ).replace(checkout_placeholder, '{CHECKOUT_SESSION_ID}')
         cancel_url = url_for(
             'public_reserva_shop_page',
-            token=tok,
+            reserva_code=canonical_reserva_code,
             checkout='cancel',
             session_id=checkout_placeholder,
             _external=True,
@@ -2383,7 +2451,7 @@ def create_app():
             'metadata[payment_id]': str(payment_id),
             'metadata[order_id]': str(order_id),
             'metadata[reservation_code]': str((row.get('RESERVA') or '').strip()),
-            'metadata[token]': tok,
+            'metadata[public_code]': canonical_reserva_code,
             'payment_method_types[0]': 'card',
         }
         email = str((row.get('FTEMAIL') or '').strip())
@@ -2502,12 +2570,13 @@ def create_app():
             'reservation_code': (row.get('RESERVA') or '').strip(),
         })
 
-    @app.route('/api/r/<token>/shop/checkout/confirm', methods=['GET'])
-    def public_reserva_shop_checkout_confirm(token):
-        tok = (token or '').strip()
-        row = _public_reserva_row(tok)
+    @app.route('/api/r/<reserva_code>/shop/checkout/confirm', methods=['GET'])
+    def public_reserva_shop_checkout_confirm(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
         if not row:
-            return jsonify({'error': 'Link invalido ou expirado'}), 404
+            return jsonify({'error': 'Reserva invalida ou nao encontrada'}), 404
+        canonical_reserva_code = (row.get('RESERVA') or public_code).strip()
 
         session_id = str(request.args.get('session_id') or '').strip()
         if not session_id:
@@ -2553,7 +2622,7 @@ def create_app():
                 _shop_set_payment_state(payment_ctx['payment_id'], payment_state, refunded_amount=refunded_amount)
                 _shop_refresh_order_financials(payment_ctx['order_id'])
             if str(stripe_session.get('payment_status') or '').strip().lower() == 'paid':
-                _public_shop_cart_clear(tok)
+                _public_shop_cart_clear(canonical_reserva_code)
             _shop_log(
                 'INFO',
                 'SHOP',
@@ -2580,7 +2649,7 @@ def create_app():
                 if str(stripe_session.get('payment_status') or '').strip().lower() == 'paid'
                 else 'O pagamento ainda nao ficou concluido.'
             ),
-            'cart': build_shop_cart(_public_shop_cart_raw(tok)),
+            'cart': build_shop_cart(_public_shop_cart_raw(canonical_reserva_code)),
             'shop_state': _public_shop_state(row),
         })
 
@@ -2729,30 +2798,12 @@ def create_app():
 
         return jsonify({'ok': True})
 
-    @app.route('/api/r/<token>/guests', methods=['GET'])
-    def public_reserva_guests_get(token):
-        tok = (token or '').strip()
-        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-
-        row = db.session.execute(text("""
-            SELECT TOP 1
-                RS.RSSTAMP,
-                RS.ADULTOS,
-                RS.CRIANCAS,
-                RS.GUIDE_TOKEN_EXPIRES,
-                RS.GUIDE_TOKEN_REVOKED
-            FROM dbo.RS RS
-            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
-            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
-        """), {'t': tok}).mappings().first()
+    @app.route('/api/r/<reserva_code>/guests', methods=['GET'])
+    def public_reserva_guests_get(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
         if not row:
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-        exp = row.get('GUIDE_TOKEN_EXPIRES')
-        if _token_expired(exp):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
+            return jsonify({'error': 'Reserva inválida ou não encontrada'}), 404
 
         rsstamp = (row.get('RSSTAMP') or '').strip()
         total_guests = max(1, int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0))
@@ -2848,30 +2899,12 @@ def create_app():
             'complete': all(_is_complete(g) for g in guests),
         })
 
-    @app.route('/api/r/<token>/guests', methods=['POST'])
-    def public_reserva_guests_save(token):
-        tok = (token or '').strip()
-        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-
-        row = db.session.execute(text("""
-            SELECT TOP 1
-                RS.RSSTAMP,
-                RS.ADULTOS,
-                RS.CRIANCAS,
-                RS.GUIDE_TOKEN_EXPIRES,
-                RS.GUIDE_TOKEN_REVOKED
-            FROM dbo.RS RS
-            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
-            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
-        """), {'t': tok}).mappings().first()
+    @app.route('/api/r/<reserva_code>/guests', methods=['POST'])
+    def public_reserva_guests_save(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
         if not row:
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-        exp = row.get('GUIDE_TOKEN_EXPIRES')
-        if _token_expired(exp):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
+            return jsonify({'error': 'Reserva inválida ou não encontrada'}), 404
 
         rsstamp = (row.get('RSSTAMP') or '').strip()
         total_guests = max(1, int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0))
@@ -2956,33 +2989,14 @@ def create_app():
                  :tipo_doc, :num_doc, :pais_emissor_doc, 1, GETDATE(), NULL, :horain, :horaout, :transporte, :voo, :berco)
             """), {**vals, 's': _new_stamp_25(), 'r': rsstamp})
         db.session.commit()
-        return public_reserva_guests_get(token)
+        return public_reserva_guests_get(reserva_code)
 
-    @app.route('/api/r/<token>/stay-plan', methods=['GET'])
-    def public_reserva_stay_plan_get(token):
-        tok = (token or '').strip()
-        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-
-        row = db.session.execute(text("""
-            SELECT TOP 1
-                RS.RSSTAMP,
-                RS.CRIANCAS,
-                ISNULL(RS.HORAIN,'') AS HORAIN,
-                ISNULL(RS.HORAOUT,'') AS HORAOUT,
-                ISNULL(RS.BERCO,0) AS BERCO,
-                RS.GUIDE_TOKEN_EXPIRES,
-                RS.GUIDE_TOKEN_REVOKED
-            FROM dbo.RS RS
-            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
-            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
-        """), {'t': tok}).mappings().first()
+    @app.route('/api/r/<reserva_code>/stay-plan', methods=['GET'])
+    def public_reserva_stay_plan_get(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
         if not row:
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-        if _token_expired(row.get('GUIDE_TOKEN_EXPIRES')):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
+            return jsonify({'error': 'Reserva inválida ou não encontrada'}), 404
 
         return jsonify({
             'ok': True,
@@ -2993,28 +3007,12 @@ def create_app():
             'has_children': int(row.get('CRIANCAS') or 0) > 0,
         })
 
-    @app.route('/api/r/<token>/stay-plan', methods=['POST'])
-    def public_reserva_stay_plan_save(token):
-        tok = (token or '').strip()
-        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-
-        row = db.session.execute(text("""
-            SELECT TOP 1
-                RS.RSSTAMP,
-                RS.CRIANCAS,
-                RS.GUIDE_TOKEN_EXPIRES,
-                RS.GUIDE_TOKEN_REVOKED
-            FROM dbo.RS RS
-            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
-            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
-        """), {'t': tok}).mappings().first()
+    @app.route('/api/r/<reserva_code>/stay-plan', methods=['POST'])
+    def public_reserva_stay_plan_save(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
         if not row:
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-        if _token_expired(row.get('GUIDE_TOKEN_EXPIRES')):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
+            return jsonify({'error': 'Reserva inválida ou não encontrada'}), 404
 
         def _norm_hm(v):
             s = str(v or '').strip()
@@ -3051,29 +3049,14 @@ def create_app():
             'r': (row.get('RSSTAMP') or '').strip(),
         })
         db.session.commit()
-        return public_reserva_stay_plan_get(token)
+        return public_reserva_stay_plan_get(reserva_code)
 
-    @app.route('/api/r/<token>/billing', methods=['POST'])
-    def public_reserva_billing_save(token):
-        tok = (token or '').strip()
-        if not tok or len(tok) < 8 or len(tok) > 120 or not re.match(r'^[A-Za-z0-9_\-]+$', tok):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-
-        row = db.session.execute(text("""
-            SELECT TOP 1
-                RS.RSSTAMP,
-                RS.GUIDE_TOKEN_EXPIRES,
-                RS.GUIDE_TOKEN_REVOKED
-            FROM dbo.RS RS
-            WHERE LTRIM(RTRIM(ISNULL(RS.GUIDE_TOKEN,''))) = :t
-            ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
-        """), {'t': tok}).mappings().first()
+    @app.route('/api/r/<reserva_code>/billing', methods=['POST'])
+    def public_reserva_billing_save(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
         if not row:
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-        if bool(row.get('GUIDE_TOKEN_REVOKED') or 0):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
-        if _token_expired(row.get('GUIDE_TOKEN_EXPIRES')):
-            return jsonify({'error': 'Link inválido ou expirado'}), 404
+            return jsonify({'error': 'Reserva inválida ou não encontrada'}), 404
 
         body = request.get_json(silent=True) or {}
         payload = {
@@ -3526,6 +3509,7 @@ def create_app():
             'AT_WS_AMBIENTE': '',
             'AT_WS_USER': '',
             'AT_WS_PASS': '',
+            'E_CLUSTER': 0,
             'LOGOTIPO_PATH': '',
             'USERCRIACAO': user_login,
             'USERALTERACAO': user_login,
@@ -8765,133 +8749,158 @@ def create_app():
             """))
 
     def _ensure_screen_personalizer_list_layout_columns():
-        with db.engine.begin() as conn:
-            ordem_lista_exists = conn.execute(text("""
-                SELECT COL_LENGTH('dbo.CAMPOS', 'ORDEM_LISTA')
-            """)).scalar()
-            if ordem_lista_exists is None:
-                conn.execute(text("""
-                    ALTER TABLE dbo.CAMPOS
-                    ADD ORDEM_LISTA int NOT NULL
-                        CONSTRAINT DF_CAMPOS_ORDEM_LISTA DEFAULT 0
-                """))
-                conn.execute(text("""
-                    UPDATE dbo.CAMPOS
-                    SET ORDEM_LISTA = CASE
-                        WHEN ISNULL(LISTA, 0) = 1 THEN ISNULL(ORDEM, 0)
-                        ELSE 0
-                    END
-                """))
+        def _is_disconnect(exc: Exception) -> bool:
+            message = str(exc or '').lower()
+            markers = (
+                '08s01',
+                'communication link failure',
+                'tcp provider',
+                '10054',
+                'connection reset by peer',
+                'forçada a fechar pelo anfitrião remoto',
+            )
+            return any(marker in message for marker in markers)
 
-            tam_lista_exists = conn.execute(text("""
-                SELECT COL_LENGTH('dbo.CAMPOS', 'TAM_LISTA')
-            """)).scalar()
-            if tam_lista_exists is None:
-                conn.execute(text("""
-                    ALTER TABLE dbo.CAMPOS
-                    ADD TAM_LISTA int NOT NULL
-                        CONSTRAINT DF_CAMPOS_TAM_LISTA DEFAULT 5
-                """))
-                conn.execute(text("""
-                    UPDATE dbo.CAMPOS
-                    SET TAM_LISTA = CASE
-                        WHEN ISNULL(TAM, 0) > 0 THEN ISNULL(TAM, 5)
-                        ELSE 5
-                    END
-                """))
+        for attempt in range(2):
+            try:
+                with db.engine.begin() as conn:
+                    ordem_lista_exists = conn.execute(text("""
+                        SELECT COL_LENGTH('dbo.CAMPOS', 'ORDEM_LISTA')
+                    """)).scalar()
+                    if ordem_lista_exists is None:
+                        conn.execute(text("""
+                            ALTER TABLE dbo.CAMPOS
+                            ADD ORDEM_LISTA int NOT NULL
+                                CONSTRAINT DF_CAMPOS_ORDEM_LISTA DEFAULT 0
+                        """))
+                        conn.execute(text("""
+                            UPDATE dbo.CAMPOS
+                            SET ORDEM_LISTA = CASE
+                                WHEN ISNULL(LISTA, 0) = 1 THEN ISNULL(ORDEM, 0)
+                                ELSE 0
+                            END
+                        """))
 
-            larguras_lista_exists = conn.execute(text("""
-                SELECT COL_LENGTH('dbo.MENU', 'LARGURAS_EXATAS_LISTA')
-            """)).scalar()
-            if larguras_lista_exists is None:
-                conn.execute(text("""
-                    ALTER TABLE dbo.MENU
-                    ADD LARGURAS_EXATAS_LISTA bit NOT NULL
-                        CONSTRAINT DF_MENU_LARGURAS_EXATAS_LISTA DEFAULT 0
-                """))
+                    tam_lista_exists = conn.execute(text("""
+                        SELECT COL_LENGTH('dbo.CAMPOS', 'TAM_LISTA')
+                    """)).scalar()
+                    if tam_lista_exists is None:
+                        conn.execute(text("""
+                            ALTER TABLE dbo.CAMPOS
+                            ADD TAM_LISTA int NOT NULL
+                                CONSTRAINT DF_CAMPOS_TAM_LISTA DEFAULT 5
+                        """))
+                        conn.execute(text("""
+                            UPDATE dbo.CAMPOS
+                            SET TAM_LISTA = CASE
+                                WHEN ISNULL(TAM, 0) > 0 THEN ISNULL(TAM, 5)
+                                ELSE 5
+                            END
+                        """))
 
-            ordem_lista_mobile_exists = conn.execute(text("""
-                SELECT COL_LENGTH('dbo.CAMPOS', 'ORDEM_LISTA_MOBILE')
-            """)).scalar()
-            if ordem_lista_mobile_exists is None:
-                conn.execute(text("""
-                    ALTER TABLE dbo.CAMPOS
-                    ADD ORDEM_LISTA_MOBILE int NOT NULL
-                        CONSTRAINT DF_CAMPOS_ORDEM_LISTA_MOBILE DEFAULT 0
-                """))
-                conn.execute(text("""
-                    UPDATE dbo.CAMPOS
-                    SET ORDEM_LISTA_MOBILE = CASE
-                        WHEN ISNULL(LISTA, 0) = 1 AND ISNULL(ORDEM_MOBILE, 0) > 0 THEN ISNULL(ORDEM_MOBILE, 0)
-                        WHEN ISNULL(LISTA, 0) = 1 AND ISNULL(ORDEM_LISTA, 0) > 0 THEN ISNULL(ORDEM_LISTA, 0)
-                        WHEN ISNULL(LISTA, 0) = 1 AND ISNULL(ORDEM, 0) > 0 THEN ISNULL(ORDEM, 0)
-                        ELSE 0
-                    END
-                """))
+                    larguras_lista_exists = conn.execute(text("""
+                        SELECT COL_LENGTH('dbo.MENU', 'LARGURAS_EXATAS_LISTA')
+                    """)).scalar()
+                    if larguras_lista_exists is None:
+                        conn.execute(text("""
+                            ALTER TABLE dbo.MENU
+                            ADD LARGURAS_EXATAS_LISTA bit NOT NULL
+                                CONSTRAINT DF_MENU_LARGURAS_EXATAS_LISTA DEFAULT 0
+                        """))
 
-            tam_lista_mobile_exists = conn.execute(text("""
-                SELECT COL_LENGTH('dbo.CAMPOS', 'TAM_LISTA_MOBILE')
-            """)).scalar()
-            if tam_lista_mobile_exists is None:
-                conn.execute(text("""
-                    ALTER TABLE dbo.CAMPOS
-                    ADD TAM_LISTA_MOBILE int NOT NULL
-                        CONSTRAINT DF_CAMPOS_TAM_LISTA_MOBILE DEFAULT 5
-                """))
-                conn.execute(text("""
-                    UPDATE dbo.CAMPOS
-                    SET TAM_LISTA_MOBILE = CASE
-                        WHEN ISNULL(TAM_MOBILE, 0) > 0 THEN ISNULL(TAM_MOBILE, 5)
-                        WHEN ISNULL(TAM_LISTA, 0) > 0 THEN ISNULL(TAM_LISTA, 5)
-                        WHEN ISNULL(TAM, 0) > 0 THEN ISNULL(TAM, 5)
-                        ELSE 5
-                    END
-                """))
+                    ordem_lista_mobile_exists = conn.execute(text("""
+                        SELECT COL_LENGTH('dbo.CAMPOS', 'ORDEM_LISTA_MOBILE')
+                    """)).scalar()
+                    if ordem_lista_mobile_exists is None:
+                        conn.execute(text("""
+                            ALTER TABLE dbo.CAMPOS
+                            ADD ORDEM_LISTA_MOBILE int NOT NULL
+                                CONSTRAINT DF_CAMPOS_ORDEM_LISTA_MOBILE DEFAULT 0
+                        """))
+                        conn.execute(text("""
+                            UPDATE dbo.CAMPOS
+                            SET ORDEM_LISTA_MOBILE = CASE
+                                WHEN ISNULL(LISTA, 0) = 1 AND ISNULL(ORDEM_MOBILE, 0) > 0 THEN ISNULL(ORDEM_MOBILE, 0)
+                                WHEN ISNULL(LISTA, 0) = 1 AND ISNULL(ORDEM_LISTA, 0) > 0 THEN ISNULL(ORDEM_LISTA, 0)
+                                WHEN ISNULL(LISTA, 0) = 1 AND ISNULL(ORDEM, 0) > 0 THEN ISNULL(ORDEM, 0)
+                                ELSE 0
+                            END
+                        """))
 
-            lista_mobile_bold_exists = conn.execute(text("""
-                SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_BOLD')
-            """)).scalar()
-            if lista_mobile_bold_exists is None:
-                conn.execute(text("""
-                    ALTER TABLE dbo.CAMPOS
-                    ADD LISTA_MOBILE_BOLD bit NOT NULL
-                        CONSTRAINT DF_CAMPOS_LISTA_MOBILE_BOLD DEFAULT 0
-                """))
+                    tam_lista_mobile_exists = conn.execute(text("""
+                        SELECT COL_LENGTH('dbo.CAMPOS', 'TAM_LISTA_MOBILE')
+                    """)).scalar()
+                    if tam_lista_mobile_exists is None:
+                        conn.execute(text("""
+                            ALTER TABLE dbo.CAMPOS
+                            ADD TAM_LISTA_MOBILE int NOT NULL
+                                CONSTRAINT DF_CAMPOS_TAM_LISTA_MOBILE DEFAULT 5
+                        """))
+                        conn.execute(text("""
+                            UPDATE dbo.CAMPOS
+                            SET TAM_LISTA_MOBILE = CASE
+                                WHEN ISNULL(TAM_MOBILE, 0) > 0 THEN ISNULL(TAM_MOBILE, 5)
+                                WHEN ISNULL(TAM_LISTA, 0) > 0 THEN ISNULL(TAM_LISTA, 5)
+                                WHEN ISNULL(TAM, 0) > 0 THEN ISNULL(TAM, 5)
+                                ELSE 5
+                            END
+                        """))
 
-            lista_mobile_italic_exists = conn.execute(text("""
-                SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_ITALIC')
-            """)).scalar()
-            if lista_mobile_italic_exists is None:
-                conn.execute(text("""
-                    ALTER TABLE dbo.CAMPOS
-                    ADD LISTA_MOBILE_ITALIC bit NOT NULL
-                        CONSTRAINT DF_CAMPOS_LISTA_MOBILE_ITALIC DEFAULT 0
-                """))
+                    lista_mobile_bold_exists = conn.execute(text("""
+                        SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_BOLD')
+                    """)).scalar()
+                    if lista_mobile_bold_exists is None:
+                        conn.execute(text("""
+                            ALTER TABLE dbo.CAMPOS
+                            ADD LISTA_MOBILE_BOLD bit NOT NULL
+                                CONSTRAINT DF_CAMPOS_LISTA_MOBILE_BOLD DEFAULT 0
+                        """))
 
-            lista_mobile_show_label_exists = conn.execute(text("""
-                SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_SHOW_LABEL')
-            """)).scalar()
-            if lista_mobile_show_label_exists is None:
-                conn.execute(text("""
-                    ALTER TABLE dbo.CAMPOS
-                    ADD LISTA_MOBILE_SHOW_LABEL bit NOT NULL
-                        CONSTRAINT DF_CAMPOS_LISTA_MOBILE_SHOW_LABEL DEFAULT 1
-                """))
+                    lista_mobile_italic_exists = conn.execute(text("""
+                        SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_ITALIC')
+                    """)).scalar()
+                    if lista_mobile_italic_exists is None:
+                        conn.execute(text("""
+                            ALTER TABLE dbo.CAMPOS
+                            ADD LISTA_MOBILE_ITALIC bit NOT NULL
+                                CONSTRAINT DF_CAMPOS_LISTA_MOBILE_ITALIC DEFAULT 0
+                        """))
 
-            lista_mobile_label_exists = conn.execute(text("""
-                SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_LABEL')
-            """)).scalar()
-            if lista_mobile_label_exists is None:
-                conn.execute(text("""
-                    ALTER TABLE dbo.CAMPOS
-                    ADD LISTA_MOBILE_LABEL varchar(100) NOT NULL
-                        CONSTRAINT DF_CAMPOS_LISTA_MOBILE_LABEL DEFAULT ''
-                """))
-                conn.execute(text("""
-                    UPDATE dbo.CAMPOS
-                    SET LISTA_MOBILE_LABEL = LTRIM(RTRIM(ISNULL(DESCRICAO, '')))
-                    WHERE LTRIM(RTRIM(ISNULL(LISTA_MOBILE_LABEL, ''))) = ''
-                """))
+                    lista_mobile_show_label_exists = conn.execute(text("""
+                        SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_SHOW_LABEL')
+                    """)).scalar()
+                    if lista_mobile_show_label_exists is None:
+                        conn.execute(text("""
+                            ALTER TABLE dbo.CAMPOS
+                            ADD LISTA_MOBILE_SHOW_LABEL bit NOT NULL
+                                CONSTRAINT DF_CAMPOS_LISTA_MOBILE_SHOW_LABEL DEFAULT 1
+                        """))
+
+                    lista_mobile_label_exists = conn.execute(text("""
+                        SELECT COL_LENGTH('dbo.CAMPOS', 'LISTA_MOBILE_LABEL')
+                    """)).scalar()
+                    if lista_mobile_label_exists is None:
+                        conn.execute(text("""
+                            ALTER TABLE dbo.CAMPOS
+                            ADD LISTA_MOBILE_LABEL varchar(100) NOT NULL
+                                CONSTRAINT DF_CAMPOS_LISTA_MOBILE_LABEL DEFAULT ''
+                        """))
+                        conn.execute(text("""
+                            UPDATE dbo.CAMPOS
+                            SET LISTA_MOBILE_LABEL = LTRIM(RTRIM(ISNULL(DESCRICAO, '')))
+                            WHERE LTRIM(RTRIM(ISNULL(LISTA_MOBILE_LABEL, ''))) = ''
+                        """))
+                return
+            except OperationalError as exc:
+                db.session.rollback()
+                if attempt == 0 and _is_disconnect(exc):
+                    try:
+                        db.engine.dispose()
+                    except Exception:
+                        pass
+                    time.sleep(0.2)
+                    continue
+                raise
 
     _SCREEN_PERSONALIZER_VARIABLE_TYPES = {
         'TEXT',
@@ -11154,6 +11163,225 @@ def create_app():
         existing = {str(row.get('CN') or '').upper() for row in rows}
         return wanted.issubset(existing)
 
+    def _table_exists(table_name: str) -> bool:
+        row = db.session.execute(text("""
+            SELECT TOP 1 1
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'dbo'
+              AND TABLE_NAME = :table_name
+        """), {'table_name': str(table_name or '').strip()}).first()
+        return bool(row)
+
+    def _ensure_fe_cluster_schema():
+        if not _table_has_columns('FE', 'E_CLUSTER'):
+            db.session.execute(text("""
+                ALTER TABLE dbo.FE
+                ADD E_CLUSTER bit NOT NULL
+                    CONSTRAINT DF_FE_E_CLUSTER DEFAULT 0
+            """))
+            db.session.commit()
+
+        if not _table_exists('FE_CLUSTER_ENTIDADES'):
+            db.session.execute(text("""
+                CREATE TABLE dbo.FE_CLUSTER_ENTIDADES
+                (
+                    FECLUSTERENTSTAMP varchar(25) NOT NULL,
+                    FESTAMP_CLUSTER   varchar(25) NOT NULL,
+                    FESTAMP_ENTIDADE  varchar(25) NOT NULL,
+                    DTCRI             datetime2(0) NOT NULL
+                        CONSTRAINT DF_FE_CLUSTER_ENTIDADES_DTCRI DEFAULT GETDATE(),
+                    DTALT             datetime2(0) NULL,
+                    USERCRIACAO       varchar(50) NOT NULL
+                        CONSTRAINT DF_FE_CLUSTER_ENTIDADES_USERCRIACAO DEFAULT '',
+                    USERALTERACAO     varchar(50) NOT NULL
+                        CONSTRAINT DF_FE_CLUSTER_ENTIDADES_USERALTERACAO DEFAULT '',
+                    CONSTRAINT PK_FE_CLUSTER_ENTIDADES PRIMARY KEY (FECLUSTERENTSTAMP),
+                    CONSTRAINT CK_FE_CLUSTER_ENTIDADES_SELF CHECK (FESTAMP_CLUSTER <> FESTAMP_ENTIDADE)
+                )
+            """))
+            db.session.commit()
+
+        db.session.execute(text("""
+            IF NOT EXISTS (
+                SELECT 1
+                FROM sys.indexes
+                WHERE object_id = OBJECT_ID('dbo.FE_CLUSTER_ENTIDADES')
+                  AND name = 'UX_FE_CLUSTER_ENTIDADES_CLUSTER_ENTIDADE'
+            )
+            BEGIN
+                ALTER TABLE dbo.FE_CLUSTER_ENTIDADES
+                ADD CONSTRAINT UX_FE_CLUSTER_ENTIDADES_CLUSTER_ENTIDADE
+                    UNIQUE (FESTAMP_CLUSTER, FESTAMP_ENTIDADE);
+            END
+        """))
+        db.session.execute(text("""
+            IF NOT EXISTS (
+                SELECT 1
+                FROM sys.indexes
+                WHERE object_id = OBJECT_ID('dbo.FE_CLUSTER_ENTIDADES')
+                  AND name = 'IX_FE_CLUSTER_ENTIDADES_CLUSTER'
+            )
+            BEGIN
+                CREATE INDEX IX_FE_CLUSTER_ENTIDADES_CLUSTER
+                ON dbo.FE_CLUSTER_ENTIDADES (FESTAMP_CLUSTER);
+            END
+        """))
+        db.session.execute(text("""
+            IF NOT EXISTS (
+                SELECT 1
+                FROM sys.indexes
+                WHERE object_id = OBJECT_ID('dbo.FE_CLUSTER_ENTIDADES')
+                  AND name = 'IX_FE_CLUSTER_ENTIDADES_ENTIDADE'
+            )
+            BEGIN
+                CREATE INDEX IX_FE_CLUSTER_ENTIDADES_ENTIDADE
+                ON dbo.FE_CLUSTER_ENTIDADES (FESTAMP_ENTIDADE);
+            END
+        """))
+        db.session.execute(text("""
+            IF NOT EXISTS (
+                SELECT 1
+                FROM sys.foreign_keys
+                WHERE parent_object_id = OBJECT_ID('dbo.FE_CLUSTER_ENTIDADES')
+                  AND name = 'FK_FE_CLUSTER_ENTIDADES_CLUSTER'
+            )
+            BEGIN
+                ALTER TABLE dbo.FE_CLUSTER_ENTIDADES
+                ADD CONSTRAINT FK_FE_CLUSTER_ENTIDADES_CLUSTER
+                    FOREIGN KEY (FESTAMP_CLUSTER) REFERENCES dbo.FE(FESTAMP);
+            END
+        """))
+        db.session.execute(text("""
+            IF NOT EXISTS (
+                SELECT 1
+                FROM sys.foreign_keys
+                WHERE parent_object_id = OBJECT_ID('dbo.FE_CLUSTER_ENTIDADES')
+                  AND name = 'FK_FE_CLUSTER_ENTIDADES_ENTIDADE'
+            )
+            BEGIN
+                ALTER TABLE dbo.FE_CLUSTER_ENTIDADES
+                ADD CONSTRAINT FK_FE_CLUSTER_ENTIDADES_ENTIDADE
+                    FOREIGN KEY (FESTAMP_ENTIDADE) REFERENCES dbo.FE(FESTAMP);
+            END
+        """))
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.TR_FE_CLUSTER_ENTIDADES_VALIDATE', 'TR') IS NULL
+            EXEC('CREATE TRIGGER dbo.TR_FE_CLUSTER_ENTIDADES_VALIDATE ON dbo.FE_CLUSTER_ENTIDADES
+                  AFTER INSERT, UPDATE
+                  AS
+                  BEGIN
+                      SET NOCOUNT ON;
+                  END')
+        """))
+        db.session.execute(text("""
+            ALTER TRIGGER dbo.TR_FE_CLUSTER_ENTIDADES_VALIDATE
+            ON dbo.FE_CLUSTER_ENTIDADES
+            AFTER INSERT, UPDATE
+            AS
+            BEGIN
+                SET NOCOUNT ON;
+
+                IF EXISTS (
+                    SELECT 1
+                    FROM inserted I
+                    LEFT JOIN dbo.FE CL ON CL.FESTAMP = I.FESTAMP_CLUSTER
+                    LEFT JOIN dbo.FE EN ON EN.FESTAMP = I.FESTAMP_ENTIDADE
+                    WHERE CL.FESTAMP IS NULL
+                       OR EN.FESTAMP IS NULL
+                       OR ISNULL(CL.E_CLUSTER, 0) <> 1
+                       OR ISNULL(EN.E_CLUSTER, 0) = 1
+                       OR I.FESTAMP_CLUSTER = I.FESTAMP_ENTIDADE
+                )
+                BEGIN
+                    RAISERROR('Associacao de cluster FE invalida.', 16, 1);
+                    ROLLBACK TRANSACTION;
+                    RETURN;
+                END
+            END
+        """))
+        db.session.commit()
+
+    def _fe_cluster_enabled():
+        return _table_has_columns('FE', 'E_CLUSTER') and _table_exists('FE_CLUSTER_ENTIDADES')
+
+    def _fe_cluster_json_error():
+        return jsonify({'error': 'A base de dados ainda não tem a estrutura de clusters FE. Aplique migrations/fe_cluster.sql.'}), 400
+
+    def _load_fe_cluster_members(festamp: str):
+        return [dict(r) for r in db.session.execute(text("""
+            SELECT
+                C.FECLUSTERENTSTAMP,
+                C.FESTAMP_CLUSTER,
+                C.FESTAMP_ENTIDADE,
+                ISNULL(FE.NIF, 0) AS NIF,
+                ISNULL(FE.NOME, '') AS NOME,
+                ISNULL(FE.NOMEFISCAL, '') AS NOMEFISCAL,
+                ISNULL(FE.LOCAL, '') AS LOCAL,
+                ISNULL(FE.PAISISO2, '') AS PAISISO2,
+                ISNULL(FE.ATIVA, 0) AS ATIVA,
+                C.DTCRI,
+                C.DTALT,
+                ISNULL(C.USERCRIACAO, '') AS USERCRIACAO,
+                ISNULL(C.USERALTERACAO, '') AS USERALTERACAO
+            FROM dbo.FE_CLUSTER_ENTIDADES C
+            INNER JOIN dbo.FE FE
+                ON FE.FESTAMP = C.FESTAMP_ENTIDADE
+            WHERE C.FESTAMP_CLUSTER = :festamp
+            ORDER BY ISNULL(FE.NOME, ''), ISNULL(FE.NOMEFISCAL, ''), ISNULL(FE.NIF, 0)
+        """), {'festamp': str(festamp or '').strip()}).mappings().all()]
+
+    def _load_fe_cluster_candidates(festamp: str, q: str = ''):
+        sql = """
+            SELECT
+                FE.FESTAMP,
+                ISNULL(FE.NIF, 0) AS NIF,
+                ISNULL(FE.NOME, '') AS NOME,
+                ISNULL(FE.NOMEFISCAL, '') AS NOMEFISCAL,
+                ISNULL(FE.LOCAL, '') AS LOCAL,
+                ISNULL(FE.PAISISO2, '') AS PAISISO2,
+                ISNULL(FE.ATIVA, 0) AS ATIVA
+            FROM dbo.FE FE
+            WHERE FE.FESTAMP <> :festamp
+              AND ISNULL(FE.E_CLUSTER, 0) = 0
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.FE_CLUSTER_ENTIDADES C
+                    WHERE C.FESTAMP_CLUSTER = :festamp
+                      AND C.FESTAMP_ENTIDADE = FE.FESTAMP
+              )
+        """
+        params = {
+            'festamp': str(festamp or '').strip(),
+        }
+        if str(q or '').strip():
+            sql += """
+              AND (
+                    ISNULL(FE.NOME, '') LIKE :q
+                 OR ISNULL(FE.NOMEFISCAL, '') LIKE :q
+                 OR CONVERT(varchar(30), ISNULL(FE.NIF, 0)) LIKE :q
+                 OR ISNULL(FE.LOCAL, '') LIKE :q
+              )
+            """
+            params['q'] = f"%{str(q).strip()}%"
+        sql += " ORDER BY ISNULL(FE.ATIVA, 1) DESC, ISNULL(FE.NOME, ''), ISNULL(FE.NOMEFISCAL, '')"
+        return [dict(r) for r in db.session.execute(text(sql), params).mappings().all()]
+
+    def _fe_cluster_members_count(festamp: str) -> int:
+        row = db.session.execute(text("""
+            SELECT COUNT(*) AS C
+            FROM dbo.FE_CLUSTER_ENTIDADES
+            WHERE FESTAMP_CLUSTER = :festamp
+        """), {'festamp': str(festamp or '').strip()}).mappings().first()
+        return _to_int((row or {}).get('C'), 0)
+
+    def _fe_cluster_parent_count(festamp: str) -> int:
+        row = db.session.execute(text("""
+            SELECT COUNT(*) AS C
+            FROM dbo.FE_CLUSTER_ENTIDADES
+            WHERE FESTAMP_ENTIDADE = :festamp
+        """), {'festamp': str(festamp or '').strip()}).mappings().first()
+        return _to_int((row or {}).get('C'), 0)
+
     def _fe_logo_column_available():
         return _table_has_columns('FE', 'LOGOTIPO_PATH')
 
@@ -12087,6 +12315,7 @@ def create_app():
     def entidades_page(festamp=None):
         if not _fe_has_permission('consultar'):
             abort(403)
+        _ensure_fe_cluster_schema()
         return render_template(
             'entidades.html',
             page_title='Entidades',
@@ -12095,6 +12324,7 @@ def create_app():
             fe_can_edit=_fe_has_permission('editar'),
             fe_can_delete=_fe_has_permission('eliminar'),
             fe_logo_enabled=_fe_logo_column_available(),
+            fe_cluster_enabled=_fe_cluster_enabled(),
         )
 
     @app.route('/faturacao/series')
@@ -13130,6 +13360,7 @@ def create_app():
     @app.route('/api/lookups/fe', methods=['GET'])
     @login_required
     def api_lookup_fe():
+        _ensure_fe_cluster_schema()
         rows = db.session.execute(text("""
             SELECT FESTAMP, NIF, NOME
             FROM dbo.FE
@@ -13143,6 +13374,7 @@ def create_app():
     def api_entidades_list():
         if not _fe_has_permission('consultar'):
             return jsonify({'error': 'Sem permissão para consultar entidades.'}), 403
+        _ensure_fe_cluster_schema()
 
         q = (request.args.get('q') or '').strip()
         active = (request.args.get('active') or '').strip().lower()
@@ -13158,12 +13390,14 @@ def create_app():
                 FE.LOCAL,
                 FE.PAISISO2,
                 FE.ATIVA,
+                ISNULL(FE.E_CLUSTER, 0) AS E_CLUSTER,
                 FE.CERTNUM,
                 FE.AT_WS_ATIVO,
                 FE.DTAlteracao,
                 FE.USERALTERACAO,
                 ISNULL(SER.SERIES_TOTAL, 0) AS SERIES_TOTAL,
-                ISNULL(SER.SERIES_ATIVAS, 0) AS SERIES_ATIVAS
+                ISNULL(SER.SERIES_ATIVAS, 0) AS SERIES_ATIVAS,
+                ISNULL(CLS.MEMBER_COUNT, 0) AS CLUSTER_MEMBER_COUNT
             FROM dbo.FE FE
             LEFT JOIN (
                 SELECT
@@ -13173,6 +13407,13 @@ def create_app():
                 FROM dbo.FTS
                 GROUP BY FESTAMP
             ) SER ON SER.FESTAMP = FE.FESTAMP
+            LEFT JOIN (
+                SELECT
+                    FESTAMP_CLUSTER,
+                    COUNT(*) AS MEMBER_COUNT
+                FROM dbo.FE_CLUSTER_ENTIDADES
+                GROUP BY FESTAMP_CLUSTER
+            ) CLS ON CLS.FESTAMP_CLUSTER = FE.FESTAMP
             WHERE 1=1
         """
         params = {}
@@ -13201,12 +13442,15 @@ def create_app():
     def api_entidades_detail(festamp):
         if not _fe_has_permission('consultar'):
             return jsonify({'error': 'Sem permissão para consultar entidades.'}), 403
+        _ensure_fe_cluster_schema()
 
         row = db.session.execute(text("""
             SELECT
                 FE.*,
                 ISNULL(SER.SERIES_TOTAL, 0) AS SERIES_TOTAL,
-                ISNULL(SER.SERIES_ATIVAS, 0) AS SERIES_ATIVAS
+                ISNULL(SER.SERIES_ATIVAS, 0) AS SERIES_ATIVAS,
+                ISNULL(CLS.MEMBER_COUNT, 0) AS CLUSTER_MEMBER_COUNT,
+                ISNULL(PRN.PARENT_COUNT, 0) AS CLUSTER_PARENT_COUNT
             FROM dbo.FE FE
             LEFT JOIN (
                 SELECT
@@ -13216,6 +13460,20 @@ def create_app():
                 FROM dbo.FTS
                 GROUP BY FESTAMP
             ) SER ON SER.FESTAMP = FE.FESTAMP
+            LEFT JOIN (
+                SELECT
+                    FESTAMP_CLUSTER,
+                    COUNT(*) AS MEMBER_COUNT
+                FROM dbo.FE_CLUSTER_ENTIDADES
+                GROUP BY FESTAMP_CLUSTER
+            ) CLS ON CLS.FESTAMP_CLUSTER = FE.FESTAMP
+            LEFT JOIN (
+                SELECT
+                    FESTAMP_ENTIDADE,
+                    COUNT(*) AS PARENT_COUNT
+                FROM dbo.FE_CLUSTER_ENTIDADES
+                GROUP BY FESTAMP_ENTIDADE
+            ) PRN ON PRN.FESTAMP_ENTIDADE = FE.FESTAMP
             WHERE FE.FESTAMP = :festamp
         """), {'festamp': (festamp or '').strip()}).mappings().first()
         if not row:
@@ -13337,11 +13595,164 @@ def create_app():
     def api_entidades_modules():
         if not _fe_has_permission('consultar'):
             return jsonify({'error': 'Sem permissão para consultar entidades.'}), 403
+        _ensure_fe_cluster_schema()
         return jsonify({'rows': _load_fe_module_rows('')})
+
+    @app.route('/api/entidades/<festamp>/cluster-members', methods=['GET'])
+    @login_required
+    def api_entidades_cluster_members(festamp):
+        if not _fe_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar entidades.'}), 403
+        _ensure_fe_cluster_schema()
+        festamp = str(festamp or '').strip()
+        if not festamp:
+            return jsonify({'error': 'FESTAMP obrigatório.'}), 400
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                FESTAMP,
+                ISNULL(E_CLUSTER, 0) AS E_CLUSTER
+            FROM dbo.FE
+            WHERE FESTAMP = :festamp
+        """), {'festamp': festamp}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Entidade não encontrada.'}), 404
+        return jsonify({
+            'rows': _load_fe_cluster_members(festamp),
+            'is_cluster': bool(_to_int((row or {}).get('E_CLUSTER'), 0)),
+        })
+
+    @app.route('/api/entidades/<festamp>/cluster-candidates', methods=['GET'])
+    @login_required
+    def api_entidades_cluster_candidates(festamp):
+        if not _fe_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar entidades.'}), 403
+        _ensure_fe_cluster_schema()
+        festamp = str(festamp or '').strip()
+        if not festamp:
+            return jsonify({'error': 'FESTAMP obrigatório.'}), 400
+        cluster_row = db.session.execute(text("""
+            SELECT TOP 1
+                FESTAMP,
+                ISNULL(E_CLUSTER, 0) AS E_CLUSTER
+            FROM dbo.FE
+            WHERE FESTAMP = :festamp
+        """), {'festamp': festamp}).mappings().first()
+        if not cluster_row:
+            return jsonify({'error': 'Entidade não encontrada.'}), 404
+        if not bool(_to_int((cluster_row or {}).get('E_CLUSTER'), 0)):
+            return jsonify({'rows': []})
+        q = str(request.args.get('q') or '').strip()
+        return jsonify({'rows': _load_fe_cluster_candidates(festamp, q)})
+
+    @app.route('/api/entidades/<festamp>/cluster-members', methods=['POST'])
+    @login_required
+    def api_entidades_cluster_add_member(festamp):
+        if not _fe_has_permission('editar'):
+            return jsonify({'error': 'Sem permissão para editar entidades.'}), 403
+        _ensure_fe_cluster_schema()
+        cluster_festamp = str(festamp or '').strip()
+        body = request.get_json(silent=True) or {}
+        member_festamp = str(body.get('member_festamp') or body.get('FESTAMP_ENTIDADE') or '').strip()
+        if not cluster_festamp or not member_festamp:
+            return jsonify({'error': 'Cluster e entidade são obrigatórios.'}), 400
+        if cluster_festamp == member_festamp:
+            return jsonify({'error': 'O cluster não pode conter-se a si próprio.'}), 400
+
+        cluster_row = db.session.execute(text("""
+            SELECT TOP 1
+                FESTAMP,
+                ISNULL(E_CLUSTER, 0) AS E_CLUSTER
+            FROM dbo.FE
+            WHERE FESTAMP = :festamp
+        """), {'festamp': cluster_festamp}).mappings().first()
+        member_row = db.session.execute(text("""
+            SELECT TOP 1
+                FESTAMP,
+                ISNULL(E_CLUSTER, 0) AS E_CLUSTER
+            FROM dbo.FE
+            WHERE FESTAMP = :festamp
+        """), {'festamp': member_festamp}).mappings().first()
+
+        if not cluster_row:
+            return jsonify({'error': 'FE cluster não encontrada.'}), 404
+        if not member_row:
+            return jsonify({'error': 'FE membro não encontrada.'}), 404
+        if not bool(_to_int((cluster_row or {}).get('E_CLUSTER'), 0)):
+            return jsonify({'error': 'A FE selecionada não está marcada como cluster.'}), 400
+        if bool(_to_int((member_row or {}).get('E_CLUSTER'), 0)):
+            return jsonify({'error': 'Uma FE cluster não pode ser membro de outro cluster.'}), 400
+
+        exists = db.session.execute(text("""
+            SELECT TOP 1 FECLUSTERENTSTAMP
+            FROM dbo.FE_CLUSTER_ENTIDADES
+            WHERE FESTAMP_CLUSTER = :cluster_festamp
+              AND FESTAMP_ENTIDADE = :member_festamp
+        """), {
+            'cluster_festamp': cluster_festamp,
+            'member_festamp': member_festamp,
+        }).mappings().first()
+        if exists:
+            return jsonify({'error': 'A entidade já pertence a esse cluster.'}), 400
+
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        try:
+            db.session.execute(text("""
+                INSERT INTO dbo.FE_CLUSTER_ENTIDADES
+                (
+                    FECLUSTERENTSTAMP, FESTAMP_CLUSTER, FESTAMP_ENTIDADE,
+                    DTCRI, DTALT, USERCRIACAO, USERALTERACAO
+                )
+                VALUES
+                (
+                    :stamp, :cluster_festamp, :member_festamp,
+                    GETDATE(), GETDATE(), :user_login, :user_login
+                )
+            """), {
+                'stamp': _new_stamp_25(),
+                'cluster_festamp': cluster_festamp,
+                'member_festamp': member_festamp,
+                'user_login': user_login,
+            })
+            db.session.commit()
+            return jsonify({'ok': True, 'rows': _load_fe_cluster_members(cluster_festamp)})
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception('Erro ao adicionar membro ao cluster FE.')
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/entidades/<festamp>/cluster-members/<member_festamp>/delete', methods=['POST'])
+    @login_required
+    def api_entidades_cluster_remove_member(festamp, member_festamp):
+        if not _fe_has_permission('editar'):
+            return jsonify({'error': 'Sem permissão para editar entidades.'}), 403
+        _ensure_fe_cluster_schema()
+        cluster_festamp = str(festamp or '').strip()
+        member_festamp = str(member_festamp or '').strip()
+        if not cluster_festamp or not member_festamp:
+            return jsonify({'error': 'Cluster e entidade são obrigatórios.'}), 400
+        try:
+            res = db.session.execute(text("""
+                DELETE FROM dbo.FE_CLUSTER_ENTIDADES
+                WHERE FESTAMP_CLUSTER = :cluster_festamp
+                  AND FESTAMP_ENTIDADE = :member_festamp
+            """), {
+                'cluster_festamp': cluster_festamp,
+                'member_festamp': member_festamp,
+            })
+            if not res.rowcount:
+                db.session.rollback()
+                return jsonify({'error': 'Associação não encontrada.'}), 404
+            db.session.commit()
+            return jsonify({'ok': True, 'rows': _load_fe_cluster_members(cluster_festamp)})
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception('Erro ao remover membro do cluster FE.')
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/api/entidades/save', methods=['POST'])
     @login_required
     def api_entidades_save():
+        _ensure_fe_cluster_schema()
         body = request.get_json(silent=True) or {}
         raw = body.get('row') if isinstance(body.get('row'), dict) else body
         raw_modules = body.get('modules') if isinstance(body.get('modules'), list) else []
@@ -13391,6 +13802,7 @@ def create_app():
             'AT_WS_AMBIENTE': (raw.get('AT_WS_AMBIENTE') or '').strip(),
             'AT_WS_USER': (raw.get('AT_WS_USER') or '').strip(),
             'AT_WS_PASS': (raw.get('AT_WS_PASS') or '').strip(),
+            'E_CLUSTER': 1 if raw.get('E_CLUSTER') else 0,
             'LOGOTIPO_PATH': (raw.get('LOGOTIPO_PATH') or '').strip(),
             'USERALTERACAO': user_login,
         })
@@ -13401,6 +13813,13 @@ def create_app():
             return jsonify({'error': 'O campo Nome fiscal é obrigatório.'}), 400
         if payload['NIF'] <= 0:
             return jsonify({'error': 'O campo NIF é obrigatório.'}), 400
+
+        existing_cluster_members = _fe_cluster_members_count(payload['FESTAMP']) if exists else 0
+        existing_cluster_parent_count = _fe_cluster_parent_count(payload['FESTAMP']) if exists else 0
+        if not payload['E_CLUSTER'] and existing_cluster_members > 0:
+            return jsonify({'error': 'Não pode desmarcar "É cluster" enquanto existirem entidades associadas.'}), 400
+        if payload['E_CLUSTER'] and existing_cluster_parent_count > 0:
+            return jsonify({'error': 'Uma FE que já pertence a um cluster não pode ser marcada como cluster.'}), 400
 
         normalized_modules = []
         seen_modstamps = set()
@@ -13448,6 +13867,7 @@ def create_app():
                         AT_WS_AMBIENTE=:AT_WS_AMBIENTE,
                         AT_WS_USER=:AT_WS_USER,
                         AT_WS_PASS=:AT_WS_PASS,
+                        E_CLUSTER=:E_CLUSTER,
                         """ + logo_set_sql + """
                         DTAlteracao=GETDATE(),
                         USERALTERACAO=:USERALTERACAO
@@ -13459,14 +13879,14 @@ def create_app():
                     (
                         FESTAMP, NIF, NOME, NOMEFISCAL, ATIVIDADE, MORADA, MORADA2, CODPOST, LOCAL, PAISISO2,
                         EMAIL, TELEFONE, ATIVA, OBS, CERTNUM, ATCUD_PREFIX, QRVER, HASHVER, KEYID,
-                        RSA_PRIV_PATH, RSA_PUB_PATH, AT_WS_ATIVO, AT_WS_AMBIENTE, AT_WS_USER, AT_WS_PASS,
+                        RSA_PRIV_PATH, RSA_PUB_PATH, AT_WS_ATIVO, AT_WS_AMBIENTE, AT_WS_USER, AT_WS_PASS, E_CLUSTER,
                         DTCriacao, DTAlteracao, USERCRIACAO, USERALTERACAO""" + logo_insert_columns + """
                     )
                     VALUES
                     (
                         :FESTAMP, :NIF, :NOME, :NOMEFISCAL, :ATIVIDADE, :MORADA, :MORADA2, :CODPOST, :LOCAL, :PAISISO2,
                         :EMAIL, :TELEFONE, :ATIVA, :OBS, :CERTNUM, :ATCUD_PREFIX, :QRVER, :HASHVER, :KEYID,
-                        :RSA_PRIV_PATH, :RSA_PUB_PATH, :AT_WS_ATIVO, :AT_WS_AMBIENTE, :AT_WS_USER, :AT_WS_PASS,
+                        :RSA_PRIV_PATH, :RSA_PUB_PATH, :AT_WS_ATIVO, :AT_WS_AMBIENTE, :AT_WS_USER, :AT_WS_PASS, :E_CLUSTER,
                         GETDATE(), GETDATE(), :USERCRIACAO, :USERALTERACAO""" + logo_insert_values + """
                     )
                 """), payload)
@@ -13530,9 +13950,14 @@ def create_app():
     def api_entidades_delete(festamp):
         if not _fe_has_permission('eliminar'):
             return jsonify({'error': 'Sem permissão para eliminar entidades.'}), 403
+        _ensure_fe_cluster_schema()
         festamp = (festamp or '').strip()
         if not festamp:
             return jsonify({'error': 'FESTAMP obrigatório.'}), 400
+        if _fe_cluster_members_count(festamp) > 0:
+            return jsonify({'error': 'Não pode eliminar uma FE cluster com entidades associadas.'}), 400
+        if _fe_cluster_parent_count(festamp) > 0:
+            return jsonify({'error': 'Não pode eliminar uma FE que está associada a um cluster.'}), 400
         try:
             res = db.session.execute(text("DELETE FROM dbo.FE WHERE FESTAMP=:festamp"), {'festamp': festamp})
             if not res.rowcount:
@@ -15211,10 +15636,9 @@ def create_app():
     def api_screen_personalizer_bootstrap():
         if not _screen_personalizer_allowed():
             return jsonify({'error': 'Sem permissão para usar a personalização de ecrãs.'}), 403
-
-        screens = _load_screen_personalizer_screens()
-        sql_tables = []
         try:
+            screens = _load_screen_personalizer_screens()
+            sql_tables = []
             sql_tables = [
                 {
                     'key': str(item.get('key') or '').strip(),
@@ -15225,18 +15649,19 @@ def create_app():
                 for item in _load_database_manager_tables()
                 if str(item.get('key') or '').strip()
             ]
-        except Exception:
+            requested = str(request.args.get('menustamp') or '').strip()
+            selected = requested or (str(screens[0].get('MENUSTAMP') or '').strip() if screens else '')
+            detail = _load_screen_personalizer_layout(selected) if selected else None
+            return jsonify({
+                'screens': screens,
+                'sql_tables': sql_tables,
+                'selected_menustamp': selected,
+                'detail': detail,
+            })
+        except Exception as exc:
             db.session.rollback()
-            sql_tables = []
-        requested = str(request.args.get('menustamp') or '').strip()
-        selected = requested or (str(screens[0].get('MENUSTAMP') or '').strip() if screens else '')
-        detail = _load_screen_personalizer_layout(selected) if selected else None
-        return jsonify({
-            'screens': screens,
-            'sql_tables': sql_tables,
-            'selected_menustamp': selected,
-            'detail': detail,
-        })
+            app.logger.exception('Erro ao carregar screen_personalizer bootstrap.')
+            return jsonify({'error': str(exc)}), 500
 
     @app.route('/api/database_manager/bootstrap', methods=['GET'])
     @login_required

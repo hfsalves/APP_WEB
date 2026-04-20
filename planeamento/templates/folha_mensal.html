@@ -1,0 +1,561 @@
+{% set next_url = request.full_path.rstrip('?') %}
+{% set current_option = (languages | selectattr('code', 'equalto', current_lang) | list | first) or (languages | first) %}
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t.monthly_sheet_title or 'Folha Mensal' }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='main.js') }}" defer></script>
+</head>
+<body class="dashboard-page">
+    <div class="dashboard-wrapper">
+        <header class="dashboard-header">
+            <div>
+                <h1>{{ t.monthly_sheet_heading or 'Folha Mensal' }}</h1>
+                <p class="user-meta">{{ t.dashboard_user_label }}: {{ user.username }} ({{ user.usercode }})</p>
+            </div>
+            <div class="header-actions">
+                <details class="language-dropdown" data-language-area>
+                    <summary>
+                        <span class="chip-flag">{{ current_option.flag }}</span>
+                        <span class="chip-label">{{ current_option.label }}</span>
+                        <span class="chip-chevron" aria-hidden="true"></span>
+                    </summary>
+                    <ul class="language-dropdown-list" role="menu">
+                        {% for option in languages %}
+                            <li>
+                                {% if option.code == current_lang %}
+                                    <span class="language-option active" aria-current="true">
+                                        <span class="chip-flag">{{ option.flag }}</span>
+                                        <span class="chip-label">{{ option.label }}</span>
+                                    </span>
+                                {% else %}
+                                    <a class="language-option" href="{{ url_for('change_language', lang_code=option.code, next=next_url) }}" role="menuitem">
+                                        <span class="chip-flag">{{ option.flag }}</span>
+                                        <span class="chip-label">{{ option.label }}</span>
+                                    </a>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </details>
+                <a class="logout" data-logout-link href="{{ url_for('logout') }}">{{ t.logout_link }}</a>
+                {% include '_app_menu.html' %}
+            </div>
+        </header>
+
+        <div class="filters-layout">
+            <section class="filters-card" data-filters-area>
+                <form method="get" action="{{ url_for('folha_mensal') }}" class="filters-form">
+                    <div class="filter-control filter-date">
+                        <label for="month-filter">{{ t.monthly_sheet_filter_label or 'Mês' }}</label>
+                        <input type="month" id="month-filter" name="month" value="{{ selected_month }}">
+                    </div>
+                    {% if team_options %}
+                    <div class="filter-control filter-teams">
+                        <span class="filter-label">{{ t.monthly_sheet_team_filter or 'Equipas' }}</span>
+                        <details class="filter-dropdown">
+                            <summary>
+                                <span class="filter-pill">
+                                    <span class="filter-pill-text">
+                                        {% if selected_team_codes %}
+                                            {{ selected_team_codes|join(', ') }}
+                                        {% else %}
+                                            {{ t.monthly_sheet_team_all or 'Todas' }}
+                                        {% endif %}
+                                    </span>
+                                    <span class="chip-chevron" aria-hidden="true"></span>
+                                </span>
+                            </summary>
+                            <div class="filter-dropdown-panel">
+                                {% for team in team_options %}
+                                    {% set checkbox_id = 'team-' ~ team.code %}
+                                    <label class="market-option" for="{{ checkbox_id }}">
+                                        <input id="{{ checkbox_id }}" type="checkbox" name="teams" value="{{ team.code }}" {% if team.code in selected_team_codes %}checked{% endif %}>
+                                        <span class="option-label">{{ team.code }}</span>
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        </details>
+                    </div>
+                    {% endif %}
+                    <div class="filter-actions">
+                        <button type="submit" class="filters-submit">OK</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+
+        <main class="dashboard-main">
+            {% if monthly_error %}
+                <p class="error">{{ monthly_error }}</p>
+            {% endif %}
+
+            {% if monthly_summary %}
+                <div class="table-card monthly-summary-card">
+                    <div class="table-card-header">
+                        <h2>{{ t.monthly_sheet_heading or 'Folha Mensal' }}{% if month_label %} - {{ month_label }}{% endif %}</h2>
+                    </div>
+                    <div class="table-card-body">
+                        <div class="table-responsive">
+                            <table class="monthly-summary-table" aria-label="{{ t.monthly_sheet_heading or 'Folha Mensal' }}" data-year="{{ selected_year }}" data-month="{{ selected_month_number }}">
+                                <thead>
+                                    <tr>
+                                        <th class="team-col">{{ t.monthly_sheet_team or 'Equipa' }}</th>
+                                        <th>{{ t.monthly_sheet_employee or 'Colaborador' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_m2 or 'M2' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_m2_pay or 'Total m2' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_serragem or 'Serragem' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_serragem_pay or 'Total serragem' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_kg or 'Kg Ferro' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_kg_pay or 'Total ferro' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_other_pay or 'Outros' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_daily or 'Diário' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_complement or 'Complemento' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_maintenance or 'Manutenção' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_chief or 'Chefia' }}</th>
+                                        <th class="numeric">{{ t.monthly_sheet_total or 'Total' }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in monthly_summary %}
+                                        <tr class="{% if row.is_chief %}is-chief{% endif %}">
+                                            <td class="team-col">{{ row.team_code }}</td>
+                                            <td>{{ row.employee_name }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.m2_total) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.m2_pay) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.serragem_total) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.serragem_pay) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.kg_total) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.kg_pay) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.other_pay) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.daily_pay) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.complement_pay) }}</td>
+                                            <td class="numeric">
+                                                <input type="text" step="0.01" value="{{ "%.2f"|format(row.maintenance) }}" class="production-code-input production-decimal-input monthly-maintenance-input{% if row.maintenance != 80 %} is-custom{% endif %}" data-monthly-decimal data-employee-number="{{ row.employee_number }}" data-employee-name="{{ row.employee_name }}" aria-label="{{ t.monthly_sheet_maintenance or 'Manutenção' }}">
+                                            </td>
+                                            <td class="numeric">{{ "%.2f"|format(row.chief_pay) }}</td>
+                                            <td class="numeric">{{ "%.2f"|format(row.total_pay) }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr class="total-row">
+                                        <td class="team-col">{{ monthly_totals.team_code }}</td>
+                                        <td>{{ t.monthly_sheet_total_label or '' }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.m2_total) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.m2_pay) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.serragem_total) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.serragem_pay) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.kg_total) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.kg_pay) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.other_pay) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.daily_pay) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.complement_pay) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.maintenance) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.chief_pay) }}</td>
+                                        <td class="numeric">{{ "%.2f"|format(monthly_totals.total_pay) }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <p>{{ t.monthly_sheet_no_data or 'Sem dados para este mês.' }}</p>
+            {% endif %}
+        </main>
+
+</div>
+<div class="editing-bar" data-monthly-save-bar hidden>
+    <div class="editing-bar-content">
+        <p class="editing-bar-message">
+            <span class="editing-bar-indicator" aria-hidden="true"></span>
+            {{ t.planning_editing_message }}
+        </p>
+        <div class="editing-bar-actions">
+            <button type="button" class="editing-button editing-cancel" data-monthly-cancel>{{ t.planning_cancel_button }}</button>
+            <button type="button" class="editing-button editing-save" data-monthly-save>{{ t.planning_save_button }}</button>
+        </div>
+    </div>
+</div>
+
+<div id="monthly-detail-modal" class="modal-overlay monthly-detail-modal" hidden aria-hidden="true">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="monthly-detail-title" tabindex="-1">
+        <header class="modal-header">
+            <h2 id="monthly-detail-title">{{ t.monthly_sheet_detail_title or 'Detalhe do Colaborador' }}</h2>
+            <p class="modal-project-meta" data-detail-employee></p>
+        </header>
+        <div class="modal-body">
+            <div class="table-responsive">
+                <table class="monthly-detail-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t.monthly_detail_date or 'Data' }}</th>
+                            <th>{{ t.monthly_detail_project or 'Obra' }}</th>
+                            <th>{{ t.monthly_detail_item or 'Item' }}</th>
+                            <th>{{ t.monthly_detail_acab or 'Acabamento' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_m2 or 'M2' }}</th>
+                            <th class="numeric">{{ t.monthly_detail_unit_price or 'Preço m2' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_m2_pay or 'Total m2' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_serragem or 'Serragem' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_serragem_pay or 'Total serragem' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_kg or 'Kg ferro' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_kg_pay or 'Total ferro' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_other_pay or 'Outros' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_daily or 'Diário' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_complement or 'Complemento' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_maintenance or 'Manutenção' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_chief or 'Chefia' }}</th>
+                            <th class="numeric">{{ t.monthly_sheet_total or 'Total' }}</th>
+                        </tr>
+                    </thead>
+                    <tbody data-detail-body>
+                        <tr><td colspan="17">{{ t.monthly_detail_loading or 'A carregar...' }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="modal-button modal-cancel" data-detail-close>{{ t.modal_cancel }}</button>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+<script>
+    (function() {
+        function ready(fn) {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', fn);
+            } else {
+                fn();
+            }
+        }
+        function sanitizeDecimalInput(rawValue, maxDecimals) {
+            if (rawValue === undefined || rawValue === null) {
+                return '';
+            }
+            var value = typeof rawValue === 'string' ? rawValue : String(rawValue);
+            value = value.replace(',', '.');
+            var result = '';
+            var hasDecimal = false;
+            for (var i = 0; i < value.length; i += 1) {
+                var ch = value.charAt(i);
+                if (ch >= '0' && ch <= '9') {
+                    result += ch;
+                    continue;
+                }
+                if (ch === '.' && !hasDecimal) {
+                    result += '.';
+                    hasDecimal = true;
+                }
+            }
+            if (!hasDecimal) {
+                return result;
+            }
+            var parts = result.split('.');
+            var decimals = parts.length > 1 ? parts[1] : '';
+            var limit = typeof maxDecimals === 'number' && maxDecimals >= 0 ? maxDecimals : 2;
+            if (decimals.length > limit) {
+                decimals = decimals.slice(0, limit);
+            }
+            return limit === 0 ? parts[0] : parts[0] + '.' + decimals;
+        }
+        function formatDecimalValue(value, decimalPlaces) {
+            if (value === undefined || value === null) {
+                return '';
+            }
+            var places = typeof decimalPlaces === 'number' && decimalPlaces >= 0 ? decimalPlaces : 2;
+            var sanitized = sanitizeDecimalInput(value, places);
+            if (!sanitized) {
+                return '';
+            }
+            var parsed = parseFloat(sanitized);
+            if (!isFinite(parsed)) {
+                return '';
+            }
+            return parsed.toFixed(places);
+        }
+        function applyDecimalMask(field) {
+            if (!field) return;
+            var decimalPlaces = 2;
+            field.addEventListener('input', function () {
+                var previous = field.value || '';
+                var sanitized = sanitizeDecimalInput(previous, decimalPlaces);
+                if (sanitized !== previous) {
+                    field.value = sanitized;
+                }
+            });
+            field.addEventListener('blur', function () {
+                field.value = formatDecimalValue(field.value, decimalPlaces);
+            });
+        }
+        function parseNumeric(value) {
+            var normalized = String(value || '').replace(',', '.');
+            var parsed = parseFloat(normalized);
+            return isFinite(parsed) ? parsed : 0;
+        }
+        function openDetailModal(employeeNumber, employeeName) {
+            var modal = document.getElementById('monthly-detail-modal');
+            var table = document.querySelector('.monthly-summary-table');
+            if (!modal || !table) return;
+            var body = modal.querySelector('[data-detail-body]');
+            var title = modal.querySelector('[data-detail-employee]');
+            if (title) {
+                title.textContent = employeeNumber + ' - ' + employeeName;
+            }
+            if (body) {
+                body.innerHTML = '<tr><td colspan="17">' + (window.tMonthlyDetailLoading || 'A carregar...') + '</td></tr>';
+            }
+            modal.classList.add('is-open');
+            modal.removeAttribute('hidden');
+            modal.setAttribute('aria-hidden', 'false');
+            fetch('/api/monthly-detail?year=' + table.dataset.year + '&month=' + table.dataset.month + '&employee_number=' + employeeNumber, { credentials: 'same-origin' })
+                .then(function (resp) {
+                    if (!resp.ok) {
+                        throw new Error('load_failed');
+                    }
+                    return resp.json();
+                })
+                .then(function (data) {
+                    if (!body) return;
+                    body.innerHTML = '';
+                    if (!data || !Array.isArray(data.rows) || !data.rows.length) {
+                        body.innerHTML = '<tr><td colspan="17">' + (window.tMonthlyDetailEmpty || 'Sem dados') + '</td></tr>';
+                        return;
+                    }
+                    data.rows.forEach(function (r) {
+                        var tr = document.createElement('tr');
+                        tr.innerHTML = [
+                            '<td>' + (r.date || '') + '</td>',
+                            '<td>' + (r.project || '') + '</td>',
+                            '<td>' + (r.item || '') + '</td>',
+                            '<td>' + (r.acabamento || '') + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.m2, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.unit_price || 0, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.m2_pay, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.serragem, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.serragem_pay, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.kg, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.kg_pay, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.other, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.daily, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.complement, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.maintenance, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.chief, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(r.total, 2) + '</td>'
+                        ].join('');
+                        body.appendChild(tr);
+                    });
+                    if (data.totals) {
+                        var trf = document.createElement('tr');
+                        trf.className = 'total-row';
+                        trf.innerHTML = [
+                            '<td colspan="4">' + (window.tMonthlyDetailTotals || 'Totais') + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.m2, 2) + '</td>',
+                            '<td class="numeric"></td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.m2_pay, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.serragem, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.serragem_pay, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.kg, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.kg_pay, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.other, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.daily, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.complement, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.maintenance, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.chief, 2) + '</td>',
+                            '<td class="numeric">' + formatDecimalValue(data.totals.total, 2) + '</td>'
+                        ].join('');
+                        body.appendChild(trf);
+                    }
+                })
+                .catch(function () {
+                    if (body) {
+                        body.innerHTML = '<tr><td colspan="17">' + (window.tMonthlyDetailError || 'Erro a carregar.') + '</td></tr>';
+                    }
+                });
+        }
+        function recalcRow(row) {
+            var cells = row.querySelectorAll('td');
+            if (!cells.length) return;
+            var daily = parseNumeric(cells[9].textContent);
+            var m2pay = parseNumeric(cells[3].textContent);
+            var serrPay = parseNumeric(cells[5].textContent);
+            var kgPay = parseNumeric(cells[7].textContent);
+            var other = parseNumeric(cells[8].textContent);
+            var complement = parseNumeric(cells[10].textContent);
+            var maintenanceInput = cells[11].querySelector('input');
+            var maintenance = maintenanceInput ? parseNumeric(maintenanceInput.value) : parseNumeric(cells[11].textContent);
+            if (maintenanceInput) {
+                if (Math.abs(maintenance - 80) > 0.0001) {
+                    maintenanceInput.classList.add('is-custom');
+                } else {
+                    maintenanceInput.classList.remove('is-custom');
+                }
+            }
+            var chief = parseNumeric(cells[12].textContent);
+            var total = daily + m2pay + serrPay + kgPay + other + complement + maintenance + chief;
+            cells[13].textContent = formatDecimalValue(total, 2);
+        }
+        function recalcTotals(table) {
+            var tbodyRows = table.querySelectorAll('tbody tr');
+            var totals = { m2:0, m2pay:0, serr:0, serrpay:0, kg:0, kgpay:0, other:0, daily:0, complement:0, maintenance:0, chief:0, total:0 };
+            tbodyRows.forEach(function (row) {
+                var cells = row.querySelectorAll('td');
+                totals.m2 += parseNumeric(cells[2].textContent);
+                totals.m2pay += parseNumeric(cells[3].textContent);
+                totals.serr += parseNumeric(cells[4].textContent);
+                totals.serrpay += parseNumeric(cells[5].textContent);
+                totals.kg += parseNumeric(cells[6].textContent);
+                totals.kgpay += parseNumeric(cells[7].textContent);
+                totals.other += parseNumeric(cells[8].textContent);
+                totals.daily += parseNumeric(cells[9].textContent);
+                totals.complement += parseNumeric(cells[10].textContent);
+                var maintenanceInput = cells[11].querySelector('input');
+                totals.maintenance += maintenanceInput ? parseNumeric(maintenanceInput.value) : parseNumeric(cells[11].textContent);
+                totals.chief += parseNumeric(cells[12].textContent);
+                totals.total += parseNumeric(cells[13].textContent);
+            });
+            var footerRow = table.querySelector('tfoot tr');
+            if (!footerRow) return;
+            var fcells = footerRow.querySelectorAll('td');
+            fcells[2].textContent = formatDecimalValue(totals.m2, 2);
+            fcells[3].textContent = formatDecimalValue(totals.m2pay, 2);
+            fcells[4].textContent = formatDecimalValue(totals.serr, 2);
+            fcells[5].textContent = formatDecimalValue(totals.serrpay, 2);
+            fcells[6].textContent = formatDecimalValue(totals.kg, 2);
+            fcells[7].textContent = formatDecimalValue(totals.kgpay, 2);
+            fcells[8].textContent = formatDecimalValue(totals.other, 2);
+            fcells[9].textContent = formatDecimalValue(totals.daily, 2);
+            fcells[10].textContent = formatDecimalValue(totals.complement, 2);
+            fcells[11].textContent = formatDecimalValue(totals.maintenance, 2);
+            fcells[12].textContent = formatDecimalValue(totals.chief, 2);
+            fcells[13].textContent = formatDecimalValue(totals.total, 2);
+        }
+        ready(function () {
+            document.querySelectorAll('[data-monthly-decimal]').forEach(function (input) {
+                applyDecimalMask(input);
+            });
+
+            var table = document.querySelector('.monthly-summary-table');
+            if (!table) return;
+            var year = parseInt(table.dataset.year, 10);
+            var month = parseInt(table.dataset.month, 10);
+            var saveBar = document.querySelector('[data-monthly-save-bar]');
+            var saveButton = document.querySelector('[data-monthly-save]');
+            var cancelButton = document.querySelector('[data-monthly-cancel]');
+            var inputs = Array.prototype.slice.call(document.querySelectorAll('[data-monthly-decimal]'));
+
+            function toggleSaveBar(show) {
+                if (!saveBar) return;
+                saveBar.hidden = !show;
+                if (show) {
+                    document.body.classList.add('monthly-editing-active');
+                } else {
+                    document.body.classList.remove('monthly-editing-active');
+                }
+            }
+
+            inputs.forEach(function (input) {
+                input.dataset.originalValue = input.value;
+                input.addEventListener('input', function () {
+                    var row = input.closest('tr');
+                    recalcRow(row);
+                    recalcTotals(table);
+                    var hasChanges = inputs.some(function (inp) { return (inp.dataset.originalValue || '') !== (inp.value || ''); });
+                    toggleSaveBar(hasChanges);
+                });
+            });
+
+            cancelButton && cancelButton.addEventListener('click', function () {
+                inputs.forEach(function (input) {
+                    input.value = input.dataset.originalValue || '';
+                    var row = input.closest('tr');
+                    recalcRow(row);
+                });
+                recalcTotals(table);
+                toggleSaveBar(false);
+            });
+
+            saveButton && saveButton.addEventListener('click', function () {
+                var changes = inputs.filter(function (inp) {
+                    return (inp.dataset.originalValue || '') !== (inp.value || '');
+                });
+                if (!changes.length) {
+                    toggleSaveBar(false);
+                    return;
+                }
+                var payload = {
+                    year: year,
+                    month: month,
+                    items: changes.map(function (inp) {
+                        return {
+                            employee_number: inp.dataset.employeeNumber,
+                            employee_name: inp.dataset.employeeName,
+                            value: parseNumeric(inp.value)
+                        };
+                    })
+                };
+                fetch('/api/maintenance', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).then(function (resp) {
+                    if (!resp.ok) {
+                        throw new Error('save_failed');
+                    }
+                    return resp.json();
+                }).then(function () {
+                    inputs.forEach(function (inp) {
+                        inp.dataset.originalValue = inp.value;
+                    });
+                    recalcTotals(table);
+                    toggleSaveBar(false);
+                }).catch(function () {
+                    alert('Não foi possível gravar as alterações.');
+                });
+            });
+
+            // Detail modal interactions
+            var detailModal = document.getElementById('monthly-detail-modal');
+            var detailClose = detailModal ? detailModal.querySelector('[data-detail-close]') : null;
+            if (table && detailModal) {
+                table.querySelectorAll('tbody tr').forEach(function (row) {
+                    row.addEventListener('click', function (event) {
+                        if (event.target && event.target.closest('.monthly-maintenance-input')) {
+                            return;
+                        }
+                        var maintInput = row.querySelector('.monthly-maintenance-input');
+                        var employeeNumber = maintInput ? maintInput.dataset.employeeNumber : '';
+                        var employeeName = row.children[1] ? row.children[1].textContent.trim() : '';
+                        if (employeeNumber) {
+                            openDetailModal(employeeNumber, employeeName);
+                        }
+                    });
+                });
+                document.querySelectorAll('.monthly-maintenance-input').forEach(function (input) {
+                    input.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                    });
+                });
+                detailModal.addEventListener('click', function (event) {
+                    if (event.target === detailModal || event.target === detailClose) {
+                        detailModal.classList.remove('is-open');
+                        detailModal.setAttribute('aria-hidden', 'true');
+                        detailModal.setAttribute('hidden', 'hidden');
+                    }
+                });
+                detailClose && detailClose.addEventListener('click', function () {
+                    detailModal.classList.remove('is-open');
+                    detailModal.setAttribute('aria-hidden', 'true');
+                    detailModal.setAttribute('hidden', 'hidden');
+                });
+            }
+        });
+    })();
+</script>

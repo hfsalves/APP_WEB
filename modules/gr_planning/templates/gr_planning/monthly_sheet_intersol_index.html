@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Mapa Mensal INTERSOL{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_planning.legacy_static', filename='styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('gr_planning.static', filename='gr_planning_host.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr_planning_page gr_monthly_sheet_page gr_monthly_intersol_page">
+  <div class="sz_page_container gr-planning-shell gr-monthly-shell gr-monthly-intersol-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-planning-contextbar gr-monthly-contextbar gr-monthly-intersol-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Mapa Mensal INTERSOL</div>
+      </div>
+      <div class="sz_contextbar_right" data-gr-monthly-intersol-context-host></div>
+    </header>
+
+    <section class="sz_page_body gr-planning-page-body gr-monthly-page-body gr-monthly-intersol-page-body">
+      <div class="gr-planning-page-host gr-monthly-host gr-monthly-intersol-host" data-gr-monthly-intersol-host>
+        {{ monthly_html | safe }}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('gr_planning.static', filename='gr_planning_fetch_proxy.js') }}"></script>
+  {% for script_name in legacy_script_files %}
+    <script src="{{ url_for('gr_planning.legacy_static', filename=script_name) }}" defer></script>
+  {% endfor %}
+  <script src="{{ url_for('gr_planning.static', filename='gr_planning_layout.js') }}" defer></script>
+  {{ page_meta.inline_script_html | safe }}
+{% endblock %}

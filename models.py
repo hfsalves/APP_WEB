@@ -259,8 +259,17 @@ class Acessos(db.Model):
     eliminar     = db.Column(db.Boolean, default=False, nullable=False)
     usstamp      = db.Column(db.String(100), nullable=False)
 
-    # Relacionamento opcional para aceder ao utilizador
-    user = db.relationship('US', backref='acessos', primaryjoin="Acessos.utilizador==US.LOGIN")
+
+class FeClusterEntidade(db.Model):
+    __tablename__ = 'FE_CLUSTER_ENTIDADES'
+
+    FECLUSTERENTSTAMP = db.Column(db.String(25), primary_key=True, default=lambda: uuid.uuid4().hex.upper()[:25])
+    FESTAMP_CLUSTER = db.Column(db.String(25), nullable=False)
+    FESTAMP_ENTIDADE = db.Column(db.String(25), nullable=False)
+    DTCRI = db.Column(db.DateTime, nullable=False)
+    DTALT = db.Column(db.DateTime, nullable=True)
+    USERCRIACAO = db.Column(db.String(50), nullable=False, default='')
+    USERALTERACAO = db.Column(db.String(50), nullable=False, default='')
 
 # Adiciona isto ao teu models.py
 class Widget(db.Model):

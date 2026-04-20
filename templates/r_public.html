@@ -855,19 +855,19 @@
       <div class="invalid-box-top">
         <div class="invalid-icon"><i class="fa-solid fa-link-slash"></i></div>
         <div>
-          <h1 class="invalid-title" data-i18n="invalid_title">Link inv&aacute;lido ou expirado</h1>
-          <p class="invalid-sub" data-i18n="invalid_sub">Confirma o link ou pede um novo acesso.</p>
+          <h1 class="invalid-title" data-i18n="invalid_title">Reserva n&atilde;o encontrada</h1>
+          <p class="invalid-sub" data-i18n="invalid_sub">Confirma o c&oacute;digo da reserva ou pede um novo acesso.</p>
         </div>
       </div>
       <div class="invalid-box-body">
         <div class="invalid-note">
           <i class="fa-solid fa-circle-info"></i>
-          <span data-i18n="invalid_note">Este acesso pode ter expirado, ter sido revogado ou estar incompleto. Se precisares de entrar novamente, pede um novo link ao anfitri&atilde;o ou &agrave; equipa de apoio.</span>
+          <span data-i18n="invalid_note">Este c&oacute;digo pode estar incompleto ou n&atilde;o corresponder a uma reserva dispon&iacute;vel. Se precisares de entrar novamente, confirma o c&oacute;digo com o anfitri&atilde;o ou a equipa de apoio.</span>
         </div>
         <div class="invalid-actions">
           <span class="invalid-cta">
             <i class="fa-regular fa-envelope"></i>
-            <span data-i18n="invalid_cta">Contacta-nos para pedir um novo link</span>
+            <span data-i18n="invalid_cta">Contacta-nos para confirmar o acesso</span>
           </span>
         </div>
       </div>
@@ -964,29 +964,31 @@
           <button id="stayPlanOpenBtn" type="button" class="btn btn-sm btn-primary" data-i18n="btn_open_stay_plan">Indicar hor&aacute;rios</button>
         </article>
 
-        <article class="r-card{% if not page_data.shop_available %} is-disabled{% endif %}">
-          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <h3 class="mb-0" data-i18n="card_shop">Shop da estadia</h3>
-            {% if page_data.shop_available %}
-              <span class="badge bg-success-subtle text-success-emphasis border" data-i18n="shop_status_available">Disponivel</span>
-            {% else %}
-              <span class="badge bg-warning-subtle text-warning-emphasis border" data-i18n="shop_status_closed">Encerrado</span>
-            {% endif %}
-          </div>
-          <div class="small text-muted mb-3" data-i18n="shop_hint">Encomende artigos para a estadia. As modalidades de entrega sao apresentadas no checkout.</div>
-          {% if page_data.shop_deadline_label %}
-            <div class="shop-card-deadline small mb-3">
-              <span data-i18n="shop_deadline_prefix">Encomendas ate</span> {{ page_data.shop_deadline_label }}
+        {% if page_data.shop_enabled %}
+          <article class="r-card{% if not page_data.shop_available %} is-disabled{% endif %}">
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+              <h3 class="mb-0" data-i18n="card_shop">Shop da estadia</h3>
+              {% if page_data.shop_available %}
+                <span class="badge bg-success-subtle text-success-emphasis border" data-i18n="shop_status_available">Disponivel</span>
+              {% else %}
+                <span class="badge bg-warning-subtle text-warning-emphasis border" data-i18n="shop_status_closed">Encerrado</span>
+              {% endif %}
             </div>
-          {% endif %}
-          {% if page_data.shop_available %}
-            <div class="small text-muted mb-3">{{ page_data.shop_message }}</div>
-            <a href="{{ page_data.shop_url }}" class="btn btn-sm btn-primary" data-i18n="btn_open_shop">Explorar extras</a>
-          {% else %}
-            <div class="small text-muted mb-2">{{ page_data.shop_message or '' }}</div>
-            <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-i18n="btn_shop_unavailable">Fora do prazo</button>
-          {% endif %}
-        </article>
+            <div class="small text-muted mb-3" data-i18n="shop_hint">Encomende artigos para a estadia. As modalidades de entrega sao apresentadas no checkout.</div>
+            {% if page_data.shop_deadline_label %}
+              <div class="shop-card-deadline small mb-3">
+                <span data-i18n="shop_deadline_prefix">Encomendas ate</span> {{ page_data.shop_deadline_label }}
+              </div>
+            {% endif %}
+            {% if page_data.shop_available %}
+              <div class="small text-muted mb-3">{{ page_data.shop_message }}</div>
+              <a href="{{ page_data.shop_url }}" class="btn btn-sm btn-primary" data-i18n="btn_open_shop">Explorar extras</a>
+            {% else %}
+              <div class="small text-muted mb-2">{{ page_data.shop_message or '' }}</div>
+              <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-i18n="btn_shop_unavailable">Fora do prazo</button>
+            {% endif %}
+          </article>
+        {% endif %}
 
         <div id="stayPlanModal" class="guest-modal" aria-hidden="true">
           <div class="guest-modal-backdrop" id="stayPlanBackdrop"></div>
@@ -1343,7 +1345,7 @@
 
   <script>
     (function () {
-      const PUBLIC_TOKEN = {{ (page_data.token if page_data is defined else '')|tojson }};
+      const PUBLIC_RESERVA = {{ (page_data.public_code if page_data is defined else '')|tojson }};
       const RES_CRIANCAS = Number({{ (page_data.criancas if page_data is defined else 0)|tojson }} || 0);
       const INITIAL_STAY_PLAN = {
         horain: {{ (page_data.checkin_hora if page_data is defined else '')|tojson }},
@@ -1361,10 +1363,10 @@
       const I18N = {
         pt: {
           label_language: 'Idioma',
-          invalid_title: 'Link inv\u00e1lido ou expirado',
-          invalid_sub: 'Confirma o link ou pede um novo acesso.',
-          invalid_note: 'Este acesso pode ter expirado, ter sido revogado ou estar incompleto. Se precisares de entrar novamente, pede um novo link ao anfitri\u00e3o ou \u00e0 equipa de apoio.',
-          invalid_cta: 'Contacta-nos para pedir um novo link',
+          invalid_title: 'Reserva n\u00e3o encontrada',
+          invalid_sub: 'Confirma o c\u00f3digo da reserva ou pede um novo acesso.',
+          invalid_note: 'Este c\u00f3digo pode estar incompleto ou n\u00e3o corresponder a uma reserva dispon\u00edvel. Se precisares de entrar novamente, confirma o c\u00f3digo com o anfitri\u00e3o ou a equipa de apoio.',
+          invalid_cta: 'Contacta-nos para confirmar o acesso',
           title_reservation: 'Reserva',
           label_reservation: 'Reserva',
           card_mandatory: 'Dados Obrigat\u00f3rios',
@@ -1517,10 +1519,10 @@
         },
         en: {
           label_language: 'Language',
-          invalid_title: 'Invalid or expired link',
-          invalid_sub: 'Please verify the link or request a new one.',
-          invalid_note: 'This access may have expired, been revoked or be incomplete. If you need to enter again, ask the host or support team for a new link.',
-          invalid_cta: 'Contact us to request a new link',
+          invalid_title: 'Reservation not found',
+          invalid_sub: 'Please verify the reservation code or request new access.',
+          invalid_note: 'This code may be incomplete or may not match an available reservation. If you need to enter again, confirm the code with the host or support team.',
+          invalid_cta: 'Contact us to confirm access',
           title_reservation: 'Reservation',
           label_reservation: 'Reservation',
           card_mandatory: 'Required Information',
@@ -1673,10 +1675,10 @@
         },
         fr: {
           label_language: 'Langue',
-          invalid_title: 'Lien invalide ou expir\u00e9',
-          invalid_sub: 'V\u00e9rifiez le lien ou demandez-en un nouveau.',
-          invalid_note: 'Cet acc\u00e8s peut avoir expir\u00e9, avoir \u00e9t\u00e9 r\u00e9voqu\u00e9 ou \u00eatre incomplet. Si vous devez vous reconnecter, demandez un nouveau lien \u00e0 l\u2019h\u00f4te ou \u00e0 l\u2019\u00e9quipe support.',
-          invalid_cta: 'Contactez-nous pour demander un nouveau lien',
+          invalid_title: 'R\u00e9servation introuvable',
+          invalid_sub: 'V\u00e9rifiez le code de r\u00e9servation ou demandez un nouvel acc\u00e8s.',
+          invalid_note: 'Ce code peut \u00eatre incomplet ou ne pas correspondre \u00e0 une r\u00e9servation disponible. Si vous devez vous reconnecter, confirmez le code avec l\u2019h\u00f4te ou l\u2019\u00e9quipe support.',
+          invalid_cta: 'Contactez-nous pour confirmer l\u2019acc\u00e8s',
           title_reservation: 'R\u00e9servation',
           label_reservation: 'R\u00e9servation',
           card_mandatory: 'Informations obligatoires',
@@ -1829,10 +1831,10 @@
         },
         es: {
           label_language: 'Idioma',
-          invalid_title: 'Enlace inv\u00e1lido o caducado',
-          invalid_sub: 'Verifica el enlace o solicita uno nuevo.',
-          invalid_note: 'Este acceso puede haber caducado, haber sido revocado o estar incompleto. Si necesitas volver a entrar, pide un nuevo enlace al anfitri\u00f3n o al equipo de soporte.',
-          invalid_cta: 'Cont\u00e1ctanos para pedir un nuevo enlace',
+          invalid_title: 'Reserva no encontrada',
+          invalid_sub: 'Verifica el c\u00f3digo de reserva o solicita un nuevo acceso.',
+          invalid_note: 'Este c\u00f3digo puede estar incompleto o no corresponder a una reserva disponible. Si necesitas volver a entrar, confirma el c\u00f3digo con el anfitri\u00f3n o el equipo de soporte.',
+          invalid_cta: 'Cont\u00e1ctanos para confirmar el acceso',
           title_reservation: 'Reserva',
           label_reservation: 'Reserva',
           card_mandatory: 'Informaci\u00f3n obligatoria',
@@ -2640,12 +2642,12 @@
       }
 
       async function saveBilling() {
-        if (!PUBLIC_TOKEN || !billingEls.save) return;
+        if (!PUBLIC_RESERVA || !billingEls.save) return;
         const payload = readBillingForm();
         billingEls.save.disabled = true;
         if (billingEls.msg) billingEls.msg.classList.add('d-none');
         try {
-          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/billing`, {
+          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/billing`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -2675,9 +2677,9 @@
       }
 
       async function loadStayPlanData() {
-        if (!PUBLIC_TOKEN || !stayEls.summary) return;
+        if (!PUBLIC_RESERVA || !stayEls.summary) return;
         try {
-          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/stay-plan`);
+          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/stay-plan`);
           const data = await res.json().catch(() => ({}));
           if (!res.ok || data.error) {
             renderStayPlanUi();
@@ -2693,7 +2695,7 @@
       }
 
       async function saveStayPlan() {
-        if (!PUBLIC_TOKEN || !stayEls.save) return;
+        if (!PUBLIC_RESERVA || !stayEls.save) return;
         const payload = {
           horain: String(stayEls.horain?.value || '').trim(),
           horaout: String(stayEls.horaout?.value || '').trim(),
@@ -2702,7 +2704,7 @@
         stayEls.save.disabled = true;
         if (stayEls.msg) stayEls.msg.classList.add('d-none');
         try {
-          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/stay-plan`, {
+          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/stay-plan`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -2729,9 +2731,9 @@
       }
 
       async function loadGuestData() {
-        if (!PUBLIC_TOKEN || !guestEls.save) return;
+        if (!PUBLIC_RESERVA || !guestEls.save) return;
         try {
-          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/guests`);
+          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/guests`);
           const data = await res.json().catch(() => ({}));
           if (!res.ok || data.error) return;
           mandatoryState.total = Math.max(1, Number(data.total_guests || 1));
@@ -2743,7 +2745,7 @@
       }
 
       async function saveCurrentGuest() {
-        if (!PUBLIC_TOKEN || !guestEls.save) return;
+        if (!PUBLIC_RESERVA || !guestEls.save) return;
         const idx = mandatoryState.index - 1;
         mandatoryState.guests[idx] = readGuestFromForm();
         guestEls.save.disabled = true;
@@ -2752,7 +2754,7 @@
           guestEls.msg.classList.add('d-none');
         }
         try {
-          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_TOKEN)}/guests`, {
+          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/guests`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

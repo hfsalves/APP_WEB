@@ -256,9 +256,9 @@ function updateGuestsStatus() {
 }
 
 function buildPublicGuideUrl() {
-  const token = String(header.GUIDE_TOKEN || '').trim();
-  if (!token) return '';
-  return `https://szeroguests.com/r/${encodeURIComponent(token)}`;
+  const reservationCode = String(header.RESERVA || '').trim();
+  if (!reservationCode) return '';
+  return `https://szeroguests.com/r/${encodeURIComponent(reservationCode)}`;
 }
 
 function updatePublicLinkUi() {

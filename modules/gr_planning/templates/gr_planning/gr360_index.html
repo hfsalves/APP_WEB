@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}GR360 Planning{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_planning.legacy_static', filename='styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('gr_planning.static', filename='gr_planning_host.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr_planning_page">
+  <div class="sz_page_container gr-planning-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-planning-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Planeamento Semanal</div>
+      </div>
+      <div class="sz_contextbar_right" data-gr-planning-context-host>
+      </div>
+    </header>
+
+    <section class="sz_page_body gr-planning-page-body">
+      <div class="gr-planning-page-host" data-gr-planning-host>
+        {{ planning_html | safe }}
+      </div>
+    </section>
+
+    <footer class="sz_page_footer gr-planning-page-footer">
+      <div class="sz_actionbar gr-planning-actionbar" data-editing-bar>
+        <div class="sz_actionbar_left">
+          <span class="sz_text_sm">Existem alteracoes por gravar.</span>
+        </div>
+        <div class="sz_actionbar_right">
+          <button type="button" class="sz_button sz_button_secondary" data-editing-cancel>Cancelar</button>
+          <button type="button" class="sz_button sz_button_primary" data-editing-save>Gravar</button>
+        </div>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      document.body.dataset.weekStart = {{ page_meta.week_start|tojson }};
+      document.body.dataset.weekEnd = {{ page_meta.week_end|tojson }};
+    })();
+  </script>
+  <script src="{{ url_for('gr_planning.static', filename='gr_planning_fetch_proxy.js') }}"></script>
+  {% for script_name in legacy_script_files %}
+    <script src="{{ url_for('gr_planning.legacy_static', filename=script_name) }}" defer></script>
+  {% endfor %}
+  <script src="{{ url_for('gr_planning.static', filename='gr_planning_layout.js') }}" defer></script>
+{% endblock %}
