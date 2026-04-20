@@ -48,6 +48,12 @@ const timeToIndex = (h, m) => {
   return Math.max(0, Math.min(idx, (PLANNER2.endHour - PLANNER2.startHour) * 2));
 };
 
+const shouldAnchorCheckinAtNight = (h, m) => {
+  const beforeVisibleDay = h < PLANNER2.startHour || (h === PLANNER2.startHour && m === 0);
+  const afterNightLimit = h > 21 || (h === 21 && m > 0);
+  return beforeVisibleDay || afterNightLimit;
+};
+
 const normalizeTooltipText = (text) => {
   try {
     return decodeURIComponent(escape(text || ''));
@@ -902,7 +908,7 @@ const renderRows = (data, slots) => {
       let { h, m } = originalTime;
       let barHour = h;
       let barMin = m;
-      if (h > 21 || (h === 21 && m > 0)) {
+      if (shouldAnchorCheckinAtNight(h, m)) {
         barHour = 21;
         barMin = 0;
       }
