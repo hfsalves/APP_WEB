@@ -105,6 +105,16 @@ const safeDate = (value, fallback = '') => {
   return raw.slice(0, 10);
 };
 
+const dateInputValue = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const pt = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/.exec(raw);
+  if (pt) return `${pt[3]}-${String(pt[2]).padStart(2, '0')}-${String(pt[1]).padStart(2, '0')}`;
+  return raw.slice(0, 10);
+};
+
 function showOverlay(message = 'A carregar...') {
   if (!overlay) return;
   if (overlayText) overlayText.textContent = message;
@@ -136,6 +146,38 @@ function fillCountrySelect(el) {
     const value = normalized ? escapeHtml(normalized) : '';
     return `<option value="${value}"${selected}>${label}</option>`;
   }).join('');
+}
+
+function setSelectValuePreservingOption(el, value) {
+  if (!el) return;
+  const raw = String(value ?? '').trim();
+  if (!raw) {
+    el.value = '';
+    return;
+  }
+  const exists = Array.from(el.options || []).some((opt) => String(opt.value || '').trim() === raw);
+  if (!exists) {
+    const option = document.createElement('option');
+    option.value = raw;
+    option.textContent = raw;
+    el.appendChild(option);
+  }
+  el.value = raw;
+}
+
+function normalizeGuestDocType(value) {
+  const raw = normalizeMojibake(value).trim();
+  const key = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+  if (!key) return '';
+  if (['ID_NACIONAL', 'ID', 'CC', 'BI', 'CARTAO DE CIDADAO', 'DOCUMENTO DE IDENTIFICACAO NACIONAL', 'DOC. IDENTIFICACAO NACIONAL', 'DOC. IDENTIFICACAO', 'NATIONAL IDENTITY DOCUMENT', 'NATIONAL ID', 'DOCUMENT NATIONAL DIDENTITE', 'DOCUMENTO NACIONAL DE IDENTIDAD'].includes(key)) {
+    return 'Doc. Identificação Nacional';
+  }
+  if (['PASSAPORTE', 'PASSPORT'].includes(key)) return 'Passaporte';
+  if (['OUTRO', 'OTHER', 'AUTRE'].includes(key)) return 'Outro';
+  return raw;
 }
 
 function normalizeMojibake(value) {
@@ -364,6 +406,14 @@ function writeGuestToModal(guest) {
     if (!el) return;
     if (el.type === 'checkbox') {
       el.checked = n(current[name], name === 'ATIVO' ? 1 : 0) === 1;
+    } else if (el.tagName === 'SELECT') {
+      const value = name === 'TIPO_DOC'
+        ? normalizeGuestDocType(current[name])
+        : normalizeMojibake(current[name]);
+      setSelectValuePreservingOption(el, value);
+    } else if (name === 'DTNASC') {
+      const value = dateInputValue(current[name]);
+      el.value = value && value !== '1900-01-01' && value !== '0001-01-01' ? value : '';
     } else {
       el.value = current[name] == null ? '' : current[name];
     }

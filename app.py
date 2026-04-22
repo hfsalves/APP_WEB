@@ -9164,11 +9164,21 @@ def create_app():
                 ) AS CAMPO_COUNT
             FROM dbo.MENU M
             WHERE LTRIM(RTRIM(ISNULL(M.TABELA, ''))) <> ''
-              AND EXISTS (
+              AND (
+                  EXISTS (
                     SELECT 1
                     FROM dbo.CAMPOS C
                     WHERE UPPER(LTRIM(RTRIM(ISNULL(C.TABELA, '')))) = UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, ''))))
                   )
+                  OR EXISTS (
+                    SELECT 1
+                    FROM sys.tables T
+                    INNER JOIN sys.schemas S
+                        ON S.schema_id = T.schema_id
+                    WHERE S.name = 'dbo'
+                      AND UPPER(T.name) = UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, ''))))
+                  )
+              )
             ORDER BY LTRIM(RTRIM(ISNULL(M.NOME, ''))), UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, ''))))
         """)).mappings().all()
         return [dict(row) for row in rows]
