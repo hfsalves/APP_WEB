@@ -1,5 +1,6 @@
 ﻿console.warn('âœ… profile_form.js carregado');
 
+const tr = (key, vars) => (typeof window.t === 'function' ? window.t(key, vars) : key);
 const TABLE_NAME = 'US';
 const camposEditaveis = ['EMAIL', 'COR', 'VIEWMODE']; // PASSWORD e FOTO tratadas em flows proprios
 const camposOcultos = ['PASSWORD', 'FOTO']; // nÃ£o desenhar estes campos no formulÃ¡rio
@@ -203,17 +204,17 @@ document.addEventListener('DOMContentLoaded', async () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ viewmode: selected })
         });
-        if (!resp.ok) throw new Error('Falha ao gravar VIEWMODE');
+        if (!resp.ok) throw new Error(tr('profile.view_mode_error'));
         const msg = document.getElementById('profileMsg');
         if (msg) {
-          msg.textContent = 'Modo de visualizacao atualizado.';
+          msg.textContent = tr('profile.view_mode_saved');
           msg.classList.remove('text-danger');
           msg.classList.add('text-success');
         }
       } catch (_) {
         const msg = document.getElementById('profileMsg');
         if (msg) {
-          msg.textContent = 'Erro ao atualizar o modo de visualizacao.';
+          msg.textContent = tr('profile.view_mode_error');
           msg.classList.remove('text-success');
           msg.classList.add('text-danger');
         }
@@ -240,13 +241,13 @@ document.getElementById('formChangePwd').addEventListener('submit', async functi
   const msgDiv = document.getElementById('msgPwd');
 
   if (!pwd1 || pwd1.length < 4) {
-    msgDiv.textContent = 'Password deve ter pelo menos 4 caracteres.';
+    msgDiv.textContent = tr('profile.password_short');
     msgDiv.classList.remove('text-success');
     msgDiv.classList.add('text-danger');
     return;
   }
   if (pwd1 !== pwd2) {
-    msgDiv.textContent = 'As passwords nÃ£o coincidem!';
+    msgDiv.textContent = tr('profile.passwords_mismatch');
     msgDiv.classList.remove('text-success');
     msgDiv.classList.add('text-danger');
     return;
@@ -260,14 +261,14 @@ document.getElementById('formChangePwd').addEventListener('submit', async functi
   });
 
   if (res.ok) {
-    msgDiv.textContent = 'Password alterada com sucesso!';
+    msgDiv.textContent = tr('profile.password_updated');
     msgDiv.classList.remove('text-danger');
     msgDiv.classList.add('text-success');
     setTimeout(() => {
       bootstrap.Modal.getInstance(document.getElementById('modalChangePwd')).hide();
     }, 1200);
   } else {
-    msgDiv.textContent = 'Erro ao atualizar password!';
+    msgDiv.textContent = tr('profile.password_update_error');
     msgDiv.classList.remove('text-success');
     msgDiv.classList.add('text-danger');
   }
@@ -297,17 +298,17 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify(payload)
       });
       if (resp.ok) {
-        msg.textContent = 'Perfil atualizado com sucesso!';
+        msg.textContent = tr('profile.saved');
         msg.classList.remove('text-danger');
         msg.classList.add('text-success');
       } else {
-        const err = await resp.json().catch(()=>({error:'Erro'}));
-        msg.textContent = (err && err.error) ? err.error : 'Erro ao guardar perfil';
+        const err = await resp.json().catch(()=>({error: tr('common.error')}));
+        msg.textContent = (err && err.error) ? err.error : tr('profile.save_error');
         msg.classList.remove('text-success');
         msg.classList.add('text-danger');
       }
     } catch (err) {
-      msg.textContent = 'Erro de rede ao guardar perfil';
+      msg.textContent = tr('profile.network_save_error');
       msg.classList.remove('text-success');
       msg.classList.add('text-danger');
     }
@@ -326,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fd.append('photo', fileInput.files[0]);
     try {
       const resp = await fetch('/api/profile/upload_photo', { method: 'POST', body: fd });
-      if (!resp.ok) throw new Error('Upload falhou');
+      if (!resp.ok) throw new Error(tr('profile.upload_failed'));
       const data = await resp.json();
       const newPath = data.path; // relativo a /static
       const preview = document.getElementById('profilePhotoPreview');
@@ -352,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (headerIcon) headerIcon.style.display = 'none';
     } catch (err) {
       console.error(err);
-      alert('Erro ao carregar foto');
+      alert(tr('profile.photo_load_error'));
     }
   });
 });
@@ -369,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fd.append('photo', input.files[0]);
     try {
       const resp = await fetch('/api/profile/upload_photo', { method: 'POST', body: fd });
-      if (!resp.ok) throw new Error('Upload falhou');
+      if (!resp.ok) throw new Error(tr('profile.upload_failed'));
       const data = await resp.json();
       const newPath = data.path;
       const preview = document.getElementById('profilePhotoPreview');
@@ -395,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (headerIcon) headerIcon.style.display = 'none';
     } catch (err) {
       console.error(err);
-      alert('Erro ao carregar foto');
+      alert(tr('profile.photo_load_error'));
     } finally {
       input.value = '';
     }

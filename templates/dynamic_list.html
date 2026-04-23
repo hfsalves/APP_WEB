@@ -12,24 +12,24 @@
         </div>
         <div class="sz_contextbar_right sz_dynamic_list_contextbar_right">
           <div class="dynamic-list-actions sz_dynamic_list_actions">
-            <button id="btnSortToggle" class="sz_button sz_button_ghost" aria-label="Ordenar" title="Ordenar">
+            <button id="btnSortToggle" class="sz_button sz_button_ghost" aria-label="{{ _('common.sort') }}" title="{{ _('common.sort') }}">
               <i class="fa fa-arrow-down-wide-short"></i>
-              <span>Ordenar</span>
+              <span>{{ _('common.sort') }}</span>
             </button>
             <button id="btnFilterToggle" class="sz_button sz_button_ghost">
               <i class="fa fa-filter"></i>
-              <span>Filtrar</span>
+              <span>{{ _('common.filter') }}</span>
             </button>
             {% if user_perms[table_name].inserir %}
               {% if table_name == 'FO' %}
                 <button id="btnNewAttachment" class="sz_button sz_button_secondary btn-attach-custom">
                   <i class="fa fa-paperclip"></i>
-                  <span>+ Anexo</span>
+                  <span>{{ _('common.new_attachment') }}</span>
                 </button>
               {% endif %}
               <button id="btnNew" class="sz_button sz_button_primary">
                 <i class="fa fa-plus"></i>
-                <span>Novo</span>
+                <span>{{ _('common.new') }}</span>
               </button>
             {% endif %}
           </div>
@@ -47,8 +47,8 @@
 <div id="modalSort" class="sz_modal" aria-labelledby="modalSortLabel" aria-hidden="true">
   <div class="sz_panel sz_dynamic_filters_modal_panel sz_dynamic_sort_modal_panel">
     <div class="sz_modal_header sz_dynamic_filters_header">
-      <h3 class="sz_h4 sz_modal_title" id="modalSortLabel">Ordenação</h3>
-      <button type="button" id="closeSortModalTop" class="sz_button sz_button_ghost" aria-label="Fechar">
+      <h3 class="sz_h4 sz_modal_title" id="modalSortLabel">{{ _('common.sorting') }}</h3>
+      <button type="button" id="closeSortModalTop" class="sz_button sz_button_ghost" aria-label="{{ _('common.close') }}">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
@@ -58,11 +58,11 @@
     <div class="sz_modal_footer">
       <button type="button" id="closeSortModal" class="sz_button sz_button_secondary">
         <i class="fa-solid fa-ban"></i>
-        <span>Cancelar</span>
+        <span>{{ _('common.cancel') }}</span>
       </button>
       <button type="button" id="applySort" class="sz_button sz_button_primary">
         <i class="fa-solid fa-check"></i>
-        <span>Aplicar</span>
+        <span>{{ _('common.apply') }}</span>
       </button>
     </div>
   </div>
@@ -72,8 +72,8 @@
 <div id="modalFiltros" class="sz_modal" aria-labelledby="modalFiltrosLabel" aria-hidden="true">
   <div class="sz_panel sz_dynamic_filters_modal_panel">
     <div class="sz_modal_header sz_dynamic_filters_header">
-      <h3 class="sz_h4 sz_modal_title" id="modalFiltrosLabel">Filtros</h3>
-      <button type="button" id="closeFiltersModalTop" class="sz_button sz_button_ghost" aria-label="Fechar">
+      <h3 class="sz_h4 sz_modal_title" id="modalFiltrosLabel">{{ _('common.filters') }}</h3>
+      <button type="button" id="closeFiltersModalTop" class="sz_button sz_button_ghost" aria-label="{{ _('common.close') }}">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
@@ -84,21 +84,36 @@
     <div class="sz_modal_footer">
       <button type="button" id="closeFiltersModal" class="sz_button sz_button_secondary">
         <i class="fa-solid fa-ban"></i>
-        <span>Cancelar</span>
+        <span>{{ _('common.cancel') }}</span>
       </button>
       <button type="button" id="clearFilters" class="sz_button sz_button_ghost">
         <i class="fa-solid fa-rotate-left"></i>
-        <span>Limpar</span>
+        <span>{{ _('common.clear') }}</span>
       </button>
       <button type="button" id="applyFilters" class="sz_button sz_button_primary">
         <i class="fa-solid fa-check"></i>
-        <span>Aplicar</span>
+        <span>{{ _('common.apply') }}</span>
       </button>
     </div>
   </div>
 </div>
 
 <script>
+  window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ i18n_js([
+    'common.filter',
+    'common.new',
+    'common.new_attachment',
+    'common.sort',
+    'dynamic_list.attachment_error',
+    'dynamic_list.empty',
+    'dynamic_list.filters_load_error',
+    'dynamic_list.no_permission',
+    'dynamic_list.no_sort_fields',
+    'dynamic_list.record_count_one',
+    'dynamic_list.record_count_other',
+    'dynamic_list.sort_direction',
+    'dynamic_list.sort_tap'
+  ])|tojson }});
   window.TABLE_NAME = "{{ table_name }}";
   window.TABLE_FORM = {{ menu_forms.get(table_name)|tojson }};
   window.MENU_STAMP = {{ menu_stamp|tojson }};

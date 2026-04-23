@@ -1,10 +1,11 @@
 ﻿# blueprints/generic_crud.py
 
-from flask import Blueprint, render_template, request, jsonify, abort, current_app
+from flask import Blueprint, render_template, request, jsonify, abort, current_app, g
 from flask_login import login_required, current_user
 from sqlalchemy import MetaData, Table, select, text, String, or_, and_, exists, bindparam
 from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
+from services.db_i18n_service import translate_db_record
 from services.multiempresa_service import get_current_feid, MissingCurrentEntityError
 import uuid
 from datetime import date, timedelta, datetime
@@ -121,6 +122,29 @@ def has_cleaning_planner_access() -> bool:
     return False
 
 
+def _current_language():
+    return getattr(g, 'language', None)
+
+
+def _translated_menu_label(menu_item, fallback: str) -> str:
+    return translate_db_record(
+        'MENU',
+        getattr(menu_item, 'menustamp', ''),
+        fallback_text=fallback,
+        language=_current_language(),
+    )
+
+
+def _translated_campo_label(campo, fallback: str = '') -> str:
+    fallback_text = fallback or getattr(campo, 'descricao', '') or getattr(campo, 'nmcampo', '')
+    return translate_db_record(
+        'CAMPOS',
+        getattr(campo, 'camposstamp', ''),
+        fallback_text=fallback_text,
+        language=_current_language(),
+    )
+
+
 def _menu_uses_exact_widths(table_name: str) -> bool:
     table_key = (table_name or '').strip().upper()
     if not table_key:
@@ -234,6 +258,156 @@ def _event_cursor_json_value(value):
     if isinstance(value, dict):
         return {str(key): _event_cursor_json_value(item) for key, item in value.items()}
     return str(value)
+
+
+LOOKUP_FILTER_FORBIDDEN_RE = re.compile(
+    r'\b(insert|update|delete|drop|alter|create|exec|execute|merge|truncate|grant|revoke|backup|restore|use|into|select|with|from|join|union)\b',
+    re.IGNORECASE,
+)
+
+
+def _quote_sql_identifier(value: str) -> str:
+    raw = str(value or '').strip()
+    if not raw:
+        raise ValueError('Identificador SQL em falta.')
+    return '[' + raw.replace(']', ']]') + ']'
+
+
+def _parse_lookup_props(raw_props) -> dict:
+    if isinstance(raw_props, dict):
+        return dict(raw_props)
+    try:
+        parsed = json.loads(str(raw_props or '').strip() or '{}')
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def _lookup_prop(props: dict, *names: str) -> str:
+    if not isinstance(props, dict):
+        return ''
+    for name in names:
+        if name in props:
+            return str(props.get(name) or '').strip()
+    return ''
+
+
+def _split_lookup_fields(value: str) -> list[str]:
+    return [
+        part.strip().strip('[]').strip()
+        for part in re.split(r'[,;\n]+', str(value or ''))
+        if part.strip().strip('[]').strip()
+    ]
+
+
+def _resolve_lookup_column(column_map: dict[str, str], requested: str, label: str) -> str:
+    raw = str(requested or '').strip().strip('[]').strip()
+    key = raw.upper()
+    if not key or key not in column_map:
+        raise ValueError(f'{label} invalido ou inexistente: {raw or "-"}')
+    return column_map[key]
+
+
+def _lookup_state_value(state: dict, name: str):
+    if not isinstance(state, dict):
+        return None
+    raw_name = str(name or '').strip()
+    if not raw_name:
+        return None
+    for key in (raw_name, raw_name.upper(), raw_name.lower()):
+        if key in state:
+            return state.get(key)
+    upper_name = raw_name.upper()
+    for key, value in state.items():
+        if str(key or '').strip().upper() == upper_name:
+            return value
+    return None
+
+
+def _prepare_lookup_filter(raw_filter: str, form_state: dict):
+    filter_sql = str(raw_filter or '').strip()
+    if not filter_sql:
+        return '', {}
+    if ';' in filter_sql or '--' in filter_sql or '/*' in filter_sql or '*/' in filter_sql:
+        raise ValueError('A expressao de filtro contem tokens nao permitidos.')
+    if LOOKUP_FILTER_FORBIDDEN_RE.search(filter_sql):
+        raise ValueError('A expressao de filtro so pode conter condicoes de leitura.')
+
+    params = {}
+
+    def replace_param(match):
+        name = str(match.group(1) or '').strip()
+        param_name = f'lookup_filter_{len(params)}'
+        params[param_name] = _normalize_event_cursor_param_value(_lookup_state_value(form_state, name))
+        return f':{param_name}'
+
+    compiled = EVENT_CURSOR_SQL_PARAM_RE.sub(replace_param, filter_sql)
+    return compiled, params
+
+
+def _load_lookup_object_props(menustamp: str, object_name: str, table_name: str = '', target_field: str = '') -> dict:
+    stamp = str(menustamp or '').strip()
+    name = str(object_name or '').strip()
+    if not stamp or not name:
+        return {}
+
+    def _has_lookup_source(props: dict) -> bool:
+        return bool(
+            _lookup_prop(props, 'lookup_table', 'table', 'source')
+            and _lookup_prop(props, 'lookup_value_field', 'value_field', 'source_field')
+        )
+
+    first_table_field_props = {}
+    if _column_exists('MENU_OBJETOS', 'MENUOBJSTAMP') and _column_exists('MENU_OBJETOS', 'PROPRIEDADES'):
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                UPPER(LTRIM(RTRIM(ISNULL(TIPO, '')))) AS TIPO,
+                ISNULL(PROPRIEDADES, '{}') AS PROPRIEDADES
+            FROM dbo.MENU_OBJETOS
+            WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+              AND UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) = UPPER(:object_name)
+              AND ISNULL(ATIVO, 1) = 1
+        """), {'menustamp': stamp, 'object_name': name}).mappings().first()
+        if row and str(row.get('TIPO') or '').strip().upper() == 'TABLE_FIELD':
+            props = _parse_lookup_props(row.get('PROPRIEDADES'))
+            if _has_lookup_source(props):
+                return props
+            if props:
+                first_table_field_props = props
+
+    screen_table = str(table_name or '').strip().upper()
+    if not screen_table:
+        menu_row = db.session.execute(text("""
+            SELECT TOP 1 UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) AS TABELA
+            FROM dbo.MENU
+            WHERE LTRIM(RTRIM(ISNULL(MENUSTAMP, ''))) = :menustamp
+        """), {'menustamp': stamp}).mappings().first()
+        screen_table = str((menu_row or {}).get('TABELA') or '').strip().upper()
+    if not screen_table or not _column_exists('CAMPOS', 'PROPRIEDADES'):
+        return first_table_field_props
+
+    field_candidates = []
+    for candidate in (name, target_field):
+        normalized = str(candidate or '').strip().upper()
+        if normalized and normalized not in field_candidates:
+            field_candidates.append(normalized)
+    for field_name in field_candidates:
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                UPPER(LTRIM(RTRIM(ISNULL(TIPO, '')))) AS TIPO,
+                ISNULL(PROPRIEDADES, '{}') AS PROPRIEDADES
+            FROM dbo.CAMPOS
+            WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
+              AND UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) = :field_name
+        """), {'table_name': screen_table, 'field_name': field_name}).mappings().first()
+        if row and str(row.get('TIPO') or '').strip().upper() == 'TABLE_FIELD':
+            props = _parse_lookup_props(row.get('PROPRIEDADES'))
+            if _has_lookup_source(props):
+                return props
+            if props and not first_table_field_props:
+                first_table_field_props = props
+
+    return first_table_field_props
 
 
 def _normalize_menu_variable_name(value: str) -> str:
@@ -411,27 +585,102 @@ def _load_menu_screen_events(menustamp: str) -> dict[str, dict]:
 # --------------------------------------------------
 # Helper: reflect a table by name
 # --------------------------------------------------
+def _current_db_bind():
+    try:
+        return db.session.get_bind()
+    except Exception:
+        return db.engine
+
+
+def _clean_identifier_part(value: str) -> str:
+    return str(value or '').strip().strip('[]').strip()
+
+
+def _split_table_identifier(table_name: str) -> tuple[str, str]:
+    raw = str(table_name or '').strip().replace('[', '').replace(']', '')
+    parts = [part.strip() for part in raw.split('.') if part.strip()]
+    if len(parts) >= 2:
+        return parts[-2], parts[-1]
+    return 'dbo', parts[0] if parts else ''
+
+
+def _resolve_table_identifier(table_name: str) -> tuple[str, str]:
+    requested_schema, requested_table = _split_table_identifier(table_name)
+    requested_schema = _clean_identifier_part(requested_schema) or 'dbo'
+    requested_table = _clean_identifier_part(requested_table)
+    if not requested_table:
+        return requested_schema, ''
+
+    row = db.session.execute(text("""
+        SELECT TOP 1
+            S.name AS SCHEMA_NAME,
+            T.name AS TABLE_NAME
+        FROM sys.objects T
+        INNER JOIN sys.schemas S
+            ON S.schema_id = T.schema_id
+        WHERE T.type IN ('U', 'V')
+          AND T.is_ms_shipped = 0
+          AND UPPER(T.name) = UPPER(:table_name)
+          AND (
+              UPPER(S.name) = UPPER(:schema_name)
+              OR :explicit_schema = 0
+          )
+        ORDER BY
+            CASE WHEN UPPER(S.name) = UPPER(:schema_name) THEN 0 ELSE 1 END,
+            CASE WHEN S.name = 'dbo' THEN 0 ELSE 1 END,
+            CASE WHEN T.type = 'U' THEN 0 ELSE 1 END,
+            S.name,
+            T.name
+    """), {
+        'schema_name': requested_schema,
+        'table_name': requested_table,
+        'explicit_schema': 0 if '.' not in str(table_name or '') else 1,
+    }).mappings().first()
+    if row:
+        schema_name = str(row.get('SCHEMA_NAME') or '').strip()
+        physical_table = str(row.get('TABLE_NAME') or '').strip()
+        if schema_name and physical_table:
+            return schema_name, physical_table
+    return requested_schema, requested_table
+
+
 def get_table(table_name):
     meta = MetaData()
+    schema_name, physical_table = _resolve_table_identifier(table_name)
+    if not physical_table:
+        abort(404, f"Tabela {table_name} não encontrada")
     try:
         return Table(
-            table_name,
+            physical_table,
             meta,
-            schema='dbo',
-            autoload_with=db.engine
+            schema=schema_name,
+            autoload_with=_current_db_bind()
         )
     except Exception as e:
-        current_app.logger.error(f"Erro ao refletir tabela {table_name}: {e}")
-        abort(404, f"Tabela {table_name} nÃ£o encontrada")
+        current_app.logger.error(f"Erro ao refletir tabela {schema_name}.{physical_table} ({table_name}): {e}")
+        abort(404, f"Tabela {table_name} não encontrada")
 
 
 def _column_exists(table_name: str, column_name: str) -> bool:
+    schema_name, physical_table = _resolve_table_identifier(table_name)
+    if not physical_table or not str(column_name or '').strip():
+        return False
     row = db.session.execute(text("""
         SELECT 1
-          FROM sys.columns
-         WHERE object_id = OBJECT_ID(:obj)
-           AND name = :col
-    """), {'obj': f'dbo.{table_name}', 'col': column_name}).first()
+        FROM sys.columns C
+        INNER JOIN sys.objects T
+            ON T.object_id = C.object_id
+        INNER JOIN sys.schemas S
+            ON S.schema_id = T.schema_id
+        WHERE T.type IN ('U', 'V')
+          AND UPPER(S.name) = UPPER(:schema_name)
+          AND UPPER(T.name) = UPPER(:table_name)
+          AND UPPER(C.name) = UPPER(:column_name)
+    """), {
+        'schema_name': schema_name,
+        'table_name': physical_table,
+        'column_name': str(column_name or '').strip(),
+    }).first()
     return bool(row)
 
 
@@ -800,7 +1049,7 @@ def view_table(table_name, record_stamp):
         menu_item = Menu.query.filter_by(menustamp=requested_menu_stamp, tabela=table_name).first()
     if menu_item is None:
         menu_item = Menu.query.filter_by(tabela=table_name).first()
-    menu_label = menu_item.nome if menu_item else table_name.capitalize()
+    menu_label = _translated_menu_label(menu_item, menu_item.nome) if menu_item else table_name.capitalize()
     return render_template(
         'dynamic_list.html',
         table_name=table_name,
@@ -820,7 +1069,7 @@ def edit_table(table_name, record_stamp):
         menu_item = Menu.query.filter_by(menustamp=requested_menu_stamp, tabela=table_name).first()
     if menu_item is None:
         menu_item = Menu.query.filter_by(tabela=table_name).first()
-    menu_label = menu_item.nome if menu_item else table_name.capitalize()
+    menu_label = _translated_menu_label(menu_item, menu_item.nome) if menu_item else table_name.capitalize()
     exact_widths = _menu_uses_exact_widths(table_name)
 
     botoes_query = MenuBotoes.query.filter_by(
@@ -1339,7 +1588,7 @@ def al_fotos_delete(alstamp, alfotostamp):
 @login_required
 def fo_compras_form(record_stamp):
     menu_item  = Menu.query.filter_by(tabela='FO').first()
-    menu_label = menu_item.nome if menu_item else "FO - Compras"
+    menu_label = _translated_menu_label(menu_item, menu_item.nome) if menu_item else "FO - Compras"
     return render_template(
         'fo_compras_form.html',
         record_stamp=record_stamp,
@@ -1638,6 +1887,7 @@ def list_or_describe(table_name):
         visible_map = {}
         numeric_meta_map = {}
         list_layout_map = {}
+        properties_map = {}
         if _column_exists(table_name='CAMPOS', column_name='VISIVEL'):
             visible_rows = db.session.execute(text("""
                 SELECT
@@ -1704,6 +1954,18 @@ def list_or_describe(table_name):
                 }
                 for row in list_rows
             }
+        if _column_exists(table_name='CAMPOS', column_name='PROPRIEDADES'):
+            properties_rows = db.session.execute(text("""
+                SELECT
+                    UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) AS NMCAMPO,
+                    ISNULL(PROPRIEDADES, '{}') AS PROPRIEDADES
+                FROM dbo.CAMPOS
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
+            """), {'table_name': str(table_name or '').strip().upper()}).mappings().all()
+            properties_map = {
+                str(row.get('NMCAMPO') or '').strip().upper(): _parse_lookup_props(row.get('PROPRIEDADES'))
+                for row in properties_rows
+            }
         pk_name = f"{table_name.upper()}STAMP"
         cols = []
         for c in campos:
@@ -1713,9 +1975,15 @@ def list_or_describe(table_name):
             scale = getattr(col_type, 'scale', None) if col_type is not None else None
             numeric_meta = numeric_meta_map.get(c.nmcampo.upper(), {})
             list_layout = list_layout_map.get(c.nmcampo.upper(), {})
+            translated_description = _translated_campo_label(c, c.descricao)
+            raw_list_mobile_label = str(list_layout.get('lista_mobile_label', c.descricao or c.nmcampo) or '').strip()
+            if not raw_list_mobile_label or raw_list_mobile_label == str(c.descricao or c.nmcampo or '').strip():
+                list_mobile_label = str(translated_description or c.nmcampo or '').strip()
+            else:
+                list_mobile_label = raw_list_mobile_label
             cols.append({
                 'name':             c.nmcampo,
-                'descricao':        c.descricao,
+                'descricao':        translated_description,
                 'tipo':             c.tipo,
                 'lista':            bool(c.lista),
                 'filtro':           bool(c.filtro) if c.tipo != 'VIRTUAL' else False,
@@ -1734,7 +2002,7 @@ def list_or_describe(table_name):
                 'lista_mobile_bold': bool(list_layout.get('lista_mobile_bold', False)),
                 'lista_mobile_italic': bool(list_layout.get('lista_mobile_italic', False)),
                 'lista_mobile_show_label': bool(list_layout.get('lista_mobile_show_label', True)),
-                'lista_mobile_label': str(list_layout.get('lista_mobile_label', c.descricao or c.nmcampo) or '').strip(),
+                'lista_mobile_label': list_mobile_label,
                 'ordem_mobile':     c.ordem_mobile,
                 'tam_mobile':       c.tam_mobile,
                 'condicao_visivel': c.condicao_visivel,
@@ -1744,6 +2012,7 @@ def list_or_describe(table_name):
                 'decimais':         numeric_meta.get('decimais') if 'decimais' in numeric_meta else scale,
                 'minimo':           numeric_meta.get('minimo'),
                 'maximo':           numeric_meta.get('maximo'),
+                'propriedades':     properties_map.get(c.nmcampo.upper(), {}),
             })
         cols.extend(_load_menu_objects_for_menu(menu_stamp))
         if include_screen_meta:
@@ -2004,6 +2273,180 @@ def combo_options():
         else:
             results.append({'value': r[0], 'text': r[1]})
     return jsonify(results)
+
+
+@bp.route('/api/menu_object_lookup', methods=['POST'])
+@login_required
+def menu_object_lookup():
+    try:
+        payload = request.get_json(silent=True) or {}
+        menustamp = str(payload.get('menustamp') or '').strip()
+        object_name = str(payload.get('object_name') or '').strip()
+        q = str(payload.get('q') or '').strip()
+        exact_mode = str(payload.get('mode') or '').strip().lower() in {'value', 'exact'}
+        if 'exact_value' in payload or 'value' in payload:
+            exact_mode = True
+        exact_value = payload.get('exact_value') if 'exact_value' in payload else payload.get('value')
+        exact_value = '' if exact_value is None else str(exact_value).strip()
+        if not menustamp or not object_name:
+            return jsonify({'success': False, 'error': 'Objeto de pesquisa em falta.'}), 400
+
+        payload_config = payload.get('config') if isinstance(payload.get('config'), dict) else {}
+        requested_target_field = str(
+            payload_config.get('lookup_target_field')
+            or payload_config.get('target_field')
+            or payload_config.get('field_name')
+            or ''
+        ).strip()
+        props = _load_lookup_object_props(
+            menustamp,
+            object_name,
+            payload.get('table_name'),
+            requested_target_field,
+        )
+        if not props:
+            return jsonify({'success': False, 'error': 'Objeto de pesquisa nao encontrado.'}), 404
+
+        lookup_table = _lookup_prop(props, 'lookup_table', 'table', 'source')
+        display_fields_raw = _lookup_prop(props, 'lookup_display_fields', 'display_fields')
+        value_field_raw = _lookup_prop(props, 'lookup_value_field', 'value_field', 'source_field')
+        target_field = _lookup_prop(props, 'lookup_target_field', 'target_field', 'field_name')
+        filter_expr = _lookup_prop(props, 'lookup_filter', 'filter', 'where')
+        if not lookup_table:
+            return jsonify({'success': False, 'error': 'Tabela de pesquisa em falta.'}), 400
+        if not value_field_raw:
+            return jsonify({'success': False, 'error': 'Campo valor em falta.'}), 400
+        if not q and not (exact_mode and exact_value):
+            return jsonify({'success': True, 'rows': [], 'target_field': target_field})
+
+        schema_name, physical_table = _resolve_table_identifier(lookup_table)
+        if not physical_table:
+            return jsonify({'success': False, 'error': 'Tabela de pesquisa invalida.'}), 400
+        screen_table = str(payload.get('table_name') or '').strip()
+        has_screen_access = bool(screen_table) and (
+            has_permission(screen_table, 'consultar')
+            or has_permission(screen_table, 'editar')
+            or has_permission(screen_table, 'inserir')
+        )
+        if not (
+            getattr(current_user, 'ADMIN', False)
+            or has_permission(physical_table, 'consultar')
+            or has_permission(lookup_table, 'consultar')
+            or has_screen_access
+        ):
+            return jsonify({'success': False, 'error': 'Sem permissao para consultar a tabela de pesquisa.'}), 403
+
+        table = get_table(f'{schema_name}.{physical_table}')
+        column_map = {
+            str(column.name or '').strip().upper(): str(column.name or '').strip()
+            for column in table.columns
+            if str(column.name or '').strip()
+        }
+        value_field = _resolve_lookup_column(column_map, value_field_raw, 'Campo valor')
+        display_requests = _split_lookup_fields(display_fields_raw)
+        if not display_requests:
+            display_requests = [value_field]
+        display_columns = []
+        seen_display = set()
+        for requested in display_requests:
+            column_name = _resolve_lookup_column(column_map, requested, 'Campo visivel')
+            key = column_name.upper()
+            if key not in seen_display:
+                seen_display.add(key)
+                display_columns.append(column_name)
+
+        search_columns = []
+        seen_search = set()
+        for column_name in [*display_columns, value_field]:
+            key = column_name.upper()
+            if key not in seen_search:
+                seen_search.add(key)
+                search_columns.append(column_name)
+
+        form_state = payload.get('form_state') if isinstance(payload.get('form_state'), dict) else {}
+        lookup_state = dict(form_state)
+        lookup_state.update({
+            'TABLE_NAME': str(payload.get('table_name') or '').strip(),
+            'RECORD_STAMP': str(payload.get('record_stamp') or '').strip(),
+            'MENU_STAMP': menustamp,
+            'CURRENT_USER': getattr(current_user, 'LOGIN', '') or '',
+            'USER': getattr(current_user, 'LOGIN', '') or '',
+        })
+        try:
+            lookup_state['FEID'] = get_current_feid()
+        except MissingCurrentEntityError:
+            lookup_state['FEID'] = None
+
+        alias = 'LKP'
+        table_ref = f'{_quote_sql_identifier(schema_name)}.{_quote_sql_identifier(physical_table)}'
+        select_parts = [f'{alias}.{_quote_sql_identifier(value_field)} AS [__value]']
+        for column_name in display_columns:
+            select_parts.append(f'{alias}.{_quote_sql_identifier(column_name)} AS {_quote_sql_identifier(column_name)}')
+
+        if exact_mode:
+            params = {'lookup_value': exact_value}
+            where_parts = [
+                f"LTRIM(RTRIM(CONVERT(NVARCHAR(4000), {alias}.{_quote_sql_identifier(value_field)}))) = :lookup_value"
+            ]
+            top_count = 1
+        else:
+            params = {'lookup_q': f'%{q.upper()}%'}
+            search_sql = ' OR '.join(
+                f'UPPER(CONVERT(NVARCHAR(4000), {alias}.{_quote_sql_identifier(column_name)})) LIKE :lookup_q'
+                for column_name in search_columns
+            )
+            where_parts = [f'({search_sql})']
+            top_count = 25
+        filter_sql, filter_params = _prepare_lookup_filter(filter_expr, lookup_state)
+        if filter_sql:
+            where_parts.append(f'({filter_sql})')
+            params.update(filter_params)
+
+        sql = f"""
+            SELECT TOP {top_count}
+                {', '.join(select_parts)}
+            FROM {table_ref} {alias}
+            WHERE {' AND '.join(where_parts)}
+        """
+        scope_table_name = physical_table if schema_name.lower() == 'dbo' else f'{schema_name}.{physical_table}'
+        if _table_is_fe_scoped(scope_table_name):
+            params['lookup_feid'] = _current_feid_or_abort()
+            sql += _sql_feid_clause(scope_table_name, alias=alias, param_name='lookup_feid', mode='read')
+        sql += f' ORDER BY {alias}.{_quote_sql_identifier(display_columns[0] if display_columns else value_field)}'
+
+        result_rows = db.session.execute(text(sql), params).mappings().all()
+        rows = []
+        for row in result_rows:
+            raw_value = row.get('__value')
+            display_values = [_event_cursor_json_value(row.get(column_name)) for column_name in display_columns]
+            label_parts = [
+                str(value).strip()
+                for value in display_values
+                if value is not None and str(value).strip()
+            ]
+            label = ' · '.join(label_parts) or ('' if raw_value is None else str(raw_value).strip())
+            row_payload = {value_field: _event_cursor_json_value(raw_value)}
+            for column_name in display_columns:
+                row_payload[column_name] = _event_cursor_json_value(row.get(column_name))
+            rows.append({
+                'value': _event_cursor_json_value(raw_value),
+                'label': label,
+                'display': display_values,
+                'row': row_payload,
+            })
+
+        return jsonify({
+            'success': True,
+            'rows': rows,
+            'target_field': target_field,
+        })
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
+    except Exception as exc:
+        if hasattr(exc, 'code') and hasattr(exc, 'description'):
+            raise
+        current_app.logger.exception('Erro na pesquisa incremental de objeto de menu.')
+        return jsonify({'success': False, 'error': str(exc)}), 500
 
 # --------------------------------------------------
 # API: marcar MN como tratada
@@ -2986,7 +3429,7 @@ def api_dynamic_details(mae, record_stamp):
         campos = [
             {
                 "CAMPO": c.nmcampo,
-                "LABEL": c.descricao,
+                "LABEL": _translated_campo_label(c, c.descricao),
                 "CAMPODESTINO": c.nmcampo,
                 "VISIVEL": c.nmcampo.upper() != pk_name
             }

@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}{{ _('dashboard.title') }}{% endblock %}
 {% block content %}
 <div class="sz_page sz_dashboard_page">
   <div class="sz_page_container">
     <div class="sz_contextbar sz_page_contextbar sz_dashboard_contextbar">
       <div class="sz_contextbar_left">
-        <div class="sz_breadcrumbs">HOME / DASHBOARD</div>
-        <div class="sz_page_title">Dashboard</div>
-        <div class="sz_page_subtitle">Visao geral dos widgets operacionais</div>
+        <div class="sz_breadcrumbs">{{ _('dashboard.breadcrumb') }}</div>
+        <div class="sz_page_title">{{ _('dashboard.title') }}</div>
+        <div class="sz_page_subtitle">{{ _('dashboard.subtitle') }}</div>
       </div>
     </div>
 

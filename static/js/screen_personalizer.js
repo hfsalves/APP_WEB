@@ -89,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     BIT: { icon: 'fa-solid fa-square-check', label: 'Bit' },
     BUTTON: { icon: 'fa-solid fa-square', label: 'Botao' },
     TABLE: { icon: 'fa-solid fa-table', label: 'Tabela' },
+    TABLE_FIELD: { icon: 'fa-solid fa-magnifying-glass', label: 'Campo tabela' },
     COLOR: { icon: 'fa-solid fa-palette', label: 'Cor' },
     LINK: { icon: 'fa-solid fa-link', label: 'Link' },
     SPACE: { icon: 'fa-solid fa-left-right', label: 'Espaço' },
@@ -104,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     BIT: 'Checkbox',
     BUTTON: 'Button',
     TABLE: 'Table',
+    TABLE_FIELD: 'Table Field',
     COLOR: 'Color',
     LINK: 'Link',
     SPACE: 'Spacer',
@@ -121,10 +123,27 @@ document.addEventListener('DOMContentLoaded', () => {
     { id: 'BIT', icon: TYPE_META.BIT.icon, label: 'Checkbox', key: 'BIT' },
     { id: 'BUTTON', icon: TYPE_META.BUTTON.icon, label: 'Button', key: 'BUTTON' },
     { id: 'TABLE', icon: TYPE_META.TABLE.icon, label: 'Table', key: 'TABLE' },
+    { id: 'TABLE_FIELD', icon: TYPE_META.TABLE_FIELD.icon, label: 'Table Field', key: 'TABLE_FIELD' },
     { id: 'COLOR', icon: TYPE_META.COLOR.icon, label: 'Color', key: 'COLOR' },
     { id: 'LINK', icon: TYPE_META.LINK.icon, label: 'Link', key: 'LINK' },
     { id: 'SPACE', icon: TYPE_META.SPACE.icon, label: 'Spacer', key: 'SPACE' },
   ];
+  const FIELD_TYPE_OPTIONS = [
+    'TEXT',
+    'COMBO',
+    'DATE',
+    'HOUR',
+    'INT',
+    'DECIMAL',
+    'MEMO',
+    'BIT',
+    'COLOR',
+    'LINK',
+    'BUTTON',
+    'TABLE',
+    'TABLE_FIELD',
+    'SPACE',
+  ].map((type) => ({ value: type, label: TYPE_LABELS_EN[type] || type }));
   const VARIABLE_META = {
     TEXT: { icon: 'fa-solid fa-font', label: 'Text', hint: 'Valor livre em texto simples.' },
     MEMO: { icon: 'fa-solid fa-align-left', label: 'Long Text', hint: 'Texto longo, notas ou blocos multi-linha.' },
@@ -572,6 +591,26 @@ document.addEventListener('DOMContentLoaded', () => {
     return normalized;
   }
 
+  function normalizePropertiesObject(value, fallback = {}) {
+    const base = fallback && typeof fallback === 'object' && !Array.isArray(fallback)
+      ? { ...fallback }
+      : {};
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return { ...base, ...value };
+    }
+    const raw = String(value ?? '').trim();
+    if (!raw) return base;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return { ...base, ...parsed };
+      }
+    } catch (_) {
+      return base;
+    }
+    return base;
+  }
+
   function normalizeCampoRow(row) {
     const normalized = {
       CAMPOSSTAMP: '',
@@ -616,6 +655,9 @@ document.addEventListener('DOMContentLoaded', () => {
       _SPV_POS_LIST_MOBILE: null,
       ...(row || {}),
     };
+    normalized.PROPRIEDADES = normalizePropertiesObject(
+      normalized.PROPRIEDADES ?? normalized.propriedades ?? normalized.properties
+    );
     if (row && typeof row === 'object') {
       Object.assign(row, normalized);
       return row;
@@ -1463,8 +1505,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!template) return null;
     const stamp = nextCustomObjectStamp();
     const baseName = `OBJ_${template.id}_${state.customObjectSeq}`;
-    const defaultWidth = template.id === 'TABLE' ? 100 : (template.id === 'BUTTON' ? 15 : 5);
-    const defaultMobileWidth = template.id === 'TABLE' ? 40 : defaultWidth;
+    const defaultWidth = template.id === 'TABLE'
+      ? 100
+      : (template.id === 'BUTTON' ? 15 : (template.id === 'TABLE_FIELD' ? 25 : 5));
+    const defaultMobileWidth = template.id === 'TABLE'
+      ? 40
+      : (template.id === 'TABLE_FIELD' ? 40 : defaultWidth);
     const objectRow = normalizeCampoRow({
       CAMPOSSTAMP: stamp,
       NMCAMPO: baseName,
@@ -1574,9 +1620,7 @@ document.addEventListener('DOMContentLoaded', () => {
         MAXIMO: String(field.MAXIMO ?? '').trim(),
         COMBO: String(field.COMBO || '').trim(),
         CONDICAO_VISIVEL: String(field.CONDICAO_VISIVEL || '').trim(),
-        PROPRIEDADES: field.PROPRIEDADES && typeof field.PROPRIEDADES === 'object'
-          ? field.PROPRIEDADES
-          : {},
+        PROPRIEDADES: normalizePropertiesObject(field.PROPRIEDADES ?? field.propriedades ?? field.properties),
         _SPV_ORIGIN: String(field._SPV_ORIGIN || 'field').trim(),
       };
     };
@@ -2005,6 +2049,26 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }
 
+    if (type === 'TABLE_FIELD') {
+      const props = getFieldProperties(field);
+      const lookupTable = String(props.lookup_table || '').trim();
+      const lookupFields = String(props.lookup_display_fields || '').trim();
+      const lookupValue = String(props.lookup_value_field || '').trim();
+      const hint = [lookupTable, lookupFields, lookupValue].filter(Boolean).join(' · ');
+      return `
+        <label class="sz_label">${label}</label>
+        <div class="spv-preview-lookup" aria-hidden="true">
+          <input class="sz_input spv-preview-control" type="text" placeholder="${placeholder}" readonly>
+          <span class="spv-preview-lookup-icon"><i class="fa-solid fa-chevron-down"></i></span>
+          <div class="spv-preview-lookup-menu">
+            <div>${escapeHtml(hint || 'Resultados da tabela')}</div>
+            <div>${escapeHtml(fieldLabel(field))}</div>
+          </div>
+        </div>
+        ${handle}
+      `;
+    }
+
     let control = `<input class="sz_input spv-preview-control" type="text" placeholder="${placeholder}" readonly>`;
     if (type === 'COMBO') {
       control = `
@@ -2299,7 +2363,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const listMode = isListLayoutMode();
     const listMobileMode = isListMobileLayoutMode();
     const editableName = isCustomObject(field);
-    const canBindVariable = isCustomObject(field) && !['SPACE', 'BUTTON', 'TABLE'].includes(fieldType);
+    const canBindVariable = isCustomObject(field) && !['SPACE', 'BUTTON', 'TABLE', 'TABLE_FIELD'].includes(fieldType);
     const boundVariable = getFieldBoundVariable(field);
     const fieldProps = getFieldProperties(field);
     const tableSourceType = String(fieldProps.source_type || 'sql_table').trim() || 'sql_table';
@@ -2309,6 +2373,17 @@ document.addEventListener('DOMContentLoaded', () => {
           label: String(table.label || table.key || '').trim(),
         }))
       : [{ value: '', label: 'Sem tabelas disponiveis' }];
+    const lookupTargetValue = String(fieldProps.lookup_target_field || '').trim();
+    const lookupTargetOptions = [
+      { value: '', label: 'Sem campo' },
+      ...getDetailFields().map((item) => ({
+        value: String(item.NMCAMPO || '').trim(),
+        label: `${String(item.NMCAMPO || '').trim()} · ${String(item.DESCRICAO || item.NMCAMPO || '').trim()}`,
+      })).filter((option) => option.value),
+    ];
+    if (lookupTargetValue && !lookupTargetOptions.some((option) => option.value === lookupTargetValue)) {
+      lookupTargetOptions.push({ value: lookupTargetValue, label: `${lookupTargetValue} · manual` });
+    }
     const lineValue = listMode
       ? (listMobileMode
         ? (Number(field.ORDEM_LISTA_MOBILE || 0) > 0 ? `Row ${Math.max(1, Number(field._SPV_ROW_LIST_MOBILE || getFieldRowId(field) || 1))} · Pos ${Math.max(1, Number(field._SPV_POS_LIST_MOBILE ?? getFieldPos(field)) + 1)}` : 'Out of mobile card')
@@ -2328,7 +2403,13 @@ document.addEventListener('DOMContentLoaded', () => {
         editor: editableName ? 'NMCAMPO' : '',
       },
       { name: 'Origin', value: originValue },
-      { name: 'Type', value: TYPE_LABELS_EN[fieldType] || fieldType },
+      {
+        name: 'Type',
+        value: fieldType,
+        editor: 'TIPO',
+        editorType: 'select',
+        options: FIELD_TYPE_OPTIONS,
+      },
       { name: 'Width', value: `${Number(field?.[getActiveWidthField()] || 0)}%` },
       { name: listMode ? (listMobileMode ? 'Placement' : 'Position') : 'Line', value: lineValue },
       {
@@ -2340,6 +2421,24 @@ document.addEventListener('DOMContentLoaded', () => {
         editorType: 'boolean',
       },
     ];
+    if (listMode) {
+      props.push({
+        name: 'Filter',
+        value: Number(field.FILTRO || 0) ? 'Yes' : 'No',
+        editor: 'FILTRO',
+        editorType: 'boolean',
+      });
+    }
+    if (fieldType === 'COMBO') {
+      props.push({
+        name: 'Combo Query',
+        value: String(field.COMBO || '').trim(),
+        editor: 'COMBO',
+        editorType: 'textarea',
+        rows: 6,
+        placeholder: 'SELECT codigo AS value, descricao AS label FROM tabela ORDER BY descricao',
+      });
+    }
     if (listMobileMode) {
       props.push(
         {
@@ -2389,7 +2488,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : 'O evento passa a ser desenhado por comandos visuais e pseudo-codigo.',
         },
       );
-    } else if (!listMode && fieldType !== 'TABLE') {
+    } else if (!listMode && !['TABLE', 'TABLE_FIELD'].includes(fieldType)) {
       props.push(
         {
           name: 'Required',
@@ -2455,6 +2554,42 @@ document.addEventListener('DOMContentLoaded', () => {
           editor: 'TABLE_SHOW_DELETE_BUTTON',
           editorType: 'boolean',
           editorValue: isTruthyLike(fieldProps.show_delete_button) ? '1' : '0',
+        },
+      );
+    }
+    if (!listMode && fieldType === 'TABLE_FIELD') {
+      props.push(
+        {
+          name: 'Lookup Table',
+          value: String(fieldProps.lookup_table || '').trim(),
+          editor: 'LOOKUP_TABLE',
+          editorType: 'select',
+          options: [{ value: '', label: 'Seleciona uma tabela' }, ...sqlTableOptions],
+        },
+        {
+          name: 'Display Fields',
+          value: String(fieldProps.lookup_display_fields || '').trim(),
+          editor: 'LOOKUP_DISPLAY_FIELDS',
+        },
+        {
+          name: 'Value Field',
+          value: String(fieldProps.lookup_value_field || '').trim(),
+          editor: 'LOOKUP_VALUE_FIELD',
+        },
+        {
+          name: 'Target Field',
+          value: lookupTargetValue,
+          editor: 'LOOKUP_TARGET_FIELD',
+          editorType: 'select',
+          options: lookupTargetOptions,
+        },
+        {
+          name: 'Filter Expression',
+          value: String(fieldProps.lookup_filter || '').trim(),
+          editor: 'LOOKUP_FILTER',
+          editorType: 'textarea',
+          rows: 4,
+          placeholder: 'Ex: INATIVO = 0 AND FEID = {{FEID}}',
         },
       );
     }
@@ -2557,6 +2692,24 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (propName === 'NMCAMPO') {
       if (!isCustomObject(field)) return;
       field.NMCAMPO = value || String(field.NMCAMPO || '').trim() || 'OBJECT';
+    } else if (propName === 'TIPO') {
+      const nextType = value.toUpperCase();
+      if (!FIELD_TYPE_OPTIONS.some((option) => option.value === nextType)) return;
+      field.TIPO = nextType;
+      if (nextType !== 'COMBO') {
+        field.COMBO = '';
+        field.HAS_COMBO = false;
+      }
+      if (nextType === 'COMBO') {
+        field.HAS_COMBO = Boolean(String(field.COMBO || '').trim());
+      }
+      if (nextType === 'DECIMAL' && !Number(field.DECIMAIS || 0)) {
+        field.DECIMAIS = 2;
+      }
+    } else if (propName === 'COMBO') {
+      field.TIPO = 'COMBO';
+      field.COMBO = value;
+      field.HAS_COMBO = Boolean(value);
     } else if (propName === 'VISIVEL') {
       field.VISIVEL = Number(nextValue) ? 1 : 0;
     } else if (propName === 'LISTA') {
@@ -2565,6 +2718,8 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         applyListFieldSequence(getVisibleListFields({ excludeStamp: getFieldStamp(field) }));
       }
+    } else if (propName === 'FILTRO') {
+      field.FILTRO = Number(nextValue) ? 1 : 0;
     } else if (propName === 'LISTA_MOBILE_VISIBLE') {
       toggleFieldInListMobile(getFieldStamp(field), Number(nextValue) === 1);
     } else if (propName === 'OBRIGATORIO') {
@@ -2654,6 +2809,28 @@ document.addEventListener('DOMContentLoaded', () => {
         field.PROPRIEDADES = {};
       }
       field.PROPRIEDADES.show_delete_button = Number(nextValue) ? 1 : 0;
+    } else if (propName === 'LOOKUP_TABLE'
+      || propName === 'LOOKUP_DISPLAY_FIELDS'
+      || propName === 'LOOKUP_VALUE_FIELD'
+      || propName === 'LOOKUP_TARGET_FIELD'
+      || propName === 'LOOKUP_FILTER') {
+      if (detectFieldType(field) !== 'TABLE_FIELD') return;
+      if (!field.PROPRIEDADES || typeof field.PROPRIEDADES !== 'object') {
+        field.PROPRIEDADES = {};
+      }
+      const propMap = {
+        LOOKUP_TABLE: 'lookup_table',
+        LOOKUP_DISPLAY_FIELDS: 'lookup_display_fields',
+        LOOKUP_VALUE_FIELD: 'lookup_value_field',
+        LOOKUP_TARGET_FIELD: 'lookup_target_field',
+        LOOKUP_FILTER: 'lookup_filter',
+      };
+      const key = propMap[propName];
+      if (value) {
+        field.PROPRIEDADES[key] = value;
+      } else {
+        delete field.PROPRIEDADES[key];
+      }
     } else if (propName === 'DECIMAIS') {
       field.DECIMAIS = Math.max(0, Number.parseInt(String(nextValue || '').trim(), 10) || 0);
     } else if (propName === 'MINIMO' || propName === 'MAXIMO') {
@@ -3976,8 +4153,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isMobileMode()) {
         normalizeListMobileLayout();
         const grouped = groupPreviewFields(getDetailFields());
-        const displayGroups = grouped.slice();
-        if (state.drag?.active) {
+        const displayGroups = grouped.length ? grouped.slice() : [[1, []]];
+        if (state.drag?.active && grouped.length) {
           const nextRowId = grouped.length
             ? Math.max(...grouped.map(([rowId]) => Number(rowId) || 0)) + 1
             : 1;
@@ -4164,15 +4341,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const fields = getLayoutItems().map(normalizeCampoRow);
     const grouped = groupPreviewFields(fields);
 
-    if (!grouped.length) {
-      els.previewEmpty?.classList.remove('sz_hidden');
-      els.previewStage?.classList.add('sz_hidden');
-      if (els.previewScale) els.previewScale.innerHTML = '';
-      return;
-    }
-
-    const displayGroups = grouped.slice();
-    if (state.drag?.active) {
+    const displayGroups = grouped.length ? grouped.slice() : [[1, []]];
+    if (state.drag?.active && grouped.length) {
       const nextRowId = grouped.length
         ? Math.max(...grouped.map(([rowId]) => Number(rowId) || 0)) + 1
         : 1;
@@ -4238,7 +4408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
       }).join('');
       const rowHint = !rowFields.length && !items.length
-        ? '<div class="spv-row-hint">Nova linha</div>'
+        ? '<div class="spv-row-hint">Arrasta campos para começar o layout</div>'
         : '';
       const invalidOverlay = rowDrag && !rowDrag.valid
         ? `<div class="spv-drop-placeholder spv-drop-placeholder-inline is-invalid"><span>Sem espaço nesta linha</span></div>`

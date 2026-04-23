@@ -53,7 +53,15 @@ OPTIONAL_USER_COLUMNS = [
     "LAST_LOGIN_AT",
     "IS_ACTIVE",
     "INATIVO",
+    "IDIOMA",
+    "LANG",
+    "LANGUAGE",
+    "LOCALE",
+    "PREFERRED_LANGUAGE",
+    "PREFERRED_LOCALE",
 ]
+
+USER_LANGUAGE_COLUMN = "LANGUAGE"
 
 _TABLE_COLUMNS_CACHE: Dict[str, set[str]] = {}
 _HAS_ARGON2 = PasswordHasher is not None
@@ -91,6 +99,81 @@ def get_table_columns(session, table_name: str) -> set[str]:
     columns = {str(name).upper() for name in rows}
     _TABLE_COLUMNS_CACHE[cache_key] = columns
     return columns
+
+
+def clear_table_columns_cache(table_name: Optional[str] = None) -> None:
+    if not table_name:
+        _TABLE_COLUMNS_CACHE.clear()
+        return
+    _TABLE_COLUMNS_CACHE.pop(_qualified_table_key(table_name), None)
+
+
+def has_table_column(session, table_name: str, column_name: str) -> bool:
+    return str(column_name or "").strip().upper() in get_table_columns(session, table_name)
+
+
+def ensure_user_language_column(session) -> bool:
+    if has_table_column(session, "US", USER_LANGUAGE_COLUMN):
+        return False
+
+    try:
+        session.execute(
+            text(
+                """
+                IF COL_LENGTH('dbo.US', 'LANGUAGE') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.US ADD [LANGUAGE] NVARCHAR(10) NULL
+                END
+                """
+            )
+        )
+        session.commit()
+        clear_table_columns_cache("US")
+        logger.info("Coluna dbo.US.LANGUAGE criada automaticamente para i18n")
+        return has_table_column(session, "US", USER_LANGUAGE_COLUMN)
+    except Exception:
+        session.rollback()
+        raise
+
+
+def set_user_language_preference(
+    session,
+    *,
+    user_stamp: str = "",
+    login_value: str = "",
+    language: str = "",
+) -> bool:
+    language_value = str(language or "").strip()
+    if not language_value or not has_table_column(session, "US", USER_LANGUAGE_COLUMN):
+        return False
+
+    params: Dict[str, Any] = {"language": language_value}
+    where_sql = ""
+    if user_stamp:
+        where_sql = "USSTAMP = :user_stamp"
+        params["user_stamp"] = str(user_stamp).strip()
+    elif login_value:
+        where_sql = "LOGIN = :login"
+        params["login"] = str(login_value).strip()
+    else:
+        return False
+
+    try:
+        result = session.execute(
+            text(
+                f"""
+                UPDATE US
+                   SET [LANGUAGE] = :language
+                 WHERE {where_sql}
+                """
+            ),
+            params,
+        )
+        session.commit()
+        return (result.rowcount or 0) > 0
+    except Exception:
+        session.rollback()
+        raise
 
 
 def _selectable_user_columns(session) -> list[str]:

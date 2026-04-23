@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="{{ current_language_tag }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>StationZero</title>
+  <title>{% block title %}{{ _('app.name') }}{% endblock %}</title>
 
   <!-- Favicon -->
   <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
@@ -404,9 +404,55 @@
   <!-- iOS PWA Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="StationZero">
+  <meta name="apple-mobile-web-app-title" content="{{ _('app.name') }}">
   <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/icon-180-v2.png') }}">
   {% block extra_head %}{% endblock %}
+
+  {% set base_i18n_js_keys = [
+    'common.cancel',
+    'common.close',
+    'common.confirm',
+    'common.delete',
+    'common.message',
+    'common.no',
+    'common.yes',
+    'i18n.language_saved',
+    'i18n.language_update_error',
+    'layout.entity_changed_reload',
+    'layout.entity_switch_error',
+    'layout.entity_switching',
+    'push.activate_error',
+    'push.active_summary',
+    'push.blocked',
+    'push.disable_error',
+    'push.http_error',
+    'push.ios_hint',
+    'push.ios_install_first',
+    'push.no_devices',
+    'push.no_devices_active',
+    'push.no_info',
+    'push.permission_denied',
+    'push.registered_inactive',
+    'push.test_error',
+    'push.test_sent',
+    'push.unsupported',
+    'ui.confirm_delete',
+    'ui.delete_warning'
+  ] %}
+  <script>
+    window.SZ_I18N_ENABLED = {{ i18n_enabled|tojson }};
+    window.SZ_LANGUAGE = {{ current_language|tojson }};
+    window.SZ_LANGUAGE_TAG = {{ current_language_tag|tojson }};
+    window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ i18n_js(base_i18n_js_keys)|tojson }});
+    window.t = window.t || function (key, vars) {
+      var dict = window.SZ_I18N || {};
+      var text = Object.prototype.hasOwnProperty.call(dict, key) ? dict[key] : key;
+      if (!vars) return text;
+      return String(text).replace(/\{([A-Za-z0-9_]+)\}/g, function (match, name) {
+        return Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : match;
+      });
+    };
+  </script>
 
   <!-- Injeta permissões do user para o JS -->
   <script>
@@ -453,21 +499,21 @@
   <header class="app-header glass-header">
     <div class="header-inner">
       <div class="header-left">
-        <button id="menuToggleMobile" class="menu-toggle-mobile header-toggle" aria-label="Alternar menu">
+        <button id="menuToggleMobile" class="menu-toggle-mobile header-toggle" aria-label="{{ _('layout.menu.toggle') }}">
           <i class="fa-solid fa-bars"></i>
         </button>
         <div class="page-meta">
           <h1 class="page-title">
             {% if can_switch_entity %}
               <span class="sz_entity_header_slot">
-                <a href="{{ url_for('home_page') }}" class="sz_entity_home_link">{{ (current_entity.NOME if current_entity else None) or 'StationZero' }}</a>
-                <button type="button" id="currentEntitySwitcherToggle" class="sz_entity_switch_trigger" aria-label="Mudar empresa" title="Mudar empresa">
+                <a href="{{ url_for('home_page') }}" class="sz_entity_home_link">{{ (current_entity.NOME if current_entity else None) or _('app.name') }}</a>
+                <button type="button" id="currentEntitySwitcherToggle" class="sz_entity_switch_trigger" aria-label="{{ _('layout.switch_company') }}" title="{{ _('layout.switch_company') }}">
                   <i class="fa-solid fa-chevron-down"></i>
                 </button>
               </span>
             {% else %}
               <span class="sz_entity_header_slot">
-                <a href="{{ url_for('home_page') }}" class="sz_entity_home_link">{{ (current_entity.NOME if current_entity else None) or 'StationZero' }}</a>
+                <a href="{{ url_for('home_page') }}" class="sz_entity_home_link">{{ (current_entity.NOME if current_entity else None) or _('app.name') }}</a>
               </span>
             {% endif %}
           </h1>
@@ -476,39 +522,49 @@
       <div class="header-right">
         <div class="user-menu-container ms-auto d-flex align-items-center gap-2">
           <div class="sz_theme_switcher" data-sz-theme-switcher>
-            <button type="button" class="sz_theme_option" data-sz-theme-set="light" aria-pressed="false" aria-label="Light theme" title="Light theme">
+            <button type="button" class="sz_theme_option" data-sz-theme-set="light" aria-pressed="false" aria-label="{{ _('layout.theme.light') }}" title="{{ _('layout.theme.light') }}">
               <i class="fa-solid fa-sun sz_theme_option_icon"></i>
-              <span class="visually-hidden">Light</span>
+              <span class="visually-hidden">{{ _('layout.theme.light') }}</span>
             </button>
-            <button type="button" class="sz_theme_option" data-sz-theme-set="dark" aria-pressed="false" aria-label="Dark theme" title="Dark theme">
+            <button type="button" class="sz_theme_option" data-sz-theme-set="dark" aria-pressed="false" aria-label="{{ _('layout.theme.dark') }}" title="{{ _('layout.theme.dark') }}">
               <i class="fa-solid fa-moon sz_theme_option_icon"></i>
-              <span class="visually-hidden">Dark</span>
+              <span class="visually-hidden">{{ _('layout.theme.dark') }}</span>
             </button>
-            <button type="button" class="sz_theme_option" data-sz-theme-set="geek" aria-pressed="false" aria-label="Geek theme" title="Geek theme">
+            <button type="button" class="sz_theme_option" data-sz-theme-set="geek" aria-pressed="false" aria-label="{{ _('layout.theme.geek') }}" title="{{ _('layout.theme.geek') }}">
               <i class="fa-solid fa-ghost sz_theme_option_icon"></i>
-              <span class="visually-hidden">Geek</span>
+              <span class="visually-hidden">{{ _('layout.theme.geek') }}</span>
             </button>
           </div>
-          <button type="button" class="btn btn-outline-secondary btn-sm sz_header_refresh_btn" onclick="window.location.reload()" title="Atualizar">
+          <button type="button" class="btn btn-outline-secondary btn-sm sz_header_refresh_btn" onclick="window.location.reload()" title="{{ _('common.refresh') }}">
             <i class="fa-solid fa-rotate"></i>
           </button>
-          <button class="btn btn-light btn-user rounded-circle p-0 sz_header_user_btn" id="userMenuToggle" aria-label="Abrir menu de utilizador">
+          <button class="btn btn-light btn-user rounded-circle p-0 sz_header_user_btn" id="userMenuToggle" aria-label="{{ _('layout.user_menu.open') }}">
             {% if current_user.FOTO %}
               <img id="headerUserPhoto" src="{{ url_for('static', filename=current_user.FOTO) }}"
-                   alt="Foto de utilizador" />
+                   alt="{{ _('layout.user_photo_alt') }}" />
             {% endif %}
             <i class="fa-solid fa-user{% if current_user.FOTO %} sz_user_icon_hidden{% endif %}" id="headerUserIcon"></i>
           </button>
           <div class="dropdown-menu dropdown-menu-end user-dropdown-floating" id="userDropdownMenu">
             <div class="dropdown-header text-muted small">
-              {{ current_user.NOME }} - {{ current_user.PERFIL or 'Utilizador' }}
+              {{ current_user.NOME }} - {{ current_user.PERFIL or _('layout.profile_fallback') }}
             </div>
-            <a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fa fa-user me-2"></i>Perfil</a>
+            <a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fa fa-user me-2"></i>{{ _('common.profile') }}</a>
             <button type="button" class="dropdown-item" id="btnOpenPushSettings">
-              <i class="fa fa-bell me-2"></i>Notificações push
+              <i class="fa fa-bell me-2"></i>{{ _('layout.notifications.push') }}
             </button>
+            {% if i18n_enabled %}
+            <div class="dropdown-item-text sz_user_language_block">
+              <label class="sz_user_language_label" for="userLanguageSelect">{{ _('common.language') }}</label>
+              <select class="form-select form-select-sm sz_user_language_select" id="userLanguageSelect" aria-label="{{ _('common.language') }}">
+                {% for item in i18n_languages %}
+                <option value="{{ item.code }}" {% if item.code == current_language %}selected{% endif %}>{{ item.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
             <div class="dropdown-divider"></div>
-            <a class="dropdown-item" href="{{ url_for('logout') }}"><i class="fa fa-sign-out-alt me-2"></i>Logout</a>
+            <a class="dropdown-item" href="{{ url_for('logout') }}"><i class="fa fa-sign-out-alt me-2"></i>{{ _('layout.logout') }}</a>
           </div>
         </div>
       </div>
@@ -522,10 +578,10 @@
     <aside class="sidebar">
       <div class="sidebar-head">
         <div class="sidebar-brand">
-          <span class="sidebar-app">StationZero</span>
-          <span class="sidebar-pill">Operations Platform</span>
+          <span class="sidebar-app">{{ _('app.name') }}</span>
+          <span class="sidebar-pill">{{ _('app.operations_platform') }}</span>
         </div>
-        <button id="sidebarCollapseToggle" class="sidebar-collapse-btn" type="button" aria-label="Encolher menu">
+        <button id="sidebarCollapseToggle" class="sidebar-collapse-btn" type="button" aria-label="{{ _('layout.menu.collapse') }}">
           <i class="fa-solid fa-angles-left"></i>
         </button>
       </div>
@@ -546,7 +602,7 @@
                     <span>
                       {% if item.icon %}<i class="fa-solid {{ item.icon }} me-2"></i>{% endif %}
                       <span class="sidebar-label">{{ item.name }}</span>
-                      {% if item.novo %}<span class="menu-new-badge">NEW</span>{% endif %}
+                      {% if item.novo %}<span class="menu-new-badge">{{ _('common.new') }}</span>{% endif %}
                     </span>
                     <i class="fa-solid fa-chevron-down small"></i>
                   </a>
@@ -562,7 +618,7 @@
                           data-icon="{{ child.icon or '' }}">
                           {% if child.icon %}<i class="fa-solid {{ child.icon }} me-2"></i>{% endif %}
                           <span class="sidebar-label">{{ child.name }}</span>
-                          {% if child.novo %}<span class="menu-new-badge">NEW</span>{% endif %}
+                          {% if child.novo %}<span class="menu-new-badge">{{ _('common.new') }}</span>{% endif %}
                         </a>
                       </li>
                     {% endfor %}
@@ -575,7 +631,7 @@
                     title="{{ item.name }}">
                     {% if item.icon %}<i class="fa-solid {{ item.icon }} me-2"></i>{% endif %}
                     <span class="sidebar-label">{{ item.name }}</span>
-                    {% if item.novo %}<span class="menu-new-badge">NEW</span>{% endif %}
+                    {% if item.novo %}<span class="menu-new-badge">{{ _('common.new') }}</span>{% endif %}
                   </a>
                 {% endif %}
               </li>
@@ -587,11 +643,11 @@
       <div class="sidebar-footer">
         <a class="sidebar-footer-link" href="{{ url_for('profile') }}">
           <i class="fa-solid fa-id-badge me-2"></i>
-          <span class="sidebar-label">Perfil</span>
+          <span class="sidebar-label">{{ _('common.profile') }}</span>
         </a>
         <a class="sidebar-footer-link" href="{{ url_for('logout') }}">
           <i class="fa-solid fa-sign-out-alt me-2"></i>
-          <span class="sidebar-label">Terminar sessao</span>
+          <span class="sidebar-label">{{ _('layout.logout') }}</span>
         </a>
       </div>
     </aside>
@@ -619,13 +675,13 @@
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="genericModalLabel">Ação</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          <h5 class="modal-title" id="genericModalLabel">{{ _('layout.generic_action') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
         </div>
         <div class="modal-body" id="modalBody"></div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" onclick="gravarModal()">Gravar</button>
+          <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">{{ _('common.cancel') }}</button>
+          <button type="button" class="btn btn-primary" onclick="gravarModal()">{{ _('common.save') }}</button>
         </div>
       </div>
     </div>
@@ -638,17 +694,17 @@
       <div class="modal-content">
         <div class="modal-header">
           <div>
-            <h5 class="modal-title" id="pushSettingsModalLabel">Notificações push</h5>
-            <div class="text-muted small">Ativa notificações neste dispositivo e envia um teste para ti próprio.</div>
+            <h5 class="modal-title" id="pushSettingsModalLabel">{{ _('layout.notifications.push') }}</h5>
+            <div class="text-muted small">{{ _('layout.notifications.hint') }}</div>
           </div>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
         </div>
         <div class="modal-body">
           <div id="pushSettingsStatus" class="sz_push_status_box"></div>
           <div class="sz_push_modal_grid">
             <div class="sz_field">
-              <label class="sz_label">Dispositivo</label>
-              <input type="text" id="pushDeviceLabel" class="sz_input" maxlength="100" placeholder="Ex.: iPhone da Elisabete">
+              <label class="sz_label">{{ _('layout.notifications.device') }}</label>
+              <input type="text" id="pushDeviceLabel" class="sz_input" maxlength="100" placeholder="{{ _('layout.notifications.device_placeholder') }}">
             </div>
           </div>
           <div class="sz_push_hint" id="pushSupportHint"></div>
@@ -656,15 +712,15 @@
         <div class="modal-footer">
           <button type="button" class="sz_button sz_button_ghost" id="btnPushDisable">
             <i class="fa fa-bell-slash"></i>
-            <span>Desativar neste dispositivo</span>
+            <span>{{ _('layout.notifications.disable_device') }}</span>
           </button>
           <button type="button" class="sz_button sz_button_secondary" id="btnPushTestSelf">
             <i class="fa fa-vial"></i>
-            <span>Enviar teste</span>
+            <span>{{ _('layout.notifications.send_test') }}</span>
           </button>
           <button type="button" class="sz_button sz_button_primary" id="btnPushEnable">
             <i class="fa fa-bell"></i>
-            <span>Ativar notificações</span>
+            <span>{{ _('layout.enable_notifications') }}</span>
           </button>
         </div>
       </div>
@@ -677,10 +733,10 @@
       <div class="modal-content sz_panel sz_entity_switch_modal">
         <div class="sz_modal_header">
           <div>
-            <h5 class="sz_entity_switch_title" id="entitySwitchModalLabel">Escolher empresa</h5>
-            <div class="sz_entity_switch_subtitle">Seleciona uma empresa disponível no teu utilizador.</div>
+            <h5 class="sz_entity_switch_title" id="entitySwitchModalLabel">{{ _('layout.switch_company_choose') }}</h5>
+            <div class="sz_entity_switch_subtitle">{{ _('layout.switch_company_hint') }}</div>
           </div>
-          <button type="button" class="sz_button sz_button_ghost sz_entity_switch_close" data-bs-dismiss="modal" aria-label="Fechar">
+          <button type="button" class="sz_button sz_button_ghost sz_entity_switch_close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}">
             <i class="fa-solid fa-xmark"></i>
           </button>
         </div>
@@ -694,18 +750,18 @@
                     <div class="sz_entity_switch_name">{{ entity.NOME }}</div>
                   </div>
                   {% if current_entity and current_entity.FEID == entity.FEID %}
-                    <span class="sz_badge sz_badge_primary">Atual</span>
+                    <span class="sz_badge sz_badge_primary">{{ _('common.current') }}</span>
                   {% endif %}
                 </div>
                 <div class="sz_entity_switch_meta">
                   {% if entity.PRINCIPAL %}
-                    <span class="sz_badge sz_badge_info">Principal</span>
+                    <span class="sz_badge sz_badge_info">{{ _('common.main') }}</span>
                   {% endif %}
-                  <span class="sz_badge sz_badge_success">Ativa</span>
+                  <span class="sz_badge sz_badge_success">{{ _('common.active') }}</span>
                 </div>
                 <button type="button" class="sz_button {% if current_entity and current_entity.FEID == entity.FEID %}sz_button_secondary{% else %}sz_button_primary{% endif %}" data-entity-switch="{{ entity.FEID }}">
                   <i class="fa-solid fa-building"></i>
-                  <span>{% if current_entity and current_entity.FEID == entity.FEID %}Empresa atual{% else %}Entrar nesta empresa{% endif %}</span>
+                  <span>{% if current_entity and current_entity.FEID == entity.FEID %}{{ _('layout.current_company') }}{% else %}{{ _('layout.enter_company') }}{% endif %}</span>
                 </button>
               </div>
             {% endfor %}
@@ -747,7 +803,7 @@
           var feid = Number(button.getAttribute('data-entity-switch') || 0);
           if (!feid) return;
           var currentPath = window.location.pathname + window.location.search + window.location.hash;
-          setStatus('A mudar de empresa...');
+          setStatus(t('layout.entity_switching'));
           modalEl.querySelectorAll('[data-entity-switch]').forEach(function (node) {
             node.disabled = true;
           });
@@ -759,13 +815,13 @@
               body: JSON.stringify({ feid: feid, redirect_to: currentPath })
             });
             var data = await res.json().catch(function () { return {}; });
-            if (!res.ok || data.error) throw new Error(data.error || 'Erro ao mudar de empresa.');
-            setStatus('Empresa alterada. A recarregar...', 'success');
+            if (!res.ok || data.error) throw new Error(data.error || t('layout.entity_switch_error'));
+            setStatus(t('layout.entity_changed_reload'), 'success');
             var targetUrl = (data && data.redirect_to) ? String(data.redirect_to) : currentPath;
             var joiner = targetUrl.indexOf('?') >= 0 ? '&' : '?';
             window.location.assign(targetUrl + joiner + '_entity=' + Date.now());
           } catch (error) {
-            setStatus((error && error.message) || 'Erro ao mudar de empresa.', 'error');
+            setStatus((error && error.message) || t('layout.entity_switch_error'), 'error');
             modalEl.querySelectorAll('[data-entity-switch]').forEach(function (node) {
               node.disabled = false;
             });
@@ -781,7 +837,7 @@
   <div id="loadingOverlay" class="loading-overlay" aria-hidden="true">
     <div class="loading-panel">
       <div class="loading-spinner"></div>
-      <div class="loading-text">A carregar…</div>
+      <div class="loading-text">{{ _('layout.loading') }}</div>
       <div class="loading-progress">
         <div class="loading-progress-bar"></div>
       </div>
@@ -798,6 +854,7 @@
     var themeSwitcher = document.querySelector('[data-sz-theme-switcher]');
     var userBtn   = document.getElementById('userMenuToggle');
     var menu      = document.getElementById('userDropdownMenu');
+    var languageSelect = document.getElementById('userLanguageSelect');
     var submenus  = document.querySelectorAll('.sidebar-nav .collapse');
     var themeButtons = document.querySelectorAll('[data-sz-theme-set]');
 
@@ -835,6 +892,25 @@
           keepalive: true,
           body: JSON.stringify({ VIEWMODE: payload.viewmode })
         }).catch(function() {});
+      });
+    }
+
+    function persistLanguage(language) {
+      return fetch('/api/i18n/language', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ language: language })
+      }).then(function(resp) {
+        return resp.json().catch(function() { return {}; }).then(function(payload) {
+          if (!resp.ok || payload.error) {
+            throw new Error(payload.error || ('language status ' + resp.status));
+          }
+          return payload;
+        });
       });
     }
 
@@ -884,6 +960,49 @@
         if (!userBtn.contains(e.target) && !menu.contains(e.target)) {
           menu.classList.remove('show');
         }
+      });
+    }
+
+    if (languageSelect) {
+      var initialLanguage = window.SZ_LANGUAGE || languageSelect.value || 'pt_PT';
+      var languageBusy = false;
+
+      languageSelect.addEventListener('click', function(e) {
+        e.stopPropagation();
+      });
+
+      languageSelect.addEventListener('keydown', function(e) {
+        e.stopPropagation();
+      });
+
+      languageSelect.addEventListener('change', function(e) {
+        var selectedLanguage = languageSelect.value || initialLanguage;
+        e.stopPropagation();
+        if (!window.SZ_I18N_ENABLED || !selectedLanguage || languageBusy || selectedLanguage === (window.SZ_LANGUAGE || initialLanguage)) {
+          return;
+        }
+
+        languageBusy = true;
+        languageSelect.disabled = true;
+
+        persistLanguage(selectedLanguage)
+          .then(function() {
+            if (typeof window.queueToastOnNextPage === 'function') {
+              window.queueToastOnNextPage(window.t('i18n.language_saved'));
+            }
+            window.location.reload();
+          })
+          .catch(function(error) {
+            languageBusy = false;
+            languageSelect.disabled = false;
+            languageSelect.value = window.SZ_LANGUAGE || initialLanguage;
+
+            if (typeof window.showToast === 'function') {
+              window.showToast((error && error.message) || window.t('i18n.language_update_error'), 'danger');
+              return;
+            }
+            window.alert((error && error.message) || window.t('i18n.language_update_error'));
+          });
       });
     }
 

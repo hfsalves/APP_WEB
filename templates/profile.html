@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Perfil{% endblock %}
+{% block title %}{{ _('profile.title') }}{% endblock %}
 
 {% block content %}
 <div class="dynamic-container">
@@ -10,43 +10,43 @@
         <img
         id="profilePhotoPreview"
         src="{% if user.FOTO %}{{ url_for('static', filename=user.FOTO) }}{% else %}{{ url_for('static', filename='images/icon-192.png') }}{% endif %}"
-        alt="Foto de perfil"
+        alt="{{ _('profile.photo_alt') }}"
         class="rounded-circle border"
         style="width:100%; aspect-ratio:1; object-fit:cover;"
       />
       </div>
       <form id="photoUploadForm" enctype="multipart/form-data" class="profile-photo-block">
         <input type="file" name="photo" id="photoInput" accept="image/*" style="display:none;" />
-        <button type="button" id="btnUploadPhoto" class="btn btn-primary w-100">Carregar Foto</button>
+        <button type="button" id="btnUploadPhoto" class="btn btn-primary w-100">{{ _('profile.upload_photo') }}</button>
       </form>
     </div>
     <form id="profileForm" class="row g-3"></form>
     <div class="row g-3 mt-1">
       <div class="col-12 col-md-6">
-        <label for="profileViewMode" class="form-label">Modo de Visualizacao</label>
+        <label for="profileViewMode" class="form-label">{{ _('profile.view_mode') }}</label>
         <select id="profileViewMode" class="form-select">
-          <option value="LIGHT MODE">Light Mode</option>
-          <option value="DARK MODE">Dark Mode</option>
-          <option value="GEEK MODE">Geek Mode</option>
+          <option value="LIGHT MODE">{{ _('profile.view_mode_light') }}</option>
+          <option value="DARK MODE">{{ _('profile.view_mode_dark') }}</option>
+          <option value="GEEK MODE">{{ _('profile.view_mode_geek') }}</option>
         </select>
-        <small class="text-muted">No mobile, a mudanca de tema e feita aqui no perfil.</small>
+        <small class="text-muted">{{ _('profile.mobile_theme_hint') }}</small>
       </div>
     </div>
         <div class="form-actions mt-3">
         <button type="button" id="btnChangePwd" class="btn btn-success ms-2">
-            <i class="fa fa-key me-1"></i> Alterar Password
+            <i class="fa fa-key me-1"></i> {{ _('profile.change_password') }}
         </button>
         <button type="submit" form="profileForm" class="btn btn-primary btn-save">
             <i class="fa-solid fa-save"></i>
-            <span class="btn-text">Gravar</span>
+            <span class="btn-text">{{ _('common.save') }}</span>
         </button>
         <a href="{{ url_for('monitor_page') }}" class="btn btn-cancel">
             <i class="fa-solid fa-ban"></i>
-            <span class="btn-text">Cancelar</span>
+            <span class="btn-text">{{ _('common.cancel') }}</span>
         </a>
         <a href="{{ url_for('monitor_page') }}" class="btn btn-secondary btn-back">
             <i class="fa-solid fa-arrow-left"></i>
-            <span class="btn-text">Voltar</span>
+            <span class="btn-text">{{ _('common.back') }}</span>
         </a>        
         </div>
     <div id="profileMsg" class="mt-3"></div>
@@ -55,31 +55,47 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+  window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ i18n_js([
+    'common.error',
+    'profile.network_save_error',
+    'profile.password_short',
+    'profile.password_update_error',
+    'profile.password_updated',
+    'profile.passwords_mismatch',
+    'profile.photo_load_error',
+    'profile.save_error',
+    'profile.saved',
+    'profile.upload_failed',
+    'profile.view_mode_error',
+    'profile.view_mode_saved'
+  ])|tojson }});
+</script>
 <script type="module" src="{{ url_for('static', filename='js/profile_form.js') }}"></script>
 <!-- Modal Alterar Password -->
 <div class="modal fade" id="modalChangePwd" tabindex="-1" aria-labelledby="modalChangePwdLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modalChangePwdLabel">Alterar Password</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <h5 class="modal-title" id="modalChangePwdLabel">{{ _('profile.change_password') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
       </div>
       <div class="modal-body">
         <form id="formChangePwd" autocomplete="off">
           <div class="mb-3">
-            <label for="pwd1" class="form-label">Nova Password</label>
+            <label for="pwd1" class="form-label">{{ _('profile.new_password') }}</label>
             <input type="password" class="form-control" id="pwd1" required autocomplete="new-password">
           </div>
           <div class="mb-3">
-            <label for="pwd2" class="form-label">Confirmar Password</label>
+            <label for="pwd2" class="form-label">{{ _('profile.confirm_password') }}</label>
             <input type="password" class="form-control" id="pwd2" required autocomplete="new-password">
           </div>
         </form>
         <div id="msgPwd" class="mt-2 text-danger"></div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" form="formChangePwd" class="btn btn-primary">Atualizar</button>
+        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">{{ _('common.cancel') }}</button>
+        <button type="submit" form="formChangePwd" class="btn btn-primary">{{ _('common.update') }}</button>
       </div>
     </div>
   </div>

@@ -56,6 +56,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
 
   const formState = {};
   const camposByName = {};
+  const tableFieldTargetValues = {};
 
   // ─── DEBUG: find all custom‐action buttons ───
   console.log('modal triggers encontrados:', document.querySelectorAll('.btn-custom'));
@@ -166,7 +167,13 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   const layoutWidthUnits = useExactWidths ? (isMobile ? 40 : 100) : null;
   const isColumnVisible = col => !(col && (col.visivel === false || Number(col.visivel) === 0));
   const isUiOnlyColumn = col => !!(col && (col.ui_only || col.is_menu_object));
-  const getColumnProperties = col => (col && typeof col.propriedades === 'object' && col.propriedades) ? col.propriedades : {};
+  const getColumnProperties = col => {
+    if (!col || typeof col !== 'object') return {};
+    if (col.propriedades && typeof col.propriedades === 'object') return col.propriedades;
+    if (col.properties && typeof col.properties === 'object') return col.properties;
+    if (col.PROPRIEDADES && typeof col.PROPRIEDADES === 'object') return col.PROPRIEDADES;
+    return {};
+  };
   const setFormStateValue = (key, value) => {
     const rawKey = String(key || '').trim();
     if (!rawKey) return;
@@ -234,7 +241,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   };
   const boundVariableInputs = new Map();
   const boundVariableState = {};
-  const isEditableBoundObject = col => hasBoundVariable(col) && !col.readonly && !['SPACE', 'BUTTON', 'TABLE'].includes((col.tipo || '').toUpperCase());
+  const isEditableBoundObject = col => hasBoundVariable(col) && !col.readonly && !['SPACE', 'BUTTON', 'TABLE', 'TABLE_FIELD'].includes((col.tipo || '').toUpperCase());
   const applyBoundValueToInput = (col, input, rawValue) => {
     if (!input) return;
     if (input.type === 'checkbox') {
@@ -347,13 +354,67 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
     ));
   }
 
-  function getFieldInputByName(fieldName) {
+  function normalizePhysicalFieldName(fieldName) {
+    const raw = String(fieldName || '').trim();
+    if (!raw) return '';
+    const normalized = raw
+      .split('.')
+      .map(part => part.trim().replace(/^\[|\]$/g, ''))
+      .filter(Boolean);
+    return (normalized[normalized.length - 1] || raw).trim();
+  }
+
+  function getFieldInputCandidates(fieldName) {
     const rawName = String(fieldName || '').trim();
-    if (!rawName) return null;
-    return camposByName[rawName]
-      || camposByName[rawName.toUpperCase()]
-      || camposByName[rawName.toLowerCase()]
-      || null;
+    const physicalName = normalizePhysicalFieldName(rawName);
+    const names = [...new Set([
+      rawName,
+      rawName.toUpperCase(),
+      rawName.toLowerCase(),
+      physicalName,
+      physicalName.toUpperCase(),
+      physicalName.toLowerCase(),
+    ].filter(Boolean))];
+    const candidates = [];
+    names.forEach(name => {
+      const input = camposByName[name];
+      if (input && !candidates.includes(input)) candidates.push(input);
+    });
+    Array.from(form?.elements || []).forEach(input => {
+      if (!input?.name) return;
+      const inputName = String(input.name || '').trim();
+      if (names.includes(inputName) && !candidates.includes(input)) {
+        candidates.push(input);
+      }
+    });
+    return candidates;
+  }
+
+  function getFieldInputByName(fieldName, { includeUiOnly = true, preferWritable = false } = {}) {
+    const candidates = getFieldInputCandidates(fieldName);
+    const writable = candidates.find(input => input.dataset?.uiOnly !== 'true' && !input.disabled);
+    if (preferWritable || !includeUiOnly) return writable || null;
+    return candidates[0] || null;
+  }
+
+  function setTableFieldTargetValue(fieldName, nextValue) {
+    const targetName = normalizePhysicalFieldName(fieldName);
+    if (!targetName) return false;
+    tableFieldTargetValues[targetName] = nextValue;
+    setFormStateValue(targetName, nextValue);
+    return true;
+  }
+
+  function clearTableFieldTargetValue(fieldName, { writeEmpty = false } = {}) {
+    const targetName = normalizePhysicalFieldName(fieldName);
+    if (!targetName) return false;
+    if (writeEmpty) {
+      tableFieldTargetValues[targetName] = '';
+      setFormStateValue(targetName, '');
+      return true;
+    }
+    delete tableFieldTargetValues[targetName];
+    return true;
   }
 
   function getFieldWrapperByName(fieldName) {
@@ -770,8 +831,8 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
     };
   }
 
-  function updateFieldValue(fieldName, nextValue) {
-    const input = getFieldInputByName(fieldName);
+  function updateFieldValue(fieldName, nextValue, { preferWritable = false } = {}) {
+    const input = getFieldInputByName(fieldName, { preferWritable });
     if (!input) return false;
     if (input.type === 'checkbox') {
       input.checked = isTruthyLike(nextValue);
@@ -1744,6 +1805,341 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   }
   // ——— Montagem customizada por ORDEM (uma row por dezena) ———
 
+  function getLookupPropertyFromProps(props, ...names) {
+    for (const name of names) {
+      if (props && Object.prototype.hasOwnProperty.call(props, name)) {
+        return String(props[name] ?? '').trim();
+      }
+    }
+    return '';
+  }
+
+  function getLookupProperty(col, ...names) {
+    return getLookupPropertyFromProps(getColumnProperties(col), ...names);
+  }
+
+  function makeTableFieldLookupConfig(col) {
+    return {
+      lookupTable: getLookupProperty(col, 'lookup_table', 'table', 'source'),
+      displayFields: getLookupProperty(col, 'lookup_display_fields', 'display_fields'),
+      valueField: getLookupProperty(col, 'lookup_value_field', 'value_field', 'source_field'),
+      targetField: getLookupProperty(col, 'lookup_target_field', 'target_field', 'field_name'),
+      objectName: String(col?.name || '').trim(),
+    };
+  }
+
+  function hasRequiredTableFieldLookupConfig(config) {
+    return !!(String(config?.lookupTable || '').trim() && String(config?.valueField || '').trim());
+  }
+
+  function getTableFieldLookupConfig(col) {
+    const directConfig = makeTableFieldLookupConfig(col);
+    if (hasRequiredTableFieldLookupConfig(directConfig)) return directConfig;
+
+    const fieldName = normalizePhysicalFieldName(col?.name).toUpperCase();
+    const directTargetName = normalizePhysicalFieldName(directConfig.targetField || col?.name).toUpperCase();
+    const fallback = cols.find(candidate => {
+      if (candidate === col || (candidate?.tipo || '').toUpperCase() !== 'TABLE_FIELD') return false;
+      const candidateConfig = makeTableFieldLookupConfig(candidate);
+      if (!hasRequiredTableFieldLookupConfig(candidateConfig)) return false;
+      const candidateName = normalizePhysicalFieldName(candidate?.name).toUpperCase();
+      const candidateTargetName = normalizePhysicalFieldName(candidateConfig.targetField || candidate?.name).toUpperCase();
+      return (
+        candidateName === fieldName
+        || candidateTargetName === fieldName
+        || (directTargetName && candidateTargetName === directTargetName)
+      );
+    });
+
+    if (fallback) {
+      const fallbackConfig = makeTableFieldLookupConfig(fallback);
+      return {
+        ...fallbackConfig,
+        targetField: directConfig.targetField || fallbackConfig.targetField,
+      };
+    }
+
+    return directConfig;
+  }
+
+  function getTableFieldLookupInput(col) {
+    return getFieldInputCandidates(col?.name)
+      .find(input => input?.dataset?.lookupValueField !== undefined || input?.dataset?.lookupTargetField !== undefined)
+      || null;
+  }
+
+  async function fetchTableFieldLookupRows(col, { q = '', value = '', signal = null } = {}) {
+    const config = getTableFieldLookupConfig(col);
+    const payload = {
+      table_name: TABLE_NAME,
+      record_stamp: RECORD_STAMP,
+      menustamp: MENU_STAMP,
+      object_name: config.objectName || col.name,
+      q,
+      form_state: formState,
+      config: {
+        lookup_table: config.lookupTable,
+        lookup_display_fields: config.displayFields,
+        lookup_value_field: config.valueField,
+        lookup_target_field: config.targetField,
+      },
+    };
+    const rawValue = String(value ?? '').trim();
+    if (rawValue) {
+      payload.mode = 'value';
+      payload.value = rawValue;
+    }
+    const response = await fetch('/generic/api/menu_object_lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal,
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.success === false) {
+      throw new Error(data?.error || 'Nao foi possivel pesquisar.');
+    }
+    return Array.isArray(data.rows) ? data.rows : [];
+  }
+
+  function readRecordFieldValue(record, fieldName) {
+    const targetName = normalizePhysicalFieldName(fieldName);
+    if (!record || typeof record !== 'object' || !targetName) return undefined;
+    const directKeys = [fieldName, targetName, targetName.toUpperCase(), targetName.toLowerCase()]
+      .map(key => String(key || '').trim())
+      .filter(Boolean);
+    for (const key of directKeys) {
+      if (Object.prototype.hasOwnProperty.call(record, key)) return record[key];
+    }
+    const wanted = targetName.toUpperCase();
+    const found = Object.keys(record).find(key => String(key || '').trim().toUpperCase() === wanted);
+    return found ? record[found] : undefined;
+  }
+
+  async function hydrateTableFieldLookupObjects(record) {
+    const lookupObjects = cols.filter(col => (col.tipo || '').toUpperCase() === 'TABLE_FIELD');
+    await Promise.all(lookupObjects.map(async col => {
+      const input = getTableFieldLookupInput(col);
+      if (!input) return;
+      const config = getTableFieldLookupConfig(col);
+      const targetField = config.targetField || col.name;
+      const rawValue = readRecordFieldValue(record, targetField);
+      const value = rawValue === undefined || rawValue === null ? '' : String(rawValue).trim();
+      if (!value) {
+        input.value = '';
+        setFormStateValue(col.name, '');
+        setFormStateValue(`${col.name}_LABEL`, '');
+        clearTableFieldTargetValue(targetField, { writeEmpty: true });
+        return;
+      }
+
+      input.value = value;
+      setFormStateValue(col.name, value);
+      setFormStateValue(`${col.name}_LABEL`, value);
+      setTableFieldTargetValue(targetField, value);
+
+      try {
+        const rows = await fetchTableFieldLookupRows(col, { value });
+        const row = rows.find(item => String(item?.value ?? '').trim() === value) || rows[0];
+        const label = String(row?.label || value).trim() || value;
+        input.value = label;
+        setFormStateValue(`${col.name}_LABEL`, label);
+      } catch (error) {
+        console.warn(`Nao foi possivel carregar o texto do campo tabela ${col.name}:`, error);
+      }
+    }));
+  }
+
+  function renderTableFieldLookupObject(col, colDiv) {
+    const { lookupTable, valueField, targetField } = getTableFieldLookupConfig(col);
+    let debounceTimer = null;
+    let abortController = null;
+    let currentRows = [];
+    let activeIndex = -1;
+    let requestSeq = 0;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mb-3 sz_field sz_table_lookup_field';
+
+    const label = document.createElement('label');
+    label.setAttribute('for', col.name);
+    label.className = 'sz_label';
+    label.textContent = String(col.descricao || col.name || '').trim() || 'Pesquisa';
+
+    const host = document.createElement('div');
+    host.className = 'sz_table_lookup';
+
+    const input = document.createElement('input');
+    input.type = 'search';
+    input.name = col.name;
+    input.id = col.name;
+    input.className = 'sz_input';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.dataset.uiOnly = 'true';
+    input.dataset.lookupTable = lookupTable;
+    input.dataset.lookupValueField = valueField;
+    input.dataset.lookupTargetField = targetField;
+    input.placeholder = lookupTable && valueField ? 'Pesquisar...' : 'Configura a tabela e o campo valor';
+
+    const menu = document.createElement('div');
+    menu.className = 'sz_table_lookup_dropdown';
+    menu.hidden = true;
+
+    const closeMenu = () => {
+      menu.hidden = true;
+      menu.innerHTML = '';
+      currentRows = [];
+      activeIndex = -1;
+    };
+
+    const renderLookupMessage = (message, tone = 'muted') => {
+      menu.innerHTML = '';
+      const item = document.createElement('div');
+      item.className = `sz_table_lookup_empty ${tone === 'danger' ? 'is-danger' : ''}`;
+      item.textContent = message;
+      menu.appendChild(item);
+      menu.hidden = false;
+    };
+
+    const setActiveResult = index => {
+      const buttons = Array.from(menu.querySelectorAll('.sz_table_lookup_item'));
+      buttons.forEach((button, buttonIndex) => {
+        button.classList.toggle('is-active', buttonIndex === index);
+      });
+      activeIndex = index;
+    };
+
+    const selectLookupRow = row => {
+      if (!row) return;
+      const value = row.value === undefined || row.value === null ? '' : String(row.value);
+      const labelValue = String(row.label || value || '').trim();
+      input.value = labelValue;
+      setFormStateValue(col.name, value);
+      setFormStateValue(`${col.name}_LABEL`, labelValue);
+      if (targetField) {
+        const updated = updateFieldValue(targetField, value, { preferWritable: true });
+        const stored = setTableFieldTargetValue(targetField, value);
+        if (!updated && !stored) {
+          showDynamicFormToast(`Campo destino nao encontrado: ${targetField}`, 'warning');
+        }
+      }
+      closeMenu();
+      input.focus();
+    };
+
+    const renderLookupRows = rows => {
+      currentRows = Array.isArray(rows) ? rows : [];
+      menu.innerHTML = '';
+      if (!currentRows.length) {
+        renderLookupMessage('Sem resultados');
+        return;
+      }
+      currentRows.forEach((row, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'sz_table_lookup_item';
+        button.dataset.index = String(index);
+        const title = document.createElement('span');
+        title.className = 'sz_table_lookup_item_label';
+        const fallbackValue = row.value === undefined || row.value === null ? '' : row.value;
+        title.textContent = String(row.label || fallbackValue).trim() || '-';
+        button.appendChild(title);
+        const displayValues = Array.isArray(row.display) ? row.display.filter(value => String(value ?? '').trim() !== '') : [];
+        if (displayValues.length > 1) {
+          const meta = document.createElement('span');
+          meta.className = 'sz_table_lookup_item_value';
+          meta.textContent = displayValues.slice(1).map(value => String(value ?? '').trim()).join(' · ');
+          button.appendChild(meta);
+        }
+        button.addEventListener('mouseenter', () => setActiveResult(index));
+        button.addEventListener('mousedown', event => {
+          event.preventDefault();
+          selectLookupRow(row);
+        });
+        menu.appendChild(button);
+      });
+      menu.hidden = false;
+      setActiveResult(0);
+    };
+
+    const fetchLookupRows = async () => {
+      const q = input.value.trim();
+      setFormStateValue(col.name, q);
+      setFormStateValue(`${col.name}_LABEL`, q);
+      if (!q) {
+        closeMenu();
+        return;
+      }
+      if (!lookupTable || !valueField) {
+        renderLookupMessage('Objeto sem tabela ou campo valor configurado', 'danger');
+        return;
+      }
+      if (abortController) {
+        abortController.abort();
+      }
+      abortController = new AbortController();
+      const seq = ++requestSeq;
+      renderLookupMessage('A procurar...');
+      try {
+        const rows = await fetchTableFieldLookupRows(col, { q, signal: abortController.signal });
+        if (seq !== requestSeq) return;
+        renderLookupRows(rows);
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+        console.error('Erro na pesquisa do campo de tabela:', error);
+        renderLookupMessage(error.message || 'Erro na pesquisa', 'danger');
+      }
+    };
+
+    const scheduleLookup = () => {
+      window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(fetchLookupRows, 250);
+    };
+
+    input.addEventListener('input', () => {
+      setFormStateValue(col.name, input.value);
+      setFormStateValue(`${col.name}_LABEL`, input.value);
+      if (targetField) {
+        clearTableFieldTargetValue(targetField, { writeEmpty: !input.value.trim() });
+      }
+      scheduleLookup();
+    });
+    input.addEventListener('focus', () => {
+      if (input.value.trim()) scheduleLookup();
+    });
+    input.addEventListener('keydown', event => {
+      if (menu.hidden) return;
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveResult(Math.min(currentRows.length - 1, activeIndex + 1));
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveResult(Math.max(0, activeIndex - 1));
+      } else if (event.key === 'Enter') {
+        if (activeIndex >= 0 && currentRows[activeIndex]) {
+          event.preventDefault();
+          selectLookupRow(currentRows[activeIndex]);
+        }
+      } else if (event.key === 'Escape') {
+        closeMenu();
+      }
+    });
+    input.addEventListener('blur', () => {
+      window.setTimeout(closeMenu, 150);
+    });
+
+    camposByName[col.name] = input;
+    setFormStateValue(col.name, '');
+    setFormStateValue(`${col.name}_LABEL`, '');
+
+    host.appendChild(input);
+    host.appendChild(menu);
+    wrapper.appendChild(label);
+    wrapper.appendChild(host);
+    colDiv.appendChild(wrapper);
+  }
+
   // limpa o form
   form.innerHTML = '';
 
@@ -1884,7 +2280,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         if ((col.tipo || '').toUpperCase() === 'TABLE') {
           const wrapper = document.createElement('div');
           wrapper.className = 'mb-3 sz_field';
-          const props = col.properties && typeof col.properties === 'object' ? col.properties : {};
+          const props = getColumnProperties(col);
           const showAddButton = !!Number(props.show_add_button || 0);
           const showDeleteButton = !!Number(props.show_delete_button || 0);
 
@@ -1988,6 +2384,11 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
           wrapper.appendChild(marker);
           wrapper.appendChild(host);
           colDiv.appendChild(wrapper);
+          return;
+        }
+
+        if ((col.tipo || '').toUpperCase() === 'TABLE_FIELD') {
+          renderTableFieldLookupObject(col, colDiv);
           return;
         }
 
@@ -2390,6 +2791,7 @@ if (RECORD_STAMP) {
         syncBoundVariableValue(el.dataset.variableName, readValueForState(el), { source: el });
       }
     });
+    await hydrateTableFieldLookupObjects(rec);
   } catch (e) {
     console.error('Erro ao carregar registro:', e);
   }
@@ -3508,10 +3910,23 @@ hideLoading()
     }
 
     const data = {};
-    new FormData(form).forEach((v, k) => data[k] = v);
-    form.querySelectorAll('[data-ui-only="true"]').forEach(input => {
-      if (!input.name) return;
-      delete data[input.name];
+    const uiOnlyControls = Array.from(form.querySelectorAll('[data-ui-only="true"]'));
+    const temporarilyDisabled = [];
+    uiOnlyControls.forEach(input => {
+      if (input.disabled) return;
+      input.disabled = true;
+      temporarilyDisabled.push(input);
+    });
+    try {
+      new FormData(form).forEach((v, k) => data[k] = v);
+    } finally {
+      temporarilyDisabled.forEach(input => {
+        input.disabled = false;
+      });
+    }
+    Object.entries(tableFieldTargetValues).forEach(([fieldName, value]) => {
+      const targetName = normalizePhysicalFieldName(fieldName);
+      if (targetName) data[targetName] = value;
     });
     // BIT para booleano
     form.querySelectorAll('input[type="checkbox"]').forEach(cb => {

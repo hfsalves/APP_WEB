@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('db_i18n.page_title') }}{% endblock %}
+
+{% block content %}
+<div class="sz_page sz_db_i18n_page">
+  <div class="sz_page_container sz_page_container_wide">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">{{ _('db_i18n.page_title') }}</div>
+        <div class="sz_page_subtitle">{{ _('db_i18n.page_subtitle') }}</div>
+      </div>
+      <div class="sz_contextbar_right sz_db_i18n_toolbar">
+        <button id="dbI18nRefreshBtn" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-rotate"></i>
+          <span>{{ _('common.refresh') }}</span>
+        </button>
+        <button id="dbI18nAutoBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>{{ _('db_i18n.auto_translate') }}</span>
+        </button>
+        <button id="dbI18nSaveBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>{{ _('common.save') }}</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content">
+        <section class="sz_panel sz_stack">
+          <div class="sz_grid sz_grid_4 sz_db_i18n_filters">
+            <div class="sz_field">
+              <label class="sz_label" for="dbI18nLanguage">{{ _('common.language') }}</label>
+              <select id="dbI18nLanguage" class="sz_select">
+                <option value="">{{ _('common.loading') }}</option>
+              </select>
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="dbI18nOrigin">{{ _('db_i18n.origin') }}</label>
+              <select id="dbI18nOrigin" class="sz_select">
+                <option value="">{{ _('common.loading') }}</option>
+              </select>
+            </div>
+            <div class="sz_field sz_db_i18n_search_field">
+              <label class="sz_label" for="dbI18nSearch">{{ _('db_i18n.search') }}</label>
+              <input
+                id="dbI18nSearch"
+                type="text"
+                class="sz_input"
+                placeholder="{{ _('db_i18n.search_placeholder') }}"
+                autocomplete="off"
+              >
+            </div>
+            <div class="sz_field sz_db_i18n_toggle_field">
+              <label class="sz_label" for="dbI18nOverwrite">{{ _('common.actions') }}</label>
+              <label class="sz_checkbox">
+                <input id="dbI18nOverwrite" type="checkbox">
+                <span>{{ _('db_i18n.overwrite_existing') }}</span>
+              </label>
+            </div>
+          </div>
+
+          <div id="dbI18nNotice" class="sz_db_i18n_notice sz_hidden"></div>
+
+          <div class="sz_inline sz_db_i18n_meta">
+            <span id="dbI18nSummary" class="sz_text_muted">{{ _('common.loading') }}</span>
+            <span id="dbI18nModelHint" class="sz_text_muted"></span>
+          </div>
+
+          <div class="sz_table_host">
+            <table class="sz_table sz_db_i18n_table">
+              <thead>
+                <tr>
+                  <th>{{ _('db_i18n.origin') }}</th>
+                  <th>{{ _('db_i18n.context') }}</th>
+                  <th>{{ _('db_i18n.key') }}</th>
+                  <th>{{ _('db_i18n.status') }}</th>
+                  <th>{{ _('db_i18n.source_text') }}</th>
+                  <th>{{ _('db_i18n.translation') }}</th>
+                </tr>
+              </thead>
+              <tbody id="dbI18nBody">
+                <tr>
+                  <td colspan="6" class="sz_text_muted">{{ _('common.loading') }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ i18n_js([
+    'db_i18n.origin_all',
+    'common.loading',
+    'db_i18n.origin_menu',
+    'db_i18n.origin_fields',
+    'db_i18n.status_base',
+    'db_i18n.status_pending',
+    'db_i18n.status_translated',
+    'db_i18n.base_language_readonly',
+    'db_i18n.multilingual_required',
+    'db_i18n.openai_missing_key',
+    'db_i18n.summary',
+    'db_i18n.summary_base',
+    'db_i18n.summary_dirty',
+    'db_i18n.save_success',
+    'db_i18n.loading_error',
+    'db_i18n.save_error',
+    'db_i18n.auto_translate_success',
+    'db_i18n.auto_translate_error',
+    'db_i18n.confirm_auto_translate',
+    'db_i18n.overwrite_warning',
+    'db_i18n.save_before_auto_translate',
+    'db_i18n.no_rows',
+    'db_i18n.nothing_to_translate'
+  ])|tojson }});
+  window.DB_I18N_INITIAL_LANGUAGE = {{ initial_i18n_db_language|tojson }};
+  window.DB_I18N_INITIAL_ORIGIN = {{ initial_i18n_db_origin|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/i18n_db_manager.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+
+<style>
+  .sz_db_i18n_toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sz-space-2);
+  }
+
+  .sz_db_i18n_filters {
+    align-items: end;
+  }
+
+  .sz_db_i18n_search_field {
+    grid-column: span 2;
+  }
+
+  .sz_db_i18n_toggle_field {
+    min-width: 16rem;
+  }
+
+  .sz_db_i18n_meta {
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+    align-items: center;
+  }
+
+  .sz_db_i18n_notice {
+    border: 1px solid var(--sz-color-border);
+    border-radius: 8px;
+    padding: var(--sz-space-3);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+  }
+
+  .sz_db_i18n_notice.is-warning {
+    border-color: color-mix(in srgb, var(--sz-color-warning) 45%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-warning) 10%, var(--sz-color-surface));
+  }
+
+  .sz_db_i18n_notice.is-info {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 40%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+  }
+
+  .sz_db_i18n_table th,
+  .sz_db_i18n_table td {
+    vertical-align: top;
+  }
+
+  .sz_db_i18n_table th:nth-child(1),
+  .sz_db_i18n_table td:nth-child(1) {
+    width: 7rem;
+  }
+
+  .sz_db_i18n_table th:nth-child(2),
+  .sz_db_i18n_table td:nth-child(2) {
+    width: 14rem;
+  }
+
+  .sz_db_i18n_table th:nth-child(3),
+  .sz_db_i18n_table td:nth-child(3) {
+    width: 12rem;
+  }
+
+  .sz_db_i18n_table th:nth-child(4),
+  .sz_db_i18n_table td:nth-child(4) {
+    width: 8rem;
+  }
+
+  .sz_db_i18n_key {
+    font-family: var(--sz-font-family-mono, Consolas, monospace);
+    font-size: var(--sz-font-size-xs);
+    word-break: break-all;
+    color: var(--sz-color-text-muted);
+  }
+
+  .sz_db_i18n_context {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .sz_db_i18n_context_main {
+    font-weight: 600;
+  }
+
+  .sz_db_i18n_context_extra {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .sz_db_i18n_source {
+    white-space: pre-wrap;
+    min-width: 14rem;
+  }
+
+  .sz_db_i18n_textarea {
+    min-width: 18rem;
+    min-height: 5.75rem;
+  }
+
+  .sz_db_i18n_row.is-dirty {
+    background: color-mix(in srgb, var(--sz-color-primary) 6%, transparent);
+  }
+
+  .sz_db_i18n_badge {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 1100px) {
+    .sz_db_i18n_search_field {
+      grid-column: span 1;
+    }
+  }
+
+  @media (max-width: 780px) {
+    .sz_db_i18n_toolbar {
+      width: 100%;
+    }
+
+    .sz_db_i18n_toolbar .sz_button {
+      flex: 1 1 auto;
+    }
+
+    .sz_db_i18n_filters {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}

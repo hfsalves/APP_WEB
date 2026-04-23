@@ -381,6 +381,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('scroll', closeFlyout, true);
   
   const pendingToastStorageKey = 'sz_pending_toasts';
+  const tr = (key, vars) => (typeof window.t === 'function' ? window.t(key, vars) : key);
 
   function flushPendingToasts() {
     try {
@@ -434,9 +435,9 @@ window.addEventListener('DOMContentLoaded', () => {
           <div class="modal-header sz_modal_header">
             <div class="sz_message_modal_head">
               <div class="sz_message_modal_eyebrow" data-sz-message-eyebrow hidden></div>
-              <h5 class="modal-title sz_modal_title" data-sz-message-title>Mensagem</h5>
+              <h5 class="modal-title sz_modal_title" data-sz-message-title>${tr('common.message')}</h5>
             </div>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${tr('common.close')}"></button>
           </div>
           <div class="modal-body sz_modal_body">
             <div class="sz_message_modal_text" data-sz-message-text></div>
@@ -477,7 +478,7 @@ window.addEventListener('DOMContentLoaded', () => {
     modalEl.classList.remove('sz_message_info', 'sz_message_success', 'sz_message_warning', 'sz_message_danger');
     modalEl.classList.add(`sz_message_${intent}`);
 
-    titleEl.textContent = options.title || 'Mensagem';
+    titleEl.textContent = options.title || tr('common.message');
     textEl.textContent = options.message || '';
 
     const eyebrow = (options.eyebrow || '').toString().trim();
@@ -534,7 +535,7 @@ window.addEventListener('DOMContentLoaded', () => {
       return 'ok';
     }
     return window.szMessage({
-      title: options.title || 'Mensagem',
+      title: options.title || tr('common.message'),
       eyebrow: options.eyebrow || '',
       message,
       intent: options.intent || 'info',
@@ -548,13 +549,13 @@ window.addEventListener('DOMContentLoaded', () => {
       return window.confirm(message);
     }
     const result = await window.szMessage({
-      title: options.title || 'Confirmar',
+      title: options.title || tr('common.confirm'),
       eyebrow: options.eyebrow || '',
       message,
       intent: options.intent || 'warning',
       buttons: [
         { key: 'ok', label: options.okText || 'OK', className: options.okClassName || 'sz_button_primary' },
-        { key: 'cancel', label: options.cancelText || 'Cancelar', className: options.cancelClassName || 'sz_button_secondary' }
+        { key: 'cancel', label: options.cancelText || tr('common.cancel'), className: options.cancelClassName || 'sz_button_secondary' }
       ],
       dismissAction: 'cancel'
     });
@@ -566,13 +567,13 @@ window.addEventListener('DOMContentLoaded', () => {
       return window.confirm(message);
     }
     const result = await window.szMessage({
-      title: options.title || 'Confirmar',
+      title: options.title || tr('common.confirm'),
       eyebrow: options.eyebrow || '',
       message,
       intent: options.intent || 'info',
       buttons: [
-        { key: 'yes', label: options.yesText || 'Sim', className: options.yesClassName || 'sz_button_primary' },
-        { key: 'no', label: options.noText || 'Não', className: options.noClassName || 'sz_button_secondary' }
+        { key: 'yes', label: options.yesText || tr('common.yes'), className: options.yesClassName || 'sz_button_primary' },
+        { key: 'no', label: options.noText || tr('common.no'), className: options.noClassName || 'sz_button_secondary' }
       ],
       dismissAction: 'no'
     });
@@ -584,13 +585,13 @@ window.addEventListener('DOMContentLoaded', () => {
       return window.confirm(message);
     }
     const result = await window.szMessage({
-      title: options.title || 'Confirmar eliminação',
-      eyebrow: options.eyebrow || 'Atenção!',
+      title: options.title || tr('ui.confirm_delete'),
+      eyebrow: options.eyebrow || tr('ui.delete_warning'),
       message,
       intent: 'danger',
       buttons: [
-        { key: 'delete', label: options.deleteText || 'Eliminar', className: 'sz_button_danger' },
-        { key: 'cancel', label: options.cancelText || 'Cancelar', className: 'sz_button_secondary' }
+        { key: 'delete', label: options.deleteText || tr('common.delete'), className: 'sz_button_danger' },
+        { key: 'cancel', label: options.cancelText || tr('common.cancel'), className: 'sz_button_secondary' }
       ],
       dismissAction: 'cancel'
     });
@@ -618,7 +619,7 @@ window.addEventListener('DOMContentLoaded', () => {
       toast.innerHTML = `
         <div class="d-flex">
           <div class="toast-body">${message}</div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Fechar"></button>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="${tr('common.close')}"></button>
         </div>`;
       container.appendChild(toast);
       const t = new bootstrap.Toast(toast, { delay: options.delay ?? 2500, autohide: options.autohide ?? true });

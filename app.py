@@ -18,7 +18,7 @@ import logging
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from decimal import Decimal, ROUND_HALF_UP
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response, abort, has_request_context
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response, abort, has_request_context, g, current_app
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date, timedelta, time as dtime
 from sqlalchemy import text, bindparam
@@ -63,8 +63,10 @@ from services.airbnb_commission_import_service import (
 )
 from services.auth_service import (
     authenticate_user,
+    ensure_user_language_column,
     get_user_by_stamp,
     set_password_for_user,
+    set_user_language_preference,
 )
 from services.multiempresa_service import (
     MissingUserEntitiesError,
@@ -75,7 +77,34 @@ from services.multiempresa_service import (
     get_user_entities,
     store_current_entity_in_session,
 )
+from services.db_i18n_service import (
+    DbI18nServiceError,
+    DbI18nValidationError,
+    auto_translate_db_rows,
+    bulk_translate_db_records,
+    ensure_db_translations_cache,
+    get_db_translation_dataset,
+    get_db_translation_runtime_meta,
+    reload_db_translations,
+    save_db_translation_rows,
+    sync_db_translations,
+)
 from price_engine import register_pricing
+from i18n import (
+    BASE_LANGUAGE,
+    SESSION_LANGUAGE_KEY,
+    available_languages as i18n_available_languages,
+    configure_i18n,
+    extract_user_language,
+    i18n_enabled,
+    js_translations,
+    language_tag,
+    normalize_language,
+    reload_translations as reload_i18n_translations,
+    resolve_language,
+    sync_i18n_config_from_params,
+    translate,
+)
 
 # Importa a instÃ¢ncia db e modelos
 from models import db, US, Menu, Acessos, Widget, UsWidget, MenuBotoes, Linhas
@@ -134,6 +163,7 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
     # Cache-busting para assets estÃ¡ticos (evita o browser usar JS antigo)
     app.config['STATIC_VERSION'] = int(time.time())
+    configure_i18n(app)
 
     db_target_session_key = 'DB_TARGET'
     db_consistency_unlocked_target_session_key = 'DB_CONSISTENCY_UNLOCKED_TARGET'
@@ -479,11 +509,330 @@ def create_app():
             out[key] = _para_value_from_row(r)
         return out
 
+    def _sync_i18n_runtime(params=None, sync_db=False):
+        if params is not None:
+            sync_i18n_config_from_params(app, params)
+        if not i18n_enabled(app):
+            return
+        try:
+            ensure_user_language_column(db.session)
+        except Exception:
+            app.logger.exception('Erro ao garantir coluna US.LANGUAGE para i18n.')
+        if not sync_db:
+            try:
+                ensure_db_translations_cache(db.session)
+            except Exception:
+                app.logger.exception('Erro ao carregar cache de traduções de MENU/CAMPOS.')
+            return
+        try:
+            sync_db_translations(db.session)
+        except Exception:
+            app.logger.exception('Erro ao sincronizar traduções de MENU/CAMPOS.')
+
+    def _reload_i18n_runtime_from_params(sync_db=False, update_session=True):
+        try:
+            para_values = _load_para_map()
+            app.config['PARA_VALUES'] = para_values
+            if update_session and has_request_context():
+                session['APP_PARAMS'] = para_values
+            _sync_i18n_runtime(para_values, sync_db=sync_db)
+            return True
+        except Exception:
+            app.logger.exception('Erro ao atualizar configuração multiidioma a partir de PARA.')
+            return False
+
+    def _ensure_i18n_runtime_current(sync_db=False):
+        if i18n_enabled(app):
+            return True
+        _reload_i18n_runtime_from_params(sync_db=sync_db)
+        return i18n_enabled(app)
+
+    def _refresh_db_menu_campos_translations():
+        if not i18n_enabled(app):
+            return
+        try:
+            sync_db_translations(db.session)
+        except Exception:
+            app.logger.exception('Erro ao atualizar cache/traduções de MENU/CAMPOS.')
+
     try:
         with app.app_context():
-            app.config['PARA_VALUES'] = _load_para_map()
+            para_values = _load_para_map()
+            app.config['PARA_VALUES'] = para_values
+            _sync_i18n_runtime(para_values, sync_db=True)
     except Exception:
         app.config['PARA_VALUES'] = {}
+
+    def _session_language_value():
+        session_key = app.config.get('I18N_SESSION_KEY', SESSION_LANGUAGE_KEY)
+        return session.get(session_key) or session.get('lang')
+
+    def _resolve_i18n_runtime_for_request(force_reload=False):
+        if force_reload:
+            _reload_i18n_runtime_from_params(sync_db=False, update_session=False)
+        elif not i18n_enabled(app):
+            _ensure_i18n_runtime_current(sync_db=False)
+
+        if not i18n_enabled(app):
+            g.language = BASE_LANGUAGE
+            g.language_tag = language_tag(BASE_LANGUAGE)
+            return BASE_LANGUAGE
+        try:
+            ensure_db_translations_cache(db.session)
+        except Exception:
+            app.logger.exception('Erro ao garantir cache de traduções de MENU/CAMPOS.')
+
+        user_language = ''
+        try:
+            if current_user.is_authenticated:
+                user_language = extract_user_language(current_user)
+        except Exception:
+            user_language = ''
+
+        language = resolve_language(
+            user_preference=user_language,
+            session_language=_session_language_value(),
+            config_language=app.config.get('DEFAULT_LANGUAGE'),
+            enabled=True,
+        )
+        g.language = language
+        g.language_tag = language_tag(language)
+        return language
+
+    @app.before_request
+    def _resolve_i18n_request_language():
+        _resolve_i18n_runtime_for_request()
+        return None
+
+    @app.context_processor
+    def inject_i18n_helpers():
+        # sz_base.html is the common shell. Re-check PARA here so the language
+        # switcher cannot disappear just because USA_MULTILINGUA was stale in memory.
+        language = _resolve_i18n_runtime_for_request(force_reload=True)
+        language = getattr(g, 'language', BASE_LANGUAGE)
+
+        def _template_translate(key, **kwargs):
+            return translate(key, language=language, **kwargs)
+
+        return {
+            '_': _template_translate,
+            'translate': _template_translate,
+            'i18n_enabled': i18n_enabled(app),
+            'current_language': language,
+            'current_language_tag': language_tag(language),
+            'i18n_languages': i18n_available_languages(),
+            'i18n_js': lambda keys=None: js_translations(keys or [], language=language),
+        }
+
+    @app.route('/api/i18n/language', methods=['GET', 'POST'])
+    def api_i18n_language():
+        if not _ensure_i18n_runtime_current():
+            return jsonify({
+                'ok': True,
+                'enabled': False,
+                'language': BASE_LANGUAGE,
+                'language_tag': language_tag(BASE_LANGUAGE),
+            })
+
+        stored_in_user = bool(extract_user_language(current_user)) if current_user.is_authenticated else False
+        if request.method == 'POST':
+            data = request.get_json(silent=True) or request.form or {}
+            language = normalize_language(data.get('language') or data.get('lang'))
+            if not language:
+                return jsonify({'error': translate('i18n.invalid_language')}), 400
+
+            if current_user.is_authenticated:
+                try:
+                    ensure_user_language_column(db.session)
+                    stored_in_user = set_user_language_preference(
+                        db.session,
+                        user_stamp=getattr(current_user, 'USSTAMP', ''),
+                        login_value=getattr(current_user, 'LOGIN', ''),
+                        language=language,
+                    )
+                    if stored_in_user:
+                        setattr(current_user, 'LANGUAGE', language)
+                except Exception:
+                    db.session.rollback()
+                    return jsonify({'error': translate('i18n.language_update_error')}), 500
+
+            session[app.config.get('I18N_SESSION_KEY', SESSION_LANGUAGE_KEY)] = language
+            g.language = language
+            g.language_tag = language_tag(language)
+
+        language = getattr(g, 'language', BASE_LANGUAGE)
+        return jsonify({
+            'ok': True,
+            'enabled': True,
+            'language': language,
+            'language_tag': language_tag(language),
+            'languages': i18n_available_languages(),
+            'stored_in_user': stored_in_user,
+        })
+
+    @app.route('/api/i18n/reload', methods=['POST'])
+    @login_required
+    def api_i18n_reload():
+        if not (app.debug or getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False)):
+            abort(403)
+        catalogs = reload_i18n_translations()
+        db_catalogs = reload_db_translations(db.session)
+        try:
+            if i18n_enabled(app):
+                sync_db_translations(db.session)
+                db_catalogs = reload_db_translations(db.session)
+        except Exception:
+            app.logger.exception('Erro ao recarregar traduções de MENU/CAMPOS.')
+        return jsonify({
+            'ok': True,
+            'languages': {language: len(catalog or {}) for language, catalog in catalogs.items()},
+            'db_languages': {
+                language: sum(len(bucket or {}) for bucket in (origins or {}).values())
+                for language, origins in (db_catalogs or {}).items()
+            },
+        })
+
+    @app.route('/api/i18n/db/bootstrap', methods=['GET'])
+    @login_required
+    def api_i18n_db_bootstrap():
+        if not _db_i18n_manager_allowed():
+            return jsonify({'error': 'Sem permissão para gerir traduções de base de dados.'}), 403
+        _ensure_i18n_runtime_current()
+
+        requested_language = normalize_language(request.args.get('language'))
+        if not requested_language:
+            current_language = normalize_language(getattr(g, 'language', None))
+            requested_language = current_language if current_language and current_language != BASE_LANGUAGE else 'en'
+        requested_origin = str(request.args.get('origin') or '').strip().upper()
+        requested_search = str(request.args.get('search') or '').strip()
+        origins_payload = [
+            {'code': '', 'label': translate('db_i18n.origin_all')},
+            {'code': 'MENU', 'label': translate('db_i18n.origin_menu')},
+            {'code': 'CAMPOS', 'label': translate('db_i18n.origin_fields')},
+        ]
+
+        if not i18n_enabled(app):
+            return jsonify({
+                'enabled': False,
+                'error': translate('db_i18n.multilingual_required'),
+                'languages': i18n_available_languages(),
+                'origins': origins_payload,
+                'selected_language': requested_language or BASE_LANGUAGE,
+                'selected_origin': requested_origin,
+                'rows': [],
+                'summary': {'total': 0, 'base': 0, 'pending': 0, 'translated': 0},
+                'auto_translate_available': False,
+                'translation_model': '',
+                'auto_translate_warning': '',
+            })
+
+        try:
+            sync_db_translations(db.session)
+            dataset = get_db_translation_dataset(
+                db.session,
+                language=requested_language,
+                origin=requested_origin,
+                search=requested_search,
+            )
+            runtime_meta = get_db_translation_runtime_meta(db.session)
+            return jsonify({
+                'enabled': True,
+                'languages': i18n_available_languages(),
+                'origins': origins_payload,
+                'selected_language': dataset.get('language') or requested_language or 'en',
+                'selected_origin': dataset.get('origin') or '',
+                'rows': dataset.get('rows') or [],
+                'summary': dataset.get('summary') or {'total': 0, 'base': 0, 'pending': 0, 'translated': 0},
+                'auto_translate_available': bool(runtime_meta.get('auto_translate_available')),
+                'translation_model': str(runtime_meta.get('translation_model') or '').strip(),
+                'auto_translate_warning': (
+                    '' if runtime_meta.get('auto_translate_available')
+                    else translate('db_i18n.openai_missing_key')
+                ),
+            })
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar o gestor de traduções DB.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/i18n/db/translations', methods=['GET'])
+    @login_required
+    def api_i18n_db_translations():
+        if not _db_i18n_manager_allowed():
+            return jsonify({'error': 'Sem permissão para gerir traduções de base de dados.'}), 403
+        if not _ensure_i18n_runtime_current():
+            return jsonify({
+                'enabled': False,
+                'error': translate('db_i18n.multilingual_required'),
+                'rows': [],
+                'summary': {'total': 0, 'base': 0, 'pending': 0, 'translated': 0},
+            })
+
+        try:
+            dataset = get_db_translation_dataset(
+                db.session,
+                language=request.args.get('language'),
+                origin=request.args.get('origin'),
+                search=request.args.get('search'),
+            )
+            return jsonify({'enabled': True, **dataset})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao listar traduções DB.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/i18n/db/translations/save', methods=['POST'])
+    @login_required
+    def api_i18n_db_translations_save():
+        if not _db_i18n_manager_allowed():
+            return jsonify({'error': 'Sem permissão para gerir traduções de base de dados.'}), 403
+        if not _ensure_i18n_runtime_current():
+            return jsonify({'error': translate('db_i18n.multilingual_required')}), 409
+
+        body = request.get_json(silent=True) or {}
+        try:
+            result = save_db_translation_rows(
+                db.session,
+                language=body.get('language'),
+                rows=body.get('rows'),
+            )
+            return jsonify({'ok': True, **result})
+        except DbI18nValidationError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar traduções DB.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/i18n/db/translations/auto_translate', methods=['POST'])
+    @login_required
+    def api_i18n_db_translations_auto_translate():
+        if not _db_i18n_manager_allowed():
+            return jsonify({'error': 'Sem permissão para gerir traduções de base de dados.'}), 403
+        if not _ensure_i18n_runtime_current():
+            return jsonify({'error': translate('db_i18n.multilingual_required')}), 409
+
+        body = request.get_json(silent=True) or {}
+        try:
+            result = auto_translate_db_rows(
+                db.session,
+                language=body.get('language'),
+                origin=body.get('origin'),
+                overwrite=body.get('overwrite'),
+            )
+            return jsonify({'ok': True, **result})
+        except DbI18nValidationError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except DbI18nServiceError as exc:
+            db.session.rollback()
+            app.logger.exception('Erro externo ao traduzir traduções DB.')
+            return jsonify({'error': str(exc)}), 502
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao traduzir automaticamente traduções DB.')
+            return jsonify({'error': str(exc)}), 500
 
     def _token_expired(exp_value) -> bool:
         if exp_value is None:
@@ -1698,6 +2047,21 @@ def create_app():
                     if (item.ordem % 100 == 0) or (str(getattr(item, 'menustamp', '') or '').strip() in allowed_menu_stamps)
                 ]
 
+            menu_label_map = {}
+            if i18n_enabled(app):
+                menu_language = getattr(g, 'language', BASE_LANGUAGE)
+                menu_label_map = bulk_translate_db_records(
+                    'MENU',
+                    [
+                        (
+                            str(getattr(item, 'menustamp', '') or '').strip(),
+                            str(getattr(item, 'nome', '') or '').strip(),
+                        )
+                        for item in menu_items
+                    ],
+                    language=menu_language,
+                )
+
             # 2) PermissÃµes de acesso por tabela
             rows = Acessos.query.filter_by(utilizador=current_user.LOGIN).all()
             perms = {}
@@ -1739,7 +2103,7 @@ def create_app():
                 tabela_arg = parts[2]
                 for m in menu_items:
                     if m.tabela == tabela_arg:
-                        page_name = m.nome
+                        page_name = menu_label_map.get(str(getattr(m, 'menustamp', '') or '').strip(), m.nome)
                         botoes = (
                             MenuBotoes.query
                                 .filter_by(TABELA=m.tabela, ATIVO=True)
@@ -1763,7 +2127,7 @@ def create_app():
             if not page_name:
                 for m in menu_items:
                     if request.path.startswith(m.url):
-                        page_name = m.nome
+                        page_name = menu_label_map.get(str(getattr(m, 'menustamp', '') or '').strip(), m.nome)
                         break
 
             if not page_name:
@@ -1801,7 +2165,7 @@ def create_app():
                 # CriaÃ§Ã£o do grupo ou item
                 if m.ordem % 100 == 0:
                     current_group = {
-                        'name': m.nome,
+                        'name': menu_label_map.get(str(getattr(m, 'menustamp', '') or '').strip(), m.nome),
                         'icon': m.icone,
                         'novo': bool(getattr(m, 'novo', False)),
                         'children': [],
@@ -1810,7 +2174,7 @@ def create_app():
                     menu_structure.append(current_group)
                 else:
                     child = {
-                        'name': m.nome,
+                        'name': menu_label_map.get(str(getattr(m, 'menustamp', '') or '').strip(), m.nome),
                         'url': m.url,
                         'icon': m.icone,
                         'novo': bool(getattr(m, 'novo', False))
@@ -1897,7 +2261,7 @@ def create_app():
                 selected_target = _normalize_db_target(request.form.get('db_target'))
                 if not selected_target:
                     return _render_login(
-                        error='Base de dados inválida.',
+                        error=translate('login.db_target_invalid'),
                         selected_target=request.form.get('db_target'),
                         verify_db=verify_db_requested,
                     )
@@ -1939,6 +2303,7 @@ def create_app():
                         para_map = _load_para_map()
                         session['APP_PARAMS'] = para_map
                         app.config['PARA_VALUES'] = para_map
+                        _sync_i18n_runtime(para_map)
                     except Exception:
                         session['APP_PARAMS'] = {}
                     target_after_login = _resolve_db_target()
@@ -1965,7 +2330,7 @@ def create_app():
                 db.session.rollback()
                 auth_logger.exception('Erro inesperado durante autenticação', extra={'login': login_})
                 return _render_login(
-                    error='Erro interno na autenticação',
+                    error=translate('login.internal_error'),
                     selected_target=request.form.get('db_target'),
                     verify_db=verify_db_requested,
                 )
@@ -3219,6 +3584,12 @@ def create_app():
             return False
 
     def _menu_manager_allowed() -> bool:
+        try:
+            return bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False))
+        except Exception:
+            return False
+
+    def _db_i18n_manager_allowed() -> bool:
         try:
             return bool(getattr(current_user, 'ADMIN', False) or getattr(current_user, 'DEV', False))
         except Exception:
@@ -8593,6 +8964,16 @@ def create_app():
               AND UPPER(T.name) = 'MENU_OBJETOS'
         """)).scalar()
         if exists:
+            with db.engine.begin() as conn:
+                propriedades_exists = conn.execute(text("""
+                    SELECT COL_LENGTH('dbo.MENU_OBJETOS', 'PROPRIEDADES')
+                """)).scalar()
+                if propriedades_exists is None:
+                    conn.execute(text("""
+                        ALTER TABLE dbo.MENU_OBJETOS
+                        ADD PROPRIEDADES nvarchar(max) NOT NULL
+                            CONSTRAINT DF_MENU_OBJETOS_PROPRIEDADES DEFAULT N'{}'
+                    """))
             return
 
         with db.engine.begin() as conn:
@@ -8890,6 +9271,16 @@ def create_app():
                             SET LISTA_MOBILE_LABEL = LTRIM(RTRIM(ISNULL(DESCRICAO, '')))
                             WHERE LTRIM(RTRIM(ISNULL(LISTA_MOBILE_LABEL, ''))) = ''
                         """))
+
+                    propriedades_exists = conn.execute(text("""
+                        SELECT COL_LENGTH('dbo.CAMPOS', 'PROPRIEDADES')
+                    """)).scalar()
+                    if propriedades_exists is None:
+                        conn.execute(text("""
+                            ALTER TABLE dbo.CAMPOS
+                            ADD PROPRIEDADES nvarchar(max) NOT NULL
+                                CONSTRAINT DF_CAMPOS_PROPRIEDADES DEFAULT N'{}'
+                        """))
                 return
             except OperationalError as exc:
                 db.session.rollback()
@@ -8901,6 +9292,24 @@ def create_app():
                     time.sleep(0.2)
                     continue
                 raise
+
+    def _ensure_campos_properties_column() -> bool:
+        try:
+            exists = db.session.execute(text("""
+                SELECT COL_LENGTH('dbo.CAMPOS', 'PROPRIEDADES')
+            """)).scalar()
+            if exists is not None:
+                return True
+            db.session.execute(text("""
+                ALTER TABLE dbo.CAMPOS
+                ADD PROPRIEDADES nvarchar(max) NOT NULL DEFAULT N'{}'
+            """))
+            db.session.commit()
+            return True
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao garantir coluna CAMPOS.PROPRIEDADES.')
+            return False
 
     _SCREEN_PERSONALIZER_VARIABLE_TYPES = {
         'TEXT',
@@ -9142,6 +9551,40 @@ def create_app():
     def _screen_personalizer_allowed() -> bool:
         return _screen_wizard_allowed()
 
+    def _load_screen_personalizer_sql_sources():
+        rows = db.session.execute(text("""
+            SELECT
+                S.name AS SCHEMA_NAME,
+                O.name AS OBJECT_NAME,
+                CASE WHEN O.type = 'V' THEN 'view' ELSE 'table' END AS OBJECT_TYPE
+            FROM sys.objects O
+            INNER JOIN sys.schemas S
+                ON S.schema_id = O.schema_id
+            WHERE O.type IN ('U', 'V')
+              AND O.is_ms_shipped = 0
+              AND UPPER(O.name) <> 'SYSDIAGRAMS'
+            ORDER BY
+                UPPER(S.name),
+                CASE WHEN O.type = 'U' THEN 0 ELSE 1 END,
+                UPPER(O.name)
+        """)).mappings().all()
+        sources = []
+        for row in rows:
+            schema_name = str(row.get('SCHEMA_NAME') or '').strip()
+            object_name = str(row.get('OBJECT_NAME') or '').strip()
+            object_type = str(row.get('OBJECT_TYPE') or 'table').strip().lower()
+            if not schema_name or not object_name:
+                continue
+            key = f'{schema_name}.{object_name}'
+            sources.append({
+                'key': key,
+                'label': f'{key} ({object_type})',
+                'schema': schema_name,
+                'table': object_name,
+                'type': object_type,
+            })
+        return sources
+
     def _load_screen_personalizer_screens():
         _ensure_screen_personalizer_list_layout_columns()
         menu_exact_widths_select = "ISNULL(M.LARGURAS_EXATAS, 0) AS LARGURAS_EXATAS," if _menu_exact_widths_available() else "CAST(0 AS bit) AS LARGURAS_EXATAS,"
@@ -9172,11 +9615,15 @@ def create_app():
                   )
                   OR EXISTS (
                     SELECT 1
-                    FROM sys.tables T
+                    FROM sys.objects T
                     INNER JOIN sys.schemas S
                         ON S.schema_id = T.schema_id
-                    WHERE S.name = 'dbo'
-                      AND UPPER(T.name) = UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, ''))))
+                    WHERE T.type IN ('U', 'V')
+                      AND T.is_ms_shipped = 0
+                      AND (
+                          UPPER(T.name) = UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, ''))))
+                          OR UPPER(S.name + '.' + T.name) = UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, ''))))
+                      )
                   )
               )
             ORDER BY LTRIM(RTRIM(ISNULL(M.NOME, ''))), UPPER(LTRIM(RTRIM(ISNULL(M.TABELA, ''))))
@@ -9280,6 +9727,12 @@ def create_app():
             return None
 
         _ensure_screen_personalizer_list_layout_columns()
+        campos_has_properties = _ensure_campos_properties_column()
+        campos_properties_select = (
+            "ISNULL(PROPRIEDADES, '{}') AS PROPRIEDADES"
+            if campos_has_properties
+            else "CAST(N'{}' AS nvarchar(max)) AS PROPRIEDADES"
+        )
         menu_exact_widths_select = "ISNULL(M.LARGURAS_EXATAS, 0) AS LARGURAS_EXATAS" if _menu_exact_widths_available() else "CAST(0 AS bit) AS LARGURAS_EXATAS"
         menu_list_exact_widths_select = "ISNULL(M.LARGURAS_EXATAS_LISTA, 0) AS LARGURAS_EXATAS_LISTA" if _table_has_columns('MENU', 'LARGURAS_EXATAS_LISTA') else "CAST(0 AS bit) AS LARGURAS_EXATAS_LISTA"
         menu_row = db.session.execute(text("""
@@ -9333,7 +9786,8 @@ def create_app():
                 ISNULL(DECIMAIS, 0) AS DECIMAIS,
                 MINIMO AS MINIMO,
                 MAXIMO AS MAXIMO,
-                LTRIM(RTRIM(ISNULL(COMBO, ''))) AS COMBO
+                LTRIM(RTRIM(ISNULL(COMBO, ''))) AS COMBO,
+                """ + campos_properties_select + """
             FROM dbo.CAMPOS
             WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
             ORDER BY ISNULL(ORDEM, 0), LTRIM(RTRIM(ISNULL(DESCRICAO, ''))), LTRIM(RTRIM(ISNULL(NMCAMPO, '')))
@@ -9347,6 +9801,7 @@ def create_app():
             item['MINIMO'] = '' if item.get('MINIMO') is None else str(item.get('MINIMO')).strip()
             item['MAXIMO'] = '' if item.get('MAXIMO') is None else str(item.get('MAXIMO')).strip()
             item['HAS_COMBO'] = bool(str(item.get('COMBO') or '').strip())
+            item['PROPRIEDADES'] = _screen_personalizer_properties_object(item.get('PROPRIEDADES'))
             item['_SPV_ORIGIN'] = 'field'
             configured_names.add(str(item.get('NMCAMPO') or '').strip().upper())
             fields.append(item)
@@ -9429,6 +9884,11 @@ def create_app():
             ).strip()
             if not lista_mobile_label:
                 lista_mobile_label = description
+            raw_properties = raw.get('PROPRIEDADES')
+            if raw_properties is None:
+                raw_properties = raw.get('propriedades')
+            if raw_properties is None:
+                raw_properties = raw.get('properties')
 
             normalized.append({
                 'CAMPOSSTAMP': str((existing or {}).get('CAMPOSSTAMP') or raw.get('CAMPOSSTAMP') or '').strip(),
@@ -9457,6 +9917,10 @@ def create_app():
                 'MINIMO': _screen_personalizer_decimal_or_default(raw.get('MINIMO'), (existing or {}).get('MINIMO'), 0),
                 'MAXIMO': _screen_personalizer_decimal_or_default(raw.get('MAXIMO'), (existing or {}).get('MAXIMO'), 0),
                 'COMBO': str(raw.get('COMBO') or (existing or {}).get('COMBO') or '').strip(),
+                'PROPRIEDADES': _screen_personalizer_properties_dump(
+                    raw_properties,
+                    (existing or {}).get('PROPRIEDADES'),
+                ),
                 '_EXISTS': bool(existing),
                 '_ORIGIN': origin,
             })
@@ -9471,6 +9935,60 @@ def create_app():
         normalized = []
         seen_names = set()
         rows = raw_objects if isinstance(raw_objects, list) else []
+
+        def _raw_object_properties(row):
+            if not isinstance(row, dict):
+                return {}
+            raw_props = row.get('PROPRIEDADES')
+            if raw_props is None:
+                raw_props = row.get('propriedades')
+            if raw_props is None:
+                raw_props = row.get('properties')
+            return _screen_personalizer_properties_object(raw_props)
+
+        merged_rows = []
+        merged_by_name = {}
+        for raw in rows:
+            if not isinstance(raw, dict):
+                continue
+            origin = str(raw.get('_SPV_ORIGIN') or raw.get('ORIGIN') or 'object').strip().lower()
+            if origin != 'object':
+                continue
+            field_name = str(raw.get('NMCAMPO') or '').strip().upper()
+            if not field_name:
+                merged_rows.append(raw)
+                continue
+
+            current = merged_by_name.get(field_name)
+            if current is None:
+                current = dict(raw)
+                current['NMCAMPO'] = field_name
+                merged_by_name[field_name] = current
+                merged_rows.append(current)
+                continue
+
+            for key in ('CAMPOSSTAMP', 'MENUOBJSTAMP', 'DESCRICAO', 'TIPO', 'CONDICAO_VISIVEL', 'COMBO'):
+                if current.get(key) in (None, '') and raw.get(key) not in (None, ''):
+                    current[key] = raw.get(key)
+
+            if _to_int(raw.get('ORDEM'), 0) > 0:
+                current['ORDEM'] = raw.get('ORDEM')
+                if raw.get('TAM') not in (None, ''):
+                    current['TAM'] = raw.get('TAM')
+            if _to_int(raw.get('ORDEM_MOBILE'), 0) > 0:
+                current['ORDEM_MOBILE'] = raw.get('ORDEM_MOBILE')
+                if raw.get('TAM_MOBILE') not in (None, ''):
+                    current['TAM_MOBILE'] = raw.get('TAM_MOBILE')
+
+            for key in ('VISIVEL', 'RONLY', 'OBRIGATORIO', 'DECIMAIS', 'MINIMO', 'MAXIMO'):
+                if key not in current and key in raw:
+                    current[key] = raw.get(key)
+
+            merged_props = _raw_object_properties(current)
+            merged_props.update(_raw_object_properties(raw))
+            if merged_props:
+                current['PROPRIEDADES'] = merged_props
+        rows = merged_rows
 
         for raw in rows:
             if not isinstance(raw, dict):
@@ -9499,6 +10017,11 @@ def create_app():
                 or (existing or {}).get('DESCRICAO')
                 or field_name
             ).strip()
+            raw_properties = raw.get('PROPRIEDADES')
+            if raw_properties is None:
+                raw_properties = raw.get('propriedades')
+            if raw_properties is None:
+                raw_properties = raw.get('properties')
 
             normalized.append({
                 'MENUOBJSTAMP': str((existing or {}).get('MENUOBJSTAMP') or raw.get('CAMPOSSTAMP') or '').strip(),
@@ -9523,7 +10046,7 @@ def create_app():
                 'MINIMO': _screen_personalizer_decimal_or_none(raw.get('MINIMO'), (existing or {}).get('MINIMO')),
                 'MAXIMO': _screen_personalizer_decimal_or_none(raw.get('MAXIMO'), (existing or {}).get('MAXIMO')),
                 'PROPRIEDADES': _screen_personalizer_properties_dump(
-                    raw.get('PROPRIEDADES'),
+                    raw_properties,
                     (existing or {}).get('PROPRIEDADES'),
                 ),
                 '_EXISTS': bool(existing),
@@ -9645,6 +10168,20 @@ def create_app():
         if not table_name:
             raise ValueError('O menu selecionado não tem tabela associada.')
 
+        campos_has_properties = _ensure_campos_properties_column()
+        campos_properties_existing_select = (
+            "ISNULL(PROPRIEDADES, '{}') AS PROPRIEDADES"
+            if campos_has_properties
+            else "CAST(N'{}' AS nvarchar(max)) AS PROPRIEDADES"
+        )
+        campos_properties_update_sql = (
+            ",\n                        PROPRIEDADES = :PROPRIEDADES"
+            if campos_has_properties
+            else ""
+        )
+        campos_properties_insert_column = ", PROPRIEDADES" if campos_has_properties else ""
+        campos_properties_insert_value = ", :PROPRIEDADES" if campos_has_properties else ""
+
         schema_columns = _load_screen_wizard_columns(table_name)
         available_map = {
             str(col.get('name') or '').strip().upper(): dict(col)
@@ -9674,7 +10211,8 @@ def create_app():
                 ISNULL(LISTA_MOBILE_BOLD, 0) AS LISTA_MOBILE_BOLD,
                 ISNULL(LISTA_MOBILE_ITALIC, 0) AS LISTA_MOBILE_ITALIC,
                 ISNULL(LISTA_MOBILE_SHOW_LABEL, 1) AS LISTA_MOBILE_SHOW_LABEL,
-                LTRIM(RTRIM(ISNULL(LISTA_MOBILE_LABEL, ''))) AS LISTA_MOBILE_LABEL
+                LTRIM(RTRIM(ISNULL(LISTA_MOBILE_LABEL, ''))) AS LISTA_MOBILE_LABEL,
+                """ + campos_properties_existing_select + """
             FROM dbo.CAMPOS
             WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :table_name
         """), {'table_name': table_name}).mappings().all()
@@ -9793,11 +10331,13 @@ def create_app():
                 db.session.execute(text("""
                     UPDATE dbo.CAMPOS
                     SET DESCRICAO = :DESCRICAO,
+                        TIPO = :TIPO,
                         VISIVEL = :VISIVEL,
                         RONLY = :RONLY,
                         OBRIGATORIO = :OBRIGATORIO,
                         LISTA = :LISTA,
                         FILTRO = :FILTRO,
+                        COMBO = :COMBO,
                         DECIMAIS = :DECIMAIS,
                         MINIMO = :MINIMO,
                         MAXIMO = :MAXIMO,
@@ -9812,16 +10352,18 @@ def create_app():
                         LISTA_MOBILE_BOLD = :LISTA_MOBILE_BOLD,
                         LISTA_MOBILE_ITALIC = :LISTA_MOBILE_ITALIC,
                         LISTA_MOBILE_SHOW_LABEL = :LISTA_MOBILE_SHOW_LABEL,
-                        LISTA_MOBILE_LABEL = :LISTA_MOBILE_LABEL
+                        LISTA_MOBILE_LABEL = :LISTA_MOBILE_LABEL""" + campos_properties_update_sql + """
                     WHERE UPPER(LTRIM(RTRIM(ISNULL(TABELA, '')))) = :TABELA
                       AND UPPER(LTRIM(RTRIM(ISNULL(NMCAMPO, '')))) = :NMCAMPO
                 """), {
                     'DESCRICAO': field['DESCRICAO'],
+                    'TIPO': field['TIPO'],
                     'VISIVEL': field['VISIVEL'],
                     'RONLY': field['RONLY'],
                     'OBRIGATORIO': field['OBRIGATORIO'],
                     'LISTA': field['LISTA'],
                     'FILTRO': field['FILTRO'],
+                    'COMBO': field['COMBO'],
                     'DECIMAIS': field['DECIMAIS'],
                     'MINIMO': field['MINIMO'],
                     'MAXIMO': field['MAXIMO'],
@@ -9837,6 +10379,7 @@ def create_app():
                     'LISTA_MOBILE_ITALIC': field['LISTA_MOBILE_ITALIC'],
                     'LISTA_MOBILE_SHOW_LABEL': field['LISTA_MOBILE_SHOW_LABEL'],
                     'LISTA_MOBILE_LABEL': field['LISTA_MOBILE_LABEL'],
+                    'PROPRIEDADES': field['PROPRIEDADES'],
                     'TABELA': field['TABELA'],
                     'NMCAMPO': field['NMCAMPO'],
                 })
@@ -9854,7 +10397,7 @@ def create_app():
                     TAM, ORDEM_MOBILE, TAM_MOBILE, ORDEM_LISTA, TAM_LISTA,
                     ORDEM_LISTA_MOBILE, TAM_LISTA_MOBILE,
                     LISTA_MOBILE_BOLD, LISTA_MOBILE_ITALIC, LISTA_MOBILE_SHOW_LABEL, LISTA_MOBILE_LABEL,
-                    CONDICAO_VISIVEL, OBRIGATORIO
+                    CONDICAO_VISIVEL, OBRIGATORIO""" + campos_properties_insert_column + """
                 )
                 VALUES
                 (
@@ -9864,7 +10407,7 @@ def create_app():
                     :TAM, :ORDEM_MOBILE, :TAM_MOBILE, :ORDEM_LISTA, :TAM_LISTA,
                     :ORDEM_LISTA_MOBILE, :TAM_LISTA_MOBILE,
                     :LISTA_MOBILE_BOLD, :LISTA_MOBILE_ITALIC, :LISTA_MOBILE_SHOW_LABEL, :LISTA_MOBILE_LABEL,
-                    '', :OBRIGATORIO
+                    '', :OBRIGATORIO""" + campos_properties_insert_value + """
                 )
             """), {
                 'CAMPOSSTAMP': (
@@ -9899,6 +10442,7 @@ def create_app():
                 'LISTA_MOBILE_SHOW_LABEL': field['LISTA_MOBILE_SHOW_LABEL'],
                 'LISTA_MOBILE_LABEL': field['LISTA_MOBILE_LABEL'],
                 'OBRIGATORIO': field['OBRIGATORIO'],
+                'PROPRIEDADES': field['PROPRIEDADES'],
             })
 
         if normalized_objects is not None:
@@ -10150,6 +10694,7 @@ def create_app():
                 })
 
         db.session.commit()
+        _refresh_db_menu_campos_translations()
         return _load_screen_personalizer_layout(stamp)
 
     CERT_RESET_FEID = 1
@@ -12425,6 +12970,20 @@ def create_app():
             'screen_personalizer.html',
             page_title='Personalização de Ecrãs',
             initial_menustamp=(menustamp or '').strip(),
+        )
+
+    @app.route('/i18n_db_manager')
+    @app.route('/i18n-db-manager')
+    @login_required
+    def i18n_db_manager_page():
+        if not _db_i18n_manager_allowed():
+            abort(403)
+        _ensure_i18n_runtime_current()
+        return render_template(
+            'i18n_db_manager.html',
+            page_title=translate('db_i18n.page_title'),
+            initial_i18n_db_language=normalize_language(request.args.get('language')),
+            initial_i18n_db_origin=str(request.args.get('origin') or '').strip().upper(),
         )
 
     @app.route('/database_manager')
@@ -15234,6 +15793,7 @@ def create_app():
                 """), payload)
 
             db.session.commit()
+            _refresh_db_menu_campos_translations()
             refreshed_row = _menu_manager_fetch_row(payload['MENUSTAMP'])
             return jsonify({'ok': True, 'menustamp': payload['MENUSTAMP'], 'row': refreshed_row})
         except Exception as exc:
@@ -15624,6 +16184,7 @@ def create_app():
                 })
 
             db.session.commit()
+            _refresh_db_menu_campos_translations()
             return jsonify({
                 'ok': True,
                 'menu': {
@@ -15648,17 +16209,7 @@ def create_app():
             return jsonify({'error': 'Sem permissão para usar a personalização de ecrãs.'}), 403
         try:
             screens = _load_screen_personalizer_screens()
-            sql_tables = []
-            sql_tables = [
-                {
-                    'key': str(item.get('key') or '').strip(),
-                    'label': str(item.get('key') or '').strip(),
-                    'schema': str(item.get('schema') or '').strip(),
-                    'table': str(item.get('table') or '').strip(),
-                }
-                for item in _load_database_manager_tables()
-                if str(item.get('key') or '').strip()
-            ]
+            sql_tables = _load_screen_personalizer_sql_sources()
             requested = str(request.args.get('menustamp') or '').strip()
             selected = requested or (str(screens[0].get('MENUSTAMP') or '').strip() if screens else '')
             detail = _load_screen_personalizer_layout(selected) if selected else None
@@ -19434,6 +19985,7 @@ def create_app():
             para_map = _load_para_map()
             session['APP_PARAMS'] = para_map
             app.config['PARA_VALUES'] = para_map
+            _sync_i18n_runtime(para_map, sync_db=True)
             return jsonify({'ok': True})
         except Exception as e:
             db.session.rollback()
@@ -19485,6 +20037,7 @@ def create_app():
             para_map = _load_para_map()
             session['APP_PARAMS'] = para_map
             app.config['PARA_VALUES'] = para_map
+            _sync_i18n_runtime(para_map, sync_db=True)
             return jsonify({'ok': True, 'PARASTAMP': stamp})
         except Exception as e:
             db.session.rollback()
@@ -19521,6 +20074,7 @@ def create_app():
             para_map = _load_para_map()
             session['APP_PARAMS'] = para_map
             app.config['PARA_VALUES'] = para_map
+            _sync_i18n_runtime(para_map, sync_db=True)
             return jsonify({'ok': True})
         except Exception as e:
             db.session.rollback()
@@ -19542,6 +20096,7 @@ def create_app():
             para_map = _load_para_map()
             session['APP_PARAMS'] = para_map
             app.config['PARA_VALUES'] = para_map
+            _sync_i18n_runtime(para_map, sync_db=True)
             return jsonify({'ok': True})
         except Exception as e:
             db.session.rollback()
@@ -30358,7 +30913,7 @@ OPTION (MAXRECURSION 32767);
     @app.route('/profile')
     @login_required
     def profile():
-        return render_template('profile.html', user=current_user, page_title='Perfil')
+        return render_template('profile.html', user=current_user, page_title=translate('profile.title'))
 
 
     @app.route('/api/profile/change_password', methods=['POST'])

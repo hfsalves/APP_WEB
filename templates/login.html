@@ -1,17 +1,17 @@
 ﻿{% extends "base.html" %}
 
-{% block title %}Login{% endblock %}
+{% block title %}{{ _('login.title') }}{% endblock %}
 
 {% block content %}
 <div class="login-page">
   <div class="login-card">
     <div class="login-card-header">
       <div class="login-logo-wrap">
-        <img src="{{ url_for('static', filename='images/icon-512.png') }}" alt="Aplicacao" class="login-logo" loading="lazy">
+        <img src="{{ url_for('static', filename='images/icon-512.png') }}" alt="{{ _('login.logo_alt') }}" class="login-logo" loading="lazy">
       </div>
       <div class="login-brand">
         <h1 class="login-title">StationZero</h1>
-        <p class="login-subtitle">Operations Platform</p>
+        <p class="login-subtitle">{{ _('app.operations_platform') }}</p>
       </div>
     </div>
 
@@ -22,7 +22,7 @@
     <form method="post" action="{{ url_for('login') }}" class="login-form">
       {% if show_db_target_select %}
       <div class="form-group">
-        <label for="db_target">Base de dados</label>
+        <label for="db_target">{{ _('login.db_target') }}</label>
         <div class="input-with-icon">
           <i class="fa-solid fa-database"></i>
           <select id="db_target" name="db_target" class="form-control" required>
@@ -44,19 +44,19 @@
             class="form-check-input"
             {% if verify_db %}checked{% endif %}
           >
-          <label class="form-check-label" for="verify_db">Verificação de Base de Dados</label>
+          <label class="form-check-label" for="verify_db">{{ _('login.verify_db') }}</label>
         </div>
       </div>
       {% endif %}
       <div class="form-group">
-        <label for="login">Email or username</label>
+        <label for="login">{{ _('login.username') }}</label>
         <div class="input-with-icon">
           <i class="fa-solid fa-user"></i>
-          <input type="text" id="login" name="login" class="form-control" required autocomplete="username" placeholder="Enter email or username">
+          <input type="text" id="login" name="login" class="form-control" required autocomplete="username" placeholder="{{ _('login.username_placeholder') }}">
         </div>
       </div>
       <div class="form-group">
-        <label for="password">Password</label>
+        <label for="password">{{ _('login.password') }}</label>
         <div class="input-with-icon">
           <i class="fa-solid fa-lock"></i>
           <input type="password" id="password" name="password" class="form-control" required autocomplete="current-password">
@@ -64,13 +64,13 @@
       </div>
       <button type="submit" class="btn btn-primary w-100">
         <i class="fa-solid fa-arrow-right-to-bracket me-1"></i>
-        Iniciar sess&atilde;o
+        {{ _('login.submit') }}
       </button>
       <div class="login-actions">
-        <a href="#" class="login-forgot-link">Forgot password?</a>
+        <a href="#" class="login-forgot-link">{{ _('login.forgot_password') }}</a>
       </div>
     </form>
-    <div class="login-card-footer">Secure login &bull; StationZero &bull; v1.0</div>
+    <div class="login-card-footer">{{ _('login.footer') }}</div>
   </div>
 </div>
 {% if show_db_target_select %}

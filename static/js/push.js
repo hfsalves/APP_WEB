@@ -1,4 +1,5 @@
 (function () {
+  const tr = (key, vars) => (typeof window.t === 'function' ? window.t(key, vars) : key);
   const STATE = {
     registration: null,
     subscription: null,
@@ -60,7 +61,7 @@
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(data.error || `Erro HTTP ${response.status}`);
+      throw new Error(data.error || tr('push.http_error', { status: response.status }));
     }
     return data;
   }
@@ -99,22 +100,22 @@
 
   function renderSummary() {
     if (!STATE.summary) {
-      setStatus('Sem informação disponível para este utilizador.', { error: true });
+      setStatus(tr('push.no_info'), { error: true });
       return;
     }
     const active = Number(STATE.summary.active_devices || 0);
     if (!supportsPush()) {
-      setStatus('Este browser não suporta notificações push web.', { error: true });
+      setStatus(tr('push.unsupported'), { error: true });
     } else if (Notification.permission === 'granted' && active > 0) {
-      setStatus(`Notificações ativas. Tens ${active} dispositivo(s) ativo(s).`);
+      setStatus(tr('push.active_summary', { active }));
     } else if (Notification.permission === 'denied') {
-      setStatus('As notificações estão bloqueadas no browser. Tens de as voltar a permitir nas definições.', { error: true });
+      setStatus(tr('push.blocked'), { error: true });
     } else {
-      setStatus(active ? `Existem ${active} dispositivo(s) registado(s), mas este browser ainda não está ativo.` : 'Ainda não existem dispositivos ativos para este utilizador.');
+      setStatus(active ? tr('push.registered_inactive', { active }) : tr('push.no_devices_active'));
     }
 
     if (isIosStandaloneMissing()) {
-      setHint('No iPhone, adiciona primeiro a app ao ecrã principal e abre-a em modo instalado para ativar push.');
+      setHint(tr('push.ios_hint'));
     } else {
       setHint('');
     }
@@ -129,17 +130,17 @@
 
   async function activatePush() {
     if (!supportsPush()) {
-      setStatus('Este browser não suporta notificações push web.', { error: true });
+      setStatus(tr('push.unsupported'), { error: true });
       return;
     }
     if (isIosStandaloneMissing()) {
-      setStatus('No iPhone, instala primeiro a app no ecrã principal.', { error: true });
+      setStatus(tr('push.ios_install_first'), { error: true });
       return;
     }
     try {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        setStatus('Permissão de notificações não concedida.', { error: true });
+        setStatus(tr('push.permission_denied'), { error: true });
         return;
       }
       const registration = await ensureRegistration();
@@ -165,7 +166,7 @@
       await refreshSummary();
       renderSummary();
     } catch (error) {
-      setStatus(error.message || 'Erro ao ativar notificações.', { error: true });
+      setStatus(error.message || tr('push.activate_error'), { error: true });
     }
   }
 
@@ -184,7 +185,7 @@
       await refreshSummary();
       renderSummary();
     } catch (error) {
-      setStatus(error.message || 'Erro ao desativar notificações.', { error: true });
+      setStatus(error.message || tr('push.disable_error'), { error: true });
     }
   }
 
@@ -192,13 +193,13 @@
     try {
       const result = await api('/api/push/test-self', { method: 'POST' });
       if (result.result?.status === 'NO_DEVICES') {
-        setStatus('Este utilizador ainda não tem dispositivos ativos.', { error: true });
+        setStatus(tr('push.no_devices'), { error: true });
         return;
       }
-      setStatus('Notificação de teste enviada.');
+      setStatus(tr('push.test_sent'));
       await refreshSummary();
     } catch (error) {
-      setStatus(error.message || 'Erro ao enviar teste.', { error: true });
+      setStatus(error.message || tr('push.test_error'), { error: true });
     }
   }
 

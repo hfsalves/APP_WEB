@@ -1,13 +1,13 @@
 ﻿{% extends "base.html" %}
 
-{% block title %}{{ table_name|capitalize }} - Lista{% endblock %}
+{% block title %}{{ table_name|capitalize }}{% endblock %}
 
 {% block content %}
 <div class="sz_dynamic_form_page">
   <header class="sz_contextbar sz_dynamic_form_contextbar">
     <div class="sz_contextbar_left">
       <div class="sz_page_title">{{ menu_label or table_name|capitalize }}</div>
-      <div class="sz_page_subtitle">{% if record_stamp %}Edição de registo{% else %}Novo registo{% endif %}</div>
+      <div class="sz_page_subtitle">{% if record_stamp %}{{ _('common.edit_record') }}{% else %}{{ _('common.new_record') }}{% endif %}</div>
     </div>
     <div class="sz_contextbar_right">
       {% if table_name|upper == 'AL' %}
@@ -15,9 +15,9 @@
         type="button"
         id="btnALFotos"
         class="sz_button sz_button_ghost d-inline-flex align-items-center gap-2"
-        {% if not record_stamp %}disabled title="Grava primeiro o alojamento para gerir imagens"{% endif %}>
+        {% if not record_stamp %}disabled title="{{ _('dynamic_form.save_accommodation_before_images') }}"{% endif %}>
         <i class="fa fa-images"></i>
-        <span>Imagens</span>
+        <span>{{ _('common.images') }}</span>
       </button>
       {% endif %}
       {% if table_name|upper == 'US' %}
@@ -25,9 +25,9 @@
         type="button"
         id="btnUserPushNotify"
         class="sz_button sz_button_ghost d-inline-flex align-items-center gap-2"
-        {% if not record_stamp %}disabled title="Grava primeiro o utilizador para enviar notificações"{% endif %}>
+        {% if not record_stamp %}disabled title="{{ _('dynamic_form.save_user_before_notifications') }}"{% endif %}>
         <i class="fa fa-bell"></i>
-        <span>Enviar notificação</span>
+        <span>{{ _('dynamic_form.notification_send') }}</span>
       </button>
       {% endif %}
       {% if botoes %}
@@ -39,7 +39,7 @@
           data-bs-toggle="dropdown"
           aria-expanded="false">
           <i class="fa fa-bolt"></i>
-          <span>Acoes</span>
+          <span>{{ _('common.actions') }}</span>
         </button>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownExemplo">
           {% for botao in botoes %}
@@ -77,7 +77,7 @@
             <button class="accordion-button collapsed" type="button"
                     data-bs-toggle="collapse" data-bs-target="#collapseDetalhes"
                     aria-expanded="false" aria-controls="collapseDetalhes">
-              Detalhes
+              {{ _('common.details') }}
             </button>
           </h2>
         <div id="collapseDetalhes" class="accordion-collapse collapse"
@@ -94,7 +94,7 @@
             <button class="accordion-button collapsed" type="button"
                     data-bs-toggle="collapse" data-bs-target="#collapseAnexos"
                     aria-expanded="false" aria-controls="collapseAnexos">
-              Anexos
+              {{ _('common.attachments') }}
             </button>
           </h2>
           <div id="collapseAnexos"
@@ -106,7 +106,7 @@
               <button type="button"
                       id="btnAddAnexo"
                       class="sz_button sz_button_ghost sz_dynamic_anexos_add">
-                <i class="fa fa-paperclip"></i> Anexar
+                <i class="fa fa-paperclip"></i> {{ _('common.attach') }}
               </button>
             </div>
           </div>
@@ -118,7 +118,7 @@
             <button class="accordion-button collapsed" type="button"
                     data-bs-toggle="collapse" data-bs-target="#collapsePushUser"
                     aria-expanded="false" aria-controls="collapsePushUser">
-              Notificações push
+              {{ _('layout.notifications.push') }}
             </button>
           </h2>
           <div id="collapsePushUser"
@@ -126,15 +126,15 @@
               aria-labelledby="headingPushUser">
             <div class="accordion-body">
               <div id="userPushPanel" class="sz_user_push_panel">
-                <div id="userPushStatus" class="sz_user_push_status">A carregar estado das notificações...</div>
+                <div id="userPushStatus" class="sz_user_push_status">{{ _('dynamic_form.load_notification_state') }}</div>
                 <div class="sz_user_push_actions">
                   <button type="button" class="sz_button sz_button_primary" id="btnUserPushNotifyInline">
                     <i class="fa fa-paper-plane"></i>
-                    <span>Enviar notificação</span>
+                    <span>{{ _('dynamic_form.notification_send') }}</span>
                   </button>
                   <button type="button" class="sz_button sz_button_secondary" id="btnUserPushRefresh">
                     <i class="fa fa-rotate"></i>
-                    <span>Atualizar</span>
+                    <span>{{ _('common.update') }}</span>
                   </button>
                 </div>
                 <div id="userPushSummary" class="sz_user_push_summary"></div>
@@ -149,7 +149,7 @@
             <button class="accordion-button collapsed" type="button"
                     data-bs-toggle="collapse" data-bs-target="#collapseUserEmpresas"
                     aria-expanded="false" aria-controls="collapseUserEmpresas">
-              Empresas
+              {{ _('dynamic_form.company') }}
             </button>
           </h2>
           <div id="collapseUserEmpresas"
@@ -159,34 +159,34 @@
               <div class="sz_dynamic_usfe_section">
                 <div class="sz_dynamic_usfe_toolbar">
                   <div class="sz_field sz_dynamic_usfe_field">
-                    <label class="sz_label" for="userFeNewFeid">Empresa</label>
+                    <label class="sz_label" for="userFeNewFeid">{{ _('dynamic_form.company') }}</label>
                     <select id="userFeNewFeid" class="sz_select" {% if not record_stamp %}disabled{% endif %}></select>
                   </div>
                   <button type="button"
                           id="btnUserFeAdd"
                           class="sz_button sz_button_primary"
-                          {% if not record_stamp %}disabled title="Grava primeiro o utilizador para associar empresas"{% endif %}>
+                          {% if not record_stamp %}disabled title="{{ _('dynamic_form.manage_companies_after_save') }}"{% endif %}>
                     <i class="fa fa-plus"></i>
-                    <span>Adicionar empresa</span>
+                    <span>{{ _('dynamic_form.add_company') }}</span>
                   </button>
                 </div>
                 {% if not record_stamp %}
-                <div class="sz_text_muted sz_dynamic_usfe_hint">Grava primeiro o utilizador para gerir empresas associadas.</div>
+                <div class="sz_text_muted sz_dynamic_usfe_hint">{{ _('dynamic_form.manage_companies_after_save') }}</div>
                 {% endif %}
                 <div id="userFeStatus" class="sz_dynamic_usfe_status"></div>
                 <div class="sz_table_wrap">
                   <table class="sz_table sz_table_compact">
                     <thead>
                       <tr>
-                        <th>Empresa</th>
-                        <th class="sz_col_fit">Ativo</th>
-                        <th class="sz_col_fit">Principal</th>
-                        <th class="sz_col_fit">Ações</th>
+                        <th>{{ _('dynamic_form.company') }}</th>
+                        <th class="sz_col_fit">{{ _('common.active') }}</th>
+                        <th class="sz_col_fit">{{ _('common.main') }}</th>
+                        <th class="sz_col_fit">{{ _('common.actions') }}</th>
                       </tr>
                     </thead>
                     <tbody id="userFeTableBody">
                       <tr>
-                        <td colspan="4" class="sz_text_muted">A carregar empresas...</td>
+                        <td colspan="4" class="sz_text_muted">{{ _('common.loading') }}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -206,19 +206,19 @@
     <div class="sz_actionbar_right">
     <button type="submit" form="editForm" class="sz_button sz_button_primary btn-save">
       <i class="fa-solid fa-save"></i>
-      <span class="btn-text">Gravar</span>
+      <span class="btn-text">{{ _('common.save') }}</span>
     </button>
     <button type="button" id="btnCancel" class="sz_button sz_button_ghost btn-cancel">
       <i class="fa-solid fa-ban"></i>
-      <span class="btn-text">Cancelar</span>
+      <span class="btn-text">{{ _('common.cancel') }}</span>
     </button>
     <button type="button" id="btnDelete" class="sz_button sz_button_danger btn-delete">
       <i class="fa-solid fa-trash-alt"></i>
-      <span class="btn-text">Eliminar</span>
+      <span class="btn-text">{{ _('common.delete') }}</span>
     </button>
     <button type="button" id="btnBack" class="sz_button sz_button_secondary btn-back">
       <i class="fa-solid fa-arrow-left"></i>
-      <span class="btn-text">Voltar</span>
+      <span class="btn-text">{{ _('common.back') }}</span>
     </button>
     </div>
   </div>
@@ -231,14 +231,14 @@
 
       <div class="modal-header">
         <h5 class="modal-title" id="genericModalLabel"></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
       </div>
 
       <div class="modal-body" id="modalBody"></div>
 
       <div class="modal-footer">
-        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-primary" onclick="gravarModal()">Gravar</button>
+        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">{{ _('common.cancel') }}</button>
+        <button type="button" class="btn btn-primary" onclick="gravarModal()">{{ _('common.save') }}</button>
       </div>
 
     </div>
@@ -252,25 +252,25 @@
     <div class="modal-content">
       <div class="modal-header">
         <div>
-          <h5 class="modal-title" id="alFotosModalLabel">Imagens do alojamento</h5>
-          <div class="text-muted small">Carrega, reordena e define a foto de capa.</div>
+          <h5 class="modal-title" id="alFotosModalLabel">{{ _('common.images') }}</h5>
+          <div class="text-muted small">{{ _('dynamic_form.upload_accommodation_images_hint') }}</div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
       </div>
       <div class="modal-body">
         <div class="sz_al_fotos_toolbar">
           <div id="alFotosDropzone" class="sz_al_fotos_dropzone" role="button" tabindex="0">
             <div class="sz_al_fotos_dropzone_icon"><i class="fa fa-cloud-upload-alt"></i></div>
             <div class="sz_al_fotos_dropzone_text">
-              <strong>Arrasta imagens para aqui</strong>
-              <span>ou usa o botão para selecionar vários ficheiros</span>
+              <strong>{{ _('dynamic_form.upload_images_drop') }}</strong>
+              <span>{{ _('dynamic_form.upload_images_pick_hint') }}</span>
             </div>
           </div>
           <div class="sz_al_fotos_actions">
             <input type="file" id="alFotosInput" accept="image/*" multiple hidden>
             <button type="button" id="btnALFotosPick" class="sz_button sz_button_primary">
               <i class="fa fa-upload"></i>
-              <span>Carregar imagens</span>
+              <span>{{ _('dynamic_form.upload_images') }}</span>
             </button>
           </div>
         </div>
@@ -278,7 +278,7 @@
         <div id="alFotosGrid" class="sz_al_fotos_grid"></div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">{{ _('common.close') }}</button>
       </div>
     </div>
   </div>
@@ -291,31 +291,31 @@
     <div class="modal-content">
       <div class="modal-header">
         <div>
-          <h5 class="modal-title" id="userPushModalLabel">Enviar notificação</h5>
-          <div class="text-muted small">Envio manual de uma notificação push para este utilizador.</div>
+          <h5 class="modal-title" id="userPushModalLabel">{{ _('dynamic_form.notification_send') }}</h5>
+          <div class="text-muted small">{{ _('dynamic_form.push_manual_hint') }}</div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
       </div>
       <div class="modal-body">
         <div class="sz_field">
-          <label class="sz_label" for="userPushTitle">Título</label>
+          <label class="sz_label" for="userPushTitle">{{ _('dynamic_form.notification_title') }}</label>
           <input type="text" id="userPushTitle" class="sz_input" maxlength="200">
         </div>
         <div class="sz_field">
-          <label class="sz_label" for="userPushBody">Mensagem</label>
+          <label class="sz_label" for="userPushBody">{{ _('dynamic_form.notification_body') }}</label>
           <textarea id="userPushBody" class="sz_textarea" rows="4" maxlength="1000"></textarea>
         </div>
         <div class="sz_field">
-          <label class="sz_label" for="userPushUrl">Link / URL</label>
+          <label class="sz_label" for="userPushUrl">{{ _('dynamic_form.link_url') }}</label>
           <input type="text" id="userPushUrl" class="sz_input" maxlength="500" placeholder="/monitor">
         </div>
         <div id="userPushModalStatus" class="sz_user_push_status"></div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">{{ _('common.cancel') }}</button>
         <button type="button" class="sz_button sz_button_primary" id="btnUserPushSendModal">
           <i class="fa fa-paper-plane"></i>
-          <span>Enviar</span>
+          <span>{{ _('common.send') }}</span>
         </button>
       </div>
     </div>

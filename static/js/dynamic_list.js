@@ -2,6 +2,7 @@
 // Lista genÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©rica com modal de filtros, suporte a intervalo de datas e ordenaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o.
 
 document.addEventListener('DOMContentLoaded', () => {
+  const tr = (key, vars) => (typeof window.t === 'function' ? window.t(key, vars) : key);
   const tableName       = window.TABLE_NAME;
   const gridDiv         = document.getElementById('grid');
   const btnSortToggle   = document.getElementById('btnSortToggle');
@@ -42,24 +43,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Ajusta os botÃƒÆ’Ã‚Âµes do header (com guardas)
   if (btnFilterToggle) {
-    btnFilterToggle.innerHTML = '<i class="fa fa-filter"></i><span>Filtrar</span>';
+    btnFilterToggle.innerHTML = `<i class="fa fa-filter"></i><span>${escapeHtml(tr('common.filter'))}</span>`;
     btnFilterToggle.className = 'sz_button sz_button_ghost';
-    btnFilterToggle.setAttribute('aria-label', 'Filtrar');
+    btnFilterToggle.setAttribute('aria-label', tr('common.filter'));
   }
   if (btnSortToggle) {
-    btnSortToggle.innerHTML = '<i class="fa fa-arrow-down-wide-short"></i><span>Ordenar</span>';
+    btnSortToggle.innerHTML = `<i class="fa fa-arrow-down-wide-short"></i><span>${escapeHtml(tr('common.sort'))}</span>`;
     btnSortToggle.className = 'sz_button sz_button_ghost';
-    btnSortToggle.setAttribute('aria-label', 'Ordenar');
+    btnSortToggle.setAttribute('aria-label', tr('common.sort'));
   }
   if (btnNew) {
-    btnNew.innerHTML = '<i class="fa fa-plus"></i><span>Novo</span>';
+    btnNew.innerHTML = `<i class="fa fa-plus"></i><span>${escapeHtml(tr('common.new'))}</span>`;
     btnNew.className = 'sz_button sz_button_primary';
-    btnNew.setAttribute('aria-label', 'Novo');
+    btnNew.setAttribute('aria-label', tr('common.new'));
   }
   if (btnNewAttachment) {
-    btnNewAttachment.innerHTML = '<i class="fa fa-paperclip"></i><span>+ Anexo</span>';
+    btnNewAttachment.innerHTML = `<i class="fa fa-paperclip"></i><span>${escapeHtml(tr('common.new_attachment'))}</span>`;
     btnNewAttachment.classList.add('btn-attach-custom');
-    btnNewAttachment.setAttribute('aria-label', 'Novo anexo');
+    btnNewAttachment.setAttribute('aria-label', tr('common.new_attachment'));
   }
   // removido botão de anexo específico
 
@@ -70,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 1) Sem permissÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o de consulta, aborta
   if (!userPerms.consultar) {
-    alert('Sem permissÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o para consultar esta lista.');
+    alert(tr('dynamic_list.no_permission'));
     return;
   }
 
@@ -164,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!sortFieldList) return;
     const cols = getVisibleSortColumns();
     if (!cols.length) {
-      sortFieldList.innerHTML = '<div class="sz_text_muted">Sem campos visíveis para ordenar.</div>';
+      sortFieldList.innerHTML = `<div class="sz_text_muted">${escapeHtml(tr('dynamic_list.no_sort_fields'))}</div>`;
       return;
     }
     sortFieldList.innerHTML = cols.map((col) => {
@@ -178,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button type="button" class="sz_button sz_button_ghost sz_dynamic_sort_option${active ? ' is-active' : ''}" data-sort-field="${escapeHtml(fieldName)}">
           <span class="sz_dynamic_sort_option_main">
             <span class="sz_dynamic_sort_option_label">${escapeHtml(col.descricao || fieldName)}</span>
-            <span class="sz_dynamic_sort_option_hint">${escapeHtml(active ? `Ordenação ${direction}` : 'Toque para ordenar')}</span>
+            <span class="sz_dynamic_sort_option_hint">${escapeHtml(active ? tr('dynamic_list.sort_direction', { direction }) : tr('dynamic_list.sort_tap'))}</span>
           </span>
           <span class="sz_dynamic_sort_option_state" aria-hidden="true">
             <i class="fa-solid ${icon}"></i>
@@ -296,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
           await handleGenericAttachmentFlow();
         }
       } catch (err) {
-        alert('Erro ao anexar: ' + err.message);
+        alert(tr('dynamic_list.attachment_error', { error: err.message }));
       }
     });
   }
@@ -428,7 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const up = await fetch('/api/anexos/upload', { method: 'POST', body: fd });
       if (!up.ok) {
         const err = await up.json().catch(() => ({}));
-        alert('Erro ao anexar: ' + (err.error || up.statusText));
+        alert(tr('dynamic_list.attachment_error', { error: err.error || up.statusText }));
         return;
       }
       const todayIso = new Date().toISOString().slice(0, 10);
@@ -470,7 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
       listUseExactWidths = !!payload?.screen?.list_use_exact_widths;
     } catch (e) {
       console.error('Falha ao carregar metadados:', e);
-      gridDiv.innerHTML = `<p class="text-danger">Erro ao carregar filtros.</p>`;
+      gridDiv.innerHTML = `<p class="text-danger">${escapeHtml(tr('dynamic_list.filters_load_error'))}</p>`;
       return;
     }
     // b) Separa colunas de filtros e de listagem
@@ -702,9 +703,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const cntEl = document.getElementById('recordCount');
     if (cntEl) {
       const n = (dataRows || []).length;
-      cntEl.textContent = n + (n === 1 ? ' registo' : ' registos');
+      cntEl.textContent = tr(n === 1 ? 'dynamic_list.record_count_one' : 'dynamic_list.record_count_other', { count: n });
     }
-    if(cntEl){ const n = (dataRows||[]).length; cntEl.textContent = n + (n===1? ' registo' : ' registos'); }
+    if(cntEl){ const n = (dataRows||[]).length; cntEl.textContent = tr(n === 1 ? 'dynamic_list.record_count_one' : 'dynamic_list.record_count_other', { count: n }); }
     applyActiveSort();
     renderGrid();
   }
@@ -842,7 +843,7 @@ document.addEventListener('DOMContentLoaded', () => {
     host.className = 'sz_dynamic_list_cards';
 
     if (!Array.isArray(rows) || !rows.length) {
-      host.innerHTML = '<div class="sz_card sz_dynamic_list_card sz_dynamic_list_card_empty"><div class="sz_text_muted">Sem registos.</div></div>';
+      host.innerHTML = `<div class="sz_card sz_dynamic_list_card sz_dynamic_list_card_empty"><div class="sz_text_muted">${escapeHtml(tr('dynamic_list.empty'))}</div></div>`;
       gridDiv.append(host);
       return;
     }
