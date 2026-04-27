@@ -2089,6 +2089,9 @@
         const code = String(el.value || '').trim();
         return code ? countryCanonicalName(code) : '';
       }
+      function getCountryCodeValue(el) {
+        return String(el?.value || '').trim().toUpperCase();
+      }
       const apply = (lang) => {
         const dict = getDict(lang);
         document.documentElement.lang = lang;
@@ -2470,10 +2473,13 @@
           apelido,
           dtnasc: String(guestEls.dtnasc?.value || '').trim(),
           nacionalidade: getCountryStoredValue(guestEls.nacionalidade),
+          nacionalidade_iso2: getCountryCodeValue(guestEls.nacionalidade),
           tipo_doc: String(guestEls.tipoDoc?.value || '').trim(),
           num_doc: String(guestEls.numDoc?.value || '').trim(),
           pais_emissor_doc: getCountryStoredValue(guestEls.paisEmissor),
-          pais_residencia: getCountryStoredValue(guestEls.paisResidencia)
+          pais_emissor_doc_iso2: getCountryCodeValue(guestEls.paisEmissor),
+          pais_residencia: getCountryStoredValue(guestEls.paisResidencia),
+          pais_residencia_iso2: getCountryCodeValue(guestEls.paisResidencia)
         };
       }
 

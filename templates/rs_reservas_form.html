@@ -161,6 +161,15 @@
             <div id="rsGuestsBody" class="rsf-guest-cards">
               <div class="text-muted p-3">A carregar...</div>
             </div>
+            <div class="rsf-public-link rsf-siba-action">
+              <div class="rsf-public-link-label">AIMA / SEF</div>
+              <div class="rsf-public-link-row">
+                <button id="rsSibaCommunicateBtn" type="button" class="sz_button sz_button_primary rsf-btn-sm">
+                  <i class="fa-solid fa-paper-plane"></i><span>Comunicar AIMA/SEF</span>
+                </button>
+              </div>
+              <div id="rsSibaStatus" class="rsf-siba-status">Por comunicar</div>
+            </div>
             <div class="rsf-public-link">
               <div class="rsf-public-link-label">Guia do H&oacute;spede</div>
               <div class="rsf-public-link-row">
@@ -514,6 +523,21 @@
     flex-wrap: wrap;
     justify-content: flex-start;
     align-items: center;
+  }
+  .rsf-siba-status {
+    margin-top: 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--sz-color-text-muted);
+  }
+  .rsf-siba-status.is-ok {
+    color: var(--sz-color-success);
+  }
+  .rsf-siba-status.is-warn {
+    color: var(--sz-color-warning);
+  }
+  .rsf-siba-status.is-error {
+    color: var(--sz-color-danger);
   }
   .rsf-guest-card {
     border: 1px solid var(--sz-color-border);

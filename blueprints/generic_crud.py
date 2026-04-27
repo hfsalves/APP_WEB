@@ -19,6 +19,8 @@ from werkzeug.utils import secure_filename
 
 bp = Blueprint('generic', __name__, url_prefix='/generic')
 
+MONITOR_DEFAULT_FEID = 2
+
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 VIES_CHECKVAT_URL = 'https://ec.europa.eu/taxation_customs/vies/services/checkVatService'
 VIES_SOAP_NS = 'http://schemas.xmlsoap.org/soap/envelope/'
@@ -2511,7 +2513,6 @@ def api_tarefa_nova():
     tarefastamp = uuid.uuid4().hex[:25].upper()
     try:
         scoped = _table_is_fe_scoped('TAREFAS')
-        current_feid = _current_feid_or_abort() if scoped else None
         sql = text(f"""
             INSERT INTO TAREFAS (
               TAREFASSTAMP, UTILIZADOR, DATA, HORA, DURACAO,
@@ -2533,7 +2534,7 @@ def api_tarefa_nova():
             'aloj': aloj
         }
         if scoped:
-            params['feid'] = current_feid
+            params['feid'] = MONITOR_DEFAULT_FEID
         db.session.execute(sql, params)
         db.session.commit()
         return jsonify({'ok': True, 'TAREFASSTAMP': tarefastamp})
@@ -4289,13 +4290,13 @@ def criar_mn_incidente():
     nmtratado = data.get('NMTRATADO', '')
     dttratado = data.get('DTTRATADO') or '1900-01-01'
 
-
-    sql = text("""
-        INSERT INTO MN (MNSTAMP, ALOJAMENTO, DATA, NOME, INCIDENCIA, URGENTE, TRATADO, DTTRATADO, NMTRATADO)
-        VALUES (:mnstamp, :alojamento, :data, :nome, :incidencia, :urgente, :tratado, :dttratado, :nmtratado)
+    scoped = _table_is_fe_scoped('MN')
+    sql = text(f"""
+        INSERT INTO MN (MNSTAMP, ALOJAMENTO, DATA, NOME, INCIDENCIA, URGENTE, TRATADO, DTTRATADO, NMTRATADO{', FEID' if scoped else ''})
+        VALUES (:mnstamp, :alojamento, :data, :nome, :incidencia, :urgente, :tratado, :dttratado, :nmtratado{', :feid' if scoped else ''})
     """)
     try:
-        db.session.execute(sql, {
+        params = {
             'mnstamp': mnstamp,
             'alojamento': data['ALOJAMENTO'],
             'data': data['DATA'],
@@ -4305,7 +4306,10 @@ def criar_mn_incidente():
             'tratado': tratado,
             'dttratado': dttratado,
             'nmtratado': nmtratado
-        })
+        }
+        if scoped:
+            params['feid'] = MONITOR_DEFAULT_FEID
+        db.session.execute(sql, params)
         db.session.commit()
         return jsonify({'success': True, 'MNSTAMP': mnstamp}), 201
     except Exception as e:
@@ -4331,13 +4335,14 @@ def api_fs_falta():
     tratadopor = data.get('TRATADOPOR') or ''
     dttratado  = data.get('DTTRATADO') or '1900-01-01'  # mantÃ©m alinhado com o teu default
 
-    sql = text("""
-        INSERT INTO FS (FSSTAMP, ALOJAMENTO, DATA, USERNAME, ITEM, URGENTE, TRATADO, TRATADOPOR, DTTRATADO)
-        VALUES (:FSSTAMP, :ALOJAMENTO, :DATA, :USERNAME, :ITEM, :URGENTE, :TRATADO, :TRATADOPOR, :DTTRATADO)
+    scoped = _table_is_fe_scoped('FS')
+    sql = text(f"""
+        INSERT INTO FS (FSSTAMP{', FEID' if scoped else ''}, ALOJAMENTO, DATA, USERNAME, ITEM, URGENTE, TRATADO, TRATADOPOR, DTTRATADO)
+        VALUES (:FSSTAMP{', :FEID' if scoped else ''}, :ALOJAMENTO, :DATA, :USERNAME, :ITEM, :URGENTE, :TRATADO, :TRATADOPOR, :DTTRATADO)
     """)
 
     try:
-        db.session.execute(sql, {
+        params = {
             'FSSTAMP': fsstamp,
             'ALOJAMENTO': data['ALOJAMENTO'],
             'DATA': data['DATA'],
@@ -4347,7 +4352,10 @@ def api_fs_falta():
             'TRATADO': 1 if tratado else 0,
             'TRATADOPOR': tratadopor,
             'DTTRATADO': dttratado
-        })
+        }
+        if scoped:
+            params['FEID'] = MONITOR_DEFAULT_FEID
+        db.session.execute(sql, params)
         db.session.commit()
         return jsonify({'success': True, 'FSSTAMP': fsstamp}), 201
     except Exception as e:
@@ -4666,21 +4674,24 @@ def api_criar_tarefa_from_mn():
 
     # Inserir na TAREFAS
     # Nota: a coluna chama-se DURACAO (conforme queries acima neste ficheiro)
-    ins = text("""
+    scoped = _table_is_fe_scoped('TAREFAS')
+    ins = text(f"""
         INSERT INTO TAREFAS (
             TAREFASSTAMP, ORIGEM, ORISTAMP, UTILIZADOR,
             DATA, HORA, DURACAO, TAREFA, ALOJAMENTO, TRATADO
+            {', FEID' if scoped else ''}
         )
         VALUES (
             LEFT(NEWID(), 25), 'MN', :oristamp, :utilizador,
             :data, :hora, :duracao, :tarefa, :alojamento, 0
+            {', :feid' if scoped else ''}
         )
     """)
     try:
         # Utilizador alvo: respeita UTILIZADOR enviado, se presente; caso contrário, usa o utilizador autenticado
         req_util = (data.get('UTILIZADOR') or '').strip()
         utilizador_dest = req_util if req_util else getattr(current_user, 'LOGIN', None)
-        db.session.execute(ins, {
+        params = {
             'oristamp':   mnstamp,
             'utilizador': utilizador_dest,
             'data':       data_str,
@@ -4688,7 +4699,10 @@ def api_criar_tarefa_from_mn():
             'duracao':    60,
             'tarefa':     mn.INCIDENCIA,
             'alojamento': mn.ALOJAMENTO
-        })
+        }
+        if scoped:
+            params['feid'] = MONITOR_DEFAULT_FEID
+        db.session.execute(ins, params)
         db.session.commit()
         return jsonify({'ok': True})
     except Exception as e:

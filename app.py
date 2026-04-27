@@ -57,6 +57,8 @@ from services.shop_guest_service import (
     get_shop_catalog_data,
     get_shop_product_by_code,
 )
+from services.siba_codes import country_to_icao, doc_type_to_siba
+from services.siba_service import SibaError, send_siba_boletins
 from services.airbnb_commission_import_service import (
     preview_airbnb_commissions_csv,
     import_airbnb_commissions_rows,
@@ -2418,6 +2420,75 @@ def create_app():
         session[db_consistency_unlocked_target_session_key] = _resolve_db_target()
         return redirect(url_for('home_page'))
 
+    _rsguests_siba_columns_checked = False
+
+    def _ensure_rsguests_siba_columns():
+        nonlocal _rsguests_siba_columns_checked
+        if _rsguests_siba_columns_checked:
+            return
+        try:
+            db.session.execute(text("""
+                IF COL_LENGTH('dbo.RSGUESTS', 'NACIONALIDADE_ICAO') IS NULL
+                    ALTER TABLE dbo.RSGUESTS ADD NACIONALIDADE_ICAO varchar(3) NULL;
+                IF COL_LENGTH('dbo.RSGUESTS', 'PAIS_RESIDENCIA_ICAO') IS NULL
+                    ALTER TABLE dbo.RSGUESTS ADD PAIS_RESIDENCIA_ICAO varchar(3) NULL;
+                IF COL_LENGTH('dbo.RSGUESTS', 'PAIS_EMISSOR_DOC_ICAO') IS NULL
+                    ALTER TABLE dbo.RSGUESTS ADD PAIS_EMISSOR_DOC_ICAO varchar(3) NULL;
+                IF COL_LENGTH('dbo.RSGUESTS', 'TIPO_DOC_SIBA') IS NULL
+                    ALTER TABLE dbo.RSGUESTS ADD TIPO_DOC_SIBA varchar(1) NULL;
+            """))
+            rows = db.session.execute(text("""
+                SELECT RSGUESTSTAMP, NACIONALIDADE, PAIS_RESIDENCIA, PAIS_EMISSOR_DOC, TIPO_DOC,
+                       ISNULL(NACIONALIDADE_ICAO, '') AS NACIONALIDADE_ICAO,
+                       ISNULL(PAIS_RESIDENCIA_ICAO, '') AS PAIS_RESIDENCIA_ICAO,
+                       ISNULL(PAIS_EMISSOR_DOC_ICAO, '') AS PAIS_EMISSOR_DOC_ICAO,
+                       ISNULL(TIPO_DOC_SIBA, '') AS TIPO_DOC_SIBA
+                FROM dbo.RSGUESTS
+                WHERE LTRIM(RTRIM(ISNULL(NACIONALIDADE_ICAO, ''))) = ''
+                   OR LTRIM(RTRIM(ISNULL(PAIS_RESIDENCIA_ICAO, ''))) = ''
+                   OR LTRIM(RTRIM(ISNULL(PAIS_EMISSOR_DOC_ICAO, ''))) = ''
+                   OR LTRIM(RTRIM(ISNULL(TIPO_DOC_SIBA, ''))) = ''
+                   OR (
+                        UPPER(LTRIM(RTRIM(ISNULL(TIPO_DOC, '')))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                            IN ('ID_NACIONAL', 'ID', 'CC', 'BI', 'CARTAO DE CIDADAO', 'CARTAO CIDADAO',
+                                'DOCUMENTO DE IDENTIFICACAO NACIONAL', 'DOC. IDENTIFICACAO NACIONAL',
+                                'DOC IDENTIFICACAO NACIONAL', 'DOC IDENTIFICACAO', 'NATIONAL IDENTITY DOCUMENT',
+                                'NATIONAL ID')
+                        AND LTRIM(RTRIM(ISNULL(TIPO_DOC_SIBA, ''))) <> 'B'
+                   )
+                   OR (
+                        UPPER(LTRIM(RTRIM(ISNULL(TIPO_DOC, '')))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                            IN ('PASSAPORTE', 'PASSPORT')
+                        AND LTRIM(RTRIM(ISNULL(TIPO_DOC_SIBA, ''))) <> 'P'
+                   )
+                   OR (
+                        UPPER(LTRIM(RTRIM(ISNULL(TIPO_DOC, '')))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                            IN ('OUTRO', 'OTHER', 'AUTRE')
+                        AND LTRIM(RTRIM(ISNULL(TIPO_DOC_SIBA, ''))) <> 'O'
+                   )
+            """)).mappings().all()
+            for row in rows:
+                values = {
+                    's': row.get('RSGUESTSTAMP'),
+                    'nacionalidade_icao': (row.get('NACIONALIDADE_ICAO') or '').strip() or country_to_icao(row.get('NACIONALIDADE')),
+                    'pais_residencia_icao': (row.get('PAIS_RESIDENCIA_ICAO') or '').strip() or country_to_icao(row.get('PAIS_RESIDENCIA')),
+                    'pais_emissor_doc_icao': (row.get('PAIS_EMISSOR_DOC_ICAO') or '').strip() or country_to_icao(row.get('PAIS_EMISSOR_DOC')),
+                    'tipo_doc_siba': doc_type_to_siba(row.get('TIPO_DOC')) or (row.get('TIPO_DOC_SIBA') or '').strip(),
+                }
+                db.session.execute(text("""
+                    UPDATE dbo.RSGUESTS
+                    SET NACIONALIDADE_ICAO = :nacionalidade_icao,
+                        PAIS_RESIDENCIA_ICAO = :pais_residencia_icao,
+                        PAIS_EMISSOR_DOC_ICAO = :pais_emissor_doc_icao,
+                        TIPO_DOC_SIBA = :tipo_doc_siba
+                    WHERE RSGUESTSTAMP = :s
+                """), values)
+            db.session.commit()
+            _rsguests_siba_columns_checked = True
+        except Exception:
+            db.session.rollback()
+            raise
+
     @app.route('/r/<reserva_code>')
     @app.route('/r/<reserva_code>/')
     def public_reserva_page(reserva_code):
@@ -3170,6 +3241,7 @@ def create_app():
         if not row:
             return jsonify({'error': 'Reserva inválida ou não encontrada'}), 404
 
+        _ensure_rsguests_siba_columns()
         rsstamp = (row.get('RSSTAMP') or '').strip()
         total_guests = max(1, int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0))
 
@@ -3186,6 +3258,10 @@ def create_app():
               ISNULL(TIPO_DOC,'') AS TIPO_DOC,
               ISNULL(NUM_DOC,'') AS NUM_DOC,
               ISNULL(PAIS_EMISSOR_DOC,'') AS PAIS_EMISSOR_DOC,
+              ISNULL(NACIONALIDADE_ICAO,'') AS NACIONALIDADE_ICAO,
+              ISNULL(PAIS_RESIDENCIA_ICAO,'') AS PAIS_RESIDENCIA_ICAO,
+              ISNULL(PAIS_EMISSOR_DOC_ICAO,'') AS PAIS_EMISSOR_DOC_ICAO,
+              ISNULL(TIPO_DOC_SIBA,'') AS TIPO_DOC_SIBA,
               ISNULL(HORAIN,'') AS HORAIN,
               ISNULL(HORAOUT,'') AS HORAOUT,
               ISNULL(TRANSPORTE,'') AS TRANSPORTE,
@@ -3215,6 +3291,10 @@ def create_app():
                 'tipo_doc': (gr.get('TIPO_DOC') or '').strip(),
                 'num_doc': (gr.get('NUM_DOC') or '').strip(),
                 'pais_emissor_doc': (gr.get('PAIS_EMISSOR_DOC') or '').strip(),
+                'nacionalidade_icao': (gr.get('NACIONALIDADE_ICAO') or '').strip(),
+                'pais_residencia_icao': (gr.get('PAIS_RESIDENCIA_ICAO') or '').strip(),
+                'pais_emissor_doc_icao': (gr.get('PAIS_EMISSOR_DOC_ICAO') or '').strip(),
+                'tipo_doc_siba': (gr.get('TIPO_DOC_SIBA') or '').strip(),
                 'horain': (gr.get('HORAIN') or '').strip(),
                 'horaout': (gr.get('HORAOUT') or '').strip(),
                 'transporte': (gr.get('TRANSPORTE') or '').strip(),
@@ -3233,6 +3313,10 @@ def create_app():
                 'tipo_doc': '',
                 'num_doc': '',
                 'pais_emissor_doc': '',
+                'nacionalidade_icao': '',
+                'pais_residencia_icao': '',
+                'pais_emissor_doc_icao': '',
+                'tipo_doc_siba': '',
                 'horain': '',
                 'horaout': '',
                 'transporte': '',
@@ -3271,6 +3355,7 @@ def create_app():
         if not row:
             return jsonify({'error': 'Reserva inválida ou não encontrada'}), 404
 
+        _ensure_rsguests_siba_columns()
         rsstamp = (row.get('RSSTAMP') or '').strip()
         total_guests = max(1, int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0))
         body = request.get_json(silent=True) or {}
@@ -3306,16 +3391,24 @@ def create_app():
         if re.match(r'^\d{4}-\d{2}-\d{2}$', dtn_raw):
             dtn_val = dtn_raw
 
+        nacionalidade = str(guest.get('nacionalidade') or '').strip()[:60]
+        pais_residencia = str(guest.get('pais_residencia') or '').strip()[:60]
+        tipo_doc = str(guest.get('tipo_doc') or '').strip()[:30]
+        pais_emissor_doc = str(guest.get('pais_emissor_doc') or '').strip()[:60]
         vals = {
             'nome_completo': nome_completo,
             'nome': nome,
             'apelido': apelido,
             'dtnasc': dtn_val,
-            'nacionalidade': str(guest.get('nacionalidade') or '').strip()[:60],
-            'pais_residencia': str(guest.get('pais_residencia') or '').strip()[:60],
-            'tipo_doc': str(guest.get('tipo_doc') or '').strip()[:30],
+            'nacionalidade': nacionalidade,
+            'pais_residencia': pais_residencia,
+            'tipo_doc': tipo_doc,
             'num_doc': str(guest.get('num_doc') or '').strip()[:40],
-            'pais_emissor_doc': str(guest.get('pais_emissor_doc') or '').strip()[:60],
+            'pais_emissor_doc': pais_emissor_doc,
+            'nacionalidade_icao': country_to_icao(guest.get('nacionalidade_icao') or guest.get('nacionalidade_iso2') or nacionalidade),
+            'pais_residencia_icao': country_to_icao(guest.get('pais_residencia_icao') or guest.get('pais_residencia_iso2') or pais_residencia),
+            'pais_emissor_doc_icao': country_to_icao(guest.get('pais_emissor_doc_icao') or guest.get('pais_emissor_doc_iso2') or pais_emissor_doc),
+            'tipo_doc_siba': doc_type_to_siba(guest.get('tipo_doc_siba') or tipo_doc),
             'horain': str(guest.get('horain') or '').strip()[:5],
             'horaout': str(guest.get('horaout') or '').strip()[:5],
             'transporte': str(guest.get('transporte') or '').strip()[:30],
@@ -3336,6 +3429,10 @@ def create_app():
                   TIPO_DOC=:tipo_doc,
                   NUM_DOC=:num_doc,
                   PAIS_EMISSOR_DOC=:pais_emissor_doc,
+                  NACIONALIDADE_ICAO=:nacionalidade_icao,
+                  PAIS_RESIDENCIA_ICAO=:pais_residencia_icao,
+                  PAIS_EMISSOR_DOC_ICAO=:pais_emissor_doc_icao,
+                  TIPO_DOC_SIBA=:tipo_doc_siba,
                   HORAIN=:horain,
                   HORAOUT=:horaout,
                   TRANSPORTE=:transporte,
@@ -3348,10 +3445,12 @@ def create_app():
             db.session.execute(text("""
                 INSERT INTO dbo.RSGUESTS
                 (RSGUESTSTAMP, RSSTAMP, NOME_COMPLETO, NOME, APELIDO, DTNASC, NACIONALIDADE, PAIS_RESIDENCIA,
-                 TIPO_DOC, NUM_DOC, PAIS_EMISSOR_DOC, ATIVO, DTCRI, DTALT, HORAIN, HORAOUT, TRANSPORTE, VOO, BERCO)
+                 TIPO_DOC, NUM_DOC, PAIS_EMISSOR_DOC, NACIONALIDADE_ICAO, PAIS_RESIDENCIA_ICAO,
+                 PAIS_EMISSOR_DOC_ICAO, TIPO_DOC_SIBA, ATIVO, DTCRI, DTALT, HORAIN, HORAOUT, TRANSPORTE, VOO, BERCO)
                 VALUES
                 (:s, :r, :nome_completo, :nome, :apelido, :dtnasc, :nacionalidade, :pais_residencia,
-                 :tipo_doc, :num_doc, :pais_emissor_doc, 1, GETDATE(), NULL, :horain, :horaout, :transporte, :voo, :berco)
+                 :tipo_doc, :num_doc, :pais_emissor_doc, :nacionalidade_icao, :pais_residencia_icao,
+                 :pais_emissor_doc_icao, :tipo_doc_siba, 1, GETDATE(), NULL, :horain, :horaout, :transporte, :voo, :berco)
             """), {**vals, 's': _new_stamp_25(), 'r': rsstamp})
         db.session.commit()
         return public_reserva_guests_get(reserva_code)
@@ -13635,6 +13734,7 @@ def create_app():
             'FTEMAIL': str(_h('FTEMAIL') or '').strip(),
         })
 
+        _ensure_rsguests_siba_columns()
         db.session.execute(text("DELETE FROM dbo.RSGUESTS WHERE RSSTAMP = :s"), {'s': rsstamp})
         for idx, guest in enumerate(guests):
             if not isinstance(guest, dict):
@@ -13662,10 +13762,12 @@ def create_app():
             db.session.execute(text("""
                 INSERT INTO dbo.RSGUESTS
                 (RSGUESTSTAMP, RSSTAMP, NOME_COMPLETO, NOME, APELIDO, DTNASC, NACIONALIDADE, PAIS_RESIDENCIA,
-                 TIPO_DOC, NUM_DOC, PAIS_EMISSOR_DOC, ATIVO, DTCRI, DTALT, HORAIN, HORAOUT, TRANSPORTE, VOO, BERCO)
+                 TIPO_DOC, NUM_DOC, PAIS_EMISSOR_DOC, NACIONALIDADE_ICAO, PAIS_RESIDENCIA_ICAO,
+                 PAIS_EMISSOR_DOC_ICAO, TIPO_DOC_SIBA, ATIVO, DTCRI, DTALT, HORAIN, HORAOUT, TRANSPORTE, VOO, BERCO)
                 VALUES
                 (:RSGUESTSTAMP, :RSSTAMP, :NOME_COMPLETO, :NOME, :APELIDO, :DTNASC, :NACIONALIDADE, :PAIS_RESIDENCIA,
-                 :TIPO_DOC, :NUM_DOC, :PAIS_EMISSOR_DOC, :ATIVO, :DTCRI, :DTALT, :HORAIN, :HORAOUT, :TRANSPORTE, :VOO, :BERCO)
+                 :TIPO_DOC, :NUM_DOC, :PAIS_EMISSOR_DOC, :NACIONALIDADE_ICAO, :PAIS_RESIDENCIA_ICAO,
+                 :PAIS_EMISSOR_DOC_ICAO, :TIPO_DOC_SIBA, :ATIVO, :DTCRI, :DTALT, :HORAIN, :HORAOUT, :TRANSPORTE, :VOO, :BERCO)
             """), {
                 'RSGUESTSTAMP': str(guest.get('RSGUESTSTAMP') or '').strip() or _new_stamp_25(),
                 'RSSTAMP': rsstamp,
@@ -13678,6 +13780,10 @@ def create_app():
                 'TIPO_DOC': str(guest.get('TIPO_DOC') or '').strip()[:30],
                 'NUM_DOC': str(guest.get('NUM_DOC') or '').strip()[:40],
                 'PAIS_EMISSOR_DOC': str(guest.get('PAIS_EMISSOR_DOC') or '').strip()[:60],
+                'NACIONALIDADE_ICAO': country_to_icao(guest.get('NACIONALIDADE_ICAO') or guest.get('nacionalidade_icao') or guest.get('NACIONALIDADE')),
+                'PAIS_RESIDENCIA_ICAO': country_to_icao(guest.get('PAIS_RESIDENCIA_ICAO') or guest.get('pais_residencia_icao') or guest.get('PAIS_RESIDENCIA')),
+                'PAIS_EMISSOR_DOC_ICAO': country_to_icao(guest.get('PAIS_EMISSOR_DOC_ICAO') or guest.get('pais_emissor_doc_icao') or guest.get('PAIS_EMISSOR_DOC')),
+                'TIPO_DOC_SIBA': doc_type_to_siba(guest.get('TIPO_DOC_SIBA') or guest.get('tipo_doc_siba') or guest.get('TIPO_DOC')),
                 'ATIVO': 1 if _to_int(guest.get('ATIVO'), 1) == 1 else 0,
                 'DTCRI': dtcri,
                 'DTALT': dtalt,
@@ -13690,6 +13796,270 @@ def create_app():
 
         db.session.commit()
         return jsonify({'ok': True})
+
+    @app.route('/api/reservas/rs/<rsstamp>/siba/communicate', methods=['POST'])
+    @login_required
+    def api_reservas_rs_siba_communicate(rsstamp):
+        current_feid, error_response = _current_feid_or_json_error()
+        if error_response:
+            return error_response
+
+        _ensure_rsguests_siba_columns()
+        flags = db.session.execute(text("""
+            SELECT
+                CASE WHEN COL_LENGTH('dbo.AL', 'SIBA_UH') IS NULL THEN 0 ELSE 1 END AS HAS_SIBA_UH,
+                CASE WHEN COL_LENGTH('dbo.AL', 'SIBA_ESTAB') IS NULL THEN 0 ELSE 1 END AS HAS_SIBA_ESTAB,
+                CASE WHEN COL_LENGTH('dbo.AL', 'SIBA_CHAVE') IS NULL THEN 0 ELSE 1 END AS HAS_SIBA_CHAVE
+        """)).mappings().first() or {}
+        siba_uh_sql = "ISNULL(AL.SIBA_UH, '')" if int(flags.get('HAS_SIBA_UH') or 0) else "CAST('' AS varchar(25))"
+        siba_estab_sql = "ISNULL(AL.SIBA_ESTAB, 0)" if int(flags.get('HAS_SIBA_ESTAB') or 0) else "CAST(0 AS int)"
+        siba_chave_sql = "ISNULL(AL.SIBA_CHAVE, '')" if int(flags.get('HAS_SIBA_CHAVE') or 0) else "CAST('' AS varchar(25))"
+
+        rs = db.session.execute(text(f"""
+            SELECT
+                RS.RSSTAMP,
+                ISNULL(RS.RESERVA, '') AS RESERVA,
+                ISNULL(RS.ALOJAMENTO, '') AS ALOJAMENTO,
+                CAST(RS.DATAIN AS date) AS DATAIN,
+                CAST(RS.DATAOUT AS date) AS DATAOUT,
+                ISNULL(RS.HORAIN, '') AS HORAIN,
+                ISNULL(RS.HORAOUT, '') AS HORAOUT,
+                ISNULL(RS.ADULTOS, 0) AS ADULTOS,
+                ISNULL(RS.CRIANCAS, 0) AS CRIANCAS,
+                ISNULL(RS.SEF, 0) AS SEF,
+                ISNULL(RS.USRSEF, '') AS USRSEF,
+                ISNULL(AL.NOME, RS.ALOJAMENTO) AS AL_NOME,
+                ISNULL(AL.MORADA, '') AS AL_MORADA,
+                ISNULL(AL.LOCAL, '') AS AL_LOCAL,
+                ISNULL(AL.CODPOST, '') AS AL_CODPOST,
+                ISNULL(FE.NOME, '') AS FE_NOME,
+                ISNULL(FE.EMAIL, '') AS FE_EMAIL,
+                ISNULL(FE.TELEFONE, '') AS FE_TELEFONE,
+                {siba_uh_sql} AS SIBA_UH,
+                {siba_estab_sql} AS SIBA_ESTAB,
+                {siba_chave_sql} AS SIBA_CHAVE
+            FROM dbo.RS AS RS
+            LEFT JOIN dbo.AL AS AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+            LEFT JOIN dbo.FE AS FE
+              ON ISNULL(FE.FEID, 0) = :current_feid
+            WHERE RS.RSSTAMP = :s
+              {_rs_write_clause('RS')}
+        """), {'s': rsstamp, 'current_feid': current_feid}).mappings().first()
+        if not rs:
+            if _rs_exists_any(rsstamp):
+                return jsonify({'error': 'Sem permissao para comunicar esta reserva na empresa ativa.'}), 403
+            return jsonify({'error': 'Reserva nao encontrada'}), 404
+
+        guest_rows = db.session.execute(text("""
+            SELECT
+                RSGUESTSTAMP,
+                ISNULL(NOME_COMPLETO, '') AS NOME_COMPLETO,
+                ISNULL(NOME, '') AS NOME,
+                ISNULL(APELIDO, '') AS APELIDO,
+                DTNASC,
+                ISNULL(NACIONALIDADE, '') AS NACIONALIDADE,
+                ISNULL(PAIS_RESIDENCIA, '') AS PAIS_RESIDENCIA,
+                ISNULL(TIPO_DOC, '') AS TIPO_DOC,
+                ISNULL(NUM_DOC, '') AS NUM_DOC,
+                ISNULL(PAIS_EMISSOR_DOC, '') AS PAIS_EMISSOR_DOC,
+                ISNULL(NACIONALIDADE_ICAO, '') AS NACIONALIDADE_ICAO,
+                ISNULL(PAIS_RESIDENCIA_ICAO, '') AS PAIS_RESIDENCIA_ICAO,
+                ISNULL(PAIS_EMISSOR_DOC_ICAO, '') AS PAIS_EMISSOR_DOC_ICAO,
+                ISNULL(TIPO_DOC_SIBA, '') AS TIPO_DOC_SIBA
+            FROM dbo.RSGUESTS
+            WHERE RSSTAMP = :s
+              AND ISNULL(ATIVO, 1) = 1
+            ORDER BY ISNULL(DTCRI, '19000101'), RSGUESTSTAMP
+        """), {'s': rsstamp}).mappings().all()
+
+        missing = []
+
+        def _missing(message):
+            if message:
+                missing.append(message)
+
+        reserva = str(rs.get('RESERVA') or '').strip()
+        alojamento = str(rs.get('ALOJAMENTO') or '').strip()
+        siba_uh = str(rs.get('SIBA_UH') or '').strip()
+        siba_chave = str(rs.get('SIBA_CHAVE') or '').strip()
+        siba_estab = _to_int(rs.get('SIBA_ESTAB'), 0)
+        siba_uh_digits = re.sub(r'\D+', '', siba_uh)
+        siba_chave_digits = re.sub(r'\D+', '', siba_chave)
+        unit_codpost_digits = re.sub(r'\D+', '', str(rs.get('AL_CODPOST') or ''))
+        unit_phone_digits = re.sub(r'\D+', '', str(rs.get('FE_TELEFONE') or '')) or '000000000'
+        unit_email = str(rs.get('FE_EMAIL') or '').strip()
+        if not reserva:
+            _missing('Reserva sem codigo.')
+        if not alojamento:
+            _missing('Reserva sem alojamento.')
+        if not rs.get('DATAIN'):
+            _missing('Reserva sem data de check-in.')
+        if not rs.get('DATAOUT'):
+            _missing('Reserva sem data de check-out.')
+        if rs.get('DATAIN') and rs.get('DATAIN') > date.today():
+            _missing('A data de entrada ainda e futura; o SIBA so aceita data de entrada igual ou anterior ao dia atual.')
+        if len(siba_uh_digits) != 9:
+            _missing('Alojamento sem SIBA_UH valido (NIPC com 9 digitos).')
+        if siba_estab < 0 or siba_estab > 99:
+            _missing('Alojamento sem SIBA_ESTAB valido (0 a 99).')
+        if not siba_chave_digits:
+            _missing('Alojamento sem SIBA_CHAVE valida.')
+        if not str(rs.get('AL_NOME') or '').strip():
+            _missing('Alojamento sem nome.')
+        if not str(rs.get('AL_MORADA') or '').strip():
+            _missing('Alojamento sem morada.')
+        if not str(rs.get('AL_LOCAL') or '').strip():
+            _missing('Alojamento sem localidade.')
+        if len(unit_codpost_digits) < 7:
+            _missing('Alojamento sem codigo postal completo.')
+        if not unit_email:
+            _missing('Entidade ativa sem email para contacto SIBA.')
+
+        expected_guests = max(0, _to_int(rs.get('ADULTOS'), 0) + _to_int(rs.get('CRIANCAS'), 0))
+        if expected_guests <= 0:
+            _missing('Reserva sem numero de hospedes.')
+        if expected_guests > 0 and len(guest_rows) < expected_guests:
+            _missing(f'Faltam {expected_guests - len(guest_rows)} hospede(s) face ao total da reserva.')
+        selected_guests = list(guest_rows)
+        if not selected_guests:
+            _missing('Reserva sem hospedes ativos.')
+
+        guests_payload = []
+        for idx, guest in enumerate(selected_guests, start=1):
+            nome = str(guest.get('NOME') or '').strip()
+            apelido = str(guest.get('APELIDO') or '').strip()
+            nome_completo = str(guest.get('NOME_COMPLETO') or f'{nome} {apelido}').strip()
+            birth = guest.get('DTNASC')
+            if isinstance(birth, datetime):
+                birth_text = birth.date().isoformat()
+            elif isinstance(birth, date):
+                birth_text = birth.isoformat()
+            else:
+                birth_text = str(birth or '').strip()[:10]
+            nacionalidade_icao = (str(guest.get('NACIONALIDADE_ICAO') or '').strip()
+                                  or country_to_icao(guest.get('NACIONALIDADE')))
+            residencia_icao = (str(guest.get('PAIS_RESIDENCIA_ICAO') or '').strip()
+                               or country_to_icao(guest.get('PAIS_RESIDENCIA')))
+            emissor_icao = (str(guest.get('PAIS_EMISSOR_DOC_ICAO') or '').strip()
+                            or country_to_icao(guest.get('PAIS_EMISSOR_DOC')))
+            tipo_doc_siba = (str(guest.get('TIPO_DOC_SIBA') or '').strip()
+                             or doc_type_to_siba(guest.get('TIPO_DOC')))
+            num_doc = str(guest.get('NUM_DOC') or '').strip()
+            label = f'Hospede {idx}'
+
+            if not nome_completo:
+                _missing(f'{label}: nome em falta.')
+            if not nome:
+                _missing(f'{label}: primeiro nome em falta.')
+            if not apelido:
+                _missing(f'{label}: apelido em falta.')
+            if not birth_text or birth_text in ('1900-01-01', '0001-01-01'):
+                _missing(f'{label}: data de nascimento em falta.')
+            if not nacionalidade_icao:
+                _missing(f'{label}: nacionalidade/local de nascimento sem codigo ICAO.')
+            if not residencia_icao:
+                _missing(f'{label}: pais de residencia sem codigo ICAO.')
+            if not tipo_doc_siba:
+                _missing(f'{label}: tipo de documento SIBA em falta.')
+            if not num_doc:
+                _missing(f'{label}: numero de documento em falta.')
+            if not emissor_icao:
+                _missing(f'{label}: pais emissor do documento sem codigo ICAO.')
+
+            guests_payload.append({
+                'rsgueststamp': str(guest.get('RSGUESTSTAMP') or '').strip(),
+                'nome': nome,
+                'apelido': apelido,
+                'nome_completo': nome_completo,
+                'data_nascimento': birth_text,
+                'nacionalidade_icao': nacionalidade_icao,
+                'pais_residencia_icao': residencia_icao,
+                'tipo_doc_siba': tipo_doc_siba,
+                'num_doc': num_doc,
+                'pais_emissor_doc_icao': emissor_icao,
+            })
+
+        payload = {
+            'reservation': {
+                'rsstamp': str(rs.get('RSSTAMP') or '').strip(),
+                'reserva': reserva,
+                'alojamento': alojamento,
+                'datain': rs.get('DATAIN').isoformat() if rs.get('DATAIN') else '',
+                'dataout': rs.get('DATAOUT').isoformat() if rs.get('DATAOUT') else '',
+                'horain': str(rs.get('HORAIN') or '').strip(),
+                'horaout': str(rs.get('HORAOUT') or '').strip(),
+            },
+            'siba': {
+                'uh': siba_uh_digits,
+                'estabelecimento': siba_estab,
+                'chave': siba_chave_digits,
+                'chave_configurada': bool(siba_chave_digits),
+            },
+            'unit': {
+                'codigo': siba_uh_digits,
+                'estabelecimento': siba_estab,
+                'nome': str(rs.get('AL_NOME') or alojamento).strip(),
+                'abreviatura': str(rs.get('AL_NOME') or alojamento).strip(),
+                'morada': str(rs.get('AL_MORADA') or '').strip(),
+                'localidade': str(rs.get('AL_LOCAL') or '').strip(),
+                'codpost': str(rs.get('AL_CODPOST') or '').strip(),
+                'telefone': unit_phone_digits,
+                'fax': '',
+                'contacto_nome': str(rs.get('FE_NOME') or '').strip() or str(getattr(current_user, 'LOGIN', '') or '').strip(),
+                'contacto_email': unit_email,
+            },
+            'guests': guests_payload,
+            'numero_ficheiro': int(datetime.now().strftime('%H%M%S')[-5:]),
+            'data_movimento': date.today().isoformat(),
+        }
+
+        if missing:
+            payload['siba'].pop('chave', None)
+            return jsonify({
+                'ok': False,
+                'error': 'Dados insuficientes para comunicar AIMA/SEF.',
+                'missing': missing,
+                'payload': payload,
+            }), 400
+
+        try:
+            siba_result = send_siba_boletins(
+                payload,
+                endpoint=os.environ.get('SIBA_WS_URL', '').strip() or 'https://siba.ssi.gov.pt/baws/boletinsalojamento.asmx',
+                timeout=_to_int(os.environ.get('SIBA_WS_TIMEOUT'), 45),
+            )
+        except SibaError as exc:
+            payload['siba'].pop('chave', None)
+            return jsonify({
+                'ok': False,
+                'sent': False,
+                'error': str(exc),
+                'payload': payload,
+            }), 502
+
+        user_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+        db.session.execute(text(f"""
+            UPDATE dbo.RS
+            SET SEF = 1,
+                USRSEF = :usrsef
+            WHERE RSSTAMP = :s
+              {_rs_write_clause('RS')}
+        """), {'s': rsstamp, 'current_feid': current_feid, 'usrsef': user_login})
+        db.session.commit()
+        payload['siba'].pop('chave', None)
+        return jsonify({
+            'ok': True,
+            'sent': True,
+            'ready': True,
+            'message': 'Boletins comunicados ao SIBA.',
+            'siba_result': siba_result.get('result'),
+            'payload': payload,
+            'header': {
+                'SEF': 1,
+                'USRSEF': user_login,
+            },
+        })
 
     @app.route('/api/reservas/rs/<rsstamp>/delete', methods=['POST'])
     @login_required

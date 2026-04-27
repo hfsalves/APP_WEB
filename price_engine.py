@@ -1284,8 +1284,7 @@ def recalculate_prices(days=DEFAULT_HORIZON_DAYS, alojamento=None, from_date=Non
             if existing_row:
                 diff_calc = abs(preco_calc - existing_row["preco_calc"])
                 diff_final = abs(preco_final - existing_row["preco_final"])
-                flags_changed = flags != (existing_row.get("flags") or "")
-                if diff_calc < threshold and diff_final < threshold and not flags_changed:
+                if diff_calc < threshold and diff_final < threshold:
                     skipped_threshold += 1
                     previous_calc = existing_row["preco_calc"]
                     continue

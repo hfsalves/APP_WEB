@@ -44,6 +44,10 @@
               <i class="fa-solid fa-sparkles"></i>
               <span>Recalcular</span>
             </button>
+            <button id="pricingRecalcAll" type="button" class="sz_button sz_button_secondary">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+              <span>Recalcular todos</span>
+            </button>
           </div>
         </div>
         <div id="pricingStatus" class="sz_text_muted sz_pricing_contextbar_status"></div>
@@ -703,6 +707,7 @@
   const daysInput = document.getElementById('pricingDays');
   const loadBtn = document.getElementById('pricingLoad');
   const recalcBtn = document.getElementById('pricingRecalc');
+  const recalcAllBtn = document.getElementById('pricingRecalcAll');
   const alojamentoEditBtn = document.getElementById('pricingAlojamentoEdit');
   const statusEl = document.getElementById('pricingStatus');
   const gridEl = document.getElementById('pricingGrid');
@@ -1462,24 +1467,26 @@
     }
   }
 
-  async function runRecalc() {
+  async function runRecalc(recalcAll = false) {
     const alojamento = alojamentoInput.value;
-    if (!alojamento) return;
+    if (!recalcAll && !alojamento) return;
     showPlannerOverlay();
-    setStatus('A recalcular...');
+    setStatus(recalcAll ? 'A recalcular todos os alojamentos...' : 'A recalcular...');
     try {
+      const body = {
+        from: `${startInput.value}-01`,
+        days: Number(daysInput.value || 400),
+      };
+      if (!recalcAll) body.alojamento = alojamento;
       const response = await fetch('/pricing/api/recalc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          alojamento,
-          from: `${startInput.value}-01`,
-          days: Number(daysInput.value || 400),
-        }),
+        body: JSON.stringify(body),
       });
       const payload = await readJsonResponse(response);
       if (!response.ok) throw new Error(payload.error || 'Erro no recalculo');
-      setStatus(`Recalculado: ${payload.result.changed_rows} linhas alteradas, ${payload.result.skipped_threshold} abaixo do threshold.`);
+      const prefix = recalcAll ? 'Todos recalculados' : 'Recalculado';
+      setStatus(`${prefix}: ${payload.result.changed_rows} linhas alteradas, ${payload.result.skipped_threshold} sem alteração acima do threshold.`);
       await loadPlanner();
     } catch (error) {
       setStatus(error.message, true);
@@ -1544,7 +1551,10 @@
   });
 
   loadBtn.addEventListener('click', loadPlanner);
-  recalcBtn.addEventListener('click', runRecalc);
+  recalcBtn.addEventListener('click', () => runRecalc(false));
+  if (recalcAllBtn) {
+    recalcAllBtn.addEventListener('click', () => runRecalc(true));
+  }
   alojamentoInput.addEventListener('change', loadPlanner);
   if (alojamentoEditBtn) {
     alojamentoEditBtn.addEventListener('click', openAlojamentoModal);

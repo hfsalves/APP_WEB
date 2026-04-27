@@ -77,12 +77,29 @@ class AuthenticationResult:
     migrated: bool = False
 
 
-def _qualified_table_key(table_name: str) -> str:
+def _normalized_table_key(table_name: str) -> str:
     return f"dbo.{table_name}".upper()
 
 
+def _session_cache_namespace(session) -> str:
+    try:
+        bind = session.get_bind()
+    except Exception:
+        bind = None
+
+    if bind is None:
+        return "bind:default"
+
+    engine = getattr(bind, "engine", None) or bind
+    return f"bind:{id(engine)}"
+
+
+def _qualified_table_key(session, table_name: str) -> str:
+    return f"{_session_cache_namespace(session)}::{_normalized_table_key(table_name)}"
+
+
 def get_table_columns(session, table_name: str) -> set[str]:
-    cache_key = _qualified_table_key(table_name)
+    cache_key = _qualified_table_key(session, table_name)
     if cache_key in _TABLE_COLUMNS_CACHE:
         return _TABLE_COLUMNS_CACHE[cache_key]
 
@@ -105,7 +122,10 @@ def clear_table_columns_cache(table_name: Optional[str] = None) -> None:
     if not table_name:
         _TABLE_COLUMNS_CACHE.clear()
         return
-    _TABLE_COLUMNS_CACHE.pop(_qualified_table_key(table_name), None)
+    normalized = _normalized_table_key(table_name)
+    stale_keys = [key for key in _TABLE_COLUMNS_CACHE if key.endswith(f"::{normalized}")]
+    for cache_key in stale_keys:
+        _TABLE_COLUMNS_CACHE.pop(cache_key, None)
 
 
 def has_table_column(session, table_name: str, column_name: str) -> bool:
