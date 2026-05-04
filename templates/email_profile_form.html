@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title or 'Perfil de Email' }}{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/email_service.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page email-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar email-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">{{ page_title or 'Perfil de Email' }}</div>
+        <div class="sz_page_subtitle">A password SMTP pode ser alterada, mas nunca e mostrada em claro.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <a class="sz_button sz_button_secondary" href="{{ url_for('email_service.email_profiles') }}">
+          <i class="fa-solid fa-arrow-left"></i><span>Perfis</span>
+        </a>
+      </div>
+    </header>
+
+    {% if message %}<div class="email-alert is-success">{{ message }}</div>{% endif %}
+    {% if error %}<div class="email-alert is-danger">{{ error }}</div>{% endif %}
+
+    <form method="post" class="sz_panel email-form-panel">
+      <div class="email-form-grid">
+        <div class="sz_field">
+          <label class="sz_label">Nome do perfil</label>
+          <input name="nome_perfil" class="sz_input" maxlength="100" required value="{{ profile.NOME_PERFIL if profile else '' }}">
+        </div>
+        <div class="sz_field email-span-2">
+          <label class="sz_label">Descricao</label>
+          <input name="descricao" class="sz_input" maxlength="255" value="{{ profile.DESCRICAO if profile else '' }}">
+        </div>
+        <div class="sz_field">
+          <label class="sz_label">Email remetente</label>
+          <input name="email_from" type="email" class="sz_input" maxlength="255" required value="{{ profile.EMAIL_FROM if profile else '' }}">
+        </div>
+        <div class="sz_field">
+          <label class="sz_label">Nome remetente</label>
+          <input name="nome_from" class="sz_input" maxlength="255" value="{{ profile.NOME_FROM if profile else '' }}">
+        </div>
+        <div class="sz_field">
+          <label class="sz_label">Utilizador SMTP</label>
+          <input name="smtp_user" class="sz_input" maxlength="255" autocomplete="off" value="{{ profile.SMTP_USER if profile else '' }}">
+        </div>
+        <div class="sz_field">
+          <label class="sz_label">SMTP host</label>
+          <input name="smtp_host" class="sz_input" maxlength="255" required value="{{ profile.SMTP_HOST if profile else '' }}">
+        </div>
+        <div class="sz_field">
+          <label class="sz_label">Porta</label>
+          <input name="smtp_port" type="number" class="sz_input" required value="{{ profile.SMTP_PORT if profile else 587 }}">
+        </div>
+        <div class="sz_field">
+          <label class="sz_label">Password SMTP</label>
+          <input name="smtp_password" type="password" class="sz_input" autocomplete="new-password" placeholder="{{ 'Manter password atual' if profile else '' }}">
+        </div>
+      </div>
+
+      <div class="email-check-row">
+        <label><input type="checkbox" name="usa_tls" {% if not profile or profile.USA_TLS %}checked{% endif %}> STARTTLS / Database Mail SSL</label>
+        <label><input type="checkbox" name="usa_ssl" {% if profile and profile.USA_SSL %}checked{% endif %}> SSL implicito (porta 465)</label>
+        <label><input type="checkbox" name="ativo" {% if not profile or profile.ATIVO %}checked{% endif %}> Ativo</label>
+        <label><input type="checkbox" name="default_profile" {% if profile and profile.DEFAULT_PROFILE %}checked{% endif %}> Default</label>
+      </div>
+
+      <div class="email-form-actions">
+        <button class="sz_button sz_button_primary" type="submit">
+          <i class="fa-solid fa-floppy-disk"></i><span>Guardar</span>
+        </button>
+      </div>
+    </form>
+
+    {% if profile %}
+    <form method="post" action="{{ url_for('email_service.email_profile_test', profile_id=profile.ID) }}" class="sz_panel email-test-panel">
+      <div>
+        <div class="email-section-title">Testar perfil</div>
+        <div class="sz_text_muted email-small">Cria um email de teste e envia de imediato.</div>
+      </div>
+      <div class="sz_field email-test-input">
+        <label class="sz_label">Destinatario de teste</label>
+        <input name="test_recipient" type="email" class="sz_input" required>
+      </div>
+      <button class="sz_button sz_button_secondary" type="submit">
+        <i class="fa-solid fa-paper-plane"></i><span>Enviar teste</span>
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

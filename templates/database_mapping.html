@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Mapeamento de Tabelas{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/database_manager.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+  <script>
+    window.DATABASE_MAPPING_CONFIG = {
+      initialTableKey: {{ (initial_table_key or '')|tojson }}
+    };
+  </script>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page dbm-page dbmap-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar dbm-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Mapeamento de Tabelas</div>
+        <div id="dbmapSubtitle" class="sz_page_subtitle">Seleciona a tabela de destino e o mapeamento dos campos.</div>
+        <div id="dbmapMeta" class="sz_text_muted dbm-repo-meta">A carregar mapeamento...</div>
+      </div>
+      <div class="sz_contextbar_right dbm-contextbar_right">
+        <button id="dbmapBackManagerBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-table-list"></i>
+          <span>Database Manager</span>
+        </button>
+        <button id="dbmapRefreshBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="dbmap-layout">
+        <aside class="sz_panel dbm-panel dbmap-config-panel">
+          <div class="dbm-panel-head">
+            <div>
+              <div class="sz_h4">Tabela</div>
+              <div id="dbmapTableMeta" class="sz_text_muted">Origem e destino.</div>
+            </div>
+          </div>
+
+          <div class="dbm-panel-body">
+            <section class="dbm-section-card dbmap-form-card">
+              <label class="dbmap-check-row">
+                <input id="dbmapEnabled" type="checkbox">
+                <span>
+                  <strong>Tem mapeamento ativo</strong>
+                  <small>Guarda a tabela como elegível para sincronização futura.</small>
+                </span>
+              </label>
+            </section>
+
+            <section class="dbm-section-card dbmap-form-card">
+              <div class="dbm-section-head">
+                <h3 class="dbm-section-title">Origem</h3>
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="dbmapSourceTable">Tabela da aplicação</label>
+                <input id="dbmapSourceTable" class="sz_input" type="text" readonly>
+              </div>
+            </section>
+
+            <section class="dbm-section-card dbmap-form-card">
+              <div class="dbm-section-head">
+                <h3 class="dbm-section-title">Destino</h3>
+              </div>
+
+              <div class="sz_field">
+                <label class="sz_label" for="dbmapTargetScope">Base de dados</label>
+                <select id="dbmapTargetScope" class="sz_input">
+                  <option value="FE">Base de dados da FE</option>
+                  <option value="FIXED">Base de dados fixa</option>
+                </select>
+              </div>
+
+              <div class="sz_field" id="dbmapTargetDatabaseField">
+                <label class="sz_label" for="dbmapTargetDatabase">Nome da base de dados fixa</label>
+                <input id="dbmapTargetDatabase" class="sz_input" type="text" placeholder="Ex: HSOLS_MASTER">
+              </div>
+
+              <div class="dbmap-target-table-stack">
+                <div class="dbmap-target-table-card">
+                  <div class="dbmap-target-table-head">
+                    <span class="dbm-badge is-primary">T1</span>
+                    <strong>Tabela principal</strong>
+                  </div>
+                  <div class="dbmap-two-cols">
+                    <div class="sz_field">
+                      <label class="sz_label" for="dbmapTargetSchema">Schema</label>
+                      <input id="dbmapTargetSchema" class="sz_input" type="text" placeholder="dbo">
+                    </div>
+                    <div class="sz_field">
+                      <label class="sz_label" for="dbmapTargetTable">Tabela</label>
+                      <input id="dbmapTargetTable" class="sz_input" type="text" placeholder="Ex: CL">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="dbmap-target-table-card">
+                  <div class="dbmap-target-table-head">
+                    <span class="dbm-badge">T2</span>
+                    <strong>Segunda tabela</strong>
+                  </div>
+                  <div class="dbmap-two-cols">
+                    <div class="sz_field">
+                      <label class="sz_label" for="dbmapTargetSchema2">Schema</label>
+                      <input id="dbmapTargetSchema2" class="sz_input" type="text" placeholder="dbo">
+                    </div>
+                    <div class="sz_field">
+                      <label class="sz_label" for="dbmapTargetTable2">Tabela</label>
+                      <input id="dbmapTargetTable2" class="sz_input" type="text" placeholder="Ex: CL2">
+                    </div>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="dbmapJoinCondition2">Condição de ligação</label>
+                    <input id="dbmapJoinCondition2" class="sz_input" type="text" placeholder="Ex: CL.CLSTAMP = CL2.CL2STAMP">
+                  </div>
+                </div>
+
+                <div class="dbmap-target-table-card">
+                  <div class="dbmap-target-table-head">
+                    <span class="dbm-badge">T3</span>
+                    <strong>Terceira tabela</strong>
+                  </div>
+                  <div class="dbmap-two-cols">
+                    <div class="sz_field">
+                      <label class="sz_label" for="dbmapTargetSchema3">Schema</label>
+                      <input id="dbmapTargetSchema3" class="sz_input" type="text" placeholder="dbo">
+                    </div>
+                    <div class="sz_field">
+                      <label class="sz_label" for="dbmapTargetTable3">Tabela</label>
+                      <input id="dbmapTargetTable3" class="sz_input" type="text" placeholder="Ex: CL3">
+                    </div>
+                  </div>
+                  <div class="sz_field">
+                    <label class="sz_label" for="dbmapJoinCondition3">Condição de ligação</label>
+                    <input id="dbmapJoinCondition3" class="sz_input" type="text" placeholder="Ex: CL.CLSTAMP = CL3.CL3STAMP">
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="dbm-section-card dbmap-form-card">
+              <div class="dbm-section-head">
+                <h3 class="dbm-section-title">Notas</h3>
+              </div>
+              <textarea id="dbmapNotes" class="sz_input dbmap-notes" rows="5" placeholder="Observações técnicas para sincronização futura"></textarea>
+            </section>
+          </div>
+        </aside>
+
+        <section class="sz_panel dbm-panel dbmap-fields-panel">
+          <div class="dbm-panel-head">
+            <div>
+              <div class="sz_h4">Campos</div>
+              <div id="dbmapFieldsMeta" class="sz_text_muted">A carregar campos...</div>
+            </div>
+          </div>
+          <div id="dbmapFieldsList" class="dbm-panel-body dbmap-fields-list">
+            <div class="dbm-empty">A carregar mapeamento...</div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left">
+        <div id="dbmapStatus" class="sz_text_muted">Modo edição.</div>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="dbmapSimOpenBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-flask-vial"></i>
+          <span>Simular importação</span>
+        </button>
+        <button id="dbmapBackBtn" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </button>
+        <button id="dbmapSaveBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Guardar mapeamento</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div id="dbmapSimModal" class="sz_modal" aria-labelledby="dbmapSimModalLabel" aria-hidden="true">
+  <div class="sz_panel dbmap-sim-modal-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 class="sz_h4 sz_modal_title" id="dbmapSimModalLabel">Simulação de importação</h3>
+        <div id="dbmapSimTableLabel" class="sz_text_muted">Tabela selecionada.</div>
+      </div>
+      <button type="button" id="dbmapSimCloseTop" class="sz_button sz_button_ghost dbmap-sim-close" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="sz_modal_body dbmap-sim-modal-body">
+      <section class="dbmap-sim-controls">
+        <div class="sz_field">
+          <label class="sz_label" for="dbmapSimDirection">Sentido</label>
+          <select id="dbmapSimDirection" class="sz_input">
+            <option value="TARGET_TO_APP">Destino -> app</option>
+            <option value="APP_TO_TARGET">App -> destino</option>
+          </select>
+        </div>
+        <div class="sz_field">
+          <label class="sz_label" for="dbmapSimLimit">Máximo na simulação</label>
+          <input id="dbmapSimLimit" class="sz_input" type="number" min="1" max="1000" step="1" value="100">
+        </div>
+        <div class="sz_field">
+          <label class="sz_label" for="dbmapSimOperation">Modo</label>
+          <select id="dbmapSimOperation" class="sz_input">
+            <option value="UPSERT">Inserir e atualizar</option>
+            <option value="INSERT_ONLY">Inserir apenas novos</option>
+            <option value="UPDATE_ONLY">Atualizar existentes</option>
+          </select>
+        </div>
+        <button id="dbmapSimRunBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-play"></i>
+          <span>Simular</span>
+        </button>
+      </section>
+
+      <section class="dbm-section-card dbmap-sim-result-card">
+        <div class="dbm-section-head">
+          <h4 class="dbm-section-title">Resultado</h4>
+          <span id="dbmapSimSummary" class="dbm-badge">Sem simulação</span>
+        </div>
+        <div id="dbmapSimResults" class="dbmap-sim-results">
+          <div class="dbm-empty">Executa uma simulação para ver os registos.</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="sz_modal_footer">
+      <button type="button" id="dbmapSimClose" class="sz_button sz_button_secondary">
+        <i class="fa-solid fa-ban"></i>
+        <span>Fechar</span>
+      </button>
+      <button type="button" id="dbmapSimImportBtn" class="sz_button sz_button_primary" disabled>
+        <i class="fa-solid fa-file-import"></i>
+        <span>Importar</span>
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/database_mapping.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+{% endblock %}

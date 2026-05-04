@@ -113,6 +113,22 @@ const timeFromIndex = (idx) => {
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
 };
 
+const formatPlanner2ShortDate = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}`;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return parsed.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' });
+};
+
+const isPlanner2CleanSinceLast = (row) => {
+  return row?.clean_since_last === true
+    || row?.clean_since_last === 1
+    || String(row?.clean_since_last || '').trim() === '1';
+};
+
 const buildHead = (slots) => {
   const headRow = document.getElementById('planner2-head-row');
   headRow.innerHTML = `<th class="planner2-col-lodge">Alojamento</th>`;
@@ -131,9 +147,30 @@ let planner2SortMode = false;
 let planner2OpenDropdown = null;
 let planner2Dirty = false;
 let planner2SaveBtn = null;
+let planner2CancelBtn = null;
 let planner2CleaningMenu = null;
+let planner2Loading = false;
+let planner2LoadingText = null;
 const planner2DistanceCache = new Map();
 const planner2DistancePending = new Set();
+
+const loadPlanner2Teams = async (dateStr) => {
+  try {
+    const params = dateStr ? `?date=${encodeURIComponent(dateStr)}` : '';
+    const res = await fetch(`/generic/api/planner2_teams${params}`);
+    const data = await res.json().catch(() => []);
+    if (!res.ok || data.error) throw new Error(data.error || res.statusText);
+    planner2Teams = Array.isArray(data) ? data : [];
+  } catch (err) {
+    planner2Teams = [];
+    showPlannerToast(`Erro ao carregar equipas: ${err.message || err}`, 'warning');
+  }
+};
+
+const isPlanner2LpAdminTeam = (team) => {
+  const value = team?.LPADMIN ?? team?.lpadmin ?? team?.US_LPADMIN ?? team?.us_lpadmin;
+  return value === true || value === 1 || String(value || '').trim() === '1';
+};
 
 const setPlanner2Dirty = (isDirty) => {
   planner2Dirty = !!isDirty;
@@ -142,6 +179,38 @@ const setPlanner2Dirty = (isDirty) => {
     planner2SaveBtn.classList.toggle('sz_button_primary', planner2Dirty);
     planner2SaveBtn.classList.toggle('sz_button_ghost', !planner2Dirty);
   }
+  if (planner2CancelBtn) {
+    planner2CancelBtn.disabled = !planner2Dirty;
+  }
+};
+
+const showPlanner2Loading = (message = 'A carregar...') => {
+  const overlay = document.getElementById('loadingOverlay');
+  if (!overlay) return;
+  const text = overlay.querySelector('.loading-text');
+  if (text) {
+    if (planner2LoadingText === null) planner2LoadingText = text.textContent;
+    text.textContent = message;
+  }
+  planner2Loading = true;
+  overlay.style.display = 'flex';
+  overlay.setAttribute('aria-hidden', 'false');
+  requestAnimationFrame(() => {
+    overlay.style.opacity = '1';
+  });
+};
+
+const hidePlanner2Loading = () => {
+  const overlay = document.getElementById('loadingOverlay');
+  planner2Loading = false;
+  if (!overlay) return;
+  const text = overlay.querySelector('.loading-text');
+  if (text && planner2LoadingText !== null) text.textContent = planner2LoadingText;
+  overlay.style.opacity = '0';
+  overlay.setAttribute('aria-hidden', 'true');
+  setTimeout(() => {
+    if (!planner2Loading) overlay.style.display = 'none';
+  }, 250);
 };
 
 const buildPlanner2Rows = (data) => {
@@ -804,7 +873,7 @@ const renderRows = (data, slots) => {
   const showOccupied = document.getElementById('planner2-show-occupied')?.checked ?? true;
   const showEmpty = document.getElementById('planner2-show-empty')?.checked ?? true;
 
-  const rows = data.slice();
+  const rows = data.map((row, index) => ({ row, index }));
   if (planner2SortMode) {
     const getCleanKey = (row) => {
       const list = Array.isArray(row.cleanings) ? row.cleanings.slice() : [];
@@ -818,16 +887,25 @@ const renderRows = (data, slots) => {
       };
     };
     rows.sort((a, b) => {
-      const ka = getCleanKey(a);
-      const kb = getCleanKey(b);
+      const ka = getCleanKey(a.row);
+      const kb = getCleanKey(b.row);
       if (ka.has !== kb.has) return ka.has ? -1 : 1;
       if (ka.team !== kb.team) return ka.team.localeCompare(kb.team);
       if (ka.time !== kb.time) return ka.time.localeCompare(kb.time);
-      return String(a.lodging || '').localeCompare(String(b.lodging || ''));
+      return String(a.row.lodging || '').localeCompare(String(b.row.lodging || ''));
     });
   }
+  rows.forEach((entry, displayIndex) => {
+    entry.displayIndex = displayIndex;
+  });
+  rows.sort((a, b) => {
+    const cleanA = isPlanner2CleanSinceLast(a.row);
+    const cleanB = isPlanner2CleanSinceLast(b.row);
+    if (cleanA !== cleanB) return cleanA ? 1 : -1;
+    return a.displayIndex - b.displayIndex;
+  });
 
-  rows.forEach((row) => {
+  rows.forEach(({ row }) => {
     const hasCheckout = !!row.checkout_reservation;
     const hasCheckin = !!row.checkin_reservation;
     const hasCleaning = Array.isArray(row.cleanings) && row.cleanings.length > 0;
@@ -864,6 +942,25 @@ const renderRows = (data, slots) => {
     });
 
     tbody.appendChild(tr);
+
+    const cleanSinceLast = isPlanner2CleanSinceLast(row);
+    const lastCleanTeam = String(row.last_team || '').trim();
+    const lastCleanDate = formatPlanner2ShortDate(row.last_clean_date);
+    if (cleanSinceLast && lastCleanTeam && lastCleanDate) {
+      const cleanIdx = timeToIndex(7, 0);
+      const totalSlots = slots.length;
+      const slotCount = Math.min(8, Math.max(1, totalSlots - cleanIdx));
+      const bar = document.createElement('div');
+      bar.className = 'planner2-bar planner2-bar-clean-state';
+      bar.style.left = `${lodgeWidth + cleanIdx * PLANNER2.slotWidth}px`;
+      bar.style.width = `${slotCount * PLANNER2.slotWidth}px`;
+      attachTooltip(bar, `Limpo por ${lastCleanTeam} a ${lastCleanDate}`, tooltip);
+      const label = document.createElement('span');
+      label.className = 'planner2-bar-label';
+      label.textContent = `Limpo por ${lastCleanTeam} a ${lastCleanDate}`;
+      bar.appendChild(label);
+      tr.appendChild(bar);
+    }
 
     const checkoutHas = !!row.checkout_reservation;
     if (checkoutHas) {
@@ -1059,17 +1156,23 @@ const renderRows = (data, slots) => {
 };
 
 const loadPlanner2 = async (dateStr) => {
-  planner2DistanceCache.clear();
-  planner2DistancePending.clear();
-  const res = await fetch(`/generic/api/cleaning_plan?date=${encodeURIComponent(dateStr)}`);
-  if (!res.ok) throw new Error(res.statusText);
-  const data = await res.json();
-  planner2Data = buildPlanner2Rows(data);
-  const slots = buildSlots();
-  buildHead(slots);
-  renderRows(planner2Data, slots);
-  renderPlanner2TeamCards();
-  setPlanner2Dirty(false);
+  showPlanner2Loading('A carregar...');
+  try {
+    planner2DistanceCache.clear();
+    planner2DistancePending.clear();
+    await loadPlanner2Teams(dateStr);
+    const res = await fetch(`/generic/api/cleaning_plan?date=${encodeURIComponent(dateStr)}`);
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    planner2Data = buildPlanner2Rows(data);
+    const slots = buildSlots();
+    buildHead(slots);
+    renderRows(planner2Data, slots);
+    renderPlanner2TeamCards();
+    setPlanner2Dirty(false);
+  } finally {
+    hidePlanner2Loading();
+  }
 };
 
 const closePlanner2Menu = () => {
@@ -1200,30 +1303,67 @@ const setupPlanner2 = () => {
   const sortBtn = document.getElementById('planner2-sort-cleaning');
   const printBtn = document.getElementById('planner2-print-labels');
   planner2SaveBtn = document.getElementById('planner2-save');
+  planner2CancelBtn = document.getElementById('planner2-cancel');
   if (planner2SaveBtn) {
     planner2SaveBtn.classList.add('sz_button_ghost');
     planner2SaveBtn.classList.remove('sz_button_primary');
     planner2SaveBtn.disabled = true;
   }
+  if (planner2CancelBtn) planner2CancelBtn.disabled = true;
   const showOcc = document.getElementById('planner2-show-occupied');
   const showEmpty = document.getElementById('planner2-show-empty');
   let currentDate = window.PLANNER2_INITIAL_DATE || new Date().toISOString().slice(0, 10);
+  let suppressDateChange = false;
+
+  const canChangePlanner2Date = () => {
+    if (!planner2Dirty) return true;
+    showPlannerToast('Existem alterações por gravar. Grave ou cancele antes de mudar de data.', 'warning');
+    return false;
+  };
+
+  const resetPickerDate = () => {
+    if (dateInput?._flatpickr) {
+      suppressDateChange = true;
+      dateInput._flatpickr.setDate(currentDate, false);
+      suppressDateChange = false;
+    } else if (dateInput) {
+      dateInput.value = currentDate;
+    }
+  };
+
+  const setPlanner2Date = (nextDate, updatePicker = true) => {
+    if (!nextDate || nextDate === currentDate || planner2Loading) {
+      if (nextDate !== currentDate) resetPickerDate();
+      return;
+    }
+    if (!canChangePlanner2Date()) {
+      resetPickerDate();
+      return;
+    }
+    currentDate = nextDate;
+    if (updatePicker && dateInput?._flatpickr) {
+      suppressDateChange = true;
+      dateInput._flatpickr.setDate(currentDate, false);
+      suppressDateChange = false;
+    }
+    loadPlanner2(currentDate).catch((err) => {
+      showPlannerToast(`Erro ao carregar planeamento: ${err.message || err}`, 'danger');
+    });
+  };
 
   flatpickr(dateInput, {
     defaultDate: currentDate,
     dateFormat: 'Y-m-d',
     onChange: (_, dateStr) => {
-      currentDate = dateStr;
-      loadPlanner2(currentDate);
+      if (suppressDateChange) return;
+      setPlanner2Date(dateStr, false);
     }
   });
 
   const changeDay = (delta) => {
     const d = new Date(currentDate);
     d.setDate(d.getDate() + delta);
-    currentDate = d.toISOString().slice(0, 10);
-    dateInput._flatpickr.setDate(currentDate, true);
-    loadPlanner2(currentDate);
+    setPlanner2Date(d.toISOString().slice(0, 10));
   };
 
   prevBtn.addEventListener('click', () => changeDay(-1));
@@ -1270,7 +1410,7 @@ const setupPlanner2 = () => {
   });
 
   planner2SaveBtn?.addEventListener('click', async () => {
-    if (planner2SaveBtn.disabled) return;
+    if (planner2SaveBtn.disabled || planner2Loading) return;
     const payload = collectPlanner2Payload(currentDate);
     if (!payload.length) {
       showPlannerToast('Nada para gravar.', 'warning');
@@ -1296,11 +1436,20 @@ const setupPlanner2 = () => {
     }
   });
 
-  fetch('/generic/api/planner2_teams')
-    .then(r => r.json())
-    .then(data => { planner2Teams = Array.isArray(data) ? data : []; })
-    .catch(() => { planner2Teams = []; })
-    .finally(() => loadPlanner2(currentDate));
+  planner2CancelBtn?.addEventListener('click', async () => {
+    if (planner2CancelBtn.disabled || planner2Loading) return;
+    try {
+      await loadPlanner2(currentDate);
+      showPlannerToast('Alterações canceladas.', 'success');
+    } catch (err) {
+      showPlannerToast(`Erro ao cancelar alterações: ${err.message || err}`, 'danger');
+      setPlanner2Dirty(true);
+    }
+  });
+
+  loadPlanner2(currentDate).catch((err) => {
+    showPlannerToast(`Erro ao carregar planeamento: ${err.message || err}`, 'danger');
+  });
 };
 
 document.addEventListener('DOMContentLoaded', setupPlanner2);
@@ -1313,7 +1462,15 @@ const openPlanner2TeamDropdown = (cell, row, slot) => {
   const rect = cell.getBoundingClientRect();
   const dropdown = document.createElement('div');
   dropdown.className = 'planner2-team-dropdown';
-  planner2Teams.forEach((team) => {
+  if (!planner2Teams.length) {
+    const empty = document.createElement('div');
+    empty.className = 'planner2-team-item';
+    empty.textContent = 'Sem equipas disponiveis';
+    empty.style.cursor = 'default';
+    empty.style.opacity = '0.72';
+    dropdown.appendChild(empty);
+  }
+  const appendTeamItem = (team) => {
     const item = document.createElement('div');
     item.className = 'planner2-team-item';
     const dot = document.createElement('span');
@@ -1345,7 +1502,17 @@ const openPlanner2TeamDropdown = (cell, row, slot) => {
       renderPlanner2TeamCards();
     });
     dropdown.appendChild(item);
-  });
+  };
+
+  const regularTeams = planner2Teams.filter((team) => !isPlanner2LpAdminTeam(team));
+  const lpAdminTeams = planner2Teams.filter(isPlanner2LpAdminTeam);
+  regularTeams.forEach(appendTeamItem);
+  if (regularTeams.length && lpAdminTeams.length) {
+    const separator = document.createElement('div');
+    separator.className = 'planner2-team-separator';
+    dropdown.appendChild(separator);
+  }
+  lpAdminTeams.forEach(appendTeamItem);
   dropdown.style.visibility = 'hidden';
   document.body.appendChild(dropdown);
   const viewportPadding = 8;

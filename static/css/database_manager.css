@@ -556,9 +556,548 @@
   color: var(--sz-color-danger);
 }
 
+.dbmap-page .sz_page_body {
+  min-height: 0;
+}
+
+.dbmap-layout {
+  display: grid;
+  grid-template-columns: minmax(24rem, 30rem) minmax(0, 1fr);
+  gap: var(--sz-space-3);
+  min-height: 0;
+  height: 100%;
+}
+
+.dbmap-config-panel,
+.dbmap-fields-panel {
+  min-height: 0;
+}
+
+.dbmap-form-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-3);
+}
+
+.dbmap-check-row,
+.dbmap-mini-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--sz-color-text);
+  cursor: pointer;
+}
+
+.dbmap-check-row {
+  align-items: flex-start;
+}
+
+.dbmap-check-row input,
+.dbmap-mini-check input {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--sz-color-primary);
+}
+
+.dbmap-check-row strong {
+  display: block;
+  font-weight: var(--sz-font-weight-bold);
+}
+
+.dbmap-check-row small {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--sz-color-text-secondary);
+  line-height: 1.35;
+}
+
+.dbmap-two-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: var(--sz-space-3);
+}
+
+.dbmap-target-table-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-2);
+}
+
+.dbmap-target-table-card {
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-2);
+}
+
+.dbmap-target-table-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--sz-color-text);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.dbmap-notes {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.dbmap-fields-list {
+  gap: var(--sz-space-2);
+}
+
+.dbmap-field-row {
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface-alt);
+  padding: 0.75rem 0.85rem;
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.9fr) minmax(0, 1.6fr);
+  gap: var(--sz-space-3);
+  align-items: start;
+}
+
+.dbmap-field-row.is-missing {
+  border-color: color-mix(in srgb, var(--sz-color-danger) 42%, var(--sz-color-border));
+}
+
+.dbmap-field-source {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.dbmap-field-source-top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.dbmap-field-target {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.55fr) minmax(12rem, 1fr) minmax(10rem, 0.8fr) auto auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.dbmap-target-ref-field {
+  min-width: 0;
+}
+
+.dbmap-transform-field {
+  grid-column: 1 / -1;
+}
+
+.dbmap-mini-check {
+  min-height: 2.5rem;
+  padding-bottom: 0.1rem;
+  font-size: 0.82rem;
+  color: var(--sz-color-text-secondary);
+}
+
+#dbmapTargetDatabaseField.is-muted {
+  opacity: 0.72;
+}
+
+.sz_modal > .dbmap-sim-modal-panel {
+  width: min(74rem, calc(100vw - 2rem));
+  max-height: min(54rem, calc(100vh - 2rem));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dbmap-sim-modal-panel .sz_modal_header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sz-space-3);
+  margin-bottom: 0;
+  padding-bottom: var(--sz-space-3);
+}
+
+.dbmap-sim-close {
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  justify-content: center;
+}
+
+.dbmap-sim-modal-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-3);
+  overflow: hidden;
+  padding-top: var(--sz-space-3);
+}
+
+.dbmap-sim-controls {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(13rem, 1fr) minmax(16rem, 1.35fr) minmax(8rem, 10rem) auto;
+  gap: var(--sz-space-3);
+  align-items: end;
+}
+
+.dbmap-sim-controls .sz_field {
+  min-width: 0;
+}
+
+.dbmap-sim-controls .sz_button {
+  min-height: 2.5rem;
+  white-space: nowrap;
+}
+
+.dbmap-sim-result-card {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-2);
+  overflow: hidden;
+}
+
+.dbmap-sim-result-card .dbm-section-head {
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--sz-space-2);
+}
+
+.dbmap-sim-result-card .dbm-section-head .dbm-badge {
+  max-width: 100%;
+  white-space: normal;
+  text-align: right;
+}
+
+.dbmap-sim-results {
+  min-height: 14rem;
+  flex: 1 1 auto;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-3);
+  padding-right: 0.35rem;
+}
+
+.dbmap-sim-modal-panel .sz_modal_footer {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding-top: var(--sz-space-3);
+  border-top: 1px solid var(--sz-color-border);
+}
+
+.dbmap-sim-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.dbmap-sim-scope-head,
+.dbmap-sim-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sz-space-2);
+}
+
+.dbmap-sim-scope-head {
+  color: var(--sz-color-text);
+}
+
+.dbmap-sim-scope-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dbmap-sim-row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.dbmap-sim-row {
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.dbmap-sim-reason {
+  min-width: 0;
+  color: var(--sz-color-text-secondary);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+.dbmap-sim-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem 1.2rem;
+}
+
+.dbmap-sim-kv {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.dbmap-sim-kv span {
+  color: var(--sz-color-text-muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.dbmap-sim-kv strong {
+  min-width: 0;
+  color: var(--sz-color-text);
+  font-size: 0.78rem;
+  font-weight: var(--sz-font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dbmap-sim-empty-values {
+  color: var(--sz-color-text-muted);
+  font-size: 0.78rem;
+}
+
+.dbcreate-page .sz_page_body {
+  min-height: 0;
+}
+
+.dbcreate-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(24rem, 0.75fr);
+  gap: var(--sz-space-3);
+  height: 100%;
+  min-height: 0;
+}
+
+.dbcreate-main-panel,
+.dbcreate-preview-panel {
+  min-height: 0;
+}
+
+.dbcreate-form-body {
+  gap: var(--sz-space-3);
+}
+
+.dbcreate-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sz-space-2);
+  flex-wrap: wrap;
+}
+
+.dbcreate-table-grid {
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.4fr) minmax(0, 1fr);
+  gap: var(--sz-space-3);
+}
+
+.dbcreate-columns-card {
+  min-height: 0;
+}
+
+.dbcreate-columns-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-2);
+}
+
+.dbcreate-column-row {
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface-alt);
+  padding: 0.8rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-2);
+}
+
+.dbcreate-column-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--sz-color-text);
+}
+
+.dbcreate-column-head strong {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dbcreate-remove-column {
+  flex: 0 0 auto;
+  min-width: 2.2rem;
+  min-height: 2.2rem;
+  padding: 0.35rem;
+}
+
+.dbcreate-column-grid {
+  display: grid;
+  grid-template-columns: minmax(11rem, 1.2fr) minmax(9rem, 0.8fr) minmax(6rem, 0.5fr) minmax(6rem, 0.5fr) minmax(6rem, 0.5fr) minmax(12rem, 1fr);
+  gap: var(--sz-space-2);
+  align-items: end;
+}
+
+.dbcreate-column-grid .sz_field {
+  min-width: 0;
+}
+
+.dbcreate-column-grid .sz_field.is-disabled {
+  opacity: 0.5;
+}
+
+.dbcreate-column-flags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sz-space-2);
+}
+
+.dbcreate-sql-preview {
+  margin: 0;
+  min-height: 18rem;
+  overflow: auto;
+  white-space: pre;
+  color: var(--sz-color-text);
+  background: var(--sz-color-surface-alt);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  padding: var(--sz-space-3);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.sz_modal > .dbcreate-import-modal-panel {
+  width: min(64rem, calc(100vw - 2rem));
+  max-height: min(48rem, calc(100vh - 2rem));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dbcreate-import-modal-panel .sz_modal_header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sz-space-3);
+  margin-bottom: 0;
+  padding-bottom: var(--sz-space-3);
+}
+
+.dbcreate-import-modal-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-3);
+  overflow: hidden;
+  padding-top: var(--sz-space-3);
+}
+
+.dbcreate-import-controls {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.7fr) minmax(14rem, 1fr) minmax(14rem, 1fr) minmax(14rem, 1fr) auto;
+  gap: var(--sz-space-3);
+  align-items: end;
+}
+
+.dbcreate-import-controls .sz_field {
+  min-width: 0;
+}
+
+.dbcreate-import-results-card {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-2);
+  overflow: hidden;
+}
+
+.dbcreate-import-columns {
+  min-height: 10rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-right: 0.25rem;
+}
+
+.dbcreate-import-column-row {
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  cursor: pointer;
+}
+
+.dbcreate-import-column-row input {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+  accent-color: var(--sz-color-primary);
+}
+
+.dbcreate-import-column-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+}
+
+.dbcreate-import-column-main strong {
+  color: var(--sz-color-text);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.dbcreate-import-column-main small {
+  color: var(--sz-color-text-secondary);
+  line-height: 1.35;
+}
+
+.dbcreate-import-modal-panel .sz_modal_footer {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding-top: var(--sz-space-3);
+  border-top: 1px solid var(--sz-color-border);
+}
+
 @media (max-width: 1320px) {
   .dbm-layout {
     grid-template-columns: minmax(16rem, 20rem) minmax(22rem, 1fr) minmax(20rem, 24rem);
+  }
+
+  .dbmap-field-row {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -590,5 +1129,37 @@
 
   .dbm-panel {
     min-height: 18rem;
+  }
+
+  .dbmap-page,
+  .dbmap-page .sz_page_container {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .dbmap-layout {
+    height: auto;
+    min-height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .dbcreate-layout,
+  .dbcreate-table-grid,
+  .dbcreate-column-grid,
+  .dbcreate-import-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .dbmap-field-target {
+    grid-template-columns: 1fr;
+  }
+
+  .dbmap-sim-controls,
+  .dbmap-sim-values {
+    grid-template-columns: 1fr;
+  }
+
+  .dbmap-transform-field {
+    grid-column: auto;
   }
 }

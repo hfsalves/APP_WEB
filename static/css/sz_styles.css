@@ -4372,6 +4372,11 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   color: var(--sz-color-text);
 }
 
+[data-sz-theme="dark"] .planner2-team-separator::after,
+[data-sz-theme="geek"] .planner2-team-separator::after {
+  background: var(--sz-color-border);
+}
+
 [data-sz-theme="dark"] .planner2-cleaning-menu-item i,
 [data-sz-theme="geek"] .planner2-cleaning-menu-item i {
   color: var(--sz-color-text-secondary);
@@ -4470,10 +4475,19 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   border-color: rgba(145, 168, 197, 0.36);
 }
 
+[data-sz-theme="dark"] .planner2-bar-clean-state {
+  background: linear-gradient(90deg, rgba(55, 214, 130, 0.22), rgba(45, 212, 191, 0.14));
+  border-color: rgba(55, 214, 130, 0.42);
+}
+
 [data-sz-theme="dark"] .planner2-bar-label,
 [data-sz-theme="dark"] .planner2-bar-cleaning .planner2-bar-label {
   color: #eaf2fb;
   text-shadow: none;
+}
+
+[data-sz-theme="dark"] .planner2-bar-clean-state .planner2-bar-label {
+  color: #d9ffe7;
 }
 
 [data-sz-theme="dark"] .planner2-tooltip {
@@ -4551,6 +4565,15 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
 [data-sz-theme="geek"] .planner2-bar-occupied {
   background: linear-gradient(90deg, rgba(59, 163, 73, 0.18), rgba(20, 61, 27, 0.22));
   border-color: rgba(117, 255, 132, 0.24);
+}
+
+[data-sz-theme="geek"] .planner2-bar-clean-state {
+  background: linear-gradient(90deg, rgba(117, 255, 132, 0.18), rgba(228, 255, 79, 0.1));
+  border-color: rgba(117, 255, 132, 0.36);
+}
+
+[data-sz-theme="geek"] .planner2-bar-clean-state .planner2-bar-label {
+  color: #c7ffce;
 }
 
 [data-sz-theme="geek"] .planner2-tooltip {

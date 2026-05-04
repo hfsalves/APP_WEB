@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Perfis de Email{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/email_service.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page email-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar email-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Perfis de Email</div>
+        <div class="sz_page_subtitle">Configuracao SMTP usada pela fila interna.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <a class="sz_button sz_button_secondary" href="{{ url_for('email_service.email_queue') }}">
+          <i class="fa-solid fa-list"></i><span>Fila</span>
+        </a>
+        <a class="sz_button sz_button_primary" href="{{ url_for('email_service.email_profile_new') }}">
+          <i class="fa-solid fa-plus"></i><span>Novo perfil</span>
+        </a>
+      </div>
+    </header>
+
+    {% if message %}<div class="email-alert is-success">{{ message }}</div>{% endif %}
+    {% if error %}<div class="email-alert is-danger">{{ error }}</div>{% endif %}
+
+    <section class="sz_panel email-panel">
+      <div class="email-table-wrap">
+        <table class="sz_table sz_table_compact email-table">
+          <thead>
+            <tr>
+              <th>Perfil</th>
+              <th>Remetente</th>
+              <th>SMTP</th>
+              <th>Seguranca</th>
+              <th>Ativo</th>
+              <th>Default</th>
+              <th class="email-actions-col">Acoes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in profiles %}
+            <tr class="sz_table_row">
+              <td>
+                <strong>{{ p.NOME_PERFIL }}</strong>
+                {% if p.DESCRICAO %}<div class="sz_text_muted email-small">{{ p.DESCRICAO }}</div>{% endif %}
+              </td>
+              <td>
+                {{ p.EMAIL_FROM }}
+                {% if p.NOME_FROM %}<div class="sz_text_muted email-small">{{ p.NOME_FROM }}</div>{% endif %}
+              </td>
+              <td>{{ p.SMTP_HOST }}:{{ p.SMTP_PORT }}</td>
+              <td>
+                {% if p.USA_TLS %}<span class="sz_badge sz_badge_info">STARTTLS</span>{% endif %}
+                {% if p.USA_SSL %}<span class="sz_badge sz_badge_info">SSL 465</span>{% endif %}
+              </td>
+              <td>{{ 'Sim' if p.ATIVO else 'Nao' }}</td>
+              <td>{% if p.DEFAULT_PROFILE %}<span class="sz_badge sz_badge_success">Default</span>{% endif %}</td>
+              <td class="email-actions-col">
+                <a class="sz_button sz_button_ghost email-small-button" href="{{ url_for('email_service.email_profile_edit', profile_id=p.ID) }}">
+                  <i class="fa-solid fa-pen"></i><span>Editar</span>
+                </a>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7"><div class="email-empty">Sem perfis configurados.</div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

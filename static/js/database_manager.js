@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     repoMeta: document.getElementById('dbmRepoMeta'),
     tableSearch: document.getElementById('dbmTableSearch'),
     refreshBtn: document.getElementById('dbmRefreshBtn'),
+    newTableBtn: document.getElementById('dbmNewTableBtn'),
     syncSchemaBtn: document.getElementById('dbmSyncSchemaBtn'),
     actionRefreshBtn: document.getElementById('dbmActionRefreshBtn'),
     backBtn: document.getElementById('dbmBackBtn'),
@@ -504,6 +505,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.remove('modal-db-index-maint-open');
   }
 
+  function openMappingPage() {
+    const tableKey = currentTableLabel();
+    if (!tableKey) {
+      setStatus('Seleciona uma tabela antes de abrir o mapeamento.', true);
+      return;
+    }
+    const targetUrl = new URL('/database_manager/mapping', window.location.origin);
+    targetUrl.searchParams.set('table', tableKey);
+    window.location.href = targetUrl.toString();
+  }
+
+  function openNewTablePage() {
+    window.location.href = new URL('/database_manager/new_table', window.location.origin).toString();
+  }
+
   function renderTables() {
     const tables = filteredTables();
     if (els.tablesMeta) {
@@ -719,6 +735,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <section class="dbm-section-card">
           <div class="dbm-section-head">
             <h3 class="dbm-section-title">Estado da Tabela</h3>
+            <button type="button" class="sz_button sz_button_ghost dbm-inline-action-btn" data-db-mapping-open>
+              <i class="fa-solid fa-diagram-project"></i>
+              <span>Mapeamento</span>
+            </button>
           </div>
           ${renderKeyValues(summary)}
         </section>
@@ -928,10 +948,17 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   els.detailContent?.addEventListener('click', (event) => {
-    const trigger = event.target.closest('[data-db-index-maint-open]');
-    if (!trigger) return;
-    event.preventDefault();
-    openIndexMaintModal();
+    const mappingTrigger = event.target.closest('[data-db-mapping-open]');
+    if (mappingTrigger) {
+      event.preventDefault();
+      openMappingPage();
+      return;
+    }
+    const indexTrigger = event.target.closest('[data-db-index-maint-open]');
+    if (indexTrigger) {
+      event.preventDefault();
+      openIndexMaintModal();
+    }
   });
 
   els.indexMaintClose?.addEventListener('click', closeIndexMaintModal);
@@ -1012,6 +1039,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   els.syncSchemaBtn?.addEventListener('click', syncSchemaRepository);
   els.refreshBtn?.addEventListener('click', refreshCurrent);
+  els.newTableBtn?.addEventListener('click', openNewTablePage);
   els.actionRefreshBtn?.addEventListener('click', refreshCurrent);
   els.backBtn?.addEventListener('click', () => {
     window.history.back();

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Email #{{ detail.email.ID }}{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/email_service.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+{% endblock %}
+
+{% block content %}
+{% set e = detail.email %}
+<div class="sz_page email-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar email-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Email #{{ e.ID }}</div>
+        <div class="sz_page_subtitle">{{ e.NOME_PERFIL }} | {{ e.ESTADO }}</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <a class="sz_button sz_button_secondary" href="{{ url_for('email_service.email_queue') }}">
+          <i class="fa-solid fa-arrow-left"></i><span>Fila</span>
+        </a>
+      </div>
+    </header>
+
+    {% if message %}<div class="email-alert is-success">{{ message }}</div>{% endif %}
+    {% if error %}<div class="email-alert is-danger">{{ error }}</div>{% endif %}
+
+    <div class="email-action-row">
+      <form method="post" action="{{ url_for('email_service.email_queue_send_now', email_id=e.ID) }}">
+        <button class="sz_button sz_button_primary" type="submit" {% if e.ESTADO != 'PENDENTE' %}disabled{% endif %}>
+          <i class="fa-solid fa-paper-plane"></i><span>Enviar agora</span>
+        </button>
+      </form>
+      <form method="post" action="{{ url_for('email_service.email_queue_requeue', email_id=e.ID) }}">
+        <button class="sz_button sz_button_secondary" type="submit">
+          <i class="fa-solid fa-rotate-left"></i><span>Reprocessar</span>
+        </button>
+      </form>
+      <form method="post" action="{{ url_for('email_service.email_queue_cancel', email_id=e.ID) }}">
+        <button class="sz_button sz_button_danger" type="submit">
+          <i class="fa-solid fa-ban"></i><span>Cancelar</span>
+        </button>
+      </form>
+      <form method="post" action="{{ url_for('email_service.email_queue_duplicate', email_id=e.ID) }}">
+        <button class="sz_button sz_button_ghost" type="submit">
+          <i class="fa-solid fa-copy"></i><span>Duplicar</span>
+        </button>
+      </form>
+    </div>
+
+    <div class="email-detail-grid">
+      <section class="sz_panel email-panel">
+        <div class="email-section-title">Dados</div>
+        <dl class="email-kv">
+          <dt>De</dt><dd>{{ e.FROM_EMAIL or e.PROFILE_EMAIL_FROM }}</dd>
+          <dt>Para</dt><dd>{{ e.TO_EMAILS }}</dd>
+          <dt>CC</dt><dd>{{ e.CC_EMAILS or '' }}</dd>
+          <dt>BCC</dt><dd>{{ e.BCC_EMAILS or '' }}</dd>
+          <dt>Assunto</dt><dd>{{ e.SUBJECT }}</dd>
+          <dt>Prioridade</dt><dd>{{ e.PRIORIDADE }}</dd>
+          <dt>Tentativas</dt><dd>{{ e.TENTATIVAS }}/{{ e.MAX_TENTATIVAS }}</dd>
+          <dt>Criado</dt><dd>{{ e.DATA_CRIACAO }}</dd>
+          <dt>Agendado</dt><dd>{{ e.DATA_AGENDADA or '' }}</dd>
+          <dt>Enviado</dt><dd>{{ e.DATA_ENVIO or '' }}</dd>
+          <dt>Contexto</dt><dd>{{ e.CONTEXTO or '' }} {{ e.CONTEXTO_ID or '' }}</dd>
+        </dl>
+        {% if e.ERRO_ULTIMA_TENTATIVA %}
+        <div class="email-alert is-danger">{{ e.ERRO_ULTIMA_TENTATIVA }}</div>
+        {% endif %}
+      </section>
+
+      <section class="sz_panel email-panel">
+        <div class="email-section-title">HTML</div>
+        {% if e.BODY_HTML %}
+        <iframe sandbox="" class="email-preview-frame" srcdoc="{{ e.BODY_HTML }}"></iframe>
+        {% else %}
+        <div class="email-empty">Sem corpo HTML.</div>
+        {% endif %}
+      </section>
+
+      <section class="sz_panel email-panel">
+        <div class="email-section-title">Texto</div>
+        <pre class="email-pre">{{ e.BODY_TEXT or '' }}</pre>
+      </section>
+
+      <section class="sz_panel email-panel">
+        <div class="email-section-title">Anexos</div>
+        <div class="email-list">
+          {% for a in detail.attachments %}
+          <div class="email-list-row">
+            <strong>{{ a.FILE_NAME }}</strong>
+            <span>{{ a.MIME_TYPE or '' }} | {{ a.TAMANHO_BYTES or 0 }} bytes | {{ a.FILE_PATH or 'conteudo em BD' }}</span>
+          </div>
+          {% else %}
+          <div class="email-empty">Sem anexos.</div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="sz_panel email-panel email-wide">
+        <div class="email-section-title">Logs</div>
+        <div class="email-table-wrap">
+          <table class="sz_table sz_table_compact email-table">
+            <thead><tr><th>Data</th><th>Resultado</th><th>Mensagem</th></tr></thead>
+            <tbody>
+              {% for l in detail.logs %}
+              <tr class="sz_table_row">
+                <td>{{ l.DATA_TENTATIVA }}</td>
+                <td>{{ l.RESULTADO }}</td>
+                <td>{{ l.MENSAGEM }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3"><div class="email-empty">Sem tentativas.</div></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

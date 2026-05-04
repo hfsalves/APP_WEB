@@ -3613,7 +3613,21 @@ def api_cleaning_plan():
           {al_local_expr},
           {al_morada_expr},
           -- Última equipa que limpou
+          lc.last_date            AS last_clean_date,
+          lc.last_hour            AS last_clean_hour,
           lc.last_team            AS last_team,
+          CASE
+            WHEN lc.last_date IS NOT NULL
+             AND NOT EXISTS (
+                SELECT 1
+                FROM RS rs_clean
+                WHERE rs_clean.ALOJAMENTO = al.NOME
+                  AND rs_clean.CANCELADA = 0
+                  AND rs_clean.DATAIN >= lc.last_date
+                  AND rs_clean.DATAIN < :date
+             )
+            THEN 1 ELSE 0
+          END AS clean_since_last,
           -- Check-out do dia
           co.HORAOUT              AS checkout_time,
           co.RESERVA              AS checkout_reservation,
@@ -3690,12 +3704,16 @@ def api_cleaning_plan():
           END AS planner_status,
           0 AS cost
         FROM AL al
-        LEFT JOIN (
-          SELECT ALOJAMENTO, MAX(DATA) AS last_date, MAX(HORA) AS last_hour, MAX(EQUIPA) AS last_team
+        OUTER APPLY (
+          SELECT TOP 1
+            LP.DATA AS last_date,
+            LP.HORA AS last_hour,
+            LP.EQUIPA AS last_team
           FROM LP
-          WHERE DATA < :date
-          GROUP BY ALOJAMENTO
-        ) lc ON lc.ALOJAMENTO = al.NOME
+          WHERE LP.ALOJAMENTO = al.NOME
+            AND LP.DATA < :date
+          ORDER BY LP.DATA DESC, LP.HORA DESC, LP.LPSTAMP DESC
+        ) lc
         -- Apenas reservas NÃO canceladas
         LEFT JOIN RS co ON co.ALOJAMENTO = al.NOME AND co.DATAOUT = :date AND co.CANCELADA = 0
         LEFT JOIN RS ci ON ci.ALOJAMENTO = al.NOME AND ci.DATAIN = :date AND ci.CANCELADA = 0
@@ -3724,6 +3742,14 @@ def api_planner2_teams():
     if not has_cleaning_planner_access():
         return jsonify({'error': 'Sem permissão para consultar'}), 403
     try:
+        raw_date = str(request.args.get('date') or '').strip()
+        planner_date = None
+        if raw_date:
+            try:
+                planner_date = datetime.strptime(raw_date[:10], '%Y-%m-%d').date()
+            except Exception:
+                return jsonify({'error': 'Data inválida'}), 400
+
         cols = db.session.execute(text("""
             SELECT UPPER(COLUMN_NAME) AS COL
             FROM INFORMATION_SCHEMA.COLUMNS
@@ -3736,6 +3762,14 @@ def api_planner2_teams():
             select_cols.append("ISNULL(COR,'') AS COR")
         else:
             select_cols.append("'' AS COR")
+        select_cols.append("""
+            CASE WHEN EXISTS (
+                SELECT 1
+                FROM dbo.US AS U_ADMIN
+                WHERE LTRIM(RTRIM(ISNULL(U_ADMIN.EQUIPA, ''))) = LTRIM(RTRIM(ISNULL(EQ.NOME, '')))
+                  AND ISNULL(U_ADMIN.LPADMIN, 0) = 1
+            ) THEN 1 ELSE 0 END AS LPADMIN
+        """)
         order_expr = 'ORDER BY NOME'
         if 'ORDEM' in eq_cols:
             order_expr = 'ORDER BY ORDEM, NOME'
@@ -3743,6 +3777,19 @@ def api_planner2_teams():
         where_clauses = ["LTRIM(RTRIM(ISNULL(NOME,''))) <> ''"]
         if 'INATIVO' in eq_cols:
             where_clauses.append("ISNULL(INATIVO, 0) = 0")
+        params = {}
+        if planner_date:
+            where_clauses.append("""
+                NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.US AS U
+                    INNER JOIN dbo.ND AS ND
+                        ON LTRIM(RTRIM(ISNULL(ND.UTILIZADOR, ''))) = LTRIM(RTRIM(ISNULL(U.LOGIN, '')))
+                    WHERE LTRIM(RTRIM(ISNULL(U.EQUIPA, ''))) = LTRIM(RTRIM(ISNULL(EQ.NOME, '')))
+                      AND CAST(ND.DATA AS date) = :planner_date
+                )
+            """)
+            params['planner_date'] = planner_date
 
         sql = text(f"""
             SELECT {', '.join(select_cols)}
@@ -3750,7 +3797,7 @@ def api_planner2_teams():
             WHERE {' AND '.join(where_clauses)}
             {order_expr}
         """)
-        rows = db.session.execute(sql).mappings().all()
+        rows = db.session.execute(sql, params).mappings().all()
         return jsonify([dict(r) for r in rows])
     except Exception as e:
         current_app.logger.exception('Erro ao carregar equipas do planner2')

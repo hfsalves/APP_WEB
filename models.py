@@ -355,3 +355,74 @@ class Usql(db.Model):
     totais    = db.Column(db.Boolean, nullable=False, default=False)
     temgraf   = db.Column(db.Boolean, nullable=False, default=False)
     tipograf  = db.Column(db.String(100), nullable=True)
+
+
+class EmailProfile(db.Model):
+    __tablename__ = 'EMAIL_PROFILES'
+
+    ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    NOME_PERFIL = db.Column(db.String(100), nullable=False, unique=True)
+    DESCRICAO = db.Column(db.String(255), nullable=True)
+    EMAIL_FROM = db.Column(db.String(255), nullable=False)
+    NOME_FROM = db.Column(db.String(255), nullable=True)
+    SMTP_HOST = db.Column(db.String(255), nullable=False)
+    SMTP_PORT = db.Column(db.Integer, nullable=False)
+    SMTP_USER = db.Column(db.String(255), nullable=True)
+    SMTP_PASSWORD_ENC = db.Column(db.Text, nullable=True)
+    USA_TLS = db.Column(db.Boolean, nullable=False, default=True)
+    USA_SSL = db.Column(db.Boolean, nullable=False, default=False)
+    ATIVO = db.Column(db.Boolean, nullable=False, default=True)
+    DEFAULT_PROFILE = db.Column(db.Boolean, nullable=False, default=False)
+    DATA_CRIACAO = db.Column(db.DateTime, nullable=False)
+    DATA_ALTERACAO = db.Column(db.DateTime, nullable=True)
+
+
+class EmailQueue(db.Model):
+    __tablename__ = 'EMAIL_QUEUE'
+
+    ID = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    PROFILE_ID = db.Column(db.Integer, db.ForeignKey('EMAIL_PROFILES.ID'), nullable=False)
+    FROM_EMAIL = db.Column(db.String(255), nullable=True)
+    FROM_NAME = db.Column(db.String(255), nullable=True)
+    TO_EMAILS = db.Column(db.Text, nullable=False)
+    CC_EMAILS = db.Column(db.Text, nullable=True)
+    BCC_EMAILS = db.Column(db.Text, nullable=True)
+    SUBJECT = db.Column(db.String(500), nullable=False)
+    BODY_HTML = db.Column(db.Text, nullable=True)
+    BODY_TEXT = db.Column(db.Text, nullable=True)
+    PRIORIDADE = db.Column(db.Integer, nullable=False, default=5)
+    ESTADO = db.Column(db.String(30), nullable=False, default='PENDENTE')
+    TENTATIVAS = db.Column(db.Integer, nullable=False, default=0)
+    MAX_TENTATIVAS = db.Column(db.Integer, nullable=False, default=3)
+    ERRO_ULTIMA_TENTATIVA = db.Column(db.Text, nullable=True)
+    DATA_AGENDADA = db.Column(db.DateTime, nullable=True)
+    DATA_CRIACAO = db.Column(db.DateTime, nullable=False)
+    DATA_ULTIMA_TENTATIVA = db.Column(db.DateTime, nullable=True)
+    DATA_ENVIO = db.Column(db.DateTime, nullable=True)
+    CRIADO_POR = db.Column(db.String(100), nullable=True)
+    CONTEXTO = db.Column(db.String(100), nullable=True)
+    CONTEXTO_ID = db.Column(db.String(100), nullable=True)
+
+
+class EmailAttachment(db.Model):
+    __tablename__ = 'EMAIL_ATTACHMENTS'
+
+    ID = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    EMAIL_ID = db.Column(db.BigInteger, db.ForeignKey('EMAIL_QUEUE.ID'), nullable=False)
+    FILE_NAME = db.Column(db.String(255), nullable=False)
+    FILE_PATH = db.Column(db.String(1000), nullable=True)
+    FILE_CONTENT = db.Column(db.LargeBinary, nullable=True)
+    MIME_TYPE = db.Column(db.String(255), nullable=True)
+    TAMANHO_BYTES = db.Column(db.BigInteger, nullable=True)
+    DATA_CRIACAO = db.Column(db.DateTime, nullable=False)
+
+
+class EmailLog(db.Model):
+    __tablename__ = 'EMAIL_LOG'
+
+    ID = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    EMAIL_ID = db.Column(db.BigInteger, db.ForeignKey('EMAIL_QUEUE.ID'), nullable=False)
+    DATA_TENTATIVA = db.Column(db.DateTime, nullable=False)
+    RESULTADO = db.Column(db.String(30), nullable=False)
+    MENSAGEM = db.Column(db.Text, nullable=True)
+    SMTP_RESPONSE = db.Column(db.Text, nullable=True)

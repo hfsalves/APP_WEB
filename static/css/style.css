@@ -2844,6 +2844,16 @@ body:not(.authenticated) .main-content {
 .planner2-team-item:hover {
   background: #f1f5f9;
 }
+.planner2-team-separator {
+  margin: 4px 0 2px;
+  padding: 0 12px;
+}
+.planner2-team-separator::after {
+  content: "";
+  display: block;
+  height: 1px;
+  background: #e2e8f0;
+}
 .planner2-team-dot {
   width: 10px;
   height: 10px;
@@ -3520,6 +3530,26 @@ body:not(.authenticated) .main-content {
   background: linear-gradient(90deg, rgba(148,163,184,0.35), rgba(100,116,139,0.25));
   border-color: rgba(148,163,184,0.6);
   pointer-events: auto;
+}
+.planner2-bar-clean-state {
+  top: 6px;
+  height: 20px;
+  z-index: 4;
+  pointer-events: auto;
+  cursor: default;
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.26), rgba(20, 184, 166, 0.2));
+  border-color: rgba(22, 163, 74, 0.52);
+  color: #14532d;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.planner2-bar-clean-state .planner2-bar-label {
+  width: 100%;
+  overflow: hidden;
+  padding: 0 8px;
+  color: #14532d;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  text-shadow: none;
 }
 .planner2-bar-cleaning {
   border-color: rgba(15,23,42,0.25);

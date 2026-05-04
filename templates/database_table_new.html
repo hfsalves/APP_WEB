@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Nova Tabela{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/database_manager.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page dbm-page dbcreate-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar dbm-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Nova Tabela</div>
+        <div class="sz_page_subtitle">Define a tabela, os campos e cria a estrutura na base de dados da aplicação.</div>
+        <div id="dbcreateStatus" class="sz_text_muted dbm-repo-meta">Preenche os dados e valida o SQL antes de criar.</div>
+      </div>
+      <div class="sz_contextbar_right dbm-contextbar_right">
+        <button id="dbcreateBackManagerBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-table-list"></i>
+          <span>Database Manager</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="dbcreate-layout">
+        <section class="sz_panel dbm-panel dbcreate-main-panel">
+          <div class="dbm-panel-head">
+            <div>
+              <div class="sz_h4">Definição</div>
+              <div class="sz_text_muted">Schema, nome e campos da nova tabela.</div>
+            </div>
+            <div class="dbcreate-panel-actions">
+              <button id="dbcreateImportTableBtn" type="button" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-file-import"></i>
+                <span>Importar tabela</span>
+              </button>
+              <button id="dbcreateAddColumnBtn" type="button" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-plus"></i>
+                <span>Campo</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="dbm-panel-body dbcreate-form-body">
+            <section class="dbm-section-card dbcreate-table-card">
+              <div class="dbcreate-table-grid">
+                <div class="sz_field">
+                  <label class="sz_label" for="dbcreateSchema">Schema</label>
+                  <input id="dbcreateSchema" class="sz_input" type="text" value="dbo" placeholder="dbo">
+                </div>
+                <div class="sz_field">
+                  <label class="sz_label" for="dbcreateTableName">Nome da tabela</label>
+                  <input id="dbcreateTableName" class="sz_input" type="text" placeholder="Ex: OPC">
+                </div>
+              </div>
+              <label class="dbmap-check-row">
+                <input id="dbcreateIfNotExists" type="checkbox" checked>
+                <span>
+                  <strong>Não criar se já existir</strong>
+                  <small>Valida a existência antes de executar o CREATE TABLE.</small>
+                </span>
+              </label>
+            </section>
+
+            <section class="dbm-section-card dbcreate-columns-card">
+              <div class="dbm-section-head">
+                <h3 class="dbm-section-title">Campos</h3>
+                <span id="dbcreateColumnsMeta" class="dbm-badge">0</span>
+              </div>
+              <div id="dbcreateColumnsList" class="dbcreate-columns-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <aside class="sz_panel dbm-panel dbcreate-preview-panel">
+          <div class="dbm-panel-head">
+            <div>
+              <div class="sz_h4">SQL</div>
+              <div class="sz_text_muted">Pré-visualização gerada pelo servidor.</div>
+            </div>
+            <button id="dbcreatePreviewBtn" type="button" class="sz_button sz_button_secondary">
+              <i class="fa-solid fa-code"></i>
+              <span>Validar</span>
+            </button>
+          </div>
+          <div class="dbm-panel-body">
+            <pre id="dbcreateSqlPreview" class="dbcreate-sql-preview">Sem validação.</pre>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left">
+        <div id="dbcreateFooterStatus" class="sz_text_muted">A criação só é executada quando carregares em Criar tabela.</div>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="dbcreateBackBtn" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </button>
+        <button id="dbcreateCreateBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-table-medical"></i>
+          <span>Criar tabela</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div id="dbcreateImportModal" class="sz_modal" aria-labelledby="dbcreateImportModalLabel" aria-hidden="true">
+  <div class="sz_panel dbcreate-import-modal-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 class="sz_h4 sz_modal_title" id="dbcreateImportModalLabel">Importar estrutura de tabela</h3>
+        <div id="dbcreateImportMeta" class="sz_text_muted">Escolhe a origem e carrega os campos.</div>
+      </div>
+      <button type="button" id="dbcreateImportCloseTop" class="sz_button sz_button_ghost dbmap-sim-close" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="sz_modal_body dbcreate-import-modal-body">
+      <section class="dbcreate-import-controls">
+        <div class="sz_field">
+          <label class="sz_label" for="dbcreateImportMode">Origem</label>
+          <select id="dbcreateImportMode" class="sz_input">
+            <option value="FIXED">Base de dados</option>
+            <option value="FE">Base de dados da FE</option>
+          </select>
+        </div>
+        <div class="sz_field" id="dbcreateImportDatabaseField">
+          <label class="sz_label" for="dbcreateImportDatabase">Base de dados</label>
+          <input id="dbcreateImportDatabase" class="sz_input" type="text" list="dbcreateImportDatabaseOptions" placeholder="Ex: HSOLS_MASTER">
+          <datalist id="dbcreateImportDatabaseOptions"></datalist>
+        </div>
+        <div class="sz_field" id="dbcreateImportFeField">
+          <label class="sz_label" for="dbcreateImportFe">FE</label>
+          <select id="dbcreateImportFe" class="sz_input"></select>
+        </div>
+        <div class="sz_field">
+          <label class="sz_label" for="dbcreateImportTable">Tabela origem</label>
+          <input id="dbcreateImportTable" class="sz_input" type="text" placeholder="Ex: dbo.CL ou CL">
+        </div>
+        <button id="dbcreateImportLoadBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-list"></i>
+          <span>Ler campos</span>
+        </button>
+      </section>
+
+      <section class="dbm-section-card dbcreate-import-results-card">
+        <div class="dbm-section-head">
+          <h4 class="dbm-section-title">Campos encontrados</h4>
+          <span id="dbcreateImportCount" class="dbm-badge">0</span>
+        </div>
+        <div id="dbcreateImportColumns" class="dbcreate-import-columns">
+          <div class="dbm-empty">Indica uma tabela e carrega em Ler campos.</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="sz_modal_footer">
+      <button type="button" id="dbcreateImportClose" class="sz_button sz_button_secondary">
+        <i class="fa-solid fa-ban"></i>
+        <span>Fechar</span>
+      </button>
+      <button type="button" id="dbcreateImportApplyBtn" class="sz_button sz_button_primary" disabled>
+        <i class="fa-solid fa-check"></i>
+        <span>Usar selecionados</span>
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/database_table_new.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+{% endblock %}

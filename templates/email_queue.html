@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Fila de Emails{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/email_service.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page email-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar email-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Fila de Emails</div>
+        <div class="sz_page_subtitle">Consulta e processamento da fila interna.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <a class="sz_button sz_button_secondary" href="{{ url_for('email_service.email_profiles') }}">
+          <i class="fa-solid fa-gear"></i><span>Perfis</span>
+        </a>
+        <a class="sz_button sz_button_secondary" href="{{ url_for('email_service.email_test') }}">
+          <i class="fa-solid fa-vial"></i><span>Teste</span>
+        </a>
+      </div>
+    </header>
+
+    {% if message %}<div class="email-alert is-success">{{ message }}</div>{% endif %}
+    {% if error %}<div class="email-alert is-danger">{{ error }}</div>{% endif %}
+
+    <form method="get" class="sz_panel email-filter-panel">
+      <div class="email-filter-grid">
+        <div class="sz_field">
+          <label class="sz_label">Estado</label>
+          <select name="estado" class="sz_input">
+            {% for st in states %}
+            <option value="{{ st }}" {% if filters.estado == st %}selected{% endif %}>{{ st or 'Todos' }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="sz_field">
+          <label class="sz_label">Perfil</label>
+          <select name="profile_id" class="sz_input">
+            <option value="">Todos</option>
+            {% for p in profiles %}
+            <option value="{{ p.ID }}" {% if filters.profile_id|string == p.ID|string %}selected{% endif %}>{{ p.NOME_PERFIL }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="sz_field">
+          <label class="sz_label">Desde</label>
+          <input type="date" name="date_from" class="sz_input" value="{{ filters.date_from }}">
+        </div>
+        <div class="sz_field">
+          <label class="sz_label">Ate</label>
+          <input type="date" name="date_to" class="sz_input" value="{{ filters.date_to }}">
+        </div>
+        <div class="sz_field">
+          <label class="sz_label">Pesquisa</label>
+          <input name="search" class="sz_input" value="{{ filters.search }}" placeholder="Assunto, destinatario, contexto">
+        </div>
+        <button class="sz_button sz_button_primary" type="submit">
+          <i class="fa-solid fa-filter"></i><span>Filtrar</span>
+        </button>
+      </div>
+    </form>
+
+    <div class="email-toolbar">
+      <form method="post" action="{{ url_for('email_service.email_queue_process') }}" class="email-process-form">
+        <input name="limit" type="number" class="sz_input" value="20" min="1" max="200">
+        <button class="sz_button sz_button_secondary" type="submit">
+          <i class="fa-solid fa-rotate"></i><span>Processar fila</span>
+        </button>
+      </form>
+    </div>
+
+    <section class="sz_panel email-panel">
+      <div class="email-table-wrap">
+        <table class="sz_table sz_table_compact email-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Perfil</th>
+              <th>Destinatarios</th>
+              <th>Assunto</th>
+              <th>Estado</th>
+              <th>Tent.</th>
+              <th>Criado</th>
+              <th>Enviado</th>
+              <th>Erro</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in emails %}
+            <tr class="sz_table_row">
+              <td><a href="{{ url_for('email_service.email_queue_detail', email_id=e.ID) }}">#{{ e.ID }}</a></td>
+              <td>{{ e.NOME_PERFIL }}</td>
+              <td class="email-truncate">{{ e.TO_EMAILS }}</td>
+              <td class="email-truncate">{{ e.SUBJECT }}</td>
+              <td>
+                <span class="sz_badge {% if e.ESTADO == 'ENVIADO' %}sz_badge_success{% elif e.ESTADO == 'ERRO' %}sz_badge_danger{% elif e.ESTADO == 'PENDENTE' %}sz_badge_info{% else %}sz_badge_warning{% endif %}">
+                  {{ e.ESTADO }}
+                </span>
+              </td>
+              <td>{{ e.TENTATIVAS }}/{{ e.MAX_TENTATIVAS }}</td>
+              <td>{{ e.DATA_CRIACAO }}</td>
+              <td>{{ e.DATA_ENVIO or '' }}</td>
+              <td class="email-truncate">{{ e.ERRO_ULTIMA_TENTATIVA or '' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9"><div class="email-empty">Sem emails na fila.</div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

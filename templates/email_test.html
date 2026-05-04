@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Teste de Email{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/email_service.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page email-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar email-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Teste de Email</div>
+        <div class="sz_page_subtitle">Cria um email de teste na fila e envia de imediato.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <a class="sz_button sz_button_secondary" href="{{ url_for('email_service.email_queue') }}">
+          <i class="fa-solid fa-arrow-left"></i><span>Fila</span>
+        </a>
+      </div>
+    </header>
+
+    {% if message %}<div class="email-alert is-success">{{ message }}</div>{% endif %}
+    {% if error %}<div class="email-alert is-danger">{{ error }}</div>{% endif %}
+
+    <form method="post" class="sz_panel email-form-panel email-narrow">
+      <div class="sz_field">
+        <label class="sz_label">Perfil</label>
+        <select name="profile_id" class="sz_input" required>
+          {% for p in profiles %}
+          <option value="{{ p.ID }}">{{ p.NOME_PERFIL }} | {{ p.EMAIL_FROM }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="sz_field">
+        <label class="sz_label">Destinatario</label>
+        <input name="recipient" type="email" class="sz_input" required>
+      </div>
+      <div class="email-form-actions">
+        <button class="sz_button sz_button_primary" type="submit">
+          <i class="fa-solid fa-paper-plane"></i><span>Enviar teste</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

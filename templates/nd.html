@@ -2,115 +2,420 @@
 {% block title %}N&atilde;o disponibilidades{% endblock %}
 
 {% block content %}
-<div class="widget widget-calendar nd-cal mb-4">
-  <div class="widget-body px-4 pb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <button id="prev-month" class="btn btn-link text-decoration-none" title="M&ecirc;s anterior">&larr;</button>
-      <h3 id="month-year" class="m-0"></h3>
-      <button id="next-month" class="btn btn-link text-decoration-none" title="M&ecirc;s seguinte">&rarr;</button>
-    </div>
-    <div class="table-responsive">
-      <table class="table calendar-table mb-0">
-        <thead class="table-light">
-        <tr>
-          <th>Segunda</th>
-          <th>Ter&ccedil;a</th>
-          <th>Quarta</th>
-          <th>Quinta</th>
-          <th>Sexta</th>
-          <th>S&aacute;bado</th>
-          <th>Domingo</th>
-        </tr>
-        </thead>
-        <tbody id="calendar-body"></tbody>
-      </table>
-    </div>
-    <div class="mt-3">
-      <button type="button" class="btn btn-outline-primary" id="btnOpenFerias">
-        <i class="fa-solid fa-umbrella-beach me-1"></i> Marcar F&eacute;rias
-      </button>
-    </div>
+<div class="sz_page nd-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar nd-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">N&atilde;o disponibilidades</div>
+        <div class="sz_page_subtitle" id="ndSummary">Calend&aacute;rio mensal de folgas e f&eacute;rias da equipa.</div>
+      </div>
+      <div class="sz_contextbar_right nd-contextbar-actions">
+        <button id="ndRefreshBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+        <button type="button" class="sz_button sz_button_primary" id="btnOpenFerias">
+          <i class="fa-solid fa-umbrella-beach"></i>
+          <span>Marcar f&eacute;rias</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="sz_page_body nd-page-body">
+      <section class="sz_panel nd-calendar-panel">
+        <div class="nd-calendar-toolbar">
+          <button id="prev-month" class="sz_button sz_button_ghost nd-month-btn" type="button" title="M&ecirc;s anterior" aria-label="M&ecirc;s anterior">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <div class="nd-month-heading">
+            <h2 id="month-year" class="sz_h3 nd-month-title"></h2>
+            <p class="sz_text_muted nd-month-hint">Clique num dia para adicionar uma folga. Arraste um registo para mudar a data.</p>
+          </div>
+          <button id="next-month" class="sz_button sz_button_ghost nd-month-btn" type="button" title="M&ecirc;s seguinte" aria-label="M&ecirc;s seguinte">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+
+        <div class="nd-calendar-wrap">
+          <table class="sz_calendar_table nd-calendar-table">
+            <thead>
+              <tr>
+                <th><span class="sz_calendar_day_full">Segunda</span><span class="sz_calendar_day_short">Seg</span></th>
+                <th><span class="sz_calendar_day_full">Ter&ccedil;a</span><span class="sz_calendar_day_short">Ter</span></th>
+                <th><span class="sz_calendar_day_full">Quarta</span><span class="sz_calendar_day_short">Qua</span></th>
+                <th><span class="sz_calendar_day_full">Quinta</span><span class="sz_calendar_day_short">Qui</span></th>
+                <th><span class="sz_calendar_day_full">Sexta</span><span class="sz_calendar_day_short">Sex</span></th>
+                <th><span class="sz_calendar_day_full">S&aacute;bado</span><span class="sz_calendar_day_short">Sab</span></th>
+                <th><span class="sz_calendar_day_full">Domingo</span><span class="sz_calendar_day_short">Dom</span></th>
+              </tr>
+            </thead>
+            <tbody id="calendar-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="sz_actionbar nd-actionbar">
+      <div class="sz_actionbar_left">
+        <span class="sz_text_muted" id="ndStatus">Pronto.</span>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="ndTodayBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-calendar-day"></i>
+          <span>Hoje</span>
+        </button>
+        <button type="button" class="sz_button sz_button_primary" id="btnOpenFeriasFooter">
+          <i class="fa-solid fa-umbrella-beach"></i>
+          <span>Marcar f&eacute;rias</span>
+        </button>
+      </div>
+    </footer>
   </div>
 </div>
 
-<!-- user menu (outside calendar container) -->
-<div id="userMenu" class="card shadow-sm" style="position:fixed; display:none; z-index:1055; min-width: 200px; max-width: 280px;">
-  <div class="card-body p-1" id="userMenuList"></div>
+<div id="userMenu" class="sz_panel nd-floating-menu" style="position:fixed; display:none; z-index:1055;">
+  <div class="nd-floating-menu-title">Adicionar folga</div>
+  <div id="userMenuList" class="nd-user-list"></div>
 </div>
 
-<!-- item menu (delete) -->
-<div id="itemMenu" class="card shadow-sm" style="position:fixed; display:none; z-index:1056; min-width: 160px;">
-  <div class="list-group list-group-flush" id="itemMenuList">
-    <button type="button" class="list-group-item list-group-item-action text-danger py-2" id="actionDeleteND">
-      <i class="fa-solid fa-trash-can me-2"></i>Apagar
-    </button>
-  </div>
+<div id="itemMenu" class="sz_panel nd-floating-menu nd-item-menu" style="position:fixed; display:none; z-index:1056;">
+  <button type="button" class="sz_button sz_button_danger nd-menu-action" id="actionDeleteND">
+    <i class="fa-solid fa-trash-can"></i>
+    <span>Apagar</span>
+  </button>
 </div>
 
-<!-- Ferias modal -->
 <div class="modal fade" id="feriasModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Marca&ccedil;&atilde;o de F&eacute;rias</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-2">
-          <label class="form-label">Utilizador</label>
-          <select class="form-select" id="feriasUser"></select>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content sz_panel nd-bootstrap-modal">
+      <div class="modal-header sz_modal_header">
+        <div>
+          <h5 class="modal-title sz_modal_title">Marca&ccedil;&atilde;o de f&eacute;rias</h5>
+          <div class="sz_text_muted nd-modal-subtitle">Regista dias de f&eacute;rias com valida&ccedil;&atilde;o dos dias dispon&iacute;veis.</div>
         </div>
-        <div class="d-flex gap-2 align-items-end mb-2">
-          <div style="width:110px;">
-            <label class="form-label">Ano</label>
-            <input type="number" class="form-control" id="feriasAno" min="2000" max="2100" />
-          </div>
-          <div class="flex-fill">
-            <label class="form-label">In&iacute;cio</label>
-            <input type="date" class="form-control" id="feriasStart" />
-          </div>
-          <div class="flex-fill">
-            <label class="form-label">Fim</label>
-            <input type="date" class="form-control" id="feriasEnd" />
-          </div>
+        <button type="button" class="sz_button sz_button_ghost nd-modal-close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <label class="sz_field">
+          <span class="sz_label">Utilizador</span>
+          <select class="sz_select" id="feriasUser"></select>
+        </label>
+
+        <div class="nd-modal-grid">
+          <label class="sz_field nd-year-field">
+            <span class="sz_label">Ano</span>
+            <input type="number" class="sz_input_number" id="feriasAno" min="2000" max="2100">
+          </label>
+          <label class="sz_field">
+            <span class="sz_label">In&iacute;cio</span>
+            <input type="date" class="sz_date" id="feriasStart">
+          </label>
+          <label class="sz_field">
+            <span class="sz_label">Fim</span>
+            <input type="date" class="sz_date" id="feriasEnd">
+          </label>
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="feriasSave">Gravar</button>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">
+          <i class="fa-solid fa-ban"></i>
+          <span>Cancelar</span>
+        </button>
+        <button type="button" class="sz_button sz_button_primary" id="feriasSave">
+          <i class="fa-solid fa-check"></i>
+          <span>Gravar</span>
+        </button>
       </div>
     </div>
   </div>
 </div>
 
 <style>
-  .nd-badge { display:inline-flex; align-items:center; gap:.25rem; padding:2px 6px; border-radius:6px; font-size:.75rem; color:#111827; }
-  #userMenu { max-height: 60vh; overflow: auto; }
-  #userMenuList { display: flex; flex-direction: column; gap: 2px; }
-  .nd-user { display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:.9rem; }
-  .nd-user:hover { background:#f3f4f6; }
-  .nd-dot { width:10px; height:10px; border-radius:3px; display:inline-block; }
-  .day-cell { cursor: pointer; vertical-align: top; min-height: 90px; }
-  .day-num { font-size:.8rem; color:#6b7280; line-height:1; }
-  .day-wd { font-size:.65rem; color:#9ca3af; line-height:1; font-weight:500; display:block; }
-  .nd-list { margin-top: .25rem; display:flex; flex-direction: column; gap: .25rem; }
-  .calendar-table { border-collapse: separate; border-spacing: 0; }
-  .calendar-table td { height: 110px; }
-  .calendar-table thead th { border-bottom:1px solid #e5e7eb; }
-  .calendar-table thead th, .calendar-table tbody td { border-right: 1px solid #e5e7eb; }
-  .calendar-table thead th:first-child, .calendar-table tbody td:first-child { border-left: 1px solid #e5e7eb; }
-  .calendar-table thead th:last-child, .calendar-table tbody td:last-child { border-right: 0; }
-  .day-cell.weekend { background-color:#f9fafb; }
-  .day-cell.sat { background-color:#f8fafc; }
-  .day-cell.sun { background-color:#fff7ed; }
-  .calendar-table td.empty { background:#fafafa; }
-  .calendar-table td.today { outline:2px solid #60a5fa; outline-offset:-2px; }
-  .nd-cal .calendar-table td.day-cell:nth-child(1) { vertical-align: top; }
-  #itemMenu .list-group-item { font-size:.9rem; }
+  .nd-page .sz_page_container {
+    min-height: 0;
+  }
+
+  .nd-contextbar-actions {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .nd-page-body {
+    display: flex;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .nd-calendar-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    width: 100%;
+    min-height: 0;
+    padding: var(--sz-space-3);
+    overflow: visible;
+  }
+
+  .nd-calendar-toolbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--sz-space-3);
+  }
+
+  .nd-month-btn {
+    min-width: 2.5rem;
+    width: 2.5rem;
+    padding: 0;
+  }
+
+  .nd-month-heading {
+    min-width: 0;
+    text-align: center;
+  }
+
+  .nd-month-title {
+    color: var(--sz-color-text);
+    text-transform: capitalize;
+  }
+
+  .nd-month-hint {
+    margin-top: 2px;
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .nd-calendar-wrap {
+    min-height: 0;
+    overflow: auto;
+    padding-bottom: 1px;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+  }
+
+  .nd-calendar-table {
+    min-width: 860px;
+  }
+
+  .nd-calendar-table tbody td {
+    height: 108px;
+  }
+
+  .nd-calendar-table tbody tr:last-child td {
+    border-bottom: 1px solid var(--sz-color-border) !important;
+  }
+
+  .nd-calendar-table .day-cell {
+    cursor: pointer;
+    transition: background-color 0.16s ease, box-shadow 0.16s ease;
+  }
+
+  .nd-calendar-table .day-cell:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface));
+  }
+
+  .nd-calendar-table .day-cell.sat {
+    background: color-mix(in srgb, var(--sz-color-info) 5%, var(--sz-color-surface));
+  }
+
+  .nd-calendar-table .day-cell.sun {
+    background: color-mix(in srgb, var(--sz-color-warning) 8%, var(--sz-color-surface));
+  }
+
+  .nd-calendar-table .day-cell.today {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sz-color-primary) 74%, var(--sz-color-border));
+  }
+
+  .nd-calendar-table td.empty {
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, var(--sz-color-surface));
+  }
+
+  .nd-calendar-table .day-number {
+    margin-bottom: var(--sz-space-1);
+  }
+
+  .nd-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .nd-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+    max-width: 100%;
+    min-height: 1.45rem;
+    border-radius: 0.45rem;
+    padding: 0.18rem 0.44rem;
+    color: #07111f;
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+    line-height: 1.2;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+    cursor: grab;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nd-badge:active {
+    cursor: grabbing;
+  }
+
+  .nd-badge i {
+    flex: 0 0 auto;
+  }
+
+  .nd-floating-menu {
+    min-width: 220px;
+    max-width: 300px;
+    max-height: 60vh;
+    overflow: auto;
+    padding: var(--sz-space-2);
+    box-shadow: var(--sz-shadow-3);
+  }
+
+  .nd-floating-menu-title {
+    padding: var(--sz-space-2) var(--sz-space-2) var(--sz-space-1);
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+    text-transform: uppercase;
+  }
+
+  .nd-user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .nd-user {
+    display: flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    width: 100%;
+    border: 0;
+    border-radius: var(--sz-radius-sm);
+    padding: 0.45rem 0.55rem;
+    background: transparent;
+    color: var(--sz-color-text);
+    font: inherit;
+    font-size: var(--sz-font-size-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .nd-user:hover,
+  .nd-user:focus-visible {
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+    outline: none;
+  }
+
+  .nd-dot {
+    width: 0.68rem;
+    height: 0.68rem;
+    border-radius: 0.22rem;
+    display: inline-block;
+    flex: 0 0 auto;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--sz-color-border) 70%, transparent);
+  }
+
+  .nd-item-menu {
+    min-width: 170px;
+  }
+
+  .nd-menu-action {
+    width: 100%;
+  }
+
+  .nd-bootstrap-modal {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border-color: var(--sz-color-border);
+    overflow: hidden;
+  }
+
+  .nd-bootstrap-modal .modal-header,
+  .nd-bootstrap-modal .modal-footer {
+    border-color: var(--sz-color-border);
+    background: var(--sz-color-surface-alt);
+  }
+
+  .nd-modal-subtitle {
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .nd-modal-close {
+    min-width: 2.35rem;
+    width: 2.35rem;
+    padding: 0;
+  }
+
+  .nd-modal-grid {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    margin-top: var(--sz-space-3);
+  }
+
+  [data-sz-theme="dark"] .nd-badge {
+    color: #06101d;
+  }
+
+  [data-sz-theme="geek"] .nd-badge {
+    color: #020503;
+    box-shadow: 0 0 0 1px rgba(117, 255, 132, 0.2);
+  }
+
+  [data-sz-theme="geek"] .nd-calendar-table .day-cell.today {
+    box-shadow: inset 0 0 0 2px var(--sz-color-primary), 0 0 12px rgba(117, 255, 132, 0.12);
+  }
+
+  @media (max-width: 900px) {
+    .nd-contextbar-actions {
+      width: 100%;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .nd-calendar-panel {
+      padding: var(--sz-space-2);
+    }
+
+    .nd-calendar-table {
+      min-width: 720px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .nd-calendar-toolbar {
+      grid-template-columns: auto 1fr auto;
+    }
+
+    .nd-month-hint {
+      display: none;
+    }
+
+    .nd-modal-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .nd-calendar-table tbody td {
+      height: 88px;
+    }
+
+    .nd-badge {
+      padding-inline: 0.32rem;
+    }
+  }
 </style>
 {% endblock %}
 
-{% block scripts %} {{ super() }}
+{% block scripts %}{{ super() }}
   <script>
   function ymd(d){ const m=String(d.getMonth()+1).padStart(2,'0'); const dy=String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${m}-${dy}`; }
   function firstOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
@@ -121,22 +426,73 @@
   let usersCache = [];
   let ndByDate = {};
 
-  async function loadUsers(){ if(usersCache.length) return usersCache; const res = await fetch('/api/nd/users'); const data = await res.json(); usersCache = (data && data.users) ? data.users : []; return usersCache; }
+  function escapeHtml(value){
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function setStatus(message, isError){
+    const el = document.getElementById('ndStatus');
+    if(!el) return;
+    el.textContent = message || '';
+    el.classList.toggle('sz_error', !!isError);
+    el.classList.toggle('sz_text_muted', !isError);
+  }
+
+  async function loadUsers(){
+    if(usersCache.length) return usersCache;
+    const res = await fetch('/api/nd/users');
+    const data = await res.json();
+    usersCache = (data && data.users) ? data.users : [];
+    return usersCache;
+  }
 
   async function loadMonth(){
+    setStatus('A carregar calend\u00e1rio...');
     try{
       const ini = ymd(firstOfMonth(currentBase));
       const fim = ymd(lastOfMonth(currentBase));
       const res = await fetch(`/api/nd?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
       const data = await res.json();
+      if(!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar');
       const rows = (data && data.rows) || [];
       ndByDate = {};
       for(const r of rows){ (ndByDate[r.data] ||= []).push(r); }
-    }catch(e){ console.warn('Falha ao carregar ND:', e); ndByDate = {}; }
-    renderMonth();
+      renderMonth();
+      setStatus(`${rows.length} registos carregados.`);
+    }catch(e){
+      console.warn('Falha ao carregar ND:', e);
+      ndByDate = {};
+      renderMonth();
+      setStatus(e.message || 'Falha ao carregar calend\u00e1rio.', true);
+    }
   }
 
-  function ndBadge(rec){ const bg = rec.cor || '#94a3b8'; const id = rec.id ? String(rec.id) : ''; const tipo = (rec.tipo||'').toString().toUpperCase(); const isFerias = (tipo === 'FERIAS'); const icon = isFerias ? 'fa-umbrella-beach' : 'fa-house'; const title = isFerias ? 'Ferias' : 'Folga'; return `<span class="nd-badge nd-item" draggable="true" data-id="${id}" style="background:${bg};" title="${title}"><i class="fa-solid ${icon}"></i> ${rec.nome}</span>`; }
+  function userColor(color){
+    return String(color || '#94a3b8').trim() || '#94a3b8';
+  }
+
+  function ndBadge(rec){
+    const bg = userColor(rec.cor);
+    const id = rec.id ? String(rec.id) : '';
+    const tipo = (rec.tipo || '').toString().toUpperCase();
+    const isFerias = tipo === 'FERIAS';
+    const icon = isFerias ? 'fa-umbrella-beach' : 'fa-house';
+    const title = isFerias ? 'F\u00e9rias' : 'Folga';
+    return `<span class="nd-badge nd-item" draggable="true" data-id="${escapeHtml(id)}" style="background:${escapeHtml(bg)};" title="${title}"><i class="fa-solid ${icon}"></i><span>${escapeHtml(rec.nome)}</span></span>`;
+  }
+
+  function updateSummary(rowsCount){
+    const summary = document.getElementById('ndSummary');
+    if(!summary) return;
+    const d0 = firstOfMonth(currentBase);
+    const label = d0.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+    summary.textContent = `${label} - ${rowsCount} registos de folgas e f\u00e9rias.`;
+  }
 
   function renderMonth(){
     const body = document.getElementById('calendar-body');
@@ -151,6 +507,8 @@
     for(let i=0;i<firstWeekday;i++) cells.push(null);
     for(let d=1; d<=totalDays; d++) cells.push(new Date(d0.getFullYear(), d0.getMonth(), d));
     while(cells.length % 7 !== 0) cells.push(null);
+
+    let visibleRows = 0;
     let html = '';
     for(let r=0;r<cells.length;r+=7){
       html += '<tr>';
@@ -159,49 +517,222 @@
         if(!cell){ html += '<td class="empty"></td>'; continue; }
         const key = ymd(cell);
         const items = ndByDate[key] || [];
+        visibleRows += items.length;
         const isToday = (new Date().toDateString() === cell.toDateString());
-        const wdIdx = (cell.getDay()+6)%7; // 0..6 Monday..Sunday
-        const wdLetter = ['S','T','Q','Q','S','S','D'][wdIdx];
+        const wdIdx = (cell.getDay()+6)%7;
         const weekendCls = (wdIdx>=5) ? (' weekend ' + (wdIdx===5?'sat':'sun')) : '';
         html += `<td class="day-cell ${isToday?'today':''}${weekendCls}" data-date="${key}">
-                   <div class="d-flex flex-column align-items-start">
-                     <span class="day-wd">${wdLetter}</span>
-                     <span class="day-num">${cell.getDate()}</span>
-                 </div>
+                   <div class="day-number">${cell.getDate()}</div>
                    <div class="nd-list">${items.map(ndBadge).join('')}</div>
                  </td>`;
       }
       html += '</tr>';
     }
     body.innerHTML = html;
+    updateSummary(visibleRows);
   }
 
   function hideMenu(){ const m=document.getElementById('userMenu'); if(m){ m.style.display='none'; m.dataset.date=''; } }
   function hideItemMenu(){ const m=document.getElementById('itemMenu'); if(m){ m.style.display='none'; m.dataset.id=''; } }
 
-  async function openMenuForCell(td){ const menu = document.getElementById('userMenu'); const list = document.getElementById('userMenuList'); const users = await loadUsers(); list.innerHTML = users.map(u=>`<div class="nd-user" data-login="${u.login}"><span class="nd-dot" style="background:${u.cor}"></span><span class="nd-name">${u.nome}</span></div>`).join(''); const rect = td.getBoundingClientRect(); let left = Math.round(rect.left + 8); let top = Math.round(rect.top + 24); const vw = window.innerWidth, vh = window.innerHeight; menu.style.display = 'block'; const mw = menu.offsetWidth || 240; const mh = menu.offsetHeight || 200; if(left + mw > vw - 8) left = Math.max(8, vw - mw - 8); if(top + mh > vh - 8) top = Math.max(8, vh - mh - 8); menu.style.left = left + 'px'; menu.style.top = top + 'px'; menu.style.display = 'block'; menu.dataset.date = td.dataset.date || ''; }
+  async function openMenuForCell(td){
+    const menu = document.getElementById('userMenu');
+    const list = document.getElementById('userMenuList');
+    const users = await loadUsers();
+    list.innerHTML = users.map(u=>`<button type="button" class="nd-user" data-login="${escapeHtml(u.login)}"><span class="nd-dot" style="background:${escapeHtml(userColor(u.cor))}"></span><span class="nd-name">${escapeHtml(u.nome)}</span></button>`).join('');
+    const rect = td.getBoundingClientRect();
+    let left = Math.round(rect.left + 8);
+    let top = Math.round(rect.top + 28);
+    const vw = window.innerWidth, vh = window.innerHeight;
+    menu.style.display = 'block';
+    const mw = menu.offsetWidth || 240;
+    const mh = menu.offsetHeight || 220;
+    if(left + mw > vw - 8) left = Math.max(8, vw - mw - 8);
+    if(top + mh > vh - 8) top = Math.max(8, vh - mh - 8);
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+    menu.dataset.date = td.dataset.date || '';
+  }
 
-  function openItemMenuForBadge(el){ const menu = document.getElementById('itemMenu'); if(!menu) return; const rect = el.getBoundingClientRect(); let left = Math.round(rect.left + 8); let top = Math.round(rect.top + rect.height + 6); const vw = window.innerWidth, vh = window.innerHeight; menu.style.display = 'block'; const mw = menu.offsetWidth || 160; const mh = menu.offsetHeight || 40; if(left + mw > vw - 8) left = Math.max(8, vw - mw - 8); if(top + mh > vh - 8) top = Math.max(8, vh - mh - 8); menu.style.left = left + 'px'; menu.style.top = top + 'px'; menu.dataset.id = el.getAttribute('data-id') || ''; }
+  function openItemMenuForBadge(el){
+    const menu = document.getElementById('itemMenu');
+    if(!menu) return;
+    const rect = el.getBoundingClientRect();
+    let left = Math.round(rect.left + 8);
+    let top = Math.round(rect.top + rect.height + 6);
+    const vw = window.innerWidth, vh = window.innerHeight;
+    menu.style.display = 'block';
+    const mw = menu.offsetWidth || 170;
+    const mh = menu.offsetHeight || 48;
+    if(left + mw > vw - 8) left = Math.max(8, vw - mw - 8);
+    if(top + mh > vh - 8) top = Math.max(8, vh - mh - 8);
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+    menu.dataset.id = el.getAttribute('data-id') || '';
+  }
 
-  async function createND(dateKey, login){ const res = await fetch('/api/nd', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ data: dateKey, utilizador: login }) }); const data = await res.json(); if(data && data.ok){ await loadMonth(); } else { alert((data && data.error) ? data.error : 'Erro ao gravar'); } }
-  async function moveND(id, toDate){ const res = await fetch('/api/nd/move', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ id, data: toDate }) }); const data = await res.json(); if(!(data && data.ok)) throw new Error((data && data.error) ? data.error : 'Erro ao mover'); }
+  async function createND(dateKey, login){
+    const res = await fetch('/api/nd', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ data: dateKey, utilizador: login }) });
+    const data = await res.json();
+    if(data && data.ok){ await loadMonth(); }
+    else { alert((data && data.error) ? data.error : 'Erro ao gravar'); }
+  }
+
+  async function moveND(id, toDate){
+    const res = await fetch('/api/nd/move', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ id, data: toDate }) });
+    const data = await res.json();
+    if(!(data && data.ok)) throw new Error((data && data.error) ? data.error : 'Erro ao mover');
+  }
+
+  async function openFeriasModal(){
+    try{
+      const users = await loadUsers();
+      const sel = document.getElementById('feriasUser');
+      if(sel){ sel.innerHTML = users.map(u=>`<option value="${escapeHtml(u.login)}">${escapeHtml(u.nome)}</option>`).join(''); }
+      const start = firstOfMonth(currentBase);
+      const end = lastOfMonth(currentBase);
+      const i1=document.getElementById('feriasStart');
+      const i2=document.getElementById('feriasEnd');
+      const ia=document.getElementById('feriasAno');
+      if(i1) i1.value = ymd(start);
+      if(i2) i2.value = ymd(end);
+      if(ia) ia.value = String(currentBase.getFullYear());
+      const modalEl = document.getElementById('feriasModal');
+      if(window.bootstrap && modalEl){ bootstrap.Modal.getOrCreateInstance(modalEl).show(); }
+    }catch(e){
+      console.error(e);
+      setStatus(e.message || 'Erro ao abrir marca\u00e7\u00e3o de f\u00e9rias.', true);
+    }
+  }
 
   document.addEventListener('DOMContentLoaded', ()=>{
     const prevBtn = document.getElementById('prev-month');
     const nextBtn = document.getElementById('next-month');
+    const refreshBtn = document.getElementById('ndRefreshBtn');
+    const todayBtn = document.getElementById('ndTodayBtn');
     if(prevBtn) prevBtn.addEventListener('click', ()=>{ currentBase = new Date(currentBase.getFullYear(), currentBase.getMonth()-1, 1); loadMonth(); });
     if(nextBtn) nextBtn.addEventListener('click', ()=>{ currentBase = new Date(currentBase.getFullYear(), currentBase.getMonth()+1, 1); loadMonth(); });
+    if(refreshBtn) refreshBtn.addEventListener('click', loadMonth);
+    if(todayBtn) todayBtn.addEventListener('click', ()=>{ const now = new Date(); currentBase = new Date(now.getFullYear(), now.getMonth(), 1); loadMonth(); });
+
     const cal = document.getElementById('calendar-body');
-    if(cal) cal.addEventListener('click', (ev)=>{ ev.stopPropagation(); const badge = ev.target.closest('.nd-item[draggable="true"][data-id]'); if(badge){ hideMenu(); openItemMenuForBadge(badge); return; } const td = ev.target.closest('td.day-cell'); if(!td) return; openMenuForCell(td); });
+    if(cal) cal.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      const badge = ev.target.closest('.nd-item[draggable="true"][data-id]');
+      if(badge){ hideMenu(); openItemMenuForBadge(badge); return; }
+      const td = ev.target.closest('td.day-cell');
+      if(!td) return;
+      hideItemMenu();
+      openMenuForCell(td);
+    });
     if(cal) cal.addEventListener('dragover', (ev)=>{ if(ev.target.closest('.day-cell')){ ev.preventDefault(); } });
-    if(cal) cal.addEventListener('drop', async (ev)=>{ ev.preventDefault(); const td = ev.target.closest('.day-cell'); if(!td) return; const id = ev.dataTransfer.getData('text/nd-id'); const from = ev.dataTransfer.getData('text/nd-from'); const to = td.dataset.date; if(!id || !to || from===to) return; try{ await moveND(id, to); for(const dateKey of Object.keys(ndByDate)){ const arr = ndByDate[dateKey]; const idx = arr ? arr.findIndex(x=>String(x.id)===String(id)) : -1; if(idx>=0){ const rec = arr.splice(idx,1)[0]; rec.data = to; (ndByDate[to] ||= []).push(rec); break; } } renderMonth(); }catch(e){ alert(e.message||'Erro a mover'); } });
-    document.addEventListener('dragstart', (ev)=>{ const it = ev.target.closest('.nd-item[draggable="true"][data-id]'); if(!it) return; const td = it.closest('.day-cell'); const id = it.getAttribute('data-id'); const from = td ? (td.getAttribute('data-date')||'') : ''; if(ev.dataTransfer){ ev.dataTransfer.setData('text/nd-id', id); ev.dataTransfer.setData('text/nd-from', from); ev.dataTransfer.effectAllowed = 'move'; } });
+    if(cal) cal.addEventListener('drop', async (ev)=>{
+      ev.preventDefault();
+      const td = ev.target.closest('.day-cell');
+      if(!td) return;
+      const id = ev.dataTransfer.getData('text/nd-id');
+      const from = ev.dataTransfer.getData('text/nd-from');
+      const to = td.dataset.date;
+      if(!id || !to || from===to) return;
+      try{
+        await moveND(id, to);
+        for(const dateKey of Object.keys(ndByDate)){
+          const arr = ndByDate[dateKey];
+          const idx = arr ? arr.findIndex(x=>String(x.id)===String(id)) : -1;
+          if(idx>=0){
+            const rec = arr.splice(idx,1)[0];
+            rec.data = to;
+            (ndByDate[to] ||= []).push(rec);
+            break;
+          }
+        }
+        renderMonth();
+        setStatus('Registo movido.');
+      }catch(e){
+        alert(e.message||'Erro a mover');
+      }
+    });
+
+    document.addEventListener('dragstart', (ev)=>{
+      const it = ev.target.closest('.nd-item[draggable="true"][data-id]');
+      if(!it) return;
+      const td = it.closest('.day-cell');
+      const id = it.getAttribute('data-id');
+      const from = td ? (td.getAttribute('data-date')||'') : '';
+      if(ev.dataTransfer){
+        ev.dataTransfer.setData('text/nd-id', id);
+        ev.dataTransfer.setData('text/nd-from', from);
+        ev.dataTransfer.effectAllowed = 'move';
+      }
+    });
     document.addEventListener('click', (ev)=>{ const menu = document.getElementById('userMenu'); if(menu && menu.style.display!=='none' && !ev.target.closest('#userMenu')){ hideMenu(); } });
     document.addEventListener('click', (ev)=>{ const menu = document.getElementById('itemMenu'); if(menu && menu.style.display!=='none' && !ev.target.closest('#itemMenu')){ hideItemMenu(); } });
-    const userMenuList = document.getElementById('userMenuList'); if(userMenuList) userMenuList.addEventListener('click', (ev)=>{ const item = ev.target.closest('.nd-user[data-login]'); if(!item) return; const login = item.dataset.login; const menu = document.getElementById('userMenu'); const dateKey = menu.dataset.date; hideMenu(); if(login && dateKey){ createND(dateKey, login); } });
-    const delBtn = document.getElementById('actionDeleteND'); if(delBtn) delBtn.addEventListener('click', async ()=>{ const im = document.getElementById('itemMenu'); const id = im.dataset.id || ''; hideItemMenu(); if(!id) return; if(!confirm('Apagar este registo?')) return; try{ const res = await fetch('/api/nd/delete', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ id }) }); const data = await res.json(); if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao apagar'); for(const k of Object.keys(ndByDate)){ const arr = ndByDate[k]; const idx = arr ? arr.findIndex(x=>String(x.id)===String(id)) : -1; if(idx>=0){ arr.splice(idx,1); break; } } renderMonth(); }catch(e){ alert(e.message||'Erro ao apagar'); } });
-    const btnFerias = document.getElementById('btnOpenFerias'); if(btnFerias){ btnFerias.addEventListener('click', async ()=>{ try{ const users = await loadUsers(); const sel = document.getElementById('feriasUser'); if(sel){ sel.innerHTML = users.map(u=>`<option value="${u.login}">${u.nome}</option>`).join(''); } const start = firstOfMonth(currentBase); const end = lastOfMonth(currentBase); const i1=document.getElementById('feriasStart'); const i2=document.getElementById('feriasEnd'); const ia=document.getElementById('feriasAno'); if(i1) i1.value = ymd(start); if(i2) i2.value = ymd(end); if(ia) ia.value = String(currentBase.getFullYear()); const modalEl = document.getElementById('feriasModal'); if(window.bootstrap && modalEl){ bootstrap.Modal.getOrCreateInstance(modalEl).show(); } }catch(e){ console.error(e); } }); }
-    const feriasSaveBtn = document.getElementById('feriasSave'); if(feriasSaveBtn){ feriasSaveBtn.addEventListener('click', async ()=>{ const sel=document.getElementById('feriasUser'); const i1=document.getElementById('feriasStart'); const i2=document.getElementById('feriasEnd'); const ia=document.getElementById('feriasAno'); const login = sel ? sel.value : ''; const di = i1 ? i1.value : ''; const df = i2 ? i2.value : ''; const ano = ia ? ia.value : ''; if(!login || !di || !df){ alert('Preencha utilizador e datas.'); return; } try{ const resp = await fetch('/api/nd/ferias', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ utilizador: login, data_inicio: di, data_fim: df, ano }) }); const data = await resp.json(); if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao gravar ferias'); const modalEl = document.getElementById('feriasModal'); if(modalEl && window.bootstrap){ bootstrap.Modal.getOrCreateInstance(modalEl).hide(); } await loadMonth(); }catch(e){ alert(e.message||'Erro ao gravar ferias'); } }); }
+
+    const userMenuList = document.getElementById('userMenuList');
+    if(userMenuList) userMenuList.addEventListener('click', (ev)=>{
+      const item = ev.target.closest('.nd-user[data-login]');
+      if(!item) return;
+      const login = item.dataset.login;
+      const menu = document.getElementById('userMenu');
+      const dateKey = menu.dataset.date;
+      hideMenu();
+      if(login && dateKey){ createND(dateKey, login); }
+    });
+
+    const delBtn = document.getElementById('actionDeleteND');
+    if(delBtn) delBtn.addEventListener('click', async ()=>{
+      const im = document.getElementById('itemMenu');
+      const id = im.dataset.id || '';
+      hideItemMenu();
+      if(!id) return;
+      if(!confirm('Apagar este registo?')) return;
+      try{
+        const res = await fetch('/api/nd/delete', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ id }) });
+        const data = await res.json();
+        if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao apagar');
+        for(const k of Object.keys(ndByDate)){
+          const arr = ndByDate[k];
+          const idx = arr ? arr.findIndex(x=>String(x.id)===String(id)) : -1;
+          if(idx>=0){ arr.splice(idx,1); break; }
+        }
+        renderMonth();
+        setStatus('Registo apagado.');
+      }catch(e){
+        alert(e.message||'Erro ao apagar');
+      }
+    });
+
+    const btnFerias = document.getElementById('btnOpenFerias');
+    const btnFeriasFooter = document.getElementById('btnOpenFeriasFooter');
+    if(btnFerias) btnFerias.addEventListener('click', openFeriasModal);
+    if(btnFeriasFooter) btnFeriasFooter.addEventListener('click', openFeriasModal);
+
+    const feriasSaveBtn = document.getElementById('feriasSave');
+    if(feriasSaveBtn) feriasSaveBtn.addEventListener('click', async ()=>{
+      const sel=document.getElementById('feriasUser');
+      const i1=document.getElementById('feriasStart');
+      const i2=document.getElementById('feriasEnd');
+      const ia=document.getElementById('feriasAno');
+      const login = sel ? sel.value : '';
+      const di = i1 ? i1.value : '';
+      const df = i2 ? i2.value : '';
+      const ano = ia ? ia.value : '';
+      if(!login || !di || !df){ alert('Preencha utilizador e datas.'); return; }
+      feriasSaveBtn.disabled = true;
+      try{
+        const resp = await fetch('/api/nd/ferias', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ utilizador: login, data_inicio: di, data_fim: df, ano }) });
+        const data = await resp.json();
+        if(!(data && data.ok)) throw new Error(data && data.error ? data.error : 'Erro ao gravar f\u00e9rias');
+        const modalEl = document.getElementById('feriasModal');
+        if(modalEl && window.bootstrap){ bootstrap.Modal.getOrCreateInstance(modalEl).hide(); }
+        await loadMonth();
+      }catch(e){
+        alert(e.message||'Erro ao gravar f\u00e9rias');
+      }finally{
+        feriasSaveBtn.disabled = false;
+      }
+    });
+
     loadMonth();
   });
   </script>

@@ -16,6 +16,7 @@ import hashlib
 import hmac
 import logging
 import xml.etree.ElementTree as ET
+import click
 from email.utils import parsedate_to_datetime
 from decimal import Decimal, ROUND_HALF_UP
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response, abort, has_request_context, g, current_app
@@ -469,10 +470,25 @@ def create_app():
     from blueprints.document_ai import bp as document_ai_bp
     app.register_blueprint(document_ai_bp)
 
+    from blueprints.email_service import bp as email_service_bp
+    app.register_blueprint(email_service_bp)
+
     from modules.gr_planning.routes import bp as gr_planning_bp
     app.register_blueprint(gr_planning_bp)
 
     register_pricing(app)
+
+    @app.cli.command('process-email-queue')
+    @click.option('--limit', default=20, show_default=True, type=int, help='Número máximo de emails a processar.')
+    def process_email_queue_command(limit):
+        from services.email_service import process_email_queue
+
+        result = process_email_queue(limit=limit)
+        click.echo(f"Processed: {result.get('processed', 0)}")
+        for item in result.get('results', []):
+            status = 'OK' if item.get('ok') else 'ERRO'
+            detail = item.get('smtp_response') if item.get('ok') else item.get('error')
+            click.echo(f"{status} email_id={item.get('email_id')} {detail or ''}")
 
     @app.route('/service-worker.js')
     def service_worker():
@@ -4904,6 +4920,1587 @@ def create_app():
             'foreign_keys': foreign_keys,
             'indexes': indexes,
             'triggers': triggers,
+        }
+
+    def _ensure_database_manager_mapping_tables():
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.DBM_TABLE_MAPPING', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DBM_TABLE_MAPPING
+                (
+                    MAPPINGSTAMP varchar(25) NOT NULL,
+                    SOURCE_SCHEMA nvarchar(128) NOT NULL,
+                    SOURCE_TABLE nvarchar(128) NOT NULL,
+                    SOURCE_TABLE_KEY nvarchar(260) NOT NULL,
+                    ENABLED bit NOT NULL CONSTRAINT DF_DBM_TABLE_MAPPING_ENABLED DEFAULT 0,
+                    TARGET_SCOPE varchar(20) NOT NULL CONSTRAINT DF_DBM_TABLE_MAPPING_SCOPE DEFAULT 'FE',
+                    TARGET_DATABASE nvarchar(128) NOT NULL CONSTRAINT DF_DBM_TABLE_MAPPING_TARGET_DB DEFAULT '',
+                    TARGET_SCHEMA nvarchar(128) NOT NULL CONSTRAINT DF_DBM_TABLE_MAPPING_TARGET_SCHEMA DEFAULT 'dbo',
+                    TARGET_TABLE nvarchar(128) NOT NULL CONSTRAINT DF_DBM_TABLE_MAPPING_TARGET_TABLE DEFAULT '',
+                    NOTES nvarchar(max) NULL,
+                    CREATED_AT datetime2(0) NOT NULL CONSTRAINT DF_DBM_TABLE_MAPPING_CREATED DEFAULT SYSDATETIME(),
+                    CREATED_BY nvarchar(100) NOT NULL CONSTRAINT DF_DBM_TABLE_MAPPING_CREATED_BY DEFAULT '',
+                    UPDATED_AT datetime2(0) NULL,
+                    UPDATED_BY nvarchar(100) NOT NULL CONSTRAINT DF_DBM_TABLE_MAPPING_UPDATED_BY DEFAULT '',
+                    CONSTRAINT PK_DBM_TABLE_MAPPING PRIMARY KEY CLUSTERED (MAPPINGSTAMP),
+                    CONSTRAINT UQ_DBM_TABLE_MAPPING_SOURCE UNIQUE (SOURCE_TABLE_KEY),
+                    CONSTRAINT CK_DBM_TABLE_MAPPING_SCOPE CHECK (TARGET_SCOPE IN ('FE', 'FIXED'))
+                );
+            END
+
+            IF OBJECT_ID('dbo.DBM_FIELD_MAPPING', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DBM_FIELD_MAPPING
+                (
+                    FIELDSTAMP varchar(25) NOT NULL,
+                    MAPPINGSTAMP varchar(25) NOT NULL,
+                    SOURCE_COLUMN nvarchar(128) NOT NULL,
+                    TARGET_REF varchar(10) NOT NULL CONSTRAINT DF_DBM_FIELD_MAPPING_TARGET_REF DEFAULT 'T1',
+                    TARGET_COLUMN nvarchar(128) NOT NULL CONSTRAINT DF_DBM_FIELD_MAPPING_TARGET DEFAULT '',
+                    SYNC_DIRECTION varchar(20) NOT NULL CONSTRAINT DF_DBM_FIELD_MAPPING_DIRECTION DEFAULT 'BIDIRECTIONAL',
+                    IS_KEY bit NOT NULL CONSTRAINT DF_DBM_FIELD_MAPPING_KEY DEFAULT 0,
+                    IS_REQUIRED bit NOT NULL CONSTRAINT DF_DBM_FIELD_MAPPING_REQUIRED DEFAULT 0,
+                    TRANSFORM_EXPR nvarchar(max) NULL,
+                    ORDEN int NOT NULL CONSTRAINT DF_DBM_FIELD_MAPPING_ORDEN DEFAULT 0,
+                    CONSTRAINT PK_DBM_FIELD_MAPPING PRIMARY KEY CLUSTERED (FIELDSTAMP),
+                    CONSTRAINT FK_DBM_FIELD_MAPPING_TABLE FOREIGN KEY (MAPPINGSTAMP)
+                        REFERENCES dbo.DBM_TABLE_MAPPING(MAPPINGSTAMP)
+                        ON DELETE CASCADE,
+                    CONSTRAINT UQ_DBM_FIELD_MAPPING_SOURCE UNIQUE (MAPPINGSTAMP, SOURCE_COLUMN),
+                    CONSTRAINT CK_DBM_FIELD_MAPPING_DIRECTION CHECK (SYNC_DIRECTION IN ('APP_TO_TARGET', 'TARGET_TO_APP', 'BIDIRECTIONAL'))
+                );
+
+                CREATE INDEX IX_DBM_FIELD_MAPPING_MAPPING
+                    ON dbo.DBM_FIELD_MAPPING (MAPPINGSTAMP, ORDEN);
+            END
+
+            IF OBJECT_ID('dbo.DBM_TARGET_TABLE', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DBM_TARGET_TABLE
+                (
+                    TARGETSTAMP varchar(25) NOT NULL,
+                    MAPPINGSTAMP varchar(25) NOT NULL,
+                    TARGET_REF varchar(10) NOT NULL,
+                    TARGET_SCHEMA nvarchar(128) NOT NULL CONSTRAINT DF_DBM_TARGET_TABLE_SCHEMA DEFAULT 'dbo',
+                    TARGET_TABLE nvarchar(128) NOT NULL CONSTRAINT DF_DBM_TARGET_TABLE_TABLE DEFAULT '',
+                    JOIN_CONDITION nvarchar(1000) NOT NULL CONSTRAINT DF_DBM_TARGET_TABLE_JOIN DEFAULT '',
+                    ORDEN int NOT NULL CONSTRAINT DF_DBM_TARGET_TABLE_ORDEN DEFAULT 1,
+                    CREATED_AT datetime2(0) NOT NULL CONSTRAINT DF_DBM_TARGET_TABLE_CREATED DEFAULT SYSDATETIME(),
+                    CONSTRAINT PK_DBM_TARGET_TABLE PRIMARY KEY CLUSTERED (TARGETSTAMP),
+                    CONSTRAINT FK_DBM_TARGET_TABLE_MAPPING FOREIGN KEY (MAPPINGSTAMP)
+                        REFERENCES dbo.DBM_TABLE_MAPPING(MAPPINGSTAMP)
+                        ON DELETE CASCADE,
+                    CONSTRAINT UQ_DBM_TARGET_TABLE_REF UNIQUE (MAPPINGSTAMP, TARGET_REF)
+                );
+
+                CREATE INDEX IX_DBM_TARGET_TABLE_MAPPING
+                    ON dbo.DBM_TARGET_TABLE (MAPPINGSTAMP, ORDEN);
+            END
+
+            IF COL_LENGTH('dbo.DBM_FIELD_MAPPING', 'TARGET_REF') IS NULL
+            BEGIN
+                ALTER TABLE dbo.DBM_FIELD_MAPPING
+                ADD TARGET_REF varchar(10) NOT NULL
+                    CONSTRAINT DF_DBM_FIELD_MAPPING_TARGET_REF DEFAULT 'T1';
+            END
+
+            IF OBJECT_ID('dbo.DBM_TARGET_TABLE', 'U') IS NOT NULL
+            BEGIN
+                INSERT INTO dbo.DBM_TARGET_TABLE
+                (
+                    TARGETSTAMP,
+                    MAPPINGSTAMP,
+                    TARGET_REF,
+                    TARGET_SCHEMA,
+                    TARGET_TABLE,
+                    JOIN_CONDITION,
+                    ORDEN
+                )
+                SELECT
+                    LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 25),
+                    TM.MAPPINGSTAMP,
+                    'T1',
+                    ISNULL(NULLIF(TM.TARGET_SCHEMA, ''), 'dbo'),
+                    ISNULL(TM.TARGET_TABLE, ''),
+                    '',
+                    1
+                FROM dbo.DBM_TABLE_MAPPING TM
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.DBM_TARGET_TABLE TT
+                    WHERE TT.MAPPINGSTAMP = TM.MAPPINGSTAMP
+                      AND TT.TARGET_REF = 'T1'
+                );
+            END
+
+            IF OBJECT_ID('dbo.DBM_FIELD_MAPPING', 'U') IS NOT NULL
+               AND EXISTS (
+                   SELECT 1
+                   FROM sys.default_constraints
+                   WHERE name = 'DF_DBM_FIELD_MAPPING_DIRECTION'
+                     AND parent_object_id = OBJECT_ID('dbo.DBM_FIELD_MAPPING')
+                     AND ISNULL(definition, '') NOT LIKE '%BIDIRECTIONAL%'
+               )
+            BEGIN
+                ALTER TABLE dbo.DBM_FIELD_MAPPING
+                DROP CONSTRAINT DF_DBM_FIELD_MAPPING_DIRECTION;
+            END
+
+            IF OBJECT_ID('dbo.DBM_FIELD_MAPPING', 'U') IS NOT NULL
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM sys.default_constraints
+                   WHERE name = 'DF_DBM_FIELD_MAPPING_DIRECTION'
+                     AND parent_object_id = OBJECT_ID('dbo.DBM_FIELD_MAPPING')
+               )
+            BEGIN
+                ALTER TABLE dbo.DBM_FIELD_MAPPING
+                ADD CONSTRAINT DF_DBM_FIELD_MAPPING_DIRECTION DEFAULT 'BIDIRECTIONAL' FOR SYNC_DIRECTION;
+            END
+        """))
+
+    def _database_manager_default_target_tables(mapping: dict) -> list[dict]:
+        return [{
+            'target_ref': 'T1',
+            'target_schema': str(mapping.get('target_schema') or 'dbo').strip() or 'dbo',
+            'target_table': str(mapping.get('target_table') or '').strip(),
+            'join_condition': '',
+            'order': 1,
+        }]
+
+    def _load_database_manager_target_tables(mappingstamp: str, mapping: dict) -> list[dict]:
+        mappingstamp = str(mappingstamp or '').strip()
+        if not mappingstamp:
+            return _database_manager_default_target_tables(mapping)
+        rows = db.session.execute(text("""
+            SELECT TARGET_REF, TARGET_SCHEMA, TARGET_TABLE, JOIN_CONDITION, ORDEN
+            FROM dbo.DBM_TARGET_TABLE
+            WHERE MAPPINGSTAMP = :mappingstamp
+            ORDER BY ORDEN, TARGET_REF
+        """), {'mappingstamp': mappingstamp}).mappings().all()
+        items = []
+        for row in rows:
+            ref = str(row.get('TARGET_REF') or '').strip().upper()
+            if not ref:
+                continue
+            items.append({
+                'target_ref': ref,
+                'target_schema': str(row.get('TARGET_SCHEMA') or 'dbo').strip() or 'dbo',
+                'target_table': str(row.get('TARGET_TABLE') or '').strip(),
+                'join_condition': str(row.get('JOIN_CONDITION') or '').strip(),
+                'order': _to_int(row.get('ORDEN'), 1),
+            })
+        if not items:
+            items = _database_manager_default_target_tables(mapping)
+        if not any(item.get('target_ref') == 'T1' for item in items):
+            items.insert(0, _database_manager_default_target_tables(mapping)[0])
+        return items[:3]
+
+    def _normalize_database_manager_target_tables(payload: dict, target_schema: str, target_table: str) -> list[dict]:
+        raw_items = payload.get('target_tables') if isinstance(payload.get('target_tables'), list) else []
+        by_ref = {}
+        for raw in raw_items:
+            item = raw or {}
+            ref = str(item.get('target_ref') or '').strip().upper()
+            if ref not in {'T1', 'T2', 'T3'}:
+                continue
+            by_ref[ref] = {
+                'target_ref': ref,
+                'target_schema': str(item.get('target_schema') or target_schema or 'dbo').strip() or 'dbo',
+                'target_table': str(item.get('target_table') or '').strip(),
+                'join_condition': str(item.get('join_condition') or '').strip(),
+                'order': {'T1': 1, 'T2': 2, 'T3': 3}.get(ref, 1),
+            }
+        by_ref['T1'] = {
+            'target_ref': 'T1',
+            'target_schema': str((by_ref.get('T1') or {}).get('target_schema') or target_schema or 'dbo').strip() or 'dbo',
+            'target_table': str((by_ref.get('T1') or {}).get('target_table') or target_table).strip(),
+            'join_condition': '',
+            'order': 1,
+        }
+        items = [by_ref['T1']]
+        for ref in ('T2', 'T3'):
+            item = by_ref.get(ref)
+            if item and item.get('target_table'):
+                items.append(item)
+        return items[:3]
+
+    def _database_manager_mapping_default(resolved: dict) -> dict:
+        schema_name = str(resolved.get('schema_name') or 'dbo').strip() or 'dbo'
+        table_name = str(resolved.get('table_name') or '').strip()
+        table_key = str(resolved.get('key') or f'{schema_name}.{table_name}').strip()
+        return {
+            'mappingstamp': '',
+            'source_schema': schema_name,
+            'source_table': table_name,
+            'source_table_key': table_key,
+            'enabled': False,
+            'target_scope': 'FE',
+            'target_database': '',
+            'target_schema': 'dbo',
+            'target_table': table_name,
+            'target_tables': [{
+                'target_ref': 'T1',
+                'target_schema': 'dbo',
+                'target_table': table_name,
+                'join_condition': '',
+                'order': 1,
+            }],
+            'notes': '',
+            'created_at': None,
+            'created_by': '',
+            'updated_at': None,
+            'updated_by': '',
+        }
+
+    def _database_manager_mapping_row_to_dict(row, resolved: dict) -> dict:
+        if not row:
+            return _database_manager_mapping_default(resolved)
+        mapping = {
+            'mappingstamp': str(row.get('MAPPINGSTAMP') or '').strip(),
+            'source_schema': str(row.get('SOURCE_SCHEMA') or '').strip(),
+            'source_table': str(row.get('SOURCE_TABLE') or '').strip(),
+            'source_table_key': str(row.get('SOURCE_TABLE_KEY') or '').strip(),
+            'enabled': bool(_to_int(row.get('ENABLED'), 0)),
+            'target_scope': str(row.get('TARGET_SCOPE') or 'FE').strip().upper(),
+            'target_database': str(row.get('TARGET_DATABASE') or '').strip(),
+            'target_schema': str(row.get('TARGET_SCHEMA') or 'dbo').strip() or 'dbo',
+            'target_table': str(row.get('TARGET_TABLE') or '').strip(),
+            'notes': str(row.get('NOTES') or '').strip(),
+            'created_at': (row.get('CREATED_AT').isoformat() if row.get('CREATED_AT') else None),
+            'created_by': str(row.get('CREATED_BY') or '').strip(),
+            'updated_at': (row.get('UPDATED_AT').isoformat() if row.get('UPDATED_AT') else None),
+            'updated_by': str(row.get('UPDATED_BY') or '').strip(),
+        }
+        mapping['target_tables'] = _load_database_manager_target_tables(mapping.get('mappingstamp'), mapping)
+        return mapping
+
+    def _load_database_manager_mapping(table_key: str):
+        _ensure_database_manager_mapping_tables()
+        resolved = _database_manager_resolve_table(table_key)
+        if not resolved:
+            return None
+
+        table_key = str(resolved.get('key') or '').strip()
+        columns = _load_database_manager_columns(_to_int(resolved.get('object_id'), 0))
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                MAPPINGSTAMP,
+                SOURCE_SCHEMA,
+                SOURCE_TABLE,
+                SOURCE_TABLE_KEY,
+                ENABLED,
+                TARGET_SCOPE,
+                TARGET_DATABASE,
+                TARGET_SCHEMA,
+                TARGET_TABLE,
+                NOTES,
+                CREATED_AT,
+                CREATED_BY,
+                UPDATED_AT,
+                UPDATED_BY
+            FROM dbo.DBM_TABLE_MAPPING
+            WHERE SOURCE_TABLE_KEY = :table_key
+        """), {'table_key': table_key}).mappings().first()
+
+        mapping = _database_manager_mapping_row_to_dict(row, resolved)
+        mappingstamp = str(mapping.get('mappingstamp') or '').strip()
+        field_rows = []
+        if mappingstamp:
+            field_rows = db.session.execute(text("""
+                SELECT
+                    FIELDSTAMP,
+                    MAPPINGSTAMP,
+                    SOURCE_COLUMN,
+                    TARGET_REF,
+                    TARGET_COLUMN,
+                    SYNC_DIRECTION,
+                    IS_KEY,
+                    IS_REQUIRED,
+                    TRANSFORM_EXPR,
+                    ORDEN
+                FROM dbo.DBM_FIELD_MAPPING
+                WHERE MAPPINGSTAMP = :mappingstamp
+                ORDER BY ORDEN, SOURCE_COLUMN
+            """), {'mappingstamp': mappingstamp}).mappings().all()
+
+        saved_by_source = {
+            str(item.get('SOURCE_COLUMN') or '').strip().upper(): item
+            for item in field_rows
+            if str(item.get('SOURCE_COLUMN') or '').strip()
+        }
+        fields = []
+        seen = set()
+        for column in columns:
+            source_name = str(column.get('name') or '').strip()
+            saved = saved_by_source.get(source_name.upper())
+            seen.add(source_name.upper())
+            fields.append({
+                'fieldstamp': str(saved.get('FIELDSTAMP') or '').strip() if saved else '',
+                'source_column': source_name,
+                'source_type': str(column.get('type_label') or '').strip(),
+                'source_nullable': bool(column.get('is_nullable')),
+                'source_primary_key': bool(column.get('is_primary_key')),
+                'target_ref': str(saved.get('TARGET_REF') or 'T1').strip().upper() if saved else 'T1',
+                'target_column': str(saved.get('TARGET_COLUMN') or '').strip() if saved else source_name,
+                'sync_direction': str(saved.get('SYNC_DIRECTION') or 'BIDIRECTIONAL').strip().upper() if saved else 'BIDIRECTIONAL',
+                'is_key': bool(_to_int(saved.get('IS_KEY'), 0)) if saved else bool(column.get('is_primary_key')),
+                'is_required': bool(_to_int(saved.get('IS_REQUIRED'), 0)) if saved else not bool(column.get('is_nullable')),
+                'transform_expr': str(saved.get('TRANSFORM_EXPR') or '').strip() if saved else '',
+                'order': _to_int(saved.get('ORDEN'), column.get('ordinal') or 0) if saved else _to_int(column.get('ordinal'), 0),
+                'source_missing': False,
+            })
+
+        for saved in field_rows:
+            source_name = str(saved.get('SOURCE_COLUMN') or '').strip()
+            if not source_name or source_name.upper() in seen:
+                continue
+            fields.append({
+                'fieldstamp': str(saved.get('FIELDSTAMP') or '').strip(),
+                'source_column': source_name,
+                'source_type': '',
+                'source_nullable': True,
+                'source_primary_key': False,
+                'target_ref': str(saved.get('TARGET_REF') or 'T1').strip().upper(),
+                'target_column': str(saved.get('TARGET_COLUMN') or '').strip(),
+                'sync_direction': str(saved.get('SYNC_DIRECTION') or 'BIDIRECTIONAL').strip().upper(),
+                'is_key': bool(_to_int(saved.get('IS_KEY'), 0)),
+                'is_required': bool(_to_int(saved.get('IS_REQUIRED'), 0)),
+                'transform_expr': str(saved.get('TRANSFORM_EXPR') or '').strip(),
+                'order': _to_int(saved.get('ORDEN'), 0),
+                'source_missing': True,
+            })
+
+        return {
+            'table': {
+                'key': table_key,
+                'schema': str(resolved.get('schema_name') or '').strip(),
+                'name': str(resolved.get('table_name') or '').strip(),
+                'object_id': _to_int(resolved.get('object_id'), 0),
+            },
+            'mapping': mapping,
+            'fields': fields,
+            'target_scope_options': [
+                {'value': 'FE', 'label': 'Base de dados da FE'},
+                {'value': 'FIXED', 'label': 'Base de dados fixa'},
+            ],
+            'direction_options': [
+                {'value': 'BIDIRECTIONAL', 'label': 'Bidirecional'},
+                {'value': 'APP_TO_TARGET', 'label': 'App -> destino'},
+                {'value': 'TARGET_TO_APP', 'label': 'Destino -> app'},
+            ],
+        }
+
+    def _save_database_manager_mapping(table_key: str, payload: dict, user_login: str):
+        _ensure_database_manager_mapping_tables()
+        resolved = _database_manager_resolve_table(table_key)
+        if not resolved:
+            raise ValueError('Tabela não encontrada.')
+
+        source_key = str(resolved.get('key') or '').strip()
+        source_schema = str(resolved.get('schema_name') or 'dbo').strip() or 'dbo'
+        source_table = str(resolved.get('table_name') or '').strip()
+        enabled = 1 if payload.get('enabled') else 0
+        target_scope = str(payload.get('target_scope') or 'FE').strip().upper()
+        if target_scope not in {'FE', 'FIXED'}:
+            target_scope = 'FE'
+        target_database = str(payload.get('target_database') or '').strip()
+        target_schema = str(payload.get('target_schema') or 'dbo').strip() or 'dbo'
+        target_table = str(payload.get('target_table') or '').strip()
+        target_tables = _normalize_database_manager_target_tables(payload, target_schema, target_table)
+        target_schema = target_tables[0].get('target_schema') or target_schema
+        target_table = target_tables[0].get('target_table') or target_table
+        notes = str(payload.get('notes') or '').strip()
+        if enabled and target_scope == 'FIXED' and not target_database:
+            raise ValueError('Indica a base de dados fixa de destino.')
+        if enabled and not target_table:
+            raise ValueError('Indica a tabela de destino.')
+
+        existing = db.session.execute(text("""
+            SELECT TOP 1 MAPPINGSTAMP
+            FROM dbo.DBM_TABLE_MAPPING WITH (UPDLOCK, HOLDLOCK)
+            WHERE SOURCE_TABLE_KEY = :source_key
+        """), {'source_key': source_key}).mappings().first()
+        mappingstamp = str(existing.get('MAPPINGSTAMP') or '').strip() if existing else _new_stamp_25()
+        now_dt = datetime.now()
+
+        if existing:
+            db.session.execute(text("""
+                UPDATE dbo.DBM_TABLE_MAPPING
+                SET
+                    SOURCE_SCHEMA = :source_schema,
+                    SOURCE_TABLE = :source_table,
+                    ENABLED = :enabled,
+                    TARGET_SCOPE = :target_scope,
+                    TARGET_DATABASE = :target_database,
+                    TARGET_SCHEMA = :target_schema,
+                    TARGET_TABLE = :target_table,
+                    NOTES = :notes,
+                    UPDATED_AT = :updated_at,
+                    UPDATED_BY = :updated_by
+                WHERE MAPPINGSTAMP = :mappingstamp
+            """), {
+                'mappingstamp': mappingstamp,
+                'source_schema': source_schema,
+                'source_table': source_table,
+                'enabled': enabled,
+                'target_scope': target_scope,
+                'target_database': target_database,
+                'target_schema': target_schema,
+                'target_table': target_table,
+                'notes': notes,
+                'updated_at': now_dt,
+                'updated_by': user_login,
+            })
+        else:
+            db.session.execute(text("""
+                INSERT INTO dbo.DBM_TABLE_MAPPING
+                (
+                    MAPPINGSTAMP,
+                    SOURCE_SCHEMA,
+                    SOURCE_TABLE,
+                    SOURCE_TABLE_KEY,
+                    ENABLED,
+                    TARGET_SCOPE,
+                    TARGET_DATABASE,
+                    TARGET_SCHEMA,
+                    TARGET_TABLE,
+                    NOTES,
+                    CREATED_AT,
+                    CREATED_BY,
+                    UPDATED_AT,
+                    UPDATED_BY
+                )
+                VALUES
+                (
+                    :mappingstamp,
+                    :source_schema,
+                    :source_table,
+                    :source_key,
+                    :enabled,
+                    :target_scope,
+                    :target_database,
+                    :target_schema,
+                    :target_table,
+                    :notes,
+                    :created_at,
+                    :created_by,
+                    :updated_at,
+                    :updated_by
+                )
+            """), {
+                'mappingstamp': mappingstamp,
+                'source_schema': source_schema,
+                'source_table': source_table,
+                'source_key': source_key,
+                'enabled': enabled,
+                'target_scope': target_scope,
+                'target_database': target_database,
+                'target_schema': target_schema,
+                'target_table': target_table,
+                'notes': notes,
+                'created_at': now_dt,
+                'created_by': user_login,
+                'updated_at': now_dt,
+                'updated_by': user_login,
+            })
+
+        db.session.execute(text("""
+            DELETE FROM dbo.DBM_TARGET_TABLE
+            WHERE MAPPINGSTAMP = :mappingstamp
+        """), {'mappingstamp': mappingstamp})
+        db.session.execute(text("""
+            INSERT INTO dbo.DBM_TARGET_TABLE
+            (
+                TARGETSTAMP,
+                MAPPINGSTAMP,
+                TARGET_REF,
+                TARGET_SCHEMA,
+                TARGET_TABLE,
+                JOIN_CONDITION,
+                ORDEN,
+                CREATED_AT
+            )
+            VALUES
+            (
+                :TARGETSTAMP,
+                :MAPPINGSTAMP,
+                :TARGET_REF,
+                :TARGET_SCHEMA,
+                :TARGET_TABLE,
+                :JOIN_CONDITION,
+                :ORDEN,
+                :CREATED_AT
+            )
+        """), [{
+            'TARGETSTAMP': _new_stamp_25(),
+            'MAPPINGSTAMP': mappingstamp,
+            'TARGET_REF': item.get('target_ref'),
+            'TARGET_SCHEMA': item.get('target_schema'),
+            'TARGET_TABLE': item.get('target_table'),
+            'JOIN_CONDITION': item.get('join_condition') or '',
+            'ORDEN': _to_int(item.get('order'), 1),
+            'CREATED_AT': now_dt,
+        } for item in target_tables])
+
+        valid_target_refs = {item.get('target_ref') for item in target_tables if item.get('target_table')}
+        source_columns = {
+            str(column.get('name') or '').strip().upper(): column
+            for column in _load_database_manager_columns(_to_int(resolved.get('object_id'), 0))
+            if str(column.get('name') or '').strip()
+        }
+        directions = {'APP_TO_TARGET', 'TARGET_TO_APP', 'BIDIRECTIONAL'}
+        cleaned_fields = []
+        seen_sources = set()
+        raw_fields = payload.get('fields') if isinstance(payload.get('fields'), list) else []
+        for index, item in enumerate(raw_fields, start=1):
+            source_column = str((item or {}).get('source_column') or '').strip()
+            if not source_column:
+                continue
+            source_key_upper = source_column.upper()
+            if source_key_upper in seen_sources:
+                continue
+            seen_sources.add(source_key_upper)
+            source_meta = source_columns.get(source_key_upper)
+            direction = str((item or {}).get('sync_direction') or 'BIDIRECTIONAL').strip().upper()
+            if direction not in directions:
+                direction = 'BIDIRECTIONAL'
+            target_ref = str((item or {}).get('target_ref') or 'T1').strip().upper()
+            if target_ref not in valid_target_refs:
+                target_ref = 'T1'
+            cleaned_fields.append({
+                'FIELDSTAMP': _new_stamp_25(),
+                'MAPPINGSTAMP': mappingstamp,
+                'SOURCE_COLUMN': source_column,
+                'TARGET_REF': target_ref,
+                'TARGET_COLUMN': str((item or {}).get('target_column') or '').strip(),
+                'SYNC_DIRECTION': direction,
+                'IS_KEY': 1 if (item or {}).get('is_key') else 0,
+                'IS_REQUIRED': 1 if (item or {}).get('is_required') else 0,
+                'TRANSFORM_EXPR': str((item or {}).get('transform_expr') or '').strip(),
+                'ORDEN': _to_int(
+                    (item or {}).get('order'),
+                    _to_int(source_meta.get('ordinal'), index) if source_meta else index
+                ),
+            })
+
+        db.session.execute(text("""
+            DELETE FROM dbo.DBM_FIELD_MAPPING
+            WHERE MAPPINGSTAMP = :mappingstamp
+        """), {'mappingstamp': mappingstamp})
+
+        if cleaned_fields:
+            db.session.execute(text("""
+                INSERT INTO dbo.DBM_FIELD_MAPPING
+                (
+                    FIELDSTAMP,
+                    MAPPINGSTAMP,
+                    SOURCE_COLUMN,
+                    TARGET_REF,
+                    TARGET_COLUMN,
+                    SYNC_DIRECTION,
+                    IS_KEY,
+                    IS_REQUIRED,
+                    TRANSFORM_EXPR,
+                    ORDEN
+                )
+                VALUES
+                (
+                    :FIELDSTAMP,
+                    :MAPPINGSTAMP,
+                    :SOURCE_COLUMN,
+                    :TARGET_REF,
+                    :TARGET_COLUMN,
+                    :SYNC_DIRECTION,
+                    :IS_KEY,
+                    :IS_REQUIRED,
+                    :TRANSFORM_EXPR,
+                    :ORDEN
+                )
+            """), cleaned_fields)
+
+        db.session.commit()
+        return _load_database_manager_mapping(source_key)
+
+    def _dbm_qident(value: str) -> str:
+        value = str(value or '').strip()
+        if not value:
+            raise ValueError('Identificador SQL vazio.')
+        return '[' + value.replace(']', ']]') + ']'
+
+    def _dbm_qname(*parts: str) -> str:
+        clean = [str(part or '').strip() for part in parts if str(part or '').strip()]
+        if not clean:
+            raise ValueError('Nome SQL vazio.')
+        return '.'.join(_dbm_qident(part) for part in clean)
+
+    def _database_manager_validate_identifier(raw_value: str, label: str = 'Identificador') -> str:
+        value = str(raw_value or '').strip()
+        if not value:
+            raise ValueError(f'{label} obrigatório.')
+        if len(value) > 128:
+            raise ValueError(f'{label} não pode ter mais de 128 caracteres.')
+        if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', value):
+            raise ValueError(f'{label} inválido. Usa apenas letras, números e underscore, começando por letra ou underscore.')
+        return value
+
+    def _database_manager_validate_default_expr(raw_value: str) -> str:
+        value = str(raw_value or '').strip()
+        if not value:
+            return ''
+        forbidden = [';', '--', '/*', '*/']
+        if any(token in value for token in forbidden):
+            raise ValueError('Default inválido.')
+        return value
+
+    def _database_manager_parse_schema_table(raw_value: str) -> tuple[str, str]:
+        value = str(raw_value or '').strip()
+        if not value:
+            raise ValueError('Nome da tabela obrigatório.')
+        parts = [part.strip().strip('[]') for part in value.split('.') if part.strip()]
+        if len(parts) == 1:
+            return 'dbo', _database_manager_validate_identifier(parts[0], 'Nome da tabela')
+        if len(parts) == 2:
+            return (
+                _database_manager_validate_identifier(parts[0], 'Schema'),
+                _database_manager_validate_identifier(parts[1], 'Nome da tabela'),
+            )
+        raise ValueError('Indica a tabela como TABELA ou SCHEMA.TABELA.')
+
+    def _database_manager_create_table_column_type(column: dict) -> str:
+        data_type = str((column or {}).get('data_type') or 'varchar').strip().lower()
+        text_types = {'varchar', 'nvarchar', 'char', 'nchar', 'varbinary'}
+        precision_types = {'decimal', 'numeric'}
+        no_arg_types = {
+            'bigint', 'int', 'smallint', 'tinyint', 'bit',
+            'money', 'date', 'datetime', 'datetime2', 'time',
+            'uniqueidentifier', 'float', 'real',
+        }
+        if data_type in text_types:
+            length = _to_int((column or {}).get('length'), 0)
+            if length <= 0:
+                raise ValueError(f"Tamanho obrigatório para {data_type}.")
+            max_len = 4000 if data_type in {'nvarchar', 'nchar'} else 8000
+            if length > max_len:
+                raise ValueError(f"Tamanho máximo para {data_type}: {max_len}.")
+            return f'{data_type}({length})'
+        if data_type in precision_types:
+            precision = _to_int((column or {}).get('precision'), 18)
+            scale = _to_int((column or {}).get('scale'), 0)
+            if precision < 1 or precision > 38:
+                raise ValueError('Precisão deve estar entre 1 e 38.')
+            if scale < 0 or scale > precision:
+                raise ValueError('Escala deve estar entre 0 e a precisão.')
+            return f'{data_type}({precision},{scale})'
+        if data_type in no_arg_types:
+            return data_type
+        raise ValueError(f'Tipo não permitido: {data_type}.')
+
+    def _database_manager_build_create_table_sql(payload: dict) -> dict:
+        schema_name = _database_manager_validate_identifier((payload or {}).get('schema') or 'dbo', 'Schema')
+        table_name = _database_manager_validate_identifier((payload or {}).get('table_name'), 'Nome da tabela')
+        if_not_exists = bool((payload or {}).get('if_not_exists'))
+        table_exists = _database_manager_table_exists_in_database('', schema_name, table_name)
+        if table_exists and not if_not_exists:
+            raise ValueError(f'A tabela {schema_name}.{table_name} já existe.')
+
+        raw_columns = (payload or {}).get('columns') if isinstance((payload or {}).get('columns'), list) else []
+        if not raw_columns:
+            raise ValueError('Adiciona pelo menos um campo.')
+
+        columns = []
+        seen = set()
+        for raw in raw_columns:
+            column = raw or {}
+            name = _database_manager_validate_identifier(column.get('name'), 'Nome do campo').upper()
+            key = name.upper()
+            if key in seen:
+                raise ValueError(f'Campo duplicado: {name}.')
+            seen.add(key)
+            data_type = str(column.get('data_type') or 'varchar').strip().lower()
+            type_sql = _database_manager_create_table_column_type(column)
+            primary_key = bool(column.get('primary_key'))
+            identity = bool(column.get('identity'))
+            unique = bool(column.get('unique'))
+            nullable = bool(column.get('nullable')) and not primary_key
+            if identity and data_type not in {'bigint', 'int', 'smallint', 'tinyint', 'decimal', 'numeric'}:
+                raise ValueError(f'Identity só é permitido em campos numéricos: {name}.')
+            default_expr = _database_manager_validate_default_expr(column.get('default'))
+            columns.append({
+                'name': name,
+                'type_sql': type_sql,
+                'primary_key': primary_key,
+                'identity': identity,
+                'unique': unique,
+                'nullable': nullable,
+                'default': default_expr,
+            })
+
+        pk_columns = [column.get('name') for column in columns if column.get('primary_key')]
+        lines = []
+        constraint_lines = []
+        table_base = f'{schema_name}_{table_name}'
+        for column in columns:
+            parts = [_dbm_qident(column.get('name')), column.get('type_sql')]
+            if column.get('identity'):
+                parts.append('IDENTITY(1,1)')
+            parts.append('NULL' if column.get('nullable') else 'NOT NULL')
+            if column.get('default'):
+                constraint_name = f"DF_{table_base}_{column.get('name')}"[:128]
+                parts.append(f"CONSTRAINT {_dbm_qident(constraint_name)} DEFAULT ({column.get('default')})")
+            lines.append('    ' + ' '.join(parts))
+            if column.get('unique') and not column.get('primary_key'):
+                constraint_name = f"UQ_{table_base}_{column.get('name')}"[:128]
+                constraint_lines.append(
+                    f"    CONSTRAINT {_dbm_qident(constraint_name)} UNIQUE ({_dbm_qident(column.get('name'))})"
+                )
+        if pk_columns:
+            constraint_name = f'PK_{table_base}'[:128]
+            pk_sql = ', '.join(_dbm_qident(column) for column in pk_columns)
+            constraint_lines.append(f'    CONSTRAINT {_dbm_qident(constraint_name)} PRIMARY KEY CLUSTERED ({pk_sql})')
+
+        create_lines = lines + constraint_lines
+        create_sql = f"CREATE TABLE {_dbm_qname(schema_name, table_name)}\n(\n" + ',\n'.join(create_lines) + '\n);'
+        if table_exists:
+            sql = f"-- A tabela {_dbm_qname(schema_name, table_name)} já existe. O CREATE TABLE não será executado."
+        else:
+            sql = create_sql
+        return {
+            'schema': schema_name,
+            'table_name': table_name,
+            'table_key': f'{schema_name}.{table_name}',
+            'sql': sql,
+            'already_exists': table_exists,
+        }
+
+    def _database_manager_read_table_definition(database_name: str, schema_name: str, table_name: str) -> dict:
+        database_name = str(database_name or '').strip()
+        schema_name = _database_manager_validate_identifier(schema_name or 'dbo', 'Schema')
+        table_name = _database_manager_validate_identifier(table_name, 'Nome da tabela')
+        if database_name and not _database_manager_database_exists(database_name):
+            raise ValueError(f'Base de dados não encontrada: {database_name}.')
+        if not _database_manager_table_exists_in_database(database_name, schema_name, table_name):
+            target = f'{database_name}.{schema_name}.{table_name}' if database_name else f'{schema_name}.{table_name}'
+            raise ValueError(f'Tabela não encontrada: {target}.')
+
+        prefix = f'{_dbm_qident(database_name)}.' if database_name else ''
+        rows = db.session.execute(text(f"""
+            SELECT
+                C.column_id AS ORDINAL,
+                C.name AS COLUMN_NAME,
+                TY.name AS DATA_TYPE,
+                CASE
+                    WHEN C.max_length = -1 THEN -1
+                    WHEN TY.name IN ('nvarchar', 'nchar') THEN C.max_length / 2
+                    ELSE C.max_length
+                END AS MAX_LENGTH,
+                C.precision AS PRECISION_VALUE,
+                C.scale AS SCALE_VALUE,
+                C.is_nullable AS IS_NULLABLE,
+                C.is_identity AS IS_IDENTITY,
+                ISNULL(DC.definition, '') AS DEFAULT_DEFINITION,
+                CASE WHEN PK.column_id IS NULL THEN 0 ELSE 1 END AS IS_PRIMARY_KEY
+            FROM {prefix}sys.tables T
+            JOIN {prefix}sys.schemas S
+              ON S.schema_id = T.schema_id
+            JOIN {prefix}sys.columns C
+              ON C.object_id = T.object_id
+            JOIN {prefix}sys.types TY
+              ON TY.user_type_id = C.user_type_id
+            LEFT JOIN {prefix}sys.default_constraints DC
+              ON DC.parent_object_id = C.object_id
+             AND DC.parent_column_id = C.column_id
+            LEFT JOIN (
+                SELECT IC.object_id, IC.column_id
+                FROM {prefix}sys.indexes I
+                JOIN {prefix}sys.index_columns IC
+                  ON IC.object_id = I.object_id
+                 AND IC.index_id = I.index_id
+                WHERE I.is_primary_key = 1
+            ) PK
+              ON PK.object_id = C.object_id
+             AND PK.column_id = C.column_id
+            WHERE S.name = :schema_name
+              AND T.name = :table_name
+            ORDER BY C.column_id
+        """), {
+            'schema_name': schema_name,
+            'table_name': table_name,
+        }).mappings().all()
+
+        columns = []
+        for row in rows:
+            data_type = str(row.get('DATA_TYPE') or '').strip().lower()
+            max_length = _to_int(row.get('MAX_LENGTH'), 0)
+            if max_length < 0:
+                max_length = 4000 if data_type in {'nvarchar', 'nchar'} else 8000
+            columns.append({
+                'ordinal': _to_int(row.get('ORDINAL'), 0),
+                'name': str(row.get('COLUMN_NAME') or '').strip(),
+                'data_type': data_type,
+                'length': max_length,
+                'precision': _to_int(row.get('PRECISION_VALUE'), 18),
+                'scale': _to_int(row.get('SCALE_VALUE'), 0),
+                'nullable': bool(_to_int(row.get('IS_NULLABLE'), 0)),
+                'primary_key': bool(_to_int(row.get('IS_PRIMARY_KEY'), 0)),
+                'identity': bool(_to_int(row.get('IS_IDENTITY'), 0)),
+                'unique': False,
+                'default': str(row.get('DEFAULT_DEFINITION') or '').strip(),
+            })
+        return {
+            'database': database_name or _database_manager_schema_repo_database_name(),
+            'schema': schema_name,
+            'table_name': table_name,
+            'columns': columns,
+        }
+
+    def _dbm_json_value(value):
+        if isinstance(value, datetime):
+            return value.isoformat(sep=' ')
+        if isinstance(value, date):
+            return value.isoformat()
+        if isinstance(value, Decimal):
+            return float(value)
+        if isinstance(value, bytes):
+            return value.hex()
+        return value
+
+    def _database_manager_database_exists(database_name: str) -> bool:
+        database_name = str(database_name or '').strip()
+        if not database_name:
+            return True
+        return bool(db.session.execute(text("""
+            SELECT 1
+            FROM sys.databases
+            WHERE name = :database_name
+        """), {'database_name': database_name}).first())
+
+    def _database_manager_table_exists_in_database(database_name: str, schema_name: str, table_name: str) -> bool:
+        database_name = str(database_name or '').strip()
+        schema_name = str(schema_name or 'dbo').strip() or 'dbo'
+        table_name = str(table_name or '').strip()
+        if not table_name:
+            return False
+        if database_name and not _database_manager_database_exists(database_name):
+            return False
+        prefix = f'{_dbm_qident(database_name)}.' if database_name else ''
+        return bool(db.session.execute(text(f"""
+            SELECT 1
+            FROM {prefix}INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = :schema_name
+              AND TABLE_NAME = :table_name
+        """), {
+            'schema_name': schema_name,
+            'table_name': table_name,
+        }).first())
+
+    def _database_manager_config_database_name(target_key: str) -> str:
+        target_key = _normalize_db_target(target_key)
+        conn_str = str((app.config.get('DB_CONN_STRS') or {}).get(target_key) or '').strip()
+        match = re.search(r'(?:^|;)DATABASE=([^;]+)', conn_str, flags=re.IGNORECASE)
+        if match:
+            return str(match.group(1) or '').strip()
+        if target_key == db_target_client:
+            return str(os.environ.get('DB_CLIENT_NAME', 'GR360_CORE') or '').strip()
+        if target_key == db_target_prod:
+            return str(os.environ.get('DB_PROD_NAME', 'GESTAO') or '').strip()
+        return ''
+
+    def _database_manager_app_database_name(schema_name: str, table_name: str) -> str:
+        current_db = _database_manager_schema_repo_database_name()
+        current_target = _resolve_db_target()
+        candidates = [
+            _database_manager_config_database_name(current_target),
+            _database_manager_config_database_name(db_target_client),
+            current_db,
+        ]
+        seen = set()
+        for candidate in candidates:
+            database_name = str(candidate or '').strip()
+            if not database_name or database_name.upper() in seen:
+                continue
+            seen.add(database_name.upper())
+            if _database_manager_table_exists_in_database(database_name, schema_name, table_name):
+                return database_name
+        return current_db
+
+    def _database_manager_external_columns(database_name: str, schema_name: str, table_name: str):
+        database_name = str(database_name or '').strip()
+        schema_name = str(schema_name or 'dbo').strip() or 'dbo'
+        table_name = str(table_name or '').strip()
+        if not table_name:
+            return []
+        if database_name and not _database_manager_database_exists(database_name):
+            return []
+        prefix = f'{_dbm_qident(database_name)}.' if database_name else ''
+        rows = db.session.execute(text(f"""
+            SELECT
+                COLUMN_NAME,
+                DATA_TYPE,
+                CHARACTER_MAXIMUM_LENGTH,
+                IS_NULLABLE,
+                COLUMN_DEFAULT,
+                ORDINAL_POSITION
+            FROM {prefix}INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = :schema_name
+              AND TABLE_NAME = :table_name
+            ORDER BY ORDINAL_POSITION
+        """), {
+            'schema_name': schema_name,
+            'table_name': table_name,
+        }).mappings().all()
+        return [{
+            'name': str(row.get('COLUMN_NAME') or '').strip(),
+            'data_type': str(row.get('DATA_TYPE') or '').strip().lower(),
+            'max_length': _to_int(row.get('CHARACTER_MAXIMUM_LENGTH'), 0),
+            'is_nullable': str(row.get('IS_NULLABLE') or '').strip().upper() == 'YES',
+            'default_definition': str(row.get('COLUMN_DEFAULT') or '').strip(),
+            'ordinal': _to_int(row.get('ORDINAL_POSITION'), 0),
+        } for row in rows]
+
+    def _database_manager_fe_database_column():
+        candidates = [
+            'PHC_DATABASE', 'PHC_DB', 'DBPHC', 'BDPHC',
+            'ERP_DATABASE', 'ERP_DB', 'DBERP', 'BDERP',
+            'DATABASE_NAME', 'DB_NAME', 'DBNAME',
+            'BASEDADOS', 'BASE_DADOS', 'BD', 'NOMEBD',
+        ]
+        rows = db.session.execute(text("""
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'dbo'
+              AND TABLE_NAME = 'FE'
+        """)).mappings().all()
+        available = {str(row.get('COLUMN_NAME') or '').strip().upper(): str(row.get('COLUMN_NAME') or '').strip() for row in rows}
+        for candidate in candidates:
+            if candidate in available:
+                return available[candidate]
+        return ''
+
+    def _database_manager_fe_database_scopes():
+        db_column = _database_manager_fe_database_column()
+        if not db_column:
+            return [], 'Não encontrei na FE um campo com o nome da base de dados PHC.'
+        rows = db.session.execute(text(f"""
+            SELECT
+                ISNULL(FEID, 0) AS FEID,
+                LTRIM(RTRIM(ISNULL(NOMEFISCAL, ISNULL(NOME, '')))) AS FE_NAME,
+                LTRIM(RTRIM(ISNULL({_dbm_qident(db_column)}, ''))) AS TARGET_DATABASE
+            FROM dbo.FE
+            WHERE ISNULL(ATIVA, 1) = 1
+              AND LTRIM(RTRIM(ISNULL({_dbm_qident(db_column)}, ''))) <> ''
+            ORDER BY ISNULL(NOMEFISCAL, ISNULL(NOME, '')), ISNULL(FEID, 0)
+        """)).mappings().all()
+        scopes = []
+        for row in rows:
+            target_database = str(row.get('TARGET_DATABASE') or '').strip()
+            scopes.append({
+                'scope_type': 'FE',
+                'feid': _to_int(row.get('FEID'), 0),
+                'fe_name': str(row.get('FE_NAME') or '').strip(),
+                'target_database': target_database,
+                'database_exists': _database_manager_database_exists(target_database),
+            })
+        return scopes, ''
+
+    def _database_manager_fixed_scope(mapping: dict):
+        target_database = str(mapping.get('target_database') or '').strip()
+        return [{
+            'scope_type': 'FIXED',
+            'feid': None,
+            'fe_name': '',
+            'target_database': target_database,
+            'database_exists': _database_manager_database_exists(target_database),
+        }]
+
+    def _database_manager_fetch_candidate_rows(database_name: str, schema_name: str, table_name: str, columns: list, where_sql: str = '', where_params: dict | None = None, limit: int = 100):
+        clean_columns = [str(column or '').strip() for column in columns if str(column or '').strip()]
+        if not clean_columns:
+            return []
+        limit_value = _to_int(limit, 0) if limit is not None else 0
+        top_sql = f"TOP {max(1, min(limit_value, 1000))} " if limit_value > 0 else ''
+        from_name = _dbm_qname(database_name, schema_name, table_name) if database_name else _dbm_qname(schema_name, table_name)
+        select_list = ', '.join(f'{_dbm_qident(column)} AS {_dbm_qident(f"c{idx}")}' for idx, column in enumerate(clean_columns))
+        order_list = ', '.join(_dbm_qident(column) for column in clean_columns[:3])
+        sql = f"SELECT {top_sql}{select_list} FROM {from_name}"
+        if where_sql:
+            sql += f" WHERE {where_sql}"
+        sql += f" ORDER BY {order_list}"
+        rows = db.session.execute(text(sql), where_params or {}).mappings().all()
+        result = []
+        for row in rows:
+            result.append({
+                clean_columns[idx]: row.get(f'c{idx}')
+                for idx in range(len(clean_columns))
+            })
+        return result
+
+    def _database_manager_target_alias(target: dict) -> str:
+        table_name = str((target or {}).get('target_table') or '').strip()
+        ref = str((target or {}).get('target_ref') or '').strip().upper()
+        return table_name or ref
+
+    def _database_manager_join_condition(condition: str) -> str:
+        condition = str(condition or '').strip()
+        if not condition:
+            return ''
+        forbidden = [';', '--', '/*', '*/']
+        if any(token in condition for token in forbidden):
+            raise ValueError('Condição de ligação inválida.')
+        return condition
+
+    def _database_manager_fetch_join_candidate_rows(database_name: str, target_tables: list[dict], columns: list[dict], limit: int = 100):
+        clean_columns = []
+        for item in columns or []:
+            ref = str((item or {}).get('target_ref') or 'T1').strip().upper()
+            column = str((item or {}).get('column') or '').strip()
+            key = str((item or {}).get('key') or f'{ref}.{column}').strip()
+            if ref and column and key:
+                clean_columns.append({'target_ref': ref, 'column': column, 'key': key})
+        if not clean_columns:
+            return []
+
+        targets_by_ref = {
+            str((item or {}).get('target_ref') or '').strip().upper(): item
+            for item in target_tables or []
+            if str((item or {}).get('target_ref') or '').strip()
+        }
+        base_target = targets_by_ref.get('T1')
+        if not base_target:
+            raise ValueError('Tabela principal T1 em falta no mapeamento.')
+
+        limit_value = _to_int(limit, 0) if limit is not None else 0
+        top_sql = f"TOP {max(1, min(limit_value, 1000))} " if limit_value > 0 else ''
+        base_alias = _database_manager_target_alias(base_target)
+        from_sql = (
+            f"{_dbm_qname(database_name, base_target.get('target_schema') or 'dbo', base_target.get('target_table'))} "
+            f"AS {_dbm_qident(base_alias)}"
+        )
+        for target in sorted((target_tables or []), key=lambda item: _to_int((item or {}).get('order'), 1)):
+            ref = str((target or {}).get('target_ref') or '').strip().upper()
+            if ref == 'T1' or not str((target or {}).get('target_table') or '').strip():
+                continue
+            alias = _database_manager_target_alias(target)
+            join_condition = _database_manager_join_condition(target.get('join_condition'))
+            if not join_condition:
+                raise ValueError(f'Condição de ligação em falta para {ref}.')
+            from_sql += (
+                f" LEFT JOIN {_dbm_qname(database_name, target.get('target_schema') or 'dbo', target.get('target_table'))} "
+                f"AS {_dbm_qident(alias)} ON {join_condition}"
+            )
+
+        select_parts = []
+        order_parts = []
+        for idx, item in enumerate(clean_columns):
+            target = targets_by_ref.get(item.get('target_ref'))
+            if not target:
+                raise ValueError(f"Tabela {item.get('target_ref')} em falta no mapeamento.")
+            alias = _database_manager_target_alias(target)
+            select_parts.append(f"{_dbm_qident(alias)}.{_dbm_qident(item.get('column'))} AS {_dbm_qident(f'c{idx}')}")
+            if len(order_parts) < 3:
+                order_parts.append(f"{_dbm_qident(alias)}.{_dbm_qident(item.get('column'))}")
+        sql = f"SELECT {top_sql}{', '.join(select_parts)} FROM {from_sql}"
+        if order_parts:
+            sql += f" ORDER BY {', '.join(order_parts)}"
+        rows = db.session.execute(text(sql)).mappings().all()
+        return [{
+            clean_columns[idx].get('key'): row.get(f'c{idx}')
+            for idx in range(len(clean_columns))
+        } for row in rows]
+
+    def _database_manager_row_exists(database_name: str, schema_name: str, table_name: str, key_values: dict) -> bool:
+        if not key_values:
+            return False
+        target_name = _dbm_qname(database_name, schema_name, table_name) if database_name else _dbm_qname(schema_name, table_name)
+        clauses = []
+        params = {}
+        for idx, (column, value) in enumerate(key_values.items()):
+            param_name = f'k{idx}'
+            clauses.append(f'{_dbm_qident(column)} = :{param_name}')
+            params[param_name] = value
+        row = db.session.execute(text(f"""
+            SELECT TOP 1 1 AS X
+            FROM {target_name}
+            WHERE {' AND '.join(clauses)}
+        """), params).first()
+        return bool(row)
+
+    def _database_manager_insert_row(database_name: str, schema_name: str, table_name: str, values: dict, sync_guard_key: str = ''):
+        if not values:
+            return
+        target_name = _dbm_qname(database_name, schema_name, table_name) if database_name else _dbm_qname(schema_name, table_name)
+        columns = list(values.keys())
+        sql = f"""
+            INSERT INTO {target_name}
+            ({', '.join(_dbm_qident(column) for column in columns)})
+            VALUES
+            ({', '.join(f':v{idx}' for idx in range(len(columns)))})
+        """
+        params = {f'v{idx}': values[column] for idx, column in enumerate(columns)}
+        sync_guard_key = str(sync_guard_key or '').strip()
+        if sync_guard_key:
+            db.session.execute(
+                text("EXEC sys.sp_set_session_context @key = :key, @value = 1"),
+                {'key': sync_guard_key},
+            )
+        try:
+            db.session.execute(text(sql), params)
+        finally:
+            if sync_guard_key:
+                db.session.execute(
+                    text("EXEC sys.sp_set_session_context @key = :key, @value = 0"),
+                    {'key': sync_guard_key},
+                )
+
+    def _database_manager_update_row(database_name: str, schema_name: str, table_name: str, values: dict, key_values: dict, sync_guard_key: str = ''):
+        if not values or not key_values:
+            return 0
+        target_name = _dbm_qname(database_name, schema_name, table_name) if database_name else _dbm_qname(schema_name, table_name)
+        set_columns = list(values.keys())
+        key_columns = list(key_values.keys())
+        sql = f"""
+            UPDATE {target_name}
+            SET {', '.join(f'{_dbm_qident(column)} = :v{idx}' for idx, column in enumerate(set_columns))}
+            WHERE {' AND '.join(f'{_dbm_qident(column)} = :k{idx}' for idx, column in enumerate(key_columns))}
+        """
+        params = {f'v{idx}': values[column] for idx, column in enumerate(set_columns)}
+        params.update({f'k{idx}': key_values[column] for idx, column in enumerate(key_columns)})
+        sync_guard_key = str(sync_guard_key or '').strip()
+        if sync_guard_key:
+            db.session.execute(
+                text("EXEC sys.sp_set_session_context @key = :key, @value = 1"),
+                {'key': sync_guard_key},
+            )
+        try:
+            result = db.session.execute(text(sql), params)
+            return max(0, _to_int(getattr(result, 'rowcount', 0), 0))
+        finally:
+            if sync_guard_key:
+                db.session.execute(
+                    text("EXEC sys.sp_set_session_context @key = :key, @value = 0"),
+                    {'key': sync_guard_key},
+                )
+
+    def _database_manager_prepare_insert_values(values: dict, dest_columns_by_upper: dict):
+        prepared = {}
+        truncated = []
+        text_types = {'char', 'varchar', 'nchar', 'nvarchar'}
+        numeric_types = {
+            'bigint', 'int', 'smallint', 'tinyint',
+            'decimal', 'numeric', 'money', 'smallmoney',
+            'float', 'real',
+        }
+        date_types = {'date', 'datetime', 'datetime2', 'smalldatetime', 'datetimeoffset'}
+        for column_name, value in (values or {}).items():
+            meta = dest_columns_by_upper.get(str(column_name or '').strip().upper()) or {}
+            data_type = str(meta.get('data_type') or '').strip().lower()
+            max_length = _to_int(meta.get('max_length'), 0)
+            next_value = value
+            if next_value is None:
+                if data_type in text_types:
+                    next_value = ''
+                elif data_type in numeric_types:
+                    next_value = 0
+                elif data_type in date_types:
+                    next_value = '19000101'
+                elif data_type == 'bit':
+                    next_value = 0
+            if (
+                isinstance(next_value, str)
+                and data_type in text_types
+                and max_length > 0
+                and len(next_value) > max_length
+            ):
+                truncated.append({
+                    'column': column_name,
+                    'max_length': max_length,
+                    'original_length': len(next_value),
+                })
+                next_value = next_value[:max_length]
+            prepared[column_name] = next_value
+        return prepared, truncated
+
+    def _database_manager_update_values(values: dict, key_values: dict, dest_columns_by_upper: dict, exclude_columns=None):
+        key_names = {str(column or '').strip().upper() for column in (key_values or {}).keys()}
+        excluded = {str(column or '').strip().upper() for column in (exclude_columns or [])}
+        result = {}
+        for column_name, value in (values or {}).items():
+            column_upper = str(column_name or '').strip().upper()
+            if not column_upper or column_upper in key_names or column_upper in excluded:
+                continue
+            meta = dest_columns_by_upper.get(column_upper) or {}
+            if bool(meta.get('is_identity')) or bool(meta.get('is_computed')):
+                continue
+            result[column_name] = value
+        return result
+
+    def _database_manager_mapping_plan(table_key: str, direction: str, limit: int = 100, execute: bool = False, operation: str = 'INSERT_ONLY'):
+        direction = str(direction or '').strip().upper()
+        if direction not in {'APP_TO_TARGET', 'TARGET_TO_APP'}:
+            raise ValueError('Direção inválida.')
+        operation = str(operation or 'INSERT_ONLY').strip().upper()
+        if operation not in {'INSERT_ONLY', 'UPDATE_ONLY', 'UPSERT'}:
+            raise ValueError('Modo de importação inválido.')
+        preview_limit = max(1, min(_to_int(limit, 100), 1000))
+        row_limit = None if execute else preview_limit
+        payload = _load_database_manager_mapping(table_key)
+        if not payload:
+            raise ValueError('Mapeamento não encontrado.')
+
+        mapping = payload.get('mapping') or {}
+        table = payload.get('table') or {}
+        target_scope = str(mapping.get('target_scope') or 'FE').strip().upper()
+        target_schema = str(mapping.get('target_schema') or 'dbo').strip() or 'dbo'
+        target_table = str(mapping.get('target_table') or '').strip()
+        if not target_table:
+            raise ValueError('Tabela de destino em falta no mapeamento.')
+        target_tables = list(mapping.get('target_tables') or [])
+        if not any(str((item or {}).get('target_ref') or '').strip().upper() == 'T1' for item in target_tables):
+            target_tables.insert(0, {
+                'target_ref': 'T1',
+                'target_schema': target_schema,
+                'target_table': target_table,
+                'join_condition': '',
+                'order': 1,
+            })
+        target_tables_by_ref = {
+            str((item or {}).get('target_ref') or '').strip().upper(): item
+            for item in target_tables
+            if str((item or {}).get('target_ref') or '').strip()
+        }
+
+        source_schema = str(table.get('schema') or mapping.get('source_schema') or 'dbo').strip() or 'dbo'
+        source_table = str(table.get('name') or mapping.get('source_table') or '').strip()
+        app_database = _database_manager_app_database_name(source_schema, source_table)
+        if app_database and not _database_manager_table_exists_in_database(app_database, source_schema, source_table):
+            raise ValueError(f'Tabela da app não encontrada: {app_database}.{source_schema}.{source_table}')
+        app_columns = _load_database_manager_columns(_to_int(table.get('object_id'), 0))
+        app_columns_by_upper = {
+            str(column.get('name') or '').strip().upper(): column
+            for column in app_columns
+            if str(column.get('name') or '').strip()
+        }
+        app_has_feid = 'FEID' in app_columns_by_upper
+
+        mapped_fields = [
+            field for field in (payload.get('fields') or [])
+            if str(field.get('source_column') or '').strip()
+               and str(field.get('target_column') or '').strip()
+               and not bool(field.get('source_missing'))
+               and (
+                   direction == 'TARGET_TO_APP'
+                   or str(field.get('target_ref') or 'T1').strip().upper() == 'T1'
+               )
+        ]
+        if target_scope == 'FIXED':
+            if direction == 'APP_TO_TARGET':
+                mapped_fields = [
+                    field for field in mapped_fields
+                    if str(field.get('target_column') or '').strip().upper() != 'FEID'
+                ]
+            else:
+                mapped_fields = [
+                    field for field in mapped_fields
+                    if str(field.get('source_column') or '').strip().upper() != 'FEID'
+                ]
+        if not mapped_fields:
+            raise ValueError('Não existem campos com destino PHC definido.')
+        key_fields = [field for field in mapped_fields if bool(field.get('is_key'))]
+        if not key_fields:
+            raise ValueError('Define pelo menos um campo como chave antes de simular/importar.')
+
+        scopes = []
+        scope_warning = ''
+        if target_scope == 'FE':
+            scopes, scope_warning = _database_manager_fe_database_scopes()
+            if not scopes:
+                raise ValueError(scope_warning or 'Não existem FE com base de dados PHC definida.')
+        else:
+            scopes = _database_manager_fixed_scope(mapping)
+
+        total_inserted = 0
+        total_updated = 0
+        total_skipped = 0
+        total_errors = 0
+        total_insert_candidates = 0
+        total_update_candidates = 0
+        total_rows_seen = 0
+        plan_scopes = []
+
+        for scope in scopes:
+            scope_errors = []
+            scope_rows = []
+            target_database = str(scope.get('target_database') or '').strip()
+            if target_scope == 'FIXED' and not target_database:
+                scope_errors.append('Base de dados fixa em falta.')
+            elif not scope.get('database_exists'):
+                scope_errors.append(f'Base de dados não encontrada: {target_database}')
+
+            external_columns = []
+            external_columns_by_ref = {}
+            if not scope_errors:
+                used_target_refs = {
+                    str(field.get('target_ref') or 'T1').strip().upper()
+                    for field in mapped_fields
+                    if str(field.get('target_ref') or 'T1').strip()
+                }
+                used_target_refs.add('T1')
+                refs_to_load = [
+                    ref for ref, target in target_tables_by_ref.items()
+                    if ref in used_target_refs or (direction == 'TARGET_TO_APP' and str((target or {}).get('target_table') or '').strip())
+                ]
+                for ref in refs_to_load:
+                    target = target_tables_by_ref.get(ref) or {}
+                    ref_schema = str(target.get('target_schema') or 'dbo').strip() or 'dbo'
+                    ref_table = str(target.get('target_table') or '').strip()
+                    if not ref_table:
+                        scope_errors.append(f'Tabela {ref} em falta no mapeamento.')
+                        continue
+                    ref_columns = _database_manager_external_columns(target_database, ref_schema, ref_table)
+                    if not ref_columns:
+                        scope_errors.append(f'Tabela destino não encontrada: {target_database}.{ref_schema}.{ref_table}')
+                    external_columns_by_ref[ref] = {
+                        str(column.get('name') or '').strip().upper(): column
+                        for column in ref_columns
+                        if str(column.get('name') or '').strip()
+                    }
+                external_columns = list((external_columns_by_ref.get('T1') or {}).values())
+            external_columns_by_upper = {
+                str(column.get('name') or '').strip().upper(): column
+                for column in external_columns
+                if str(column.get('name') or '').strip()
+            }
+
+            if not scope_errors:
+                if direction == 'APP_TO_TARGET':
+                    source_database = app_database
+                    source_schema_run = source_schema
+                    source_table_run = source_table
+                    dest_database = target_database
+                    dest_schema = target_schema
+                    dest_table = target_table
+                    source_cols = [str(field.get('source_column') or '').strip() for field in mapped_fields]
+                    source_to_dest = {
+                        str(field.get('source_column') or '').strip(): str(field.get('target_column') or '').strip()
+                        for field in mapped_fields
+                    }
+                    key_source_to_dest = {
+                        str(field.get('source_column') or '').strip(): str(field.get('target_column') or '').strip()
+                        for field in key_fields
+                    }
+                    missing_dest = [dest for dest in source_to_dest.values() if dest.upper() not in external_columns_by_upper]
+                    dest_columns_by_upper = external_columns_by_upper
+                    where_sql = ''
+                    where_params = {}
+                    if target_scope == 'FE' and app_has_feid:
+                        where_sql = 'ISNULL([FEID], 0) = :feid'
+                        where_params['feid'] = _to_int(scope.get('feid'), 0)
+                else:
+                    source_database = target_database
+                    source_schema_run = target_schema
+                    source_table_run = target_table
+                    dest_database = app_database
+                    dest_schema = source_schema
+                    dest_table = source_table
+                    source_cols = [
+                        f"{str(field.get('target_ref') or 'T1').strip().upper()}.{str(field.get('target_column') or '').strip()}"
+                        for field in mapped_fields
+                    ]
+                    source_selects = [{
+                        'target_ref': str(field.get('target_ref') or 'T1').strip().upper(),
+                        'column': str(field.get('target_column') or '').strip(),
+                        'key': f"{str(field.get('target_ref') or 'T1').strip().upper()}.{str(field.get('target_column') or '').strip()}",
+                    } for field in mapped_fields]
+                    source_to_dest = {
+                        f"{str(field.get('target_ref') or 'T1').strip().upper()}.{str(field.get('target_column') or '').strip()}": str(field.get('source_column') or '').strip()
+                        for field in mapped_fields
+                    }
+                    key_source_to_dest = {
+                        f"{str(field.get('target_ref') or 'T1').strip().upper()}.{str(field.get('target_column') or '').strip()}": str(field.get('source_column') or '').strip()
+                        for field in key_fields
+                    }
+                    missing_dest = [dest for dest in source_to_dest.values() if dest.upper() not in app_columns_by_upper]
+                    dest_columns_by_upper = app_columns_by_upper
+                    where_sql = ''
+                    where_params = {}
+
+                missing_source = []
+                if direction == 'APP_TO_TARGET':
+                    missing_source = [column for column in source_cols if column.upper() not in app_columns_by_upper]
+                else:
+                    missing_source = []
+                    for field in mapped_fields:
+                        ref = str(field.get('target_ref') or 'T1').strip().upper()
+                        column = str(field.get('target_column') or '').strip()
+                        if column.upper() not in (external_columns_by_ref.get(ref) or {}):
+                            missing_source.append(f'{ref}.{column}')
+                if missing_source:
+                    scope_errors.append('Campos de origem em falta: ' + ', '.join(sorted(set(missing_source))))
+                if missing_dest:
+                    scope_errors.append('Campos de destino em falta: ' + ', '.join(sorted(set(missing_dest))))
+
+            if not scope_errors:
+                if direction == 'TARGET_TO_APP':
+                    source_selects_unique = list({item.get('key'): item for item in source_selects}.values())
+                    source_rows = _database_manager_fetch_join_candidate_rows(
+                        source_database,
+                        target_tables,
+                        source_selects_unique,
+                        limit=row_limit,
+                    )
+                else:
+                    source_cols_unique = list(dict.fromkeys(source_cols))
+                    source_rows = _database_manager_fetch_candidate_rows(
+                        source_database,
+                        source_schema_run,
+                        source_table_run,
+                        source_cols_unique,
+                        where_sql=where_sql,
+                        where_params=where_params,
+                        limit=row_limit,
+                )
+                for row_index, row in enumerate(source_rows, start=1):
+                    total_rows_seen += 1
+                    values = {
+                        dest_col: row.get(source_col)
+                        for source_col, dest_col in source_to_dest.items()
+                    }
+                    generated_insert_columns = set()
+                    if direction == 'TARGET_TO_APP' and target_scope == 'FE' and app_has_feid and 'FEID' not in {k.upper() for k in values.keys()}:
+                        values['FEID'] = _to_int(scope.get('feid'), 0)
+                    if direction == 'TARGET_TO_APP':
+                        for column in app_columns:
+                            column_name = str(column.get('name') or '').strip()
+                            if not column_name or column_name.upper() in {k.upper() for k in values.keys()}:
+                                continue
+                            if bool(column.get('is_primary_key')) and column_name.upper().endswith('STAMP') and not bool(column.get('is_identity')):
+                                values[column_name] = _new_stamp_25()
+                                generated_insert_columns.add(column_name.upper())
+
+                    raw_key_values = {
+                        dest_col: values.get(dest_col)
+                        for _, dest_col in key_source_to_dest.items()
+                    }
+                    if direction == 'TARGET_TO_APP' and target_scope == 'FE' and app_has_feid:
+                        raw_key_values.setdefault('FEID', _to_int(scope.get('feid'), 0))
+                    values, truncated_columns = _database_manager_prepare_insert_values(values, dest_columns_by_upper)
+                    key_values = {
+                        dest_col: values.get(dest_col)
+                        for _, dest_col in key_source_to_dest.items()
+                    }
+                    if direction == 'TARGET_TO_APP' and target_scope == 'FE' and app_has_feid:
+                        key_values.setdefault('FEID', _to_int(scope.get('feid'), 0))
+                    if not raw_key_values or any(value in (None, '') for value in raw_key_values.values()):
+                        action = 'error'
+                        reason = 'Chave incompleta.'
+                        total_errors += 1
+                    elif _database_manager_row_exists(dest_database, dest_schema, dest_table, key_values):
+                        if operation in {'UPDATE_ONLY', 'UPSERT'}:
+                            update_values = _database_manager_update_values(
+                                values,
+                                key_values,
+                                dest_columns_by_upper,
+                                exclude_columns=generated_insert_columns,
+                            )
+                            if not update_values:
+                                action = 'skip'
+                                reason = 'Já existe no destino, mas não há campos atualizáveis.'
+                                total_skipped += 1
+                            else:
+                                action = 'update'
+                                reason = ''
+                                total_update_candidates += 1
+                                if execute:
+                                    sync_guard_key = ''
+                                    if direction == 'TARGET_TO_APP':
+                                        sync_guard_key = f'SYNC_{dest_table}'.upper()
+                                    _database_manager_update_row(
+                                        dest_database,
+                                        dest_schema,
+                                        dest_table,
+                                        update_values,
+                                        key_values,
+                                        sync_guard_key=sync_guard_key,
+                                    )
+                                    total_updated += 1
+                        else:
+                            action = 'skip'
+                            reason = 'Já existe no destino.'
+                            total_skipped += 1
+                    else:
+                        if operation in {'INSERT_ONLY', 'UPSERT'}:
+                            action = 'insert'
+                            reason = ''
+                            total_insert_candidates += 1
+                            if execute:
+                                sync_guard_key = ''
+                                if direction == 'TARGET_TO_APP':
+                                    sync_guard_key = f'SYNC_{dest_table}'.upper()
+                                _database_manager_insert_row(dest_database, dest_schema, dest_table, values, sync_guard_key=sync_guard_key)
+                                total_inserted += 1
+                        else:
+                            action = 'skip'
+                            reason = 'Não existe no destino.'
+                            total_skipped += 1
+
+                    if truncated_columns:
+                        trunc_msg = 'Truncado: ' + ', '.join(
+                            f"{item.get('column')}({item.get('original_length')}->{item.get('max_length')})"
+                            for item in truncated_columns
+                        )
+                        reason = f'{reason} | {trunc_msg}' if reason else trunc_msg
+
+                    if not execute or len(scope_rows) < preview_limit:
+                        scope_rows.append({
+                            'row_no': row_index,
+                            'action': action,
+                            'reason': reason,
+                            'keys': {key: _dbm_json_value(value) for key, value in key_values.items()},
+                            'values': {key: _dbm_json_value(value) for key, value in values.items()},
+                        })
+
+            for message in scope_errors:
+                total_errors += 1
+                scope_rows.append({
+                    'row_no': 0,
+                    'action': 'error',
+                    'reason': message,
+                    'keys': {},
+                    'values': {},
+                })
+
+            plan_scopes.append({
+                'scope_type': scope.get('scope_type'),
+                'feid': scope.get('feid'),
+                'fe_name': scope.get('fe_name') or '',
+                'target_database': target_database,
+                'rows': scope_rows,
+                'errors': scope_errors,
+            })
+
+        return {
+            'ok': True,
+            'executed': bool(execute),
+            'direction': direction,
+            'operation': operation,
+            'limit': preview_limit,
+            'limited': not bool(execute),
+            'table': table,
+            'mapping': mapping,
+            'app_database': app_database,
+            'totals': {
+                'inserted': total_inserted,
+                'updated': total_updated,
+                'skipped': total_skipped,
+                'errors': total_errors,
+                'insert_candidates': total_insert_candidates,
+                'update_candidates': total_update_candidates,
+                'rows': total_rows_seen,
+                'preview_rows': sum(len(scope.get('rows', [])) for scope in plan_scopes),
+                'scopes': len(plan_scopes),
+            },
+            'scopes': plan_scopes,
+            'warning': scope_warning,
         }
 
     database_manager_schema_repo_sync_lock = threading.Lock()
@@ -13102,6 +14699,34 @@ def create_app():
             initial_table_key=initial_table_key,
         )
 
+    @app.route('/database_manager/new_table')
+    @app.route('/database-manager/new-table')
+    @login_required
+    def database_manager_new_table_page():
+        if not _database_manager_allowed():
+            abort(403)
+        return render_template(
+            'database_table_new.html',
+            page_title='Nova Tabela',
+        )
+
+    @app.route('/database_manager/mapping')
+    @app.route('/database-manager/mapping')
+    @app.route('/database_manager/mapping/<path:table_key>')
+    @app.route('/database-manager/mapping/<path:table_key>')
+    @login_required
+    def database_manager_mapping_page(table_key=None):
+        if not _database_manager_allowed():
+            abort(403)
+        initial_table_key = _database_manager_normalize_table_key(
+            table_key or request.args.get('table') or ''
+        )
+        return render_template(
+            'database_mapping.html',
+            page_title='Mapeamento de Tabelas',
+            initial_table_key=initial_table_key,
+        )
+
     @app.route('/faturacao/ft/new')
     @login_required
     def faturacao_ft_new():
@@ -16643,6 +18268,228 @@ def create_app():
         if not detail:
             return jsonify({'error': 'Tabela não encontrada.'}), 404
         return jsonify(detail)
+
+    @app.route('/api/database_manager/create_table/preview', methods=['POST'])
+    @login_required
+    def api_database_manager_create_table_preview():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        try:
+            payload = _database_manager_build_create_table_sql(body)
+            return jsonify({'ok': True, **payload})
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao validar criação de tabela no Database Manager.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/database_manager/create_table', methods=['POST'])
+    @login_required
+    def api_database_manager_create_table():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        try:
+            payload = _database_manager_build_create_table_sql(body)
+            if not payload.get('already_exists'):
+                db.session.execute(text(payload.get('sql') or ''))
+                db.session.commit()
+                try:
+                    _database_manager_sync_schema_repository(
+                        source='create_table',
+                        requested_by=str(getattr(current_user, 'LOGIN', '') or '').strip(),
+                    )
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                    app.logger.exception('Tabela criada, mas falhou a sincronização do repositório de estrutura.')
+            return jsonify({'ok': True, **payload})
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao criar tabela no Database Manager.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/database_manager/create_table/import_sources', methods=['GET'])
+    @login_required
+    def api_database_manager_create_table_import_sources():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        try:
+            scopes, warning = _database_manager_fe_database_scopes()
+            databases = [
+                str(row.get('name') or '').strip()
+                for row in db.session.execute(text("""
+                    SELECT name
+                    FROM sys.databases
+                    WHERE state = 0
+                    ORDER BY name
+                """)).mappings().all()
+                if str(row.get('name') or '').strip()
+            ]
+            return jsonify({
+                'ok': True,
+                'current_database': _database_manager_schema_repo_database_name(),
+                'databases': databases,
+                'fe_databases': scopes,
+                'warning': warning,
+            })
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar origens para importação de tabela.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/database_manager/create_table/source_columns', methods=['POST'])
+    @login_required
+    def api_database_manager_create_table_source_columns():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        try:
+            source_mode = str(body.get('source_mode') or 'FIXED').strip().upper()
+            schema_name, table_name = _database_manager_parse_schema_table(body.get('table_name'))
+            database_name = ''
+            feid = _to_int(body.get('feid'), 0)
+            if source_mode == 'FE':
+                scopes, warning = _database_manager_fe_database_scopes()
+                if warning and not scopes:
+                    raise ValueError(warning)
+                selected = None
+                if feid:
+                    selected = next((scope for scope in scopes if _to_int(scope.get('feid'), 0) == feid), None)
+                if not selected and scopes:
+                    selected = scopes[0]
+                if not selected:
+                    raise ValueError('Não existem FE com base de dados definida.')
+                database_name = str(selected.get('target_database') or '').strip()
+                if not database_name:
+                    raise ValueError('A FE selecionada não tem base de dados definida.')
+            else:
+                database_name = str(body.get('database') or '').strip()
+                if not database_name:
+                    raise ValueError('Base de dados obrigatória.')
+
+            payload = _database_manager_read_table_definition(database_name, schema_name, table_name)
+            return jsonify({'ok': True, **payload})
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao ler campos da tabela origem.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/database_manager/mapping', methods=['GET'])
+    @login_required
+    def api_database_manager_mapping_get():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        table_key = _database_manager_normalize_table_key(request.args.get('table') or '')
+        if not table_key:
+            return jsonify({'error': 'Tabela obrigatória.'}), 400
+
+        try:
+            payload = _load_database_manager_mapping(table_key)
+            if not payload:
+                return jsonify({'error': 'Tabela não encontrada.'}), 404
+            return jsonify(payload)
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar mapeamento do Database Manager.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/database_manager/mapping', methods=['POST'])
+    @login_required
+    def api_database_manager_mapping_save():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        table_key = _database_manager_normalize_table_key(body.get('table') or request.args.get('table') or '')
+        if not table_key:
+            return jsonify({'error': 'Tabela obrigatória.'}), 400
+
+        try:
+            payload = _save_database_manager_mapping(
+                table_key,
+                body,
+                str(getattr(current_user, 'LOGIN', '') or '').strip(),
+            )
+            return jsonify({'ok': True, **payload})
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar mapeamento do Database Manager.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/database_manager/mapping/simulate', methods=['POST'])
+    @login_required
+    def api_database_manager_mapping_simulate():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        table_key = _database_manager_normalize_table_key(body.get('table') or '')
+        if not table_key:
+            return jsonify({'error': 'Tabela obrigatória.'}), 400
+
+        try:
+            payload = _database_manager_mapping_plan(
+                table_key,
+                body.get('direction') or '',
+                limit=_to_int(body.get('limit'), 100),
+                execute=False,
+                operation=body.get('operation') or 'INSERT_ONLY',
+            )
+            return jsonify(payload)
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao simular importação/exportação do Database Manager.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/database_manager/mapping/import', methods=['POST'])
+    @login_required
+    def api_database_manager_mapping_import():
+        if not _database_manager_allowed():
+            return jsonify({'error': 'Sem permissão para usar o Database Manager.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        table_key = _database_manager_normalize_table_key(body.get('table') or '')
+        if not table_key:
+            return jsonify({'error': 'Tabela obrigatória.'}), 400
+
+        try:
+            payload = _database_manager_mapping_plan(
+                table_key,
+                body.get('direction') or '',
+                limit=_to_int(body.get('limit'), 100),
+                execute=True,
+                operation=body.get('operation') or 'INSERT_ONLY',
+            )
+            db.session.commit()
+            return jsonify(payload)
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao importar/exportar dados do Database Manager.')
+            return jsonify({'error': str(exc)}), 500
 
     @app.route('/api/database_manager/schema_repository/sync', methods=['POST'])
     @login_required

@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% set gr_monitor_i18n_keys = [
+  'gr_monitor.title',
+  'gr_monitor.subtitle',
+  'gr_monitor.pending',
+  'gr_monitor.overdue',
+  'gr_monitor.today',
+  'gr_monitor.future',
+  'gr_monitor.treated',
+  'gr_monitor.empty_pending',
+  'gr_monitor.empty_lane',
+  'gr_monitor.loading',
+  'gr_monitor.load_error',
+  'gr_monitor.refresh',
+  'gr_monitor.modal_title',
+  'gr_monitor.open_task',
+  'gr_monitor.save_status',
+  'gr_monitor.no_status_options',
+  'gr_monitor.status_saved',
+  'gr_monitor.status_save_error',
+  'gr_monitor.task_count',
+  'gr_monitor.task_count_one',
+  'gr_monitor.assigned_to',
+  'gr_monitor.origin',
+  'gr_monitor.status',
+  'gr_monitor.location',
+  'gr_monitor.priority',
+  'gr_monitor.no_description'
+] %}
+
+{% block title %}{{ _('gr_monitor.title') }}{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_planning.static', filename='gr_planning_host.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr-monitor-page">
+  <div class="sz_page_container gr-monitor-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-monitor-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">{{ _('gr_monitor.title') }}</div>
+        <div class="sz_page_subtitle" id="grMonitorSummary">{{ _('gr_monitor.subtitle') }}</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <button id="grMonitorRefresh" type="button" class="sz_button sz_button_ghost" title="{{ _('gr_monitor.refresh') }}">
+          <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+          <span>{{ _('gr_monitor.refresh') }}</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body gr-monitor-body">
+      <div class="gr-monitor-board" aria-live="polite">
+        <section class="gr-monitor-column" data-lane="pending">
+          <header class="gr-monitor-column-header">
+            <span class="gr-monitor-column-title">{{ _('gr_monitor.pending') }}</span>
+            <span class="gr-monitor-count" id="grCountPending">0</span>
+          </header>
+          <div class="gr-monitor-lane" id="grLanePending">
+            <div class="gr-monitor-empty">{{ _('gr_monitor.empty_pending') }}</div>
+          </div>
+        </section>
+
+        <section class="gr-monitor-column" data-lane="overdue">
+          <header class="gr-monitor-column-header">
+            <span class="gr-monitor-column-title gr-monitor-text-danger">{{ _('gr_monitor.overdue') }}</span>
+            <span class="gr-monitor-count" id="grCountOverdue">0</span>
+          </header>
+          <div class="gr-monitor-lane" id="grLaneOverdue"></div>
+        </section>
+
+        <section class="gr-monitor-column" data-lane="today">
+          <header class="gr-monitor-column-header">
+            <span class="gr-monitor-column-title gr-monitor-text-warning">{{ _('gr_monitor.today') }}</span>
+            <span class="gr-monitor-count" id="grCountToday">0</span>
+          </header>
+          <div class="gr-monitor-lane" id="grLaneToday"></div>
+        </section>
+
+        <section class="gr-monitor-column" data-lane="future">
+          <header class="gr-monitor-column-header">
+            <span class="gr-monitor-column-title gr-monitor-text-success">{{ _('gr_monitor.future') }}</span>
+            <span class="gr-monitor-count" id="grCountFuture">0</span>
+          </header>
+          <div class="gr-monitor-lane" id="grLaneFuture"></div>
+        </section>
+
+        <section class="gr-monitor-column" data-lane="treated">
+          <header class="gr-monitor-column-header">
+            <span class="gr-monitor-column-title gr-monitor-text-muted">{{ _('gr_monitor.treated') }}</span>
+            <span class="gr-monitor-count" id="grCountTreated">0</span>
+          </header>
+          <div class="gr-monitor-lane" id="grLaneTreated"></div>
+        </section>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal fade gr-monitor-modal" id="grTaskModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ _('gr_monitor.modal_title') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
+      </div>
+      <div class="modal-body">
+        <div class="gr-monitor-modal-title" id="grModalTaskTitle"></div>
+        <div class="gr-monitor-modal-meta" id="grModalTaskMeta"></div>
+        <div class="gr-monitor-modal-description" id="grModalTaskDescription"></div>
+        <label class="sz_label mt-3" for="grModalTaskStatus">{{ _('gr_monitor.status') }}</label>
+        <select class="sz_select" id="grModalTaskStatus"></select>
+        <div class="sz_text_muted mt-2" id="grModalStatusHint"></div>
+      </div>
+      <div class="modal-footer">
+        <a class="sz_button sz_button_secondary" id="grModalOpenTask" href="#" target="_self">
+          <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+          <span>{{ _('gr_monitor.open_task') }}</span>
+        </a>
+        <button type="button" class="sz_button sz_button_primary" id="grModalSaveStatus">
+          <span>{{ _('gr_monitor.save_status') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ i18n_js(gr_monitor_i18n_keys)|tojson }});
+  </script>
+  <script src="{{ url_for('gr_planning.static', filename='gr_monitor.js') }}" defer></script>
+{% endblock %}

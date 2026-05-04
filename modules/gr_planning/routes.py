@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
 from pathlib import Path
 
-from flask import Blueprint, Response, abort, render_template, request, send_from_directory
+from flask import Blueprint, Response, abort, jsonify, render_template, request, send_from_directory
 from flask_login import current_user, login_required
 
 from .service import (
@@ -14,12 +15,17 @@ from .service import (
     build_monthly_sheet_page,
     build_monthly_sheet_intersol_page,
     build_team_management_page,
+    can_access_monitor,
     can_access_monthly_sheet,
     can_access_monthly_sheet_intersol,
     can_access_planning,
     can_access_team_management,
+    fetch_gr_task_status_options,
+    fetch_gr_monitor_tasks,
     get_api_access_scope,
     open_legacy_request,
+    _parse_date_param,
+    update_gr_task_status,
     TEAM_MANAGEMENT_SCRIPT_FILES,
 )
 
@@ -60,6 +66,13 @@ def _ensure_monthly_sheet_access() -> dict:
 
 def _ensure_monthly_sheet_intersol_access() -> dict:
     allowed, legacy_user = can_access_monthly_sheet_intersol(_current_login_value())
+    if not allowed or not legacy_user:
+        abort(403)
+    return legacy_user
+
+
+def _ensure_monitor_access() -> dict:
+    allowed, legacy_user = can_access_monitor(_current_login_value())
     if not allowed or not legacy_user:
         abort(403)
     return legacy_user
@@ -150,6 +163,47 @@ def monthly_sheet_intersol():
         page_meta=page_meta,
         legacy_script_files=MONTHLY_SHEET_INTERSOL_SCRIPT_FILES,
     )
+
+
+@bp.route("/gr360_monitor")
+@bp.route("/gr_monitor")
+@bp.route("/gr_planning/monitor")
+@login_required
+def gr_monitor():
+    _ensure_monitor_access()
+    return render_template("gr_planning/gr_monitor.html")
+
+
+@bp.route("/api/gr_planning/monitor/tasks")
+@login_required
+def gr_monitor_tasks():
+    _ensure_monitor_access()
+    today = date.today()
+    start = _parse_date_param(request.args.get("start"), today - timedelta(days=30))
+    end = _parse_date_param(request.args.get("end"), today + timedelta(days=60))
+    return jsonify({
+        "rows": fetch_gr_monitor_tasks(start_date=start, end_date=end),
+    })
+
+
+@bp.route("/api/gr_planning/monitor/status-options")
+@login_required
+def gr_monitor_status_options():
+    _ensure_monitor_access()
+    return jsonify({"rows": fetch_gr_task_status_options()})
+
+
+@bp.route("/api/gr_planning/monitor/tasks/<task_id>/status", methods=["POST"])
+@login_required
+def gr_monitor_task_status(task_id: str):
+    _ensure_monitor_access()
+    body = request.get_json(silent=True) or {}
+    try:
+        status_code = int(body.get("status_code"))
+        user_login = (getattr(current_user, "LOGIN", "") or "").strip()
+        return jsonify(update_gr_task_status(task_id, status_code, user_login=user_login))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @bp.route("/gr_planning/legacy-static/<path:filename>")
