@@ -4319,6 +4319,30 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   box-shadow: var(--sz-shadow-2);
 }
 
+[data-sz-theme="dark"] .planner2-table-wrap,
+[data-sz-theme="dark"] .planner2-side-card,
+[data-sz-theme="geek"] .planner2-table-wrap,
+[data-sz-theme="geek"] .planner2-side-card {
+  scrollbar-color: color-mix(in srgb, var(--sz-color-text-muted) 46%, transparent) transparent;
+}
+
+[data-sz-theme="dark"] .planner2-table-wrap::-webkit-scrollbar-thumb,
+[data-sz-theme="dark"] .planner2-side-card::-webkit-scrollbar-thumb,
+[data-sz-theme="geek"] .planner2-table-wrap::-webkit-scrollbar-thumb,
+[data-sz-theme="geek"] .planner2-side-card::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--sz-color-text-muted) 38%, transparent);
+}
+
+[data-sz-theme="dark"] .planner2-now-line {
+  background: rgba(255, 118, 118, 0.42);
+  box-shadow: 0 0 0 1px rgba(10, 20, 32, 0.45);
+}
+
+[data-sz-theme="geek"] .planner2-now-line {
+  background: rgba(255, 80, 80, 0.5);
+  box-shadow: 0 0 8px rgba(255, 80, 80, 0.24);
+}
+
 [data-sz-theme="dark"] .planner2-table thead th,
 [data-sz-theme="dark"] .planner2-col-lodge,
 [data-sz-theme="geek"] .planner2-table thead th,
@@ -4490,6 +4514,30 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   color: #d9ffe7;
 }
 
+[data-sz-theme="dark"] .planner2-clean-status-icon {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(148, 163, 184, 0.36);
+  color: #dbeafe;
+}
+
+[data-sz-theme="dark"] .planner2-cleaning-status-execucao .planner2-clean-status-icon {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(96, 165, 250, 0.44);
+  color: #bfdbfe;
+}
+
+[data-sz-theme="dark"] .planner2-cleaning-status-concluida .planner2-clean-status-icon {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(74, 222, 128, 0.42);
+  color: #bbf7d0;
+}
+
+[data-sz-theme="dark"] .planner2-cleaning-status-atrasada .planner2-clean-status-icon {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(248, 113, 113, 0.46);
+  color: #fecaca;
+}
+
 [data-sz-theme="dark"] .planner2-tooltip {
   background: #17283d;
   border: 1px solid #305072;
@@ -4574,6 +4622,30 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
 
 [data-sz-theme="geek"] .planner2-bar-clean-state .planner2-bar-label {
   color: #c7ffce;
+}
+
+[data-sz-theme="geek"] .planner2-clean-status-icon {
+  background: rgba(5, 13, 7, 0.78);
+  border-color: rgba(117, 255, 132, 0.28);
+  color: #c7ffce;
+}
+
+[data-sz-theme="geek"] .planner2-cleaning-status-execucao .planner2-clean-status-icon {
+  background: rgba(70, 224, 255, 0.12);
+  border-color: rgba(70, 224, 255, 0.34);
+  color: #a5f3fc;
+}
+
+[data-sz-theme="geek"] .planner2-cleaning-status-concluida .planner2-clean-status-icon {
+  background: rgba(117, 255, 132, 0.14);
+  border-color: rgba(117, 255, 132, 0.36);
+  color: #c7ffce;
+}
+
+[data-sz-theme="geek"] .planner2-cleaning-status-atrasada .planner2-clean-status-icon {
+  background: rgba(255, 80, 80, 0.16);
+  border-color: rgba(255, 80, 80, 0.42);
+  color: #fecaca;
 }
 
 [data-sz-theme="geek"] .planner2-tooltip {

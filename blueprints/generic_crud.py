@@ -3654,6 +3654,11 @@ def api_cleaning_plan():
           pl_day.HOSPEDES         AS cleaning_guests,
           pl_day.NOITES           AS cleaning_nights,
           pl_day.OBS              AS cleaning_notes,
+          ta.TAREFASSTAMP         AS cleaning_task_id,
+          ta.TRATADO              AS cleaning_task_done,
+          ta.HORAINI              AS cleaning_started_at,
+          ta.HORAFIM              AS cleaning_finished_at,
+          ta.UTILIZADOR_NOME      AS cleaning_task_user,
           -- Limpeza adiada (entre hoje e o próximo check-in)
           (
             SELECT TOP 1 LP.DATA
@@ -3725,6 +3730,30 @@ def api_cleaning_plan():
         ) oc ON oc.ALOJAMENTO = al.NOME
         LEFT JOIN RS oc_r ON oc_r.RSSTAMP = oc.RSSTAMP
         LEFT JOIN LP pl_day ON pl_day.ALOJAMENTO = al.NOME AND pl_day.DATA = :date
+        OUTER APPLY (
+          SELECT TOP 1
+            T.TAREFASSTAMP,
+            ISNULL(T.TRATADO, 0) AS TRATADO,
+            ISNULL(T.HORAINI, '') AS HORAINI,
+            ISNULL(T.HORAFIM, '') AS HORAFIM,
+            ISNULL(U.NOME, T.UTILIZADOR) AS UTILIZADOR_NOME
+          FROM dbo.TAREFAS AS T
+          LEFT JOIN dbo.US AS U ON U.LOGIN = T.UTILIZADOR
+          WHERE pl_day.LPSTAMP IS NOT NULL
+            AND LTRIM(RTRIM(ISNULL(T.ORIGEM, ''))) = 'LP'
+            AND CAST(T.DATA AS date) = :date
+            AND LTRIM(RTRIM(ISNULL(T.ALOJAMENTO, ''))) = LTRIM(RTRIM(ISNULL(pl_day.ALOJAMENTO, '')))
+            AND (
+              LTRIM(RTRIM(ISNULL(T.ORISTAMP, ''))) = LTRIM(RTRIM(ISNULL(pl_day.LPSTAMP, '')))
+              OR (
+                LTRIM(RTRIM(ISNULL(T.ORISTAMP, ''))) = ''
+                AND LTRIM(RTRIM(ISNULL(T.HORA, ''))) = LTRIM(RTRIM(ISNULL(pl_day.HORA, '')))
+              )
+            )
+          ORDER BY
+            CASE WHEN LTRIM(RTRIM(ISNULL(T.ORISTAMP, ''))) = LTRIM(RTRIM(ISNULL(pl_day.LPSTAMP, ''))) THEN 0 ELSE 1 END,
+            T.TAREFASSTAMP
+        ) ta
         
         ORDER BY planner_status, al.ZONA, al.NOME
     """)

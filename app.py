@@ -26049,6 +26049,21 @@ OPTION (MAXRECURSION 32767);
         reservations = []
         reservations_net_total = 0.0
         reservations_cleaning_total = 0.0
+        reservations_monthly_map = {}
+        month_names_pt = {
+            1: 'Janeiro',
+            2: 'Fevereiro',
+            3: 'Março',
+            4: 'Abril',
+            5: 'Maio',
+            6: 'Junho',
+            7: 'Julho',
+            8: 'Agosto',
+            9: 'Setembro',
+            10: 'Outubro',
+            11: 'Novembro',
+            12: 'Dezembro',
+        }
         for row in reservations_rows:
             regime = (row.get('REGIME') or '').strip().upper()
             nights = int(row.get('NOITES') or 0)
@@ -26073,6 +26088,19 @@ OPTION (MAXRECURSION 32767);
                 avg_day = round((net_total / nights), 2) if nights > 0 else 0.0
             reservations_net_total += net_total
             reservations_cleaning_total += cleaning
+            checkin_date = row.get('DATAIN')
+            if isinstance(checkin_date, datetime):
+                checkin_date = checkin_date.date()
+            if isinstance(checkin_date, date):
+                month_key = checkin_date.strftime('%Y-%m')
+                month_group = reservations_monthly_map.setdefault(month_key, {
+                    'month': checkin_date.month,
+                    'year': checkin_date.year,
+                    'reservas': 0,
+                    'total_liquido': 0.0,
+                })
+                month_group['reservas'] += 1
+                month_group['total_liquido'] = round(float(month_group.get('total_liquido') or 0) + net_total, 2)
             reservations.append({
                 'rsstamp': row.get('RSSTAMP') or '',
                 'reserva': row.get('RESERVA') or '',
@@ -26250,6 +26278,21 @@ OPTION (MAXRECURSION 32767);
             })
         cleanings_by_user.sort(key=lambda item: ((item.get('utilizador') or '').upper(), item.get('login') or ''))
 
+        reservations_monthly = []
+        for key in sorted(reservations_monthly_map.keys()):
+            group = reservations_monthly_map[key]
+            month = int(group.get('month') or 0)
+            year = int(group.get('year') or 0)
+            total = round(float(group.get('total_liquido') or 0), 2)
+            reservations_monthly.append({
+                'month_key': key,
+                'month_label': f"{month_names_pt.get(month, key)} {year}".strip(),
+                'reservas': int(group.get('reservas') or 0),
+                'reservas_label': f"{int(group.get('reservas') or 0)} reserva" if int(group.get('reservas') or 0) == 1 else f"{int(group.get('reservas') or 0)} reservas",
+                'total_liquido': total,
+                'total_liquido_label': _daily_summary_fmt_money(total),
+            })
+
         return {
             'selected_date': selected_date.isoformat(),
             'selected_date_label': _daily_summary_fmt_date(selected_date),
@@ -26276,6 +26319,7 @@ OPTION (MAXRECURSION 32767);
                 'limpezas_total_duration_label': _daily_summary_fmt_duration(cleanings_total_minutes if cleanings else None),
             },
             'reservas': reservations,
+            'reservas_mensal': reservations_monthly,
             'limpezas': cleanings,
             'limpezas_por_user': cleanings_by_user,
         }

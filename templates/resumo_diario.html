@@ -74,6 +74,31 @@
     gap: .35rem;
   }
 
+  .daily-summary-kpi_button {
+    width: 100%;
+    font: inherit;
+    appearance: none;
+    border: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+  }
+
+  .daily-summary-kpi_button:hover,
+  .daily-summary-kpi_button:focus-visible {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 52%, var(--sz-color-border));
+    box-shadow: var(--sz-shadow-2);
+    transform: translateY(-1px);
+    outline: none;
+  }
+
+  .daily-summary-kpi_hint {
+    margin-left: auto;
+    color: var(--sz-color-primary);
+  }
+
   .daily-summary-kpi-label {
     font-size: var(--sz-font-size-xs);
     text-transform: uppercase;
@@ -276,6 +301,73 @@
     background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, transparent);
   }
 
+  .daily-summary-modal .modal-content {
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    color: var(--sz-color-text);
+    box-shadow: var(--sz-shadow-3);
+  }
+
+  .daily-summary-modal .modal-header {
+    border-color: var(--sz-color-border);
+  }
+
+  .daily-summary-modal .btn-close {
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background-color: var(--sz-color-surface-alt);
+    opacity: 1;
+    filter: none;
+  }
+
+  [data-sz-theme="dark"] .daily-summary-modal .btn-close,
+  [data-sz-theme="geek"] .daily-summary-modal .btn-close {
+    background-color: var(--sz-color-surface-alt);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23eaf2fb'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: .75rem;
+    border-color: var(--sz-color-border);
+    filter: none;
+  }
+
+  [data-sz-theme="geek"] .daily-summary-modal .btn-close {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%238dff9f'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e");
+  }
+
+  .daily-summary-month-list {
+    display: grid;
+    gap: var(--sz-space-2);
+  }
+
+  .daily-summary-month-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--sz-space-3);
+    padding: .85rem .95rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 78%, transparent);
+  }
+
+  .daily-summary-month-name {
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .daily-summary-month-meta {
+    margin-top: .1rem;
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .daily-summary-month-total {
+    font-weight: var(--sz-font-weight-bold);
+    white-space: nowrap;
+    text-align: right;
+  }
+
   @media (min-width: 1100px) {
     .daily-summary-page .sz_page_container {
       padding-inline: var(--sz-space-4);
@@ -356,13 +448,14 @@
     <section class="sz_page_body">
       <div class="sz_page_content daily-summary-content">
         <section class="daily-summary-kpis">
-          <article class="sz_card daily-summary-kpi">
+          <button class="sz_card daily-summary-kpi daily-summary-kpi_button" type="button" data-daily-summary-reservations-modal>
             <div class="daily-summary-kpi-label">Reservas recebidas</div>
             <div class="daily-summary-kpi-value">{{ state.kpis.reservas_count_label }}</div>
+            <span class="daily-summary-kpi_hint"><i class="fa-solid fa-chart-column"></i></span>
             <div class="daily-summary-kpi-meta">
               <span>{{ state.kpis.reservas_liquido_total_label }} líquido</span>
             </div>
-          </article>
+          </button>
           <article class="sz_card daily-summary-kpi">
             <div class="daily-summary-kpi-label">Montante do dia</div>
             <div class="daily-summary-kpi-value">{{ state.kpis.montante_dia_label }}</div>
@@ -492,4 +585,51 @@
     </section>
   </div>
 </div>
+
+<div class="modal fade daily-summary-modal" id="dailySummaryReservationsModal" tabindex="-1" aria-labelledby="dailySummaryReservationsModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="dailySummaryReservationsModalTitle">Distribuição mensal das reservas</h5>
+          <div class="sz_text_muted sz_text_sm">{{ state.selected_date_label }} &middot; {{ state.kpis.reservas_count_label }} reservas &middot; {{ state.kpis.reservas_liquido_total_label }}</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        {% if state.reservas_mensal %}
+          <div class="daily-summary-month-list">
+            {% for row in state.reservas_mensal %}
+              <div class="daily-summary-month-row">
+                <div>
+                  <div class="daily-summary-month-name">{{ row.month_label }}</div>
+                  <div class="daily-summary-month-meta">{{ row.reservas_label }}</div>
+                </div>
+                <div class="daily-summary-month-total">{{ row.total_liquido_label }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="daily-summary-empty">Sem reservas recebidas neste dia.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const trigger = document.querySelector('[data-daily-summary-reservations-modal]');
+    const modalEl = document.getElementById('dailySummaryReservationsModal');
+    if (!trigger || !modalEl) return;
+    trigger.addEventListener('click', () => {
+      if (window.bootstrap && window.bootstrap.Modal) {
+        window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        return;
+      }
+      modalEl.classList.add('show', 'd-block');
+      modalEl.removeAttribute('aria-hidden');
+    });
+  });
+</script>
 {% endblock %}

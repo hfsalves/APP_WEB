@@ -129,6 +129,103 @@ const isPlanner2CleanSinceLast = (row) => {
     || String(row?.clean_since_last || '').trim() === '1';
 };
 
+const planner2Flag = (value) => {
+  return value === true || value === 1 || String(value || '').trim() === '1';
+};
+
+const getPlanner2LocalDateString = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const updatePlanner2NowLine = () => {
+  const wrap = document.querySelector('.planner2-table-wrap');
+  const table = wrap?.querySelector('.planner2-table');
+  if (!wrap || !table) return;
+  let line = wrap.querySelector('.planner2-now-line');
+  if (!line) {
+    line = document.createElement('div');
+    line.className = 'planner2-now-line';
+    wrap.appendChild(line);
+  }
+
+  const now = new Date();
+  const isToday = planner2RenderedDate === getPlanner2LocalDateString(now);
+  const minutes = (now.getHours() * 60) + now.getMinutes();
+  const startMinutes = PLANNER2.startHour * 60;
+  const endMinutes = PLANNER2.endHour * 60;
+  if (!isToday || minutes < startMinutes || minutes > endMinutes) {
+    line.hidden = true;
+    return;
+  }
+
+  const headerHeight = table.querySelector('thead')?.offsetHeight || 44;
+  const x = PLANNER2.lodgeWidth + ((minutes - startMinutes) / PLANNER2.slotMinutes) * PLANNER2.slotWidth;
+  line.style.left = `${Math.round(x)}px`;
+  line.style.top = `${headerHeight}px`;
+  line.style.height = `${Math.max(0, table.offsetHeight - headerHeight)}px`;
+  line.hidden = false;
+};
+
+const normalizePlanner2Time = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (match) return `${match[1].padStart(2, '0')}:${match[2]}`;
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length >= 3) {
+    return `${digits.slice(0, -2).padStart(2, '0')}:${digits.slice(-2)}`;
+  }
+  return `${digits.padStart(2, '0')}:00`;
+};
+
+const getPlanner2CleaningStatus = (cl, row, duration) => {
+  if (planner2RenderedDate !== getPlanner2LocalDateString()) return null;
+
+  const startedAt = normalizePlanner2Time(cl.taskStartedAt || cl.startedAt);
+  const finishedAt = normalizePlanner2Time(cl.taskFinishedAt || cl.finishedAt);
+  const done = planner2Flag(cl.taskDone) || planner2Flag(cl.done) || planner2Flag(cl.cleaningDone);
+  const taskId = String(cl.taskId || '').trim();
+
+  if (finishedAt || done) {
+    return {
+      key: 'concluida',
+      label: 'Concluída',
+      icon: 'fa-solid fa-check',
+      detail: finishedAt ? `Concluída às ${finishedAt}` : 'Concluída'
+    };
+  }
+  if (startedAt) {
+    return {
+      key: 'execucao',
+      label: 'Em execução',
+      icon: 'fa-solid fa-play',
+      detail: `Em execução desde ${startedAt}`
+    };
+  }
+  if (!taskId) {
+    return null;
+  }
+
+  const { h, m } = parseTime(cl.time, '10:00');
+  const endMinutes = (h * 60) + m + Number(duration || 0);
+  const now = new Date();
+  const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+  if (Number.isFinite(endMinutes) && nowMinutes > endMinutes) {
+    return {
+      key: 'atrasada',
+      label: 'Atrasada',
+      icon: 'fa-solid fa-triangle-exclamation',
+      detail: 'Atrasada'
+    };
+  }
+
+  return null;
+};
+
 const buildHead = (slots) => {
   const headRow = document.getElementById('planner2-head-row');
   headRow.innerHTML = `<th class="planner2-col-lodge">Alojamento</th>`;
@@ -151,6 +248,7 @@ let planner2CancelBtn = null;
 let planner2CleaningMenu = null;
 let planner2Loading = false;
 let planner2LoadingText = null;
+let planner2RenderedDate = '';
 const planner2DistanceCache = new Map();
 const planner2DistancePending = new Set();
 
@@ -228,7 +326,13 @@ const buildPlanner2Rows = (data) => {
         team: row.cleaning_team,
         id: row.cleaning_id,
         typology: row.typology || row.tp,
-        cleaningMinutes: Number(row.cleaning_minutes || 0)
+        cleaningMinutes: Number(row.cleaning_minutes || 0),
+        cleaningDone: row.cleaning_done,
+        taskId: row.cleaning_task_id,
+        taskDone: row.cleaning_task_done,
+        taskStartedAt: row.cleaning_started_at,
+        taskFinishedAt: row.cleaning_finished_at,
+        taskUser: row.cleaning_task_user
       });
     }
   });
@@ -1079,12 +1183,13 @@ const renderRows = (data, slots) => {
           { ...cl, cleaningMinutes: Number(cl.cleaningMinutes || row.cleaning_minutes || 0) },
           row.typology || row.tp || ''
         );
+        const status = getPlanner2CleaningStatus(cl, row, duration);
         const slotsCount = Math.max(1, Math.ceil(duration / 30));
         const totalSlots = slots.length;
         const cappedSlots = Math.min(slotsCount, Math.max(0, totalSlots - startIdx));
         const endIdx = startIdx + cappedSlots;
         const key = cl._tmpId || cl.id || `${idx}`;
-        return { cl, startIdx, cappedSlots, endIdx, key };
+        return { cl, startIdx, cappedSlots, endIdx, key, status };
       });
 
       bars.sort((a, b) => {
@@ -1108,9 +1213,12 @@ const renderRows = (data, slots) => {
       tr.style.height = `${rowHeight}px`;
       tr.querySelectorAll('td').forEach(td => { td.style.height = `${rowHeight}px`; });
 
-      bars.forEach(({ cl, startIdx, cappedSlots, laneIndex, key }) => {
+      bars.forEach(({ cl, startIdx, cappedSlots, laneIndex, key, status }) => {
         const bar = document.createElement('div');
         bar.className = 'planner2-bar planner2-bar-cleaning';
+        if (status) {
+          bar.classList.add('planner2-bar-cleaning-status', `planner2-cleaning-status-${status.key}`);
+        }
         bar.dataset.startIdx = String(startIdx);
         bar.dataset.slotCount = String(cappedSlots);
         bar.dataset.tmpId = String(key);
@@ -1127,6 +1235,23 @@ const renderRows = (data, slots) => {
         label.className = 'planner2-bar-label';
         label.textContent = String(cl.team || '').trim();
         bar.appendChild(label);
+        if (status) {
+          const icon = document.createElement('span');
+          icon.className = 'planner2-clean-status-icon';
+          icon.title = status.label;
+          icon.setAttribute('aria-label', status.label);
+          const i = document.createElement('i');
+          i.className = status.icon;
+          icon.appendChild(i);
+          bar.appendChild(icon);
+          const taskUser = String(cl.taskUser || '').trim();
+          attachTooltip(bar, [
+            `Limpeza: ${String(cl.team || '').trim() || '-'}`,
+            `Estado: ${status.detail || status.label}`,
+            taskUser ? `Utilizador: ${taskUser}` : '',
+            `Hora: ${normalizePlanner2Time(cl.time) || '-'}`
+          ].filter(Boolean).join('\n'), tooltip);
+        }
         tr.appendChild(bar);
         bar.addEventListener('mousedown', (e) => {
           e.preventDefault();
@@ -1153,11 +1278,13 @@ const renderRows = (data, slots) => {
   tbody.querySelectorAll('.planner2-bar-label').forEach((el) => {
     el.textContent = normalizeTooltipText(el.textContent);
   });
+  requestAnimationFrame(updatePlanner2NowLine);
 };
 
 const loadPlanner2 = async (dateStr) => {
   showPlanner2Loading('A carregar...');
   try {
+    planner2RenderedDate = String(dateStr || '').slice(0, 10);
     planner2DistanceCache.clear();
     planner2DistancePending.clear();
     await loadPlanner2Teams(dateStr);
@@ -1450,6 +1577,7 @@ const setupPlanner2 = () => {
   loadPlanner2(currentDate).catch((err) => {
     showPlannerToast(`Erro ao carregar planeamento: ${err.message || err}`, 'danger');
   });
+  window.setInterval(updatePlanner2NowLine, 60000);
 };
 
 document.addEventListener('DOMContentLoaded', setupPlanner2);

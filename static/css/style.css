@@ -2751,11 +2751,10 @@ body:not(.authenticated) .main-content {
 }
 .planner2-card {
   flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
-}
-.planner2-body {
-  height: 100%;
-  min-height: 0;
+  overflow: hidden;
 }
 .planner2-filters {
   display: flex;
@@ -2861,38 +2860,65 @@ body:not(.authenticated) .main-content {
   background: #94a3b8;
   flex: 0 0 10px;
 }
-.planner2-body {
+.planner2-page .sz_page_body {
+  overflow: hidden;
+}
+.planner2-page .sz_page_content {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.planner2-card-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.planner2-main {
   display: flex;
   gap: 0.75rem;
-  flex: 1;
+  flex: 1 1 auto;
+  height: 100%;
   min-height: 0;
   align-items: stretch;
+  overflow: hidden;
 }
 .planner2-gantt {
-  flex: 0 0 1282px;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 .planner2-side {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 0 clamp(320px, 28vw, 540px);
+  min-width: 320px;
+  max-width: 540px;
   height: 100%;
+  min-height: 0;
 }
 .planner2-side-card {
   height: 100%;
+  min-height: 0;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: 1rem;
   box-shadow: 0 14px 30px rgba(15,23,42,0.1);
   overflow-y: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
 }
 .planner2-side-card::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+  width: 8px;
+  height: 8px;
+}
+.planner2-side-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+.planner2-side-card::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 999px;
 }
 .planner2-side-title {
   font-weight: 600;
@@ -3407,6 +3433,7 @@ body:not(.authenticated) .main-content {
   }
 }
 .planner2-table-wrap {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
@@ -3416,7 +3443,29 @@ body:not(.authenticated) .main-content {
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   box-shadow: 0 14px 30px rgba(15,23,42,0.1);
-  width: 1282px;
+  width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+}
+.planner2-table-wrap::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.planner2-table-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+.planner2-table-wrap::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 999px;
+}
+.planner2-now-line {
+  position: absolute;
+  width: 2px;
+  min-height: 1px;
+  background: rgba(239, 68, 68, 0.42);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
+  pointer-events: none;
+  z-index: 6;
 }
 .planner2-table {
   width: max-content;
@@ -3571,6 +3620,48 @@ body:not(.authenticated) .main-content {
   text-align: center;
   width: 100%;
 }
+.planner2-bar-cleaning-status {
+  gap: 4px;
+  padding: 0 5px 0 6px;
+}
+.planner2-bar-cleaning-status .planner2-bar-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.planner2-clean-status-icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(15,23,42,0.14);
+  color: #334155;
+  font-size: 8px;
+  line-height: 1;
+}
+.planner2-cleaning-status-concluida .planner2-clean-status-icon {
+  background: #dcfce7;
+  border-color: #62c98d;
+  color: #166534;
+}
+.planner2-cleaning-status-execucao .planner2-clean-status-icon {
+  background: #dbeafe;
+  border-color: #60a5fa;
+  color: #1d4ed8;
+}
+.planner2-cleaning-status-atrasada .planner2-clean-status-icon {
+  background: #ffe2e2;
+  border-color: #ef8181;
+  color: #b42318;
+}
 .planner2-tooltip {
   position: fixed;
   z-index: 3000;
@@ -3593,12 +3684,15 @@ body:not(.authenticated) .main-content {
   .geo-left, .geo-right, .geo-poi{
     min-height: 420px;
   }
-  .planner2-body {
+  .planner2-main {
     flex-direction: column;
   }
   .planner2-gantt,
   .planner2-side {
     flex: 1 1 auto;
+    max-width: none;
+    min-width: 0;
+    width: 100%;
   }
   .planner2-wrapper {
     height: auto;
