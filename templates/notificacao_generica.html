@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}{{ notificacao.assunto }}{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+  .generic-notification-page {
+    min-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--sz-color-bg-main);
+  }
+
+  .generic-notification-page .sz_page_container {
+    max-width: 680px;
+    margin-inline: auto;
+    padding: var(--sz-space-3);
+  }
+
+  .generic-notification-contextbar {
+    align-items: flex-start;
+  }
+
+  .generic-notification-contextbar .sz_contextbar_left {
+    min-width: 0;
+  }
+
+  .generic-notification-body {
+    display: grid;
+    gap: var(--sz-space-3);
+    padding-bottom: var(--sz-space-4);
+  }
+
+  .generic-notification-card {
+    padding: var(--sz-space-4);
+    display: grid;
+    gap: var(--sz-space-3);
+  }
+
+  .generic-notification-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--sz-radius-md);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
+    color: var(--sz-color-primary);
+    font-size: 1.25rem;
+  }
+
+  .generic-notification-title {
+    margin: 0;
+    color: var(--sz-color-text);
+    font-size: clamp(1.35rem, 1.1rem + 1.2vw, 1.9rem);
+    line-height: 1.15;
+    font-weight: var(--sz-font-weight-bold);
+    overflow-wrap: anywhere;
+  }
+
+  .generic-notification-origin {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .generic-notification-text {
+    white-space: pre-wrap;
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-md);
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+  }
+
+  .generic-notification-empty {
+    color: var(--sz-color-text-muted);
+    font-style: italic;
+  }
+
+  .generic-notification-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 520px) {
+    .generic-notification-page .sz_page_container {
+      padding: var(--sz-space-2);
+    }
+
+    .generic-notification-contextbar,
+    .generic-notification-card {
+      padding: var(--sz-space-3);
+    }
+
+    .generic-notification-actions {
+      justify-content: stretch;
+    }
+
+    .generic-notification-actions .sz_button {
+      flex: 1 1 auto;
+      justify-content: center;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page generic-notification-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar generic-notification-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Notifica&ccedil;&atilde;o</div>
+        <div class="sz_page_subtitle">Mensagem recebida pela app.</div>
+      </div>
+    </header>
+
+    <main class="sz_page_body generic-notification-body">
+      <section class="sz_panel generic-notification-card">
+        <div class="generic-notification-icon" aria-hidden="true">
+          <i class="fa-solid fa-bell"></i>
+        </div>
+
+        <div>
+          <h1 class="generic-notification-title">{{ notificacao.assunto }}</h1>
+          {% if notificacao.origem %}
+          <div class="generic-notification-origin">{{ notificacao.origem }}</div>
+          {% endif %}
+        </div>
+
+        {% if notificacao.texto %}
+        <div class="generic-notification-text">{{ notificacao.texto }}</div>
+        {% else %}
+        <div class="generic-notification-empty">Esta notifica&ccedil;&atilde;o n&atilde;o tem texto adicional.</div>
+        {% endif %}
+
+        <div class="generic-notification-actions">
+          <a class="sz_button sz_button_secondary" href="{{ notificacao.voltar }}">
+            <i class="fa-solid fa-arrow-left"></i>
+            <span>Voltar</span>
+          </a>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+{% endblock %}

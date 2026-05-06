@@ -14978,6 +14978,46 @@ def create_app():
         }
         return render_template('reserva_resumo.html', page_title='Resumo da reserva', reserva=summary)
 
+    @app.route('/notificacao')
+    @app.route('/notificacoes/mensagem')
+    @login_required
+    def notificacao_generica_page():
+        assunto = (
+            request.args.get('assunto')
+            or request.args.get('titulo')
+            or request.args.get('title')
+            or 'Notificacao'
+        )
+        texto = (
+            request.args.get('texto')
+            or request.args.get('mensagem')
+            or request.args.get('message')
+            or request.args.get('body')
+            or ''
+        )
+        origem = request.args.get('origem') or request.args.get('source') or ''
+        voltar = request.args.get('voltar') or request.args.get('return_to') or '/monitor'
+
+        def _clean(value, limit):
+            cleaned = str(value or '').replace('\x00', '').strip()
+            return cleaned[:limit]
+
+        def _safe_local_url(value):
+            target = str(value or '').strip()
+            if not target.startswith('/') or target.startswith('//'):
+                return '/monitor'
+            if any(ch in target for ch in ('\r', '\n', '\x00')):
+                return '/monitor'
+            return target[:500]
+
+        payload = {
+            'assunto': _clean(assunto, 180),
+            'texto': _clean(texto, 2500),
+            'origem': _clean(origem, 80),
+            'voltar': _safe_local_url(voltar),
+        }
+        return render_template('notificacao_generica.html', page_title=payload['assunto'], notificacao=payload)
+
     @app.route('/rs_reservas_form/', defaults={'rsstamp': None})
     @app.route('/rs_reservas_form/<rsstamp>')
     @app.route('/generic/rs_reservas_form/', defaults={'rsstamp': None})
