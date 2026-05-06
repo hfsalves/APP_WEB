@@ -19,7 +19,10 @@
       <div class="alert alert-danger mb-3">{{ error }}</div>
     {% endif %}
 
-    <form method="post" action="{{ url_for('login') }}" class="login-form">
+    <form method="post" action="{{ url_for('login', next=next_url) if next_url else url_for('login') }}" class="login-form">
+      {% if next_url %}
+      <input type="hidden" name="next" value="{{ next_url }}">
+      {% endif %}
       {% if show_db_target_select %}
       <div class="form-group">
         <label for="db_target">{{ _('login.db_target') }}</label>

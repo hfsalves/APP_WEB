@@ -2254,6 +2254,16 @@ def create_app():
     # Rotas de autenticação
     @app.route('/login', methods=['GET', 'POST'])
     def login():
+        def _safe_next_url(value: str | None) -> str:
+            target = str(value or '').strip()
+            if not target:
+                return ''
+            if not target.startswith('/') or target.startswith('//'):
+                return ''
+            if any(ch in target for ch in ('\r', '\n', '\x00')):
+                return ''
+            return target
+
         def _render_login(error: str = '', selected_target: str = '', verify_db: bool = False):
             host = _normalized_request_host() if has_request_context() else ''
             show_db_target_select = _is_localhost_host(host)
@@ -2261,6 +2271,7 @@ def create_app():
                 _normalize_db_target(selected_target)
                 or _resolve_db_target()
             )
+            next_url = _safe_next_url(request.values.get('next'))
             return render_template(
                 'login.html',
                 error=error,
@@ -2269,6 +2280,7 @@ def create_app():
                 selected_db_target=resolved_target,
                 verify_db=bool(verify_db),
                 db_target_prod=db_target_prod,
+                next_url=next_url,
             )
 
         if request.method == 'POST':
@@ -2337,7 +2349,10 @@ def create_app():
                     session.pop(db_consistency_apply_result_session_key, None)
                     if must_open_consistency:
                         return redirect(url_for('database_consistency_page'))
-                    return redirect(request.args.get('next') or url_for('home_page'))
+                    return redirect(
+                        _safe_next_url(request.form.get('next') or request.args.get('next'))
+                        or url_for('home_page')
+                    )
 
                 return _render_login(
                     error=result.user_message,
