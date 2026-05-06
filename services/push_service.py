@@ -15,6 +15,7 @@ from services.qr_atcud_service import get_param
 
 
 DEFAULT_NOTIFICATION_EVENTS = [
+    "RESERVA_NOVA",
     "CLEANING_ASSIGNED",
     "MAINTENANCE_ASSIGNED",
     "TASK_REASSIGNED",
@@ -626,6 +627,16 @@ def _event_message(event_type: str, context=None) -> tuple[str, str, str]:
         title = "Tarefa em atraso"
         body = _safe_text(ctx.get("body")) or "Tens uma tarefa por tratar."
         return title, body, _safe_text(ctx.get("url")) or "/monitor"
+    if code == "RESERVA_NOVA":
+        alojamento = _safe_text(ctx.get("alojamento") or ctx.get("lodging"), "Alojamento")
+        checkin = _safe_text(ctx.get("checkin") or ctx.get("data_in") or ctx.get("datain"))
+        origem = _safe_text(ctx.get("origem") or ctx.get("source"))
+        parts = [alojamento]
+        if checkin:
+            parts.append(f"Check-in {checkin}")
+        if origem:
+            parts.append(origem)
+        return "Nova reserva", " - ".join(parts), _safe_text(ctx.get("url")) or "/monitor"
     return (
         _safe_text(ctx.get("title"), "Notificação"),
         _safe_text(ctx.get("body"), ""),
