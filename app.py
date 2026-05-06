@@ -26878,6 +26878,54 @@ OPTION (MAXRECURSION 32767);
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/api/nd/minhas')
+    @login_required
+    def api_nd_minhas():
+        try:
+            utilizador = (getattr(current_user, 'LOGIN', '') or '').strip()
+            if not utilizador:
+                return jsonify({'error': 'Utilizador inválido'}), 400
+            today = datetime.now().date()
+            sql = text(
+                """
+                SELECT NDSTAMP, DATA, ISNULL(TIPO, '') AS TIPO
+                FROM ND
+                WHERE UTILIZADOR = :util
+                  AND UPPER(ISNULL(TIPO, '')) IN ('FOLGA', 'FERIAS')
+                  AND DATA > :today
+                ORDER BY DATA, NDSTAMP
+                """
+            )
+            rows = db.session.execute(sql, {'util': utilizador, 'today': today}).fetchall()
+            weekdays = [
+                'Segunda-feira',
+                'Terça-feira',
+                'Quarta-feira',
+                'Quinta-feira',
+                'Sexta-feira',
+                'Sábado',
+                'Domingo',
+            ]
+            items = []
+            for r in rows:
+                data = r[1]
+                if hasattr(data, 'date') and hasattr(data, 'hour'):
+                    data = data.date()
+                tipo = (r[2] or '').strip().upper()
+                is_weekend = hasattr(data, 'weekday') and data.weekday() >= 5
+                items.append({
+                    'id': r[0],
+                    'data': data.isoformat() if hasattr(data, 'isoformat') else str(data),
+                    'data_label': data.strftime('%d/%m/%Y') if hasattr(data, 'strftime') else str(data),
+                    'dia_semana': weekdays[data.weekday()] if hasattr(data, 'weekday') else '',
+                    'is_weekend': is_weekend,
+                    'tipo': tipo,
+                    'tipo_label': 'Férias' if tipo == 'FERIAS' else 'Folga',
+                })
+            return jsonify({'rows': items, 'utilizador': utilizador})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     # Tesouraria
     @app.route('/tesouraria')
     @login_required

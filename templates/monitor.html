@@ -165,6 +165,7 @@
   #anexoModal,
   #novaFaltaModal,
   #alojModal,
+  #folgasModal,
   #fsModal,
   #notaTarefaModal,
   #agendarModal,
@@ -256,7 +257,13 @@
   }
   [data-sz-theme="dark"] .sz_monitor_theme_modal .btn-close,
   [data-sz-theme="geek"] .sz_monitor_theme_modal .btn-close {
-    filter: invert(1) grayscale(1);
+    filter: none;
+  }
+  [data-sz-theme="dark"] .sz_monitor_theme_modal .btn-close {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23eaf2fb'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293A1 1 0 0 1 .293 14.293L6.586 8 .293 1.707A1 1 0 0 1 .293.293z'/%3e%3c/svg%3e");
+  }
+  [data-sz-theme="geek"] .sz_monitor_theme_modal .btn-close {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%238dff9f'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293A1 1 0 0 1 .293 14.293L6.586 8 .293 1.707A1 1 0 0 1 .293.293z'/%3e%3c/svg%3e");
   }
   [data-sz-theme="geek"] .sz_monitor_theme_modal .btn-primary,
   [data-sz-theme="geek"] .sz_monitor_theme_modal .btn-success,
@@ -657,7 +664,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     const modalIds = [
       'filtersModal','tarefaModal','lsModal','nrModal','anexoModal',
-      'novaFaltaModal','alojModal','fsModal','notaTarefaModal','agendarModal','novaMnModal'
+      'novaFaltaModal','alojModal','folgasModal','fsModal','notaTarefaModal','agendarModal','novaMnModal'
     ];
     modalIds.forEach(id => {
       const el = document.getElementById(id);
@@ -742,6 +749,62 @@
   /* Alojamentos modal: limitar altura e tornar lista scrollÃ¡vel */
   #alojModal .modal-content { max-height: 90vh; display: flex; flex-direction: column; }
   #alojModal .modal-body { flex: 1 1 auto; overflow: auto; }
+  #folgasModal .modal-content { max-height: 90vh; display: flex; flex-direction: column; }
+  #folgasModal .modal-body { flex: 1 1 auto; overflow: hidden; display: flex; flex-direction: column; }
+  #folgasList {
+    display: grid;
+    gap: .6rem;
+    overflow: auto;
+    padding-right: .15rem;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  #folgasList::-webkit-scrollbar {
+    display: none;
+  }
+  #folgasList .folga-card {
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+    padding: .7rem .8rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+  }
+  #folgasList .folga-date {
+    font-weight: var(--sz-font-weight-bold);
+    color: var(--sz-color-text);
+  }
+  #folgasList .folga-weekday {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-sm);
+    margin-top: .12rem;
+  }
+  #folgasList .folga-type {
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 38%, var(--sz-color-border));
+    border-radius: 999px;
+    color: var(--sz-color-primary);
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface-alt));
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+    padding: .24rem .55rem;
+    white-space: nowrap;
+  }
+  #folgasList .folga-card.is-ferias .folga-type {
+    border-color: color-mix(in srgb, var(--sz-color-success) 44%, var(--sz-color-border));
+    color: var(--sz-color-success);
+    background: color-mix(in srgb, var(--sz-color-success) 12%, var(--sz-color-surface-alt));
+  }
+  #folgasList .folga-card.is-weekend {
+    border-color: color-mix(in srgb, var(--sz-color-warning) 42%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-warning) 8%, var(--sz-color-surface-alt));
+  }
+  #folgasList .folga-card.is-weekend .folga-weekday {
+    color: color-mix(in srgb, var(--sz-color-warning) 72%, var(--sz-color-text-muted));
+    font-weight: var(--sz-font-weight-semibold);
+  }
 
   /* FAB (botao + dropmenu) */
   #fab-actions.sz_monitor_fab_shell {
@@ -836,6 +899,7 @@
     <button class="fab-menu-item sz_monitor_fab_item" id="openHistoricoTarefas">Hist&oacute;rico de Tarefas</button>
     <button class="fab-menu-item sz_monitor_fab_item" id="openNotasReserva">Notas de Reserva</button>
     <button class="fab-menu-item sz_monitor_fab_item" id="openAlojamentos">Alojamentos</button>
+    <button class="fab-menu-item sz_monitor_fab_item" id="openFolgas">Folgas</button>
     <button class="fab-menu-item sz_monitor_fab_item" id="openNotaTarefa">Nova Tarefa</button>
     <button class="fab-menu-item sz_monitor_fab_item" id="openLuggageStorage">Luggage Storage</button>
   </div>
@@ -1023,6 +1087,26 @@
         <button type="button" class="btn sz_button sz_button_primary me-auto" id="nrAbrir" disabled>Abrir</button>
         <button type="button" class="btn sz_button sz_button_secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn sz_button sz_button_primary" id="nrGravar">Gravar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Folgas do utilizador -->
+<div class="modal fade sz_monitor_theme_modal" id="folgasModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title sz_h4">As minhas folgas</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="folgasList">
+          <div class="text-muted small">A carregar</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn sz_button sz_button_secondary" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
   </div>
@@ -1468,6 +1552,58 @@
     });
   </script>
   <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('openFolgas');
+      if (!btn) return;
+
+      const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[ch]));
+
+      btn.addEventListener('click', async () => {
+        const modalEl = document.getElementById('folgasModal');
+        const list = document.getElementById('folgasList');
+        const menu = document.getElementById('fabMenu');
+        if (!modalEl || !list) return;
+
+        list.innerHTML = '<div class="text-muted small">A carregar</div>';
+        if (menu) menu.style.display = 'none';
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+        try {
+          const resp = await fetch('/api/nd/minhas');
+          const js = await resp.json();
+          if (!resp.ok || js.error) throw new Error(js.error || 'Falha ao carregar folgas');
+          const rows = Array.isArray(js.rows) ? js.rows : [];
+          if (!rows.length) {
+            list.innerHTML = '<div class="text-muted small">Não existem folgas ou férias registadas para o teu utilizador.</div>';
+            return;
+          }
+
+          list.innerHTML = rows.map(row => {
+            const tipo = String(row.tipo || '').toUpperCase();
+            const isFerias = tipo === 'FERIAS';
+            const isWeekend = !!row.is_weekend;
+            return `
+              <div class="folga-card ${isFerias ? 'is-ferias' : 'is-folga'} ${isWeekend ? 'is-weekend' : ''}">
+                <div>
+                  <div class="folga-date">${esc(row.data_label || row.data || '')}</div>
+                  <div class="folga-weekday">${esc(row.dia_semana || '')}</div>
+                </div>
+                <div class="folga-type">${esc(row.tipo_label || (isFerias ? 'Férias' : 'Folga'))}</div>
+              </div>`;
+          }).join('');
+        } catch (err) {
+          list.innerHTML = `<div class="text-danger small">Erro ao carregar folgas: ${esc(err && err.message ? err.message : err)}</div>`;
+        }
+      });
+    });
+  </script>
+  <script>
     // Nova IncidÃªncia (MN): abrir modal, combos, defaults e submit
     document.addEventListener('DOMContentLoaded', () => {
       const btn = document.getElementById('openNovaMn');
@@ -1715,7 +1851,7 @@
     // Esconder o FAB quando qualquer modal relevante estiver aberto (evita bloquear o header do modal)
     document.addEventListener('DOMContentLoaded', () => {
       const fab = document.getElementById('fab-actions');
-      const modalIds = ['agendarModal','fsModal','notaTarefaModal','novaMnModal','novaFaltaModal','nrModal','alojModal','lsModal'];
+      const modalIds = ['agendarModal','fsModal','notaTarefaModal','novaMnModal','novaFaltaModal','nrModal','alojModal','folgasModal','lsModal'];
       if (!fab) return;
       modalIds.forEach(id => {
         const el = document.getElementById(id);

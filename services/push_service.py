@@ -6,7 +6,9 @@ from datetime import datetime
 
 from flask import current_app
 from sqlalchemy import text
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
+from py_vapid import Vapid
 
 from models import db
 from services.qr_atcud_service import get_param
@@ -100,33 +102,86 @@ def get_vapid_public_key() -> str:
     return _get_vapid_config()["public_key"]
 
 
-def _normalize_private_key_value(raw_value: str) -> str:
+def _private_key_to_vapid(private_key) -> Vapid:
+    return Vapid(private_key)
+
+
+def _private_key_from_raw_scalar(key_bytes: bytes):
+    if len(key_bytes) != 32:
+        return None
+    scalar = int.from_bytes(key_bytes, byteorder="big")
+    if scalar <= 0:
+        return None
+    return ec.derive_private_key(scalar, ec.SECP256R1())
+
+
+def _normalize_private_key_bytes(key_bytes: bytes) -> Vapid | None:
+    data = bytes(key_bytes or b"").strip()
+    if not data:
+        return None
+
+    if b"BEGIN" in data:
+        data = data.replace(b"\\r\\n", b"\n").replace(b"\\n", b"\n")
+        private_key = serialization.load_pem_private_key(data, password=None)
+        return _private_key_to_vapid(private_key)
+
+    try:
+        private_key = serialization.load_der_private_key(data, password=None)
+        return _private_key_to_vapid(private_key)
+    except Exception:
+        pass
+
+    private_key = _private_key_from_raw_scalar(data)
+    if private_key is not None:
+        return _private_key_to_vapid(private_key)
+
+    return None
+
+
+def _normalize_private_key_value(raw_value: str) -> Vapid | str:
     value = _safe_text(raw_value)
     if not value:
         return ""
+    value = value.strip().strip('"').strip("'").replace("\\r\\n", "\n").replace("\\n", "\n")
+
     if "BEGIN PRIVATE KEY" in value:
-        return value
-    padded = value + ("=" * ((4 - len(value) % 4) % 4))
-    try:
-        key_bytes = base64.urlsafe_b64decode(padded.encode("utf-8"))
-    except Exception:
         try:
-            key_bytes = base64.b64decode(padded.encode("utf-8"))
+            return _normalize_private_key_bytes(value.encode("utf-8"))
+        except Exception as exc:
+            raise PushConfigurationError(
+                "Chave privada VAPID invalida. Confirma se o valor em VAPID_PRIVATE_KEY e uma chave privada PEM PKCS8 completa."
+            ) from exc
+
+    compact_value = "".join(value.split())
+    decoded_candidates = []
+    for candidate in [compact_value, value]:
+        candidate = _safe_text(candidate)
+        if not candidate:
+            continue
+        padded = candidate + ("=" * ((4 - len(candidate) % 4) % 4))
+        try:
+            decoded_candidates.append(base64.urlsafe_b64decode(padded.encode("utf-8")))
         except Exception:
-            return value
-    try:
-        private_key = serialization.load_der_private_key(key_bytes, password=None)
-        pem = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
-        return pem.decode("utf-8")
-    except Exception:
-        return value
+            pass
+        try:
+            decoded_candidates.append(base64.b64decode(padded.encode("utf-8")))
+        except Exception:
+            pass
+
+    for key_bytes in decoded_candidates:
+        try:
+            vapid = _normalize_private_key_bytes(key_bytes)
+            if vapid is not None:
+                return vapid
+        except Exception:
+            pass
+
+    raise PushConfigurationError(
+        "Chave privada VAPID invalida. Usa uma chave privada P-256 em PEM, DER/base64 ou no formato compacto de 32 bytes gerado para Web Push."
+    )
 
 
-def _load_vapid_private_key() -> str:
+def _load_vapid_private_key() -> Vapid | str:
     direct = _safe_text(_param_value("VAPID_PRIVATE_KEY", ""))
     if direct:
         return _normalize_private_key_value(direct)
