@@ -5,8 +5,9 @@
 {{ super() }}
 <style>
   .generic-notification-page {
-    min-height: 100%;
-    overflow-y: auto;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
     overflow-x: hidden;
     background: var(--sz-color-bg-main);
   }
@@ -14,49 +15,28 @@
   .generic-notification-page .sz_page_container {
     max-width: 680px;
     margin-inline: auto;
+    height: 100%;
+    min-height: 0;
     padding: var(--sz-space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
   }
 
   .generic-notification-contextbar {
     align-items: flex-start;
+    flex: 0 0 auto;
   }
 
   .generic-notification-contextbar .sz_contextbar_left {
     min-width: 0;
   }
 
-  .generic-notification-body {
-    display: grid;
-    gap: var(--sz-space-3);
-    padding-bottom: var(--sz-space-4);
-  }
-
-  .generic-notification-card {
-    padding: var(--sz-space-4);
-    display: grid;
-    gap: var(--sz-space-3);
-  }
-
-  .generic-notification-icon {
-    width: 3rem;
-    height: 3rem;
-    border-radius: var(--sz-radius-md);
-    display: inline-flex;
+  .generic-notification-subtitle {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem .65rem;
     align-items: center;
-    justify-content: center;
-    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
-    background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
-    color: var(--sz-color-primary);
-    font-size: 1.25rem;
-  }
-
-  .generic-notification-title {
-    margin: 0;
-    color: var(--sz-color-text);
-    font-size: clamp(1.35rem, 1.1rem + 1.2vw, 1.9rem);
-    line-height: 1.15;
-    font-weight: var(--sz-font-weight-bold);
-    overflow-wrap: anywhere;
   }
 
   .generic-notification-origin {
@@ -65,9 +45,41 @@
     font-weight: var(--sz-font-weight-semibold);
   }
 
+  .generic-notification-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: grid;
+    gap: var(--sz-space-3);
+    align-content: start;
+    padding-bottom: var(--sz-space-2);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .generic-notification-body::-webkit-scrollbar {
+    display: none;
+  }
+
+  .generic-notification-card {
+    padding: var(--sz-space-3);
+    display: grid;
+    gap: var(--sz-space-2);
+  }
+
+  .generic-notification-title {
+    margin: 0;
+    color: var(--sz-color-text);
+    font-size: clamp(1.15rem, 1.02rem + .65vw, 1.45rem);
+    line-height: 1.15;
+    font-weight: var(--sz-font-weight-bold);
+    overflow-wrap: anywhere;
+  }
+
   .generic-notification-text {
     white-space: pre-wrap;
-    color: var(--sz-color-text-secondary);
+    color: var(--sz-color-text);
     font-size: var(--sz-font-size-md);
     line-height: 1.55;
     overflow-wrap: anywhere;
@@ -78,11 +90,10 @@
     font-style: italic;
   }
 
-  .generic-notification-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--sz-space-2);
-    flex-wrap: wrap;
+  .generic-notification-actionbar {
+    flex: 0 0 auto;
+    position: static;
+    margin: 0;
   }
 
   @media (max-width: 520px) {
@@ -94,15 +105,6 @@
     .generic-notification-card {
       padding: var(--sz-space-3);
     }
-
-    .generic-notification-actions {
-      justify-content: stretch;
-    }
-
-    .generic-notification-actions .sz_button {
-      flex: 1 1 auto;
-      justify-content: center;
-    }
   }
 </style>
 {% endblock %}
@@ -112,38 +114,32 @@
   <div class="sz_page_container">
     <header class="sz_contextbar sz_page_contextbar generic-notification-contextbar">
       <div class="sz_contextbar_left">
-        <div class="sz_page_title">Notifica&ccedil;&atilde;o</div>
-        <div class="sz_page_subtitle">Mensagem recebida pela app.</div>
+        <div class="sz_page_title">{{ notificacao.assunto }}</div>
+        <div class="sz_page_subtitle generic-notification-subtitle">
+          <span>Mensagem recebida pela app.</span>
+          {% if notificacao.origem %}<span class="generic-notification-origin">{{ notificacao.origem }}</span>{% endif %}
+        </div>
       </div>
     </header>
 
     <main class="sz_page_body generic-notification-body">
       <section class="sz_panel generic-notification-card">
-        <div class="generic-notification-icon" aria-hidden="true">
-          <i class="fa-solid fa-bell"></i>
-        </div>
-
-        <div>
-          <h1 class="generic-notification-title">{{ notificacao.assunto }}</h1>
-          {% if notificacao.origem %}
-          <div class="generic-notification-origin">{{ notificacao.origem }}</div>
-          {% endif %}
-        </div>
-
         {% if notificacao.texto %}
         <div class="generic-notification-text">{{ notificacao.texto }}</div>
         {% else %}
         <div class="generic-notification-empty">Esta notifica&ccedil;&atilde;o n&atilde;o tem texto adicional.</div>
         {% endif %}
-
-        <div class="generic-notification-actions">
-          <a class="sz_button sz_button_secondary" href="{{ notificacao.voltar }}">
-            <i class="fa-solid fa-arrow-left"></i>
-            <span>Voltar</span>
-          </a>
-        </div>
       </section>
     </main>
+
+    <footer class="sz_actionbar generic-notification-actionbar">
+      <div class="sz_actionbar_right">
+        <a class="sz_button sz_button_secondary" href="{{ notificacao.voltar }}">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </a>
+      </div>
+    </footer>
   </div>
 </div>
 {% endblock %}
