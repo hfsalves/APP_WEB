@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+{% block title %}Resumo da reserva{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+  .reservation-summary-page {
+    min-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--sz-color-bg-main);
+  }
+
+  .reservation-summary-page .sz_page_container {
+    max-width: 760px;
+    margin-inline: auto;
+    padding: var(--sz-space-3);
+  }
+
+  .reservation-summary-contextbar {
+    align-items: flex-start;
+    gap: var(--sz-space-2);
+  }
+
+  .reservation-summary-contextbar .sz_contextbar_left {
+    min-width: 0;
+  }
+
+  .reservation-summary-titleline {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+  }
+
+  .reservation-summary-code {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.7rem;
+    padding: .18rem .48rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 35%, var(--sz-color-border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+    color: var(--sz-color-primary);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .reservation-summary-status {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    min-height: 1.7rem;
+    padding: .18rem .48rem;
+    border-radius: 999px;
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .reservation-summary-status.is-active {
+    border: 1px solid color-mix(in srgb, var(--sz-color-success) 42%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-success) 12%, var(--sz-color-surface));
+    color: var(--sz-color-success);
+  }
+
+  .reservation-summary-status.is-cancelled {
+    border: 1px solid color-mix(in srgb, var(--sz-color-danger) 48%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-danger) 12%, var(--sz-color-surface));
+    color: var(--sz-color-danger);
+  }
+
+  .reservation-summary-body {
+    display: grid;
+    gap: var(--sz-space-3);
+    padding-bottom: var(--sz-space-4);
+  }
+
+  .reservation-summary-hero {
+    padding: var(--sz-space-3);
+    display: grid;
+    gap: var(--sz-space-3);
+  }
+
+  .reservation-summary-lodging {
+    font-size: 1.22rem;
+    line-height: 1.2;
+    font-weight: var(--sz-font-weight-bold);
+    color: var(--sz-color-text);
+    overflow-wrap: anywhere;
+  }
+
+  .reservation-summary-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem .75rem;
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .reservation-summary-dates {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: var(--sz-space-2);
+    align-items: stretch;
+  }
+
+  .reservation-summary-datebox,
+  .reservation-summary-nightbox {
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    padding: .75rem;
+    min-width: 0;
+  }
+
+  .reservation-summary-datebox_label,
+  .reservation-summary-money_label,
+  .reservation-summary-info_label {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .reservation-summary-datebox_value,
+  .reservation-summary-money_value {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-bold);
+    margin-top: .18rem;
+  }
+
+  .reservation-summary-datebox_time {
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+    margin-top: .08rem;
+  }
+
+  .reservation-summary-nightbox {
+    min-width: 4.2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .reservation-summary-nightbox strong {
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--sz-color-primary);
+  }
+
+  .reservation-summary-nightbox span {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    margin-top: .18rem;
+  }
+
+  .reservation-summary-moneygrid,
+  .reservation-summary-infogrid {
+    display: grid;
+    gap: var(--sz-space-2);
+  }
+
+  .reservation-summary-moneygrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reservation-summary-money {
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface);
+    padding: .75rem;
+  }
+
+  .reservation-summary-money.is-main {
+    grid-column: 1 / -1;
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 38%, var(--sz-color-border));
+  }
+
+  .reservation-summary-money.is-main .reservation-summary-money_value {
+    font-size: 1.45rem;
+    color: var(--sz-color-primary);
+  }
+
+  .reservation-summary-info {
+    display: grid;
+    gap: .2rem;
+    border-bottom: 1px solid var(--sz-color-border);
+    padding: .62rem 0;
+  }
+
+  .reservation-summary-info:first-child {
+    padding-top: 0;
+  }
+
+  .reservation-summary-info:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .reservation-summary-info_value {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+    overflow-wrap: anywhere;
+  }
+
+  .reservation-summary-flags {
+    display: flex;
+    gap: .4rem;
+    flex-wrap: wrap;
+  }
+
+  .reservation-summary-flag {
+    border: 1px solid var(--sz-color-border);
+    border-radius: 999px;
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+    padding: .2rem .55rem;
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .reservation-summary-obs {
+    white-space: pre-wrap;
+    color: var(--sz-color-text-secondary);
+    line-height: 1.45;
+  }
+
+  @media (max-width: 520px) {
+    .reservation-summary-page .sz_page_container {
+      padding: var(--sz-space-2);
+    }
+
+    .reservation-summary-contextbar {
+      padding: var(--sz-space-3);
+    }
+
+    .reservation-summary-dates {
+      grid-template-columns: 1fr;
+    }
+
+    .reservation-summary-nightbox {
+      min-height: 4.2rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page reservation-summary-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar reservation-summary-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="reservation-summary-titleline">
+          <div class="sz_page_title">Resumo da reserva</div>
+          <span class="reservation-summary-code">{{ reserva.codigo }}</span>
+          {% if reserva.cancelada %}
+          <span class="reservation-summary-status is-cancelled"><i class="fa-solid fa-ban"></i> Cancelada</span>
+          {% else %}
+          <span class="reservation-summary-status is-active"><i class="fa-solid fa-check"></i> Ativa</span>
+          {% endif %}
+        </div>
+        <div class="sz_page_subtitle">Consulta r&aacute;pida dos dados principais.</div>
+      </div>
+    </header>
+
+    <main class="sz_page_body reservation-summary-body">
+      <section class="sz_panel reservation-summary-hero">
+        <div>
+          <div class="reservation-summary-lodging">{{ reserva.alojamento }}</div>
+          <div class="reservation-summary-meta">
+            {% if reserva.origem %}<span>{{ reserva.origem }}</span>{% endif %}
+            <span>Reserva em {{ reserva.rdata }}</span>
+            <span>{{ reserva.hospedes }} h&oacute;spede{% if reserva.hospedes != 1 %}s{% endif %}</span>
+          </div>
+        </div>
+
+        <div class="reservation-summary-dates">
+          <div class="reservation-summary-datebox">
+            <div class="reservation-summary-datebox_label">Check-in</div>
+            <div class="reservation-summary-datebox_value">{{ reserva.datain }}</div>
+            {% if reserva.horain %}<div class="reservation-summary-datebox_time">{{ reserva.horain }}</div>{% endif %}
+          </div>
+          <div class="reservation-summary-nightbox">
+            <strong>{{ reserva.noites }}</strong>
+            <span>noite{% if reserva.noites != 1 %}s{% endif %}</span>
+          </div>
+          <div class="reservation-summary-datebox">
+            <div class="reservation-summary-datebox_label">Check-out</div>
+            <div class="reservation-summary-datebox_value">{{ reserva.dataout }}</div>
+            {% if reserva.horaout %}<div class="reservation-summary-datebox_time">{{ reserva.horaout }}</div>{% endif %}
+          </div>
+        </div>
+      </section>
+
+      <section class="sz_panel reservation-summary-hero">
+        <div class="reservation-summary-moneygrid">
+          <div class="reservation-summary-money is-main">
+            <div class="reservation-summary-money_label">Valor l&iacute;quido</div>
+            <div class="reservation-summary-money_value">{{ reserva.liquido }}</div>
+          </div>
+          <div class="reservation-summary-money">
+            <div class="reservation-summary-money_label">Por noite</div>
+            <div class="reservation-summary-money_value">{{ reserva.liquido_noite }}</div>
+          </div>
+          <div class="reservation-summary-money">
+            <div class="reservation-summary-money_label">Estadia</div>
+            <div class="reservation-summary-money_value">{{ reserva.estadia }}</div>
+          </div>
+          <div class="reservation-summary-money">
+            <div class="reservation-summary-money_label">Limpeza</div>
+            <div class="reservation-summary-money_value">{{ reserva.limpeza }}</div>
+          </div>
+          <div class="reservation-summary-money">
+            <div class="reservation-summary-money_label">Comiss&atilde;o</div>
+            <div class="reservation-summary-money_value">{{ reserva.comissao }}</div>
+          </div>
+          {% if reserva.cancelada %}
+          <div class="reservation-summary-money">
+            <div class="reservation-summary-money_label">Cancelamento</div>
+            <div class="reservation-summary-money_value">{{ reserva.pcancel }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="sz_panel reservation-summary-hero">
+        <div class="reservation-summary-infogrid">
+          <div class="reservation-summary-info">
+            <div class="reservation-summary-info_label">H&oacute;spede</div>
+            <div class="reservation-summary-info_value">{{ reserva.nome }}</div>
+          </div>
+          <div class="reservation-summary-info">
+            <div class="reservation-summary-info_label">Pa&iacute;s de origem</div>
+            <div class="reservation-summary-info_value">{{ reserva.pais }}</div>
+          </div>
+          <div class="reservation-summary-info">
+            <div class="reservation-summary-info_label">Ocupantes</div>
+            <div class="reservation-summary-info_value">
+              {{ reserva.adultos }} adulto{% if reserva.adultos != 1 %}s{% endif %}
+              {% if reserva.criancas %} &middot; {{ reserva.criancas }} crian&ccedil;a{% if reserva.criancas != 1 %}s{% endif %}{% endif %}
+              {% if reserva.bebes %} &middot; {{ reserva.bebes }} beb&eacute;{% if reserva.bebes != 1 %}s{% endif %}{% endif %}
+            </div>
+          </div>
+          {% if reserva.usrcheckin %}
+          <div class="reservation-summary-info">
+            <div class="reservation-summary-info_label">Check-in atribuido</div>
+            <div class="reservation-summary-info_value">{{ reserva.usrcheckin }}</div>
+          </div>
+          {% endif %}
+          <div class="reservation-summary-info">
+            <div class="reservation-summary-info_label">Extras / estado</div>
+            <div class="reservation-summary-flags">
+              {% if reserva.presencial %}<span class="reservation-summary-flag">Presencial</span>{% endif %}
+              {% if reserva.berco %}<span class="reservation-summary-flag">Ber&ccedil;o</span>{% endif %}
+              {% if reserva.sofacama %}<span class="reservation-summary-flag">Sof&aacute;-cama</span>{% endif %}
+              {% if reserva.sef %}<span class="reservation-summary-flag">SEF</span>{% endif %}
+              {% if reserva.instr %}<span class="reservation-summary-flag">Instru&ccedil;&otilde;es</span>{% endif %}
+              {% if not reserva.presencial and not reserva.berco and not reserva.sofacama and not reserva.sef and not reserva.instr %}
+              <span class="reservation-summary-flag">Sem extras</span>
+              {% endif %}
+            </div>
+          </div>
+          {% if reserva.obs %}
+          <div class="reservation-summary-info">
+            <div class="reservation-summary-info_label">Observa&ccedil;&otilde;es</div>
+            <div class="reservation-summary-obs">{{ reserva.obs }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+{% endblock %}

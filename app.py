@@ -14818,6 +14818,151 @@ def create_app():
             return_to=(request.args.get('return_to') or '/generic/view/RS/')
         )
 
+    @app.route('/reserva/resumo/<path:codigo>')
+    @app.route('/reservas/resumo/<path:codigo>')
+    @login_required
+    def reserva_resumo_page(codigo):
+        code = str(codigo or '').strip()
+        if not code:
+            abort(404)
+        try:
+            current_feid = get_current_feid()
+        except MissingCurrentEntityError:
+            abort(403)
+
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                RS.RSSTAMP,
+                LTRIM(RTRIM(ISNULL(RS.RESERVA,''))) AS RESERVA,
+                LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) AS ALOJAMENTO,
+                LTRIM(RTRIM(ISNULL(RS.ORIGEM,''))) AS ORIGEM,
+                CAST(RS.RDATA AS date) AS RDATA,
+                CAST(RS.DATAIN AS date) AS DATAIN,
+                CAST(RS.DATAOUT AS date) AS DATAOUT,
+                ISNULL(RS.HORAIN,'') AS HORAIN,
+                ISNULL(RS.HORAOUT,'') AS HORAOUT,
+                ISNULL(RS.NOITES,0) AS NOITES,
+                LTRIM(RTRIM(ISNULL(RS.NOME,''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(RS.PAIS,''))) AS PAIS,
+                ISNULL(RS.ADULTOS,0) AS ADULTOS,
+                ISNULL(RS.CRIANCAS,0) AS CRIANCAS,
+                ISNULL(RS.BEBES,0) AS BEBES,
+                CAST(ISNULL(RS.ESTADIA,0) AS decimal(18,2)) AS ESTADIA,
+                CAST(ISNULL(RS.LIMPEZA,0) AS decimal(18,2)) AS LIMPEZA,
+                CAST(ISNULL(RS.COMISSAO,0) AS decimal(18,2)) AS COMISSAO,
+                ISNULL(RS.CANCELADA,0) AS CANCELADA,
+                CAST(RS.DTCANCEL AS date) AS DTCANCEL,
+                CAST(ISNULL(RS.PCANCEL,0) AS decimal(18,2)) AS PCANCEL,
+                ISNULL(RS.BERCO,0) AS BERCO,
+                ISNULL(RS.SOFACAMA,0) AS SOFACAMA,
+                ISNULL(RS.PRESENCIAL,0) AS PRESENCIAL,
+                ISNULL(RS.SEF,0) AS SEF,
+                ISNULL(RS.INSTR,0) AS INSTR,
+                LTRIM(RTRIM(ISNULL(RS.USRCHECKIN,''))) AS USRCHECKIN,
+                LTRIM(RTRIM(ISNULL(RS.OBS,''))) AS OBS,
+                G.NOME_COMPLETO AS GUEST_NOME,
+                G.PAIS_RESIDENCIA AS GUEST_PAIS
+            FROM dbo.RS AS RS
+            LEFT JOIN dbo.AL AS AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
+            OUTER APPLY (
+                SELECT TOP 1
+                    LTRIM(RTRIM(ISNULL(NOME_COMPLETO, CONCAT(ISNULL(NOME,''), ' ', ISNULL(APELIDO,''))))) AS NOME_COMPLETO,
+                    LTRIM(RTRIM(ISNULL(PAIS_RESIDENCIA,''))) AS PAIS_RESIDENCIA
+                FROM dbo.RSGUESTS AS RG
+                WHERE RG.RSSTAMP = RS.RSSTAMP
+                  AND ISNULL(RG.ATIVO,1) = 1
+                ORDER BY ISNULL(RG.DTCRI, '19000101'), RG.RSGUESTSTAMP
+            ) AS G
+            WHERE (
+                    LTRIM(RTRIM(ISNULL(RS.RESERVA,''))) = :codigo
+                 OR LTRIM(RTRIM(ISNULL(RS.RSSTAMP,''))) = :codigo
+              )
+              AND (
+                    ISNULL(RS.FEID, 0) = :current_feid
+                 OR ISNULL(AL.FEID, 0) = :current_feid
+                 OR ISNULL(AL.FEID_GESTOR, 0) = :current_feid
+              )
+            ORDER BY ISNULL(RS.RDATA, RS.DATAIN) DESC, RS.RSSTAMP DESC
+        """), {'codigo': code, 'current_feid': current_feid}).mappings().first()
+        if not row:
+            abort(404)
+
+        def _dec(value):
+            try:
+                return Decimal(str(value or 0))
+            except Exception:
+                return Decimal('0')
+
+        def _money(value):
+            amount = _dec(value).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            return f"{amount:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        def _date_label(value):
+            if isinstance(value, datetime):
+                value = value.date()
+            if isinstance(value, date):
+                return value.strftime('%d/%m/%Y')
+            raw = str(value or '').strip()
+            if not raw:
+                return '-'
+            try:
+                return datetime.fromisoformat(raw[:10]).strftime('%d/%m/%Y')
+            except Exception:
+                return raw[:10]
+
+        def _iso_date(value):
+            if isinstance(value, datetime):
+                value = value.date()
+            if isinstance(value, date):
+                return value.isoformat()
+            return str(value or '').strip()[:10]
+
+        estadia = _dec(row.get('ESTADIA'))
+        limpeza = _dec(row.get('LIMPEZA'))
+        comissao = _dec(row.get('COMISSAO'))
+        liquido = estadia + limpeza - comissao
+        noites = int(row.get('NOITES') or 0)
+        liquido_noite = (liquido / Decimal(noites)) if noites > 0 else Decimal('0')
+        hospedes = int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0) + int(row.get('BEBES') or 0)
+
+        summary = {
+            'rsstamp': str(row.get('RSSTAMP') or '').strip(),
+            'codigo': str(row.get('RESERVA') or '').strip() or code,
+            'alojamento': str(row.get('ALOJAMENTO') or '').strip() or '-',
+            'origem': str(row.get('ORIGEM') or '').strip(),
+            'rdata': _date_label(row.get('RDATA')),
+            'datain': _date_label(row.get('DATAIN')),
+            'dataout': _date_label(row.get('DATAOUT')),
+            'datain_iso': _iso_date(row.get('DATAIN')),
+            'dataout_iso': _iso_date(row.get('DATAOUT')),
+            'horain': str(row.get('HORAIN') or '').strip(),
+            'horaout': str(row.get('HORAOUT') or '').strip(),
+            'noites': noites,
+            'nome': str(row.get('NOME') or row.get('GUEST_NOME') or '').strip() or '-',
+            'pais': str(row.get('PAIS') or row.get('GUEST_PAIS') or '').strip() or '-',
+            'adultos': int(row.get('ADULTOS') or 0),
+            'criancas': int(row.get('CRIANCAS') or 0),
+            'bebes': int(row.get('BEBES') or 0),
+            'hospedes': hospedes,
+            'estadia': _money(estadia),
+            'limpeza': _money(limpeza),
+            'comissao': _money(comissao),
+            'liquido': _money(liquido),
+            'liquido_noite': _money(liquido_noite),
+            'cancelada': bool(int(row.get('CANCELADA') or 0)),
+            'dtcancel': _date_label(row.get('DTCANCEL')),
+            'pcancel': _money(row.get('PCANCEL')),
+            'berco': bool(int(row.get('BERCO') or 0)),
+            'sofacama': bool(int(row.get('SOFACAMA') or 0)),
+            'presencial': bool(int(row.get('PRESENCIAL') or 0)),
+            'sef': bool(int(row.get('SEF') or 0)),
+            'instr': bool(int(row.get('INSTR') or 0)),
+            'usrcheckin': str(row.get('USRCHECKIN') or '').strip(),
+            'obs': str(row.get('OBS') or '').strip(),
+        }
+        return render_template('reserva_resumo.html', page_title='Resumo da reserva', reserva=summary)
+
     @app.route('/rs_reservas_form/', defaults={'rsstamp': None})
     @app.route('/rs_reservas_form/<rsstamp>')
     @app.route('/generic/rs_reservas_form/', defaults={'rsstamp': None})
