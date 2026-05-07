@@ -335,6 +335,7 @@ def fetch_gr_monitor_tasks(
     *,
     start_date: date | None = None,
     end_date: date | None = None,
+    user_code: str | None = None,
 ) -> list[dict[str, Any]]:
     today = date.today()
     start = start_date or (today - timedelta(days=GR_MONITOR_DEFAULT_PAST_DAYS))
@@ -384,6 +385,10 @@ def fetch_gr_monitor_tasks(
     params: dict[str, Any] = {"start": start, "end": end}
     if col("DATA"):
         where.append("CAST(T.DATA AS date) BETWEEN :start AND :end")
+    user_filter = str(user_code or "").strip()
+    if user_filter and col("UTILIZADOR"):
+        where.append("UPPER(LTRIM(RTRIM(ISNULL(T.UTILIZADOR, '')))) = UPPER(:user_code)")
+        params["user_code"] = user_filter
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     order_sql = "ORDER BY T.DATA, T.HORA, T.TAREFASSTAMP" if col("DATA") and col("HORA") and col("TAREFASSTAMP") else ""
     sql = text(f"""
@@ -438,7 +443,12 @@ def fetch_gr_task_status_options() -> list[dict[str, Any]]:
     ]
 
 
-def update_gr_task_status(task_id: str, status_code: int, user_login: str = "") -> dict[str, Any]:
+def update_gr_task_status(
+    task_id: str,
+    status_code: int,
+    user_login: str = "",
+    restrict_user_code: str | None = None,
+) -> dict[str, Any]:
     normalized_id = str(task_id or "").strip()
     if not normalized_id:
         raise ValueError("missing_task_id")
@@ -477,10 +487,17 @@ def update_gr_task_status(task_id: str, status_code: int, user_login: str = "") 
         set_parts.append("USERALTERACAO = :user_login")
         params["user_login"] = str(user_login or "").strip()
 
+    restrict_user = str(restrict_user_code or "").strip()
+    owner_clause = ""
+    if restrict_user and "UTILIZADOR" in cols:
+        owner_clause = " AND UPPER(LTRIM(RTRIM(ISNULL(UTILIZADOR, '')))) = UPPER(:restrict_user)"
+        params["restrict_user"] = restrict_user
+
     result = db.session.execute(text(f"""
         UPDATE TAREFAS
         SET {", ".join(set_parts)}
         WHERE TAREFASSTAMP = :task_id
+        {owner_clause}
     """), params)
     if result.rowcount == 0:
         db.session.rollback()

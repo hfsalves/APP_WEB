@@ -101,6 +101,12 @@ def _has_app_task_access(action: str = "consultar") -> bool:
     return bool(row and getattr(row, action, False))
 
 
+def _monitor_user_filter() -> str | None:
+    if getattr(current_user, "ADMIN", False) or getattr(current_user, "DEV", False):
+        return None
+    return _current_login_value()
+
+
 def _relay_legacy_response(legacy_response) -> Response:
     response = Response(
         legacy_response.get_data(),
@@ -205,7 +211,11 @@ def gr_monitor_tasks():
     start = _parse_date_param(request.args.get("start"), today - timedelta(days=30))
     end = _parse_date_param(request.args.get("end"), today + timedelta(days=60))
     return jsonify({
-        "rows": fetch_gr_monitor_tasks(start_date=start, end_date=end),
+        "rows": fetch_gr_monitor_tasks(
+            start_date=start,
+            end_date=end,
+            user_code=_monitor_user_filter(),
+        ),
     })
 
 
@@ -224,7 +234,12 @@ def gr_monitor_task_status(task_id: str):
     try:
         status_code = int(body.get("status_code"))
         user_login = (getattr(current_user, "LOGIN", "") or "").strip()
-        return jsonify(update_gr_task_status(task_id, status_code, user_login=user_login))
+        return jsonify(update_gr_task_status(
+            task_id,
+            status_code,
+            user_login=user_login,
+            restrict_user_code=_monitor_user_filter(),
+        ))
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
