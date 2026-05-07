@@ -6,6 +6,8 @@ from pathlib import Path
 from flask import Blueprint, Response, abort, jsonify, render_template, request, send_from_directory
 from flask_login import current_user, login_required
 
+from models import Acessos
+
 from .service import (
     LEGACY_SCRIPT_FILES,
     LEGACY_STATIC_DIR,
@@ -72,10 +74,31 @@ def _ensure_monthly_sheet_intersol_access() -> dict:
 
 
 def _ensure_monitor_access() -> dict:
+    if _has_app_task_access("consultar"):
+        return {}
     allowed, legacy_user = can_access_monitor(_current_login_value())
     if not allowed or not legacy_user:
         abort(403)
     return legacy_user
+
+
+def _ensure_monitor_edit_access() -> dict:
+    if _has_app_task_access("editar"):
+        return {}
+    allowed, legacy_user = can_access_monitor(_current_login_value())
+    if not allowed or not legacy_user:
+        abort(403)
+    return legacy_user
+
+
+def _has_app_task_access(action: str = "consultar") -> bool:
+    if getattr(current_user, "ADMIN", False) or getattr(current_user, "DEV", False):
+        return True
+    login = _current_login_value()
+    if not login:
+        return False
+    row = Acessos.query.filter_by(utilizador=login, tabela="TAREFAS").first()
+    return bool(row and getattr(row, action, False))
 
 
 def _relay_legacy_response(legacy_response) -> Response:
@@ -196,7 +219,7 @@ def gr_monitor_status_options():
 @bp.route("/api/gr_planning/monitor/tasks/<task_id>/status", methods=["POST"])
 @login_required
 def gr_monitor_task_status(task_id: str):
-    _ensure_monitor_access()
+    _ensure_monitor_edit_access()
     body = request.get_json(silent=True) or {}
     try:
         status_code = int(body.get("status_code"))
