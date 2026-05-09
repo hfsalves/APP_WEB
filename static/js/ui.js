@@ -179,6 +179,36 @@ window.addEventListener('DOMContentLoaded', () => {
     banner.textContent = `HOST ATUAL: ${window.location.host || '-'} | login-js-debug-20260509-1`;
     loginCard.prepend(banner);
   }
+  if (loginPage && String(window.location.hostname || '').toLowerCase() === 'app.gr360flooringsystems.com') {
+    const form = loginPage.querySelector('form.login-form');
+    const dbTarget = form?.querySelector('#db_target');
+    const dbTargetGroup = dbTarget?.closest('.form-group');
+    const verifyGroup = form?.querySelector('#verifyDbGroup');
+    if (dbTarget) {
+      dbTarget.value = 'client';
+      dbTarget.disabled = true;
+    }
+    if (dbTargetGroup) dbTargetGroup.style.display = 'none';
+    if (verifyGroup) verifyGroup.style.display = 'none';
+    if (form && !form.querySelector('input[name="db_target"][type="hidden"]')) {
+      const hiddenTarget = document.createElement('input');
+      hiddenTarget.type = 'hidden';
+      hiddenTarget.name = 'db_target';
+      hiddenTarget.value = 'client';
+      form.prepend(hiddenTarget);
+    }
+    form?.addEventListener('submit', () => {
+      let hiddenTarget = form.querySelector('input[name="db_target"][type="hidden"]');
+      if (!hiddenTarget) {
+        hiddenTarget = document.createElement('input');
+        hiddenTarget.type = 'hidden';
+        hiddenTarget.name = 'db_target';
+        form.prepend(hiddenTarget);
+      }
+      hiddenTarget.value = 'client';
+      if (dbTarget) dbTarget.disabled = true;
+    });
+  }
 
   window.szEnhanceDecimalInputs?.(document);
   hoistBootstrapModals(document);
