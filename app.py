@@ -166,7 +166,6 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
     # Cache-busting para assets estÃ¡ticos (evita o browser usar JS antigo)
     app.config['STATIC_VERSION'] = int(time.time())
-    app.config['LOGIN_SCREEN_MARKER'] = 'login-host-debug-20260509-1'
     configure_i18n(app)
 
     db_target_session_key = 'DB_TARGET'
@@ -2284,8 +2283,6 @@ def create_app():
                 verify_db=bool(verify_db),
                 db_target_prod=db_target_prod,
                 next_url=next_url,
-                request_host=host or '',
-                login_screen_marker=app.config.get('LOGIN_SCREEN_MARKER', ''),
             )
 
         if request.method == 'POST':

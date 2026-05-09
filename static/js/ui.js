@@ -172,13 +172,6 @@ function hoistBootstrapModals(root = document) {
 
 window.addEventListener('DOMContentLoaded', () => {
   const loginPage = document.querySelector('.login-page');
-  const loginCard = document.querySelector('.login-card');
-  if (loginPage && loginCard && !document.querySelector('.login-host-debug-banner')) {
-    const banner = document.createElement('div');
-    banner.className = 'login-host-debug-banner';
-    banner.textContent = `HOST ATUAL: ${window.location.host || '-'} | login-js-debug-20260509-1`;
-    loginCard.prepend(banner);
-  }
   if (loginPage && String(window.location.hostname || '').toLowerCase() === 'app.gr360flooringsystems.com') {
     const form = loginPage.querySelector('form.login-form');
     const dbTarget = form?.querySelector('#db_target');

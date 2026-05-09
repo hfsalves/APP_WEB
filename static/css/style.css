@@ -1041,30 +1041,6 @@ body:not(.authenticated) .main-content {
   font-size: 0.78rem;
   color: #94a3b8;
 }
-.login-runtime-info {
-  margin-top: 0.35rem;
-  color: #64748b;
-  font-size: 0.72rem;
-  word-break: break-word;
-}
-.login-runtime-info-header {
-  margin-bottom: 0;
-  color: #334155;
-  font-weight: 600;
-}
-.login-host-debug-banner {
-  margin-bottom: 0.85rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid rgba(14, 165, 233, 0.35);
-  border-radius: 8px;
-  background: rgba(224, 242, 254, 0.9);
-  color: #075985;
-  font-size: 0.78rem;
-  font-weight: 700;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-  text-align: center;
-}
 .login-card .alert {
   border-radius: 10px;
   border: 1px solid rgba(220, 38, 38, 0.15);
