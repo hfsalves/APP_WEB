@@ -171,6 +171,15 @@ function hoistBootstrapModals(root = document) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  const loginPage = document.querySelector('.login-page');
+  const loginCard = document.querySelector('.login-card');
+  if (loginPage && loginCard && !document.querySelector('.login-host-debug-banner')) {
+    const banner = document.createElement('div');
+    banner.className = 'login-host-debug-banner';
+    banner.textContent = `HOST ATUAL: ${window.location.host || '-'} | login-js-debug-20260509-1`;
+    loginCard.prepend(banner);
+  }
+
   window.szEnhanceDecimalInputs?.(document);
   hoistBootstrapModals(document);
   if (document.body && typeof MutationObserver === 'function') {

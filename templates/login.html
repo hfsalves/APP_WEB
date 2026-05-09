@@ -12,6 +12,9 @@
       <div class="login-brand">
         <h1 class="login-title">StationZero</h1>
         <p class="login-subtitle">{{ _('app.operations_platform') }}</p>
+        <p class="login-runtime-info login-runtime-info-header">
+          Host: {{ request_host or '-' }} · {{ login_screen_marker or '-' }}
+        </p>
       </div>
     </div>
 
