@@ -248,6 +248,7 @@ def create_app():
         'www.szeroapp.com': db_target_prod,
         'hfsalves.mooo.com': db_target_prod,
         'planning.hsols.local': db_target_client,
+        'app.gr360flooringsystems.com': db_target_client,
     }
     app.config['DB_DEFAULT_TARGET'] = db_target_prod
     app.config['DB_LOCAL_DEFAULT_TARGET'] = str(
