@@ -4156,3 +4156,5 @@
 [2026-05-01 15:57:39] Nenhum processo ativo para Dev.
 [2026-05-01 15:57:44] Arranque Dev: C:\APP_WEB\.venv\Scripts\python.exe -m flask --app app.py run --debug --host=127.0.0.1 --port=5000
 [2026-05-01 15:57:51] Dev iniciado com sucesso na porta 5000. PID principal: 29380.
+[2026-05-09 16:29:58] Nenhum processo ativo para Dev.
+[2026-05-09 16:30:04] Porta 5000 ocupada por processo nao relacionado: PID 38124 [python.exe].

@@ -2267,7 +2267,8 @@ def create_app():
 
         def _render_login(error: str = '', selected_target: str = '', verify_db: bool = False):
             host = _normalized_request_host() if has_request_context() else ''
-            show_db_target_select = _is_localhost_host(host)
+            host_target = _normalize_db_target((app.config.get('DB_HOST_TARGETS') or {}).get(host))
+            show_db_target_select = _is_localhost_host(host) and not host_target
             resolved_target = (
                 _normalize_db_target(selected_target)
                 or _resolve_db_target()
@@ -2288,7 +2289,9 @@ def create_app():
             login_ = request.form['login']
             pwd = request.form['password']
             verify_db_requested = str(request.form.get('verify_db') or '').strip() in {'1', 'true', 'on', 'yes'}
-            if _is_localhost_host(_normalized_request_host()):
+            request_host = _normalized_request_host()
+            host_target = _normalize_db_target((app.config.get('DB_HOST_TARGETS') or {}).get(request_host))
+            if _is_localhost_host(request_host) and not host_target:
                 selected_target = _normalize_db_target(request.form.get('db_target'))
                 if not selected_target:
                     return _render_login(
