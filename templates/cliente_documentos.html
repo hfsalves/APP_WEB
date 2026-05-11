@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+
+{% block title %}Documentos{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <style>
+    .client-documents-page .sz_page_container {
+      padding-block: var(--sz-space-2) 0;
+      padding-inline: var(--sz-space-4);
+    }
+
+    .client-documents-page .sz_contextbar {
+      align-items: center;
+      gap: var(--sz-space-3);
+    }
+
+    .client-documents-page .sz_contextbar_left {
+      min-width: 0;
+      gap: var(--sz-space-1);
+    }
+
+    .client-documents-page .sz_page_body {
+      min-height: 0;
+      overflow: auto;
+      padding-bottom: var(--sz-space-3);
+    }
+
+    .client-documents-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+      gap: var(--sz-space-4);
+      width: 100%;
+      min-height: 0;
+    }
+
+    .client-documents-panel {
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-lg);
+      background: var(--sz-color-surface);
+      box-shadow: var(--sz-shadow-1);
+      overflow: hidden;
+    }
+
+    .client-documents-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sz-space-3);
+      padding: var(--sz-space-4);
+      border-bottom: 1px solid var(--sz-color-border);
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 64%, transparent);
+    }
+
+    .client-documents-panel-title {
+      color: var(--sz-color-text);
+      font-size: var(--sz-font-size-lg);
+      font-weight: var(--sz-font-weight-bold);
+    }
+
+    .client-documents-muted {
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-sm);
+    }
+
+    .client-documents-explorer-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: var(--sz-space-2);
+      padding: var(--sz-space-3);
+      border-bottom: 1px solid var(--sz-color-border);
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 42%, transparent);
+    }
+
+    .client-documents-breadcrumb {
+      display: flex;
+      flex: 1 1 auto;
+      align-items: center;
+      gap: var(--sz-space-1);
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .client-documents-breadcrumb button {
+      min-width: 0;
+      padding: .35rem .55rem;
+      border: 1px solid transparent;
+      border-radius: var(--sz-radius-sm);
+      background: transparent;
+      color: var(--sz-color-text);
+      font: inherit;
+      font-size: var(--sz-font-size-sm);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .client-documents-breadcrumb button:hover {
+      border-color: var(--sz-color-border);
+      background: color-mix(in srgb, var(--sz-color-primary) 8%, transparent);
+    }
+
+    .client-documents-breadcrumb-sep {
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-xs);
+    }
+
+    .client-documents-explorer {
+      padding: var(--sz-space-3);
+    }
+
+    .client-documents-list {
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-md);
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 24%, transparent);
+      overflow: hidden;
+    }
+
+    .client-documents-list-head,
+    .client-document-row {
+      display: grid;
+      grid-template-columns: minmax(12rem, 1fr) 7rem 7rem 8rem 5rem;
+      align-items: center;
+      gap: var(--sz-space-3);
+    }
+
+    .client-documents-list-head {
+      padding: var(--sz-space-3);
+      border-bottom: 1px solid var(--sz-color-border);
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-xs);
+      font-weight: var(--sz-font-weight-bold);
+      text-transform: uppercase;
+    }
+
+    .client-document-row {
+      width: 100%;
+      min-height: 3.25rem;
+      padding: var(--sz-space-2) var(--sz-space-3);
+      border: 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--sz-color-border) 72%, transparent);
+      background: transparent;
+      color: var(--sz-color-text);
+      cursor: pointer;
+      text-align: left;
+      text-decoration: none;
+    }
+
+    .client-document-row:last-child {
+      border-bottom: 0;
+    }
+
+    .client-document-row:hover {
+      background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
+      color: var(--sz-color-text);
+    }
+
+    .client-document-row-name {
+      display: flex;
+      align-items: center;
+      gap: var(--sz-space-3);
+      min-width: 0;
+    }
+
+    .client-document-icon {
+      width: 2.25rem;
+      height: 2.25rem;
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--sz-radius-md);
+      background: color-mix(in srgb, var(--sz-color-primary) 13%, var(--sz-color-surface-alt));
+      color: var(--sz-color-primary);
+    }
+
+    .client-document-main {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .client-document-name {
+      display: block;
+      overflow: hidden;
+      font-weight: var(--sz-font-weight-bold);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .client-document-folder-hint,
+    .client-document-cell {
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-xs);
+    }
+
+    .client-document-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--sz-space-1);
+      text-align: right;
+    }
+
+    .client-document-action {
+      width: 2rem;
+      height: 2rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-sm);
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 45%, transparent);
+      color: var(--sz-color-text-muted);
+      cursor: pointer;
+      font: inherit;
+      padding: 0;
+      text-decoration: none;
+    }
+
+    .client-document-action:hover {
+      border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+      color: var(--sz-color-primary);
+    }
+
+    .client-document-action.is-danger:hover {
+      border-color: color-mix(in srgb, var(--sz-color-danger) 68%, var(--sz-color-border));
+      color: var(--sz-color-danger);
+    }
+
+    .client-documents-upload-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sz-space-3);
+      padding: var(--sz-space-4);
+    }
+
+    .client-documents-drop {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--sz-space-2);
+      min-height: 10rem;
+      padding: var(--sz-space-5);
+      border: 1px dashed color-mix(in srgb, var(--sz-color-primary) 48%, var(--sz-color-border));
+      border-radius: var(--sz-radius-lg);
+      background: color-mix(in srgb, var(--sz-color-primary) 6%, transparent);
+      color: var(--sz-color-text-muted);
+      text-align: center;
+    }
+
+    .client-documents-drop i {
+      color: var(--sz-color-primary);
+      font-size: 2rem;
+    }
+
+    .client-documents-drop.is-dragover {
+      border-color: var(--sz-color-primary);
+      background: color-mix(in srgb, var(--sz-color-primary) 12%, transparent);
+      color: var(--sz-color-text);
+    }
+
+    .client-documents-status {
+      min-height: 1.25rem;
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-sm);
+    }
+
+    .client-documents-status.is-error {
+      color: var(--sz-color-danger);
+    }
+
+    .client-documents-status.is-success {
+      color: var(--sz-color-success);
+    }
+
+    .client-documents-empty {
+      padding: var(--sz-space-5);
+      color: var(--sz-color-text-muted);
+      text-align: center;
+    }
+
+    @media (max-width: 920px) {
+      .client-documents-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .client-documents-page {
+        height: 100%;
+        min-height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+
+      .client-documents-page::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        display: none;
+      }
+
+      .client-documents-page .sz_page_container {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        min-height: max-content;
+        padding-inline: var(--sz-space-3);
+      }
+
+      .client-documents-page .sz_contextbar {
+        align-items: stretch;
+        padding: var(--sz-space-3);
+      }
+
+      .client-documents-page .sz_contextbar_left,
+      .client-documents-page .sz_contextbar_right {
+        flex: 0 0 auto;
+        width: 100%;
+      }
+
+      .client-documents-page .sz_contextbar_left {
+        display: block;
+      }
+
+      .client-documents-page .sz_page_body {
+        height: auto;
+        min-height: auto;
+        overflow: visible;
+        padding-bottom: calc(var(--sz-space-3) + 4.25rem);
+      }
+
+      .client-documents-explorer-toolbar {
+        align-items: stretch;
+      }
+
+      .client-documents-list-head {
+        display: none;
+      }
+
+      .client-document-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--sz-space-2);
+      }
+
+      .client-document-cell {
+        display: none;
+      }
+
+      .client-document-actions {
+        display: flex;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page client-documents-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Documentos</div>
+        <div id="clientDocumentsSubtitle" class="sz_page_subtitle">{{ current_user.CLNOME or 'Area reservada' }}</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <button id="clientDocumentsRefresh" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="client-documents-layout">
+        <section class="client-documents-panel">
+          <div class="client-documents-panel-header">
+            <div>
+              <div class="client-documents-panel-title">Explorador</div>
+              <div id="clientDocumentsMeta" class="client-documents-muted">A carregar documentos...</div>
+            </div>
+          </div>
+          <div class="client-documents-explorer-toolbar">
+            <button id="clientDocumentsUp" type="button" class="sz_button sz_button_ghost" disabled>
+              <i class="fa-solid fa-arrow-up"></i>
+            </button>
+            <nav id="clientDocumentsBreadcrumb" class="client-documents-breadcrumb" aria-label="Pasta atual"></nav>
+          </div>
+          <div id="clientDocumentsExplorer" class="client-documents-explorer">
+            <div class="client-documents-empty">A carregar documentos...</div>
+          </div>
+        </section>
+
+        <aside class="client-documents-panel">
+          <div class="client-documents-panel-header">
+            <div>
+              <div class="client-documents-panel-title">Enviar documentos</div>
+              <div class="client-documents-muted">Os ficheiros ficam em {{ client_upload_folder }}.</div>
+            </div>
+          </div>
+          <div class="client-documents-upload-body">
+            <div id="clientDocumentsDrop" class="client-documents-drop">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+              <strong>Escolher ficheiro</strong>
+              <span class="client-documents-muted">PDF, Office, imagens, texto ou ZIP.</span>
+            </div>
+            <input id="clientDocumentsUploadInput" type="file" class="d-none" multiple>
+            <button id="clientDocumentsUploadBtn" type="button" class="sz_button sz_button_primary">
+              <i class="fa-solid fa-upload"></i>
+              <span>Carregar documento</span>
+            </button>
+            <div id="clientDocumentsStatus" class="client-documents-status"></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar sz_page_footer">
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <a class="sz_button sz_button_ghost" href="{{ url_for('cliente_portal_page') }}">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </a>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/cliente_documentos.js') }}?v={{ static_version }}"></script>
+{% endblock %}

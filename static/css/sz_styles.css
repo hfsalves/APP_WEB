@@ -3356,6 +3356,46 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   }
 }
 
+.sz-base-shell .app-header .sz_user_theme_block {
+  display: none;
+  min-width: 0;
+  padding: 0.55rem 1rem 0.65rem;
+}
+
+.sz-base-shell .app-header .sz_user_theme_options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sz-space-2);
+}
+
+.sz-base-shell .app-header .sz_user_theme_option {
+  width: 2.45rem;
+  height: 2.45rem;
+  min-height: 2.45rem;
+  padding: 0;
+  border-color: var(--sz-color-border);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 52%, transparent);
+  color: var(--sz-color-text);
+}
+
+.sz-base-shell .app-header .sz_user_theme_option:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 52%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-alt));
+}
+
+.sz-base-shell .app-header .sz_user_theme_option.sz_is_active {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 74%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 18%, var(--sz-color-surface));
+  color: var(--sz-color-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 16%, transparent);
+}
+
+@media (max-width: 768px) {
+  .sz-base-shell .app-header .sz_user_theme_block {
+    display: block;
+  }
+}
+
 .sz_user_icon_hidden {
   display: none;
 }
@@ -3578,6 +3618,59 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   justify-content: flex-end;
   gap: var(--sz-space-2);
   margin-top: var(--sz-space-4);
+}
+
+.sz_global_password_modal {
+  background: var(--sz-color-surface);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-lg);
+  color: var(--sz-color-text);
+  box-shadow: var(--sz-shadow-3);
+}
+
+.sz_global_password_modal .sz_modal_header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sz-space-3);
+  padding: var(--sz-space-4) var(--sz-space-4) var(--sz-space-3);
+  margin: 0;
+}
+
+.sz_global_password_modal .modal-title {
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-lg);
+  font-weight: var(--sz-font-weight-bold);
+}
+
+.sz_global_password_modal .sz_modal_body {
+  padding: var(--sz-space-4);
+}
+
+.sz_global_password_modal .sz_modal_footer {
+  margin: 0;
+  padding: var(--sz-space-3) var(--sz-space-4);
+  border-top: 1px solid var(--sz-color-border);
+}
+
+.sz_global_password_close {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+}
+
+.sz_global_password_status {
+  min-height: 1.25rem;
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-sm);
+}
+
+.sz_global_password_status.is-error {
+  color: var(--sz-color-danger);
+}
+
+.sz_global_password_status.is-success {
+  color: var(--sz-color-success);
 }
 
 /* bootstrap modal de filtros do dashboard com visual sz_ */

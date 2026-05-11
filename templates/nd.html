@@ -244,38 +244,41 @@
   }
 
   .nd-badge {
-    --nd-badge-bg: #94a3b8;
+    --nd-badge-accent: #94a3b8;
+    --nd-badge-bg: rgba(148, 163, 184, 0.34);
+    --nd-badge-bg-soft: rgba(148, 163, 184, 0.18);
     --nd-badge-fg: #07111f;
-    --nd-badge-border: rgba(7, 17, 31, 0.24);
-    --nd-badge-highlight: rgba(255, 255, 255, 0.24);
-    --nd-badge-sidewash: rgba(255, 255, 255, 0.12);
-    --nd-text-shadow: 0 1px 0 rgba(255, 255, 255, 0.26);
+    --nd-badge-border: rgba(148, 163, 184, 0.68);
+    --nd-badge-gloss: rgba(255, 255, 255, 0.14);
+    --nd-text-shadow: 0 1px 0 rgba(255, 255, 255, 0.32);
     display: inline-flex;
     align-items: center;
     gap: 0.28rem;
     position: relative;
     max-width: 100%;
-    min-height: 1.42rem;
-    border-radius: 0.38rem;
-    padding: 0.16rem 0.48rem;
+    min-height: 1.46rem;
+    border-radius: 0.42rem;
+    padding: 0.16rem 0.5rem;
     border: 1px solid var(--nd-badge-border);
+    border-left: 3px solid var(--nd-badge-accent);
     background:
-      linear-gradient(180deg, var(--nd-badge-highlight), transparent 52%),
-      linear-gradient(90deg, var(--nd-badge-sidewash), transparent 42%),
-      var(--nd-badge-bg);
+      linear-gradient(180deg, var(--nd-badge-gloss), rgba(0, 0, 0, 0.05)),
+      linear-gradient(90deg, var(--nd-badge-bg), var(--nd-badge-bg-soft));
     color: var(--nd-badge-fg);
     font-size: var(--sz-font-size-xs);
     font-weight: var(--sz-font-weight-bold);
     line-height: 1.2;
     text-shadow: var(--nd-text-shadow);
     box-shadow:
-      inset 0 -1px 0 rgba(0, 0, 0, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.12),
       0 1px 2px rgba(0, 0, 0, 0.18);
     cursor: grab;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     isolation: isolate;
+    backdrop-filter: blur(1px);
   }
 
   .nd-badge:active {
@@ -286,7 +289,7 @@
     flex: 0 0 auto;
     width: 0.9rem;
     font-size: 0.78rem;
-    color: var(--nd-badge-fg);
+    color: currentColor;
     text-align: center;
     filter: drop-shadow(var(--nd-text-shadow));
   }
@@ -389,8 +392,15 @@
     margin-top: var(--sz-space-3);
   }
 
+  [data-sz-theme="dark"] .nd-badge,
+  [data-sz-theme="geek"] .nd-badge {
+    color: #f7fbff;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.76), 0 0 2px rgba(0, 0, 0, 0.5);
+  }
+
   [data-sz-theme="geek"] .nd-badge {
     box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
       inset 0 -1px 0 rgba(0, 0, 0, 0.22),
       0 0 0 1px rgba(117, 255, 132, 0.12),
       0 1px 2px rgba(0, 0, 0, 0.28);
@@ -528,32 +538,39 @@
     return (0.2126 * channels[0]) + (0.7152 * channels[1]) + (0.0722 * channels[2]);
   }
 
+  function rgbCss(rgb){
+    return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+  }
+
+  function rgbaCss(rgb, alpha){
+    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+  }
+
   function ndBadgeTone(color){
-    const lum = relativeLuminance(parseCssHexColor(color));
-    const isDark = lum < 0.48;
-    return isDark ? {
-      fg: '#ffffff',
-      border: 'rgba(255,255,255,0.22)',
-      highlight: 'rgba(255,255,255,0.18)',
-      sidewash: 'rgba(255,255,255,0.10)',
-      shadow: '0 1px 2px rgba(0,0,0,0.72), 0 0 2px rgba(0,0,0,0.45)'
-    } : {
-      fg: '#07111f',
-      border: 'rgba(7,17,31,0.25)',
-      highlight: 'rgba(255,255,255,0.28)',
-      sidewash: 'rgba(255,255,255,0.13)',
-      shadow: '0 1px 0 rgba(255,255,255,0.36), 0 0 1px rgba(255,255,255,0.28)'
+    const rgb = parseCssHexColor(color) || [148, 163, 184];
+    const lum = relativeLuminance(rgb);
+    return {
+      accent: rgbCss(rgb),
+      bg: rgbaCss(rgb, lum > 0.62 ? 0.42 : 0.36),
+      bgSoft: rgbaCss(rgb, lum > 0.62 ? 0.26 : 0.2),
+      border: rgbaCss(rgb, 0.74),
+      fg: lum > 0.38 ? '#07111f' : '#ffffff',
+      gloss: lum > 0.62 ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.12)',
+      shadow: lum > 0.38
+        ? '0 1px 0 rgba(255,255,255,0.34), 0 0 1px rgba(255,255,255,0.22)'
+        : '0 1px 1px rgba(0,0,0,0.72), 0 0 2px rgba(0,0,0,0.45)'
     };
   }
 
   function ndBadgeStyle(bg){
     const tone = ndBadgeTone(bg);
     return [
-      `--nd-badge-bg:${bg}`,
+      `--nd-badge-accent:${tone.accent}`,
+      `--nd-badge-bg:${tone.bg}`,
+      `--nd-badge-bg-soft:${tone.bgSoft}`,
       `--nd-badge-fg:${tone.fg}`,
       `--nd-badge-border:${tone.border}`,
-      `--nd-badge-highlight:${tone.highlight}`,
-      `--nd-badge-sidewash:${tone.sidewash}`,
+      `--nd-badge-gloss:${tone.gloss}`,
       `--nd-text-shadow:${tone.shadow}`
     ].join(';');
   }

@@ -40,6 +40,8 @@ BASE_USER_COLUMNS = [
     "FOTO",
     "TEMPOS",
     "VIEWMODE",
+    "CLNO",
+    "CLNOME",
 ]
 
 OPTIONAL_USER_COLUMNS = [

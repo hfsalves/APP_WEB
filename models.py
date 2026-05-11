@@ -228,6 +228,8 @@ class US(UserMixin, db.Model):
     LPADMIN  = db.Column(db.Boolean, default=False, nullable=False)
     HOME     = db.Column(db.String(200), unique=True, nullable=False)
     VIEWMODE = db.Column(db.String(20), nullable=False, default='LIGHT MODE')
+    CLNO     = db.Column(db.Integer, nullable=True)
+    CLNOME   = db.Column(db.String(120), nullable=True)
 
     def check_password(self, plaintext):
         from services.auth_service import verify_password_hash

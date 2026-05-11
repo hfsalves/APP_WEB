@@ -487,7 +487,7 @@
       window.CURRENT_USERSTAMP = {{ (current_user.USSTAMP if current_user.is_authenticated else '')|tojson }};
   </script>
 </head>
-<body class="sz-base-shell{% if request.endpoint == 'sz_dev_ui.sz_ui_catalog' or request.endpoint == 'dashboard_page' or request.endpoint == 'gr_planning.index' %} sz-ui-layout{% endif %}{% if request.endpoint == 'orcamento_page' %} sz-budget-layout{% endif %}{% if request.endpoint == 'reconciliacao_bancaria_page' %} sz-reconciliation-layout{% endif %}{% if request.endpoint == 'tesouraria_page' %} sz-treasury-layout{% endif %}{% if request.endpoint == 'pagina_analise' %} sz-analysis-layout{% endif %}{% if request.endpoint == 'performance_page' %} sz-performance-layout{% endif %}{% if request.endpoint == 'mapa_gestao_page' %} sz-management-map-layout{% endif %}{% if request.endpoint == 'cc_fornecedores_page' or request.endpoint == 'cc_clientes_page' %} sz-cc-layout{% endif %}{% if request.endpoint == 'generic.view_table' %} sz-dynamic-list-layout{% endif %}{% if request.endpoint == 'generic.edit_table' or request.endpoint == 'reservas_rs_form' %} sz-dynamic-form-layout{% endif %}{% if current_user.is_authenticated %} authenticated{% endif %}">
+<body class="sz-base-shell{% if request.endpoint == 'sz_dev_ui.sz_ui_catalog' or request.endpoint == 'dashboard_page' or request.endpoint == 'gr_planning.index' or request.endpoint == 'reservas_siba_page' or request.endpoint == 'cliente_portal_page' or request.endpoint == 'cliente_reservas_page' or request.endpoint == 'cliente_documentos_page' %} sz-ui-layout{% endif %}{% if request.endpoint == 'orcamento_page' %} sz-budget-layout{% endif %}{% if request.endpoint == 'reconciliacao_bancaria_page' %} sz-reconciliation-layout{% endif %}{% if request.endpoint == 'tesouraria_page' %} sz-treasury-layout{% endif %}{% if request.endpoint == 'pagina_analise' %} sz-analysis-layout{% endif %}{% if request.endpoint == 'performance_page' %} sz-performance-layout{% endif %}{% if request.endpoint == 'mapa_gestao_page' %} sz-management-map-layout{% endif %}{% if request.endpoint == 'cc_fornecedores_page' or request.endpoint == 'cc_clientes_page' %} sz-cc-layout{% endif %}{% if request.endpoint == 'generic.view_table' %} sz-dynamic-list-layout{% endif %}{% if request.endpoint == 'generic.edit_table' or request.endpoint == 'reservas_rs_form' %} sz-dynamic-form-layout{% endif %}{% if current_user.is_authenticated %} authenticated{% endif %}">
   <script>
     try {
       if (localStorage.getItem('sidebarCollapsed') === '1' && window.matchMedia('(min-width: 769px)').matches) {
@@ -545,14 +545,36 @@
             {% endif %}
             <i class="fa-solid fa-user{% if current_user.FOTO %} sz_user_icon_hidden{% endif %}" id="headerUserIcon"></i>
           </button>
+          {% set sz_user_is_cliente = current_user.is_authenticated and current_user.CLNO and current_user.CLNOME %}
           <div class="dropdown-menu dropdown-menu-end user-dropdown-floating" id="userDropdownMenu">
             <div class="dropdown-header text-muted small">
               {{ current_user.NOME }} - {{ current_user.PERFIL or _('layout.profile_fallback') }}
             </div>
+            {% if not sz_user_is_cliente %}
             <a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fa fa-user me-2"></i>{{ _('common.profile') }}</a>
             <button type="button" class="dropdown-item" id="btnOpenPushSettings">
               <i class="fa fa-bell me-2"></i>{{ _('layout.notifications.push') }}
             </button>
+            {% endif %}
+            <button type="button" class="dropdown-item" id="btnOpenGlobalChangePwd">
+              <i class="fa fa-key me-2"></i>{{ _('profile.change_password') }}
+            </button>
+            <div class="dropdown-item-text sz_user_theme_block">
+              <div class="sz_user_theme_options" role="group" aria-label="Tema">
+                <button type="button" class="sz_theme_option sz_user_theme_option" data-sz-theme-set="light" aria-pressed="false" aria-label="{{ _('layout.theme.light') }}" title="{{ _('layout.theme.light') }}">
+                  <i class="fa-solid fa-sun sz_theme_option_icon"></i>
+                  <span class="visually-hidden">{{ _('layout.theme.light') }}</span>
+                </button>
+                <button type="button" class="sz_theme_option sz_user_theme_option" data-sz-theme-set="dark" aria-pressed="false" aria-label="{{ _('layout.theme.dark') }}" title="{{ _('layout.theme.dark') }}">
+                  <i class="fa-solid fa-moon sz_theme_option_icon"></i>
+                  <span class="visually-hidden">{{ _('layout.theme.dark') }}</span>
+                </button>
+                <button type="button" class="sz_theme_option sz_user_theme_option" data-sz-theme-set="geek" aria-pressed="false" aria-label="{{ _('layout.theme.geek') }}" title="{{ _('layout.theme.geek') }}">
+                  <i class="fa-solid fa-ghost sz_theme_option_icon"></i>
+                  <span class="visually-hidden">{{ _('layout.theme.geek') }}</span>
+                </button>
+              </div>
+            </div>
             {% if i18n_enabled %}
             <div class="dropdown-item-text sz_user_language_block">
               <label class="sz_user_language_label" for="userLanguageSelect">{{ _('common.language') }}</label>
@@ -611,9 +633,11 @@
                     id="submenu-{{ loop.index }}">
                     {% for child in item.children %}
                       <li class="mb-1">
+                        {% set child_url = child.url or '' %}
+                        {% set child_match_url = child_url.rstrip('/') %}
                         <a 
                           href="{{ child.url }}" 
-                          class="d-flex align-items-center {% if request.path.startswith(child.url) %}active{% endif %} {% if child.novo %}menu-has-new{% endif %}"
+                          class="d-flex align-items-center {% if child_url and (request.path == child_match_url or (child_match_url != '/cliente' and child_match_url != '' and request.path.startswith(child_match_url ~ '/'))) %}active{% endif %} {% if child.novo %}menu-has-new{% endif %}"
                           title="{{ child.name }}"
                           data-icon="{{ child.icon or '' }}">
                           {% if child.icon %}<i class="fa-solid {{ child.icon }} me-2"></i>{% endif %}
@@ -625,9 +649,11 @@
                   </ul>
                 {% else %}
                   {# Item unico (sem filhos) #}
+                  {% set item_url = item.url or '' %}
+                  {% set item_match_url = item_url.rstrip('/') %}
                   <a 
                     href="{{ item.url }}" 
-                    class="d-flex align-items-center {% if item.url and request.path.startswith(item.url) %}active{% endif %} {% if item.novo %}menu-has-new{% endif %}"
+                    class="d-flex align-items-center {% if item_url and (request.path == item_match_url or (item_match_url != '/cliente' and item_match_url != '' and request.path.startswith(item_match_url ~ '/'))) %}active{% endif %} {% if item.novo %}menu-has-new{% endif %}"
                     title="{{ item.name }}">
                     {% if item.icon %}<i class="fa-solid {{ item.icon }} me-2"></i>{% endif %}
                     <span class="sidebar-label">{{ item.name }}</span>
@@ -641,10 +667,13 @@
       </nav>
 
       <div class="sidebar-footer">
+        {% set sz_sidebar_user_is_cliente = current_user.is_authenticated and current_user.CLNO and current_user.CLNOME %}
+        {% if not sz_sidebar_user_is_cliente %}
         <a class="sidebar-footer-link" href="{{ url_for('profile') }}">
           <i class="fa-solid fa-id-badge me-2"></i>
           <span class="sidebar-label">{{ _('common.profile') }}</span>
         </a>
+        {% endif %}
         <a class="sidebar-footer-link" href="{{ url_for('logout') }}">
           <i class="fa-solid fa-sign-out-alt me-2"></i>
           <span class="sidebar-label">{{ _('layout.logout') }}</span>
@@ -688,6 +717,46 @@
   </div>
 
   {% include 'dynamic_modal.html' %}
+
+  {% if current_user.is_authenticated %}
+  <div class="modal fade" id="globalChangePasswordModal" tabindex="-1" aria-labelledby="globalChangePasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content sz_global_password_modal">
+        <div class="sz_modal_header">
+          <div>
+            <h5 class="modal-title" id="globalChangePasswordModalLabel">{{ _('profile.change_password') }}</h5>
+          </div>
+          <button type="button" class="sz_button sz_button_ghost sz_global_password_close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <form id="globalChangePasswordForm" autocomplete="off">
+          <div class="sz_modal_body">
+            <div class="sz_field">
+              <label for="globalPwd1" class="sz_label">{{ _('profile.new_password') }}</label>
+              <input type="password" class="sz_input" id="globalPwd1" required autocomplete="new-password">
+            </div>
+            <div class="sz_field">
+              <label for="globalPwd2" class="sz_label">{{ _('profile.confirm_password') }}</label>
+              <input type="password" class="sz_input" id="globalPwd2" required autocomplete="new-password">
+            </div>
+            <div id="globalPwdMsg" class="sz_global_password_status" aria-live="polite"></div>
+          </div>
+          <div class="modal-footer sz_modal_footer">
+            <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">
+              <i class="fa-solid fa-ban"></i>
+              <span>{{ _('common.cancel') }}</span>
+            </button>
+            <button type="submit" class="sz_button sz_button_primary" id="globalPwdSubmit">
+              <i class="fa-solid fa-key"></i>
+              <span>{{ _('common.update') }}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <div class="modal fade" id="pushSettingsModal" tabindex="-1" aria-labelledby="pushSettingsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered sz_push_modal">
@@ -857,6 +926,11 @@
     var languageSelect = document.getElementById('userLanguageSelect');
     var submenus  = document.querySelectorAll('.sidebar-nav .collapse');
     var themeButtons = document.querySelectorAll('[data-sz-theme-set]');
+    var openPasswordBtn = document.getElementById('btnOpenGlobalChangePwd');
+    var passwordModalEl = document.getElementById('globalChangePasswordModal');
+    var passwordForm = document.getElementById('globalChangePasswordForm');
+    var passwordMsg = document.getElementById('globalPwdMsg');
+    var passwordSubmit = document.getElementById('globalPwdSubmit');
 
     function themeToViewMode(theme) {
       if (theme === 'dark') return 'DARK MODE';
@@ -946,6 +1020,9 @@
       themeButtons.forEach(function(btn) {
         btn.addEventListener('click', function() {
           applyTheme(btn.getAttribute('data-sz-theme-set'));
+          if (menu && btn.closest('#userDropdownMenu')) {
+            menu.classList.remove('show');
+          }
         });
       });
     }
@@ -960,6 +1037,76 @@
         if (!userBtn.contains(e.target) && !menu.contains(e.target)) {
           menu.classList.remove('show');
         }
+      });
+    }
+
+    function setPasswordMessage(message, type) {
+      if (!passwordMsg) return;
+      passwordMsg.textContent = message || '';
+      passwordMsg.classList.remove('is-error', 'is-success');
+      if (type === 'error') passwordMsg.classList.add('is-error');
+      if (type === 'success') passwordMsg.classList.add('is-success');
+    }
+
+    if (openPasswordBtn && passwordModalEl && window.bootstrap) {
+      var passwordModal = bootstrap.Modal.getOrCreateInstance(passwordModalEl);
+      openPasswordBtn.addEventListener('click', function() {
+        if (menu) menu.classList.remove('show');
+        if (passwordForm) passwordForm.reset();
+        setPasswordMessage('');
+        passwordModal.show();
+        setTimeout(function() {
+          var firstInput = document.getElementById('globalPwd1');
+          if (firstInput) firstInput.focus();
+        }, 180);
+      });
+    }
+
+    if (passwordForm) {
+      passwordForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var pwd1 = (document.getElementById('globalPwd1') || {}).value || '';
+        var pwd2 = (document.getElementById('globalPwd2') || {}).value || '';
+        pwd1 = pwd1.trim();
+        pwd2 = pwd2.trim();
+
+        if (!pwd1 || pwd1.length < 4) {
+          setPasswordMessage('Password demasiado curta.', 'error');
+          return;
+        }
+        if (pwd1 !== pwd2) {
+          setPasswordMessage('As passwords nao coincidem.', 'error');
+          return;
+        }
+
+        if (passwordSubmit) passwordSubmit.disabled = true;
+        setPasswordMessage('');
+        fetch('/api/profile/change_password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ password: pwd1 })
+        })
+        .then(function(resp) {
+          return resp.json().catch(function() { return {}; }).then(function(payload) {
+            if (!resp.ok || payload.error) throw new Error(payload.error || 'Erro ao alterar password.');
+            return payload;
+          });
+        })
+        .then(function() {
+          setPasswordMessage('Password alterada.', 'success');
+          setTimeout(function() {
+            if (passwordModalEl && window.bootstrap) {
+              bootstrap.Modal.getOrCreateInstance(passwordModalEl).hide();
+            }
+          }, 900);
+        })
+        .catch(function(error) {
+          setPasswordMessage((error && error.message) || 'Erro ao alterar password.', 'error');
+        })
+        .finally(function() {
+          if (passwordSubmit) passwordSubmit.disabled = false;
+        });
       });
     }
 

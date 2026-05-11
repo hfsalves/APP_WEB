@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+
+{% block title %}Reservas{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <style>
+    .client-reservations-page .sz_page_container {
+      padding-block: var(--sz-space-2) 0;
+      padding-inline: var(--sz-space-4);
+    }
+
+    .client-reservations-page .sz_contextbar {
+      align-items: center;
+      gap: var(--sz-space-3);
+    }
+
+    .client-reservations-page .sz_contextbar_left {
+      flex: 0 0 clamp(14rem, 22vw, 20rem);
+      min-width: 0;
+      gap: var(--sz-space-1);
+    }
+
+    .client-reservations-page .sz_contextbar_right {
+      flex: 1 1 auto;
+      min-width: 0;
+      justify-content: flex-end;
+    }
+
+    .client-reservations-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--sz-space-2);
+      flex-wrap: nowrap;
+      min-width: 0;
+    }
+
+    .client-reservations-toolbar .sz_input,
+    .client-reservations-toolbar .sz_select {
+      width: 8.8rem;
+      min-width: 7.6rem;
+      flex: 0 1 8.8rem;
+    }
+
+    .client-reservations-toolbar .client-reservations-lodge {
+      width: clamp(11rem, 18vw, 18rem);
+      min-width: 10rem;
+      max-width: 18rem;
+      flex: 1 1 12rem;
+    }
+
+    .client-reservations-page .sz_page_body {
+      min-height: 0;
+      overflow: auto;
+      padding-bottom: var(--sz-space-3);
+    }
+
+    .client-reservations-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sz-space-3);
+      width: 100%;
+      min-width: 0;
+    }
+
+    .client-reservations-kpis {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sz-space-2);
+    }
+
+    .client-reservations-kpi {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sz-space-2);
+      min-height: 2.25rem;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-md);
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, transparent);
+      color: var(--sz-color-text);
+      font-weight: var(--sz-font-weight-semibold);
+    }
+
+    .client-reservations-kpi span {
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-xs);
+      text-transform: uppercase;
+    }
+
+    .client-reservations-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+      gap: var(--sz-space-3);
+    }
+
+    .client-reservation-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sz-space-2);
+      min-width: 0;
+      padding: var(--sz-space-3);
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-lg);
+      background: var(--sz-color-surface);
+      box-shadow: var(--sz-shadow-1);
+    }
+
+    .client-reservation-card.is-current {
+      border-color: color-mix(in srgb, var(--sz-color-success) 58%, var(--sz-color-border));
+      background: color-mix(in srgb, var(--sz-color-success) 8%, var(--sz-color-surface));
+    }
+
+    .client-reservation-card.is-future {
+      border-color: color-mix(in srgb, var(--sz-color-info) 48%, var(--sz-color-border));
+    }
+
+    .client-reservation-card.is-cancelled {
+      border-color: color-mix(in srgb, var(--sz-color-danger) 48%, var(--sz-color-border));
+      background: color-mix(in srgb, var(--sz-color-danger) 7%, var(--sz-color-surface));
+    }
+
+    .client-reservation-head {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--sz-space-2);
+      min-width: 0;
+    }
+
+    .client-reservation-code {
+      color: var(--sz-color-text);
+      font-weight: var(--sz-font-weight-bold);
+    }
+
+    .client-reservation-lodge,
+    .client-reservation-meta,
+    .client-reservations-empty {
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-sm);
+    }
+
+    .client-reservation-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sz-space-2);
+    }
+
+    .client-reservation-value {
+      color: var(--sz-color-text);
+      font-weight: var(--sz-font-weight-bold);
+      white-space: nowrap;
+    }
+
+    .client-reservations-empty {
+      padding: var(--sz-space-6);
+      text-align: center;
+      border: 1px dashed var(--sz-color-border);
+      border-radius: var(--sz-radius-lg);
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 42%, transparent);
+    }
+
+    @media (max-width: 1180px) {
+      .client-reservations-page .sz_contextbar {
+        align-items: flex-start;
+      }
+
+      .client-reservations-page .sz_contextbar_left,
+      .client-reservations-page .sz_contextbar_right {
+        flex-basis: 100%;
+        width: 100%;
+      }
+
+      .client-reservations-toolbar {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .client-reservations-page {
+        height: 100%;
+        min-height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+
+      .client-reservations-page::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        display: none;
+      }
+
+      .client-reservations-page .sz_page_container {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        min-height: max-content;
+        padding-inline: var(--sz-space-3);
+        padding-block: var(--sz-space-2) 0;
+      }
+
+      .client-reservations-page .sz_contextbar {
+        align-items: stretch;
+        gap: var(--sz-space-3);
+        padding: var(--sz-space-3);
+      }
+
+      .client-reservations-page .sz_contextbar_left,
+      .client-reservations-page .sz_contextbar_right {
+        flex: 0 0 auto;
+        width: 100%;
+      }
+
+      .client-reservations-page .sz_contextbar_left {
+        display: block;
+      }
+
+      .client-reservations-page .sz_page_subtitle {
+        margin-top: 0.25rem;
+      }
+
+      .client-reservations-toolbar {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sz-space-2);
+        width: 100%;
+      }
+
+      .client-reservations-toolbar .client-reservations-lodge {
+        grid-column: 1 / -1;
+      }
+
+      .client-reservations-toolbar .sz_input,
+      .client-reservations-toolbar .sz_select,
+      .client-reservations-toolbar .sz_button {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        flex: none;
+      }
+
+      .client-reservations-toolbar .sz_input,
+      .client-reservations-toolbar .sz_select {
+        font-size: var(--sz-font-size-sm);
+        min-height: 2.55rem;
+      }
+
+      .client-reservations-kpis {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sz-space-2);
+      }
+
+      .client-reservations-kpi {
+        min-width: 0;
+        justify-content: flex-start;
+        padding: 0.45rem 0.65rem;
+      }
+
+      .client-reservations-kpi strong {
+        min-width: 1.3rem;
+        font-size: var(--sz-font-size-lg);
+        line-height: 1;
+      }
+
+      .client-reservations-kpi span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .client-reservations-list {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--sz-space-2);
+      }
+
+      .client-reservation-card {
+        border-radius: var(--sz-radius-md);
+      }
+
+      .client-reservation-head {
+        align-items: flex-start;
+      }
+
+      .client-reservation-value {
+        flex: 0 0 auto;
+      }
+
+      .client-reservation-meta {
+        gap: 0.35rem var(--sz-space-2);
+      }
+
+      .client-reservations-page .sz_page_body {
+        height: auto;
+        min-height: auto;
+        overflow: visible;
+        padding-bottom: calc(var(--sz-space-3) + 4.25rem);
+      }
+
+      .client-reservations-page .sz_actionbar {
+        padding: var(--sz-space-2);
+      }
+    }
+
+    @media (max-width: 390px) {
+      .client-reservations-toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .client-reservations-toolbar .client-reservations-lodge {
+        grid-column: auto;
+      }
+
+      .client-reservations-kpis {
+        grid-template-columns: 1fr;
+      }
+
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page client-reservations-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Reservas</div>
+        <div id="clientReservationsPageSubtitle" class="sz_page_subtitle">{{ current_user.CLNOME or 'Area reservada' }}</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="client-reservations-toolbar">
+          <input id="clientReservationsFrom" class="sz_input" type="date" aria-label="Data inicial">
+          <input id="clientReservationsTo" class="sz_input" type="date" aria-label="Data final">
+          <select id="clientReservationsLodge" class="sz_select client-reservations-lodge" aria-label="Alojamento">
+            <option value="">Todos os alojamentos</option>
+          </select>
+          <select id="clientReservationsStatus" class="sz_select" aria-label="Estado">
+            <option value="all">Todas</option>
+            <option value="active">Ativas</option>
+            <option value="cancelled">Canceladas</option>
+          </select>
+          <button id="clientReservationsClear" type="button" class="sz_button sz_button_ghost">
+            <i class="fa-solid fa-ban"></i>
+            <span>Limpar</span>
+          </button>
+          <button id="clientReservationsRefresh" type="button" class="sz_button sz_button_primary">
+            <i class="fa-solid fa-rotate"></i>
+            <span>Atualizar</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="client-reservations-content">
+        <div class="client-reservations-kpis">
+          <div class="client-reservations-kpi"><strong id="clientReservationsTotal">0</strong><span>Total</span></div>
+          <div class="client-reservations-kpi"><strong id="clientReservationsCurrent">0</strong><span>Em curso</span></div>
+          <div class="client-reservations-kpi"><strong id="clientReservationsFuture">0</strong><span>Futuras</span></div>
+          <div class="client-reservations-kpi"><strong id="clientReservationsCancelled">0</strong><span>Canceladas</span></div>
+        </div>
+        <div id="clientReservationsList" class="client-reservations-list">
+          <div class="client-reservations-empty">A carregar reservas...</div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar sz_page_footer">
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <a class="sz_button sz_button_ghost" href="{{ url_for('cliente_portal_page') }}">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </a>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/cliente_reservas.js') }}?v={{ static_version }}"></script>
+{% endblock %}

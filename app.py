@@ -2059,11 +2059,14 @@ def create_app():
                         .all()
                 )
 
+            client_portal_tables = {'CLIENTE_DASHBOARD', 'CLIENTE_RESERVAS', 'CLIENTE_DOCUMENTOS'}
             allowed_menu_stamps = _get_allowed_menu_stamps_for_current_entity()
             if allowed_menu_stamps is not None:
                 menu_items = [
                     item for item in menu_items
-                    if (item.ordem % 100 == 0) or (str(getattr(item, 'menustamp', '') or '').strip() in allowed_menu_stamps)
+                    if (item.ordem % 100 == 0)
+                    or (str(getattr(item, 'menustamp', '') or '').strip() in allowed_menu_stamps)
+                    or (_is_cliente_user() and str(getattr(item, 'tabela', '') or '').strip().upper() in client_portal_tables)
                 ]
 
             menu_label_map = {}
@@ -2158,6 +2161,7 @@ def create_app():
             # 4) Montar estrutura do menu com permissÃµes
             menu_structure = []
             user_is_admin = getattr(current_user, 'ADMIN', False)
+            user_is_cliente = _is_cliente_user()
 
             # Lista de widgets do user (para o dashboard)
             user_widgets = set()
@@ -2168,12 +2172,18 @@ def create_app():
             for m in menu_items:
                 mostrar = False
 
+                table_key = str(m.tabela or '').strip().upper()
+
+                if user_is_cliente:
+                    mostrar = table_key in client_portal_tables
+                elif table_key in client_portal_tables:
+                    mostrar = False
                 # Dashboard sÃ³ para quem tem widgets
-                if m.tabela == "dashboard" and not user_is_admin:
+                elif m.tabela == "dashboard" and not user_is_admin:
                     mostrar = bool(user_widgets)
-                # Monitor de Trabalho sempre visÃ­vel
+                # Monitor de Trabalho é operacional; clientes ficam no portal.
                 elif m.tabela == "monitor":
-                    mostrar = True
+                    mostrar = not user_is_cliente
                 # Agrupadores (ordem % 100 == 0)
                 elif m.ordem % 100 == 0:
                     mostrar = False  # SÃ³ serÃ¡ True se algum filho for permitido (mais abaixo)
@@ -2251,6 +2261,16 @@ def create_app():
         for k, v in row.items():
             setattr(user, k, v)
         return user
+
+    def _is_cliente_user(user_or_row=None) -> bool:
+        source = user_or_row if user_or_row is not None else current_user
+        if isinstance(source, dict):
+            clno = source.get('CLNO')
+            clnome = source.get('CLNOME')
+        else:
+            clno = getattr(source, 'CLNO', None)
+            clnome = getattr(source, 'CLNOME', None)
+        return bool(str(clno or '').strip() and str(clnome or '').strip())
 
     # Rotas de autenticação
     @app.route('/login', methods=['GET', 'POST'])
@@ -2353,6 +2373,8 @@ def create_app():
                     session.pop(db_consistency_apply_result_session_key, None)
                     if must_open_consistency:
                         return redirect(url_for('database_consistency_page'))
+                    if _is_cliente_user(result.row):
+                        return redirect(url_for('cliente_portal_page'))
                     return redirect(
                         _safe_next_url(request.form.get('next') or request.args.get('next'))
                         or url_for('home_page')
@@ -15032,6 +15054,22 @@ def create_app():
             return redirect(url_for('reservas_rs_form', rsstamp=rsstamp, return_to=(request.args.get('return_to') or '/generic/view/RS/')))
         return redirect(url_for('reservas_rs_new', return_to=(request.args.get('return_to') or '/generic/view/RS/')))
 
+    @app.route('/reservas/comunicacoes-sef')
+    @app.route('/comunicacoes_sef')
+    @app.route('/generic/comunicacoes_sef/')
+    @login_required
+    def reservas_siba_page():
+        today = date.today()
+        initial_state = {
+            'date_from': today.replace(day=1).isoformat(),
+            'date_to': (today + timedelta(days=30)).isoformat(),
+        }
+        return render_template(
+            'comunicacoes_sef.html',
+            page_title='Comunicações AIMA/SEF',
+            initial_state=initial_state,
+        )
+
     # Alias compatível com padrão antigo
     @app.route('/ft_faturacao_form/', defaults={'ftstamp': None})
     @app.route('/ft_faturacao_form/<ftstamp>')
@@ -15888,6 +15926,275 @@ def create_app():
                 'SEF': 1,
                 'USRSEF': user_login,
             },
+        })
+
+    @app.route('/api/reservas/siba/comunicacoes', methods=['GET'])
+    @login_required
+    def api_reservas_siba_comunicacoes():
+        current_feid, error_response = _current_feid_or_json_error()
+        if error_response:
+            return error_response
+
+        _ensure_rsguests_siba_columns()
+
+        def _arg_date(name, fallback):
+            raw = str(request.args.get(name) or '').strip()
+            if raw:
+                try:
+                    return datetime.strptime(raw[:10], '%Y-%m-%d').date()
+                except Exception:
+                    pass
+            return fallback
+
+        today = date.today()
+        start_date = _arg_date('date_from', today.replace(day=1))
+        end_date = _arg_date('date_to', today + timedelta(days=30))
+        if end_date < start_date:
+            start_date, end_date = end_date, start_date
+
+        alojamento = str(request.args.get('alojamento') or '').strip()
+        estado = str(request.args.get('comunicada') or request.args.get('estado') or 'pending').strip().lower()
+
+        flags = db.session.execute(text("""
+            SELECT
+                CASE WHEN COL_LENGTH('dbo.AL', 'SIBA_UH') IS NULL THEN 0 ELSE 1 END AS HAS_SIBA_UH,
+                CASE WHEN COL_LENGTH('dbo.AL', 'SIBA_ESTAB') IS NULL THEN 0 ELSE 1 END AS HAS_SIBA_ESTAB,
+                CASE WHEN COL_LENGTH('dbo.AL', 'SIBA_CHAVE') IS NULL THEN 0 ELSE 1 END AS HAS_SIBA_CHAVE
+        """)).mappings().first() or {}
+        siba_uh_sql = "ISNULL(AL.SIBA_UH, '')" if int(flags.get('HAS_SIBA_UH') or 0) else "CAST('' AS varchar(25))"
+        siba_estab_sql = "ISNULL(AL.SIBA_ESTAB, 0)" if int(flags.get('HAS_SIBA_ESTAB') or 0) else "CAST(0 AS int)"
+        siba_chave_sql = "ISNULL(AL.SIBA_CHAVE, '')" if int(flags.get('HAS_SIBA_CHAVE') or 0) else "CAST('' AS varchar(25))"
+
+        where = [
+            "ISNULL(RS.CANCELADA, 0) = 0",
+            "CAST(RS.DATAIN AS date) >= :date_from",
+            "CAST(RS.DATAIN AS date) <= :date_to",
+        ]
+        params = {
+            'current_feid': current_feid,
+            'date_from': start_date,
+            'date_to': end_date,
+        }
+        if alojamento:
+            where.append("LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) = LTRIM(RTRIM(:alojamento))")
+            params['alojamento'] = alojamento
+        if estado in ('yes', 'sim', 'comunicadas', 'comunicada', '1', 'true'):
+            where.append("ISNULL(RS.SEF, 0) = 1")
+        elif estado in ('no', 'nao', 'não', 'pendentes', 'pending', 'por_comunicar', '0', 'false'):
+            where.append("ISNULL(RS.SEF, 0) = 0")
+
+        rows = db.session.execute(text(f"""
+            SELECT
+                RS.RSSTAMP,
+                LTRIM(RTRIM(ISNULL(RS.RESERVA, ''))) AS RESERVA,
+                LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                CAST(RS.DATAIN AS date) AS DATAIN,
+                CAST(RS.DATAOUT AS date) AS DATAOUT,
+                ISNULL(RS.HORAIN, '') AS HORAIN,
+                ISNULL(RS.HORAOUT, '') AS HORAOUT,
+                LTRIM(RTRIM(ISNULL(RS.NOME, ''))) AS HOSPEDE,
+                LTRIM(RTRIM(ISNULL(RS.PAIS, ''))) AS PAIS,
+                ISNULL(RS.ADULTOS, 0) AS ADULTOS,
+                ISNULL(RS.CRIANCAS, 0) AS CRIANCAS,
+                ISNULL(RS.SEF, 0) AS SEF,
+                ISNULL(RS.USRSEF, '') AS USRSEF,
+                ISNULL(AL.NOME, RS.ALOJAMENTO) AS AL_NOME,
+                ISNULL(AL.MORADA, '') AS AL_MORADA,
+                ISNULL(AL.LOCAL, '') AS AL_LOCAL,
+                ISNULL(AL.CODPOST, '') AS AL_CODPOST,
+                {siba_uh_sql} AS SIBA_UH,
+                {siba_estab_sql} AS SIBA_ESTAB,
+                {siba_chave_sql} AS SIBA_CHAVE,
+                ISNULL(FE.EMAIL, '') AS FE_EMAIL
+            FROM dbo.RS AS RS
+            LEFT JOIN dbo.AL AS AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+            LEFT JOIN dbo.FE AS FE
+              ON ISNULL(FE.FEID, 0) = :current_feid
+            WHERE {' AND '.join(where)}
+              {_rs_write_clause('RS')}
+            ORDER BY CAST(RS.DATAIN AS date), LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))), LTRIM(RTRIM(ISNULL(RS.RESERVA, '')))
+        """), params).mappings().all()
+
+        stamps = [str(r.get('RSSTAMP') or '').strip() for r in rows if str(r.get('RSSTAMP') or '').strip()]
+        guests_by_rs = {s: [] for s in stamps}
+        if stamps:
+            guest_stmt = text("""
+                SELECT
+                    RSSTAMP,
+                    RSGUESTSTAMP,
+                    ISNULL(NOME_COMPLETO, '') AS NOME_COMPLETO,
+                    ISNULL(NOME, '') AS NOME,
+                    ISNULL(APELIDO, '') AS APELIDO,
+                    DTNASC,
+                    ISNULL(NACIONALIDADE, '') AS NACIONALIDADE,
+                    ISNULL(PAIS_RESIDENCIA, '') AS PAIS_RESIDENCIA,
+                    ISNULL(TIPO_DOC, '') AS TIPO_DOC,
+                    ISNULL(NUM_DOC, '') AS NUM_DOC,
+                    ISNULL(PAIS_EMISSOR_DOC, '') AS PAIS_EMISSOR_DOC,
+                    ISNULL(NACIONALIDADE_ICAO, '') AS NACIONALIDADE_ICAO,
+                    ISNULL(PAIS_RESIDENCIA_ICAO, '') AS PAIS_RESIDENCIA_ICAO,
+                    ISNULL(PAIS_EMISSOR_DOC_ICAO, '') AS PAIS_EMISSOR_DOC_ICAO,
+                    ISNULL(TIPO_DOC_SIBA, '') AS TIPO_DOC_SIBA
+                FROM dbo.RSGUESTS
+                WHERE RSSTAMP IN :stamps
+                  AND ISNULL(ATIVO, 1) = 1
+                ORDER BY RSSTAMP, ISNULL(DTCRI, '19000101'), RSGUESTSTAMP
+            """).bindparams(bindparam('stamps', expanding=True))
+            guest_rows = db.session.execute(guest_stmt, {'stamps': stamps}).mappings().all()
+            for guest in guest_rows:
+                key = str(guest.get('RSSTAMP') or '').strip()
+                if key in guests_by_rs:
+                    guests_by_rs[key].append(guest)
+
+        def _date_out(value):
+            if isinstance(value, datetime):
+                return value.date().isoformat()
+            if isinstance(value, date):
+                return value.isoformat()
+            raw = str(value or '').strip()
+            return raw[:10] if raw else ''
+
+        def _valid_birth(value):
+            if not value:
+                return False
+            if isinstance(value, datetime):
+                value = value.date()
+            if isinstance(value, date):
+                return value not in (date(1900, 1, 1), date(1, 1, 1))
+            raw = str(value or '').strip()[:10]
+            return bool(raw and raw not in ('1900-01-01', '0001-01-01'))
+
+        def _guest_has_any_data(guest):
+            keys = (
+                'NOME_COMPLETO', 'NOME', 'APELIDO', 'NACIONALIDADE', 'PAIS_RESIDENCIA',
+                'TIPO_DOC', 'NUM_DOC', 'PAIS_EMISSOR_DOC', 'NACIONALIDADE_ICAO',
+                'PAIS_RESIDENCIA_ICAO', 'PAIS_EMISSOR_DOC_ICAO', 'TIPO_DOC_SIBA'
+            )
+            return any(str(guest.get(k) or '').strip() for k in keys) or _valid_birth(guest.get('DTNASC'))
+
+        def _guest_complete(guest):
+            nome = str(guest.get('NOME') or '').strip()
+            apelido = str(guest.get('APELIDO') or '').strip()
+            nome_completo = str(guest.get('NOME_COMPLETO') or f'{nome} {apelido}').strip()
+            nacionalidade_icao = str(guest.get('NACIONALIDADE_ICAO') or '').strip() or country_to_icao(guest.get('NACIONALIDADE'))
+            residencia_icao = str(guest.get('PAIS_RESIDENCIA_ICAO') or '').strip() or country_to_icao(guest.get('PAIS_RESIDENCIA'))
+            emissor_icao = str(guest.get('PAIS_EMISSOR_DOC_ICAO') or '').strip() or country_to_icao(guest.get('PAIS_EMISSOR_DOC'))
+            tipo_doc_siba = str(guest.get('TIPO_DOC_SIBA') or '').strip() or doc_type_to_siba(guest.get('TIPO_DOC'))
+            return bool(
+                nome_completo and nome and apelido and _valid_birth(guest.get('DTNASC'))
+                and nacionalidade_icao and residencia_icao and tipo_doc_siba
+                and str(guest.get('NUM_DOC') or '').strip() and emissor_icao
+            )
+
+        output = []
+        summary = {
+            'total': 0,
+            'communicated': 0,
+            'pending': 0,
+            'ready': 0,
+            'complete': 0,
+            'partial': 0,
+            'none': 0,
+            'credentials_missing': 0,
+        }
+
+        for row in rows:
+            rsstamp = str(row.get('RSSTAMP') or '').strip()
+            guests = guests_by_rs.get(rsstamp, [])
+            expected = max(0, _to_int(row.get('ADULTOS'), 0) + _to_int(row.get('CRIANCAS'), 0))
+            complete_count = sum(1 for guest in guests if _guest_complete(guest))
+            any_guest_data = any(_guest_has_any_data(guest) for guest in guests)
+
+            if expected <= 0 or not guests or not any_guest_data:
+                data_state = 'none'
+                data_label = 'Sem dados'
+            elif len(guests) >= expected and complete_count >= expected:
+                data_state = 'complete'
+                data_label = 'Completos'
+            else:
+                data_state = 'partial'
+                data_label = 'Parciais'
+
+            siba_uh_digits = re.sub(r'\D+', '', str(row.get('SIBA_UH') or ''))
+            siba_chave_digits = re.sub(r'\D+', '', str(row.get('SIBA_CHAVE') or ''))
+            siba_estab = _to_int(row.get('SIBA_ESTAB'), -1)
+            credentials_missing = []
+            if len(siba_uh_digits) != 9:
+                credentials_missing.append('SIBA_UH')
+            if siba_estab < 0 or siba_estab > 99:
+                credentials_missing.append('SIBA_ESTAB')
+            if not siba_chave_digits:
+                credentials_missing.append('SIBA_CHAVE')
+            credentials_ok = not credentials_missing
+
+            unit_missing = []
+            if not str(row.get('AL_NOME') or '').strip():
+                unit_missing.append('nome do alojamento')
+            if not str(row.get('AL_MORADA') or '').strip():
+                unit_missing.append('morada')
+            if not str(row.get('AL_LOCAL') or '').strip():
+                unit_missing.append('localidade')
+            if len(re.sub(r'\D+', '', str(row.get('AL_CODPOST') or ''))) < 7:
+                unit_missing.append('código postal')
+            if not str(row.get('FE_EMAIL') or '').strip():
+                unit_missing.append('email da entidade')
+
+            communicated = _to_int(row.get('SEF'), 0) == 1
+            datain = row.get('DATAIN')
+            blockers = []
+            if communicated:
+                blockers.append('Reserva já comunicada.')
+            if data_state != 'complete':
+                blockers.append('Dados dos hóspedes incompletos.')
+            if not credentials_ok:
+                blockers.append('Credenciais SIBA incompletas.')
+            if unit_missing:
+                blockers.append('Dados do alojamento/entidade incompletos.')
+            if datain and isinstance(datain, datetime):
+                datain = datain.date()
+            if isinstance(datain, date) and datain > today:
+                blockers.append('O SIBA só aceita check-ins até à data de hoje.')
+
+            ready_to_send = not blockers
+            summary['total'] += 1
+            summary['communicated' if communicated else 'pending'] += 1
+            if ready_to_send:
+                summary['ready'] += 1
+            if data_state in summary:
+                summary[data_state] += 1
+            if not credentials_ok:
+                summary['credentials_missing'] += 1
+
+            output.append({
+                'rsstamp': rsstamp,
+                'reserva': str(row.get('RESERVA') or '').strip(),
+                'alojamento': str(row.get('ALOJAMENTO') or '').strip(),
+                'hospede': str(row.get('HOSPEDE') or '').strip(),
+                'pais': str(row.get('PAIS') or '').strip(),
+                'datain': _date_out(row.get('DATAIN')),
+                'dataout': _date_out(row.get('DATAOUT')),
+                'horain': str(row.get('HORAIN') or '').strip(),
+                'horaout': str(row.get('HORAOUT') or '').strip(),
+                'expected_guests': expected,
+                'registered_guests': len(guests),
+                'complete_guests': complete_count,
+                'data_state': data_state,
+                'data_label': data_label,
+                'communicated': communicated,
+                'usrsef': str(row.get('USRSEF') or '').strip(),
+                'credentials_ok': credentials_ok,
+                'credentials_missing': credentials_missing,
+                'unit_missing': unit_missing,
+                'ready_to_send': ready_to_send,
+                'send_blockers': blockers,
+            })
+
+        return jsonify({
+            'date_from': start_date.isoformat(),
+            'date_to': end_date.isoformat(),
+            'rows': output,
+            'summary': summary,
         })
 
     @app.route('/api/reservas/rs/<rsstamp>/delete', methods=['POST'])
@@ -22110,6 +22417,9 @@ def create_app():
     @app.route('/')
     @login_required
     def home_page():
+        if _is_cliente_user():
+            return redirect(url_for('cliente_portal_page'))
+
         home = getattr(current_user, 'HOME', '').lower().strip().lstrip('/')
         print(f"HOME do utilizador: {home}")
 
@@ -22148,6 +22458,549 @@ def create_app():
             return redirect(url_for('monitor_page'))
 
         return redirect(url_for('dashboard_page'))
+
+    @app.route('/cliente')
+    @app.route('/portal_cliente')
+    @login_required
+    def cliente_portal_page():
+        if not _is_cliente_user():
+            return redirect(url_for('home_page'))
+        return render_template('cliente_portal.html', page_title='Portal de Cliente')
+
+    @app.route('/cliente/reservas')
+    @app.route('/portal_cliente/reservas')
+    @login_required
+    def cliente_reservas_page():
+        if not _is_cliente_user():
+            return redirect(url_for('home_page'))
+        return render_template('cliente_reservas.html', page_title='Reservas')
+
+    CLIENT_DOCUMENTS_UPLOAD_FOLDER = 'ENVIADOS_PELO_CLIENTE'
+    CLIENT_DOCUMENTS_ALLOWED_EXT = {
+        'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt',
+        'png', 'jpg', 'jpeg', 'webp', 'zip', 'rar', '7z'
+    }
+
+    def _current_cliente_no():
+        try:
+            return int(str(getattr(current_user, 'CLNO', '') or '').strip())
+        except Exception:
+            return None
+
+    def _cliente_docs_root(clno=None, create=False):
+        clno = clno if clno is not None else _current_cliente_no()
+        if not clno:
+            return None
+        folder = f"CLIENTE_{int(clno):03d}"
+        root = os.path.realpath(os.path.abspath(os.path.join(current_app.root_path, 'storage', 'client_documents', folder)))
+        if create:
+            os.makedirs(os.path.join(root, CLIENT_DOCUMENTS_UPLOAD_FOLDER), exist_ok=True)
+        return root
+
+    def _cliente_docs_safe_path(rel_path='', require_file=False):
+        root = _cliente_docs_root(create=True)
+        if not root:
+            return None, None
+        raw = str(rel_path or '').replace('\\', '/').strip('/')
+        normalized = os.path.normpath(raw).replace('\\', '/') if raw else ''
+        if normalized in ('.', ''):
+            normalized = ''
+        if normalized.startswith('../') or normalized == '..' or os.path.isabs(normalized):
+            return None, root
+        full_path = os.path.realpath(os.path.abspath(os.path.join(root, normalized)))
+        try:
+            if os.path.commonpath([root, full_path]) != root:
+                return None, root
+        except Exception:
+            return None, root
+        if require_file and not os.path.isfile(full_path):
+            return None, root
+        return full_path, root
+
+    def _cliente_docs_rel(path, root):
+        rel = os.path.relpath(path, root).replace('\\', '/')
+        return '' if rel == '.' else rel
+
+    @app.route('/cliente/documentos')
+    @app.route('/portal_cliente/documentos')
+    @login_required
+    def cliente_documentos_page():
+        if not _is_cliente_user():
+            return redirect(url_for('home_page'))
+        _cliente_docs_root(create=True)
+        return render_template(
+            'cliente_documentos.html',
+            page_title='Documentos',
+            client_upload_folder=CLIENT_DOCUMENTS_UPLOAD_FOLDER,
+        )
+
+    @app.route('/api/cliente/documentos')
+    @login_required
+    def api_cliente_documentos():
+        if not _is_cliente_user():
+            return jsonify({'error': 'Utilizador sem cliente associado.'}), 403
+        root = _cliente_docs_root(create=True)
+        if not root:
+            return jsonify({'error': 'Cliente associado inválido.'}), 400
+
+        folders = []
+        for current_dir, dirnames, filenames in os.walk(root):
+            dirnames[:] = sorted([d for d in dirnames if not d.startswith('.')], key=str.lower)
+            filenames = sorted([f for f in filenames if not f.startswith('.')], key=str.lower)
+            rel_dir = _cliente_docs_rel(current_dir, root)
+            files = []
+            for filename in filenames:
+                full_path = os.path.join(current_dir, filename)
+                try:
+                    stat = os.stat(full_path)
+                except OSError:
+                    continue
+                rel_file = _cliente_docs_rel(full_path, root)
+                ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+                try:
+                    upload_dir = os.path.realpath(os.path.abspath(os.path.join(root, CLIENT_DOCUMENTS_UPLOAD_FOLDER)))
+                    real_file = os.path.realpath(os.path.abspath(full_path))
+                    can_delete = os.path.commonpath([upload_dir, real_file]) == upload_dir
+                except Exception:
+                    can_delete = False
+                files.append({
+                    'name': filename,
+                    'path': rel_file,
+                    'ext': ext,
+                    'size': stat.st_size,
+                    'modified': datetime.fromtimestamp(stat.st_mtime).isoformat(timespec='seconds'),
+                    'download_url': url_for('api_cliente_documentos_download', path=rel_file),
+                    'can_delete': can_delete,
+                    'delete_url': url_for('api_cliente_documentos_delete') if can_delete else '',
+                })
+            folders.append({
+                'name': 'Documentos' if not rel_dir else os.path.basename(current_dir),
+                'path': rel_dir,
+                'is_client_uploads': rel_dir == CLIENT_DOCUMENTS_UPLOAD_FOLDER,
+                'files': files,
+            })
+
+        folders.sort(key=lambda item: (item.get('is_client_uploads') is True, str(item.get('path') or '').lower()))
+        return jsonify({
+            'cliente': {
+                'no': _current_cliente_no(),
+                'nome': str(getattr(current_user, 'CLNOME', '') or '').strip(),
+            },
+            'upload_folder': CLIENT_DOCUMENTS_UPLOAD_FOLDER,
+            'folders': folders,
+        })
+
+    @app.route('/api/cliente/documentos/download')
+    @login_required
+    def api_cliente_documentos_download():
+        if not _is_cliente_user():
+            abort(403)
+        rel_path = request.args.get('path') or ''
+        full_path, root = _cliente_docs_safe_path(rel_path, require_file=True)
+        if not full_path or not root:
+            abort(404)
+        return send_from_directory(
+            os.path.dirname(full_path),
+            os.path.basename(full_path),
+            as_attachment=True,
+            download_name=os.path.basename(full_path),
+            max_age=0,
+        )
+
+    @app.route('/api/cliente/documentos/upload', methods=['POST'])
+    @login_required
+    def api_cliente_documentos_upload():
+        if not _is_cliente_user():
+            return jsonify({'error': 'Utilizador sem cliente associado.'}), 403
+        file_obj = request.files.get('file')
+        if not file_obj or not str(file_obj.filename or '').strip():
+            return jsonify({'error': 'Ficheiro obrigatório.'}), 400
+        original_name = secure_filename(str(file_obj.filename or '').strip())
+        if not original_name:
+            return jsonify({'error': 'Nome de ficheiro inválido.'}), 400
+        ext = original_name.rsplit('.', 1)[-1].lower() if '.' in original_name else ''
+        if ext not in CLIENT_DOCUMENTS_ALLOWED_EXT:
+            return jsonify({'error': f'Extensão .{ext or ""} não suportada.'}), 400
+
+        root = _cliente_docs_root(create=True)
+        if not root:
+            return jsonify({'error': 'Cliente associado inválido.'}), 400
+        upload_dir = os.path.join(root, CLIENT_DOCUMENTS_UPLOAD_FOLDER)
+        os.makedirs(upload_dir, exist_ok=True)
+
+        base, extension = os.path.splitext(original_name)
+        filename = original_name
+        full_path = os.path.realpath(os.path.abspath(os.path.join(upload_dir, filename)))
+        counter = 1
+        while os.path.exists(full_path):
+            filename = f"{base}_{counter}{extension}"
+            full_path = os.path.realpath(os.path.abspath(os.path.join(upload_dir, filename)))
+            counter += 1
+        try:
+            upload_dir_abs = os.path.realpath(os.path.abspath(upload_dir))
+            if os.path.commonpath([upload_dir_abs, full_path]) != upload_dir_abs:
+                return jsonify({'error': 'Caminho inválido.'}), 400
+        except Exception:
+            return jsonify({'error': 'Caminho inválido.'}), 400
+        file_obj.save(full_path)
+
+        rel_file = _cliente_docs_rel(full_path, root)
+        return jsonify({
+            'success': True,
+            'file': {
+                'name': filename,
+                'path': rel_file,
+                'download_url': url_for('api_cliente_documentos_download', path=rel_file),
+            },
+        }), 201
+
+    @app.route('/api/cliente/documentos/delete', methods=['DELETE', 'POST'])
+    @login_required
+    def api_cliente_documentos_delete():
+        if not _is_cliente_user():
+            return jsonify({'error': 'Utilizador sem cliente associado.'}), 403
+        payload = request.get_json(silent=True) or request.form or {}
+        rel_path = str(payload.get('path') or request.args.get('path') or '').strip()
+        if not rel_path:
+            return jsonify({'error': 'Documento obrigatório.'}), 400
+
+        full_path, root = _cliente_docs_safe_path(rel_path, require_file=True)
+        if not full_path or not root:
+            return jsonify({'error': 'Documento não encontrado.'}), 404
+
+        upload_dir = os.path.realpath(os.path.abspath(os.path.join(root, CLIENT_DOCUMENTS_UPLOAD_FOLDER)))
+        try:
+            if os.path.commonpath([upload_dir, full_path]) != upload_dir:
+                return jsonify({'error': 'Só pode eliminar documentos enviados pelo cliente.'}), 403
+        except Exception:
+            return jsonify({'error': 'Caminho inválido.'}), 400
+
+        try:
+            os.remove(full_path)
+        except FileNotFoundError:
+            return jsonify({'error': 'Documento não encontrado.'}), 404
+        except OSError:
+            return jsonify({'error': 'Não foi possível eliminar o documento.'}), 500
+
+        return jsonify({'success': True})
+
+    @app.route('/api/cliente/reservas')
+    @login_required
+    def api_cliente_reservas():
+        if not _is_cliente_user():
+            return jsonify({'error': 'Utilizador sem cliente associado.'}), 403
+
+        def _parse_optional_date(name):
+            raw = str(request.args.get(name) or '').strip()
+            if not raw:
+                return None
+            try:
+                return datetime.strptime(raw[:10], '%Y-%m-%d').date()
+            except Exception:
+                return None
+
+        def _date_iso(value):
+            if isinstance(value, datetime):
+                return value.date().isoformat()
+            if isinstance(value, date):
+                return value.isoformat()
+            raw = str(value or '').strip()
+            return raw[:10] if raw else ''
+
+        def _money(value):
+            try:
+                return float(value or 0)
+            except Exception:
+                return 0.0
+
+        def _round_money(value):
+            try:
+                return round(float(value or 0), 2)
+            except Exception:
+                return 0.0
+
+        try:
+            clno = int(str(getattr(current_user, 'CLNO', '') or '').strip())
+        except Exception:
+            return jsonify({'error': 'Cliente associado inválido.'}), 400
+
+        date_from = _parse_optional_date('date_from')
+        date_to = _parse_optional_date('date_to')
+        if date_from and date_to and date_to < date_from:
+            date_from, date_to = date_to, date_from
+        alojamento = str(request.args.get('alojamento') or '').strip()
+        scope = str(request.args.get('scope') or '').strip().lower()
+        include_cancelled = str(request.args.get('include_cancelled') or '').strip().lower() in ('1', 'true', 'yes', 'on')
+        status_filter = str(request.args.get('status') or 'all').strip().lower()
+
+        alojamentos_rows = db.session.execute(text("""
+            SELECT LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
+            FROM dbo.AL
+            WHERE ISNULL(INATIVO, 0) = 0
+              AND ISNULL(CLIENTID, 0) = :clno
+              AND LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''
+            ORDER BY NOME
+        """), {'clno': clno}).mappings().all()
+        alojamentos = [str(r.get('NOME') or '').strip() for r in alojamentos_rows if str(r.get('NOME') or '').strip()]
+
+        where = [
+            "ISNULL(AL.INATIVO, 0) = 0",
+            "ISNULL(AL.CLIENTID, 0) = :clno",
+        ]
+        params = {'clno': clno}
+        if scope == 'dashboard':
+            where.append("ISNULL(RS.CANCELADA, 0) = 0")
+            where.append("CAST(ISNULL(RS.DATAOUT, RS.DATAIN) AS date) >= CAST(GETDATE() AS date)")
+        elif include_cancelled:
+            if status_filter in ('active', 'ativas', 'ativa'):
+                where.append("ISNULL(RS.CANCELADA, 0) = 0")
+            elif status_filter in ('cancelled', 'canceladas', 'cancelada'):
+                where.append("ISNULL(RS.CANCELADA, 0) = 1")
+        else:
+            where.append("ISNULL(RS.CANCELADA, 0) = 0")
+
+        if date_from:
+            where.append("CAST(ISNULL(RS.DATAOUT, RS.DATAIN) AS date) >= :date_from")
+            params['date_from'] = date_from
+        if date_to:
+            where.append("CAST(ISNULL(RS.DATAIN, RS.DATAOUT) AS date) <= :date_to")
+            params['date_to'] = date_to
+        if alojamento:
+            where.append("LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(:alojamento))")
+            params['alojamento'] = alojamento
+
+        rows = db.session.execute(text(f"""
+            SELECT
+                RS.RSSTAMP,
+                LTRIM(RTRIM(ISNULL(RS.RESERVA, ''))) AS RESERVA,
+                LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                CAST(RS.DATAIN AS date) AS DATAIN,
+                CAST(RS.DATAOUT AS date) AS DATAOUT,
+                ISNULL(RS.HORAIN, '') AS HORAIN,
+                ISNULL(RS.HORAOUT, '') AS HORAOUT,
+                LTRIM(RTRIM(ISNULL(RS.NOME, ''))) AS HOSPEDE,
+                LTRIM(RTRIM(ISNULL(RS.PAIS, ''))) AS PAIS,
+                ISNULL(RS.NOITES, 0) AS NOITES,
+                ISNULL(RS.ADULTOS, 0) AS ADULTOS,
+                ISNULL(RS.CRIANCAS, 0) AS CRIANCAS,
+                ISNULL(RS.BEBES, 0) AS BEBES,
+                ISNULL(RS.ESTADIA, 0) AS ESTADIA,
+                ISNULL(RS.LIMPEZA, 0) AS LIMPEZA,
+                ISNULL(RS.COMISSAO, 0) AS COMISSAO,
+                ISNULL(RS.ORIGEM, '') AS ORIGEM,
+                ISNULL(RS.CANCELADA, 0) AS CANCELADA,
+                CAST(RS.DTCANCEL AS date) AS DTCANCEL,
+                ISNULL(RS.PCANCEL, 0) AS PCANCEL,
+                ISNULL(AL.FTLIMPEZA, 0) AS FTLIMPEZA
+            FROM dbo.RS AS RS
+            INNER JOIN dbo.AL AS AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+            WHERE {' AND '.join(where)}
+            ORDER BY
+                CASE
+                    WHEN ISNULL(RS.CANCELADA, 0) = 1 THEN 3
+                    WHEN CAST(RS.DATAIN AS date) <= CAST(GETDATE() AS date)
+                     AND CAST(RS.DATAOUT AS date) >= CAST(GETDATE() AS date) THEN 0
+                    WHEN CAST(RS.DATAIN AS date) > CAST(GETDATE() AS date) THEN 1
+                    ELSE 2
+                END,
+                CASE WHEN CAST(RS.DATAIN AS date) >= CAST(GETDATE() AS date) THEN CAST(RS.DATAIN AS date) END ASC,
+                CAST(RS.DATAIN AS date) DESC,
+                LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))),
+                LTRIM(RTRIM(ISNULL(RS.RESERVA, '')))
+        """), params).mappings().all()
+
+        today = date.today()
+        reservas = []
+        cancel_recent_limit = today - timedelta(days=5)
+        summary = {'current': 0, 'future': 0, 'past': 0, 'cancelled': 0, 'total': 0, 'pcancel_5d': 0.0}
+        for row in rows:
+            datain = row.get('DATAIN')
+            dataout = row.get('DATAOUT')
+            dtcancel = row.get('DTCANCEL')
+            if isinstance(datain, datetime):
+                datain = datain.date()
+            if isinstance(dataout, datetime):
+                dataout = dataout.date()
+            if isinstance(dtcancel, datetime):
+                dtcancel = dtcancel.date()
+
+            cancelled = _to_int(row.get('CANCELADA'), 0) == 1
+            if cancelled:
+                estado = 'cancelled'
+            elif isinstance(datain, date) and isinstance(dataout, date):
+                if datain <= today <= dataout:
+                    estado = 'current'
+                elif datain > today:
+                    estado = 'future'
+                else:
+                    estado = 'past'
+            elif isinstance(datain, date) and datain > today:
+                estado = 'future'
+            else:
+                estado = 'past'
+
+            summary[estado] += 1
+            summary['total'] += 1
+            estadia = _money(row.get('ESTADIA'))
+            limpeza = _money(row.get('LIMPEZA'))
+            comissao = _money(row.get('COMISSAO'))
+            pcancel = _money(row.get('PCANCEL'))
+            ftlimpeza = _to_int(row.get('FTLIMPEZA'), 0)
+            valor_liquido = _round_money(estadia + limpeza - comissao) if ftlimpeza == 0 else _round_money(estadia - comissao)
+            if cancelled and pcancel and isinstance(dtcancel, date) and dtcancel >= cancel_recent_limit:
+                summary['pcancel_5d'] = round(summary['pcancel_5d'] + pcancel, 2)
+            reservas.append({
+                'rsstamp': str(row.get('RSSTAMP') or '').strip(),
+                'reserva': str(row.get('RESERVA') or '').strip(),
+                'alojamento': str(row.get('ALOJAMENTO') or '').strip(),
+                'datain': _date_iso(row.get('DATAIN')),
+                'dataout': _date_iso(row.get('DATAOUT')),
+                'horain': str(row.get('HORAIN') or '').strip(),
+                'horaout': str(row.get('HORAOUT') or '').strip(),
+                'hospede': str(row.get('HOSPEDE') or '').strip(),
+                'pais': str(row.get('PAIS') or '').strip(),
+                'noites': int(row.get('NOITES') or 0),
+                'hospedes': int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0) + int(row.get('BEBES') or 0),
+                'valor_total': round(estadia + limpeza, 2),
+                'valor_liquido': valor_liquido,
+                'pcancel': round(pcancel, 2),
+                'dtcancel': _date_iso(row.get('DTCANCEL')),
+                'origem': str(row.get('ORIGEM') or '').strip(),
+                'estado': estado,
+                'cancelada': cancelled,
+            })
+
+        return jsonify({
+            'cliente': {
+                'no': clno,
+                'nome': str(getattr(current_user, 'CLNOME', '') or '').strip(),
+            },
+            'alojamentos': alojamentos,
+            'reservas': reservas,
+            'summary': summary,
+        })
+
+    @app.route('/api/cliente/faturacao_mensal')
+    @login_required
+    def api_cliente_faturacao_mensal():
+        if not _is_cliente_user():
+            return jsonify({'error': 'Utilizador sem cliente associado.'}), 403
+
+        try:
+            clno = int(str(getattr(current_user, 'CLNO', '') or '').strip())
+        except Exception:
+            return jsonify({'error': 'Cliente associado inválido.'}), 400
+
+        try:
+            ano = int(str(request.args.get('ano') or date.today().year).strip())
+        except Exception:
+            ano = date.today().year
+        ano = max(2000, min(2100, ano))
+        alojamento = str(request.args.get('alojamento') or '').strip()
+
+        alojamentos_rows = db.session.execute(text("""
+            SELECT LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
+            FROM dbo.AL
+            WHERE ISNULL(INATIVO, 0) = 0
+              AND ISNULL(CLIENTID, 0) = :clno
+              AND LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''
+            ORDER BY NOME
+        """), {'clno': clno}).mappings().all()
+        alojamentos = [str(r.get('NOME') or '').strip() for r in alojamentos_rows if str(r.get('NOME') or '').strip()]
+
+        where = [
+            "ISNULL(AL.INATIVO, 0) = 0",
+            "ISNULL(AL.CLIENTID, 0) = :clno",
+            "ISNULL(RS.CANCELADA, 0) = 0",
+            "YEAR(CAST(RS.DATAOUT AS date)) = :ano",
+        ]
+        params = {'clno': clno, 'ano': ano}
+        if alojamento:
+            where.append("LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(:alojamento))")
+            params['alojamento'] = alojamento
+
+        rows = db.session.execute(text(f"""
+            SELECT
+                MONTH(CAST(RS.DATAOUT AS date)) AS MES,
+                COUNT(1) AS RESERVAS,
+                SUM(
+                    CASE
+                        WHEN ISNULL(AL.FTLIMPEZA, 0) = 0
+                        THEN ISNULL(RS.ESTADIA, 0) + ISNULL(RS.LIMPEZA, 0) - ISNULL(RS.COMISSAO, 0)
+                        ELSE ISNULL(RS.ESTADIA, 0) - ISNULL(RS.COMISSAO, 0)
+                    END
+                ) AS FATURADO,
+                SUM(
+                    (
+                        CASE
+                            WHEN ISNULL(AL.FTLIMPEZA, 0) = 0
+                            THEN ISNULL(RS.ESTADIA, 0) + ISNULL(RS.LIMPEZA, 0) - ISNULL(RS.COMISSAO, 0)
+                            ELSE ISNULL(RS.ESTADIA, 0) - ISNULL(RS.COMISSAO, 0)
+                        END
+                    ) * (ISNULL(AL.COMISSAO, 0) / 100.0)
+                ) AS COMISSAO_GESTAO
+            FROM dbo.RS AS RS
+            INNER JOIN dbo.AL AS AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+            WHERE {' AND '.join(where)}
+            GROUP BY MONTH(CAST(RS.DATAOUT AS date))
+        """), params).mappings().all()
+
+        by_month = {}
+        for row in rows:
+            try:
+                month = int(row.get('MES') or 0)
+            except Exception:
+                month = 0
+            if 1 <= month <= 12:
+                faturado = float(row.get('FATURADO') or 0)
+                comissao_gestao = float(row.get('COMISSAO_GESTAO') or 0)
+                by_month[month] = {
+                    'mes': month,
+                    'reservas': int(row.get('RESERVAS') or 0),
+                    'faturado': round(faturado, 2),
+                    'comissao_gestao': round(comissao_gestao, 2),
+                    'bruto': round(faturado, 2),
+                    'comissao': round(comissao_gestao, 2),
+                    'liquido': round(faturado, 2),
+                }
+
+        month_names = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+        meses = []
+        totals = {'reservas': 0, 'faturado': 0.0, 'comissao_gestao': 0.0, 'bruto': 0.0, 'comissao': 0.0, 'liquido': 0.0}
+        for month in range(1, 13):
+            item = by_month.get(month) or {
+                'mes': month,
+                'reservas': 0,
+                'faturado': 0.0,
+                'comissao_gestao': 0.0,
+                'bruto': 0.0,
+                'comissao': 0.0,
+                'liquido': 0.0,
+            }
+            item['label'] = month_names[month - 1]
+            meses.append(item)
+            totals['reservas'] += int(item['reservas'] or 0)
+            totals['faturado'] += float(item['faturado'] or 0)
+            totals['comissao_gestao'] += float(item['comissao_gestao'] or 0)
+            totals['bruto'] += float(item['bruto'] or 0)
+            totals['comissao'] += float(item['comissao'] or 0)
+            totals['liquido'] += float(item['liquido'] or 0)
+
+        for key in ('faturado', 'comissao_gestao', 'bruto', 'comissao', 'liquido'):
+            totals[key] = round(totals[key], 2)
+
+        return jsonify({
+            'cliente': {
+                'no': clno,
+                'nome': str(getattr(current_user, 'CLNOME', '') or '').strip(),
+            },
+            'ano': ano,
+            'alojamentos': alojamentos,
+            'meses': meses,
+            'totals': totals,
+        })
 
 
     @app.route('/plan')
@@ -22741,6 +23594,8 @@ def create_app():
     @app.route('/monitor')
     @login_required
     def monitor_page():
+        if _is_cliente_user():
+            return redirect(url_for('cliente_portal_page'))
         return render_template('monitor.html')
 
     @app.route('/posicoes_pesquisas')

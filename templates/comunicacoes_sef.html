@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+
+{% block title %}Comunicações AIMA/SEF{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <style>
+    .siba-page .sz_page_container {
+      padding-block: var(--sz-space-2) 0;
+      padding-inline: var(--sz-space-4);
+    }
+
+    .siba-page .sz_contextbar {
+      align-items: center;
+      gap: var(--sz-space-3);
+    }
+
+    .siba-page .sz_contextbar_left {
+      flex: 0 0 clamp(15rem, 24vw, 22rem);
+      min-width: 0;
+      gap: var(--sz-space-1);
+    }
+
+    .siba-page .sz_page_subtitle {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .siba-page .sz_contextbar_right {
+      flex: 1 1 auto;
+      min-width: 0;
+      justify-content: flex-end;
+    }
+
+    .siba-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--sz-space-2);
+      flex-wrap: nowrap;
+      min-width: 0;
+    }
+
+    .siba-toolbar .sz_input,
+    .siba-toolbar .sz_select {
+      width: 8.6rem;
+      min-width: 7.6rem;
+      flex: 0 1 8.6rem;
+    }
+
+    .siba-toolbar .siba-lodge-filter {
+      width: clamp(11rem, 17vw, 17rem);
+      min-width: 10rem;
+      max-width: 17rem;
+      flex: 1 1 12rem;
+    }
+
+    .siba-toolbar .sz_button {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .siba-page .sz_page_body {
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-bottom: var(--sz-space-2);
+    }
+
+    .siba-page .sz_page_content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sz-space-3);
+      min-height: min-content;
+      width: 100%;
+    }
+
+    .siba-kpis {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sz-space-2);
+      min-width: 0;
+    }
+
+    .siba-kpi {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sz-space-2);
+      min-height: 2.25rem;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-md);
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, transparent);
+      color: var(--sz-color-text);
+      font-weight: var(--sz-font-weight-semibold);
+    }
+
+    .siba-kpi span {
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-xs);
+      font-weight: var(--sz-font-weight-semibold);
+      text-transform: uppercase;
+    }
+
+    .siba-table-host {
+      flex: 1 1 auto;
+      min-height: 18rem;
+      overflow: auto;
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-lg);
+      background: var(--sz-color-surface);
+    }
+
+    .siba-table {
+      min-width: 1040px;
+    }
+
+    .siba-table th,
+    .siba-table td {
+      vertical-align: middle;
+    }
+
+    .siba-pick-cell {
+      width: 2.8rem;
+      text-align: center;
+    }
+
+    .siba-reservation-main {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      min-width: 0;
+    }
+
+    .siba-reservation-code {
+      color: var(--sz-color-text);
+      font-weight: var(--sz-font-weight-bold);
+    }
+
+    .siba-reservation-guest,
+    .siba-muted-line {
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-xs);
+    }
+
+    .siba-status-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.3rem;
+    }
+
+    .siba-progress {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-xs);
+      font-weight: var(--sz-font-weight-semibold);
+    }
+
+    .siba-table-actions {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--sz-space-2);
+      white-space: nowrap;
+    }
+
+    .siba-row-blocked {
+      opacity: 0.72;
+    }
+
+    .siba-actionbar .sz_actionbar_left {
+      color: var(--sz-color-text-muted);
+      font-weight: var(--sz-font-weight-semibold);
+    }
+
+    .siba-empty {
+      padding: var(--sz-space-6);
+      text-align: center;
+      color: var(--sz-color-text-muted);
+    }
+
+    @media (max-width: 1180px) {
+      .siba-page .sz_contextbar {
+        align-items: flex-start;
+      }
+
+      .siba-page .sz_contextbar_left {
+        flex-basis: 100%;
+        width: 100%;
+      }
+
+      .siba-page .sz_page_subtitle {
+        white-space: normal;
+      }
+
+      .siba-page .sz_contextbar_right {
+        justify-content: flex-start;
+        width: 100%;
+      }
+
+      .siba-toolbar {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .siba-page {
+        display: block;
+        min-height: max-content;
+        height: auto;
+        overflow: visible !important;
+      }
+
+      .siba-page .sz_page_container {
+        display: block;
+        height: auto;
+        min-height: max-content;
+        padding-inline: var(--sz-space-3);
+      }
+
+      .siba-page .sz_page_body,
+      .siba-page .sz_page_content {
+        display: block;
+        height: auto;
+        min-height: max-content;
+        overflow: visible !important;
+      }
+
+      .siba-table-host {
+        margin-top: var(--sz-space-3);
+        overflow-x: auto;
+      }
+
+      .siba-toolbar .sz_input,
+      .siba-toolbar .sz_select,
+      .siba-toolbar .sz_button {
+        width: 100%;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page siba-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Comunicações AIMA/SEF</div>
+        <div id="sibaSubtitle" class="sz_page_subtitle">Reservas por comunicar e validação de dados dos hóspedes.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="siba-toolbar">
+          <input id="sibaDateFrom" class="sz_input" type="date" aria-label="Data inicial">
+          <input id="sibaDateTo" class="sz_input" type="date" aria-label="Data final">
+          <select id="sibaAlojamento" class="sz_select siba-lodge-filter" aria-label="Alojamento">
+            <option value="">Todos os alojamentos</option>
+          </select>
+          <select id="sibaComunicada" class="sz_select" aria-label="Estado de comunicação">
+            <option value="pending">Por comunicar</option>
+            <option value="all">Todas</option>
+            <option value="yes">Comunicadas</option>
+            <option value="no">Não comunicadas</option>
+          </select>
+          <button id="sibaRefresh" type="button" class="sz_button sz_button_ghost">
+            <i class="fa-solid fa-rotate"></i>
+            <span>Atualizar</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="sz_page_content">
+        <div class="siba-kpis" aria-live="polite">
+          <div class="siba-kpi"><strong id="sibaKpiTotal">0</strong><span>Reservas</span></div>
+          <div class="siba-kpi"><strong id="sibaKpiPending">0</strong><span>Por comunicar</span></div>
+          <div class="siba-kpi"><strong id="sibaKpiReady">0</strong><span>Prontas</span></div>
+          <div class="siba-kpi"><strong id="sibaKpiPartial">0</strong><span>Parciais</span></div>
+        </div>
+
+        <div class="siba-table-host">
+          <table class="sz_table sz_table_compact siba-table">
+            <thead class="sz_table_head">
+              <tr class="sz_table_row">
+                <th class="sz_table_cell siba-pick-cell">
+                  <input id="sibaSelectAll" type="checkbox" aria-label="Selecionar todas">
+                </th>
+                <th class="sz_table_cell">Reserva</th>
+                <th class="sz_table_cell">Datas</th>
+                <th class="sz_table_cell">Alojamento</th>
+                <th class="sz_table_cell">Comunicação</th>
+                <th class="sz_table_cell">Dados hóspedes</th>
+                <th class="sz_table_cell">Credenciais</th>
+                <th class="sz_table_cell sz_text_right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="sibaRows">
+              <tr class="sz_table_row">
+                <td colspan="8" class="sz_table_cell sz_text_muted">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar sz_page_footer siba-actionbar">
+      <div id="sibaSelectionInfo" class="sz_actionbar_left">0 selecionadas.</div>
+      <div class="sz_actionbar_right">
+        <button id="sibaClearSelection" type="button" class="sz_button sz_button_ghost" disabled>
+          <i class="fa-solid fa-ban"></i>
+          <span>Limpar seleção</span>
+        </button>
+        <button id="sibaSendSelected" type="button" class="sz_button sz_button_primary" disabled>
+          <i class="fa-solid fa-paper-plane"></i>
+          <span>Enviar selecionadas</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    window.SIBA_COMMS_INITIAL = {{ initial_state|tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='js/comunicacoes_sef.js') }}?v={{ static_version }}"></script>
+{% endblock %}
