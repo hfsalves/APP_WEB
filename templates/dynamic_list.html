@@ -27,7 +27,7 @@
                   <span>{{ _('common.new_attachment') }}</span>
                 </button>
               {% endif %}
-              <button id="btnNew" class="sz_button sz_button_primary">
+              <button id="btnNew" type="button" class="sz_button sz_button_primary">
                 <i class="fa fa-plus"></i>
                 <span>{{ _('common.new') }}</span>
               </button>
@@ -118,7 +118,7 @@
   window.TABLE_FORM = {{ menu_forms.get(table_name)|tojson }};
   window.MENU_STAMP = {{ menu_stamp|tojson }};
 </script>
-<script src="{{ url_for('static', filename='js/dynamic_list.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dynamic_list.js') }}?v={{ static_version }}"></script>
 <style>
   .sz_dynamic_sort_modal_panel {
     max-width: min(32rem, calc(100vw - 1.5rem));

@@ -112,6 +112,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (upperTable === 'RS') {
       return appendMenuStamp(stamp ? `/reservas/rs/${stamp}` : '/reservas/rs/new');
     }
+    if (upperTable === 'RCENTRAL') {
+      return appendMenuStamp(stamp ? `/gr_planning/rcentral/${encodeURIComponent(stamp)}` : '/gr_planning/rcentral/');
+    }
     if (tableForm) {
       const relativeForm = toAppRelativeUrl(tableForm, tableForm);
       const pref = relativeForm.startsWith('/') ? relativeForm : `/generic/${relativeForm}`;
