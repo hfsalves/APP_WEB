@@ -328,7 +328,7 @@
   window.TABLE_NAME    = "{{ table_name }}";
   window.RECORD_STAMP  = {{ record_stamp|tojson }};
   window.IS_ADMIN_USER = {{ 'true' if current_user.ADMIN else 'false' }};
-  window.RETURN_TO     = "{{ return_to }}";
+  window.RETURN_TO     = {{ return_to|tojson }};
   window.MENU_STAMP    = {{ menu_stamp|tojson }};
   window.DYNAMIC_FORM_EXACT_WIDTHS = {{ 'true' if exact_widths else 'false' }};
   console.log('dynamic_form init:', window.TABLE_NAME, window.RECORD_STAMP, window.IS_ADMIN_USER);

@@ -37,6 +37,25 @@ document.addEventListener('DOMContentLoaded', () => {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+  const toAppRelativeUrl = (value, fallback = '') => {
+    const raw = String(value || '').trim();
+    if (!raw) return fallback;
+    if (/^(javascript|data|vbscript):/i.test(raw)) return fallback;
+    if (/^https?:\/\//i.test(raw) || raw.startsWith('//')) {
+      try {
+        const parsed = new URL(raw.startsWith('//') ? `${window.location.protocol}${raw}` : raw);
+        return `${parsed.pathname}${parsed.search}${parsed.hash}` || fallback;
+      } catch (_) {
+        return fallback;
+      }
+    }
+    return raw;
+  };
+
+  const navigateTo = (url) => {
+    window.location.href = toAppRelativeUrl(url, '/');
+  };
+
   const isMobileCardView = () => !!mobileListQuery.matches && Array.isArray(mobileCardCols) && mobileCardCols.length > 0;
 
 
@@ -94,7 +113,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return appendMenuStamp(stamp ? `/reservas/rs/${stamp}` : '/reservas/rs/new');
     }
     if (tableForm) {
-      const pref = tableForm.startsWith('/') ? tableForm : `/generic/${tableForm}`;
+      const relativeForm = toAppRelativeUrl(tableForm, tableForm);
+      const pref = relativeForm.startsWith('/') ? relativeForm : `/generic/${relativeForm}`;
       const base = sanitizeBaseForm(pref).toLowerCase(); // rotas registadas em minúsculas
       return appendMenuStamp(stamp ? `${base}/${stamp}` : `${base}/`);
     }
@@ -283,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnNew) {
     btnNew.addEventListener('click', () => {
-      location.href = withReturnTo(resolveFormUrl());
+      navigateTo(withReturnTo(resolveFormUrl()));
     });
   }
   if (btnNewAttachment) {
@@ -613,7 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
               const resp = await fetch(`/generic/api/options?query=${encodeURIComponent(col.combo)}`);
               opts = await resp.json();
             } else {
-              const resp = await fetch(col.combo);
+              const resp = await fetch(toAppRelativeUrl(col.combo, col.combo));
               opts = await resp.json();
             }
           } catch (e) {
@@ -828,7 +848,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // clique abre ediÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o
       const pk = r[`${tableName.toUpperCase()}STAMP`];
       tr.addEventListener('click', () => {
-        location.href = withReturnTo(resolveFormUrl(pk));
+        navigateTo(withReturnTo(resolveFormUrl(pk)));
       });
       tbody.append(tr);
     });
@@ -893,12 +913,12 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       card.addEventListener('click', () => {
-        location.href = withReturnTo(resolveFormUrl(pk));
+        navigateTo(withReturnTo(resolveFormUrl(pk)));
       });
       card.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
-        location.href = withReturnTo(resolveFormUrl(pk));
+        navigateTo(withReturnTo(resolveFormUrl(pk)));
       });
       host.append(card);
     });

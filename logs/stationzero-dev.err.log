@@ -1,0 +1,56 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 487-684-258
+127.0.0.1 - - [12/May/2026 09:27:18] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [12/May/2026 09:27:18] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:19] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:20] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:20] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:20] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:20] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:20] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:20] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:20] "GET /static/js/push.js?v=1778574437 HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:20] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:20] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:22] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:25] "GET /generic/view/CT HTTP/1.1" 308 -
+127.0.0.1 - - [12/May/2026 09:27:26] "GET /generic/view/CT/ HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:26] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:27] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:27] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:27] "GET /static/js/dynamic_list.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:27] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:27] "GET /static/js/push.js?v=1778574437 HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:27] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:27] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:28] "GET /generic/api/CT?action=describe&include_screen_meta=1&menustamp=10E68108B53648DD9A16CFC6F HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:28] "GET /generic/api/CT HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:29] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:31] "GET /generic/form/CT/68A32D19-AD13-4ADB-A997-6?menustamp=10E68108B53648DD9A16CFC6F&return_to=/generic/view/CT/ HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:32] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:32] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:32] "GET /static/js/dynamic_form.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:32] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:32] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:32] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:32] "GET /static/js/push.js?v=1778574437 HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:33] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:33] "GET /generic/api/CT?action=describe&menustamp=10E68108B53648DD9A16CFC6F&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:33] "GET /generic/api/CT/68A32D19-AD13-4ADB-A997-6 HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:34] "GET /api/anexos?table=CT&rec=68A32D19-AD13-4ADB-A997-6 HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:34] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:36] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:36] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:36] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:36] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:36] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:36] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:36] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:36] "GET /static/js/push.js?v=1778574437 HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:37] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [12/May/2026 09:27:37] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [12/May/2026 09:27:38] "GET /service-worker.js HTTP/1.1" 304 -

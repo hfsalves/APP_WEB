@@ -1,4 +1,23 @@
 // static/js/dynamic_form.js
+function toDynamicAppRelativeUrl(value, fallback = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  if (/^(javascript|data|vbscript):/i.test(raw)) return fallback;
+  if (/^https?:\/\//i.test(raw) || raw.startsWith('//')) {
+    try {
+      const parsed = new URL(raw.startsWith('//') ? `${window.location.protocol}${raw}` : raw);
+      return `${parsed.pathname}${parsed.search}${parsed.hash}` || fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+  return raw;
+}
+
+function navigateDynamic(url, fallback = '/') {
+  window.location.href = toDynamicAppRelativeUrl(url, fallback);
+}
+
 function showDynamicFormToast(message, type = 'success', options = {}) {
   if (typeof window.showToast === 'function') {
     window.showToast(message, type, options);
@@ -81,7 +100,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   // Este form é acedido a partir de outro? Ou diretamente?
   const returnTo = urlParams.get('return_to');
   const RETURN_URL = returnTo && returnTo.trim() !== ''
-    ? returnTo
+    ? toDynamicAppRelativeUrl(returnTo, `/generic/view/${TABLE_NAME}/`)
     : `/generic/view/${TABLE_NAME}/`;
 
   console.log('📍 RETURN_URL =', RETURN_URL);
@@ -1223,7 +1242,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
       case 'CALL_API': {
         const endpoint = String(readRuntimeValue(runtime, config.endpoint) ?? '').trim();
         const method = String(readRuntimeValue(runtime, config.method) ?? 'GET').trim().toUpperCase() || 'GET';
-        const response = await fetch(endpoint, { method, headers: { 'Content-Type': 'application/json' } });
+        const response = await fetch(toDynamicAppRelativeUrl(endpoint, endpoint), { method, headers: { 'Content-Type': 'application/json' } });
         const data = await response.json().catch(() => ({}));
         runtime.lastApiResponse = data;
         storeRuntimeValue(runtime, outputName, data);
@@ -2664,7 +2683,7 @@ await Promise.all(
               `/generic/api/options?query=${encodeURIComponent(c.combo)}`
             )).json();
           } else {
-            opts = await (await fetch(c.combo)).json();
+            opts = await (await fetch(toDynamicAppRelativeUrl(c.combo, c.combo))).json();
           }
         } catch (e) {
           console.error('Falha ao carregar combo', c.name, e);
@@ -2929,7 +2948,7 @@ hideLoading()
                     detail_pk: pk
                   });
 
-                  window.location.href = `/generic/form/${det.tabela}/${pk}?${p.toString()}`;
+                  navigateDynamic(`/generic/form/${det.tabela}/${pk}?${p.toString()}`);
                 }
               });
 
@@ -2970,7 +2989,7 @@ hideLoading()
               params.append('return_to', parentFormUrl);
               params.append('detail_table', det.tabela);
 
-              window.location.href = `/generic/form/${det.tabela}/?${params.toString()}`;
+              navigateDynamic(`/generic/form/${det.tabela}/?${params.toString()}`);
             });
 
             // Editar (usa a primeira coluna como chave)
@@ -2982,10 +3001,10 @@ hideLoading()
               const id  = row[det.campos[0].CAMPODESTINO];
               const cur = window.location.pathname + window.location.search;
               const ret = encodeURIComponent(cur);
-              window.location.href = `/generic/form/${det.tabela}/${id}`
+              navigateDynamic(`/generic/form/${det.tabela}/${id}`
                 + `?return_to=${ret}`
                 + `&detail_table=${det.tabela}`
-                + `&detail_anchor=${id}`;
+                + `&detail_anchor=${id}`);
             });
 
             // Eliminar
@@ -3093,7 +3112,7 @@ hideLoading()
             <i class="fa fa-info-circle"></i>
           </button>
 
-          <a href="${a.CAMINHO}" target="_blank" class="sz_dynamic_anexo_link">
+          <a href="${toDynamicAppRelativeUrl(a.CAMINHO, '#')}" target="_blank" class="sz_dynamic_anexo_link">
             ${a.FICHEIRO}
           </a>
 
@@ -3112,7 +3131,7 @@ hideLoading()
       listaAnx.querySelectorAll('[data-anexo-action="info"]').forEach(el => {
         el.addEventListener('click', () => {
           const id = el.dataset.id;
-          window.location.href = `/generic/form/ANEXOS/${id}`;
+          navigateDynamic(`/generic/form/ANEXOS/${id}`);
         });
       });
 
@@ -3774,7 +3793,7 @@ hideLoading()
 
 // 6. Cancelar e eliminar
     document.getElementById('btnCancel')?.addEventListener('click', ()=> {
-    window.location.href = RETURN_URL;
+    navigateDynamic(RETURN_URL, `/generic/view/${TABLE_NAME}/`);
     });
     // Eliminar
     document.getElementById('btnDelete')?.addEventListener('click', async () => {
@@ -3804,7 +3823,7 @@ hideLoading()
           return;
         }
         queueDynamicFormToast('Registo eliminado.', 'success');
-        window.location.href = RETURN_URL;
+        navigateDynamic(RETURN_URL, `/generic/view/${TABLE_NAME}/`);
       } catch (err) {
         console.error('Erro ao eliminar:', err);
         showDynamicFormToast('Erro inesperado ao eliminar.', 'danger');
@@ -3846,7 +3865,7 @@ hideLoading()
     // Voltar
     document.getElementById('btnBack')?.addEventListener('click', () => {
       if (RETURN_URL) {
-        window.location.href = RETURN_URL;
+        navigateDynamic(RETURN_URL, `/generic/view/${TABLE_NAME}/`);
       } else {
         history.back();
       }
@@ -3970,7 +3989,7 @@ hideLoading()
         return;
       }
       queueDynamicFormToast(RECORD_STAMP ? 'Registo gravado.' : 'Registo criado.', 'success');
-      window.location.href = RETURN_URL;
+      navigateDynamic(RETURN_URL, `/generic/view/${TABLE_NAME}/`);
     } catch (net) {
       showDynamicFormToast(`Erro de rede: ${net.message}`, 'danger');
     }
