@@ -74,7 +74,7 @@ _ARGON2_HASHER = PasswordHasher() if _HAS_ARGON2 else None
 class AuthenticationResult:
     success: bool
     row: Optional[Dict[str, Any]] = None
-    user_message: str = "Credenciais inv?lidas"
+    user_message: str = "Credenciais inválidas"
     reason: str = "invalid_credentials"
     migrated: bool = False
 
@@ -337,7 +337,7 @@ def migrate_password(session, user_stamp: str, plaintext: str) -> tuple[str, str
         )
     else:
         logger.warning(
-            "Migra??o de password adiada: colunas seguras ainda n?o existem em dbo.US",
+            "Migração de password adiada: colunas seguras ainda não existem em dbo.US",
             extra={"login_userstamp": user_stamp},
         )
     return password_hash, password_algo
@@ -375,7 +375,7 @@ def register_login_failure(session, row: Dict[str, Any], now: Optional[datetime]
 
     if locked_until:
         logger.warning(
-            "Conta bloqueada temporariamente ap?s falhas de login",
+            "Conta bloqueada temporariamente após falhas de login",
             extra={
                 "login": row.get("LOGIN"),
                 "userstamp": row.get("USSTAMP"),
@@ -476,7 +476,7 @@ def authenticate_user(session, login_value: str, plaintext: str) -> Authenticati
 
     if not row:
         logger.warning("Login falhado: utilizador inexistente", extra={"login": login_clean})
-        return AuthenticationResult(success=False, user_message="Credenciais inv?lidas", reason="user_not_found")
+        return AuthenticationResult(success=False, user_message="Credenciais inválidas", reason="user_not_found")
 
     if not is_user_active(row):
         logger.warning("Login recusado: utilizador inativo", extra={"login": row.get("LOGIN"), "userstamp": row.get("USSTAMP")})
@@ -502,12 +502,21 @@ def authenticate_user(session, login_value: str, plaintext: str) -> Authenticati
     password_hash = (row.get("PASSWORD_HASH") or "").strip()
     if password_hash:
         if not verify_password_hash(row, plaintext):
-            register_login_failure(session, row, now)
-            return AuthenticationResult(success=False, row=row, user_message="Credenciais inv?lidas", reason="invalid_password")
+            if verify_legacy_password(row, plaintext):
+                migrate_password(session, row["USSTAMP"], plaintext)
+                row["PASSWORD_MIGRADA"] = True
+                migrated = True
+                logger.warning(
+                    "Hash de password substituido apos validacao legacy bem-sucedida",
+                    extra={"login": row.get("LOGIN"), "userstamp": row.get("USSTAMP")},
+                )
+            else:
+                register_login_failure(session, row, now)
+                return AuthenticationResult(success=False, row=row, user_message="Credenciais inválidas", reason="invalid_password")
     else:
         if not verify_legacy_password(row, plaintext):
             register_login_failure(session, row, now)
-            return AuthenticationResult(success=False, row=row, user_message="Credenciais inv?lidas", reason="invalid_password")
+            return AuthenticationResult(success=False, row=row, user_message="Credenciais inválidas", reason="invalid_password")
         available = get_table_columns(session, "US")
         if "PASSWORD_HASH" in available:
             migrate_password(session, row["USSTAMP"], plaintext)

@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Registo de Centrais{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_planning.static', filename='gr_concrete_central.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr-central-page">
+  <div class="sz_page_container gr-central-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-central-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Registo de Centrais</div>
+        <div class="sz_page_subtitle">Registo diario de producao e consumos de betao.</div>
+      </div>
+      <div class="sz_contextbar_right"></div>
+    </header>
+
+    <section class="sz_page_body gr-central-body">
+      <form class="sz_panel gr-central-form" id="grCentralForm" autocomplete="off">
+        <input type="hidden" id="grCentralStamp">
+        <div class="gr-central-form-head">
+          <div>
+            <h2 class="sz_h4">Registo</h2>
+            <p class="sz_text_muted" id="grCentralFormHint">Novo registo diario.</p>
+          </div>
+        </div>
+
+        <div class="gr-central-grid">
+          <div class="sz_field gr-central-span-2">
+            <label class="sz_label" for="grCentralProcesso">Obra</label>
+            <input class="sz_input" id="grCentralProcesso" list="grCentralProcessos" maxlength="25" required placeholder="Codigo da obra">
+            <datalist id="grCentralProcessos"></datalist>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralData">Data</label>
+            <input class="sz_input" id="grCentralData" type="date" required value="{{ today }}">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralServico">Servico</label>
+            <select class="sz_select" id="grCentralServico" required>
+              {% for service in services %}
+                <option value="{{ service }}">{{ service }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralMatricula">Central</label>
+            <select class="sz_select" id="grCentralMatricula" required>
+              <option value="">A carregar...</option>
+            </select>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralMotorista">Motorista</label>
+            <input class="sz_input" id="grCentralMotorista" maxlength="60" required placeholder="Nome do motorista">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralHoraIni">Hora inicial</label>
+            <input class="sz_input" id="grCentralHoraIni" type="time" required>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralHoraFim">Hora final</label>
+            <input class="sz_input" id="grCentralHoraFim" type="time">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralCInicial">Contador inicial</label>
+            <input class="sz_input" id="grCentralCInicial" inputmode="decimal" type="number" step="0.001" min="0" value="0">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralCFinal">Contador final</label>
+            <input class="sz_input" id="grCentralCFinal" inputmode="decimal" type="number" step="0.001" min="0" value="0">
+          </div>
+
+          <div class="gr-central-qtt">
+            <span>Quantidade produzida</span>
+            <strong id="grCentralQtt">0,000</strong>
+          </div>
+
+          <div class="sz_field gr-central-span-2">
+            <label class="sz_label" for="grCentralRefBetao">Referencia de betao</label>
+            <input class="sz_input" id="grCentralRefBetao" maxlength="254" placeholder="Referencia ou composicao produzida">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralAreia">Areia</label>
+            <input class="sz_input" id="grCentralAreia" inputmode="decimal" type="number" step="0.001" min="0" value="0">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralBrita">Brita</label>
+            <input class="sz_input" id="grCentralBrita" inputmode="decimal" type="number" step="0.001" min="0" value="0">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralCimento">Cimento</label>
+            <input class="sz_input" id="grCentralCimento" inputmode="decimal" type="number" step="0.001" min="0" value="0">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grCentralAditivo">Aditivo</label>
+            <input class="sz_input" id="grCentralAditivo" inputmode="decimal" type="number" step="0.001" min="0" value="0">
+          </div>
+
+          <div class="sz_field gr-central-span-2">
+            <label class="sz_label" for="grCentralDescricao">Descricao</label>
+            <textarea class="sz_textarea" id="grCentralDescricao" maxlength="250" rows="3" placeholder="Notas do trabalho, paragens ou observacoes"></textarea>
+          </div>
+        </div>
+
+        <div class="gr-central-form-actions">
+          <a class="sz_button sz_button_secondary" id="grCentralBack" href="{{ return_to }}">
+            <i class="fa-solid fa-arrow-left"></i>
+            <span>Voltar</span>
+          </a>
+          <button type="button" class="sz_button sz_button_ghost gr-central-delete-btn" id="grCentralDelete" {% if not record %}hidden{% endif %}>
+            <i class="fa-solid fa-trash"></i>
+            <span>Eliminar</span>
+          </button>
+          <button type="submit" class="sz_button sz_button_primary" id="grCentralSave">
+            <i class="fa-solid fa-save"></i>
+            <span>Gravar</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    window.GR_CONCRETE_CENTRAL = {
+      recordsUrl: {{ url_for('gr_planning.concrete_central_records')|tojson }},
+      saveUrl: {{ url_for('gr_planning.concrete_central_save')|tojson }},
+      opcUrl: {{ url_for('gr_planning.concrete_central_opc')|tojson }},
+      vehiclesUrl: {{ url_for('gr_planning.concrete_central_vehicles')|tojson }},
+      today: {{ today|tojson }},
+      record: {{ record|tojson }},
+      returnUrl: {{ return_to|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('gr_planning.static', filename='gr_concrete_central.js') }}" defer></script>
+{% endblock %}

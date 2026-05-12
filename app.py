@@ -22439,8 +22439,9 @@ def create_app():
         if _is_cliente_user():
             return redirect(url_for('cliente_portal_page'))
 
-        home = getattr(current_user, 'HOME', '').lower().strip().lstrip('/')
-        print(f"HOME do utilizador: {home}")
+        home_raw = str(getattr(current_user, 'HOME', '') or '').strip()
+        home = home_raw.lower().strip().strip('/')
+        home_path = f"/{home}" if home else ""
 
         # Se o utilizador regista tempos e tiver tarefas LP hoje, entre 08:00 e 20:00,
         # abre o ecrã de tempos em vez do monitor.
@@ -22473,8 +22474,12 @@ def create_app():
 
         if home == 'dashboard':
             return redirect(url_for('dashboard_page'))
+        elif home in {'gr_monitor', 'gr-monitor', 'gr360_monitor', 'gr_planning/monitor'}:
+            return redirect(url_for('gr_planning.gr_monitor'))
         elif home == 'monitor' or not home:
             return redirect(url_for('monitor_page'))
+        elif home_path and not home_path.startswith('//') and not any(ch in home_path for ch in ('\r', '\n', '\x00')):
+            return redirect(home_path)
 
         return redirect(url_for('dashboard_page'))
 

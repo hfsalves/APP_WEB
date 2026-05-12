@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Planeamento Macro{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_planning.static', filename='gr_macro_planning.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr-macro-page">
+  <div class="sz_page_container gr-macro-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-macro-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Planeamento Macro</div>
+        <div class="sz_page_subtitle">Mapa anual de obras, equipas e semanas.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <form class="gr-macro-filters" method="get" action="{{ url_for('gr_planning.macro_planning') }}">
+          <label class="sz_label" for="grMacroYear">Ano</label>
+          <select class="sz_select" id="grMacroYear" name="year">
+            {% for option_year in range(year - 2, year + 3) %}
+              <option value="{{ option_year }}" {% if option_year == year %}selected{% endif %}>{{ option_year }}</option>
+            {% endfor %}
+          </select>
+        </form>
+        <button type="button" class="sz_button sz_button_primary" id="grMacroOpenWorks">
+          <i class="fa-solid fa-plus"></i>
+          <span>Adicionar obras</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body gr-macro-body">
+      <div class="gr-macro-board" role="region" aria-label="Planeamento macro {{ year }}">
+        <div class="gr-macro-grid" style="--week-count: {{ weeks|length }};">
+          <div class="gr-macro-header gr-macro-sticky gr-macro-col-obra">Obra</div>
+          <div class="gr-macro-header gr-macro-sticky gr-macro-col-quantidade">Qtd. total</div>
+          <div class="gr-macro-header gr-macro-sticky gr-macro-col-equipa">Equipa</div>
+          <div class="gr-macro-header gr-macro-sticky gr-macro-col-duracao">Duração</div>
+          {% for week in weeks %}
+            <div class="gr-macro-header gr-macro-week-header">S{{ "%02d"|format(week) }}</div>
+          {% endfor %}
+
+          {% for row in rows %}
+            <div class="gr-macro-cell gr-macro-sticky gr-macro-col-obra" data-processo="{{ row.processo }}" data-description="{{ row.descricao }}">
+              <div class="gr-macro-work-title">
+                <strong>{{ row.obra }}</strong>
+                <button type="button" class="gr-macro-row-delete" aria-label="Remover obra">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+              <span>{{ row.descricao or 'Sem descricao' }}</span>
+            </div>
+            <div class="gr-macro-cell gr-macro-sticky gr-macro-col-quantidade" data-processo="{{ row.processo }}" data-qtt="{{ row.quantidade }}">{{ row.quantidade or '-' }}</div>
+            <div class="gr-macro-cell gr-macro-sticky gr-macro-col-equipa gr-macro-team-cell" data-processo="{{ row.processo }}" data-team-code="{{ row.equipa if row.equipa != '-' else '' }}" data-team-color="{{ row.equipa_cor }}" role="button" tabindex="0">
+              <span class="gr-macro-team{% if row.equipa == '-' %} gr-macro-tone-muted{% endif %}" {% if row.equipa != '-' %}style="background: {{ row.equipa_cor }}; color: {{ row.equipa_text_color }};"{% endif %}>{{ row.equipa }}</span>
+            </div>
+            <div class="gr-macro-cell gr-macro-sticky gr-macro-col-duracao" data-processo="{{ row.processo }}" data-duration="{{ row.duracao }}">{{ row.duracao ~ ' sem.' if row.duracao else '-' }}</div>
+            <div class="gr-macro-timeline" style="--row: {{ loop.index }};" data-processo="{{ row.processo or row.obra }}">
+              {% for week in weeks %}
+                <div class="gr-macro-week-cell" style="--week: {{ week }};" data-week="{{ week }}"></div>
+              {% endfor %}
+              {% for bar in row.bars %}
+                <div
+                  class="gr-macro-bar"
+                  style="--start-week: {{ bar.start }}; --duration-weeks: {{ bar.duration }}; background: {{ bar.color }}; color: {{ bar.text_color }};"
+                  data-supervisor="{{ bar.label }}"
+                  data-label="{{ bar.label }}"
+                  data-color="{{ bar.color }}"
+                  data-start-week="{{ bar.start }}"
+                  data-end-week="{{ bar.start + bar.duration - 1 }}"
+                  title="{{ row.obra }} - S{{ bar.start }} a S{{ bar.start + bar.duration - 1 }}">
+                  <button type="button" class="gr-macro-bar-handle gr-macro-bar-handle-start" data-bar-handle="start" aria-label="Ajustar inicio"></button>
+                  <span>{{ bar.label }}</span>
+                  <button type="button" class="gr-macro-bar-handle gr-macro-bar-handle-end" data-bar-handle="end" aria-label="Ajustar fim"></button>
+                </div>
+              {% endfor %}
+            </div>
+          {% endfor %}
+          <div class="gr-macro-empty{% if rows %} is-hidden{% endif %}" id="grMacroEmpty">
+            <i class="fa-solid fa-diagram-project"></i>
+            <strong>Sem obras no planeamento.</strong>
+            <span>Use "Adicionar obras" para começar a construir o mapa anual.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="sz_page_footer gr-macro-footer">
+      <div class="sz_actionbar">
+        <div class="sz_actionbar_left">
+          <span class="sz_text_sm" id="grMacroStatus">Planeamento carregado.</span>
+        </div>
+        <div class="sz_actionbar_right">
+          <button type="button" class="sz_button sz_button_secondary" disabled>
+            <i class="fa-solid fa-filter"></i>
+            <span>Filtros</span>
+          </button>
+          <button type="button" class="sz_button sz_button_primary" id="grMacroSave" disabled>
+            <i class="fa-solid fa-save"></i>
+            <span>Gravar</span>
+          </button>
+        </div>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div class="sz_modal gr-macro-modal" id="grMacroWorksModal" aria-hidden="true" role="dialog" aria-labelledby="grMacroWorksTitle">
+  <div class="sz_panel gr-macro-modal-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 class="sz_h4 sz_modal_title" id="grMacroWorksTitle">Adicionar obras</h3>
+        <p class="sz_text_muted">Pesquisa em OPC por processo ou descrição.</p>
+      </div>
+      <button type="button" class="sz_button sz_button_ghost" id="grMacroCloseWorksTop" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body gr-macro-modal-body">
+      <div class="sz_field">
+        <label class="sz_label" for="grMacroWorkSearch">Pesquisar</label>
+        <input class="sz_input" id="grMacroWorkSearch" type="search" autocomplete="off" placeholder="Código ou descrição da obra">
+      </div>
+      <div class="gr-macro-modal-status" id="grMacroWorkStatus">Comece a escrever para pesquisar.</div>
+      <div class="gr-macro-work-results" id="grMacroWorkResults"></div>
+    </div>
+    <div class="sz_modal_footer">
+      <div class="gr-macro-selected-count" id="grMacroSelectedCount">0 obras selecionadas</div>
+      <button type="button" class="sz_button sz_button_secondary" id="grMacroCloseWorks">
+        <i class="fa-solid fa-ban"></i>
+        <span>Cancelar</span>
+      </button>
+      <button type="button" class="sz_button sz_button_primary" id="grMacroConfirmWorks">
+        <i class="fa-solid fa-check"></i>
+        <span>Adicionar</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="sz_modal gr-macro-modal" id="grMacroTeamsModal" aria-hidden="true" role="dialog" aria-labelledby="grMacroTeamsTitle">
+  <div class="sz_panel gr-macro-modal-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 class="sz_h4 sz_modal_title" id="grMacroTeamsTitle">Escolher equipa</h3>
+        <p class="sz_text_muted">Pesquisa em FREF por código ou nome da equipa.</p>
+      </div>
+      <button type="button" class="sz_button sz_button_ghost" id="grMacroCloseTeamsTop" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body gr-macro-modal-body">
+      <div class="sz_field">
+        <label class="sz_label" for="grMacroTeamSearch">Pesquisar</label>
+        <input class="sz_input" id="grMacroTeamSearch" type="search" autocomplete="off" placeholder="Código ou nome da equipa">
+      </div>
+      <div class="gr-macro-modal-status" id="grMacroTeamStatus">Comece a escrever para pesquisar.</div>
+      <div class="gr-macro-work-results" id="grMacroTeamResults"></div>
+    </div>
+    <div class="sz_modal_footer">
+      <div class="gr-macro-selected-count" id="grMacroTeamSelectedCount">0 equipas selecionadas</div>
+      <button type="button" class="sz_button sz_button_secondary" id="grMacroCloseTeams">
+        <i class="fa-solid fa-ban"></i>
+        <span>Cancelar</span>
+      </button>
+      <button type="button" class="sz_button sz_button_primary" id="grMacroConfirmTeams">
+        <i class="fa-solid fa-check"></i>
+        <span>Inserir</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="sz_modal gr-macro-modal" id="grMacroSupervisorsModal" aria-hidden="true" role="dialog" aria-labelledby="grMacroSupervisorsTitle">
+  <div class="sz_panel gr-macro-modal-panel">
+    <div class="sz_modal_header">
+      <div>
+        <h3 class="sz_h4 sz_modal_title" id="grMacroSupervisorsTitle">Escolher encarregado</h3>
+        <p class="sz_text_muted">Pesquisa em CT por nome do encarregado.</p>
+      </div>
+      <button type="button" class="sz_button sz_button_ghost" id="grMacroCloseSupervisorsTop" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body gr-macro-modal-body">
+      <div class="sz_field">
+        <label class="sz_label" for="grMacroSupervisorSearch">Pesquisar</label>
+        <input class="sz_input" id="grMacroSupervisorSearch" type="search" autocomplete="off" placeholder="Nome do encarregado">
+      </div>
+      <div class="gr-macro-modal-status" id="grMacroSupervisorStatus">A carregar encarregados.</div>
+      <div class="gr-macro-work-results" id="grMacroSupervisorResults"></div>
+    </div>
+    <div class="sz_modal_footer">
+      <div class="gr-macro-selected-count" id="grMacroSupervisorSelectedCount">0 encarregados selecionados</div>
+      <button type="button" class="sz_button sz_button_secondary" id="grMacroCloseSupervisors">
+        <i class="fa-solid fa-ban"></i>
+        <span>Cancelar</span>
+      </button>
+      <button type="button" class="sz_button sz_button_primary" id="grMacroConfirmSupervisors">
+        <i class="fa-solid fa-check"></i>
+        <span>Inserir</span>
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    window.GR_MACRO_PLANNING = {
+      opcUrl: {{ url_for('gr_planning.macro_planning_opc')|tojson }},
+      teamsUrl: {{ url_for('gr_planning.macro_planning_teams')|tojson }},
+      supervisorsUrl: {{ url_for('gr_planning.macro_planning_supervisors')|tojson }},
+      planUrl: {{ url_for('gr_planning.macro_planning_plan')|tojson }},
+      year: {{ year|tojson }},
+      weeks: {{ weeks|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('gr_planning.static', filename='gr_macro_planning.js') }}" defer></script>
+{% endblock %}
