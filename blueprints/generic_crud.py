@@ -1041,7 +1041,7 @@ def al_fotos_table_exists() -> bool:
 def view_calendar():
     return render_template('calendar.html')
 
-@bp.route('/view/<table_name>/', defaults={'record_stamp': None})
+@bp.route('/view/<table_name>/', defaults={'record_stamp': None}, strict_slashes=False)
 @bp.route('/view/<table_name>/<record_stamp>')
 @login_required
 def view_table(table_name, record_stamp):
@@ -1060,7 +1060,7 @@ def view_table(table_name, record_stamp):
         menu_stamp=(menu_item.menustamp if menu_item else '')
     )
 
-@bp.route('/form/<table_name>/', defaults={'record_stamp': None})
+@bp.route('/form/<table_name>/', defaults={'record_stamp': None}, strict_slashes=False)
 @bp.route('/form/<table_name>/<record_stamp>')
 @login_required
 def edit_table(table_name, record_stamp):

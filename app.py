@@ -26,7 +26,7 @@ from sqlalchemy import text, bindparam
 from sqlalchemy.exc import OperationalError
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 from werkzeug.utils import secure_filename
 from services.assinatura_service import sign_ft_document
 from services.qr_atcud_service import (
@@ -1999,6 +1999,23 @@ def create_app():
             # As fallback, try /static/images/favicon.ico redirect
             return redirect(url_for('static', filename='images/favicon.ico'))
 
+    def _app_relative_url(value, fallback=''):
+        raw = str(value or '').strip()
+        if not raw:
+            return fallback
+        if re.match(r'^(javascript|data|vbscript):', raw, flags=re.IGNORECASE):
+            return fallback
+        if raw.startswith('//') or re.match(r'^https?://', raw, flags=re.IGNORECASE):
+            try:
+                parsed = urlsplit(f'https:{raw}' if raw.startswith('//') else raw)
+                path = parsed.path or '/'
+                query = f'?{parsed.query}' if parsed.query else ''
+                fragment = f'#{parsed.fragment}' if parsed.fragment else ''
+                return f'{path}{query}{fragment}'
+            except Exception:
+                return fallback
+        return raw
+
     @app.context_processor
     def inject_menu_and_access():
         page_name = None
@@ -2148,7 +2165,8 @@ def create_app():
 
             if not page_name:
                 for m in menu_items:
-                    if request.path.startswith(m.url):
+                    menu_url = _app_relative_url(getattr(m, 'url', '') or '')
+                    if menu_url and request.path.startswith(menu_url):
                         page_name = menu_label_map.get(str(getattr(m, 'menustamp', '') or '').strip(), m.nome)
                         break
 
@@ -2202,9 +2220,10 @@ def create_app():
                     }
                     menu_structure.append(current_group)
                 else:
+                    menu_url = _app_relative_url(getattr(m, 'url', '') or '')
                     child = {
                         'name': menu_label_map.get(str(getattr(m, 'menustamp', '') or '').strip(), m.nome),
-                        'url': m.url,
+                        'url': menu_url,
                         'icon': m.icone,
                         'novo': bool(getattr(m, 'novo', False))
                     }
@@ -2228,7 +2247,7 @@ def create_app():
                 for child in (item.get('children') if isinstance(item, dict) and item.get('children') else [item])
                 if isinstance(child, dict) and child.get('url')
             }
-            menu_forms = { m.tabela: getattr(m, 'form', None) for m in menu_items }
+            menu_forms = {m.tabela: _app_relative_url(getattr(m, 'form', None) or '') for m in menu_items}
 
         return {
             'menu_items'     : menu_items,
