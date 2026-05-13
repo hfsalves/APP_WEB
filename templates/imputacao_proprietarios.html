@@ -2,179 +2,403 @@
 
 {% set page_title = "Imputação a Proprietários" %}
 {% set page_name = "Imputação a Proprietários" %}
-{% block title %}Imputação a Proprietários{% endblock %}
+{% block title %}Imputa&ccedil;&atilde;o a Propriet&aacute;rios{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3 imput-page">
-  <div class="d-flex flex-wrap align-items-center gap-2 mb-3 imput-toolbar">
-    <button class="btn btn-sm btn-outline-secondary" id="btnReloadImput"><i class="fa-solid fa-rotate"></i> Atualizar</button>
-    <div class="imput-search">
-      <input type="text" class="form-control form-control-sm" id="imputSearch" placeholder="Pesquisar..." style="max-width: 240px;">
-      <button type="button" class="btn btn-sm btn-light imput-clear" id="imputClear" aria-label="Limpar filtro">×</button>
+<div class="sz_imput_page">
+  <header class="sz_contextbar sz_imput_contextbar">
+    <div class="sz_contextbar_left">
+      <h1 class="sz_page_title">Imputa&ccedil;&atilde;o a Propriet&aacute;rios</h1>
+      <p class="sz_page_subtitle">Custos de gest&atilde;o a imputar por alojamento e per&iacute;odo.</p>
     </div>
-    <select class="form-select form-select-sm" id="imputStatus" style="max-width: 200px;">
-      <option value="pending">Por decidir</option>
-      <option value="all">Todos</option>
-      <option value="yes">Imputar</option>
-      <option value="no">Não imputar</option>
-    </select>
-    <div class="ms-auto">
-      <button class="btn btn-sm btn-primary" id="btnSaveImput"><i class="fa-solid fa-floppy-disk"></i> Gravar</button>
-    </div>
-  </div>
-
-  <div class="card shadow-sm imput-card">
-    <div class="card-body p-0 imput-body">
-      <div class="table-responsive imput-grid-wrap">
-        <table class="table table-sm mb-0 imput-table">
-          <thead class="table-light">
-            <tr>
-              <th data-key="ORIGEM">Origem</th>
-              <th data-key="DATA">Data</th>
-              <th data-key="DOC">Doc/Incidência</th>
-              <th data-key="NOME">Fornecedor</th>
-              <th data-key="ALOJAMENTO">Alojamento</th>
-              <th class="text-end" data-key="TOTAL">Total</th>
-              <th>Imputação</th>
-              <th data-key="IMPUTANO">Mês/Ano</th>
-              <th class="text-end" data-key="IMPUTVALOR">Valor</th>
-              <th data-key="IMPUTDESIGN">Descrição</th>
-            </tr>
-          </thead>
-          <tbody id="imputBody">
-            <tr><td colspan="11" class="text-muted p-3">A carregar...</td></tr>
-          </tbody>
-        </table>
+    <div class="sz_contextbar_right sz_imput_filters">
+      <label class="sz_field sz_imput_status_field" for="imputStatus">
+        <span class="sz_label">Estado</span>
+        <select class="sz_select" id="imputStatus">
+          <option value="pending">Por decidir</option>
+          <option value="all">Todos</option>
+          <option value="yes">Imputar</option>
+          <option value="no">N&atilde;o imputar</option>
+        </select>
+      </label>
+      <button class="sz_button sz_button_ghost" id="btnReloadImput" type="button">
+        <i class="fa-solid fa-rotate"></i>
+        <span>Atualizar</span>
+      </button>
+      <div class="sz_imput_totals" aria-live="polite">
+        <div class="sz_imput_total_item">
+          <span>Total</span>
+          <strong id="imputTotalGeral">0,00</strong>
+        </div>
+        <div class="sz_imput_total_item">
+          <span>A imputar</span>
+          <strong id="imputTotalSim">0,00</strong>
+        </div>
+        <div class="sz_imput_total_item">
+          <span>A n&atilde;o imputar</span>
+          <strong id="imputTotalNao">0,00</strong>
+        </div>
       </div>
     </div>
-  </div>
+  </header>
+
+  <section class="sz_panel sz_imput_panel">
+    <div class="sz_table_host sz_imput_grid_wrap">
+      <table class="sz_table sz_table_compact imput-table">
+        <thead class="sz_table_head">
+          <tr>
+            <th data-key="ORIGEM">Origem</th>
+            <th data-key="DATA">Data</th>
+            <th data-key="DOC">Doc/Incid&ecirc;ncia</th>
+            <th data-key="NOME">Fornecedor</th>
+            <th data-key="ALOJAMENTO">Alojamento</th>
+            <th class="text-end" data-key="TOTAL">Total</th>
+            <th>Imputa&ccedil;&atilde;o</th>
+            <th data-key="IMPUTANO">M&ecirc;s/Ano</th>
+            <th class="text-end" data-key="IMPUTVALOR">Valor</th>
+            <th data-key="IMPUTDESIGN">Descri&ccedil;&atilde;o</th>
+          </tr>
+        </thead>
+        <tbody id="imputBody">
+          <tr><td colspan="10" class="sz_table_cell sz_text_muted p-3">A carregar...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="sz_actionbar sz_imput_actionbar">
+    <div class="sz_actionbar_left">
+      <span class="sz_imput_hint">Defina a imputa&ccedil;&atilde;o e grave as altera&ccedil;&otilde;es.</span>
+    </div>
+    <div class="sz_actionbar_right">
+      <button class="sz_button sz_button_primary" id="btnSaveImput" type="button">
+        <i class="fa-solid fa-floppy-disk"></i>
+        <span>Gravar</span>
+      </button>
+    </div>
+  </footer>
 </div>
 
 <style>
-  .imput-page{
-    height: calc(100vh - 120px);
-    display:flex;
-    flex-direction:column;
+  .sz_imput_page {
+    height: calc(100vh - var(--sz-topbar-height, 56px) - 1.5rem);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    min-height: 0;
+    box-sizing: border-box;
+    padding: var(--sz-page-pad-y) var(--sz-page-pad-x) var(--sz-page-pad-y);
   }
-  .imput-toolbar{ flex: 0 0 auto; }
-  .imput-card{ flex: 1 1 auto; overflow:hidden; }
-  .imput-body{ height:100%; }
-  .imput-grid-wrap{ max-height:100%; overflow-y:auto; }
-  .imput-search{ position:relative; display:inline-flex; align-items:center; }
-  .imput-search input{ padding-right: 28px; }
-  .imput-clear{
-    position:absolute;
-    right: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    border: none;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    line-height: 18px;
-    padding: 0;
-    color: #64748b;
-    background: #f1f5f9;
+
+  .sz_imput_contextbar {
+    flex: 0 0 auto;
+    align-items: center;
+    margin: 0;
   }
-  .imput-table{
-    border-collapse: separate;
-    border-spacing: 0 6px;
+
+  .sz_imput_contextbar .sz_contextbar_left {
+    width: auto;
+    flex: 0 1 30%;
+    max-width: 30%;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "title"
+      "subtitle";
+  }
+
+  .sz_imput_contextbar .sz_contextbar_right.sz_imput_filters {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: var(--sz-space-2);
+  }
+
+  .sz_imput_filters .sz_button,
+  .sz_imput_filters .sz_select {
+    min-height: var(--sz-input-height);
+  }
+
+  .sz_imput_status_field {
+    flex: 0 0 165px;
+    width: 165px;
+    margin: 0;
+    gap: 0.2rem;
+  }
+
+  .sz_imput_status_field .sz_select {
     width: 100%;
-    min-width: 920px;
-    font-size: 12px;
-    color: #0f172a;
   }
-  .imput-table th, .imput-table td { vertical-align: middle; }
-  .imput-table td .form-control,
-  .imput-table td .form-select { min-width: 90px; }
-  .imput-table td .form-control.small { min-width: 70px; }
-  .imput-table td .form-control.wide { min-width: 220px; }
-  .imput-table td .text-muted { font-size: 12px; }
-  .imput-badge{ display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; }
-  .imput-badge.fo{ background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
-  .imput-badge.mn{ background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
-  .imput-toggle{
-    border-radius: 999px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    padding: 2px;
+
+  .sz_imput_filters #btnReloadImput {
+    flex: 0 0 auto;
+    align-self: end;
   }
-  .imput-pill{
-    border: none;
-    border-radius: 999px !important;
-    font-size: 11px;
-    font-weight: 700;
-    color: #475569;
-    background: transparent;
-    padding: 4px 10px;
+
+  .sz_imput_panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
   }
-  .imput-pill.active{
-    background: #0ea5e9;
-    color: #fff;
-    box-shadow: 0 6px 16px rgba(14,165,233,.35);
+
+  .sz_imput_grid_wrap {
+    height: 100%;
+    max-height: 100%;
+    border: 0;
+    border-radius: var(--sz-radius-md);
   }
-  .imput-pill[data-value="N"].active{ background:#ef4444; box-shadow:0 6px 16px rgba(239,68,68,.35); }
-  .imput-pill[data-value="S"].active{ background:#10b981; box-shadow:0 6px 16px rgba(16,185,129,.35); }
-  .imput-table thead th{
+
+  .imput-table {
+    width: 100%;
+    min-width: 1040px;
+    color: var(--sz-color-text);
+  }
+
+  .imput-table th,
+  .imput-table td,
+  .imput-table .sz_table_cell {
+    vertical-align: middle;
+  }
+
+  .imput-table thead th {
     position: sticky;
     top: 0;
-    z-index: 2;
+    z-index: 3;
     cursor: pointer;
     user-select: none;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 11px;
-    color: #334155;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
-    padding: 0.55rem 0.75rem;
+    white-space: nowrap;
   }
-  .imput-table thead th::after{
+
+  .imput-table thead th::after {
     content: "  \2195";
     opacity: 0.35;
     font-weight: 900;
   }
-  .imput-table thead th.sort-asc::after{
+
+  .imput-table thead th.sort-asc::after {
     content: "  \2191";
     opacity: 0.9;
   }
-  .imput-table thead th.sort-desc::after{
+
+  .imput-table thead th.sort-desc::after {
     content: "  \2193";
     opacity: 0.9;
   }
-  .imput-table tbody tr{
-    background:#fff;
-    border:1px solid #e5e7eb;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
-  }
-  .imput-table tbody tr td{
-    padding: 0.5rem 0.75rem;
-    border: none;
-  }
-  .imput-table tbody tr td:first-child{
-    border-top-left-radius: 12px;
-    border-bottom-left-radius: 12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-weight: 700;
-  }
-  .imput-table tbody tr td:last-child{
-    border-top-right-radius: 12px;
-    border-bottom-right-radius: 12px;
-  }
-  .imput-table thead th:nth-child(2),
-  .imput-table tbody td:nth-child(2){
-    width: 120px;
-    min-width: 120px;
+
+  .imput-table td {
+    color: var(--sz-color-text);
     white-space: nowrap;
   }
-  .imput-table tbody tr:hover{
-    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
+
+  .imput-table tbody tr {
+    background: var(--sz-color-surface);
   }
-  .imput-child td{
-    background:#eef2ff;
-    border-top:1px dashed #c7d2fe;
-    border-bottom:1px dashed #c7d2fe;
+
+  .imput-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface)) !important;
+  }
+
+  .imput-table tbody tr.imput-child td {
+    background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface-alt)) !important;
+    border-top: 1px dashed color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border)) !important;
+    border-bottom: 1px dashed color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border)) !important;
+  }
+
+  .imput-table td:nth-child(3),
+  .imput-table td:nth-child(4),
+  .imput-table td:nth-child(5),
+  .imput-table td:nth-child(10) {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .imput-table td:nth-child(2) {
+    width: 120px;
+    min-width: 120px;
+  }
+
+  .imput-table td:nth-child(6),
+  .imput-table td:nth-child(9) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .imput-table td .sz_input,
+  .imput-table td .sz_select {
+    min-width: 100px;
+  }
+
+  .imput-table td .sz_input.wide {
+    min-width: 240px;
+  }
+
+  .imput-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.4rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: var(--sz-font-weight-bold);
+    letter-spacing: 0.04em;
+  }
+
+  .imput-badge.fo {
+    background: color-mix(in srgb, var(--sz-color-primary) 13%, var(--sz-color-surface));
+    color: var(--sz-color-primary);
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 36%, var(--sz-color-border));
+  }
+
+  .imput-badge.mn {
+    background: color-mix(in srgb, var(--sz-color-danger) 11%, var(--sz-color-surface));
+    color: var(--sz-color-danger);
+    border: 1px solid color-mix(in srgb, var(--sz-color-danger) 34%, var(--sz-color-border));
+  }
+
+  .imput-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.16rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 78%, var(--sz-color-surface));
+    border: 1px solid var(--sz-color-border);
+  }
+
+  .imput-pill {
+    border: 0;
+    border-radius: 999px !important;
+    min-height: 1.8rem;
+    padding: 0.25rem 0.65rem;
+    background: transparent;
+    color: var(--sz-color-text-secondary);
+    font-size: 0.72rem;
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .imput-pill:hover:not(:disabled) {
+    color: var(--sz-color-text);
+    background: color-mix(in srgb, var(--sz-color-primary) 9%, transparent);
+  }
+
+  .imput-pill.active {
+    color: #fff;
+    background: var(--sz-color-primary);
+    box-shadow: var(--sz-shadow-1);
+  }
+
+  .imput-pill[data-value="N"].active {
+    color: #fff;
+    background: var(--sz-color-danger);
+  }
+
+  .imput-pill[data-value="S"].active {
+    color: #fff;
+    background: var(--sz-color-success);
+  }
+
+  .imput-pill:disabled,
+  .imput-table input:disabled {
+    opacity: 0.62;
+    cursor: not-allowed;
+  }
+
+  .imput-table input[type="month"]::-webkit-calendar-picker-indicator {
+    filter: var(--sz-form-icon-filter, none);
+    opacity: 0.72;
+  }
+
+  .sz_imput_actionbar {
+    flex: 0 0 auto;
+  }
+
+  .sz_imput_hint {
+    color: var(--sz-color-text-muted);
+    font-size: 0.9rem;
+  }
+
+  .sz_imput_totals {
+    display: flex;
+    align-items: stretch;
+    gap: var(--sz-space-2);
+    flex-wrap: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .sz_imput_total_item {
+    min-width: 7.6rem;
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, var(--sz-color-surface));
+  }
+
+  .sz_imput_total_item span {
+    color: var(--sz-color-text-muted);
+    font-size: 0.68rem;
+    font-weight: var(--sz-font-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .sz_imput_total_item strong {
+    color: var(--sz-color-text);
+    font-size: 0.94rem;
+    font-weight: var(--sz-font-weight-bold);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  @media (max-width: 900px) {
+    .sz_imput_page {
+      height: auto;
+      min-height: calc(100vh - var(--sz-topbar-height, 56px) - 1rem);
+      padding: 0.75rem 0.75rem 0.75rem;
+    }
+
+    .sz_imput_contextbar {
+      align-items: stretch;
+    }
+
+    .sz_imput_contextbar .sz_contextbar_left {
+      flex: 1 1 auto;
+      max-width: none;
+    }
+
+    .sz_imput_contextbar .sz_contextbar_right.sz_imput_filters {
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+
+    .sz_imput_filters,
+    .sz_imput_status_field,
+    .sz_imput_filters .sz_select,
+    .sz_imput_filters .sz_button {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .sz_imput_panel {
+      min-height: 55vh;
+    }
+
+    .sz_imput_totals {
+      align-items: stretch;
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .sz_imput_total_item {
+      min-width: 0;
+    }
   }
 </style>
 

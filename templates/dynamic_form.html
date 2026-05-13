@@ -258,26 +258,15 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
       </div>
       <div class="modal-body">
-        <div class="sz_al_fotos_toolbar">
-          <div id="alFotosDropzone" class="sz_al_fotos_dropzone" role="button" tabindex="0">
-            <div class="sz_al_fotos_dropzone_icon"><i class="fa fa-cloud-upload-alt"></i></div>
-            <div class="sz_al_fotos_dropzone_text">
-              <strong>{{ _('dynamic_form.upload_images_drop') }}</strong>
-              <span>{{ _('dynamic_form.upload_images_pick_hint') }}</span>
-            </div>
-          </div>
-          <div class="sz_al_fotos_actions">
-            <input type="file" id="alFotosInput" accept="image/*" multiple hidden>
-            <button type="button" id="btnALFotosPick" class="sz_button sz_button_primary">
-              <i class="fa fa-upload"></i>
-              <span>{{ _('dynamic_form.upload_images') }}</span>
-            </button>
-          </div>
-        </div>
+        <input type="file" id="alFotosInput" accept="image/*" multiple hidden>
         <div id="alFotosStatus" class="sz_al_fotos_status"></div>
         <div id="alFotosGrid" class="sz_al_fotos_grid"></div>
       </div>
       <div class="modal-footer">
+        <button type="button" id="btnALFotosPick" class="sz_button sz_button_primary">
+          <i class="fa fa-upload"></i>
+          <span>{{ _('dynamic_form.upload_images') }}</span>
+        </button>
         <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">{{ _('common.close') }}</button>
       </div>
     </div>

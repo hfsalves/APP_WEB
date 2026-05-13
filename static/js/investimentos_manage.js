@@ -63,11 +63,11 @@
   function setWarn(message, level = 'warning') {
     if (!els.warn) return;
     if (!message) {
-      els.warn.className = 'alert alert-warning py-2 px-3 small mb-2 d-none';
+      els.warn.className = 'sz_invm_warn sz_invm_warn_hidden';
       els.warn.textContent = '';
       return;
     }
-    els.warn.className = `alert alert-${level} py-2 px-3 small mb-2`;
+    els.warn.className = `sz_invm_warn sz_invm_warn_${level}`;
     els.warn.textContent = message;
   }
 
@@ -92,7 +92,7 @@
   function renderList() {
     if (!els.body) return;
     if (!state.rows.length) {
-      els.body.innerHTML = '<tr><td colspan="8" class="text-muted p-3">Sem investimentos para os filtros aplicados.</td></tr>';
+      els.body.innerHTML = '<tr><td colspan="8" class="sz_table_cell sz_text_muted p-3">Sem investimentos para os filtros aplicados.</td></tr>';
       updateResumo();
       return;
     }
@@ -116,7 +116,7 @@
 
   async function loadList() {
     if (els.body) {
-      els.body.innerHTML = '<tr><td colspan="8" class="text-muted p-3">A carregar...</td></tr>';
+      els.body.innerHTML = '<tr><td colspan="8" class="sz_table_cell sz_text_muted p-3">A carregar...</td></tr>';
     }
     try {
       const res = await fetch(`/api/investimentos/lista?${buildFilters().toString()}`);
@@ -126,7 +126,7 @@
       renderList();
     } catch (e) {
       state.rows = [];
-      if (els.body) els.body.innerHTML = `<tr><td colspan="8" class="text-danger p-3">${esc(e.message || 'Erro')}</td></tr>`;
+      if (els.body) els.body.innerHTML = `<tr><td colspan="8" class="sz_table_cell sz_invm_error p-3">${esc(e.message || 'Erro')}</td></tr>`;
       updateResumo();
     }
   }
@@ -158,7 +158,7 @@
   function renderLines(rows) {
     if (!els.linesBody) return;
     if (!rows.length) {
-      els.linesBody.innerHTML = '<tr><td colspan="5" class="text-muted p-2">Sem linhas.</td></tr>';
+      els.linesBody.innerHTML = '<tr><td colspan="5" class="sz_table_cell sz_text_muted p-2">Sem linhas.</td></tr>';
       return;
     }
     els.linesBody.innerHTML = rows.map((ln, idx) => `
@@ -175,7 +175,7 @@
   function renderMap(rows) {
     if (!els.mapBody) return;
     if (!rows.length) {
-      els.mapBody.innerHTML = '<tr><td colspan="6" class="text-muted p-2">Sem custos de origem.</td></tr>';
+      els.mapBody.innerHTML = '<tr><td colspan="6" class="sz_table_cell sz_text_muted p-2">Sem custos de origem.</td></tr>';
       return;
     }
     els.mapBody.innerHTML = rows.map((ln) => `
@@ -233,8 +233,8 @@
       return;
     }
     modal.show();
-    if (els.linesBody) els.linesBody.innerHTML = '<tr><td colspan="5" class="text-muted p-2">A carregar...</td></tr>';
-    if (els.mapBody) els.mapBody.innerHTML = '<tr><td colspan="6" class="text-muted p-2">A carregar...</td></tr>';
+    if (els.linesBody) els.linesBody.innerHTML = '<tr><td colspan="5" class="sz_table_cell sz_text_muted p-2">A carregar...</td></tr>';
+    if (els.mapBody) els.mapBody.innerHTML = '<tr><td colspan="6" class="sz_table_cell sz_text_muted p-2">A carregar...</td></tr>';
     try {
       const res = await fetch(`/api/investimentos/${encodeURIComponent(invstamp)}`);
       const data = await res.json().catch(() => ({}));

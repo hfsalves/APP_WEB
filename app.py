@@ -25073,6 +25073,8 @@ OPTION (MAXRECURSION 32767);
         where_sql = " AND ".join(where_parts)
         sql = f"""
             SELECT
+                origem AS origem,
+                stamp AS stamp,
                 nmdoc AS documento,
                 nrdoc AS numero,
                 data  AS data,
@@ -25191,6 +25193,8 @@ OPTION (MAXRECURSION 32767);
             if cabstamp:
                 cabstamps.append(str(cabstamp))
             out.append({
+                'origem': r.get('origem'),
+                'stamp': r.get('stamp'),
                 'documento': r.get('documento'),
                 'numero': r.get('numero'),
                 'data': data_val,
@@ -25249,6 +25253,163 @@ OPTION (MAXRECURSION 32767);
             'desvio': round(float(desvio or 0), 2),
             'desvio_pct': (None if desvio_pct is None else round(float(desvio_pct), 2))
         })
+
+    def _mapa_gestao_fo_options():
+        try:
+            cc_rows = db.session.execute(text("""
+                SELECT DISTINCT LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO
+                FROM dbo.V_CCT
+                WHERE LTRIM(RTRIM(ISNULL(CCUSTO, ''))) <> ''
+                ORDER BY LTRIM(RTRIM(ISNULL(CCUSTO, '')))
+            """)).mappings().all()
+            ccustos = [str(r.get('CCUSTO') or '').strip() for r in cc_rows if str(r.get('CCUSTO') or '').strip()]
+        except Exception:
+            ccustos = []
+
+        try:
+            ref_rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(REF, ''))) AS REF,
+                    LTRIM(RTRIM(ISNULL(DESIGN, ''))) AS DESIGN,
+                    LTRIM(RTRIM(ISNULL(FAMILIA, ''))) AS FAMILIA
+                FROM dbo.ST
+                WHERE LTRIM(RTRIM(ISNULL(REF, ''))) <> ''
+                ORDER BY LTRIM(RTRIM(ISNULL(REF, '')))
+            """)).mappings().all()
+            refs = [
+                {
+                    'ref': str(r.get('REF') or '').strip(),
+                    'design': str(r.get('DESIGN') or '').strip(),
+                    'familia': str(r.get('FAMILIA') or '').strip(),
+                }
+                for r in ref_rows
+                if str(r.get('REF') or '').strip()
+            ]
+        except Exception:
+            refs = []
+        return {'ccustos': ccustos, 'refs': refs}
+
+    @app.route('/api/mapa_gestao/documento_fo/<fostamp>', methods=['GET', 'PUT'])
+    @login_required
+    def api_mapa_gestao_documento_fo(fostamp):
+        key = str(fostamp or '').strip()
+        if not key:
+            return jsonify({'ok': False, 'error': 'Documento invalido.'}), 400
+
+        if request.method == 'PUT':
+            if not _fo_has_permission('editar'):
+                return jsonify({'ok': False, 'error': 'Sem permissao para editar compras.'}), 403
+            payload = request.get_json(silent=True) or {}
+            header = payload.get('header') or {}
+            lines = payload.get('lines') or []
+            try:
+                ccusto = str(header.get('CCUSTO') or '').strip()[:50]
+                db.session.execute(text("""
+                    UPDATE dbo.FO
+                    SET CCUSTO = :ccusto
+                    WHERE FOSTAMP = :fostamp
+                """), {'ccusto': ccusto, 'fostamp': key})
+
+                st_rows = db.session.execute(text("""
+                    SELECT
+                        LTRIM(RTRIM(ISNULL(REF, ''))) AS REF,
+                        LTRIM(RTRIM(ISNULL(FAMILIA, ''))) AS FAMILIA
+                    FROM dbo.ST
+                    WHERE LTRIM(RTRIM(ISNULL(REF, ''))) <> ''
+                """)).mappings().all()
+                familia_by_ref = {
+                    str(r.get('REF') or '').strip(): str(r.get('FAMILIA') or '').strip()
+                    for r in st_rows
+                }
+
+                for line in lines if isinstance(lines, list) else []:
+                    fnstamp = str((line or {}).get('FNSTAMP') or '').strip()
+                    if not fnstamp:
+                        continue
+                    ref = str((line or {}).get('REF') or '').strip()[:18]
+                    familia = familia_by_ref.get(ref, str((line or {}).get('FAMILIA') or '').strip())[:18]
+                    fnccusto = str((line or {}).get('FNCCUSTO') or '').strip()[:50]
+                    dtcusto_raw = str((line or {}).get('DTCUSTO') or '').strip()
+                    dtcusto = None
+                    if dtcusto_raw:
+                        try:
+                            dtcusto = datetime.strptime(dtcusto_raw[:10], '%Y-%m-%d').date()
+                        except Exception:
+                            return jsonify({'ok': False, 'error': 'Data de custo invalida.'}), 400
+                    db.session.execute(text("""
+                        UPDATE dbo.FN
+                        SET REF = :ref,
+                            FAMILIA = :familia,
+                            FNCCUSTO = :fnccusto,
+                            DTCUSTO = :dtcusto
+                        WHERE FNSTAMP = :fnstamp
+                          AND FOSTAMP = :fostamp
+                    """), {
+                        'ref': ref,
+                        'familia': familia,
+                        'fnccusto': fnccusto,
+                        'dtcusto': dtcusto,
+                        'fnstamp': fnstamp,
+                        'fostamp': key,
+                    })
+                db.session.commit()
+            except Exception as exc:
+                db.session.rollback()
+                return jsonify({'ok': False, 'error': str(exc)}), 500
+
+        try:
+            header = db.session.execute(text("""
+                SELECT TOP 1
+                    FOSTAMP,
+                    ISNULL(NO, 0) AS NO,
+                    LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                    LTRIM(RTRIM(ISNULL(NCONT, ''))) AS NCONT,
+                    CONVERT(varchar(10), DATA, 23) AS DATA,
+                    CONVERT(varchar(10), DOCDATA, 23) AS DOCDATA,
+                    LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO,
+                    LTRIM(RTRIM(ISNULL(DOCNOME, ''))) AS DOCNOME,
+                    LTRIM(RTRIM(ISNULL(ADOC, ''))) AS ADOC,
+                    LTRIM(RTRIM(ISNULL(TIPO, ''))) AS TIPO,
+                    ISNULL(ETTILIQ, 0) AS ETTILIQ,
+                    ISNULL(ETTIVA, 0) AS ETTIVA,
+                    ISNULL(ETOTAL, 0) AS ETOTAL,
+                    ISNULL(PLANO, 0) AS PLANO,
+                    ISNULL(SYNC, 0) AS SYNC
+                FROM dbo.FO
+                WHERE FOSTAMP = :fostamp
+            """), {'fostamp': key}).mappings().first()
+            if not header:
+                return jsonify({'ok': False, 'error': 'Documento nao encontrado.'}), 404
+
+            rows = db.session.execute(text("""
+                SELECT
+                    FN.FNSTAMP,
+                    FN.FOSTAMP,
+                    ISNULL(FN.LORDEM, 0) AS LORDEM,
+                    LTRIM(RTRIM(ISNULL(FN.REF, ''))) AS REF,
+                    LTRIM(RTRIM(ISNULL(FN.DESIGN, ''))) AS DESIGN,
+                    LTRIM(RTRIM(ISNULL(FN.FAMILIA, ''))) AS FAMILIA,
+                    LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) AS FNCCUSTO,
+                    ISNULL(FN.QTT, 0) AS QTT,
+                    ISNULL(FN.EPV, 0) AS EPV,
+                    ISNULL(FN.ETILIQUIDO, 0) AS ETILIQUIDO,
+                    LTRIM(RTRIM(CAST(ISNULL(FN.TABIVA, 0) AS varchar(20)))) AS TABIVA,
+                    ISNULL(FN.TAXAIVA, 0) AS TAXAIVA,
+                    CONVERT(varchar(10), FN.DTCUSTO, 23) AS DTCUSTO
+                FROM dbo.FN FN
+                WHERE FN.FOSTAMP = :fostamp
+                ORDER BY ISNULL(FN.LORDEM, 0), FN.FNSTAMP
+            """), {'fostamp': key}).mappings().all()
+
+            return jsonify({
+                'ok': True,
+                'can_edit': _fo_has_permission('editar'),
+                'header': dict(header),
+                'lines': [dict(r) for r in rows],
+                'options': _mapa_gestao_fo_options(),
+            })
+        except Exception as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 500
 
     @app.route('/api/mapa_gestao/reservas_diarias')
     @login_required
@@ -33242,27 +33403,28 @@ OPTION (MAXRECURSION 32767);
                 lines = fn_by_fo.get(fostamp, [])
                 distinct_cc = {str(l.get('FNCCUSTO') or '').strip() for l in lines if (l.get('FNCCUSTO') or '').strip()}
                 fo_cc = str(fo.get('ALOJAMENTO') or '').strip()
-                show_lines = False
+                split_to_lines = False
                 if lines:
                     if len(distinct_cc) > 1 or (distinct_cc and (fo_cc not in distinct_cc)):
-                        show_lines = True
-                out.append({
-                    'ORIGEM': 'FO',
-                    'STAMP': fostamp,
-                    'DATA': fo.get('DATA'),
-                    'DOC': fo.get('DOC') or '',
-                    'NOME': fo.get('NOME') or '',
-                    'ALOJAMENTO': fo_cc,
-                    'TOTAL': float(fo.get('TOTAL') or 0),
-                    'BASE': float(fo.get('BASE') or 0),
-                    'IMPUTAR': int(fo.get('IMPUTAR') or 0),
-                    'IMPUTMES': int(fo.get('IMPUTMES') or 0),
-                    'IMPUTANO': int(fo.get('IMPUTANO') or 0),
-                    'IMPUTVALOR': float(fo.get('IMPUTVALOR') or 0),
-                    'IMPUTDESIGN': fo.get('IMPUTDESIGN') or '',
-                    'NIMPUTAR': int(fo.get('NIMPUTAR') or 0),
-                })
-                if show_lines:
+                        split_to_lines = True
+                if not split_to_lines:
+                    out.append({
+                        'ORIGEM': 'FO',
+                        'STAMP': fostamp,
+                        'DATA': fo.get('DATA'),
+                        'DOC': fo.get('DOC') or '',
+                        'NOME': fo.get('NOME') or '',
+                        'ALOJAMENTO': fo_cc,
+                        'TOTAL': float(fo.get('TOTAL') or 0),
+                        'BASE': float(fo.get('BASE') or 0),
+                        'IMPUTAR': int(fo.get('IMPUTAR') or 0),
+                        'IMPUTMES': int(fo.get('IMPUTMES') or 0),
+                        'IMPUTANO': int(fo.get('IMPUTANO') or 0),
+                        'IMPUTVALOR': float(fo.get('IMPUTVALOR') or 0),
+                        'IMPUTDESIGN': fo.get('IMPUTDESIGN') or '',
+                        'NIMPUTAR': int(fo.get('NIMPUTAR') or 0),
+                    })
+                else:
                     for l in lines:
                         base = l.get('EPV')
                         if base is None:
@@ -33272,7 +33434,7 @@ OPTION (MAXRECURSION 32767);
                             'STAMP': l.get('FNSTAMP'),
                             'FOSTAMP': fostamp,
                             'DATA': l.get('DATA'),
-                            'DOC': f"Linha: {l.get('REF') or ''} - {l.get('DESIGN') or ''}",
+                            'DOC': fo.get('DOC') or '',
                             'NOME': l.get('NOME_FORN') or '',
                             'ALOJAMENTO': l.get('FNCCUSTO') or '',
                             'TOTAL': float(base or 0),

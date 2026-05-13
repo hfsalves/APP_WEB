@@ -1033,6 +1033,18 @@ def al_fotos_table_exists() -> bool:
     except Exception:
         return False
 
+def ensure_al_fotos_schema() -> bool:
+    if not al_fotos_table_exists():
+        return False
+    if not _column_exists('AL_FOTOS', 'CHECKIN'):
+        db.session.execute(text("""
+            ALTER TABLE dbo.AL_FOTOS
+            ADD CHECKIN BIT NOT NULL
+                CONSTRAINT DF_AL_FOTOS_CHECKIN DEFAULT (0)
+        """))
+        db.session.commit()
+    return True
+
 # --------------------------------------------------
 # Views para front-end
 # --------------------------------------------------
@@ -1310,7 +1322,7 @@ def us_empresas_delete(usstamp, usfestamp):
 @login_required
 def al_fotos_list(alstamp):
     try:
-        if not al_fotos_table_exists():
+        if not ensure_al_fotos_schema():
             return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
         alstamp = (alstamp or '').strip()
         if not alstamp:
@@ -1324,6 +1336,7 @@ def al_fotos_list(alstamp):
                 ALT_TEXT,
                 ORDEM,
                 CAPA,
+                CHECKIN,
                 ATIVO,
                 DTCRI,
                 DTALT,
@@ -1342,7 +1355,7 @@ def al_fotos_list(alstamp):
 @login_required
 def al_fotos_upload(alstamp):
     try:
-        if not al_fotos_table_exists():
+        if not ensure_al_fotos_schema():
             return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
         alstamp = (alstamp or '').strip()
         if not alstamp:
@@ -1395,6 +1408,7 @@ def al_fotos_upload(alstamp):
                     ALT_TEXT,
                     ORDEM,
                     CAPA,
+                    CHECKIN,
                     ATIVO,
                     DTCRI,
                     DTALT,
@@ -1409,6 +1423,7 @@ def al_fotos_upload(alstamp):
                     :alt_text,
                     :ordem,
                     :capa,
+                    0,
                     1,
                     GETDATE(),
                     GETDATE(),
@@ -1439,7 +1454,7 @@ def al_fotos_upload(alstamp):
 @login_required
 def al_fotos_set_capa(alstamp, alfotostamp):
     try:
-        if not al_fotos_table_exists():
+        if not ensure_al_fotos_schema():
             return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
         alstamp = (alstamp or '').strip()
         alfotostamp = (alfotostamp or '').strip()
@@ -1476,11 +1491,52 @@ def al_fotos_set_capa(alstamp, alfotostamp):
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/api/al_fotos/<alstamp>/checkin/<alfotostamp>', methods=['POST'])
+@login_required
+def al_fotos_set_checkin(alstamp, alfotostamp):
+    try:
+        if not ensure_al_fotos_schema():
+            return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
+        alstamp = (alstamp or '').strip()
+        alfotostamp = (alfotostamp or '').strip()
+        if not alstamp or not alfotostamp:
+            return jsonify({'error': 'Dados em falta'}), 400
+
+        photo = db.session.execute(text("""
+            SELECT TOP 1 ISNULL(CHECKIN, 0) AS CHECKIN
+            FROM dbo.AL_FOTOS
+            WHERE ALSTAMP = :alstamp
+              AND ALFOTOSTAMP = :stamp
+        """), {'alstamp': alstamp, 'stamp': alfotostamp}).mappings().first()
+        if not photo:
+            return jsonify({'error': 'Foto não encontrada'}), 404
+
+        payload = request.get_json(silent=True) or {}
+        if 'checkin' in payload:
+            checkin = 1 if bool(payload.get('checkin')) else 0
+        else:
+            checkin = 0 if int(photo.get('CHECKIN') or 0) else 1
+
+        db.session.execute(text("""
+            UPDATE dbo.AL_FOTOS
+            SET CHECKIN = :checkin,
+                DTALT = GETDATE()
+            WHERE ALSTAMP = :alstamp
+              AND ALFOTOSTAMP = :stamp
+        """), {'checkin': checkin, 'alstamp': alstamp, 'stamp': alfotostamp})
+        db.session.commit()
+        return jsonify({'success': True, 'CHECKIN': checkin})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao definir check-in AL_FOTOS')
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/al_fotos/<alstamp>/ordem', methods=['POST'])
 @login_required
 def al_fotos_set_ordem(alstamp):
     try:
-        if not al_fotos_table_exists():
+        if not ensure_al_fotos_schema():
             return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
         alstamp = (alstamp or '').strip()
         payload = request.get_json(silent=True) or {}
@@ -1530,7 +1586,7 @@ def al_fotos_set_ordem(alstamp):
 @login_required
 def al_fotos_delete(alstamp, alfotostamp):
     try:
-        if not al_fotos_table_exists():
+        if not ensure_al_fotos_schema():
             return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
         alstamp = (alstamp or '').strip()
         alfotostamp = (alfotostamp or '').strip()
@@ -1684,7 +1740,7 @@ def fo_artigos():
                     ISNULL(s.TABIVA, 0) AS TABIVA
                 FROM dbo.ST s
                 LEFT JOIN V_STFAMI f
-                  ON f.REF = LTRIM(RTRIM(ISNULL(s.FAMILIA, '')))
+                  ON f.REF COLLATE DATABASE_DEFAULT = LTRIM(RTRIM(ISNULL(s.FAMILIA, ''))) COLLATE DATABASE_DEFAULT
                 WHERE ISNULL(s.FEID, 0) = :feid
                   AND (
                    LTRIM(RTRIM(ISNULL(s.REF, ''))) LIKE :t
@@ -1706,7 +1762,7 @@ def fo_artigos():
                     ISNULL(s.TABIVA, 0) AS TABIVA
                 FROM dbo.ST s
                 LEFT JOIN V_STFAMI f
-                  ON f.REF = LTRIM(RTRIM(ISNULL(s.FAMILIA, '')))
+                  ON f.REF COLLATE DATABASE_DEFAULT = LTRIM(RTRIM(ISNULL(s.FAMILIA, ''))) COLLATE DATABASE_DEFAULT
                 WHERE ISNULL(s.FEID, 0) = :feid
                 ORDER BY LTRIM(RTRIM(ISNULL(s.REF, '')))
             """)

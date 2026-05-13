@@ -1,319 +1,599 @@
 {% extends "base.html" %}
 
-{% block title %}Investimentos - Gestão{% endblock %}
+{% block title %}Investimentos - Gest&atilde;o{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3 invm-page">
-  <div class="invm-head mb-3">
-    <h1 class="invm-title mb-0">Investimentos Internos</h1>
-    <div class="invm-subtitle">Gestão, edição e controlo de investimentos amortizados</div>
-  </div>
-
-  <div class="card shadow-sm invm-toolbar mb-3">
-    <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-2">
-      <label class="small text-muted mb-0">Ano</label>
-      <input id="invmAno" type="number" class="form-control form-control-sm" style="width:96px;" value="{{ ano_inicial }}">
-
-      <label class="small text-muted mb-0">Mês</label>
-      <select id="invmMes" class="form-select form-select-sm" style="width:150px;">
-        <option value="">Todos</option>
-        <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
-        <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
-        <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
-        <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
-      </select>
-
-      <label class="small text-muted mb-0">CCUSTO</label>
-      <input id="invmCcusto" class="form-control form-control-sm" style="width:120px;" placeholder="CCUSTO">
-
-      <input id="invmQ" class="form-control form-control-sm ms-1" style="min-width:220px;max-width:340px;" placeholder="Pesquisar DESCR / INVSTAMP / CCUSTO">
-
-      <button id="invmPesquisar" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-magnifying-glass"></i> Pesquisar</button>
-      <button id="invmLimpar" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-rotate-left"></i> Limpar</button>
-
-      <span id="invmResumo" class="invm-summary ms-auto">0 investimentos</span>
+<div class="sz_invm_page">
+  <header class="sz_contextbar sz_invm_contextbar">
+    <div class="sz_contextbar_left">
+      <h1 class="sz_page_title">Investimentos Internos</h1>
+      <p class="sz_page_subtitle">Gest&atilde;o, edi&ccedil;&atilde;o e controlo de investimentos amortizados.</p>
     </div>
-  </div>
-
-  <div class="card shadow-sm invm-grid-card">
-    <div class="card-body p-0">
-      <div class="table-responsive invm-grid-wrap">
-        <table class="table table-sm mb-0 invm-table">
-          <thead>
-            <tr>
-              <th style="width:230px;">INVSTAMP</th>
-              <th style="width:110px;">DATAINV</th>
-              <th style="width:110px;">DATAINI</th>
-              <th style="width:110px;">CCUSTO</th>
-              <th>DESCR</th>
-              <th style="width:90px;" class="text-end">MESES</th>
-              <th style="width:130px;" class="text-end">VALORTOTAL</th>
-              <th style="width:160px;">CRIADOEM</th>
-            </tr>
-          </thead>
-          <tbody id="invmBody">
-            <tr><td colspan="8" class="text-muted p-3">A carregar...</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="sz_contextbar_right sz_invm_filters">
+      <label class="sz_field sz_invm_year_field" for="invmAno">
+        <span class="sz_label">Ano</span>
+        <input id="invmAno" type="number" class="sz_input" value="{{ ano_inicial }}">
+      </label>
+      <label class="sz_field sz_invm_month_field" for="invmMes">
+        <span class="sz_label">M&ecirc;s</span>
+        <select id="invmMes" class="sz_select">
+          <option value="">Todos</option>
+          <option value="1">Janeiro</option>
+          <option value="2">Fevereiro</option>
+          <option value="3">Mar&ccedil;o</option>
+          <option value="4">Abril</option>
+          <option value="5">Maio</option>
+          <option value="6">Junho</option>
+          <option value="7">Julho</option>
+          <option value="8">Agosto</option>
+          <option value="9">Setembro</option>
+          <option value="10">Outubro</option>
+          <option value="11">Novembro</option>
+          <option value="12">Dezembro</option>
+        </select>
+      </label>
+      <label class="sz_field sz_invm_ccusto_field" for="invmCcusto">
+        <span class="sz_label">CCUSTO</span>
+        <input id="invmCcusto" class="sz_input" placeholder="CCUSTO">
+      </label>
+      <label class="sz_field sz_invm_search_field" for="invmQ">
+        <span class="sz_label">Pesquisa</span>
+        <input id="invmQ" class="sz_input" placeholder="DESCR / INVSTAMP / CCUSTO">
+      </label>
+      <button id="invmPesquisar" class="sz_button sz_button_ghost" type="button">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <span>Pesquisar</span>
+      </button>
+      <button id="invmLimpar" class="sz_button sz_button_ghost" type="button">
+        <i class="fa-solid fa-rotate-left"></i>
+        <span>Limpar</span>
+      </button>
+      <span id="invmResumo" class="sz_invm_summary">0 investimentos</span>
     </div>
-  </div>
+  </header>
+
+  <section class="sz_panel sz_invm_panel">
+    <div class="sz_table_host sz_invm_grid_wrap">
+      <table class="sz_table sz_table_compact invm-table">
+        <thead class="sz_table_head">
+          <tr>
+            <th>INVSTAMP</th>
+            <th>DATAINV</th>
+            <th>DATAINI</th>
+            <th>CCUSTO</th>
+            <th>DESCR</th>
+            <th class="text-end">MESES</th>
+            <th class="text-end">VALORTOTAL</th>
+            <th>CRIADOEM</th>
+          </tr>
+        </thead>
+        <tbody id="invmBody">
+          <tr><td colspan="8" class="sz_table_cell sz_text_muted p-3">A carregar...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 
-<div class="modal fade" id="invmModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade sz_invm_modal" id="invmModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
+    <div class="modal-content sz_invm_modal_content">
+      <div class="modal-header sz_invm_modal_header">
         <h5 class="modal-title">Investimento</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <button type="button" class="sz_button sz_button_ghost sz_invm_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
       <div class="modal-body invm-modal-body">
-        <div id="invmWarn" class="alert alert-warning py-2 px-3 small mb-2 d-none"></div>
+        <div id="invmWarn" class="sz_invm_warn sz_invm_warn_hidden"></div>
 
-        <div class="invm-panel invm-head-panel">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <div class="invm-panel-title mb-0">Cabeçalho (INV)</div>
+        <section class="sz_panel invm-head-panel">
+          <div class="sz_invm_panel_title">Cabe&ccedil;alho (INV)</div>
+          <div class="sz_invm_form_grid">
+            <label class="sz_field sz_invm_stamp_field" for="invmInvstamp">
+              <span class="sz_label">INVSTAMP</span>
+              <input id="invmInvstamp" class="sz_input" readonly>
+            </label>
+            <label class="sz_field sz_invm_descr_field" for="invmDescr">
+              <span class="sz_label">DESCR</span>
+              <input id="invmDescr" class="sz_input">
+            </label>
+            <label class="sz_field" for="invmCCUSTO">
+              <span class="sz_label">CCUSTO</span>
+              <input id="invmCCUSTO" class="sz_input" readonly>
+            </label>
+            <label class="sz_field" for="invmValorTotal">
+              <span class="sz_label">VALORTOTAL</span>
+              <input id="invmValorTotal" class="sz_input sz_text_right" readonly>
+            </label>
+            <label class="sz_field" for="invmDataInv">
+              <span class="sz_label">DATAINV</span>
+              <input id="invmDataInv" type="date" class="sz_date">
+            </label>
+            <label class="sz_field" for="invmDataIni">
+              <span class="sz_label">DATAINI</span>
+              <input id="invmDataIni" type="date" class="sz_date">
+            </label>
+            <label class="sz_field" for="invmMeses">
+              <span class="sz_label">MESES</span>
+              <input id="invmMeses" type="number" min="1" class="sz_input_number">
+            </label>
+            <label class="sz_field sz_invm_obs_field" for="invmObs">
+              <span class="sz_label">OBS</span>
+              <textarea id="invmObs" rows="2" class="sz_textarea"></textarea>
+            </label>
           </div>
-          <div class="row g-2">
-            <div class="col-12 col-lg-4">
-              <label class="form-label">INVSTAMP</label>
-              <input id="invmInvstamp" class="form-control" readonly>
-            </div>
-            <div class="col-12 col-lg-4">
-              <label class="form-label">DESCR</label>
-              <input id="invmDescr" class="form-control">
-            </div>
-            <div class="col-6 col-lg-2">
-              <label class="form-label">CCUSTO</label>
-              <input id="invmCCUSTO" class="form-control" readonly>
-            </div>
-            <div class="col-6 col-lg-2">
-              <label class="form-label">VALORTOTAL</label>
-              <input id="invmValorTotal" class="form-control text-end" readonly>
-            </div>
-            <div class="col-6 col-lg-2">
-              <label class="form-label">DATAINV</label>
-              <input id="invmDataInv" type="date" class="form-control">
-            </div>
-            <div class="col-6 col-lg-2">
-              <label class="form-label">DATAINI</label>
-              <input id="invmDataIni" type="date" class="form-control">
-            </div>
-            <div class="col-6 col-lg-2">
-              <label class="form-label">MESES</label>
-              <input id="invmMeses" type="number" min="1" class="form-control text-end">
-            </div>
-            <div class="col-12 col-lg-6">
-              <label class="form-label">OBS</label>
-              <textarea id="invmObs" rows="2" class="form-control"></textarea>
-            </div>
-          </div>
-        </div>
+        </section>
 
-        <div class="row g-3 mt-0 invm-bottom-row">
-          <div class="col-12 col-lg-7">
-            <div class="invm-panel h-100 d-flex flex-column">
-              <div class="invm-panel-title">Linhas de amortização (INVL)</div>
-              <div class="table-responsive invm-lines-wrap">
-                <table class="table table-sm mb-0">
-                  <thead>
-                    <tr>
-                      <th style="width:60px;">Nº</th>
-                      <th style="width:120px;">DATAREF</th>
-                      <th style="width:120px;">CCUSTO</th>
-                      <th>DESCR</th>
-                      <th style="width:120px;" class="text-end">VALOR</th>
-                    </tr>
-                  </thead>
-                  <tbody id="invmLinesBody">
-                    <tr><td colspan="5" class="text-muted p-2">Sem linhas.</td></tr>
-                  </tbody>
-                </table>
-              </div>
+        <div class="sz_invm_bottom_grid">
+          <section class="sz_panel sz_invm_subpanel">
+            <div class="sz_invm_panel_title">Linhas de amortiza&ccedil;&atilde;o (INVL)</div>
+            <div class="sz_table_host invm-lines-wrap">
+              <table class="sz_table sz_table_compact sz_invm_lines_table">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th>N&ordm;</th>
+                    <th>DATAREF</th>
+                    <th>CCUSTO</th>
+                    <th>DESCR</th>
+                    <th class="text-end">VALOR</th>
+                  </tr>
+                </thead>
+                <tbody id="invmLinesBody">
+                  <tr><td colspan="5" class="sz_table_cell sz_text_muted p-2">Sem linhas.</td></tr>
+                </tbody>
+              </table>
             </div>
-          </div>
+          </section>
 
-          <div class="col-12 col-lg-5">
-            <div class="invm-panel h-100 d-flex flex-column">
-              <div class="invm-panel-title">Custos de origem (INVMAP)</div>
-              <div class="table-responsive invm-map-wrap">
-                <table class="table table-sm mb-0">
-                  <thead>
-                    <tr>
-                      <th style="width:110px;">DATA</th>
-                      <th style="width:90px;">CCUSTO</th>
-                      <th style="width:80px;">FAM.</th>
-                      <th>DESCR</th>
-                      <th style="width:110px;" class="text-end">VALOR</th>
-                      <th style="width:150px;">CUSTOSTAMP</th>
-                    </tr>
-                  </thead>
-                  <tbody id="invmMapBody">
-                    <tr><td colspan="6" class="text-muted p-2">Sem custos de origem.</td></tr>
-                  </tbody>
-                </table>
-              </div>
+          <section class="sz_panel sz_invm_subpanel">
+            <div class="sz_invm_panel_title">Custos de origem (INVMAP)</div>
+            <div class="sz_table_host invm-map-wrap">
+              <table class="sz_table sz_table_compact sz_invm_map_table">
+                <thead class="sz_table_head">
+                  <tr>
+                    <th>DATA</th>
+                    <th>CCUSTO</th>
+                    <th>FAM.</th>
+                    <th>DESCR</th>
+                    <th class="text-end">VALOR</th>
+                    <th>CUSTOSTAMP</th>
+                  </tr>
+                </thead>
+                <tbody id="invmMapBody">
+                  <tr><td colspan="6" class="sz_table_cell sz_text_muted p-2">Sem custos de origem.</td></tr>
+                </tbody>
+              </table>
             </div>
-          </div>
+          </section>
         </div>
       </div>
-      <div class="modal-footer">
-        <button id="invmClose" type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
-        <button id="invmRecalc" type="button" class="btn btn-outline-primary">Recalcular linhas</button>
-        <button id="invmSave" type="button" class="btn btn-primary">Gravar</button>
-        <button id="invmDelete" type="button" class="btn btn-outline-danger">Eliminar</button>
+      <div class="modal-footer sz_invm_modal_footer">
+        <button id="invmClose" type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">
+          <span>Fechar</span>
+        </button>
+        <button id="invmRecalc" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-calculator"></i>
+          <span>Recalcular linhas</span>
+        </button>
+        <button id="invmSave" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar</span>
+        </button>
+        <button id="invmDelete" type="button" class="sz_button sz_button_danger">
+          <i class="fa-solid fa-trash"></i>
+          <span>Eliminar</span>
+        </button>
       </div>
     </div>
   </div>
 </div>
 
 <style>
-  .invm-page{
-    min-height:calc(100vh - 120px);
-    background:
-      radial-gradient(860px 450px at -8% -18%, rgba(59,130,246,.12) 0%, rgba(59,130,246,0) 62%),
-      radial-gradient(900px 460px at 108% -14%, rgba(14,165,233,.10) 0%, rgba(14,165,233,0) 62%);
-  }
-  .invm-title{ font-size:1.24rem; font-weight:800; color:#0b1220; }
-  .invm-subtitle{ font-size:.86rem; color:#5b6b82; }
-
-  .invm-toolbar,.invm-grid-card{
-    border:1px solid rgba(187,205,230,.9);
-    border-radius:18px;
-    background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
-    box-shadow:0 18px 44px rgba(15,23,42,.08);
-    overflow:hidden;
-  }
-  .invm-toolbar .form-control,.invm-toolbar .form-select{
-    border:1px solid #d3deed;
-    border-radius:12px;
-  }
-  .invm-toolbar .form-control:focus,.invm-toolbar .form-select:focus{
-    border-color:#7db2ff;
-    box-shadow:0 0 0 .2rem rgba(59,130,246,.16);
-  }
-  .invm-summary{
-    font-size:.82rem;
-    font-weight:700;
-    color:#0f172a;
-    background:#eff6ff;
-    border:1px solid #bfdbfe;
-    border-radius:999px;
-    padding:5px 12px;
+  .sz_invm_page {
+    height: calc(100vh - var(--sz-topbar-height, 56px) - 1.5rem);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    min-height: 0;
+    box-sizing: border-box;
+    padding: var(--sz-page-pad-y) var(--sz-page-pad-x) var(--sz-page-pad-y);
+    color: var(--sz-color-text);
   }
 
-  .invm-grid-wrap{ max-height:calc(100vh - 280px); overflow:auto; }
-  .invm-table{ min-width:1200px; font-size:.84rem; line-height:1.28; }
-  .invm-table thead th{
-    position:sticky;
-    top:0;
-    z-index:3;
-    background:linear-gradient(180deg,#f8fbff 0%,#ecf4ff 100%);
-    border-bottom:1px solid rgba(148,163,184,.45);
-    font-size:10px;
-    text-transform:uppercase;
-    letter-spacing:.06em;
-    color:#334155;
-    font-weight:800;
-    padding:.58rem .65rem;
+  .sz_invm_contextbar {
+    flex: 0 0 auto;
+    align-items: center;
+    margin: 0;
   }
-  .invm-table tbody td{
-    border-bottom:1px solid #edf2f7;
-    vertical-align:middle;
-    padding:.55rem .65rem;
-    font-size:.83rem;
-  }
-  .invm-table tbody tr:nth-child(even) td{ background:#fcfdff; }
-  .invm-table tbody tr:hover td{ background:#eef6ff; cursor:pointer; }
 
-  #invmModal .modal-dialog{ max-width:min(1380px,97vw); }
-  #invmModal .modal-content{
-    height:min(90vh,960px);
-    border-radius:18px;
-    border:1px solid #d7e3f3;
-    overflow:hidden;
-    box-shadow:0 28px 62px rgba(15,23,42,.34);
+  .sz_invm_contextbar .sz_contextbar_left {
+    width: auto;
+    flex: 0 1 24%;
+    max-width: 24%;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "title"
+      "subtitle";
   }
-  #invmModal .modal-header{
-    border-bottom:1px solid rgba(255,255,255,.12);
-    background:linear-gradient(90deg,#0f172a 0%,#1e3a8a 52%,#0ea5e9 100%);
-    color:#fff;
-    padding:.85rem 1rem;
-  }
-  #invmModal .btn-close{ filter:invert(1) saturate(0) brightness(2); }
-  #invmModal .modal-body{
-    background:#f5f9ff;
-    padding:1rem;
-  }
-  #invmModal .modal-footer{
-    border-top:1px solid #dbe5f3;
-    background:#f8fbff;
-    padding:.75rem 1rem;
-  }
-  #invmModal .form-label{
-    margin-bottom:.26rem;
-    font-size:.72rem;
-    text-transform:uppercase;
-    letter-spacing:.05em;
-    color:#5b6b82;
-    font-weight:700;
-  }
-  #invmModal .form-control,#invmModal .form-select{
-    border:1px solid #cfdaea;
-    border-radius:11px;
-  }
-  #invmModal .form-control:focus,#invmModal .form-select:focus{
-    border-color:#7db2ff;
-    box-shadow:0 0 0 .2rem rgba(59,130,246,.16);
-  }
-  .invm-modal-body{
-    display:flex;
-    flex-direction:column;
-    min-height:0;
-    overflow:hidden;
-    gap:0;
-  }
-  .invm-head-panel{ flex:0 0 auto; }
-  .invm-bottom-row{ min-height:0; flex:1 1 auto; }
-  .invm-panel{
-    border:1px solid #e2e8f0;
-    border-radius:14px;
-    padding:12px;
-    background:linear-gradient(145deg,#ffffff 0%,#f8fbff 100%);
-    box-shadow:0 8px 20px rgba(15,23,42,.04);
-  }
-  .invm-panel-title{ font-size:.92rem; font-weight:800; color:#0f172a; margin-bottom:.6rem; }
-  .invm-lines-wrap,.invm-map-wrap{
-    min-height:0;
-    flex:1 1 auto;
-    overflow:auto;
-    border:1px solid #e2e8f0;
-    border-radius:10px;
-    background:#fff;
-  }
-  .invm-lines-wrap thead th,.invm-map-wrap thead th{
-    position:sticky;
-    top:0;
-    z-index:2;
-    background:linear-gradient(180deg,#f8fbff 0%,#eef4ff 100%);
-    border-bottom:1px solid #dbe5f3;
-    text-transform:uppercase;
-    font-size:9.8px;
-    letter-spacing:.05em;
-    color:#334155;
-    font-weight:800;
-  }
-  .invm-lines-wrap tbody td,.invm-map-wrap tbody td{
-    border-bottom:1px solid #edf2f7;
-    padding:.45rem .52rem;
-    vertical-align:middle;
-    font-size:.81rem;
-  }
-  .invm-lines-wrap tbody tr:nth-child(even) td,.invm-map-wrap tbody tr:nth-child(even) td{ background:#fcfdff; }
 
-  @media (max-width: 992px){
-    .invm-grid-wrap{ max-height:calc(100vh - 320px); }
-    #invmModal .modal-content{ height:min(94vh,980px); }
+  .sz_invm_contextbar .sz_contextbar_right.sz_invm_filters {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: end;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: var(--sz-space-2);
+  }
+
+  .sz_invm_filters .sz_field {
+    margin: 0;
+    gap: 0.2rem;
+  }
+
+  .sz_invm_filters .sz_input,
+  .sz_invm_filters .sz_select,
+  .sz_invm_filters .sz_button {
+    min-height: var(--sz-input-height);
+  }
+
+  .sz_invm_year_field {
+    flex: 0 0 92px;
+    width: 92px;
+  }
+
+  .sz_invm_month_field {
+    flex: 0 0 138px;
+    width: 138px;
+  }
+
+  .sz_invm_ccusto_field {
+    flex: 0 0 118px;
+    width: 118px;
+  }
+
+  .sz_invm_search_field {
+    flex: 1 1 260px;
+    max-width: 330px;
+    min-width: 210px;
+  }
+
+  .sz_invm_filters .sz_button {
+    flex: 0 0 auto;
+    align-self: end;
+  }
+
+  .sz_invm_summary {
+    flex: 0 0 auto;
+    align-self: end;
+    min-height: var(--sz-input-height);
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--sz-space-3);
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 38%, var(--sz-color-border));
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+    color: var(--sz-color-text);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+    white-space: nowrap;
+  }
+
+  .sz_invm_panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .sz_invm_grid_wrap {
+    height: 100%;
+    max-height: 100%;
+    border: 0;
+    border-radius: var(--sz-radius-md);
+  }
+
+  .invm-table {
+    width: 100%;
+    min-width: 1180px;
+    color: var(--sz-color-text);
+  }
+
+  .invm-table th,
+  .invm-table td,
+  .invm-table .sz_table_cell {
+    vertical-align: middle;
+  }
+
+  .invm-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    white-space: nowrap;
+  }
+
+  .invm-table tbody td {
+    white-space: nowrap;
+  }
+
+  .invm-table tbody td:nth-child(5) {
+    white-space: normal;
+    min-width: 260px;
+  }
+
+  .invm-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+    cursor: pointer;
+  }
+
+  .sz_invm_modal .modal-dialog {
+    max-width: min(1380px, 97vw);
+  }
+
+  .sz_invm_modal_content {
+    height: min(90vh, 960px);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    overflow: hidden;
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    box-shadow: var(--sz-shadow-3);
+  }
+
+  .sz_invm_modal_header,
+  .sz_invm_modal_footer {
+    border-color: var(--sz-color-border);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+  }
+
+  .sz_invm_modal_header {
+    border-bottom: 1px solid var(--sz-color-border);
+    padding: var(--sz-space-3) var(--sz-space-4);
+  }
+
+  .sz_invm_modal_header .modal-title {
+    color: var(--sz-color-text);
+    font-size: var(--sz-font-size-lg);
+    font-weight: var(--sz-font-weight-bold);
+    line-height: var(--sz-line-tight);
+  }
+
+  .sz_invm_modal_close {
+    width: var(--sz-button-height);
+    min-width: var(--sz-button-height);
+    padding: 0;
+  }
+
+  .invm-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    min-height: 0;
+    overflow: hidden;
+    background: var(--sz-color-bg-main);
+    padding: var(--sz-space-3);
+  }
+
+  .sz_invm_warn {
+    flex: 0 0 auto;
+    padding: var(--sz-space-2) var(--sz-space-3);
+    border-radius: var(--sz-radius-md);
+    border: 1px solid var(--sz-color-border);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .sz_invm_warn_hidden {
+    display: none;
+  }
+
+  .sz_invm_warn_warning {
+    color: var(--sz-color-warning);
+    border-color: color-mix(in srgb, var(--sz-color-warning) 45%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-warning) 12%, var(--sz-color-surface));
+  }
+
+  .sz_invm_warn_danger {
+    color: var(--sz-color-danger);
+    border-color: color-mix(in srgb, var(--sz-color-danger) 45%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-danger) 12%, var(--sz-color-surface));
+  }
+
+  .sz_invm_warn_info {
+    color: var(--sz-color-info);
+    border-color: color-mix(in srgb, var(--sz-color-info) 45%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-info) 12%, var(--sz-color-surface));
+  }
+
+  .invm-head-panel {
+    flex: 0 0 auto;
+  }
+
+  .sz_invm_panel_title {
+    margin-bottom: var(--sz-space-2);
+    color: var(--sz-color-text);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-bold);
+    text-transform: uppercase;
+  }
+
+  .sz_invm_form_grid {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.35fr) minmax(220px, 1.65fr) repeat(5, minmax(112px, 1fr));
+    gap: var(--sz-space-2);
+    align-items: end;
+  }
+
+  .sz_invm_obs_field {
+    grid-column: span 2;
+  }
+
+  #invmModal .sz_input,
+  #invmModal .sz_input_number,
+  #invmModal .sz_textarea,
+  #invmModal .sz_date {
+    width: 100%;
+  }
+
+  .sz_invm_bottom_grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: var(--sz-space-3);
+  }
+
+  .sz_invm_subpanel {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-2);
+  }
+
+  .invm-lines-wrap,
+  .invm-map-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    border: 0;
+    border-radius: var(--sz-radius-md);
+  }
+
+  .sz_invm_lines_table {
+    min-width: 720px;
+  }
+
+  .sz_invm_map_table {
+    min-width: 900px;
+  }
+
+  .invm-lines-wrap thead th,
+  .invm-map-wrap thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .sz_invm_error {
+    color: var(--sz-color-danger);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .sz_invm_modal_footer {
+    border-top: 1px solid var(--sz-color-border);
+    padding: var(--sz-space-3) var(--sz-space-4);
+    gap: var(--sz-space-2);
+  }
+
+  .sz_invm_grid_wrap,
+  .invm-lines-wrap,
+  .invm-map-wrap,
+  .invm-modal-body {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sz-scrollbar-thumb) var(--sz-scrollbar-track);
+  }
+
+  .sz_invm_grid_wrap::-webkit-scrollbar,
+  .invm-lines-wrap::-webkit-scrollbar,
+  .invm-map-wrap::-webkit-scrollbar,
+  .invm-modal-body::-webkit-scrollbar {
+    width: var(--sz-scrollbar-size);
+    height: var(--sz-scrollbar-size);
+  }
+
+  .sz_invm_grid_wrap::-webkit-scrollbar-track,
+  .invm-lines-wrap::-webkit-scrollbar-track,
+  .invm-map-wrap::-webkit-scrollbar-track,
+  .invm-modal-body::-webkit-scrollbar-track {
+    background: var(--sz-scrollbar-track);
+  }
+
+  .sz_invm_grid_wrap::-webkit-scrollbar-thumb,
+  .invm-lines-wrap::-webkit-scrollbar-thumb,
+  .invm-map-wrap::-webkit-scrollbar-thumb,
+  .invm-modal-body::-webkit-scrollbar-thumb {
+    background: var(--sz-scrollbar-thumb);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .sz_invm_grid_wrap::-webkit-scrollbar-thumb:hover,
+  .invm-lines-wrap::-webkit-scrollbar-thumb:hover,
+  .invm-map-wrap::-webkit-scrollbar-thumb:hover,
+  .invm-modal-body::-webkit-scrollbar-thumb:hover {
+    background: var(--sz-scrollbar-thumb-hover);
+    background-clip: padding-box;
+  }
+
+  @media (max-width: 1400px) {
+    .sz_invm_contextbar .sz_contextbar_left {
+      flex-basis: 20%;
+      max-width: 20%;
+    }
+
+    .sz_invm_search_field {
+      max-width: 280px;
+    }
+  }
+
+  @media (max-width: 1100px) {
+    .sz_invm_contextbar .sz_contextbar_left {
+      max-width: none;
+      flex-basis: auto;
+    }
+
+    .sz_invm_contextbar .sz_contextbar_right.sz_invm_filters {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .sz_invm_summary {
+      flex: 1 1 auto;
+    }
+
+    .sz_invm_form_grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .sz_invm_stamp_field,
+    .sz_invm_descr_field,
+    .sz_invm_obs_field {
+      grid-column: 1 / -1;
+    }
+
+    .sz_invm_bottom_grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .sz_invm_page {
+      height: auto;
+      min-height: calc(100vh - var(--sz-topbar-height, 56px));
+      overflow: visible;
+    }
+
+    .sz_invm_year_field,
+    .sz_invm_month_field,
+    .sz_invm_ccusto_field,
+    .sz_invm_search_field,
+    .sz_invm_filters .sz_button,
+    .sz_invm_summary {
+      flex: 1 1 100%;
+      width: 100%;
+      max-width: none;
+    }
+
+    .sz_invm_form_grid {
+      grid-template-columns: 1fr;
+    }
+
+    .sz_invm_modal_content {
+      height: min(94vh, 980px);
+    }
   }
 </style>
 

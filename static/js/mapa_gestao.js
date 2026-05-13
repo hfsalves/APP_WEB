@@ -29,7 +29,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const detailBody = document.getElementById('mapDetailBody');
   const detailTitle = document.getElementById('mapDetailTitle');
   const detailTotal = document.getElementById('mapDetailTotal');
+  const detailCount = document.getElementById('mapDetailCount');
   const detailModal = detailModalEl ? new bootstrap.Modal(detailModalEl) : null;
+  const docModalEl = document.getElementById('mapDocModal');
+  const docTitle = document.getElementById('mapDocTitle');
+  const docSubtitle = document.getElementById('mapDocSubtitle');
+  const docHeader = document.getElementById('mapDocHeader');
+  const docLinesBody = document.getElementById('mapDocLinesBody');
+  const docRefs = document.getElementById('mapDocRefs');
+  const docStatus = document.getElementById('mapDocStatus');
+  const docSave = document.getElementById('mapDocSave');
+  const docModal = docModalEl ? new bootstrap.Modal(docModalEl) : null;
   const tbody = document.getElementById('mapaBody');
   const totalLbl = document.getElementById('mapTotal');
   const filtrosLbl = document.getElementById('mapFiltros');
@@ -64,6 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let marginAlojYear = null;
   let marginAlojMonth = null; // 1..12
   let lastKpis = {};
+  let detailRows = [];
+  let detailSort = { key: '', dir: 1 };
+  let docCurrent = null;
+  let docRefMap = new Map();
 
   const fmtNum = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 0, useGrouping: true });
   const fmtPct = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: true });
@@ -1770,6 +1784,281 @@ document.addEventListener('DOMContentLoaded', () => {
       .filter(r => r.startsWith(prefix));
   }
 
+  function detailSortValue(row, key) {
+    if (!row || !key) return '';
+    if (['quantidade', 'preco', 'total'].includes(key)) {
+      const value = Number(row[key] || 0);
+      return isFinite(value) ? value : 0;
+    }
+    if (key === 'data') {
+      const value = Date.parse(String(row.data || '').slice(0, 10));
+      return Number.isFinite(value) ? value : 0;
+    }
+    if (key === 'anexo_url') {
+      return String(row.anexo_url || '').trim() ? 1 : 0;
+    }
+    return String(row[key] == null ? '' : row[key]).trim();
+  }
+
+  function compareDetailRows(a, b) {
+    const key = detailSort.key;
+    if (!key) return 0;
+    const av = detailSortValue(a, key);
+    const bv = detailSortValue(b, key);
+    let result = 0;
+    if (typeof av === 'number' && typeof bv === 'number') {
+      result = av - bv;
+    } else {
+      result = String(av).localeCompare(String(bv), 'pt-PT', {
+        numeric: true,
+        sensitivity: 'base'
+      });
+    }
+    return result * detailSort.dir;
+  }
+
+  function updateDetailSortIndicators() {
+    document.querySelectorAll('#mapDetailTable .map-detail-sort').forEach((th) => {
+      const indicator = th.querySelector('.sort-ind');
+      if (!indicator) return;
+      indicator.textContent = th.dataset.key === detailSort.key
+        ? (detailSort.dir > 0 ? '▲' : '▼')
+        : '';
+    });
+  }
+
+  function buildOptions(values, selected) {
+    const current = String(selected == null ? '' : selected).trim();
+    const seen = new Set();
+    const items = [''].concat(Array.isArray(values) ? values : []);
+    if (current && !items.includes(current)) items.push(current);
+    return items.map((value) => {
+      const val = String(value == null ? '' : value).trim();
+      const key = val.toUpperCase();
+      if (seen.has(key)) return '';
+      seen.add(key);
+      return `<option value="${escapeHtml(val)}"${val === current ? ' selected' : ''}>${escapeHtml(val || '---')}</option>`;
+    }).join('');
+  }
+
+  function docField(label, value, opts = {}) {
+    const text = value == null || value === '' ? '--' : value;
+    const cls = opts.number ? ' sz_management_map_doc_value is-number' : ' sz_management_map_doc_value';
+    return `
+      <div class="sz_management_map_doc_field">
+        <span class="sz_management_map_doc_label">${escapeHtml(label)}</span>
+        <div class="${cls}" title="${escapeHtml(text)}">${escapeHtml(text)}</div>
+      </div>
+    `;
+  }
+
+  function docHeaderSelect(label, value, options, disabled) {
+    return `
+      <div class="sz_management_map_doc_field">
+        <label class="sz_management_map_doc_label" for="mapDocHeaderCcusto">${escapeHtml(label)}</label>
+        <select id="mapDocHeaderCcusto" class="sz_management_map_doc_input" data-field="CCUSTO" ${disabled ? 'disabled' : ''}>
+          ${buildOptions(options, value)}
+        </select>
+      </div>
+    `;
+  }
+
+  function renderDocRefs(options) {
+    docRefMap = new Map();
+    if (!docRefs) return;
+    const refs = Array.isArray(options?.refs) ? options.refs : [];
+    docRefs.innerHTML = refs.map((item) => {
+      const ref = String(item?.ref || '').trim();
+      if (!ref) return '';
+      docRefMap.set(ref.toUpperCase(), {
+        ref,
+        design: String(item?.design || '').trim(),
+        familia: String(item?.familia || '').trim()
+      });
+      const label = [ref, item?.design].filter(Boolean).join(' - ');
+      return `<option value="${escapeHtml(ref)}" label="${escapeHtml(label)}"></option>`;
+    }).join('');
+  }
+
+  function renderFoDoc(data) {
+    docCurrent = data || null;
+    const header = data?.header || {};
+    const lines = Array.isArray(data?.lines) ? data.lines : [];
+    const options = data?.options || {};
+    const canEdit = Boolean(data?.can_edit);
+    renderDocRefs(options);
+
+    const docLabel = [header.DOCNOME, header.ADOC].filter(Boolean).join(' ');
+    if (docTitle) docTitle.textContent = docLabel ? `Documento ${docLabel}` : 'Documento';
+    if (docSubtitle) {
+      const supplier = [header.NO, header.NOME].filter(v => v != null && String(v).trim()).join(' - ');
+      docSubtitle.textContent = supplier || 'Compra';
+    }
+    if (docHeader) {
+      docHeader.innerHTML = [
+        docField('Fornecedor', [header.NO, header.NOME].filter(v => v != null && String(v).trim()).join(' - ')),
+        docField('NIF', header.NCONT || ''),
+        docField('Data', header.DATA || ''),
+        docHeaderSelect('C. Custo', header.CCUSTO || '', options.ccustos || [], !canEdit),
+        docField('Tipo Doc.', header.DOCNOME || header.TIPO || ''),
+        docField('Numero', header.ADOC || ''),
+        docField('Base', fmtNum2.format(Number(header.ETTILIQ || 0)), { number: true }),
+        docField('IVA', fmtNum2.format(Number(header.ETTIVA || 0)), { number: true }),
+        docField('Total', fmtNum2.format(Number(header.ETOTAL || 0)), { number: true })
+      ].join('');
+    }
+    if (docStatus) {
+      docStatus.textContent = canEdit
+        ? 'Editavel: centro de custo, referencia/familia e data de custo.'
+        : 'Sem permissao de edicao. Documento em consulta.';
+      docStatus.classList.toggle('text-danger', !canEdit);
+    }
+    if (docSave) {
+      docSave.disabled = !canEdit;
+      docSave.style.display = canEdit ? '' : 'none';
+    }
+    if (!docLinesBody) return;
+    if (!lines.length) {
+      docLinesBody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Sem linhas.</td></tr>';
+      return;
+    }
+    const ccustos = options.ccustos || [];
+    docLinesBody.innerHTML = lines.map((line) => {
+      const fnstamp = escapeHtml(line.FNSTAMP || '');
+      const disabled = canEdit ? '' : 'disabled';
+      return `
+        <tr data-fnstamp="${fnstamp}">
+          <td>
+            <input class="sz_management_map_doc_input map-doc-line-input" list="mapDocRefs" data-field="REF" value="${escapeHtml(line.REF || '')}" ${disabled}>
+          </td>
+          <td>${escapeHtml(line.DESIGN || '')}</td>
+          <td>
+            <input class="sz_management_map_doc_input map-doc-line-input" data-field="FAMILIA" value="${escapeHtml(line.FAMILIA || '')}" readonly>
+          </td>
+          <td>
+            <select class="sz_management_map_doc_input map-doc-line-input" data-field="FNCCUSTO" ${disabled}>
+              ${buildOptions(ccustos, line.FNCCUSTO || '')}
+            </select>
+          </td>
+          <td class="text-end">${fmtNum2.format(Number(line.QTT || 0))}</td>
+          <td class="text-end">${fmtNum2.format(Number(line.EPV || 0))}</td>
+          <td class="text-end fw-semibold">${fmtNum2.format(Number(line.ETILIQUIDO || 0))}</td>
+          <td>${escapeHtml(line.TABIVA || '')}</td>
+          <td class="text-end">${fmtNum2.format(Number(line.TAXAIVA || 0))}</td>
+          <td>
+            <input class="sz_management_map_doc_input map-doc-line-input" type="date" data-field="DTCUSTO" value="${escapeHtml(String(line.DTCUSTO || '').slice(0, 10))}" ${disabled}>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function openFoDocument(fostamp) {
+    const key = String(fostamp || '').trim();
+    if (!key || !docModal) return;
+    if (docHeader) docHeader.innerHTML = '<div class="text-muted">A carregar documento...</div>';
+    if (docLinesBody) docLinesBody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">A carregar...</td></tr>';
+    if (docTitle) docTitle.textContent = 'Documento';
+    if (docSubtitle) docSubtitle.textContent = 'Compra';
+    if (docStatus) {
+      docStatus.classList.remove('text-danger');
+      docStatus.textContent = 'A carregar...';
+    }
+    if (detailModalEl?.classList.contains('show')) {
+      const showDoc = () => {
+        detailModalEl.removeEventListener('hidden.bs.modal', showDoc);
+        docModal.show();
+      };
+      detailModalEl.addEventListener('hidden.bs.modal', showDoc, { once: true });
+      detailModal?.hide();
+    } else {
+      docModal.show();
+    }
+    try {
+      const res = await fetch(`/api/mapa_gestao/documento_fo/${encodeURIComponent(key)}`);
+      const data = await res.json();
+      if (!res.ok || data.error || data.ok === false) throw new Error(data.error || 'Erro ao carregar documento');
+      renderFoDoc(data);
+    } catch (err) {
+      console.error(err);
+      if (docHeader) docHeader.innerHTML = `<div class="text-danger">${escapeHtml(err.message || 'Erro ao carregar documento')}</div>`;
+      if (docLinesBody) docLinesBody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Sem linhas.</td></tr>';
+      if (docStatus) docStatus.textContent = 'Erro ao carregar documento.';
+    }
+  }
+
+  async function saveFoDocument() {
+    if (!docCurrent?.header?.FOSTAMP || !docSave) return;
+    const fostamp = String(docCurrent.header.FOSTAMP || '').trim();
+    const headerCcusto = document.getElementById('mapDocHeaderCcusto')?.value || '';
+    const lines = Array.from(docLinesBody?.querySelectorAll('tr[data-fnstamp]') || []).map((tr) => ({
+      FNSTAMP: tr.dataset.fnstamp || '',
+      REF: tr.querySelector('[data-field="REF"]')?.value || '',
+      FAMILIA: tr.querySelector('[data-field="FAMILIA"]')?.value || '',
+      FNCCUSTO: tr.querySelector('[data-field="FNCCUSTO"]')?.value || '',
+      DTCUSTO: tr.querySelector('[data-field="DTCUSTO"]')?.value || ''
+    }));
+    docSave.disabled = true;
+    if (docStatus) {
+      docStatus.classList.remove('text-danger');
+      docStatus.textContent = 'A gravar...';
+    }
+    try {
+      const res = await fetch(`/api/mapa_gestao/documento_fo/${encodeURIComponent(fostamp)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ header: { CCUSTO: headerCcusto }, lines })
+      });
+      const data = await res.json();
+      if (!res.ok || data.error || data.ok === false) throw new Error(data.error || 'Erro ao gravar documento');
+      renderFoDoc(data);
+      if (docStatus) docStatus.textContent = 'Documento gravado.';
+      loadMapa();
+      docModal?.hide();
+    } catch (err) {
+      console.error(err);
+      if (docStatus) docStatus.textContent = err.message || 'Erro ao gravar documento.';
+      if (docStatus) docStatus.classList.add('text-danger');
+    } finally {
+      if (docCurrent?.can_edit) docSave.disabled = false;
+    }
+  }
+
+  function renderDetailRows() {
+    if (!detailBody) return;
+    const rows = detailSort.key ? [...detailRows].sort(compareDetailRows) : [...detailRows];
+    if (detailCount) detailCount.textContent = `${detailRows.length} registos`;
+    if (!rows.length) {
+      detailBody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">Sem registos.</td></tr>';
+      updateDetailSortIndicators();
+      return;
+    }
+    detailBody.innerHTML = rows.map(r => {
+      const url = r.anexo_url || '';
+      const btn = url ? `<a class="sz_button sz_button_ghost sz_management_map_detail_open" target="_blank" href="${escapeHtml(url)}">Abrir</a>` : '';
+      const origem = String(r.origem || '').trim().toUpperCase();
+      const docBtn = origem === 'FO' && r.cabstamp
+        ? `<button type="button" class="sz_button sz_button_ghost sz_management_map_detail_doc" data-fostamp="${escapeHtml(r.cabstamp)}">Doc.</button>`
+        : '';
+      return `
+        <tr>
+          <td>${escapeHtml(r.documento || '')}</td>
+          <td>${escapeHtml(r.numero || '')}</td>
+          <td>${escapeHtml(r.data || '')}</td>
+          <td>${escapeHtml(r.nome || '')}</td>
+          <td>${escapeHtml(r.ccusto || '')}</td>
+          <td>${escapeHtml(r.referencia || '')}</td>
+          <td>${escapeHtml(r.designacao || '')}</td>
+          <td class="text-end">${fmtNum2.format(Number(r.quantidade || 0))}</td>
+          <td class="text-end">${fmtNum2.format(Number(r.preco || 0))}</td>
+          <td class="text-end fw-semibold">${fmtNum2.format(Number(r.total || 0))}</td>
+          <td class="text-center"><span class="map-detail-actions">${docBtn}${btn}</span></td>
+        </tr>
+      `;
+    }).join('');
+    updateDetailSortIndicators();
+  }
+
   async function openDetalhe(ref, mes, nome, level) {
     if (!detailBody || !detailModal) return;
     const ano = parseInt(anoInput?.value, 10) || defaultYear;
@@ -1780,6 +2069,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (level <= 2) qs.set('include_children', '1');
 
     detailBody.innerHTML = `<tr><td colspan="11" class="text-center text-muted">A carregar...</td></tr>`;
+    detailRows = [];
+    detailSort = { key: '', dir: 1 };
+    if (detailCount) detailCount.textContent = '0 registos';
+    updateDetailSortIndicators();
     const mesLabel = mes && mes !== 'all' ? `(${monthNames[(Number(mes) - 1) || 0] || ''})` : '';
     if (detailTitle) detailTitle.textContent = `Detalhe ${ref} ${nome ? '- ' + nome : ''} ${mesLabel}`.trim();
     if (detailTotal) detailTotal.textContent = 'Total: --';
@@ -1790,29 +2083,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar detalhe');
       const rows = Array.isArray(data.rows) ? data.rows : [];
-      if (!rows.length) {
-        detailBody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">Sem registos.</td></tr>';
-      } else {
-        detailBody.innerHTML = rows.map(r => {
-          const url = r.anexo_url || '';
-          const btn = url ? `<a class="sz_button sz_button_ghost sz_management_map_detail_open" target="_blank" href="${escapeHtml(url)}">Abrir</a>` : '';
-          return `
-          <tr>
-            <td>${escapeHtml(r.documento || '')}</td>
-            <td>${escapeHtml(r.numero || '')}</td>
-            <td>${escapeHtml(r.data || '')}</td>
-            <td>${escapeHtml(r.nome || '')}</td>
-            <td>${escapeHtml(r.ccusto || '')}</td>
-            <td>${escapeHtml(r.referencia || '')}</td>
-            <td>${escapeHtml(r.designacao || '')}</td>
-            <td class="text-end">${fmtNum2.format(Number(r.quantidade || 0))}</td>
-            <td class="text-end">${fmtNum2.format(Number(r.preco || 0))}</td>
-            <td class="text-end fw-semibold">${fmtNum2.format(Number(r.total || 0))}</td>
-            <td class="text-center">${btn}</td>
-          </tr>
-        `;
-        }).join('');
-      }
+      detailRows = rows;
+      renderDetailRows();
       if (detailTotal) {
         const total = Number(data.total || 0);
         const orc = Number(data.orc_total || 0);
@@ -1907,6 +2179,35 @@ document.addEventListener('DOMContentLoaded', () => {
     treeExpanded = new Set(); // apenas nivel 1 visivel
     renderTabela();
   });
+  document.querySelectorAll('#mapDetailTable .map-detail-sort').forEach((th) => {
+    th.addEventListener('click', () => {
+      const key = String(th.dataset.key || '').trim();
+      if (!key || !detailRows.length) return;
+      if (detailSort.key === key) {
+        detailSort.dir *= -1;
+      } else {
+        detailSort = { key, dir: 1 };
+      }
+      renderDetailRows();
+    });
+  });
+  detailBody?.addEventListener('click', (event) => {
+    const btn = event.target.closest('.sz_management_map_detail_doc');
+    if (!btn) return;
+    event.preventDefault();
+    openFoDocument(btn.dataset.fostamp || '');
+  });
+  docLinesBody?.addEventListener('change', (event) => {
+    const input = event.target.closest('.map-doc-line-input');
+    if (!input || input.dataset.field !== 'REF') return;
+    const row = input.closest('tr[data-fnstamp]');
+    if (!row) return;
+    const ref = String(input.value || '').trim();
+    const item = docRefMap.get(ref.toUpperCase());
+    const familiaInput = row.querySelector('[data-field="FAMILIA"]');
+    if (familiaInput && item) familiaInput.value = item.familia || '';
+  });
+  docSave?.addEventListener('click', saveFoDocument);
 
   btnViewTable?.addEventListener('click', () => setView('table'));
   btnViewCharts?.addEventListener('click', () => setView('charts'));

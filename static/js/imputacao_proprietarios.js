@@ -5,12 +5,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('imputSearch');
   const statusSelect = document.getElementById('imputStatus');
   const clearBtn = document.getElementById('imputClear');
+  const totalGeralEl = document.getElementById('imputTotalGeral');
+  const totalSimEl = document.getElementById('imputTotalSim');
+  const totalNaoEl = document.getElementById('imputTotalNao');
 
   const now = new Date();
   const currMonth = now.getMonth() + 1;
   const currYear = now.getFullYear();
   let lastRows = [];
   let sortState = { key: 'DATA', dir: 'desc' };
+  const fmtMoney = new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true });
 
   const escapeHtml = (s) => (s ?? '').toString()
     .replaceAll('&', '&amp;')
@@ -29,6 +33,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const monthValue = (m, y) => {
     const mm = String(m).padStart(2, '0');
     return `${y}-${mm}`;
+  };
+
+  const parseNumber = (value) => {
+    if (value == null || value === '') return 0;
+    const normalized = value.toString().trim().replace(/\s/g, '').replace(',', '.');
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : 0;
   };
 
   function sortRows(rows) {
@@ -77,13 +88,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function updateTotalsFromDom() {
+    let total = 0;
+    let totalSim = 0;
+    let totalNao = 0;
+    body?.querySelectorAll('tr[data-stamp]')?.forEach(tr => {
+      const rowTotal = parseNumber(tr.dataset.total);
+      const valor = parseNumber(tr.querySelector('.js-valor')?.value);
+      total += rowTotal;
+      if (tr.querySelector('.imput-pill.active[data-value="S"]')) {
+        totalSim += valor;
+      } else if (tr.querySelector('.imput-pill.active[data-value="N"]')) {
+        totalNao += valor;
+      }
+    });
+    if (totalGeralEl) totalGeralEl.textContent = fmtMoney.format(total);
+    if (totalSimEl) totalSimEl.textContent = fmtMoney.format(totalSim);
+    if (totalNaoEl) totalNaoEl.textContent = fmtMoney.format(totalNao);
+  }
+
   function render(rows) {
     if (!body) return;
-    if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="12" class="text-muted p-3">Sem registos.</td></tr>';
+    const filtered = filterRows(rows);
+    const sorted = sortRows(filtered);
+    if (!sorted.length) {
+      body.innerHTML = '<tr><td colspan="10" class="sz_table_cell sz_text_muted p-3">Sem registos.</td></tr>';
+      updateTotalsFromDom();
       return;
     }
-    const sorted = sortRows(filterRows(rows));
     const foImputMap = {};
     sorted.forEach(r => {
       if ((r.ORIGEM || '').toUpperCase() === 'FO') {
@@ -93,8 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
     body.innerHTML = sorted.map(r => {
       const mes = Number(r.IMPUTMES || 0) || currMonth;
       const ano = Number(r.IMPUTANO || 0) || currYear;
+      const total = Number(r.TOTAL || 0);
       const base = Number(r.BASE || 0);
       let valor = (r.IMPUTVALOR != null && r.IMPUTVALOR !== '') ? Number(r.IMPUTVALOR) : null;
+      if (!valor && total > 0) valor = total;
       if (!valor && base > 0) valor = base;
       const design = r.IMPUTDESIGN || '';
       const imp = Number(r.IMPUTAR || 0) === 1;
@@ -105,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const parent = r.FOSTAMP || '';
       const disableFn = isFn && foImputMap[parent] === true;
       return `
-        <tr data-origem="${escapeHtml(origem)}" data-stamp="${escapeHtml(r.STAMP || '')}" data-fostamp="${escapeHtml(parent)}" data-imputar="${imp ? '1' : '0'}" data-nimputar="${nimp ? '1' : '0'}" class="${isFn ? 'imput-child' : ''}">
+        <tr data-origem="${escapeHtml(origem)}" data-stamp="${escapeHtml(r.STAMP || '')}" data-fostamp="${escapeHtml(parent)}" data-total="${escapeHtml(r.TOTAL ?? 0)}" data-imputar="${imp ? '1' : '0'}" data-nimputar="${nimp ? '1' : '0'}" class="${isFn ? 'imput-child' : ''}">
           <td><span class="imput-badge ${badge}">${escapeHtml(origem)}</span></td>
           <td>${escapeHtml(fmtDate(r.DATA))}</td>
           <td title="${escapeHtml(r.DOC || '')}">${escapeHtml(r.DOC || '')}</td>
@@ -113,14 +147,14 @@ document.addEventListener('DOMContentLoaded', () => {
           <td title="${escapeHtml(r.ALOJAMENTO || '')}">${escapeHtml(r.ALOJAMENTO || '')}</td>
           <td class="text-end">${escapeHtml((r.TOTAL ?? '').toString())}</td>
           <td>
-            <div class="btn-group imput-toggle" role="group">
-              <button type="button" class="btn btn-sm imput-pill ${imp ? 'active' : ''}" data-value="S" ${disableFn ? 'disabled' : ''}>Sim</button>
-              <button type="button" class="btn btn-sm imput-pill ${nimp ? 'active' : ''}" data-value="N" ${disableFn ? 'disabled' : ''}>Não</button>
+            <div class="imput-toggle" role="group">
+              <button type="button" class="imput-pill ${imp ? 'active' : ''}" data-value="S" ${disableFn ? 'disabled' : ''}>Sim</button>
+              <button type="button" class="imput-pill ${nimp ? 'active' : ''}" data-value="N" ${disableFn ? 'disabled' : ''}>N&atilde;o</button>
             </div>
           </td>
-          <td><input type="month" class="form-control form-control-sm js-mesano" value="${escapeHtml(monthValue(mes, ano))}" ${disableFn ? 'disabled' : ''}></td>
-          <td><input type="number" step="0.01" class="form-control form-control-sm text-end js-valor" value="${escapeHtml(valor)}" ${disableFn ? 'disabled' : ''}></td>
-          <td><input type="text" class="form-control form-control-sm wide js-design" value="${escapeHtml(design)}" ${disableFn ? 'disabled' : ''}></td>
+          <td><input type="month" class="sz_input js-mesano" value="${escapeHtml(monthValue(mes, ano))}" ${disableFn ? 'disabled' : ''}></td>
+          <td><input type="number" step="0.01" class="sz_input text-end js-valor" value="${escapeHtml(valor)}" ${disableFn ? 'disabled' : ''}></td>
+          <td><input type="text" class="sz_input wide js-design" value="${escapeHtml(design)}" ${disableFn ? 'disabled' : ''}></td>
         </tr>
       `;
     }).join('');
@@ -140,6 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.disabled) return;
         if (btn.classList.contains('active')) {
           btn.classList.remove('active');
+          updateTotalsFromDom();
           return;
         }
         group.querySelectorAll('.imput-pill').forEach(b => b.classList.remove('active'));
@@ -148,24 +183,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (row?.dataset?.origem === 'FO') {
           applyFoLocks(row.dataset.stamp);
         }
+        updateTotalsFromDom();
       });
     });
 
-    body.querySelectorAll('tr[data-origem]').forEach(tr => {
-      tr.addEventListener('click', (e) => {
-        const tag = (e.target?.tagName || '').toLowerCase();
-        if (['input', 'select', 'button', 'option'].includes(tag)) return;
-        if (e.target?.closest?.('.imput-toggle')) return;
-        const origem = (tr.dataset.origem || '').toUpperCase();
-        const stamp = tr.dataset.stamp || '';
-        if (!stamp) return;
-        if (origem === 'FO') {
-          window.open(`/generic/fo_compras_form/${encodeURIComponent(stamp)}`, '_blank');
-        } else if (origem === 'MN') {
-          window.open(`/generic/form/MN/${encodeURIComponent(stamp)}`, '_blank');
-        }
-      });
+    body.querySelectorAll('.js-valor').forEach(input => {
+      input.addEventListener('input', updateTotalsFromDom);
+      input.addEventListener('change', updateTotalsFromDom);
     });
+
+    updateTotalsFromDom();
   }
 
   function applyFoLocks(fostamp) {
@@ -181,11 +208,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function load() {
     if (!body) return;
-    body.innerHTML = '<tr><td colspan="12" class="text-muted p-3">A carregar...</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" class="sz_table_cell sz_text_muted p-3">A carregar...</td></tr>';
     const res = await fetch('/api/imputacao_proprietarios');
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.error) {
-      body.innerHTML = `<tr><td colspan="12" class="text-danger p-3">Erro: ${escapeHtml(data.error || res.statusText)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="10" class="sz_table_cell text-danger p-3">Erro: ${escapeHtml(data.error || res.statusText)}</td></tr>`;
       return;
     }
     lastRows = Array.isArray(data.rows) ? data.rows : [];
@@ -223,13 +250,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnReload?.addEventListener('click', load);
   btnSave?.addEventListener('click', save);
-  searchInput?.addEventListener('input', () => render(lastRows));
   statusSelect?.addEventListener('change', () => render(lastRows));
-  clearBtn?.addEventListener('click', () => {
-    if (searchInput) searchInput.value = '';
-    render(lastRows);
-    searchInput?.focus();
-  });
+  clearBtn?.addEventListener('click', () => render(lastRows));
   document.querySelectorAll('.imput-table thead th[data-key]')?.forEach(th => {
     th.addEventListener('click', () => {
       const key = th.getAttribute('data-key');

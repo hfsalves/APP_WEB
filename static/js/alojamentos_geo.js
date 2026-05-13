@@ -277,8 +277,8 @@ const loadMetroLayer = async () => {
 
 const setMetroButtonState = () => {
   if (!geoEls.toggleMetro) return;
-  geoEls.toggleMetro.classList.toggle('btn-outline-secondary', !geoState.metroVisible);
-  geoEls.toggleMetro.classList.toggle('btn-primary', geoState.metroVisible);
+  geoEls.toggleMetro.classList.toggle('sz_button_secondary', !geoState.metroVisible);
+  geoEls.toggleMetro.classList.toggle('sz_button_primary', geoState.metroVisible);
 };
 
 const toggleMetroLayer = async () => {
@@ -292,12 +292,12 @@ const toggleMetroLayer = async () => {
 
   if (geoEls.toggleMetro) {
     geoEls.toggleMetro.disabled = true;
-    geoEls.toggleMetro.textContent = 'Metro...';
+    geoEls.toggleMetro.innerHTML = '<i class="fa-solid fa-train-subway"></i><span>Metro...</span>';
   }
   const ok = await loadMetroLayer();
   if (geoEls.toggleMetro) {
     geoEls.toggleMetro.disabled = false;
-    geoEls.toggleMetro.textContent = 'Metro';
+    geoEls.toggleMetro.innerHTML = '<i class="fa-solid fa-train-subway"></i><span>Metro</span>';
   }
   if (!ok) {
     setMetroButtonState();
@@ -560,9 +560,11 @@ const setAllModeUI = (enabled) => {
   geoEls.reset.disabled = enabled;
   geoEls.routeBtn.disabled = enabled || !geoState.selected;
   if (geoEls.toggleAll) {
-    geoEls.toggleAll.classList.toggle('btn-outline-primary', !enabled);
-    geoEls.toggleAll.classList.toggle('btn-primary', enabled);
-    geoEls.toggleAll.textContent = enabled ? 'Voltar ao modo individual ' : 'Mostra Todos ';
+    geoEls.toggleAll.classList.toggle('sz_button_ghost', !enabled);
+    geoEls.toggleAll.classList.toggle('sz_button_primary', enabled);
+    geoEls.toggleAll.innerHTML = enabled
+      ? '<i class="fa-solid fa-arrow-left"></i><span>Modo individual</span>'
+      : '<i class="fa-solid fa-map-location-dot"></i><span>Mostrar todos</span>';
     if (geoEls.count) {
       geoEls.toggleAll.appendChild(geoEls.count);
     }
@@ -842,10 +844,10 @@ const renderPoiList = () => {
     el.addEventListener('click', () => selectPoi(el.getAttribute('data-poi') || ''));
     const stamp = el.getAttribute('data-poi') || '';
     const actions = document.createElement('div');
-    actions.className = 'd-flex gap-1 mt-2';
+    actions.className = 'geo-item-actions';
     const btnEdit = document.createElement('button');
     btnEdit.type = 'button';
-    btnEdit.className = 'btn btn-outline-secondary btn-sm py-0 px-2';
+    btnEdit.className = 'sz_button sz_button_secondary geo-mini-button';
     btnEdit.textContent = 'Editar';
     btnEdit.addEventListener('click', (ev) => {
       ev.stopPropagation();
@@ -853,7 +855,7 @@ const renderPoiList = () => {
     });
     const btnAssoc = document.createElement('button');
     btnAssoc.type = 'button';
-    btnAssoc.className = 'btn btn-outline-primary btn-sm py-0 px-2';
+    btnAssoc.className = 'sz_button sz_button_ghost geo-mini-button';
     btnAssoc.textContent = 'Associar';
     btnAssoc.addEventListener('click', (ev) => {
       ev.stopPropagation();
@@ -905,7 +907,7 @@ const selectPoi = async (poistamp) => {
 const poiSearchModal = debounce(async () => {
   const q = (geoEls.poiModalSearch?.value || '').trim();
   if (!q) {
-    if (geoEls.poiModalResults) geoEls.poiModalResults.innerHTML = '<div class="text-muted small">Pesquisa locais (OSM/Maps) por nome ou morada.</div>';
+    if (geoEls.poiModalResults) geoEls.poiModalResults.innerHTML = '<div class="geo-empty">Pesquisa locais (OSM/Maps) por nome ou morada.</div>';
     return;
   }
   const res = await fetch(`/api/poi/search_places?q=${encodeURIComponent(q)}&limit=15`);
@@ -917,14 +919,14 @@ const poiSearchModal = debounce(async () => {
   geoState.poiPlaceResults = Array.isArray(rows) ? rows : [];
   if (!geoEls.poiModalResults) return;
   geoEls.poiModalResults.innerHTML = (geoState.poiPlaceResults || []).map((r, idx) => `
-    <div class="geo-poi-modal-row d-flex justify-content-between align-items-center">
+    <div class="geo-poi-modal-row geo-modal-result-row">
       <div>
-        <div class="fw-semibold small">${esc(r.name || '')}</div>
-        <div class="text-muted" style="font-size:.75rem;">${esc(r.display_name || '')}</div>
+        <div class="geo-modal-row-title">${esc(r.name || '')}</div>
+        <div class="geo-modal-row-sub">${esc(r.display_name || '')}</div>
       </div>
-      <button class="btn btn-sm btn-outline-primary" data-sel-place="${idx}">Usar</button>
+      <button class="sz_button sz_button_ghost geo-mini-button" data-sel-place="${idx}">Usar</button>
     </div>
-  `).join('') || '<div class="text-muted small">Sem resultados.</div>';
+  `).join('') || '<div class="geo-empty">Sem resultados.</div>';
   geoEls.poiModalResults.querySelectorAll('[data-sel-place]').forEach((b) => {
     b.addEventListener('click', () => {
       const idx = Number(b.getAttribute('data-sel-place') || -1);
@@ -947,7 +949,7 @@ const openPoiAssocStep = async (poistamp, rowsCache = null) => {
   const picked = list.find(r => String(r.POISTAMP || '') === String(poistamp));
   if (geoEls.poiAssocName) geoEls.poiAssocName.textContent = picked?.NOME || poistamp;
   poiSetStep('assoc');
-  if (geoEls.poiAssocList) geoEls.poiAssocList.innerHTML = '<div class="text-muted small">A carregar alojamentos pr?ximos...</div>';
+  if (geoEls.poiAssocList) geoEls.poiAssocList.innerHTML = '<div class="geo-empty">A carregar alojamentos proximos...</div>';
 
   let assocSet = new Set();
   try {
@@ -970,15 +972,15 @@ const openPoiAssocStep = async (poistamp, rowsCache = null) => {
       const alNome = String(r.NOME || '').trim();
       const checked = assocSet.has(alNome.toLowerCase()) ? 'checked' : '';
       return `
-      <label class="geo-poi-modal-row d-flex justify-content-between align-items-center">
+      <label class="geo-poi-modal-row geo-modal-result-row">
         <div>
-          <div class="fw-semibold small">${esc(alNome)}</div>
-          <div class="text-muted" style="font-size:.75rem;">${Number(r.DIST_METROS || 0)} m</div>
+          <div class="geo-modal-row-title">${esc(alNome)}</div>
+          <div class="geo-modal-row-sub">${Number(r.DIST_METROS || 0)} m</div>
         </div>
         <input class="form-check-input" type="checkbox" data-assoc-nome="${esc(alNome)}" data-assoc-dist="${Number(r.DIST_METROS || 0)}" ${checked}>
       </label>
     `;
-    }).join('') || '<div class="text-muted small">Sem alojamentos com coordenadas.</div>';
+    }).join('') || '<div class="geo-empty">Sem alojamentos com coordenadas.</div>';
   }
 };
 
@@ -989,7 +991,7 @@ const openPoiModal = async () => {
   geoState.poiModalSelectedStamp = null;
   geoState.poiPlaceResults = [];
   if (geoEls.poiModalSearch) geoEls.poiModalSearch.value = '';
-  if (geoEls.poiModalResults) geoEls.poiModalResults.innerHTML = '<div class="text-muted small">Pesquisa locais (OSM/Maps) por nome ou morada.</div>';
+  if (geoEls.poiModalResults) geoEls.poiModalResults.innerHTML = '<div class="geo-empty">Pesquisa locais (OSM/Maps) por nome ou morada.</div>';
   if (geoEls.poiAssocList) geoEls.poiAssocList.innerHTML = '';
   if (geoEls.poiCreateSave) geoEls.poiCreateSave.textContent = 'Criar POI';
   if (geoEls.poiCreateNome) geoEls.poiCreateNome.value = '';
@@ -1083,17 +1085,17 @@ const renderPoigList = () => {
   if (!geoEls.poigList) return;
   const rows = geoState.poiGroups || [];
   geoEls.poigList.innerHTML = rows.map(g => `
-    <div class="geo-poi-modal-row d-flex justify-content-between align-items-center">
+    <div class="geo-poi-modal-row geo-modal-result-row">
       <div>
-        <div class="fw-semibold small">${esc(g.NOME || '')} <span class="text-muted">(${esc(g.SLUG || '')})</span></div>
-        <div class="text-muted" style="font-size:.75rem;">Ordem ${Number(g.ORDEM || 0)} · ${Number(g.ATIVO || 0) ? 'Ativo' : 'Inativo'}</div>
+        <div class="geo-modal-row-title">${esc(g.NOME || '')} <span class="geo-modal-row-sub">(${esc(g.SLUG || '')})</span></div>
+        <div class="geo-modal-row-sub">Ordem ${Number(g.ORDEM || 0)} - ${Number(g.ATIVO || 0) ? 'Ativo' : 'Inativo'}</div>
       </div>
-      <div class="d-flex gap-1">
-        <button class="btn btn-sm btn-outline-primary" data-poig-edit="${esc(g.POIGSTAMP)}">Editar</button>
-        <button class="btn btn-sm btn-outline-danger" data-poig-del="${esc(g.POIGSTAMP)}">Apagar</button>
+      <div class="geo-item-actions">
+        <button class="sz_button sz_button_ghost geo-mini-button" data-poig-edit="${esc(g.POIGSTAMP)}">Editar</button>
+        <button class="sz_button sz_button_danger geo-mini-button" data-poig-del="${esc(g.POIGSTAMP)}">Apagar</button>
       </div>
     </div>
-  `).join('') || '<div class="text-muted small">Sem grupos.</div>';
+  `).join('') || '<div class="geo-empty">Sem grupos.</div>';
   geoEls.poigList.querySelectorAll('[data-poig-edit]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const s = btn.getAttribute('data-poig-edit') || '';
@@ -1288,7 +1290,7 @@ const resumeRotasJob = async () => {
     return;
   }
   if (!data.job_id) {
-    showToast(data.error || 'NÃ£o foi possÃ­vel retomar', 'danger');
+    showToast(data.error || 'Nao foi possivel retomar', 'danger');
     return;
   }
   rotasJobId = data.job_id;

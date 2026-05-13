@@ -3196,7 +3196,6 @@ hideLoading()
     const alFotosStatus = document.getElementById('alFotosStatus');
     const alFotosInput = document.getElementById('alFotosInput');
     const btnALFotosPick = document.getElementById('btnALFotosPick');
-    const alFotosDropzone = document.getElementById('alFotosDropzone');
     const alFotosModal = alFotosModalEl ? new bootstrap.Modal(alFotosModalEl) : null;
     let alFotosRows = [];
     let dragFotoStamp = null;
@@ -3226,20 +3225,28 @@ hideLoading()
       alFotosGrid.innerHTML = alFotosRows.map(row => {
         const stamp = row.ALFOTOSTAMP || '';
         const isCover = Boolean(row.CAPA);
+        const isCheckin = Boolean(row.CHECKIN);
         return `
-          <article class="sz_al_fotos_card${isCover ? ' is-cover' : ''}" draggable="true" data-foto-stamp="${stamp}">
+          <article class="sz_al_fotos_card${isCover ? ' is-cover' : ''}${isCheckin ? ' is-checkin' : ''}" draggable="true" data-foto-stamp="${stamp}">
             <div class="sz_al_fotos_thumb">
               <img src="${getALFotoStaticUrl(row.CAMINHO)}" alt="${row.ALT_TEXT || row.FICHEIRO || 'Imagem do alojamento'}">
             </div>
             <div class="sz_al_fotos_meta">
               <div class="sz_al_fotos_topline">
                 <div class="sz_al_fotos_filename">${row.FICHEIRO || 'Imagem'}</div>
-                ${isCover ? '<span class="sz_al_fotos_badge">Capa</span>' : ''}
+                <div class="sz_al_fotos_badges">
+                  ${isCover ? '<span class="sz_al_fotos_badge">Capa</span>' : ''}
+                  ${isCheckin ? '<span class="sz_al_fotos_badge sz_al_fotos_badge_checkin">Check-in</span>' : ''}
+                </div>
               </div>
               <div class="sz_al_fotos_controls">
                 <button type="button" class="sz_button sz_button_ghost btn-al-foto-cover" data-foto-stamp="${stamp}">
                   <i class="fa fa-star"></i>
                   <span>${isCover ? 'Foto de capa' : 'Definir capa'}</span>
+                </button>
+                <button type="button" class="sz_button sz_button_ghost btn-al-foto-checkin${isCheckin ? ' is-active' : ''}" data-foto-stamp="${stamp}" aria-pressed="${isCheckin ? 'true' : 'false'}">
+                  <i class="fa fa-key"></i>
+                  <span>${isCheckin ? 'Imagem check-in' : 'Marcar check-in'}</span>
                 </button>
                 <button type="button" class="sz_button sz_button_danger btn-al-foto-delete" data-foto-stamp="${stamp}">
                   <i class="fa fa-trash-alt"></i>
@@ -3304,6 +3311,19 @@ hideLoading()
       await refreshALFotos({ silent: true });
     }
 
+    async function setALFotoCheckin(fotoStamp) {
+      const res = await fetch(`/generic/api/al_fotos/${encodeURIComponent(RECORD_STAMP)}/checkin/${encodeURIComponent(fotoStamp)}`, {
+        method: 'POST'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setALFotosStatus(data.error || 'Erro ao atualizar imagem de check-in.', { isError: true });
+        return;
+      }
+      setALFotosStatus(data.CHECKIN ? 'Imagem marcada como check-in.' : 'Imagem removida do check-in.');
+      await refreshALFotos({ silent: true });
+    }
+
     async function deleteALFoto(fotoStamp) {
       const res = await fetch(`/generic/api/al_fotos/${encodeURIComponent(RECORD_STAMP)}/${encodeURIComponent(fotoStamp)}`, {
         method: 'DELETE'
@@ -3351,36 +3371,15 @@ hideLoading()
         alFotosInput.value = '';
       });
 
-      alFotosDropzone?.addEventListener('click', () => alFotosInput?.click());
-      alFotosDropzone?.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          alFotosInput?.click();
-        }
-      });
-      ['dragenter', 'dragover'].forEach(evt => {
-        alFotosDropzone?.addEventListener(evt, e => {
-          e.preventDefault();
-          alFotosDropzone.classList.add('is-dragover');
-        });
-      });
-      ['dragleave', 'drop'].forEach(evt => {
-        alFotosDropzone?.addEventListener(evt, e => {
-          e.preventDefault();
-          alFotosDropzone.classList.remove('is-dragover');
-        });
-      });
-      alFotosDropzone?.addEventListener('drop', async e => {
-        const files = e.dataTransfer?.files;
-        if (files?.length) {
-          await uploadALFotos(files);
-        }
-      });
-
       alFotosGrid?.addEventListener('click', async e => {
         const coverBtn = e.target.closest('.btn-al-foto-cover');
         if (coverBtn) {
           await setALFotoCover(coverBtn.dataset.fotoStamp);
+          return;
+        }
+        const checkinBtn = e.target.closest('.btn-al-foto-checkin');
+        if (checkinBtn) {
+          await setALFotoCheckin(checkinBtn.dataset.fotoStamp);
           return;
         }
         const deleteBtn = e.target.closest('.btn-al-foto-delete');

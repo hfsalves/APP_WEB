@@ -328,30 +328,33 @@
 
 <!-- Modal Detalhe -->
 <div class="modal fade" id="mapDetailModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable sz_management_map_detail_dialog">
     <div class="modal-content detail-card">
       <div class="modal-header border-0 pb-1">
         <h5 class="modal-title mb-0" id="mapDetailTitle">Detalhe</h5>
-        <button type="button" class="sz_button sz_button_ghost sz_management_map_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div class="d-flex align-items-center gap-2 ms-auto">
+          <span class="sz_management_map_detail_count" id="mapDetailCount">0 registos</span>
+          <button type="button" class="sz_button sz_button_ghost sz_management_map_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
       </div>
       <div class="modal-body pt-2">
         <div class="table-responsive rounded-3 shadow-sm detail-table-wrap">
           <table class="table table-sm align-middle detail-table" id="mapDetailTable">
             <thead>
               <tr>
-                <th>Documento</th>
-                <th>N&uacute;mero</th>
-                <th>Data</th>
-                <th>Nome</th>
-                <th>C. Custo</th>
-                <th>Refer&ecirc;ncia</th>
-                <th>Designa&ccedil;&atilde;o</th>
-                <th class="text-end">Quantidade</th>
-                <th class="text-end">Pre&ccedil;o</th>
-                <th class="text-end">Total</th>
-                <th class="text-center">Anexo</th>
+                <th class="map-detail-sort" data-key="documento">Documento <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="numero">N&uacute;mero <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="data">Data <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="nome">Nome <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="ccusto">C. Custo <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="referencia">Refer&ecirc;ncia <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="designacao">Designa&ccedil;&atilde;o <span class="sort-ind"></span></th>
+                <th class="text-end map-detail-sort" data-key="quantidade">Quantidade <span class="sort-ind"></span></th>
+                <th class="text-end map-detail-sort" data-key="preco">Pre&ccedil;o <span class="sort-ind"></span></th>
+                <th class="text-end map-detail-sort" data-key="total">Total <span class="sort-ind"></span></th>
+                <th class="text-center map-detail-sort" data-key="anexo_url">A&ccedil;&otilde;es <span class="sort-ind"></span></th>
               </tr>
             </thead>
             <tbody id="mapDetailBody">
@@ -363,6 +366,57 @@
       <div class="modal-footer d-flex justify-content-between">
         <div id="mapDetailTotal">Total: --</div>
         <button class="sz_button sz_button_secondary" data-bs-dismiss="modal" type="button">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Documento de origem -->
+<div class="modal fade" id="mapDocModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable sz_management_map_doc_dialog">
+    <div class="modal-content detail-card sz_management_map_doc_card">
+      <div class="modal-header border-0 pb-1">
+        <div>
+          <h5 class="modal-title mb-0" id="mapDocTitle">Documento</h5>
+          <div class="sz_management_map_doc_subtitle" id="mapDocSubtitle">Compra</div>
+        </div>
+        <button type="button" class="sz_button sz_button_ghost sz_management_map_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body pt-2">
+        <datalist id="mapDocRefs"></datalist>
+        <div class="sz_management_map_doc_header" id="mapDocHeader">
+          <div class="text-muted">Selecione um documento.</div>
+        </div>
+        <div class="table-responsive rounded-3 shadow-sm detail-table-wrap sz_management_map_doc_lines_wrap">
+          <table class="table table-sm align-middle detail-table sz_management_map_doc_lines" id="mapDocLinesTable">
+            <thead>
+              <tr>
+                <th>Refer&ecirc;ncia</th>
+                <th>Designa&ccedil;&atilde;o</th>
+                <th>Fam&iacute;lia</th>
+                <th>C. Custo</th>
+                <th class="text-end">Quantidade</th>
+                <th class="text-end">Pre&ccedil;o Unit.</th>
+                <th class="text-end">Total</th>
+                <th>Tabela IVA</th>
+                <th class="text-end">Taxa IVA</th>
+                <th>Data Custo</th>
+              </tr>
+            </thead>
+            <tbody id="mapDocLinesBody">
+              <tr><td colspan="10" class="text-center text-muted">Sem linhas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div id="mapDocStatus" class="sz_management_map_doc_status">Campos fiscais bloqueados.</div>
+        <div class="d-flex gap-2">
+          <button class="sz_button sz_button_secondary" data-bs-dismiss="modal" type="button">Fechar</button>
+          <button class="sz_button sz_button_primary" id="mapDocSave" type="button">Gravar</button>
+        </div>
       </div>
     </div>
   </div>
@@ -995,10 +1049,21 @@
     white-space: nowrap;
   }
 
-  .country-sort .sort-ind {
+  .country-sort .sort-ind,
+  .map-detail-sort .sort-ind {
     opacity: 0.65;
     font-size: 11px;
     margin-left: 4px;
+  }
+
+  .map-detail-sort {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .map-detail-sort:hover {
+    color: var(--sz-color-primary) !important;
   }
 
   .cell-drill {
@@ -1052,12 +1117,144 @@
     display: none;
   }
 
+  #mapDetailModal {
+    overflow: hidden !important;
+  }
+
+  #mapDocModal {
+    overflow: hidden !important;
+  }
+
+  #mapDetailModal .sz_management_map_detail_dialog {
+    width: calc(100vw - 2rem);
+    max-width: min(1760px, calc(100vw - 2rem));
+    height: calc(100vh - var(--sz-topbar-height, 56px) - 1.5rem);
+    max-height: calc(100vh - var(--sz-topbar-height, 56px) - 1.5rem);
+    margin: calc(var(--sz-topbar-height, 56px) + 0.75rem) auto 0.75rem;
+  }
+
+  #mapDocModal .sz_management_map_doc_dialog {
+    width: calc(100vw - 2rem);
+    max-width: min(1680px, calc(100vw - 2rem));
+    height: calc(100vh - var(--sz-topbar-height, 56px) - 1.5rem);
+    max-height: calc(100vh - var(--sz-topbar-height, 56px) - 1.5rem);
+    margin: calc(var(--sz-topbar-height, 56px) + 0.75rem) auto 0.75rem;
+  }
+
+  #mapDetailModal .detail-card {
+    height: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #mapDocModal .detail-card {
+    height: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #mapDetailModal .modal-header,
+  #mapDetailModal .modal-footer {
+    flex: 0 0 auto;
+  }
+
+  #mapDocModal .modal-header,
+  #mapDocModal .modal-footer {
+    flex: 0 0 auto;
+  }
+
+  #mapDetailModal .modal-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #mapDocModal .modal-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  #mapDetailModal .detail-table-wrap {
+    height: 100%;
+    max-height: none;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--sz-color-primary) 30%, transparent) transparent;
+  }
+
+  #mapDocModal .detail-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--sz-color-primary) 28%, transparent) transparent;
+  }
+
+  #mapDetailModal .detail-table-wrap::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    display: block;
+  }
+
+  #mapDocModal .detail-table-wrap::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    display: block;
+  }
+
+  #mapDetailModal .detail-table-wrap::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--sz-color-primary) 28%, transparent);
+    border-radius: 999px;
+  }
+
+  #mapDocModal .detail-table-wrap::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--sz-color-primary) 24%, transparent);
+    border-radius: 999px;
+  }
+
+  #mapDetailModal .detail-table-wrap::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 45%, transparent);
+  }
+
+  #mapDocModal .detail-table-wrap::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 40%, transparent);
+  }
+
+  #mapDetailModal .detail-table-wrap::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  #mapDocModal .detail-table-wrap::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
   .detail-table {
     width: 100%;
     min-width: 1120px;
     margin: 0;
     border-collapse: collapse;
     color: var(--sz-color-text);
+    table-layout: auto;
+  }
+
+  #mapDetailModal .detail-table {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+  }
+
+  #mapDocModal .detail-table {
+    width: max-content;
+    min-width: 100%;
     table-layout: auto;
   }
 
@@ -1078,6 +1275,20 @@
     padding: 0.65rem 0.8rem;
   }
 
+  #mapDetailModal .detail-table th,
+  #mapDetailModal .detail-table td {
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+
+  #mapDocModal .detail-table th,
+  #mapDocModal .detail-table td {
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+
   .detail-table th {
     border: 0 !important;
     border-bottom: 1px solid var(--sz-color-border) !important;
@@ -1095,9 +1306,22 @@
     overflow-wrap: anywhere;
   }
 
+  #mapDetailModal .detail-table td {
+    overflow-wrap: normal;
+  }
+
+  #mapDocModal .detail-table td {
+    overflow-wrap: normal;
+  }
+
   .detail-table th:nth-child(1),
   .detail-table td:nth-child(1) {
     min-width: 110px;
+  }
+
+  #mapDetailModal .detail-table th:nth-child(1),
+  #mapDetailModal .detail-table td:nth-child(1) {
+    min-width: 120px;
   }
 
   .detail-table th:nth-child(2),
@@ -1105,9 +1329,34 @@
     min-width: 120px;
   }
 
+  #mapDetailModal .detail-table th:nth-child(2),
+  #mapDetailModal .detail-table td:nth-child(2) {
+    min-width: 90px;
+  }
+
   .detail-table th:nth-child(3),
   .detail-table td:nth-child(3) {
     min-width: 100px;
+  }
+
+  #mapDetailModal .detail-table th:nth-child(4),
+  #mapDetailModal .detail-table td:nth-child(4) {
+    min-width: 245px;
+  }
+
+  #mapDetailModal .detail-table th:nth-child(5),
+  #mapDetailModal .detail-table td:nth-child(5) {
+    min-width: 170px;
+  }
+
+  #mapDetailModal .detail-table th:nth-child(6),
+  #mapDetailModal .detail-table td:nth-child(6) {
+    min-width: 125px;
+  }
+
+  #mapDetailModal .detail-table th:nth-child(7),
+  #mapDetailModal .detail-table td:nth-child(7) {
+    min-width: 170px;
   }
 
   .detail-table th:nth-child(8),
@@ -1128,6 +1377,128 @@
     min-width: 92px;
     text-align: center;
     white-space: nowrap;
+  }
+
+  .map-detail-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+
+  .sz_management_map_detail_doc {
+    min-height: 32px;
+    padding-inline: 0.65rem;
+  }
+
+  .sz_management_map_doc_subtitle,
+  .sz_management_map_doc_status {
+    color: var(--sz-color-text-secondary);
+    font-size: 0.86rem;
+  }
+
+  .sz_management_map_doc_header {
+    display: grid;
+    grid-template-columns: minmax(190px, 1.1fr) minmax(220px, 1.7fr) repeat(6, minmax(120px, 0.8fr));
+    gap: 0.65rem;
+    padding: 0.85rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, var(--sz-color-surface));
+  }
+
+  .sz_management_map_doc_field {
+    min-width: 0;
+  }
+
+  .sz_management_map_doc_label {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--sz-color-text-secondary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .sz_management_map_doc_value {
+    min-height: var(--sz-input-height);
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: 0.48rem 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-border) 75%, transparent);
+    border-radius: var(--sz-radius-sm);
+    background: color-mix(in srgb, var(--sz-color-surface) 84%, transparent);
+    color: var(--sz-color-text);
+    font-weight: 650;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sz_management_map_doc_value.is-number {
+    justify-content: flex-end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sz_management_map_doc_input {
+    width: 100%;
+    min-width: 0;
+    height: var(--sz-input-height);
+    min-height: var(--sz-input-height);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    padding: 0.45rem 0.65rem;
+  }
+
+  .sz_management_map_doc_input:disabled,
+  .sz_management_map_doc_input[readonly] {
+    opacity: 0.85;
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 75%, var(--sz-color-surface));
+  }
+
+  .sz_management_map_doc_lines th:nth-child(1),
+  .sz_management_map_doc_lines td:nth-child(1) {
+    min-width: 155px;
+  }
+
+  .sz_management_map_doc_lines th:nth-child(2),
+  .sz_management_map_doc_lines td:nth-child(2) {
+    min-width: 260px;
+  }
+
+  .sz_management_map_doc_lines th:nth-child(3),
+  .sz_management_map_doc_lines td:nth-child(3),
+  .sz_management_map_doc_lines th:nth-child(4),
+  .sz_management_map_doc_lines td:nth-child(4) {
+    min-width: 155px;
+  }
+
+  .sz_management_map_doc_lines th:nth-child(10),
+  .sz_management_map_doc_lines td:nth-child(10) {
+    min-width: 145px;
+  }
+
+  @media (max-width: 1200px) {
+    .sz_management_map_doc_header {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 760px) {
+    #mapDocModal .sz_management_map_doc_dialog,
+    #mapDetailModal .sz_management_map_detail_dialog {
+      width: calc(100vw - 0.75rem);
+      max-width: calc(100vw - 0.75rem);
+      margin: calc(var(--sz-topbar-height, 56px) + 0.4rem) auto 0.4rem;
+    }
+
+    .sz_management_map_doc_header {
+      grid-template-columns: 1fr;
+    }
   }
 
   .detail-table tbody tr:nth-child(even) td {
@@ -1190,6 +1561,20 @@
   #mapDetailTitle {
     color: var(--sz-color-text);
     font-weight: var(--sz-font-weight-bold);
+  }
+
+  .sz_management_map_detail_count {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2rem;
+    padding: 0.3rem 0.65rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+    color: var(--sz-color-text-secondary);
+    font-size: 0.78rem;
+    font-weight: var(--sz-font-weight-semibold);
+    white-space: nowrap;
   }
 
   #mapCcustoModal .modal-body .form-check-label,

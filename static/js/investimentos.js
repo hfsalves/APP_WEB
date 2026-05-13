@@ -69,7 +69,7 @@
     const rows = selectedRows();
     const total = selectedTotal();
     const cc = selectedCcusto();
-    const base = `${rows.length} custos selecionados — Total: ${fmtMoney(total)} €`;
+    const base = `${rows.length} custos selecionados - Total: ${fmtMoney(total)} €`;
     if (els.resumo) els.resumo.textContent = cc ? `${base} (${cc})` : base;
     if (els.criarBtn) els.criarBtn.disabled = rows.length === 0;
   }
@@ -77,7 +77,7 @@
   function renderRows() {
     if (!els.body) return;
     if (!state.rows.length) {
-      els.body.innerHTML = '<tr><td colspan="6" class="text-muted p-3">Sem custos elegíveis no período.</td></tr>';
+      els.body.innerHTML = '<tr><td colspan="6" class="sz_table_cell sz_text_muted p-3">Sem custos elegíveis no período.</td></tr>';
       updateSummary();
       return;
     }
@@ -88,7 +88,7 @@
       const rowClass = state.selected.has(key) ? 'invp-row-selected' : '';
       return `
         <tr class="${rowClass}" data-key="${escapeHtml(key)}">
-          <td class="text-center"><input type="checkbox" class="form-check-input invp-check" ${checked}></td>
+          <td class="text-center"><input type="checkbox" class="invp-check" ${checked}></td>
           <td>${escapeHtml(isoToDmy(r.DATA))}</td>
           <td>${escapeHtml(r.CCUSTO || '')}</td>
           <td>${escapeHtml(r.FAMILIA || '')}</td>
@@ -135,7 +135,7 @@
     if (els.ano) els.ano.value = String(state.ano);
     if (els.mes) els.mes.value = String(state.mes);
 
-    if (els.body) els.body.innerHTML = '<tr><td colspan="6" class="text-muted p-3">A carregar...</td></tr>';
+    if (els.body) els.body.innerHTML = '<tr><td colspan="6" class="sz_table_cell sz_text_muted p-3">A carregar...</td></tr>';
     try {
       const qs = new URLSearchParams({
         ano: String(state.ano),
@@ -150,7 +150,7 @@
       state.selected = new Set([...state.selected].filter((k) => validKeys.has(k)));
       renderRows();
     } catch (e) {
-      if (els.body) els.body.innerHTML = `<tr><td colspan="6" class="text-danger p-3">${escapeHtml(e.message || 'Erro')}</td></tr>`;
+      if (els.body) els.body.innerHTML = `<tr><td colspan="6" class="sz_table_cell sz_inv_error p-3">${escapeHtml(e.message || 'Erro')}</td></tr>`;
       state.rows = [];
       state.selected.clear();
       updateSummary();
@@ -190,7 +190,7 @@
     if (!els.previewBody) return;
     const lines = buildPreviewLines();
     if (!lines.length) {
-      els.previewBody.innerHTML = '<tr><td colspan="5" class="text-muted p-2">Sem linhas.</td></tr>';
+      els.previewBody.innerHTML = '<tr><td colspan="5" class="sz_table_cell sz_text_muted p-2">Sem linhas.</td></tr>';
       return;
     }
     els.previewBody.innerHTML = lines.map((ln) => `
