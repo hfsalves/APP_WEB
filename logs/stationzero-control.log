@@ -4586,3 +4586,21 @@
 [2026-05-13 15:50:08] Processo parado: PID 49652 [python.exe] para modo Dev.
 [2026-05-13 15:50:11] Arranque Dev: C:\APP_WEB\.venv\Scripts\python.exe -m flask --app app.py run --debug --host=127.0.0.1 --port=5000
 [2026-05-13 15:50:16] Dev iniciado com sucesso na porta 5000. PID principal: 49364.
+[2026-05-13 17:32:19] Processo parado: PID 26336 [python.exe] para modo Dev.
+[2026-05-13 17:32:19] Processo parado: PID 26928 [python.exe] para modo Dev.
+[2026-05-13 17:32:19] Processo parado: PID 32564 [python.exe] para modo Dev.
+[2026-05-13 17:32:19] Processo parado: PID 49364 [python.exe] para modo Dev.
+[2026-05-13 17:32:23] Arranque Dev: C:\APP_WEB\.venv\Scripts\python.exe -m flask --app app.py run --debug --host=127.0.0.1 --port=5000
+[2026-05-13 17:32:28] Dev iniciado com sucesso na porta 5000. PID principal: 35120.
+[2026-05-13 17:35:33] Processo parado: PID 35120 [python.exe] para modo Dev.
+[2026-05-13 17:35:33] Processo parado: PID 50096 [python.exe] para modo Dev.
+[2026-05-13 17:35:33] Processo parado: PID 52408 [python.exe] para modo Dev.
+[2026-05-13 17:35:33] Processo parado: PID 55136 [python.exe] para modo Dev.
+[2026-05-13 17:35:37] Arranque Dev: C:\APP_WEB\.venv\Scripts\python.exe -m flask --app app.py run --debug --host=127.0.0.1 --port=5000
+[2026-05-13 17:35:40] Dev iniciado com sucesso na porta 5000. PID principal: 43048.
+[2026-05-13 17:42:08] Processo parado: PID 25668 [python.exe] para modo Dev.
+[2026-05-13 17:42:08] Processo parado: PID 26204 [python.exe] para modo Dev.
+[2026-05-13 17:42:08] Falha ao parar PID 43048: Cannot find a process with the process identifier 43048.
+[2026-05-13 17:42:08] Processo parado: PID 54872 [python.exe] para modo Dev.
+[2026-05-13 17:42:11] Arranque Dev: C:\APP_WEB\.venv\Scripts\python.exe -m flask --app app.py run --debug --host=127.0.0.1 --port=5000
+[2026-05-13 17:42:14] Dev iniciado com sucesso na porta 5000. PID principal: 42712.

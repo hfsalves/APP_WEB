@@ -3190,6 +3190,7 @@ hideLoading()
 // 7B. IMAGENS DE ALOJAMENTO
 // ===============================
     const isAlojamentoForm = String(TABLE_NAME || '').toUpperCase() === 'AL';
+    const btnALTranslate = document.getElementById('btnALTranslate');
     const btnALFotos = document.getElementById('btnALFotos');
     const alFotosModalEl = document.getElementById('alFotosModal');
     const alFotosGrid = document.getElementById('alFotosGrid');
@@ -3199,6 +3200,79 @@ hideLoading()
     const alFotosModal = alFotosModalEl ? new bootstrap.Modal(alFotosModalEl) : null;
     let alFotosRows = [];
     let dragFotoStamp = null;
+
+    function findALField(name) {
+      const raw = String(name || '').trim();
+      if (!raw) return null;
+      const variants = [raw, raw.toUpperCase(), raw.toLowerCase()];
+      for (const key of variants) {
+        if (camposByName[key]) return camposByName[key];
+      }
+      const escapeCss = window.CSS && typeof window.CSS.escape === 'function'
+        ? window.CSS.escape
+        : value => String(value || '').replace(/["\\]/g, '\\$&');
+      const selector = variants.map(key => `[name="${escapeCss(key)}"]`).join(',');
+      return selector ? form.querySelector(selector) : null;
+    }
+
+    function setALFieldValue(name, value) {
+      const el = findALField(name);
+      if (!el) return false;
+      const nextValue = value == null ? '' : String(value);
+      if (el.type === 'checkbox') {
+        el.checked = ['1', 'true', 'sim', 'yes', 'on'].includes(nextValue.trim().toLowerCase());
+        setFormStateValue(el.name || name, el.checked);
+      } else {
+        el.value = nextValue;
+        setFormStateValue(el.name || name, nextValue);
+      }
+      setFormStateValue(String(name || '').toUpperCase(), el.type === 'checkbox' ? el.checked : nextValue);
+      if (el.dataset?.variableName) {
+        syncBoundVariableValue(el.dataset.variableName, readValueForState(el), { source: el });
+      }
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }
+
+    async function translateALInstructions() {
+      if (!isAlojamentoForm || !RECORD_STAMP || !btnALTranslate) return;
+      const sourceEl = findALField('INSTRUCOES');
+      const sourceText = sourceEl ? String(sourceEl.value || '') : '';
+      if (!sourceText.trim()) {
+        showDynamicFormToast('O campo INSTRUCOES esta vazio.', 'warning');
+        return;
+      }
+
+      const previousHtml = btnALTranslate.innerHTML;
+      btnALTranslate.disabled = true;
+      btnALTranslate.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span><span>A traduzir...</span>';
+      showLoading();
+      try {
+        const res = await fetch(`/generic/api/al/${encodeURIComponent(RECORD_STAMP)}/translate_instrucoes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_text: sourceText })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          showDynamicFormToast(data.error || 'Erro ao traduzir instrucoes.', 'danger');
+          return;
+        }
+        const translations = data.translations || {};
+        setALFieldValue('INSTRUCOES_EN', translations.INSTRUCOES_EN || '');
+        setALFieldValue('INSTRUCOES_FR', translations.INSTRUCOES_FR || '');
+        setALFieldValue('INSTRUCOES_ES', translations.INSTRUCOES_ES || '');
+        showDynamicFormToast('Instrucoes traduzidas para EN, FR e ES.');
+      } catch (err) {
+        console.error('Erro ao traduzir instrucoes AL:', err);
+        showDynamicFormToast('Erro ao traduzir instrucoes.', 'danger');
+      } finally {
+        hideLoading();
+        btnALTranslate.disabled = false;
+        btnALTranslate.innerHTML = previousHtml;
+      }
+    }
 
     function setALFotosStatus(message = '', { isError = false } = {}) {
       if (!alFotosStatus) return;
@@ -3354,6 +3428,10 @@ hideLoading()
         return;
       }
       await refreshALFotos({ silent: true });
+    }
+
+    if (btnALTranslate && isAlojamentoForm) {
+      btnALTranslate?.addEventListener('click', translateALInstructions);
     }
 
     if (btnALFotos && alFotosModalEl && isAlojamentoForm) {

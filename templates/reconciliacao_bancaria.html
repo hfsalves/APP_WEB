@@ -105,6 +105,51 @@
     min-height: 1.5rem;
   }
 
+  .rb-suggest-modal_dialog {
+    max-width: min(1280px, calc(100vw - 48px));
+  }
+
+  .rb-suggest-table-wrap {
+    max-height: min(62vh, 620px);
+    overflow: auto;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--sz-color-primary) 44%, transparent) transparent;
+  }
+
+  .rb-suggest-table-wrap::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .rb-suggest-table-wrap::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .rb-suggest-table-wrap::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-primary) 42%, transparent);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .rb-suggest-table {
+    min-width: 1120px;
+  }
+
+  .rb-suggest-table td {
+    vertical-align: middle;
+  }
+
+  .rb-suggest-desc {
+    max-width: 360px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .rb_body {
     display: flex;
     flex-direction: column;
@@ -359,6 +404,9 @@
             <button type="button" class="sz_button sz_button_ghost rb-btn" id="rbGroupExtratos">
               <i class="fa-solid fa-layer-group"></i> Agrupar estratos
             </button>
+            <button type="button" class="sz_button sz_button_ghost rb-btn" id="rbSuggestMatches" disabled>
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Sugerir
+            </button>
             <button type="button" class="sz_button sz_button_primary rb-btn" id="rbReconciliar" disabled>
               <i class="fa-solid fa-link"></i> Reconciliar
             </button>
@@ -445,6 +493,50 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="rbSuggestModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable rb-suggest-modal_dialog">
+    <div class="modal-content rb-group-modal_content">
+      <div class="modal-header sz_modal_header">
+        <div>
+          <div class="sz_modal_title">Sugestões de reconciliação</div>
+          <div class="sz_text_sm text-muted" id="rbSuggestStatus">Movimentos pendentes com o mesmo valor.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <div class="rb-suggest-table-wrap">
+          <table class="table table-sm table-hover align-middle mb-0 rb-table rb-suggest-table" id="rbSuggestTable">
+            <thead>
+              <tr>
+                <th style="width:42px;">
+                  <input class="form-check-input" id="rbSuggestSelectAll" type="checkbox" title="Selecionar tudo">
+                </th>
+                <th style="width:52px;">#</th>
+                <th style="width:110px;">Data banco</th>
+                <th>Movimento banco</th>
+                <th class="text-end" style="width:130px;">Valor</th>
+                <th style="width:110px;">Data app</th>
+                <th style="width:160px;">Documento</th>
+                <th>Movimento app</th>
+                <th class="text-end" style="width:90px;">Dif. dias</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="9" class="text-muted">Sem sugestões calculadas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="sz_button sz_button_primary" id="rbSuggestAccept" disabled>
+          <i class="fa-solid fa-link"></i> Reconciliar
+        </button>
       </div>
     </div>
   </div>

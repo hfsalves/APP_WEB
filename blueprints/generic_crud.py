@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import MetaData, Table, select, text, String, or_, and_, exists, bindparam
 from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
-from services.db_i18n_service import translate_db_record
+from services.db_i18n_service import _extract_openai_text, _para_value, _strip_json_fence, _translation_model, translate_db_record
 from services.multiempresa_service import get_current_feid, MissingCurrentEntityError
 import uuid
 from datetime import date, timedelta, datetime
@@ -1033,6 +1033,132 @@ def al_fotos_table_exists() -> bool:
     except Exception:
         return False
 
+def _al_translate_api_key() -> str:
+    return (
+        _para_value(db.session, 'SHOP_TRANSLATE_OPENAI_API_KEY')
+        or os.getenv('SHOP_TRANSLATE_OPENAI_API_KEY')
+        or ''
+    ).strip()
+
+def _protect_square_tags(value: str) -> tuple[str, dict[str, str]]:
+    tags: dict[str, str] = {}
+
+    def repl(match):
+        token = f"__SZTAG{len(tags)}__"
+        tags[token] = match.group(0)
+        return token
+
+    protected = re.sub(r'\[[^\]\r\n]{1,120}\]', repl, str(value or ''))
+    return protected, tags
+
+def _restore_square_tags(value: str, tags: dict[str, str]) -> str:
+    text_value = str(value or '')
+    for token, original in tags.items():
+        text_value = text_value.replace(token, original)
+    return text_value
+
+def _translate_al_instructions_with_openai(source_text: str) -> dict[str, str]:
+    api_key = _al_translate_api_key()
+    if not api_key:
+        raise RuntimeError('Configura SHOP_TRANSLATE_OPENAI_API_KEY para usar a traducao.')
+
+    protected_text, tags = _protect_square_tags(source_text)
+    if not protected_text.strip():
+        raise ValueError('O campo INSTRUCOES esta vazio.')
+
+    request_body = {
+        'model': _translation_model(db.session),
+        'input': [
+            {
+                'role': 'system',
+                'content': [
+                    {
+                        'type': 'input_text',
+                        'text': (
+                            'You translate Portuguese accommodation instructions for guests. '
+                            'Return valid JSON only. Keep every placeholder token matching __SZTAG<number>__ exactly unchanged.'
+                        ),
+                    }
+                ],
+            },
+            {
+                'role': 'user',
+                'content': [
+                    {
+                        'type': 'input_text',
+                        'text': json.dumps({
+                            'source_language': 'pt-PT',
+                            'source_text': protected_text,
+                            'target_languages': {
+                                'en': 'English',
+                                'fr': 'French',
+                                'es': 'Spanish',
+                            },
+                            'rules': [
+                                'Translate naturally for guests staying in short-term accommodation.',
+                                'Keep line breaks and list structure as much as possible.',
+                                'Do not translate, remove or alter placeholder tokens such as __SZTAG0__.',
+                                'Do not add explanations.',
+                            ],
+                        }, ensure_ascii=False),
+                    }
+                ],
+            },
+        ],
+        'text': {
+            'format': {
+                'type': 'json_schema',
+                'name': 'al_instrucoes_translations',
+                'schema': {
+                    'type': 'object',
+                    'additionalProperties': False,
+                    'properties': {
+                        'en': {'type': 'string'},
+                        'fr': {'type': 'string'},
+                        'es': {'type': 'string'},
+                    },
+                    'required': ['en', 'fr', 'es'],
+                },
+            }
+        },
+    }
+
+    req = urllib_request.Request(
+        'https://api.openai.com/v1/responses',
+        data=json.dumps(request_body).encode('utf-8'),
+        headers={
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json',
+        },
+        method='POST',
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=90) as response:
+            payload_response = json.loads(response.read().decode('utf-8'))
+    except urllib_error.HTTPError as exc:
+        details = ''
+        try:
+            details = exc.read().decode('utf-8')
+        except Exception:
+            details = str(exc)
+        raise RuntimeError(f'Falha na traducao OpenAI: {details[:320]}') from exc
+    except Exception as exc:
+        raise RuntimeError(f'Falha na traducao OpenAI: {exc}') from exc
+
+    raw_text = _strip_json_fence(_extract_openai_text(payload_response))
+    if not raw_text:
+        raise RuntimeError('A OpenAI nao devolveu texto utilizavel.')
+    try:
+        parsed = json.loads(raw_text)
+    except Exception as exc:
+        raise RuntimeError('A resposta da OpenAI nao veio em JSON valido.') from exc
+
+    return {
+        'INSTRUCOES_EN': _restore_square_tags(parsed.get('en') or '', tags).strip(),
+        'INSTRUCOES_FR': _restore_square_tags(parsed.get('fr') or '', tags).strip(),
+        'INSTRUCOES_ES': _restore_square_tags(parsed.get('es') or '', tags).strip(),
+    }
+
 def ensure_al_fotos_schema() -> bool:
     if not al_fotos_table_exists():
         return False
@@ -1044,6 +1170,54 @@ def ensure_al_fotos_schema() -> bool:
         """))
         db.session.commit()
     return True
+
+@bp.route('/api/al/<alstamp>/translate_instrucoes', methods=['POST'])
+@login_required
+def al_translate_instrucoes(alstamp):
+    if not has_permission('AL', 'editar'):
+        return jsonify({'error': 'Sem permissão para editar alojamentos'}), 403
+    try:
+        alstamp = (alstamp or '').strip()
+        if not alstamp:
+            return jsonify({'error': 'ALSTAMP em falta'}), 400
+        required_cols = ['INSTRUCOES', 'INSTRUCOES_EN', 'INSTRUCOES_FR', 'INSTRUCOES_ES']
+        missing = [col for col in required_cols if not _column_exists('AL', col)]
+        if missing:
+            return jsonify({'error': f'Campos em falta na tabela AL: {", ".join(missing)}'}), 400
+
+        row = db.session.execute(text("""
+            SELECT TOP 1 ALSTAMP, ISNULL(INSTRUCOES, '') AS INSTRUCOES
+            FROM dbo.AL
+            WHERE ALSTAMP = :alstamp
+        """), {'alstamp': alstamp}).mappings().first()
+        if not row:
+            return jsonify({'error': 'Alojamento não encontrado'}), 404
+
+        payload = request.get_json(silent=True) or {}
+        source_text = str(payload.get('source_text') if payload.get('source_text') is not None else row.get('INSTRUCOES') or '')
+        translations = _translate_al_instructions_with_openai(source_text)
+
+        db.session.execute(text("""
+            UPDATE dbo.AL
+               SET INSTRUCOES_EN = :en,
+                   INSTRUCOES_FR = :fr,
+                   INSTRUCOES_ES = :es
+             WHERE ALSTAMP = :alstamp
+        """), {
+            'en': translations.get('INSTRUCOES_EN') or '',
+            'fr': translations.get('INSTRUCOES_FR') or '',
+            'es': translations.get('INSTRUCOES_ES') or '',
+            'alstamp': alstamp,
+        })
+        db.session.commit()
+        return jsonify({'success': True, 'translations': translations})
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({'error': str(exc)}), 400
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao traduzir instruções AL')
+        return jsonify({'error': str(e)}), 500
 
 # --------------------------------------------------
 # Views para front-end

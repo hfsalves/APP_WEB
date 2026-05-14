@@ -13,6 +13,14 @@
       {% if table_name|upper == 'AL' %}
       <button
         type="button"
+        id="btnALTranslate"
+        class="sz_button sz_button_ghost d-inline-flex align-items-center gap-2"
+        {% if not record_stamp %}disabled title="Guarda o alojamento antes de traduzir"{% endif %}>
+        <i class="fa fa-language"></i>
+        <span>Traduzir</span>
+      </button>
+      <button
+        type="button"
         id="btnALFotos"
         class="sz_button sz_button_ghost d-inline-flex align-items-center gap-2"
         {% if not record_stamp %}disabled title="{{ _('dynamic_form.save_accommodation_before_images') }}"{% endif %}>

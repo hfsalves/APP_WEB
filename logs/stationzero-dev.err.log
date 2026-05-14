@@ -1,0 +1,281 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 487-684-258
+127.0.0.1 - - [13/May/2026 17:42:15] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [13/May/2026 17:42:17] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [13/May/2026 17:42:19] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [13/May/2026 17:42:22] "GET /reconciliacao_bancaria HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:42:23] "GET /reconciliacao_bancaria HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:42:25] "GET /reconciliacao_bancaria HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:42:25] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [13/May/2026 17:42:25] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [13/May/2026 17:42:25] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [13/May/2026 17:42:26] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [13/May/2026 17:42:26] "GET /static/js/reconciliacao_bancaria.js?v=1778690534 HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:42:26] "GET /static/js/push.js?v=1778690534 HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:42:26] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [13/May/2026 17:42:26] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [13/May/2026 17:42:26] "GET /api/extratos HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:42:27] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [13/May/2026 17:42:28] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [13/May/2026 17:42:29] "GET /api/extratos/F3669D60847C46698402BB52C HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:42:37] "POST /api/reconciliacao HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:42:38] "GET /api/extratos/F3669D60847C46698402BB52C HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:42:57] "POST /api/reconciliacao HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:42:58] "POST /api/reconciliacao HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:42:59] "POST /api/reconciliacao HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:43:03] "POST /api/reconciliacao HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:43:04] "POST /api/reconciliacao HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:43:04] "POST /api/reconciliacao HTTP/1.1" 200 -
+127.0.0.1 - - [13/May/2026 17:43:05] "GET /api/extratos/F3669D60847C46698402BB52C HTTP/1.1" 200 -
+[2026-05-14 08:55:59,485] ERROR in app: Erro ao atualizar configuração multiidioma a partir de PARA.
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('08S01', '[08S01] [Microsoft][ODBC Driver 17 for SQL Server]TCP Provider: Uma ligação existente foi forçada a fechar pelo anfitrião remoto.\r\n (10054) (SQLExecDirectW); [08S01] [Microsoft][ODBC Driver 17 for SQL Server]Communication link failure (10054)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\APP_WEB\app.py", line 553, in _reload_i18n_runtime_from_params
+    para_values = _load_para_map()
+  File "C:\APP_WEB\app.py", line 519, in _load_para_map
+    rows = db.session.execute(text("""
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        FROM dbo.PARA
+        ^^^^^^^^^^^^^
+    """)).mappings().all()
+    ^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('08S01', '[08S01] [Microsoft][ODBC Driver 17 for SQL Server]TCP Provider: Uma ligação existente foi forçada a fechar pelo anfitrião remoto.\r\n (10054) (SQLExecDirectW); [08S01] [Microsoft][ODBC Driver 17 for SQL Server]Communication link failure (10054)')
+[SQL: 
+            SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+            FROM dbo.PARA
+        ]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+127.0.0.1 - - [14/May/2026 08:55:59] "GET /generic/view/AL HTTP/1.1" 500 -
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "C:\APP_WEB\app.py", line 2443, in _enforce_database_consistency
+    if _database_consistency_allow_request():
+       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\APP_WEB\app.py", line 2418, in _database_consistency_allow_request
+    if not current_user.is_authenticated:
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\werkzeug\local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "C:\APP_WEB\.venv\Lib\site-packages\werkzeug\local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "C:\APP_WEB\app.py", line 2273, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "C:\APP_WEB\services\auth_service.py", line 248, in get_user_by_stamp
+    row = session.execute(sql, {"stamp": (user_stamp or "").strip()}).mappings().first()
+          ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\scoping.py", line 779, in execute
+    return self._proxied.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2260, in _execute_internal
+    result = conn.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1809, in _execute_context
+    conn = self._revalidate_connection()
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 675, in _revalidate_connection
+    self._invalid_transaction()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 665, in _invalid_transaction
+    raise exc.PendingRollbackError(
+    ^
+sqlalchemy.exc.PendingRollbackError: Can't reconnect until invalid transaction is rolled back.  Please rollback() fully before proceeding (Background on this error at: https://sqlalche.me/e/20/8s2b)
+127.0.0.1 - - [14/May/2026 08:55:59] "GET /generic/view/AL?__debugger__=yes&cmd=resource&f=style.css HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:55:59] "GET /generic/view/AL?__debugger__=yes&cmd=resource&f=debugger.js HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:00] "GET /generic/view/AL?__debugger__=yes&cmd=resource&f=console.png&s=qGUFRdpaXSlBpZHlvxBO HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:00] "GET /generic/view/AL?__debugger__=yes&cmd=resource&f=console.png HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:02] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:05] "GET /generic/view/AL HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:06] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:06] "GET /static/js/dynamic_list.js?v=1778690534 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:06] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:06] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:06] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:06] "GET /static/js/push.js?v=1778690534 HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:06] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:06] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:06] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:08] "GET /generic/api/AL?action=describe&include_screen_meta=1&menustamp=34BA0790-C450-4684-A388-5 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:08] "GET /generic/api/options?query=SELECT%20ZONA%20FROM%20ZN%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:08] "GET /generic/api/options?query=select%20'EXPLORACAO'%20as%20tipo%20union%20all%20select%20'GESTAO' HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:08] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:09] "GET /generic/api/AL HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:14] "GET /generic/form/AL/4F68AAB3-8906-4378-8FD3-3?menustamp=34BA0790-C450-4684-A388-5&return_to=/generic/view/AL HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:14] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:14] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:14] "GET /static/js/dynamic_form.js HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:14] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:14] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:14] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:14] "GET /static/js/push.js?v=1778690534 HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:15] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:16] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:16] "GET /generic/api/AL?action=describe&menustamp=34BA0790-C450-4684-A388-5&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:17] "GET /generic/api/options?query=SELECT%20ZONA%20FROM%20ZN%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:17] "GET /generic/api/options?query=SELECT%20NOME%20FROM%20EP%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:17] "GET /generic/api/options?query=SELECT%20NOME%20FROM%20PR%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:17] "GET /generic/api/options?query=SELECT%20NOME%20FROM%20CL%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:17] "GET /generic/api/options?query=select%20'EXPLORACAO'%20as%20tipo%20union%20all%20select%20'GESTAO' HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:17] "GET /generic/api/options?query=SELECT%20'T0'%20UNION%20ALL%20SELECT%20'T1'%20UNION%20ALL%20SELECT%20'T2'%20UNION%20ALL%20SELECT%20'T3'%20UNION%20ALL%20SELECT%20'T4' HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:17] "GET /generic/api/options?query=SELECT%20CCUSTO%20FROM%20V_CCT%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:18] "GET /generic/api/AL/4F68AAB3-8906-4378-8FD3-3 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:18] "GET /generic/api/dynamic_details/AL/4F68AAB3-8906-4378-8FD3-3 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:19] "GET /api/anexos?table=AL&rec=4F68AAB3-8906-4378-8FD3-3 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:22] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:26] "GET /generic/form/AL/7C095E1E-9A77-4493-B696-B?menustamp=34BA0790-C450-4684-A388-5&return_to=/generic/view/AL HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:26] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:26] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:26] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:26] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:26] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:27] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:27] "GET /static/js/push.js?v=1778690534 HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:27] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:28] "GET /generic/api/AL?action=describe&menustamp=34BA0790-C450-4684-A388-5&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:29] "GET /generic/api/options?query=SELECT%20NOME%20FROM%20EP%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:29] "GET /generic/api/options?query=SELECT%20ZONA%20FROM%20ZN%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:29] "GET /generic/api/options?query=SELECT%20NOME%20FROM%20PR%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:29] "GET /generic/api/options?query=SELECT%20NOME%20FROM%20CL%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:29] "GET /generic/api/options?query=select%20'EXPLORACAO'%20as%20tipo%20union%20all%20select%20'GESTAO' HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:29] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:56:29] "GET /generic/api/options?query=SELECT%20'T0'%20UNION%20ALL%20SELECT%20'T1'%20UNION%20ALL%20SELECT%20'T2'%20UNION%20ALL%20SELECT%20'T3'%20UNION%20ALL%20SELECT%20'T4' HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:33] "GET /generic/api/options?query=SELECT%20CCUSTO%20FROM%20V_CCT%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:34] "GET /generic/api/AL/7C095E1E-9A77-4493-B696-B HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:34] "GET /generic/api/dynamic_details/AL/7C095E1E-9A77-4493-B696-B HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:34] "GET /api/anexos?table=AL&rec=7C095E1E-9A77-4493-B696-B HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:56:56] "POST /generic/api/al/7C095E1E-9A77-4493-B696-B/translate_instrucoes HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:57:10] "PUT /generic/api/AL/7C095E1E-9A77-4493-B696-B HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:57:13] "GET /generic/view/AL HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:57:13] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:57:13] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:57:14] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:57:14] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:57:14] "GET /static/js/dynamic_list.js?v=1778690534 HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:57:14] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:57:14] "GET /static/js/push.js?v=1778690534 HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:57:14] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:57:16] "GET /generic/api/AL?action=describe&include_screen_meta=1&menustamp=34BA0790-C450-4684-A388-5 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:57:16] "GET /generic/api/options?query=SELECT%20ZONA%20FROM%20ZN%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:57:16] "GET /generic/api/options?query=select%20'EXPLORACAO'%20as%20tipo%20union%20all%20select%20'GESTAO' HTTP/1.1" 200 -
+127.0.0.1 - - [14/May/2026 08:57:16] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [14/May/2026 08:57:17] "GET /generic/api/AL HTTP/1.1" 200 -

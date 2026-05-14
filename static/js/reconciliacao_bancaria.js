@@ -12,9 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRemove = document.getElementById('rbRemoveRec');
   const btnCreateOw = document.getElementById('rbCreateOW');
   const btnGroup = document.getElementById('rbGroupExtratos');
+  const btnSuggest = document.getElementById('rbSuggestMatches');
   const onlyOpen = document.getElementById('rbOnlyOpen');
   const groupModalEl = document.getElementById('rbGroupModal');
   const groupModal = groupModalEl && window.bootstrap ? new bootstrap.Modal(groupModalEl) : null;
+  const suggestModalEl = document.getElementById('rbSuggestModal');
+  const suggestModal = suggestModalEl && window.bootstrap ? new bootstrap.Modal(suggestModalEl) : null;
+  const suggestStatus = document.getElementById('rbSuggestStatus');
+  const suggestTableBody = document.querySelector('#rbSuggestTable tbody');
+  const suggestSelectAll = document.getElementById('rbSuggestSelectAll');
+  const btnSuggestAccept = document.getElementById('rbSuggestAccept');
   const groupConta = document.getElementById('rbGroupConta');
   const groupAno = document.getElementById('rbGroupAno');
   const groupMes = document.getElementById('rbGroupMes');
@@ -34,6 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
     baRows: [],
     selEl: new Set(),
     selBa: new Set(),
+    suggestions: [],
+    selectedSuggestions: new Set(),
     activeGroupId: 0,
     groupAccounts: [],
   };
@@ -67,6 +76,169 @@ document.addEventListener('DOMContentLoaded', () => {
     groupStatus.textContent = msg || '';
   }
 
+  function isOpenRow(row) {
+    return Number(row?.RECONCILIADO || 0) !== 1;
+  }
+
+  function valueCents(value) {
+    return Math.round((Number(value || 0) || 0) * 100);
+  }
+
+  function parseRowDate(value) {
+    const raw = (value || '').toString().slice(0, 10);
+    if (!raw) return null;
+    const d = new Date(`${raw}T00:00:00`);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+
+  function dateGapDays(a, b) {
+    const da = parseRowDate(a);
+    const db = parseRowDate(b);
+    if (!da || !db) return 999999;
+    return Math.abs(Math.round((da.getTime() - db.getTime()) / 86400000));
+  }
+
+  function updateSuggestButton() {
+    if (!btnSuggest) return;
+    const hasOpenEl = (state.elRows || []).some(isOpenRow);
+    const hasOpenBa = (state.baRows || []).some(isOpenRow);
+    btnSuggest.disabled = !(state.ext && hasOpenEl && hasOpenBa);
+  }
+
+  function updateSuggestSelectionUi() {
+    const total = state.suggestions.length;
+    const selected = state.selectedSuggestions.size;
+    if (btnSuggestAccept) btnSuggestAccept.disabled = selected <= 0;
+    if (suggestSelectAll) {
+      suggestSelectAll.checked = total > 0 && selected === total;
+      suggestSelectAll.indeterminate = selected > 0 && selected < total;
+      suggestSelectAll.disabled = total <= 0;
+    }
+  }
+
+  function buildSuggestions() {
+    const elRows = (state.elRows || [])
+      .filter(row => isOpenRow(row) && valueCents(row.VALOR) !== 0)
+      .slice()
+      .sort((a, b) => {
+        const ad = (a.DTVALOR || a.DATA || '').toString();
+        const bd = (b.DTVALOR || b.DATA || '').toString();
+        return ad.localeCompare(bd) || (a.STAMP || '').toString().localeCompare((b.STAMP || '').toString());
+      });
+
+    const baByValue = new Map();
+    (state.baRows || [])
+      .filter(row => isOpenRow(row) && valueCents(row.VALOR) !== 0)
+      .forEach(row => {
+        const key = valueCents(row.VALOR);
+        if (!baByValue.has(key)) baByValue.set(key, []);
+        baByValue.get(key).push(row);
+      });
+
+    for (const rows of baByValue.values()) {
+      rows.sort((a, b) => {
+        const ad = (a.DATA || '').toString();
+        const bd = (b.DATA || '').toString();
+        return ad.localeCompare(bd) || (a.BASTAMP || '').toString().localeCompare((b.BASTAMP || '').toString());
+      });
+    }
+
+    const usedBa = new Set();
+    const suggestions = [];
+    for (const el of elRows) {
+      const key = valueCents(el.VALOR);
+      const elDate = el.DTVALOR || el.DATA || '';
+      const candidates = (baByValue.get(key) || []).filter(ba => !usedBa.has((ba.BASTAMP || '').toString()));
+      if (!candidates.length) continue;
+      candidates.sort((a, b) => (
+        dateGapDays(elDate, a.DATA) - dateGapDays(elDate, b.DATA)
+        || (a.DATA || '').toString().localeCompare((b.DATA || '').toString())
+        || (a.BASTAMP || '').toString().localeCompare((b.BASTAMP || '').toString())
+      ));
+      const ba = candidates[0];
+      usedBa.add((ba.BASTAMP || '').toString());
+      suggestions.push({
+        el,
+        ba,
+        valor: Number(el.VALOR || 0) || 0,
+        days: dateGapDays(elDate, ba.DATA),
+      });
+    }
+    return suggestions;
+  }
+
+  function renderSuggestions(rows) {
+    state.suggestions = Array.isArray(rows) ? rows : [];
+    state.selectedSuggestions.clear();
+    if (suggestStatus) {
+      suggestStatus.textContent = rows.length
+        ? `${rows.length} sugestao(oes) encontrada(s) por valor igual.`
+        : 'Sem sugestoes para os movimentos pendentes deste extrato.';
+    }
+    if (!suggestTableBody) return;
+    if (!rows.length) {
+      suggestTableBody.innerHTML = '<tr><td colspan="9" class="text-muted">Sem movimentos pendentes com valor igual.</td></tr>';
+      updateSuggestSelectionUi();
+      return;
+    }
+    suggestTableBody.innerHTML = rows.map((row, idx) => {
+      const el = row.el || {};
+      const ba = row.ba || {};
+      return `
+        <tr>
+          <td>
+            <input class="form-check-input rb-suggest-check" type="checkbox" data-suggest-index="${idx}">
+          </td>
+          <td>${idx + 1}</td>
+          <td>${esc(el.DTVALOR || el.DATA || '')}</td>
+          <td><div class="rb-suggest-desc" title="${esc(el.DESCRICAO || '')}">${esc(el.DESCRICAO || '')}</div></td>
+          <td class="text-end ${moneyClass(row.valor)}">${fmtMoney(row.valor)}</td>
+          <td>${esc(ba.DATA || '')}</td>
+          <td><div class="rb-suggest-desc" title="${esc(ba.DOCUMENTO || '')}">${esc(ba.DOCUMENTO || '')}</div></td>
+          <td><div class="rb-suggest-desc" title="${esc(ba.DESCRICAO || '')}">${esc(ba.DESCRICAO || '')}</div></td>
+          <td class="text-end">${row.days === 999999 ? '-' : esc(row.days)}</td>
+        </tr>
+      `;
+    }).join('');
+    updateSuggestSelectionUi();
+  }
+
+  async function reconcileSelectedSuggestions() {
+    const extstamp = (selExt?.value || '').trim();
+    if (!extstamp || !state.selectedSuggestions.size) return;
+    const selected = Array.from(state.selectedSuggestions).sort((a, b) => a - b);
+    let done = 0;
+    try {
+      if (btnSuggestAccept) btnSuggestAccept.disabled = true;
+      if (suggestStatus) suggestStatus.textContent = `A reconciliar ${selected.length} sugestao(oes)...`;
+      for (const idx of selected) {
+        const suggestion = state.suggestions[idx];
+        const elStamp = (suggestion?.el?.STAMP || '').toString();
+        const baStamp = (suggestion?.ba?.BASTAMP || '').toString();
+        if (!elStamp || !baStamp) continue;
+        const r = await fetch('/api/reconciliacao', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ EXTSTAMP: extstamp, EL: [elStamp], BA: [baStamp] }),
+        });
+        const js = await r.json().catch(() => ({}));
+        if (!r.ok || js.error) throw new Error(`Linha ${idx + 1}: ${js.error || r.statusText}`);
+        done += 1;
+      }
+      setStatus(`${done} reconciliacao(oes) criada(s).`, 'ok');
+      suggestModal?.hide();
+      await loadForExt(extstamp);
+    } catch (e) {
+      if (suggestStatus) {
+        suggestStatus.textContent = `${e?.message || String(e)}${done ? ` (${done} reconciliada(s) antes do erro).` : ''}`;
+      }
+      setStatus(e?.message || String(e), 'err');
+      if (done) await loadForExt(extstamp);
+    } finally {
+      updateSuggestSelectionUi();
+    }
+  }
+
   function moneyClass(v) {
     const n = Number(v || 0) || 0;
     return n < 0 ? 'rb-money rb-neg' : 'rb-money rb-pos';
@@ -95,6 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!rec && valor > 0.005) eligibleOw += 1;
     }
     if (btnCreateOw) btnCreateOw.disabled = eligibleOw <= 0;
+    updateSuggestButton();
   }
 
   function setActiveGroupFromRow(tr) {
@@ -237,6 +410,9 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadForExt(extstamp) {
     if (!extstamp) return;
     setStatus('A carregar...', '');
+    state.ext = null;
+    state.elRows = [];
+    state.baRows = [];
     state.selEl.clear();
     state.selBa.clear();
     state.activeGroupId = 0;
@@ -265,7 +441,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   selExt?.addEventListener('change', () => {
     const v = (selExt.value || '').trim();
-    if (!v) return;
+    if (!v) {
+      state.ext = null;
+      state.elRows = [];
+      state.baRows = [];
+      state.selEl.clear();
+      state.selBa.clear();
+      state.activeGroupId = 0;
+      if (inpConta) inpConta.value = '';
+      if (inpPeriodo) inpPeriodo.value = '';
+      if (tbEl) tbEl.innerHTML = '<tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>';
+      if (tbBa) tbBa.innerHTML = '<tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>';
+      computeSums();
+      return;
+    }
     loadForExt(v);
   });
 
@@ -289,6 +478,42 @@ document.addEventListener('DOMContentLoaded', () => {
     if (searchBa) searchBa.value = '';
     renderBa();
     try { searchBa?.focus(); } catch (_) {}
+  });
+
+  btnSuggest?.addEventListener('click', () => {
+    if (!state.ext) {
+      setStatus('Seleciona um extrato.', 'err');
+      return;
+    }
+    const suggestions = buildSuggestions();
+    renderSuggestions(suggestions);
+    suggestModal?.show();
+  });
+
+  suggestSelectAll?.addEventListener('change', () => {
+    state.selectedSuggestions.clear();
+    if (suggestSelectAll.checked) {
+      state.suggestions.forEach((_, idx) => state.selectedSuggestions.add(idx));
+    }
+    suggestTableBody?.querySelectorAll('.rb-suggest-check').forEach(chk => {
+      const idx = Number(chk.getAttribute('data-suggest-index') || -1);
+      chk.checked = state.selectedSuggestions.has(idx);
+    });
+    updateSuggestSelectionUi();
+  });
+
+  suggestTableBody?.addEventListener('change', (e) => {
+    const chk = e.target.closest('.rb-suggest-check');
+    if (!chk) return;
+    const idx = Number(chk.getAttribute('data-suggest-index') || -1);
+    if (idx < 0) return;
+    if (chk.checked) state.selectedSuggestions.add(idx);
+    else state.selectedSuggestions.delete(idx);
+    updateSuggestSelectionUi();
+  });
+
+  btnSuggestAccept?.addEventListener('click', () => {
+    reconcileSelectedSuggestions();
   });
 
   document.addEventListener('click', (e) => {
