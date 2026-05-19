@@ -58,7 +58,9 @@
 
           <div class="sz_field">
             <label class="sz_label" for="grCentralMotorista">Motorista</label>
-            <input class="sz_input" id="grCentralMotorista" maxlength="60" required placeholder="Nome do motorista">
+            <select class="sz_select" id="grCentralMotorista" required>
+              <option value="">A carregar...</option>
+            </select>
           </div>
 
           <div class="sz_field">
@@ -149,6 +151,7 @@
       saveUrl: {{ url_for('gr_planning.concrete_central_save')|tojson }},
       opcUrl: {{ url_for('gr_planning.concrete_central_opc')|tojson }},
       vehiclesUrl: {{ url_for('gr_planning.concrete_central_vehicles')|tojson }},
+      driversUrl: {{ url_for('gr_planning.concrete_central_drivers')|tojson }},
       today: {{ today|tojson }},
       record: {{ record|tojson }},
       returnUrl: {{ return_to|tojson }}

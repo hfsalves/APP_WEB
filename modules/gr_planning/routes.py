@@ -296,6 +296,29 @@ def _fetch_concrete_vehicles(term: str = "", limit: int = 80) -> list[dict]:
     ]
 
 
+def _fetch_concrete_drivers(term: str = "", limit: int = 150) -> list[dict]:
+    cols = _table_columns("MO")
+    if not cols or "NOME" not in cols:
+        return []
+    safe_limit = max(1, min(int(limit or 150), 300))
+    query = f"%{str(term or '').strip()}%"
+    inactive_filter = "AND ISNULL(INATIVO, 0) = 0" if "INATIVO" in cols else ""
+    rows = db.session.execute(text(f"""
+        SELECT TOP ({safe_limit})
+            LTRIM(RTRIM(ISNULL(CAST(NOME AS nvarchar(60)), ''))) AS nome
+        FROM dbo.MO
+        WHERE
+            (:query = '%%' OR CAST(NOME AS nvarchar(60)) LIKE :query)
+            {inactive_filter}
+        ORDER BY LTRIM(RTRIM(ISNULL(CAST(NOME AS nvarchar(60)), '')))
+    """), {"query": query}).mappings().all()
+    return [
+        {"nome": str(row.get("nome") or "").strip()}
+        for row in rows
+        if str(row.get("nome") or "").strip()
+    ]
+
+
 def _save_concrete_record(payload: dict) -> dict:
     if not _macro_table_exists("RCENTRAL"):
         raise ValueError("Tabela RCENTRAL inexistente.")
@@ -1055,6 +1078,17 @@ def concrete_central_vehicles():
     term = (request.args.get("q") or "").strip()
     try:
         return jsonify({"rows": _fetch_concrete_vehicles(term)})
+    except Exception as exc:
+        return jsonify({"rows": [], "error": str(exc)}), 500
+
+
+@bp.route("/api/gr_planning/centrais-betao/drivers")
+@login_required
+def concrete_central_drivers():
+    _ensure_planning_access()
+    term = (request.args.get("q") or "").strip()
+    try:
+        return jsonify({"rows": _fetch_concrete_drivers(term)})
     except Exception as exc:
         return jsonify({"rows": [], "error": str(exc)}), 500
 

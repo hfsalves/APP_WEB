@@ -94,7 +94,21 @@
 .gr-central-form .sz_select,
 .gr-central-form .sz_textarea {
   min-width: 0;
+  width: 100%;
   max-width: 100%;
+}
+
+.gr-central-form input.sz_input[type="date"],
+.gr-central-form input.sz_input[type="time"] {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .gr-central-span-2 {

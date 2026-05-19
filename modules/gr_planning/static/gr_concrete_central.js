@@ -6,6 +6,7 @@
   const formHint = document.getElementById('grCentralFormHint');
   const processResults = document.getElementById('grCentralProcessos');
   const vehicleSelect = document.getElementById('grCentralMatricula');
+  const driverSelect = document.getElementById('grCentralMotorista');
 
   if (!form) return;
 
@@ -149,6 +150,29 @@
     }
   };
 
+  const loadDrivers = async () => {
+    if (!driverSelect) return;
+    const selected = els.motorista?.value || initialRecord?.motorista || '';
+    try {
+      const response = await fetch(cfg.driversUrl, { headers: { Accept: 'application/json' } });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Erro ao carregar motoristas.');
+      const rows = payload.rows || [];
+      driverSelect.innerHTML = '<option value="">Escolher motorista</option>' + rows.map((row) => (
+        `<option value="${escapeHtml(row.nome)}">${escapeHtml(row.nome)}</option>`
+      )).join('');
+      if (selected) {
+        const exists = Array.from(driverSelect.options).some((option) => option.value === selected);
+        if (!exists) {
+          driverSelect.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(selected)}">${escapeHtml(selected)}</option>`);
+        }
+        driverSelect.value = selected;
+      }
+    } catch (error) {
+      driverSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+    }
+  };
+
   const hideProcessResults = () => {
     if (processResults) processResults.hidden = true;
   };
@@ -271,4 +295,5 @@
   else fillBlankForm();
 
   loadVehicles();
+  loadDrivers();
 })();
