@@ -14,6 +14,7 @@ from flask import current_app, request
 from sqlalchemy import text
 
 from models import db
+from services.odbc_driver import get_sql_server_odbc_driver
 
 
 LEGACY_DIR = Path(__file__).resolve().parents[2] / "planeamento"
@@ -107,11 +108,12 @@ class LegacyConfig:
     database: str
     username: str
     password: str
-    driver: str = "ODBC Driver 17 for SQL Server"
+    driver: str = ""
 
     def as_odbc_string(self) -> str:
+        driver = self.driver or get_sql_server_odbc_driver()
         return (
-            f"DRIVER={{{self.driver}}};"
+            f"DRIVER={{{driver}}};"
             f"SERVER={self.server};"
             f"DATABASE={self.database};"
             f"UID={self.username};"
@@ -142,7 +144,7 @@ def _build_hsols_master_config() -> LegacyConfig:
     server = _extract_sql_part(client_conn, "SERVER")
     username = _extract_sql_part(client_conn, "UID")
     password = _extract_sql_part(client_conn, "PWD")
-    driver = _extract_sql_part(client_conn, "DRIVER").strip("{}") or "ODBC Driver 17 for SQL Server"
+    driver = _extract_sql_part(client_conn, "DRIVER").strip("{}") or get_sql_server_odbc_driver()
     if not server or not username:
         raise RuntimeError("Não foi possível derivar a ligação HSOLS_MASTER a partir da ligação client.")
     return LegacyConfig(

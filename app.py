@@ -28,6 +28,12 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
 from werkzeug.utils import secure_filename
+from services.odbc_driver import (
+    get_sql_server_odbc_driver,
+    get_sqlalchemy_odbc_driver_value,
+    normalize_pyodbc_conn_str_driver,
+    normalize_sqlalchemy_mssql_url_driver,
+)
 from services.assinatura_service import sign_ft_document
 from services.qr_atcud_service import (
     get_param as qr_get_param,
@@ -181,9 +187,10 @@ def create_app():
         password_value = str(password or '').strip()
         port_value = str(port or '').strip()
         host_part = f"{server_value},{port_value}" if port_value else server_value
+        driver_value = get_sqlalchemy_odbc_driver_value()
         return (
             f"mssql+pyodbc://{quote(username_value)}:{quote(password_value)}@{host_part}/{database_value}"
-            "?driver=ODBC+Driver+17+for+SQL+Server"
+            f"?driver={driver_value}"
             "&TrustServerCertificate=Yes&protocol=TCP&application_name=SZERO"
         )
 
@@ -191,8 +198,9 @@ def create_app():
         server_value = str(server or '').strip()
         port_value = str(port or '').strip()
         host_part = f"{server_value},{port_value}" if port_value else server_value
+        driver_name = get_sql_server_odbc_driver()
         return (
-            "DRIVER={ODBC Driver 17 for SQL Server};"
+            f"DRIVER={{{driver_name}}};"
             f"SERVER={host_part};"
             f"DATABASE={str(database or '').strip() or 'GESTAO'};"
             f"UID={str(username or '').strip()};"
@@ -202,24 +210,28 @@ def create_app():
         )
 
     prod_db_uri = (
-        os.environ.get('DATABASE_URL_PROD')
-        or os.environ.get('DATABASE_URL')
-        or _build_sqlalchemy_mssql_uri(
-            server=os.environ.get('DB_PROD_SERVER', 'sql.szeroapp.com'),
-            port=os.environ.get('DB_PROD_PORT', '50002'),
-            database=os.environ.get('DB_PROD_NAME', 'GESTAO'),
-            username=os.environ.get('DB_PROD_USER', 'sa'),
-            password=os.environ.get('DB_PROD_PASSWORD', 'enterprise'),
+        normalize_sqlalchemy_mssql_url_driver(
+            os.environ.get('DATABASE_URL_PROD')
+            or os.environ.get('DATABASE_URL')
+            or _build_sqlalchemy_mssql_uri(
+                server=os.environ.get('DB_PROD_SERVER', 'sql.szeroapp.com'),
+                port=os.environ.get('DB_PROD_PORT', '50002'),
+                database=os.environ.get('DB_PROD_NAME', 'GESTAO'),
+                username=os.environ.get('DB_PROD_USER', 'sa'),
+                password=os.environ.get('DB_PROD_PASSWORD', 'enterprise'),
+            )
         )
     )
     client_db_uri = (
-        os.environ.get('DATABASE_URL_CLIENT')
-        or _build_sqlalchemy_mssql_uri(
-            server=os.environ.get('DB_CLIENT_SERVER', '10.0.1.12'),
-            port=os.environ.get('DB_CLIENT_PORT', ''),
-            database=os.environ.get('DB_CLIENT_NAME', 'GR360_CORE'),
-            username=os.environ.get('DB_CLIENT_USER', 'sa'),
-            password=os.environ.get('DB_CLIENT_PASSWORD', 'H$ols2020'),
+        normalize_sqlalchemy_mssql_url_driver(
+            os.environ.get('DATABASE_URL_CLIENT')
+            or _build_sqlalchemy_mssql_uri(
+                server=os.environ.get('DB_CLIENT_SERVER', '10.0.1.12'),
+                port=os.environ.get('DB_CLIENT_PORT', ''),
+                database=os.environ.get('DB_CLIENT_NAME', 'GR360_CORE'),
+                username=os.environ.get('DB_CLIENT_USER', 'sa'),
+                password=os.environ.get('DB_CLIENT_PASSWORD', 'H$ols2020'),
+            )
         )
     )
 
@@ -275,7 +287,7 @@ def create_app():
     }
 
     app.config['RADAR_CONN_STRS'] = {
-        db_target_prod: (
+        db_target_prod: normalize_pyodbc_conn_str_driver(
             os.environ.get('RADAR_CONN_STR_PROD')
             or os.environ.get('RADAR_CONN_STR')
             or _build_pyodbc_conn_str(
@@ -286,7 +298,7 @@ def create_app():
                 password=os.environ.get('DB_PROD_PASSWORD', 'enterprise'),
             )
         ),
-        db_target_client: (
+        db_target_client: normalize_pyodbc_conn_str_driver(
             os.environ.get('RADAR_CONN_STR_CLIENT')
             or _build_pyodbc_conn_str(
                 server=os.environ.get('DB_CLIENT_SERVER', '10.0.1.12'),

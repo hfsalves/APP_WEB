@@ -9,10 +9,15 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
+from services.odbc_driver import normalize_sqlalchemy_mssql_url_driver
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+sqlalchemy_url = config.get_main_option("sqlalchemy.url")
+if sqlalchemy_url:
+    config.set_main_option("sqlalchemy.url", normalize_sqlalchemy_mssql_url_driver(sqlalchemy_url))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
