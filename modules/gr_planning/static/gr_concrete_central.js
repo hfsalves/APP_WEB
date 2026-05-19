@@ -17,6 +17,7 @@
   const els = {
     stamp: document.getElementById('grCentralStamp'),
     processo: document.getElementById('grCentralProcesso'),
+    processoDescricao: document.getElementById('grCentralProcessoDescricao'),
     data: document.getElementById('grCentralData'),
     servico: document.getElementById('grCentralServico'),
     matricula: document.getElementById('grCentralMatricula'),
@@ -77,9 +78,15 @@
     if (deleteBtn) deleteBtn.disabled = !!loading;
   };
 
+  const setProject = (processo, descricao = '') => {
+    if (els.processo) els.processo.value = processo || '';
+    if (els.processoDescricao) els.processoDescricao.value = descricao || '';
+  };
+
   const fillBlankForm = () => {
     form.reset();
     els.stamp.value = '';
+    setProject('', '');
     els.data.value = cfg.today || new Date().toISOString().slice(0, 10);
     els.cinicial.value = '0';
     els.cfinal.value = '0';
@@ -87,6 +94,7 @@
     els.brita.value = '0';
     els.cimento.value = '0';
     els.aditivo.value = '0';
+    if (els.motorista) els.motorista.value = cfg.defaultDriver || '';
     if (els.servico) els.servico.value = 'PRODUÇÃO';
     updateQtt();
   };
@@ -112,7 +120,7 @@
 
   const fillForm = (record) => {
     els.stamp.value = record.stamp || '';
-    els.processo.value = record.processo || '';
+    setProject(record.processo || '', record.obra_descricao || '');
     els.data.value = record.data || cfg.today || '';
     els.servico.value = record.servico || 'PRODUÇÃO';
     els.matricula.value = record.matricula || '';
@@ -156,7 +164,7 @@
 
   const loadDrivers = async () => {
     if (!driverSelect) return;
-    const selected = els.motorista?.value || initialRecord?.motorista || '';
+    const selected = els.motorista?.value || initialRecord?.motorista || cfg.defaultDriver || '';
     try {
       const response = await fetch(cfg.driversUrl, { headers: { Accept: 'application/json' } });
       const payload = await response.json().catch(() => ({}));
@@ -279,6 +287,10 @@
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || 'Erro');
       renderProcessResults(payload.rows || []);
+      const exact = processRows.find((row) => (
+        String(row.processo || '').trim().toUpperCase() === query.toUpperCase()
+      ));
+      if (exact && els.processoDescricao) els.processoDescricao.value = exact.descricao || '';
     } catch (error) {
       processResults.innerHTML = '';
       processResults.hidden = true;
@@ -338,6 +350,7 @@
   });
 
   els.processo?.addEventListener('input', () => {
+    if (els.processoDescricao) els.processoDescricao.value = '';
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => searchProcesses(els.processo.value), 180);
   });
@@ -351,7 +364,7 @@
     if (!option) return;
     const row = processRows[Number(option.dataset.index)];
     if (!row) return;
-    els.processo.value = row.processo || '';
+    setProject(row.processo || '', row.descricao || '');
     hideProcessResults();
   });
 

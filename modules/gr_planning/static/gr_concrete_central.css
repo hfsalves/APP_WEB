@@ -105,8 +105,21 @@
   grid-column: 1 / -1;
 }
 
+.gr-central-project-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: var(--sz-space-3);
+  align-items: start;
+  min-width: 0;
+}
+
 .gr-central-process-field {
   position: relative;
+}
+
+.gr-central-project-description {
+  color: var(--sz-color-text-secondary);
+  background: color-mix(in srgb, var(--sz-color-surface) 88%, var(--sz-color-bg-main));
 }
 
 .gr-central-process-results {
@@ -130,10 +143,7 @@
 
 .gr-central-process-option {
   width: 100%;
-  display: grid;
-  grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
-  gap: var(--sz-space-2);
-  align-items: center;
+  display: block;
   border: 0;
   border-radius: var(--sz-radius-sm);
   background: transparent;
@@ -141,6 +151,19 @@
   text-align: left;
   padding: 0.55rem 0.65rem;
   cursor: pointer;
+}
+
+.gr-central-process-option strong,
+.gr-central-process-option span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gr-central-process-option strong {
+  font-weight: 700;
 }
 
 .gr-central-process-option:hover,
@@ -368,13 +391,16 @@ body.gr-central-ref-open {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .gr-central-project-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .gr-central-process-results {
     max-height: 16rem;
   }
 
   .gr-central-process-option {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.1rem;
+    padding-block: 0.7rem;
   }
 
   .gr-central-span-2,

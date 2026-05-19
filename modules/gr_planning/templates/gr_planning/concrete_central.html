@@ -23,10 +23,17 @@
         <input type="hidden" id="grCentralStamp">
 
         <div class="gr-central-grid">
-          <div class="sz_field gr-central-span-2 gr-central-process-field">
-            <label class="sz_label" for="grCentralProcesso">Obra</label>
-            <input class="sz_input" id="grCentralProcesso" maxlength="25" required placeholder="Codigo ou descricao da obra" autocomplete="off">
-            <div class="gr-central-process-results" id="grCentralProcessos" hidden></div>
+          <div class="gr-central-span-2 gr-central-project-pair">
+            <div class="sz_field gr-central-process-field">
+              <label class="sz_label" for="grCentralProcesso">Obra</label>
+              <input class="sz_input" id="grCentralProcesso" maxlength="25" required placeholder="Codigo ou descricao da obra" autocomplete="off">
+              <div class="gr-central-process-results" id="grCentralProcessos" hidden></div>
+            </div>
+
+            <div class="sz_field">
+              <label class="sz_label" for="grCentralProcessoDescricao">Descri&ccedil;&atilde;o da obra</label>
+              <input class="sz_input gr-central-project-description" id="grCentralProcessoDescricao" readonly tabindex="-1">
+            </div>
           </div>
 
           <div class="sz_field">
@@ -181,6 +188,7 @@
       refsUrl: {{ url_for('gr_planning.concrete_central_refs')|tojson }},
       today: {{ today|tojson }},
       record: {{ record|tojson }},
+      defaultDriver: {{ default_driver|tojson }},
       returnUrl: {{ return_to|tojson }}
     };
   </script>

@@ -21,7 +21,6 @@ from .service import (
     build_monthly_sheet_page,
     build_monthly_sheet_intersol_page,
     build_team_management_page,
-    can_access_monitor,
     can_access_monthly_sheet,
     can_access_monthly_sheet_intersol,
     can_access_planning,
@@ -78,31 +77,51 @@ def _ensure_monthly_sheet_intersol_access() -> dict:
 
 
 def _ensure_monitor_access() -> dict:
-    if _has_app_task_access("consultar"):
-        return {}
-    allowed, legacy_user = can_access_monitor(_current_login_value())
-    if not allowed or not legacy_user:
-        abort(403)
-    return legacy_user
+    return {}
 
 
 def _ensure_monitor_edit_access() -> dict:
-    if _has_app_task_access("editar"):
-        return {}
-    allowed, legacy_user = can_access_monitor(_current_login_value())
-    if not allowed or not legacy_user:
-        abort(403)
-    return legacy_user
+    return {}
 
 
-def _has_app_task_access(action: str = "consultar") -> bool:
+def _has_table_access(table_names: str | list[str] | tuple[str, ...], action: str = "consultar") -> bool:
     if getattr(current_user, "ADMIN", False) or getattr(current_user, "DEV", False):
         return True
     login = _current_login_value()
     if not login:
         return False
-    row = Acessos.query.filter_by(utilizador=login, tabela="TAREFAS").first()
-    return bool(row and getattr(row, action, False))
+    names = table_names if isinstance(table_names, (list, tuple, set)) else [table_names]
+    normalized_names = {str(name or "").strip().upper() for name in names if str(name or "").strip()}
+    if not normalized_names:
+        return False
+    rows = (
+        Acessos.query
+        .filter(Acessos.utilizador == login)
+        .filter(db.func.upper(db.func.ltrim(db.func.rtrim(Acessos.tabela))).in_(normalized_names))
+        .all()
+    )
+    return any(bool(getattr(row, action, False)) for row in rows)
+
+
+def _has_concrete_central_access(action: str = "consultar") -> bool:
+    return _has_table_access(("RCENTRAL", "RECENTRAL"), action)
+
+
+def _ensure_concrete_central_access(action: str = "consultar") -> None:
+    if not _has_concrete_central_access(action):
+        abort(403)
+
+
+def _current_default_driver() -> str:
+    login = _current_login_value()
+    if not login or "MOTORISTA" not in _table_columns("US"):
+        return ""
+    row = db.session.execute(text("""
+        SELECT TOP 1 LTRIM(RTRIM(ISNULL(CAST(MOTORISTA AS nvarchar(60)), ''))) AS MOTORISTA
+        FROM dbo.US
+        WHERE LTRIM(RTRIM(ISNULL(LOGIN, ''))) = :login
+    """), {"login": login}).mappings().first()
+    return str((row or {}).get("MOTORISTA") or "").strip()
 
 
 def _monitor_user_filter() -> str | None:
@@ -174,10 +193,24 @@ def _ascii_key(value: str) -> str:
     return "".join(ch for ch in normalized if not unicodedata.combining(ch)).upper().strip()
 
 
+def _fetch_opc_description(processo: str) -> str:
+    normalized = str(processo or "").strip()[:25]
+    if not normalized or not _macro_table_exists("OPC"):
+        return ""
+    row = db.session.execute(text("""
+        SELECT TOP 1 LTRIM(RTRIM(ISNULL(CAST(DESCRICAO AS nvarchar(255)), ''))) AS descricao
+        FROM dbo.OPC
+        WHERE LTRIM(RTRIM(ISNULL(CAST(PROCESSO AS nvarchar(120)), ''))) = :processo
+    """), {"processo": normalized}).mappings().first()
+    return str((row or {}).get("descricao") or "").strip()
+
+
 def _concrete_record_from_row(row) -> dict:
+    processo = str(row.get("PROCESSO") or "").strip()
     return {
         "stamp": str(row.get("RCENTRALSTAMP") or "").strip(),
-        "processo": str(row.get("PROCESSO") or "").strip(),
+        "processo": processo,
+        "obra_descricao": _fetch_opc_description(processo),
         "servico": str(row.get("SERVICO") or "").strip(),
         "motorista": str(row.get("MOTORISTA") or "").strip(),
         "matricula": str(row.get("MATRICULA") or "").strip(),
@@ -962,8 +995,13 @@ def gr_monitor():
 @bp.route("/gr_planning/rcentral/<stamp>")
 @login_required
 def concrete_central_page(stamp: str = ""):
-    _ensure_planning_access()
     requested_stamp = (stamp or request.args.get("stamp") or "").strip()
+    if requested_stamp:
+        if not (_has_concrete_central_access("consultar") or _has_concrete_central_access("editar")):
+            abort(403)
+    else:
+        if not (_has_concrete_central_access("inserir") or _has_concrete_central_access("consultar")):
+            abort(403)
     record = _fetch_concrete_record(requested_stamp) if requested_stamp else None
     if requested_stamp and not record:
         abort(404)
@@ -974,6 +1012,7 @@ def concrete_central_page(stamp: str = ""):
         today=today,
         record=record,
         return_to=return_to,
+        default_driver="" if record else _current_default_driver(),
         services=["MANUTENÇÃO", "MONTAGEM", "DESMONTAGEM", "PRODUÇÃO"],
     )
 
@@ -1051,7 +1090,7 @@ def macro_planning_plan():
 @bp.route("/api/gr_planning/centrais-betao/records")
 @login_required
 def concrete_central_records():
-    _ensure_planning_access()
+    _ensure_concrete_central_access("consultar")
     try:
         day = _parse_date_value(request.args.get("date"))
         return jsonify({"rows": _fetch_concrete_records(day)})
@@ -1062,8 +1101,9 @@ def concrete_central_records():
 @bp.route("/api/gr_planning/centrais-betao/records", methods=["POST"])
 @login_required
 def concrete_central_save():
-    _ensure_planning_access()
     payload = request.get_json(silent=True) or {}
+    action = "editar" if str(payload.get("stamp") or payload.get("rcentralstamp") or "").strip() else "inserir"
+    _ensure_concrete_central_access(action)
     try:
         result = _save_concrete_record(payload)
         result["rows"] = _fetch_concrete_records(_parse_date_value(payload.get("data")))
@@ -1076,7 +1116,7 @@ def concrete_central_save():
 @bp.route("/api/gr_planning/centrais-betao/records/<stamp>", methods=["GET", "DELETE"])
 @login_required
 def concrete_central_record(stamp: str):
-    _ensure_planning_access()
+    _ensure_concrete_central_access("eliminar" if request.method == "DELETE" else "consultar")
     normalized = str(stamp or "").strip()[:25]
     if not normalized:
         return jsonify({"ok": False, "error": "Registo invalido."}), 400
@@ -1100,7 +1140,8 @@ def concrete_central_record(stamp: str):
 @bp.route("/api/gr_planning/centrais-betao/opc")
 @login_required
 def concrete_central_opc():
-    _ensure_planning_access()
+    if not any(_has_concrete_central_access(action) for action in ("consultar", "inserir", "editar")):
+        abort(403)
     term = (request.args.get("q") or "").strip()
     try:
         return jsonify({"rows": _search_macro_opc_rows(term)})
@@ -1111,7 +1152,8 @@ def concrete_central_opc():
 @bp.route("/api/gr_planning/centrais-betao/vehicles")
 @login_required
 def concrete_central_vehicles():
-    _ensure_planning_access()
+    if not any(_has_concrete_central_access(action) for action in ("consultar", "inserir", "editar")):
+        abort(403)
     term = (request.args.get("q") or "").strip()
     try:
         return jsonify({"rows": _fetch_concrete_vehicles(term)})
@@ -1122,7 +1164,8 @@ def concrete_central_vehicles():
 @bp.route("/api/gr_planning/centrais-betao/drivers")
 @login_required
 def concrete_central_drivers():
-    _ensure_planning_access()
+    if not any(_has_concrete_central_access(action) for action in ("consultar", "inserir", "editar")):
+        abort(403)
     term = (request.args.get("q") or "").strip()
     try:
         return jsonify({"rows": _fetch_concrete_drivers(term)})
@@ -1133,7 +1176,8 @@ def concrete_central_drivers():
 @bp.route("/api/gr_planning/centrais-betao/refs")
 @login_required
 def concrete_central_refs():
-    _ensure_planning_access()
+    if not any(_has_concrete_central_access(action) for action in ("consultar", "inserir", "editar")):
+        abort(403)
     processo = (request.args.get("processo") or "").strip()
     try:
         return jsonify({"rows": _fetch_concrete_refs(processo)})
