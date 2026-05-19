@@ -1,0 +1,266 @@
+.gr-truck-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: 100%;
+  overflow: hidden;
+  background: var(--sz-color-bg-main);
+  touch-action: pan-y;
+}
+
+.gr-truck-shell {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.gr-truck-contextbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sz-space-3);
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.gr-truck-contextbar > .sz_contextbar_left {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.gr-truck-contextbar .sz_page_title,
+.gr-truck-contextbar .sz_page_subtitle {
+  overflow-wrap: anywhere;
+}
+
+.gr-truck-body {
+  min-height: 0;
+  display: flex;
+  justify-content: stretch;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.gr-truck-form {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  box-sizing: border-box;
+  padding: var(--sz-space-3);
+}
+
+.gr-truck-form::-webkit-scrollbar {
+  display: none;
+}
+
+.gr-truck-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sz-space-3);
+  min-width: 0;
+}
+
+.gr-truck-grid > *,
+.gr-truck-form .sz_field,
+.gr-truck-form .sz_input,
+.gr-truck-form .sz_select,
+.gr-truck-form .sz_textarea {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.gr-truck-form input.sz_input[type="date"],
+.gr-truck-form input.sz_input[type="time"] {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.gr-truck-span-2 {
+  grid-column: 1 / -1;
+}
+
+.gr-truck-project-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: var(--sz-space-3);
+  align-items: start;
+  min-width: 0;
+}
+
+.gr-truck-process-field {
+  position: relative;
+}
+
+.gr-truck-project-description {
+  color: var(--sz-color-text-secondary);
+  background: color-mix(in srgb, var(--sz-color-surface) 88%, var(--sz-color-bg-main));
+}
+
+.gr-truck-process-results {
+  position: absolute;
+  z-index: 60;
+  inset-inline: 0;
+  top: calc(100% + var(--sz-space-1));
+  max-height: min(18rem, 46vh);
+  overflow-y: auto;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-surface) 98%, transparent);
+  box-shadow: var(--sz-shadow-2);
+  padding: var(--sz-space-1);
+  scrollbar-width: thin;
+}
+
+.gr-truck-process-results[hidden] {
+  display: none;
+}
+
+.gr-truck-process-option {
+  width: 100%;
+  display: block;
+  border: 0;
+  border-radius: var(--sz-radius-sm);
+  background: transparent;
+  color: var(--sz-color-text);
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+}
+
+.gr-truck-process-option strong,
+.gr-truck-process-option span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gr-truck-process-option strong {
+  font-weight: 700;
+}
+
+.gr-truck-process-option:hover,
+.gr-truck-process-option:focus {
+  outline: 0;
+  background: color-mix(in srgb, var(--sz-color-primary) 14%, transparent);
+}
+
+.gr-truck-process-option span,
+.gr-truck-process-empty {
+  color: var(--sz-color-text-muted);
+}
+
+.gr-truck-process-empty {
+  padding: 0.65rem;
+}
+
+.gr-truck-kms {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sz-space-3);
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border));
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-primary) 13%, var(--sz-color-surface));
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-truck-kms strong {
+  color: var(--sz-color-text);
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.gr-truck-delete-btn {
+  color: var(--sz-color-danger, #ef4444);
+}
+
+@media (max-width: 920px) {
+  .gr-truck-page,
+  .gr-truck-shell,
+  .gr-truck-contextbar,
+  .gr-truck-body,
+  .gr-truck-form {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .gr-truck-contextbar {
+    flex-direction: column;
+  }
+
+  .gr-truck-body {
+    display: flex;
+    overflow: hidden;
+  }
+
+  .gr-truck-form {
+    width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .gr-truck-shell {
+    padding-inline: var(--sz-page-pad-x, var(--sz-space-3));
+  }
+
+  .gr-truck-form {
+    padding: var(--sz-space-3);
+  }
+
+  .gr-truck-grid,
+  .gr-truck-project-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gr-truck-process-results {
+    max-height: 16rem;
+  }
+
+  .gr-truck-process-option {
+    padding-block: 0.7rem;
+  }
+
+  .gr-truck-span-2,
+  .gr-truck-kms {
+    grid-column: auto;
+  }
+
+  .gr-truck-actionbar .sz_actionbar_right {
+    width: 100%;
+    justify-content: stretch;
+    flex-wrap: wrap;
+  }
+
+  .gr-truck-actionbar .sz_button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 0.75rem;
+  }
+
+  .gr-truck-form .sz_input,
+  .gr-truck-form .sz_select,
+  .gr-truck-form .sz_textarea {
+    font-size: 16px;
+  }
+}

@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Registo de Cami&atilde;o{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_planning.static', filename='gr_truck_record.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr-truck-page">
+  <div class="sz_page_container gr-truck-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-truck-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Registo de Cami&atilde;o</div>
+        <div class="sz_page_subtitle">Registo diario de viaturas, atrelados e quilometros.</div>
+      </div>
+      <div class="sz_contextbar_right"></div>
+    </header>
+
+    <section class="sz_page_body gr-truck-body">
+      <form class="sz_panel gr-truck-form" id="grTruckForm" autocomplete="off">
+        <input type="hidden" id="grTruckStamp">
+
+        <div class="gr-truck-grid">
+          <div class="gr-truck-span-2 gr-truck-project-pair">
+            <div class="sz_field gr-truck-process-field">
+              <label class="sz_label" for="grTruckProcesso">Obra</label>
+              <input class="sz_input" id="grTruckProcesso" maxlength="25" required placeholder="Codigo ou descricao da obra" autocomplete="off">
+              <div class="gr-truck-process-results" id="grTruckProcessos" hidden></div>
+            </div>
+
+            <div class="sz_field">
+              <label class="sz_label" for="grTruckProcessoDescricao">Descri&ccedil;&atilde;o da obra</label>
+              <input class="sz_input gr-truck-project-description" id="grTruckProcessoDescricao" readonly tabindex="-1">
+            </div>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grTruckData">Data</label>
+            <input class="sz_input" id="grTruckData" type="date" required value="{{ today }}">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grTruckMotorista">Motorista</label>
+            <select class="sz_select" id="grTruckMotorista" required>
+              <option value="">A carregar...</option>
+            </select>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grTruckMatricula">Matr&iacute;cula</label>
+            <select class="sz_select" id="grTruckMatricula" required>
+              <option value="">A carregar...</option>
+            </select>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grTruckAtrelado">Atrelado</label>
+            <select class="sz_select" id="grTruckAtrelado">
+              <option value="">A carregar...</option>
+            </select>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grTruckHoraIni">Hora inicial</label>
+            <input class="sz_input" id="grTruckHoraIni" type="time" required>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grTruckHoraFim">Hora final</label>
+            <input class="sz_input" id="grTruckHoraFim" type="time" required>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grTruckKmsIni">Kms iniciais</label>
+            <input class="sz_input" id="grTruckKmsIni" inputmode="numeric" type="number" step="1" min="0" value="0">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grTruckKmsFim">Kms finais</label>
+            <input class="sz_input" id="grTruckKmsFim" inputmode="numeric" type="number" step="1" min="0" value="0">
+          </div>
+
+          <div class="gr-truck-kms">
+            <span>Kms percorridos</span>
+            <strong id="grTruckKms">0</strong>
+          </div>
+
+          <div class="sz_field gr-truck-span-2">
+            <label class="sz_label" for="grTruckDescricao">Descri&ccedil;&atilde;o</label>
+            <textarea class="sz_textarea" id="grTruckDescricao" maxlength="200" rows="4" required placeholder="Notas do servico, carga, descarga ou observacoes"></textarea>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <footer class="sz_actionbar sz_page_footer gr-truck-actionbar">
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <a class="sz_button sz_button_secondary" id="grTruckBack" href="{{ return_to }}">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </a>
+        <button type="button" class="sz_button sz_button_ghost gr-truck-delete-btn" id="grTruckDelete" {% if not record %}hidden{% endif %}>
+          <i class="fa-solid fa-trash"></i>
+          <span>Eliminar</span>
+        </button>
+        <button type="submit" form="grTruckForm" class="sz_button sz_button_primary" id="grTruckSave">
+          <i class="fa-solid fa-save"></i>
+          <span>Gravar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    window.GR_TRUCK_RECORD = {
+      recordsUrl: {{ url_for('gr_planning.truck_records')|tojson }},
+      saveUrl: {{ url_for('gr_planning.truck_save')|tojson }},
+      opcUrl: {{ url_for('gr_planning.truck_opc')|tojson }},
+      vehiclesUrl: {{ url_for('gr_planning.truck_vehicles')|tojson }},
+      driversUrl: {{ url_for('gr_planning.truck_drivers')|tojson }},
+      today: {{ today|tojson }},
+      record: {{ record|tojson }},
+      defaultDriver: {{ default_driver|tojson }},
+      returnUrl: {{ return_to|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('gr_planning.static', filename='gr_truck_record.js') }}" defer></script>
+{% endblock %}

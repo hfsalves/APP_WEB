@@ -115,6 +115,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (upperTable === 'RCENTRAL') {
       return appendMenuStamp(stamp ? `/gr_planning/rcentral/${encodeURIComponent(stamp)}` : '/gr_planning/rcentral/');
     }
+    if (upperTable === 'RCAMIAO') {
+      return appendMenuStamp(stamp ? `/gr_planning/rcamiao/${encodeURIComponent(stamp)}` : '/gr_planning/rcamiao/');
+    }
+    if (upperTable === 'RBOMBA') {
+      return appendMenuStamp(stamp ? `/gr_planning/rbomba/${encodeURIComponent(stamp)}` : '/gr_planning/rbomba/');
+    }
     if (tableForm) {
       const relativeForm = toAppRelativeUrl(tableForm, tableForm);
       const pref = relativeForm.startsWith('/') ? relativeForm : `/generic/${relativeForm}`;

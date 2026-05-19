@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Registo de Bomba de Bet&atilde;o{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_planning.static', filename='gr_truck_record.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr-truck-page">
+  <div class="sz_page_container gr-truck-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-truck-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Registo de Bomba de Bet&atilde;o</div>
+        <div class="sz_page_subtitle">Registo diario de bombagens, quilometros e metros cubicos.</div>
+      </div>
+      <div class="sz_contextbar_right"></div>
+    </header>
+
+    <section class="sz_page_body gr-truck-body">
+      <form class="sz_panel gr-truck-form" id="grPumpForm" autocomplete="off">
+        <input type="hidden" id="grPumpStamp">
+
+        <div class="gr-truck-grid">
+          <div class="gr-truck-span-2 gr-truck-project-pair">
+            <div class="sz_field gr-truck-process-field">
+              <label class="sz_label" for="grPumpProcesso">Obra</label>
+              <input class="sz_input" id="grPumpProcesso" maxlength="25" required placeholder="Codigo ou descricao da obra" autocomplete="off">
+              <div class="gr-truck-process-results" id="grPumpProcessos" hidden></div>
+            </div>
+
+            <div class="sz_field">
+              <label class="sz_label" for="grPumpProcessoDescricao">Descri&ccedil;&atilde;o da obra</label>
+              <input class="sz_input gr-truck-project-description" id="grPumpProcessoDescricao" readonly tabindex="-1">
+            </div>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grPumpData">Data</label>
+            <input class="sz_input" id="grPumpData" type="date" required value="{{ today }}">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grPumpMotorista">Motorista</label>
+            <select class="sz_select" id="grPumpMotorista" required>
+              <option value="">A carregar...</option>
+            </select>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grPumpMatricula">Matr&iacute;cula</label>
+            <select class="sz_select" id="grPumpMatricula" required>
+              <option value="">A carregar...</option>
+            </select>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grPumpM3">M3</label>
+            <input class="sz_input" id="grPumpM3" inputmode="decimal" type="number" step="0.01" min="0" value="0">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grPumpHoraIni">Hora inicial</label>
+            <input class="sz_input" id="grPumpHoraIni" type="time" required>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grPumpHoraFim">Hora final</label>
+            <input class="sz_input" id="grPumpHoraFim" type="time" required>
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grPumpKmsIni">Kms iniciais</label>
+            <input class="sz_input" id="grPumpKmsIni" inputmode="numeric" type="number" step="1" min="0" value="0">
+          </div>
+
+          <div class="sz_field">
+            <label class="sz_label" for="grPumpKmsFim">Kms finais</label>
+            <input class="sz_input" id="grPumpKmsFim" inputmode="numeric" type="number" step="1" min="0" value="0">
+          </div>
+
+          <div class="gr-truck-kms">
+            <span>Kms percorridos</span>
+            <strong id="grPumpKms">0</strong>
+          </div>
+
+          <div class="sz_field gr-truck-span-2">
+            <label class="sz_label" for="grPumpDescricao">Descri&ccedil;&atilde;o</label>
+            <textarea class="sz_textarea" id="grPumpDescricao" maxlength="200" rows="4" required placeholder="Notas do servico, bombagem ou observacoes"></textarea>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <footer class="sz_actionbar sz_page_footer gr-truck-actionbar">
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <a class="sz_button sz_button_secondary" id="grPumpBack" href="{{ return_to }}">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </a>
+        <button type="button" class="sz_button sz_button_ghost gr-truck-delete-btn" id="grPumpDelete" {% if not record %}hidden{% endif %}>
+          <i class="fa-solid fa-trash"></i>
+          <span>Eliminar</span>
+        </button>
+        <button type="submit" form="grPumpForm" class="sz_button sz_button_primary" id="grPumpSave">
+          <i class="fa-solid fa-save"></i>
+          <span>Gravar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    window.GR_PUMP_RECORD = {
+      recordsUrl: {{ url_for('gr_planning.pump_records')|tojson }},
+      saveUrl: {{ url_for('gr_planning.pump_save')|tojson }},
+      opcUrl: {{ url_for('gr_planning.pump_opc')|tojson }},
+      vehiclesUrl: {{ url_for('gr_planning.pump_vehicles')|tojson }},
+      driversUrl: {{ url_for('gr_planning.pump_drivers')|tojson }},
+      today: {{ today|tojson }},
+      record: {{ record|tojson }},
+      defaultDriver: {{ default_driver|tojson }},
+      returnUrl: {{ return_to|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('gr_planning.static', filename='gr_pump_record.js') }}" defer></script>
+{% endblock %}

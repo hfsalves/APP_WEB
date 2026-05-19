@@ -112,6 +112,24 @@ def _ensure_concrete_central_access(action: str = "consultar") -> None:
         abort(403)
 
 
+def _has_truck_record_access(action: str = "consultar") -> bool:
+    return _has_table_access(("RCAMIAO", "RCAMIAOS"), action)
+
+
+def _ensure_truck_record_access(action: str = "consultar") -> None:
+    if not _has_truck_record_access(action):
+        abort(403)
+
+
+def _has_pump_record_access(action: str = "consultar") -> bool:
+    return _has_table_access(("RBOMBA", "RBOMBAS"), action)
+
+
+def _ensure_pump_record_access(action: str = "consultar") -> None:
+    if not _has_pump_record_access(action):
+        abort(403)
+
+
 def _current_default_driver() -> str:
     login = _current_login_value()
     if not login or "MOTORISTA" not in _table_columns("US"):
@@ -161,6 +179,16 @@ def _to_decimal(value, default: str = "0") -> Decimal:
     try:
         return Decimal(raw)
     except (InvalidOperation, ValueError):
+        raise ValueError("Valor numerico invalido.")
+
+
+def _to_int_value(value, default: int = 0) -> int:
+    raw = str(value if value is not None else "").strip().replace(",", ".")
+    if not raw:
+        return int(default)
+    try:
+        return int(float(raw))
+    except (TypeError, ValueError):
         raise ValueError("Valor numerico invalido.")
 
 
@@ -229,6 +257,44 @@ def _concrete_record_from_row(row) -> dict:
     }
 
 
+def _truck_record_from_row(row) -> dict:
+    processo = str(row.get("PROCESSO") or "").strip()
+    return {
+        "stamp": str(row.get("RCAMIAOSTAMP") or "").strip(),
+        "data": str(row.get("DATA") or "").strip(),
+        "motorista": str(row.get("MOTORISTA") or "").strip(),
+        "processo": processo,
+        "obra_descricao": _fetch_opc_description(processo),
+        "matricula": str(row.get("MATRICULA") or "").strip(),
+        "atrelado": str(row.get("ATRELADO") or "").strip(),
+        "horaini": str(row.get("HORAINI") or "").strip(),
+        "horafim": str(row.get("HORAFIM") or "").strip(),
+        "kmsini": int(row.get("KMSINI") or 0),
+        "kmsfim": int(row.get("KMSFIM") or 0),
+        "descricao": str(row.get("DESCRICAO") or "").strip(),
+        "kms": int(row.get("KMS") or 0),
+    }
+
+
+def _pump_record_from_row(row) -> dict:
+    processo = str(row.get("PROCESSO") or "").strip()
+    return {
+        "stamp": str(row.get("RBOMBASTAMP") or "").strip(),
+        "data": str(row.get("DATA") or "").strip(),
+        "processo": processo,
+        "obra_descricao": _fetch_opc_description(processo),
+        "motorista": str(row.get("MOTORISTA") or "").strip(),
+        "matricula": str(row.get("MATRICULA") or "").strip(),
+        "horaini": str(row.get("HORAINI") or "").strip(),
+        "horafim": str(row.get("HORAFIM") or "").strip(),
+        "kmsini": int(row.get("KMSINI") or 0),
+        "kmsfim": int(row.get("KMSFIM") or 0),
+        "m3": _to_money_float(row.get("M3")),
+        "kms": int(row.get("KMS") or 0),
+        "descricao": str(row.get("DESCRICAO") or "").strip(),
+    }
+
+
 def _fetch_concrete_record(stamp: str) -> dict | None:
     normalized = str(stamp or "").strip()[:25]
     if not normalized or not _macro_table_exists("RCENTRAL"):
@@ -287,6 +353,102 @@ def _fetch_concrete_records(day: date) -> list[dict]:
     return [_concrete_record_from_row(row) for row in rows]
 
 
+def _fetch_truck_record(stamp: str) -> dict | None:
+    normalized = str(stamp or "").strip()[:25]
+    if not normalized or not _macro_table_exists("RCAMIAO"):
+        return None
+    row = db.session.execute(text("""
+        SELECT
+            RCAMIAOSTAMP,
+            CONVERT(varchar(10), DATA, 23) AS DATA,
+            MOTORISTA,
+            PROCESSO,
+            MATRICULA,
+            ATRELADO,
+            HORAINI,
+            HORAFIM,
+            KMSINI,
+            KMSFIM,
+            DESCRICAO,
+            KMS
+        FROM dbo.RCAMIAO
+        WHERE RCAMIAOSTAMP = :stamp
+    """), {"stamp": normalized}).mappings().first()
+    return _truck_record_from_row(row) if row else None
+
+
+def _fetch_truck_records(day: date) -> list[dict]:
+    if not _macro_table_exists("RCAMIAO"):
+        return []
+    rows = db.session.execute(text("""
+        SELECT
+            RCAMIAOSTAMP,
+            CONVERT(varchar(10), DATA, 23) AS DATA,
+            MOTORISTA,
+            PROCESSO,
+            MATRICULA,
+            ATRELADO,
+            HORAINI,
+            HORAFIM,
+            KMSINI,
+            KMSFIM,
+            DESCRICAO,
+            KMS
+        FROM dbo.RCAMIAO
+        WHERE CAST(DATA AS date) = :day
+        ORDER BY DATA DESC, HORAINI DESC, RCAMIAOSTAMP DESC
+    """), {"day": day}).mappings().all()
+    return [_truck_record_from_row(row) for row in rows]
+
+
+def _fetch_pump_record(stamp: str) -> dict | None:
+    normalized = str(stamp or "").strip()[:25]
+    if not normalized or not _macro_table_exists("RBOMBA"):
+        return None
+    row = db.session.execute(text("""
+        SELECT
+            RBOMBASTAMP,
+            CONVERT(varchar(10), DATA, 23) AS DATA,
+            PROCESSO,
+            MOTORISTA,
+            MATRICULA,
+            HORAINI,
+            HORAFIM,
+            KMSINI,
+            KMSFIM,
+            M3,
+            KMS,
+            DESCRICAO
+        FROM dbo.RBOMBA
+        WHERE RBOMBASTAMP = :stamp
+    """), {"stamp": normalized}).mappings().first()
+    return _pump_record_from_row(row) if row else None
+
+
+def _fetch_pump_records(day: date) -> list[dict]:
+    if not _macro_table_exists("RBOMBA"):
+        return []
+    rows = db.session.execute(text("""
+        SELECT
+            RBOMBASTAMP,
+            CONVERT(varchar(10), DATA, 23) AS DATA,
+            PROCESSO,
+            MOTORISTA,
+            MATRICULA,
+            HORAINI,
+            HORAFIM,
+            KMSINI,
+            KMSFIM,
+            M3,
+            KMS,
+            DESCRICAO
+        FROM dbo.RBOMBA
+        WHERE CAST(DATA AS date) = :day
+        ORDER BY DATA DESC, HORAINI DESC, RBOMBASTAMP DESC
+    """), {"day": day}).mappings().all()
+    return [_pump_record_from_row(row) for row in rows]
+
+
 def _fetch_concrete_vehicles(term: str = "", limit: int = 80) -> list[dict]:
     cols = _table_columns("VA")
     if not cols or "MATRICULA" not in cols:
@@ -312,6 +474,59 @@ def _fetch_concrete_vehicles(term: str = "", limit: int = 80) -> list[dict]:
               OR CAST(MODELO AS varchar(50)) LIKE :query
               OR CAST(NOFROTA AS varchar(50)) LIKE :query
           )
+        ORDER BY LTRIM(RTRIM(ISNULL(CAST(MATRICULA AS varchar(50)), '')))
+    """), {"query": query}).mappings().all()
+    return [
+        {
+            "matricula": str(row.get("matricula") or "").strip(),
+            "label": " ".join(part for part in (
+                str(row.get("matricula") or "").strip(),
+                str(row.get("marca") or "").strip(),
+                str(row.get("modelo") or "").strip(),
+                str(row.get("nofrota") or "").strip(),
+            ) if part),
+        }
+        for row in rows
+        if str(row.get("matricula") or "").strip()
+    ]
+
+
+def _fetch_truck_vehicles(term: str = "", limit: int = 150, kind: str = "") -> list[dict]:
+    cols = _table_columns("VA")
+    if not cols or "MATRICULA" not in cols:
+        return []
+    safe_limit = max(1, min(int(limit or 150), 250))
+    query = f"%{str(term or '').strip()}%"
+    active_filter = "AND ISNULL(INATIVO, 0) = 0" if "INATIVO" in cols else ""
+    kind_key = str(kind or "").strip().lower()
+    kind_filter = ""
+    if kind_key == "truck":
+        kind_filter = "AND ISNULL(DISPREGDIARIO, 0) = 1" if "DISPREGDIARIO" in cols else "AND 1 = 0"
+    elif kind_key == "trailer":
+        kind_filter = "AND ISNULL(ATRELADO, 0) = 1" if "ATRELADO" in cols else "AND 1 = 0"
+    elif kind_key == "pump":
+        kind_filter = "AND ISNULL(BOMBA, 0) = 1" if "BOMBA" in cols else "AND 1 = 0"
+    marca_expr = "LTRIM(RTRIM(ISNULL(CAST(MARCA AS varchar(50)), ''))) AS marca" if "MARCA" in cols else "CAST('' AS varchar(50)) AS marca"
+    modelo_expr = "LTRIM(RTRIM(ISNULL(CAST(MODELO AS varchar(50)), ''))) AS modelo" if "MODELO" in cols else "CAST('' AS varchar(50)) AS modelo"
+    frota_expr = "LTRIM(RTRIM(ISNULL(CAST(NOFROTA AS varchar(50)), ''))) AS nofrota" if "NOFROTA" in cols else "CAST('' AS varchar(50)) AS nofrota"
+    searchable = ["CAST(MATRICULA AS varchar(50)) LIKE :query"]
+    if "MARCA" in cols:
+        searchable.append("CAST(MARCA AS varchar(50)) LIKE :query")
+    if "MODELO" in cols:
+        searchable.append("CAST(MODELO AS varchar(50)) LIKE :query")
+    if "NOFROTA" in cols:
+        searchable.append("CAST(NOFROTA AS varchar(50)) LIKE :query")
+    rows = db.session.execute(text(f"""
+        SELECT TOP ({safe_limit})
+            LTRIM(RTRIM(ISNULL(CAST(MATRICULA AS varchar(50)), ''))) AS matricula,
+            {marca_expr},
+            {modelo_expr},
+            {frota_expr}
+        FROM dbo.VA
+        WHERE LTRIM(RTRIM(ISNULL(CAST(MATRICULA AS varchar(50)), ''))) <> ''
+          {active_filter}
+          {kind_filter}
+          AND (:query = '%%' OR {" OR ".join(searchable)})
         ORDER BY LTRIM(RTRIM(ISNULL(CAST(MATRICULA AS varchar(50)), '')))
     """), {"query": query}).mappings().all()
     return [
@@ -483,6 +698,156 @@ def _save_concrete_record(payload: dict) -> dict:
         """), params)
     db.session.commit()
     return {"ok": True, "stamp": params["stamp"], "qtt": float(qtt)}
+
+
+def _save_truck_record(payload: dict) -> dict:
+    if not _macro_table_exists("RCAMIAO"):
+        raise ValueError("Tabela RCAMIAO inexistente.")
+    stamp = str(payload.get("stamp") or payload.get("rcamiaostamp") or "").strip()[:25]
+    data_value = _parse_date_value(payload.get("data"))
+    motorista = str(payload.get("motorista") or "").strip()[:60]
+    processo = str(payload.get("processo") or "").strip()[:25]
+    matricula = str(payload.get("matricula") or "").strip()[:25]
+    atrelado = str(payload.get("atrelado") or "").strip()[:25]
+    horaini = _normalize_time_value(str(payload.get("horaini") or ""))
+    horafim = _normalize_time_value(str(payload.get("horafim") or ""))
+    kmsini = _to_int_value(payload.get("kmsini"))
+    kmsfim = _to_int_value(payload.get("kmsfim"))
+    descricao = str(payload.get("descricao") or "").strip()[:200]
+    kms = kmsfim - kmsini
+    if not processo:
+        raise ValueError("Obra obrigatoria.")
+    if not motorista:
+        raise ValueError("Motorista obrigatorio.")
+    if not matricula:
+        raise ValueError("Matricula obrigatoria.")
+    if not horaini:
+        raise ValueError("Hora inicial obrigatoria.")
+    if not horafim:
+        raise ValueError("Hora final obrigatoria.")
+    if not descricao:
+        raise ValueError("Descricao obrigatoria.")
+    if kms < 0:
+        raise ValueError("Kms finais nao podem ser inferiores aos iniciais.")
+
+    params = {
+        "stamp": stamp or _new_stamp_25(),
+        "data": data_value,
+        "motorista": motorista,
+        "processo": processo,
+        "matricula": matricula,
+        "atrelado": atrelado,
+        "horaini": horaini,
+        "horafim": horafim,
+        "kmsini": kmsini,
+        "kmsfim": kmsfim,
+        "descricao": descricao,
+        "kms": kms,
+    }
+    if stamp:
+        result = db.session.execute(text("""
+            UPDATE dbo.RCAMIAO
+            SET DATA=:data,
+                MOTORISTA=:motorista,
+                PROCESSO=:processo,
+                MATRICULA=:matricula,
+                ATRELADO=:atrelado,
+                HORAINI=:horaini,
+                HORAFIM=:horafim,
+                KMSINI=:kmsini,
+                KMSFIM=:kmsfim,
+                DESCRICAO=:descricao,
+                KMS=:kms
+            WHERE RCAMIAOSTAMP=:stamp
+        """), params)
+        if result.rowcount == 0:
+            raise ValueError("Registo nao encontrado.")
+    else:
+        db.session.execute(text("""
+            INSERT INTO dbo.RCAMIAO
+                (RCAMIAOSTAMP, DATA, MOTORISTA, PROCESSO, MATRICULA, ATRELADO,
+                 HORAINI, HORAFIM, KMSINI, KMSFIM, DESCRICAO, KMS)
+            VALUES
+                (:stamp, :data, :motorista, :processo, :matricula, :atrelado,
+                 :horaini, :horafim, :kmsini, :kmsfim, :descricao, :kms)
+        """), params)
+    db.session.commit()
+    return {"ok": True, "stamp": params["stamp"], "kms": int(kms)}
+
+
+def _save_pump_record(payload: dict) -> dict:
+    if not _macro_table_exists("RBOMBA"):
+        raise ValueError("Tabela RBOMBA inexistente.")
+    stamp = str(payload.get("stamp") or payload.get("rbombastamp") or "").strip()[:25]
+    data_value = _parse_date_value(payload.get("data"))
+    processo = str(payload.get("processo") or "").strip()[:25]
+    motorista = str(payload.get("motorista") or "").strip()[:60]
+    matricula = str(payload.get("matricula") or "").strip()[:25]
+    horaini = _normalize_time_value(str(payload.get("horaini") or ""))
+    horafim = _normalize_time_value(str(payload.get("horafim") or ""))
+    kmsini = _to_int_value(payload.get("kmsini"))
+    kmsfim = _to_int_value(payload.get("kmsfim"))
+    m3 = _to_decimal(payload.get("m3"))
+    descricao = str(payload.get("descricao") or "").strip()[:200]
+    kms = kmsfim - kmsini
+    if not processo:
+        raise ValueError("Obra obrigatoria.")
+    if not motorista:
+        raise ValueError("Motorista obrigatorio.")
+    if not matricula:
+        raise ValueError("Matricula obrigatoria.")
+    if not horaini:
+        raise ValueError("Hora inicial obrigatoria.")
+    if not horafim:
+        raise ValueError("Hora final obrigatoria.")
+    if not descricao:
+        raise ValueError("Descricao obrigatoria.")
+    if kms < 0:
+        raise ValueError("Kms finais nao podem ser inferiores aos iniciais.")
+
+    params = {
+        "stamp": stamp or _new_stamp_25(),
+        "data": data_value,
+        "processo": processo,
+        "motorista": motorista,
+        "matricula": matricula,
+        "horaini": horaini,
+        "horafim": horafim,
+        "kmsini": kmsini,
+        "kmsfim": kmsfim,
+        "m3": m3,
+        "kms": kms,
+        "descricao": descricao,
+    }
+    if stamp:
+        result = db.session.execute(text("""
+            UPDATE dbo.RBOMBA
+            SET DATA=:data,
+                PROCESSO=:processo,
+                MOTORISTA=:motorista,
+                MATRICULA=:matricula,
+                HORAINI=:horaini,
+                HORAFIM=:horafim,
+                KMSINI=:kmsini,
+                KMSFIM=:kmsfim,
+                M3=:m3,
+                KMS=:kms,
+                DESCRICAO=:descricao
+            WHERE RBOMBASTAMP=:stamp
+        """), params)
+        if result.rowcount == 0:
+            raise ValueError("Registo nao encontrado.")
+    else:
+        db.session.execute(text("""
+            INSERT INTO dbo.RBOMBA
+                (RBOMBASTAMP, DATA, PROCESSO, MOTORISTA, MATRICULA,
+                 HORAINI, HORAFIM, KMSINI, KMSFIM, M3, KMS, DESCRICAO)
+            VALUES
+                (:stamp, :data, :processo, :motorista, :matricula,
+                 :horaini, :horafim, :kmsini, :kmsfim, :m3, :kms, :descricao)
+        """), params)
+    db.session.commit()
+    return {"ok": True, "stamp": params["stamp"], "kms": int(kms)}
 
 
 def _search_macro_opc_rows(term: str, limit: int = 60) -> list[dict]:
@@ -1017,6 +1382,58 @@ def concrete_central_page(stamp: str = ""):
     )
 
 
+@bp.route("/gr_planning/rcamiao", defaults={"stamp": ""})
+@bp.route("/gr_planning/rcamiao/", defaults={"stamp": ""})
+@bp.route("/gr_planning/rcamiao/<stamp>")
+@login_required
+def truck_record_page(stamp: str = ""):
+    requested_stamp = (stamp or request.args.get("stamp") or "").strip()
+    if requested_stamp:
+        if not (_has_truck_record_access("consultar") or _has_truck_record_access("editar")):
+            abort(403)
+    else:
+        if not (_has_truck_record_access("inserir") or _has_truck_record_access("consultar")):
+            abort(403)
+    record = _fetch_truck_record(requested_stamp) if requested_stamp else None
+    if requested_stamp and not record:
+        abort(404)
+    today = (record.get("data") if record else "") or date.today().isoformat()
+    return_to = request.args.get("return_to") or "/generic/view/RCAMIAO/"
+    return render_template(
+        "gr_planning/truck_record.html",
+        today=today,
+        record=record,
+        return_to=return_to,
+        default_driver="" if record else _current_default_driver(),
+    )
+
+
+@bp.route("/gr_planning/rbomba", defaults={"stamp": ""})
+@bp.route("/gr_planning/rbomba/", defaults={"stamp": ""})
+@bp.route("/gr_planning/rbomba/<stamp>")
+@login_required
+def pump_record_page(stamp: str = ""):
+    requested_stamp = (stamp or request.args.get("stamp") or "").strip()
+    if requested_stamp:
+        if not (_has_pump_record_access("consultar") or _has_pump_record_access("editar")):
+            abort(403)
+    else:
+        if not (_has_pump_record_access("inserir") or _has_pump_record_access("consultar")):
+            abort(403)
+    record = _fetch_pump_record(requested_stamp) if requested_stamp else None
+    if requested_stamp and not record:
+        abort(404)
+    today = (record.get("data") if record else "") or date.today().isoformat()
+    return_to = request.args.get("return_to") or "/generic/view/RBOMBA/"
+    return render_template(
+        "gr_planning/pump_record.html",
+        today=today,
+        record=record,
+        return_to=return_to,
+        default_driver="" if record else _current_default_driver(),
+    )
+
+
 @bp.route("/gr360_planning/macro")
 @bp.route("/gr_planning/macro")
 @bp.route("/gr_planning/planeamento-macro")
@@ -1181,6 +1598,180 @@ def concrete_central_refs():
     processo = (request.args.get("processo") or "").strip()
     try:
         return jsonify({"rows": _fetch_concrete_refs(processo)})
+    except Exception as exc:
+        return jsonify({"rows": [], "error": str(exc)}), 500
+
+
+@bp.route("/api/gr_planning/camioes/records")
+@login_required
+def truck_records():
+    _ensure_truck_record_access("consultar")
+    try:
+        day = _parse_date_value(request.args.get("date"))
+        return jsonify({"rows": _fetch_truck_records(day)})
+    except Exception as exc:
+        return jsonify({"rows": [], "error": str(exc)}), 500
+
+
+@bp.route("/api/gr_planning/camioes/records", methods=["POST"])
+@login_required
+def truck_save():
+    payload = request.get_json(silent=True) or {}
+    action = "editar" if str(payload.get("stamp") or payload.get("rcamiaostamp") or "").strip() else "inserir"
+    _ensure_truck_record_access(action)
+    try:
+        result = _save_truck_record(payload)
+        result["rows"] = _fetch_truck_records(_parse_date_value(payload.get("data")))
+        return jsonify(result)
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@bp.route("/api/gr_planning/camioes/records/<stamp>", methods=["GET", "DELETE"])
+@login_required
+def truck_record(stamp: str):
+    _ensure_truck_record_access("eliminar" if request.method == "DELETE" else "consultar")
+    normalized = str(stamp or "").strip()[:25]
+    if not normalized:
+        return jsonify({"ok": False, "error": "Registo invalido."}), 400
+    if request.method == "GET":
+        row = _fetch_truck_record(normalized)
+        if not row:
+            return jsonify({"ok": False, "error": "Registo nao encontrado."}), 404
+        return jsonify({"ok": True, "record": row})
+    try:
+        result = db.session.execute(
+            text("DELETE FROM dbo.RCAMIAO WHERE RCAMIAOSTAMP = :stamp"),
+            {"stamp": normalized},
+        )
+        db.session.commit()
+        return jsonify({"ok": True, "deleted": int(result.rowcount or 0)})
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@bp.route("/api/gr_planning/camioes/opc")
+@login_required
+def truck_opc():
+    if not any(_has_truck_record_access(action) for action in ("consultar", "inserir", "editar")):
+        abort(403)
+    term = (request.args.get("q") or "").strip()
+    try:
+        return jsonify({"rows": _search_macro_opc_rows(term)})
+    except Exception as exc:
+        return jsonify({"rows": [], "error": str(exc)}), 500
+
+
+@bp.route("/api/gr_planning/camioes/vehicles")
+@login_required
+def truck_vehicles():
+    if not any(_has_truck_record_access(action) for action in ("consultar", "inserir", "editar")):
+        abort(403)
+    term = (request.args.get("q") or "").strip()
+    try:
+        trucks = _fetch_truck_vehicles(term, kind="truck")
+        trailers = _fetch_truck_vehicles(term, kind="trailer")
+        return jsonify({"rows": trucks, "trucks": trucks, "trailers": trailers})
+    except Exception as exc:
+        return jsonify({"rows": [], "error": str(exc)}), 500
+
+
+@bp.route("/api/gr_planning/camioes/drivers")
+@login_required
+def truck_drivers():
+    if not any(_has_truck_record_access(action) for action in ("consultar", "inserir", "editar")):
+        abort(403)
+    term = (request.args.get("q") or "").strip()
+    try:
+        return jsonify({"rows": _fetch_concrete_drivers(term)})
+    except Exception as exc:
+        return jsonify({"rows": [], "error": str(exc)}), 500
+
+
+@bp.route("/api/gr_planning/bombas/records")
+@login_required
+def pump_records():
+    _ensure_pump_record_access("consultar")
+    try:
+        day = _parse_date_value(request.args.get("date"))
+        return jsonify({"rows": _fetch_pump_records(day)})
+    except Exception as exc:
+        return jsonify({"rows": [], "error": str(exc)}), 500
+
+
+@bp.route("/api/gr_planning/bombas/records", methods=["POST"])
+@login_required
+def pump_save():
+    payload = request.get_json(silent=True) or {}
+    action = "editar" if str(payload.get("stamp") or payload.get("rbombastamp") or "").strip() else "inserir"
+    _ensure_pump_record_access(action)
+    try:
+        result = _save_pump_record(payload)
+        result["rows"] = _fetch_pump_records(_parse_date_value(payload.get("data")))
+        return jsonify(result)
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@bp.route("/api/gr_planning/bombas/records/<stamp>", methods=["GET", "DELETE"])
+@login_required
+def pump_record(stamp: str):
+    _ensure_pump_record_access("eliminar" if request.method == "DELETE" else "consultar")
+    normalized = str(stamp or "").strip()[:25]
+    if not normalized:
+        return jsonify({"ok": False, "error": "Registo invalido."}), 400
+    if request.method == "GET":
+        row = _fetch_pump_record(normalized)
+        if not row:
+            return jsonify({"ok": False, "error": "Registo nao encontrado."}), 404
+        return jsonify({"ok": True, "record": row})
+    try:
+        result = db.session.execute(
+            text("DELETE FROM dbo.RBOMBA WHERE RBOMBASTAMP = :stamp"),
+            {"stamp": normalized},
+        )
+        db.session.commit()
+        return jsonify({"ok": True, "deleted": int(result.rowcount or 0)})
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@bp.route("/api/gr_planning/bombas/opc")
+@login_required
+def pump_opc():
+    if not any(_has_pump_record_access(action) for action in ("consultar", "inserir", "editar")):
+        abort(403)
+    term = (request.args.get("q") or "").strip()
+    try:
+        return jsonify({"rows": _search_macro_opc_rows(term)})
+    except Exception as exc:
+        return jsonify({"rows": [], "error": str(exc)}), 500
+
+
+@bp.route("/api/gr_planning/bombas/vehicles")
+@login_required
+def pump_vehicles():
+    if not any(_has_pump_record_access(action) for action in ("consultar", "inserir", "editar")):
+        abort(403)
+    term = (request.args.get("q") or "").strip()
+    try:
+        return jsonify({"rows": _fetch_truck_vehicles(term, kind="pump")})
+    except Exception as exc:
+        return jsonify({"rows": [], "error": str(exc)}), 500
+
+
+@bp.route("/api/gr_planning/bombas/drivers")
+@login_required
+def pump_drivers():
+    if not any(_has_pump_record_access(action) for action in ("consultar", "inserir", "editar")):
+        abort(403)
+    term = (request.args.get("q") or "").strip()
+    try:
+        return jsonify({"rows": _fetch_concrete_drivers(term)})
     except Exception as exc:
         return jsonify({"rows": [], "error": str(exc)}), 500
 
