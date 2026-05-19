@@ -4,83 +4,331 @@ Press CTRL+C to quit
  * Restarting with stat
  * Debugger is active!
  * Debugger PIN: 487-684-258
-127.0.0.1 - - [19/May/2026 11:11:33] "GET /generic/view/RCENTRAL HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:33] "GET /static/css/style.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:33] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:33] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:33] "GET /static/js/dynamic_list.js?v=1779185491 HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:33] "GET /static/manifest.json HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:33] "GET /static/js/push.js?v=1779185491 HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:33] "GET /static/js/ui.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:34] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:34] "GET /generic/api/RCENTRAL?action=describe&include_screen_meta=1&menustamp=E1B199EB264E419CAFB1FB694 HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:34] "GET /generic/api/RCENTRAL HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:35] "GET /service-worker.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:36] "GET /gr_planning/rcentral/?menustamp=E1B199EB264E419CAFB1FB694&return_to=/generic/view/RCENTRAL HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:36] "GET /static/css/style.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:37] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:37] "GET /gr_planning/static/gr_concrete_central.css HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:37] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:37] "GET /static/manifest.json HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:37] "GET /static/js/ui.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:37] "GET /static/js/push.js?v=1779185491 HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:37] "GET /gr_planning/static/gr_concrete_central.js HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:38] "GET /api/gr_planning/centrais-betao/vehicles HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:38] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:38] "GET /api/gr_planning/centrais-betao/drivers HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:39] "GET /service-worker.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:51] "GET /generic/view/RCENTRAL HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:51] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:51] "GET /static/css/style.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:51] "GET /static/js/dynamic_list.js?v=1779185491 HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:51] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:52] "GET /static/manifest.json HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:52] "GET /static/js/ui.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:52] "GET /static/js/push.js?v=1779185491 HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:52] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:52] "GET /generic/api/RCENTRAL?action=describe&include_screen_meta=1&menustamp=E1B199EB264E419CAFB1FB694 HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:53] "GET /generic/api/RCENTRAL HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:53] "GET /service-worker.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:57] "GET /gr_planning/rcentral/107BF7DD5923424A8A308E28F?menustamp=E1B199EB264E419CAFB1FB694&return_to=/generic/view/RCENTRAL HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:57] "GET /static/css/style.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:58] "GET /gr_planning/static/gr_concrete_central.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:58] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:58] "GET /static/js/ui.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:58] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:58] "GET /static/manifest.json HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:58] "GET /gr_planning/static/gr_concrete_central.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:58] "GET /static/js/push.js?v=1779185491 HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:58] "GET /api/gr_planning/centrais-betao/vehicles HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:11:58] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:11:58] "GET /api/gr_planning/centrais-betao/drivers HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:12:00] "GET /service-worker.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:12] "DELETE /api/gr_planning/centrais-betao/records/107BF7DD5923424A8A308E28F HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:12:13] "GET /generic/view/RCENTRAL HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:12:13] "GET /static/css/style.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:14] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:14] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:14] "GET /static/js/dynamic_list.js?v=1779185491 HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:14] "GET /static/manifest.json HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:14] "GET /static/js/push.js?v=1779185491 HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:14] "GET /static/js/ui.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:14] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:15] "GET /generic/api/RCENTRAL?action=describe&include_screen_meta=1&menustamp=E1B199EB264E419CAFB1FB694 HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:12:15] "GET /generic/api/RCENTRAL HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:12:16] "GET /service-worker.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:19] "GET /gr_planning/rcentral/?menustamp=E1B199EB264E419CAFB1FB694&return_to=/generic/view/RCENTRAL HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:12:19] "GET /static/css/style.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:19] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:19] "GET /gr_planning/static/gr_concrete_central.css HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:19] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:19] "GET /static/js/ui.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:19] "GET /static/manifest.json HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:20] "GET /static/js/push.js?v=1779185491 HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:20] "GET /gr_planning/static/gr_concrete_central.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:20] "GET /api/gr_planning/centrais-betao/vehicles HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:12:20] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:20] "GET /api/gr_planning/centrais-betao/drivers HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:12:21] "GET /service-worker.js HTTP/1.1" 304 -
-127.0.0.1 - - [19/May/2026 11:12:44] "GET /api/gr_planning/centrais-betao/opc?q=crre HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:12:46] "GET /api/gr_planning/centrais-betao/opc?q=c HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:12:47] "GET /api/gr_planning/centrais-betao/opc?q=ca HTTP/1.1" 200 -
-127.0.0.1 - - [19/May/2026 11:12:47] "GET /api/gr_planning/centrais-betao/opc?q=carre HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:01:03] "GET /database_manager/mapping?table=dbo.ST HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:01:03] "GET /static/css/database_manager.css?v=1779192061 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:01:03] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:01:03] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:01:03] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:01:03] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:01:03] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:01:03] "GET /static/js/database_mapping.js?v=1779192061 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:01:03] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:01:04] "GET /api/database_manager/mapping?table=dbo.ST HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:01:04] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:01:04] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:01:12] "POST /api/database_manager/mapping/simulate HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:03:40] "POST /api/database_manager/mapping/import HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:23] "GET /generic/view/OPCMAT HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:23] "GET /static/js/dynamic_list.js?v=1779192061 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:23] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:23] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:23] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:23] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:24] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:24] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:24] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:25] "GET /generic/api/OPCMAT?action=describe&include_screen_meta=1&menustamp=F13E5B7256214809B1BFCEEBD HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:25] "GET /generic/api/OPCMAT HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:26] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:29] "GET /generic/form/OPCMAT/20042DF4-540D-464C-BCB9-0?menustamp=F13E5B7256214809B1BFCEEBD&return_to=/generic/view/OPCMAT HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:30] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:30] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:30] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:30] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:30] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:30] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:30] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:31] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:31] "GET /generic/api/OPCMAT?action=describe&menustamp=F13E5B7256214809B1BFCEEBD&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:32] "GET /generic/api/OPCMAT/20042DF4-540D-464C-BCB9-0 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:32] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:04:33] "POST /generic/api/menu_object_lookup HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:33] "GET /api/anexos?table=OPCMAT&rec=20042DF4-540D-464C-BCB9-0 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:37] "POST /generic/api/menu_object_lookup HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:37] "POST /generic/api/menu_object_lookup HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:04:58] "POST /generic/api/menu_object_lookup HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:05:00] "GET /generic/view/OPCMAT HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:05:00] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:00] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:00] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:00] "GET /static/js/dynamic_list.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:01] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:01] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:01] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:01] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:02] "GET /generic/api/OPCMAT?action=describe&include_screen_meta=1&menustamp=F13E5B7256214809B1BFCEEBD HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:05:02] "GET /generic/api/OPCMAT HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:05:03] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:05] "GET /generic/form/OPCMAT/20042DF4-540D-464C-BCB9-0?menustamp=F13E5B7256214809B1BFCEEBD&return_to=/generic/view/OPCMAT HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:05:05] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:06] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:06] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:06] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:06] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:06] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:06] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:07] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:07] "GET /generic/api/OPCMAT?action=describe&menustamp=F13E5B7256214809B1BFCEEBD&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:05:08] "GET /generic/api/OPCMAT/20042DF4-540D-464C-BCB9-0 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:05:08] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:05:08] "POST /generic/api/menu_object_lookup HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:05:09] "GET /api/anexos?table=OPCMAT&rec=20042DF4-540D-464C-BCB9-0 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:05:12] "POST /generic/api/menu_object_lookup HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:06:10] "GET /entidades HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:06:10] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:06:10] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:06:10] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:06:10] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:06:10] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:06:10] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:06:10] "GET /static/js/entidades.js?v=1779192061 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:06:11] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:06:11] "GET /api/entidades HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:06:11] "GET /api/entidades/46C9680E96504C8AAD992BC0D HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:06:12] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:06:39] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:06:40] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-members HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:06:40] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:08:10] "GET /api/entidades/GEN00052261619.916000001 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:08:38] "POST /api/entidades/GEN00052261619.916000001/upload_logo HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:08:39] "GET /api/entidades/GEN00052261619.916000001/logo?_ts=1779192518762 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:08:44] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [19/May/2026 13:08:46] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:08:46] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:08:46] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:08:46] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:08:46] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:08:46] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:08:46] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:08:46] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:08:47] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:08:47] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:08:49] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:09:01] "GET /entidades HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:09:01] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:09:02] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:09:02] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:09:02] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:09:02] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:09:02] "GET /static/js/entidades.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:09:02] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:09:03] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:09:03] "GET /api/entidades HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:09:03] "GET /api/entidades/46C9680E96504C8AAD992BC0D HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:09:04] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:09:07] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:09:08] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-members HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:09:08] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:09:51] "GET /api/entidades/46C9680E96504C8AAD992BC0D HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:09:52] "GET /api/entidades/46C9680E96504C8AAD992BC0D HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:09:58] "POST /api/entidades/46C9680E96504C8AAD992BC0D/upload_logo HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:09:59] "GET /api/entidades/46C9680E96504C8AAD992BC0D/logo?_ts=1779192598981 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:03] "GET /api/entidades/FC4C560525DE4F4589A1E59B4 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:03] "GET /api/entidades/FC4C560525DE4F4589A1E59B4 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:12] "POST /api/entidades/FC4C560525DE4F4589A1E59B4/upload_logo HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:13] "GET /api/entidades/FC4C560525DE4F4589A1E59B4/logo?_ts=1779192612808 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:15] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:15] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:15] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-members HTTP/1.1" 500 -
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]The referenced entity 'inserted' was modified during DDL execution. Please retry the operation. (2021) (SQLExecDirectW)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
+    return current_app.ensure_sync(func)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\APP_WEB\app.py", line 16755, in api_entidades_cluster_members
+    _ensure_fe_cluster_schema()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\APP_WEB\app.py", line 13642, in _ensure_fe_cluster_schema
+    db.session.execute(text("""
+    ^^^^^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\scoping.py", line 779, in execute
+    return self._proxied.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2260, in _execute_internal
+    result = conn.execute(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+    
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ^
+  File "C:\APP_WEB\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.ProgrammingError: (pyodbc.ProgrammingError) ('42000', "[42000] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]The referenced entity 'inserted' was modified during DDL execution. Please retry the operation. (2021) (SQLExecDirectW)")
+[SQL: 
+            ALTER TRIGGER dbo.TR_FE_CLUSTER_ENTIDADES_VALIDATE
+            ON dbo.FE_CLUSTER_ENTIDADES
+            AFTER INSERT, UPDATE
+            AS
+            BEGIN
+                SET NOCOUNT ON;
+
+                IF EXISTS (
+                    SELECT 1
+                    FROM inserted I
+                    LEFT JOIN dbo.FE CL ON CL.FESTAMP = I.FESTAMP_CLUSTER
+                    LEFT JOIN dbo.FE EN ON EN.FESTAMP = I.FESTAMP_ENTIDADE
+                    WHERE CL.FESTAMP IS NULL
+                       OR EN.FESTAMP IS NULL
+                       OR ISNULL(CL.E_CLUSTER, 0) <> 1
+                       OR ISNULL(EN.E_CLUSTER, 0) = 1
+                       OR I.FESTAMP_CLUSTER = I.FESTAMP_ENTIDADE
+                )
+                BEGIN
+                    RAISERROR('Associacao de cluster FE invalida.', 16, 1);
+                    ROLLBACK TRANSACTION;
+                    RETURN;
+                END
+            END
+        ]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+127.0.0.1 - - [19/May/2026 13:10:22] "POST /api/entidades/687B5C31DB9E47C2BCECCFBA1/upload_logo HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:22] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/logo?_ts=1779192622372 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:23] "GET /api/entidades/FC4C560525DE4F4589A1E59B4 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:24] "GET /api/entidades/FC4C560525DE4F4589A1E59B4/logo?_ts=1779192623635 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:24] "GET /api/entidades/46C9680E96504C8AAD992BC0D HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:24] "GET /api/entidades/46C9680E96504C8AAD992BC0D/logo?_ts=1779192624380 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:26] "GET /api/entidades/B508EA98FAC14E6B8F9D1F0AB HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:32] "POST /api/entidades/B508EA98FAC14E6B8F9D1F0AB/upload_logo HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:32] "GET /api/entidades/B508EA98FAC14E6B8F9D1F0AB/logo?_ts=1779192632048 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:36] "GET /api/entidades/GEN00052261619.916000001 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:36] "GET /api/entidades/GEN00052261619.916000001/logo?_ts=1779192636250 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:37] "GET /api/entidades/GEN00052261619.916000001 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:37] "GET /api/entidades/EEF54B8C7E294FB492A259606 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:43] "POST /api/entidades/EEF54B8C7E294FB492A259606/upload_logo HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:43] "GET /api/entidades/EEF54B8C7E294FB492A259606/logo?_ts=1779192643050 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:45] "GET /api/entidades/4A97BFA1A37546749D19684DE HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:48] "GET /api/entidades/EEF54B8C7E294FB492A259606 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:48] "GET /api/entidades/EEF54B8C7E294FB492A259606/logo?_ts=1779192648116 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:50] "GET /api/entidades/4A97BFA1A37546749D19684DE HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:55] "POST /api/entidades/4A97BFA1A37546749D19684DE/upload_logo HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:56] "GET /api/entidades/4A97BFA1A37546749D19684DE/logo?_ts=1779192655964 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:10:57] "GET /api/entidades/C44A070691F64E9791B827C4C HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:03] "POST /api/entidades/C44A070691F64E9791B827C4C/upload_logo HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:03] "GET /api/entidades/C44A070691F64E9791B827C4C/logo?_ts=1779192663886 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:12] "GET /entidades HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:12] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:12] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:12] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:12] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:13] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:13] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:13] "GET /static/js/entidades.js?v=1779192061 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:13] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:13] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:13] "GET /api/entidades HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:13] "GET /api/entidades/46C9680E96504C8AAD992BC0D HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:14] "GET /api/entidades/46C9680E96504C8AAD992BC0D/logo?_ts=1779192674001 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:15] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:15] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:15] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-members HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:16] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/logo?_ts=1779192675594 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:16] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:20] "POST /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-members HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:21] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:25] "POST /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-members HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:26] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:29] "POST /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-members HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:29] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:32] "POST /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-members HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:33] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:35] "POST /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-members HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:36] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:39] "POST /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-members HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:39] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:42] "POST /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-members HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:42] "GET /api/entidades/687B5C31DB9E47C2BCECCFBA1/cluster-candidates HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:52] "GET /generic/view/OPCMAT HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:52] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:52] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:52] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:52] "GET /static/js/dynamic_list.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:52] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:52] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:52] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:53] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:54] "GET /generic/api/OPCMAT?action=describe&include_screen_meta=1&menustamp=F13E5B7256214809B1BFCEEBD HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:54] "GET /generic/api/OPCMAT HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:54] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:57] "GET /generic/form/OPCMAT/20042DF4-540D-464C-BCB9-0?menustamp=F13E5B7256214809B1BFCEEBD&return_to=/generic/view/OPCMAT HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:11:58] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:58] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:58] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:58] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:58] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:58] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:58] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:58] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:11:59] "GET /generic/api/OPCMAT?action=describe&menustamp=F13E5B7256214809B1BFCEEBD&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:12:00] "GET /generic/api/OPCMAT/20042DF4-540D-464C-BCB9-0 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:12:00] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:12:00] "POST /generic/api/menu_object_lookup HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:12:01] "GET /api/anexos?table=OPCMAT&rec=20042DF4-540D-464C-BCB9-0 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:12:04] "POST /generic/api/menu_object_lookup HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:13:12] "GET /generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:13:12] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:13:12] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:13:13] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:13:13] "GET /static/js/dynamic_list.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:13:13] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:13:13] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:13:13] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:13:13] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:13:14] "GET /generic/api/OPC?action=describe&include_screen_meta=1&menustamp=C662E899ECD4419F905CCBB86 HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:13:14] "GET /generic/api/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:13:15] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:16:30] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:16:30] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:16:30] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:16:31] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:16:31] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:16:31] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:16:31] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:16:31] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:16:31] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:16:31] "GET /static/js/push.js?v=1779192061 HTTP/1.1" 304 -
+127.0.0.1 - - [19/May/2026 13:16:31] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 13:16:31] "GET /static/icons/icon-180.png HTTP/1.1" 304 -

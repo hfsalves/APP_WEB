@@ -3,7 +3,6 @@
   const form = document.getElementById('grCentralForm');
   const saveBtn = document.getElementById('grCentralSave');
   const deleteBtn = document.getElementById('grCentralDelete');
-  const formHint = document.getElementById('grCentralFormHint');
   const processResults = document.getElementById('grCentralProcessos');
   const vehicleSelect = document.getElementById('grCentralMatricula');
   const driverSelect = document.getElementById('grCentralMotorista');
@@ -82,7 +81,6 @@
     els.cimento.value = '0';
     els.aditivo.value = '0';
     if (els.servico) els.servico.value = 'PRODUÇÃO';
-    if (formHint) formHint.textContent = 'Novo registo diario.';
     updateQtt();
   };
 
@@ -122,7 +120,6 @@
     els.cimento.value = record.cimento ?? 0;
     els.aditivo.value = record.aditivo ?? 0;
     els.descricao.value = record.descricao || '';
-    if (formHint) formHint.textContent = `Editar registo ${record.processo || ''}`.trim();
     if (deleteBtn) deleteBtn.hidden = false;
     updateQtt();
   };

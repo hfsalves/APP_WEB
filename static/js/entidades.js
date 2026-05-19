@@ -726,6 +726,26 @@
       state.searchTimer = window.setTimeout(loadList, 250);
     });
     els.activeFilter?.addEventListener('change', loadList);
+    els.btnAddClusterMember?.addEventListener('click', addClusterMember);
+    els.clusterCandidateSearch?.addEventListener('input', () => {
+      window.clearTimeout(state.clusterSearchTimer);
+      state.clusterSearchTimer = window.setTimeout(loadClusterCandidates, 250);
+    });
+    els.clusterCandidate?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      addClusterMember();
+    });
+    els.fields.E_CLUSTER?.addEventListener('change', () => {
+      if (!els.fields.E_CLUSTER.checked) {
+        state.clusterMembers = [];
+        state.clusterCandidates = [];
+        renderClusterMembers();
+        renderClusterCandidates();
+        return;
+      }
+      loadClusterMembers();
+    });
     document.addEventListener('keydown', (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();

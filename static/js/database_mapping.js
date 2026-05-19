@@ -289,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </label>
             <div class="sz_field dbmap-transform-field">
               <label class="sz_label">Transformação</label>
-              <input class="sz_input dbmap-transform" type="text" value="${escapeHtml(field.transform_expr || '')}" placeholder="Opcional">
+              <input class="sz_input dbmap-transform" type="text" value="${escapeHtml(field.transform_expr || '')}" placeholder="Opcional. Ex: 9, 'texto', NULL, {CAMPO}">
             </div>
           </div>
         </article>

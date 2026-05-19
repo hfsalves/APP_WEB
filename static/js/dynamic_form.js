@@ -1837,12 +1837,32 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
     return getLookupPropertyFromProps(getColumnProperties(col), ...names);
   }
 
+  function normalizeLookupMappings(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map(item => ({
+        source: String(item?.source || item?.source_field || item?.origem || '').trim(),
+        target: String(item?.target || item?.target_field || item?.destino || '').trim(),
+      }))
+      .filter(item => item.source || item.target);
+  }
+
+  function getLookupMappings(col) {
+    const props = getColumnProperties(col);
+    return normalizeLookupMappings(
+      props.lookup_mappings
+      || props.lookup_extra_mappings
+      || props.field_mappings,
+    );
+  }
+
   function makeTableFieldLookupConfig(col) {
     return {
       lookupTable: getLookupProperty(col, 'lookup_table', 'table', 'source'),
       displayFields: getLookupProperty(col, 'lookup_display_fields', 'display_fields'),
       valueField: getLookupProperty(col, 'lookup_value_field', 'value_field', 'source_field'),
       targetField: getLookupProperty(col, 'lookup_target_field', 'target_field', 'field_name'),
+      mappings: getLookupMappings(col),
       objectName: String(col?.name || '').trim(),
     };
   }
@@ -1901,6 +1921,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         lookup_display_fields: config.displayFields,
         lookup_value_field: config.valueField,
         lookup_target_field: config.targetField,
+        lookup_mappings: config.mappings,
       },
     };
     const rawValue = String(value ?? '').trim();
@@ -1935,6 +1956,35 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
     return found ? record[found] : undefined;
   }
 
+  function readLookupRowFieldValue(row, fieldName) {
+    const source = row?.row && typeof row.row === 'object' ? row.row : row;
+    if (!source || typeof source !== 'object') return undefined;
+    return readRecordFieldValue(source, fieldName);
+  }
+
+  function applyTableFieldLookupMappings(row, config) {
+    const mappings = normalizeLookupMappings(config?.mappings);
+    if (!mappings.length) return;
+    mappings.forEach(mapping => {
+      if (!mapping.source || !mapping.target) return;
+      const rawValue = readLookupRowFieldValue(row, mapping.source);
+      const value = rawValue === undefined || rawValue === null ? '' : String(rawValue);
+      updateFieldValue(mapping.target, value, { preferWritable: true });
+      setTableFieldTargetValue(mapping.target, value);
+    });
+  }
+
+  function clearTableFieldLookupMappings(config, { writeEmpty = false } = {}) {
+    const mappings = normalizeLookupMappings(config?.mappings);
+    mappings.forEach(mapping => {
+      if (!mapping.target) return;
+      if (writeEmpty) {
+        updateFieldValue(mapping.target, '', { preferWritable: true });
+      }
+      clearTableFieldTargetValue(mapping.target, { writeEmpty });
+    });
+  }
+
   async function hydrateTableFieldLookupObjects(record) {
     const lookupObjects = cols.filter(col => (col.tipo || '').toUpperCase() === 'TABLE_FIELD');
     await Promise.all(lookupObjects.map(async col => {
@@ -1949,6 +1999,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         setFormStateValue(col.name, '');
         setFormStateValue(`${col.name}_LABEL`, '');
         clearTableFieldTargetValue(targetField, { writeEmpty: true });
+        clearTableFieldLookupMappings(config, { writeEmpty: true });
         return;
       }
 
@@ -1961,8 +2012,9 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         const rows = await fetchTableFieldLookupRows(col, { value });
         const row = rows.find(item => String(item?.value ?? '').trim() === value) || rows[0];
         const label = String(row?.label || value).trim() || value;
-        input.value = label;
+        input.value = value;
         setFormStateValue(`${col.name}_LABEL`, label);
+        applyTableFieldLookupMappings(row, config);
       } catch (error) {
         console.warn(`Nao foi possivel carregar o texto do campo tabela ${col.name}:`, error);
       }
@@ -1970,7 +2022,8 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   }
 
   function renderTableFieldLookupObject(col, colDiv) {
-    const { lookupTable, valueField, targetField } = getTableFieldLookupConfig(col);
+    const lookupConfig = getTableFieldLookupConfig(col);
+    const { lookupTable, valueField, targetField } = lookupConfig;
     let debounceTimer = null;
     let abortController = null;
     let currentRows = [];
@@ -2033,7 +2086,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
       if (!row) return;
       const value = row.value === undefined || row.value === null ? '' : String(row.value);
       const labelValue = String(row.label || value || '').trim();
-      input.value = labelValue;
+      input.value = value;
       setFormStateValue(col.name, value);
       setFormStateValue(`${col.name}_LABEL`, labelValue);
       if (targetField) {
@@ -2043,6 +2096,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
           showDynamicFormToast(`Campo destino nao encontrado: ${targetField}`, 'warning');
         }
       }
+      applyTableFieldLookupMappings(row, lookupConfig);
       closeMenu();
       input.focus();
     };
@@ -2122,6 +2176,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
       if (targetField) {
         clearTableFieldTargetValue(targetField, { writeEmpty: !input.value.trim() });
       }
+      clearTableFieldLookupMappings(lookupConfig, { writeEmpty: !input.value.trim() });
       scheduleLookup();
     });
     input.addEventListener('focus', () => {

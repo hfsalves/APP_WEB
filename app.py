@@ -6194,6 +6194,43 @@ def create_app():
             result[column_name] = value
         return result
 
+    def _database_manager_transform_value(transform_expr: str, row: dict, source_column: str):
+        expr = str(transform_expr or '').strip()
+        if not expr:
+            return row.get(source_column)
+
+        upper_expr = expr.upper()
+        if upper_expr in {'NULL', 'NONE'}:
+            return None
+        if upper_expr in {'TRUE', 'YES', 'SIM'}:
+            return 1
+        if upper_expr in {'FALSE', 'NO', 'NAO', 'NÃO'}:
+            return 0
+
+        if (
+            (expr.startswith("'") and expr.endswith("'"))
+            or (expr.startswith('"') and expr.endswith('"'))
+        ) and len(expr) >= 2:
+            return expr[1:-1]
+
+        numeric_text = expr.replace(',', '.')
+        if re.fullmatch(r'[+-]?\d+', numeric_text):
+            return int(numeric_text)
+        if re.fullmatch(r'[+-]?\d+\.\d+', numeric_text):
+            return Decimal(numeric_text)
+
+        field_match = re.fullmatch(r'\{\{\s*([^{}]+?)\s*\}\}|\{\s*([^{}]+?)\s*\}', expr)
+        if field_match:
+            lookup_key = str(field_match.group(1) or field_match.group(2) or '').strip()
+            for candidate in (lookup_key, lookup_key.upper(), lookup_key.lower()):
+                if candidate in row:
+                    return row.get(candidate)
+            wanted = lookup_key.upper()
+            found = next((key for key in row.keys() if str(key or '').strip().upper() == wanted), None)
+            return row.get(found) if found is not None else None
+
+        return expr
+
     def _database_manager_mapping_plan(table_key: str, direction: str, limit: int = 100, execute: bool = False, operation: str = 'INSERT_ONLY'):
         direction = str(direction or '').strip().upper()
         if direction not in {'APP_TO_TARGET', 'TARGET_TO_APP'}:
@@ -6247,6 +6284,7 @@ def create_app():
             if str(field.get('source_column') or '').strip()
                and str(field.get('target_column') or '').strip()
                and not bool(field.get('source_missing'))
+               and str(field.get('sync_direction') or 'BIDIRECTIONAL').strip().upper() in {'BIDIRECTIONAL', direction}
                and (
                    direction == 'TARGET_TO_APP'
                    or str(field.get('target_ref') or 'T1').strip().upper() == 'T1'
@@ -6262,6 +6300,7 @@ def create_app():
                 mapped_fields = [
                     field for field in mapped_fields
                     if str(field.get('source_column') or '').strip().upper() != 'FEID'
+                       or str(field.get('transform_expr') or '').strip()
                 ]
         if not mapped_fields:
             raise ValueError('Não existem campos com destino PHC definido.')
@@ -6421,10 +6460,21 @@ def create_app():
                 )
                 for row_index, row in enumerate(source_rows, start=1):
                     total_rows_seen += 1
-                    values = {
-                        dest_col: row.get(source_col)
-                        for source_col, dest_col in source_to_dest.items()
-                    }
+                    values = {}
+                    for field in mapped_fields:
+                        if direction == 'APP_TO_TARGET':
+                            source_key = str(field.get('source_column') or '').strip()
+                            dest_col = str(field.get('target_column') or '').strip()
+                        else:
+                            source_key = f"{str(field.get('target_ref') or 'T1').strip().upper()}.{str(field.get('target_column') or '').strip()}"
+                            dest_col = str(field.get('source_column') or '').strip()
+                        if not source_key or not dest_col:
+                            continue
+                        values[dest_col] = _database_manager_transform_value(
+                            field.get('transform_expr'),
+                            row,
+                            source_key,
+                        )
                     generated_insert_columns = set()
                     if direction == 'TARGET_TO_APP' and target_scope == 'FE' and app_has_feid and 'FEID' not in {k.upper() for k in values.keys()}:
                         values['FEID'] = _to_int(scope.get('feid'), 0)
@@ -6437,16 +6487,21 @@ def create_app():
                                 values[column_name] = _new_stamp_25()
                                 generated_insert_columns.add(column_name.upper())
 
-                    raw_key_values = {
-                        dest_col: values.get(dest_col)
-                        for _, dest_col in key_source_to_dest.items()
-                    }
+                    raw_key_values = {}
+                    for field in key_fields:
+                        dest_col = (
+                            str(field.get('target_column') or '').strip()
+                            if direction == 'APP_TO_TARGET'
+                            else str(field.get('source_column') or '').strip()
+                        )
+                        if dest_col:
+                            raw_key_values[dest_col] = values.get(dest_col)
                     if direction == 'TARGET_TO_APP' and target_scope == 'FE' and app_has_feid:
                         raw_key_values.setdefault('FEID', _to_int(scope.get('feid'), 0))
                     values, truncated_columns = _database_manager_prepare_insert_values(values, dest_columns_by_upper)
                     key_values = {
                         dest_col: values.get(dest_col)
-                        for _, dest_col in key_source_to_dest.items()
+                        for dest_col in raw_key_values.keys()
                     }
                     if direction == 'TARGET_TO_APP' and target_scope == 'FE' and app_has_feid:
                         key_values.setdefault('FEID', _to_int(scope.get('feid'), 0))

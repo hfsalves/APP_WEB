@@ -357,6 +357,10 @@ def _save_concrete_record(payload: dict) -> dict:
         raise ValueError("Motorista obrigatorio.")
     if not horaini:
         raise ValueError("Hora inicial obrigatoria.")
+    if not horafim:
+        raise ValueError("Hora final obrigatoria.")
+    if not descricao:
+        raise ValueError("Descricao obrigatoria.")
     if qtt < 0:
         raise ValueError("Contador final nao pode ser inferior ao inicial.")
 

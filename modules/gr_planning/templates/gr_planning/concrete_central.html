@@ -21,12 +21,6 @@
     <section class="sz_page_body gr-central-body">
       <form class="sz_panel gr-central-form" id="grCentralForm" autocomplete="off">
         <input type="hidden" id="grCentralStamp">
-        <div class="gr-central-form-head">
-          <div>
-            <h2 class="sz_h4">Registo</h2>
-            <p class="sz_text_muted" id="grCentralFormHint">Novo registo diario.</p>
-          </div>
-        </div>
 
         <div class="gr-central-grid">
           <div class="sz_field gr-central-span-2 gr-central-process-field">
@@ -70,7 +64,7 @@
 
           <div class="sz_field">
             <label class="sz_label" for="grCentralHoraFim">Hora final</label>
-            <input class="sz_input" id="grCentralHoraFim" type="time">
+            <input class="sz_input" id="grCentralHoraFim" type="time" required>
           </div>
 
           <div class="sz_field">
@@ -114,8 +108,8 @@
           </div>
 
           <div class="sz_field gr-central-span-2">
-            <label class="sz_label" for="grCentralDescricao">Descricao</label>
-            <textarea class="sz_textarea" id="grCentralDescricao" maxlength="250" rows="3" placeholder="Notas do trabalho, paragens ou observacoes"></textarea>
+            <label class="sz_label" for="grCentralDescricao">Descrição</label>
+            <textarea class="sz_textarea" id="grCentralDescricao" maxlength="250" rows="3" required placeholder="Notas do trabalho, paragens ou observacoes"></textarea>
           </div>
         </div>
 

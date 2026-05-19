@@ -302,8 +302,34 @@ def _split_lookup_fields(value: str) -> list[str]:
     ]
 
 
+def _normalize_lookup_field_name(value: str) -> str:
+    raw = str(value or '').strip().strip('[]').strip()
+    if '.' in raw:
+        raw = raw.split('.')[-1].strip().strip('[]').strip()
+    return raw
+
+
+def _normalize_lookup_mappings(value) -> list[dict[str, str]]:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except Exception:
+            value = []
+    if not isinstance(value, list):
+        return []
+    rows = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        source = str(item.get('source') or item.get('source_field') or item.get('origem') or '').strip()
+        target = str(item.get('target') or item.get('target_field') or item.get('destino') or '').strip()
+        if source or target:
+            rows.append({'source': source, 'target': target})
+    return rows
+
+
 def _resolve_lookup_column(column_map: dict[str, str], requested: str, label: str) -> str:
-    raw = str(requested or '').strip().strip('[]').strip()
+    raw = _normalize_lookup_field_name(requested)
     key = raw.upper()
     if not key or key not in column_map:
         raise ValueError(f'{label} invalido ou inexistente: {raw or "-"}')
@@ -691,6 +717,24 @@ def _table_is_fe_scoped(table_name: str) -> bool:
     return tn not in ('',) and _column_exists(tn, 'FEID')
 
 
+def _fe_cluster_scope_available() -> bool:
+    cached = getattr(g, '_generic_fe_cluster_scope_available', None)
+    if cached is not None:
+        return bool(cached)
+    try:
+        available = (
+            _column_exists('FE', 'FESTAMP')
+            and _column_exists('FE', 'FEID')
+            and _column_exists('FE', 'E_CLUSTER')
+            and _column_exists('FE_CLUSTER_ENTIDADES', 'FESTAMP_CLUSTER')
+            and _column_exists('FE_CLUSTER_ENTIDADES', 'FESTAMP_ENTIDADE')
+        )
+    except Exception:
+        available = False
+    g._generic_fe_cluster_scope_available = bool(available)
+    return bool(available)
+
+
 def _is_partner_table(table_name: str) -> bool:
     return (table_name or '').strip().upper() in ('CL', 'FL')
 
@@ -700,6 +744,60 @@ def _current_feid_or_abort() -> int:
         return get_current_feid()
     except MissingCurrentEntityError as exc:
         abort(403, str(exc))
+
+
+def _current_read_feids_or_abort() -> list[int]:
+    current_feid = int(_current_feid_or_abort() or 0)
+    cached = getattr(g, '_generic_fe_read_scope', None)
+    if isinstance(cached, dict) and cached.get('current_feid') == current_feid:
+        return list(cached.get('feids') or [current_feid])
+
+    feids = [current_feid] if current_feid else []
+    if current_feid and _fe_cluster_scope_available():
+        try:
+            rows = db.session.execute(text("""
+                SELECT DISTINCT ISNULL(CL.FEID, 0) AS FEID
+                FROM dbo.FE_CLUSTER_ENTIDADES C
+                INNER JOIN dbo.FE EN
+                    ON EN.FESTAMP = C.FESTAMP_ENTIDADE
+                INNER JOIN dbo.FE CL
+                    ON CL.FESTAMP = C.FESTAMP_CLUSTER
+                WHERE ISNULL(EN.FEID, 0) = :current_feid
+                  AND ISNULL(CL.E_CLUSTER, 0) = 1
+                  AND ISNULL(CL.FEID, 0) <> 0
+            """), {'current_feid': current_feid}).scalars().all()
+            for value in rows:
+                try:
+                    feid = int(value or 0)
+                except Exception:
+                    feid = 0
+                if feid and feid not in feids:
+                    feids.append(feid)
+        except Exception:
+            current_app.logger.exception('Erro ao calcular âmbito FEID de clusters.')
+
+    if not feids:
+        feids = [current_feid]
+    g._generic_fe_read_scope = {'current_feid': current_feid, 'feids': feids}
+    return list(feids)
+
+
+def _sql_feid_read_predicate(column_sql: str, param_name: str = 'current_feid') -> str:
+    base = f"ISNULL({column_sql}, 0) = :{param_name}"
+    if not _fe_cluster_scope_available():
+        return base
+    return (
+        f"({base}"
+        f" OR ISNULL({column_sql}, 0) IN ("
+        f"     SELECT ISNULL(CL.FEID, 0)"
+        f"       FROM dbo.FE_CLUSTER_ENTIDADES C"
+        f"       INNER JOIN dbo.FE EN ON EN.FESTAMP = C.FESTAMP_ENTIDADE"
+        f"       INNER JOIN dbo.FE CL ON CL.FESTAMP = C.FESTAMP_CLUSTER"
+        f"      WHERE ISNULL(EN.FEID, 0) = :{param_name}"
+        f"        AND ISNULL(CL.E_CLUSTER, 0) = 1"
+        f"        AND ISNULL(CL.FEID, 0) <> 0"
+        f" ))"
+    )
 
 
 def _normalize_vies_text(value) -> str:
@@ -871,9 +969,9 @@ def _next_incremental_no(table_name: str, current_feid: int | None = None) -> in
         return 1
     sql = text(f"""
         SELECT ISNULL(MAX(TRY_CAST(NO AS int)), 0) + 1 AS NEXT_NO
-          FROM dbo.{tn}
+         FROM dbo.{tn}
          WHERE 1 = 1
-         {_sql_feid_clause(tn) if current_feid is not None else ''}
+         {_sql_feid_clause(tn, mode='write') if current_feid is not None else ''}
     """)
     params = {'current_feid': current_feid} if current_feid is not None else {}
     value = db.session.execute(sql, params).scalar()
@@ -892,9 +990,9 @@ def _record_no_exists(table_name: str, no_value, current_feid: int | None = None
     exclude_sql = f" AND ISNULL({pk_name}, '') <> :exclude_stamp" if exclude_stamp else ''
     sql = text(f"""
         SELECT TOP 1 1
-          FROM dbo.{tn}
+         FROM dbo.{tn}
          WHERE TRY_CAST(NO AS int) = :no
-         {_sql_feid_clause(tn) if current_feid is not None else ''}
+         {_sql_feid_clause(tn, mode='write') if current_feid is not None else ''}
          {exclude_sql}
     """)
     params = {'no': int(no_value)}
@@ -936,11 +1034,18 @@ def _apply_feid_scope_stmt(stmt, table, table_name: str, mode: str = 'read'):
     tn = (table_name or '').strip().upper()
     if _table_is_fe_scoped(tn):
         current_feid = _current_feid_or_abort()
+        read_feids = _current_read_feids_or_abort() if mode == 'read' else [current_feid]
         if tn == 'AL' and hasattr(table.c, 'FEID_GESTOR'):
-            stmt = stmt.where(or_(
-                getattr(table.c, 'FEID') == current_feid,
-                getattr(table.c, 'FEID_GESTOR') == current_feid,
-            ))
+            if mode == 'read':
+                stmt = stmt.where(or_(
+                    getattr(table.c, 'FEID').in_(read_feids),
+                    getattr(table.c, 'FEID_GESTOR').in_(read_feids),
+                ))
+            else:
+                stmt = stmt.where(or_(
+                    getattr(table.c, 'FEID') == current_feid,
+                    getattr(table.c, 'FEID_GESTOR') == current_feid,
+                ))
         elif tn == 'RS' and mode == 'read' and hasattr(table.c, 'ALOJAMENTO'):
             al_table = get_table('AL')
             owner_visibility = exists(
@@ -949,12 +1054,12 @@ def _apply_feid_scope_stmt(stmt, table, table_name: str, mode: str = 'read'):
                 .where(
                     and_(
                         al_table.c.NOME == table.c.ALOJAMENTO,
-                        al_table.c.FEID == current_feid,
+                        al_table.c.FEID.in_(read_feids),
                     )
                 )
             )
             stmt = stmt.where(or_(
-                getattr(table.c, 'FEID') == current_feid,
+                getattr(table.c, 'FEID').in_(read_feids),
                 owner_visibility,
             ))
         elif tn == 'RS' and mode == 'write' and hasattr(table.c, 'ALOJAMENTO'):
@@ -981,7 +1086,10 @@ def _apply_feid_scope_stmt(stmt, table, table_name: str, mode: str = 'read'):
             )
             stmt = stmt.where(manager_or_owner_write)
         else:
-            stmt = stmt.where(getattr(table.c, 'FEID') == current_feid)
+            if mode == 'read':
+                stmt = stmt.where(getattr(table.c, 'FEID').in_(read_feids))
+            else:
+                stmt = stmt.where(getattr(table.c, 'FEID') == current_feid)
     return stmt
 
 
@@ -991,6 +1099,13 @@ def _sql_feid_clause(table_name: str, alias: str = '', param_name: str = 'curren
         return ''
     prefix = f'{alias}.' if alias else ''
     if tn == 'AL' and _column_exists('AL', 'FEID_GESTOR'):
+        if mode == 'read':
+            return (
+                f" AND ("
+                f"{_sql_feid_read_predicate(f'{prefix}FEID', param_name)}"
+                f" OR {_sql_feid_read_predicate(f'{prefix}FEID_GESTOR', param_name)}"
+                f")"
+            )
         return (
             f" AND (ISNULL({prefix}FEID, 0) = :{param_name}"
             f" OR ISNULL({prefix}FEID_GESTOR, 0) = :{param_name})"
@@ -998,12 +1113,12 @@ def _sql_feid_clause(table_name: str, alias: str = '', param_name: str = 'curren
     if tn == 'RS' and mode == 'read' and _column_exists('RS', 'ALOJAMENTO'):
         rs_aloj = f"{prefix}ALOJAMENTO" if prefix else "ALOJAMENTO"
         return (
-            f" AND (ISNULL({prefix}FEID, 0) = :{param_name}"
+            f" AND ({_sql_feid_read_predicate(f'{prefix}FEID', param_name)}"
             f" OR EXISTS ("
             f"     SELECT 1"
             f"       FROM dbo.AL ALV"
             f"      WHERE LTRIM(RTRIM(ISNULL(ALV.NOME,''))) = LTRIM(RTRIM(ISNULL({rs_aloj},'')))"
-            f"        AND ISNULL(ALV.FEID, 0) = :{param_name}"
+            f"        AND {_sql_feid_read_predicate('ALV.FEID', param_name)}"
             f" ))"
         )
     if tn == 'RS' and mode == 'write' and _column_exists('RS', 'ALOJAMENTO') and _column_exists('AL', 'FEID_GESTOR'):
@@ -1019,6 +1134,8 @@ def _sql_feid_clause(table_name: str, alias: str = '', param_name: str = 'curren
             f"        )"
             f" )"
         )
+    if mode == 'read':
+        return f" AND {_sql_feid_read_predicate(f'{prefix}FEID', param_name)}"
     return f" AND ISNULL({prefix}FEID, 0) = :{param_name}"
 
 
@@ -2493,7 +2610,24 @@ def partner_vies_lookup(table_name):
 def combo_options():
     q = request.args.get('query')
     try:
-        rows = db.session.execute(text(q)).fetchall()
+        params = {}
+        stmt = text(q or '')
+        try:
+            current_feid = _current_feid_or_abort()
+            read_feids = _current_read_feids_or_abort()
+            params.update({
+                'current_feid': current_feid,
+                'FEID': current_feid,
+                'current_feids': read_feids,
+                'FEIDS': read_feids,
+            })
+            if ':current_feids' in (q or ''):
+                stmt = stmt.bindparams(bindparam('current_feids', expanding=True))
+            if ':FEIDS' in (q or ''):
+                stmt = stmt.bindparams(bindparam('FEIDS', expanding=True))
+        except Exception:
+            params = {}
+        rows = db.session.execute(stmt, params).fetchall()
     except Exception as e:
         current_app.logger.exception("Erro em combo_options")
         return jsonify({'error': str(e)}), 500
@@ -2544,6 +2678,13 @@ def menu_object_lookup():
         value_field_raw = _lookup_prop(props, 'lookup_value_field', 'value_field', 'source_field')
         target_field = _lookup_prop(props, 'lookup_target_field', 'target_field', 'field_name')
         filter_expr = _lookup_prop(props, 'lookup_filter', 'filter', 'where')
+        lookup_mappings = _normalize_lookup_mappings(
+            props.get('lookup_mappings')
+            or props.get('lookup_extra_mappings')
+            or props.get('field_mappings')
+            or payload_config.get('lookup_mappings')
+            or payload_config.get('field_mappings')
+        )
         if not lookup_table:
             return jsonify({'success': False, 'error': 'Tabela de pesquisa em falta.'}), 400
         if not value_field_raw:
@@ -2587,6 +2728,18 @@ def menu_object_lookup():
                 seen_display.add(key)
                 display_columns.append(column_name)
 
+        mapping_columns = []
+        seen_mapping = set()
+        for mapping in lookup_mappings:
+            source_field = mapping.get('source')
+            if not source_field:
+                continue
+            column_name = _resolve_lookup_column(column_map, source_field, 'Campo origem')
+            key = column_name.upper()
+            if key not in seen_mapping:
+                seen_mapping.add(key)
+                mapping_columns.append(column_name)
+
         search_columns = []
         seen_search = set()
         for column_name in [*display_columns, value_field]:
@@ -2612,8 +2765,15 @@ def menu_object_lookup():
         alias = 'LKP'
         table_ref = f'{_quote_sql_identifier(schema_name)}.{_quote_sql_identifier(physical_table)}'
         select_parts = [f'{alias}.{_quote_sql_identifier(value_field)} AS [__value]']
+        selected_columns = set()
         for column_name in display_columns:
             select_parts.append(f'{alias}.{_quote_sql_identifier(column_name)} AS {_quote_sql_identifier(column_name)}')
+            selected_columns.add(column_name.upper())
+        for column_name in mapping_columns:
+            if column_name.upper() in selected_columns:
+                continue
+            select_parts.append(f'{alias}.{_quote_sql_identifier(column_name)} AS {_quote_sql_identifier(column_name)}')
+            selected_columns.add(column_name.upper())
 
         if exact_mode:
             params = {'lookup_value': exact_value}
@@ -2660,6 +2820,8 @@ def menu_object_lookup():
             row_payload = {value_field: _event_cursor_json_value(raw_value)}
             for column_name in display_columns:
                 row_payload[column_name] = _event_cursor_json_value(row.get(column_name))
+            for column_name in mapping_columns:
+                row_payload[column_name] = _event_cursor_json_value(row.get(column_name))
             rows.append({
                 'value': _event_cursor_json_value(raw_value),
                 'label': label,
@@ -2704,7 +2866,7 @@ def mn_tratar():
                 NMTRATADO = :user,
                 DTTRATADO = CAST(GETDATE() AS date)
             WHERE MNSTAMP = :stamp
-            {_sql_feid_clause('MN')}
+            {_sql_feid_clause('MN', mode='write')}
         """)
         if _table_is_fe_scoped('MN'):
             params['current_feid'] = _current_feid_or_abort()
@@ -3236,7 +3398,7 @@ def tarefa_tratar():
                 SELECT UPPER(LTRIM(RTRIM(ISNULL(ORIGEM,'')))) AS ORIGEM
                 FROM TAREFAS
                 WHERE TAREFASSTAMP = :id
-                """ + _sql_feid_clause('TAREFAS')
+                """ + _sql_feid_clause('TAREFAS', mode='write')
             ), {'id': tid, **({'current_feid': current_feid} if current_feid is not None else {})}).scalar()
             if origem is None:
                 return jsonify({'ok': False, 'error': 'Tarefa não encontrada'}), 404
@@ -3249,7 +3411,7 @@ def tarefa_tratar():
                 NMTRATADO = :user,
                 DTTRATADO = CAST(GETDATE() AS date)
             WHERE TAREFASSTAMP = :id
-            {_sql_feid_clause('TAREFAS')}
+            {_sql_feid_clause('TAREFAS', mode='write')}
         """)
         params = {'user': current_user.LOGIN, 'id': tid}
         if current_feid is not None:
@@ -3276,7 +3438,7 @@ def tarefa_reabrir():
                 NMTRATADO = '',
                 DTTRATADO = CAST('1900-01-01' AS date)
             WHERE TAREFASSTAMP = :id
-            {_sql_feid_clause('TAREFAS')}
+            {_sql_feid_clause('TAREFAS', mode='write')}
         """)
         params = {'id': tid}
         if _table_is_fe_scoped('TAREFAS'):

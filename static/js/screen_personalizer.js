@@ -782,6 +782,119 @@ document.addEventListener('DOMContentLoaded', () => {
       : {};
   }
 
+  function normalizeLookupMappings(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((item) => ({
+        source: String(item?.source || item?.source_field || item?.origem || '').trim(),
+        target: String(item?.target || item?.target_field || item?.destino || '').trim(),
+      }));
+  }
+
+  function getLookupMappingsFromProps(props) {
+    if (!props || typeof props !== 'object') return [];
+    return normalizeLookupMappings(
+      props.lookup_mappings
+      || props.lookup_extra_mappings
+      || props.field_mappings,
+    );
+  }
+
+  function setSelectedLookupMappings(mappings, { rerender = true } = {}) {
+    const field = findFieldByStamp(state.selectedFieldStamp);
+    if (!field || detectFieldType(field) !== 'TABLE_FIELD') return;
+    if (!field.PROPRIEDADES || typeof field.PROPRIEDADES !== 'object') {
+      field.PROPRIEDADES = {};
+    }
+    const next = normalizeLookupMappings(mappings);
+    if (next.some((item) => item.source || item.target)) {
+      field.PROPRIEDADES.lookup_mappings = next;
+    } else {
+      delete field.PROPRIEDADES.lookup_mappings;
+    }
+    renderSidebarList();
+    renderPreview();
+    if (rerender) renderProperties();
+  }
+
+  function updateSelectedLookupMapping(index, key, value, { rerender = false } = {}) {
+    const field = findFieldByStamp(state.selectedFieldStamp);
+    if (!field || detectFieldType(field) !== 'TABLE_FIELD') return;
+    const mappings = getLookupMappingsFromProps(getFieldProperties(field));
+    const itemIndex = Number(index);
+    if (!Number.isInteger(itemIndex) || itemIndex < 0) return;
+    while (mappings.length <= itemIndex) {
+      mappings.push({ source: '', target: '' });
+    }
+    const normalizedKey = String(key || '').trim() === 'target' ? 'target' : 'source';
+    mappings[itemIndex][normalizedKey] = String(value || '').trim();
+    setSelectedLookupMappings(mappings, { rerender });
+  }
+
+  function addSelectedLookupMapping() {
+    const field = findFieldByStamp(state.selectedFieldStamp);
+    if (!field || detectFieldType(field) !== 'TABLE_FIELD') return;
+    setSelectedLookupMappings([
+      ...getLookupMappingsFromProps(getFieldProperties(field)),
+      { source: '', target: '' },
+    ]);
+  }
+
+  function removeSelectedLookupMapping(index) {
+    const field = findFieldByStamp(state.selectedFieldStamp);
+    if (!field || detectFieldType(field) !== 'TABLE_FIELD') return;
+    const itemIndex = Number(index);
+    const mappings = getLookupMappingsFromProps(getFieldProperties(field));
+    if (!Number.isInteger(itemIndex) || itemIndex < 0) return;
+    setSelectedLookupMappings(mappings.filter((_, currentIndex) => currentIndex !== itemIndex));
+  }
+
+  function renderLookupMappingsEditor(prop) {
+    const mappings = normalizeLookupMappings(prop.value);
+    const rows = mappings.length ? mappings : [{ source: '', target: '' }];
+    const targetOptions = Array.isArray(prop.targetOptions) ? prop.targetOptions : [];
+    return `
+      <div class="spv-lookup-map">
+        <div class="spv-lookup-map-head">
+          <span>Campo origem</span>
+          <span>Campo no ecrã</span>
+          <span></span>
+        </div>
+        <div class="spv-lookup-map-list">
+          ${rows.map((mapping, index) => `
+            <div class="spv-lookup-map-row">
+              <input type="text"
+                class="sz_input spv-prop-input"
+                value="${escapeHtml(mapping.source)}"
+                placeholder="Ex: DESCRICAO"
+                data-lookup-mapping-index="${index}"
+                data-lookup-mapping-field="source">
+              <select class="sz_select spv-prop-select"
+                data-lookup-mapping-index="${index}"
+                data-lookup-mapping-field="target">
+                ${targetOptions.map((option) => `
+                  <option value="${escapeHtml(option.value)}" ${String(mapping.target || '') === String(option.value || '') ? 'selected' : ''}>${escapeHtml(option.label)}</option>
+                `).join('')}
+              </select>
+              <button type="button"
+                class="sz_icon_button spv-lookup-map-remove"
+                title="Remover mapeamento"
+                aria-label="Remover mapeamento"
+                data-lookup-mapping-action="remove"
+                data-lookup-mapping-index="${index}">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          `).join('')}
+        </div>
+        <button type="button" class="sz_button sz_button_secondary spv-lookup-map-add" data-lookup-mapping-action="add">
+          <i class="fas fa-plus"></i>
+          Adicionar campo
+        </button>
+      </div>
+    `;
+  }
+
   function getFieldBoundVariableName(field) {
     return normalizeVariableName(getFieldProperties(field).variable_name);
   }
@@ -2584,6 +2697,13 @@ document.addEventListener('DOMContentLoaded', () => {
           options: lookupTargetOptions,
         },
         {
+          name: 'Extra Field Mappings',
+          value: getLookupMappingsFromProps(fieldProps),
+          editor: 'LOOKUP_MAPPINGS',
+          editorType: 'lookup_mappings',
+          targetOptions: lookupTargetOptions,
+        },
+        {
           name: 'Filter Expression',
           value: String(fieldProps.lookup_filter || '').trim(),
           editor: 'LOOKUP_FILTER',
@@ -2674,6 +2794,8 @@ document.addEventListener('DOMContentLoaded', () => {
               ? `<textarea class="sz_textarea spv-prop-input" rows="${escapeHtml(String(prop.rows || 4))}" data-prop-editor="${escapeHtml(prop.editor)}" placeholder="${escapeHtml(prop.placeholder || '')}">${escapeHtml(prop.value || '')}</textarea>`
               : prop.editorType === 'number'
               ? `<input type="number" class="sz_input spv-prop-input" data-prop-editor="${escapeHtml(prop.editor)}" value="${escapeHtml(prop.value)}"${prop.step ? ` step="${escapeHtml(prop.step)}"` : ''}${prop.min ? ` min="${escapeHtml(prop.min)}"` : ''}>`
+              : prop.editorType === 'lookup_mappings'
+              ? renderLookupMappingsEditor(prop)
               : prop.editor
               ? `<input type="text" class="sz_input spv-prop-input" data-prop-editor="${escapeHtml(prop.editor)}" value="${escapeHtml(prop.value)}">`
               : `<div class="spv-prop-value">${escapeHtml(prop.value)}</div>`}
@@ -5061,6 +5183,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   els.propertiesContent?.addEventListener('input', (event) => {
+    const mappingInput = event.target.closest('[data-lookup-mapping-field]');
+    if (mappingInput) {
+      updateSelectedLookupMapping(
+        Number(mappingInput.dataset.lookupMappingIndex || -1),
+        mappingInput.dataset.lookupMappingField,
+        mappingInput.value,
+        { rerender: false },
+      );
+      return;
+    }
     const input = event.target.closest('[data-prop-editor]');
     if (!input) return;
     const nextValue = input.type === 'checkbox' ? (input.checked ? 1 : 0) : input.value;
@@ -5068,6 +5200,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   els.propertiesContent?.addEventListener('change', (event) => {
+    const mappingInput = event.target.closest('[data-lookup-mapping-field]');
+    if (mappingInput) {
+      updateSelectedLookupMapping(
+        Number(mappingInput.dataset.lookupMappingIndex || -1),
+        mappingInput.dataset.lookupMappingField,
+        mappingInput.value,
+        { rerender: true },
+      );
+      return;
+    }
     const input = event.target.closest('[data-prop-editor]');
     if (!input) return;
     const nextValue = input.type === 'checkbox' ? (input.checked ? 1 : 0) : input.value;
@@ -5076,6 +5218,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   els.propertiesContent?.addEventListener('click', (event) => {
+    const mappingAction = event.target.closest('[data-lookup-mapping-action]');
+    if (mappingAction) {
+      const kind = String(mappingAction.dataset.lookupMappingAction || '').trim();
+      if (kind === 'add') {
+        addSelectedLookupMapping();
+        return;
+      }
+      if (kind === 'remove') {
+        removeSelectedLookupMapping(Number(mappingAction.dataset.lookupMappingIndex || -1));
+        return;
+      }
+    }
     const eventEditorAction = event.target.closest('[data-event-editor]');
     if (eventEditorAction) {
       const eventName = String(eventEditorAction.dataset.eventEditor || 'click').trim().toLowerCase();

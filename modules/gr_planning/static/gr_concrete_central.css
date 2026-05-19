@@ -71,20 +71,10 @@
   padding: var(--sz-space-3);
 }
 
-.gr-central-form-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--sz-space-3);
-  padding-bottom: var(--sz-space-3);
-  border-bottom: 1px solid var(--sz-color-border);
-}
-
 .gr-central-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sz-space-3);
-  padding-top: var(--sz-space-3);
   min-width: 0;
 }
 
