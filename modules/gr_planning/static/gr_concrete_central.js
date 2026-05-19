@@ -4,7 +4,7 @@
   const saveBtn = document.getElementById('grCentralSave');
   const deleteBtn = document.getElementById('grCentralDelete');
   const formHint = document.getElementById('grCentralFormHint');
-  const processDatalist = document.getElementById('grCentralProcessos');
+  const processResults = document.getElementById('grCentralProcessos');
   const vehicleSelect = document.getElementById('grCentralMatricula');
 
   if (!form) return;
@@ -31,6 +31,7 @@
 
   let searchTimer = null;
   let initialRecord = cfg.record || null;
+  let processRows = [];
 
   const escapeHtml = (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -148,11 +149,33 @@
     }
   };
 
+  const hideProcessResults = () => {
+    if (processResults) processResults.hidden = true;
+  };
+
+  const renderProcessResults = (rows) => {
+    if (!processResults) return;
+    processRows = Array.isArray(rows) ? rows : [];
+    if (!processRows.length) {
+      processResults.innerHTML = '<div class="gr-central-process-empty">Sem obras encontradas.</div>';
+      processResults.hidden = false;
+      return;
+    }
+    processResults.innerHTML = processRows.map((row, index) => (
+      `<button type="button" class="gr-central-process-option" data-index="${index}">
+        <strong>${escapeHtml(row.processo || '')}</strong>
+        <span>${escapeHtml(row.descricao || '')}</span>
+      </button>`
+    )).join('');
+    processResults.hidden = false;
+  };
+
   const searchProcesses = async (term) => {
-    if (!processDatalist) return;
+    if (!processResults) return;
     const query = String(term || '').trim();
     if (query.length < 1) {
-      processDatalist.innerHTML = '';
+      processResults.innerHTML = '';
+      processResults.hidden = true;
       return;
     }
     try {
@@ -161,11 +184,10 @@
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || 'Erro');
-      processDatalist.innerHTML = (payload.rows || []).map((row) => (
-        `<option value="${escapeHtml(row.processo)}">${escapeHtml(row.descricao || '')}</option>`
-      )).join('');
+      renderProcessResults(payload.rows || []);
     } catch (error) {
-      processDatalist.innerHTML = '';
+      processResults.innerHTML = '';
+      processResults.hidden = true;
     }
   };
 
@@ -224,6 +246,25 @@
   els.processo?.addEventListener('input', () => {
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => searchProcesses(els.processo.value), 180);
+  });
+
+  els.processo?.addEventListener('focus', () => {
+    if (els.processo.value.trim()) searchProcesses(els.processo.value);
+  });
+
+  processResults?.addEventListener('click', (event) => {
+    const option = event.target.closest('.gr-central-process-option');
+    if (!option) return;
+    const row = processRows[Number(option.dataset.index)];
+    if (!row) return;
+    els.processo.value = row.processo || '';
+    hideProcessResults();
+  });
+
+  document.addEventListener('pointerdown', (event) => {
+    if (!processResults || processResults.hidden) return;
+    if (event.target === els.processo || processResults.contains(event.target)) return;
+    hideProcessResults();
   });
 
   if (initialRecord) fillForm(initialRecord);

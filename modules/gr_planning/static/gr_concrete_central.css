@@ -2,18 +2,19 @@
   flex: 1 1 auto;
   min-height: 0;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow: hidden;
   background: var(--sz-color-bg-main);
   touch-action: pan-y;
 }
 
 .gr-central-shell {
   display: grid !important;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: 100%;
   max-width: none;
   min-height: 0;
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
 }
 
 .gr-central-contextbar {
@@ -46,20 +47,15 @@
 .gr-central-body {
   min-height: 0;
   display: flex;
-  justify-content: center;
+  justify-content: stretch;
   max-width: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.gr-central-body::-webkit-scrollbar {
-  display: none;
+  overflow: hidden;
 }
 
 .gr-central-form {
-  width: min(100%, 72rem);
-  max-width: 100%;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -105,6 +101,59 @@
   grid-column: 1 / -1;
 }
 
+.gr-central-process-field {
+  position: relative;
+}
+
+.gr-central-process-results {
+  position: absolute;
+  z-index: 60;
+  inset-inline: 0;
+  top: calc(100% + var(--sz-space-1));
+  max-height: min(18rem, 46vh);
+  overflow-y: auto;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: color-mix(in srgb, var(--sz-color-surface) 98%, transparent);
+  box-shadow: var(--sz-shadow-2);
+  padding: var(--sz-space-1);
+  scrollbar-width: thin;
+}
+
+.gr-central-process-results[hidden] {
+  display: none;
+}
+
+.gr-central-process-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
+  gap: var(--sz-space-2);
+  align-items: center;
+  border: 0;
+  border-radius: var(--sz-radius-sm);
+  background: transparent;
+  color: var(--sz-color-text);
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+}
+
+.gr-central-process-option:hover,
+.gr-central-process-option:focus {
+  outline: 0;
+  background: color-mix(in srgb, var(--sz-color-primary) 14%, transparent);
+}
+
+.gr-central-process-option span,
+.gr-central-process-empty {
+  color: var(--sz-color-text-muted);
+}
+
+.gr-central-process-empty {
+  padding: 0.65rem;
+}
+
 .gr-central-qtt {
   grid-column: 1 / -1;
   display: flex;
@@ -124,16 +173,17 @@
   line-height: 1;
 }
 
-.gr-central-form-actions {
-  position: sticky;
-  bottom: 0;
+.gr-central-actionbar {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.gr-central-actionbar .sz_actionbar_right {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--sz-space-2);
-  margin: var(--sz-space-3) calc(var(--sz-space-3) * -1) calc(var(--sz-space-3) * -1);
-  padding: var(--sz-space-3);
-  border-top: 1px solid var(--sz-color-border);
-  background: color-mix(in srgb, var(--sz-color-surface) 96%, transparent);
+  flex-wrap: wrap;
 }
 
 .gr-central-delete-btn {
@@ -160,13 +210,14 @@
   }
 
   .gr-central-body {
-    display: block;
+    display: flex;
+    overflow: hidden;
   }
 
   .gr-central-form {
     width: 100%;
     overflow-x: hidden;
-    overflow-y: visible;
+    overflow-y: auto;
   }
 }
 
@@ -183,17 +234,27 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .gr-central-process-results {
+    max-height: 16rem;
+  }
+
+  .gr-central-process-option {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+  }
+
   .gr-central-span-2,
   .gr-central-qtt {
     grid-column: auto;
   }
 
-  .gr-central-form-actions {
+  .gr-central-actionbar .sz_actionbar_right {
+    width: 100%;
     justify-content: stretch;
     flex-wrap: wrap;
   }
 
-  .gr-central-form-actions .sz_button {
+  .gr-central-actionbar .sz_button {
     flex: 1 1 0;
     min-width: 0;
     padding-inline: 0.75rem;

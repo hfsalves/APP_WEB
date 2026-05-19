@@ -29,10 +29,10 @@
         </div>
 
         <div class="gr-central-grid">
-          <div class="sz_field gr-central-span-2">
+          <div class="sz_field gr-central-span-2 gr-central-process-field">
             <label class="sz_label" for="grCentralProcesso">Obra</label>
-            <input class="sz_input" id="grCentralProcesso" list="grCentralProcessos" maxlength="25" required placeholder="Codigo da obra">
-            <datalist id="grCentralProcessos"></datalist>
+            <input class="sz_input" id="grCentralProcesso" maxlength="25" required placeholder="Codigo ou descricao da obra" autocomplete="off">
+            <div class="gr-central-process-results" id="grCentralProcessos" hidden></div>
           </div>
 
           <div class="sz_field">
@@ -117,22 +117,26 @@
           </div>
         </div>
 
-        <div class="gr-central-form-actions">
-          <a class="sz_button sz_button_secondary" id="grCentralBack" href="{{ return_to }}">
-            <i class="fa-solid fa-arrow-left"></i>
-            <span>Voltar</span>
-          </a>
-          <button type="button" class="sz_button sz_button_ghost gr-central-delete-btn" id="grCentralDelete" {% if not record %}hidden{% endif %}>
-            <i class="fa-solid fa-trash"></i>
-            <span>Eliminar</span>
-          </button>
-          <button type="submit" class="sz_button sz_button_primary" id="grCentralSave">
-            <i class="fa-solid fa-save"></i>
-            <span>Gravar</span>
-          </button>
-        </div>
       </form>
     </section>
+
+    <footer class="sz_actionbar sz_page_footer gr-central-actionbar">
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <a class="sz_button sz_button_secondary" id="grCentralBack" href="{{ return_to }}">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </a>
+        <button type="button" class="sz_button sz_button_ghost gr-central-delete-btn" id="grCentralDelete" {% if not record %}hidden{% endif %}>
+          <i class="fa-solid fa-trash"></i>
+          <span>Eliminar</span>
+        </button>
+        <button type="submit" form="grCentralForm" class="sz_button sz_button_primary" id="grCentralSave">
+          <i class="fa-solid fa-save"></i>
+          <span>Gravar</span>
+        </button>
+      </div>
+    </footer>
   </div>
 </div>
 {% endblock %}
