@@ -2116,13 +2116,17 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         const title = document.createElement('span');
         title.className = 'sz_table_lookup_item_label';
         const fallbackValue = row.value === undefined || row.value === null ? '' : row.value;
-        title.textContent = String(row.label || fallbackValue).trim() || '-';
+        const displayValues = Array.isArray(row.display)
+          ? row.display.map(value => String(value ?? '').trim()).filter(Boolean)
+          : [];
+        const primaryValue = String(fallbackValue ?? '').trim() || displayValues[0] || '-';
+        title.textContent = primaryValue;
         button.appendChild(title);
-        const displayValues = Array.isArray(row.display) ? row.display.filter(value => String(value ?? '').trim() !== '') : [];
-        if (displayValues.length > 1) {
+        const metaValues = displayValues.filter(value => value !== primaryValue);
+        if (metaValues.length) {
           const meta = document.createElement('span');
           meta.className = 'sz_table_lookup_item_value';
-          meta.textContent = displayValues.slice(1).map(value => String(value ?? '').trim()).join(' · ');
+          meta.textContent = metaValues.join(' · ');
           button.appendChild(meta);
         }
         button.addEventListener('mouseenter', () => setActiveResult(index));

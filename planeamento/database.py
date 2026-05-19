@@ -1118,7 +1118,8 @@ class Database:
         query = (
             "SELECT OBRAM, LITEM, DGERAL, QTT, UNIDADE, QTT2, BISTAMP "
             "FROM v_bi_ee "
-            "WHERE UPPER(RIGHT(OBRAM, LEN(OBRAM) - 2)) = ? "
+            "WHERE LEN(LTRIM(RTRIM(ISNULL(OBRAM, '')))) > 2 "
+            "AND UPPER(SUBSTRING(LTRIM(RTRIM(ISNULL(OBRAM, ''))), 3, 8000)) = ? "
             "ORDER BY LITEM"
         )
         try:

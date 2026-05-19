@@ -84,7 +84,13 @@
 
           <div class="sz_field gr-central-span-2">
             <label class="sz_label" for="grCentralRefBetao">Referencia de betao</label>
-            <input class="sz_input" id="grCentralRefBetao" maxlength="254" placeholder="Referencia ou composicao produzida">
+            <div class="gr-central-ref-field">
+              <input class="sz_input" id="grCentralRefBetao" maxlength="254" placeholder="Referencia ou composicao produzida">
+              <button type="button" class="sz_button sz_button_ghost gr-central-ref-button" id="grCentralRefPick">
+                <i class="fa-solid fa-list-check"></i>
+                <span>Escolher</span>
+              </button>
+            </div>
           </div>
 
           <div class="sz_field">
@@ -135,6 +141,32 @@
     </footer>
   </div>
 </div>
+
+<div class="gr-central-ref-modal" id="grCentralRefModal" hidden>
+  <div class="gr-central-ref-backdrop" data-ref-close></div>
+  <section class="gr-central-ref-dialog" role="dialog" aria-modal="true" aria-labelledby="grCentralRefModalTitle">
+    <header class="gr-central-ref-header">
+      <div>
+        <div class="sz_h3" id="grCentralRefModalTitle">Referencias de betao</div>
+        <div class="sz_text_muted">Escolha uma ou mais referencias produzidas nesta obra.</div>
+      </div>
+      <button type="button" class="sz_icon_button" data-ref-close aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </header>
+    <div class="gr-central-ref-tools">
+      <input class="sz_input" id="grCentralRefSearch" placeholder="Pesquisar referencia ou designacao">
+    </div>
+    <div class="gr-central-ref-list" id="grCentralRefList"></div>
+    <footer class="gr-central-ref-footer">
+      <button type="button" class="sz_button sz_button_ghost" data-ref-close>Cancelar</button>
+      <button type="button" class="sz_button sz_button_primary" id="grCentralRefApply">
+        <i class="fa-solid fa-check"></i>
+        <span>Aplicar</span>
+      </button>
+    </footer>
+  </section>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -146,6 +178,7 @@
       opcUrl: {{ url_for('gr_planning.concrete_central_opc')|tojson }},
       vehiclesUrl: {{ url_for('gr_planning.concrete_central_vehicles')|tojson }},
       driversUrl: {{ url_for('gr_planning.concrete_central_drivers')|tojson }},
+      refsUrl: {{ url_for('gr_planning.concrete_central_refs')|tojson }},
       today: {{ today|tojson }},
       record: {{ record|tojson }},
       returnUrl: {{ return_to|tojson }}

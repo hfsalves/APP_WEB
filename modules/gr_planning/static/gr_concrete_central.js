@@ -6,6 +6,11 @@
   const processResults = document.getElementById('grCentralProcessos');
   const vehicleSelect = document.getElementById('grCentralMatricula');
   const driverSelect = document.getElementById('grCentralMotorista');
+  const refPickBtn = document.getElementById('grCentralRefPick');
+  const refModal = document.getElementById('grCentralRefModal');
+  const refList = document.getElementById('grCentralRefList');
+  const refSearch = document.getElementById('grCentralRefSearch');
+  const refApplyBtn = document.getElementById('grCentralRefApply');
 
   if (!form) return;
 
@@ -32,6 +37,8 @@
   let searchTimer = null;
   let initialRecord = cfg.record || null;
   let processRows = [];
+  let refRows = [];
+  let refSelected = new Set();
 
   const escapeHtml = (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -174,6 +181,72 @@
     if (processResults) processResults.hidden = true;
   };
 
+  const parseRefs = (value) => String(value || '')
+    .split(';')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const closeRefModal = () => {
+    if (!refModal) return;
+    refModal.hidden = true;
+    document.body.classList.remove('gr-central-ref-open');
+  };
+
+  const renderRefRows = () => {
+    if (!refList) return;
+    const term = String(refSearch?.value || '').trim().toLowerCase();
+    const rows = refRows.filter((row) => {
+      if (!term) return true;
+      return `${row.ref || ''} ${row.design || ''}`.toLowerCase().includes(term);
+    });
+    if (!rows.length) {
+      refList.innerHTML = '<div class="gr-central-ref-empty">Sem referencias para esta obra.</div>';
+      return;
+    }
+    refList.innerHTML = rows.map((row, index) => {
+      const ref = String(row.ref || '').trim();
+      const design = String(row.design || '').trim();
+      const checked = refSelected.has(ref) ? ' checked' : '';
+      return `
+        <label class="gr-central-ref-row">
+          <input type="checkbox" value="${escapeHtml(ref)}" data-ref-index="${index}"${checked}>
+          <span>
+            <strong>${escapeHtml(ref)}</strong>
+            <span>${escapeHtml(design)}</span>
+          </span>
+        </label>
+      `;
+    }).join('');
+  };
+
+  const openRefModal = async () => {
+    if (!refModal || !refList) return;
+    const processo = els.processo.value.trim();
+    if (!processo) {
+      showToastMessage('Escolha primeiro a obra.', 'warning');
+      els.processo.focus();
+      return;
+    }
+    refModal.hidden = false;
+    document.body.classList.add('gr-central-ref-open');
+    refSelected = new Set(parseRefs(els.refbetao.value));
+    if (refSearch) refSearch.value = '';
+    refList.innerHTML = '<div class="gr-central-ref-empty">A carregar referencias...</div>';
+    try {
+      const response = await fetch(`${cfg.refsUrl}?processo=${encodeURIComponent(processo)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Erro ao carregar referencias.');
+      refRows = Array.isArray(payload.rows) ? payload.rows : [];
+      renderRefRows();
+      window.setTimeout(() => refSearch?.focus(), 30);
+    } catch (error) {
+      refRows = [];
+      refList.innerHTML = `<div class="gr-central-ref-empty">${escapeHtml(error.message || 'Erro ao carregar referencias.')}</div>`;
+    }
+  };
+
   const renderProcessResults = (rows) => {
     if (!processResults) return;
     processRows = Array.isArray(rows) ? rows : [];
@@ -280,6 +353,50 @@
     if (!row) return;
     els.processo.value = row.processo || '';
     hideProcessResults();
+  });
+
+  refPickBtn?.addEventListener('click', openRefModal);
+  els.refbetao?.addEventListener('dblclick', openRefModal);
+  refSearch?.addEventListener('input', renderRefRows);
+
+  refList?.addEventListener('change', (event) => {
+    const input = event.target.closest('input[type="checkbox"]');
+    if (!input) return;
+    const ref = String(input.value || '').trim();
+    if (!ref) return;
+    if (input.checked) refSelected.add(ref);
+    else refSelected.delete(ref);
+  });
+
+  refModal?.addEventListener('click', (event) => {
+    if (event.target.closest('[data-ref-close]')) {
+      closeRefModal();
+    }
+  });
+
+  refApplyBtn?.addEventListener('click', () => {
+    if (!refList) return;
+    const refs = [];
+    refRows.forEach((row) => {
+      const ref = String(row.ref || '').trim();
+      if (ref && refSelected.has(ref) && !refs.includes(ref)) refs.push(ref);
+    });
+    const fittedRefs = [];
+    refs.forEach((ref) => {
+      const candidate = [...fittedRefs, ref].join('; ');
+      if (candidate.length <= 254) fittedRefs.push(ref);
+    });
+    if (fittedRefs.length < refs.length) {
+      showToastMessage('Algumas referencias nao cabem no campo.', 'warning');
+    }
+    els.refbetao.value = fittedRefs.join('; ');
+    closeRefModal();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && refModal && !refModal.hidden) {
+      closeRefModal();
+    }
   });
 
   document.addEventListener('pointerdown', (event) => {

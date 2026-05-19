@@ -319,6 +319,39 @@ def _fetch_concrete_drivers(term: str = "", limit: int = 150) -> list[dict]:
     ]
 
 
+def _fetch_concrete_refs(processo: str) -> list[dict]:
+    cols = _table_columns("OPCMAT")
+    if not cols or not {"PROCESSO", "REF", "PROD"}.issubset(cols):
+        return []
+    design_col = "DESIGN" if "DESIGN" in cols else ("DESCRICAO" if "DESCRICAO" in cols else "")
+    design_select = (
+        f"LTRIM(RTRIM(ISNULL(CAST({design_col} AS nvarchar(255)), ''))) AS design"
+        if design_col
+        else "CAST('' AS nvarchar(255)) AS design"
+    )
+    normalized = str(processo or "").strip()[:25]
+    if not normalized:
+        return []
+    rows = db.session.execute(text(f"""
+        SELECT DISTINCT
+            LTRIM(RTRIM(ISNULL(CAST(REF AS nvarchar(80)), ''))) AS ref,
+            {design_select}
+        FROM dbo.OPCMAT
+        WHERE LTRIM(RTRIM(ISNULL(CAST(PROCESSO AS nvarchar(25)), ''))) = :processo
+          AND ISNULL(PROD, 0) = 1
+          AND LTRIM(RTRIM(ISNULL(CAST(REF AS nvarchar(80)), ''))) <> ''
+        ORDER BY ref, design
+    """), {"processo": normalized}).mappings().all()
+    return [
+        {
+            "ref": str(row.get("ref") or "").strip(),
+            "design": str(row.get("design") or "").strip(),
+        }
+        for row in rows
+        if str(row.get("ref") or "").strip()
+    ]
+
+
 def _save_concrete_record(payload: dict) -> dict:
     if not _macro_table_exists("RCENTRAL"):
         raise ValueError("Tabela RCENTRAL inexistente.")
@@ -1093,6 +1126,17 @@ def concrete_central_drivers():
     term = (request.args.get("q") or "").strip()
     try:
         return jsonify({"rows": _fetch_concrete_drivers(term)})
+    except Exception as exc:
+        return jsonify({"rows": [], "error": str(exc)}), 500
+
+
+@bp.route("/api/gr_planning/centrais-betao/refs")
+@login_required
+def concrete_central_refs():
+    _ensure_planning_access()
+    processo = (request.args.get("processo") or "").strip()
+    try:
+        return jsonify({"rows": _fetch_concrete_refs(processo)})
     except Exception as exc:
         return jsonify({"rows": [], "error": str(exc)}), 500
 

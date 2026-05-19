@@ -2611,19 +2611,34 @@ def combo_options():
     q = request.args.get('query')
     try:
         params = {}
-        stmt = text(q or '')
+        combo_sql = q or ''
+        stmt = text(combo_sql)
         try:
             current_feid = _current_feid_or_abort()
             read_feids = _current_read_feids_or_abort()
+            if read_feids:
+                combo_sql = re.sub(
+                    r"ISNULL\(\s*((?:[A-Za-z_][A-Za-z0-9_]*\.)?\[?FEID\]?)\s*,\s*0\s*\)\s*=\s*:(?:FEID|current_feid)\b",
+                    r"ISNULL(\1, 0) IN :FEIDS",
+                    combo_sql,
+                    flags=re.IGNORECASE,
+                )
+                combo_sql = re.sub(
+                    r"(?<![A-Za-z0-9_])((?:[A-Za-z_][A-Za-z0-9_]*\.)?\[?FEID\]?)\s*=\s*:(?:FEID|current_feid)\b",
+                    r"\1 IN :FEIDS",
+                    combo_sql,
+                    flags=re.IGNORECASE,
+                )
+                stmt = text(combo_sql)
             params.update({
                 'current_feid': current_feid,
                 'FEID': current_feid,
                 'current_feids': read_feids,
                 'FEIDS': read_feids,
             })
-            if ':current_feids' in (q or ''):
+            if ':current_feids' in combo_sql:
                 stmt = stmt.bindparams(bindparam('current_feids', expanding=True))
-            if ':FEIDS' in (q or ''):
+            if ':FEIDS' in combo_sql:
                 stmt = stmt.bindparams(bindparam('FEIDS', expanding=True))
         except Exception:
             params = {}
