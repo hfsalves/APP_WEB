@@ -1,7 +1,10 @@
 .gr-central-page {
   flex: 1 1 auto;
   min-height: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   background: var(--sz-color-bg-main);
+  touch-action: pan-y;
 }
 
 .gr-central-shell {
@@ -10,6 +13,7 @@
   width: 100%;
   max-width: none;
   min-height: 0;
+  overflow-x: hidden;
 }
 
 .gr-central-contextbar {
@@ -17,6 +21,18 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--sz-space-3);
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.gr-central-contextbar > .sz_contextbar_left {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.gr-central-contextbar .sz_page_title,
+.gr-central-contextbar .sz_page_subtitle {
+  overflow-wrap: anywhere;
 }
 
 .gr-central-contextbar > .sz_contextbar_right {
@@ -31,7 +47,9 @@
   min-height: 0;
   display: flex;
   justify-content: center;
-  overflow: auto;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-width: none;
 }
 
@@ -41,9 +59,12 @@
 
 .gr-central-form {
   width: min(100%, 72rem);
+  max-width: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-width: none;
+  box-sizing: border-box;
 }
 
 .gr-central-form::-webkit-scrollbar {
@@ -68,6 +89,16 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sz-space-3);
   padding-top: var(--sz-space-3);
+  min-width: 0;
+}
+
+.gr-central-grid > *,
+.gr-central-form .sz_field,
+.gr-central-form .sz_input,
+.gr-central-form .sz_select,
+.gr-central-form .sz_textarea {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .gr-central-span-2 {
@@ -110,12 +141,22 @@
 }
 
 @media (max-width: 920px) {
+  .gr-central-page,
+  .gr-central-shell,
+  .gr-central-contextbar,
+  .gr-central-body,
+  .gr-central-form {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   .gr-central-contextbar {
     flex-direction: column;
   }
 
   .gr-central-contextbar > .sz_contextbar_right {
     width: 100%;
+    min-width: 0;
   }
 
   .gr-central-body {
@@ -123,11 +164,21 @@
   }
 
   .gr-central-form {
-    overflow: visible;
+    width: 100%;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 }
 
 @media (max-width: 560px) {
+  .gr-central-shell {
+    padding-inline: var(--sz-page-pad-x, var(--sz-space-3));
+  }
+
+  .gr-central-form {
+    padding: var(--sz-space-3);
+  }
+
   .gr-central-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -139,9 +190,18 @@
 
   .gr-central-form-actions {
     justify-content: stretch;
+    flex-wrap: wrap;
   }
 
   .gr-central-form-actions .sz_button {
     flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 0.75rem;
+  }
+
+  .gr-central-form .sz_input,
+  .gr-central-form .sz_select,
+  .gr-central-form .sz_textarea {
+    font-size: 16px;
   }
 }
