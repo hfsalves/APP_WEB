@@ -4556,6 +4556,20 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   border-color: rgba(55, 214, 130, 0.42);
 }
 
+[data-sz-theme="dark"] .planner2-bar-deferred-pending {
+  background: linear-gradient(90deg, rgba(248, 113, 113, 0.22), rgba(244, 63, 94, 0.14));
+  border-color: rgba(248, 113, 113, 0.44);
+}
+
+[data-sz-theme="dark"] .planner2-bar-deferred-pending .planner2-bar-label {
+  color: #fecaca;
+}
+
+[data-sz-theme="dark"] .planner2-bar-deferred-assigned {
+  background: linear-gradient(90deg, rgba(55, 214, 130, 0.24), rgba(45, 212, 191, 0.16));
+  border-color: rgba(55, 214, 130, 0.48);
+}
+
 [data-sz-theme="dark"] .planner2-bar-label,
 [data-sz-theme="dark"] .planner2-bar-cleaning .planner2-bar-label {
   color: #eaf2fb;
@@ -4670,6 +4684,20 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
 [data-sz-theme="geek"] .planner2-bar-clean-state {
   background: linear-gradient(90deg, rgba(117, 255, 132, 0.18), rgba(228, 255, 79, 0.1));
   border-color: rgba(117, 255, 132, 0.36);
+}
+
+[data-sz-theme="geek"] .planner2-bar-deferred-pending {
+  background: linear-gradient(90deg, rgba(255, 54, 86, 0.22), rgba(255, 122, 54, 0.12));
+  border-color: rgba(255, 79, 104, 0.45);
+}
+
+[data-sz-theme="geek"] .planner2-bar-deferred-pending .planner2-bar-label {
+  color: #ffd1d8;
+}
+
+[data-sz-theme="geek"] .planner2-bar-deferred-assigned {
+  background: linear-gradient(90deg, rgba(117, 255, 132, 0.22), rgba(70, 224, 255, 0.12));
+  border-color: rgba(117, 255, 132, 0.42);
 }
 
 [data-sz-theme="geek"] .planner2-bar-clean-state .planner2-bar-label {

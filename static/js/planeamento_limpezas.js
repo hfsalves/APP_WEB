@@ -48,6 +48,67 @@ const timeToIndex = (h, m) => {
   return Math.max(0, Math.min(idx, (PLANNER2.endHour - PLANNER2.startHour) * 2));
 };
 
+const getPlanner2Metrics = () => {
+  const table = document.querySelector('.planner2-table');
+  const lodge = table?.querySelector('.planner2-col-lodge');
+  const totalSlots = (PLANNER2.endHour - PLANNER2.startHour) * 2;
+  const lodgeWidth = lodge?.getBoundingClientRect().width || PLANNER2.lodgeWidth;
+  const tableWidth = table?.getBoundingClientRect().width || (lodgeWidth + totalSlots * PLANNER2.slotWidth);
+  const gridWidth = Math.max(1, tableWidth - lodgeWidth);
+  return {
+    lodgeWidth,
+    totalSlots,
+    slotWidth: gridWidth / totalSlots
+  };
+};
+
+const planner2X = (metrics, slotIdx) => {
+  return metrics.lodgeWidth + slotIdx * metrics.slotWidth;
+};
+
+const planner2Width = (metrics, startIdx, slotCount) => {
+  const endIdx = Math.min(metrics.totalSlots, startIdx + slotCount);
+  return Math.max(1, (endIdx - startIdx) * metrics.slotWidth);
+};
+
+const setPlanner2BarGeometry = (bar, metrics, startIdx, slotCount) => {
+  bar.dataset.startIdx = String(startIdx);
+  bar.dataset.slotCount = String(slotCount);
+  bar.style.left = `${planner2X(metrics, startIdx)}px`;
+  bar.style.width = `${planner2Width(metrics, startIdx, slotCount)}px`;
+};
+
+const getPlanner2RowMetrics = (rowEl, totalSlots) => {
+  const fallback = getPlanner2Metrics();
+  const cells = Array.from(rowEl?.querySelectorAll('.planner2-slot') || []);
+  const first = cells[0];
+  const last = cells[cells.length - 1];
+  if (!rowEl || !first || !last || !cells.length) return fallback;
+
+  const rowRect = rowEl.getBoundingClientRect();
+  const firstRect = first.getBoundingClientRect();
+  const lastRect = last.getBoundingClientRect();
+  const lodgeWidth = Math.max(1, firstRect.left - rowRect.left);
+  const gridWidth = Math.max(1, lastRect.right - firstRect.left);
+  return {
+    lodgeWidth,
+    totalSlots: totalSlots || cells.length,
+    slotWidth: gridWidth / (totalSlots || cells.length)
+  };
+};
+
+const alignPlanner2BarsToGrid = () => {
+  const totalSlots = buildSlots().length;
+  document.querySelectorAll('#planner2-body tr').forEach((rowEl) => {
+    const metrics = getPlanner2RowMetrics(rowEl, totalSlots);
+    rowEl.querySelectorAll('.planner2-bar[data-start-idx][data-slot-count]').forEach((bar) => {
+      const startIdx = Number(bar.dataset.startIdx || 0);
+      const slotCount = Number(bar.dataset.slotCount || 1);
+      setPlanner2BarGeometry(bar, metrics, startIdx, slotCount);
+    });
+  });
+};
+
 const shouldAnchorCheckinAtNight = (h, m) => {
   const beforeVisibleDay = h < PLANNER2.startHour || (h === PLANNER2.startHour && m === 0);
   const afterNightLimit = h > 21 || (h === 21 && m > 0);
@@ -123,10 +184,65 @@ const formatPlanner2ShortDate = (value) => {
   return parsed.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' });
 };
 
+const planner2DateOnly = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+};
+
+const planner2DaysBetween = (fromValue, toValue) => {
+  const from = planner2DateOnly(fromValue);
+  const to = planner2DateOnly(toValue);
+  if (!from || !to) return null;
+  return Math.round((to.getTime() - from.getTime()) / 86400000);
+};
+
 const isPlanner2CleanSinceLast = (row) => {
   return row?.clean_since_last === true
     || row?.clean_since_last === 1
     || String(row?.clean_since_last || '').trim() === '1';
+};
+
+const getPlanner2DeferredCleaningNotice = (row, hasCleaning) => {
+  if (hasCleaning || !row?.checkout_reservation) return null;
+  const minNights = Number(row.min_nights || row.al_noites || 0);
+  if (!Number.isFinite(minNights) || minNights <= 0) return null;
+  const nextCheckin = String(row.next_checkin_date || '').trim();
+  const gapDays = planner2DaysBetween(planner2RenderedDate, nextCheckin);
+  if (gapDays === null || gapDays <= 0 || gapDays >= minNights) return null;
+
+  const postponedDate = String(row.postponed_date || '').trim();
+  const postponedTeam = String(row.postponed_team || '').trim();
+  if (postponedDate) {
+    const cleanDate = formatPlanner2ShortDate(postponedDate);
+    return {
+      kind: 'assigned',
+      label: `Limpeza atribuida a ${postponedTeam || '-'} para ${cleanDate || postponedDate}`,
+      tooltip: [
+        `Limpeza atribuida: ${postponedTeam || '-'}`,
+        `Data: ${cleanDate || postponedDate}`,
+        `Check-in: ${formatPlanner2ShortDate(nextCheckin) || nextCheckin}`,
+        `Noites minimas: ${minNights}`
+      ].join('\n')
+    };
+  }
+
+  const checkinDate = formatPlanner2ShortDate(nextCheckin);
+  return {
+    kind: 'pending',
+    label: `Check-in a ${checkinDate || nextCheckin}`,
+    tooltip: [
+      `Check-in: ${checkinDate || nextCheckin}`,
+      `Noites minimas: ${minNights}`,
+      'Limpeza ainda sem atribuicao neste intervalo.'
+    ].join('\n')
+  };
 };
 
 const planner2Flag = (value) => {
@@ -162,7 +278,8 @@ const updatePlanner2NowLine = () => {
   }
 
   const headerHeight = table.querySelector('thead')?.offsetHeight || 44;
-  const x = PLANNER2.lodgeWidth + ((minutes - startMinutes) / PLANNER2.slotMinutes) * PLANNER2.slotWidth;
+  const metrics = getPlanner2Metrics();
+  const x = metrics.lodgeWidth + ((minutes - startMinutes) / PLANNER2.slotMinutes) * metrics.slotWidth;
   line.style.left = `${Math.round(x)}px`;
   line.style.top = `${headerHeight}px`;
   line.style.height = `${Math.max(0, table.offsetHeight - headerHeight)}px`;
@@ -249,6 +366,7 @@ let planner2CleaningMenu = null;
 let planner2Loading = false;
 let planner2LoadingText = null;
 let planner2RenderedDate = '';
+const PLANNER2_ROUTE_SUGGESTIONS_ENABLED = false;
 const planner2DistanceCache = new Map();
 const planner2DistancePending = new Set();
 
@@ -476,18 +594,11 @@ const renderPlanner2TeamCards = () => {
   };
   names.forEach((name) => {
     const meta = teamsMap.get(name);
-    const stamps = Array.from(new Set(meta.items.map(i => i.stamp).filter(Boolean)));
-    stamps.forEach((fromStamp) => {
-      stamps.forEach((toStamp) => {
-        if (fromStamp !== toStamp) addDistancePair(fromStamp, toStamp);
-      });
-    });
-  });
-
-  names.forEach((name) => {
-    const meta = teamsMap.get(name);
     const plannedItems = meta.items.slice().sort((a, b) => a.startMinutes - b.startMinutes);
     const plannedTimes = plannedItems.map(i => i.startMinutes);
+    for (let i = 0; i < plannedItems.length - 1; i += 1) {
+      addDistancePair(plannedItems[i].stamp, plannedItems[i + 1].stamp);
+    }
     const card = document.createElement('div');
     card.className = 'planner2-team-card';
     const color = (planner2Teams.find(t => String(t.NOME || '').trim() === name) || {}).COR;
@@ -892,6 +1003,11 @@ const renderPlanner2TeamCards = () => {
     }
 
     plannedWrap.appendChild(buildSequence(plannedItems, plannedTimes, plannedMetrics));
+    if (!PLANNER2_ROUTE_SUGGESTIONS_ENABLED) {
+      card.appendChild(plannedWrap);
+      container.appendChild(card);
+      return;
+    }
 
     const suggestion = buildSuggestionOrder();
     const suggestedItems = suggestion.items || [];
@@ -971,8 +1087,9 @@ const renderPlanner2TeamCards = () => {
 
 const renderRows = (data, slots) => {
   const tbody = document.getElementById('planner2-body');
-  const lodgeWidth = PLANNER2.lodgeWidth;
   tbody.innerHTML = '';
+  const metrics = getPlanner2Metrics();
+  const lodgeWidth = metrics.lodgeWidth;
   const tooltip = getPlanner2Tooltip();
   const showOccupied = document.getElementById('planner2-show-occupied')?.checked ?? true;
   const showEmpty = document.getElementById('planner2-show-empty')?.checked ?? true;
@@ -1046,6 +1163,7 @@ const renderRows = (data, slots) => {
     });
 
     tbody.appendChild(tr);
+    const rowMetrics = getPlanner2RowMetrics(tr, slots.length);
 
     const cleanSinceLast = isPlanner2CleanSinceLast(row);
     const lastCleanTeam = String(row.last_team || '').trim();
@@ -1056,12 +1174,27 @@ const renderRows = (data, slots) => {
       const slotCount = Math.min(8, Math.max(1, totalSlots - cleanIdx));
       const bar = document.createElement('div');
       bar.className = 'planner2-bar planner2-bar-clean-state';
-      bar.style.left = `${lodgeWidth + cleanIdx * PLANNER2.slotWidth}px`;
-      bar.style.width = `${slotCount * PLANNER2.slotWidth}px`;
+      setPlanner2BarGeometry(bar, rowMetrics, cleanIdx, slotCount);
       attachTooltip(bar, `Limpo por ${lastCleanTeam} a ${lastCleanDate}`, tooltip);
       const label = document.createElement('span');
       label.className = 'planner2-bar-label';
       label.textContent = `Limpo por ${lastCleanTeam} a ${lastCleanDate}`;
+      bar.appendChild(label);
+      tr.appendChild(bar);
+    }
+
+    const deferredNotice = getPlanner2DeferredCleaningNotice(row, hasCleaning);
+    if (deferredNotice) {
+      const noticeIdx = timeToIndex(15, 0);
+      const totalSlots = slots.length;
+      const slotCount = Math.max(1, totalSlots - noticeIdx);
+      const bar = document.createElement('div');
+      bar.className = `planner2-bar planner2-bar-clean-state planner2-bar-deferred-clean planner2-bar-deferred-${deferredNotice.kind}`;
+      setPlanner2BarGeometry(bar, rowMetrics, noticeIdx, slotCount);
+      attachTooltip(bar, deferredNotice.tooltip || deferredNotice.label, tooltip);
+      const label = document.createElement('span');
+      label.className = 'planner2-bar-label';
+      label.textContent = deferredNotice.label;
       bar.appendChild(label);
       tr.appendChild(bar);
     }
@@ -1078,8 +1211,7 @@ const renderRows = (data, slots) => {
       const checkoutLabel = checkoutHasDefinedTime ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}` : 'N/D';
       const bar = document.createElement('div');
       bar.className = 'planner2-bar planner2-bar-checkout';
-      bar.style.left = `${lodgeWidth}px`;
-      bar.style.width = `${endIdx * PLANNER2.slotWidth}px`;
+      setPlanner2BarGeometry(bar, rowMetrics, 0, endIdx);
       const guestsOut = Number(row.checkout_people || 0);
       const nightsOut = Number(row.checkout_nights || 0);
       const typology = row.typology || '';
@@ -1121,8 +1253,7 @@ const renderRows = (data, slots) => {
       const checkinLabel = `${checkinTimeLabel} · ${guests}P · ${nights}N`;
       const bar = document.createElement('div');
       bar.className = 'planner2-bar planner2-bar-checkin';
-      bar.style.left = `${lodgeWidth + startIdx * PLANNER2.slotWidth}px`;
-      bar.style.width = `${(totalSlots - startIdx) * PLANNER2.slotWidth}px`;
+      setPlanner2BarGeometry(bar, rowMetrics, startIdx, totalSlots - startIdx);
       const guestName = String(row.checkin_guest || '').trim();
       const guestCountry = String(row.checkin_country || '').trim();
       const typology = row.typology || '';
@@ -1151,8 +1282,7 @@ const renderRows = (data, slots) => {
       const typology = row.typology || '';
       const bar = document.createElement('div');
       bar.className = 'planner2-bar planner2-bar-occupied planner2-bar-center';
-      bar.style.left = `${lodgeWidth}px`;
-      bar.style.width = `${totalSlots * PLANNER2.slotWidth}px`;
+      setPlanner2BarGeometry(bar, rowMetrics, 0, totalSlots);
       const tooltipLines = [
         `Hóspede: ${guestName || '-'}`,
         `País: ${guestCountry || '-'}`,
@@ -1224,8 +1354,7 @@ const renderRows = (data, slots) => {
         bar.dataset.tmpId = String(key);
         const topOffset = 4 + (laneIndex * 26);
         bar.style.top = `${topOffset}px`;
-        bar.style.left = `${lodgeWidth + startIdx * PLANNER2.slotWidth}px`;
-        bar.style.width = `${cappedSlots * PLANNER2.slotWidth}px`;
+        setPlanner2BarGeometry(bar, rowMetrics, startIdx, cappedSlots);
         const teamColor = (planner2Teams.find(t => String(t.NOME || '').trim() === String(cl.team || '').trim()) || {}).COR;
         if (teamColor) {
           bar.style.background = `linear-gradient(90deg, ${teamColor}66, ${teamColor}33)`;
@@ -1278,7 +1407,11 @@ const renderRows = (data, slots) => {
   tbody.querySelectorAll('.planner2-bar-label').forEach((el) => {
     el.textContent = normalizeTooltipText(el.textContent);
   });
-  requestAnimationFrame(updatePlanner2NowLine);
+  alignPlanner2BarsToGrid();
+  requestAnimationFrame(() => {
+    alignPlanner2BarsToGrid();
+    updatePlanner2NowLine();
+  });
 };
 
 const loadPlanner2 = async (dateStr) => {
@@ -1689,14 +1822,15 @@ document.addEventListener('mousemove', (e) => {
   if (Math.abs(e.clientX - dragStartX) > 3) {
     bar.dataset.dragged = '1';
   }
-  const lodgeWidth = PLANNER2.lodgeWidth;
+  const metrics = getPlanner2RowMetrics(rowEl, buildSlots().length);
+  const lodgeWidth = metrics.lodgeWidth;
   const rowRect = rowEl.getBoundingClientRect();
   let x = e.clientX - rowRect.left - lodgeWidth - offsetX;
   if (x < 0) x = 0;
-  const maxX = (buildSlots().length * PLANNER2.slotWidth) - bar.offsetWidth;
+  const maxX = (metrics.totalSlots * metrics.slotWidth) - bar.offsetWidth;
   if (x > maxX) x = maxX;
-  const idx = Math.round(x / PLANNER2.slotWidth);
-  bar.style.left = `${lodgeWidth + idx * PLANNER2.slotWidth}px`;
+  const idx = Math.round(x / metrics.slotWidth);
+  bar.style.left = `${planner2X(metrics, idx)}px`;
   bar.dataset.startIdx = String(idx);
 
   const bars = Array.from(rowEl.querySelectorAll('.planner2-bar-cleaning'));

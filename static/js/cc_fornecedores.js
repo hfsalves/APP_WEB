@@ -51,6 +51,31 @@ function fmtMoney(v) {
   return fmt.format(Number.isFinite(n) ? n : 0);
 }
 
+function fmtEditMoney(v) {
+  const n = Number(v || 0);
+  return (Number.isFinite(n) ? n : 0).toLocaleString('pt-PT', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: false,
+  });
+}
+
+function parseMoneyInput(raw) {
+  const text = (raw ?? '').toString().trim().replace(/\s+/g, '');
+  if (!text || text === '-' || text === ',' || text === '.' || text === '-,' || text === '-.') return null;
+  const normalized = text.replace(',', '.');
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
+}
+
+function clampPayValue(value, minVal, maxVal) {
+  let val = Number(value || 0);
+  if (!Number.isFinite(val)) val = 0;
+  if (val < minVal) val = minVal;
+  if (val > maxVal) val = maxVal;
+  return val;
+}
+
 function setPayStatus(text) {
   if (payStatus) payStatus.textContent = text || '';
 }
@@ -153,10 +178,12 @@ function renderPayRows(rows) {
       <td class="sz_table_cell">${escapeHtml((r.ADOC ?? '').toString())}</td>
       <td class="sz_table_cell sz_text_right ${aberto < 0 ? 'ccf_negative' : 'ccf_positive'}">${escapeHtml(fmtMoney(aberto))}</td>
       <td class="sz_table_cell sz_text_right">
-        <input type="number" step="0.01" min="${escapeHtml(minVal)}" max="${escapeHtml(maxVal)}"
+        <input type="text" inputmode="decimal"
                class="sz_input sz_input_number ccf_pay_input"
                data-field="payval"
-               value="${escapeHtml((Number.isFinite(payVal) ? payVal : 0).toFixed(2))}">
+               data-min="${escapeHtml(minVal)}"
+               data-max="${escapeHtml(maxVal)}"
+               value="${escapeHtml(fmtEditMoney(payVal))}">
       </td>
     `;
     payTableBody.appendChild(tr);
@@ -452,21 +479,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const aberto = Number(row.ABERTO || 0);
     const minVal = Math.min(0, aberto);
     const maxVal = Math.max(0, aberto);
-    let val = Number(input.value || 0);
-    if (!Number.isFinite(val)) val = 0;
-    if (val < minVal) val = minVal;
-    if (val > maxVal) val = maxVal;
-    // normalizar visualmente sem forçar caret a cada tecla
-    if (val !== Number(input.value || 0)) input.value = String(val);
+    const parsed = parseMoneyInput(input.value);
     const selected = paySelected.get(fc);
-    if (selected) {
+    if (selected && parsed !== null) {
+      const val = clampPayValue(parsed, minVal, maxVal);
       selected.pay = val;
       paySelected.set(fc, selected);
       updatePaySelectedTotal();
     }
   });
 
+  payTableBody?.addEventListener('blur', (e) => {
+    const input = e.target?.closest('input[data-field="payval"]');
+    if (!input) return;
+    const tr = input.closest('tr[data-fcstamp]');
+    if (!tr) return;
+    const fc = (tr.dataset.fcstamp || '').toString().trim();
+    const row = (payRows || []).find(x => (x.FCSTAMP || '').toString().trim() === fc);
+    if (!row) return;
+    const aberto = Number(row.ABERTO || 0);
+    const minVal = Math.min(0, aberto);
+    const maxVal = Math.max(0, aberto);
+    const parsed = parseMoneyInput(input.value);
+    const val = clampPayValue(parsed === null ? 0 : parsed, minVal, maxVal);
+    input.value = fmtEditMoney(val);
+    const selected = paySelected.get(fc);
+    if (selected) {
+      selected.pay = val;
+      paySelected.set(fc, selected);
+      updatePaySelectedTotal();
+    }
+  }, true);
+
   payTableBody?.addEventListener('click', (e) => {
+    if (e.target.closest('input[data-field="payval"]')) return;
     const tr = e.target.closest('tr[data-fcstamp]');
     if (!tr) return;
     const fc = (tr.dataset.fcstamp || '').toString().trim();
@@ -483,14 +529,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const aberto = Number(row.ABERTO || 0);
         const minVal = Math.min(0, aberto);
         const maxVal = Math.max(0, aberto);
-        let val = payInput ? Number(payInput.value || 0) : aberto;
-        if (!Number.isFinite(val)) val = 0;
-        if (val < minVal) val = minVal;
-        if (val > maxVal) val = maxVal;
+        const parsed = payInput ? parseMoneyInput(payInput.value) : null;
+        let val = clampPayValue(parsed === null ? aberto : parsed, minVal, maxVal);
         if (Math.abs(val) <= 0.005) val = Number.isFinite(aberto) ? aberto : 0;
-        if (val < minVal) val = minVal;
-        if (val > maxVal) val = maxVal;
-        if (payInput) payInput.value = (Number.isFinite(val) ? val : 0).toFixed(2);
+        val = clampPayValue(val, minVal, maxVal);
+        if (payInput) payInput.value = fmtEditMoney(val);
         paySelected.set(fc, { row, pay: val });
       }
     } else {

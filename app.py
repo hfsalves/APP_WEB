@@ -28210,6 +28210,158 @@ OPTION (MAXRECURSION 32767);
     def reconciliacao_bancaria_page():
         return render_template('reconciliacao_bancaria.html', page_title='Reconciliação Bancária')
 
+    def _rb_doccode_for_docnome(docnome):
+        name = (docnome or '').strip()
+        return {
+            'V/Fatura': 55,
+            'V/Fatura Recibo': 56,
+            'V/Nt. Crédito': 3,
+            'V/Nt. Crédito DD': 102,
+            'V/Fatura Comissões': 104,
+        }.get(name, 55)
+
+    def _rb_tesouraria_for_compra(docnome, tpdesc):
+        name = (docnome or '').strip()
+        tp = (tpdesc or '').strip().upper()
+        if name in ('V/Fatura Recibo', 'V/Fatura Comissões'):
+            if tp == 'DÉBITO DIRETO':
+                return 'Santander  DO', 'B', 1
+            if tp == 'CARTÃO STD':
+                return 'Santander  CARTAO STD', 'B', 3
+            if tp == 'CC STD':
+                return 'Santander  CC STD', 'B', 4
+            if tp == 'AIRBNB':
+                return 'AIRBNB     AIRBNB', 'B', 13
+            return 'Santander  DO', 'B', 1
+        return '', 'C', 1
+
+    def _rb_table_columns(table_name, database=None):
+        table = (table_name or '').strip()
+        if not table:
+            return set()
+        try:
+            if (database or '').strip().upper() == 'GUEST_SPA_TUR':
+                rows = db.session.execute(text("""
+                    SELECT UPPER(COLUMN_NAME) AS COLUMN_NAME
+                    FROM [GUEST_SPA_TUR].INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = 'dbo'
+                      AND UPPER(TABLE_NAME) = UPPER(:table_name)
+                """), {'table_name': table}).fetchall()
+            else:
+                rows = db.session.execute(text("""
+                    SELECT UPPER(COLUMN_NAME) AS COLUMN_NAME
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = 'dbo'
+                      AND UPPER(TABLE_NAME) = UPPER(:table_name)
+                """), {'table_name': table}).fetchall()
+            return {str(r[0] or '').upper() for r in rows}
+        except Exception:
+            return set()
+
+    def _rb_compra_options():
+        def _rows(sql):
+            try:
+                return [dict(r) for r in db.session.execute(text(sql)).mappings().all()]
+            except Exception:
+                return []
+
+        doc_rows = _rows("""
+            SELECT DISTINCT LTRIM(RTRIM(ISNULL(CMDESC, ''))) AS DOCNOME
+            FROM dbo.V_FO_CM
+            WHERE LTRIM(RTRIM(ISNULL(CMDESC, ''))) <> ''
+            ORDER BY LTRIM(RTRIM(ISNULL(CMDESC, '')))
+        """)
+        docs = []
+        seen = set()
+        for row in doc_rows:
+            value = str(row.get('DOCNOME') or '').strip()
+            if value and value.upper() not in seen:
+                docs.append(value)
+                seen.add(value.upper())
+        for value in ('V/Fatura', 'V/Fatura Recibo', 'V/Nt. Crédito', 'V/Nt. Crédito DD', 'V/Fatura Comissões'):
+            if value.upper() not in seen:
+                docs.append(value)
+                seen.add(value.upper())
+
+        cc_rows = _rows("""
+            SELECT DISTINCT LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO
+            FROM dbo.V_CCT
+            WHERE LTRIM(RTRIM(ISNULL(CCUSTO, ''))) <> ''
+            ORDER BY LTRIM(RTRIM(ISNULL(CCUSTO, '')))
+        """)
+        tp_rows = _rows("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(TPSTAMP, ''))) AS TPSTAMP,
+                LTRIM(RTRIM(ISNULL(TPDESC, ''))) AS TPDESC,
+                ISNULL(DIAS, 0) AS DIAS,
+                LTRIM(RTRIM(ISNULL(OLLOCAL, ''))) AS OLLOCAL
+            FROM dbo.V_TP
+            ORDER BY LTRIM(RTRIM(ISNULL(TPDESC, '')))
+        """)
+        return {
+            'docnomes': docs,
+            'ccustos': [str(r.get('CCUSTO') or '').strip() for r in cc_rows if str(r.get('CCUSTO') or '').strip()],
+            'tp': tp_rows,
+        }
+
+    def _rb_compra_header_payload(fostamp):
+        key = (fostamp or '').strip()
+        header = db.session.execute(text("""
+            SELECT TOP 1
+                LTRIM(RTRIM(ISNULL(FOSTAMP, ''))) AS FOSTAMP,
+                ISNULL(NO, 0) AS NO,
+                LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(NCONT, ''))) AS NCONT,
+                LTRIM(RTRIM(ISNULL(MORADA, ''))) AS MORADA,
+                LTRIM(RTRIM(ISNULL(LOCAL, ''))) AS LOCAL,
+                LTRIM(RTRIM(ISNULL(CODPOST, ''))) AS CODPOST,
+                CONVERT(varchar(10), DATA, 23) AS DATA,
+                CONVERT(varchar(10), DOCDATA, 23) AS DOCDATA,
+                CONVERT(varchar(10), PDATA, 23) AS PDATA,
+                LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO,
+                LTRIM(RTRIM(ISNULL(DOCNOME, ''))) AS DOCNOME,
+                LTRIM(RTRIM(ISNULL(ADOC, ''))) AS ADOC,
+                LTRIM(RTRIM(ISNULL(TPDESC, ''))) AS TPDESC,
+                LTRIM(RTRIM(ISNULL(TPSTAMP, ''))) AS TPSTAMP,
+                LTRIM(RTRIM(ISNULL(OLLOCAL, ''))) AS OLLOCAL,
+                ISNULL(ETTILIQ, 0) AS ETTILIQ,
+                ISNULL(ETTIVA, 0) AS ETTIVA,
+                ISNULL(ETOTAL, 0) AS ETOTAL,
+                ISNULL(PLANO, 0) AS PLANO,
+                ISNULL(SYNC, 0) AS SYNC,
+                LTRIM(RTRIM(ISNULL(SYNC_MSG, ''))) AS SYNC_MSG
+            FROM dbo.FO
+            WHERE LTRIM(RTRIM(ISNULL(FOSTAMP, ''))) = :fostamp
+        """), {'fostamp': key}).mappings().first()
+        if not header:
+            return None
+
+        phc = db.session.execute(text("""
+            SELECT TOP 1
+                LTRIM(RTRIM(ISNULL(FOSTAMP, ''))) AS FOSTAMP,
+                LTRIM(RTRIM(ISNULL(DOCNOME, ''))) AS DOCNOME,
+                LTRIM(RTRIM(ISNULL(ADOC, ''))) AS ADOC,
+                CONVERT(varchar(10), PDATA, 23) AS PDATA,
+                LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO,
+                LTRIM(RTRIM(ISNULL(TPDESC, ''))) AS TPDESC,
+                LTRIM(RTRIM(ISNULL(TPSTAMP, ''))) AS TPSTAMP,
+                LTRIM(RTRIM(ISNULL(OLLOCAL, ''))) AS OLLOCAL,
+                ISNULL(CONTADO, 0) AS CONTADO,
+                ISNULL(PLANO, 0) AS PLANO
+            FROM [GUEST_SPA_TUR].[dbo].[FO]
+            WHERE LTRIM(RTRIM(ISNULL(FOSTAMP, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI =
+                  CAST(:fostamp AS varchar(25)) COLLATE SQL_Latin1_General_CP1_CI_AI
+        """), {'fostamp': key}).mappings().first()
+
+        return {
+            'ok': True,
+            'can_edit': _fo_has_permission('editar'),
+            'header': dict(header),
+            'phc': dict(phc) if phc else None,
+            'phc_exists': 1 if phc else 0,
+            'options': _rb_compra_options(),
+        }
+
     @app.route('/api/extratos')
     @login_required
     def api_extratos_list():
@@ -28620,8 +28772,13 @@ OPTION (MAXRECURSION 32767);
                   CAST(BA.DATA AS date) AS DATA,
                   ISNULL(BA.DOCUMENTO,'') AS DOCUMENTO,
                   ISNULL(BA.DESCRICAO,'') AS DESCRICAO,
+                  LTRIM(RTRIM(ISNULL(BA.OLSTAMP,''))) AS OLSTAMP,
+                  CASE WHEN FO.FOSTAMP IS NULL THEN 0 ELSE 1 END AS HAS_FO,
                   CAST(ISNULL(BA.EENTRADA,0) - ISNULL(BA.ESAIDA,0) AS numeric(12,2)) AS VALOR
                 FROM dbo.V_BA AS BA
+                LEFT JOIN dbo.FO AS FO
+                  ON LTRIM(RTRIM(ISNULL(BA.OLSTAMP,''))) COLLATE SQL_Latin1_General_CP1_CI_AI =
+                     LTRIM(RTRIM(ISNULL(FO.FOSTAMP,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
                 WHERE CAST(BA.DATA AS date) BETWEEN :di AND :df
                   AND (ISNULL(BA.EENTRADA,0) <> 0 OR ISNULL(BA.ESAIDA,0) <> 0)
                   AND BA.NOCONTA = :acc
@@ -28648,6 +28805,8 @@ OPTION (MAXRECURSION 32767);
                     'DATA': d0.strftime('%Y-%m-%d') if isinstance(d0, (date, datetime)) else (str(d0) if d0 else ''),
                     'DOCUMENTO': r.get('DOCUMENTO') or '',
                     'DESCRICAO': r.get('DESCRICAO') or '',
+                    'OLSTAMP': r.get('OLSTAMP') or '',
+                    'HAS_FO': int(r.get('HAS_FO') or 0),
                     'VALOR': float(r.get('VALOR') or 0),
                     'RECONCILIADO': 1 if gid > 0 else 0,
                     'GROUPID': gid,
@@ -28665,6 +28824,164 @@ OPTION (MAXRECURSION 32767);
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/reconciliacao/compra/<fostamp>', methods=['GET', 'POST'])
+    @login_required
+    def api_reconciliacao_compra_header(fostamp):
+        key = (fostamp or '').strip()
+        if not key:
+            return jsonify({'ok': False, 'error': 'Documento invalido.'}), 400
+
+        if request.method == 'GET':
+            try:
+                payload = _rb_compra_header_payload(key)
+                if not payload:
+                    return jsonify({'ok': False, 'error': 'Compra nao encontrada.'}), 404
+                return jsonify(payload)
+            except Exception as exc:
+                return jsonify({'ok': False, 'error': str(exc)}), 500
+
+        if not _fo_has_permission('editar'):
+            return jsonify({'ok': False, 'error': 'Sem permissao para editar compras.'}), 403
+
+        body = request.get_json(silent=True) or {}
+        docnome = str(body.get('DOCNOME') or '').strip()[:50]
+        pdata_raw = str(body.get('PDATA') or '').strip()[:10]
+        ccusto = str(body.get('CCUSTO') or '').strip()[:50]
+        tpdesc = str(body.get('TPDESC') or '').strip()[:50]
+        tpstamp = str(body.get('TPSTAMP') or '').strip()[:25]
+
+        if not docnome:
+            return jsonify({'ok': False, 'error': 'Tipo de documento obrigatorio.'}), 400
+        if not pdata_raw:
+            return jsonify({'ok': False, 'error': 'Data de vencimento obrigatoria.'}), 400
+        try:
+            pdata = datetime.strptime(pdata_raw, '%Y-%m-%d').date()
+        except Exception:
+            return jsonify({'ok': False, 'error': 'Data de vencimento invalida.'}), 400
+
+        try:
+            current = db.session.execute(text("""
+                SELECT TOP 1
+                    LTRIM(RTRIM(ISNULL(FOSTAMP, ''))) AS FOSTAMP,
+                    LTRIM(RTRIM(ISNULL(DOCNOME, ''))) AS DOCNOME,
+                    CONVERT(varchar(10), PDATA, 23) AS PDATA,
+                    LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO,
+                    LTRIM(RTRIM(ISNULL(TPDESC, ''))) AS TPDESC,
+                    LTRIM(RTRIM(ISNULL(TPSTAMP, ''))) AS TPSTAMP,
+                    ISNULL(PLANO, 0) AS PLANO
+                FROM dbo.FO
+                WHERE LTRIM(RTRIM(ISNULL(FOSTAMP, ''))) = :fostamp
+            """), {'fostamp': key}).mappings().first()
+            if not current:
+                return jsonify({'ok': False, 'error': 'Compra nao encontrada na app.'}), 404
+
+            phc_exists = db.session.execute(text("""
+                SELECT TOP 1 1 AS X
+                FROM [GUEST_SPA_TUR].[dbo].[FO]
+                WHERE LTRIM(RTRIM(ISNULL(FOSTAMP, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI =
+                      CAST(:fostamp AS varchar(25)) COLLATE SQL_Latin1_General_CP1_CI_AI
+            """), {'fostamp': key}).fetchone()
+            if not phc_exists:
+                return jsonify({'ok': False, 'error': 'Documento nao existe no PHC (GUEST_SPA_TUR).'}), 404
+
+            plano = int(current.get('PLANO') or 0)
+            old_docnome = str(current.get('DOCNOME') or '').strip()
+            old_ccusto = str(current.get('CCUSTO') or '').strip()
+            if plano == 1 and (
+                docnome != old_docnome
+                or ccusto != old_ccusto
+            ):
+                return jsonify({
+                    'ok': False,
+                    'error': 'Documento contabilizado: apenas pode alterar o vencimento e o modo de pagamento.'
+                }), 400
+
+            doccode = _rb_doccode_for_docnome(docnome)
+            ollocal, telocal, contado = _rb_tesouraria_for_compra(docnome, tpdesc)
+            user_login = (getattr(current_user, 'LOGIN', '') or 'WEB').strip()[:30]
+            now_dt = datetime.now()
+            now_hr = now_dt.strftime('%H:%M:%S')
+
+            update_values = {
+                'docnome': docnome,
+                'doccode': doccode,
+                'pdata': pdata,
+                'ccusto': ccusto,
+                'tpdesc': tpdesc,
+                'tpstamp': tpstamp,
+                'ollocal': ollocal,
+                'telocal': telocal,
+                'contado': contado,
+                'user_login': user_login,
+                'now_dt': now_dt,
+                'now_hr': now_hr,
+                'fostamp': key,
+            }
+            app_fo_cols = _rb_table_columns('FO')
+            app_update_map = {
+                'DOCNOME': ':docnome',
+                'DOCCODE': ':doccode',
+                'PDATA': ':pdata',
+                'CCUSTO': ':ccusto',
+                'TPDESC': ':tpdesc',
+                'TPSTAMP': ':tpstamp',
+                'OLLOCAL': ':ollocal',
+                'TELOCAL': ':telocal',
+                'CONTADO': ':contado',
+                'USRINIS': ':user_login',
+                'USRDATA': ':now_dt',
+                'USRHORA': ':now_hr',
+            }
+            app_assignments = [f"{col} = {bind}" for col, bind in app_update_map.items() if col in app_fo_cols]
+            if not app_assignments:
+                return jsonify({'ok': False, 'error': 'Tabela FO da app sem campos atualizaveis.'}), 500
+            db.session.execute(text(f"""
+                UPDATE dbo.FO
+                   SET {', '.join(app_assignments)}
+                 WHERE LTRIM(RTRIM(ISNULL(FOSTAMP, ''))) = :fostamp
+            """), update_values)
+
+            phc_fo_cols = _rb_table_columns('FO', 'GUEST_SPA_TUR')
+            phc_update_map = {
+                'DOCNOME': ':docnome',
+                'DOCCODE': ':doccode',
+                'PDATA': ':pdata',
+                'CCUSTO': ':ccusto',
+                'TPDESC': ':tpdesc',
+                'TPSTAMP': ':tpstamp',
+                'OLLOCAL': ':ollocal',
+                'TELOCAL': ':telocal',
+                'CONTADO': ':contado',
+                'USRINIS': ':user_login',
+                'USRDATA': ':now_dt',
+                'USRHORA': ':now_hr',
+            }
+            phc_assignments = [f"{col} = {bind}" for col, bind in phc_update_map.items() if col in phc_fo_cols]
+            if not phc_assignments:
+                return jsonify({'ok': False, 'error': 'Tabela FO do PHC sem campos atualizaveis.'}), 500
+            db.session.execute(text(f"""
+                UPDATE [GUEST_SPA_TUR].[dbo].[FO]
+                   SET {', '.join(phc_assignments)}
+                 WHERE LTRIM(RTRIM(ISNULL(FOSTAMP, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI =
+                       CAST(:fostamp AS varchar(25)) COLLATE SQL_Latin1_General_CP1_CI_AI
+            """), update_values)
+
+            phc_fo2_cols = _rb_table_columns('FO2', 'GUEST_SPA_TUR')
+            if {'FO2STAMP', 'OLCODIGO'}.issubset(phc_fo2_cols):
+                db.session.execute(text("""
+                    UPDATE [GUEST_SPA_TUR].[dbo].[FO2]
+                       SET OLCODIGO = CASE WHEN :docnome = 'V/Fatura Recibo' THEN 'P10001' ELSE '' END
+                     WHERE LTRIM(RTRIM(ISNULL(FO2STAMP, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI =
+                           CAST(:fostamp AS varchar(25)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                """), {'docnome': docnome, 'fostamp': key})
+
+            db.session.commit()
+            payload = _rb_compra_header_payload(key)
+            return jsonify(payload or {'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 500
 
     @app.route('/api/reconciliacao', methods=['POST'])
     @login_required
@@ -28787,6 +29104,169 @@ OPTION (MAXRECURSION 32767);
 
             db.session.commit()
             return jsonify({'ok': True, 'GROUPID': gid})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/reconciliacao/arredondamento', methods=['POST'])
+    @login_required
+    def api_reconciliacao_arredondamento():
+        """
+        Lanca na BA um movimento de arredondamento para diferencas ate 2 centimos.
+        Nao cria registos REC nem marca movimentos como reconciliados.
+        """
+        try:
+            body = request.get_json(silent=True) or {}
+            extstamp = (body.get('EXTSTAMP') or '').strip()
+            el_list = [str(x or '').strip() for x in (body.get('EL') or []) if str(x or '').strip()]
+            ba_list = [str(x or '').strip() for x in (body.get('BA') or []) if str(x or '').strip()]
+            el_list = list(dict.fromkeys(el_list))
+            ba_list = list(dict.fromkeys(ba_list))
+            if not extstamp:
+                return jsonify({'error': 'EXTSTAMP obrigatorio'}), 400
+            if not el_list or not ba_list:
+                return jsonify({'error': 'Seleciona pelo menos 1 linha EL e 1 movimento BA.'}), 400
+
+            ext = db.session.execute(text("""
+                SELECT EXTSTAMP, NOCONTA, DATAINI, DATAFIM
+                FROM dbo.EXT
+                WHERE EXTSTAMP = :s
+            """), {'s': extstamp}).mappings().first()
+            if not ext:
+                return jsonify({'error': 'Extrato nao encontrado.'}), 404
+
+            noconta = int(ext.get('NOCONTA') or 0)
+            di = ext.get('DATAINI')
+            df = ext.get('DATAFIM')
+            if not di or not df or noconta <= 0:
+                return jsonify({'error': 'Extrato sem periodo ou conta bancaria valida.'}), 400
+            di_s = di.strftime('%Y-%m-%d') if isinstance(di, (date, datetime)) else str(di)
+            df_s = df.strftime('%Y-%m-%d') if isinstance(df, (date, datetime)) else str(df)
+            fallback_ba_date = df.date() if isinstance(df, datetime) else (df if isinstance(df, date) else datetime.strptime(df_s[:10], '%Y-%m-%d').date())
+
+            el_cols = set(
+                r[0] for r in db.session.execute(
+                    text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EL'")
+                ).fetchall()
+            )
+            if 'EXTSTAMP' not in el_cols:
+                return jsonify({'error': 'A tabela EL precisa do campo EXTSTAMP.'}), 400
+            stamp_col = 'ELSTAMP' if 'ELSTAMP' in el_cols else ('ELSATMP' if 'ELSATMP' in el_cols else None)
+            if not stamp_col:
+                return jsonify({'error': 'A tabela EL precisa de um campo stamp (ELSTAMP ou ELSATMP).'}), 400
+
+            el_vals = db.session.execute(text(f"""
+                SELECT LTRIM(RTRIM({stamp_col})) AS STAMP, CAST(VALOR AS numeric(12,2)) AS VALOR
+                FROM dbo.EL
+                WHERE EXTSTAMP = :s AND LTRIM(RTRIM({stamp_col})) IN :ids
+            """).bindparams(bindparam('ids', expanding=True)), {'s': extstamp, 'ids': el_list}).mappings().all()
+            if len(el_vals) != len(el_list):
+                return jsonify({'error': 'Uma ou mais linhas EL nao foram encontradas no extrato.'}), 400
+
+            ba_vals = db.session.execute(text("""
+                SELECT LTRIM(RTRIM(ISNULL(BA.BASTAMP,''))) AS STAMP,
+                       CAST(BA.DATA AS date) AS DATA,
+                       CAST(ISNULL(BA.EENTRADA,0) - ISNULL(BA.ESAIDA,0) AS numeric(12,2)) AS VALOR
+                FROM dbo.V_BA AS BA
+                WHERE CAST(BA.DATA AS date) BETWEEN :di AND :df
+                  AND BA.NOCONTA = :acc
+                  AND LTRIM(RTRIM(ISNULL(BA.BASTAMP,''))) IN :ids
+            """).bindparams(bindparam('ids', expanding=True)), {'di': di_s, 'df': df_s, 'acc': noconta, 'ids': ba_list}).mappings().all()
+            if len(ba_vals) != len(ba_list):
+                return jsonify({'error': 'Um ou mais movimentos BA nao foram encontrados no periodo/conta.'}), 400
+            ba_dates = {
+                str(r.get('STAMP') or '').strip(): r.get('DATA')
+                for r in ba_vals
+            }
+            first_ba_date = ba_dates.get(ba_list[0])
+            ba_date = (
+                first_ba_date.date() if isinstance(first_ba_date, datetime)
+                else first_ba_date if isinstance(first_ba_date, date)
+                else fallback_ba_date
+            )
+
+            cents = Decimal('0.01')
+            el_sum = sum((Decimal(str(r.get('VALOR') or 0)).quantize(cents, rounding=ROUND_HALF_UP) for r in el_vals), Decimal('0.00'))
+            ba_sum = sum((Decimal(str(r.get('VALOR') or 0)).quantize(cents, rounding=ROUND_HALF_UP) for r in ba_vals), Decimal('0.00'))
+            diff = (el_sum - ba_sum).quantize(cents, rounding=ROUND_HALF_UP)
+            abs_diff = diff.copy_abs()
+            if abs_diff < Decimal('0.01'):
+                return jsonify({'error': 'Nao existe diferenca de arredondamento a lancar.'}), 400
+            if abs_diff > Decimal('0.02'):
+                return jsonify({'error': f'A diferenca e superior a 0,02 ({float(diff):.2f}).'}), 400
+
+            now = datetime.now()
+            stamp = new_stamp()
+            user_login = (getattr(current_user, 'LOGIN', '') or getattr(current_user, 'login', '') or 'WEB').strip()[:30]
+            value = float(abs_diff)
+            eentrada = value if diff > 0 else 0.0
+            esaida = value if diff < 0 else 0.0
+            descricao = f"Arredondamento reconciliacao {float(diff):+.2f}"[:85]
+            ba_target = None
+            if db.session.execute(text("SELECT DB_ID('GUEST_SPA_TUR')")).scalar():
+                has_external_ba = db.session.execute(text("""
+                    SELECT COUNT(1)
+                    FROM [GUEST_SPA_TUR].INFORMATION_SCHEMA.TABLES
+                    WHERE TABLE_SCHEMA = 'dbo' AND UPPER(TABLE_NAME) = 'BA'
+                """)).scalar()
+                if int(has_external_ba or 0) > 0:
+                    ba_target = '[GUEST_SPA_TUR].[dbo].[BA]'
+            if not ba_target:
+                has_local_ba = db.session.execute(text("""
+                    SELECT COUNT(1)
+                    FROM INFORMATION_SCHEMA.TABLES
+                    WHERE TABLE_SCHEMA = 'dbo' AND UPPER(TABLE_NAME) = 'BA'
+                """)).scalar()
+                if int(has_local_ba or 0) > 0:
+                    ba_target = 'dbo.BA'
+            if not ba_target:
+                return jsonify({'error': 'Tabela BA nao encontrada.'}), 500
+
+            db.session.execute(text(f"""
+                INSERT INTO {ba_target} (
+                    BASTAMP, DATA, DOCUMENTO, DESCRICAO,
+                    ENTRADA, SAIDA, EENTRADA, ESAIDA,
+                    CONTADO, RECO, CHEQUE, ORIGEM, EXTRACTO,
+                    OLCODIGO, FREF, CCUSTO, NCUSTO, DVALOR,
+                    OLSTAMP, INTID, BRSTAMP, MOEDA, ENTRADAM, SAIDAM,
+                    OUSRINIS, OUSRDATA, OUSRHORA, USRINIS, USRDATA, USRHORA,
+                    MARCADA
+                )
+                VALUES (
+                    :BASTAMP, :DATA, :DOCUMENTO, :DESCRICAO,
+                    :ENTRADA, :SAIDA, :EENTRADA, :ESAIDA,
+                    :CONTADO, 0, '', 'AR', :EXTRACTO,
+                    '', '', '', '', :DVALOR,
+                    :OLSTAMP, '', 'Indefinido', 'EURO', :ENTRADAM, :SAIDAM,
+                    :USER, :NOWDT, :NOWHR, :USER, :NOWDT, :NOWHR,
+                    0
+                )
+            """), {
+                'BASTAMP': stamp,
+                'DATA': ba_date,
+                'DOCUMENTO': 'Arredondamento',
+                'DESCRICAO': descricao,
+                'ENTRADA': eentrada,
+                'SAIDA': esaida,
+                'EENTRADA': eentrada,
+                'ESAIDA': esaida,
+                'CONTADO': noconta,
+                'EXTRACTO': extstamp[:25],
+                'DVALOR': ba_date,
+                'OLSTAMP': stamp,
+                'ENTRADAM': eentrada,
+                'SAIDAM': esaida,
+                'USER': user_login,
+                'NOWDT': now,
+                'NOWHR': now.strftime('%H:%M:%S'),
+            })
+            db.session.commit()
+            return jsonify({
+                'ok': True,
+                'BASTAMP': stamp,
+                'valor': float(diff),
+                'tipo': 'entrada' if diff > 0 else 'saida',
+            })
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 500

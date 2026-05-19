@@ -3831,6 +3831,8 @@ def api_cleaning_plan():
     al_local_expr = build_al_expr('LOCAL', 'al_local')
     al_morada_expr = build_al_expr('MORADA', 'al_morada')
     al_lptempo_expr = "ISNULL(al.[LPTEMPO], 0) AS cleaning_minutes" if 'LPTEMPO' in al_cols else "0 AS cleaning_minutes"
+    al_noites_expr = "ISNULL(al.[NOITES], 0) AS min_nights" if 'NOITES' in al_cols else "0 AS min_nights"
+    al_nolp_filter = "WHERE ISNULL(al.[NOLP], 0) = 0" if 'NOLP' in al_cols else ""
 
     sql = text(f"""
         SELECT
@@ -3839,6 +3841,7 @@ def api_cleaning_plan():
           al.TIPOLOGIA            AS typology,
           al.ZONA                 AS zone,
           {al_lptempo_expr},
+          {al_noites_expr},
           {al_codpost_expr},
           {al_local_expr},
           {al_morada_expr},
@@ -3889,47 +3892,10 @@ def api_cleaning_plan():
           ta.HORAINI              AS cleaning_started_at,
           ta.HORAFIM              AS cleaning_finished_at,
           ta.UTILIZADOR_NOME      AS cleaning_task_user,
+          nx.next_checkin_date     AS next_checkin_date,
           -- Limpeza adiada (entre hoje e o próximo check-in)
-          (
-            SELECT TOP 1 LP.DATA
-            FROM LP
-            WHERE LP.ALOJAMENTO = al.NOME
-              AND LP.DATA > :date
-              AND (
-                    (SELECT MIN(RS.DATAIN)
-                     FROM RS
-                     WHERE RS.ALOJAMENTO = al.NOME
-                       AND RS.CANCELADA = 0
-                       AND RS.DATAIN > :date) IS NULL
-                 OR LP.DATA < (
-                     SELECT MIN(RS.DATAIN)
-                     FROM RS
-                     WHERE RS.ALOJAMENTO = al.NOME
-                       AND RS.CANCELADA = 0
-                       AND RS.DATAIN > :date)
-                )
-            ORDER BY LP.DATA ASC
-          ) AS postponed_date,
-          (
-            SELECT TOP 1 LP.EQUIPA
-            FROM LP
-            WHERE LP.ALOJAMENTO = al.NOME
-              AND LP.DATA > :date
-              AND (
-                    (SELECT MIN(RS.DATAIN)
-                     FROM RS
-                     WHERE RS.ALOJAMENTO = al.NOME
-                       AND RS.CANCELADA = 0
-                       AND RS.DATAIN > :date) IS NULL
-                 OR LP.DATA < (
-                     SELECT MIN(RS.DATAIN)
-                     FROM RS
-                     WHERE RS.ALOJAMENTO = al.NOME
-                       AND RS.CANCELADA = 0
-                       AND RS.DATAIN > :date)
-                )
-            ORDER BY LP.DATA ASC
-          ) AS postponed_team,
+          pc.postponed_date        AS postponed_date,
+          pc.postponed_team        AS postponed_team,
           -- O estado (1:checkout, 2:checkin, 3:ocupado, 4:vazio)
           CASE
             WHEN co.RSSTAMP IS NOT NULL THEN 1
@@ -3949,6 +3915,24 @@ def api_cleaning_plan():
             AND LP.DATA < :date
           ORDER BY LP.DATA DESC, LP.HORA DESC, LP.LPSTAMP DESC
         ) lc
+        OUTER APPLY (
+          SELECT TOP 1 CAST(RS.DATAIN AS date) AS next_checkin_date
+          FROM RS
+          WHERE RS.ALOJAMENTO = al.NOME
+            AND RS.CANCELADA = 0
+            AND CAST(RS.DATAIN AS date) > :date
+          ORDER BY RS.DATAIN ASC, RS.RSSTAMP ASC
+        ) nx
+        OUTER APPLY (
+          SELECT TOP 1
+            CAST(LP.DATA AS date) AS postponed_date,
+            LP.EQUIPA AS postponed_team
+          FROM LP
+          WHERE LP.ALOJAMENTO = al.NOME
+            AND CAST(LP.DATA AS date) > :date
+            AND (nx.next_checkin_date IS NULL OR CAST(LP.DATA AS date) <= nx.next_checkin_date)
+          ORDER BY LP.DATA ASC, LP.HORA ASC, LP.LPSTAMP ASC
+        ) pc
         -- Apenas reservas NÃO canceladas
         LEFT JOIN RS co ON co.ALOJAMENTO = al.NOME AND co.DATAOUT = :date AND co.CANCELADA = 0
         LEFT JOIN RS ci ON ci.ALOJAMENTO = al.NOME AND ci.DATAIN = :date AND ci.CANCELADA = 0
@@ -3984,6 +3968,7 @@ def api_cleaning_plan():
             CASE WHEN LTRIM(RTRIM(ISNULL(T.ORISTAMP, ''))) = LTRIM(RTRIM(ISNULL(pl_day.LPSTAMP, ''))) THEN 0 ELSE 1 END,
             T.TAREFASSTAMP
         ) ta
+        {al_nolp_filter}
         
         ORDER BY planner_status, al.ZONA, al.NOME
     """)

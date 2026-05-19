@@ -172,6 +172,20 @@
     font-weight: var(--sz-font-weight-semibold);
   }
 
+  .rb-grid-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .rb-grid-visible-summary {
+    color: var(--sz-color-text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
   .rb-split {
     flex: 1 1 0;
     height: 0;
@@ -327,6 +341,105 @@
     white-space: nowrap;
   }
 
+  .rb-fo-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid color-mix(in srgb, var(--sz-color-warning, #f59f00) 48%, var(--sz-color-border));
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-left: 6px;
+    background: color-mix(in srgb, var(--sz-color-warning, #f59f00) 18%, var(--sz-color-surface));
+    color: var(--sz-color-text);
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .rb-fo-tag:hover,
+  .rb-fo-tag:focus {
+    border-color: var(--sz-color-primary);
+    color: var(--sz-color-primary);
+  }
+
+  .rb-ba-doc-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .rb-ba-doc-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rb-fo-modal_dialog {
+    max-width: min(980px, calc(100vw - 48px));
+  }
+
+  .rb-fo-status-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--sz-space-2);
+    margin-top: var(--sz-space-2);
+  }
+
+  .rb-fo-readonly-grid,
+  .rb-fo-edit-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+  }
+
+  .rb-fo-readonly-grid {
+    margin-bottom: var(--sz-space-4);
+  }
+
+  .rb-fo-info {
+    padding: var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-elevated) 80%, transparent);
+    min-width: 0;
+  }
+
+  .rb-fo-info-label {
+    display: block;
+    color: var(--sz-color-text-muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .rb-fo-info-value {
+    color: var(--sz-color-text);
+    font-weight: 800;
+    min-height: 1.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rb-fo-info-wide {
+    grid-column: span 2;
+  }
+
+  .rb-fo-status {
+    min-height: 1.5rem;
+  }
+
+  .rb-fo-modal_body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+  }
+
   .rb-panel .h6,
   .rb-panel .text-muted,
   .rb-panel .small {
@@ -363,6 +476,15 @@
       flex: 1 1 100%;
       width: 100%;
       max-width: none;
+    }
+
+    .rb-fo-readonly-grid,
+    .rb-fo-edit-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .rb-fo-info-wide {
+      grid-column: span 1;
     }
   }
 </style>
@@ -401,6 +523,9 @@
             </div>
           </div>
           <div class="rb_actions_bar">
+            <button type="button" class="sz_button sz_button_ghost rb-btn" id="rbRefresh">
+              <i class="fa-solid fa-rotate"></i> Atualizar
+            </button>
             <button type="button" class="sz_button sz_button_ghost rb-btn" id="rbGroupExtratos">
               <i class="fa-solid fa-layer-group"></i> Agrupar estratos
             </button>
@@ -409,6 +534,9 @@
             </button>
             <button type="button" class="sz_button sz_button_primary rb-btn" id="rbReconciliar" disabled>
               <i class="fa-solid fa-link"></i> Reconciliar
+            </button>
+            <button type="button" class="sz_button sz_button_ghost rb-btn" id="rbCreateRounding" disabled>
+              <i class="fa-solid fa-scale-balanced"></i> Arredondamento
             </button>
             <button type="button" class="sz_button sz_button_danger rb-btn" id="rbRemoveRec" disabled>
               <i class="fa-solid fa-unlink"></i> Remover
@@ -433,7 +561,10 @@
           <div class="card border-0 shadow-sm h-100 rb-panel">
             <div class="card-body">
               <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                <div class="h6 mb-0">Banco (EL)</div>
+                <div class="rb-grid-heading">
+                  <div class="h6 mb-0">Banco (EL)</div>
+                  <div class="rb-grid-visible-summary" id="rbVisibleEl">0 registos · 0,00</div>
+                </div>
                 <div class="input-group input-group-sm rb-search">
                   <input class="form-control" id="rbSearchEl" placeholder="Pesquisar...">
                   <button class="btn btn-outline-secondary" type="button" id="rbClearEl" title="Limpar">
@@ -465,7 +596,10 @@
           <div class="card border-0 shadow-sm h-100 rb-panel">
             <div class="card-body">
               <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                <div class="h6 mb-0">Tesouraria (BA)</div>
+                <div class="rb-grid-heading">
+                  <div class="h6 mb-0">Tesouraria (BA)</div>
+                  <div class="rb-grid-visible-summary" id="rbVisibleBa">0 registos · 0,00</div>
+                </div>
                 <div class="input-group input-group-sm rb-search">
                   <input class="form-control" id="rbSearchBa" placeholder="Pesquisar...">
                   <button class="btn btn-outline-secondary" type="button" id="rbClearBa" title="Limpar">
@@ -493,6 +627,87 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="rbFoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable rb-fo-modal_dialog">
+    <div class="modal-content rb-group-modal_content">
+      <div class="modal-header sz_modal_header">
+        <div>
+          <div class="sz_modal_title">Documento de compra</div>
+          <div class="sz_text_sm text-muted" id="rbFoSubtitle">Cabeçalho do documento de origem.</div>
+          <div class="rb-fo-status-row">
+            <span class="sz_badge sz_badge_info" id="rbFoSyncBadge">Sincronizado</span>
+            <span class="sz_badge sz_badge_success" id="rbFoPlanoBadge">Contabilizado</span>
+            <span class="sz_badge sz_badge_warning" id="rbFoPhcBadge">PHC</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body rb-fo-modal_body">
+        <div class="rb-fo-readonly-grid">
+          <div class="rb-fo-info rb-fo-info-wide">
+            <span class="rb-fo-info-label">Fornecedor</span>
+            <div class="rb-fo-info-value" id="rbFoFornecedor">-</div>
+          </div>
+          <div class="rb-fo-info">
+            <span class="rb-fo-info-label">NIF</span>
+            <div class="rb-fo-info-value" id="rbFoNif">-</div>
+          </div>
+          <div class="rb-fo-info">
+            <span class="rb-fo-info-label">N.º fornecedor</span>
+            <div class="rb-fo-info-value" id="rbFoNo">-</div>
+          </div>
+          <div class="rb-fo-info">
+            <span class="rb-fo-info-label">Documento</span>
+            <div class="rb-fo-info-value" id="rbFoNumero">-</div>
+          </div>
+          <div class="rb-fo-info">
+            <span class="rb-fo-info-label">Data documento</span>
+            <div class="rb-fo-info-value" id="rbFoDataDoc">-</div>
+          </div>
+          <div class="rb-fo-info">
+            <span class="rb-fo-info-label">Base</span>
+            <div class="rb-fo-info-value" id="rbFoBase">0,00</div>
+          </div>
+          <div class="rb-fo-info">
+            <span class="rb-fo-info-label">IVA</span>
+            <div class="rb-fo-info-value" id="rbFoIva">0,00</div>
+          </div>
+          <div class="rb-fo-info">
+            <span class="rb-fo-info-label">Total</span>
+            <div class="rb-fo-info-value" id="rbFoTotal">0,00</div>
+          </div>
+        </div>
+
+        <div class="rb-fo-edit-grid">
+          <div class="sz_field">
+            <label class="sz_label" for="rbFoDocnome">Tipo de documento</label>
+            <select class="sz_select" id="rbFoDocnome"></select>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="rbFoPdata">Data vencimento</label>
+            <input class="sz_input" id="rbFoPdata" type="date">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="rbFoCcusto">Centro de custo</label>
+            <select class="sz_select" id="rbFoCcusto"></select>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="rbFoTpdesc">Modo de pagamento</label>
+            <select class="sz_select" id="rbFoTpdesc"></select>
+          </div>
+        </div>
+        <div class="rb-fo-status sz_text_sm text-muted" id="rbFoStatus"></div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="sz_button sz_button_primary" id="rbFoSave">
+          <i class="fa-solid fa-floppy-disk"></i> Gravar
+        </button>
       </div>
     </div>
   </div>

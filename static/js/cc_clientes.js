@@ -48,6 +48,31 @@ function fmtMoney(v) {
   return fmt.format(Number.isFinite(n) ? n : 0);
 }
 
+function fmtEditMoney(v) {
+  const n = Number(v || 0);
+  return (Number.isFinite(n) ? n : 0).toLocaleString('pt-PT', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: false,
+  });
+}
+
+function parseMoneyInput(raw) {
+  const text = (raw ?? '').toString().trim().replace(/\s+/g, '');
+  if (!text || text === '-' || text === ',' || text === '.' || text === '-,' || text === '-.') return null;
+  const normalized = text.replace(',', '.');
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
+}
+
+function clampRecValue(value, minVal, maxVal) {
+  let val = Number(value || 0);
+  if (!Number.isFinite(val)) val = 0;
+  if (val < minVal) val = minVal;
+  if (val > maxVal) val = maxVal;
+  return val;
+}
+
 function escapeHtml(s) {
   return (s ?? '').toString()
     .replaceAll('&', '&amp;')
@@ -228,7 +253,12 @@ function renderRecRows(rows) {
       <td class="sz_table_cell">${escapeHtml(String(r.NRDOC ?? ''))}</td>
       <td class="sz_table_cell sz_text_right ${abertoCls}">${escapeHtml(fmtMoney(max))}</td>
       <td class="sz_table_cell sz_text_right">
-        <input type="number" class="sz_input sz_input_number ccc_rec_input" data-field="recval" value="${escapeHtml(recSafe.toFixed(2))}" min="${escapeHtml(minAllowed)}" max="${escapeHtml(maxAllowed)}" step="0.01">
+        <input type="text" inputmode="decimal"
+               class="sz_input sz_input_number ccc_rec_input"
+               data-field="recval"
+               data-min="${escapeHtml(minAllowed)}"
+               data-max="${escapeHtml(maxAllowed)}"
+               value="${escapeHtml(fmtEditMoney(recSafe))}">
       </td>
     `;
     recTableBody.appendChild(tr);
@@ -411,25 +441,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const row = (recRows || []).find((x) => (x.CCSTAMP || '').toString().trim() === cc);
     if (!row) return;
     const aberto = Number(row.ABERTO || 0);
-    let val = Number(input.value || 0);
-    if (!Number.isFinite(val)) val = 0;
-    if (aberto > 0) {
-      if (val < 0) val = 0;
-      if (Number.isFinite(aberto) && val > aberto) val = aberto;
-    } else if (aberto < 0) {
-      if (val > 0) val = 0;
-      if (Number.isFinite(aberto) && val < aberto) val = aberto;
-    }
-    if (val !== Number(input.value || 0)) input.value = String(val);
+    const minVal = Math.min(0, aberto);
+    const maxVal = Math.max(0, aberto);
+    const parsed = parseMoneyInput(input.value);
     const selected = recSelected.get(cc);
-    if (selected) {
+    if (selected && parsed !== null) {
+      const val = clampRecValue(parsed, minVal, maxVal);
       selected.rec = val;
       recSelected.set(cc, selected);
       updateRecSelectedTotal();
     }
   });
 
+  recTableBody?.addEventListener('blur', (e) => {
+    const input = e.target?.closest('input[data-field="recval"]');
+    if (!input) return;
+    const tr = input.closest('tr[data-ccstamp]');
+    if (!tr) return;
+    const cc = (tr.dataset.ccstamp || '').toString().trim();
+    const row = (recRows || []).find((x) => (x.CCSTAMP || '').toString().trim() === cc);
+    if (!row) return;
+    const aberto = Number(row.ABERTO || 0);
+    const minVal = Math.min(0, aberto);
+    const maxVal = Math.max(0, aberto);
+    const parsed = parseMoneyInput(input.value);
+    const val = clampRecValue(parsed === null ? 0 : parsed, minVal, maxVal);
+    input.value = fmtEditMoney(val);
+    const selected = recSelected.get(cc);
+    if (selected) {
+      selected.rec = val;
+      recSelected.set(cc, selected);
+      updateRecSelectedTotal();
+    }
+  }, true);
+
   recTableBody?.addEventListener('click', (e) => {
+    if (e.target.closest('input[data-field="recval"]')) return;
     const tr = e.target.closest('tr[data-ccstamp]');
     if (!tr) return;
     const cc = (tr.dataset.ccstamp || '').toString().trim();
@@ -442,18 +489,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (row) {
         const recInput = tr.querySelector('input[data-field="recval"]');
         const aberto = Number(row.ABERTO || 0);
-        let val = recInput ? Number(recInput.value || 0) : aberto;
-        if (!Number.isFinite(val)) val = 0;
-        if (aberto > 0) {
-          if (val < 0) val = 0;
-          if (Number.isFinite(aberto) && val > aberto) val = aberto;
-          if (val <= 0) val = Number.isFinite(aberto) ? aberto : 0;
-        } else if (aberto < 0) {
-          if (val > 0) val = 0;
-          if (Number.isFinite(aberto) && val < aberto) val = aberto;
-          if (val >= 0) val = Number.isFinite(aberto) ? aberto : 0;
-        }
-        if (recInput) recInput.value = (Number.isFinite(val) ? val : 0).toFixed(2);
+        const minVal = Math.min(0, aberto);
+        const maxVal = Math.max(0, aberto);
+        const parsed = recInput ? parseMoneyInput(recInput.value) : null;
+        let val = clampRecValue(parsed === null ? aberto : parsed, minVal, maxVal);
+        if (Math.abs(val) <= 0.005) val = Number.isFinite(aberto) ? aberto : 0;
+        val = clampRecValue(val, minVal, maxVal);
+        if (recInput) recInput.value = fmtEditMoney(val);
         recSelected.set(cc, { row, rec: val });
       }
     } else {

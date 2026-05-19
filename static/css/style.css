@@ -2744,6 +2744,8 @@ body:not(.authenticated) .main-content {
 }
 
 .planner2-page {
+  --planner2-grid-width: 1264px;
+  --planner2-gantt-width: calc(var(--planner2-grid-width) + 16px);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -2884,16 +2886,18 @@ body:not(.authenticated) .main-content {
   overflow: hidden;
 }
 .planner2-gantt {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 0 var(--planner2-gantt-width);
+  width: var(--planner2-gantt-width);
+  min-width: var(--planner2-gantt-width);
+  max-width: var(--planner2-gantt-width);
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 .planner2-side {
-  flex: 0 0 clamp(320px, 28vw, 540px);
+  flex: 1 1 0;
   min-width: 320px;
-  max-width: 540px;
+  max-width: none;
   height: 100%;
   min-height: 0;
 }
@@ -3438,12 +3442,15 @@ body:not(.authenticated) .main-content {
   min-height: 0;
   height: 100%;
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   box-shadow: 0 14px 30px rgba(15,23,42,0.1);
-  width: 100%;
+  width: var(--planner2-gantt-width);
+  max-width: var(--planner2-gantt-width);
+  box-sizing: border-box;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
 }
@@ -3468,7 +3475,7 @@ body:not(.authenticated) .main-content {
   z-index: 6;
 }
 .planner2-table {
-  width: max-content;
+  width: var(--planner2-grid-width);
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -3599,6 +3606,17 @@ body:not(.authenticated) .main-content {
   font-size: 9px;
   text-overflow: ellipsis;
   text-shadow: none;
+}
+.planner2-bar-deferred-pending {
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.26), rgba(244, 63, 94, 0.18));
+  border-color: rgba(220, 38, 38, 0.54);
+}
+.planner2-bar-deferred-pending .planner2-bar-label {
+  color: #7f1d1d;
+}
+.planner2-bar-deferred-assigned {
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.3), rgba(20, 184, 166, 0.2));
+  border-color: rgba(22, 163, 74, 0.58);
 }
 .planner2-bar-cleaning {
   border-color: rgba(15,23,42,0.25);

@@ -7,15 +7,39 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusEl = document.getElementById('rbStatus');
   const sumElEl = document.getElementById('rbSumEl');
   const sumBaEl = document.getElementById('rbSumBa');
+  const visibleEl = document.getElementById('rbVisibleEl');
+  const visibleBa = document.getElementById('rbVisibleBa');
   const diffEl = document.getElementById('rbDiff');
   const btnRec = document.getElementById('rbReconciliar');
+  const btnCreateRounding = document.getElementById('rbCreateRounding');
   const btnRemove = document.getElementById('rbRemoveRec');
   const btnCreateOw = document.getElementById('rbCreateOW');
   const btnGroup = document.getElementById('rbGroupExtratos');
   const btnSuggest = document.getElementById('rbSuggestMatches');
+  const btnRefresh = document.getElementById('rbRefresh');
   const onlyOpen = document.getElementById('rbOnlyOpen');
   const groupModalEl = document.getElementById('rbGroupModal');
   const groupModal = groupModalEl && window.bootstrap ? new bootstrap.Modal(groupModalEl) : null;
+  const foModalEl = document.getElementById('rbFoModal');
+  const foModal = foModalEl && window.bootstrap ? new bootstrap.Modal(foModalEl) : null;
+  const foSubtitle = document.getElementById('rbFoSubtitle');
+  const foSyncBadge = document.getElementById('rbFoSyncBadge');
+  const foPlanoBadge = document.getElementById('rbFoPlanoBadge');
+  const foPhcBadge = document.getElementById('rbFoPhcBadge');
+  const foFornecedor = document.getElementById('rbFoFornecedor');
+  const foNif = document.getElementById('rbFoNif');
+  const foNo = document.getElementById('rbFoNo');
+  const foNumero = document.getElementById('rbFoNumero');
+  const foDataDoc = document.getElementById('rbFoDataDoc');
+  const foBase = document.getElementById('rbFoBase');
+  const foIva = document.getElementById('rbFoIva');
+  const foTotal = document.getElementById('rbFoTotal');
+  const foDocnome = document.getElementById('rbFoDocnome');
+  const foPdata = document.getElementById('rbFoPdata');
+  const foCcusto = document.getElementById('rbFoCcusto');
+  const foTpdesc = document.getElementById('rbFoTpdesc');
+  const foStatus = document.getElementById('rbFoStatus');
+  const foSave = document.getElementById('rbFoSave');
   const suggestModalEl = document.getElementById('rbSuggestModal');
   const suggestModal = suggestModalEl && window.bootstrap ? new bootstrap.Modal(suggestModalEl) : null;
   const suggestStatus = document.getElementById('rbSuggestStatus');
@@ -45,6 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedSuggestions: new Set(),
     activeGroupId: 0,
     groupAccounts: [],
+    activeFoStamp: '',
+    activeFoHeader: null,
   };
 
   const monthNames = [
@@ -74,6 +100,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!groupStatus) return;
     groupStatus.className = 'rb-group-status sz_text_sm ' + (kind === 'err' ? 'text-danger' : kind === 'ok' ? 'text-success' : 'text-muted');
     groupStatus.textContent = msg || '';
+  }
+
+  function setFoStatus(msg, kind) {
+    if (!foStatus) return;
+    foStatus.className = 'rb-fo-status sz_text_sm ' + (kind === 'err' ? 'text-danger' : kind === 'ok' ? 'text-success' : 'text-muted');
+    foStatus.textContent = msg || '';
   }
 
   function isOpenRow(row) {
@@ -244,6 +276,153 @@ document.addEventListener('DOMContentLoaded', () => {
     return n < 0 ? 'rb-money rb-neg' : 'rb-money rb-pos';
   }
 
+  function fillSelect(sel, values, current, mapFn) {
+    if (!sel) return;
+    const cur = (current ?? '').toString().trim();
+    sel.innerHTML = '<option value="">---</option>';
+    (values || []).forEach(item => {
+      const mapped = mapFn ? mapFn(item) : { value: item, label: item };
+      const value = (mapped.value ?? '').toString();
+      if (!value) return;
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = (mapped.label ?? value).toString();
+      Object.entries(mapped.dataset || {}).forEach(([k, v]) => {
+        opt.dataset[k] = v ?? '';
+      });
+      sel.append(opt);
+    });
+    if (cur) {
+      const match = Array.from(sel.options).find(opt => opt.value.trim() === cur);
+      if (match) sel.value = match.value;
+      else {
+        const opt = document.createElement('option');
+        opt.value = cur;
+        opt.textContent = cur;
+        sel.append(opt);
+        sel.value = cur;
+      }
+    }
+  }
+
+  function setFoReadonly(payload) {
+    const h = payload?.header || {};
+    const phcExists = Number(payload?.phc_exists || 0) === 1;
+    const sync = Number(h.SYNC || 0) === 1;
+    const plano = Number(h.PLANO || 0) === 1;
+    if (foSubtitle) foSubtitle.textContent = `${h.DOCNOME || 'Documento'} ${h.ADOC || ''}`.trim();
+    if (foFornecedor) foFornecedor.textContent = h.NOME || '-';
+    if (foNif) foNif.textContent = h.NCONT || '-';
+    if (foNo) foNo.textContent = h.NO ?? '-';
+    if (foNumero) foNumero.textContent = [h.DOCNOME, h.ADOC].filter(Boolean).join(' ') || '-';
+    if (foDataDoc) foDataDoc.textContent = h.DOCDATA || h.DATA || '-';
+    if (foBase) foBase.textContent = fmtMoney(h.ETTILIQ);
+    if (foIva) foIva.textContent = fmtMoney(h.ETTIVA);
+    if (foTotal) foTotal.textContent = fmtMoney(h.ETOTAL);
+
+    if (foSyncBadge) foSyncBadge.style.display = sync ? 'inline-flex' : 'none';
+    if (foPlanoBadge) foPlanoBadge.style.display = plano ? 'inline-flex' : 'none';
+    if (foPhcBadge) {
+      foPhcBadge.textContent = phcExists ? 'Existe no PHC' : 'Sem PHC';
+      foPhcBadge.classList.toggle('sz_badge_warning', !phcExists);
+      foPhcBadge.classList.toggle('sz_badge_info', phcExists);
+    }
+  }
+
+  function fillFoForm(payload) {
+    const h = payload?.header || {};
+    const opts = payload?.options || {};
+    state.activeFoHeader = h;
+    setFoReadonly(payload);
+    fillSelect(foDocnome, opts.docnomes || [], h.DOCNOME);
+    fillSelect(foCcusto, opts.ccustos || [], h.CCUSTO);
+    fillSelect(foTpdesc, opts.tp || [], h.TPDESC, item => ({
+      value: item.TPDESC || item.tpdesc || '',
+      label: item.TPDESC || item.tpdesc || '',
+      dataset: {
+        tpstamp: item.TPSTAMP || item.tpstamp || '',
+        dias: item.DIAS ?? item.dias ?? '',
+        ollocal: item.OLLOCAL || item.ollocal || '',
+      },
+    }));
+    if (foPdata) foPdata.value = h.PDATA || '';
+
+    const canEdit = Boolean(payload?.can_edit);
+    const isPlano = Number(h.PLANO || 0) === 1;
+    [foDocnome, foPdata, foCcusto, foTpdesc].forEach(el => {
+      if (el) el.disabled = !canEdit;
+    });
+    if (isPlano) {
+      if (foDocnome) foDocnome.disabled = true;
+      if (foCcusto) foCcusto.disabled = true;
+    }
+    if (foSave) foSave.disabled = !canEdit || Number(payload?.phc_exists || 0) !== 1;
+    setFoStatus(isPlano ? 'Documento contabilizado: pode alterar o vencimento e o modo de pagamento.' : '', isPlano ? '' : '');
+  }
+
+  async function openFoModal(fostamp) {
+    const stamp = (fostamp || '').toString().trim();
+    if (!stamp) return;
+    state.activeFoStamp = stamp;
+    state.activeFoHeader = null;
+    setFoStatus('A carregar documento...', '');
+    foModal?.show();
+    try {
+      const r = await fetch(`/api/reconciliacao/compra/${encodeURIComponent(stamp)}`);
+      const js = await r.json().catch(() => ({}));
+      if (!r.ok || js.error || js.ok === false) throw new Error(js.error || r.statusText);
+      fillFoForm(js);
+    } catch (e) {
+      setFoStatus(e?.message || String(e), 'err');
+      if (foSave) foSave.disabled = true;
+    }
+  }
+
+  function selectedTpStamp() {
+    if (!foTpdesc) return '';
+    const opt = foTpdesc.options[foTpdesc.selectedIndex];
+    return opt?.dataset?.tpstamp || '';
+  }
+
+  async function saveFoModal() {
+    const stamp = state.activeFoStamp;
+    if (!stamp || !foSave) return;
+    try {
+      foSave.disabled = true;
+      setFoStatus('A gravar...', '');
+      const payload = {
+        DOCNOME: foDocnome?.value || '',
+        PDATA: foPdata?.value || '',
+        CCUSTO: foCcusto?.value || '',
+        TPDESC: foTpdesc?.value || '',
+        TPSTAMP: selectedTpStamp(),
+      };
+      const r = await fetch(`/api/reconciliacao/compra/${encodeURIComponent(stamp)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const js = await r.json().catch(() => ({}));
+      if (!r.ok || js.error || js.ok === false) throw new Error(js.error || r.statusText);
+      setFoStatus('Documento atualizado.', 'ok');
+      fillFoForm(js);
+      const extstamp = (selExt?.value || '').trim();
+      if (extstamp) await loadForExt(extstamp);
+      setTimeout(() => foModal?.hide(), 180);
+    } catch (e) {
+      setFoStatus(e?.message || String(e), 'err');
+      foSave.disabled = false;
+    }
+  }
+
+  function updateVisibleSummary(el, rows) {
+    if (!el) return;
+    const list = Array.isArray(rows) ? rows : [];
+    const total = list.reduce((acc, row) => acc + (Number(row?.VALOR || 0) || 0), 0);
+    const label = list.length === 1 ? 'registo' : 'registos';
+    el.textContent = `${list.length} ${label} · ${fmtMoney(total)}`;
+  }
+
   function computeSums() {
     let sumEl = 0;
     let sumBa = 0;
@@ -255,6 +434,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (diffEl) diffEl.textContent = fmtMoney(diff);
     const ok = Math.abs(diff) < 0.01 && state.selEl.size > 0 && state.selBa.size > 0;
     if (btnRec) btnRec.disabled = !ok;
+    const canRound = Math.abs(diff) >= 0.005 && Math.abs(diff) <= 0.0201 && state.selEl.size > 0 && state.selBa.size > 0 && !!state.ext;
+    if (btnCreateRounding) {
+      btnCreateRounding.disabled = !canRound;
+      btnCreateRounding.title = canRound
+        ? `Lancar arredondamento de ${fmtMoney(diff)} na BA`
+        : 'Disponivel para diferencas ate 0,02';
+    }
     const canRemove = !onlyOpen?.checked && Number(state.activeGroupId || 0) > 0;
     if (btnRemove) btnRemove.disabled = !canRemove;
 
@@ -280,7 +466,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let base = rows;
     if (onlyOpen?.checked) base = base.filter(r => Number(r.RECONCILIADO || 0) !== 1);
     if (!q) return base;
-    return base.filter(r => fields.some(f => (r[f] ?? '').toString().toLowerCase().includes(q)));
+    return base.filter(r => {
+      const groupId = Number(r?.GROUPID || 0) || 0;
+      const groupFlag = groupId > 0 ? `g${groupId}` : '';
+      if (groupFlag && (groupFlag.includes(q) || String(groupId).includes(q))) return true;
+      return fields.some(f => (r[f] ?? '').toString().toLowerCase().includes(q));
+    });
   }
 
   function accountLabel(account) {
@@ -342,6 +533,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderEl() {
     if (!tbEl) return;
     const rows = filterRows(state.elRows, searchEl?.value, ['DATA', 'DTVALOR', 'DESCRICAO']);
+    updateVisibleSummary(visibleEl, rows);
     if (!rows.length) {
       tbEl.innerHTML = '<tr><td colspan="5" class="text-muted">Sem linhas.</td></tr>';
       return;
@@ -365,6 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderBa() {
     if (!tbBa) return;
     const rows = filterRows(state.baRows, searchBa?.value, ['DATA', 'DOCUMENTO', 'DESCRICAO']);
+    updateVisibleSummary(visibleBa, rows);
     if (!rows.length) {
       tbBa.innerHTML = '<tr><td colspan="5" class="text-muted">Sem movimentos.</td></tr>';
       return;
@@ -373,11 +566,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const checked = state.selBa.has(r.BASTAMP) ? 'checked' : '';
       const rec = r.RECONCILIADO ? 'rb-reconciled' : '';
       const pill = r.RECONCILIADO ? `<span class="rb-pill">G${esc(r.GROUPID)}</span>` : '';
+      const foTag = Number(r.HAS_FO || 0) === 1 && r.OLSTAMP
+        ? `<button type="button" class="rb-fo-tag" data-fo-stamp="${esc(r.OLSTAMP)}" title="Abrir documento de compra"><i class="fa-solid fa-file-invoice"></i> Doc.</button>`
+        : '';
       return `
         <tr class="${rec}" data-bastamp="${esc(r.BASTAMP)}" data-groupid="${esc(r.GROUPID || 0)}">
           <td><input class="form-check-input rb-chk-ba" type="checkbox" ${checked}></td>
           <td>${esc(r.DATA || '')}</td>
-          <td class="text-truncate" style="max-width:160px;" title="${esc(r.DOCUMENTO || '')}">${esc(r.DOCUMENTO || '')}</td>
+          <td style="max-width:220px;" title="${esc(r.DOCUMENTO || '')}">
+            <div class="rb-ba-doc-cell">
+              <span class="rb-ba-doc-text">${esc(r.DOCUMENTO || '')}</span>
+              ${foTag}
+            </div>
+          </td>
           <td class="text-truncate" style="max-width:420px;" title="${esc(r.DESCRICAO || '')}">${esc(r.DESCRICAO || '')}${pill}</td>
           <td class="text-end ${moneyClass(r.VALOR)}">${fmtMoney(r.VALOR)}</td>
         </tr>
@@ -417,6 +618,8 @@ document.addEventListener('DOMContentLoaded', () => {
     state.selBa.clear();
     state.activeGroupId = 0;
     computeSums();
+    updateVisibleSummary(visibleEl, []);
+    updateVisibleSummary(visibleBa, []);
     try {
       const r = await fetch(`/api/extratos/${encodeURIComponent(extstamp)}`);
       const js = await r.json().catch(() => ({}));
@@ -432,10 +635,14 @@ document.addEventListener('DOMContentLoaded', () => {
       renderBa();
       computeSums();
       setStatus('', '');
+      return true;
     } catch (e) {
       setStatus(e?.message || String(e), 'err');
       if (tbEl) tbEl.innerHTML = '<tr><td colspan="5" class="text-muted">Erro.</td></tr>';
       if (tbBa) tbBa.innerHTML = '<tr><td colspan="5" class="text-muted">Erro.</td></tr>';
+      updateVisibleSummary(visibleEl, []);
+      updateVisibleSummary(visibleBa, []);
+      return false;
     }
   }
 
@@ -453,6 +660,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (tbEl) tbEl.innerHTML = '<tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>';
       if (tbBa) tbBa.innerHTML = '<tr><td colspan="5" class="text-muted">Seleciona um extrato.</td></tr>';
       computeSums();
+      updateVisibleSummary(visibleEl, []);
+      updateVisibleSummary(visibleBa, []);
       return;
     }
     loadForExt(v);
@@ -478,6 +687,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (searchBa) searchBa.value = '';
     renderBa();
     try { searchBa?.focus(); } catch (_) {}
+  });
+
+  btnRefresh?.addEventListener('click', async () => {
+    const extstamp = (selExt?.value || '').trim();
+    if (!extstamp) {
+      await loadExtratos();
+      setStatus('Seleciona um extrato.', 'err');
+      return;
+    }
+    try {
+      btnRefresh.disabled = true;
+      const ok = await loadForExt(extstamp);
+      if (ok) setStatus('Grelhas atualizadas.', 'ok');
+    } catch (e) {
+      setStatus(e?.message || String(e), 'err');
+    } finally {
+      btnRefresh.disabled = false;
+    }
   });
 
   btnSuggest?.addEventListener('click', () => {
@@ -516,7 +743,19 @@ document.addEventListener('DOMContentLoaded', () => {
     reconcileSelectedSuggestions();
   });
 
+  foSave?.addEventListener('click', () => {
+    saveFoModal();
+  });
+
   document.addEventListener('click', (e) => {
+    const foBtn = e.target.closest('.rb-fo-tag');
+    if (foBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      openFoModal(foBtn.getAttribute('data-fo-stamp') || '');
+      return;
+    }
+
     const trEl = e.target.closest('tr[data-stamp]');
     if (trEl && tbEl && tbEl.contains(trEl)) {
       const stamp = trEl.getAttribute('data-stamp');
@@ -582,6 +821,48 @@ document.addEventListener('DOMContentLoaded', () => {
       const js = await r.json().catch(() => ({}));
       if (!r.ok || js.error) throw new Error(js.error || r.statusText);
       setStatus(`OLBB gerado(s): ${js.inserted || 0}.`, 'ok');
+      await loadForExt(extstamp);
+    } catch (e) {
+      setStatus(e?.message || String(e), 'err');
+      computeSums();
+    }
+  });
+
+  btnCreateRounding?.addEventListener('click', async () => {
+    const extstamp = (selExt?.value || '').trim();
+    if (!extstamp || !state.ext) return;
+    let sumEl = 0;
+    let sumBa = 0;
+    for (const r of state.elRows) if (state.selEl.has(r.STAMP)) sumEl += Number(r.VALOR || 0) || 0;
+    for (const r of state.baRows) if (state.selBa.has(r.BASTAMP)) sumBa += Number(r.VALOR || 0) || 0;
+    const diff = sumEl - sumBa;
+    const absDiff = Math.abs(diff);
+    if (state.selEl.size <= 0 || state.selBa.size <= 0 || absDiff < 0.005 || absDiff > 0.0201) {
+      setStatus('O arredondamento so esta disponivel para diferencas ate 0,02.', 'err');
+      computeSums();
+      return;
+    }
+    const direction = diff > 0 ? 'entrada' : 'saida';
+    const msg = `Lancar ${direction} de arredondamento na BA no valor de ${fmtMoney(absDiff)}?\n\nEste passo nao reconcilia os documentos.`;
+    if (!confirm(msg)) return;
+    try {
+      btnCreateRounding.disabled = true;
+      setStatus('A lancar arredondamento...', '');
+      const baSelection = state.baRows
+        .filter(row => state.selBa.has(row.BASTAMP))
+        .map(row => row.BASTAMP);
+      const r = await fetch('/api/reconciliacao/arredondamento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          EXTSTAMP: extstamp,
+          EL: Array.from(state.selEl),
+          BA: baSelection,
+        }),
+      });
+      const js = await r.json().catch(() => ({}));
+      if (!r.ok || js.error) throw new Error(js.error || r.statusText);
+      setStatus(`Arredondamento lancado: ${fmtMoney(js.valor || diff)}.`, 'ok');
       await loadForExt(extstamp);
     } catch (e) {
       setStatus(e?.message || String(e), 'err');
