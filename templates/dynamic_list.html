@@ -11,6 +11,10 @@
           <p id="recordCount" class="sz_page_subtitle"></p>
         </div>
         <div class="sz_contextbar_right sz_dynamic_list_contextbar_right">
+          <label class="sz_dynamic_list_search" for="dynamicListSearch">
+            <i class="fa fa-search" aria-hidden="true"></i>
+            <input id="dynamicListSearch" class="sz_input" type="search" placeholder="Pesquisar" autocomplete="off" aria-label="Pesquisar na lista">
+          </label>
           <div class="dynamic-list-actions sz_dynamic_list_actions">
             <button id="btnSortToggle" class="sz_button sz_button_ghost" aria-label="{{ _('common.sort') }}" title="{{ _('common.sort') }}">
               <i class="fa fa-arrow-down-wide-short"></i>
@@ -267,6 +271,33 @@
     display: none;
   }
 
+  .sz_dynamic_list_contextbar_right {
+    flex-direction: row;
+    align-items: center;
+    gap: .75rem;
+  }
+
+  .sz_dynamic_list_search {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: min(18rem, 28vw);
+    min-width: 14rem;
+  }
+
+  .sz_dynamic_list_search i {
+    position: absolute;
+    left: .75rem;
+    color: var(--sz-color-text-secondary);
+    pointer-events: none;
+    font-size: .9rem;
+  }
+
+  .sz_dynamic_list_search .sz_input {
+    width: 100%;
+    padding-left: 2.1rem;
+  }
+
   @media (max-width: 768px) {
     .sz_dynamic_list_contextbar {
       flex-direction: row;
@@ -287,6 +318,10 @@
       flex: 0 0 auto;
       min-width: 0;
       align-items: flex-end;
+    }
+
+    .sz_dynamic_list_search {
+      display: none;
     }
 
     .sz_dynamic_list_actions {

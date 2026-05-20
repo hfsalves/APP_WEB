@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeFiltersBtn = document.getElementById('closeFiltersModal');
   const closeFiltersTopBtn = document.getElementById('closeFiltersModalTop');
   const filterForm      = document.getElementById('filter-form');
+  const listSearchInput = document.getElementById('dynamicListSearch');
   const userPerms       = window.USER_PERMS[tableName] || {};
   const isFoList        = (tableName || '').toUpperCase() === 'FO';
   const tableForm       = (window.TABLE_FORM || '').trim();
@@ -26,6 +27,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentCols       = [];
   let mobileCardCols    = [];
   let listUseExactWidths = false;
+  let listSearchTerm    = '';
+  let dataRows          = [];
+  let sortField         = null;
+  let sortDir           = 1; // 1 = asc, -1 = desc
   const mobileListQuery = window.matchMedia('(max-width: 768px)');
   let pendingSortField  = null;
   let pendingSortDir    = 1;
@@ -36,6 +41,12 @@ document.addEventListener('DOMContentLoaded', () => {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+
+  const normalizeSearchText = (value) => String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
 
   const toAppRelativeUrl = (value, fallback = '') => {
     const raw = String(value || '').trim();
@@ -80,6 +91,13 @@ document.addEventListener('DOMContentLoaded', () => {
     btnNewAttachment.innerHTML = `<i class="fa fa-paperclip"></i><span>${escapeHtml(tr('common.new_attachment'))}</span>`;
     btnNewAttachment.classList.add('btn-attach-custom');
     btnNewAttachment.setAttribute('aria-label', tr('common.new_attachment'));
+  }
+  if (listSearchInput) {
+    listSearchInput.addEventListener('input', () => {
+      listSearchTerm = String(listSearchInput.value || '').trim();
+      updateRecordCount(getFilteredRows().length);
+      renderGrid();
+    });
   }
   // removido botão de anexo específico
 
@@ -188,6 +206,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const col = getVisibleSortColumns().find((item) => String(item?.name || '') === String(sortField || ''));
     if (!col) return;
     dataRows.sort((leftRow, rightRow) => compareRowsByColumn(col, leftRow, rightRow, sortDir));
+  }
+
+  function getSearchableColumns() {
+    const cols = Array.isArray(currentCols) && currentCols.length ? currentCols : mobileCardCols;
+    return Array.isArray(cols) ? cols.filter((col) => String(col?.name || '').trim()) : [];
+  }
+
+  function rowMatchesListSearch(row) {
+    const query = normalizeSearchText(listSearchTerm);
+    if (!query) return true;
+    const terms = query.split(/\s+/).filter(Boolean);
+    if (!terms.length) return true;
+
+    const cols = getSearchableColumns();
+    const haystack = normalizeSearchText(
+      (cols.length ? cols : Object.keys(row || {})).map((col) => {
+        if (typeof col === 'string') return row?.[col];
+        return formatListValue(col, row?.[col.name]);
+      }).join(' ')
+    );
+    return terms.every((term) => haystack.includes(term));
+  }
+
+  function getFilteredRows() {
+    const rows = Array.isArray(dataRows) ? dataRows : [];
+    return rows.filter(rowMatchesListSearch);
+  }
+
+  function updateRecordCount(count) {
+    const cntEl = document.getElementById('recordCount');
+    if (!cntEl) return;
+    const n = Number(count || 0);
+    cntEl.textContent = tr(n === 1 ? 'dynamic_list.record_count_one' : 'dynamic_list.record_count_other', { count: n });
   }
 
   function renderSortOptions() {
@@ -351,6 +402,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const handleViewportModeChange = () => {
+    if (mobileListQuery.matches && listSearchTerm) {
+      listSearchTerm = '';
+      if (listSearchInput) listSearchInput.value = '';
+      updateRecordCount((dataRows || []).length);
+    }
     if (!Array.isArray(dataRows) || !dataRows.length) {
       renderGrid();
       return;
@@ -367,10 +423,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initListView().catch(console.error);
 
   // guarda os dados e estado de ordenaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o
-  let dataRows = [];
-  let sortField = null;
-  let sortDir = 1; // 1 = asc, -1 = desc
-
   function showLoading() {
     const overlay = document.getElementById('loadingOverlay');
     overlay.style.display = 'flex';
@@ -729,13 +781,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     dataRows = await res.json();
-    const cntEl = document.getElementById('recordCount');
-    if (cntEl) {
-      const n = (dataRows || []).length;
-      cntEl.textContent = tr(n === 1 ? 'dynamic_list.record_count_one' : 'dynamic_list.record_count_other', { count: n });
-    }
-    if(cntEl){ const n = (dataRows||[]).length; cntEl.textContent = tr(n === 1 ? 'dynamic_list.record_count_one' : 'dynamic_list.record_count_other', { count: n }); }
     applyActiveSort();
+    updateRecordCount(getFilteredRows().length);
     renderGrid();
   }
 
@@ -789,12 +836,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderGrid() {
+    const rows = getFilteredRows();
     gridDiv.classList.toggle('is-mobile-cards', isMobileCardView());
     if (isMobileCardView()) {
-      renderMobileCards(mobileCardCols, dataRows);
+      renderMobileCards(mobileCardCols, rows);
       return;
     }
-    renderTable(currentCols, dataRows);
+    renderTable(currentCols, rows);
   }
 
   function renderTable(cols, rows) {
