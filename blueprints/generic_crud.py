@@ -6,6 +6,7 @@ from sqlalchemy import MetaData, Table, select, text, String, or_, and_, exists,
 from app import db
 from models import Campo, Menu, Acessos, CamposModal, Linhas
 from services.db_i18n_service import _extract_openai_text, _para_value, _strip_json_fence, _translation_model, translate_db_record
+from services.dashboard_links_service import DASHBOARD_LINKS_TABLES, ensure_dashboard_links_schema
 from services.multiempresa_service import get_current_feid, MissingCurrentEntityError
 import uuid
 from datetime import date, timedelta, datetime
@@ -30,6 +31,11 @@ EVENT_CURSOR_SQL_FORBIDDEN_RE = re.compile(
     r'\b(insert|update|delete|drop|alter|create|exec|execute|merge|truncate|grant|revoke|backup|restore|use|into)\b',
     re.IGNORECASE,
 )
+
+
+def _ensure_dashboard_links_if_needed(table_name: str) -> None:
+    if str(table_name or '').strip().upper() in DASHBOARD_LINKS_TABLES:
+        ensure_dashboard_links_schema()
 
 # --------------------------------------------------
 # FO: pagamento (V_FC) helper
@@ -1348,6 +1354,7 @@ def view_calendar():
 @bp.route('/view/<table_name>/<record_stamp>')
 @login_required
 def view_table(table_name, record_stamp):
+    _ensure_dashboard_links_if_needed(table_name)
     requested_menu_stamp = (request.args.get('menustamp') or '').strip()
     menu_item = None
     if requested_menu_stamp:
@@ -1367,6 +1374,7 @@ def view_table(table_name, record_stamp):
 @bp.route('/form/<table_name>/<record_stamp>')
 @login_required
 def edit_table(table_name, record_stamp):
+    _ensure_dashboard_links_if_needed(table_name)
     from models import MenuBotoes
     requested_menu_stamp = (request.args.get('menustamp') or '').strip()
     menu_item = None
@@ -2227,6 +2235,7 @@ def fo_contrato_linhas(bostamp):
 @bp.route('/api/<table_name>', methods=['GET'])
 @login_required
 def list_or_describe(table_name):
+    _ensure_dashboard_links_if_needed(table_name)
     if request.args.get('action') == 'describe':
         include_screen_meta = str(request.args.get('include_screen_meta') or '').strip().lower() in {'1', 'true', 'yes'}
         table = get_table(table_name)
@@ -3542,6 +3551,7 @@ def rs_update_obs():
 @bp.route('/api/<table_name>/<record_stamp>', methods=['GET'])
 @login_required
 def get_record(table_name, record_stamp):
+    _ensure_dashboard_links_if_needed(table_name)
     if not has_permission(table_name, 'consultar'):
         abort(403, 'Sem permissÃ£o para consultar')
 
@@ -3580,6 +3590,7 @@ def get_record(table_name, record_stamp):
 @bp.route('/api/<table_name>', methods=['POST'])
 @login_required
 def create_record(table_name):
+    _ensure_dashboard_links_if_needed(table_name)
     if not has_permission(table_name, 'inserir'):
         abort(403, 'Sem permissÃ£o para inserir')
 
@@ -3603,6 +3614,14 @@ def create_record(table_name):
     # â€” end filtra â€”
 
     _ensure_named_stamp(table, table_name, clean)
+    if tn == 'DBW':
+        if not str(clean.get('DBWSTAMP') or '').strip() or '-' in str(clean.get('DBWSTAMP') or ''):
+            clean['DBWSTAMP'] = uuid.uuid4().hex.upper()[:25]
+        if not str(clean.get('NOME') or '').strip() and str(clean.get('TITULO') or '').strip():
+            clean['NOME'] = str(clean.get('TITULO') or '').strip()
+        clean.setdefault('ATIVO', True)
+        clean.setdefault('COLUNA', 1)
+        clean.setdefault('ORDEM_COLUNA', 0)
 
     if current_feid is not None:
         clean['FEID'] = current_feid
@@ -3635,6 +3654,23 @@ def create_record(table_name):
     try:
         ins = table.insert().inline().values(**clean)
         db.session.execute(ins)
+        if tn == 'DBW':
+            userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
+            dbwstamp = str(clean.get('DBWSTAMP') or '').strip()
+            if userstamp and dbwstamp:
+                db.session.execute(text("""
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM dbo.DBWU
+                        WHERE DBWSTAMP = :dbwstamp AND USRSTAMP = :userstamp
+                    )
+                    INSERT INTO dbo.DBWU (DBWUSTAMP, DBWSTAMP, USRSTAMP)
+                    VALUES (:stamp, :dbwstamp, :userstamp)
+                """), {
+                    'stamp': uuid.uuid4().hex.upper()[:25],
+                    'dbwstamp': dbwstamp,
+                    'userstamp': userstamp,
+                })
         db.session.commit()
         return jsonify({'success': True}), 201
     except Exception as e:
@@ -3678,6 +3714,7 @@ def tarefa_origin(tarefas_stamp):
 @bp.route('/api/<table_name>/<record_stamp>', methods=['PUT'])
 @login_required
 def update_record(table_name, record_stamp):
+    _ensure_dashboard_links_if_needed(table_name)
     if not has_permission(table_name, 'editar'):
         abort(403, 'Sem permissÃ£o para editar')
 
@@ -3734,6 +3771,7 @@ def update_record(table_name, record_stamp):
 @bp.route('/api/<table_name>/<record_stamp>', methods=['DELETE'])
 @login_required
 def delete_record(table_name, record_stamp):
+    _ensure_dashboard_links_if_needed(table_name)
     # Bloqueio: FO/FN incluÃ­do(s) em pagamento nÃ£o podem ser eliminados
     try:
         tn = (table_name or '').strip().upper()
@@ -3772,6 +3810,7 @@ def delete_record(table_name, record_stamp):
 @bp.route('/api/linhas/<mae>', methods=['GET'])
 @login_required
 def api_linhas(mae):
+    _ensure_dashboard_links_if_needed(mae)
     if not has_permission(mae, 'consultar'):
         abort(403, 'Sem permissÃ£o para consultar linhas deste registo')
 
@@ -3794,6 +3833,7 @@ def api_linhas(mae):
 @bp.route('/api/dynamic_details/<mae>/<record_stamp>', methods=['GET'])
 @login_required
 def api_dynamic_details(mae, record_stamp):
+    _ensure_dashboard_links_if_needed(mae)
     if not has_permission(mae, 'consultar'):
         abort(403, 'Sem permissÃ£o para ver detalhes')
 

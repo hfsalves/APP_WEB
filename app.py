@@ -34,6 +34,12 @@ from services.odbc_driver import (
     normalize_pyodbc_conn_str_driver,
     normalize_sqlalchemy_mssql_url_driver,
 )
+from services.dashboard_links_service import (
+    ensure_dashboard_links_for_user,
+    ensure_dashboard_links_schema,
+    render_dashboard_links_widgets,
+    user_has_dashboard_links,
+)
 from services.assinatura_service import sign_ft_document
 from services.qr_atcud_service import (
     get_param as qr_get_param,
@@ -209,19 +215,88 @@ def create_app():
             "Application Name=SZERO"
         )
 
-    prod_db_uri = (
-        normalize_sqlalchemy_mssql_url_driver(
-            os.environ.get('DATABASE_URL_PROD')
-            or os.environ.get('DATABASE_URL')
-            or _build_sqlalchemy_mssql_uri(
-                server=os.environ.get('DB_PROD_SERVER', 'sql.szeroapp.com'),
-                port=os.environ.get('DB_PROD_PORT', '50002'),
-                database=os.environ.get('DB_PROD_NAME', 'GESTAO'),
-                username=os.environ.get('DB_PROD_USER', 'sa'),
-                password=os.environ.get('DB_PROD_PASSWORD', 'enterprise'),
+    def _redact_conn_for_log(value: str) -> str:
+        clean = str(value or '')
+        clean = re.sub(r'(PWD|Password)=([^;]+)', r'\1=***', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'(//[^:/]+:)([^@]+)(@)', r'\1***\3', clean)
+        return clean
+
+    def _test_pyodbc_conn(conn_str: str, label: str) -> bool:
+        if str(os.environ.get('DB_SKIP_STARTUP_CONNECT_TEST', '') or '').strip().lower() in {'1', 'true', 'yes'}:
+            return True
+        try:
+            timeout = int(os.environ.get('DB_STARTUP_CONNECT_TIMEOUT', '2') or 2)
+        except Exception:
+            timeout = 2
+        try:
+            with pyodbc.connect(conn_str, timeout=max(1, timeout)) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+            app.logger.info("Ligação SQL Server ativa via %s.", label)
+            return True
+        except Exception as exc:
+            app.logger.warning(
+                "Falhou ligação SQL Server via %s (%s): %s",
+                label,
+                _redact_conn_for_log(conn_str),
+                exc,
             )
-        )
+            return False
+
+    prod_database = os.environ.get('DB_PROD_NAME', 'GESTAO')
+    prod_username = os.environ.get('DB_PROD_USER', 'sa')
+    prod_password = os.environ.get('DB_PROD_PASSWORD', 'enterprise')
+    prod_primary_server = os.environ.get('DB_PROD_SERVER') or os.environ.get('DB_PROD_LOCAL_SERVER', '192.168.1.50')
+    prod_primary_port = os.environ.get('DB_PROD_PORT') or os.environ.get('DB_PROD_LOCAL_PORT', '1433')
+    prod_fallback_server = os.environ.get('DB_PROD_FALLBACK_SERVER', 'sql.szeroapp.com')
+    prod_fallback_port = os.environ.get('DB_PROD_FALLBACK_PORT', '50002')
+
+    explicit_prod_db_uri = os.environ.get('DATABASE_URL_PROD') or os.environ.get('DATABASE_URL')
+    prod_primary_conn_str = _build_pyodbc_conn_str(
+        server=prod_primary_server,
+        port=prod_primary_port,
+        database=prod_database,
+        username=prod_username,
+        password=prod_password,
     )
+    prod_fallback_conn_str = _build_pyodbc_conn_str(
+        server=prod_fallback_server,
+        port=prod_fallback_port,
+        database=prod_database,
+        username=prod_username,
+        password=prod_password,
+    )
+    prod_primary_uri = _build_sqlalchemy_mssql_uri(
+        server=prod_primary_server,
+        port=prod_primary_port,
+        database=prod_database,
+        username=prod_username,
+        password=prod_password,
+    )
+    prod_fallback_uri = _build_sqlalchemy_mssql_uri(
+        server=prod_fallback_server,
+        port=prod_fallback_port,
+        database=prod_database,
+        username=prod_username,
+        password=prod_password,
+    )
+
+    if explicit_prod_db_uri:
+        prod_db_uri = normalize_sqlalchemy_mssql_url_driver(explicit_prod_db_uri)
+        prod_conn_str = normalize_pyodbc_conn_str_driver(os.environ.get('DB_PROD_CONN_STR') or prod_primary_conn_str)
+        prod_conn_route = 'explicit'
+    elif _test_pyodbc_conn(prod_primary_conn_str, f"{prod_primary_server},{prod_primary_port}"):
+        prod_db_uri = normalize_sqlalchemy_mssql_url_driver(prod_primary_uri)
+        prod_conn_str = normalize_pyodbc_conn_str_driver(prod_primary_conn_str)
+        prod_conn_route = 'local'
+    else:
+        if not _test_pyodbc_conn(prod_fallback_conn_str, f"{prod_fallback_server},{prod_fallback_port}"):
+            app.logger.warning("Fallback SQL Server também falhou; a app vai arrancar com a ligação fallback configurada.")
+        prod_db_uri = normalize_sqlalchemy_mssql_url_driver(prod_fallback_uri)
+        prod_conn_str = normalize_pyodbc_conn_str_driver(prod_fallback_conn_str)
+        prod_conn_route = 'fallback'
+
     client_db_uri = (
         normalize_sqlalchemy_mssql_url_driver(
             os.environ.get('DATABASE_URL_CLIENT')
@@ -248,7 +323,7 @@ def create_app():
     app.config['DB_TARGETS'] = {
         db_target_prod: {
             'label': 'SZERO Server',
-            'hint': 'szeroapp.com -> sql.szeroapp.com',
+            'hint': '192.168.1.50:1433 -> sql.szeroapp.com:50002',
         },
         db_target_client: {
             'label': 'GR360_CORE',
@@ -269,14 +344,9 @@ def create_app():
     app.config['DB_FORCED_TARGET'] = str(
         os.environ.get('APP_DB_TARGET', '')
     ).strip().lower()
+    app.config['DB_PROD_ROUTE'] = prod_conn_route
     app.config['DB_CONN_STRS'] = {
-        db_target_prod: _build_pyodbc_conn_str(
-            server=os.environ.get('DB_PROD_SERVER', 'sql.szeroapp.com'),
-            port=os.environ.get('DB_PROD_PORT', '50002'),
-            database=os.environ.get('DB_PROD_NAME', 'GESTAO'),
-            username=os.environ.get('DB_PROD_USER', 'sa'),
-            password=os.environ.get('DB_PROD_PASSWORD', 'enterprise'),
-        ),
+        db_target_prod: prod_conn_str,
         db_target_client: _build_pyodbc_conn_str(
             server=os.environ.get('DB_CLIENT_SERVER', '10.0.1.12'),
             port=os.environ.get('DB_CLIENT_PORT', ''),
@@ -290,13 +360,7 @@ def create_app():
         db_target_prod: normalize_pyodbc_conn_str_driver(
             os.environ.get('RADAR_CONN_STR_PROD')
             or os.environ.get('RADAR_CONN_STR')
-            or _build_pyodbc_conn_str(
-                server=os.environ.get('DB_PROD_SERVER', 'sql.szeroapp.com'),
-                port=os.environ.get('DB_PROD_PORT', '50002'),
-                database=os.environ.get('DB_PROD_NAME', 'GESTAO'),
-                username=os.environ.get('DB_PROD_USER', 'sa'),
-                password=os.environ.get('DB_PROD_PASSWORD', 'enterprise'),
-            )
+            or prod_conn_str
         ),
         db_target_client: normalize_pyodbc_conn_str_driver(
             os.environ.get('RADAR_CONN_STR_CLIENT')
@@ -593,6 +657,17 @@ def create_app():
             _sync_i18n_runtime(para_values, sync_db=True)
     except Exception:
         app.config['PARA_VALUES'] = {}
+
+    try:
+        with app.app_context():
+            ensure_dashboard_links_schema()
+    except Exception:
+        try:
+            with app.app_context():
+                db.session.rollback()
+        except Exception:
+            pass
+        app.logger.exception('Erro ao preparar metadados do Dashboard Links.')
 
     def _session_language_value():
         session_key = app.config.get('I18N_SESSION_KEY', SESSION_LANGUAGE_KEY)
@@ -913,6 +988,10 @@ def create_app():
                 AL.MORADA,
                 AL.CODPOST,
                 AL.LOCAL,
+                ISNULL(AL.INSTRUCOES,'') AS AL_INSTRUCOES,
+                ISNULL(AL.INSTRUCOES_EN,'') AS AL_INSTRUCOES_EN,
+                ISNULL(AL.INSTRUCOES_FR,'') AS AL_INSTRUCOES_FR,
+                ISNULL(AL.INSTRUCOES_ES,'') AS AL_INSTRUCOES_ES,
                 AL.ALSTAMP,
                 AL.LAT,
                 AL.LON
@@ -960,6 +1039,146 @@ def create_app():
             return datetime.fromisoformat(s[:10]).strftime('%d/%m/%Y')
         except Exception:
             return s
+
+    def _public_date_value(v):
+        return _parse_public_date(v)
+
+    def _public_checkin_release_state(row):
+        checkin_date = _public_date_value((row or {}).get('DATAIN'))
+        release_label = checkin_date.strftime('%d/%m') if checkin_date else ''
+        return {
+            'checkin_date': checkin_date.isoformat() if checkin_date else '',
+            'release_label': release_label,
+            'available': bool(checkin_date and date.today() >= checkin_date),
+        }
+
+    def _public_static_url_from_path(path):
+        clean = str(path or '').strip().replace('\\', '/').lstrip('/')
+        if not clean:
+            return ''
+        return clean if clean.startswith('/static/') else f"/static/{clean}"
+
+    def _public_al_tag_values(alojamento):
+        aloj = str(alojamento or '').strip()
+        if not aloj:
+            return {}
+        try:
+            rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(TAG,''))) AS TAG,
+                    ISNULL(VALOR,'') AS VALOR
+                FROM dbo.ALC
+                WHERE LTRIM(RTRIM(ISNULL(ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                    = LTRIM(RTRIM(:aloj)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                  AND LTRIM(RTRIM(ISNULL(TAG,''))) <> ''
+            """), {'aloj': aloj}).mappings().all()
+        except Exception:
+            current_app.logger.exception('Erro ao carregar tags ALC para instruções públicas')
+            return {}
+        tags = {}
+        for r in rows:
+            tag = str(r.get('TAG') or '').strip().strip('[]')
+            if tag:
+                tags[tag.lower()] = str(r.get('VALOR') or '').strip()
+        return tags
+
+    def _public_replace_instruction_tags(text_value, tag_values):
+        raw = str(text_value or '')
+        if not raw:
+            return ''
+
+        def _replace(match):
+            tag = str(match.group(1) or '').strip()
+            value = tag_values.get(tag.lower())
+            return value if value is not None else match.group(0)
+
+        return re.sub(r'\[([^\[\]\r\n]{1,80})\]', _replace, raw).strip()
+
+    def _public_al_checkin_images(alstamp):
+        stamp = str(alstamp or '').strip()
+        if not stamp or not _shop_table_exists('AL_FOTOS'):
+            return []
+        try:
+            rows = db.session.execute(text("""
+                SELECT
+                    ISNULL(FICHEIRO, '') AS FICHEIRO,
+                    ISNULL(CAMINHO, '') AS CAMINHO,
+                    ISNULL(ALT_TEXT, '') AS ALT_TEXT
+                FROM dbo.AL_FOTOS
+                WHERE ALSTAMP = :alstamp
+                  AND ISNULL(ATIVO, 1) = 1
+                  AND ISNULL(CHECKIN, 0) = 1
+                ORDER BY
+                  LOWER(ISNULL(FICHEIRO, '')),
+                  ISNULL(ORDEM, 999999),
+                  DTCRI
+            """), {'alstamp': stamp}).mappings().all()
+        except Exception:
+            current_app.logger.exception('Erro ao carregar imagens de check-in do AL')
+            return []
+        images = []
+        for r in rows:
+            url = _public_static_url_from_path(r.get('CAMINHO'))
+            if url:
+                images.append({
+                    'url': url,
+                    'alt': str(r.get('ALT_TEXT') or r.get('FICHEIRO') or 'Check-in').strip(),
+                })
+        return images
+
+    def _public_checkin_instructions_payload(row):
+        row = row or {}
+        tag_values = _public_al_tag_values(row.get('ALOJAMENTO'))
+        pt_text = _public_replace_instruction_tags(row.get('AL_INSTRUCOES'), tag_values)
+        texts = {
+            'pt': pt_text,
+            'en': _public_replace_instruction_tags(row.get('AL_INSTRUCOES_EN'), tag_values) or pt_text,
+            'fr': _public_replace_instruction_tags(row.get('AL_INSTRUCOES_FR'), tag_values) or pt_text,
+            'es': _public_replace_instruction_tags(row.get('AL_INSTRUCOES_ES'), tag_values) or pt_text,
+        }
+        return {
+            'texts': texts,
+            'images': _public_al_checkin_images(row.get('ALSTAMP')),
+        }
+
+    def _public_reserva_guests_complete(row):
+        rsstamp = str((row or {}).get('RSSTAMP') or '').strip()
+        if not rsstamp:
+            return False
+        total_guests = max(1, int((row or {}).get('ADULTOS') or 0) + int((row or {}).get('CRIANCAS') or 0))
+        try:
+            guest_rows = db.session.execute(text("""
+                SELECT
+                    ISNULL(NOME_COMPLETO,'') AS NOME_COMPLETO,
+                    ISNULL(NOME,'') AS NOME,
+                    ISNULL(APELIDO,'') AS APELIDO,
+                    DTNASC,
+                    ISNULL(NACIONALIDADE,'') AS NACIONALIDADE,
+                    ISNULL(TIPO_DOC,'') AS TIPO_DOC,
+                    ISNULL(NUM_DOC,'') AS NUM_DOC,
+                    ISNULL(PAIS_EMISSOR_DOC,'') AS PAIS_EMISSOR_DOC
+                FROM dbo.RSGUESTS
+                WHERE RSSTAMP=:r AND ISNULL(ATIVO,1)=1
+                ORDER BY ISNULL(DTCRI,'19000101'), RSGUESTSTAMP
+            """), {'r': rsstamp}).mappings().all()
+        except Exception:
+            current_app.logger.exception('Erro ao validar hóspedes para instruções públicas')
+            return False
+        if len(guest_rows) < total_guests:
+            return False
+        for guest in guest_rows[:total_guests]:
+            nome_completo = str(guest.get('NOME_COMPLETO') or '').strip()
+            nome = str(guest.get('NOME') or '').strip()
+            apelido = str(guest.get('APELIDO') or '').strip()
+            dtn = _public_date_value(guest.get('DTNASC'))
+            if not (nome_completo or (nome and apelido)):
+                return False
+            if not dtn or dtn.isoformat() in ('1900-01-01', '0001-01-01'):
+                return False
+            for field in ('NACIONALIDADE', 'TIPO_DOC', 'NUM_DOC', 'PAIS_EMISSOR_DOC'):
+                if not str(guest.get(field) or '').strip():
+                    return False
+        return True
 
     def _parse_public_date(value):
         if isinstance(value, datetime):
@@ -2195,8 +2414,14 @@ def create_app():
 
             # Lista de widgets do user (para o dashboard)
             user_widgets = set()
+            user_dashboard_links = False
             if not user_is_admin:
                 user_widgets = {uw.WIDGET for uw in UsWidget.query.filter_by(UTILIZADOR=current_user.LOGIN, VISIVEL=True)}
+                try:
+                    user_dashboard_links = user_has_dashboard_links(getattr(current_user, 'USSTAMP', ''))
+                except Exception:
+                    db.session.rollback()
+                    user_dashboard_links = False
 
             current_group = None
             for m in menu_items:
@@ -2209,8 +2434,8 @@ def create_app():
                 elif table_key in client_portal_tables:
                     mostrar = False
                 # Dashboard sÃ³ para quem tem widgets
-                elif m.tabela == "dashboard" and not user_is_admin:
-                    mostrar = bool(user_widgets)
+                elif str(m.tabela or '').strip().lower() == "dashboard" and not user_is_admin:
+                    mostrar = bool(user_widgets) or user_dashboard_links
                 # Monitor de Trabalho é operacional; clientes ficam no portal.
                 elif m.tabela == "monitor":
                     mostrar = not user_is_cliente
@@ -2612,6 +2837,7 @@ def create_app():
         criancas = int(row.get('CRIANCAS') or 0)
         hospedes = adultos + criancas
         shop_state = _public_shop_state(row)
+        checkin_release = _public_checkin_release_state(row)
 
         page_data = {
             'public_code': canonical_reserva_code,
@@ -2645,6 +2871,8 @@ def create_app():
             'shop_message': shop_state.get('message') or '',
             'shop_deadline_label': shop_state.get('deadline_label') or '',
             'shop_url': url_for('public_reserva_shop_page', reserva_code=canonical_reserva_code),
+            'checkin_instructions_release_label': checkin_release.get('release_label') or '',
+            'checkin_instructions_date_available': bool(checkin_release.get('available')),
         }
 
         # POI associados ao alojamento (agrupados por grupo)
@@ -3321,6 +3549,40 @@ def create_app():
             return jsonify({'error': f'Falha ao processar webhook Stripe: {exc}'}), 500
 
         return jsonify({'ok': True})
+
+    @app.route('/api/r/<reserva_code>/checkin-instructions', methods=['GET'])
+    def public_reserva_checkin_instructions_get(reserva_code):
+        public_code = (reserva_code or '').strip()
+        row = _public_reserva_row(public_code)
+        if not row:
+            return jsonify({'error': 'Reserva inválida ou não encontrada'}), 404
+
+        release_state = _public_checkin_release_state(row)
+        if not release_state.get('available'):
+            return jsonify({
+                'ok': True,
+                'available': False,
+                'reason': 'date',
+                'release_label': release_state.get('release_label') or '',
+            })
+
+        if not _public_reserva_guests_complete(row):
+            return jsonify({
+                'ok': True,
+                'available': False,
+                'reason': 'guests',
+                'release_label': release_state.get('release_label') or '',
+            })
+
+        payload = _public_checkin_instructions_payload(row)
+        has_content = any(str(v or '').strip() for v in (payload.get('texts') or {}).values()) or bool(payload.get('images'))
+        return jsonify({
+            'ok': True,
+            'available': bool(has_content),
+            'reason': '' if has_content else 'empty',
+            'release_label': release_state.get('release_label') or '',
+            **payload,
+        })
 
     @app.route('/api/r/<reserva_code>/guests', methods=['GET'])
     def public_reserva_guests_get(reserva_code):
@@ -23112,11 +23374,34 @@ def create_app():
     @app.route('/dashboard')
     @login_required
     def dashboard_page():
+        try:
+            ensure_dashboard_links_schema()
+            ensure_dashboard_links_for_user(getattr(current_user, 'USSTAMP', ''))
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao preparar Dashboard Links.')
         return render_template('dashboard.html')
+
+    @app.route('/dashboard_links')
+    @app.route('/dashboard-links')
+    @login_required
+    def dashboard_links_page():
+        try:
+            ensure_dashboard_links_schema()
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao preparar Dashboard Links.')
+        return redirect(url_for('generic.view_table', table_name='DBW'))
 
     @app.route('/api/dashboard')
     @login_required
     def api_dashboard_widgets():
+        try:
+            ensure_dashboard_links_schema()
+            ensure_dashboard_links_for_user(getattr(current_user, 'USSTAMP', ''))
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao preparar Dashboard Links.')
         user_login = current_user.LOGIN
         query = (
             db.session.query(UsWidget, Widget)
@@ -23149,7 +23434,102 @@ def create_app():
                 'ordem': getattr(usw, 'ORDEM', 0) or 0,
                 'maxheight': getattr(usw, 'MAXHEIGHT', None)
             })
-        return jsonify(dashboard)
+        payload = {str(col): widgets for col, widgets in dashboard.items()}
+        payload['links_html'] = {
+            str(col): html
+            for col, html in render_dashboard_links_widgets(getattr(current_user, 'USSTAMP', '')).items()
+        }
+        return jsonify(payload)
+
+    def _dashboard_links_has_permission(action='consultar'):
+        if getattr(current_user, 'ADMIN', False):
+            return True
+        acesso = Acessos.query.filter_by(utilizador=current_user.LOGIN, tabela='DBW').first()
+        return bool(acesso and getattr(acesso, action, False))
+
+    @app.route('/api/dashboard-links/widgets/<dbwstamp>/users', methods=['GET'])
+    @login_required
+    def api_dashboard_links_widget_users(dbwstamp):
+        if not _dashboard_links_has_permission('consultar'):
+            return jsonify({'error': 'Sem permissão para consultar widgets.'}), 403
+        try:
+            ensure_dashboard_links_schema()
+            selected_rows = db.session.execute(text("""
+                SELECT LTRIM(RTRIM(ISNULL(USRSTAMP, ''))) AS USRSTAMP
+                FROM dbo.DBWU
+                WHERE DBWSTAMP = :dbwstamp
+            """), {'dbwstamp': (dbwstamp or '').strip()}).mappings().all()
+            users = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(USSTAMP, ''))) AS USSTAMP,
+                    ISNULL(NOME, '') AS NOME,
+                    ISNULL(LOGIN, '') AS LOGIN
+                FROM dbo.US
+                ORDER BY ISNULL(NOME, ''), ISNULL(LOGIN, '')
+            """)).mappings().all()
+            return jsonify({
+                'selected': [row['USRSTAMP'] for row in selected_rows if row.get('USRSTAMP')],
+                'users': [dict(row) for row in users],
+            })
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar utilizadores do Dashboard Links.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/dashboard-links/widgets/<dbwstamp>/users', methods=['PUT'])
+    @login_required
+    def api_dashboard_links_widget_users_update(dbwstamp):
+        if not _dashboard_links_has_permission('editar'):
+            return jsonify({'error': 'Sem permissão para editar widgets.'}), 403
+        data = request.get_json(silent=True) or {}
+        raw_userstamps = data.get('userstamps') or []
+        if not isinstance(raw_userstamps, list):
+            return jsonify({'error': 'Lista de utilizadores inválida.'}), 400
+
+        clean_userstamps = []
+        seen = set()
+        for value in raw_userstamps:
+            stamp = str(value or '').strip()[:25]
+            if stamp and stamp not in seen:
+                clean_userstamps.append(stamp)
+                seen.add(stamp)
+
+        try:
+            ensure_dashboard_links_schema()
+            widget_stamp = str(dbwstamp or '').strip()[:25]
+            exists = db.session.execute(text("""
+                SELECT TOP 1 1
+                FROM dbo.DBW
+                WHERE DBWSTAMP = :dbwstamp
+            """), {'dbwstamp': widget_stamp}).first()
+            if not exists:
+                return jsonify({'error': 'Widget não encontrado.'}), 404
+
+            valid_rows = db.session.execute(text("""
+                SELECT LTRIM(RTRIM(ISNULL(USSTAMP, ''))) AS USSTAMP
+                FROM dbo.US
+                WHERE USSTAMP IN :userstamps
+            """).bindparams(bindparam('userstamps', expanding=True)), {
+                'userstamps': clean_userstamps or ['__none__'],
+            }).mappings().all()
+            valid_userstamps = [row['USRSTAMP'] for row in valid_rows if row.get('USRSTAMP')]
+
+            db.session.execute(text("DELETE FROM dbo.DBWU WHERE DBWSTAMP = :dbwstamp"), {'dbwstamp': widget_stamp})
+            for userstamp in valid_userstamps:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DBWU (DBWUSTAMP, DBWSTAMP, USRSTAMP)
+                    VALUES (:stamp, :dbwstamp, :userstamp)
+                """), {
+                    'stamp': uuid.uuid4().hex.upper()[:25],
+                    'dbwstamp': widget_stamp,
+                    'userstamp': userstamp,
+                })
+            db.session.commit()
+            return jsonify({'success': True, 'count': len(valid_userstamps)})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar utilizadores do Dashboard Links.')
+            return jsonify({'error': str(exc)}), 500
 
     @app.route('/api/widget/analise/<nome>')
     @login_required

@@ -2771,7 +2771,17 @@ await Promise.all(
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.forEach((val, key) => {
       const el = form.querySelector(`[name="${key}"]`);
-      if (!el) return;
+      if (!el) {
+        const colDef = cols.find(c => String(c.name || '').toUpperCase() === String(key || '').toUpperCase());
+        if (!colDef || isColumnVisible(colDef)) return;
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = colDef.name;
+        hidden.value = val;
+        form.appendChild(hidden);
+        setFormStateValue(colDef.name, val);
+        return;
+      }
       if (el.tagName === 'SELECT') {
         // garante que o <select> já tem as <option>
         if ([...el.options].some(o => o.value === val)) {
@@ -2922,11 +2932,84 @@ hideLoading()
 
 // === Início dynamic_details ===
     const detailsContainer = document.getElementById('details-container');
+    const dashboardLinkLineModalEl = document.getElementById('dashboardLinkLineModal');
+    const dashboardLinkLineModal = dashboardLinkLineModalEl ? new bootstrap.Modal(dashboardLinkLineModalEl) : null;
+    const dashboardLinkLineStamp = document.getElementById('dashboardLinkLineStamp');
+    const dashboardLinkLineOrdem = document.getElementById('dashboardLinkLineOrdem');
+    const dashboardLinkLineTexto = document.getElementById('dashboardLinkLineTexto');
+    const dashboardLinkLineUrl = document.getElementById('dashboardLinkLineUrl');
+    const dashboardLinkLineStatus = document.getElementById('dashboardLinkLineStatus');
+    const btnDashboardLinkLineSave = document.getElementById('btnDashboardLinkLineSave');
+
+    function setDashboardLinkLineStatus(message = '', { isError = false } = {}) {
+      if (!dashboardLinkLineStatus) return;
+      dashboardLinkLineStatus.textContent = message;
+      dashboardLinkLineStatus.classList.toggle('is-error', Boolean(isError));
+    }
+
+    function openDashboardLinkLineModal(row = null, nextOrder = '') {
+      if (!dashboardLinkLineModal) return;
+      if (!RECORD_STAMP) {
+        showDynamicFormToast('Grava primeiro o widget para adicionar links.', 'warning');
+        return;
+      }
+      const data = row || {};
+      if (dashboardLinkLineStamp) dashboardLinkLineStamp.value = data.DBWLSTAMP || '';
+      if (dashboardLinkLineOrdem) dashboardLinkLineOrdem.value = data.ORDEM ?? nextOrder ?? '';
+      if (dashboardLinkLineTexto) dashboardLinkLineTexto.value = data.TEXTO || '';
+      if (dashboardLinkLineUrl) dashboardLinkLineUrl.value = data.URL || '';
+      setDashboardLinkLineStatus('');
+      dashboardLinkLineModal.show();
+      setTimeout(() => (dashboardLinkLineTexto || dashboardLinkLineUrl)?.focus?.(), 150);
+    }
+
+    btnDashboardLinkLineSave?.addEventListener('click', async () => {
+      const stamp = (dashboardLinkLineStamp?.value || '').trim();
+      const texto = (dashboardLinkLineTexto?.value || '').trim();
+      const url = (dashboardLinkLineUrl?.value || '').trim();
+      const ordem = (dashboardLinkLineOrdem?.value || '').trim();
+      if (!texto) {
+        setDashboardLinkLineStatus('Texto obrigatório.', { isError: true });
+        dashboardLinkLineTexto?.focus();
+        return;
+      }
+      if (!url) {
+        setDashboardLinkLineStatus('URL obrigatório.', { isError: true });
+        dashboardLinkLineUrl?.focus();
+        return;
+      }
+      setDashboardLinkLineStatus('A gravar...');
+      const payload = {
+        DBWSTAMP: RECORD_STAMP,
+        ORDEM: ordem === '' ? 0 : Number(ordem),
+        TEXTO: texto,
+        URL: url,
+        ABRIR_NOVA_TAB: true,
+        ATIVO: true,
+      };
+      const endpoint = stamp
+        ? `/generic/api/DBWL/${encodeURIComponent(stamp)}`
+        : '/generic/api/DBWL';
+      const res = await fetch(endpoint, {
+        method: stamp ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDashboardLinkLineStatus(data.error || 'Erro ao gravar link.', { isError: true });
+        return;
+      }
+      dashboardLinkLineModal?.hide();
+      window.location.reload();
+    });
+
     if (detailsContainer) {
       fetch(`/generic/api/dynamic_details/${TABLE_NAME}/${RECORD_STAMP}`)
         .then(res => res.json())
         .then(detalhes => {
           detalhes.forEach(det => {
+            const isDashboardLinksDetail = TABLE_NAME_UPPER === 'DBW' && String(det.tabela || '').toUpperCase() === 'DBWL';
             // 1) Card de detalhe
             const card = document.createElement('div');
             card.className = 'sz_panel sz_dynamic_detail_panel mb-4';
@@ -2934,7 +3017,9 @@ hideLoading()
             // 2) Título
             const title = document.createElement('h5');
             title.className = 'sz_h4 sz_mb_2';
-            title.textContent = det.tabela;
+            title.textContent = TABLE_NAME_UPPER === 'DBW' && String(det.tabela || '').toUpperCase() === 'DBWL'
+              ? 'Links'
+              : det.tabela;
             card.appendChild(title);
 
             // 3) Wrapper responsivo e tabela
@@ -2995,6 +3080,11 @@ hideLoading()
               // 5.3) clique na linha
               // 5.3) clique na linha
               tr.addEventListener('click', e => {
+                if (e.target.closest('input[type="checkbox"]')) return;
+                if (isDashboardLinksDetail) {
+                  openDashboardLinkLineModal(row);
+                  return;
+                }
                 if (e.target !== chk) {
                   const pk = row[det.campos[0].CAMPODESTINO];
                   
@@ -3026,8 +3116,20 @@ hideLoading()
             btnInsert.className = 'sz_button sz_button_primary';
             btnInsert.title = 'Inserir';
             btnInsert.innerHTML = '<i class="fa fa-plus"></i>';
+            if (isDashboardLinksDetail && !RECORD_STAMP) {
+              btnInsert.title = 'Grava primeiro o widget para adicionar links';
+            }
 
             btnInsert.addEventListener('click', () => {
+              if (isDashboardLinksDetail) {
+                if (!RECORD_STAMP) {
+                  showDynamicFormToast('Grava primeiro o widget para adicionar links.', 'warning');
+                  return;
+                }
+                const maxOrder = det.rows.reduce((max, row) => Math.max(max, Number(row.ORDEM || 0)), 0);
+                openDashboardLinkLineModal(null, maxOrder + 10);
+                return;
+              }
               const params = new URLSearchParams();
 
               // Copia campos do formulário pai para os campos da linha filha
@@ -3037,7 +3139,10 @@ hideLoading()
 
                 const srcCol = fullSrc.split('.')[1];
                 const dstCol = fullDst.split('.')[1];
-                const val = form.querySelector(`[name="${srcCol}"]`)?.value;
+                let val = form.querySelector(`[name="${srcCol}"]`)?.value;
+                if (!val && String(srcCol || '').toUpperCase() === `${TABLE_NAME_UPPER}STAMP`) {
+                  val = RECORD_STAMP;
+                }
 
                 if (val) params.append(dstCol, val);
               });
@@ -3565,6 +3670,74 @@ hideLoading()
         await persistALFotosOrder();
         setALFotosStatus('Ordem das imagens atualizada.');
       });
+    }
+
+    // ===============================
+// 7C. UTILIZADORES DOS WIDGETS DE DASHBOARD LINKS
+// ===============================
+    const isDashboardLinksWidgetForm = TABLE_NAME_UPPER === 'DBW';
+    const dashboardLinksUsersSelect = document.getElementById('dashboardLinksUsersSelect');
+    const dashboardLinksUsersStatus = document.getElementById('dashboardLinksUsersStatus');
+    const btnDashboardLinksUsersSave = document.getElementById('btnDashboardLinksUsersSave');
+
+    function setDashboardLinksUsersStatus(message = '', { isError = false, isSuccess = false } = {}) {
+      if (!dashboardLinksUsersStatus) return;
+      dashboardLinksUsersStatus.textContent = message;
+      dashboardLinksUsersStatus.classList.toggle('is-error', Boolean(isError));
+      dashboardLinksUsersStatus.classList.toggle('is-success', Boolean(isSuccess));
+    }
+
+    async function refreshDashboardLinksUsers() {
+      if (!isDashboardLinksWidgetForm || !RECORD_STAMP || !dashboardLinksUsersSelect) return;
+      setDashboardLinksUsersStatus('A carregar utilizadores...');
+      const res = await fetch(`/api/dashboard-links/widgets/${encodeURIComponent(RECORD_STAMP)}/users`, {
+        credentials: 'same-origin',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDashboardLinksUsersStatus(data.error || 'Erro ao carregar utilizadores.', { isError: true });
+        return;
+      }
+      const selected = new Set((data.selected || []).map(value => String(value)));
+      dashboardLinksUsersSelect.innerHTML = '';
+      (data.users || []).forEach(user => {
+        const option = document.createElement('option');
+        option.value = String(user.USSTAMP || '');
+        option.textContent = `${user.NOME || user.LOGIN || user.USSTAMP || ''}${user.LOGIN ? ` (${user.LOGIN})` : ''}`;
+        option.selected = selected.has(option.value);
+        dashboardLinksUsersSelect.appendChild(option);
+      });
+      dashboardLinksUsersSelect.disabled = false;
+      if (btnDashboardLinksUsersSave) btnDashboardLinksUsersSave.disabled = false;
+      setDashboardLinksUsersStatus(`${selected.size} utilizador(es) associado(s).`);
+    }
+
+    async function saveDashboardLinksUsers() {
+      if (!isDashboardLinksWidgetForm || !RECORD_STAMP || !dashboardLinksUsersSelect) return;
+      const userstamps = Array.from(dashboardLinksUsersSelect.selectedOptions).map(option => option.value);
+      setDashboardLinksUsersStatus('A gravar utilizadores...');
+      const res = await fetch(`/api/dashboard-links/widgets/${encodeURIComponent(RECORD_STAMP)}/users`, {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ userstamps }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDashboardLinksUsersStatus(data.error || 'Erro ao gravar utilizadores.', { isError: true });
+        return;
+      }
+      setDashboardLinksUsersStatus(`${data.count || 0} utilizador(es) associado(s).`, { isSuccess: true });
+    }
+
+    if (isDashboardLinksWidgetForm && RECORD_STAMP && dashboardLinksUsersSelect) {
+      btnDashboardLinksUsersSave?.addEventListener('click', async () => {
+        await saveDashboardLinksUsers();
+      });
+      await refreshDashboardLinksUsers();
     }
 
     // ===============================
@@ -4429,6 +4602,3 @@ document.querySelectorAll('.dropdown-item.btn-custom[data-tipo="MODAL"]')
       abrirModal(el.dataset.acao);
     });
   });
-
-
-

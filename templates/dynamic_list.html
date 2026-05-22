@@ -2,6 +2,7 @@
 {% block title %}{{ table_name|capitalize }}{% endblock %}
 
 {% block content %}
+{% set table_perms = user_perms.get(table_name) or user_perms.get(table_name|upper) or {} %}
 <div class="sz_page">
   <div class="sz_page_container sz_dynamic_list_container">
     <header class="sz_page_header">
@@ -24,7 +25,7 @@
               <i class="fa fa-filter"></i>
               <span>{{ _('common.filter') }}</span>
             </button>
-            {% if user_perms[table_name].inserir %}
+            {% if table_perms.get('inserir') or table_perms.inserir %}
               {% if table_name == 'FO' %}
                 <button id="btnNewAttachment" class="sz_button sz_button_secondary btn-attach-custom">
                   <i class="fa fa-paperclip"></i>

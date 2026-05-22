@@ -515,10 +515,12 @@ document.addEventListener('DOMContentLoaded', () => {
     .then(r => parseJsonResponse(r, 'Erro ao carregar configuracao do dashboard'))
     .then(data => {
       const widgetPromises = [];
+      const linksHtml = data.links_html || {};
       [1,2,3].forEach(col => {
         const colDiv = document.getElementById('col-' + col);
-        colDiv.innerHTML = '';
-        data[col].forEach(widget => {
+        colDiv.innerHTML = linksHtml[col] || linksHtml[String(col)] || '';
+        const widgets = Array.isArray(data[col]) ? data[col] : [];
+        widgets.forEach(widget => {
           const prom = renderWidget(widget, colDiv);
           if (prom && typeof prom.then === 'function') widgetPromises.push(prom);
         });
@@ -531,4 +533,3 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     .finally(hideLoading);
 });
-

@@ -302,6 +302,54 @@
       background:rgba(255,255,255,.06);
       line-height:1.35;
     }
+    .checkin-instructions-content{
+      display:grid;
+      gap:12px;
+    }
+    .checkin-instructions-text{
+      white-space:pre-wrap;
+      color:#eaf6ff;
+      font-size:.9rem;
+      line-height:1.55;
+      padding:12px 14px;
+      border-radius:16px;
+      border:1px solid rgba(191,219,254,.16);
+      background:rgba(255,255,255,.06);
+    }
+    .checkin-instructions-text a{
+      color:#bfdbfe;
+      font-weight:700;
+      overflow-wrap:anywhere;
+      text-decoration:underline;
+      text-underline-offset:3px;
+    }
+    .checkin-instructions-text a:hover{
+      color:#ffffff;
+    }
+    .checkin-instructions-images{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      gap:10px;
+    }
+    .checkin-instructions-image{
+      display:block;
+      margin:0;
+      border-radius:16px;
+      overflow:hidden;
+      border:1px solid rgba(191,219,254,.16);
+      background:rgba(255,255,255,.05);
+    }
+    .checkin-instructions-image img{
+      width:100%;
+      aspect-ratio:4/3;
+      object-fit:cover;
+      display:block;
+    }
+    .poi-toggle-row{
+      display:flex;
+      justify-content:flex-start;
+      margin-top:10px;
+    }
     .r-card h3{
       font-family:"Space Grotesk","Manrope",sans-serif;
       font-size:1rem;
@@ -925,6 +973,18 @@
           </div>
         </article>
 
+        <article id="checkinInstructionsCard" class="r-card checkin-instructions-card{% if not page_data.checkin_instructions_date_available %} is-disabled{% endif %}">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <h3 class="mb-0" data-i18n="card_checkin_instructions">Instru&ccedil;&otilde;es de check-in</h3>
+            <span id="checkinInstructionsStatus" class="badge bg-warning-subtle text-warning-emphasis border" data-i18n="checkin_instructions_status_pending">Aguardar</span>
+          </div>
+          <div id="checkinInstructionsMessage" class="small text-muted mb-3" data-i18n="checkin_instructions_waiting">Aguardamos os dados obrigat&oacute;rios dos h&oacute;spedes para mostrar as instru&ccedil;&otilde;es de entrada.</div>
+          <div id="checkinInstructionsContent" class="checkin-instructions-content d-none">
+            <div id="checkinInstructionsText" class="checkin-instructions-text"></div>
+            <div id="checkinInstructionsImages" class="checkin-instructions-images"></div>
+          </div>
+        </article>
+
         <div id="guestWhyModal" class="guest-modal" aria-hidden="true">
           <div class="guest-modal-backdrop" id="guestWhyBackdrop"></div>
           <div class="guest-modal-panel">
@@ -1142,12 +1202,12 @@
         </article>
 
         {% for grp in (page_data.poi_groups or []) %}
-          <article class="r-card">
+          <article class="r-card" data-poi-card>
             <h3>{{ grp['name'] }}</h3>
             {% if grp['items'] %}
               <div class="vstack gap-2">
                 {% for p in grp['items'] %}
-                  <div class="border rounded-3 p-2">
+                  <div class="border rounded-3 p-2{% if not loop.first %} d-none{% endif %}"{% if not loop.first %} data-poi-extra{% endif %}>
                     <div><strong>{{ p.name }}</strong>{% if p.type %} <span class="muted">&middot; {{ p.type }}</span>{% endif %}</div>
                     {% if p.descr %}<div class="muted small">{{ p.descr }}</div>{% endif %}
                     {% if p.address %}<div class="small">{{ p.address }}</div>{% endif %}
@@ -1168,6 +1228,13 @@
                   </div>
                 {% endfor %}
               </div>
+              {% if grp['items']|length > 1 %}
+                <div class="poi-toggle-row">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" data-poi-toggle data-expanded="false" data-more-count="{{ (grp['items']|length) - 1 }}">
+                    <span data-poi-toggle-label>Mostrar mais</span>
+                  </button>
+                </div>
+              {% endif %}
             {% else %}
               <div class="placeholder" data-i18n="placeholder_content">Conte&uacute;do em prepara&ccedil;&atilde;o.</div>
             {% endif %}
@@ -1360,6 +1427,10 @@
         ftncont: {{ (page_data.ftncont if page_data is defined else '')|tojson }},
         ftemail: {{ (page_data.ftemail if page_data is defined else '')|tojson }}
       };
+      const INITIAL_CHECKIN_INSTRUCTIONS = {
+        dateAvailable: Boolean({{ (1 if (page_data.checkin_instructions_date_available if page_data is defined else False) else 0)|tojson }}),
+        releaseLabel: {{ (page_data.checkin_instructions_release_label if page_data is defined else '')|tojson }}
+      };
       const I18N = {
         pt: {
           label_language: 'Idioma',
@@ -1382,6 +1453,15 @@
           mandatory_status_pending: 'Pendente',
           mandatory_status_complete: 'Completo',
           mandatory_saved: 'Gravado.',
+          card_checkin_instructions: 'Instru\u00e7\u00f5es de check-in',
+          checkin_instructions_status_locked: 'Bloqueado',
+          checkin_instructions_status_pending: 'Aguardar',
+          checkin_instructions_status_available: 'Dispon\u00edvel',
+          checkin_instructions_status_empty: 'Indispon\u00edvel',
+          checkin_instructions_loading: 'A carregar instru\u00e7\u00f5es de check-in...',
+          checkin_instructions_before: 'As instru\u00e7\u00f5es de check-in ficam dispon\u00edveis no dia {date}.',
+          checkin_instructions_waiting: 'Aguardamos os dados obrigat\u00f3rios dos h\u00f3spedes para mostrar as instru\u00e7\u00f5es de entrada.',
+          checkin_instructions_empty: 'As instru\u00e7\u00f5es de check-in ainda n\u00e3o est\u00e3o dispon\u00edveis.',
           card_stay_plan: 'Ajuda-nos a preparar a tua chegada e sa\u00edda',
           stay_plan_modal_title: 'Ajuda-nos a preparar melhor o teu check-in e check-out',
           stay_plan_modal_hint: 'Esta informa\u00e7\u00e3o \u00e9 opcional, mas ajuda a equipa a organizar a tua reserva.',
@@ -1499,6 +1579,8 @@
           btn_call: 'Tel',
           btn_website: 'Website',
           btn_maps: 'Maps',
+          btn_poi_show_more: 'Mostrar mais',
+          btn_poi_show_less: 'Mostrar menos',
           btn_more_info: 'Mais info',
           btn_official_site: 'Site oficial',
           footer_company_name: 'GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda.',
@@ -1538,6 +1620,15 @@
           mandatory_status_pending: 'Pending',
           mandatory_status_complete: 'Complete',
           mandatory_saved: 'Saved.',
+          card_checkin_instructions: 'Check-in instructions',
+          checkin_instructions_status_locked: 'Locked',
+          checkin_instructions_status_pending: 'Waiting',
+          checkin_instructions_status_available: 'Available',
+          checkin_instructions_status_empty: 'Unavailable',
+          checkin_instructions_loading: 'Loading check-in instructions...',
+          checkin_instructions_before: 'Check-in instructions will be available on {date}.',
+          checkin_instructions_waiting: 'We are waiting for the required guest details before showing the entry instructions.',
+          checkin_instructions_empty: 'Check-in instructions are not available yet.',
           card_stay_plan: 'Help us prepare your arrival and departure',
           stay_plan_modal_title: 'Help us prepare your check-in and check-out',
           stay_plan_modal_hint: 'This information is optional, but it helps the team organise your stay.',
@@ -1655,6 +1746,8 @@
           btn_call: 'Call',
           btn_website: 'Website',
           btn_maps: 'Maps',
+          btn_poi_show_more: 'Show more',
+          btn_poi_show_less: 'Show less',
           btn_more_info: 'More info',
           btn_official_site: 'Official site',
           footer_company_name: 'GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda.',
@@ -1694,6 +1787,15 @@
           mandatory_status_pending: 'En attente',
           mandatory_status_complete: 'Complet',
           mandatory_saved: 'Enregistr\u00e9.',
+          card_checkin_instructions: 'Instructions d\u2019arriv\u00e9e',
+          checkin_instructions_status_locked: 'Verrouill\u00e9',
+          checkin_instructions_status_pending: 'En attente',
+          checkin_instructions_status_available: 'Disponible',
+          checkin_instructions_status_empty: 'Indisponible',
+          checkin_instructions_loading: 'Chargement des instructions d\u2019arriv\u00e9e...',
+          checkin_instructions_before: 'Les instructions d\u2019arriv\u00e9e seront disponibles le {date}.',
+          checkin_instructions_waiting: 'Nous attendons les informations obligatoires des voyageurs avant d\u2019afficher les instructions d\u2019entr\u00e9e.',
+          checkin_instructions_empty: 'Les instructions d\u2019arriv\u00e9e ne sont pas encore disponibles.',
           card_stay_plan: 'Aidez-nous \u00e0 pr\u00e9parer votre arriv\u00e9e et votre d\u00e9part',
           stay_plan_modal_title: 'Aidez-nous \u00e0 mieux pr\u00e9parer votre arriv\u00e9e et votre d\u00e9part',
           stay_plan_modal_hint: 'Cette information est facultative, mais elle aide l\u2019\u00e9quipe \u00e0 organiser votre s\u00e9jour.',
@@ -1811,6 +1913,8 @@
           btn_call: 'T\u00e9l',
           btn_website: 'Site web',
           btn_maps: 'Carte',
+          btn_poi_show_more: 'Afficher plus',
+          btn_poi_show_less: 'Afficher moins',
           btn_more_info: 'Plus d\u2019infos',
           btn_official_site: 'Site officiel',
           footer_company_name: 'GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda.',
@@ -1850,6 +1954,15 @@
           mandatory_status_pending: 'Pendiente',
           mandatory_status_complete: 'Completo',
           mandatory_saved: 'Guardado.',
+          card_checkin_instructions: 'Instrucciones de check-in',
+          checkin_instructions_status_locked: 'Bloqueado',
+          checkin_instructions_status_pending: 'En espera',
+          checkin_instructions_status_available: 'Disponible',
+          checkin_instructions_status_empty: 'No disponible',
+          checkin_instructions_loading: 'Cargando instrucciones de check-in...',
+          checkin_instructions_before: 'Las instrucciones de check-in estar\u00e1n disponibles el d\u00eda {date}.',
+          checkin_instructions_waiting: 'Esperamos los datos obligatorios de los hu\u00e9spedes antes de mostrar las instrucciones de entrada.',
+          checkin_instructions_empty: 'Las instrucciones de check-in todav\u00eda no est\u00e1n disponibles.',
           card_stay_plan: 'Ay\u00fadanos a preparar tu llegada y salida',
           stay_plan_modal_title: 'Ay\u00fadanos a preparar mejor tu check-in y check-out',
           stay_plan_modal_hint: 'Esta informaci\u00f3n es opcional, pero ayuda al equipo a organizar tu reserva.',
@@ -1967,6 +2080,8 @@
           btn_call: 'Tel',
           btn_website: 'Web',
           btn_maps: 'Mapa',
+          btn_poi_show_more: 'Mostrar m\u00e1s',
+          btn_poi_show_less: 'Mostrar menos',
           btn_more_info: 'M\u00e1s info',
           btn_official_site: 'Sitio oficial',
           footer_company_name: 'GuestSpaTur Habita\u00e7\u00e3o e Turismo, Lda.',
@@ -2113,6 +2228,8 @@
         if (typeof renderGuestUi === 'function') renderGuestUi();
         if (typeof renderStayPlanUi === 'function') renderStayPlanUi();
         if (typeof renderBillingUi === 'function') renderBillingUi();
+        if (typeof renderCheckinInstructionsUi === 'function') renderCheckinInstructionsUi();
+        if (typeof renderPoiToggles === 'function') renderPoiToggles();
       };
 
       const guestEls = {
@@ -2143,6 +2260,14 @@
         paisResidencia: document.getElementById('g_pais_residencia'),
         next: document.getElementById('guestNextBtn'),
         save: document.getElementById('guestSaveBtn')
+      };
+      const checkinEls = {
+        card: document.getElementById('checkinInstructionsCard'),
+        status: document.getElementById('checkinInstructionsStatus'),
+        message: document.getElementById('checkinInstructionsMessage'),
+        content: document.getElementById('checkinInstructionsContent'),
+        text: document.getElementById('checkinInstructionsText'),
+        images: document.getElementById('checkinInstructionsImages')
       };
       const guestWhyEls = {
         openBtn: document.getElementById('guestWhyBtn'),
@@ -2246,6 +2371,16 @@
         guests: [],
         complete: false
       };
+      const checkinInstructionsState = {
+        dateAvailable: Boolean(INITIAL_CHECKIN_INSTRUCTIONS.dateAvailable),
+        releaseLabel: String(INITIAL_CHECKIN_INSTRUCTIONS.releaseLabel || ''),
+        loading: false,
+        loaded: false,
+        available: false,
+        reason: '',
+        texts: {},
+        images: []
+      };
       let guestView = 'menu';
 
       const guestDictFallback = {
@@ -2273,6 +2408,17 @@
         guest_field_doc_type: 'Tipo de documento',
         guest_field_doc_num: 'N. do documento',
         guest_field_doc_country: 'Pais emissor do documento',
+        card_checkin_instructions: 'Instrucoes de check-in',
+        checkin_instructions_status_locked: 'Bloqueado',
+        checkin_instructions_status_pending: 'Aguardar',
+        checkin_instructions_status_available: 'Disponivel',
+        checkin_instructions_status_empty: 'Indisponivel',
+        checkin_instructions_loading: 'A carregar instrucoes de check-in...',
+        checkin_instructions_before: 'As instrucoes de check-in ficam disponiveis no dia {date}.',
+        checkin_instructions_waiting: 'Aguardamos os dados obrigatorios dos hospedes para mostrar as instrucoes de entrada.',
+        checkin_instructions_empty: 'As instrucoes de check-in ainda nao estao disponiveis.',
+        btn_poi_show_more: 'Mostrar mais',
+        btn_poi_show_less: 'Mostrar menos',
         card_stay_plan: 'Ajuda-nos a preparar a tua chegada e saida',
         stay_plan_modal_title: 'Ajuda-nos a preparar melhor o teu check-in e check-out',
         stay_plan_modal_hint: 'Esta informacao e opcional, mas ajuda a equipa a organizar a tua reserva.',
@@ -2338,6 +2484,161 @@
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#39;');
+      }
+
+      function setCheckinInstructionsStatus(keyName, className) {
+        if (!checkinEls.status) return;
+        checkinEls.status.textContent = tGuest(keyName);
+        checkinEls.status.className = className;
+      }
+
+      function setCheckinInstructionsMessage(text) {
+        if (!checkinEls.message) return;
+        checkinEls.message.textContent = text || '';
+        checkinEls.message.classList.toggle('d-none', !text);
+      }
+
+      function appendCheckinInstructionTextWithLinks(container, value) {
+        if (!container) return;
+        container.textContent = '';
+        const textValue = String(value || '');
+        const urlPattern = /https:\/\/[^\s<>"']+/g;
+        let lastIndex = 0;
+        let match;
+        while ((match = urlPattern.exec(textValue)) !== null) {
+          if (match.index > lastIndex) {
+            container.appendChild(document.createTextNode(textValue.slice(lastIndex, match.index)));
+          }
+          let url = match[0];
+          let trailing = '';
+          while (/[),.;:!?]$/.test(url)) {
+            trailing = url.slice(-1) + trailing;
+            url = url.slice(0, -1);
+          }
+          if (url) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.textContent = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            container.appendChild(link);
+          }
+          if (trailing) {
+            container.appendChild(document.createTextNode(trailing));
+          }
+          lastIndex = match.index + match[0].length;
+        }
+        if (lastIndex < textValue.length) {
+          container.appendChild(document.createTextNode(textValue.slice(lastIndex)));
+        }
+      }
+
+      function renderPoiToggles() {
+        document.querySelectorAll('[data-poi-toggle]').forEach((btn) => {
+          const expanded = btn.getAttribute('data-expanded') === 'true';
+          const label = btn.querySelector('[data-poi-toggle-label]');
+          if (label) {
+            label.textContent = expanded ? tGuest('btn_poi_show_less') : tGuest('btn_poi_show_more');
+          }
+        });
+      }
+
+      function togglePoiCard(btn) {
+        const card = btn?.closest('[data-poi-card]');
+        if (!card) return;
+        const expanded = btn.getAttribute('data-expanded') === 'true';
+        card.querySelectorAll('[data-poi-extra]').forEach((item) => {
+          item.classList.toggle('d-none', expanded);
+        });
+        btn.setAttribute('data-expanded', expanded ? 'false' : 'true');
+        renderPoiToggles();
+      }
+
+      function renderCheckinInstructionsUi() {
+        if (!checkinEls.card) return;
+        const dateAvailable = Boolean(checkinInstructionsState.dateAvailable);
+        const guestsComplete = Boolean(mandatoryState.complete);
+        const hasVisibleContent = dateAvailable && guestsComplete && checkinInstructionsState.loaded && checkinInstructionsState.available;
+        checkinEls.card.classList.toggle('is-disabled', !hasVisibleContent);
+
+        if (!dateAvailable) {
+          setCheckinInstructionsStatus('checkin_instructions_status_locked', 'badge bg-warning-subtle text-warning-emphasis border');
+          const label = checkinInstructionsState.releaseLabel || '--/--';
+          setCheckinInstructionsMessage(formatGuestText('checkin_instructions_before', { date: label }));
+          checkinEls.content?.classList.add('d-none');
+          return;
+        }
+
+        if (!guestsComplete) {
+          setCheckinInstructionsStatus('checkin_instructions_status_pending', 'badge bg-warning-subtle text-warning-emphasis border');
+          setCheckinInstructionsMessage(tGuest('checkin_instructions_waiting'));
+          checkinEls.content?.classList.add('d-none');
+          return;
+        }
+
+        if (checkinInstructionsState.loading) {
+          setCheckinInstructionsStatus('checkin_instructions_status_pending', 'badge bg-info-subtle text-info-emphasis border');
+          setCheckinInstructionsMessage(tGuest('checkin_instructions_loading'));
+          checkinEls.content?.classList.add('d-none');
+          return;
+        }
+
+        if (!checkinInstructionsState.loaded || !checkinInstructionsState.available) {
+          setCheckinInstructionsStatus('checkin_instructions_status_empty', 'badge bg-secondary-subtle text-secondary-emphasis border');
+          setCheckinInstructionsMessage(tGuest('checkin_instructions_empty'));
+          checkinEls.content?.classList.add('d-none');
+          return;
+        }
+
+        const lang = currentLang();
+        const textValue = checkinInstructionsState.texts[lang] || checkinInstructionsState.texts.pt || '';
+        if (checkinEls.text) {
+          appendCheckinInstructionTextWithLinks(checkinEls.text, textValue);
+          checkinEls.text.classList.toggle('d-none', !String(textValue || '').trim());
+        }
+        if (checkinEls.images) {
+          const images = Array.isArray(checkinInstructionsState.images) ? checkinInstructionsState.images : [];
+          checkinEls.images.innerHTML = images.map((img) => `
+            <figure class="checkin-instructions-image">
+              <img src="${escapeGuestHtml(img.url)}" alt="${escapeGuestHtml(img.alt || tGuest('card_checkin_instructions'))}">
+            </figure>
+          `).join('');
+          checkinEls.images.classList.toggle('d-none', !images.length);
+        }
+        setCheckinInstructionsStatus('checkin_instructions_status_available', 'badge bg-success-subtle text-success-emphasis border');
+        setCheckinInstructionsMessage('');
+        checkinEls.content?.classList.remove('d-none');
+      }
+
+      async function loadCheckinInstructions() {
+        if (!PUBLIC_RESERVA || !checkinEls.card || !checkinInstructionsState.dateAvailable || !mandatoryState.complete) {
+          renderCheckinInstructionsUi();
+          return;
+        }
+        if (checkinInstructionsState.loading || checkinInstructionsState.loaded) {
+          renderCheckinInstructionsUi();
+          return;
+        }
+        checkinInstructionsState.loading = true;
+        renderCheckinInstructionsUi();
+        try {
+          const res = await fetch(`/api/r/${encodeURIComponent(PUBLIC_RESERVA)}/checkin-instructions`);
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.error) throw new Error(data.error || 'Erro');
+          checkinInstructionsState.loaded = true;
+          checkinInstructionsState.available = Boolean(data.available);
+          checkinInstructionsState.reason = String(data.reason || '');
+          checkinInstructionsState.releaseLabel = String(data.release_label || checkinInstructionsState.releaseLabel || '');
+          checkinInstructionsState.texts = data.texts || {};
+          checkinInstructionsState.images = Array.isArray(data.images) ? data.images : [];
+        } catch (_) {
+          checkinInstructionsState.loaded = true;
+          checkinInstructionsState.available = false;
+          checkinInstructionsState.reason = 'empty';
+        } finally {
+          checkinInstructionsState.loading = false;
+          renderCheckinInstructionsUi();
+        }
       }
 
       function guestIsComplete(g) {
@@ -2462,6 +2763,7 @@
 
         guestEls.next.disabled = mandatoryState.index >= mandatoryState.total;
         renderGuestNavigator();
+        renderCheckinInstructionsUi();
       }
 
       function readGuestFromForm() {
@@ -2747,6 +3049,7 @@
           while (mandatoryState.guests.length < mandatoryState.total) mandatoryState.guests.push({});
           if (mandatoryState.index > mandatoryState.total) mandatoryState.index = mandatoryState.total;
           renderGuestUi();
+          await loadCheckinInstructions();
         } catch (_) {}
       }
 
@@ -2778,6 +3081,7 @@
             setTimeout(() => guestEls.msg?.classList.add('d-none'), 1200);
           }
           renderGuestUi();
+          await loadCheckinInstructions();
           return true;
         } catch (e) {
           alert(e.message || 'Erro ao gravar');
@@ -2806,6 +3110,11 @@
         if (!menuList || !menuBtn) return;
         if (menuList.contains(e.target) || menuBtn.contains(e.target)) return;
         menuList.classList.remove('open');
+      });
+      document.addEventListener('click', (e) => {
+        const poiToggle = e.target.closest('[data-poi-toggle]');
+        if (!poiToggle) return;
+        togglePoiCard(poiToggle);
       });
       guestEls.next?.addEventListener('click', async () => {
         const okSave = await saveCurrentGuest();
@@ -2882,6 +3191,8 @@
         if (e.key === 'Escape' && billingEls.modal?.classList.contains('open')) closeBillingModal();
       });
       apply(I18N[initial] ? initial : 'pt');
+      renderCheckinInstructionsUi();
+      renderPoiToggles();
       renderStayPlanUi();
       renderBillingUi();
       loadStayPlanData();

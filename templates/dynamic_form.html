@@ -97,6 +97,45 @@
         </div>
         {% endif %}
 
+        {% if table_name|upper == 'DBW' %}
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="headingDashboardLinksUsers">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#collapseDashboardLinksUsers"
+                    aria-expanded="false" aria-controls="collapseDashboardLinksUsers">
+              Utilizadores
+            </button>
+          </h2>
+          <div id="collapseDashboardLinksUsers"
+              class="accordion-collapse collapse"
+              aria-labelledby="headingDashboardLinksUsers">
+            <div class="accordion-body">
+              <div class="sz_dashboard_links_users_panel">
+                {% if not record_stamp %}
+                <div class="sz_text_muted sz_mb_2">Grava primeiro o widget para associar utilizadores.</div>
+                {% endif %}
+                <div id="dashboardLinksUsersStatus" class="sz_text_muted sz_mb_2">
+                  {% if record_stamp %}A carregar utilizadores...{% else %}A aguardar gravação do widget.{% endif %}
+                </div>
+                <select id="dashboardLinksUsersSelect"
+                        class="sz_select sz_dashboard_links_users_select"
+                        multiple
+                        {% if not record_stamp %}disabled{% endif %}></select>
+                <div class="sz_table_actions sz_mt_3">
+                  <button type="button"
+                          id="btnDashboardLinksUsersSave"
+                          class="sz_button sz_button_primary"
+                          {% if not record_stamp %}disabled{% endif %}>
+                    <i class="fa fa-save"></i>
+                    <span>Gravar utilizadores</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
         <div class="accordion-item">
           <h2 class="accordion-header" id="headingAnexos">
             <button class="accordion-button collapsed" type="button"
@@ -254,6 +293,44 @@
 </div>
 <!-- fim do Modal -->
 
+{% if table_name|upper == 'DBW' %}
+<div class="modal fade" id="dashboardLinkLineModal" tabindex="-1" aria-labelledby="dashboardLinkLineModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dashboardLinkLineModalLabel">Link</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="dashboardLinkLineStamp">
+        <div id="dashboardLinkLineStatus" class="sz_text_muted sz_mb_2"></div>
+        <div class="row g-2">
+          <div class="col-12 col-md-3">
+            <label class="sz_label" for="dashboardLinkLineOrdem">Ordem</label>
+            <input id="dashboardLinkLineOrdem" class="sz_input" type="number" step="1" min="0">
+          </div>
+          <div class="col-12 col-md-9">
+            <label class="sz_label" for="dashboardLinkLineTexto">Texto</label>
+            <input id="dashboardLinkLineTexto" class="sz_input" type="text" maxlength="100">
+          </div>
+          <div class="col-12">
+            <label class="sz_label" for="dashboardLinkLineUrl">URL</label>
+            <input id="dashboardLinkLineUrl" class="sz_input" type="url" maxlength="500">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">{{ _('common.cancel') }}</button>
+        <button type="button" id="btnDashboardLinkLineSave" class="sz_button sz_button_primary">
+          <i class="fa fa-save"></i>
+          <span>{{ _('common.save') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if table_name|upper == 'AL' %}
 <div class="modal fade" id="alFotosModal" tabindex="-1" aria-labelledby="alFotosModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable sz_al_fotos_modal">
@@ -404,6 +481,4 @@
 
 {% endblock %}
 {% endblock %}
-
-
 
