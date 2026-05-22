@@ -229,6 +229,23 @@
       color: color-mix(in srgb, var(--sz-color-danger) 88%, white);
     }
 
+    .turn-public-link {
+      justify-content: center;
+      width: 28px;
+      min-width: 28px;
+      height: 28px;
+      padding: 0;
+      text-decoration: none;
+    }
+
+    .turn-public-link:hover,
+    .turn-public-link:focus {
+      background: color-mix(in srgb, var(--sz-color-primary) 24%, transparent);
+      border-color: color-mix(in srgb, var(--sz-color-primary) 52%, transparent);
+      color: #fff;
+      text-decoration: none;
+    }
+
     .turn-pill.turn-pill-pres {
       background: color-mix(in srgb, var(--sz-color-warning) 18%, transparent);
       border-color: color-mix(in srgb, var(--sz-color-warning) 36%, transparent);
@@ -653,14 +670,8 @@
       <div class="modal-body">
         <div class="alert alert-danger d-none" id="turnCheckinErr"></div>
         <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" id="turnSef">
-          <label class="form-check-label" for="turnSef">SEF preenchido</label>
-          <div class="text-muted small ms-4 mt-1 d-none" id="turnSefUser"></div>
-        </div>
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" id="turnInstr">
-          <label class="form-check-label" for="turnInstr">Instruções de check-in enviadas</label>
-          <div class="text-muted small ms-4 mt-1 d-none" id="turnInstrUser"></div>
+          <input class="form-check-input" type="checkbox" id="turnMostrarInstrucoes">
+          <label class="form-check-label" for="turnMostrarInstrucoes">Mostrar instruções de check-in</label>
         </div>
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" id="turnPresencial">

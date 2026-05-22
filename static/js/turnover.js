@@ -9,10 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalEl = document.getElementById('checkinModal');
   const modalTitle = document.getElementById('turnCheckinTitle');
   const fieldPresencial = document.getElementById('turnPresencial');
-  const fieldSef = document.getElementById('turnSef');
-  const labelSefUser = document.getElementById('turnSefUser');
-  const fieldInstr = document.getElementById('turnInstr');
-  const labelInstrUser = document.getElementById('turnInstrUser');
+  const fieldMostrarInstrucoes = document.getElementById('turnMostrarInstrucoes');
   const fieldUser = document.getElementById('turnUser');
   const fieldEntro = document.getElementById('turnEntro');
   const btnSaveCheckin = document.getElementById('turnSaveCheckin');
@@ -149,12 +146,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const pax = fmtGuests(c.hospedes);
       const nts = fmtNoites(c.noites);
-      const sefBadge = c.sef
-        ? '<span class="turn-pill turn-pill-ok">SEF</span>'
-        : '<span class="turn-pill turn-pill-warn">SEF</span>';
-      const instrBadge = c.instr
-        ? '<span class="turn-pill turn-pill-ok"><i class="fa-solid fa-images"></i></span>'
-        : '<span class="turn-pill turn-pill-warn"><i class="fa-solid fa-images"></i></span>';
+      const guestDataBadge = c.hospedes_preenchidos
+        ? '<span class="turn-pill turn-pill-ok">Dados</span>'
+        : '<span class="turn-pill turn-pill-warn">Dados</span>';
+      const publicLink = c.public_url
+        ? `<a class="turn-pill turn-public-link" href="${escapeHtml(c.public_url)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir link do hóspede" title="Abrir link do hóspede"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`
+        : '';
       const usrCheck = c.usrcheckin_nome || c.usrcheckin || '';
       const pres = !!c.presencial;
       const presencialBadge = pres || usrCheck
@@ -192,8 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="turn-pill">${escapeHtml(nts)}</span>
                 <span class="turn-pill">${escapeHtml(pax)}</span>
-                ${sefBadge}
-                ${instrBadge}
+                ${guestDataBadge}
+                ${publicLink}
                 ${presencialBadge}
                 ${extra.map(e => `<span class="turn-pill">${escapeHtml(e)}</span>`).join('')}
               </div>
@@ -226,28 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
           users.map(u => `<option value=\"${escapeHtml(u.value)}\">${escapeHtml(u.label)}</option>`).join('');
       }
       const info = data.data || {};
-      if (fieldSef) fieldSef.checked = !!info.sef;
-      if (labelSefUser) {
-        const usrsef = info.usrsef || '';
-        if (info.sef && usrsef) {
-          labelSefUser.textContent = `Marcado por ${usrsef}`;
-          labelSefUser.classList.remove('d-none');
-        } else {
-          labelSefUser.textContent = '';
-          labelSefUser.classList.add('d-none');
-        }
-      }
-      if (fieldInstr) fieldInstr.checked = !!info.instr;
-      if (labelInstrUser) {
-        const uinstr = info.usrinstr || '';
-        if (info.instr && uinstr) {
-          labelInstrUser.textContent = `Enviado por ${uinstr}`;
-          labelInstrUser.classList.remove('d-none');
-        } else {
-          labelInstrUser.textContent = '';
-          labelInstrUser.classList.add('d-none');
-        }
-      }
+      if (fieldMostrarInstrucoes) fieldMostrarInstrucoes.checked = !!info.mostrar_instrucoes_checkin;
       if (fieldPresencial) fieldPresencial.checked = !!info.presencial;
       if (fieldEntro) fieldEntro.checked = !!info.entrou;
       if (fieldUser) fieldUser.value = info.usrcheckin || '';
@@ -267,8 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const payload = {
       alojamento: currentAloj,
       data: d,
-      sef: fieldSef?.checked || false,
-      instr: fieldInstr?.checked || false,
+      mostrar_instrucoes_checkin: fieldMostrarInstrucoes?.checked || false,
       presencial: fieldPresencial?.checked || false,
       entrou: fieldEntro?.checked || false,
       usrcheckin: fieldUser?.value || ''

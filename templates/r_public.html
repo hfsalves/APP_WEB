@@ -2560,7 +2560,8 @@
         if (!checkinEls.card) return;
         const dateAvailable = Boolean(checkinInstructionsState.dateAvailable);
         const guestsComplete = Boolean(mandatoryState.complete);
-        const hasVisibleContent = dateAvailable && guestsComplete && checkinInstructionsState.loaded && checkinInstructionsState.available;
+        const apiAllowsContent = checkinInstructionsState.loaded && checkinInstructionsState.available;
+        const hasVisibleContent = dateAvailable && apiAllowsContent && (guestsComplete || checkinInstructionsState.reason !== 'guests');
         checkinEls.card.classList.toggle('is-disabled', !hasVisibleContent);
 
         if (!dateAvailable) {
@@ -2571,16 +2572,16 @@
           return;
         }
 
-        if (!guestsComplete) {
-          setCheckinInstructionsStatus('checkin_instructions_status_pending', 'badge bg-warning-subtle text-warning-emphasis border');
-          setCheckinInstructionsMessage(tGuest('checkin_instructions_waiting'));
+        if (checkinInstructionsState.loading) {
+          setCheckinInstructionsStatus('checkin_instructions_status_pending', 'badge bg-info-subtle text-info-emphasis border');
+          setCheckinInstructionsMessage(tGuest('checkin_instructions_loading'));
           checkinEls.content?.classList.add('d-none');
           return;
         }
 
-        if (checkinInstructionsState.loading) {
-          setCheckinInstructionsStatus('checkin_instructions_status_pending', 'badge bg-info-subtle text-info-emphasis border');
-          setCheckinInstructionsMessage(tGuest('checkin_instructions_loading'));
+        if (!guestsComplete && (!checkinInstructionsState.loaded || checkinInstructionsState.reason === 'guests')) {
+          setCheckinInstructionsStatus('checkin_instructions_status_pending', 'badge bg-warning-subtle text-warning-emphasis border');
+          setCheckinInstructionsMessage(tGuest('checkin_instructions_waiting'));
           checkinEls.content?.classList.add('d-none');
           return;
         }
@@ -2613,9 +2614,13 @@
       }
 
       async function loadCheckinInstructions() {
-        if (!PUBLIC_RESERVA || !checkinEls.card || !checkinInstructionsState.dateAvailable || !mandatoryState.complete) {
+        if (!PUBLIC_RESERVA || !checkinEls.card || !checkinInstructionsState.dateAvailable) {
           renderCheckinInstructionsUi();
           return;
+        }
+        if (checkinInstructionsState.loaded && checkinInstructionsState.reason === 'guests' && mandatoryState.complete) {
+          checkinInstructionsState.loaded = false;
+          checkinInstructionsState.available = false;
         }
         if (checkinInstructionsState.loading || checkinInstructionsState.loaded) {
           renderCheckinInstructionsUi();

@@ -962,10 +962,29 @@ def create_app():
         code = (reserva_value or '').strip()
         return (not code) or len(code) > 120 or re.search(r'[\x00-\x1f\x7f/]', code) is not None
 
+    _rs_checkin_instruction_column_checked = False
+
+    def _ensure_rs_checkin_instruction_column():
+        nonlocal _rs_checkin_instruction_column_checked
+        if _rs_checkin_instruction_column_checked:
+            return
+        try:
+            db.session.execute(text("""
+                IF COL_LENGTH('dbo.RS', 'MOSTRA_INSTRUCOES_CHECKIN') IS NULL
+                    ALTER TABLE dbo.RS ADD MOSTRA_INSTRUCOES_CHECKIN bit NOT NULL
+                        CONSTRAINT DF_RS_MOSTRA_INSTRUCOES_CHECKIN DEFAULT 0;
+            """))
+            db.session.commit()
+            _rs_checkin_instruction_column_checked = True
+        except Exception:
+            db.session.rollback()
+            raise
+
     def _public_reserva_row(reserva_value: str):
         reserva_code = (reserva_value or '').strip()
         if _public_reserva_code_invalid(reserva_code):
             return None
+        _ensure_rs_checkin_instruction_column()
         row = db.session.execute(text("""
             SELECT TOP 1
                 RS.RSSTAMP,
@@ -979,6 +998,7 @@ def create_app():
                 RS.ADULTOS,
                 RS.CRIANCAS,
                 RS.NOITES,
+                ISNULL(RS.MOSTRA_INSTRUCOES_CHECKIN,0) AS MOSTRA_INSTRUCOES_CHECKIN,
                 ISNULL(RS.FTNOME,'') AS FTNOME,
                 ISNULL(RS.FTMORADA,'') AS FTMORADA,
                 ISNULL(RS.FTLOCAL,'') AS FTLOCAL,
@@ -3566,7 +3586,8 @@ def create_app():
                 'release_label': release_state.get('release_label') or '',
             })
 
-        if not _public_reserva_guests_complete(row):
+        force_show = bool(row.get('MOSTRA_INSTRUCOES_CHECKIN') or 0)
+        if not force_show and not _public_reserva_guests_complete(row):
             return jsonify({
                 'ok': True,
                 'available': False,
@@ -26518,6 +26539,7 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def api_turnover():
         try:
+            _ensure_rs_checkin_instruction_column()
             data_str = (request.args.get('data') or '').strip()
             dia = datetime.strptime(data_str, '%Y-%m-%d').date() if data_str else date.today()
             dia_iso = dia.isoformat()
@@ -26532,7 +26554,9 @@ OPTION (MAXRECURSION 32767);
             """), {'dia': dia_iso}).mappings().all()
 
             reservas_in = db.session.execute(text("""
-                SELECT LTRIM(RTRIM(RS.ALOJAMENTO)) AS ALOJAMENTO, ISNULL(RS.HORAIN,'') AS HORAIN, RS.NOITES,
+                SELECT RS.RSSTAMP,
+                       LTRIM(RTRIM(ISNULL(RS.RESERVA,''))) AS RESERVA,
+                       LTRIM(RTRIM(RS.ALOJAMENTO)) AS ALOJAMENTO, ISNULL(RS.HORAIN,'') AS HORAIN, RS.NOITES,
                        ISNULL(RS.ADULTOS,0) AS ADULTOS, ISNULL(RS.CRIANCAS,0) AS CRIANCAS,
                        ISNULL(RS.BERCO,0) AS BERCO, ISNULL(RS.SOFACAMA,0) AS SOFACAMA,
                        ISNULL(RS.SEF,0) AS SEF, ISNULL(RS.USRSEF,'') AS USRSEF,
@@ -26716,6 +26740,10 @@ OPTION (MAXRECURSION 32767);
                     hospedes = 0
                 berco = bool(first_val(in_list, 'BERCO'))
                 sof = bool(first_val(in_list, 'SOFACAMA'))
+                reserva_in = dict(in_list[0]) if in_list else {}
+                reserva_code = str(first_val(in_list, 'RESERVA') or '').strip()
+                public_url = url_for('public_reserva_page', reserva_code=reserva_code) if reserva_code else ''
+                hospedes_preenchidos = _public_reserva_guests_complete(reserva_in) if in_list else False
 
                 status = 'Já limpo'
                 tem_planeada = False
@@ -26849,6 +26877,8 @@ OPTION (MAXRECURSION 32767);
                     'sofacama': sof,
                     'obs': obs,
                     'sef': bool(first_val(in_list, 'SEF') or 0),
+                    'hospedes_preenchidos': hospedes_preenchidos,
+                    'public_url': public_url,
                     'instr': bool(first_val(in_list, 'INSTR') or 0),
                     'presencial': bool(first_val(in_list, 'PRESENCIAL') or 0),
                     'usrcheckin': first_val(in_list, 'USRCHECKIN') or '',
@@ -26869,6 +26899,7 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def api_turnover_checkin():
         try:
+            _ensure_rs_checkin_instruction_column()
             if request.method == 'GET':
                 data_str = (request.args.get('data') or '').strip()
                 aloj = (request.args.get('alojamento') or '').strip()
@@ -26888,10 +26919,7 @@ OPTION (MAXRECURSION 32767);
                     SELECT TOP 1 ISNULL(PRESENCIAL,0) AS PRESENCIAL,
                            ISNULL(ENTROU,0) AS ENTROU,
                            ISNULL(USRCHECKIN,'') AS USRCHECKIN,
-                           ISNULL(SEF,0) AS SEF,
-                           ISNULL(USRSEF,'') AS USRSEF,
-                           ISNULL(INSTR,0) AS INSTR,
-                           ISNULL(USRINSTR,'') AS USRINSTR
+                           ISNULL(MOSTRA_INSTRUCOES_CHECKIN,0) AS MOSTRA_INSTRUCOES_CHECKIN
                     FROM RS
                     WHERE CAST(DATAIN AS date) = :dia
                       AND LTRIM(RTRIM(ALOJAMENTO)) = LTRIM(RTRIM(:aloj))
@@ -26905,10 +26933,7 @@ OPTION (MAXRECURSION 32767);
                     'presencial': bool(row.get('PRESENCIAL') or 0),
                     'entrou': bool(row.get('ENTROU') or 0),
                     'usrcheckin': row.get('USRCHECKIN') or '',
-                    'sef': bool(row.get('SEF') or 0),
-                    'usrsef': row.get('USRSEF') or '',
-                    'instr': bool(row.get('INSTR') or 0),
-                    'usrinstr': row.get('USRINSTR') or ''
+                    'mostrar_instrucoes_checkin': bool(row.get('MOSTRA_INSTRUCOES_CHECKIN') or 0)
                 }
                 return jsonify({'data': data, 'users': users, 'alojamento': aloj})
 
@@ -26922,23 +26947,17 @@ OPTION (MAXRECURSION 32767);
                 dia = datetime.strptime(data_str, '%Y-%m-%d').date()
             except Exception:
                 return jsonify({'error': 'Data inválida'}), 400
-            sef = 1 if body.get('sef') else 0
-            instr = 1 if body.get('instr') else 0
+            mostrar_instrucoes_checkin = 1 if body.get('mostrar_instrucoes_checkin') else 0
             presencial = 1 if body.get('presencial') else 0
             entrou = 1 if body.get('entrou') else 0
             usrcheckin = (body.get('usrcheckin') or '').strip()
-            usrsef = getattr(current_user, 'LOGIN', '')
-            usrinstr = getattr(current_user, 'LOGIN', '')
 
             upd = text("""
                 UPDATE RS
                    SET PRESENCIAL = :p,
                        ENTROU = :e,
                        USRCHECKIN = :u,
-                       SEF = :sef,
-                       USRSEF = CASE WHEN :sef = 1 THEN :usrsef ELSE USRSEF END,
-                       INSTR = :instr,
-                       USRINSTR = CASE WHEN :instr = 1 THEN :usrinstr ELSE USRINSTR END
+                       MOSTRA_INSTRUCOES_CHECKIN = :mostrar_instrucoes_checkin
                  WHERE CAST(DATAIN AS date) = :dia
                    AND LTRIM(RTRIM(ALOJAMENTO)) = LTRIM(RTRIM(:aloj))
                    AND ISNULL(CANCELADA,0) = 0
@@ -26947,10 +26966,7 @@ OPTION (MAXRECURSION 32767);
                 'p': presencial,
                 'e': entrou,
                 'u': usrcheckin,
-                'sef': sef,
-                'usrsef': usrsef,
-                'instr': instr,
-                'usrinstr': usrinstr,
+                'mostrar_instrucoes_checkin': mostrar_instrucoes_checkin,
                 'dia': dia,
                 'aloj': aloj
             })
