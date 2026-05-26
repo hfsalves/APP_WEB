@@ -1,5 +1,5 @@
 ﻿// static/js/fo_compras_form.js
-// CabeÃ§alho FO + linhas FN com linhas em memÃ³ria (sÃ³ grava no final)
+// Cabeçalho FO + linhas FN com linhas em memória (só grava no final)
 
 const FO_TABLE = 'FO';
 const FN_TABLE = 'FN';
@@ -155,19 +155,20 @@ function setFoFormValues(data = {}) {
     const el = document.getElementById(f);
     if (!el) return;
     if (el.type === 'date') {
-      const v = data[f];
-      if (v) {
-        const d = new Date(v);
-        if (!Number.isNaN(d)) el.value = d.toISOString().slice(0, 10);
-      }
+      const v = toDateInputValue(data[f]);
+      if (v) el.value = v;
     } else {
-      el.value = (data[f] ?? '').toString().trim();
+      el.value = f === 'CCUSTO'
+        ? (data[f] ?? '').toString()
+        : (data[f] ?? '').toString().trim();
     }
   });
 
   selectOptionTrim(document.getElementById('DOCNOME'), data.DOCNOME);
   selectOptionTrim(document.getElementById('TPDESC'), data.TPDESC);
   selectOptionTrim(document.getElementById('COLAB'), data.COLAB);
+  ensureSelectOptionTrim(document.getElementById('CCUSTO'), data.CCUSTO);
+  ensureSelectOptionTrim(document.getElementById('SZ_CCUSTO'), data.CCUSTO);
   toggleColabVisibility();
   syncFoPreviewAll();
   syncDocdataFromDataIfEmpty();
@@ -180,6 +181,13 @@ function toDateInputValue(v) {
   const s = v.toString().trim();
   if (!s) return null;
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const dmy = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  if (dmy) {
+    const day = dmy[1].padStart(2, '0');
+    const month = dmy[2].padStart(2, '0');
+    const year = dmy[3];
+    return `${year}-${month}-${day}`;
+  }
   try {
     const d = new Date(s);
     if (!Number.isNaN(d)) return d.toISOString().slice(0, 10);
@@ -201,6 +209,21 @@ function selectOptionTrim(selectEl, targetVal) {
   });
 }
 
+function ensureSelectOptionTrim(selectEl, targetVal) {
+  if (!selectEl || targetVal == null) return;
+  const targetRaw = targetVal.toString();
+  const target = targetRaw.trim();
+  if (!target) return;
+  selectOptionTrim(selectEl, targetRaw);
+  const selected = Array.from(selectEl.options || []).some(opt => opt.selected && (opt.value || opt.textContent || '').toString().trim() === target);
+  if (selected) return;
+  const opt = document.createElement('option');
+  opt.value = targetRaw;
+  opt.textContent = target;
+  opt.selected = true;
+  selectEl.append(opt);
+}
+
 function getFoPayload() {
   const payload = {};
   foFields.forEach(f => {
@@ -211,6 +234,10 @@ function getFoPayload() {
     } else {
       payload[f] = el.value;
     }
+  });
+  ['DATA', 'DOCDATA', 'PDATA'].forEach((field) => {
+    const normalized = toDateInputValue(payload[field]);
+    payload[field] = normalized || null;
   });
   const docVal = (payload.DOCDATA || '').toString().trim();
   const docIsEmptyOrSentinel = !docVal || docVal === '1900-01-01';
@@ -267,11 +294,15 @@ function syncDocdataFromDataIfEmpty() {
   const dataEl = document.getElementById('DATA');
   const docEl = document.getElementById('DOCDATA');
   if (!dataEl || !docEl) return;
+  const dataVal = toDateInputValue(dataEl.value);
+  if (dataVal && dataEl.value !== dataVal) dataEl.value = dataVal;
+  const docDateVal = toDateInputValue(docEl.value);
+  if (docDateVal && docEl.value !== docDateVal) docEl.value = docDateVal;
   const docVal = (docEl.value || '').toString().trim();
   const isEmptyOrSentinel = !docVal || docVal === '1900-01-01';
   if (!isEmptyOrSentinel) return;
-  if (!dataEl.value) return;
-  docEl.value = dataEl.value;
+  if (!dataVal) return;
+  docEl.value = dataVal;
 }
 
 async function loadFo() {
@@ -505,7 +536,7 @@ function buildImportedLinesFromFound(found = {}) {
       FNSTAMP: randomStamp(),
       FOSTAMP: currentFoStamp,
       REF: '',
-      DESIGN: `ImportaÃ§Ã£o QR AT ${idx + 1}`,
+      DESIGN: `Importação QR AT ${idx + 1}`,
       QTT: 1,
       UNIDADE: '',
       EPV: base.toFixed(2),
@@ -1062,8 +1093,8 @@ function buildFoObs(payload) {
   const cabCcustoMissing = !((payload.CCUSTO || '').toString().trim());
   const fornecedorMissing = Number(payload.NO || 0) === 0;
 
-  if (hasFamiliaMissing) msgs.push('FamÃ­lias em Falta');
-  if (hasRefMissing) msgs.push('ReferÃªncias em Falta');
+  if (hasFamiliaMissing) msgs.push('Famílias em Falta');
+  if (hasRefMissing) msgs.push('Referências em Falta');
   if (fornecedorMissing) msgs.push('Fornecedor em Falta');
   if (hasCcustoLineMissing || cabCcustoMissing) msgs.push('CCusto em Falta');
 
@@ -1160,7 +1191,7 @@ async function importContratoByBoStamp(bostamp) {
   }
   const rows = await res.json();
 
-  // carregar famÃ­lias por REF (V_ST)
+  // carregar famílias por REF (V_ST)
   let familiaByRef = {};
   try {
     const refs = Array.from(new Set(rows.map(r => (r.REF ?? '').toString().trim()).filter(Boolean)));
@@ -1186,6 +1217,7 @@ async function importContratoByBoStamp(bostamp) {
   }
 
   const headerCcusto = (document.getElementById('CCUSTO')?.value || '').toString().trim();
+  const headerDate = toDateInputValue(document.getElementById('DATA')?.value) || toDateInputValue(document.getElementById('DOCDATA')?.value) || '';
   rows.forEach((r) => {
     const ref = (r.REF ?? '').toString().trim();
     const qtt = parseNum(r.QTT);
@@ -1207,6 +1239,7 @@ async function importContratoByBoStamp(bostamp) {
       TAXAIVA: (taxa ?? '').toString().trim(),
       IVAINCL: 0,
       FNCCUSTO: fnccusto,
+      DTCUSTO: headerDate,
       FAMILIA: familia,
       LORDEM: (linesData.length || 0) + 1,
       __new: true
@@ -1428,8 +1461,8 @@ async function loadDocnomeOptions() {
       opt.textContent = extra;
       sel.append(opt);
     }
-    // ensure "V/Nt. CrÃ©dito DD" is present
-    const extra2 = 'V/Nt. CrÃ©dito DD';
+    // ensure "V/Nt. Crédito DD" is present
+    const extra2 = 'V/Nt. Crédito DD';
     if (!normalized.has(extra2.toUpperCase())) {
       const opt = document.createElement('option');
       opt.value = extra2;
@@ -1461,8 +1494,10 @@ async function loadCcustOptions() {
         opt.textContent = v ?? '';
         sel.append(opt);
       });
-      if (current) sel.value = current;
+      if (current) ensureSelectOptionTrim(sel, current);
     });
+    ensureSelectOptionTrim(document.getElementById('CCUSTO'), foLoadedData?.CCUSTO);
+    ensureSelectOptionTrim(document.getElementById('SZ_CCUSTO'), foLoadedData?.CCUSTO);
     if (linesData?.length) renderLines();
   } catch (e) {
     console.error('Erro ao carregar CCUSTO options', e);
@@ -1571,8 +1606,10 @@ function applyTpSelection() {
 
   const dataEl = document.getElementById('DATA');
   const pdataEl = document.getElementById('PDATA');
-  if (dataEl && pdataEl && dataEl.value && Number.isInteger(dias)) {
-    const d = new Date(dataEl.value);
+  const dataValue = toDateInputValue(dataEl?.value);
+  if (dataEl && dataValue && dataEl.value !== dataValue) dataEl.value = dataValue;
+  if (dataEl && pdataEl && dataValue && Number.isInteger(dias)) {
+    const d = new Date(dataValue);
     if (!Number.isNaN(d)) {
       d.setDate(d.getDate() + dias);
       pdataEl.value = d.toISOString().slice(0, 10);
@@ -1719,7 +1756,7 @@ function bindRefAutocomplete() {
       });
       menu.appendChild(a);
     });
-    // posicionar relativo ao wrapper (mesma linha) com largura = 2x REF (mÃ¡x 480px)
+    // posicionar relativo ao wrapper (mesma linha) com largura = 2x REF (máx 480px)
     try {
       const wrapper = input.closest('.position-relative') || input.parentElement;
       if (wrapper && getComputedStyle(wrapper).position === 'static') {
@@ -1820,7 +1857,7 @@ function renderTabivaSelect(line) {
     }
     sel.append(opt);
   });
-  // se nÃ£o encontrou, acrescenta opÃ§Ã£o isolada para exibir o valor existente
+  // se não encontrou, acrescenta opção isolada para exibir o valor existente
   if (!matched && lineTab) {
     const opt = document.createElement('option');
     opt.value = lineTab;
@@ -1829,7 +1866,7 @@ function renderTabivaSelect(line) {
     opt.selected = true;
     sel.append(opt);
   }
-  // garantir seleÃ§Ã£o via value tambÃ©m
+  // garantir seleção via value também
   if (lineTab) sel.value = lineTab;
   // hidden input to persist TAXAIVA value without occupying layout
   const hiddenTaxa = document.createElement('input');
@@ -2039,7 +2076,7 @@ function renderLines() {
     r.DESIGN = (r.DESIGN ?? '').toString().trim();
     r.DTCUSTO = toDateInputValue(r.DTCUSTO) || null;
     r.FAMILIA = (r.FAMILIA ?? '').toString().trim();
-    // garantir ETILIQUIDO calculado localmente se possÃ­vel
+    // garantir ETILIQUIDO calculado localmente se possível
     const qtt = parseNum(r.QTT);
     const epv = parseNum(r.EPV);
     if (Number.isFinite(qtt) && Number.isFinite(epv)) {
@@ -2112,7 +2149,7 @@ function renderLines() {
       }
     }
     const ccustoSel = tr.querySelector('select[data-field="FNCCUSTO"]');
-    if (ccustoSel) ccustoSel.value = r.FNCCUSTO || '';
+    if (ccustoSel) selectOptionTrim(ccustoSel, r.FNCCUSTO || '');
   });
   recalcTotals();
 }
@@ -2166,7 +2203,7 @@ async function saveFo() {
   if (!payload.NO) payload.NO = 0;
   if (!payload.PDATA && payload.DATA) payload.PDATA = payload.DATA;
   if (!isNewRecord && Number(foSyncValue) === 1) {
-    payload.SYNC = 0; // forÃ§ar re-sincronizaÃ§Ã£o
+    payload.SYNC = 0; // forçar re-sincronização
     const syncEl = document.getElementById('SYNC');
     if (syncEl) syncEl.value = 0;
   }
@@ -2255,7 +2292,7 @@ function openLineModal(data = {}) {
       el.value = data[f] ?? '';
     }
   });
-  // default FNCCUSTO com CCUSTO de cabeÃ§alho se estiver vazio
+  // default FNCCUSTO com CCUSTO de cabeçalho se estiver vazio
   const fnCcusto = document.getElementById('FN_FNCCUSTO');
   const cabCcusto = document.getElementById('CCUSTO');
   if (fnCcusto && !fnCcusto.value && cabCcusto) {
@@ -2301,11 +2338,11 @@ async function saveLine() {
 async function deleteLine(fnStamp) {
   if (!fnStamp) return;
   if (Number(foPlanoValue) === 1) {
-    alert('Documento contabilizado no ERP. NÃ£o pode ser alterado.');
+    alert('Documento contabilizado no ERP. Não pode ser alterado.');
     return;
   }
   if (foPagoLocked) {
-    alert('Documento incluÃ­do em pagamento. NÃ£o pode ser alterado.');
+    alert('Documento incluído em pagamento. Não pode ser alterado.');
     return;
   }
   if (!confirm('Eliminar esta linha?')) return;
@@ -2562,7 +2599,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // anexos
   btnAddAnexo?.addEventListener('click', () => {
     if (isMobile()) {
-      const choice = prompt('Escolha opÃ§Ã£o: 1- Ficheiro, 2- CÃ¢mara, 3- Galeria', '1');
+      const choice = prompt('Escolha opção: 1- Ficheiro, 2- Câmara, 3- Galeria', '1');
       if (choice === '2') {
         inputAnexoCamera?.click();
         return;
@@ -2593,11 +2630,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (action === 'delete') deleteLine(id);
     if (action === 'choose_artigo') {
       if (Number(foPlanoValue) === 1) {
-        alert('Documento contabilizado no ERP. NÃ£o pode ser alterado.');
+        alert('Documento contabilizado no ERP. Não pode ser alterado.');
         return;
       }
       if (foPagoLocked) {
-        alert('Documento incluÃ­do em pagamento. NÃ£o pode ser alterado.');
+        alert('Documento incluído em pagamento. Não pode ser alterado.');
         return;
       }
       openArtigoModal({ type: 'inline', lineId: id });
@@ -2627,4 +2664,3 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
 });
-

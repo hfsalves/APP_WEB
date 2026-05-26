@@ -388,6 +388,11 @@ const isPlanner2LpAdminTeam = (team) => {
   return value === true || value === 1 || String(value || '').trim() === '1';
 };
 
+const isPlanner2ExternalTeam = (team) => {
+  const value = team?.EXTERNA ?? team?.externa;
+  return value === true || value === 1 || String(value || '').trim() === '1';
+};
+
 const setPlanner2Dirty = (isDirty) => {
   planner2Dirty = !!isDirty;
   if (planner2SaveBtn) {
@@ -475,6 +480,166 @@ const collectPlanner2Payload = (dateStr) => {
     });
   });
   return payload;
+};
+
+const updatePlanner2CleaningSummary = () => {
+  const el = document.getElementById('planner2-cleaning-summary');
+  if (!el) return;
+  const rows = Array.isArray(planner2Data) ? planner2Data : [];
+  const total = rows.filter((row) => !!row.checkout_reservation).length;
+  const planned = rows.filter((row) => (
+    !!row.checkout_reservation
+    && Array.isArray(row.cleanings)
+    && row.cleanings.some((cl) => String(cl.time || '').trim() && String(cl.team || '').trim())
+  )).length;
+  const text = `Planeadas ${planned} de ${total}`;
+  const label = el.querySelector('span');
+  if (label) {
+    label.textContent = text;
+  } else {
+    el.textContent = text;
+  }
+};
+
+const getPlanner2AvailableTeams = () => (
+  (Array.isArray(planner2Teams) ? planner2Teams : [])
+    .filter((team) => !isPlanner2ExternalTeam(team) && !isPlanner2LpAdminTeam(team))
+    .slice()
+    .sort((a, b) => String(a.NOME || '').localeCompare(String(b.NOME || ''), 'pt-PT'))
+);
+
+const updatePlanner2TeamSummary = () => {
+  const el = document.getElementById('planner2-team-summary');
+  if (!el) return;
+  const count = getPlanner2AvailableTeams().length;
+  const text = `Equipa: ${count}`;
+  const label = el.querySelector('span');
+  if (label) {
+    label.textContent = text;
+  } else {
+    el.textContent = text;
+  }
+};
+
+const buildPlanner2TeamDetailData = () => {
+  const teams = getPlanner2AvailableTeams();
+  const details = new Map();
+  teams.forEach((team) => {
+    const name = String(team.NOME || '').trim();
+    if (!name) return;
+    details.set(name, {
+      name,
+      color: String(team.COR || '').trim(),
+      cleanings: [],
+      totalMinutes: 0
+    });
+  });
+
+  planner2Data.forEach((row) => {
+    (row.cleanings || []).forEach((cl) => {
+      const teamName = String(cl.team || '').trim();
+      const detail = details.get(teamName);
+      if (!detail) return;
+      const duration = getCleaningDuration(
+        { ...cl, cleaningMinutes: Number(cl.cleaningMinutes || row.cleaning_minutes || 0) },
+        row.typology || row.tp || ''
+      );
+      detail.cleanings.push({
+        lodging: String(row.lodging || '').trim(),
+        time: normalizePlanner2Time(cl.time) || '-',
+        typology: String(cl.typology || row.typology || row.tp || '').trim() || '-',
+        duration
+      });
+      detail.totalMinutes += duration;
+    });
+  });
+
+  return Array.from(details.values()).map((detail) => ({
+    ...detail,
+    cleanings: detail.cleanings.slice().sort((a, b) => {
+      if (a.time !== b.time) return String(a.time || '').localeCompare(String(b.time || ''));
+      return String(a.lodging || '').localeCompare(String(b.lodging || ''), 'pt-PT');
+    })
+  }));
+};
+
+const renderPlanner2TeamDetailModal = () => {
+  const body = document.getElementById('planner2TeamDetailBody');
+  const title = document.getElementById('planner2TeamDetailTitle');
+  if (!body) return;
+  const details = buildPlanner2TeamDetailData();
+  const totalCleanings = details.reduce((sum, item) => sum + item.cleanings.length, 0);
+  const totalMinutes = details.reduce((sum, item) => sum + item.totalMinutes, 0);
+  if (title) {
+    title.textContent = `Equipa disponível (${details.length})`;
+  }
+  body.innerHTML = '';
+
+  const summary = document.createElement('div');
+  summary.className = 'planner2-team-detail-meta';
+  summary.textContent = `${totalCleanings} limpezas atribuídas · ${formatMinutes(totalMinutes)}`;
+  summary.style.textAlign = 'left';
+  body.appendChild(summary);
+
+  const list = document.createElement('div');
+  list.className = 'planner2-team-detail-list';
+  details.forEach((detail) => {
+    const row = document.createElement('div');
+    row.className = 'planner2-team-detail-row';
+
+    const name = document.createElement('div');
+    name.className = 'planner2-team-detail-name';
+    if (detail.color) {
+      const dot = document.createElement('span');
+      dot.className = 'planner2-team-dot';
+      dot.style.background = detail.color;
+      dot.style.marginRight = '8px';
+      name.appendChild(dot);
+    }
+    name.appendChild(document.createTextNode(detail.name));
+
+    const jobs = document.createElement('div');
+    jobs.className = 'planner2-team-detail-jobs';
+    if (detail.cleanings.length) {
+      const jobList = document.createElement('div');
+      jobList.className = 'planner2-team-detail-job-list';
+      detail.cleanings.forEach((cl) => {
+        const job = document.createElement('span');
+        job.className = 'planner2-team-detail-job';
+        job.textContent = `${cl.time} ${cl.lodging} (${cl.typology})`;
+        jobList.appendChild(job);
+      });
+      jobs.appendChild(jobList);
+    } else {
+      jobs.textContent = 'Sem limpezas atribuídas';
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'planner2-team-detail-meta';
+    meta.textContent = `${detail.cleanings.length} limpeza${detail.cleanings.length === 1 ? '' : 's'} · ${formatMinutes(detail.totalMinutes)}`;
+
+    row.appendChild(name);
+    row.appendChild(jobs);
+    row.appendChild(meta);
+    list.appendChild(row);
+  });
+  body.appendChild(list);
+};
+
+const openPlanner2TeamDetailModal = () => {
+  renderPlanner2TeamDetailModal();
+  const modal = document.getElementById('planner2TeamDetailModal');
+  if (!modal) return;
+  modal.classList.add('sz_is_open');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.querySelector('.planner2-team-detail-close')?.focus();
+};
+
+const closePlanner2TeamDetailModal = () => {
+  const modal = document.getElementById('planner2TeamDetailModal');
+  if (!modal) return;
+  modal.classList.remove('sz_is_open');
+  modal.setAttribute('aria-hidden', 'true');
 };
 
 const formatMinutes = (total) => {
@@ -1086,6 +1251,8 @@ const renderPlanner2TeamCards = () => {
 };
 
 const renderRows = (data, slots) => {
+  updatePlanner2CleaningSummary();
+  updatePlanner2TeamSummary();
   const tbody = document.getElementById('planner2-body');
   tbody.innerHTML = '';
   const metrics = getPlanner2Metrics();
@@ -1562,6 +1729,8 @@ const setupPlanner2 = () => {
   const nextBtn = document.getElementById('planner2-next');
   const sortBtn = document.getElementById('planner2-sort-cleaning');
   const printBtn = document.getElementById('planner2-print-labels');
+  const teamSummaryBtn = document.getElementById('planner2-team-summary');
+  const teamDetailModal = document.getElementById('planner2TeamDetailModal');
   planner2SaveBtn = document.getElementById('planner2-save');
   planner2CancelBtn = document.getElementById('planner2-cancel');
   if (planner2SaveBtn) {
@@ -1636,6 +1805,18 @@ const setupPlanner2 = () => {
   };
   showOcc?.addEventListener('change', rerender);
   showEmpty?.addEventListener('change', rerender);
+  teamSummaryBtn?.addEventListener('click', openPlanner2TeamDetailModal);
+  teamDetailModal?.querySelectorAll('.planner2-team-detail-close').forEach((btn) => {
+    btn.addEventListener('click', closePlanner2TeamDetailModal);
+  });
+  teamDetailModal?.addEventListener('click', (e) => {
+    if (e.target === teamDetailModal) closePlanner2TeamDetailModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && teamDetailModal?.classList.contains('sz_is_open')) {
+      closePlanner2TeamDetailModal();
+    }
+  });
   sortBtn?.addEventListener('click', () => {
     planner2SortMode = !planner2SortMode;
     sortBtn.classList.toggle('sz_button_ghost', !planner2SortMode);
@@ -1765,13 +1946,21 @@ const openPlanner2TeamDropdown = (cell, row, slot) => {
     dropdown.appendChild(item);
   };
 
-  const regularTeams = planner2Teams.filter((team) => !isPlanner2LpAdminTeam(team));
+  const regularTeams = planner2Teams.filter((team) => !isPlanner2ExternalTeam(team) && !isPlanner2LpAdminTeam(team));
+  const externalTeams = planner2Teams.filter((team) => isPlanner2ExternalTeam(team) && !isPlanner2LpAdminTeam(team));
   const lpAdminTeams = planner2Teams.filter(isPlanner2LpAdminTeam);
   regularTeams.forEach(appendTeamItem);
-  if (regularTeams.length && lpAdminTeams.length) {
+  const appendSeparator = () => {
     const separator = document.createElement('div');
     separator.className = 'planner2-team-separator';
     dropdown.appendChild(separator);
+  };
+  if (regularTeams.length && externalTeams.length) {
+    appendSeparator();
+  }
+  externalTeams.forEach(appendTeamItem);
+  if ((regularTeams.length || externalTeams.length) && lpAdminTeams.length) {
+    appendSeparator();
   }
   lpAdminTeams.forEach(appendTeamItem);
   dropdown.style.visibility = 'hidden';
@@ -1926,4 +2115,3 @@ document.addEventListener('mouseup', () => {
     });
   }
 });
-

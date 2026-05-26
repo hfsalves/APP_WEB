@@ -4223,6 +4223,10 @@ def api_planner2_teams():
             select_cols.append("ISNULL(COR,'') AS COR")
         else:
             select_cols.append("'' AS COR")
+        if 'EXTERNA' in eq_cols:
+            select_cols.append("ISNULL(EXTERNA,0) AS EXTERNA")
+        else:
+            select_cols.append("0 AS EXTERNA")
         select_cols.append("""
             CASE WHEN EXISTS (
                 SELECT 1

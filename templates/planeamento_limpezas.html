@@ -62,6 +62,132 @@
       white-space: nowrap;
     }
 
+    .planner2-summary-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sz-space-2);
+      min-height: 2.5rem;
+      padding: 0 var(--sz-space-3);
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-md);
+      background: var(--sz-color-surface);
+      color: var(--sz-color-text);
+      font-size: var(--sz-font-size-sm);
+      font-weight: 700;
+      white-space: nowrap;
+      box-shadow: var(--sz-shadow-1);
+    }
+
+    .planner2-summary-pill i {
+      color: var(--sz-color-primary);
+    }
+
+    .planner2-summary-button {
+      border: 1px solid var(--sz-color-border);
+      font: inherit;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+    }
+
+    .planner2-summary-button:hover,
+    .planner2-summary-button:focus {
+      border-color: color-mix(in srgb, var(--sz-color-primary) 52%, var(--sz-color-border));
+      background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+      outline: none;
+    }
+
+    .planner2-team-detail-modal > .sz_panel {
+      width: min(96vw, 760px);
+      max-height: min(82vh, 720px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .planner2-team-detail-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sz-space-3);
+    }
+
+    .planner2-team-detail-body {
+      overflow: auto;
+      padding-right: var(--sz-space-1);
+    }
+
+    .planner2-team-detail-list {
+      display: grid;
+      gap: var(--sz-space-2);
+    }
+
+    .planner2-team-detail-row {
+      display: grid;
+      grid-template-columns: minmax(10rem, 0.8fr) minmax(0, 1.7fr) auto;
+      gap: var(--sz-space-3);
+      align-items: start;
+      padding: var(--sz-space-3);
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-md);
+      background: var(--sz-color-surface);
+    }
+
+    .planner2-team-detail-name {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      font-weight: 700;
+      color: var(--sz-color-text);
+      overflow-wrap: anywhere;
+    }
+
+    .planner2-team-detail-meta,
+    .planner2-team-detail-jobs {
+      color: var(--sz-color-text-secondary);
+      font-size: var(--sz-font-size-sm);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .planner2-team-detail-jobs {
+      text-align: left;
+      white-space: normal;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .planner2-team-detail-job-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sz-space-1);
+    }
+
+    .planner2-team-detail-job {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      padding: 0.2rem 0.45rem;
+      border: 1px solid color-mix(in srgb, var(--sz-color-border) 78%, transparent);
+      border-radius: var(--sz-radius-sm);
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, transparent);
+      color: var(--sz-color-text-secondary);
+      font-size: var(--sz-font-size-sm);
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 720px) {
+      .planner2-team-detail-row {
+        grid-template-columns: 1fr;
+        gap: var(--sz-space-1);
+      }
+
+      .planner2-team-detail-meta,
+      .planner2-team-detail-jobs {
+        text-align: left;
+        white-space: normal;
+      }
+    }
+
     .planner2-page .sz_actionbar_right {
       display: inline-flex;
       align-items: center;
@@ -158,6 +284,14 @@
       </div>
       <div class="sz_contextbar_right">
         <div class="planner2-toolbar">
+          <div class="planner2-summary-pill" id="planner2-cleaning-summary">
+            <i class="fa-solid fa-broom"></i>
+            <span>Planeadas 0 de 0</span>
+          </div>
+          <button class="planner2-summary-pill planner2-summary-button" id="planner2-team-summary" type="button">
+            <i class="fa-solid fa-users"></i>
+            <span>Equipa: 0</span>
+          </button>
           <button id="planner2-prev" class="btn sz_button sz_button_ghost" type="button" aria-label="Dia anterior">
             <i class="fa-solid fa-chevron-left"></i>
           </button>
@@ -227,6 +361,21 @@
         </button>
       </div>
     </footer>
+  </div>
+</div>
+
+<div class="sz_modal planner2-team-detail-modal" id="planner2TeamDetailModal" aria-hidden="true">
+  <div class="sz_panel" role="dialog" aria-modal="true" aria-labelledby="planner2TeamDetailTitle">
+    <div class="sz_modal_header planner2-team-detail-head">
+      <h2 class="sz_modal_title" id="planner2TeamDetailTitle">Equipa disponível</h2>
+      <button type="button" class="sz_button sz_button_ghost planner2-team-detail-close" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body planner2-team-detail-body" id="planner2TeamDetailBody"></div>
+    <div class="sz_modal_footer">
+      <button type="button" class="sz_button sz_button_ghost planner2-team-detail-close">Fechar</button>
+    </div>
   </div>
 </div>
 {% endblock %}
