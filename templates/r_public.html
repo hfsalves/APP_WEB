@@ -531,6 +531,10 @@
       gap:10px;
       justify-content:center;
     }
+    .invalid-language{
+      margin-left:auto;
+      align-self:flex-start;
+    }
     .invalid-cta{
       display:inline-flex;
       align-items:center;
@@ -901,23 +905,39 @@
 </head>
 <body>
   {% if invalid %}
+    {% set invalid_reason = page_data.get('invalid_reason', 'not_found') if page_data is defined else 'not_found' %}
+    {% set invalid_key = 'expired' if invalid_reason == 'expired' else 'not_found' %}
     <div class="invalid-box">
       <div class="invalid-box-top">
-        <div class="invalid-icon"><i class="fa-solid fa-link-slash"></i></div>
+        <div class="invalid-icon"><i class="fa-solid {% if invalid_key == 'expired' %}fa-heart-circle-check{% else %}fa-link-slash{% endif %}"></i></div>
         <div>
-          <h1 class="invalid-title" data-i18n="invalid_title">Reserva n&atilde;o encontrada</h1>
-          <p class="invalid-sub" data-i18n="invalid_sub">Confirma o c&oacute;digo da reserva ou pede um novo acesso.</p>
+          <h1 class="invalid-title" data-i18n="invalid_{{ invalid_key }}_title">Reserva n&atilde;o encontrada</h1>
+          <p class="invalid-sub" data-i18n="invalid_{{ invalid_key }}_sub">Se a reserva foi criada agora, tenta novamente dentro de alguns minutos.</p>
+        </div>
+        <div class="invalid-language lang-switch">
+          <div class="lang-menu">
+            <button id="langMenuBtn" type="button" class="lang-menu-btn" aria-label="Idioma">
+              <span id="langMenuFlag" class="fi fi-pt"></span>
+              <span id="langMenuCode">PT</span>
+            </button>
+            <div id="langMenuList" class="lang-menu-list">
+              <button type="button" class="lang-option" data-lang="pt"><span class="fi fi-pt"></span><span>Portugu&ecirc;s</span></button>
+              <button type="button" class="lang-option" data-lang="en"><span class="fi fi-gb"></span><span>English</span></button>
+              <button type="button" class="lang-option" data-lang="fr"><span class="fi fi-fr"></span><span>Fran&ccedil;ais</span></button>
+              <button type="button" class="lang-option" data-lang="es"><span class="fi fi-es"></span><span>Espa&ntilde;ol</span></button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="invalid-box-body">
         <div class="invalid-note">
           <i class="fa-solid fa-circle-info"></i>
-          <span data-i18n="invalid_note">Este c&oacute;digo pode estar incompleto ou n&atilde;o corresponder a uma reserva dispon&iacute;vel. Se precisares de entrar novamente, confirma o c&oacute;digo com o anfitri&atilde;o ou a equipa de apoio.</span>
+          <span data-i18n="invalid_{{ invalid_key }}_note">Se o problema persistir, contacta o anfitri&atilde;o.</span>
         </div>
         <div class="invalid-actions">
           <span class="invalid-cta">
             <i class="fa-regular fa-envelope"></i>
-            <span data-i18n="invalid_cta">Contacta-nos para confirmar o acesso</span>
+            <span data-i18n="invalid_{{ invalid_key }}_cta">Contacta o anfitri&atilde;o pela plataforma da reserva</span>
           </span>
         </div>
       </div>
@@ -1414,24 +1434,24 @@
 
   <script>
     (function () {
-      const PUBLIC_RESERVA = {{ (page_data.public_code if page_data is defined else '')|tojson }};
-      const RES_CRIANCAS = Number({{ (page_data.criancas if page_data is defined else 0)|tojson }} || 0);
+      const PUBLIC_RESERVA = {{ (page_data.get('public_code', '') if page_data is defined else '')|tojson }};
+      const RES_CRIANCAS = Number({{ (page_data.get('criancas', 0) if page_data is defined else 0)|tojson }} || 0);
       const INITIAL_STAY_PLAN = {
-        horain: {{ (page_data.checkin_hora if page_data is defined else '')|tojson }},
-        horaout: {{ (page_data.checkout_hora if page_data is defined else '')|tojson }},
-        berco: Boolean({{ (1 if (page_data.berco if page_data is defined else False) else 0)|tojson }})
+        horain: {{ (page_data.get('checkin_hora', '') if page_data is defined else '')|tojson }},
+        horaout: {{ (page_data.get('checkout_hora', '') if page_data is defined else '')|tojson }},
+        berco: Boolean({{ (1 if (page_data.get('berco', False) if page_data is defined else False) else 0)|tojson }})
       };
       const INITIAL_BILLING = {
-        ftnome: {{ (page_data.ftnome if page_data is defined else '')|tojson }},
-        ftmorada: {{ (page_data.ftmorada if page_data is defined else '')|tojson }},
-        ftlocal: {{ (page_data.ftlocal if page_data is defined else '')|tojson }},
-        ftcodpost: {{ (page_data.ftcodpost if page_data is defined else '')|tojson }},
-        ftncont: {{ (page_data.ftncont if page_data is defined else '')|tojson }},
-        ftemail: {{ (page_data.ftemail if page_data is defined else '')|tojson }}
+        ftnome: {{ (page_data.get('ftnome', '') if page_data is defined else '')|tojson }},
+        ftmorada: {{ (page_data.get('ftmorada', '') if page_data is defined else '')|tojson }},
+        ftlocal: {{ (page_data.get('ftlocal', '') if page_data is defined else '')|tojson }},
+        ftcodpost: {{ (page_data.get('ftcodpost', '') if page_data is defined else '')|tojson }},
+        ftncont: {{ (page_data.get('ftncont', '') if page_data is defined else '')|tojson }},
+        ftemail: {{ (page_data.get('ftemail', '') if page_data is defined else '')|tojson }}
       };
       const INITIAL_CHECKIN_INSTRUCTIONS = {
-        dateAvailable: Boolean({{ (1 if (page_data.checkin_instructions_date_available if page_data is defined else False) else 0)|tojson }}),
-        releaseLabel: {{ (page_data.checkin_instructions_release_label if page_data is defined else '')|tojson }}
+        dateAvailable: Boolean({{ (1 if (page_data.get('checkin_instructions_date_available', False) if page_data is defined else False) else 0)|tojson }}),
+        releaseLabel: {{ (page_data.get('checkin_instructions_release_label', '') if page_data is defined else '')|tojson }}
       };
       const I18N = {
         pt: {
@@ -1440,6 +1460,14 @@
           invalid_sub: 'Confirma o c\u00f3digo da reserva ou pede um novo acesso.',
           invalid_note: 'Este c\u00f3digo pode estar incompleto ou n\u00e3o corresponder a uma reserva dispon\u00edvel. Se precisares de entrar novamente, confirma o c\u00f3digo com o anfitri\u00e3o ou a equipa de apoio.',
           invalid_cta: 'Contacta-nos para confirmar o acesso',
+          invalid_not_found_title: 'Reserva n\u00e3o encontrada',
+          invalid_not_found_sub: 'Se a reserva foi criada agora, tenta novamente dentro de alguns minutos.',
+          invalid_not_found_note: 'N\u00e3o encontr\u00e1mos uma reserva dispon\u00edvel com este c\u00f3digo. Se o problema persistir, contacta o anfitri\u00e3o.',
+          invalid_not_found_cta: 'Contacta o anfitri\u00e3o pela plataforma da reserva',
+          invalid_expired_title: 'Esta reserva j\u00e1 terminou',
+          invalid_expired_sub: 'Esperamos que tenhas tido uma excelente experi\u00eancia.',
+          invalid_expired_note: 'O acesso a esta p\u00e1gina fica dispon\u00edvel apenas durante o per\u00edodo da estadia. Se ainda tiveres algum assunto a discutir com o anfitri\u00e3o, usa a plataforma onde fizeste a reserva.',
+          invalid_expired_cta: 'Contacta o anfitri\u00e3o pela plataforma da reserva',
           title_reservation: 'Reserva',
           label_reservation: 'Reserva',
           card_mandatory: 'Dados Obrigat\u00f3rios',
@@ -1609,6 +1637,14 @@
           invalid_sub: 'Please verify the reservation code or request new access.',
           invalid_note: 'This code may be incomplete or may not match an available reservation. If you need to enter again, confirm the code with the host or support team.',
           invalid_cta: 'Contact us to confirm access',
+          invalid_not_found_title: 'Reservation not found',
+          invalid_not_found_sub: 'If the reservation was just created, please try again in a few minutes.',
+          invalid_not_found_note: 'We could not find an available reservation with this code. If the problem persists, please contact the host.',
+          invalid_not_found_cta: 'Contact the host through the booking platform',
+          invalid_expired_title: 'This reservation has ended',
+          invalid_expired_sub: 'We hope you had a wonderful experience.',
+          invalid_expired_note: 'Access to this page is available only during the stay period. If you still need to discuss anything with the host, please use the platform where you made the reservation.',
+          invalid_expired_cta: 'Contact the host through the booking platform',
           title_reservation: 'Reservation',
           label_reservation: 'Reservation',
           card_mandatory: 'Required Information',
@@ -1778,6 +1814,14 @@
           invalid_sub: 'V\u00e9rifiez le code de r\u00e9servation ou demandez un nouvel acc\u00e8s.',
           invalid_note: 'Ce code peut \u00eatre incomplet ou ne pas correspondre \u00e0 une r\u00e9servation disponible. Si vous devez vous reconnecter, confirmez le code avec l\u2019h\u00f4te ou l\u2019\u00e9quipe support.',
           invalid_cta: 'Contactez-nous pour confirmer l\u2019acc\u00e8s',
+          invalid_not_found_title: 'R\u00e9servation introuvable',
+          invalid_not_found_sub: 'Si la r\u00e9servation vient d\u2019\u00eatre cr\u00e9\u00e9e, veuillez r\u00e9essayer dans quelques minutes.',
+          invalid_not_found_note: 'Nous n\u2019avons trouv\u00e9 aucune r\u00e9servation disponible avec ce code. Si le probl\u00e8me persiste, contactez l\u2019h\u00f4te.',
+          invalid_not_found_cta: 'Contactez l\u2019h\u00f4te via la plateforme de r\u00e9servation',
+          invalid_expired_title: 'Cette r\u00e9servation est termin\u00e9e',
+          invalid_expired_sub: 'Nous esp\u00e9rons que vous avez pass\u00e9 un excellent s\u00e9jour.',
+          invalid_expired_note: 'L\u2019acc\u00e8s \u00e0 cette page est disponible uniquement pendant la p\u00e9riode du s\u00e9jour. Si vous avez encore un sujet \u00e0 discuter avec l\u2019h\u00f4te, utilisez la plateforme sur laquelle vous avez effectu\u00e9 la r\u00e9servation.',
+          invalid_expired_cta: 'Contactez l\u2019h\u00f4te via la plateforme de r\u00e9servation',
           title_reservation: 'R\u00e9servation',
           label_reservation: 'R\u00e9servation',
           card_mandatory: 'Informations obligatoires',
@@ -1947,6 +1991,14 @@
           invalid_sub: 'Verifica el c\u00f3digo de reserva o solicita un nuevo acceso.',
           invalid_note: 'Este c\u00f3digo puede estar incompleto o no corresponder a una reserva disponible. Si necesitas volver a entrar, confirma el c\u00f3digo con el anfitri\u00f3n o el equipo de soporte.',
           invalid_cta: 'Cont\u00e1ctanos para confirmar el acceso',
+          invalid_not_found_title: 'Reserva no encontrada',
+          invalid_not_found_sub: 'Si la reserva acaba de crearse, int\u00e9ntalo de nuevo dentro de unos minutos.',
+          invalid_not_found_note: 'No hemos encontrado ninguna reserva disponible con este c\u00f3digo. Si el problema persiste, contacta con el anfitri\u00f3n.',
+          invalid_not_found_cta: 'Contacta con el anfitri\u00f3n desde la plataforma de reserva',
+          invalid_expired_title: 'Esta reserva ya ha finalizado',
+          invalid_expired_sub: 'Esperamos que hayas tenido una excelente experiencia.',
+          invalid_expired_note: 'El acceso a esta p\u00e1gina solo est\u00e1 disponible durante el periodo de la estancia. Si a\u00fan tienes algo que tratar con el anfitri\u00f3n, utiliza la plataforma donde hiciste la reserva.',
+          invalid_expired_cta: 'Contacta con el anfitri\u00f3n desde la plataforma de reserva',
           title_reservation: 'Reserva',
           label_reservation: 'Reserva',
           card_mandatory: 'Informaci\u00f3n obligatoria',

@@ -472,8 +472,18 @@ def create_app():
             or ''
         )
 
+    def _public_reserva_unavailable_page(reason='not_found', status=200):
+        reason_key = str(reason or 'not_found').strip().lower()
+        if reason_key not in {'not_found', 'expired'}:
+            reason_key = 'not_found'
+        return render_template(
+            'r_public.html',
+            invalid=True,
+            page_data={'invalid_reason': reason_key}
+        ), status
+
     def _guest_host_invalid_response():
-        return render_template('r_public.html', invalid=True, page_data={}), 404
+        return _public_reserva_unavailable_page('not_found')
 
     @app.before_request
     def _enforce_host_rules():
@@ -1223,6 +1233,13 @@ def create_app():
             return dtime(hour=max(0, min(23, hh)), minute=max(0, min(59, mm)))
         except Exception:
             return dtime(hour=15, minute=0)
+
+    def _public_reserva_checkout_expired(row):
+        dataout = _parse_public_date((row or {}).get('DATAOUT'))
+        if not dataout:
+            return False
+        checkout_time = _parse_public_time((row or {}).get('HORAOUT'), default_value='11:00')
+        return datetime.now() > datetime.combine(dataout, checkout_time)
 
     def _format_public_datetime_label(value):
         try:
@@ -2827,10 +2844,12 @@ def create_app():
     def public_reserva_page(reserva_code):
         public_code = (reserva_code or '').strip()
         if _public_reserva_code_invalid(public_code):
-            return render_template('r_public.html', invalid=True, page_data={})
+            return _public_reserva_unavailable_page('not_found')
         row = _public_reserva_row(public_code)
         if not row:
-            return render_template('r_public.html', invalid=True, page_data={})
+            return _public_reserva_unavailable_page('not_found')
+        if _public_reserva_checkout_expired(row):
+            return _public_reserva_unavailable_page('expired')
         canonical_reserva_code = (row.get('RESERVA') or public_code).strip()
 
         lat = row.get('LAT')
