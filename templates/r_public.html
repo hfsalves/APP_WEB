@@ -1069,11 +1069,11 @@
               <div class="form-grid">
                 <div>
                   <label class="form-label small mb-1" for="stayPlanHoraIn" data-i18n="stay_plan_checkin_label">Hora prevista de check-in</label>
-                  <input id="stayPlanHoraIn" type="time" class="form-control form-control-sm">
+                  <input id="stayPlanHoraIn" type="time" class="form-control form-control-sm" min="15:00">
                 </div>
                 <div>
                   <label class="form-label small mb-1" for="stayPlanHoraOut" data-i18n="stay_plan_checkout_label">Hora prevista de check-out</label>
-                  <input id="stayPlanHoraOut" type="time" class="form-control form-control-sm">
+                  <input id="stayPlanHoraOut" type="time" class="form-control form-control-sm" max="11:00">
                 </div>
                 {% if page_data.criancas %}
                   <div class="full">
@@ -1477,6 +1477,8 @@
           stay_plan_summary_crib_no: 'Ber\u00e7o: n\u00e3o pedido.',
           stay_plan_checkin_label: 'Hora prevista de check-in',
           stay_plan_checkout_label: 'Hora prevista de check-out',
+          stay_plan_checkin_min_error: 'O check-in previsto n\u00e3o pode ser antes das 15:00.',
+          stay_plan_checkout_max_error: 'O check-out previsto n\u00e3o pode ser depois das 11:00.',
           stay_plan_crib_label: 'Precisamos de ber\u00e7o',
           stay_plan_crib_hint: 'Ativa apenas se vais precisar de ber\u00e7o para uma crian\u00e7a.',
           btn_open_stay_plan: 'Indicar hor\u00e1rios',
@@ -1644,6 +1646,8 @@
           stay_plan_summary_crib_no: 'Crib: not requested.',
           stay_plan_checkin_label: 'Expected check-in time',
           stay_plan_checkout_label: 'Expected check-out time',
+          stay_plan_checkin_min_error: 'Expected check-in cannot be before 15:00.',
+          stay_plan_checkout_max_error: 'Expected check-out cannot be after 11:00.',
           stay_plan_crib_label: 'We need a crib',
           stay_plan_crib_hint: 'Turn this on only if you need a crib for a child.',
           btn_open_stay_plan: 'Set times',
@@ -1811,6 +1815,8 @@
           stay_plan_summary_crib_no: 'Lit b\u00e9b\u00e9 : non demand\u00e9.',
           stay_plan_checkin_label: 'Heure pr\u00e9vue d\u2019arriv\u00e9e',
           stay_plan_checkout_label: 'Heure pr\u00e9vue de d\u00e9part',
+          stay_plan_checkin_min_error: 'L\u2019arriv\u00e9e pr\u00e9vue ne peut pas \u00eatre avant 15:00.',
+          stay_plan_checkout_max_error: 'Le d\u00e9part pr\u00e9vu ne peut pas \u00eatre apr\u00e8s 11:00.',
           stay_plan_crib_label: 'Nous avons besoin d\u2019un lit b\u00e9b\u00e9',
           stay_plan_crib_hint: 'Activez uniquement si vous avez besoin d\u2019un lit b\u00e9b\u00e9 pour un enfant.',
           btn_open_stay_plan: 'Indiquer les horaires',
@@ -1978,6 +1984,8 @@
           stay_plan_summary_crib_no: 'Cuna: no solicitada.',
           stay_plan_checkin_label: 'Hora prevista de check-in',
           stay_plan_checkout_label: 'Hora prevista de check-out',
+          stay_plan_checkin_min_error: 'El check-in previsto no puede ser antes de las 15:00.',
+          stay_plan_checkout_max_error: 'El check-out previsto no puede ser despu\u00e9s de las 11:00.',
           stay_plan_crib_label: 'Necesitamos cuna',
           stay_plan_crib_hint: 'Act\u00edvalo solo si vas a necesitar una cuna para un ni\u00f1o.',
           btn_open_stay_plan: 'Indicar horarios',
@@ -2322,6 +2330,8 @@
         horaout: String(INITIAL_STAY_PLAN.horaout || '').trim(),
         berco: !!INITIAL_STAY_PLAN.berco
       };
+      const STAY_PLAN_MIN_CHECKIN = '15:00';
+      const STAY_PLAN_MAX_CHECKOUT = '11:00';
       const billingState = {
         ftnome: String(INITIAL_BILLING.ftnome || '').trim(),
         ftmorada: String(INITIAL_BILLING.ftmorada || '').trim(),
@@ -2434,6 +2444,8 @@
         stay_plan_summary_crib_no: 'Berco: nao pedido.',
         stay_plan_checkin_label: 'Hora prevista de check-in',
         stay_plan_checkout_label: 'Hora prevista de check-out',
+        stay_plan_checkin_min_error: 'O check-in previsto nao pode ser antes das 15:00.',
+        stay_plan_checkout_max_error: 'O check-out previsto nao pode ser depois das 11:00.',
         stay_plan_crib_label: 'Precisamos de berco',
         stay_plan_crib_hint: 'Ativa apenas se vais precisar de berco para uma crianca.',
         btn_open_stay_plan: 'Indicar horarios',
@@ -2887,11 +2899,13 @@
         if (stayEls.horain) stayEls.horain.value = stayPlanState.horain || '';
         if (stayEls.horaout) stayEls.horaout.value = stayPlanState.horaout || '';
         if (stayEls.berco) stayEls.berco.checked = !!stayPlanState.berco;
+        clampStayPlanTimes(false);
       }
 
       function openStayPlanModal() {
         if (!stayEls.modal) return;
         fillStayPlanForm();
+        if (stayEls.msg) stayEls.msg.classList.add('d-none');
         stayEls.modal.classList.add('open');
         stayEls.modal.setAttribute('aria-hidden', 'false');
       }
@@ -2900,6 +2914,54 @@
         if (!stayEls.modal) return;
         stayEls.modal.classList.remove('open');
         stayEls.modal.setAttribute('aria-hidden', 'true');
+      }
+
+      function stayPlanTimeToMinutes(value) {
+        const match = /^(\d{2}):(\d{2})$/.exec(String(value || '').trim());
+        if (!match) return null;
+        const hours = Number(match[1]);
+        const minutes = Number(match[2]);
+        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+        return hours * 60 + minutes;
+      }
+
+      function getStayPlanTimeError(payload) {
+        const checkin = stayPlanTimeToMinutes(payload.horain);
+        const checkout = stayPlanTimeToMinutes(payload.horaout);
+        if (checkin !== null && checkin < stayPlanTimeToMinutes(STAY_PLAN_MIN_CHECKIN)) {
+          return tGuest('stay_plan_checkin_min_error');
+        }
+        if (checkout !== null && checkout > stayPlanTimeToMinutes(STAY_PLAN_MAX_CHECKOUT)) {
+          return tGuest('stay_plan_checkout_max_error');
+        }
+        return '';
+      }
+
+      function clampStayPlanTimeInput(input, type, showMessage) {
+        if (!input || !input.value) return;
+        const current = stayPlanTimeToMinutes(input.value);
+        if (current === null) return;
+        if (type === 'checkin' && current < stayPlanTimeToMinutes(STAY_PLAN_MIN_CHECKIN)) {
+          input.value = STAY_PLAN_MIN_CHECKIN;
+          if (showMessage) showStayPlanMessage(tGuest('stay_plan_checkin_min_error'), true);
+        }
+        if (type === 'checkout' && current > stayPlanTimeToMinutes(STAY_PLAN_MAX_CHECKOUT)) {
+          input.value = STAY_PLAN_MAX_CHECKOUT;
+          if (showMessage) showStayPlanMessage(tGuest('stay_plan_checkout_max_error'), true);
+        }
+      }
+
+      function clampStayPlanTimes(showMessage) {
+        clampStayPlanTimeInput(stayEls.horain, 'checkin', showMessage);
+        clampStayPlanTimeInput(stayEls.horaout, 'checkout', showMessage);
+      }
+
+      function showStayPlanMessage(message, isError) {
+        if (!stayEls.msg) return;
+        stayEls.msg.textContent = message;
+        stayEls.msg.classList.toggle('text-success', !isError);
+        stayEls.msg.classList.toggle('text-danger', !!isError);
+        stayEls.msg.classList.remove('d-none');
       }
 
       function fillBillingForm() {
@@ -3016,6 +3078,11 @@
           horaout: String(stayEls.horaout?.value || '').trim(),
           berco: !!stayEls.berco?.checked
         };
+        const timeError = getStayPlanTimeError(payload);
+        if (timeError) {
+          showStayPlanMessage(timeError, true);
+          return false;
+        }
         stayEls.save.disabled = true;
         if (stayEls.msg) stayEls.msg.classList.add('d-none');
         try {
@@ -3029,10 +3096,7 @@
           stayPlanState.horain = String(data.horain || '').trim();
           stayPlanState.horaout = String(data.horaout || '').trim();
           stayPlanState.berco = !!data.berco;
-          if (stayEls.msg) {
-            stayEls.msg.textContent = tGuest('mandatory_saved');
-            stayEls.msg.classList.remove('d-none');
-          }
+          showStayPlanMessage(tGuest('mandatory_saved'), false);
           renderStayPlanUi();
           closeStayPlanModal();
           return true;
@@ -3178,6 +3242,10 @@
       stayEls.cancel?.addEventListener('click', closeStayPlanModal);
       stayEls.backdrop?.addEventListener('click', closeStayPlanModal);
       stayEls.save?.addEventListener('click', saveStayPlan);
+      stayEls.horain?.addEventListener('input', () => clampStayPlanTimeInput(stayEls.horain, 'checkin', false));
+      stayEls.horain?.addEventListener('change', () => clampStayPlanTimeInput(stayEls.horain, 'checkin', true));
+      stayEls.horaout?.addEventListener('input', () => clampStayPlanTimeInput(stayEls.horaout, 'checkout', false));
+      stayEls.horaout?.addEventListener('change', () => clampStayPlanTimeInput(stayEls.horaout, 'checkout', true));
       billingEls.openBtn?.addEventListener('click', openBillingModal);
       billingEls.close?.addEventListener('click', closeBillingModal);
       billingEls.cancel?.addEventListener('click', closeBillingModal);

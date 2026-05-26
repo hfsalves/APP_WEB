@@ -3861,11 +3861,20 @@ def create_app():
                 return None
             return s
 
+        def _hm_minutes(v):
+            if not v:
+                return None
+            return (int(v[:2]) * 60) + int(v[3:5])
+
         body = request.get_json(silent=True) or {}
         horain = _norm_hm(body.get('horain'))
         horaout = _norm_hm(body.get('horaout'))
         if horain is None or horaout is None:
             return jsonify({'error': 'Hora inválida. Usa o formato HH:MM.'}), 400
+        if horain and _hm_minutes(horain) < (15 * 60):
+            return jsonify({'error': 'O check-in previsto não pode ser antes das 15:00.'}), 400
+        if horaout and _hm_minutes(horaout) > (11 * 60):
+            return jsonify({'error': 'O check-out previsto não pode ser depois das 11:00.'}), 400
 
         has_children = int(row.get('CRIANCAS') or 0) > 0
         berco = 1 if (has_children and bool(body.get('berco'))) else 0
