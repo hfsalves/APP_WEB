@@ -212,14 +212,21 @@
       const value = Number(item.faturado ?? item.liquido ?? 0);
       const commission = Number(item.comissao_gestao ?? item.comissao ?? 0);
       const width = Math.max(0, Math.min(100, (value / maxValue) * 100));
+      const hasValue = !!(value || commission || Number(item.reservas || 0));
+      const detailUrl = String(item.detail_url || '').trim();
       return `
-        <div class="client-billing-month ${value || commission ? 'has-value' : 'is-empty'}">
+        <div class="client-billing-month ${hasValue ? 'has-value' : 'is-empty'}">
           <strong>${escapeHtml(item.label || '')}</strong>
           <div class="client-billing-month-bar" title="${escapeHtml(formatMoney(value))}">
             <span style="width:${width.toFixed(2)}%"></span>
           </div>
           <div class="client-billing-month-value">${escapeHtml(formatMoney(value))}</div>
           <div class="client-billing-month-commission">${escapeHtml(formatMoney(commission))}</div>
+          ${hasValue && detailUrl ? `
+            <a class="sz_button sz_button_ghost client-billing-month-detail" href="${escapeHtml(detailUrl)}" title="Ver detalhe de ${escapeHtml(item.label || '')}" aria-label="Ver detalhe de ${escapeHtml(item.label || '')}">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            </a>
+          ` : '<span></span>'}
         </div>
       `;
     }).join('');
@@ -229,6 +236,7 @@
         <span></span>
         <span>Fatura\u00e7\u00e3o</span>
         <span>Comiss\u00f5es</span>
+        <span></span>
       </div>
       ${rows}
     `;

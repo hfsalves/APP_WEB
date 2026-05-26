@@ -41,6 +41,7 @@ BASE_USER_COLUMNS = [
     "TEMPOS",
     "VIEWMODE",
     "CLNO",
+    "CLESTAB",
     "CLNOME",
 ]
 
@@ -220,6 +221,7 @@ def _normalize_user_row(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any
     normalized.setdefault("LAST_LOGIN_AT", None)
     normalized.setdefault("IS_ACTIVE", True)
     normalized.setdefault("INATIVO", 0)
+    normalized.setdefault("CLESTAB", 0)
     return normalized
 
 

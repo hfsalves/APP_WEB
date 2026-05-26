@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Detalhe de Faturação{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <style>
+    .client-billing-detail-page .sz_page_container {
+      padding-block: var(--sz-space-2) 0;
+      padding-inline: var(--sz-space-4);
+    }
+
+    .client-billing-detail-page .sz_contextbar {
+      align-items: center;
+      gap: var(--sz-space-3);
+    }
+
+    .client-billing-detail-page .sz_contextbar_left {
+      min-width: 0;
+      gap: var(--sz-space-1);
+    }
+
+    .client-billing-detail-page .sz_page_body {
+      min-height: 0;
+      overflow: auto;
+      padding-bottom: var(--sz-space-3);
+    }
+
+    .client-billing-detail-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sz-space-3);
+      min-width: 0;
+    }
+
+    .client-billing-detail-kpis {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: var(--sz-space-2);
+    }
+
+    .client-billing-detail-kpi {
+      min-width: 0;
+      padding: var(--sz-space-3);
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-md);
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 62%, var(--sz-color-surface));
+      box-shadow: var(--sz-shadow-1);
+    }
+
+    .client-billing-detail-kpi span {
+      display: block;
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-xs);
+      font-weight: var(--sz-font-weight-semibold);
+      text-transform: uppercase;
+    }
+
+    .client-billing-detail-kpi strong {
+      display: block;
+      margin-top: 0.15rem;
+      color: var(--sz-color-text);
+      font-size: clamp(1rem, 1.7vw, 1.35rem);
+      line-height: 1.15;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .client-billing-detail-table-wrap {
+      overflow: auto;
+      border: 1px solid var(--sz-color-border);
+      border-radius: var(--sz-radius-lg);
+      background: var(--sz-color-surface);
+      box-shadow: var(--sz-shadow-1);
+    }
+
+    .client-billing-detail-table {
+      width: 100%;
+      min-width: 74rem;
+      border-collapse: collapse;
+      color: var(--sz-color-text);
+      font-size: var(--sz-font-size-sm);
+    }
+
+    .client-billing-detail-table th,
+    .client-billing-detail-table td {
+      padding: 0.75rem 0.8rem;
+      border-bottom: 1px solid var(--sz-color-border);
+      vertical-align: top;
+    }
+
+    .client-billing-detail-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 82%, var(--sz-color-surface));
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-xs);
+      font-weight: var(--sz-font-weight-bold);
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .client-billing-detail-table tbody tr:hover {
+      background: color-mix(in srgb, var(--sz-color-primary) 7%, transparent);
+    }
+
+    .client-billing-detail-table tfoot td {
+      border-bottom: 0;
+      background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
+      font-weight: var(--sz-font-weight-bold);
+    }
+
+    .client-billing-detail-code {
+      color: var(--sz-color-text);
+      font-weight: var(--sz-font-weight-bold);
+      white-space: nowrap;
+    }
+
+    .client-billing-detail-muted {
+      color: var(--sz-color-text-muted);
+      font-size: var(--sz-font-size-xs);
+    }
+
+    .client-billing-detail-money {
+      text-align: right;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .client-billing-detail-empty {
+      padding: var(--sz-space-6);
+      text-align: center;
+      color: var(--sz-color-text-muted);
+      border: 1px dashed var(--sz-color-border);
+      border-radius: var(--sz-radius-lg);
+      background: color-mix(in srgb, var(--sz-color-surface-alt) 42%, transparent);
+    }
+
+    @media (max-width: 980px) {
+      .client-billing-detail-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .client-billing-detail-page .sz_page_container {
+        padding-inline: var(--sz-space-3);
+      }
+
+      .client-billing-detail-page .sz_contextbar {
+        align-items: flex-start;
+      }
+
+      .client-billing-detail-kpis {
+        grid-template-columns: 1fr;
+      }
+
+      .client-billing-detail-page .sz_actionbar {
+        padding: var(--sz-space-2);
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page client-billing-detail-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Detalhe de Faturação</div>
+        <div class="sz_page_subtitle">
+          {{ detail.mes_label }} {{ detail.ano }}
+          {% if detail.alojamento %} · {{ detail.alojamento }}{% endif %}
+        </div>
+      </div>
+      <div class="sz_contextbar_right">
+        <a class="sz_button sz_button_ghost" href="{{ url_for('cliente_portal_page') }}">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </a>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="client-billing-detail-content">
+        <div class="client-billing-detail-kpis">
+          <div class="client-billing-detail-kpi">
+            <span>Reservas</span>
+            <strong>{{ detail.totals.reservas or 0 }}</strong>
+          </div>
+          <div class="client-billing-detail-kpi">
+            <span>Total c/IVA</span>
+            <strong>{{ detail.totals.total_com_iva_label or '0,00 €' }}</strong>
+          </div>
+          <div class="client-billing-detail-kpi">
+            <span>Valor Líquido</span>
+            <strong>{{ detail.totals.valor_liquido_label or '0,00 €' }}</strong>
+          </div>
+          <div class="client-billing-detail-kpi">
+            <span>Comissão Gestão</span>
+            <strong>{{ detail.totals.comissao_gestao_label or '0,00 €' }}</strong>
+          </div>
+          <div class="client-billing-detail-kpi">
+            <span>{% if detail.show_acerto %}Ganhos Total{% else %}Ganhos{% endif %}</span>
+            <strong>{% if detail.show_acerto %}{{ detail.totals.ganhos_total_label or '0,00 €' }}{% else %}{{ detail.totals.ganhos_label or '0,00 €' }}{% endif %}</strong>
+          </div>
+        </div>
+
+        {% if detail.reservas %}
+          <div class="client-billing-detail-table-wrap">
+            <table class="client-billing-detail-table">
+              <thead>
+                <tr>
+                  <th>Reserva</th>
+                  <th>Alojamento</th>
+                  <th>Nome</th>
+                  <th>Check-in</th>
+                  <th>Check-out</th>
+                  <th class="client-billing-detail-money">Pessoas</th>
+                  <th class="client-billing-detail-money">Total c/IVA</th>
+                  <th class="client-billing-detail-money">Comissão Plataforma</th>
+                  <th class="client-billing-detail-money">Valor Líquido</th>
+                  <th class="client-billing-detail-money">Ganhos</th>
+                  <th class="client-billing-detail-money">Comissão Gestão</th>
+                  {% if detail.show_acerto %}
+                    <th class="client-billing-detail-money">Acerto Plataforma</th>
+                    <th class="client-billing-detail-money">Ganhos Total</th>
+                  {% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in detail.reservas %}
+                  <tr>
+                    <td>
+                      <div class="client-billing-detail-code">{{ row.reserva or 'Reserva' }}</div>
+                    </td>
+                    <td>{{ row.alojamento }}</td>
+                    <td>{{ row.hospede }}</td>
+                    <td>{{ row.datain }}</td>
+                    <td>{{ row.dataout }}</td>
+                    <td class="client-billing-detail-money">{{ row.pessoas }}</td>
+                    <td class="client-billing-detail-money">{{ row.total_com_iva_label }}</td>
+                    <td class="client-billing-detail-money">{{ row.comissao_plataforma_label }}</td>
+                    <td class="client-billing-detail-money">{{ row.valor_liquido_label }}</td>
+                    <td class="client-billing-detail-money">{{ row.ganhos_label }}</td>
+                    <td class="client-billing-detail-money">{{ row.comissao_gestao_label }}</td>
+                    {% if detail.show_acerto %}
+                      <td class="client-billing-detail-money">{{ row.acerto_plataforma_label }}</td>
+                      <td class="client-billing-detail-money">{{ row.ganhos_total_label }}</td>
+                    {% endif %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="6">Totais</td>
+                  <td class="client-billing-detail-money">{{ detail.totals.total_com_iva_label }}</td>
+                  <td class="client-billing-detail-money">{{ detail.totals.comissao_plataforma_label }}</td>
+                  <td class="client-billing-detail-money">{{ detail.totals.valor_liquido_label }}</td>
+                  <td class="client-billing-detail-money">{{ detail.totals.ganhos_label }}</td>
+                  <td class="client-billing-detail-money">{{ detail.totals.comissao_gestao_label }}</td>
+                  {% if detail.show_acerto %}
+                    <td class="client-billing-detail-money">{{ detail.totals.acerto_plataforma_label }}</td>
+                    <td class="client-billing-detail-money">{{ detail.totals.ganhos_total_label }}</td>
+                  {% endif %}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        {% else %}
+          <div class="client-billing-detail-empty">Não existem reservas com check-out neste mês.</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <footer class="sz_actionbar sz_page_footer">
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <a class="sz_button sz_button_ghost" href="{{ url_for('cliente_portal_page') }}">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </a>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}

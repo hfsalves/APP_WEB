@@ -229,6 +229,7 @@ class US(UserMixin, db.Model):
     HOME     = db.Column(db.String(200), unique=True, nullable=False)
     VIEWMODE = db.Column(db.String(20), nullable=False, default='LIGHT MODE')
     CLNO     = db.Column(db.Integer, nullable=True)
+    CLESTAB  = db.Column(db.Integer, nullable=True)
     CLNOME   = db.Column(db.String(120), nullable=True)
 
     def check_password(self, plaintext):

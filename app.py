@@ -22877,6 +22877,23 @@ def create_app():
             return redirect(url_for('home_page'))
         return render_template('cliente_reservas.html', page_title='Reservas')
 
+    @app.route('/cliente/faturacao/<int:ano>/<int:mes>')
+    @app.route('/portal_cliente/faturacao/<int:ano>/<int:mes>')
+    @login_required
+    def cliente_faturacao_mes_page(ano, mes):
+        if not _is_cliente_user():
+            return redirect(url_for('home_page'))
+        if mes < 1 or mes > 12:
+            abort(404)
+        ano = max(2000, min(2100, int(ano or date.today().year)))
+        alojamento = str(request.args.get('alojamento') or '').strip()
+        detail = _cliente_faturacao_mes_detail(ano, mes, alojamento)
+        return render_template(
+            'cliente_faturacao_mes.html',
+            page_title='Detalhe de Faturação',
+            detail=detail,
+        )
+
     CLIENT_DOCUMENTS_UPLOAD_FOLDER = 'ENVIADOS_PELO_CLIENTE'
     CLIENT_DOCUMENTS_ALLOWED_EXT = {
         'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt',
@@ -22888,6 +22905,184 @@ def create_app():
             return int(str(getattr(current_user, 'CLNO', '') or '').strip())
         except Exception:
             return None
+
+    def _current_cliente_estab():
+        try:
+            return max(0, int(str(getattr(current_user, 'CLESTAB', '') or '0').strip()))
+        except Exception:
+            return 0
+
+    def _cliente_al_scope_sql(alias='AL'):
+        table_alias = str(alias or 'AL').strip() or 'AL'
+        return f"ISNULL({table_alias}.CLESTAB, 0) = :clestab" if _current_cliente_estab() > 0 else ""
+
+    def _cliente_al_scope_params():
+        estab = _current_cliente_estab()
+        return {'clestab': estab} if estab > 0 else {}
+
+    def _cliente_money(value):
+        try:
+            return round(float(value or 0), 2)
+        except Exception:
+            return 0.0
+
+    def _cliente_money_label(value):
+        amount = _cliente_money(value)
+        text_value = f"{amount:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+        return f"{text_value} €"
+
+    def _cliente_date_iso(value):
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        raw = str(value or '').strip()
+        return raw[:10] if raw else ''
+
+    def _cliente_date_label(value):
+        iso = _cliente_date_iso(value)
+        if not iso:
+            return ''
+        try:
+            d = datetime.strptime(iso[:10], '%Y-%m-%d').date()
+            return d.strftime('%d/%m/%Y')
+        except Exception:
+            return iso
+
+    def _cliente_faturacao_calc(row):
+        estadia = _cliente_money(row.get('ESTADIA'))
+        limpeza = _cliente_money(row.get('LIMPEZA'))
+        comissao_plataforma = _cliente_money(row.get('COMISSAO'))
+        gestao_pct = _cliente_money(row.get('AL_COMISSAO')) / 100.0
+        ftlimpeza = _to_int(row.get('FTLIMPEZA'), 0) == 1
+
+        total_com_iva = _cliente_money(estadia if ftlimpeza else estadia + limpeza)
+        valor_liquido = _cliente_money(total_com_iva - comissao_plataforma)
+        comissao_gestao = _cliente_money(valor_liquido * gestao_pct)
+        ganhos = _cliente_money(valor_liquido - comissao_gestao)
+
+        plataforma_base = estadia + limpeza
+        plataforma_pct = (comissao_plataforma / plataforma_base) if plataforma_base else 0.0
+        acerto_plataforma = _cliente_money(-(limpeza * plataforma_pct)) if ftlimpeza else 0.0
+        ganhos_total = _cliente_money(ganhos + acerto_plataforma) if ftlimpeza else ganhos
+
+        return {
+            'estadia': estadia,
+            'limpeza': limpeza,
+            'comissao_plataforma': comissao_plataforma,
+            'comissao_gestao_pct': _cliente_money(row.get('AL_COMISSAO')),
+            'ftlimpeza': ftlimpeza,
+            'total_com_iva': total_com_iva,
+            'valor_liquido': valor_liquido,
+            'ganhos': ganhos,
+            'comissao_gestao': comissao_gestao,
+            'acerto_plataforma': acerto_plataforma,
+            'ganhos_total': ganhos_total,
+        }
+
+    def _cliente_faturacao_mes_detail(ano, mes, alojamento=''):
+        clno = _current_cliente_no()
+        if not clno:
+            return {
+                'cliente': {'no': None, 'nome': ''},
+                'ano': ano,
+                'mes': mes,
+                'mes_label': '',
+                'alojamento': alojamento,
+                'reservas': [],
+                'totals': {},
+                'show_acerto': False,
+            }
+
+        month_names = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+        where = [
+            "ISNULL(AL.INATIVO, 0) = 0",
+            "ISNULL(AL.CLIENTID, 0) = :clno",
+            "ISNULL(RS.CANCELADA, 0) = 0",
+            "RS.DATAOUT IS NOT NULL",
+            "YEAR(CAST(RS.DATAOUT AS date)) = :ano",
+            "MONTH(CAST(RS.DATAOUT AS date)) = :mes",
+        ]
+        params = {'clno': clno, 'ano': int(ano), 'mes': int(mes)}
+        estab_filter = _cliente_al_scope_sql('AL')
+        if estab_filter:
+            where.append(estab_filter)
+            params.update(_cliente_al_scope_params())
+        if alojamento:
+            where.append("LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(:alojamento))")
+            params['alojamento'] = alojamento
+
+        rows = db.session.execute(text(f"""
+            SELECT
+                RS.RSSTAMP,
+                LTRIM(RTRIM(ISNULL(RS.RESERVA, ''))) AS RESERVA,
+                LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                LTRIM(RTRIM(ISNULL(RS.NOME, ''))) AS HOSPEDE,
+                CAST(RS.DATAIN AS date) AS DATAIN,
+                CAST(RS.DATAOUT AS date) AS DATAOUT,
+                ISNULL(RS.ADULTOS, 0) AS ADULTOS,
+                ISNULL(RS.CRIANCAS, 0) AS CRIANCAS,
+                ISNULL(RS.BEBES, 0) AS BEBES,
+                ISNULL(RS.ESTADIA, 0) AS ESTADIA,
+                ISNULL(RS.LIMPEZA, 0) AS LIMPEZA,
+                ISNULL(RS.COMISSAO, 0) AS COMISSAO,
+                ISNULL(AL.COMISSAO, 0) AS AL_COMISSAO,
+                ISNULL(AL.FTLIMPEZA, 0) AS FTLIMPEZA
+            FROM dbo.RS AS RS
+            INNER JOIN dbo.AL AS AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+            WHERE {' AND '.join(where)}
+            ORDER BY CAST(RS.DATAOUT AS date), LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))), LTRIM(RTRIM(ISNULL(RS.RESERVA, '')))
+        """), params).mappings().all()
+
+        totals = {
+            'reservas': 0,
+            'total_com_iva': 0.0,
+            'comissao_plataforma': 0.0,
+            'valor_liquido': 0.0,
+            'ganhos': 0.0,
+            'comissao_gestao': 0.0,
+            'acerto_plataforma': 0.0,
+            'ganhos_total': 0.0,
+        }
+        reservas = []
+        show_acerto = False
+        for row in rows:
+            calc = _cliente_faturacao_calc(row)
+            show_acerto = show_acerto or bool(calc['ftlimpeza'])
+            pessoas = int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0) + int(row.get('BEBES') or 0)
+            item = {
+                'rsstamp': str(row.get('RSSTAMP') or '').strip(),
+                'reserva': str(row.get('RESERVA') or '').strip(),
+                'alojamento': str(row.get('ALOJAMENTO') or '').strip(),
+                'hospede': str(row.get('HOSPEDE') or '').strip(),
+                'datain': _cliente_date_label(row.get('DATAIN')),
+                'dataout': _cliente_date_label(row.get('DATAOUT')),
+                'pessoas': pessoas,
+                **calc,
+            }
+            for key in ('total_com_iva', 'comissao_plataforma', 'valor_liquido', 'ganhos', 'comissao_gestao', 'acerto_plataforma', 'ganhos_total'):
+                item[f'{key}_label'] = _cliente_money_label(item[key])
+                totals[key] = _cliente_money(totals[key] + item[key])
+            reservas.append(item)
+
+        totals['reservas'] = len(reservas)
+        for key in ('total_com_iva', 'comissao_plataforma', 'valor_liquido', 'ganhos', 'comissao_gestao', 'acerto_plataforma', 'ganhos_total'):
+            totals[f'{key}_label'] = _cliente_money_label(totals[key])
+
+        return {
+            'cliente': {
+                'no': clno,
+                'nome': str(getattr(current_user, 'CLNOME', '') or '').strip(),
+            },
+            'ano': int(ano),
+            'mes': int(mes),
+            'mes_label': month_names[int(mes) - 1],
+            'alojamento': alojamento,
+            'reservas': reservas,
+            'totals': totals,
+            'show_acerto': show_acerto,
+        }
 
     def _cliente_docs_root(clno=None, create=False):
         clno = clno if clno is not None else _current_cliente_no()
@@ -23135,14 +23330,21 @@ def create_app():
         include_cancelled = str(request.args.get('include_cancelled') or '').strip().lower() in ('1', 'true', 'yes', 'on')
         status_filter = str(request.args.get('status') or 'all').strip().lower()
 
-        alojamentos_rows = db.session.execute(text("""
+        alojamentos_where = [
+            "ISNULL(INATIVO, 0) = 0",
+            "ISNULL(CLIENTID, 0) = :clno",
+            "LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''",
+        ]
+        alojamentos_params = {'clno': clno}
+        if _current_cliente_estab() > 0:
+            alojamentos_where.append("ISNULL(CLESTAB, 0) = :clestab")
+            alojamentos_params.update(_cliente_al_scope_params())
+        alojamentos_rows = db.session.execute(text(f"""
             SELECT LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
             FROM dbo.AL
-            WHERE ISNULL(INATIVO, 0) = 0
-              AND ISNULL(CLIENTID, 0) = :clno
-              AND LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''
+            WHERE {' AND '.join(alojamentos_where)}
             ORDER BY NOME
-        """), {'clno': clno}).mappings().all()
+        """), alojamentos_params).mappings().all()
         alojamentos = [str(r.get('NOME') or '').strip() for r in alojamentos_rows if str(r.get('NOME') or '').strip()]
 
         where = [
@@ -23150,6 +23352,10 @@ def create_app():
             "ISNULL(AL.CLIENTID, 0) = :clno",
         ]
         params = {'clno': clno}
+        estab_filter = _cliente_al_scope_sql('AL')
+        if estab_filter:
+            where.append(estab_filter)
+            params.update(_cliente_al_scope_params())
         if scope == 'dashboard':
             where.append("ISNULL(RS.CANCELADA, 0) = 0")
             where.append("CAST(ISNULL(RS.DATAOUT, RS.DATAIN) AS date) >= CAST(GETDATE() AS date)")
@@ -23301,14 +23507,21 @@ def create_app():
         ano = max(2000, min(2100, ano))
         alojamento = str(request.args.get('alojamento') or '').strip()
 
-        alojamentos_rows = db.session.execute(text("""
+        alojamentos_where = [
+            "ISNULL(INATIVO, 0) = 0",
+            "ISNULL(CLIENTID, 0) = :clno",
+            "LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''",
+        ]
+        alojamentos_params = {'clno': clno}
+        if _current_cliente_estab() > 0:
+            alojamentos_where.append("ISNULL(CLESTAB, 0) = :clestab")
+            alojamentos_params.update(_cliente_al_scope_params())
+        alojamentos_rows = db.session.execute(text(f"""
             SELECT LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
             FROM dbo.AL
-            WHERE ISNULL(INATIVO, 0) = 0
-              AND ISNULL(CLIENTID, 0) = :clno
-              AND LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''
+            WHERE {' AND '.join(alojamentos_where)}
             ORDER BY NOME
-        """), {'clno': clno}).mappings().all()
+        """), alojamentos_params).mappings().all()
         alojamentos = [str(r.get('NOME') or '').strip() for r in alojamentos_rows if str(r.get('NOME') or '').strip()]
 
         where = [
@@ -23318,6 +23531,10 @@ def create_app():
             "YEAR(CAST(RS.DATAOUT AS date)) = :ano",
         ]
         params = {'clno': clno, 'ano': ano}
+        estab_filter = _cliente_al_scope_sql('AL')
+        if estab_filter:
+            where.append(estab_filter)
+            params.update(_cliente_al_scope_params())
         if alojamento:
             where.append("LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(:alojamento))")
             params['alojamento'] = alojamento
@@ -23382,6 +23599,10 @@ def create_app():
                 'liquido': 0.0,
             }
             item['label'] = month_names[month - 1]
+            detail_args = {'ano': ano, 'mes': month}
+            if alojamento:
+                detail_args['alojamento'] = alojamento
+            item['detail_url'] = url_for('cliente_faturacao_mes_page', **detail_args)
             meses.append(item)
             totals['reservas'] += int(item['reservas'] or 0)
             totals['faturado'] += float(item['faturado'] or 0)
