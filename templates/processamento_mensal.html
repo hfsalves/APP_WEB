@@ -5,75 +5,100 @@
 {% block title %}Processamento Mensal{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3 pm-page">
-  <div class="d-flex align-items-center gap-2 flex-wrap mb-3 pm-toolbar">
-    <button class="btn btn-sm btn-outline-secondary" id="pmPrev"><i class="fa-solid fa-chevron-left"></i></button>
-    <div class="pm-month" id="pmMonthLabel"></div>
-    <button class="btn btn-sm btn-outline-secondary" id="pmNext"><i class="fa-solid fa-chevron-right"></i></button>
-    <button class="btn btn-sm btn-outline-primary" id="pmAddClientes"><i class="fa-solid fa-user-plus"></i> Adicionar clientes</button>
-    <button class="btn btn-sm btn-outline-primary" id="pmCalcValores"><i class="fa-solid fa-calculator"></i> Calcular valores</button>
-    <button class="btn btn-sm btn-outline-primary" id="pmFetchDossiers"><i class="fa-solid fa-magnifying-glass"></i> Pesquisar dossiers</button>
-    <div class="ms-auto text-muted small" id="pmCount"></div>
-  </div>
-
-  <div class="card shadow-sm pm-card">
-    <div class="card-body p-0 pm-body">
-      <div class="table-responsive pm-table-wrap">
-        <table class="table table-sm align-middle mb-0 pm-table">
-          <thead class="table-light sticky-top">
-            <tr>
-              <th>No</th>
-              <th>Nome</th>
-              <th class="text-end">Comissões</th>
-              <th class="text-end">Imputações</th>
-              <th class="text-end">Total</th>
-              <th class="text-end">Total c/IVA</th>
-              <th>Dossier</th>
-              <th class="text-end">Valor Dossier</th>
-              <th>Fatura TG</th>
-              <th class="text-end">Valor Fatura</th>
-              <th>Ficheiro</th>
-              <th>Enviado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="pmBody">
-            <tr><td colspan="13" class="text-muted p-3">A carregar...</td></tr>
-          </tbody>
-          <tfoot class="table-light" id="pmFoot">
-            <tr>
-              <th colspan="5"></th>
-              <th></th>
-              <th></th>
-              <th class="text-end" id="pmTotalDossier"></th>
-              <th></th>
-              <th class="text-end" id="pmTotalFatura"></th>
-              <th colspan="3"></th>
-            </tr>
-          </tfoot>
-        </table>
+<div class="sz_page pm-page">
+  <div class="sz_page_container pm-page-container">
+    <header class="sz_contextbar sz_page_contextbar pm-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Processamento Mensal</div>
+        <div class="sz_page_subtitle">Fecho mensal, dossiers e faturas por proprietário.</div>
       </div>
-    </div>
+      <div class="sz_contextbar_right pm-toolbar">
+        <div class="pm-period-nav" aria-label="Período">
+          <button class="sz_button sz_button_ghost pm-icon-btn" id="pmPrev" type="button" title="Mês anterior" aria-label="Mês anterior">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <div class="pm-month" id="pmMonthLabel"></div>
+          <button class="sz_button sz_button_ghost pm-icon-btn" id="pmNext" type="button" title="Mês seguinte" aria-label="Mês seguinte">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+        <div class="pm-actions">
+          <button class="sz_button sz_button_ghost" id="pmAddClientes" type="button">
+            <i class="fa-solid fa-user-plus"></i>
+            <span>Adicionar clientes</span>
+          </button>
+          <button class="sz_button sz_button_ghost" id="pmCalcValores" type="button">
+            <i class="fa-solid fa-calculator"></i>
+            <span>Calcular valores</span>
+          </button>
+          <button class="sz_button sz_button_primary" id="pmFetchDossiers" type="button">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <span>Pesquisar dossiers</span>
+          </button>
+          <span class="sz_badge sz_badge_info pm-count" id="pmCount"></span>
+        </div>
+      </div>
+    </header>
+
+    <section class="sz_panel pm-card">
+      <div class="pm-body">
+        <div class="sz_table_host pm-table-wrap">
+          <table class="sz_table sz_table_compact pm-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Nome</th>
+                <th class="text-end">Comissões</th>
+                <th class="text-end">Imputações</th>
+                <th class="text-end">Total</th>
+                <th class="text-end">Total c/IVA</th>
+                <th>Dossier</th>
+                <th class="text-end">Valor Dossier</th>
+                <th>Fatura TG</th>
+                <th class="text-end">Valor Fatura</th>
+                <th>Ficheiro</th>
+                <th>Enviado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="pmBody">
+              <tr><td colspan="13" class="text-muted p-3">A carregar...</td></tr>
+            </tbody>
+            <tfoot id="pmFoot">
+              <tr>
+                <th colspan="5"></th>
+                <th></th>
+                <th></th>
+                <th class="text-end" id="pmTotalDossier"></th>
+                <th></th>
+                <th class="text-end" id="pmTotalFatura"></th>
+                <th colspan="3"></th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 
-<div class="modal fade" id="pmDrillModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
+<div class="modal fade pm-modal" id="pmDrillModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered pm-drill-dialog">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="pmDrillTitle">Detalhe</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
-        <div class="table-responsive pm-drill-wrap">
-          <table class="table table-sm align-middle mb-0 pm-drill-table">
-            <thead class="table-light sticky-top">
+        <div class="sz_table_host pm-drill-wrap">
+          <table class="sz_table sz_table_compact pm-drill-table">
+            <thead>
               <tr id="pmDrillHead"></tr>
             </thead>
             <tbody id="pmDrillBody">
               <tr><td class="text-muted p-3">A carregar...</td></tr>
             </tbody>
-            <tfoot class="table-light">
+            <tfoot>
               <tr id="pmDrillFoot"></tr>
             </tfoot>
           </table>
@@ -82,45 +107,45 @@
     </div>
   </div>
 </div>
-<div class="modal fade" id="pmClientesModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Adicionar clientes</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-        </div>
-        <div class="modal-body">
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <div class="text-muted small">Clientes sem DM no mês selecionado</div>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="pmSelectAll">
-              <label class="form-check-label small" for="pmSelectAll">Selecionar todos</label>
-            </div>
-          </div>
-          <div class="table-responsive pm-clientes-wrap">
-            <table class="table table-sm align-middle mb-0 pm-clientes-table">
-              <thead class="table-light sticky-top">
-                <tr>
-                  <th style="width:36px;"></th>
-                  <th>No</th>
-                  <th>Nome</th>
-                </tr>
-              </thead>
-              <tbody id="pmClientesBody">
-                <tr><td colspan="3" class="text-muted p-3">A carregar...</td></tr>
-              </tbody>
-            </table>
+<div class="modal fade pm-modal" id="pmClientesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Adicionar clientes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="pm-muted">Clientes sem DM no mês selecionado</div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="pmSelectAll">
+            <label class="form-check-label small" for="pmSelectAll">Selecionar todos</label>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button class="btn btn-sm btn-primary" id="pmAddClientesSave">Adicionar</button>
+        <div class="sz_table_host pm-clientes-wrap">
+          <table class="sz_table sz_table_compact pm-clientes-table">
+            <thead>
+              <tr>
+                <th style="width:36px;"></th>
+                <th>No</th>
+                <th>Nome</th>
+              </tr>
+            </thead>
+            <tbody id="pmClientesBody">
+              <tr><td colspan="3" class="text-muted p-3">A carregar...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
+      <div class="modal-footer">
+        <button class="sz_button sz_button_ghost" type="button" data-bs-dismiss="modal">Cancelar</button>
+        <button class="sz_button sz_button_primary" type="button" id="pmAddClientesSave">Adicionar</button>
+      </div>
+    </div>
   </div>
 </div>
 
-<div class="modal fade" id="pmFaturaModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade pm-modal" id="pmFaturaModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-sm modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
@@ -129,209 +154,362 @@
       </div>
       <div class="modal-body">
         <div class="mb-2">
-          <div class="text-muted small">Fatura</div>
+          <div class="pm-muted">Fatura</div>
           <div id="pmFaturaNum" class="fw-bold"></div>
         </div>
         <div class="mb-2">
-          <div class="text-muted small">Valor</div>
+          <div class="pm-muted">Valor</div>
           <div id="pmFaturaVal" class="fw-bold"></div>
         </div>
         <div class="mb-3">
-          <div class="text-muted small">Período atual</div>
+          <div class="pm-muted">Período atual</div>
           <div id="pmFaturaPer" class="fw-bold"></div>
         </div>
         <div>
           <label class="form-label">Mover para período</label>
-          <select class="form-select form-select-sm" id="pmFaturaTarget"></select>
-          <div class="text-muted small mt-2" id="pmFaturaHint"></div>
+          <select class="form-select form-select-sm pm-select" id="pmFaturaTarget"></select>
+          <div class="pm-muted mt-2" id="pmFaturaHint"></div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button class="btn btn-sm btn-primary" id="pmFaturaSave">Gravar</button>
+        <button class="sz_button sz_button_ghost" type="button" data-bs-dismiss="modal">Cancelar</button>
+        <button class="sz_button sz_button_primary" type="button" id="pmFaturaSave">Gravar</button>
       </div>
     </div>
   </div>
 </div>
 
 <style>
-  .pm-page{ height: calc(100vh - 120px); display:flex; flex-direction:column; }
-  .pm-toolbar{ flex:0 0 auto; }
-  .pm-month{
-    font-weight:800; font-size:16px; color:#0f172a;
-    min-width:140px; text-align:center;
+  .pm-page-container {
+    grid-template-rows: auto minmax(0, 1fr);
   }
-  .pm-card{ flex:1 1 auto; overflow:hidden; }
-  .pm-body{ height:100%; }
-  .pm-table-wrap{ max-height:100%; overflow:auto; }
-  .pm-table{
-    border-collapse: separate;
-    border-spacing: 0 6px;
+
+  .pm-contextbar {
+    align-items: center;
+  }
+
+  .pm-toolbar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    width: min(100%, 56rem);
+    gap: var(--sz-space-3);
+  }
+
+  .pm-period-nav,
+  .pm-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    flex-wrap: wrap;
+  }
+
+  .pm-month {
+    min-width: 10rem;
+    padding: 0.45rem 0.8rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-bold);
+    line-height: var(--sz-line-tight);
+    text-align: center;
+  }
+
+  .pm-icon-btn {
+    width: var(--sz-button-height);
+    min-width: var(--sz-button-height);
+    padding: 0;
+  }
+
+  .pm-count:empty {
+    display: none;
+  }
+
+  .pm-card {
+    display: flex;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .pm-body,
+  .pm-table-wrap {
     width: 100%;
-    min-width: 920px;
-    font-size: 12px;
-    color: #0f172a;
+    height: 100%;
+    min-height: 0;
   }
-  .pm-table thead th{
-    font-weight:800; text-transform:uppercase; letter-spacing:.05em;
-    font-size:11px; color:#334155;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    border-bottom:1px solid rgba(148,163,184,.35);
-    padding:.55rem .75rem;
+
+  .pm-body {
+    flex: 1 1 auto;
   }
-  .pm-table tfoot th{
+
+  .pm-table-wrap {
+    border: 0;
+    border-radius: var(--sz-radius-md);
+  }
+
+  .pm-table {
+    min-width: 980px;
+    color: var(--sz-color-text);
+  }
+
+  .pm-table th,
+  .pm-table td,
+  .pm-clientes-table th,
+  .pm-clientes-table td,
+  .pm-drill-table th,
+  .pm-drill-table td {
+    white-space: nowrap;
+  }
+
+  .pm-table thead th,
+  .pm-clientes-table thead th,
+  .pm-drill-table thead th {
+    text-transform: uppercase;
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+    color: var(--sz-color-text-secondary);
+  }
+
+  .pm-table tbody tr,
+  .pm-clientes-table tbody tr,
+  .pm-drill-table tbody tr {
+    transition: background-color 0.15s ease;
+  }
+
+  .pm-table tbody tr:hover,
+  .pm-clientes-table tbody tr:hover,
+  .pm-drill-table tbody tr:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 7%, transparent);
+  }
+
+  .pm-table tbody td:first-child {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .pm-table tfoot th,
+  .pm-drill-table tfoot th {
     position: sticky;
     bottom: 0;
-    z-index: 2;
-    background: #f8fafc;
-    border-top:1px solid rgba(148,163,184,.35);
-    font-weight:800;
-    font-size:11px;
-    padding:.55rem .75rem;
+    z-index: 6;
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-bold);
+    border-top: 1px solid var(--sz-color-border);
   }
-  .pm-table tbody tr{
-    background:#fff; border:1px solid #e5e7eb;
-    box-shadow:0 6px 18px rgba(15,23,42,.05);
+
+  .pm-cell-link,
+  .pm-fatura-link,
+  .pm-file {
+    color: var(--sz-color-primary);
+    font-weight: var(--sz-font-weight-bold);
+    text-decoration: none;
   }
-  .pm-table tbody tr td{ padding:.5rem .75rem; border:none; }
-  .pm-table tbody tr td:first-child{
-    border-top-left-radius:12px; border-bottom-left-radius:12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-weight:700;
+
+  .pm-cell-link,
+  .pm-fatura-link {
+    cursor: pointer;
   }
-  .pm-table tbody tr td:last-child{
-    border-top-right-radius:12px; border-bottom-right-radius:12px;
+
+  .pm-cell-link:hover,
+  .pm-fatura-link:hover,
+  .pm-file:hover {
+    color: color-mix(in srgb, var(--sz-color-primary) 76%, var(--sz-color-text));
+    text-decoration: underline;
   }
-  .pm-table tbody tr:hover{
-    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
+
+  .pm-badge,
+  .pm-missing,
+  .pm-flag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.45rem;
+    padding: 0.12rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
   }
-  .pm-clientes-wrap{ max-height: 55vh; overflow:auto; border:1px solid #e5e7eb; border-radius:12px; }
-  .pm-clientes-table{
-    border-collapse: separate;
-    border-spacing: 0 6px;
-    width:100%;
-    font-size: 12px;
+
+  .pm-badge {
+    background: var(--sz-color-surface-alt);
+    border-color: var(--sz-color-border);
+    color: var(--sz-color-text-secondary);
   }
-  .pm-clientes-table thead th{
-    font-weight:800; text-transform:uppercase; letter-spacing:.05em;
-    font-size:11px; color:#334155;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    border-bottom:1px solid rgba(148,163,184,.35);
-    padding:.45rem .6rem;
-    position: sticky; top: 0; z-index: 2;
+
+  .pm-badge.y {
+    background: color-mix(in srgb, var(--sz-color-success) 16%, transparent);
+    border-color: color-mix(in srgb, var(--sz-color-success) 42%, transparent);
+    color: var(--sz-color-success);
   }
-  .pm-clientes-table tbody tr{
-    background:#fff; border:1px solid #e5e7eb;
-    box-shadow:0 6px 18px rgba(15,23,42,.05);
+
+  .pm-badge.n,
+  .pm-flag {
+    background: color-mix(in srgb, var(--sz-color-danger) 14%, transparent);
+    border-color: color-mix(in srgb, var(--sz-color-danger) 38%, transparent);
+    color: var(--sz-color-danger);
   }
-  .pm-clientes-table tbody tr td{
-    padding:.5rem .65rem; border:none;
+
+  .pm-missing {
+    background: color-mix(in srgb, var(--sz-color-warning) 18%, transparent);
+    border-color: color-mix(in srgb, var(--sz-color-warning) 42%, transparent);
+    color: var(--sz-color-warning);
   }
-  .pm-clientes-table tbody tr td:first-child{
-    border-top-left-radius:12px; border-bottom-left-radius:12px;
+
+  .pm-diff {
+    color: var(--sz-color-danger) !important;
+    font-weight: var(--sz-font-weight-bold);
   }
-  .pm-clientes-table tbody tr td:last-child{
-    border-top-right-radius:12px; border-bottom-right-radius:12px;
+
+  .pm-ok > td {
+    background: color-mix(in srgb, var(--sz-color-success) 10%, transparent);
   }
-  .pm-clientes-table tbody tr:hover{
-    background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%);
-  }
-  .pm-cell-link{
-    cursor:pointer;
-    color:#0f172a;
-    font-weight:700;
-  }
-  .pm-cell-link:hover{ color:#1d4ed8; }
-  .pm-drill-wrap{ max-height: 60vh; overflow:auto; border:1px solid #e5e7eb; border-radius:12px; }
-  .pm-drill-table thead th{
-    font-weight:800; text-transform:uppercase; letter-spacing:.05em;
-    font-size:10px; color:#334155;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    border-bottom:1px solid rgba(148,163,184,.35);
-    padding:.45rem .6rem;
-    position: sticky; top: 0; z-index: 2;
-  }
-  .pm-drill-table{
-    font-size:11px;
-    color:#0f172a;
-  }
-  .pm-drill-table tbody tr{
-    background:#fff; border:1px solid #e5e7eb;
-    box-shadow:0 6px 18px rgba(15,23,42,.05);
-  }
-  .pm-drill-table tbody tr td{ padding:.45rem .6rem; border:none; }
-  .pm-drill-table tbody tr:hover{ background: linear-gradient(120deg, #f1f5f9 0%, #e0f2fe 100%); }
-  .pm-cancel td.pm-strike{
-    text-decoration: line-through;
-    color:#94a3b8;
-  }
-  .pm-drill-table tfoot th{
-    font-weight:800; font-size:10px; color:#0f172a;
-    border-top:1px solid rgba(148,163,184,.35);
-    padding:.45rem .6rem;
-    background:#f8fafc;
-  }
-  .pm-file{
-    color:#1d4ed8; text-decoration:none; font-weight:700;
-  }
-  .pm-badge{
-    display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px;
-    font-size:11px; font-weight:700; border:1px solid #e5e7eb; background:#f8fafc;
-  }
-  .pm-badge.y{ background:#dcfce7; border-color:#bbf7d0; color:#166534; }
-  .pm-badge.n{ background:#fee2e2; border-color:#fecaca; color:#991b1b; }
-  .pm-diff{
-    color:#b91c1c;
-    font-weight:800;
-  }
-  .pm-ok > td{
-    background:#dcfce7;
-    border-color:#bbf7d0;
-  }
-  .pm-del{
-    border:none;
+
+  .pm-del {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid transparent;
+    border-radius: var(--sz-radius-sm);
     background: transparent;
-    color:#94a3b8;
-    width:28px;
-    height:28px;
-    border-radius:50%;
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    transition: all .15s ease;
+    color: var(--sz-color-text-muted);
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
   }
-  .pm-del:hover{
-    background:#ef4444;
-    color:#fff;
-    box-shadow:0 6px 16px rgba(239,68,68,.35);
+
+  .pm-del:hover {
+    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--sz-color-danger) 16%, transparent);
+    border-color: color-mix(in srgb, var(--sz-color-danger) 42%, transparent);
+    color: var(--sz-color-danger);
   }
-  .pm-fatura-link{
-    cursor:pointer;
-    color:#0f172a;
-    font-weight:700;
+
+  .pm-cancel td.pm-strike {
+    color: var(--sz-color-text-muted);
+    text-decoration: line-through;
   }
-  .pm-fatura-link:hover{ color:#1d4ed8; }
-  .pm-missing{
-    display:inline-flex;
-    align-items:center;
-    padding:2px 8px;
-    border-radius:999px;
-    font-size:11px;
-    font-weight:800;
-    background:#ffedd5;
-    border:1px solid #fed7aa;
-    color:#c2410c;
+
+  .pm-clientes-wrap,
+  .pm-drill-wrap {
+    max-height: 58vh;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
   }
-  .pm-flag{
-    display:inline-flex;
-    align-items:center;
-    padding:2px 8px;
-    border-radius:999px;
-    font-size:11px;
-    font-weight:800;
-    background:#fee2e2;
-    border:1px solid #fecaca;
-    color:#991b1b;
+
+  #pmDrillModal .pm-drill-dialog {
+    width: min(94vw, 1380px);
+    max-width: min(94vw, 1380px);
+  }
+
+  #pmDrillModal .modal-body {
+    padding: var(--sz-space-4);
+  }
+
+  #pmDrillModal .pm-drill-wrap {
+    max-height: calc(100vh - 14rem);
+  }
+
+  .pm-drill-table {
+    min-width: 1180px;
+  }
+
+  .pm-modal .modal-content {
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    color: var(--sz-color-text);
+    box-shadow: var(--sz-shadow-3);
+  }
+
+  .pm-modal .modal-header,
+  .pm-modal .modal-footer {
+    border-color: var(--sz-color-border);
+  }
+
+  .pm-modal .modal-title {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .pm-modal .modal-body {
+    color: var(--sz-color-text);
+  }
+
+  .pm-modal .form-check-label,
+  .pm-modal .form-label,
+  .pm-modal .fw-bold {
+    color: var(--sz-color-text);
+  }
+
+  .pm-muted,
+  .pm-page .text-muted,
+  .pm-modal .text-muted {
+    color: var(--sz-color-text-muted) !important;
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .pm-page .text-danger,
+  .pm-modal .text-danger {
+    color: var(--sz-color-danger) !important;
+  }
+
+  .pm-select,
+  .pm-modal .form-select {
+    background-color: var(--sz-color-surface-alt);
+    border-color: var(--sz-color-border);
+    color: var(--sz-color-text);
+  }
+
+  .pm-select:focus,
+  .pm-modal .form-select:focus {
+    border-color: var(--sz-color-primary);
+    box-shadow: 0 0 0 0.16rem color-mix(in srgb, var(--sz-color-primary) 20%, transparent);
+  }
+
+  [data-sz-theme="dark"] .pm-modal .btn-close,
+  [data-sz-theme="geek"] .pm-modal .btn-close {
+    filter: invert(1) grayscale(1);
+  }
+
+  @media (max-width: 900px) {
+    .pm-contextbar {
+      align-items: flex-start;
+    }
+
+    .pm-toolbar,
+    .pm-actions,
+    .pm-period-nav {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .pm-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .pm-actions .sz_button {
+      flex: 1 1 10rem;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .pm-period-nav {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .pm-month {
+      min-width: 0;
+    }
   }
 </style>
 

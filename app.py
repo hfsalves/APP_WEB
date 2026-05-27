@@ -22952,23 +22952,27 @@ def create_app():
     def _cliente_faturacao_calc(row):
         estadia = _cliente_money(row.get('ESTADIA'))
         limpeza = _cliente_money(row.get('LIMPEZA'))
-        comissao_plataforma = _cliente_money(row.get('COMISSAO'))
+        pcancel = _cliente_money(row.get('PCANCEL'))
+        is_cancelada = _to_int(row.get('CANCELADA'), 0) == 1
+        comissao_plataforma = 0.0 if is_cancelada else _cliente_money(row.get('COMISSAO'))
         gestao_pct = _cliente_money(row.get('AL_COMISSAO')) / 100.0
         ftlimpeza = _to_int(row.get('FTLIMPEZA'), 0) == 1
 
-        total_com_iva = _cliente_money(estadia if ftlimpeza else estadia + limpeza)
+        total_com_iva = _cliente_money(pcancel if is_cancelada else (estadia if ftlimpeza else estadia + limpeza))
         valor_liquido = _cliente_money(total_com_iva - comissao_plataforma)
         comissao_gestao = _cliente_money(valor_liquido * gestao_pct)
         ganhos = _cliente_money(valor_liquido - comissao_gestao)
 
         plataforma_base = estadia + limpeza
         plataforma_pct = (comissao_plataforma / plataforma_base) if plataforma_base else 0.0
-        acerto_plataforma = _cliente_money(-(limpeza * plataforma_pct)) if ftlimpeza else 0.0
+        acerto_plataforma = _cliente_money(-(limpeza * plataforma_pct)) if ftlimpeza and not is_cancelada else 0.0
         ganhos_total = _cliente_money(ganhos + acerto_plataforma) if ftlimpeza else ganhos
 
         return {
             'estadia': estadia,
             'limpeza': limpeza,
+            'pcancel': pcancel,
+            'is_cancelada': is_cancelada,
             'comissao_plataforma': comissao_plataforma,
             'comissao_gestao_pct': _cliente_money(row.get('AL_COMISSAO')),
             'ftlimpeza': ftlimpeza,
@@ -22995,13 +22999,13 @@ def create_app():
             }
 
         month_names = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+        data_ref_expr = "CAST(CASE WHEN ISNULL(RS.CANCELADA, 0) = 1 THEN RS.DATAIN ELSE RS.DATAOUT END AS date)"
         where = [
             "ISNULL(AL.INATIVO, 0) = 0",
             "ISNULL(AL.CLIENTID, 0) = :clno",
-            "ISNULL(RS.CANCELADA, 0) = 0",
-            "RS.DATAOUT IS NOT NULL",
-            "YEAR(CAST(RS.DATAOUT AS date)) = :ano",
-            "MONTH(CAST(RS.DATAOUT AS date)) = :mes",
+            f"{data_ref_expr} IS NOT NULL",
+            f"YEAR({data_ref_expr}) = :ano",
+            f"MONTH({data_ref_expr}) = :mes",
         ]
         params = {'clno': clno, 'ano': int(ano), 'mes': int(mes)}
         estab_filter = _cliente_al_scope_sql('AL')
@@ -23020,19 +23024,22 @@ def create_app():
                 LTRIM(RTRIM(ISNULL(RS.NOME, ''))) AS HOSPEDE,
                 CAST(RS.DATAIN AS date) AS DATAIN,
                 CAST(RS.DATAOUT AS date) AS DATAOUT,
+                {data_ref_expr} AS DATAREF,
                 ISNULL(RS.ADULTOS, 0) AS ADULTOS,
                 ISNULL(RS.CRIANCAS, 0) AS CRIANCAS,
                 ISNULL(RS.BEBES, 0) AS BEBES,
                 ISNULL(RS.ESTADIA, 0) AS ESTADIA,
                 ISNULL(RS.LIMPEZA, 0) AS LIMPEZA,
                 ISNULL(RS.COMISSAO, 0) AS COMISSAO,
+                ISNULL(RS.CANCELADA, 0) AS CANCELADA,
+                ISNULL(RS.PCANCEL, 0) AS PCANCEL,
                 ISNULL(AL.COMISSAO, 0) AS AL_COMISSAO,
                 ISNULL(AL.FTLIMPEZA, 0) AS FTLIMPEZA
             FROM dbo.RS AS RS
             INNER JOIN dbo.AL AS AL
               ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
             WHERE {' AND '.join(where)}
-            ORDER BY CAST(RS.DATAOUT AS date), LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))), LTRIM(RTRIM(ISNULL(RS.RESERVA, '')))
+            ORDER BY {data_ref_expr}, LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))), LTRIM(RTRIM(ISNULL(RS.RESERVA, '')))
         """), params).mappings().all()
 
         totals = {
@@ -23049,7 +23056,7 @@ def create_app():
         show_acerto = False
         for row in rows:
             calc = _cliente_faturacao_calc(row)
-            show_acerto = show_acerto or bool(calc['ftlimpeza'])
+            show_acerto = show_acerto or (bool(calc['ftlimpeza']) and not bool(calc['is_cancelada']))
             pessoas = int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0) + int(row.get('BEBES') or 0)
             item = {
                 'rsstamp': str(row.get('RSSTAMP') or '').strip(),
@@ -23527,8 +23534,8 @@ def create_app():
         where = [
             "ISNULL(AL.INATIVO, 0) = 0",
             "ISNULL(AL.CLIENTID, 0) = :clno",
-            "ISNULL(RS.CANCELADA, 0) = 0",
-            "YEAR(CAST(RS.DATAOUT AS date)) = :ano",
+            "CAST(CASE WHEN ISNULL(RS.CANCELADA, 0) = 1 THEN RS.DATAIN ELSE RS.DATAOUT END AS date) IS NOT NULL",
+            "YEAR(CAST(CASE WHEN ISNULL(RS.CANCELADA, 0) = 1 THEN RS.DATAIN ELSE RS.DATAOUT END AS date)) = :ano",
         ]
         params = {'clno': clno, 'ano': ano}
         estab_filter = _cliente_al_scope_sql('AL')
@@ -23541,49 +23548,51 @@ def create_app():
 
         rows = db.session.execute(text(f"""
             SELECT
-                MONTH(CAST(RS.DATAOUT AS date)) AS MES,
-                COUNT(1) AS RESERVAS,
-                SUM(
-                    CASE
-                        WHEN ISNULL(AL.FTLIMPEZA, 0) = 0
-                        THEN ISNULL(RS.ESTADIA, 0) + ISNULL(RS.LIMPEZA, 0) - ISNULL(RS.COMISSAO, 0)
-                        ELSE ISNULL(RS.ESTADIA, 0) - ISNULL(RS.COMISSAO, 0)
-                    END
-                ) AS FATURADO,
-                SUM(
-                    (
-                        CASE
-                            WHEN ISNULL(AL.FTLIMPEZA, 0) = 0
-                            THEN ISNULL(RS.ESTADIA, 0) + ISNULL(RS.LIMPEZA, 0) - ISNULL(RS.COMISSAO, 0)
-                            ELSE ISNULL(RS.ESTADIA, 0) - ISNULL(RS.COMISSAO, 0)
-                        END
-                    ) * (ISNULL(AL.COMISSAO, 0) / 100.0)
-                ) AS COMISSAO_GESTAO
+                CAST(CASE WHEN ISNULL(RS.CANCELADA, 0) = 1 THEN RS.DATAIN ELSE RS.DATAOUT END AS date) AS DATAREF,
+                CAST(RS.DATAOUT AS date) AS DATAOUT,
+                ISNULL(RS.ESTADIA, 0) AS ESTADIA,
+                ISNULL(RS.LIMPEZA, 0) AS LIMPEZA,
+                ISNULL(RS.COMISSAO, 0) AS COMISSAO,
+                ISNULL(RS.CANCELADA, 0) AS CANCELADA,
+                ISNULL(RS.PCANCEL, 0) AS PCANCEL,
+                ISNULL(AL.COMISSAO, 0) AS AL_COMISSAO,
+                ISNULL(AL.FTLIMPEZA, 0) AS FTLIMPEZA
             FROM dbo.RS AS RS
             INNER JOIN dbo.AL AS AL
               ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
             WHERE {' AND '.join(where)}
-            GROUP BY MONTH(CAST(RS.DATAOUT AS date))
+            ORDER BY CAST(CASE WHEN ISNULL(RS.CANCELADA, 0) = 1 THEN RS.DATAIN ELSE RS.DATAOUT END AS date)
         """), params).mappings().all()
 
         by_month = {}
         for row in rows:
             try:
-                month = int(row.get('MES') or 0)
+                dataref = row.get('DATAREF')
+                if isinstance(dataref, datetime):
+                    month = int(dataref.month)
+                elif isinstance(dataref, date):
+                    month = int(dataref.month)
+                else:
+                    month = int(str(dataref or '')[5:7] or 0)
             except Exception:
                 month = 0
             if 1 <= month <= 12:
-                faturado = float(row.get('FATURADO') or 0)
-                comissao_gestao = float(row.get('COMISSAO_GESTAO') or 0)
-                by_month[month] = {
+                calc = _cliente_faturacao_calc(row)
+                item = by_month.setdefault(month, {
                     'mes': month,
-                    'reservas': int(row.get('RESERVAS') or 0),
-                    'faturado': round(faturado, 2),
-                    'comissao_gestao': round(comissao_gestao, 2),
-                    'bruto': round(faturado, 2),
-                    'comissao': round(comissao_gestao, 2),
-                    'liquido': round(faturado, 2),
-                }
+                    'reservas': 0,
+                    'faturado': 0.0,
+                    'comissao_gestao': 0.0,
+                    'bruto': 0.0,
+                    'comissao': 0.0,
+                    'liquido': 0.0,
+                })
+                item['reservas'] += 1
+                item['faturado'] = _cliente_money(item['faturado'] + calc['valor_liquido'])
+                item['comissao_gestao'] = _cliente_money(item['comissao_gestao'] + calc['comissao_gestao'])
+                item['bruto'] = item['faturado']
+                item['comissao'] = item['comissao_gestao']
+                item['liquido'] = item['faturado']
 
         month_names = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
         meses = []
@@ -34689,6 +34698,165 @@ OPTION (MAXRECURSION 32767);
             if not isinstance(rows, list):
                 return jsonify({'error': 'Formato inválido.'}), 400
 
+            try:
+                current_feid = int(get_current_feid() or 0)
+            except Exception:
+                try:
+                    current_feid = int(session.get('current_feid') or 0)
+                except Exception:
+                    current_feid = 0
+
+            def _source_imputacao_context(origem, stamp):
+                if origem == 'FO':
+                    return db.session.execute(text("""
+                        SELECT TOP 1
+                            LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))) AS ALOJAMENTO,
+                            LTRIM(RTRIM(ISNULL(F.DOCNOME, '') + ' ' + ISNULL(F.ADOC, ''))) AS DESCRICAO,
+                            LTRIM(RTRIM(ISNULL(F.NOME, ''))) AS SOURCE_NOME,
+                            ISNULL(F.ETOTAL, 0) AS DEFAULT_VALOR,
+                            ISNULL(A.FEID, 0) AS AL_FEID,
+                            ISNULL(CL.NO, 0) AS NO,
+                            LTRIM(RTRIM(ISNULL(CL.NOME, ''))) AS NOME
+                        FROM dbo.FO AS F
+                        LEFT JOIN dbo.AL AS A
+                          ON LTRIM(RTRIM(ISNULL(A.NOME, ''))) = LTRIM(RTRIM(ISNULL(F.CCUSTO, '')))
+                        LEFT JOIN dbo.CL AS CL
+                          ON ISNULL(CL.NO, 0) = ISNULL(A.CLIENTID, 0)
+                        WHERE F.FOSTAMP = :stamp
+                    """), {'stamp': stamp}).mappings().first()
+                if origem == 'FN':
+                    return db.session.execute(text("""
+                        SELECT TOP 1
+                            LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) AS ALOJAMENTO,
+                            LTRIM(RTRIM(ISNULL(FN.DESIGN, ''))) AS DESCRICAO,
+                            LTRIM(RTRIM(ISNULL(F.NOME, ''))) AS SOURCE_NOME,
+                            COALESCE(FN.EPV, FN.ETILIQUIDO, 0) AS DEFAULT_VALOR,
+                            ISNULL(A.FEID, 0) AS AL_FEID,
+                            ISNULL(CL.NO, 0) AS NO,
+                            LTRIM(RTRIM(ISNULL(CL.NOME, ''))) AS NOME
+                        FROM dbo.FN AS FN
+                        LEFT JOIN dbo.FO AS F
+                          ON F.FOSTAMP = FN.FOSTAMP
+                        LEFT JOIN dbo.AL AS A
+                          ON LTRIM(RTRIM(ISNULL(A.NOME, ''))) = LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, '')))
+                        LEFT JOIN dbo.CL AS CL
+                          ON ISNULL(CL.NO, 0) = ISNULL(A.CLIENTID, 0)
+                        WHERE FN.FNSTAMP = :stamp
+                    """), {'stamp': stamp}).mappings().first()
+                if origem == 'MN':
+                    return db.session.execute(text("""
+                        SELECT TOP 1
+                            LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                            LTRIM(RTRIM(ISNULL(M.INCIDENCIA, ''))) AS DESCRICAO,
+                            LTRIM(RTRIM(ISNULL(M.NOME, ''))) AS SOURCE_NOME,
+                            ISNULL(M.IMPUTVALOR, 0) AS DEFAULT_VALOR,
+                            ISNULL(A.FEID, 0) AS AL_FEID,
+                            ISNULL(CL.NO, 0) AS NO,
+                            LTRIM(RTRIM(ISNULL(CL.NOME, ''))) AS NOME
+                        FROM dbo.MN AS M
+                        LEFT JOIN dbo.AL AS A
+                          ON LTRIM(RTRIM(ISNULL(A.NOME, ''))) = LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, '')))
+                        LEFT JOIN dbo.CL AS CL
+                          ON ISNULL(CL.NO, 0) = ISNULL(A.CLIENTID, 0)
+                        WHERE M.MNSTAMP = :stamp
+                    """), {'stamp': stamp}).mappings().first()
+                return None
+
+            def _safe_float(value, default=0.0):
+                try:
+                    raw = str(value if value is not None else '').strip()
+                    if not raw:
+                        return float(default)
+                    if ',' in raw and '.' in raw:
+                        raw = raw.replace('.', '').replace(',', '.')
+                    else:
+                        raw = raw.replace(',', '.')
+                    return float(raw)
+                except Exception:
+                    return float(default)
+
+            def _delete_imputacao(origem, stamp):
+                db.session.execute(text("""
+                    DELETE FROM dbo.IM
+                    WHERE LTRIM(RTRIM(ISNULL(ORIGEM, ''))) = :origem
+                      AND LTRIM(RTRIM(ISNULL(ORISTAMP, ''))) = :stamp
+                """), {'origem': origem, 'stamp': stamp})
+
+            def _sync_imputacao(data, ctx):
+                origem = data['ORIGEM']
+                stamp = data['STAMP']
+                if not data['IMPUTAR']:
+                    _delete_imputacao(origem, stamp)
+                    return None
+
+                no = int((ctx or {}).get('NO') or 0)
+                nome = str((ctx or {}).get('NOME') or '').strip()
+                ano = int(data.get('IMPUTANO') or 0)
+                mes = int(data.get('IMPUTMES') or 0)
+                if ano <= 0 or mes < 1 or mes > 12:
+                    return f"Período inválido para a imputação {stamp}."
+                if no <= 0 or not nome:
+                    alojamento = str((ctx or {}).get('ALOJAMENTO') or '').strip()
+                    return f"Não foi possível identificar o proprietário do alojamento {alojamento or stamp}."
+
+                feid = current_feid or int((ctx or {}).get('AL_FEID') or 0)
+                if int(feid or 0) <= 0:
+                    return f"Não foi possível identificar a empresa ativa para a imputação {stamp}."
+                descricao = (data.get('IMPUTDESIGN') or (ctx or {}).get('DESCRICAO') or (ctx or {}).get('SOURCE_NOME') or '').strip()[:60]
+                params = {
+                    'origem': origem,
+                    'stamp': stamp,
+                    'no': no,
+                    'nome': nome[:60],
+                    'ano': str(ano),
+                    'mes': str(mes),
+                    'descricao': descricao,
+                    'valor': float(data.get('IMPUTVALOR') or 0),
+                    'feid': int(feid or 0),
+                }
+                existing = db.session.execute(text("""
+                    SELECT TOP 1 IMSTAMP
+                    FROM dbo.IM
+                    WHERE LTRIM(RTRIM(ISNULL(ORIGEM, ''))) = :origem
+                      AND LTRIM(RTRIM(ISNULL(ORISTAMP, ''))) = :stamp
+                    ORDER BY IMSTAMP
+                """), params).scalar()
+                if existing:
+                    params['imstamp'] = existing
+                    db.session.execute(text("""
+                        UPDATE dbo.IM
+                        SET NO = :no,
+                            NOME = :nome,
+                            ANO = :ano,
+                            MES = :mes,
+                            DESCRICAO = :descricao,
+                            VALOR = :valor,
+                            TRATADO = 0,
+                            BOSTAMP = '',
+                            BISTAMP = '',
+                            ORIGEM = :origem,
+                            ORISTAMP = :stamp,
+                            FEID = :feid
+                        WHERE IMSTAMP = :imstamp
+                    """), params)
+                    db.session.execute(text("""
+                        DELETE FROM dbo.IM
+                        WHERE LTRIM(RTRIM(ISNULL(ORIGEM, ''))) = :origem
+                          AND LTRIM(RTRIM(ISNULL(ORISTAMP, ''))) = :stamp
+                          AND IMSTAMP <> :imstamp
+                    """), params)
+                    return None
+
+                params['imstamp'] = db.session.execute(text("SELECT LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 25)")).scalar()
+                db.session.execute(text("""
+                    INSERT INTO dbo.IM
+                        (IMSTAMP, NO, NOME, ANO, MES, DESCRICAO, VALOR, TRATADO, BOSTAMP, BISTAMP, ORIGEM, ORISTAMP, FEID)
+                    VALUES
+                        (:imstamp, :no, :nome, :ano, :mes, :descricao, :valor, 0, '', '', :origem, :stamp, :feid)
+                """), params)
+                return None
+
+            errors = []
             for r in rows:
                 origem = (r.get('origem') or r.get('ORIGEM') or '').upper()
                 stamp = (r.get('stamp') or r.get('STAMP') or '').strip()
@@ -34699,10 +34867,14 @@ OPTION (MAXRECURSION 32767);
                     'NIMPUTAR': 1 if int(r.get('nimputar') or 0) else 0,
                     'IMPUTMES': int(r.get('imputmes') or 0),
                     'IMPUTANO': int(r.get('imputano') or 0),
-                    'IMPUTVALOR': float(r.get('imputvalor') or 0),
+                    'IMPUTVALOR': _safe_float(r.get('imputvalor')),
                     'IMPUTDESIGN': (r.get('imputdesign') or '').strip()[:60],
+                    'ORIGEM': origem,
                     'STAMP': stamp
                 }
+                ctx = _source_imputacao_context(origem, stamp) if origem in ('FO', 'FN', 'MN') else None
+                if data['IMPUTAR'] and not data['IMPUTVALOR']:
+                    data['IMPUTVALOR'] = _safe_float((ctx or {}).get('DEFAULT_VALOR'))
                 if origem == 'FO':
                     db.session.execute(text("""
                         UPDATE dbo.FO
@@ -34736,6 +34908,15 @@ OPTION (MAXRECURSION 32767);
                             IMPUTDESIGN = :IMPUTDESIGN
                         WHERE MNSTAMP = :STAMP
                     """), data)
+
+                if origem in ('FO', 'FN', 'MN'):
+                    err = _sync_imputacao(data, ctx)
+                    if err:
+                        errors.append(err)
+
+            if errors:
+                db.session.rollback()
+                return jsonify({'error': ' '.join(errors[:5])}), 400
 
             db.session.commit()
             return jsonify({'ok': True})

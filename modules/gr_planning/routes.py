@@ -43,6 +43,48 @@ bp = Blueprint(
     static_url_path="/gr_planning/static",
 )
 
+MACRO_RESOURCE_TYPES = {
+    "encarregados": {
+        "label": "Encarregados",
+        "singular": "encarregado",
+        "plural": "encarregados",
+        "modal_title": "Escolher encarregado",
+        "modal_hint": "Pesquisa em CT por nome do encarregado.",
+        "placeholder": "Nome do encarregado",
+        "initial_message": "A carregar encarregados.",
+        "empty_message": "Sem encarregados encontrados.",
+        "search_error": "Erro ao pesquisar encarregados.",
+        "selected_adjective_singular": "selecionado",
+        "selected_adjective_plural": "selecionados",
+    },
+    "centrais": {
+        "label": "Centrais de Betao",
+        "singular": "central",
+        "plural": "centrais",
+        "modal_title": "Escolher central de betao",
+        "modal_hint": "Pesquisa em VA por matricula de central de betao.",
+        "placeholder": "Matricula da central",
+        "initial_message": "A carregar centrais.",
+        "empty_message": "Sem centrais encontradas.",
+        "search_error": "Erro ao pesquisar centrais.",
+        "selected_adjective_singular": "selecionada",
+        "selected_adjective_plural": "selecionadas",
+    },
+    "bombas": {
+        "label": "Camioes Bomba",
+        "singular": "bomba",
+        "plural": "bombas",
+        "modal_title": "Escolher camiao bomba",
+        "modal_hint": "Pesquisa em VA por matricula de camiao bomba.",
+        "placeholder": "Matricula do camiao bomba",
+        "initial_message": "A carregar camioes bomba.",
+        "empty_message": "Sem camioes bomba encontrados.",
+        "search_error": "Erro ao pesquisar camioes bomba.",
+        "selected_adjective_singular": "selecionada",
+        "selected_adjective_plural": "selecionadas",
+    },
+}
+
 
 def _current_login_value() -> str:
     return (getattr(current_user, "LOGIN", "") or "").strip()
@@ -155,6 +197,11 @@ def _parse_year_param(raw_value: str | None) -> int:
     except (TypeError, ValueError):
         return today_year
     return max(2000, min(2099, year))
+
+
+def _normalize_macro_resource_type(value: str | None) -> str:
+    key = str(value or "").strip().lower()
+    return key if key in MACRO_RESOURCE_TYPES else "encarregados"
 
 
 def _new_stamp_25() -> str:
@@ -961,6 +1008,29 @@ def _search_macro_supervisor_rows(term: str, limit: int = 60) -> list[dict]:
     ]
 
 
+def _vehicle_macro_resource_rows(rows: list[dict]) -> list[dict]:
+    out = []
+    for row in rows:
+        matricula = str((row or {}).get("matricula") or "").strip()
+        if not matricula:
+            continue
+        out.append({
+            "nome": matricula,
+            "descricao": str((row or {}).get("label") or "").strip(),
+            "cor": "#d8dee8",
+        })
+    return out
+
+
+def _search_macro_resource_rows(resource_type: str, term: str, limit: int = 60) -> list[dict]:
+    normalized_type = _normalize_macro_resource_type(resource_type)
+    if normalized_type == "centrais":
+        return _vehicle_macro_resource_rows(_fetch_concrete_vehicles(term, limit=limit))
+    if normalized_type == "bombas":
+        return _vehicle_macro_resource_rows(_fetch_truck_vehicles(term, limit=limit, kind="pump"))
+    return _search_macro_supervisor_rows(term, limit=limit)
+
+
 def _macro_text_color(value: str | None) -> str:
     raw = str(value or "").strip()
     if not raw.startswith("#"):
@@ -985,6 +1055,70 @@ def _macro_table_exists(table_name: str) -> bool:
         FROM INFORMATION_SCHEMA.TABLES
         WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = :table_name
     """), {"table_name": table_name}).first() is not None
+
+
+def _ensure_macro_resource_type_column() -> bool:
+    if not _macro_table_exists("GR_MACRO_PLANEAMENTO"):
+        return False
+    resource_type_exists = db.session.execute(text("""
+        SELECT COL_LENGTH('dbo.GR_MACRO_PLANEAMENTO', 'TIPO_RECURSO')
+    """)).scalar()
+    if resource_type_exists is None:
+        db.session.execute(text("""
+            ALTER TABLE dbo.GR_MACRO_PLANEAMENTO
+                ADD TIPO_RECURSO varchar(20) NOT NULL
+                    CONSTRAINT DF_GR_MACRO_PLANEAMENTO_TIPO_RECURSO DEFAULT ('encarregados')
+        """))
+        db.session.commit()
+
+    lane_exists = db.session.execute(text("""
+        SELECT COL_LENGTH('dbo.GR_MACRO_PLANEAMENTO', 'ORDEM_RECURSO')
+    """)).scalar()
+    if lane_exists is None:
+        db.session.execute(text("""
+            ALTER TABLE dbo.GR_MACRO_PLANEAMENTO
+                ADD ORDEM_RECURSO int NOT NULL
+                    CONSTRAINT DF_GR_MACRO_PLANEAMENTO_ORDEM_RECURSO DEFAULT (1)
+        """))
+        db.session.commit()
+
+    db.session.execute(text("""
+        IF EXISTS (
+            SELECT 1
+            FROM sys.key_constraints
+            WHERE [name] = 'UQ_GR_MACRO_PLANEAMENTO_ANO_PROCESSO_SEMANA'
+              AND parent_object_id = OBJECT_ID('dbo.GR_MACRO_PLANEAMENTO')
+        )
+        BEGIN
+            ALTER TABLE dbo.GR_MACRO_PLANEAMENTO
+                DROP CONSTRAINT UQ_GR_MACRO_PLANEAMENTO_ANO_PROCESSO_SEMANA;
+        END
+
+        IF EXISTS (
+            SELECT 1
+            FROM sys.key_constraints
+            WHERE [name] = 'UQ_GR_MACRO_PLANEAMENTO_ANO_PROCESSO_SEMANA_TIPO'
+              AND parent_object_id = OBJECT_ID('dbo.GR_MACRO_PLANEAMENTO')
+        )
+        BEGIN
+            ALTER TABLE dbo.GR_MACRO_PLANEAMENTO
+                DROP CONSTRAINT UQ_GR_MACRO_PLANEAMENTO_ANO_PROCESSO_SEMANA_TIPO;
+        END
+
+        IF NOT EXISTS (
+            SELECT 1
+            FROM sys.key_constraints
+            WHERE [name] = 'UQ_GR_MACRO_PLANEAMENTO_ANO_PROCESSO_SEMANA_TIPO_ORDEM'
+              AND parent_object_id = OBJECT_ID('dbo.GR_MACRO_PLANEAMENTO')
+        )
+        BEGIN
+            ALTER TABLE dbo.GR_MACRO_PLANEAMENTO
+                ADD CONSTRAINT UQ_GR_MACRO_PLANEAMENTO_ANO_PROCESSO_SEMANA_TIPO_ORDEM
+                UNIQUE (ANO, PROCESSO, SEMANA, TIPO_RECURSO, ORDEM_RECURSO);
+        END
+    """))
+    db.session.commit()
+    return True
 
 
 def _macro_team_color_map(team_codes: set[str]) -> dict[str, str]:
@@ -1047,9 +1181,35 @@ def _macro_supervisor_color_map(names: set[str]) -> dict[str, str]:
     }
 
 
-def _fetch_macro_planning_rows(year: int) -> list[dict]:
+def _compact_macro_bar_lanes(bars: list[dict]) -> int:
+    if not bars:
+        return 1
+    lane_ends: list[int] = []
+    ordered = sorted(
+        enumerate(bars),
+        key=lambda item: (
+            int(item[1].get("start") or 0),
+            int(item[1].get("duration") or 0),
+            item[0],
+        ),
+    )
+    for _, bar in ordered:
+        start = int(bar.get("start") or 0)
+        end = start + int(bar.get("duration") or 0) - 1
+        lane_index = next((idx for idx, lane_end in enumerate(lane_ends) if lane_end < start), -1)
+        if lane_index < 0:
+            lane_index = len(lane_ends)
+            lane_ends.append(0)
+        lane_ends[lane_index] = end
+        bar["lane"] = lane_index + 1
+    return max(1, len(lane_ends))
+
+
+def _fetch_macro_planning_rows(year: int, resource_type: str = "encarregados") -> list[dict]:
     if not _macro_table_exists("GR_MACRO_OBRA") or not _macro_table_exists("GR_MACRO_PLANEAMENTO"):
         return []
+    normalized_resource_type = _normalize_macro_resource_type(resource_type)
+    has_resource_type = _ensure_macro_resource_type_column()
 
     obra_rows = db.session.execute(text("""
         SELECT
@@ -1067,12 +1227,18 @@ def _fetch_macro_planning_rows(year: int) -> list[dict]:
     if not obra_rows:
         return []
 
-    plan_rows = db.session.execute(text("""
-        SELECT PROCESSO, SEMANA, ENCARREGADO
+    resource_filter = "AND TIPO_RECURSO = :resource_type" if has_resource_type else ""
+    plan_rows = db.session.execute(text(f"""
+        SELECT
+            PROCESSO,
+            SEMANA,
+            ENCARREGADO,
+            ISNULL(ORDEM_RECURSO, 1) AS ORDEM_RECURSO
         FROM dbo.GR_MACRO_PLANEAMENTO
         WHERE ANO = :year
-        ORDER BY PROCESSO, SEMANA
-    """), {"year": year}).mappings().all()
+          {resource_filter}
+        ORDER BY PROCESSO, ORDEM_RECURSO, SEMANA
+    """), {"year": year, "resource_type": normalized_resource_type}).mappings().all()
 
     process_plan: dict[str, list[dict]] = {}
     supervisor_names: set[str] = set()
@@ -1085,6 +1251,7 @@ def _fetch_macro_planning_rows(year: int) -> list[dict]:
         process_plan.setdefault(processo, []).append({
             "week": int(row.get("SEMANA") or 0),
             "supervisor": encarregado,
+            "lane": max(1, int(row.get("ORDEM_RECURSO") or 1)),
         })
 
     team_colors = _macro_team_color_map({
@@ -1102,9 +1269,15 @@ def _fetch_macro_planning_rows(year: int) -> list[dict]:
         for item in process_plan.get(processo, []):
             week = int(item["week"] or 0)
             supervisor = str(item["supervisor"] or "").strip()
+            lane = max(1, int(item.get("lane") or 1))
             if not week or not supervisor:
                 continue
-            if current and current["label"] == supervisor and current["start"] + current["duration"] == week:
+            if (
+                current
+                and current["label"] == supervisor
+                and current["lane"] == lane
+                and current["start"] + current["duration"] == week
+            ):
                 current["duration"] += 1
             else:
                 if current:
@@ -1114,16 +1287,24 @@ def _fetch_macro_planning_rows(year: int) -> list[dict]:
                     "label": supervisor,
                     "start": week,
                     "duration": 1,
+                    "lane": lane,
                     "color": color,
                     "text_color": _macro_text_color(color),
                 }
         if current:
             bars.append(current)
+        lane_count = _compact_macro_bar_lanes(bars)
+        timeline_height = "2.65rem" if lane_count <= 1 else f"{((lane_count * 1.55) + ((lane_count - 1) * 0.25) + 1.1):.2f}rem"
+        for bar in bars:
+            lane = max(1, int(bar.get("lane") or 1))
+            bar["lane_top"] = "50%" if lane_count <= 1 else f"{(0.55 + ((lane - 1) * 1.8)):.2f}rem"
         team_color = team_colors.get(fref, "#d8dee8")
         qtt_value = row.get("QTT")
-        duration = row.get("DURACAO")
-        if duration is None:
-            duration = sum(int(bar["duration"] or 0) for bar in bars)
+        covered_weeks = {
+            week
+            for bar in bars
+            for week in range(int(bar["start"] or 0), int(bar["start"] or 0) + int(bar["duration"] or 0))
+        }
         rows.append({
             "processo": processo,
             "obra": processo,
@@ -1132,7 +1313,9 @@ def _fetch_macro_planning_rows(year: int) -> list[dict]:
             "equipa": fref or "-",
             "equipa_cor": team_color,
             "equipa_text_color": _macro_text_color(team_color),
-            "duracao": int(duration or 0),
+            "duracao": len(covered_weeks),
+            "lanes": lane_count,
+            "timeline_height": timeline_height,
             "bars": bars,
         })
     return rows
@@ -1151,24 +1334,34 @@ def _normalize_macro_payload_rows(payload: dict, year: int) -> list[dict]:
         if processo in seen:
             raise ValueError(f"processo_duplicado:{processo}")
         seen.add(processo)
-        week_assignments: dict[int, str] = {}
+        week_assignments: list[dict] = []
+        occupied_lanes: set[tuple[int, int]] = set()
+        covered_weeks: set[int] = set()
         for bar in (row or {}).get("bars") or []:
             encarregado = str((bar or {}).get("encarregado") or (bar or {}).get("label") or "").strip()
             if not encarregado:
                 continue
             start = max(1, min(53, int((bar or {}).get("startWeek") or (bar or {}).get("start") or 1)))
             end = max(start, min(53, int((bar or {}).get("endWeek") or (bar or {}).get("end") or start)))
+            lane = max(1, min(99, int((bar or {}).get("lane") or (bar or {}).get("ordemRecurso") or 1)))
             for week in range(start, end + 1):
-                if week in week_assignments:
-                    raise ValueError(f"sobreposicao_planeamento:{processo}:S{week}")
-                week_assignments[week] = encarregado
+                lane_key = (week, lane)
+                if lane_key in occupied_lanes:
+                    raise ValueError(f"sobreposicao_planeamento:{processo}:S{week}:L{lane}")
+                occupied_lanes.add(lane_key)
+                covered_weeks.add(week)
+                week_assignments.append({
+                    "week": week,
+                    "lane": lane,
+                    "encarregado": encarregado,
+                })
         normalized.append({
             "ano": year,
             "processo": processo,
             "descricao": str((row or {}).get("descricao") or "").strip()[:255],
             "fref": str((row or {}).get("fref") or "").strip()[:60],
             "qtt": (row or {}).get("qtt") if str((row or {}).get("qtt") or "").strip() else None,
-            "duracao": len(week_assignments),
+            "duracao": len(covered_weeks),
             "ordem": int((row or {}).get("ordem") or index + 1),
             "week_assignments": week_assignments,
         })
@@ -1176,6 +1369,8 @@ def _normalize_macro_payload_rows(payload: dict, year: int) -> list[dict]:
 
 
 def _save_macro_planning(year: int, payload: dict, user_login: str) -> list[dict]:
+    resource_type = _normalize_macro_resource_type((payload or {}).get("resourceType") or (payload or {}).get("resource_type"))
+    has_resource_type = _ensure_macro_resource_type_column()
     rows = _normalize_macro_payload_rows(payload, year)
     processos = [row["processo"] for row in rows]
     login = str(user_login or "").strip()[:80]
@@ -1233,24 +1428,45 @@ def _save_macro_planning(year: int, payload: dict, user_login: str) -> list[dict
         db.session.execute(text("""
             DELETE FROM dbo.GR_MACRO_PLANEAMENTO
             WHERE ANO = :ano AND PROCESSO = :processo
-        """), {"ano": row["ano"], "processo": row["processo"]})
+              {resource_filter}
+        """.format(resource_filter="AND TIPO_RECURSO = :resource_type" if has_resource_type else "")), {
+            "ano": row["ano"],
+            "processo": row["processo"],
+            "resource_type": resource_type,
+        })
 
-        for week, supervisor in sorted(row["week_assignments"].items()):
-            db.session.execute(text("""
+        for assignment in sorted(row["week_assignments"], key=lambda item: (item["lane"], item["week"], item["encarregado"])):
+            if has_resource_type:
+                db.session.execute(text("""
                 INSERT INTO dbo.GR_MACRO_PLANEAMENTO
-                    (ANO, PROCESSO, SEMANA, ENCARREGADO, CRIADO_POR)
+                    (ANO, PROCESSO, SEMANA, ENCARREGADO, TIPO_RECURSO, ORDEM_RECURSO, CRIADO_POR)
                 VALUES
-                    (:ano, :processo, :semana, :encarregado, :user_login)
-            """), {
-                "ano": row["ano"],
-                "processo": row["processo"],
-                "semana": week,
-                "encarregado": supervisor,
-                "user_login": login,
-            })
+                    (:ano, :processo, :semana, :encarregado, :resource_type, :lane, :user_login)
+                """), {
+                    "ano": row["ano"],
+                    "processo": row["processo"],
+                    "semana": assignment["week"],
+                    "encarregado": assignment["encarregado"],
+                    "resource_type": resource_type,
+                    "lane": assignment["lane"],
+                    "user_login": login,
+                })
+            else:
+                db.session.execute(text("""
+                    INSERT INTO dbo.GR_MACRO_PLANEAMENTO
+                        (ANO, PROCESSO, SEMANA, ENCARREGADO, CRIADO_POR)
+                    VALUES
+                        (:ano, :processo, :semana, :encarregado, :user_login)
+                """), {
+                    "ano": row["ano"],
+                    "processo": row["processo"],
+                    "semana": assignment["week"],
+                    "encarregado": assignment["encarregado"],
+                    "user_login": login,
+                })
 
     db.session.commit()
-    return _fetch_macro_planning_rows(year)
+    return _fetch_macro_planning_rows(year, resource_type)
 
 
 def _relay_legacy_response(legacy_response) -> Response:
@@ -1441,12 +1657,16 @@ def pump_record_page(stamp: str = ""):
 def macro_planning():
     _ensure_planning_access()
     year = _parse_year_param(request.args.get("year"))
+    resource_type = _normalize_macro_resource_type(request.args.get("resource_type") or request.args.get("resourceType"))
     weeks = list(range(1, 53))
     return render_template(
         "gr_planning/macro_planning.html",
         year=year,
         weeks=weeks,
-        rows=_fetch_macro_planning_rows(year),
+        resource_type=resource_type,
+        resource_config=MACRO_RESOURCE_TYPES[resource_type],
+        resource_types=MACRO_RESOURCE_TYPES,
+        rows=_fetch_macro_planning_rows(year, resource_type),
     )
 
 
@@ -1477,8 +1697,21 @@ def macro_planning_teams():
 def macro_planning_supervisors():
     _ensure_planning_access()
     term = (request.args.get("q") or "").strip()
+    resource_type = _normalize_macro_resource_type(request.args.get("resource_type") or request.args.get("resourceType"))
     try:
-        return jsonify({"rows": _search_macro_supervisor_rows(term)})
+        return jsonify({"rows": _search_macro_resource_rows(resource_type, term)})
+    except Exception as exc:
+        return jsonify({"rows": [], "error": str(exc)}), 500
+
+
+@bp.route("/api/gr_planning/macro/resources")
+@login_required
+def macro_planning_resources():
+    _ensure_planning_access()
+    term = (request.args.get("q") or "").strip()
+    resource_type = _normalize_macro_resource_type(request.args.get("resource_type") or request.args.get("resourceType"))
+    try:
+        return jsonify({"rows": _search_macro_resource_rows(resource_type, term)})
     except Exception as exc:
         return jsonify({"rows": [], "error": str(exc)}), 500
 
@@ -1488,9 +1721,10 @@ def macro_planning_supervisors():
 def macro_planning_plan():
     _ensure_planning_access()
     year = _parse_year_param(request.args.get("year"))
+    resource_type = _normalize_macro_resource_type(request.args.get("resource_type") or request.args.get("resourceType"))
     if request.method == "GET":
         try:
-            return jsonify({"rows": _fetch_macro_planning_rows(year)})
+            return jsonify({"rows": _fetch_macro_planning_rows(year, resource_type)})
         except Exception as exc:
             return jsonify({"rows": [], "error": str(exc)}), 500
 

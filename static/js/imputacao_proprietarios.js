@@ -37,7 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const parseNumber = (value) => {
     if (value == null || value === '') return 0;
-    const normalized = value.toString().trim().replace(/\s/g, '').replace(',', '.');
+    let normalized = value.toString().trim().replace(/\s/g, '');
+    if (normalized.includes(',') && normalized.includes('.')) {
+      normalized = normalized.replace(/\./g, '').replace(',', '.');
+    } else {
+      normalized = normalized.replace(',', '.');
+    }
     const n = Number(normalized);
     return Number.isFinite(n) ? n : 0;
   };
@@ -231,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nimputar: val === 'N' ? 1 : 0,
         imputmes: Number((tr.querySelector('.js-mesano')?.value || '').slice(5, 7) || 0),
         imputano: Number((tr.querySelector('.js-mesano')?.value || '').slice(0, 4) || 0),
-        imputvalor: Number(tr.querySelector('.js-valor')?.value || 0),
+        imputvalor: parseNumber(tr.querySelector('.js-valor')?.value || 0),
         imputdesign: (tr.querySelector('.js-design')?.value || '').trim()
       });
     });

@@ -30,7 +30,7 @@
 
 .gr-macro-filters {
   display: grid;
-  grid-template-columns: auto 8rem;
+  grid-template-columns: auto 8rem auto 13rem;
   align-items: center;
   gap: var(--sz-space-2);
 }
@@ -216,10 +216,15 @@
 }
 
 .gr-macro-timeline {
+  --lane-count: 1;
+  --lane-height: 1.55rem;
+  --lane-gap: 0.25rem;
+  --timeline-height: 2.65rem;
   grid-column: 5 / span var(--week-count);
   display: grid;
   grid-template-columns: repeat(var(--week-count), var(--week-width));
-  min-height: 2.65rem;
+  grid-template-rows: minmax(2.65rem, 1fr);
+  min-height: var(--timeline-height);
   position: relative;
 }
 
@@ -248,13 +253,14 @@
 .gr-macro-bar {
   grid-column: var(--start-week) / span var(--duration-weeks);
   grid-row: 1;
-  align-self: center;
-  position: relative;
+  position: absolute;
+  top: var(--lane-top, 50%);
+  left: 0.12rem;
+  right: 0.12rem;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 1.55rem;
-  margin-inline: 0.12rem;
   padding-inline: 0.75rem;
   border-radius: var(--sz-radius-sm);
   color: #fff;
@@ -263,9 +269,14 @@
   font-weight: var(--sz-font-weight-bold);
   z-index: 2;
   pointer-events: auto;
+  transform: translateY(-50%);
   box-shadow:
     0 0.25rem 0.65rem color-mix(in srgb, #000 22%, transparent),
     inset 0 0 0 1px color-mix(in srgb, #fff 24%, transparent);
+}
+
+.gr-macro-timeline.is-stacked .gr-macro-bar {
+  transform: none;
 }
 
 .gr-macro-bar:active {

@@ -105,6 +105,14 @@
       background: color-mix(in srgb, var(--sz-color-primary) 7%, transparent);
     }
 
+    .client-billing-detail-table tbody tr.is-cancelled {
+      background: color-mix(in srgb, var(--sz-color-danger) 7%, transparent);
+    }
+
+    .client-billing-detail-table tbody tr.is-cancelled:hover {
+      background: color-mix(in srgb, var(--sz-color-danger) 12%, transparent);
+    }
+
     .client-billing-detail-table tfoot td {
       border-bottom: 0;
       background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface));
@@ -120,6 +128,21 @@
     .client-billing-detail-muted {
       color: var(--sz-color-text-muted);
       font-size: var(--sz-font-size-xs);
+    }
+
+    .client-billing-detail-status {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      margin-top: 0.25rem;
+      padding: 0.1rem 0.45rem;
+      border: 1px solid color-mix(in srgb, var(--sz-color-danger) 42%, transparent);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--sz-color-danger) 12%, transparent);
+      color: var(--sz-color-danger);
+      font-size: var(--sz-font-size-xs);
+      font-weight: var(--sz-font-weight-bold);
+      line-height: 1.25;
     }
 
     .client-billing-detail-money {
@@ -231,9 +254,12 @@
               </thead>
               <tbody>
                 {% for row in detail.reservas %}
-                  <tr>
+                  <tr{% if row.is_cancelada %} class="is-cancelled"{% endif %}>
                     <td>
                       <div class="client-billing-detail-code">{{ row.reserva or 'Reserva' }}</div>
+                      {% if row.is_cancelada %}
+                        <div class="client-billing-detail-status">Cancelada</div>
+                      {% endif %}
                     </td>
                     <td>{{ row.alojamento }}</td>
                     <td>{{ row.hospede }}</td>

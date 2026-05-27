@@ -23,6 +23,12 @@
               <option value="{{ option_year }}" {% if option_year == year %}selected{% endif %}>{{ option_year }}</option>
             {% endfor %}
           </select>
+          <label class="sz_label" for="grMacroResourceType">Recursos</label>
+          <select class="sz_select" id="grMacroResourceType" name="resource_type">
+            {% for key, option in resource_types.items() %}
+              <option value="{{ key }}" {% if key == resource_type %}selected{% endif %}>{{ option.label }}</option>
+            {% endfor %}
+          </select>
         </form>
         <button type="button" class="sz_button sz_button_primary" id="grMacroOpenWorks">
           <i class="fa-solid fa-plus"></i>
@@ -57,19 +63,20 @@
               <span class="gr-macro-team{% if row.equipa == '-' %} gr-macro-tone-muted{% endif %}" {% if row.equipa != '-' %}style="background: {{ row.equipa_cor }}; color: {{ row.equipa_text_color }};"{% endif %}>{{ row.equipa }}</span>
             </div>
             <div class="gr-macro-cell gr-macro-sticky gr-macro-col-duracao" data-processo="{{ row.processo }}" data-duration="{{ row.duracao }}">{{ row.duracao ~ ' sem.' if row.duracao else '-' }}</div>
-            <div class="gr-macro-timeline" style="--row: {{ loop.index }};" data-processo="{{ row.processo or row.obra }}">
+            <div class="gr-macro-timeline{% if (row.lanes or 1) > 1 %} is-stacked{% endif %}" style="--row: {{ loop.index }}; --lane-count: {{ row.lanes or 1 }}; --timeline-height: {{ row.timeline_height or '2.65rem' }};" data-processo="{{ row.processo or row.obra }}" data-lane-count="{{ row.lanes or 1 }}">
               {% for week in weeks %}
                 <div class="gr-macro-week-cell" style="--week: {{ week }};" data-week="{{ week }}"></div>
               {% endfor %}
               {% for bar in row.bars %}
                 <div
                   class="gr-macro-bar"
-                  style="--start-week: {{ bar.start }}; --duration-weeks: {{ bar.duration }}; background: {{ bar.color }}; color: {{ bar.text_color }};"
+                  style="--start-week: {{ bar.start }}; --duration-weeks: {{ bar.duration }}; --lane: {{ bar.lane or 1 }}; --lane-top: {{ bar.lane_top or '50%' }}; background: {{ bar.color }}; color: {{ bar.text_color }};"
                   data-supervisor="{{ bar.label }}"
                   data-label="{{ bar.label }}"
                   data-color="{{ bar.color }}"
                   data-start-week="{{ bar.start }}"
                   data-end-week="{{ bar.start + bar.duration - 1 }}"
+                  data-lane="{{ bar.lane or 1 }}"
                   title="{{ row.obra }} - S{{ bar.start }} a S{{ bar.start + bar.duration - 1 }}">
                   <button type="button" class="gr-macro-bar-handle gr-macro-bar-handle-start" data-bar-handle="start" aria-label="Ajustar inicio"></button>
                   <span>{{ bar.label }}</span>
@@ -177,8 +184,8 @@
   <div class="sz_panel gr-macro-modal-panel">
     <div class="sz_modal_header">
       <div>
-        <h3 class="sz_h4 sz_modal_title" id="grMacroSupervisorsTitle">Escolher encarregado</h3>
-        <p class="sz_text_muted">Pesquisa em CT por nome do encarregado.</p>
+        <h3 class="sz_h4 sz_modal_title" id="grMacroSupervisorsTitle">{{ resource_config.modal_title }}</h3>
+        <p class="sz_text_muted" id="grMacroSupervisorsHint">{{ resource_config.modal_hint }}</p>
       </div>
       <button type="button" class="sz_button sz_button_ghost" id="grMacroCloseSupervisorsTop" aria-label="Fechar">
         <i class="fa-solid fa-xmark"></i>
@@ -187,13 +194,13 @@
     <div class="sz_modal_body gr-macro-modal-body">
       <div class="sz_field">
         <label class="sz_label" for="grMacroSupervisorSearch">Pesquisar</label>
-        <input class="sz_input" id="grMacroSupervisorSearch" type="search" autocomplete="off" placeholder="Nome do encarregado">
+        <input class="sz_input" id="grMacroSupervisorSearch" type="search" autocomplete="off" placeholder="{{ resource_config.placeholder }}">
       </div>
-      <div class="gr-macro-modal-status" id="grMacroSupervisorStatus">A carregar encarregados.</div>
+      <div class="gr-macro-modal-status" id="grMacroSupervisorStatus">{{ resource_config.initial_message }}</div>
       <div class="gr-macro-work-results" id="grMacroSupervisorResults"></div>
     </div>
     <div class="sz_modal_footer">
-      <div class="gr-macro-selected-count" id="grMacroSupervisorSelectedCount">0 encarregados selecionados</div>
+      <div class="gr-macro-selected-count" id="grMacroSupervisorSelectedCount">0 {{ resource_config.plural }} {{ resource_config.selected_adjective_plural }}</div>
       <button type="button" class="sz_button sz_button_secondary" id="grMacroCloseSupervisors">
         <i class="fa-solid fa-ban"></i>
         <span>Cancelar</span>
@@ -214,9 +221,12 @@
       opcUrl: {{ url_for('gr_planning.macro_planning_opc')|tojson }},
       teamsUrl: {{ url_for('gr_planning.macro_planning_teams')|tojson }},
       supervisorsUrl: {{ url_for('gr_planning.macro_planning_supervisors')|tojson }},
+      resourcesUrl: {{ url_for('gr_planning.macro_planning_resources')|tojson }},
       planUrl: {{ url_for('gr_planning.macro_planning_plan')|tojson }},
       year: {{ year|tojson }},
-      weeks: {{ weeks|tojson }}
+      weeks: {{ weeks|tojson }},
+      resourceType: {{ resource_type|tojson }},
+      resourceConfig: {{ resource_config|tojson }}
     };
   </script>
   <script src="{{ url_for('gr_planning.static', filename='gr_macro_planning.js') }}" defer></script>

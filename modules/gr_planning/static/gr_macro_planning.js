@@ -7,6 +7,7 @@
   const saveBtn = document.getElementById('grMacroSave');
   const statusEl = document.getElementById('grMacroStatus');
   const yearSelect = document.getElementById('grMacroYear');
+  const resourceTypeSelect = document.getElementById('grMacroResourceType');
 
   if (!grid) return;
 
@@ -107,16 +108,48 @@
     updateBarLabel(bar);
   };
 
-  const rangesOverlap = (startA, endA, startB, endB) => startA <= endB && startB <= endA;
-
-  const timelineRangeHasOverlap = (timeline, startWeek, endWeek, ignoreBar = null) => {
-    if (!timeline) return false;
-    return Array.from(timeline.querySelectorAll('.gr-macro-bar')).some((bar) => {
-      if (ignoreBar && bar === ignoreBar) return false;
-      const barStart = Number(bar.dataset.startWeek || 0);
-      const barEnd = Number(bar.dataset.endWeek || barStart);
-      return rangesOverlap(startWeek, endWeek, barStart, barEnd);
+  const layoutTimelineBars = (timeline) => {
+    if (!timeline) return 1;
+    const laneHeight = 1.55;
+    const laneGap = 0.25;
+    const lanePadding = 0.55;
+    const bars = Array.from(timeline.querySelectorAll('.gr-macro-bar'))
+      .map((bar, index) => ({
+        bar,
+        index,
+        start: Number(bar.dataset.startWeek || 0),
+        end: Number(bar.dataset.endWeek || bar.dataset.startWeek || 0),
+      }))
+      .filter((item) => item.start && item.end)
+      .sort((a, b) => a.start - b.start || a.end - b.end || a.index - b.index);
+    const laneEnds = [];
+    bars.forEach((item) => {
+      let laneIndex = laneEnds.findIndex((laneEnd) => laneEnd < item.start);
+      if (laneIndex === -1) {
+        laneIndex = laneEnds.length;
+        laneEnds.push(0);
+      }
+      laneEnds[laneIndex] = item.end;
+      const lane = laneIndex + 1;
+      item.bar.dataset.lane = String(lane);
+      item.bar.style.setProperty('--lane', String(lane));
     });
+    const laneCount = Math.max(1, laneEnds.length);
+    const timelineHeight = laneCount <= 1
+      ? 2.65
+      : (laneCount * laneHeight) + ((laneCount - 1) * laneGap) + (lanePadding * 2);
+    timeline.dataset.laneCount = String(laneCount);
+    timeline.style.setProperty('--lane-count', String(laneCount));
+    timeline.style.setProperty('--timeline-height', `${timelineHeight.toFixed(2)}rem`);
+    timeline.classList.toggle('is-stacked', laneCount > 1);
+    bars.forEach((item) => {
+      const lane = Number(item.bar.dataset.lane || 1);
+      const top = laneCount <= 1
+        ? '50%'
+        : `${(lanePadding + ((lane - 1) * (laneHeight + laneGap))).toFixed(2)}rem`;
+      item.bar.style.setProperty('--lane-top', top);
+    });
+    return laneCount;
   };
 
   const plannedWorks = new Set(
@@ -154,6 +187,7 @@
 
   const updateRowDuration = (timeline) => {
     if (!timeline) return 0;
+    layoutTimelineBars(timeline);
     const weeksSet = new Set();
     timeline.querySelectorAll('.gr-macro-bar').forEach((bar) => {
       const start = Number(bar.dataset.startWeek || 0);
@@ -217,7 +251,7 @@
   const normalizeSupervisor = (supervisor) => ({
     id: String(supervisor?.nome || '').trim(),
     code: String(supervisor?.nome || '').trim(),
-    description: '',
+    description: String(supervisor?.descricao || '').trim(),
     color: safeColor(supervisor?.cor || '#d8dee8'),
   });
 
@@ -284,6 +318,7 @@
     statusId,
     selectedCountId,
     url,
+    extraParams = {},
     normalizer,
     selectedStore,
     disabledStore,
@@ -384,7 +419,13 @@
       lastController = new AbortController();
       setStatus('A pesquisar...');
       try {
-        const response = await fetch(`${url}?q=${encodeURIComponent(term)}`, {
+        const params = new URLSearchParams({ q: term });
+        Object.entries(extraParams || {}).forEach(([key, value]) => {
+          const cleanValue = String(value ?? '').trim();
+          if (key && cleanValue) params.set(key, cleanValue);
+        });
+        const separator = String(url || '').includes('?') ? '&' : '?';
+        const response = await fetch(`${url}${separator}${params.toString()}`, {
           headers: { Accept: 'application/json' },
           signal: lastController.signal,
         });
@@ -540,12 +581,6 @@
   const applySupervisorToSelection = (supervisor) => {
     const selection = selectedWeekRange();
     if (!selection || !supervisor) return;
-    if (timelineRangeHasOverlap(selection.timeline, selection.startWeek, selection.endWeek)) {
-      showToastMessage('Ja existe planeamento nessa obra para as semanas selecionadas.', 'warning');
-      clearWeekSelectionMarks();
-      activeWeekSelection = null;
-      return;
-    }
     const color = safeColor(supervisor.color);
     const bar = document.createElement('div');
     bar.className = 'gr-macro-bar';
@@ -559,6 +594,7 @@
     bar.dataset.color = color;
     bar.dataset.startWeek = String(selection.startWeek);
     bar.dataset.endWeek = String(selection.endWeek);
+    bar.dataset.lane = '1';
     bar.title = `${supervisor.code} - S${selection.startWeek} a S${selection.endWeek}`;
     bar.innerHTML = barLabelHtml(supervisor.code);
     syncBarGeometry(bar, selection.startWeek, selection.endWeek);
@@ -592,19 +628,20 @@
     resultsId: 'grMacroSupervisorResults',
     statusId: 'grMacroSupervisorStatus',
     selectedCountId: 'grMacroSupervisorSelectedCount',
-    url: config.supervisorsUrl || '/api/gr_planning/macro/supervisors',
+    url: config.resourcesUrl || config.supervisorsUrl || '/api/gr_planning/macro/resources',
+    extraParams: { resource_type: config.resourceType || 'encarregados' },
     normalizer: normalizeSupervisor,
     selectedStore: selectedSupervisors,
-    itemLabelSingular: 'encarregado',
-    itemLabelPlural: 'encarregados',
-    emptyMessage: 'Sem encarregados encontrados.',
-    searchError: 'Erro ao pesquisar encarregados.',
-    initialMessage: 'A carregar encarregados.',
+    itemLabelSingular: config.resourceConfig?.singular || 'encarregado',
+    itemLabelPlural: config.resourceConfig?.plural || 'encarregados',
+    emptyMessage: config.resourceConfig?.empty_message || 'Sem encarregados encontrados.',
+    searchError: config.resourceConfig?.search_error || 'Erro ao pesquisar encarregados.',
+    initialMessage: config.resourceConfig?.initial_message || 'A carregar encarregados.',
     renderColor: true,
     multi: false,
     searchOnOpen: true,
-    selectedAdjectiveSingular: 'selecionado',
-    selectedAdjectivePlural: 'selecionados',
+    selectedAdjectiveSingular: config.resourceConfig?.selected_adjective_singular || 'selecionado',
+    selectedAdjectivePlural: config.resourceConfig?.selected_adjective_plural || 'selecionados',
     onClose: () => {
       clearWeekSelectionMarks();
       activeWeekSelection = null;
@@ -716,19 +753,17 @@
 
     if (activeBarDrag.mode === 'start') {
       const startWeek = clamp(week, 1, activeBarDrag.endWeek);
-      if (!timelineRangeHasOverlap(activeBarDrag.timeline, startWeek, activeBarDrag.endWeek, activeBarDrag.bar)) {
-        syncBarGeometry(activeBarDrag.bar, startWeek, activeBarDrag.endWeek);
-        activeBarDrag.changed = true;
-      }
+      syncBarGeometry(activeBarDrag.bar, startWeek, activeBarDrag.endWeek);
+      layoutTimelineBars(activeBarDrag.timeline);
+      activeBarDrag.changed = true;
       return;
     }
 
     if (activeBarDrag.mode === 'end') {
       const endWeek = clamp(week, activeBarDrag.startWeek, weeks.length);
-      if (!timelineRangeHasOverlap(activeBarDrag.timeline, activeBarDrag.startWeek, endWeek, activeBarDrag.bar)) {
-        syncBarGeometry(activeBarDrag.bar, activeBarDrag.startWeek, endWeek);
-        activeBarDrag.changed = true;
-      }
+      syncBarGeometry(activeBarDrag.bar, activeBarDrag.startWeek, endWeek);
+      layoutTimelineBars(activeBarDrag.timeline);
+      activeBarDrag.changed = true;
       return;
     }
 
@@ -736,10 +771,9 @@
     const maxStart = Math.max(1, weeks.length - activeBarDrag.duration + 1);
     const startWeek = clamp(activeBarDrag.startWeek + delta, 1, maxStart);
     const endWeek = startWeek + activeBarDrag.duration - 1;
-    if (!timelineRangeHasOverlap(activeBarDrag.timeline, startWeek, endWeek, activeBarDrag.bar)) {
-      syncBarGeometry(activeBarDrag.bar, startWeek, endWeek);
-      activeBarDrag.changed = true;
-    }
+    syncBarGeometry(activeBarDrag.bar, startWeek, endWeek);
+    layoutTimelineBars(activeBarDrag.timeline);
+    activeBarDrag.changed = true;
   });
 
   document.addEventListener('mouseup', (event) => {
@@ -757,13 +791,6 @@
     }
     if (!activeWeekSelection?.dragging) return;
     activeWeekSelection.dragging = false;
-    const selection = selectedWeekRange();
-    if (selection && timelineRangeHasOverlap(selection.timeline, selection.startWeek, selection.endWeek)) {
-      showToastMessage('Ja existe planeamento nessa obra para as semanas selecionadas.', 'warning');
-      clearWeekSelectionMarks();
-      activeWeekSelection = null;
-      return;
-    }
     if (supervisorLookup) supervisorLookup.openModal();
   });
 
@@ -780,6 +807,7 @@
   const serializePlanning = () => {
     const rows = Array.from(grid.querySelectorAll('.gr-macro-timeline')).map((timeline, index) => {
       const processo = String(timeline.dataset.processo || '').trim();
+      layoutTimelineBars(timeline);
       const obraCell = grid.querySelector(`.gr-macro-col-obra[data-processo="${cssEscape(processo)}"]`);
       const teamCell = grid.querySelector(`.gr-macro-team-cell[data-processo="${cssEscape(processo)}"]`);
       const qttCell = grid.querySelector(`.gr-macro-col-quantidade[data-processo="${cssEscape(processo)}"]`);
@@ -793,11 +821,13 @@
           encarregado: String(bar.dataset.supervisor || bar.dataset.label || '').trim(),
           startWeek: Number(bar.dataset.startWeek || 0),
           endWeek: Number(bar.dataset.endWeek || 0),
+          lane: Number(bar.dataset.lane || 1),
         })).filter((bar) => bar.encarregado && bar.startWeek && bar.endWeek),
       };
     }).filter((row) => row.processo);
     return {
       year: Number(config.year || yearSelect?.value || new Date().getFullYear()),
+      resourceType: String(config.resourceType || resourceTypeSelect?.value || 'encarregados'),
       rows,
     };
   };
@@ -838,6 +868,14 @@
       return;
     }
     yearSelect.closest('form')?.submit();
+  });
+
+  resourceTypeSelect?.addEventListener('change', () => {
+    if (isDirty && !window.confirm('Existem alteracoes por gravar. Mudar de tipo de recurso sem gravar?')) {
+      resourceTypeSelect.value = String(config.resourceType || 'encarregados');
+      return;
+    }
+    resourceTypeSelect.closest('form')?.submit();
   });
 
   window.addEventListener('beforeunload', (event) => {
