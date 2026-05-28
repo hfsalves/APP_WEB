@@ -119,6 +119,7 @@ class DocTemplate(db.Model):
     doctemplatestamp  = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
     nome              = db.Column(db.String(120), nullable=False)
     descricao         = db.Column(db.Text, nullable=False, default='')
+    feid              = db.Column(db.Integer, nullable=True)
     fornecedor_no     = db.Column(db.Integer, nullable=True)
     doc_type          = db.Column(db.String(30), nullable=False, default='unknown')
     idioma            = db.Column(db.String(20), nullable=True)
@@ -194,6 +195,25 @@ class DocInbox(db.Model):
     errors_json       = db.Column(db.Text, nullable=False, default='[]')
     processing_meta_json = db.Column(db.Text, nullable=False, default='{}')
     dtproc            = db.Column('DTPROC', db.DateTime, nullable=True)
+    dtcri             = db.Column('DTCRI', db.DateTime, nullable=False)
+    dtalt             = db.Column('DTALT', db.DateTime, nullable=True)
+    usercriacao       = db.Column(db.String(50), nullable=False, default='')
+    useralteracao     = db.Column(db.String(50), nullable=False, default='')
+
+
+class DocSource(db.Model):
+    __tablename__ = 'DOC_SOURCE'
+
+    docsourcestamp    = db.Column(db.String(25), primary_key=True, default=lambda: str(uuid.uuid4())[:25])
+    nome              = db.Column(db.String(120), nullable=False, default='')
+    pasta             = db.Column(db.Text, nullable=False, default='')
+    padrao_ficheiros  = db.Column(db.String(120), nullable=False, default='')
+    subpastas         = db.Column(db.Boolean, nullable=False, default=False)
+    ativo             = db.Column(db.Boolean, nullable=False, default=True)
+    intervalo_minutos = db.Column(db.Integer, nullable=False, default=5)
+    ultima_execucao   = db.Column(db.DateTime, nullable=True)
+    ultimo_estado     = db.Column(db.String(30), nullable=False, default='')
+    ultima_mensagem   = db.Column(db.Text, nullable=False, default='')
     dtcri             = db.Column('DTCRI', db.DateTime, nullable=False)
     dtalt             = db.Column('DTALT', db.DateTime, nullable=True)
     usercriacao       = db.Column(db.String(50), nullable=False, default='')

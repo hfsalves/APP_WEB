@@ -1,10 +1,12 @@
 import hashlib
+import fnmatch
 import importlib.util
 import io
 import json
 import mimetypes
 import os
 import re
+import shutil
 import threading
 import uuid
 from datetime import date, datetime
@@ -15,7 +17,7 @@ from typing import Any
 from flask import current_app
 from sqlalchemy import text
 
-from models import db, DocInbox, DocParser, DocProcessLog, DocTemplate, DocTemplateField
+from models import db, DocInbox, DocParser, DocProcessLog, DocSource, DocTemplate, DocTemplateField
 from services.document_ai_llm_service import llm_suggestions_available, suggest_template_definition
 from services.document_ai_ocr_service import ocr_engine_available
 from services.document_ai_processing_orchestrator import extract_document_with_cascade
@@ -40,6 +42,49 @@ DOC_AI_DOC_TYPES = [
     {'value': 'delivery_note', 'label': 'Guia'},
     {'value': 'unknown', 'label': 'Desconhecido'},
 ]
+
+DOC_AI_DOC_TYPE_TERMS = {
+    'invoice': {
+        'strong': ['invoice', 'facture', 'fatura', 'factura'],
+        'normal': ['bill to', 'amount due', 'montant facture', 'total facture'],
+        'weak': ['vat', 'iva', 'total'],
+    },
+    'credit_note': {
+        'strong': ['credit note', 'nota de credito', 'nota de crédito', 'avoir', 'avoir facture'],
+        'normal': ['credit memo', 'note de credit'],
+        'weak': ['credito', 'credit'],
+    },
+    'purchase_order': {
+        'strong': ['purchase order', 'nota de encomenda', 'bon de commande', 'bon commande'],
+        'normal': ['commande fournisseur', 'order no', 'encomenda'],
+        'weak': ['commande', 'order'],
+    },
+    'delivery_note': {
+        'strong': [
+            "bon d'enlevement",
+            "bon d'enlèvement",
+            'bon enlevement',
+            'bon de livraison',
+            'bon livraison',
+            'bon de reception',
+            'bon de réception',
+            'delivery note',
+            'guia de transporte',
+            'packing slip',
+        ],
+        'normal': [
+            'bon d enlevement',
+            'bon d enlevement reception',
+            'enlevement reception',
+            'livraison',
+            'reception transporteur',
+            'transporteur routier',
+            'poids total bl',
+            'guia',
+        ],
+        'weak': ['transporteur', 'reception', 'enlevement', 'bl'],
+    },
+}
 
 DOC_AI_STATUSES = [
     {'value': 'new', 'label': 'Novo'},
@@ -144,6 +189,7 @@ DOC_AI_DEFAULT_LINE_RULES = {
 
 _schema_ready_databases: set[str] = set()
 _schema_ready_lock = threading.Lock()
+_column_exists_cache: dict[tuple[str, str], bool] = {}
 
 
 def _new_stamp() -> str:
@@ -227,6 +273,25 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return int(value)
     except Exception:
         return default
+
+
+def _column_exists(table_name: str, column_name: str) -> bool:
+    key = (str(table_name or '').upper(), str(column_name or '').upper())
+    if key in _column_exists_cache:
+        return _column_exists_cache[key]
+    exists = bool(db.session.execute(
+        text("SELECT CASE WHEN COL_LENGTH(:table_name, :column_name) IS NULL THEN 0 ELSE 1 END"),
+        {'table_name': f"dbo.{key[0]}", 'column_name': key[1]},
+    ).scalar())
+    _column_exists_cache[key] = exists
+    return exists
+
+
+def _fl_feid_filter_sql(alias: str = 'FL') -> str:
+    if not _column_exists('FL', 'FEID'):
+        return ''
+    prefix = f"{alias}." if alias else ''
+    return f" AND ISNULL({prefix}FEID, 0) = :feid"
 
 
 def _safe_date_iso(value: Any) -> str:
@@ -421,6 +486,47 @@ def _ensure_document_ai_schema():
         _schema_ready_databases.add(database_name)
 
 
+def _ensure_document_sources_schema():
+    _ensure_document_ai_schema()
+    db.session.execute(text("""
+        IF OBJECT_ID('dbo.DOC_SOURCE', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.DOC_SOURCE (
+                DOCSOURCESTAMP varchar(25) NOT NULL
+                    CONSTRAINT PK_DOC_SOURCE PRIMARY KEY,
+                NOME varchar(120) NOT NULL
+                    CONSTRAINT DF_DOC_SOURCE_NOME DEFAULT '',
+                PASTA nvarchar(500) NOT NULL
+                    CONSTRAINT DF_DOC_SOURCE_PASTA DEFAULT N'',
+                PADRAO_FICHEIROS varchar(120) NOT NULL
+                    CONSTRAINT DF_DOC_SOURCE_PADRAO DEFAULT '',
+                SUBPASTAS bit NOT NULL
+                    CONSTRAINT DF_DOC_SOURCE_SUBPASTAS DEFAULT 0,
+                ATIVO bit NOT NULL
+                    CONSTRAINT DF_DOC_SOURCE_ATIVO DEFAULT 1,
+                INTERVALO_MINUTOS int NOT NULL
+                    CONSTRAINT DF_DOC_SOURCE_INTERVALO DEFAULT 5,
+                ULTIMA_EXECUCAO datetime NULL,
+                ULTIMO_ESTADO varchar(30) NOT NULL
+                    CONSTRAINT DF_DOC_SOURCE_ULT_ESTADO DEFAULT '',
+                ULTIMA_MENSAGEM nvarchar(500) NOT NULL
+                    CONSTRAINT DF_DOC_SOURCE_ULT_MSG DEFAULT N'',
+                DTCRI datetime NOT NULL
+                    CONSTRAINT DF_DOC_SOURCE_DTCRI DEFAULT GETDATE(),
+                DTALT datetime NULL,
+                USERCRIACAO varchar(50) NOT NULL
+                    CONSTRAINT DF_DOC_SOURCE_USERCRI DEFAULT '',
+                USERALTERACAO varchar(50) NOT NULL
+                    CONSTRAINT DF_DOC_SOURCE_USERALT DEFAULT ''
+            );
+
+            CREATE INDEX IX_DOC_SOURCE_ATIVO
+                ON dbo.DOC_SOURCE (ATIVO, NOME);
+        END
+    """))
+    db.session.commit()
+
+
 def _ensure_default_parser() -> DocParser:
     parser = DocParser.query.filter_by(codigo='TEXT_RULES_V1').first()
     if parser:
@@ -465,20 +571,209 @@ def _supplier_candidates_from_text(text_value: str) -> list[str]:
     return candidates[:12]
 
 
-def _load_suppliers() -> list[dict[str, Any]]:
+def _serialize_fe_row(row: dict[str, Any] | None, score: float = 0, matched_by: str = '') -> dict[str, Any]:
+    if not row:
+        return {}
+    name = str(row.get('NOMEFISCAL') or row.get('NOME') or '').strip()
+    return {
+        'feid': _safe_int(row.get('FEID'), 0) or None,
+        'name': name,
+        'tax_id': _digits_only(row.get('NIF')),
+        'score': round(float(score or 0), 4),
+        'matched_by': matched_by,
+    }
+
+
+def _load_fe_entities() -> list[dict[str, Any]]:
     rows = db.session.execute(text("""
         SELECT
-            CAST(NO AS int) AS NO,
+            CAST(ISNULL(FEID, 0) AS int) AS FEID,
             LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
-            LTRIM(RTRIM(ISNULL(NIF, ''))) AS NIF
-        FROM dbo.FL
-        WHERE ISNULL(NOME, '') <> ''
-        ORDER BY NOME
+            LTRIM(RTRIM(ISNULL(NOMEFISCAL, ''))) AS NOMEFISCAL,
+            LTRIM(RTRIM(CAST(ISNULL(NIF, 0) AS varchar(40)))) AS NIF
+        FROM dbo.FE
+        WHERE ISNULL(FEID, 0) <> 0
+          AND (ISNULL(NOME, '') <> '' OR ISNULL(NOMEFISCAL, '') <> '')
     """)).mappings().all()
     return [dict(row) for row in rows]
 
 
-def identify_supplier_from_text(text_value: str) -> dict[str, Any]:
+def resolve_fe_entity(value: str, match_mode: str = 'auto') -> dict[str, Any]:
+    raw = str(value or '').strip()
+    if not raw:
+        return {}
+
+    digits = _digits_only(raw)
+    if len(digits) >= 6 and match_mode in ('auto', 'tax_id'):
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                CAST(ISNULL(FEID, 0) AS int) AS FEID,
+                LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(NOMEFISCAL, ''))) AS NOMEFISCAL,
+                LTRIM(RTRIM(CAST(ISNULL(NIF, 0) AS varchar(40)))) AS NIF
+            FROM dbo.FE
+            WHERE REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(CAST(ISNULL(NIF, 0) AS varchar(40)))), ' ', ''), '-', ''), '.', ''), '/', '') = :digits
+            ORDER BY ISNULL(NOMEFISCAL, ISNULL(NOME, ''))
+        """), {'digits': digits}).mappings().first()
+        if row:
+            return _serialize_fe_row(dict(row), 0.99, 'tax_id')
+
+    normalized_raw = _normalize_text(raw)
+    if len(normalized_raw) < 3:
+        return {}
+
+    best: dict[str, Any] = {}
+    best_score = 0.0
+    for entity in _load_fe_entities():
+        names = [
+            str(entity.get('NOMEFISCAL') or '').strip(),
+            str(entity.get('NOME') or '').strip(),
+        ]
+        for name in names:
+            normalized_name = _normalize_text(name)
+            if not normalized_name or len(normalized_name) < 3:
+                continue
+            name_tokens = [token for token in normalized_name.split(' ') if len(token) > 2]
+            token_hits = sum(1 for token in name_tokens if token in normalized_raw)
+            token_score = token_hits / max(len(name_tokens), 1)
+            ratio = SequenceMatcher(None, normalized_name, normalized_raw).ratio()
+            score = max(token_score * 0.86, ratio * 0.7)
+            if normalized_name in normalized_raw or normalized_raw in normalized_name:
+                score = max(score, 0.9)
+            if score > best_score:
+                best_score = score
+                best = entity
+    if best and best_score >= 0.35:
+        return _serialize_fe_row(best, best_score, 'name')
+    return {}
+
+
+def identify_fe_entity_from_text(text_value: str) -> dict[str, Any]:
+    normalized_text = _normalize_text(text_value)
+    for vat in _supplier_candidates_from_text(text_value):
+        match = resolve_fe_entity(vat, 'tax_id')
+        if match:
+            return match
+
+    best: dict[str, Any] = {}
+    best_score = 0.0
+    for entity in _load_fe_entities():
+        names = [
+            str(entity.get('NOMEFISCAL') or '').strip(),
+            str(entity.get('NOME') or '').strip(),
+        ]
+        for name in names:
+            normalized_name = _normalize_text(name)
+            if not normalized_name or len(normalized_name) < 4:
+                continue
+            name_tokens = [token for token in normalized_name.split(' ') if len(token) > 2]
+            token_hits = sum(1 for token in name_tokens if token in normalized_text)
+            token_score = token_hits / max(len(name_tokens), 1)
+            ratio = SequenceMatcher(None, normalized_name, normalized_text).ratio()
+            score = max(token_score * 0.86, ratio * 0.6)
+            if normalized_name in normalized_text:
+                score = max(score, 0.92)
+            if score > best_score:
+                best_score = score
+                best = entity
+    if best and best_score >= 0.35:
+        return _serialize_fe_row(best, best_score, 'name')
+    return {}
+
+
+def _load_suppliers(feid: int | None = None) -> list[dict[str, Any]]:
+    feid_filter = _fl_feid_filter_sql('FL') if feid else ''
+    feid_select = "CAST(ISNULL(FL.FEID, 0) AS int)" if _column_exists('FL', 'FEID') else "CAST(0 AS int)"
+    rows = db.session.execute(text("""
+        SELECT
+            CAST(FL.NO AS int) AS NO,
+            LTRIM(RTRIM(ISNULL(FL.NOME, ''))) AS NOME,
+            LTRIM(RTRIM(ISNULL(FL.NIF, ''))) AS NIF,
+            {feid_select} AS FEID
+        FROM dbo.FL FL
+        WHERE ISNULL(FL.NOME, '') <> ''
+        {feid_filter}
+        ORDER BY FL.NOME
+    """.format(feid_filter=feid_filter, feid_select=feid_select)), {'feid': int(feid or 0)}).mappings().all()
+    return [dict(row) for row in rows]
+
+
+def search_suppliers(value: str, feid: int | None = None, limit: int = 8) -> list[dict[str, Any]]:
+    if not _safe_int(feid, 0):
+        raise ValueError('Identifica primeiro a Entidade FE do cliente.')
+    raw = str(value or '').strip()
+    normalized_raw = _normalize_text(raw)
+    digits = _digits_only(raw)
+    if len(normalized_raw) < 2 and len(digits) < 2:
+        return []
+
+    results: list[dict[str, Any]] = []
+    seen: set[tuple[int, int]] = set()
+    for supplier in _load_suppliers(feid):
+        supplier_no = _safe_int(supplier.get('NO'), 0)
+        supplier_feid = _safe_int(supplier.get('FEID'), 0)
+        key = (supplier_feid, supplier_no)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        name = str(supplier.get('NOME') or '').strip()
+        tax_id = _digits_only(supplier.get('NIF'))
+        no_text = str(supplier_no or '')
+        normalized_name = _normalize_text(name)
+
+        score = 0.0
+        matched_by = ''
+        if digits:
+            if tax_id and digits == tax_id:
+                score = 0.99
+                matched_by = 'tax_id'
+            elif tax_id and (digits in tax_id or tax_id in digits):
+                score = max(score, 0.88)
+                matched_by = matched_by or 'tax_id'
+            elif no_text and digits == no_text:
+                score = max(score, 0.96)
+                matched_by = matched_by or 'number'
+            elif no_text and digits in no_text:
+                score = max(score, 0.72)
+                matched_by = matched_by or 'number'
+
+        if normalized_raw and normalized_name:
+            if normalized_raw == normalized_name:
+                score = max(score, 0.98)
+                matched_by = matched_by or 'name'
+            elif normalized_raw in normalized_name or normalized_name in normalized_raw:
+                score = max(score, 0.9)
+                matched_by = matched_by or 'name'
+            name_tokens = [token for token in normalized_name.split(' ') if len(token) > 2]
+            raw_tokens = [token for token in normalized_raw.split(' ') if len(token) > 2]
+            if name_tokens and raw_tokens:
+                token_hits = sum(1 for token in raw_tokens if token in normalized_name)
+                token_score = token_hits / max(len(raw_tokens), 1)
+                score = max(score, token_score * 0.84)
+                if token_hits:
+                    matched_by = matched_by or 'name'
+            ratio = SequenceMatcher(None, normalized_name, normalized_raw).ratio()
+            if ratio >= 0.35:
+                score = max(score, ratio * 0.82)
+                matched_by = matched_by or 'name'
+
+        if score < 0.32:
+            continue
+        results.append({
+            'no': supplier_no,
+            'name': name,
+            'tax_id': tax_id,
+            'feid': supplier_feid or (int(feid or 0) or None),
+            'score': round(min(score, 0.99), 4),
+            'matched_by': matched_by or 'name',
+        })
+
+    results.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('name') or '')))
+    return results[:max(1, min(int(limit or 8), 20))]
+
+
+def identify_supplier_from_text(text_value: str, feid: int | None = None) -> dict[str, Any]:
     normalized_text = _normalize_text(text_value)
     vat_candidates = _supplier_candidates_from_text(text_value)
     best = {
@@ -490,14 +785,19 @@ def identify_supplier_from_text(text_value: str) -> dict[str, Any]:
     }
 
     for vat in vat_candidates:
+        feid_filter = _fl_feid_filter_sql('FL') if feid else ''
         row = db.session.execute(text("""
             SELECT TOP 1
-                CAST(NO AS int) AS NO,
-                LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
-                LTRIM(RTRIM(ISNULL(NIF, ''))) AS NIF
-            FROM dbo.FL
-            WHERE REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(NIF, ''))), ' ', ''), '-', ''), '.', ''), '/', '') = :vat
-        """), {'vat': vat}).mappings().first()
+                CAST(FL.NO AS int) AS NO,
+                LTRIM(RTRIM(ISNULL(FL.NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(FL.NIF, ''))) AS NIF
+            FROM dbo.FL FL
+            WHERE REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(FL.NIF, ''))), ' ', ''), '-', ''), '.', ''), '/', '') = :vat
+            {feid_filter}
+        """.format(feid_filter=feid_filter)), {
+            'vat': vat,
+            'feid': int(feid or 0),
+        }).mappings().first()
         if row:
             return {
                 'supplier_no': _safe_int(row.get('NO'), 0) or None,
@@ -505,9 +805,10 @@ def identify_supplier_from_text(text_value: str) -> dict[str, Any]:
                 'supplier_tax_id': _digits_only(row.get('NIF')),
                 'score': 0.98,
                 'matched_by': 'vat',
+                'feid': int(feid or 0) or None,
             }
 
-    suppliers = _load_suppliers()
+    suppliers = _load_suppliers(feid)
     for supplier in suppliers:
         supplier_name = str(supplier.get('NOME') or '').strip()
         normalized_name = _normalize_text(supplier_name)
@@ -532,8 +833,24 @@ def identify_supplier_from_text(text_value: str) -> dict[str, Any]:
                 'supplier_tax_id': _digits_only(supplier.get('NIF')),
                 'score': round(min(score, 0.92), 4),
                 'matched_by': 'name',
+                'feid': int(feid or 0) or None,
             }
     return best
+
+
+def _doc_type_term_hits(normalized_text: str, terms: list[str]) -> list[str]:
+    hits = []
+    for term in terms:
+        normalized_term = _normalize_text(term)
+        if not normalized_term:
+            continue
+        if re.fullmatch(r'[a-z0-9]{1,3}', normalized_term):
+            if re.search(rf'\b{re.escape(normalized_term)}\b', normalized_text):
+                hits.append(term)
+            continue
+        if normalized_term in normalized_text:
+            hits.append(term)
+    return hits
 
 
 def classify_document_type(text_value: str, supplier_match: dict[str, Any] | None = None, template_match: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -545,31 +862,59 @@ def classify_document_type(text_value: str, supplier_match: dict[str, Any] | Non
         'delivery_note': 0.0,
         'unknown': 0.2,
     }
-    keyword_groups = {
-        'invoice': ['invoice', 'fatura', 'factura', 'bill to', 'vat', 'iva', 'amount due'],
-        'credit_note': ['credit note', 'nota de credito', 'nota de crédito', 'credit memo'],
-        'purchase_order': ['purchase order', 'nota de encomenda', 'order no', 'encomenda'],
-        'delivery_note': ['delivery note', 'guia', 'guia de transporte', 'packing slip'],
-    }
-    for doc_type, keywords in keyword_groups.items():
-        for keyword in keywords:
-            if _normalize_text(keyword) in normalized:
-                score_map[doc_type] += 0.24
+    reasons: list[str] = []
+
+    if template_match and 'forced' in (template_match.get('reasons') or []) and template_match.get('doc_type'):
+        forced_type = str(template_match.get('doc_type') or 'unknown').strip() or 'unknown'
+        return {
+            'doc_type': forced_type,
+            'score': 0.99,
+            'supplier_no': (supplier_match or {}).get('supplier_no'),
+            'reasons': ['forced_template'],
+        }
+
+    strong_hits_by_type: dict[str, list[str]] = {}
+    for doc_type, term_group in DOC_AI_DOC_TYPE_TERMS.items():
+        strong_hits = _doc_type_term_hits(normalized, list(term_group.get('strong') or []))
+        if strong_hits:
+            strong_hits_by_type[doc_type] = strong_hits
+            score_map[doc_type] += 0.72 + min(0.18, len(strong_hits) * 0.06)
+        normal_hits = _doc_type_term_hits(normalized, list(term_group.get('normal') or []))
+        weak_hits = _doc_type_term_hits(normalized, list(term_group.get('weak') or []))
+        score_map[doc_type] += len(normal_hits) * 0.24
+        score_map[doc_type] += len(weak_hits) * 0.06
+        if strong_hits or normal_hits:
+            reasons.extend([f'{doc_type}:{term}' for term in [*strong_hits, *normal_hits][:6]])
+
+    if strong_hits_by_type:
+        best_strong_type = max(strong_hits_by_type.keys(), key=lambda item: score_map.get(item, 0))
+        return {
+            'doc_type': best_strong_type,
+            'score': round(min(score_map.get(best_strong_type, 0.92), 0.99), 4),
+            'supplier_no': (supplier_match or {}).get('supplier_no'),
+            'reasons': [f'strong_term:{term}' for term in strong_hits_by_type.get(best_strong_type, [])],
+        }
+
     if re.search(r'\biva\b|\bvat\b', normalized):
         score_map['invoice'] += 0.12
         score_map['credit_note'] += 0.04
+        reasons.append('tax_term')
     if re.search(r'\btotal\b', normalized):
         score_map['invoice'] += 0.1
         score_map['credit_note'] += 0.05
-    if re.search(r'\bguia\b|\btransporte\b', normalized):
+        reasons.append('total_term')
+    if re.search(r'\bguia\b|\btransporte\b|\blivraison\b|\benlevement\b', normalized):
         score_map['delivery_note'] += 0.14
-    if re.search(r'\bencomenda\b|\border\b', normalized):
+        reasons.append('delivery_term')
+    if re.search(r'\bencomenda\b|\border\b|\bcommande\b', normalized):
         score_map['purchase_order'] += 0.14
+        reasons.append('order_term')
     if template_match and template_match.get('doc_type') and template_match.get('score', 0) > 0.55:
         score_map[str(template_match.get('doc_type'))] = max(
             score_map.get(str(template_match.get('doc_type')), 0),
             min(0.98, float(template_match.get('score') or 0) + 0.08),
         )
+        reasons.append('template_match')
 
     best_type = 'unknown'
     best_score = 0.2
@@ -582,6 +927,7 @@ def classify_document_type(text_value: str, supplier_match: dict[str, Any] | Non
         'doc_type': best_type,
         'score': round(min(best_score, 0.99), 4),
         'supplier_no': (supplier_match or {}).get('supplier_no'),
+        'reasons': reasons[:10],
     }
 
 
@@ -624,11 +970,16 @@ def _serialize_parser(parser: DocParser | dict[str, Any] | None) -> dict[str, An
 def _serialize_template(template: DocTemplate, include_definition: bool = False) -> dict[str, Any]:
     supplier_name = ''
     if template.fornecedor_no:
+        feid_filter = _fl_feid_filter_sql('FL') if template.feid else ''
         row = db.session.execute(text("""
             SELECT TOP 1 LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
-            FROM dbo.FL
+            FROM dbo.FL FL
             WHERE CAST(NO AS int) = :supplier_no
-        """), {'supplier_no': template.fornecedor_no}).mappings().first()
+            {feid_filter}
+        """.format(feid_filter=feid_filter)), {
+            'supplier_no': template.fornecedor_no,
+            'feid': int(template.feid or 0),
+        }).mappings().first()
         supplier_name = str((row or {}).get('NOME') or '').strip()
 
     parser = None
@@ -639,6 +990,7 @@ def _serialize_template(template: DocTemplate, include_definition: bool = False)
         'id': template.doctemplatestamp,
         'name': template.nome,
         'description': template.descricao or '',
+        'feid': template.feid,
         'supplier_no': template.fornecedor_no,
         'supplier_name': supplier_name,
         'doc_type': template.doc_type or 'unknown',
@@ -681,17 +1033,21 @@ def _serialize_template(template: DocTemplate, include_definition: bool = False)
     return payload
 
 
-def _load_template_candidates(supplier_no: int | None, doc_type: str) -> list[DocTemplate]:
+def _load_template_candidates(supplier_no: int | None, doc_type: str, feid: int | None = None) -> list[DocTemplate]:
     query = DocTemplate.query.filter_by(ativo=True)
-    if doc_type:
+    doc_type = str(doc_type or '').strip()
+    if doc_type and doc_type != 'unknown':
         query = query.filter(text("(DOC_TYPE = :doc_type OR DOC_TYPE = 'unknown')")).params(doc_type=doc_type)
+    if feid:
+        query = query.filter(text("(FEID IS NULL OR FEID = 0 OR FEID = :feid)")).params(feid=int(feid or 0))
     templates = query.order_by(
+        text("CASE WHEN ISNULL(FEID, 0) = 0 THEN 1 ELSE 0 END"),
         text("CASE WHEN FORNECEDOR_NO IS NULL THEN 1 ELSE 0 END"),
         DocTemplate.fornecedor_no.desc(),
         DocTemplate.nome.asc(),
     ).all()
     if supplier_no is None:
-        return [item for item in templates if item.fornecedor_no is None]
+        return templates
     ordered = [item for item in templates if item.fornecedor_no == supplier_no]
     ordered.extend([item for item in templates if item.fornecedor_no is None])
     return ordered
@@ -726,12 +1082,18 @@ def _template_definition_payload(template: DocTemplate) -> dict[str, Any]:
     return definition
 
 
-def _evaluate_template_match(template: DocTemplate, text_value: str, supplier_no: int | None, doc_type: str) -> dict[str, Any]:
+def _evaluate_template_match(template: DocTemplate, text_value: str, supplier_no: int | None, doc_type: str, feid: int | None = None) -> dict[str, Any]:
     definition = _template_definition_payload(template)
     match_rules = definition.get('match') or {}
     normalized = _normalize_text(text_value)
     score = 0.0
     reasons = []
+
+    if template.feid and feid and int(template.feid or 0) == int(feid or 0):
+        score += 0.18
+        reasons.append('feid')
+    elif template.feid and int(template.feid or 0) != int(feid or 0):
+        return {'template': template, 'score': 0.0, 'reasons': ['feid_mismatch'], 'doc_type': definition.get('doc_type') or template.doc_type}
 
     if template.fornecedor_no and supplier_no and int(template.fornecedor_no) == int(supplier_no):
         score += 0.28
@@ -740,7 +1102,7 @@ def _evaluate_template_match(template: DocTemplate, text_value: str, supplier_no
         return {'template': template, 'score': 0.0, 'reasons': ['supplier_mismatch'], 'doc_type': definition.get('doc_type') or template.doc_type}
 
     template_doc_type = str(definition.get('doc_type') or template.doc_type or 'unknown').strip() or 'unknown'
-    if doc_type and template_doc_type not in ('', 'unknown'):
+    if doc_type and doc_type != 'unknown' and template_doc_type not in ('', 'unknown'):
         if template_doc_type == doc_type:
             score += 0.22
             reasons.append('doc_type')
@@ -756,7 +1118,7 @@ def _evaluate_template_match(template: DocTemplate, text_value: str, supplier_no
         if _normalize_text(keyword) in normalized:
             keyword_hits += 1
     if keywords:
-        score += min(0.32, keyword_hits * 0.08)
+        score += min(0.42, keyword_hits * 0.10)
         if keyword_hits:
             reasons.append(f'keywords:{keyword_hits}')
 
@@ -796,11 +1158,11 @@ def _evaluate_template_match(template: DocTemplate, text_value: str, supplier_no
     }
 
 
-def _choose_best_template(text_value: str, supplier_no: int | None, doc_type: str) -> dict[str, Any] | None:
-    candidates = _load_template_candidates(supplier_no, doc_type)
+def _choose_best_template(text_value: str, supplier_no: int | None, doc_type: str, feid: int | None = None) -> dict[str, Any] | None:
+    candidates = _load_template_candidates(supplier_no, doc_type, feid)
     best_payload = None
     for template in candidates:
-        evaluated = _evaluate_template_match(template, text_value, supplier_no, doc_type)
+        evaluated = _evaluate_template_match(template, text_value, supplier_no, doc_type, feid)
         min_score = float(template.score_minimo_match or 0)
         if evaluated['score'] < min_score:
             continue
@@ -1659,6 +2021,8 @@ def _doc_queryset_sql(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
                 OR UPPER(LTRIM(RTRIM(ISNULL(T.NOME, '')))) LIKE :search_like
                 OR UPPER(LTRIM(RTRIM(ISNULL(F.NOME, '')))) LIKE :search_like
                 OR UPPER(LTRIM(RTRIM(ISNULL(D.FORNECEDOR_NOME_DETETADO, '')))) LIKE :search_like
+                OR UPPER(LTRIM(RTRIM(ISNULL(FE.NOME, '')))) LIKE :search_like
+                OR UPPER(LTRIM(RTRIM(ISNULL(FE.NOMEFISCAL, '')))) LIKE :search_like
             )
         """)
         params['search_like'] = f"%{search.upper()}%"
@@ -1688,6 +2052,9 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             D.EXTRACTION_METHOD,
             D.EXTRACTION_QUALITY_SCORE,
             D.DOC_TYPE_DETECTED,
+            D.FEID,
+            ISNULL(NULLIF(FE.NOMEFISCAL, ''), ISNULL(FE.NOME, '')) AS FE_NOME,
+            LTRIM(RTRIM(CAST(ISNULL(FE.NIF, 0) AS varchar(40)))) AS FE_NIF,
             D.FORNECEDOR_NO,
             ISNULL(F.NOME, D.FORNECEDOR_NOME_DETETADO) AS FORNECEDOR_NOME,
             D.DOCTEMPLATESTAMP,
@@ -1697,6 +2064,8 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             D.DTCRI,
             D.DTPROC
         FROM dbo.DOC_INBOX D
+        LEFT JOIN dbo.FE FE
+          ON CAST(FE.FEID AS int) = D.FEID
         LEFT JOIN dbo.FL F
           ON CAST(F.NO AS int) = D.FORNECEDOR_NO
         LEFT JOIN dbo.DOC_TEMPLATE T
@@ -1719,6 +2088,9 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             'extraction_method': str(row.get('EXTRACTION_METHOD') or 'failed').strip() or 'failed',
             'extraction_quality_score': float(row.get('EXTRACTION_QUALITY_SCORE') or 0),
             'doc_type': str(row.get('DOC_TYPE_DETECTED') or 'unknown').strip() or 'unknown',
+            'feid': _safe_int(row.get('FEID'), 0) or None,
+            'entity_name': str(row.get('FE_NOME') or '').strip(),
+            'entity_tax_id': _digits_only(row.get('FE_NIF')),
             'supplier_no': _safe_int(row.get('FORNECEDOR_NO'), 0) or None,
             'supplier_name': str(row.get('FORNECEDOR_NOME') or '').strip(),
             'template_id': str(row.get('DOCTEMPLATESTAMP') or '').strip(),
@@ -1732,21 +2104,355 @@ def list_documents(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     return {'items': items, 'counts': counts, 'statuses': DOC_AI_STATUSES, 'doc_types': DOC_AI_DOC_TYPES}
 
 
+def _serialize_document_source(source: DocSource) -> dict[str, Any]:
+    folder = str(source.pasta or '').strip()
+    resolved_folder = _resolve_document_source_folder(folder)
+    return {
+        'id': source.docsourcestamp,
+        'name': source.nome or '',
+        'folder': folder,
+        'file_pattern': source.padrao_ficheiros or '',
+        'include_subfolders': bool(source.subpastas),
+        'active': bool(source.ativo),
+        'interval_minutes': int(source.intervalo_minutos or 5),
+        'last_run_at': source.ultima_execucao.isoformat() if source.ultima_execucao else None,
+        'last_status': source.ultimo_estado or '',
+        'last_message': source.ultima_mensagem or '',
+        'folder_exists': bool(resolved_folder and os.path.isdir(resolved_folder)),
+        'created_at': source.dtcri.isoformat() if source.dtcri else None,
+        'updated_at': source.dtalt.isoformat() if source.dtalt else None,
+        'created_by': source.usercriacao or '',
+        'updated_by': source.useralteracao or '',
+    }
+
+
+def list_document_sources() -> dict[str, Any]:
+    _ensure_document_sources_schema()
+    rows = (
+        DocSource.query
+        .order_by(DocSource.ativo.desc(), DocSource.nome.asc())
+        .all()
+    )
+    return {'items': [_serialize_document_source(row) for row in rows]}
+
+
+def get_document_source(source_id: str) -> dict[str, Any]:
+    _ensure_document_sources_schema()
+    source = db.session.get(DocSource, str(source_id or '').strip())
+    if not source:
+        raise ValueError('Origem não encontrada.')
+    return _serialize_document_source(source)
+
+
+def _normalize_document_source_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
+    body = payload or {}
+    name = str(body.get('name') or body.get('nome') or '').strip()
+    folder = str(body.get('folder') or body.get('pasta') or '').strip()
+    if not name:
+        raise ValueError('Indique o nome da origem.')
+    if not folder:
+        raise ValueError('Indique a pasta da origem.')
+    return {
+        'name': name[:120],
+        'folder': folder[:500],
+        'file_pattern': str(body.get('file_pattern') or body.get('padrao_ficheiros') or '').strip()[:120],
+        'include_subfolders': bool(body.get('include_subfolders') or body.get('subpastas')),
+        'active': bool(body.get('active', body.get('ativo', True))),
+        'interval_minutes': max(1, min(1440, _safe_int(body.get('interval_minutes') or body.get('intervalo_minutos'), 5))),
+    }
+
+
+def save_document_source(payload: dict[str, Any] | None, user_login: str, source_id: str = '') -> dict[str, Any]:
+    _ensure_document_sources_schema()
+    normalized = _normalize_document_source_payload(payload)
+    source = db.session.get(DocSource, str(source_id or '').strip()) if source_id else None
+    now = _now()
+    user = str(user_login or '').strip()[:50]
+    if source is None:
+        source = DocSource(
+            docsourcestamp=_new_stamp(),
+            dtcri=now,
+            usercriacao=user,
+        )
+        db.session.add(source)
+    source.nome = normalized['name']
+    source.pasta = normalized['folder']
+    source.padrao_ficheiros = normalized['file_pattern']
+    source.subpastas = normalized['include_subfolders']
+    source.ativo = normalized['active']
+    source.intervalo_minutos = normalized['interval_minutes']
+    source.dtalt = now
+    source.useralteracao = user
+    db.session.commit()
+    return _serialize_document_source(source)
+
+
+def delete_document_source(source_id: str) -> dict[str, Any]:
+    _ensure_document_sources_schema()
+    source = db.session.get(DocSource, str(source_id or '').strip())
+    if not source:
+        raise ValueError('Origem não encontrada.')
+    deleted_id = source.docsourcestamp
+    db.session.delete(source)
+    db.session.commit()
+    return {'ok': True, 'id': deleted_id}
+
+
+def _document_source_patterns(pattern_value: str | None) -> list[str]:
+    patterns = [
+        item.strip()
+        for item in re.split(r'[;,]', str(pattern_value or '').strip())
+        if item.strip()
+    ]
+    if patterns:
+        return patterns
+    return [f'*{ext}' for ext in sorted(DOC_AI_ALLOWED_UPLOAD_EXTENSIONS)]
+
+
+def _document_source_file_matches(file_name: str, patterns: list[str]) -> bool:
+    lower_name = str(file_name or '').lower()
+    return any(fnmatch.fnmatch(lower_name, pattern.lower()) for pattern in patterns)
+
+
+def _document_source_min_year() -> int:
+    try:
+        return max(1900, int(os.environ.get('DOCUMENT_AI_MIN_YEAR', '2026') or 2026))
+    except Exception:
+        return 2026
+
+
+def _path_year_segments(base_folder: str, path_value: str) -> list[int]:
+    try:
+        relative_path = os.path.relpath(path_value, base_folder)
+    except ValueError:
+        relative_path = path_value
+    years = []
+    for part in re.split(r'[\\/]+', str(relative_path or '')):
+        if re.fullmatch(r'(19|20)\d{2}', part or ''):
+            years.append(int(part))
+    return years
+
+
+def _document_source_file_in_min_year(base_folder: str, file_path: str, min_year: int) -> bool:
+    years = _path_year_segments(base_folder, file_path)
+    if years:
+        return max(years) >= min_year
+    try:
+        return datetime.fromtimestamp(os.path.getmtime(file_path)).year >= min_year
+    except Exception:
+        return True
+
+
+def _normalize_source_path_for_match(path_value: str) -> str:
+    return str(path_value or '').strip().replace('\\', '/').rstrip('/').lower()
+
+
+def _document_source_path_mappings() -> list[tuple[str, str]]:
+    raw_value = str(os.environ.get('DOCUMENT_AI_PATH_MAPS') or '').strip()
+    mappings = []
+    for item in re.split(r'[;\n]', raw_value):
+        if '=' not in item:
+            continue
+        source_prefix, local_prefix = item.split('=', 1)
+        source_prefix = source_prefix.strip()
+        local_prefix = os.path.expanduser(local_prefix.strip())
+        if source_prefix and local_prefix:
+            mappings.append((source_prefix, local_prefix))
+    return mappings
+
+
+def _resolve_document_source_folder(folder_value: str) -> str:
+    folder = os.path.expanduser(str(folder_value or '').strip())
+    if not folder:
+        return ''
+    folder_slash = folder.replace('\\', '/').rstrip('/')
+    normalized_folder = _normalize_source_path_for_match(folder)
+    for source_prefix, local_prefix in _document_source_path_mappings():
+        source_prefix_slash = source_prefix.replace('\\', '/').rstrip('/')
+        normalized_prefix = _normalize_source_path_for_match(source_prefix)
+        if not normalized_prefix:
+            continue
+        if normalized_folder == normalized_prefix or normalized_folder.startswith(f'{normalized_prefix}/'):
+            suffix = folder_slash[len(source_prefix_slash):].lstrip('/')
+            return os.path.abspath(os.path.join(local_prefix, *[part for part in suffix.split('/') if part]))
+    return os.path.abspath(folder)
+
+
+def _iter_document_source_files(source: DocSource, limit: int = 50) -> list[str]:
+    folder = _resolve_document_source_folder(str(source.pasta or '').strip())
+    if not os.path.isdir(folder):
+        raise FileNotFoundError(f'Pasta não encontrada: {source.pasta}')
+    current_app.logger.info(
+        "Document AI robot: origem %s resolvida para %s.",
+        source.nome or source.docsourcestamp,
+        folder,
+    )
+    patterns = _document_source_patterns(source.padrao_ficheiros)
+    matched_files = []
+    max_files = max(1, int(limit or 50))
+    min_year = _document_source_min_year()
+    if source.subpastas:
+        for root, dir_names, file_names in os.walk(folder):
+            dir_names[:] = [
+                dir_name
+                for dir_name in dir_names
+                if not (re.fullmatch(r'(19|20)\d{2}', dir_name or '') and int(dir_name) < min_year)
+            ]
+            for file_name in file_names:
+                file_path = os.path.join(root, file_name)
+                if (
+                    _document_source_file_matches(file_name, patterns)
+                    and _document_source_file_in_min_year(folder, file_path, min_year)
+                ):
+                    matched_files.append(file_path)
+                    if len(matched_files) >= max_files:
+                        return matched_files
+    else:
+        with os.scandir(folder) as entries:
+            for entry in entries:
+                if (
+                    entry.is_file()
+                    and _document_source_file_matches(entry.name, patterns)
+                    and _document_source_file_in_min_year(folder, entry.path, min_year)
+                ):
+                    matched_files.append(entry.path)
+                    if len(matched_files) >= max_files:
+                        break
+    return matched_files
+
+
+def scan_document_source(source: DocSource, limit: int = 50, requested_by: str = 'document_ai_robot') -> dict[str, Any]:
+    _ensure_document_sources_schema()
+    stats = {
+        'source_id': source.docsourcestamp,
+        'source_name': source.nome or '',
+        'found': 0,
+        'imported': 0,
+        'skipped': 0,
+        'errors': 0,
+        'items': [],
+    }
+    now = _now()
+    try:
+        current_app.logger.info(
+            "Document AI robot: a analisar origem %s com ano mínimo %s.",
+            source.nome or source.docsourcestamp,
+            _document_source_min_year(),
+        )
+        file_paths = _iter_document_source_files(source, limit=limit)
+        stats['found'] = len(file_paths)
+        current_app.logger.info(
+            "Document AI robot: origem %s devolveu %s ficheiro(s) candidato(s) neste ciclo.",
+            source.nome or source.docsourcestamp,
+            stats['found'],
+        )
+        for file_path in file_paths[:max(1, int(limit or 50))]:
+            try:
+                current_app.logger.info("Document AI robot: a importar %s.", file_path)
+                payload = ingest_local_document_file(
+                    file_path,
+                    created_by=requested_by,
+                    source_table='DOC_SOURCE',
+                    source_recstamp=source.docsourcestamp,
+                )
+                if payload.get('skipped'):
+                    stats['skipped'] += 1
+                else:
+                    stats['imported'] += 1
+                stats['items'].append({
+                    'path': file_path,
+                    'id': payload.get('id'),
+                    'skipped': bool(payload.get('skipped')),
+                    'error': '',
+                })
+            except Exception as exc:
+                stats['errors'] += 1
+                stats['items'].append({
+                    'path': file_path,
+                    'id': '',
+                    'skipped': False,
+                    'error': str(exc),
+                })
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+        status = 'ok' if stats['errors'] == 0 else 'warning'
+        message = f"{stats['imported']} importado(s), {stats['skipped']} duplicado(s), {stats['errors']} erro(s)."
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        stats['errors'] += 1
+        status = 'error'
+        message = str(exc)
+
+    fresh_source = db.session.get(DocSource, source.docsourcestamp)
+    if fresh_source:
+        fresh_source.ultima_execucao = now
+        fresh_source.ultimo_estado = status
+        fresh_source.ultima_mensagem = message[:500]
+        fresh_source.dtalt = _now()
+        fresh_source.useralteracao = requested_by[:50]
+        db.session.commit()
+    stats['status'] = status
+    stats['message'] = message
+    return stats
+
+
+def scan_document_sources(source_id: str = '', limit_per_source: int = 50, requested_by: str = 'document_ai_robot') -> dict[str, Any]:
+    _ensure_document_sources_schema()
+    query = DocSource.query.filter_by(ativo=True)
+    if str(source_id or '').strip():
+        query = query.filter_by(docsourcestamp=str(source_id or '').strip())
+    sources = query.order_by(DocSource.nome.asc()).all()
+    current_app.logger.info("Document AI robot: %s origem(ns) ativa(s) encontrada(s).", len(sources))
+    results = [scan_document_source(source, limit=limit_per_source, requested_by=requested_by) for source in sources]
+    return {
+        'ok': True,
+        'sources': len(results),
+        'found': sum(int(item.get('found') or 0) for item in results),
+        'imported': sum(int(item.get('imported') or 0) for item in results),
+        'skipped': sum(int(item.get('skipped') or 0) for item in results),
+        'errors': sum(int(item.get('errors') or 0) for item in results),
+        'results': results,
+    }
+
+
 def _serialize_document(document: DocInbox, include_logs: bool = False) -> dict[str, Any]:
     template = db.session.get(DocTemplate, document.doctemplatestamp) if document.doctemplatestamp else None
     parser = db.session.get(DocParser, document.docparserstamp) if document.docparserstamp else None
     supplier_name = ''
     if document.fornecedor_no:
+        feid_filter = _fl_feid_filter_sql('FL') if document.feid else ''
         row = db.session.execute(text("""
             SELECT TOP 1 LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
-            FROM dbo.FL
-            WHERE CAST(NO AS int) = :no
-        """), {'no': document.fornecedor_no}).mappings().first()
+            FROM dbo.FL FL
+            WHERE CAST(FL.NO AS int) = :no
+            {feid_filter}
+        """.format(feid_filter=feid_filter)), {
+            'no': document.fornecedor_no,
+            'feid': int(document.feid or 0),
+        }).mappings().first()
         supplier_name = str((row or {}).get('NOME') or '').strip()
+    customer_entity = {}
+    if document.feid:
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                CAST(ISNULL(FEID, 0) AS int) AS FEID,
+                LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(NOMEFISCAL, ''))) AS NOMEFISCAL,
+                LTRIM(RTRIM(CAST(ISNULL(NIF, 0) AS varchar(40)))) AS NIF
+            FROM dbo.FE
+            WHERE CAST(ISNULL(FEID, 0) AS int) = :feid
+        """), {'feid': int(document.feid or 0)}).mappings().first()
+        customer_entity = _serialize_fe_row(dict(row), 1, 'stored') if row else {}
 
     payload = {
         'id': document.docinstamp,
         'feid': document.feid,
+        'entity': customer_entity,
         'anexosstamp': document.anexosstamp or '',
         'source_table': document.source_table or '',
         'source_recstamp': document.source_recstamp or '',
@@ -1809,8 +2515,11 @@ def _serialize_document(document: DocInbox, include_logs: bool = False) -> dict[
 def _build_template_draft(document_payload: dict[str, Any]) -> dict[str, Any]:
     result = document_payload.get('result') or canonical_result_base(document_payload.get('doc_type'))
     supplier_no = document_payload.get('supplier_no')
-    supplier_name = document_payload.get('supplier_name') or document_payload.get('supplier_name_detected') or ''
-    default_name = f"{supplier_name or 'Template'} - {document_payload.get('doc_type') or 'unknown'}".strip(' -')
+    default_name = _default_template_name(
+        document_payload.get('feid'),
+        supplier_no,
+        document_payload.get('doc_type') or 'unknown',
+    )
     fields = []
     for key, base_config in DOC_AI_GENERIC_FIELD_CONFIGS.items():
         existing_value = None
@@ -1850,6 +2559,7 @@ def _build_template_draft(document_payload: dict[str, Any]) -> dict[str, Any]:
     return {
         'name': default_name or 'Novo template',
         'description': 'Template sugerido a partir do documento atual.',
+        'feid': document_payload.get('feid'),
         'supplier_no': supplier_no,
         'doc_type': document_payload.get('doc_type') or 'unknown',
         'language': '',
@@ -1893,7 +2603,7 @@ def get_document_detail(document_stamp: str) -> dict[str, Any]:
     }
     payload['available_templates'] = [
         _serialize_template(item, include_definition=False)
-        for item in _load_template_candidates(payload.get('supplier_no'), payload.get('doc_type'))
+        for item in _load_template_candidates(payload.get('supplier_no'), payload.get('doc_type'), payload.get('feid'))
     ]
     payload['template_draft'] = _build_template_draft(payload)
     payload['llm'] = {'available': llm_suggestions_available()}
@@ -1934,6 +2644,86 @@ def get_document_preview_page(document_stamp: str, page_number: int = 1) -> dict
     }
 
 
+def get_document_original_file(document_stamp: str) -> dict[str, Any]:
+    _ensure_document_ai_schema()
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento não encontrado.')
+    absolute_path = _document_absolute_path(document)
+    if not os.path.isfile(absolute_path):
+        raise FileNotFoundError('Ficheiro original não encontrado.')
+    return {
+        'path': absolute_path,
+        'mime_type': document.mime_type or mimetypes.guess_type(absolute_path)[0] or 'application/octet-stream',
+        'file_name': document.file_name or os.path.basename(absolute_path),
+    }
+
+
+def _safe_document_file_path(path_value: str | None) -> str:
+    raw = str(path_value or '').strip()
+    if not raw:
+        return ''
+    absolute_path = os.path.abspath(os.path.join(current_app.root_path, raw.lstrip('/').replace('/', os.sep)))
+    root_path = os.path.abspath(current_app.root_path)
+    if absolute_path != root_path and absolute_path.startswith(root_path + os.sep):
+        return absolute_path
+    return ''
+
+
+def delete_document_from_inbox(document_stamp: str, deleted_by: str = '') -> dict[str, Any]:
+    _ensure_document_ai_schema()
+    stamp = str(document_stamp or '').strip()
+    document = db.session.get(DocInbox, stamp)
+    if not document:
+        raise ValueError('Documento não encontrado.')
+
+    paths_to_delete = [
+        _safe_document_file_path(document.file_path),
+        _safe_document_file_path(document.preprocessed_image_path),
+    ]
+    original_name = document.file_name or ''
+    anexo_stamp = str(document.anexosstamp or '').strip()
+
+    DocProcessLog.query.filter_by(docinstamp=document.docinstamp).delete(synchronize_session=False)
+    if anexo_stamp:
+        db.session.execute(text("""
+            DELETE FROM dbo.ANEXOS
+            WHERE ANEXOSSTAMP = :anexo_stamp
+               OR (TABELA = 'DOC_INBOX' AND RECSTAMP = :docinstamp)
+        """), {
+            'anexo_stamp': anexo_stamp,
+            'docinstamp': document.docinstamp,
+        })
+    else:
+        db.session.execute(text("""
+            DELETE FROM dbo.ANEXOS
+            WHERE TABELA = 'DOC_INBOX' AND RECSTAMP = :docinstamp
+        """), {'docinstamp': document.docinstamp})
+    db.session.delete(document)
+    db.session.commit()
+
+    removed_files = []
+    for file_path in {path for path in paths_to_delete if path}:
+        try:
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+                removed_files.append(file_path)
+        except Exception:
+            current_app.logger.warning(
+                'Nao foi possivel remover ficheiro documental %s por %s',
+                file_path,
+                deleted_by or 'unknown',
+                exc_info=True,
+            )
+
+    return {
+        'ok': True,
+        'id': stamp,
+        'file_name': original_name,
+        'removed_files': len(removed_files),
+    }
+
+
 def _store_file(uploaded_file, folder_name: str = 'document_ai') -> dict[str, Any]:
     original_name = str(getattr(uploaded_file, 'filename', '') or '').strip()
     _, ext = os.path.splitext(original_name)
@@ -1956,6 +2746,35 @@ def _store_file(uploaded_file, folder_name: str = 'document_ai') -> dict[str, An
         'mime_type': _guess_mime_type(original_name),
         'size': os.path.getsize(absolute_path),
         'hash': _file_hash(absolute_path),
+    }
+
+
+def _store_local_file(source_path: str, folder_name: str = 'document_ai') -> dict[str, Any]:
+    absolute_source = os.path.abspath(os.path.expanduser(str(source_path or '').strip()))
+    if not os.path.isfile(absolute_source):
+        raise FileNotFoundError(f'Ficheiro não encontrado: {source_path}')
+    original_name = os.path.basename(absolute_source)
+    _, ext = os.path.splitext(original_name)
+    ext = ext.lower().strip()
+    if ext not in DOC_AI_ALLOWED_UPLOAD_EXTENSIONS:
+        raise ValueError(f'Extensão {ext or "(sem extensão)"} não suportada.')
+    stamp = _new_stamp()
+    safe_name = f'{stamp}{ext}'
+    relative_dir = os.path.join('static', 'images', folder_name)
+    absolute_dir = os.path.join(current_app.root_path, relative_dir)
+    os.makedirs(absolute_dir, exist_ok=True)
+    absolute_path = os.path.join(absolute_dir, safe_name)
+    shutil.copy2(absolute_source, absolute_path)
+    return {
+        'original_name': original_name,
+        'file_name': safe_name,
+        'absolute_path': absolute_path,
+        'public_path': f'/{relative_dir.replace(os.sep, "/")}/{safe_name}',
+        'file_ext': ext,
+        'mime_type': _guess_mime_type(original_name),
+        'size': os.path.getsize(absolute_path),
+        'hash': _file_hash(absolute_path),
+        'source_path': absolute_source,
     }
 
 
@@ -2038,8 +2857,13 @@ def process_document(
             db.session.commit()
             return get_document_detail(document.docinstamp)
 
+        customer_match = identify_fe_entity_from_text(document.extracted_text or '')
+        if customer_match.get('feid'):
+            document.feid = customer_match.get('feid')
+        _document_log(document.docinstamp, 'customer_detect', 'ok' if customer_match.get('feid') else 'warning', 'Entidade FE analisada.', customer_match)
+
         document.processing_stage = 'supplier_detect'
-        supplier_match = identify_supplier_from_text(document.extracted_text or '')
+        supplier_match = identify_supplier_from_text(document.extracted_text or '', document.feid)
         document.fornecedor_no = supplier_match.get('supplier_no')
         document.fornecedor_nif_detetado = supplier_match.get('supplier_tax_id') or ''
         document.fornecedor_nome_detetado = supplier_match.get('supplier_name') or ''
@@ -2070,6 +2894,7 @@ def process_document(
                 document.extracted_text or '',
                 supplier_match.get('supplier_no'),
                 pre_template_doc_type.get('doc_type') or 'unknown',
+                document.feid,
             )
         _document_log(document.docinstamp, 'template_match', 'ok' if template_match else 'warning', 'Template selecionado.' if template_match else 'Sem template válido.', {
             'template_id': (
@@ -2128,6 +2953,13 @@ def process_document(
             result_payload['supplier']['tax_id'] = supplier_match.get('supplier_tax_id')
         if supplier_match.get('supplier_name') and not result_payload['supplier'].get('name'):
             result_payload['supplier']['name'] = supplier_match.get('supplier_name')
+        if customer_match.get('feid'):
+            result_payload.setdefault('customer', {})
+            result_payload['customer']['feid'] = customer_match.get('feid')
+            if customer_match.get('tax_id') and not result_payload['customer'].get('tax_id'):
+                result_payload['customer']['tax_id'] = customer_match.get('tax_id')
+            if customer_match.get('name') and not result_payload['customer'].get('name'):
+                result_payload['customer']['name'] = customer_match.get('name')
 
         confidence_parts = [
             float(supplier_match.get('score') or 0),
@@ -2146,6 +2978,7 @@ def process_document(
         document.errors_json = _json_dumps(validation.get('errors') or [])
         document.processing_meta_json = _json_dumps({
             'supplier_match': supplier_match,
+            'customer_match': customer_match,
             'doc_type': doc_type_info,
             'template_match': {
                 'template_id': (
@@ -2205,7 +3038,15 @@ def process_document(
 def ingest_uploaded_document(uploaded_file, created_by: str, source_table: str = '', source_recstamp: str = '') -> dict[str, Any]:
     _ensure_document_ai_schema()
     stored = _store_file(uploaded_file)
+    return _create_inbox_document_from_stored_file(stored, created_by, source_table, source_recstamp)
 
+
+def _create_inbox_document_from_stored_file(
+    stored: dict[str, Any],
+    created_by: str,
+    source_table: str = '',
+    source_recstamp: str = '',
+) -> dict[str, Any]:
     try:
         feid = get_current_feid(db.session)
     except (MissingCurrentEntityError, Exception):
@@ -2268,6 +3109,29 @@ def ingest_uploaded_document(uploaded_file, created_by: str, source_table: str =
     return process_document(document.docinstamp, requested_by=created_by or '')
 
 
+def ingest_local_document_file(
+    file_path: str,
+    created_by: str = 'document_ai_robot',
+    source_table: str = 'DOC_SOURCE',
+    source_recstamp: str = '',
+) -> dict[str, Any]:
+    _ensure_document_ai_schema()
+    absolute_path = os.path.abspath(os.path.expanduser(str(file_path or '').strip()))
+    file_hash = _file_hash(absolute_path)
+    existing = DocInbox.query.filter_by(file_hash=file_hash).first()
+    if existing:
+        return {
+            'ok': True,
+            'skipped': True,
+            'reason': 'duplicate_hash',
+            'id': existing.docinstamp,
+            'file_name': existing.file_name or os.path.basename(absolute_path),
+            'source_path': absolute_path,
+        }
+    stored = _store_local_file(absolute_path)
+    return _create_inbox_document_from_stored_file(stored, created_by, source_table, source_recstamp)
+
+
 def reprocess_document(
     document_stamp: str,
     requested_by: str,
@@ -2297,6 +3161,7 @@ def _build_runtime_template_payload(payload: dict[str, Any] | None, requested_by
         'id': str(payload.get('id') or '').strip(),
         'name': normalized.get('name') or 'Template runtime',
         'description': normalized.get('description') or '',
+        'feid': normalized.get('feid'),
         'supplier_no': normalized.get('supplier_no'),
         'supplier_name': '',
         'doc_type': normalized.get('doc_type') or 'unknown',
@@ -2348,6 +3213,18 @@ def save_document_review(document_stamp: str, payload: dict[str, Any], requested
 
     if supplier_no not in (None, ''):
         document.fornecedor_no = _safe_int(supplier_no, 0) or None
+    customer_payload = result.get('customer') or {}
+    customer_feid = _safe_int(payload.get('feid') or customer_payload.get('feid'), 0)
+    if not customer_feid:
+        customer_match = resolve_fe_entity(customer_payload.get('tax_id') or customer_payload.get('name') or '')
+        customer_feid = _safe_int(customer_match.get('feid'), 0)
+        if customer_match:
+            customer_payload['feid'] = customer_feid
+            customer_payload['name'] = customer_payload.get('name') or customer_match.get('name') or ''
+            customer_payload['tax_id'] = customer_payload.get('tax_id') or customer_match.get('tax_id') or ''
+            result['customer'] = customer_payload
+    if customer_feid:
+        document.feid = customer_feid
     document.doc_type_detected = doc_type
     document.doctemplatestamp = template_id or None
     document.json_resultado = _json_dumps(result or canonical_result_base(doc_type))
@@ -2363,6 +3240,7 @@ def save_document_review(document_stamp: str, payload: dict[str, Any], requested
         'status': processing_status,
         'template_id': template_id,
         'supplier_no': document.fornecedor_no,
+        'feid': document.feid,
     })
     db.session.commit()
     return get_document_detail(document.docinstamp)
@@ -2426,6 +3304,7 @@ def _normalize_template_payload(payload: dict[str, Any], requested_by: str) -> d
     return {
         'name': str(payload.get('name') or 'Novo template').strip(),
         'description': str(payload.get('description') or '').strip(),
+        'feid': _safe_int(payload.get('feid'), 0) or None,
         'supplier_no': _safe_int(payload.get('supplier_no'), 0) or None,
         'doc_type': str(payload.get('doc_type') or 'unknown').strip() or 'unknown',
         'language': str(payload.get('language') or '').strip(),
@@ -2441,9 +3320,125 @@ def _normalize_template_payload(payload: dict[str, Any], requested_by: str) -> d
     }
 
 
+def _document_ai_supplier_name(supplier_no: int | None, feid: int | None = None) -> str:
+    supplier_no = _safe_int(supplier_no, 0)
+    if not supplier_no:
+        return ''
+    feid_filter = _fl_feid_filter_sql('FL') if feid else ''
+    row = db.session.execute(text("""
+        SELECT TOP 1 LTRIM(RTRIM(ISNULL(FL.NOME, ''))) AS NOME
+        FROM dbo.FL FL
+        WHERE CAST(FL.NO AS int) = :supplier_no
+        {feid_filter}
+        ORDER BY FL.NOME
+    """.format(feid_filter=feid_filter)), {
+        'supplier_no': supplier_no,
+        'feid': int(feid or 0),
+    }).mappings().first()
+    return str((row or {}).get('NOME') or '').strip()
+
+
+def _document_ai_entity_name(feid: int | None) -> str:
+    feid = _safe_int(feid, 0)
+    if not feid:
+        return ''
+    row = db.session.execute(text("""
+        SELECT TOP 1 LTRIM(RTRIM(ISNULL(NULLIF(NOMEFISCAL, ''), NOME))) AS NOME
+        FROM dbo.FE
+        WHERE CAST(ISNULL(FEID, 0) AS int) = :feid
+    """), {'feid': feid}).mappings().first()
+    return str((row or {}).get('NOME') or '').strip()
+
+
+def _document_ai_doc_type_label(doc_type: str) -> str:
+    value = str(doc_type or '').strip() or 'unknown'
+    for item in DOC_AI_DOC_TYPES:
+        if item.get('value') == value:
+            return str(item.get('label') or value).strip()
+    return value
+
+
+def _default_template_name(feid: int | None, supplier_no: int | None, doc_type: str) -> str:
+    supplier_name = _document_ai_supplier_name(supplier_no, feid)
+    entity_name = _document_ai_entity_name(feid)
+    doc_label = _document_ai_doc_type_label(doc_type)
+    parts = [doc_label]
+    if supplier_name:
+        parts.append(supplier_name)
+    if entity_name:
+        parts.append(entity_name)
+    return ' · '.join(parts)[:120] or 'Novo template'
+
+
+def _template_name_is_placeholder(name: str) -> bool:
+    normalized = _normalize_text(name)
+    if not normalized:
+        return True
+    return (
+        normalized in ('novo template', 'template')
+        or 'unknown' in normalized
+        or 'desconhecido' in normalized
+    )
+
+
+def _unique_text_list(values: list[Any]) -> list[str]:
+    out = []
+    seen = set()
+    for value in values or []:
+        text_value = str(value or '').strip()
+        key = _normalize_text(text_value)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(text_value)
+    return out
+
+
+def _name_keyword_variants(name: str) -> list[str]:
+    raw = re.sub(r'\s+', ' ', str(name or '').strip())
+    if not raw:
+        return []
+    suffixes = {'SA', 'SAS', 'SARL', 'LDA', 'LIMITED', 'LTD', 'GMBH', 'BV', 'SL'}
+    tokens = raw.split(' ')
+    variants = [raw]
+    if len(tokens) > 1 and tokens[0].upper() in suffixes:
+        variants.append(' '.join([*tokens[1:], tokens[0]]))
+        variants.append(' '.join(tokens[1:]))
+    if len(tokens) > 1 and tokens[-1].upper() in suffixes:
+        variants.append(' '.join(tokens[:-1]))
+    return _unique_text_list(variants)
+
+
+def _default_template_keywords(feid: int | None, supplier_no: int | None, doc_type: str) -> list[str]:
+    keywords = []
+    if str(doc_type or '').strip() == 'delivery_note':
+        keywords.append('BON')
+    keywords.extend(_name_keyword_variants(_document_ai_supplier_name(supplier_no, feid)))
+    keywords.extend(_name_keyword_variants(_document_ai_entity_name(feid)))
+    return _unique_text_list(keywords)
+
+
+def _find_template_by_identity(feid: int | None, supplier_no: int | None, doc_type: str) -> DocTemplate | None:
+    feid = _safe_int(feid, 0)
+    supplier_no = _safe_int(supplier_no, 0)
+    doc_type = str(doc_type or '').strip()
+    if not feid or not supplier_no or not doc_type or doc_type == 'unknown':
+        return None
+    return (
+        DocTemplate.query
+        .filter(DocTemplate.feid == feid)
+        .filter(DocTemplate.fornecedor_no == supplier_no)
+        .filter(DocTemplate.doc_type == doc_type)
+        .order_by(DocTemplate.ativo.desc(), DocTemplate.dtalt.desc(), DocTemplate.nome.asc())
+        .first()
+    )
+
+
 def save_template(payload: dict[str, Any], requested_by: str, template_stamp: str = '') -> dict[str, Any]:
     _ensure_document_ai_schema()
     normalized = _normalize_template_payload(payload or {}, requested_by or '')
+    if _template_name_is_placeholder(normalized['name']):
+        normalized['name'] = _default_template_name(normalized['feid'], normalized['supplier_no'], normalized['doc_type'])
     if template_stamp:
         template = db.session.get(DocTemplate, str(template_stamp or '').strip())
         if not template:
@@ -2461,6 +3456,7 @@ def save_template(payload: dict[str, Any], requested_by: str, template_stamp: st
 
     template.nome = normalized['name']
     template.descricao = normalized['description']
+    template.feid = normalized['feid']
     template.fornecedor_no = normalized['supplier_no']
     template.doc_type = normalized['doc_type']
     template.idioma = normalized['language']
@@ -2597,10 +3593,74 @@ def test_template(template_stamp: str, document_stamp: str) -> dict[str, Any]:
 
 def save_template_from_document(document_stamp: str, payload: dict[str, Any], requested_by: str) -> dict[str, Any]:
     template_payload = dict(payload or {})
-    saved = save_template(template_payload, requested_by=requested_by, template_stamp=str(payload.get('id') or '').strip())
     document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    result_payload = template_payload.get('result') if isinstance(template_payload.get('result'), dict) else {}
+    supplier_payload = result_payload.get('supplier') if isinstance(result_payload.get('supplier'), dict) else {}
+    customer_payload = result_payload.get('customer') if isinstance(result_payload.get('customer'), dict) else {}
+
+    if document:
+        if not _safe_int(template_payload.get('feid'), 0):
+            template_payload['feid'] = document.feid
+        if not _safe_int(template_payload.get('supplier_no'), 0):
+            template_payload['supplier_no'] = document.fornecedor_no
+        if not str(template_payload.get('doc_type') or '').strip() or str(template_payload.get('doc_type') or '').strip() == 'unknown':
+            template_payload['doc_type'] = document.doc_type_detected or 'unknown'
+
+    if not _safe_int(template_payload.get('feid'), 0):
+        customer_match = resolve_fe_entity(customer_payload.get('tax_id') or customer_payload.get('name') or '')
+        if customer_match.get('feid'):
+            template_payload['feid'] = customer_match.get('feid')
+
+    feid = _safe_int(template_payload.get('feid'), 0)
+    supplier_no = _safe_int(template_payload.get('supplier_no'), 0)
+    if not supplier_no:
+        supplier_query = supplier_payload.get('tax_id') or supplier_payload.get('name') or template_payload.get('supplier_name') or ''
+        matches = search_suppliers(supplier_query, feid=feid, limit=1) if supplier_query and feid else []
+        if matches:
+            supplier_no = _safe_int(matches[0].get('no'), 0)
+            template_payload['supplier_no'] = supplier_no
+
+    doc_type = str(template_payload.get('doc_type') or '').strip() or 'unknown'
+    if not feid:
+        raise ValueError('Identifica primeiro a Entidade FE do cliente antes de guardar o template.')
+    if not supplier_no:
+        raise ValueError('Identifica primeiro o fornecedor antes de guardar o template.')
+    if not doc_type or doc_type == 'unknown':
+        raise ValueError('Define primeiro o tipo de documento antes de guardar o template.')
+
+    match_rules = template_payload.get('match_rules') if isinstance(template_payload.get('match_rules'), dict) else {}
+    match_rules['keywords'] = _unique_text_list([
+        *(match_rules.get('keywords') or []),
+        *_default_template_keywords(feid, supplier_no, doc_type),
+    ])
+    template_payload['match_rules'] = match_rules
+
+    template_stamp = str(template_payload.get('id') or '').strip()
+    replacing_existing = False
+    if template_stamp:
+        selected_template = db.session.get(DocTemplate, template_stamp)
+        if selected_template and (
+            _safe_int(selected_template.feid, 0) == feid
+            and _safe_int(selected_template.fornecedor_no, 0) == supplier_no
+            and str(selected_template.doc_type or '').strip() == doc_type
+        ):
+            replacing_existing = True
+        else:
+            template_stamp = ''
+
+    if not template_stamp:
+        existing_template = _find_template_by_identity(feid, supplier_no, doc_type)
+        if existing_template:
+            template_stamp = existing_template.doctemplatestamp
+            replacing_existing = True
+
+    saved = save_template(template_payload, requested_by=requested_by, template_stamp=template_stamp)
+    saved['action'] = 'updated' if replacing_existing else 'created'
     if document:
         document.doctemplatestamp = saved.get('id')
+        document.feid = feid
+        document.fornecedor_no = supplier_no
+        document.doc_type_detected = doc_type
         document.dtalt = _now()
         document.useralteracao = requested_by or document.useralteracao
         _document_log(document.docinstamp, 'template_save', 'ok', 'Template guardado a partir da validação.', {'template_id': saved.get('id')})

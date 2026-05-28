@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     cropClear: document.getElementById('docAiCropClear'),
     rotateLeft: document.getElementById('docAiRotateLeft'),
     rotateRight: document.getElementById('docAiRotateRight'),
+    openOriginalBtn: document.getElementById('docAiOpenOriginalBtn'),
     ocrMeta: document.getElementById('docAiOcrMeta'),
     ocrSearch: document.getElementById('docAiOcrSearch'),
     ocrList: document.getElementById('docAiOcrList'),
@@ -30,6 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
     dueDate: document.getElementById('docAiDueDate'),
     supplierTaxId: document.getElementById('docAiSupplierTaxId'),
     customerTaxId: document.getElementById('docAiCustomerTaxId'),
+    customerFeid: document.getElementById('docAiCustomerFeid'),
+    customerFeDisplay: document.getElementById('docAiCustomerFeDisplay'),
     extractionMethod: document.getElementById('docAiExtractionMethod'),
     extractionQuality: document.getElementById('docAiExtractionQuality'),
     extractionFallback: document.getElementById('docAiExtractionFallback'),
@@ -69,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     templateFingerprint: document.getElementById('docAiTemplateFingerprint'),
     templateScoreMin: document.getElementById('docAiTemplateScoreMin'),
     templateKeywords: document.getElementById('docAiTemplateKeywords'),
+    templateKeywordsBtn: document.getElementById('docAiTemplateKeywordsBtn'),
     suggestBtn: document.getElementById('docAiSuggestBtn'),
     reviewStatus: document.getElementById('docAiReviewStatus'),
     reprocessBtn: document.getElementById('docAiReprocessBtn'),
@@ -88,6 +92,15 @@ document.addEventListener('DOMContentLoaded', () => {
     closeValueModal: document.getElementById('docAiCloseValueModal'),
     closeValueModalBottom: document.getElementById('docAiCloseValueModalBottom'),
     applyValueModal: document.getElementById('docAiApplyValueModal'),
+    supplierModal: document.getElementById('docAiSupplierModal'),
+    supplierModalBody: document.getElementById('docAiSupplierModalBody'),
+    closeSupplierModal: document.getElementById('docAiCloseSupplierModal'),
+    closeSupplierModalBottom: document.getElementById('docAiCloseSupplierModalBottom'),
+    keywordsModal: document.getElementById('docAiKeywordsModal'),
+    keywordsText: document.getElementById('docAiKeywordsText'),
+    closeKeywordsModal: document.getElementById('docAiCloseKeywordsModal'),
+    closeKeywordsModalBottom: document.getElementById('docAiCloseKeywordsModalBottom'),
+    applyKeywordsModal: document.getElementById('docAiApplyKeywordsModal'),
     dropTargets: Array.from(document.querySelectorAll('[data-drop-field]')),
     fieldDisplays: Array.from(document.querySelectorAll('[data-field-display]')),
   };
@@ -111,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
       selectionStart: 0,
       selectionEnd: 0,
     },
+    supplierCandidates: [],
     dragClearTimer: null,
     pointerDrag: {
       active: false,
@@ -298,6 +312,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return matched ? matched[0].replace(/\s+/g, '') : raw.replace(/[^\d,.\-]/g, '');
   }
 
+  function normalizeTaxIdValue(rawValue) {
+    const raw = String(rawValue || '').trim();
+    const match = raw.match(/(?:PT|ES|FR|DE|IT|NL|BE)?\s*(\d[\d\s./-]{7,20}\d)/i);
+    if (match) {
+      return match[1].replace(/\D+/g, '');
+    }
+    return raw.replace(/[^\dA-Z]/gi, '').trim();
+  }
+
   function numericInputValue(element) {
     if (!element) return 0;
     const raw = String(element.value || '').trim().replace(/\s+/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
@@ -399,6 +422,65 @@ document.addEventListener('DOMContentLoaded', () => {
     element.classList.toggle('docai-drop-value-empty', text === '--');
     const slot = element.closest('[data-drop-field]');
     slot?.classList.toggle('is-filled', text !== '--');
+    if (slot) {
+      slot.querySelector('.docai-clear-field-btn')?.remove();
+      if (text !== '--') {
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'docai-clear-field-btn';
+        clearBtn.dataset.clearField = fieldKey;
+        clearBtn.title = 'Remover atribuição';
+        clearBtn.setAttribute('aria-label', `Remover atribuição de ${fieldKeyLabel(fieldKey)}`);
+        clearBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+        slot.appendChild(clearBtn);
+      }
+    }
+  }
+
+  function extractedTextContainsDigits(digits) {
+    const needle = String(digits || '').replace(/\D+/g, '');
+    if (!needle) return false;
+    const pieces = [];
+    if (state.document?.extracted_text) pieces.push(state.document.extracted_text);
+    (state.document?.text_blocks || []).forEach((block) => {
+      if (block?.text) pieces.push(block.text);
+    });
+    return pieces.some((piece) => String(piece || '').replace(/\D+/g, '').includes(needle));
+  }
+
+  function setFieldNote(fieldKey, message = '') {
+    const slot = fieldDisplayElement(fieldKey)?.closest('[data-drop-field]');
+    if (!slot) return;
+    let note = slot.querySelector('.docai-field-note');
+    if (!message) {
+      note?.remove();
+      return;
+    }
+    if (!note) {
+      note = document.createElement('div');
+      note.className = 'docai-field-note';
+      slot.appendChild(note);
+    }
+    note.textContent = message;
+  }
+
+  function refreshCustomerTaxVisibility() {
+    const entityTaxId = normalizeTaxIdValue(state.document?.entity?.tax_id || '');
+    const feid = Number(els.customerFeid?.value || state.document?.entity?.feid || state.document?.feid || 0) || 0;
+    const display = fieldDisplayElement('customer_tax_id');
+    if (!display) return;
+    display.classList.remove('docai-drop-value-warning');
+    setFieldNote('customer_tax_id', '');
+    if (!feid || !entityTaxId) return;
+
+    if (normalizeTaxIdValue(els.customerTaxId?.value || '') !== entityTaxId) {
+      setInputValue(els.customerTaxId, entityTaxId);
+      setDropDisplay('customer_tax_id', entityTaxId);
+    }
+    if (!extractedTextContainsDigits(entityTaxId)) {
+      display.classList.add('docai-drop-value-warning');
+      setFieldNote('customer_tax_id', 'não visível no pdf');
+    }
   }
 
   function updateStaticDisplays() {
@@ -408,6 +490,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (els.supplierNoDisplay) {
       els.supplierNoDisplay.textContent = String(els.supplierNo?.value || '').trim() || '--';
+    }
+    if (els.customerFeDisplay) {
+      const feid = String(els.customerFeid?.value || '').trim();
+      const entityName = String(state.document?.entity?.name || '').trim();
+      els.customerFeDisplay.textContent = feid ? `${feid}${entityName ? ` · ${entityName}` : ''}` : '--';
     }
   }
 
@@ -422,6 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
       'line_qty_anchor', 'line_unit_price_anchor', 'line_discount_anchor', 'line_total_anchor', 'line_vat_anchor',
     ].forEach((fieldKey) => setDropDisplay(fieldKey, fieldCurrentValue(fieldKey)));
     updateStaticDisplays();
+    refreshCustomerTaxVisibility();
     updateLineAreaStatus();
   }
 
@@ -507,6 +595,139 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       return payload;
     });
+  }
+
+  async function resolveCustomerEntity(matchMode = 'auto') {
+    const taxId = String(els.customerTaxId?.value || '').trim();
+    const name = String(els.customerName?.value || '').trim();
+    const query = matchMode === 'name' ? name : (taxId || name);
+    if (!query || query.length < 2) {
+      setInputValue(els.customerFeid, '');
+      if (state.document) {
+        state.document.entity = {};
+        state.document.feid = null;
+      }
+      refreshAllFieldDisplays();
+      return null;
+    }
+    try {
+      const payload = await fetchJson(`/api/document_ai/entities/resolve?q=${encodeURIComponent(query)}&mode=${encodeURIComponent(matchMode)}`);
+      if (payload?.feid) {
+        setInputValue(els.customerFeid, payload.feid);
+        if (state.document) state.document.feid = payload.feid;
+        if (payload.tax_id && !taxId) {
+          setInputValue(els.customerTaxId, payload.tax_id);
+        }
+        if (payload.name && !name) {
+          setInputValue(els.customerName, payload.name);
+        }
+        if (state.document) state.document.entity = payload;
+        refreshAllFieldDisplays();
+        refreshTemplateSelectLabels();
+        setStatus(`Entidade FE identificada: ${payload.feid} · ${payload.name || ''}`.trim());
+        return payload;
+      }
+      setInputValue(els.customerFeid, '');
+      if (state.document) {
+        state.document.entity = {};
+        state.document.feid = null;
+      }
+      refreshAllFieldDisplays();
+      setStatus('Entidade FE não identificada para o cliente.', true);
+      return null;
+    } catch (error) {
+      console.error(error);
+      setStatus(error.message || 'Falha ao identificar entidade FE.', true);
+      return null;
+    }
+  }
+
+  function supplierSearchQuery(matchMode = 'auto') {
+    const taxId = String(els.supplierTaxId?.value || '').trim();
+    const name = String(els.supplierName?.value || '').trim();
+    const no = String(els.supplierNo?.value || '').trim();
+    if (matchMode === 'name') return name;
+    if (matchMode === 'tax_id') return taxId;
+    return taxId || name || no;
+  }
+
+  function currentDocumentFeid() {
+    return Number(els.customerFeid?.value || state.document?.feid || state.document?.entity?.feid || 0) || 0;
+  }
+
+  function applySupplierCandidate(candidate) {
+    if (!candidate) return;
+    setInputValue(els.supplierNo, candidate.no || candidate.supplier_no || '');
+    setInputValue(els.supplierName, candidate.name || candidate.supplier_name || '');
+    setInputValue(els.supplierTaxId, candidate.tax_id || candidate.supplier_tax_id || '');
+    if (state.document) {
+      state.document.supplier_no = candidate.no || candidate.supplier_no || null;
+      state.document.supplier_name = candidate.name || candidate.supplier_name || '';
+      state.document.supplier_tax_id_detected = candidate.tax_id || candidate.supplier_tax_id || '';
+    }
+    refreshAllFieldDisplays();
+    refreshTemplateSelectLabels();
+    setStatus(`Fornecedor identificado: ${candidate.no || candidate.supplier_no || ''} · ${candidate.name || candidate.supplier_name || ''}`.trim());
+  }
+
+  function closeSupplierModal() {
+    els.supplierModal?.classList.remove('is-open');
+    els.supplierModal?.setAttribute('aria-hidden', 'true');
+  }
+
+  function openSupplierModal(candidates) {
+    state.supplierCandidates = Array.isArray(candidates) ? candidates : [];
+    if (!els.supplierModal || !els.supplierModalBody) return;
+    els.supplierModalBody.innerHTML = state.supplierCandidates.length
+      ? state.supplierCandidates.map((candidate, index) => `
+          <button type="button" class="docai-candidate-option" data-supplier-index="${index}">
+            <span class="docai-candidate-main">
+              <strong>${escapeHtml(candidate.name || '--')}</strong>
+              <span>Nº ${escapeHtml(String(candidate.no || '--'))}${candidate.tax_id ? ` · NIF ${escapeHtml(candidate.tax_id)}` : ''}</span>
+            </span>
+            <span class="docai-candidate-score">${Math.round(Number(candidate.score || 0) * 100)}%</span>
+          </button>
+        `).join('')
+      : '<div class="docai-empty-state">Sem fornecedores compatíveis.</div>';
+    els.supplierModal.classList.add('is-open');
+    els.supplierModal.setAttribute('aria-hidden', 'false');
+  }
+
+  async function resolveSupplierFromField(matchMode = 'auto') {
+    const query = supplierSearchQuery(matchMode);
+    if (!query || query.length < 2) {
+      setStatus('Indica primeiro o nome ou NIF do fornecedor.', true);
+      return null;
+    }
+    const feid = currentDocumentFeid();
+    if (!feid) {
+      setStatus('Identifica primeiro a Entidade FE do cliente antes de escolher o fornecedor.', true);
+      showMessage('Identifica primeiro a Entidade FE do cliente antes de escolher o fornecedor.', 'warning');
+      return null;
+    }
+    try {
+      const params = new URLSearchParams({
+        q: query,
+        limit: '8',
+        feid: String(feid),
+      });
+      const candidates = await fetchJson(`/api/document_ai/suppliers/search?${params.toString()}`);
+      if (!Array.isArray(candidates) || candidates.length === 0) {
+        setStatus('Fornecedor não identificado em FL.', true);
+        return null;
+      }
+      if (candidates.length === 1) {
+        applySupplierCandidate(candidates[0]);
+        return candidates[0];
+      }
+      openSupplierModal(candidates);
+      setStatus(`${candidates.length} fornecedores possíveis. Escolhe a opção correta.`);
+      return null;
+    } catch (error) {
+      console.error(error);
+      setStatus(error.message || 'Falha ao pesquisar fornecedor.', true);
+      return null;
+    }
   }
 
   function getSelectedTextValue() {
@@ -778,6 +999,95 @@ document.addEventListener('DOMContentLoaded', () => {
       .trim();
   }
 
+  function uniqueList(values) {
+    const out = [];
+    (values || []).forEach((value) => {
+      const text = String(value || '').trim();
+      if (!text) return;
+      const key = normalizeSearchValue(text);
+      if (!key || out.some((item) => normalizeSearchValue(item) === key)) return;
+      out.push(text);
+    });
+    return out;
+  }
+
+  function keywordListFromInput() {
+    return uniqueList(String(els.templateKeywords?.value || '')
+      .split(/[\n,;]+/)
+      .map((item) => item.trim()));
+  }
+
+  function keywordNameVariants(name) {
+    const raw = String(name || '').trim();
+    if (!raw) return [];
+    const compact = raw.replace(/\s+/g, ' ').trim();
+    const suffixes = ['SA', 'SAS', 'SARL', 'LDA', 'LIMITED', 'LTD', 'GMBH', 'BV', 'SL'];
+    const tokens = compact.split(' ').filter(Boolean);
+    const variants = [compact];
+    if (tokens.length > 1 && suffixes.includes(tokens[0].toUpperCase())) {
+      variants.push([...tokens.slice(1), tokens[0]].join(' '));
+      variants.push(tokens.slice(1).join(' '));
+    }
+    if (tokens.length > 1 && suffixes.includes(tokens[tokens.length - 1].toUpperCase())) {
+      variants.push(tokens.slice(0, -1).join(' '));
+    }
+    return uniqueList(variants);
+  }
+
+  function defaultTemplateKeywords() {
+    const supplierName = String(els.supplierName?.value || state.document?.supplier_name || state.document?.supplier_name_detected || '').trim();
+    const entityName = String(state.document?.entity?.name || els.customerName?.value || '').trim();
+    const selectedText = String(state.selectedText || '').trim();
+    const docType = String(els.docType?.value || state.document?.doc_type || '').trim();
+    const out = [
+      ...keywordNameVariants(supplierName),
+      ...keywordNameVariants(entityName),
+    ];
+    if (docType === 'delivery_note') out.unshift('BON');
+    if (/bon/i.test(selectedText) && selectedText.length <= 80) out.unshift(selectedText);
+    return uniqueList(out);
+  }
+
+  function setTemplateKeywords(values) {
+    const keywords = uniqueList(values);
+    setInputValue(els.templateKeywords, keywords.join(', '));
+    if (els.templateKeywordsBtn) {
+      els.templateKeywordsBtn.classList.toggle('is-active', keywords.length > 0);
+      els.templateKeywordsBtn.title = keywords.length
+        ? `Palavras-chave: ${keywords.join(', ')}`
+        : 'Palavras-chave do template';
+    }
+    const draft = ensureDraftTemplate();
+    draft.match_rules = {
+      ...(draft.match_rules || {}),
+      keywords,
+    };
+  }
+
+  function ensureDefaultTemplateKeywords() {
+    setTemplateKeywords([...keywordListFromInput(), ...defaultTemplateKeywords()]);
+  }
+
+  function openKeywordsModal() {
+    if (!els.keywordsModal || !els.keywordsText) return;
+    ensureDefaultTemplateKeywords();
+    els.keywordsText.value = keywordListFromInput().join('\n');
+    els.keywordsModal.classList.add('is-open');
+    els.keywordsModal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => els.keywordsText?.focus(), 0);
+  }
+
+  function closeKeywordsModal() {
+    els.keywordsModal?.classList.remove('is-open');
+    els.keywordsModal?.setAttribute('aria-hidden', 'true');
+  }
+
+  function applyKeywordsModal() {
+    setTemplateKeywords(String(els.keywordsText?.value || '').split(/\n+/));
+    closeKeywordsModal();
+    setStatus('Palavras-chave do template atualizadas.');
+  }
+
   function renderTags(host, items, type) {
     if (!host) return;
     const arr = Array.isArray(items) ? items : [];
@@ -810,16 +1120,59 @@ document.addEventListener('DOMContentLoaded', () => {
     )).join('');
   }
 
+  function isPlaceholderTemplateName(name) {
+    const normalized = normalizeSearchValue(name);
+    return !normalized
+      || normalized === 'template'
+      || normalized === 'novo template'
+      || normalized.includes('unknown')
+      || normalized.includes('desconhecido');
+  }
+
+  function docTypeLabel(value) {
+    const docType = String(value || '').trim() || 'unknown';
+    const item = (state.lookups?.doc_types || []).find((entry) => entry.value === docType);
+    return item?.label || docType;
+  }
+
+  function templateDisplayName(template) {
+    const rawName = String(template?.name || '').trim();
+    if (!isPlaceholderTemplateName(rawName)) return rawName;
+    const currentFeid = Number(els.customerFeid?.value || state.document?.feid || 0) || 0;
+    const currentSupplierNo = Number(els.supplierNo?.value || 0) || 0;
+    const templateFeid = Number(template?.feid || 0) || 0;
+    const templateSupplierNo = Number(template?.supplier_no || 0) || 0;
+    const canUseCurrentValues = (!templateFeid || templateFeid === currentFeid) && (!templateSupplierNo || templateSupplierNo === currentSupplierNo);
+    const selectedDocType = String(els.docType?.value || '').trim();
+    const docType = selectedDocType && selectedDocType !== 'unknown' && canUseCurrentValues
+      ? selectedDocType
+      : (template?.doc_type || selectedDocType || 'unknown');
+    const supplierName = canUseCurrentValues
+      ? String(els.supplierName?.value || template?.supplier_name || '').trim()
+      : String(template?.supplier_name || '').trim();
+    const entityName = canUseCurrentValues
+      ? String(state.document?.entity?.name || els.customerName?.value || '').trim()
+      : '';
+    const parts = [docTypeLabel(docType), supplierName, entityName].filter(Boolean);
+    return parts.join(' · ') || rawName || 'Novo template';
+  }
+
   function populateTemplateSelect(templates, selectedId) {
     if (!els.templateSelect) return;
     state.templateMap.clear();
     const options = ['<option value="">Sem template</option>'];
     (templates || []).forEach((template) => {
       state.templateMap.set(template.id, template);
-      options.push(`<option value="${escapeHtml(template.id)}">${escapeHtml(template.name)}${template.supplier_name ? ` · ${escapeHtml(template.supplier_name)}` : ''}</option>`);
+      const displayName = templateDisplayName(template);
+      options.push(`<option value="${escapeHtml(template.id)}">${escapeHtml(displayName)}</option>`);
     });
     els.templateSelect.innerHTML = options.join('');
     els.templateSelect.value = selectedId || '';
+  }
+
+  function refreshTemplateSelectLabels() {
+    if (!els.templateSelect || !state.templateMap.size) return;
+    populateTemplateSelect(Array.from(state.templateMap.values()), els.templateSelect.value || '');
   }
 
   function applyDocumentToForm(documentPayload) {
@@ -829,6 +1182,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setInputValue(els.supplierName, documentPayload.supplier_name || result.supplier?.name || '');
     setInputValue(els.supplierTaxId, result.supplier?.tax_id || documentPayload.supplier_tax_id_detected || '');
     setInputValue(els.customerTaxId, result.customer?.tax_id || '');
+    setInputValue(els.customerFeid, documentPayload.feid || documentPayload.entity?.feid || result.customer?.feid || '');
     setInputValue(els.confidence, Number(documentPayload.confidence || 0).toFixed(2));
     setInputValue(els.documentNumber, result.document_number || '');
     setInputValue(els.documentDate, result.document_date || '');
@@ -857,7 +1211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setInputValue(els.templateFingerprint, documentPayload.template?.fingerprint || '');
     setInputValue(els.templateScoreMin, documentPayload.template?.score_min_match || documentPayload.template_draft?.score_min_match || 0.55);
     const keywords = documentPayload.template?.match_rules?.keywords || documentPayload.template_draft?.match_rules?.keywords || [];
-    setInputValue(els.templateKeywords, Array.isArray(keywords) ? keywords.join(', ') : '');
+    setTemplateKeywords([...(Array.isArray(keywords) ? keywords : []), ...defaultTemplateKeywords()]);
     populateTemplateSelect(documentPayload.available_templates || [], documentPayload.template?.id || '');
 
     const label = documentPayload.status || 'new';
@@ -906,6 +1260,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.draftTemplate = {
       id: '',
       name: els.templateName?.value || 'Novo template',
+      feid: Number(els.customerFeid?.value || 0) || null,
       supplier_no: Number(els.supplierNo?.value || 0) || null,
       doc_type: els.docType?.value || 'unknown',
       score_min_match: Number(els.templateScoreMin?.value || 0.55) || 0.55,
@@ -1064,9 +1419,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const currencyMatch = raw.match(/\b(EUR|USD|GBP|CHF|BRL|AOA|MZN)\b/i);
       setInputValue(els.currency, currencyMatch ? currencyMatch[1].toUpperCase() : raw.toUpperCase());
     }
-    if (fieldKey === 'supplier_tax_id') setInputValue(els.supplierTaxId, raw.replace(/[^\dA-Z]/gi, '').trim() || raw);
+    if (fieldKey === 'supplier_tax_id') setInputValue(els.supplierTaxId, normalizeTaxIdValue(raw) || raw);
     if (fieldKey === 'supplier_name') setInputValue(els.supplierName, raw);
-    if (fieldKey === 'customer_tax_id') setInputValue(els.customerTaxId, raw.replace(/[^\dA-Z]/gi, '').trim() || raw);
+    if (fieldKey === 'customer_tax_id') setInputValue(els.customerTaxId, normalizeTaxIdValue(raw) || raw);
     if (fieldKey === 'customer_name') setInputValue(els.customerName, raw);
     if (fieldKey === 'tax_base_0') setInputValue(els.taxBase0, normalizeNumericValue(raw));
     if (fieldKey === 'tax_amount_0') setInputValue(els.taxAmount0, normalizeNumericValue(raw));
@@ -1124,6 +1479,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: els.supplierName.value || '',
       },
       customer: {
+        feid: Number(els.customerFeid?.value || 0) || null,
         tax_id: String(els.customerTaxId.value || '').trim(),
         name: els.customerName.value || '',
       },
@@ -1172,14 +1528,16 @@ document.addEventListener('DOMContentLoaded', () => {
       tax_amount_23: String(els.taxAmount23?.value || '').trim(),
     };
 
-    draft.id = els.templateSelect.value || draft.id || '';
-    draft.name = els.templateName.value || 'Novo template';
+    draft.id = els.templateSelect.value || '';
+    draft.name = isPlaceholderTemplateName(els.templateName.value) ? '' : (els.templateName.value || '');
     draft.fingerprint = els.templateFingerprint.value || '';
+    draft.feid = Number(els.customerFeid?.value || 0) || state.document?.feid || null;
     draft.supplier_no = Number(els.supplierNo.value || 0) || null;
     draft.doc_type = els.docType.value || 'unknown';
     draft.score_min_match = Number(els.templateScoreMin.value || 0.55) || 0.55;
+    ensureDefaultTemplateKeywords();
     draft.match_rules = {
-      keywords: els.templateKeywords.value.split(',').map((item) => item.trim()).filter(Boolean),
+      keywords: keywordListFromInput(),
       required: Array.isArray(draft.match_rules?.required) ? draft.match_rules.required : [],
       forbidden: Array.isArray(draft.match_rules?.forbidden) ? draft.match_rules.forbidden : [],
     };
@@ -1230,6 +1588,42 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
+  function removeDraftFieldAssignment(fieldKey) {
+    const draft = ensureDraftTemplate();
+    draft.fields = (draft.fields || []).filter((entry) => entry.field_key !== fieldKey);
+    if (fieldKey.startsWith('line_')) {
+      ensureDraftTemplate().lines = lineConfigFromForm();
+    }
+  }
+
+  function clearFieldAssignment(fieldKey) {
+    if (!fieldKey) return;
+    const input = getFieldInput(fieldKey);
+    setInputValue(input, '');
+    delete state.fieldAssignments[fieldKey];
+    removeDraftFieldAssignment(fieldKey);
+    if (fieldKey === 'customer_tax_id' || fieldKey === 'customer_name') {
+      setInputValue(els.customerFeid, '');
+      if (state.document) {
+        state.document.entity = {};
+        state.document.feid = null;
+      }
+    }
+    if ((fieldKey === 'supplier_tax_id' || fieldKey === 'supplier_name')
+        && !String(els.supplierTaxId?.value || '').trim()
+        && !String(els.supplierName?.value || '').trim()) {
+      setInputValue(els.supplierNo, '');
+      if (state.document) {
+        state.document.supplier_no = null;
+        state.document.supplier_name = '';
+        state.document.supplier_tax_id_detected = '';
+      }
+    }
+    refreshAllFieldDisplays();
+    refreshTemplateSelectLabels();
+    setStatus(`Atribuição removida de ${fieldKeyLabel(fieldKey)}.`);
+  }
+
   function applyValueToFieldInput(fieldKey, rawValue) {
     const raw = String(rawValue || '').trim();
     if (fieldKey === 'document_number') setInputValue(els.documentNumber, raw);
@@ -1242,9 +1636,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const currencyMatch = raw.match(/\b(EUR|USD|GBP|CHF|BRL|AOA|MZN)\b/i);
       setInputValue(els.currency, currencyMatch ? currencyMatch[1].toUpperCase() : raw.toUpperCase());
     }
-    if (fieldKey === 'supplier_tax_id') setInputValue(els.supplierTaxId, raw.replace(/[^\dA-Z]/gi, '').trim() || raw);
+    if (fieldKey === 'supplier_tax_id') setInputValue(els.supplierTaxId, normalizeTaxIdValue(raw) || raw);
     if (fieldKey === 'supplier_name') setInputValue(els.supplierName, raw);
-    if (fieldKey === 'customer_tax_id') setInputValue(els.customerTaxId, raw.replace(/[^\dA-Z]/gi, '').trim() || raw);
+    if (fieldKey === 'customer_tax_id') setInputValue(els.customerTaxId, normalizeTaxIdValue(raw) || raw);
     if (fieldKey === 'customer_name') setInputValue(els.customerName, raw);
     if (fieldKey === 'tax_base_0') setInputValue(els.taxBase0, normalizeNumericValue(raw));
     if (fieldKey === 'tax_amount_0') setInputValue(els.taxAmount0, normalizeNumericValue(raw));
@@ -1343,6 +1737,11 @@ document.addEventListener('DOMContentLoaded', () => {
       showMessage('Seleciona ou arrasta primeiro uma linha de texto.', 'warning');
       return;
     }
+    if ((fieldKey === 'supplier_tax_id' || fieldKey === 'supplier_name') && !currentDocumentFeid()) {
+      setStatus('Identifica primeiro a Entidade FE do cliente antes de escolher o fornecedor.', true);
+      showMessage('Identifica primeiro a Entidade FE do cliente antes de escolher o fornecedor.', 'warning');
+      return;
+    }
     applyValueToFieldInput(fieldKey, selectedValue);
     if (fieldKey.startsWith('line_')) {
       ensureDraftTemplate().lines = lineConfigFromForm();
@@ -1355,6 +1754,12 @@ document.addEventListener('DOMContentLoaded', () => {
     rememberFieldAssignment(fieldKey, sourceText, fieldCurrentValue(fieldKey) || selectedValue, blockId);
     refreshAllFieldDisplays();
     setStatus(`Campo ${fieldKeyLabel(fieldKey)} atualizado a partir do OCR.`);
+    if (fieldKey === 'customer_tax_id' || fieldKey === 'customer_name') {
+      resolveCustomerEntity(fieldKey === 'customer_name' ? 'name' : 'tax_id');
+    }
+    if (fieldKey === 'supplier_tax_id' || fieldKey === 'supplier_name') {
+      resolveSupplierFromField(fieldKey === 'supplier_name' ? 'name' : 'tax_id');
+    }
   }
 
   function assignBlockToField(blockId, fieldKey) {
@@ -1387,6 +1792,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setInputValue(els.supplierName, documentPayload.supplier_name || result.supplier?.name || '');
     setInputValue(els.supplierTaxId, result.supplier?.tax_id || documentPayload.supplier_tax_id_detected || '');
     setInputValue(els.customerTaxId, result.customer?.tax_id || '');
+    setInputValue(els.customerFeid, documentPayload.feid || documentPayload.entity?.feid || result.customer?.feid || '');
     setInputValue(els.confidence, Number(documentPayload.confidence || 0).toFixed(2));
     setInputValue(els.documentNumber, result.document_number || '');
     setInputValue(els.documentDate, result.document_date || '');
@@ -1415,7 +1821,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setInputValue(els.templateFingerprint, documentPayload.template?.fingerprint || '');
     setInputValue(els.templateScoreMin, documentPayload.template?.score_min_match || documentPayload.template_draft?.score_min_match || 0.55);
     const keywords = documentPayload.template?.match_rules?.keywords || documentPayload.template_draft?.match_rules?.keywords || [];
-    setInputValue(els.templateKeywords, Array.isArray(keywords) ? keywords.join(', ') : '');
+    setTemplateKeywords([...(Array.isArray(keywords) ? keywords : []), ...defaultTemplateKeywords()]);
     populateTemplateSelect(documentPayload.available_templates || [], documentPayload.template?.id || '');
 
     const label = documentPayload.status || 'new';
@@ -1481,7 +1887,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.templateName.value = draft.name || '';
     els.templateFingerprint.value = draft.fingerprint || '';
     els.templateScoreMin.value = draft.score_min_match || 0.55;
-    els.templateKeywords.value = Array.isArray(draft.match_rules?.keywords) ? draft.match_rules.keywords.join(', ') : '';
+    setTemplateKeywords(Array.isArray(draft.match_rules?.keywords) ? draft.match_rules.keywords : []);
     if (draft.doc_type) {
       els.docType.value = draft.doc_type;
     }
@@ -1529,6 +1935,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.draftTemplate = detail.template ? {
         id: detail.template.id,
         name: detail.template.name,
+        feid: detail.template.feid || detail.feid || null,
         fingerprint: detail.template.fingerprint || '',
         supplier_no: detail.template.supplier_no,
         doc_type: detail.template.doc_type,
@@ -1558,6 +1965,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           doc_type: els.docType.value || 'unknown',
+          feid: Number(els.customerFeid?.value || 0) || null,
           supplier_no: Number(els.supplierNo.value || 0) || null,
           template_id: els.templateSelect.value || '',
           confidence: Number(els.confidence.value || 0) || 0,
@@ -1587,15 +1995,32 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(templatePayload),
       });
-      showMessage('Template guardado.', 'success');
+      const savedMessage = payload.action === 'updated' ? 'Template existente atualizado.' : 'Template criado.';
+      showMessage(savedMessage, 'success');
       if (state.document) {
         state.document.template = payload;
         state.document.doctemplatestamp = payload.id;
+        const available = Array.isArray(state.document.available_templates) ? state.document.available_templates : [];
+        const nextTemplate = {
+          id: payload.id,
+          name: payload.name,
+          supplier_name: payload.supplier_name || '',
+          supplier_no: payload.supplier_no || null,
+          feid: payload.feid || null,
+          doc_type: payload.doc_type || '',
+        };
+        const existingIndex = available.findIndex((item) => item.id === payload.id);
+        if (existingIndex >= 0) {
+          available[existingIndex] = { ...available[existingIndex], ...nextTemplate };
+        } else {
+          available.push(nextTemplate);
+        }
+        state.document.available_templates = available;
       }
       templatePayload.id = payload.id;
       populateTemplateSelect(state.document?.available_templates || [], payload.id);
       els.templateSelect.value = payload.id;
-      setStatus('Template guardado.');
+      setStatus(savedMessage);
     } catch (error) {
       console.error(error);
       showMessage(error.message || 'Falha ao guardar template.', 'error');
@@ -1628,9 +2053,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       state.document = payload;
       state.draftTemplate = payload.template_draft || (payload.template ? {
-        id: payload.template.id,
-        name: payload.template.name,
-        fingerprint: payload.template.fingerprint || '',
+          id: payload.template.id,
+          name: payload.template.name,
+          feid: payload.template.feid || payload.feid || null,
+          fingerprint: payload.template.fingerprint || '',
         supplier_no: payload.template.supplier_no,
         doc_type: payload.template.doc_type,
         score_min_match: payload.template.score_min_match,
@@ -1823,6 +2249,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!state.pointerDrag.active) return;
     cleanupPointerDrag();
   });
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest?.('[data-clear-field]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    clearFieldAssignment(String(button.dataset.clearField || '').trim());
+  });
   els.dropTargets.forEach((target) => {
     target.addEventListener('dragenter', (event) => {
       event.preventDefault();
@@ -1896,11 +2329,25 @@ document.addEventListener('DOMContentLoaded', () => {
     state.previewPage = Math.min(getPreviewPageCount(state.document || {}), Number(state.previewPage || 1) + 1);
     renderPreview(state.document || {});
   });
+  els.openOriginalBtn?.addEventListener('click', () => {
+    if (!documentId) return;
+    window.open(`/api/document_ai/documents/${encodeURIComponent(documentId)}/original`, '_blank', 'noopener');
+  });
   els.validateBtn?.addEventListener('click', saveValidation);
   els.saveTemplateBtn?.addEventListener('click', saveTemplateFromReview);
   els.reprocessBtn?.addEventListener('click', () => reprocess('auto'));
   els.reprocessOcrBtn?.addEventListener('click', () => reprocess('ocr'));
   els.reprocessFallbackBtn?.addEventListener('click', () => reprocess('visual_fallback'));
+  els.docType?.addEventListener('change', () => {
+    if (state.document) {
+      state.document.doc_type = els.docType.value || 'unknown';
+    }
+    if (isPlaceholderTemplateName(els.templateName?.value || '')) {
+      setInputValue(els.templateName, '');
+    }
+    ensureDefaultTemplateKeywords();
+    refreshTemplateSelectLabels();
+  });
 
   els.cropToggle?.addEventListener('click', () => {
     setCropMode(!state.adjustments.cropMode);
@@ -2011,6 +2458,20 @@ document.addEventListener('DOMContentLoaded', () => {
   els.closeValueModal?.addEventListener('click', closeValueModal);
   els.closeValueModalBottom?.addEventListener('click', closeValueModal);
   els.applyValueModal?.addEventListener('click', applyValueModalSelection);
+  els.closeSupplierModal?.addEventListener('click', closeSupplierModal);
+  els.closeSupplierModalBottom?.addEventListener('click', closeSupplierModal);
+  els.templateKeywordsBtn?.addEventListener('click', openKeywordsModal);
+  els.closeKeywordsModal?.addEventListener('click', closeKeywordsModal);
+  els.closeKeywordsModalBottom?.addEventListener('click', closeKeywordsModal);
+  els.applyKeywordsModal?.addEventListener('click', applyKeywordsModal);
+  els.supplierModalBody?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-supplier-index]');
+    if (!button) return;
+    const candidate = state.supplierCandidates[Number(button.dataset.supplierIndex || -1)];
+    if (!candidate) return;
+    applySupplierCandidate(candidate);
+    closeSupplierModal();
+  });
   els.valueSource?.addEventListener('mouseup', () => {
     const selection = selectionOffsetsWithin(els.valueSource);
     if (!selection) return;
@@ -2035,6 +2496,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.draftTemplate = {
         id: detail.id,
         name: detail.name,
+        feid: detail.feid || state.document?.feid || null,
         fingerprint: detail.fingerprint || '',
         supplier_no: detail.supplier_no,
         doc_type: detail.doc_type,
@@ -2046,7 +2508,7 @@ document.addEventListener('DOMContentLoaded', () => {
       els.templateName.value = detail.name || '';
       els.templateFingerprint.value = detail.fingerprint || '';
       els.templateScoreMin.value = detail.score_min_match || 0.55;
-      els.templateKeywords.value = (detail.match_rules?.keywords || []).join(', ');
+      setTemplateKeywords(detail.match_rules?.keywords || []);
       applyLineConfigToForm(detail.definition?.lines || {});
     } catch (error) {
       console.error(error);

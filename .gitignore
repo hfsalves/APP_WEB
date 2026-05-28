@@ -8,6 +8,7 @@ __pycache__/
 # Arquivos de configuração locais
 instance/
 *.sqlite3
+document_ai_robot.local.env
 
 # Editor / OS
 .vscode/

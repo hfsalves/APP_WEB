@@ -56,6 +56,9 @@
                 <button id="docAiRotateRight" type="button" class="sz_button sz_button_ghost" title="Rodar para a direita">
                   <i class="fa-solid fa-rotate-right"></i>
                 </button>
+                <button id="docAiOpenOriginalBtn" type="button" class="sz_button sz_button_ghost" title="Abrir PDF em novo separador">
+                  <i class="fa-solid fa-up-right-from-square"></i>
+                </button>
               </div>
               <div class="docai-preview-nav">
                 <button id="docAiPreviewPrev" type="button" class="sz_button sz_button_ghost" title="P&aacute;gina anterior">
@@ -110,7 +113,12 @@
                   </div>
                   <div class="docai-static-field">
                     <label class="docai-drop-label" for="docAiTemplateSelect">Template</label>
-                    <select id="docAiTemplateSelect" class="sz_select docai-compact-select"></select>
+                    <div class="docai-template-select-row">
+                      <select id="docAiTemplateSelect" class="sz_select docai-compact-select"></select>
+                      <button id="docAiTemplateKeywordsBtn" type="button" class="sz_button sz_button_ghost docai-icon-btn" title="Palavras-chave do template">
+                        <i class="fa-solid fa-key"></i>
+                      </button>
+                    </div>
                   </div>
                   <div class="docai-static-field">
                     <div class="docai-drop-label">Confian&ccedil;a</div>
@@ -174,6 +182,11 @@
                     <div class="docai-drop-label">NIF</div>
                     <div class="docai-drop-value" data-field-display="customer_tax_id">--</div>
                     <input id="docAiCustomerTaxId" type="hidden">
+                  </div>
+                  <div class="docai-static-field">
+                    <div class="docai-drop-label">Entidade FE</div>
+                    <div id="docAiCustomerFeDisplay" class="docai-static-value">--</div>
+                    <input id="docAiCustomerFeid" type="hidden">
                   </div>
                   <div class="docai-drop-slot docai-drop-slot-full" data-drop-field="customer_name">
                     <div class="docai-drop-label">Nome</div>
@@ -417,6 +430,45 @@
     <div class="sz_modal_footer">
       <button id="docAiApplyValueModal" type="button" class="sz_button sz_button_primary">Aplicar</button>
       <button id="docAiCloseValueModalBottom" type="button" class="sz_button sz_button_secondary">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div id="docAiSupplierModal" class="docai-modal" aria-hidden="true">
+  <div class="sz_panel docai-modal-panel docai-supplier-modal-panel">
+    <div class="sz_modal_header">
+      <h3 class="sz_h4">Escolher fornecedor</h3>
+      <button id="docAiCloseSupplierModal" type="button" class="sz_button sz_button_ghost">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body docai-modal-body">
+      <div id="docAiSupplierModalBody" class="docai-candidate-list"></div>
+    </div>
+    <div class="sz_modal_footer">
+      <button id="docAiCloseSupplierModalBottom" type="button" class="sz_button sz_button_secondary">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div id="docAiKeywordsModal" class="docai-modal" aria-hidden="true">
+  <div class="sz_panel docai-modal-panel docai-keywords-modal-panel">
+    <div class="sz_modal_header">
+      <h3 class="sz_h4">Palavras-chave do template</h3>
+      <button id="docAiCloseKeywordsModal" type="button" class="sz_button sz_button_ghost">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body docai-modal-body">
+      <div class="docai-keyword-editor">
+        <label class="docai-drop-label" for="docAiKeywordsText">Expressões</label>
+        <textarea id="docAiKeywordsText" class="sz_input docai-keywords-text" rows="7"></textarea>
+        <div class="sz_text_muted">Uma expressão por linha. Se estas expressões aparecerem no PDF, ajudam a assumir este template.</div>
+      </div>
+    </div>
+    <div class="sz_modal_footer">
+      <button id="docAiApplyKeywordsModal" type="button" class="sz_button sz_button_primary">Aplicar</button>
+      <button id="docAiCloseKeywordsModalBottom" type="button" class="sz_button sz_button_secondary">Fechar</button>
     </div>
   </div>
 </div>

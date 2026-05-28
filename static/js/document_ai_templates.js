@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tabs: Array.from(document.querySelectorAll('.docai-template-tab')),
     panes: Array.from(document.querySelectorAll('.docai-tab-pane')),
     name: document.getElementById('docAiTemplateName'),
+    feid: document.getElementById('docAiTemplateFeid'),
     supplierNo: document.getElementById('docAiTemplateSupplierNo'),
     docType: document.getElementById('docAiTemplateDocType'),
     language: document.getElementById('docAiTemplateLanguage'),
@@ -111,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <strong>${escapeHtml(item.name)}</strong>
           <span class="docai-state-badge ${item.active ? 'status-parsed_ok' : 'status-parse_error'}">${item.active ? 'Ativo' : 'Inativo'}</span>
         </div>
-        <div class="sz_text_muted">${escapeHtml(item.supplier_name || (item.supplier_no ? `Fornecedor #${item.supplier_no}` : 'Template genérico'))}</div>
+        <div class="sz_text_muted">${escapeHtml(item.supplier_name || (item.supplier_no ? `Fornecedor #${item.supplier_no}` : 'Template genérico'))}${item.feid ? ` · FE ${escapeHtml(item.feid)}` : ''}</div>
         <div class="sz_text_muted">${escapeHtml(item.doc_type || 'unknown')} · ${escapeHtml(item.parser?.name || '')}</div>
       </button>
     `).join('');
@@ -205,6 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
       aliases: Array.isArray(item.aliases) ? item.aliases : [],
     })) : [];
     if (els.name) els.name.value = template?.name || '';
+    if (els.feid) els.feid.value = template?.feid || '';
     if (els.supplierNo) els.supplierNo.value = template?.supplier_no || '';
     if (els.docType) els.docType.value = template?.doc_type || 'unknown';
     if (els.language) els.language.value = template?.language || '';
@@ -229,6 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
       id: '',
       name: '',
       description: '',
+      feid: null,
       supplier_no: null,
       doc_type: 'unknown',
       language: '',
@@ -255,6 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const payload = {
       id: state.selectedId || '',
       name: els.name.value || 'Novo template',
+      feid: Number(els.feid?.value || 0) || null,
       supplier_no: Number(els.supplierNo.value || 0) || null,
       doc_type: els.docType.value || 'unknown',
       language: els.language.value || '',
@@ -398,6 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
           extracted_text: detail.extracted_text || '',
           supplier_name: detail.supplier_name || '',
           supplier_no: detail.supplier_no,
+          feid: detail.feid || null,
           current_result: detail.result || {},
         };
       }
@@ -407,6 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({
           ...documentContext,
           document_type: els.docType.value || 'unknown',
+          feid: documentContext.feid || state.current?.feid || null,
           supplier_no: Number(els.supplierNo.value || 0) || documentContext.supplier_no || null,
           supplier_name: documentContext.supplier_name || '',
           current_template: currentPayload(),

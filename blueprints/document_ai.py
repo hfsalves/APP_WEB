@@ -2,21 +2,28 @@ import io
 
 from flask import Blueprint, current_app, jsonify, render_template, request, send_file
 from flask_login import current_user, login_required
-from sqlalchemy import text
 
 from models import Acessos, db
 from services.document_ai_service import (
+    delete_document_from_inbox,
+    delete_document_source,
     document_ai_lookups,
     get_document_detail,
+    get_document_original_file,
     get_document_preview_page,
+    get_document_source,
     get_template_detail,
     ingest_uploaded_document,
+    list_document_sources,
     list_documents,
     list_templates,
     reprocess_document,
+    resolve_fe_entity,
+    save_document_source,
     save_document_review,
     save_template,
     save_template_from_document,
+    search_suppliers,
     suggest_template,
     test_template,
     toggle_template_active,
@@ -71,6 +78,14 @@ def document_ai_templates_page():
     return render_template('document_ai_templates.html', page_title='Modelos Documentais')
 
 
+@bp.route('/document_ai/sources')
+@login_required
+def document_ai_sources_page():
+    if not _document_ai_has_access('consultar'):
+        return render_template('error.html', message='Sem permissão para gerir origens documentais.'), 403
+    return render_template('document_ai_sources.html', page_title='Origens Documentais')
+
+
 @bp.route('/api/document_ai/lookups', methods=['GET'])
 @login_required
 def api_document_ai_lookups():
@@ -93,6 +108,80 @@ def api_document_ai_inbox():
         'date_to': request.args.get('date_to', ''),
     }
     return jsonify(list_documents(filters))
+
+
+@bp.route('/api/document_ai/sources', methods=['GET'])
+@login_required
+def api_document_ai_sources():
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    try:
+        return jsonify(list_document_sources())
+    except Exception as exc:
+        current_app.logger.exception('Erro ao carregar origens documentais')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/sources/<source_id>', methods=['GET'])
+@login_required
+def api_document_ai_source_detail(source_id: str):
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    try:
+        return jsonify(get_document_source(source_id))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao carregar origem documental')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/sources', methods=['POST'])
+@login_required
+def api_document_ai_source_create():
+    if not _document_ai_has_access('inserir'):
+        return jsonify({'error': 'Sem permissão para criar origens.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(save_document_source(body, _current_login())), 201
+    except Exception as exc:
+        current_app.logger.exception('Erro ao criar origem documental')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/sources/<source_id>', methods=['PUT'])
+@login_required
+def api_document_ai_source_update(source_id: str):
+    if not _document_ai_has_access('editar'):
+        return jsonify({'error': 'Sem permissão para editar origens.'}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(save_document_source(body, _current_login(), source_id))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao atualizar origem documental')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/sources/<source_id>', methods=['DELETE'])
+@login_required
+def api_document_ai_source_delete(source_id: str):
+    if not _document_ai_has_access('eliminar'):
+        return jsonify({'error': 'Sem permissão para remover origens.'}), 403
+    try:
+        return jsonify(delete_document_source(source_id))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao remover origem documental')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
 
 
 @bp.route('/api/document_ai/documents/upload', methods=['POST'])
@@ -132,6 +221,22 @@ def api_document_ai_document_detail(docinstamp: str):
         return jsonify({'error': str(exc)}), 500
 
 
+@bp.route('/api/document_ai/documents/<docinstamp>', methods=['DELETE'])
+@login_required
+def api_document_ai_document_delete(docinstamp: str):
+    if not _document_ai_has_access('eliminar'):
+        return jsonify({'error': 'Sem permissão para eliminar documentos.'}), 403
+    try:
+        return jsonify(delete_document_from_inbox(docinstamp, _current_login()))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao eliminar documento do inbox')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
 @bp.route('/api/document_ai/documents/<docinstamp>/preview', methods=['GET'])
 @login_required
 def api_document_ai_document_preview(docinstamp: str):
@@ -152,6 +257,24 @@ def api_document_ai_document_preview(docinstamp: str):
         )
     except Exception as exc:
         current_app.logger.exception('Erro ao gerar preview documental')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/original', methods=['GET'])
+@login_required
+def api_document_ai_document_original(docinstamp: str):
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    try:
+        original = get_document_original_file(docinstamp)
+        return send_file(
+            original.get('path'),
+            mimetype=original.get('mime_type') or 'application/octet-stream',
+            download_name=original.get('file_name') or 'documento.pdf',
+            as_attachment=False,
+        )
+    except Exception as exc:
+        current_app.logger.exception('Erro ao abrir documento original')
         return jsonify({'error': str(exc)}), 500
 
 
@@ -320,26 +443,28 @@ def api_document_ai_suppliers_search():
     term = str(request.args.get('q', '') or '').strip()
     if len(term) < 2:
         return jsonify([])
-    rows = db.session.execute(text("""
-        SELECT TOP 20
-            CAST(NO AS int) AS NO,
-            LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
-            LTRIM(RTRIM(ISNULL(NIF, ''))) AS NIF
-        FROM dbo.FL
-        WHERE
-            UPPER(LTRIM(RTRIM(ISNULL(NOME, '')))) LIKE :term
-            OR CAST(NO AS varchar(30)) LIKE :term
-            OR REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(ISNULL(NIF, ''))), ' ', ''), '-', ''), '.', ''), '/', '') LIKE :digits
-        ORDER BY NOME
-    """), {
-        'term': f'%{term.upper()}%',
-        'digits': f"%{''.join(ch for ch in term if ch.isdigit())}%",
-    }).mappings().all()
-    return jsonify([
-        {
-            'no': int(row.get('NO') or 0),
-            'name': str(row.get('NOME') or '').strip(),
-            'tax_id': str(row.get('NIF') or '').strip(),
-        }
-        for row in rows
-    ])
+    feid = request.args.get('feid', type=int)
+    if not feid:
+        return jsonify({'error': 'Identifica primeiro a Entidade FE do cliente.'}), 400
+    limit = request.args.get('limit', default=8, type=int)
+    try:
+        return jsonify(search_suppliers(term, feid=feid, limit=limit))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao pesquisar fornecedores Document AI')
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/entities/resolve', methods=['GET'])
+@login_required
+def api_document_ai_entities_resolve():
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    term = str(request.args.get('q', '') or '').strip()
+    mode = str(request.args.get('mode', 'auto') or 'auto').strip() or 'auto'
+    if len(term) < 2:
+        return jsonify({})
+    try:
+        return jsonify(resolve_fe_entity(term, mode))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao resolver entidade FE documental')
+        return jsonify({'error': str(exc)}), 500

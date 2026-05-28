@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Origens Documentais{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/document_ai.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page docai-page docai-sources-page">
+  <div class="sz_page_container sz_page_container_wide">
+    <header class="sz_contextbar sz_page_contextbar docai-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Origens documentais</div>
+        <div class="sz_page_subtitle">Pastas monitorizadas para importação automática de documentos para o inbox.</div>
+      </div>
+      <div class="sz_contextbar_right docai-contextbar-right">
+        <button id="docAiBackInboxBtn" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-inbox"></i>
+          <span>Inbox</span>
+        </button>
+        <button id="docAiNewSourceBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-plus"></i>
+          <span>Nova origem</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body">
+      <div class="docai-source-layout">
+        <aside class="sz_panel docai-template-panel">
+          <div class="docai-panel-head">
+            <div>
+              <div class="sz_h4">Origens</div>
+              <div id="docAiSourcesMeta" class="sz_text_muted">A carregar origens...</div>
+            </div>
+          </div>
+          <div id="docAiSourceList" class="docai-template-list"></div>
+        </aside>
+
+        <section class="sz_panel docai-template-panel">
+          <div class="docai-panel-head">
+            <div>
+              <div class="sz_h4">Configuração</div>
+              <div id="docAiSourceEditorMeta" class="sz_text_muted">Seleciona uma origem ou cria uma nova.</div>
+            </div>
+            <div class="docai-row-actions">
+              <button id="docAiDeleteSourceBtn" type="button" class="sz_button sz_button_ghost docai-row-delete" disabled>
+                <i class="fa-solid fa-trash"></i>
+                <span>Remover</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="docai-template-editor">
+            <div class="docai-inline-grid cols-2">
+              <div class="sz_field">
+                <label class="sz_label" for="docAiSourceName">Nome</label>
+                <input id="docAiSourceName" class="sz_input" type="text" placeholder="Ex.: Compras - email">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="docAiSourceInterval">Intervalo robot (min.)</label>
+                <input id="docAiSourceInterval" class="sz_input" type="number" min="1" max="1440" step="1" value="5">
+              </div>
+              <div class="sz_field full">
+                <label class="sz_label" for="docAiSourceFolder">Pasta</label>
+                <input id="docAiSourceFolder" class="sz_input" type="text" placeholder="/Volumes/partilha/documentos">
+              </div>
+              <div class="sz_field">
+                <label class="sz_label" for="docAiSourcePattern">Padrão ficheiros</label>
+                <input id="docAiSourcePattern" class="sz_input" type="text" placeholder="*.pdf;*.png;*.jpg">
+              </div>
+              <label class="sz_checkbox" for="docAiSourceSubfolders">
+                <input id="docAiSourceSubfolders" type="checkbox">
+                <span>Incluir subpastas</span>
+              </label>
+              <label class="sz_checkbox" for="docAiSourceActive">
+                <input id="docAiSourceActive" type="checkbox" checked>
+                <span>Ativa</span>
+              </label>
+            </div>
+
+            <div class="docai-source-runtime">
+              <div class="docai-info-card">
+                <h4>Última execução</h4>
+                <div id="docAiSourceLastRun" class="sz_text_muted">Ainda sem execução.</div>
+              </div>
+              <div class="docai-info-card">
+                <h4>Estado</h4>
+                <div id="docAiSourceLastStatus" class="sz_text_muted">Sem estado.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <footer class="sz_actionbar">
+      <div class="sz_actionbar_left">
+        <div id="docAiSourceStatus" class="sz_text_muted">Pronto.</div>
+      </div>
+      <div class="sz_actionbar_right">
+        <button id="docAiSaveSourceBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Guardar</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/document_ai_sources.js') }}?v={{ config.get('STATIC_VERSION', 1) }}"></script>
+{% endblock %}

@@ -1,5 +1,6 @@
 import json
 import os
+import socket
 from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
@@ -68,6 +69,42 @@ def _document_ai_model() -> str:
         or os.getenv('OPENAI_MODEL')
         or 'gpt-4o-mini'
     ).strip()
+
+
+def _document_ai_timeout() -> int:
+    raw_value = (
+        _para_value('DOC_AI_OPENAI_TIMEOUT')
+        or os.getenv('DOC_AI_OPENAI_TIMEOUT')
+        or '180'
+    )
+    try:
+        return max(30, min(600, int(float(raw_value))))
+    except Exception:
+        return 180
+
+
+def _document_ai_text_sample_limit() -> int:
+    raw_value = (
+        _para_value('DOC_AI_OPENAI_TEXT_LIMIT')
+        or os.getenv('DOC_AI_OPENAI_TEXT_LIMIT')
+        or '24000'
+    )
+    try:
+        return max(4000, min(120000, int(float(raw_value))))
+    except Exception:
+        return 24000
+
+
+def _document_ai_max_output_tokens() -> int:
+    raw_value = (
+        _para_value('DOC_AI_OPENAI_MAX_OUTPUT_TOKENS')
+        or os.getenv('DOC_AI_OPENAI_MAX_OUTPUT_TOKENS')
+        or '6000'
+    )
+    try:
+        return max(1200, min(16000, int(float(raw_value))))
+    except Exception:
+        return 6000
 
 
 def _extract_openai_text(payload: dict[str, Any]) -> str:
@@ -161,6 +198,8 @@ def suggest_template_definition(context: dict[str, Any]) -> dict[str, Any]:
         }
 
     source_context = context or {}
+    text_limit = _document_ai_text_sample_limit()
+    extracted_text = str(source_context.get('extracted_text') or '')
     request_payload = {
         'task': 'document_template_suggestion',
         'goal': 'Infer a robust text-based parsing template for purchase documents using anchors, regex and keyword rules.',
@@ -180,7 +219,9 @@ def suggest_template_definition(context: dict[str, Any]) -> dict[str, Any]:
             'selected_text': source_context.get('selected_text') or '',
             'current_template': source_context.get('current_template') or {},
             'current_result': source_context.get('current_result') or {},
-            'extracted_text_sample': str(source_context.get('extracted_text') or '')[:12000],
+            'extracted_text_sample': extracted_text[:text_limit],
+            'extracted_text_truncated': len(extracted_text) > text_limit,
+            'extracted_text_original_chars': len(extracted_text),
         },
     }
 
@@ -216,20 +257,30 @@ def suggest_template_definition(context: dict[str, Any]) -> dict[str, Any]:
                 'schema': _field_suggestion_schema(),
             }
         },
+        'max_output_tokens': _document_ai_max_output_tokens(),
     }
 
-    req = urllib_request.Request(
-        'https://api.openai.com/v1/responses',
-        data=json.dumps(body).encode('utf-8'),
-        headers={
-            'Authorization': f'Bearer {_document_ai_api_key()}',
-            'Content-Type': 'application/json',
-        },
-        method='POST',
-    )
-
     try:
-        with urllib_request.urlopen(req, timeout=40) as response:
+        body_bytes = json.dumps(body).encode('utf-8')
+        timeout_seconds = _document_ai_timeout()
+        current_app.logger.info(
+            'Document AI OpenAI suggestion: model=%s timeout=%ss input_bytes=%s text_chars=%s truncated=%s',
+            _document_ai_model(),
+            timeout_seconds,
+            len(body_bytes),
+            len(extracted_text),
+            len(extracted_text) > text_limit,
+        )
+        req = urllib_request.Request(
+            'https://api.openai.com/v1/responses',
+            data=body_bytes,
+            headers={
+                'Authorization': f'Bearer {_document_ai_api_key()}',
+                'Content-Type': 'application/json',
+            },
+            method='POST',
+        )
+        with urllib_request.urlopen(req, timeout=timeout_seconds) as response:
             payload_response = json.loads(response.read().decode('utf-8'))
     except urllib_error.HTTPError as exc:
         details = ''
@@ -241,6 +292,16 @@ def suggest_template_definition(context: dict[str, Any]) -> dict[str, Any]:
             'ok': False,
             'available': True,
             'message': f'Falha na sugestão automática: {details[:280]}',
+            'suggestion': None,
+        }
+    except (TimeoutError, socket.timeout) as exc:
+        return {
+            'ok': False,
+            'available': True,
+            'message': (
+                'Falha na sugestão automática: a OpenAI demorou mais do que '
+                f'{_document_ai_timeout()}s a responder. Pode aumentar DOC_AI_OPENAI_TIMEOUT na PARA.'
+            ),
             'suggestion': None,
         }
     except Exception as exc:

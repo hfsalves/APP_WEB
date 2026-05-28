@@ -12,11 +12,15 @@ document.addEventListener('DOMContentLoaded', () => {
     inboxBody: document.getElementById('docAiInboxBody'),
     inboxMeta: document.getElementById('docAiInboxMeta'),
     inboxStatus: document.getElementById('docAiInboxStatus'),
+    filtersBtn: document.getElementById('docAiFiltersBtn'),
+    filtersModal: document.getElementById('docAiFiltersModal'),
+    closeFiltersTop: document.getElementById('docAiCloseFiltersTop'),
+    closeFilters: document.getElementById('docAiCloseFilters'),
     uploadBtn: document.getElementById('docAiUploadBtn'),
     uploadInput: document.getElementById('docAiUploadInput'),
     refreshBtn: document.getElementById('docAiRefreshBtn'),
     templatesBtn: document.getElementById('docAiTemplatesBtn'),
-    openTemplatesBottom: document.getElementById('docAiOpenTemplatesBottom'),
+    sourcesBtn: document.getElementById('docAiSourcesBtn'),
   };
 
   const state = {
@@ -82,6 +86,19 @@ document.addEventListener('DOMContentLoaded', () => {
     els.inboxStatus.style.color = isError ? 'var(--sz-color-danger)' : '';
   }
 
+  function openFiltersModal() {
+    if (!els.filtersModal) return;
+    els.filtersModal.classList.add('sz_is_open');
+    els.filtersModal.setAttribute('aria-hidden', 'false');
+    window.setTimeout(() => els.search?.focus(), 50);
+  }
+
+  function closeFiltersModal() {
+    if (!els.filtersModal) return;
+    els.filtersModal.classList.remove('sz_is_open');
+    els.filtersModal.setAttribute('aria-hidden', 'true');
+  }
+
   async function fetchJson(url, options = {}) {
     const response = await fetch(url, options);
     let payload = {};
@@ -127,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderTable() {
     if (!els.inboxBody) return;
     if (!state.items.length) {
-      els.inboxBody.innerHTML = '<tr><td colspan="10" class="sz_text_muted">Sem documentos para os filtros atuais.</td></tr>';
+      els.inboxBody.innerHTML = '<tr><td colspan="11" class="sz_text_muted">Sem documentos para os filtros atuais.</td></tr>';
       return;
     }
     els.inboxBody.innerHTML = state.items.map((item) => `
@@ -135,6 +152,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>
           <div><strong>${escapeHtml(item.file_name)}</strong></div>
           <div class="sz_text_muted">${escapeHtml(item.file_ext || item.mime_type || '')}</div>
+        </td>
+        <td>
+          <div>${escapeHtml(item.entity_name || (item.feid ? `FE ${item.feid}` : 'n/a'))}</div>
+          <div class="sz_text_muted">${escapeHtml(item.entity_tax_id || '')}</div>
         </td>
         <td>${escapeHtml(item.supplier_name || (item.supplier_no ? `#${item.supplier_no}` : 'n/a'))}</td>
         <td>${escapeHtml(docTypeLabel(item.doc_type))}</td>
@@ -159,6 +180,9 @@ document.addEventListener('DOMContentLoaded', () => {
             </button>
             <button type="button" class="sz_button sz_button_ghost" data-action="template" data-id="${escapeHtml(item.id)}" title="Modelos">
               <i class="fa-solid fa-layer-group"></i>
+            </button>
+            <button type="button" class="sz_button sz_button_ghost docai-row-delete" data-action="delete" data-id="${escapeHtml(item.id)}" data-file="${escapeHtml(item.file_name)}" title="Eliminar">
+              <i class="fa-solid fa-trash"></i>
             </button>
           </div>
         </td>
@@ -190,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setStatus('Inbox atualizada.');
     } catch (error) {
       console.error(error);
-      if (els.inboxBody) els.inboxBody.innerHTML = `<tr><td colspan="10" class="sz_text_muted">${escapeHtml(error.message)}</td></tr>`;
+      if (els.inboxBody) els.inboxBody.innerHTML = `<tr><td colspan="11" class="sz_text_muted">${escapeHtml(error.message)}</td></tr>`;
       if (els.inboxMeta) els.inboxMeta.textContent = 'Erro ao carregar a inbox.';
       setStatus(error.message || 'Erro ao carregar.', true);
     } finally {
@@ -233,20 +257,53 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function deleteDocument(id, fileName = '') {
+    const label = fileName ? ` "${fileName}"` : '';
+    if (!window.confirm(`Eliminar o documento${label} do inbox?`)) return;
+    setStatus('A eliminar documento...');
+    try {
+      await fetchJson(`/api/document_ai/documents/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      showMessage('Documento eliminado.', 'success');
+      loadInbox();
+    } catch (error) {
+      console.error(error);
+      showMessage(error.message || 'Falha ao eliminar documento.', 'error');
+      setStatus(error.message || 'Falha ao eliminar.', true);
+    }
+  }
+
   function openTemplates() {
     window.location.href = '/document_ai/templates';
   }
 
-  els.applyFilters?.addEventListener('click', loadInbox);
+  function openSources() {
+    window.location.href = '/document_ai/sources';
+  }
+
+  els.filtersBtn?.addEventListener('click', openFiltersModal);
+  els.closeFiltersTop?.addEventListener('click', closeFiltersModal);
+  els.closeFilters?.addEventListener('click', closeFiltersModal);
+  els.filtersModal?.addEventListener('click', (event) => {
+    if (event.target === els.filtersModal) closeFiltersModal();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && els.filtersModal?.classList.contains('sz_is_open')) closeFiltersModal();
+  });
+
+  els.applyFilters?.addEventListener('click', () => {
+    closeFiltersModal();
+    loadInbox();
+  });
   els.resetFilters?.addEventListener('click', () => {
     [els.search, els.statusFilter, els.typeFilter, els.supplierFilter, els.dateFrom, els.dateTo].forEach((el) => {
       if (el) el.value = '';
     });
+    closeFiltersModal();
     loadInbox();
   });
   els.refreshBtn?.addEventListener('click', loadInbox);
   els.templatesBtn?.addEventListener('click', openTemplates);
-  els.openTemplatesBottom?.addEventListener('click', openTemplates);
+  els.sourcesBtn?.addEventListener('click', openSources);
   els.uploadBtn?.addEventListener('click', () => els.uploadInput?.click());
   els.uploadInput?.addEventListener('change', (event) => uploadDocument(event.target.files?.[0]));
   els.inboxBody?.addEventListener('click', (event) => {
@@ -265,6 +322,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (action === 'template') {
       openTemplates();
+      return;
+    }
+    if (action === 'delete') {
+      deleteDocument(id, button.dataset.file || '');
     }
   });
 
