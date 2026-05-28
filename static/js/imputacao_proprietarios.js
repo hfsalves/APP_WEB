@@ -135,6 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let valor = (r.IMPUTVALOR != null && r.IMPUTVALOR !== '') ? Number(r.IMPUTVALOR) : null;
       if (!valor && total > 0) valor = total;
       if (!valor && base > 0) valor = base;
+      const valorInput = Number.isFinite(Number(valor)) ? Number(valor).toFixed(2) : '';
       const design = r.IMPUTDESIGN || '';
       const imp = Number(r.IMPUTAR || 0) === 1;
       const nimp = Number(r.NIMPUTAR || 0) === 1;
@@ -150,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td title="${escapeHtml(r.DOC || '')}">${escapeHtml(r.DOC || '')}</td>
           <td title="${escapeHtml(r.NOME || '')}">${escapeHtml(r.NOME || '')}</td>
           <td title="${escapeHtml(r.ALOJAMENTO || '')}">${escapeHtml(r.ALOJAMENTO || '')}</td>
-          <td class="text-end">${escapeHtml((r.TOTAL ?? '').toString())}</td>
+          <td class="text-end">${escapeHtml(fmtMoney.format(total))}</td>
           <td>
             <div class="imput-toggle" role="group">
               <button type="button" class="imput-pill ${imp ? 'active' : ''}" data-value="S" ${disableFn ? 'disabled' : ''}>Sim</button>
@@ -158,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           </td>
           <td><input type="month" class="sz_input js-mesano" value="${escapeHtml(monthValue(mes, ano))}" ${disableFn ? 'disabled' : ''}></td>
-          <td><input type="number" step="0.01" class="sz_input text-end js-valor" value="${escapeHtml(valor)}" ${disableFn ? 'disabled' : ''}></td>
+          <td><input type="number" step="0.01" class="sz_input text-end js-valor" value="${escapeHtml(valorInput)}" ${disableFn ? 'disabled' : ''}></td>
           <td><input type="text" class="sz_input wide js-design" value="${escapeHtml(design)}" ${disableFn ? 'disabled' : ''}></td>
         </tr>
       `;

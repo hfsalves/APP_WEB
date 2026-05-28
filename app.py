@@ -34545,6 +34545,25 @@ OPTION (MAXRECURSION 32767);
                     FN.FNCCUSTO,
                     FN.ETILIQUIDO,
                     FN.EPV,
+                    FN.QTT,
+                    FN.TAXAIVA,
+                    FN.IVAINCL,
+                    CAST(
+                        CASE
+                            WHEN ISNULL(FN.IVAINCL, 0) = 1 AND ISNULL(FN.TAXAIVA, 0) <> 0 THEN
+                                (
+                                    CASE
+                                        WHEN ISNULL(FN.ETILIQUIDO, 0) <> 0 THEN ISNULL(FN.ETILIQUIDO, 0)
+                                        ELSE ISNULL(FN.QTT, 0) * ISNULL(FN.EPV, 0)
+                                    END
+                                ) / (1 + (ISNULL(FN.TAXAIVA, 0) / 100.0))
+                            ELSE
+                                CASE
+                                    WHEN ISNULL(FN.ETILIQUIDO, 0) <> 0 THEN ISNULL(FN.ETILIQUIDO, 0)
+                                    ELSE ISNULL(FN.QTT, 0) * ISNULL(FN.EPV, 0)
+                                END
+                        END
+                    AS decimal(18, 2)) AS VALOR_SEM_IVA,
                     FN.IMPUTAR,
                     FN.IMPUTMES,
                     FN.IMPUTANO,
@@ -34583,7 +34602,7 @@ OPTION (MAXRECURSION 32767);
                     CONCAT(ISNULL(F.DOCNOME,''), ' ', ISNULL(F.ADOC,'')) AS DOC,
                     ISNULL(F.NOME,'') AS NOME,
                     ISNULL(F.CCUSTO,'') AS ALOJAMENTO,
-                    ISNULL(F.ETOTAL,0) AS TOTAL,
+                    ISNULL(F.ETTILIQ,0) AS TOTAL,
                     ISNULL(F.ETTILIQ,0) AS BASE,
                     ISNULL(F.IMPUTAR,0) AS IMPUTAR,
                     ISNULL(F.IMPUTMES,0) AS IMPUTMES,
@@ -34627,9 +34646,7 @@ OPTION (MAXRECURSION 32767);
                     })
                 else:
                     for l in lines:
-                        base = l.get('EPV')
-                        if base is None:
-                            base = l.get('ETILIQUIDO') or 0
+                        base = l.get('VALOR_SEM_IVA') or 0
                         out.append({
                             'ORIGEM': 'FN',
                             'STAMP': l.get('FNSTAMP'),
@@ -34713,7 +34730,7 @@ OPTION (MAXRECURSION 32767);
                             LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))) AS ALOJAMENTO,
                             LTRIM(RTRIM(ISNULL(F.DOCNOME, '') + ' ' + ISNULL(F.ADOC, ''))) AS DESCRICAO,
                             LTRIM(RTRIM(ISNULL(F.NOME, ''))) AS SOURCE_NOME,
-                            ISNULL(F.ETOTAL, 0) AS DEFAULT_VALOR,
+                            ISNULL(F.ETTILIQ, 0) AS DEFAULT_VALOR,
                             ISNULL(A.FEID, 0) AS AL_FEID,
                             ISNULL(CL.NO, 0) AS NO,
                             LTRIM(RTRIM(ISNULL(CL.NOME, ''))) AS NOME
@@ -34730,7 +34747,22 @@ OPTION (MAXRECURSION 32767);
                             LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) AS ALOJAMENTO,
                             LTRIM(RTRIM(ISNULL(FN.DESIGN, ''))) AS DESCRICAO,
                             LTRIM(RTRIM(ISNULL(F.NOME, ''))) AS SOURCE_NOME,
-                            COALESCE(FN.EPV, FN.ETILIQUIDO, 0) AS DEFAULT_VALOR,
+                            CAST(
+                                CASE
+                                    WHEN ISNULL(FN.IVAINCL, 0) = 1 AND ISNULL(FN.TAXAIVA, 0) <> 0 THEN
+                                        (
+                                            CASE
+                                                WHEN ISNULL(FN.ETILIQUIDO, 0) <> 0 THEN ISNULL(FN.ETILIQUIDO, 0)
+                                                ELSE ISNULL(FN.QTT, 0) * ISNULL(FN.EPV, 0)
+                                            END
+                                        ) / (1 + (ISNULL(FN.TAXAIVA, 0) / 100.0))
+                                    ELSE
+                                        CASE
+                                            WHEN ISNULL(FN.ETILIQUIDO, 0) <> 0 THEN ISNULL(FN.ETILIQUIDO, 0)
+                                            ELSE ISNULL(FN.QTT, 0) * ISNULL(FN.EPV, 0)
+                                        END
+                                END
+                            AS decimal(18, 2)) AS DEFAULT_VALOR,
                             ISNULL(A.FEID, 0) AS AL_FEID,
                             ISNULL(CL.NO, 0) AS NO,
                             LTRIM(RTRIM(ISNULL(CL.NOME, ''))) AS NOME
