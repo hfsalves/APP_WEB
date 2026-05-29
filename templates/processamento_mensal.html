@@ -31,10 +31,6 @@
             <i class="fa-solid fa-calculator"></i>
             <span>Calcular valores</span>
           </button>
-          <button class="sz_button sz_button_primary" id="pmFetchDossiers" type="button">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <span>Pesquisar dossiers</span>
-          </button>
           <span class="sz_badge sz_badge_info pm-count" id="pmCount"></span>
         </div>
       </div>
@@ -52,27 +48,15 @@
                 <th class="text-end">Imputações</th>
                 <th class="text-end">Total</th>
                 <th class="text-end">Total c/IVA</th>
-                <th>Dossier</th>
-                <th class="text-end">Valor Dossier</th>
-                <th>Fatura TG</th>
-                <th class="text-end">Valor Fatura</th>
-                <th>Ficheiro</th>
-                <th>Enviado</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="pmBody">
-              <tr><td colspan="13" class="text-muted p-3">A carregar...</td></tr>
+              <tr><td colspan="7" class="text-muted p-3">A carregar...</td></tr>
             </tbody>
             <tfoot id="pmFoot">
               <tr>
-                <th colspan="5"></th>
-                <th></th>
-                <th></th>
-                <th class="text-end" id="pmTotalDossier"></th>
-                <th></th>
-                <th class="text-end" id="pmTotalFatura"></th>
-                <th colspan="3"></th>
+                <th colspan="7"></th>
               </tr>
             </tfoot>
           </table>
@@ -90,6 +74,14 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
+        <div class="pm-drill-filter" id="pmDrillFilter">
+          <label class="sz_field" for="pmDrillAlojamento">
+            <span class="sz_label">Alojamento</span>
+            <select class="sz_select" id="pmDrillAlojamento">
+              <option value="">Todos</option>
+            </select>
+          </label>
+        </div>
         <div class="sz_table_host pm-drill-wrap">
           <table class="sz_table sz_table_compact pm-drill-table">
             <thead>
@@ -140,40 +132,6 @@
       <div class="modal-footer">
         <button class="sz_button sz_button_ghost" type="button" data-bs-dismiss="modal">Cancelar</button>
         <button class="sz_button sz_button_primary" type="button" id="pmAddClientesSave">Adicionar</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="modal fade pm-modal" id="pmFaturaModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-sm modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Mover Fatura</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-2">
-          <div class="pm-muted">Fatura</div>
-          <div id="pmFaturaNum" class="fw-bold"></div>
-        </div>
-        <div class="mb-2">
-          <div class="pm-muted">Valor</div>
-          <div id="pmFaturaVal" class="fw-bold"></div>
-        </div>
-        <div class="mb-3">
-          <div class="pm-muted">Período atual</div>
-          <div id="pmFaturaPer" class="fw-bold"></div>
-        </div>
-        <div>
-          <label class="form-label">Mover para período</label>
-          <select class="form-select form-select-sm pm-select" id="pmFaturaTarget"></select>
-          <div class="pm-muted mt-2" id="pmFaturaHint"></div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="sz_button sz_button_ghost" type="button" data-bs-dismiss="modal">Cancelar</button>
-        <button class="sz_button sz_button_primary" type="button" id="pmFaturaSave">Gravar</button>
       </div>
     </div>
   </div>
@@ -304,29 +262,22 @@
     border-top: 1px solid var(--sz-color-border);
   }
 
-  .pm-cell-link,
-  .pm-fatura-link,
-  .pm-file {
+  .pm-cell-link {
     color: var(--sz-color-primary);
     font-weight: var(--sz-font-weight-bold);
     text-decoration: none;
   }
 
-  .pm-cell-link,
-  .pm-fatura-link {
+  .pm-cell-link {
     cursor: pointer;
   }
 
-  .pm-cell-link:hover,
-  .pm-fatura-link:hover,
-  .pm-file:hover {
+  .pm-cell-link:hover {
     color: color-mix(in srgb, var(--sz-color-primary) 76%, var(--sz-color-text));
     text-decoration: underline;
   }
 
-  .pm-badge,
-  .pm-missing,
-  .pm-flag {
+  .pm-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -350,26 +301,35 @@
     color: var(--sz-color-success);
   }
 
-  .pm-badge.n,
-  .pm-flag {
+  .pm-badge.n {
     background: color-mix(in srgb, var(--sz-color-danger) 14%, transparent);
     border-color: color-mix(in srgb, var(--sz-color-danger) 38%, transparent);
     color: var(--sz-color-danger);
   }
 
-  .pm-missing {
-    background: color-mix(in srgb, var(--sz-color-warning) 18%, transparent);
-    border-color: color-mix(in srgb, var(--sz-color-warning) 42%, transparent);
-    color: var(--sz-color-warning);
-  }
-
-  .pm-diff {
-    color: var(--sz-color-danger) !important;
+  .pm-origin-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.45rem;
+    padding: 0.12rem 0.55rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 38%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, transparent);
+    color: var(--sz-color-primary);
+    font-size: var(--sz-font-size-xs);
     font-weight: var(--sz-font-weight-bold);
   }
 
-  .pm-ok > td {
-    background: color-mix(in srgb, var(--sz-color-success) 10%, transparent);
+  .pm-drill-table td.pm-drill-text {
+    max-width: 16rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pm-drill-table td.pm-drill-description {
+    min-width: 18rem;
+    max-width: 30rem;
+    white-space: normal;
   }
 
   .pm-del {
@@ -411,6 +371,21 @@
 
   #pmDrillModal .modal-body {
     padding: var(--sz-space-4);
+  }
+
+  .pm-drill-filter {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: var(--sz-space-3);
+  }
+
+  .pm-drill-filter .sz_field {
+    width: min(100%, 22rem);
+    margin: 0;
+  }
+
+  .pm-drill-filter.is-hidden {
+    display: none;
   }
 
   #pmDrillModal .pm-drill-wrap {

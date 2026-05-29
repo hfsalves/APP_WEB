@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnReload = document.getElementById('btnReloadImput');
   const searchInput = document.getElementById('imputSearch');
   const statusSelect = document.getElementById('imputStatus');
+  const periodInput = document.getElementById('imputPeriod');
   const clearBtn = document.getElementById('imputClear');
   const totalGeralEl = document.getElementById('imputTotalGeral');
   const totalSimEl = document.getElementById('imputTotalSim');
@@ -85,9 +86,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function filterRows(rows) {
     const q = (searchInput?.value || '').toString().trim().toLowerCase();
-    const st = (statusSelect?.value || 'pending').toString();
+    const st = (statusSelect?.value || 'all').toString();
+    const period = (periodInput?.value || '').toString().trim();
     return rows.filter(r => {
       if (st !== 'all' && rowImputState(r) !== st) return false;
+      if (period) {
+        const mes = Number(r.IMPUTMES || 0) || currMonth;
+        const ano = Number(r.IMPUTANO || 0) || currYear;
+        if (monthValue(mes, ano) !== period) return false;
+      }
       if (q && !rowSearchText(r).includes(q)) return false;
       return true;
     });
@@ -257,6 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnReload?.addEventListener('click', load);
   btnSave?.addEventListener('click', save);
   statusSelect?.addEventListener('change', () => render(lastRows));
+  periodInput?.addEventListener('change', () => render(lastRows));
   clearBtn?.addEventListener('click', () => render(lastRows));
   document.querySelectorAll('.imput-table thead th[data-key]')?.forEach(th => {
     th.addEventListener('click', () => {

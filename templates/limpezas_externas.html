@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+
+{% set page_title = "Limpezas Externas" %}
+{% set page_name = "Limpezas Externas" %}
+{% block title %}Limpezas Externas{% endblock %}
+
+{% block content %}
+<div class="sz_page external-cleanings-page">
+  <div class="sz_page_container external-cleanings-container">
+    <header class="sz_contextbar sz_page_contextbar external-cleanings-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Limpezas Externas</div>
+        <div class="sz_page_subtitle">C&aacute;lculo de limpezas feitas por equipas externas com pre&ccedil;os da tabela TP.</div>
+      </div>
+      <div class="sz_contextbar_right external-cleanings-filters">
+        <label class="sz_field" for="clexTeam">
+          <span class="sz_label">Equipa</span>
+          <select class="sz_select" id="clexTeam">
+            <option value="">A carregar...</option>
+          </select>
+        </label>
+        <label class="sz_field" for="clexStart">
+          <span class="sz_label">De</span>
+          <input class="sz_input" id="clexStart" type="date">
+        </label>
+        <label class="sz_field" for="clexEnd">
+          <span class="sz_label">At&eacute;</span>
+          <input class="sz_input" id="clexEnd" type="date">
+        </label>
+        <label class="external-cleanings-check" for="clexOnlyDone">
+          <input class="form-check-input" id="clexOnlyDone" type="checkbox" checked>
+          <span>S&oacute; feitas</span>
+        </label>
+        <label class="external-cleanings-check" for="clexOnlyWeekend">
+          <input class="form-check-input" id="clexOnlyWeekend" type="checkbox">
+          <span>S&oacute; fim de semana</span>
+        </label>
+        <button class="sz_button sz_button_primary" id="clexCalculate" type="button">
+          <i class="fa-solid fa-calculator"></i>
+          <span>Calcular</span>
+        </button>
+        <button class="sz_button sz_button_ghost" id="clexPricesOpen" type="button" title="Editar tabela de pre&ccedil;os">
+          <i class="fa-solid fa-tags"></i>
+          <span>Pre&ccedil;os</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="external-cleanings-kpis" aria-live="polite">
+      <div class="external-cleanings-kpi">
+        <span>Limpezas</span>
+        <strong id="clexCount">0</strong>
+      </div>
+      <div class="external-cleanings-kpi">
+        <span>Total</span>
+        <strong id="clexTotal">0,00</strong>
+      </div>
+      <div class="external-cleanings-kpi is-warning">
+        <span>Sem pre&ccedil;o</span>
+        <strong id="clexMissing">0</strong>
+      </div>
+    </section>
+
+    <section class="sz_panel external-cleanings-panel">
+      <div class="sz_table_host external-cleanings-table-wrap">
+        <table class="sz_table sz_table_compact external-cleanings-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Hora</th>
+              <th>Alojamento</th>
+              <th>Tipologia</th>
+              <th>H&oacute;spedes</th>
+              <th>Noites</th>
+              <th>Estado</th>
+              <th>In&iacute;cio</th>
+              <th>Fim</th>
+              <th class="text-end">Pre&ccedil;o</th>
+              <th class="text-end">Custo Dia</th>
+              <th>Obs.</th>
+            </tr>
+          </thead>
+          <tbody id="clexBody">
+            <tr><td colspan="12" class="text-muted p-3">Escolhe a equipa e o per&iacute;odo.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal fade external-cleanings-prices-modal" id="clexPricesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Tabela de pre&ccedil;os</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="external-cleanings-price-form">
+          <input id="clexPriceStamp" type="hidden">
+          <label class="sz_field" for="clexPriceTeam">
+            <span class="sz_label">Equipa</span>
+            <select class="sz_select" id="clexPriceTeam">
+              <option value="">A carregar...</option>
+            </select>
+          </label>
+          <label class="sz_field" for="clexPriceTypology">
+            <span class="sz_label">Tipologia</span>
+            <select class="sz_select" id="clexPriceTypology">
+              <option value="">Todas</option>
+            </select>
+          </label>
+          <label class="sz_field" for="clexPriceValue">
+            <span class="sz_label">Pre&ccedil;o</span>
+            <input class="sz_input text-end" id="clexPriceValue" type="number" min="0" step="0.01" inputmode="decimal">
+          </label>
+          <button class="sz_button sz_button_ghost" id="clexPriceNew" type="button">
+            <i class="fa-solid fa-plus"></i>
+            <span>Novo</span>
+          </button>
+          <button class="sz_button sz_button_primary" id="clexPriceSave" type="button">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>Gravar</span>
+          </button>
+        </div>
+        <div class="external-cleanings-price-message" id="clexPriceMessage"></div>
+        <div class="sz_table_host external-cleanings-prices-wrap">
+          <table class="sz_table sz_table_compact external-cleanings-prices-table">
+            <thead>
+              <tr>
+                <th>Equipa</th>
+                <th>Tipologia</th>
+                <th class="text-end">Pre&ccedil;o</th>
+                <th class="text-end"></th>
+              </tr>
+            </thead>
+            <tbody id="clexPricesBody">
+              <tr><td colspan="4" class="text-muted p-3">A carregar...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .external-cleanings-page .sz_page_container {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .external-cleanings-contextbar {
+    align-items: center;
+  }
+
+  .external-cleanings-contextbar .sz_contextbar_left {
+    flex: 0 0 clamp(15rem, 18vw, 22rem);
+    width: auto;
+  }
+
+  .external-cleanings-filters {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: row;
+    align-items: end;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: var(--sz-space-2);
+    min-width: 0;
+  }
+
+  .external-cleanings-filters .sz_field {
+    flex: 0 0 9.5rem;
+    width: 9.5rem;
+    margin: 0;
+  }
+
+  .external-cleanings-filters .sz_field:first-child {
+    flex-basis: 14rem;
+    width: 14rem;
+  }
+
+  .external-cleanings-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: var(--sz-input-height);
+    margin: 0;
+    color: var(--sz-color-text);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+    white-space: nowrap;
+  }
+
+  .external-cleanings-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+  }
+
+  .external-cleanings-kpi {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 3.25rem;
+    padding: 0.7rem 1rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+  }
+
+  .external-cleanings-kpi span {
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+    text-transform: uppercase;
+  }
+
+  .external-cleanings-kpi strong {
+    font-size: 1.15rem;
+  }
+
+  .external-cleanings-kpi.is-warning strong {
+    color: var(--sz-color-warning);
+  }
+
+  .external-cleanings-panel {
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .external-cleanings-table-wrap {
+    height: 100%;
+    border: 0;
+    border-radius: var(--sz-radius-md);
+  }
+
+  .external-cleanings-table {
+    min-width: 1160px;
+  }
+
+  .external-cleanings-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    text-transform: uppercase;
+    font-size: var(--sz-font-size-xs);
+    color: var(--sz-color-text-secondary);
+  }
+
+  .external-cleanings-table td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .external-cleanings-table td:nth-child(3),
+  .external-cleanings-table td:nth-child(12) {
+    max-width: 18rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .clex-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.45rem;
+    padding: 0.12rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .clex-badge.done {
+    border-color: color-mix(in srgb, var(--sz-color-success) 42%, transparent);
+    background: color-mix(in srgb, var(--sz-color-success) 14%, transparent);
+    color: var(--sz-color-success);
+  }
+
+  .clex-badge.missing {
+    border-color: color-mix(in srgb, var(--sz-color-warning) 42%, transparent);
+    background: color-mix(in srgb, var(--sz-color-warning) 14%, transparent);
+    color: var(--sz-color-warning);
+  }
+
+  .external-cleanings-prices-modal .modal-body {
+    display: grid;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-4);
+  }
+
+  .external-cleanings-price-form {
+    display: flex;
+    align-items: end;
+    gap: var(--sz-space-2);
+    flex-wrap: wrap;
+  }
+
+  .external-cleanings-price-form .sz_field {
+    width: 13rem;
+    margin: 0;
+  }
+
+  .external-cleanings-price-form .sz_field:first-of-type {
+    width: 18rem;
+  }
+
+  .external-cleanings-price-message {
+    min-height: 1.25rem;
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .external-cleanings-price-message.is-error {
+    color: var(--sz-color-danger);
+  }
+
+  .external-cleanings-price-message.is-ok {
+    color: var(--sz-color-success);
+  }
+
+  .external-cleanings-prices-wrap {
+    max-height: min(58vh, 38rem);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+  }
+
+  .external-cleanings-prices-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    text-transform: uppercase;
+    font-size: var(--sz-font-size-xs);
+    color: var(--sz-color-text-secondary);
+  }
+
+  .external-cleanings-price-actions {
+    display: inline-flex;
+    justify-content: flex-end;
+    gap: var(--sz-space-1);
+  }
+
+  .external-cleanings-price-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+  }
+
+  .external-cleanings-price-icon:hover {
+    border-color: var(--sz-color-primary);
+    color: var(--sz-color-primary);
+  }
+
+  .external-cleanings-price-icon.is-danger:hover {
+    border-color: var(--sz-color-danger);
+    color: var(--sz-color-danger);
+  }
+
+  @media (max-width: 900px) {
+    .external-cleanings-contextbar .sz_contextbar_left {
+      flex: 0 1 auto;
+      width: 100%;
+    }
+
+    .external-cleanings-filters {
+      width: 100%;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .external-cleanings-kpis {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script src="{{ url_for('static', filename='js/limpezas_externas.js') }}?v={{ static_version }}"></script>
+{% endblock %}

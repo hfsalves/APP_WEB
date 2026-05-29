@@ -33998,6 +33998,413 @@ OPTION (MAXRECURSION 32767);
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/limpezas_externas')
+    @login_required
+    def limpezas_externas_page():
+        return render_template('limpezas_externas.html', page_title='Limpezas Externas')
+
+    @app.route('/api/limpezas_externas/equipas')
+    @login_required
+    def api_limpezas_externas_equipas():
+        try:
+            eq_cols = {
+                str(r[0] or '').strip().upper()
+                for r in db.session.execute(text("""
+                    SELECT UPPER(COLUMN_NAME)
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'EQ'
+                """)).fetchall()
+                if r and r[0]
+            }
+            externa_sql = "ISNULL(EXTERNA,0) AS EXTERNA" if 'EXTERNA' in eq_cols else "0 AS EXTERNA"
+            empresa_sql = "ISNULL(EMPRESA,'') AS EMPRESA" if 'EMPRESA' in eq_cols else "'' AS EMPRESA"
+            cor_sql = "ISNULL(COR,'') AS COR" if 'COR' in eq_cols else "'' AS COR"
+            order_sql = "ORDER BY ORDEM, NOME" if 'ORDEM' in eq_cols else "ORDER BY NOME"
+            where_parts = ["LTRIM(RTRIM(ISNULL(NOME,''))) <> ''"]
+            if 'INATIVO' in eq_cols:
+                where_parts.append("ISNULL(INATIVO,0) = 0")
+
+            rows = db.session.execute(text(f"""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(NOME,''))) AS NOME,
+                    {empresa_sql},
+                    {externa_sql},
+                    {cor_sql}
+                FROM dbo.EQ
+                WHERE {' AND '.join(where_parts)}
+                {order_sql}
+            """)).mappings().all()
+            return jsonify({'rows': [dict(r) for r in rows]})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    def _clex_tp_columns():
+        return _rb_table_columns('TP')
+
+    def _clex_require_tp_columns():
+        cols = _clex_tp_columns()
+        required = {'TPSTAMP', 'EQUIPA', 'TIPOLOGIA', 'PCUSTO'}
+        missing = sorted(required - cols)
+        if missing:
+            raise ValueError(f"Campos em falta na TP: {', '.join(missing)}")
+        return cols
+
+    def _clex_money(value):
+        raw = str(value if value is not None else '').strip().replace(' ', '').replace(',', '.')
+        try:
+            amount = Decimal(raw or '0').quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        except Exception:
+            raise ValueError('Preço inválido.')
+        if amount < 0:
+            raise ValueError('O preço não pode ser negativo.')
+        return amount
+
+    @app.route('/api/limpezas_externas/precos/options')
+    @login_required
+    def api_limpezas_externas_precos_options():
+        try:
+            eq_cols = _rb_table_columns('EQ')
+            externa_sql = "ISNULL(EXTERNA,0) AS EXTERNA" if 'EXTERNA' in eq_cols else "0 AS EXTERNA"
+            order_sql = "ORDER BY ISNULL(ORDEM, 999999), LTRIM(RTRIM(ISNULL(NOME,'')))" if 'ORDEM' in eq_cols else "ORDER BY LTRIM(RTRIM(ISNULL(NOME,'')))"
+            where_parts = ["LTRIM(RTRIM(ISNULL(NOME,''))) <> ''"]
+            if 'INATIVO' in eq_cols:
+                where_parts.append("ISNULL(INATIVO,0) = 0")
+            eq_rows = db.session.execute(text(f"""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(NOME,''))) AS NOME,
+                    {externa_sql}
+                FROM dbo.EQ
+                WHERE {' AND '.join(where_parts)}
+                {order_sql}
+            """)).mappings().all()
+            tipo_rows = db.session.execute(text("""
+                SELECT DISTINCT LTRIM(RTRIM(ISNULL(TIPOLOGIA,''))) AS TIPOLOGIA
+                FROM dbo.AL
+                WHERE LTRIM(RTRIM(ISNULL(TIPOLOGIA,''))) <> ''
+                UNION
+                SELECT DISTINCT LTRIM(RTRIM(ISNULL(TIPOLOGIA,''))) AS TIPOLOGIA
+                FROM dbo.TP
+                WHERE LTRIM(RTRIM(ISNULL(TIPOLOGIA,''))) <> ''
+                ORDER BY TIPOLOGIA
+            """)).mappings().all()
+            return jsonify({
+                'equipas': [
+                    {
+                        'NOME': (r.get('NOME') or '').strip(),
+                        'EXTERNA': int(r.get('EXTERNA') or 0),
+                    }
+                    for r in eq_rows
+                    if (r.get('NOME') or '').strip()
+                ],
+                'tipologias': [
+                    (r.get('TIPOLOGIA') or '').strip()
+                    for r in tipo_rows
+                    if (r.get('TIPOLOGIA') or '').strip()
+                ],
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/limpezas_externas/precos')
+    @login_required
+    def api_limpezas_externas_precos():
+        try:
+            _clex_require_tp_columns()
+            rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(TPSTAMP,''))) AS TPSTAMP,
+                    LTRIM(RTRIM(ISNULL(EQUIPA,''))) AS EQUIPA,
+                    LTRIM(RTRIM(ISNULL(TIPOLOGIA,''))) AS TIPOLOGIA,
+                    ISNULL(PCUSTO,0) AS PCUSTO
+                FROM dbo.TP
+                WHERE LTRIM(RTRIM(ISNULL(EQUIPA,''))) <> ''
+                ORDER BY LTRIM(RTRIM(ISNULL(EQUIPA,''))), LTRIM(RTRIM(ISNULL(TIPOLOGIA,'')))
+            """)).mappings().all()
+            return jsonify({
+                'rows': [
+                    {
+                        'TPSTAMP': (r.get('TPSTAMP') or '').strip(),
+                        'EQUIPA': (r.get('EQUIPA') or '').strip(),
+                        'TIPOLOGIA': (r.get('TIPOLOGIA') or '').strip(),
+                        'PCUSTO': float(r.get('PCUSTO') or 0),
+                    }
+                    for r in rows
+                ]
+            })
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/limpezas_externas/precos', methods=['POST'])
+    @login_required
+    def api_limpezas_externas_precos_save():
+        try:
+            _clex_require_tp_columns()
+            body = request.get_json(silent=True) or {}
+            tpstamp = str(body.get('TPSTAMP') or '').strip()[:25]
+            equipa = str(body.get('EQUIPA') or '').strip()[:80]
+            tipologia = str(body.get('TIPOLOGIA') or '').strip()[:80]
+            pcusto = _clex_money(body.get('PCUSTO'))
+            if not equipa:
+                return jsonify({'error': 'Equipa obrigatória.'}), 400
+
+            duplicate = db.session.execute(text("""
+                SELECT TOP 1 LTRIM(RTRIM(ISNULL(TPSTAMP,''))) AS TPSTAMP
+                FROM dbo.TP
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(EQUIPA,'')))) = UPPER(:equipa)
+                  AND UPPER(LTRIM(RTRIM(ISNULL(TIPOLOGIA,'')))) = UPPER(:tipologia)
+                  AND (:tpstamp = '' OR LTRIM(RTRIM(ISNULL(TPSTAMP,''))) <> :tpstamp)
+            """), {'equipa': equipa, 'tipologia': tipologia, 'tpstamp': tpstamp}).mappings().first()
+            if duplicate:
+                return jsonify({'error': 'Já existe um preço para esta equipa/tipologia.'}), 400
+
+            exists = None
+            if tpstamp:
+                exists = db.session.execute(text("""
+                    SELECT TOP 1 LTRIM(RTRIM(ISNULL(TPSTAMP,''))) AS TPSTAMP
+                    FROM dbo.TP
+                    WHERE LTRIM(RTRIM(ISNULL(TPSTAMP,''))) = :tpstamp
+                """), {'tpstamp': tpstamp}).mappings().first()
+
+            if exists:
+                db.session.execute(text("""
+                    UPDATE dbo.TP
+                       SET EQUIPA = :equipa,
+                           TIPOLOGIA = :tipologia,
+                           PCUSTO = :pcusto
+                     WHERE LTRIM(RTRIM(ISNULL(TPSTAMP,''))) = :tpstamp
+                """), {
+                    'tpstamp': tpstamp,
+                    'equipa': equipa,
+                    'tipologia': tipologia,
+                    'pcusto': pcusto,
+                })
+            else:
+                tpstamp = new_stamp()
+                db.session.execute(text("""
+                    INSERT INTO dbo.TP (TPSTAMP, EQUIPA, TIPOLOGIA, PCUSTO)
+                    VALUES (:tpstamp, :equipa, :tipologia, :pcusto)
+                """), {
+                    'tpstamp': tpstamp,
+                    'equipa': equipa,
+                    'tipologia': tipologia,
+                    'pcusto': pcusto,
+                })
+            db.session.commit()
+            return jsonify({
+                'ok': True,
+                'row': {
+                    'TPSTAMP': tpstamp,
+                    'EQUIPA': equipa,
+                    'TIPOLOGIA': tipologia,
+                    'PCUSTO': float(pcusto),
+                }
+            })
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/limpezas_externas/precos/<tpstamp>', methods=['DELETE'])
+    @login_required
+    def api_limpezas_externas_precos_delete(tpstamp):
+        try:
+            _clex_require_tp_columns()
+            key = (tpstamp or '').strip()
+            if not key:
+                return jsonify({'error': 'Preço inválido.'}), 400
+            result = db.session.execute(text("""
+                DELETE FROM dbo.TP
+                WHERE LTRIM(RTRIM(ISNULL(TPSTAMP,''))) = :tpstamp
+            """), {'tpstamp': key})
+            db.session.commit()
+            if getattr(result, 'rowcount', 0) == 0:
+                return jsonify({'error': 'Preço não encontrado.'}), 404
+            return jsonify({'ok': True})
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/limpezas_externas')
+    @login_required
+    def api_limpezas_externas():
+        try:
+            equipa = (request.args.get('equipa') or '').strip()
+            data_ini_raw = (request.args.get('data_ini') or '').strip()
+            data_fim_raw = (request.args.get('data_fim') or '').strip()
+            only_done = str(request.args.get('only_done', '1') or '1').strip().lower() not in {'0', 'false', 'no'}
+            only_weekend = str(request.args.get('only_weekend', '0') or '0').strip().lower() in {'1', 'true', 'yes'}
+            if not equipa:
+                return jsonify({'error': 'Equipa obrigatória.'}), 400
+            try:
+                data_ini = datetime.strptime(data_ini_raw[:10], '%Y-%m-%d').date()
+                data_fim = datetime.strptime(data_fim_raw[:10], '%Y-%m-%d').date()
+            except Exception:
+                return jsonify({'error': 'Período inválido.'}), 400
+            if data_fim < data_ini:
+                return jsonify({'error': 'A data final não pode ser anterior à data inicial.'}), 400
+
+            eq_cols = _rb_table_columns('EQ')
+            custodia_dia = 0.0
+            if 'CUSTODIA' in eq_cols:
+                custodia_row = db.session.execute(text("""
+                    SELECT TOP 1 ISNULL(CUSTODIA, 0) AS CUSTODIA
+                    FROM dbo.EQ
+                    WHERE LTRIM(RTRIM(ISNULL(NOME,''))) = :equipa
+                """), {'equipa': equipa}).mappings().first()
+                try:
+                    custodia_dia = float((custodia_row or {}).get('CUSTODIA') or 0)
+                except Exception:
+                    custodia_dia = 0.0
+
+            lp_cols = {
+                str(r[0] or '').strip().upper()
+                for r in db.session.execute(text("""
+                    SELECT UPPER(COLUMN_NAME)
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'LP'
+                """)).fetchall()
+                if r and r[0]
+            }
+            feid_where = ''
+            params = {'equipa': equipa, 'data_ini': data_ini, 'data_fim': data_fim}
+            if 'FEID' in lp_cols:
+                try:
+                    params['feid'] = int(get_current_feid() or 0)
+                    if params['feid'] > 0:
+                        feid_where = 'AND ISNULL(LP.FEID, 0) = :feid'
+                except Exception:
+                    feid_where = ''
+
+            done_where = ''
+            if only_done:
+                done_where = "AND (ISNULL(LP.TERMINADA,0) = 1 OR ISNULL(TA.TRATADO,0) = 1)"
+            weekend_where = ''
+            if only_weekend:
+                weekend_where = "AND DATEDIFF(day, '19000101', CAST(LP.DATA AS date)) % 7 IN (5, 6)"
+
+            rows = db.session.execute(text(f"""
+                SELECT
+                    ISNULL(LP.LPSTAMP,'') AS LPSTAMP,
+                    CAST(LP.DATA AS date) AS DATA,
+                    ISNULL(LP.HORA,'') AS HORA,
+                    LTRIM(RTRIM(ISNULL(LP.EQUIPA,''))) AS EQUIPA,
+                    LTRIM(RTRIM(ISNULL(LP.ALOJAMENTO,''))) AS ALOJAMENTO,
+                    LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA,''))) AS TIPOLOGIA,
+                    ISNULL(LP.HOSPEDES,0) AS HOSPEDES,
+                    ISNULL(LP.NOITES,0) AS NOITES,
+                    LTRIM(RTRIM(ISNULL(LP.OBS,''))) AS OBS,
+                    ISNULL(LP.TERMINADA,0) AS TERMINADA,
+                    ISNULL(TA.TRATADO,0) AS TAREFA_TRATADA,
+                    ISNULL(TA.HORAINI,'') AS HORAINI,
+                    ISNULL(TA.HORAFIM,'') AS HORAFIM,
+                    ISNULL(TP_PRICE.PCUSTO,0) AS PRECO,
+                    CASE WHEN TP_PRICE.TPSTAMP IS NULL THEN 0 ELSE 1 END AS TEM_PRECO
+                FROM dbo.LP AS LP
+                LEFT JOIN dbo.AL AS AL
+                  ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) = LTRIM(RTRIM(ISNULL(LP.ALOJAMENTO,'')))
+                OUTER APPLY (
+                    SELECT TOP 1
+                        T.TRATADO,
+                        T.HORAINI,
+                        T.HORAFIM
+                    FROM dbo.TAREFAS AS T
+                    WHERE LTRIM(RTRIM(ISNULL(T.ORIGEM,''))) = 'LP'
+                      AND CAST(T.DATA AS date) = CAST(LP.DATA AS date)
+                      AND LTRIM(RTRIM(ISNULL(T.ALOJAMENTO,''))) = LTRIM(RTRIM(ISNULL(LP.ALOJAMENTO,'')))
+                      AND (
+                        LTRIM(RTRIM(ISNULL(T.ORISTAMP,''))) = LTRIM(RTRIM(ISNULL(LP.LPSTAMP,'')))
+                        OR (
+                            LTRIM(RTRIM(ISNULL(T.ORISTAMP,''))) = ''
+                            AND LTRIM(RTRIM(ISNULL(T.HORA,''))) = LTRIM(RTRIM(ISNULL(LP.HORA,'')))
+                        )
+                      )
+                    ORDER BY
+                        CASE WHEN LTRIM(RTRIM(ISNULL(T.ORISTAMP,''))) = LTRIM(RTRIM(ISNULL(LP.LPSTAMP,''))) THEN 0 ELSE 1 END,
+                        T.TAREFASSTAMP
+                ) AS TA
+                OUTER APPLY (
+                    SELECT TOP 1
+                        TP.TPSTAMP,
+                        TP.PCUSTO
+                    FROM dbo.TP AS TP
+                    WHERE LTRIM(RTRIM(ISNULL(TP.EQUIPA,''))) = LTRIM(RTRIM(ISNULL(LP.EQUIPA,'')))
+                      AND (
+                        UPPER(LTRIM(RTRIM(ISNULL(TP.TIPOLOGIA,'')))) = UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA,''))))
+                        OR LTRIM(RTRIM(ISNULL(TP.TIPOLOGIA,''))) = ''
+                      )
+                    ORDER BY
+                        CASE
+                          WHEN UPPER(LTRIM(RTRIM(ISNULL(TP.TIPOLOGIA,'')))) = UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA,'')))) THEN 0
+                          ELSE 1
+                        END,
+                        TP.TPSTAMP
+                ) AS TP_PRICE
+                WHERE LTRIM(RTRIM(ISNULL(LP.EQUIPA,''))) = :equipa
+                  AND CAST(LP.DATA AS date) BETWEEN :data_ini AND :data_fim
+                  {feid_where}
+                  {done_where}
+                  {weekend_where}
+                ORDER BY CAST(LP.DATA AS date), ISNULL(LP.HORA,''), ISNULL(LP.ALOJAMENTO,'')
+            """), params).mappings().all()
+
+            out = []
+            total = 0.0
+            custodia_total = 0.0
+            missing_prices = 0
+            custodia_dates = set()
+            for r in rows:
+                data_val = r.get('DATA')
+                data_str = data_val.strftime('%Y-%m-%d') if isinstance(data_val, (date, datetime)) else (str(data_val)[:10] if data_val else '')
+                preco = float(r.get('PRECO') or 0)
+                custodia_linha = custodia_dia if custodia_dia and data_str and data_str not in custodia_dates else 0.0
+                if custodia_linha:
+                    custodia_dates.add(data_str)
+                    custodia_total += custodia_linha
+                total += preco + custodia_linha
+                if int(r.get('TEM_PRECO') or 0) == 0:
+                    missing_prices += 1
+                out.append({
+                    'LPSTAMP': r.get('LPSTAMP') or '',
+                    'DATA': data_str,
+                    'HORA': (r.get('HORA') or '').strip(),
+                    'EQUIPA': (r.get('EQUIPA') or '').strip(),
+                    'ALOJAMENTO': (r.get('ALOJAMENTO') or '').strip(),
+                    'TIPOLOGIA': (r.get('TIPOLOGIA') or '').strip(),
+                    'HOSPEDES': int(r.get('HOSPEDES') or 0),
+                    'NOITES': int(r.get('NOITES') or 0),
+                    'OBS': (r.get('OBS') or '').strip(),
+                    'TERMINADA': int(r.get('TERMINADA') or 0),
+                    'TAREFA_TRATADA': int(r.get('TAREFA_TRATADA') or 0),
+                    'HORAINI': (r.get('HORAINI') or '').strip(),
+                    'HORAFIM': (r.get('HORAFIM') or '').strip(),
+                    'PRECO': round(preco, 2),
+                    'CUSTODIA': round(custodia_linha, 2),
+                    'TEM_PRECO': int(r.get('TEM_PRECO') or 0),
+                })
+
+            return jsonify({
+                'rows': out,
+                'summary': {
+                    'count': len(out),
+                    'total': round(total, 2),
+                    'missing_prices': missing_prices,
+                    'equipa': equipa,
+                    'data_ini': data_ini.strftime('%Y-%m-%d'),
+                    'data_fim': data_fim.strftime('%Y-%m-%d'),
+                    'custodia_dia': round(custodia_dia, 2),
+                    'custodia_total': round(custodia_total, 2),
+                }
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/historico_reservas')
     @login_required
     def historico_reservas_page():
@@ -34978,12 +35385,16 @@ OPTION (MAXRECURSION 32767);
             has_tot = 'TOTAL' in dm_cols
             sql = text("""
                 SELECT
-                    DMSTAMP, ANO, MES, NO, NOME, FATURATG, FTVALOR, FDATA,
-                    DOSSIER, BOVALOR, DATAOBRA, FTFILE, ENVIADO
+                    DMSTAMP, ANO, MES, NO, NOME,
+                    CASE
+                        WHEN LTRIM(RTRIM(ISNULL(FATURATG,''))) = ''
+                         AND LTRIM(RTRIM(ISNULL(DOSSIER,''))) = ''
+                        THEN 1 ELSE 0
+                    END AS CAN_DELETE
                     {extra_cols}
                 FROM dbo.DM
                 WHERE ANO = :ano AND MES = :mes
-                ORDER BY NOME, NO, DOSSIER
+                ORDER BY NOME, NO
             """.format(extra_cols=(
                 (", COMISSOES" if has_com else "") +
                 (", IMPUTACOES" if has_imp else "") +
@@ -34998,97 +35409,13 @@ OPTION (MAXRECURSION 32767);
                     'MES': int(r.get('MES') or 0),
                     'NO': r.get('NO') or '',
                     'NOME': r.get('NOME') or '',
-                    'FATURATG': r.get('FATURATG') or '',
-                    'FTVALOR': float(r.get('FTVALOR') or 0),
-                    'FDATA': r.get('FDATA'),
-                    'DOSSIER': r.get('DOSSIER') or '',
-                    'BOVALOR': float(r.get('BOVALOR') or 0),
-                    'DATAOBRA': r.get('DATAOBRA'),
-                    'FTFILE': r.get('FTFILE') or '',
-                    'ENVIADO': int(r.get('ENVIADO') or 0),
+                    'CAN_DELETE': int(r.get('CAN_DELETE') or 0),
                     'COMISSOES': float(r.get('COMISSOES') or 0) if has_com else 0,
                     'IMPUTACOES': float(r.get('IMPUTACOES') or 0) if has_imp else 0,
                     'TOTAL': float(r.get('TOTAL') or 0) if has_tot else 0,
                 })
             return jsonify({'rows': out})
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
-
-    @app.route('/api/processamento_mensal/fatura_info')
-    @login_required
-    def api_processamento_mensal_fatura_info():
-        try:
-            stamp = (request.args.get('stamp') or '').strip()
-            if not stamp:
-                return jsonify({'error': 'DMSTAMP obrigatório'}), 400
-            dm = db.session.execute(text("""
-                SELECT DMSTAMP, ANO, MES, NO, FATURATG, FTVALOR
-                FROM dbo.DM
-                WHERE DMSTAMP = :s
-            """), {'s': stamp}).mappings().first()
-            if not dm:
-                return jsonify({'error': 'Registo DM não encontrado'}), 404
-
-            targets = db.session.execute(text("""
-                SELECT DMSTAMP, ANO, MES
-                FROM dbo.DM
-                WHERE NO = :no
-                  AND (LTRIM(RTRIM(ISNULL(FATURATG,''))) = '')
-                  AND DMSTAMP <> :s
-                ORDER BY ANO, MES
-            """), {'no': dm['NO'], 's': stamp}).mappings().all()
-            t = [{'stamp': r['DMSTAMP'], 'label': f"{int(r['MES']):02d}/{int(r['ANO'])}"} for r in targets]
-            periodo = f"{int(dm['MES']):02d}/{int(dm['ANO'])}"
-            return jsonify({
-                'fatura': dm.get('FATURATG') or '',
-                'valor': float(dm.get('FTVALOR') or 0),
-                'periodo': periodo,
-                'targets': t
-            })
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-
-    @app.route('/api/processamento_mensal/mover_fatura', methods=['POST'])
-    @login_required
-    def api_processamento_mensal_mover_fatura():
-        try:
-            payload = request.get_json(silent=True) or {}
-            from_stamp = (payload.get('from_stamp') or '').strip()
-            to_stamp = (payload.get('to_stamp') or '').strip()
-            if not from_stamp or not to_stamp:
-                return jsonify({'error': 'Parâmetros inválidos'}), 400
-
-            src = db.session.execute(text("""
-                SELECT DMSTAMP, FATURATG, FTVALOR, FDATA, FTFILE, ENVIADO
-                FROM dbo.DM
-                WHERE DMSTAMP = :s
-            """), {'s': from_stamp}).mappings().first()
-            if not src:
-                return jsonify({'error': 'Registo origem não encontrado'}), 404
-
-            db.session.execute(text("""
-                UPDATE dbo.DM
-                SET FATURATG = :fat, FTVALOR = :val, FDATA = :fdata, FTFILE = :file, ENVIADO = :env
-                WHERE DMSTAMP = :s
-            """), {
-                'fat': src.get('FATURATG') or '',
-                'val': float(src.get('FTVALOR') or 0),
-                'fdata': src.get('FDATA') or datetime(1900, 1, 1),
-                'file': src.get('FTFILE') or '',
-                'env': int(src.get('ENVIADO') or 0),
-                's': to_stamp
-            })
-
-            db.session.execute(text("""
-                UPDATE dbo.DM
-                SET FATURATG = '', FTVALOR = 0, FDATA = :fdata, FTFILE = '', ENVIADO = 0
-                WHERE DMSTAMP = :s
-            """), {'fdata': datetime(1900, 1, 1), 's': from_stamp})
-
-            db.session.commit()
-            return jsonify({'ok': True})
-        except Exception as e:
-            db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/processamento_mensal/clientes_disponiveis')
@@ -35147,14 +35474,10 @@ OPTION (MAXRECURSION 32767);
                     'MES': mes,
                     'NO': no,
                     'NOME': nome,
-                    'FATURATG': '',
-                    'FTVALOR': 0,
-                    'FDATA': datetime(1900,1,1),
-                    'DOSSIER': '',
-                    'BOVALOR': 0,
-                    'DATAOBRA': datetime(1900,1,1),
-                    'FTFILE': '',
-                    'ENVIADO': 0
+                    'CAN_DELETE': 1,
+                    'COMISSOES': 0,
+                    'IMPUTACOES': 0,
+                    'TOTAL': 0
                 })
             db.session.commit()
             return jsonify({'ok': True, 'rows': added})
@@ -35178,7 +35501,7 @@ OPTION (MAXRECURSION 32767);
             if not row:
                 return jsonify({'error': 'Registo não encontrado'}), 404
             if (row.get('FATURATG') or '').strip() or (row.get('DOSSIER') or '').strip():
-                return jsonify({'error': 'Só é possível eliminar registos sem fatura e sem dossier.'}), 400
+                return jsonify({'error': 'Só é possível eliminar registos sem documentos associados.'}), 400
             db.session.execute(text("DELETE FROM dbo.DM WHERE DMSTAMP = :s"), {'s': stamp})
             db.session.commit()
             return jsonify({'ok': True})
@@ -35247,31 +35570,96 @@ OPTION (MAXRECURSION 32767);
             ano_col = 'ANO' if 'ANO' in im_cols else None
             mes_col = 'MES' if 'MES' in im_cols else None
             no_col = 'NO' if 'NO' in im_cols else ('CLIENTE' if 'CLIENTE' in im_cols else None)
+            descricao_col = 'DESCRICAO' if 'DESCRICAO' in im_cols else ('IMPUTDESIGN' if 'IMPUTDESIGN' in im_cols else None)
+            has_origem = 'ORIGEM' in im_cols
+            has_oristamp = 'ORISTAMP' in im_cols
 
             if not (value_col and ano_col and mes_col and no_col):
                 return jsonify({'columns': [], 'rows': []})
 
+            origem_expr = (
+                "UPPER(LTRIM(RTRIM(ISNULL(IM.ORIGEM,''))))"
+                if has_origem else "''"
+            )
+            oristamp_expr = (
+                "LTRIM(RTRIM(ISNULL(IM.ORISTAMP,'')))"
+                if has_oristamp else "''"
+            )
+            descricao_expr = (
+                f"LTRIM(RTRIM(ISNULL(IM.{descricao_col},'')))"
+                if descricao_col else "''"
+            )
+            source_joins = ""
+            if has_origem and has_oristamp:
+                source_joins = f"""
+                    LEFT JOIN dbo.FO AS FO_SRC
+                      ON {origem_expr} = 'FO'
+                     AND LTRIM(RTRIM(ISNULL(FO_SRC.FOSTAMP,''))) = {oristamp_expr}
+                    LEFT JOIN dbo.FN AS FN_SRC
+                      ON {origem_expr} = 'FN'
+                     AND LTRIM(RTRIM(ISNULL(FN_SRC.FNSTAMP,''))) = {oristamp_expr}
+                    LEFT JOIN dbo.FO AS FO_FN_SRC
+                      ON LTRIM(RTRIM(ISNULL(FO_FN_SRC.FOSTAMP,''))) = LTRIM(RTRIM(ISNULL(FN_SRC.FOSTAMP,'')))
+                    LEFT JOIN dbo.MN AS MN_SRC
+                      ON {origem_expr} = 'MN'
+                     AND LTRIM(RTRIM(ISNULL(MN_SRC.MNSTAMP,''))) = {oristamp_expr}
+                """
+            else:
+                source_joins = """
+                    LEFT JOIN dbo.FO AS FO_SRC ON 1 = 0
+                    LEFT JOIN dbo.FN AS FN_SRC ON 1 = 0
+                    LEFT JOIN dbo.FO AS FO_FN_SRC ON 1 = 0
+                    LEFT JOIN dbo.MN AS MN_SRC ON 1 = 0
+                """
+
+            detail_select = f"""
+                    CASE
+                        WHEN {origem_expr} = 'FO' THEN 'Compra'
+                        WHEN {origem_expr} = 'FN' THEN 'Compra (linha)'
+                        WHEN {origem_expr} = 'MN' THEN 'Manutenção'
+                        WHEN {origem_expr} <> '' THEN {origem_expr}
+                        ELSE 'Direta'
+                    END AS ORIGEM,
+                    CAST(COALESCE(FO_SRC.DATA, FO_FN_SRC.DATA, MN_SRC.DATA) AS date) AS DATA,
+                    CASE
+                        WHEN {origem_expr} = 'FO' THEN LTRIM(RTRIM(ISNULL(FO_SRC.DOCNOME,'') + ' ' + ISNULL(FO_SRC.ADOC,'')))
+                        WHEN {origem_expr} = 'FN' THEN LTRIM(RTRIM(ISNULL(FO_FN_SRC.DOCNOME,'') + ' ' + ISNULL(FO_FN_SRC.ADOC,'')))
+                        ELSE ''
+                    END AS DOCUMENTO,
+                    LTRIM(RTRIM(COALESCE(NULLIF(FO_SRC.NOME,''), NULLIF(FO_FN_SRC.NOME,''), NULLIF(MN_SRC.NOME,''), ''))) AS FORNECEDOR,
+                    LTRIM(RTRIM(COALESCE(NULLIF(FO_SRC.CCUSTO,''), NULLIF(FN_SRC.FNCCUSTO,''), NULLIF(MN_SRC.ALOJAMENTO,''), ''))) AS ALOJAMENTO,
+                    LTRIM(RTRIM(COALESCE(NULLIF({descricao_expr}, ''), NULLIF(FN_SRC.DESIGN,''), NULLIF(MN_SRC.INCIDENCIA,''), ''))) AS DESCRICAO,
+                    ISNULL(IM.{value_col},0) AS VALOR
+            """
+            cols = ['ORIGEM', 'DATA', 'DOCUMENTO', 'FORNECEDOR', 'ALOJAMENTO', 'DESCRICAO', 'VALOR']
+
             if no_col == 'NO':
                 sql = text(f"""
-                    SELECT {no_col} AS NO, {value_col} AS VALOR
-                    FROM dbo.IM
-                    WHERE {ano_col} = :ano AND {mes_col} = :mes AND {no_col} = :no
-                    ORDER BY {no_col}
+                    SELECT
+                        {detail_select}
+                    FROM dbo.IM AS IM
+                    {source_joins}
+                    WHERE IM.{ano_col} = :ano
+                      AND IM.{mes_col} = :mes
+                      AND IM.{no_col} = :no
+                    ORDER BY DATA, ORIGEM, DOCUMENTO, DESCRICAO
                 """)
                 rows = db.session.execute(sql, {'ano': ano, 'mes': mes, 'no': no}).mappings().all()
-                cols = ['NO', 'VALOR']
                 out = [{c: r.get(c) for c in cols} for r in rows]
                 return jsonify({'columns': cols, 'rows': out})
             else:
                 sql = text(f"""
-                    SELECT IM.{no_col} AS CLIENTE, IM.{value_col} AS VALOR
+                    SELECT
+                        {detail_select}
                     FROM dbo.IM AS IM
                     JOIN dbo.CL AS CL ON LTRIM(RTRIM(ISNULL(CL.NOME,''))) = LTRIM(RTRIM(ISNULL(IM.{no_col},'')))
-                    WHERE IM.{ano_col} = :ano AND IM.{mes_col} = :mes AND CL.NO = :no
-                    ORDER BY IM.{no_col}
+                    {source_joins}
+                    WHERE IM.{ano_col} = :ano
+                      AND IM.{mes_col} = :mes
+                      AND CL.NO = :no
+                    ORDER BY DATA, ORIGEM, DOCUMENTO, DESCRICAO
                 """)
                 rows = db.session.execute(sql, {'ano': ano, 'mes': mes, 'no': no}).mappings().all()
-                cols = ['CLIENTE', 'VALOR']
                 out = [{c: r.get(c) for c in cols} for r in rows]
                 return jsonify({'columns': cols, 'rows': out})
         except Exception as e:
@@ -35382,56 +35770,6 @@ OPTION (MAXRECURSION 32767);
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
-    @app.route('/api/processamento_mensal/fetch_dossier', methods=['POST'])
-    @login_required
-    def api_processamento_mensal_fetch_dossier():
-        try:
-            payload = request.get_json(silent=True) or {}
-            ano = int(payload.get('ano') or datetime.now().year)
-            mes = int(payload.get('mes') or datetime.now().month)
-
-            dms = db.session.execute(text("""
-                SELECT DMSTAMP, ANO, MES, NO
-                FROM dbo.DM
-                WHERE ANO = :ano AND MES = :mes
-            """), {'ano': ano, 'mes': mes}).mappings().all()
-
-            updated = 0
-            for dm in dms:
-                row = db.session.execute(text("""
-                    SELECT TOP 1
-                        NMDOS, OBRANO, DATAOBRA,
-                        ROUND(ETOTALDEB * 1.23, 2) AS VALOR
-                    FROM guest_spa_tur..BO
-                    WHERE YEAR(DATAOBRA) = :ano
-                      AND MONTH(DATAOBRA) = :mes
-                      AND NDOS = 15
-                      AND NO = :no
-                    ORDER BY DATAOBRA DESC, OBRANO DESC
-                """), {'ano': dm['ANO'], 'mes': dm['MES'], 'no': dm['NO']}).mappings().first()
-                if not row:
-                    continue
-                dossier = f"{row.get('NMDOS') or ''} nº {int(row.get('OBRANO') or 0)}"
-                db.session.execute(text("""
-                    UPDATE dbo.DM
-                    SET DOSSIER = :dos,
-                        DATAOBRA = :dataobra,
-                        BOVALOR = :valor
-                    WHERE DMSTAMP = :s
-                """), {
-                    'dos': dossier,
-                    'dataobra': row.get('DATAOBRA'),
-                    'valor': float(row.get('VALOR') or 0),
-                    's': dm['DMSTAMP']
-                })
-                updated += 1
-
-            db.session.commit()
-            return jsonify({'updated': updated})
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({'error': str(e)}), 500
-
     @app.route('/api/tempos_limpeza/start', methods=['POST'])
     @login_required
     def api_tempos_limpeza_start():

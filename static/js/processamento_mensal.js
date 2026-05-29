@@ -6,28 +6,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnNext = document.getElementById('pmNext');
   const btnAddClientes = document.getElementById('pmAddClientes');
   const btnCalcValores = document.getElementById('pmCalcValores');
-  const btnFetch = document.getElementById('pmFetchDossiers');
   const clientesModalEl = document.getElementById('pmClientesModal');
   const clientesBody = document.getElementById('pmClientesBody');
   const clientesSave = document.getElementById('pmAddClientesSave');
   const selectAllEl = document.getElementById('pmSelectAll');
   const clientesModal = clientesModalEl ? new bootstrap.Modal(clientesModalEl) : null;
-  const fModalEl = document.getElementById('pmFaturaModal');
-  const fNumEl = document.getElementById('pmFaturaNum');
-  const fValEl = document.getElementById('pmFaturaVal');
-  const fPerEl = document.getElementById('pmFaturaPer');
-  const fTargetEl = document.getElementById('pmFaturaTarget');
-  const fHintEl = document.getElementById('pmFaturaHint');
-  const fSaveBtn = document.getElementById('pmFaturaSave');
-  const fModal = fModalEl ? new bootstrap.Modal(fModalEl) : null;
-  let currentStamp = '';
   let lastRows = [];
   const drillModalEl = document.getElementById('pmDrillModal');
   const drillTitle = document.getElementById('pmDrillTitle');
   const drillHead = document.getElementById('pmDrillHead');
   const drillBody = document.getElementById('pmDrillBody');
   const drillFoot = document.getElementById('pmDrillFoot');
+  const drillFilter = document.getElementById('pmDrillFilter');
+  const drillAlojamento = document.getElementById('pmDrillAlojamento');
   const drillModal = drillModalEl ? new bootstrap.Modal(drillModalEl) : null;
+  let currentDrill = { type: '', columns: [], rows: [] };
 
   let cur = new Date();
   cur.setDate(1);
@@ -51,75 +44,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function render(rows) {
     if (!body) return;
-    let totalDos = 0;
-    let totalFat = 0;
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="13" class="text-muted p-3">Sem registos.</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="text-muted p-3">Sem registos.</td></tr>';
       if (countEl) countEl.textContent = '0 registos';
-      const td = document.getElementById('pmTotalDossier');
-      const tf = document.getElementById('pmTotalFatura');
-      if (td) td.textContent = '0.00';
-      if (tf) tf.textContent = '0.00';
       return;
     }
     body.innerHTML = rows.map(r => {
-      const ftfile = (r.FTFILE || '').toString().trim();
-      let webFile = '';
-      if (ftfile) {
-        const m = ftfile.replace(/\//g, '\\').match(/\\static\\images\\(.+)$/i);
-        if (m && m[1]) {
-          webFile = `https://hfsalves.mooo.com/static/images/${m[1].replace(/\\/g, '/')}`;
-        } else if (/^https?:\/\//i.test(ftfile)) {
-          webFile = ftfile;
-        }
-      }
-      const fileLink = webFile ? `<a class="pm-file" href="${escapeHtml(webFile)}" target="_blank" rel="noopener">PDF</a>` : '';
-      const enviado = Number(r.ENVIADO || 0) === 1;
-      const boVal = Number(r.BOVALOR || 0);
-      const ftVal = Number(r.FTVALOR || 0);
-      totalDos += boVal;
-      totalFat += ftVal;
-      const isDiff = Number(r.BOVALOR || 0) !== Number(r.FTVALOR || 0);
-      const canDelete = !r.FATURATG && !r.DOSSIER;
+      const canDelete = Number(r.CAN_DELETE || 0) === 1;
       const com = Number(r.COMISSOES || 0);
       const imp = Number(r.IMPUTACOES || 0);
       const tot = Number(r.TOTAL || 0);
       const totIva = tot * 1.23;
-      const bo = Number(r.BOVALOR || 0);
-      const ft = Number(r.FTVALOR || 0);
-      const ti = Number(totIva.toFixed(2));
-      const lineOk = bo > 0 && ft > 0 && ti > 0 && bo === ft && bo === ti;
       return `
-        <tr data-stamp="${escapeHtml(r.DMSTAMP || '')}" class="${lineOk ? 'pm-ok' : ''}">
+        <tr data-stamp="${escapeHtml(r.DMSTAMP || '')}">
           <td>${escapeHtml(r.NO)}</td>
           <td title="${escapeHtml(r.NOME)}">${escapeHtml(r.NOME)}</td>
           <td class="text-end"><span class="pm-cell-link pm-comm" data-stamp="${escapeHtml(r.DMSTAMP || '')}">${escapeHtml(com.toFixed(2))}</span></td>
           <td class="text-end"><span class="pm-cell-link pm-imp" data-stamp="${escapeHtml(r.DMSTAMP || '')}">${escapeHtml(imp.toFixed(2))}</span></td>
           <td class="text-end">${escapeHtml(tot.toFixed(2))}</td>
           <td class="text-end">${escapeHtml(totIva.toFixed(2))}</td>
-          <td title="${escapeHtml(r.DOSSIER)}">${escapeHtml(r.DOSSIER)}</td>
-          <td class="text-end ${isDiff ? 'pm-diff' : ''}">
-            ${escapeHtml(Number(r.BOVALOR || 0).toFixed(2))}
-          </td>
-          <td title="${escapeHtml(r.FATURATG)}">
-            ${r.FATURATG ? `<div class="pm-fatura-link" data-stamp="${escapeHtml(r.DMSTAMP || '')}">${escapeHtml(r.FATURATG)}</div>` : ''}
-            ${(!r.FATURATG && r.DOSSIER) ? '<div class="pm-missing">Fatura não encontrada</div>' : ''}
-            ${isDiff && !!r.FATURATG ? '<div class="pm-flag">Valor Errado</div>' : ''}
-          </td>
-          <td class="text-end ${isDiff ? 'pm-diff' : ''}">
-            ${escapeHtml(Number(r.FTVALOR || 0).toFixed(2))}
-          </td>
-          <td>${fileLink}</td>
-          <td><span class="pm-badge ${enviado ? 'y' : 'n'}">${enviado ? 'Sim' : 'Não'}</span></td>
           <td>${canDelete ? '<button class="pm-del" title="Eliminar"><i class="fa-solid fa-trash"></i></button>' : ''}</td>
         </tr>
       `;
     }).join('');
     if (countEl) countEl.textContent = `${rows.length} registo(s)`;
-    const td = document.getElementById('pmTotalDossier');
-    const tf = document.getElementById('pmTotalFatura');
-    if (td) td.textContent = totalDos.toFixed(2);
-    if (tf) tf.textContent = totalFat.toFixed(2);
 
     body.querySelectorAll('.pm-del').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -146,32 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    body.querySelectorAll('.pm-fatura-link').forEach(el => {
-      el.addEventListener('click', async () => {
-        const stamp = el.getAttribute('data-stamp') || '';
-        if (!stamp || !fModal) return;
-        currentStamp = stamp;
-        fTargetEl.innerHTML = '';
-        fHintEl.textContent = '';
-        fSaveBtn.disabled = true;
-        try {
-          const res = await fetch(`/api/processamento_mensal/fatura_info?stamp=${encodeURIComponent(stamp)}`);
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok || data.error) throw new Error(data.error || res.statusText);
-          fNumEl.textContent = data.fatura || '';
-          fValEl.textContent = data.valor || '';
-          fPerEl.textContent = data.periodo || '';
-          const options = (data.targets || []).map(t => `<option value="${escapeHtml(t.stamp)}">${escapeHtml(t.label)}</option>`).join('');
-          fTargetEl.innerHTML = options || '<option value="">(sem períodos disponíveis)</option>';
-          fSaveBtn.disabled = !options;
-          fHintEl.textContent = options ? '' : 'Não existem períodos sem fatura para este cliente.';
-          fModal.show();
-        } catch (e) {
-          alert(`Erro: ${e.message || e}`);
-        }
-      });
-    });
-
     body.querySelectorAll('.pm-comm').forEach(el => {
       el.addEventListener('click', () => openDrill(el.getAttribute('data-stamp') || '', 'comissoes'));
     });
@@ -184,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!body) return;
     setLabel();
     const { ano, mes } = monthParams();
-    body.innerHTML = '<tr><td colspan="13" class="text-muted p-3">A carregar...</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="text-muted p-3">A carregar...</td></tr>';
     const res = await fetch(`/api/processamento_mensal?ano=${ano}&mes=${mes}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.error) {
@@ -296,52 +218,14 @@ document.addEventListener('DOMContentLoaded', () => {
       clientesSave.disabled = false;
     }
   });
-  btnFetch?.addEventListener('click', async () => {
-    const { ano, mes } = monthParams();
-    btnFetch.disabled = true;
-    try {
-      const res = await fetch('/api/processamento_mensal/fetch_dossier', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ano, mes })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.error) throw new Error(data.error || res.statusText);
-      await load();
-    } catch (e) {
-      alert(`Erro: ${e.message || e}`);
-    } finally {
-      btnFetch.disabled = false;
-    }
-  });
-
-  fSaveBtn?.addEventListener('click', async () => {
-    const target = fTargetEl?.value || '';
-    if (!currentStamp || !target) return;
-    fSaveBtn.disabled = true;
-    try {
-      const res = await fetch('/api/processamento_mensal/mover_fatura', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from_stamp: currentStamp, to_stamp: target })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.error) throw new Error(data.error || res.statusText);
-      fModal?.hide();
-      await load();
-    } catch (e) {
-      alert(`Erro: ${e.message || e}`);
-    } finally {
-      fSaveBtn.disabled = false;
-    }
-  });
-
   async function openDrill(stamp, type) {
     if (!stamp || !drillModal) return;
     drillTitle.textContent = type === 'comissoes' ? 'Detalhe Comissões' : 'Detalhe Imputações';
     drillHead.innerHTML = '';
     drillBody.innerHTML = '<tr><td class="text-muted p-3">A carregar...</td></tr>';
     if (drillFoot) drillFoot.innerHTML = '';
+    if (drillFilter) drillFilter.classList.add('is-hidden');
+    if (drillAlojamento) drillAlojamento.innerHTML = '<option value="">Todos</option>';
     const fmtNum = (v) => {
       const n = Number(v);
       if (!Number.isFinite(n)) return (v ?? '').toString();
@@ -359,6 +243,53 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok || data.error) throw new Error(data.error || res.statusText);
       const cols = data.columns || [];
       const rows = data.rows || [];
+      currentDrill = { type, columns: cols, rows };
+      setupDrillFilter(type, rows);
+      renderDrillTable();
+      drillModal.show();
+    } catch (e) {
+      alert(`Erro: ${e.message || e}`);
+    }
+  }
+
+  function setupDrillFilter(type, rows) {
+    if (!drillFilter || !drillAlojamento) return;
+    if (type !== 'comissoes') {
+      drillFilter.classList.add('is-hidden');
+      drillAlojamento.innerHTML = '<option value="">Todos</option>';
+      return;
+    }
+    const alojamentos = [...new Set(rows.map(r => (r.ALOJAMENTO ?? '').toString().trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'pt', { sensitivity: 'base' }));
+    drillAlojamento.innerHTML = '<option value="">Todos</option>' + alojamentos
+      .map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`)
+      .join('');
+    drillFilter.classList.remove('is-hidden');
+  }
+
+  function drillRowsForFilter() {
+    const rows = currentDrill.rows || [];
+    if (currentDrill.type !== 'comissoes') return rows;
+    const selected = (drillAlojamento?.value || '').toString().trim();
+    if (!selected) return rows;
+    return rows.filter(r => (r.ALOJAMENTO ?? '').toString().trim() === selected);
+  }
+
+  function renderDrillTable() {
+    const cols = currentDrill.columns || [];
+    const rows = drillRowsForFilter();
+    const fmtNum = (v) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return (v ?? '').toString();
+      return n.toFixed(2);
+    };
+    const fmtDate = (v) => {
+      if (!v) return '';
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return (v ?? '').toString();
+      return d.toISOString().slice(0, 10);
+    };
+
       drillHead.innerHTML = cols.map(c => `<th>${escapeHtml(c)}</th>`).join('');
       if (!rows.length) {
         drillBody.innerHTML = `<tr><td class="text-muted p-3" colspan="${cols.length || 1}">Sem dados.</td></tr>`;
@@ -375,6 +306,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const suf = key === 'COMISSAO_PERC' ? '%' : '';
                 const strike = (String(r.ESTADO || '').toLowerCase().includes('cancel') && ['ESTADIA','LIMPEZA','COMISSAO'].includes(key)) ? ' pm-strike' : '';
                 return `<td class="text-end${strike}">${escapeHtml(txt + suf)}</td>`;
+              }
+              if (key === 'ORIGEM') {
+                return `<td><span class="pm-origin-badge">${escapeHtml((val ?? '').toString())}</span></td>`;
+              }
+              if (['DOCUMENTO','FORNECEDOR','ALOJAMENTO','DESCRICAO'].includes(key)) {
+                const text = (val ?? '').toString();
+                const cls = key === 'DESCRICAO' ? ' pm-drill-description' : '';
+                return `<td class="pm-drill-text${cls}" title="${escapeHtml(text)}">${escapeHtml(text)}</td>`;
               }
               if (key === 'NO' || key === 'CLIENTE') {
                 return `<td>${escapeHtml((val ?? '').toString())}</td>`;
@@ -411,11 +350,9 @@ document.addEventListener('DOMContentLoaded', () => {
           }).join('');
         }
       }
-      drillModal.show();
-    } catch (e) {
-      alert(`Erro: ${e.message || e}`);
-    }
   }
+
+  drillAlojamento?.addEventListener('change', renderDrillTable);
 
   load();
 });

@@ -15,11 +15,15 @@
       <label class="sz_field sz_imput_status_field" for="imputStatus">
         <span class="sz_label">Estado</span>
         <select class="sz_select" id="imputStatus">
-          <option value="pending">Por decidir</option>
           <option value="all">Todos</option>
           <option value="yes">Imputar</option>
           <option value="no">N&atilde;o imputar</option>
+          <option value="pending">Por decidir</option>
         </select>
+      </label>
+      <label class="sz_field sz_imput_period_field" for="imputPeriod">
+        <span class="sz_label">M&ecirc;s/Ano</span>
+        <input class="sz_input" id="imputPeriod" type="month">
       </label>
       <button class="sz_button sz_button_ghost" id="btnReloadImput" type="button">
         <i class="fa-solid fa-rotate"></i>
@@ -122,14 +126,21 @@
     min-height: var(--sz-input-height);
   }
 
-  .sz_imput_status_field {
+  .sz_imput_status_field,
+  .sz_imput_period_field {
     flex: 0 0 165px;
     width: 165px;
     margin: 0;
     gap: 0.2rem;
   }
 
-  .sz_imput_status_field .sz_select {
+  .sz_imput_period_field {
+    flex-basis: 155px;
+    width: 155px;
+  }
+
+  .sz_imput_status_field .sz_select,
+  .sz_imput_period_field .sz_input {
     width: 100%;
   }
 
