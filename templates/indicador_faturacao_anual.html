@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Faturação Anual{% endblock %}
+
+{% macro money(value) -%}
+  {{ "{:,.0f}".format(value or 0).replace(",", " ") }}
+{%- endmacro %}
+
+{% macro money2(value) -%}
+  {{ "{:,.2f}".format(value or 0).replace(",", " ").replace(".", ",") }}
+{%- endmacro %}
+
+{% block content %}
+<div class="sz_page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_breadcrumbs">Indicadores</div>
+        <div class="sz_page_title">Faturação Anual</div>
+        <div class="sz_page_subtitle">Valores por noite faturada, separados por gestão e exploração.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <form method="get" action="{{ url_for('indicador_faturacao_anual_page') }}" class="sz_inline">
+          <label class="sz_field" for="fatAno">
+            <span class="sz_label">Ano</span>
+            <select id="fatAno" name="ano" class="sz_select" onchange="this.form.submit()">
+              {% for y in anos %}
+                <option value="{{ y }}" {% if y == ano %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </form>
+      </div>
+    </header>
+
+    <main class="sz_page_body">
+      <section class="sz_panel">
+        <div class="sz_section_body">
+          <div class="sz_table_wrap">
+            <table class="sz_table">
+              <thead class="sz_table_head">
+                <tr>
+                  <th class="sz_table_cell">Mês</th>
+                  <th class="sz_table_cell text-end">Exploração</th>
+                  <th class="sz_table_cell text-end">Gestão</th>
+                  <th class="sz_table_cell text-end">Total</th>
+                  <th class="sz_table_cell text-end">Estimativa</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in rows %}
+                  <tr class="sz_table_row">
+                    <td class="sz_table_cell">{{ row.MES }}</td>
+                    <td class="sz_table_cell text-end">
+                      <button type="button" class="sz_indicator_value_btn" data-fat-detail data-ano="{{ ano }}" data-mes="{{ row.NMES }}" data-tipo="EXPLORACAO">
+                        {{ money(row.EXPLORACAO) }}
+                      </button>
+                    </td>
+                    <td class="sz_table_cell text-end">
+                      <button type="button" class="sz_indicator_value_btn" data-fat-detail data-ano="{{ ano }}" data-mes="{{ row.NMES }}" data-tipo="GESTAO">
+                        {{ money(row.GESTAO) }}
+                      </button>
+                    </td>
+                    <td class="sz_table_cell text-end">{{ money(row.TOTAL) }}</td>
+                    <td class="sz_table_cell text-end">{{ money(row.ESTIMATIVA) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr class="sz_table_row">
+                  <th class="sz_table_cell">Total</th>
+                  <th class="sz_table_cell text-end">{{ money(totals.EXPLORACAO) }}</th>
+                  <th class="sz_table_cell text-end">{{ money(totals.GESTAO) }}</th>
+                  <th class="sz_table_cell text-end">{{ money(totals.TOTAL) }}</th>
+                  <th class="sz_table_cell text-end">{{ money(totals.ESTIMATIVA) }}</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="sz_actionbar sz_page_footer">
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <a class="sz_button sz_button_ghost" href="{{ url_for('dashboard_page') }}">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </a>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div class="modal fade sz_indicator_detail_modal" id="fatDetailModal" tabindex="-1" aria-labelledby="fatDetailTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content sz_panel">
+      <div class="modal-header sz_modal_header">
+        <div>
+          <h5 class="modal-title sz_modal_title" id="fatDetailTitle">Detalhe</h5>
+          <div class="sz_text_muted" id="fatDetailSubtitle"></div>
+        </div>
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <div class="sz_table_wrap">
+          <table class="sz_table">
+            <thead class="sz_table_head">
+              <tr>
+                <th class="sz_table_cell">Alojamento</th>
+                <th class="sz_table_cell text-end">Noites</th>
+                <th class="sz_table_cell text-end">Média/noite</th>
+                <th class="sz_table_cell text-end">Total</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" style="display:none;">Disp.</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" style="display:none;">Preço est.</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" style="display:none;">Est. vazias</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" style="display:none;">Total geral</th>
+              </tr>
+            </thead>
+            <tbody id="fatDetailBody">
+              <tr class="sz_table_row">
+                <td class="sz_table_cell sz_text_muted text-center" colspan="4">A carregar...</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="sz_table_row">
+                <th class="sz_table_cell">Total</th>
+                <th class="sz_table_cell text-end" id="fatDetailTotalNoites">0</th>
+                <th class="sz_table_cell text-end" id="fatDetailTotalAdr">0,00</th>
+                <th class="sz_table_cell text-end" id="fatDetailTotalValor">0</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalDisponiveis" style="display:none;">0</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalEstimativaPreco" style="display:none;">0,00</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalEstimativaVazias" style="display:none;">0</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalGeral" style="display:none;">0</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/indicador_faturacao_anual.js') }}?v={{ static_version }}"></script>
+{% endblock %}

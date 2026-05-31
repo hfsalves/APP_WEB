@@ -2156,7 +2156,8 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   gap: var(--sz-space-2);
 }
 
-.sz_dashboard_filter_btn {
+.sz_dashboard_filter_btn,
+.sz_dashboard_link_btn {
   min-height: 2rem;
   padding: 0 0.6rem;
 }
@@ -2175,6 +2176,35 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
 .sz_dashboard_expand_btn:hover {
   border-color: var(--sz-color-primary);
   color: var(--sz-color-primary);
+}
+
+.sz_indicator_value_btn {
+  border: 0;
+  background: transparent;
+  color: var(--sz-color-primary);
+  font: inherit;
+  font-weight: var(--sz-font-weight-semibold);
+  padding: 0;
+  cursor: pointer;
+}
+
+.sz_indicator_value_btn:hover,
+.sz_indicator_value_btn:focus-visible {
+  color: color-mix(in srgb, var(--sz-color-primary) 78%, var(--sz-color-text));
+  text-decoration: underline;
+}
+
+.sz_indicator_detail_modal .sz_table th {
+  position: static;
+  z-index: auto;
+}
+
+.sz_indicator_detail_modal .modal-dialog {
+  max-width: min(96vw, 1680px);
+}
+
+.sz_indicator_detail_modal .sz_table {
+  min-width: 1120px;
 }
 
 .sz_dashboard_widget_body {
@@ -4524,6 +4554,23 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
 [data-sz-theme="geek"] .planner2-team-item,
 [data-sz-theme="geek"] .planner2-cleaning-menu-item {
   color: var(--sz-color-text);
+}
+
+[data-sz-theme="dark"] .planner2-team-group-title,
+[data-sz-theme="geek"] .planner2-team-group-title {
+  color: var(--sz-color-text-muted);
+}
+
+[data-sz-theme="dark"] .planner2-team-item.is-on-leave,
+[data-sz-theme="geek"] .planner2-team-item.is-on-leave {
+  color: #fbbf24;
+}
+
+[data-sz-theme="dark"] .planner2-team-leave-badge,
+[data-sz-theme="geek"] .planner2-team-leave-badge {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.46);
+  color: #fbbf24;
 }
 
 [data-sz-theme="dark"] .planner2-team-separator::after,

@@ -46,6 +46,17 @@
       text-align: center;
     }
 
+    .planner2-date-weekday {
+      display: inline-flex;
+      align-items: center;
+      min-height: 2.5rem;
+      color: var(--sz-color-text-secondary);
+      font-size: var(--sz-font-size-sm);
+      font-weight: 700;
+      white-space: nowrap;
+      text-transform: capitalize;
+    }
+
     .planner2-toolbar .sz_button {
       flex: 0 0 auto;
     }
@@ -284,6 +295,14 @@
       </div>
       <div class="sz_contextbar_right">
         <div class="planner2-toolbar">
+          <span class="planner2-date-weekday" id="planner2-date-weekday"></span>
+          <button id="planner2-prev" class="btn sz_button sz_button_ghost" type="button" aria-label="Dia anterior">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <input id="planner2-date" class="sz_input" />
+          <button id="planner2-next" class="btn sz_button sz_button_ghost" type="button" aria-label="Dia seguinte">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
           <div class="planner2-summary-pill" id="planner2-cleaning-summary">
             <i class="fa-solid fa-broom"></i>
             <span>Planeadas 0 de 0</span>
@@ -291,13 +310,6 @@
           <button class="planner2-summary-pill planner2-summary-button" id="planner2-team-summary" type="button">
             <i class="fa-solid fa-users"></i>
             <span>Equipa: 0</span>
-          </button>
-          <button id="planner2-prev" class="btn sz_button sz_button_ghost" type="button" aria-label="Dia anterior">
-            <i class="fa-solid fa-chevron-left"></i>
-          </button>
-          <input id="planner2-date" class="sz_input" />
-          <button id="planner2-next" class="btn sz_button sz_button_ghost" type="button" aria-label="Dia seguinte">
-            <i class="fa-solid fa-chevron-right"></i>
           </button>
           <button id="planner2-sort-cleaning" class="btn sz_button sz_button_ghost" type="button" title="Ordenar por equipa/horário">
             <i class="fa-solid fa-user-clock"></i>

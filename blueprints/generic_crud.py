@@ -4050,6 +4050,7 @@ def api_cleaning_plan():
     al_lptempo_expr = "ISNULL(al.[LPTEMPO], 0) AS cleaning_minutes" if 'LPTEMPO' in al_cols else "0 AS cleaning_minutes"
     al_noites_expr = "ISNULL(al.[NOITES], 0) AS min_nights" if 'NOITES' in al_cols else "0 AS min_nights"
     al_nolp_filter = "WHERE ISNULL(al.[NOLP], 0) = 0" if 'NOLP' in al_cols else ""
+    lp_folga_expr = "ISNULL(pl_day.FOLGA, 0) AS cleaning_folga" if _column_exists('LP', 'FOLGA') else "0 AS cleaning_folga"
 
     sql = text(f"""
         SELECT
@@ -4101,6 +4102,7 @@ def api_cleaning_plan():
           pl_day.HORA             AS cleaning_time,
           pl_day.EQUIPA           AS cleaning_team,
           pl_day.TERMINADA        AS cleaning_done,
+          {lp_folga_expr},
           pl_day.HOSPEDES         AS cleaning_guests,
           pl_day.NOITES           AS cleaning_nights,
           pl_day.OBS              AS cleaning_notes,
@@ -4242,7 +4244,12 @@ def api_planner2_teams():
         where_clauses = ["LTRIM(RTRIM(ISNULL(NOME,''))) <> ''"]
         if 'INATIVO' in eq_cols:
             where_clauses.append("ISNULL(INATIVO, 0) = 0")
+        folga_select_cols = list(select_cols)
+        folga_select_cols.append("1 AS FOLGA")
+        select_cols.append("0 AS FOLGA")
+
         params = {}
+        folga_rows = []
         if planner_date:
             where_clauses.append("""
                 NOT EXISTS (
@@ -4255,6 +4262,22 @@ def api_planner2_teams():
                 )
             """)
             params['planner_date'] = planner_date
+            folga_sql = text(f"""
+                SELECT {', '.join(folga_select_cols)}
+                FROM dbo.EQ
+                WHERE {' AND '.join([part for part in where_clauses if 'NOT EXISTS' not in part])}
+                  AND EXISTS (
+                    SELECT 1
+                    FROM dbo.US AS U
+                    INNER JOIN dbo.ND AS ND
+                        ON LTRIM(RTRIM(ISNULL(ND.UTILIZADOR, ''))) = LTRIM(RTRIM(ISNULL(U.LOGIN, '')))
+                    WHERE LTRIM(RTRIM(ISNULL(U.EQUIPA, ''))) = LTRIM(RTRIM(ISNULL(EQ.NOME, '')))
+                      AND CAST(ND.DATA AS date) = :planner_date
+                      AND UPPER(LTRIM(RTRIM(ISNULL(ND.TIPO, '')))) IN ('FOLGA', 'FERIAS')
+                  )
+                {order_expr}
+            """)
+            folga_rows = [dict(r) for r in db.session.execute(folga_sql, params).mappings().all()]
 
         sql = text(f"""
             SELECT {', '.join(select_cols)}
@@ -4262,8 +4285,8 @@ def api_planner2_teams():
             WHERE {' AND '.join(where_clauses)}
             {order_expr}
         """)
-        rows = db.session.execute(sql, params).mappings().all()
-        return jsonify([dict(r) for r in rows])
+        rows = [dict(r) for r in db.session.execute(sql, params).mappings().all()]
+        return jsonify(rows + folga_rows)
     except Exception as e:
         current_app.logger.exception('Erro ao carregar equipas do planner2')
         return jsonify({'error': str(e)}), 500
@@ -4283,7 +4306,9 @@ def api_gravar_limpezas():
     if not limpezas:
         return jsonify(success=False, message="Nenhum dado recebido"), 400
     push_queue = []
+    lp_has_folga = _column_exists('LP', 'FOLGA')
     for lp in limpezas:
+        lp_folga = 1 if str(lp.get("FOLGA") or lp.get("folga") or "").strip().lower() in ("1", "true", "yes", "on") else 0
         lpstamp = lp.get("LPSTAMP") or lp.get("lpstamp")
         if lpstamp:
             previous = db.session.execute(text("""
@@ -4292,9 +4317,12 @@ def api_gravar_limpezas():
                     CONVERT(varchar(10), DATA, 23) AS DATA,
                     ISNULL(HORA,'') AS HORA,
                     ISNULL(EQUIPA,'') AS EQUIPA
+                    {folga_select}
                 FROM LP
                 WHERE LPSTAMP = :lpstamp
-            """), {"lpstamp": lpstamp}).mappings().first()
+            """.format(
+                folga_select=', ISNULL(FOLGA, 0) AS FOLGA' if lp_has_folga else ''
+            )), {"lpstamp": lpstamp}).mappings().first()
             res = db.session.execute(
                 text("""
                 UPDATE LP
@@ -4302,9 +4330,11 @@ def api_gravar_limpezas():
                     DATA = :data,
                     HORA = :hora,
                     EQUIPA = :equipa
+                    {folga_sql}
                     {feid_sql}
                 WHERE LPSTAMP = :lpstamp
                 """.format(
+                    folga_sql=', FOLGA = :folga' if lp_has_folga else '',
                     feid_sql=', FEID = :feid' if current_feid is not None else ''
                 )),
                 dict(
@@ -4313,6 +4343,7 @@ def api_gravar_limpezas():
                     data=lp["DATA"],
                     hora=lp["HORA"],
                     equipa=lp["EQUIPA"],
+                    **({'folga': lp_folga} if lp_has_folga else {}),
                     **({'feid': current_feid} if current_feid is not None else {})
                 )
             )
@@ -4323,6 +4354,7 @@ def api_gravar_limpezas():
                     str(prev.get("DATA") or "") != str(lp.get("DATA") or ""),
                     str(prev.get("HORA") or "") != str(lp.get("HORA") or ""),
                     str(prev.get("EQUIPA") or "") != str(lp.get("EQUIPA") or ""),
+                    lp_has_folga and int(prev.get("FOLGA") or 0) != lp_folga,
                 ])
                 if changed and str(lp.get("EQUIPA") or "").strip():
                     push_queue.append({
@@ -4361,9 +4393,11 @@ def api_gravar_limpezas():
         # SenÃ£o, cria
         db.session.execute(
             text("""
-            INSERT INTO LP (LPSTAMP, ALOJAMENTO, DATA, HORA, EQUIPA, TERMINADA, CUSTO, HOSPEDES, NOITES, OBS{feid_cols})
-            VALUES (:lpstamp, :alojamento, :data, :hora, :equipe, 0, 0, 0, 0, ''{feid_vals})
+            INSERT INTO LP (LPSTAMP, ALOJAMENTO, DATA, HORA, EQUIPA, TERMINADA, CUSTO, HOSPEDES, NOITES, OBS{folga_cols}{feid_cols})
+            VALUES (:lpstamp, :alojamento, :data, :hora, :equipe, 0, 0, 0, 0, ''{folga_vals}{feid_vals})
             """.format(
+                folga_cols=', FOLGA' if lp_has_folga else '',
+                folga_vals=', :folga' if lp_has_folga else '',
                 feid_cols=', FEID' if current_feid is not None else '',
                 feid_vals=', :feid' if current_feid is not None else '',
             )),
@@ -4373,6 +4407,7 @@ def api_gravar_limpezas():
                 data=lp["DATA"],
                 hora=lp["HORA"],
                 equipe=lp["EQUIPA"],
+                **({'folga': lp_folga} if lp_has_folga else {}),
                 **({'feid': current_feid} if current_feid is not None else {})
             )
         )

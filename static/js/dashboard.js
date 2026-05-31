@@ -27,6 +27,19 @@ function formatNumber(n) {
 function formatTitle(str) {
   return str.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
 }
+function escapeAttr(val) {
+  return String(val ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+function normalizeWidgetUrl(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('/')) return raw;
+  return `/${raw.replace(/^\/+/, '')}`;
+}
 
 async function parseJsonResponse(resp, fallbackMessage) {
   const raw = await resp.text();
@@ -437,9 +450,13 @@ function renderGrafico(body, widget, data) {
 async function renderWidget(widget, colDiv) {
   const filtersDef = parseFiltersDef(widget);
   const hasFilters = filtersDef.length > 0;
+  const widgetUrl = normalizeWidgetUrl(widget.url);
 
   const wDiv = document.createElement('div');
   wDiv.className = 'sz_dashboard_widget sz_dashboard_widget_' + widget.tipo.toLowerCase();
+  const linkBtn = widgetUrl
+    ? `<button class="sz_button sz_button_ghost sz_dashboard_link_btn widget-link-btn" data-url="${escapeAttr(widgetUrl)}" title="Abrir indicador"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>`
+    : '';
   const filterBtn = hasFilters
     ? `<button class="sz_button sz_button_ghost sz_dashboard_filter_btn widget-filter-btn" data-widget="${widget.nome}" title="Filtros"><i class="fa fa-filter"></i></button>`
     : '';
@@ -447,6 +464,7 @@ async function renderWidget(widget, colDiv) {
     <div class="sz_dashboard_widget_header">
       <h3 class="sz_h2 sz_dashboard_widget_title">${widget.titulo || formatTitle(widget.nome)}</h3>
       <div class="sz_dashboard_widget_tools">
+        ${linkBtn}
         ${filterBtn}
         <button class="sz_dashboard_expand_btn" title="Expandir">&#8693;</button>
       </div>
@@ -483,6 +501,13 @@ async function renderWidget(widget, colDiv) {
     else expandBtn.style.display = 'none';
   };
   expandBtn.addEventListener('click', () => wDiv.classList.toggle('expanded'));
+  const linkBtnEl = wDiv.querySelector('.widget-link-btn');
+  if (linkBtnEl) {
+    linkBtnEl.addEventListener('click', () => {
+      const url = normalizeWidgetUrl(linkBtnEl.dataset.url);
+      if (url) window.location.href = url;
+    });
+  }
 
   if (hasFilters) {
     widgetState.set(widget.nome, { widget, body, filtersDef, currentFilters: buildDefaultFilters(filtersDef) });

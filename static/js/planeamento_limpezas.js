@@ -196,6 +196,12 @@ const planner2DateOnly = (value) => {
   return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
 };
 
+const formatPlanner2Weekday = (value) => {
+  const date = planner2DateOnly(value);
+  if (!date) return '';
+  return date.toLocaleDateString('pt-PT', { weekday: 'long' });
+};
+
 const planner2DaysBetween = (fromValue, toValue) => {
   const from = planner2DateOnly(fromValue);
   const to = planner2DateOnly(toValue);
@@ -393,6 +399,11 @@ const isPlanner2ExternalTeam = (team) => {
   return value === true || value === 1 || String(value || '').trim() === '1';
 };
 
+const isPlanner2TeamOnLeave = (team) => {
+  const value = team?.FOLGA ?? team?.folga;
+  return value === true || value === 1 || String(value || '').trim() === '1';
+};
+
 const setPlanner2Dirty = (isDirty) => {
   planner2Dirty = !!isDirty;
   if (planner2SaveBtn) {
@@ -451,6 +462,7 @@ const buildPlanner2Rows = (data) => {
         typology: row.typology || row.tp,
         cleaningMinutes: Number(row.cleaning_minutes || 0),
         cleaningDone: row.cleaning_done,
+        folga: row.cleaning_folga,
         taskId: row.cleaning_task_id,
         taskDone: row.cleaning_task_done,
         taskStartedAt: row.cleaning_started_at,
@@ -476,6 +488,7 @@ const collectPlanner2Payload = (dateStr) => {
         EQUIPA: team
       };
       if (cl.id) entry.LPSTAMP = cl.id;
+      entry.FOLGA = isPlanner2TeamOnLeave(cl) ? 1 : 0;
       payload.push(entry);
     });
   });
@@ -503,7 +516,11 @@ const updatePlanner2CleaningSummary = () => {
 
 const getPlanner2AvailableTeams = () => (
   (Array.isArray(planner2Teams) ? planner2Teams : [])
-    .filter((team) => !isPlanner2ExternalTeam(team) && !isPlanner2LpAdminTeam(team))
+    .filter((team) => (
+      !isPlanner2TeamOnLeave(team)
+      && !isPlanner2ExternalTeam(team)
+      && !isPlanner2LpAdminTeam(team)
+    ))
     .slice()
     .sort((a, b) => String(a.NOME || '').localeCompare(String(b.NOME || ''), 'pt-PT'))
 );
@@ -1513,6 +1530,9 @@ const renderRows = (data, slots) => {
       bars.forEach(({ cl, startIdx, cappedSlots, laneIndex, key, status }) => {
         const bar = document.createElement('div');
         bar.className = 'planner2-bar planner2-bar-cleaning';
+        if (isPlanner2TeamOnLeave(cl)) {
+          bar.classList.add('planner2-bar-cleaning-folga');
+        }
         if (status) {
           bar.classList.add('planner2-bar-cleaning-status', `planner2-cleaning-status-${status.key}`);
         }
@@ -1531,6 +1551,16 @@ const renderRows = (data, slots) => {
         label.className = 'planner2-bar-label';
         label.textContent = String(cl.team || '').trim();
         bar.appendChild(label);
+        if (isPlanner2TeamOnLeave(cl)) {
+          const leaveIcon = document.createElement('span');
+          leaveIcon.className = 'planner2-clean-folga-icon';
+          leaveIcon.title = 'Equipa em folga';
+          leaveIcon.setAttribute('aria-label', 'Equipa em folga');
+          const i = document.createElement('i');
+          i.className = 'fa-solid fa-moon';
+          leaveIcon.appendChild(i);
+          bar.appendChild(leaveIcon);
+        }
         if (status) {
           const icon = document.createElement('span');
           icon.className = 'planner2-clean-status-icon';
@@ -1543,10 +1573,17 @@ const renderRows = (data, slots) => {
           const taskUser = String(cl.taskUser || '').trim();
           attachTooltip(bar, [
             `Limpeza: ${String(cl.team || '').trim() || '-'}`,
+            isPlanner2TeamOnLeave(cl) ? 'Folga: sim' : '',
             `Estado: ${status.detail || status.label}`,
             taskUser ? `Utilizador: ${taskUser}` : '',
             `Hora: ${normalizePlanner2Time(cl.time) || '-'}`
           ].filter(Boolean).join('\n'), tooltip);
+        } else if (isPlanner2TeamOnLeave(cl)) {
+          attachTooltip(bar, [
+            `Limpeza: ${String(cl.team || '').trim() || '-'}`,
+            'Folga: sim',
+            `Hora: ${normalizePlanner2Time(cl.time) || '-'}`
+          ].join('\n'), tooltip);
         }
         tr.appendChild(bar);
         bar.addEventListener('mousedown', (e) => {
@@ -1725,6 +1762,7 @@ const getCleaningDuration = (source, fallbackTypology = '') => {
 
 const setupPlanner2 = () => {
   const dateInput = document.getElementById('planner2-date');
+  const weekdayEl = document.getElementById('planner2-date-weekday');
   const prevBtn = document.getElementById('planner2-prev');
   const nextBtn = document.getElementById('planner2-next');
   const sortBtn = document.getElementById('planner2-sort-cleaning');
@@ -1744,6 +1782,10 @@ const setupPlanner2 = () => {
   let currentDate = window.PLANNER2_INITIAL_DATE || new Date().toISOString().slice(0, 10);
   let suppressDateChange = false;
 
+  const updateWeekday = () => {
+    if (weekdayEl) weekdayEl.textContent = formatPlanner2Weekday(currentDate);
+  };
+
   const canChangePlanner2Date = () => {
     if (!planner2Dirty) return true;
     showPlannerToast('Existem alterações por gravar. Grave ou cancele antes de mudar de data.', 'warning');
@@ -1758,6 +1800,7 @@ const setupPlanner2 = () => {
     } else if (dateInput) {
       dateInput.value = currentDate;
     }
+    updateWeekday();
   };
 
   const setPlanner2Date = (nextDate, updatePicker = true) => {
@@ -1775,6 +1818,7 @@ const setupPlanner2 = () => {
       dateInput._flatpickr.setDate(currentDate, false);
       suppressDateChange = false;
     }
+    updateWeekday();
     loadPlanner2(currentDate).catch((err) => {
       showPlannerToast(`Erro ao carregar planeamento: ${err.message || err}`, 'danger');
     });
@@ -1788,6 +1832,7 @@ const setupPlanner2 = () => {
       setPlanner2Date(dateStr, false);
     }
   });
+  updateWeekday();
 
   const changeDay = (delta) => {
     const d = new Date(currentDate);
@@ -1912,9 +1957,16 @@ const openPlanner2TeamDropdown = (cell, row, slot) => {
     empty.style.opacity = '0.72';
     dropdown.appendChild(empty);
   }
+  const appendGroupTitle = (title) => {
+    const header = document.createElement('div');
+    header.className = 'planner2-team-group-title';
+    header.textContent = title;
+    dropdown.appendChild(header);
+  };
   const appendTeamItem = (team) => {
     const item = document.createElement('div');
     item.className = 'planner2-team-item';
+    if (isPlanner2TeamOnLeave(team)) item.classList.add('is-on-leave');
     const dot = document.createElement('span');
     dot.className = 'planner2-team-dot';
     if (team.COR) dot.style.background = team.COR;
@@ -1922,12 +1974,19 @@ const openPlanner2TeamDropdown = (cell, row, slot) => {
     label.textContent = team.NOME;
     item.appendChild(dot);
     item.appendChild(label);
+    if (isPlanner2TeamOnLeave(team)) {
+      const leaveBadge = document.createElement('span');
+      leaveBadge.className = 'planner2-team-leave-badge';
+      leaveBadge.textContent = 'Folga';
+      item.appendChild(leaveBadge);
+    }
     item.addEventListener('click', (e) => {
       e.stopPropagation();
       const existing = row.cleanings || [];
       existing.push({
         time: slot,
         team: team.NOME,
+        folga: isPlanner2TeamOnLeave(team) ? 1 : 0,
         typology: row.typology || row.tp,
         cleaningMinutes: Number(row.cleaning_minutes || 0),
         _tmpId: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -1946,23 +2005,26 @@ const openPlanner2TeamDropdown = (cell, row, slot) => {
     dropdown.appendChild(item);
   };
 
-  const regularTeams = planner2Teams.filter((team) => !isPlanner2ExternalTeam(team) && !isPlanner2LpAdminTeam(team));
-  const externalTeams = planner2Teams.filter((team) => isPlanner2ExternalTeam(team) && !isPlanner2LpAdminTeam(team));
-  const lpAdminTeams = planner2Teams.filter(isPlanner2LpAdminTeam);
-  regularTeams.forEach(appendTeamItem);
+  const activeTeams = planner2Teams.filter((team) => !isPlanner2TeamOnLeave(team));
+  const leaveTeams = planner2Teams.filter(isPlanner2TeamOnLeave);
+  const regularTeams = activeTeams.filter((team) => !isPlanner2ExternalTeam(team) && !isPlanner2LpAdminTeam(team));
+  const externalTeams = activeTeams.filter((team) => isPlanner2ExternalTeam(team) && !isPlanner2LpAdminTeam(team));
+  const lpAdminTeams = activeTeams.filter(isPlanner2LpAdminTeam);
   const appendSeparator = () => {
     const separator = document.createElement('div');
     separator.className = 'planner2-team-separator';
     dropdown.appendChild(separator);
   };
-  if (regularTeams.length && externalTeams.length) {
-    appendSeparator();
-  }
-  externalTeams.forEach(appendTeamItem);
-  if ((regularTeams.length || externalTeams.length) && lpAdminTeams.length) {
-    appendSeparator();
-  }
-  lpAdminTeams.forEach(appendTeamItem);
+  const appendGroup = (title, teams) => {
+    if (!teams.length) return;
+    if (dropdown.children.length) appendSeparator();
+    appendGroupTitle(title);
+    teams.forEach(appendTeamItem);
+  };
+  appendGroup('Internas', regularTeams);
+  appendGroup('Externas', externalTeams);
+  appendGroup('Coordenação', lpAdminTeams);
+  appendGroup('Folgas', leaveTeams);
   dropdown.style.visibility = 'hidden';
   document.body.appendChild(dropdown);
   const viewportPadding = 8;

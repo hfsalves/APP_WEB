@@ -79,6 +79,14 @@
 </div>
 
 <div id="itemMenu" class="sz_panel nd-floating-menu nd-item-menu" style="position:fixed; display:none; z-index:1056;">
+  <button type="button" class="sz_button sz_button_secondary nd-menu-action" id="actionValueND">
+    <i class="fa-solid fa-euro-sign"></i>
+    <span>Valor a pagar</span>
+  </button>
+  <button type="button" class="sz_button sz_button_secondary nd-menu-action" id="actionObsND">
+    <i class="fa-regular fa-note-sticky"></i>
+    <span>Observa&ccedil;&otilde;es</span>
+  </button>
   <button type="button" class="sz_button sz_button_danger nd-menu-action" id="actionDeleteND">
     <i class="fa-solid fa-trash-can"></i>
     <span>Apagar</span>
@@ -233,7 +241,35 @@
   }
 
   .nd-calendar-table .day-number {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-1);
     margin-bottom: var(--sz-space-1);
+  }
+
+  .nd-day-value {
+    flex: 0 0 auto;
+  }
+
+  .nd-cleaning-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.24rem;
+    min-width: 0;
+    padding: 0.08rem 0.36rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
+    color: var(--sz-color-primary);
+    font-size: 0.68rem;
+    font-weight: var(--sz-font-weight-bold);
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .nd-cleaning-count i {
+    font-size: 0.62rem;
   }
 
   .nd-list {
@@ -300,6 +336,47 @@
     text-overflow: ellipsis;
   }
 
+  .nd-badge-markers {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.18rem;
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+
+  .nd-badge-marker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.26);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+    font-size: 0.62rem;
+  }
+
+  .nd-badge-marker i {
+    width: auto;
+    font-size: inherit;
+  }
+
+  .nd-detail-tooltip {
+    position: fixed;
+    z-index: 1080;
+    max-width: min(320px, calc(100vw - 24px));
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+    box-shadow: var(--sz-shadow-3);
+    font-size: var(--sz-font-size-xs);
+    line-height: 1.35;
+    white-space: pre-line;
+    pointer-events: none;
+  }
+
   .nd-floating-menu {
     min-width: 220px;
     max-width: 300px;
@@ -355,11 +432,17 @@
   }
 
   .nd-item-menu {
-    min-width: 170px;
+    min-width: 190px;
   }
 
   .nd-menu-action {
     width: 100%;
+    justify-content: flex-start;
+    margin-bottom: 0.25rem;
+  }
+
+  .nd-menu-action:last-child {
+    margin-bottom: 0;
   }
 
   .nd-bootstrap-modal {
@@ -460,6 +543,8 @@
   currentBase = new Date(currentBase.getFullYear(), currentBase.getMonth(), 1);
   let usersCache = [];
   let ndByDate = {};
+  let cleaningsByDate = {};
+  let ndLoadSeq = 0;
 
   function escapeHtml(value){
     return String(value == null ? '' : value)
@@ -487,21 +572,27 @@
   }
 
   async function loadMonth(){
+    const loadSeq = ++ndLoadSeq;
+    const loadBase = new Date(currentBase.getFullYear(), currentBase.getMonth(), 1);
     setStatus('A carregar calend\u00e1rio...');
     try{
-      const ini = ymd(firstOfMonth(currentBase));
-      const fim = ymd(lastOfMonth(currentBase));
-      const res = await fetch(`/api/nd?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
+      const ini = ymd(firstOfMonth(loadBase));
+      const fim = ymd(lastOfMonth(loadBase));
+      const res = await fetch(`/api/nd?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}&_=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
+      if(loadSeq !== ndLoadSeq) return;
       if(!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar');
       const rows = (data && data.rows) || [];
       ndByDate = {};
       for(const r of rows){ (ndByDate[r.data] ||= []).push(r); }
+      cleaningsByDate = (data && data.limpezas) || {};
       renderMonth();
       setStatus(`${rows.length} registos carregados.`);
     }catch(e){
+      if(loadSeq !== ndLoadSeq) return;
       console.warn('Falha ao carregar ND:', e);
       ndByDate = {};
+      cleaningsByDate = {};
       renderMonth();
       setStatus(e.message || 'Falha ao carregar calend\u00e1rio.', true);
     }
@@ -575,6 +666,33 @@
     ].join(';');
   }
 
+  function formatNdMoney(value){
+    const amount = Number(value || 0);
+    if(!Number.isFinite(amount) || Math.abs(amount) < 0.005) return '';
+    return amount.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function normalizeNdMoneyInput(value){
+    const cleaned = String(value == null ? '' : value).trim();
+    if(!cleaned) return '';
+    const compact = cleaned.replace(/\s/g, '');
+    const normalized = compact.includes(',')
+      ? compact.replace(/\./g, '').replace(',', '.')
+      : compact;
+    const amount = Number(normalized);
+    return Number.isFinite(amount) ? amount.toFixed(2) : null;
+  }
+
+  function findNdById(id){
+    const target = String(id || '');
+    if(!target) return null;
+    for(const rows of Object.values(ndByDate)){
+      const found = (rows || []).find(item => String(item.id || '') === target);
+      if(found) return found;
+    }
+    return null;
+  }
+
   function ndBadge(rec){
     const bg = userColor(rec.cor);
     const id = rec.id ? String(rec.id) : '';
@@ -582,7 +700,15 @@
     const isFerias = tipo === 'FERIAS';
     const icon = isFerias ? 'fa-umbrella-beach' : 'fa-house';
     const title = isFerias ? 'F\u00e9rias' : 'Folga';
-    return `<span class="nd-badge nd-item" draggable="true" data-id="${escapeHtml(id)}" style="${escapeHtml(ndBadgeStyle(bg))}" title="${title}"><i class="fa-solid ${icon}"></i><span class="nd-badge-name">${escapeHtml(rec.nome)}</span></span>`;
+    const money = formatNdMoney(rec.valor);
+    const obs = String(rec.obs || '').trim();
+    const markers = [
+      money ? '<span class="nd-badge-marker" aria-label="Tem valor a pagar"><i class="fa-solid fa-euro-sign"></i></span>' : '',
+      obs ? '<span class="nd-badge-marker" aria-label="Tem observações"><i class="fa-regular fa-note-sticky"></i></span>' : ''
+    ].filter(Boolean).join('');
+    const titleParts = [title, money ? `Valor: ${money}` : '', obs ? `Obs: ${obs}` : ''].filter(Boolean);
+    const tooltip = [money ? `Valor a pagar: ${money}` : '', obs ? `Observações: ${obs}` : ''].filter(Boolean).join('\n');
+    return `<span class="nd-badge nd-item" draggable="true" data-id="${escapeHtml(id)}" style="${escapeHtml(ndBadgeStyle(bg))}" title="${escapeHtml(titleParts.join(' | '))}"${tooltip ? ` data-detail-tooltip="${escapeHtml(tooltip)}"` : ''}><i class="fa-solid ${icon}"></i><span class="nd-badge-name">${escapeHtml(rec.nome)}</span>${markers ? `<span class="nd-badge-markers">${markers}</span>` : ''}</span>`;
   }
 
   function updateSummary(rowsCount){
@@ -616,12 +742,16 @@
         if(!cell){ html += '<td class="empty"></td>'; continue; }
         const key = ymd(cell);
         const items = ndByDate[key] || [];
+        const cleaningCount = Number(cleaningsByDate[key] || 0);
+        const cleaningBadge = cleaningCount > 0
+          ? `<span class="nd-cleaning-count" title="${cleaningCount} limpezas"><i class="fa-solid fa-broom"></i>${cleaningCount}</span>`
+          : '';
         visibleRows += items.length;
         const isToday = (new Date().toDateString() === cell.toDateString());
         const wdIdx = (cell.getDay()+6)%7;
         const weekendCls = (wdIdx>=5) ? (' weekend ' + (wdIdx===5?'sat':'sun')) : '';
         html += `<td class="day-cell ${isToday?'today':''}${weekendCls}" data-date="${key}">
-                   <div class="day-number">${cell.getDate()}</div>
+                   <div class="day-number"><span class="nd-day-value">${cell.getDate()}</span>${cleaningBadge}</div>
                    <div class="nd-list">${items.map(ndBadge).join('')}</div>
                  </td>`;
       }
@@ -633,6 +763,34 @@
 
   function hideMenu(){ const m=document.getElementById('userMenu'); if(m){ m.style.display='none'; m.dataset.date=''; } }
   function hideItemMenu(){ const m=document.getElementById('itemMenu'); if(m){ m.style.display='none'; m.dataset.id=''; } }
+
+  function hideNdDetailTooltip(){
+    const tooltip = document.getElementById('ndDetailTooltip');
+    if(tooltip) tooltip.remove();
+  }
+
+  function showNdDetailTooltip(el){
+    const text = el ? String(el.dataset.detailTooltip || '').trim() : '';
+    hideNdDetailTooltip();
+    if(!text) return;
+    const tooltip = document.createElement('div');
+    tooltip.id = 'ndDetailTooltip';
+    tooltip.className = 'nd-detail-tooltip';
+    tooltip.textContent = text;
+    document.body.appendChild(tooltip);
+    const rect = el.getBoundingClientRect();
+    const gap = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const tw = tooltip.offsetWidth || 240;
+    const th = tooltip.offsetHeight || 48;
+    let left = Math.round(rect.left);
+    let top = Math.round(rect.bottom + gap);
+    if(left + tw > vw - gap) left = Math.max(gap, vw - tw - gap);
+    if(top + th > vh - gap) top = Math.max(gap, rect.top - th - gap);
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  }
 
   async function openMenuForCell(td){
     const menu = document.getElementById('userMenu');
@@ -683,6 +841,23 @@
     if(!(data && data.ok)) throw new Error((data && data.error) ? data.error : 'Erro ao mover');
   }
 
+  async function updateNDDetails(id, values){
+    const res = await fetch('/api/nd/update', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ id, ...values })
+    });
+    const data = await res.json();
+    if(!(data && data.ok)) throw new Error((data && data.error) ? data.error : 'Erro ao gravar');
+    const rec = findNdById(id);
+    if(rec){
+      if(Object.prototype.hasOwnProperty.call(values, 'valor')) rec.valor = data.valor ?? values.valor ?? 0;
+      if(Object.prototype.hasOwnProperty.call(values, 'obs')) rec.obs = data.obs ?? values.obs ?? '';
+    }
+    renderMonth();
+    setStatus('Registo atualizado.');
+  }
+
   async function openFeriasModal(){
     try{
       const users = await loadUsers();
@@ -718,15 +893,35 @@
     if(cal) cal.addEventListener('click', (ev)=>{
       ev.stopPropagation();
       const badge = ev.target.closest('.nd-item[draggable="true"][data-id]');
-      if(badge){ hideMenu(); openItemMenuForBadge(badge); return; }
+      if(badge){ hideNdDetailTooltip(); hideMenu(); openItemMenuForBadge(badge); return; }
       const td = ev.target.closest('td.day-cell');
       if(!td) return;
+      hideNdDetailTooltip();
       hideItemMenu();
       openMenuForCell(td);
+    });
+    if(cal) cal.addEventListener('mouseover', (ev)=>{
+      const badge = ev.target.closest('.nd-item[data-detail-tooltip]');
+      if(badge && cal.contains(badge)) showNdDetailTooltip(badge);
+    });
+    if(cal) cal.addEventListener('mouseout', (ev)=>{
+      const badge = ev.target.closest('.nd-item[data-detail-tooltip]');
+      if(!badge) return;
+      const next = ev.relatedTarget;
+      if(next && badge.contains(next)) return;
+      hideNdDetailTooltip();
+    });
+    if(cal) cal.addEventListener('focusin', (ev)=>{
+      const badge = ev.target.closest('.nd-item[data-detail-tooltip]');
+      if(badge) showNdDetailTooltip(badge);
+    });
+    if(cal) cal.addEventListener('focusout', (ev)=>{
+      if(ev.target.closest('.nd-item[data-detail-tooltip]')) hideNdDetailTooltip();
     });
     if(cal) cal.addEventListener('dragover', (ev)=>{ if(ev.target.closest('.day-cell')){ ev.preventDefault(); } });
     if(cal) cal.addEventListener('drop', async (ev)=>{
       ev.preventDefault();
+      hideNdDetailTooltip();
       const td = ev.target.closest('.day-cell');
       if(!td) return;
       const id = ev.dataTransfer.getData('text/nd-id');
@@ -755,6 +950,7 @@
     document.addEventListener('dragstart', (ev)=>{
       const it = ev.target.closest('.nd-item[draggable="true"][data-id]');
       if(!it) return;
+      hideNdDetailTooltip();
       const td = it.closest('.day-cell');
       const id = it.getAttribute('data-id');
       const from = td ? (td.getAttribute('data-date')||'') : '';
@@ -779,6 +975,39 @@
     });
 
     const delBtn = document.getElementById('actionDeleteND');
+    const valueBtn = document.getElementById('actionValueND');
+    const obsBtn = document.getElementById('actionObsND');
+    if(valueBtn) valueBtn.addEventListener('click', async ()=>{
+      const im = document.getElementById('itemMenu');
+      const id = im.dataset.id || '';
+      const rec = findNdById(id);
+      hideItemMenu();
+      if(!id || !rec) return;
+      const currentValue = formatNdMoney(rec.valor);
+      const raw = prompt('Valor a pagar', currentValue);
+      if(raw === null) return;
+      const valor = normalizeNdMoneyInput(raw);
+      if(valor === null){ alert('Valor inválido.'); return; }
+      try{
+        await updateNDDetails(id, { valor });
+      }catch(e){
+        alert(e.message||'Erro ao gravar valor');
+      }
+    });
+    if(obsBtn) obsBtn.addEventListener('click', async ()=>{
+      const im = document.getElementById('itemMenu');
+      const id = im.dataset.id || '';
+      const rec = findNdById(id);
+      hideItemMenu();
+      if(!id || !rec) return;
+      const raw = prompt('Observações', String(rec.obs || ''));
+      if(raw === null) return;
+      try{
+        await updateNDDetails(id, { obs: raw });
+      }catch(e){
+        alert(e.message||'Erro ao gravar observações');
+      }
+    });
     if(delBtn) delBtn.addEventListener('click', async ()=>{
       const im = document.getElementById('itemMenu');
       const id = im.dataset.id || '';

@@ -23672,6 +23672,490 @@ def create_app():
             app.logger.exception('Erro ao preparar Dashboard Links.')
         return redirect(url_for('generic.view_table', table_name='DBW'))
 
+    def _faturacao_anual_rows(ano: int):
+        estimativas_vazias = _faturacao_anual_estimativas_mensais(ano)
+        sql = text("""
+            WITH Meses AS (
+                SELECT *
+                FROM (VALUES
+                    (1), (2), (3), (4), (5), (6),
+                    (7), (8), (9), (10), (11), (12)
+                ) AS M(NMES)
+            ),
+            Base AS (
+                SELECT
+                    MONTH(DATA) AS NMES,
+                    EXPLORACAO = SUM(
+                        CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(TIPO,'')))) <> 'GESTAO'
+                             THEN ISNULL(VALOR,0) ELSE 0 END
+                    ),
+                    GESTAO = SUM(
+                        CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(TIPO,'')))) = 'GESTAO'
+                             THEN ISNULL(VALOR,0) ELSE 0 END
+                    ),
+                    TOTAL = SUM(ISNULL(VALOR,0))
+                FROM dbo.v_diario_v2
+                WHERE YEAR(DATA) = :ano
+                  AND ISNULL(VALOR,0) <> 0
+                  AND ISNULL(OBS,'') <> 'CANCELADA'
+                GROUP BY MONTH(DATA)
+            )
+            SELECT
+                m.NMES,
+                dbo.NOMEMESPT(m.NMES) AS MES,
+                ISNULL(b.EXPLORACAO, 0) AS EXPLORACAO,
+                ISNULL(b.GESTAO, 0) AS GESTAO,
+                ISNULL(b.TOTAL, 0) AS TOTAL
+            FROM Meses m
+            LEFT JOIN Base b ON b.NMES = m.NMES
+            ORDER BY m.NMES
+        """)
+        rows = db.session.execute(sql, {'ano': ano}).mappings().all()
+        out = []
+        totals = {'EXPLORACAO': 0.0, 'GESTAO': 0.0, 'TOTAL': 0.0, 'ESTIMATIVA': 0.0}
+        for row in rows:
+            nmes = int(row.get('NMES') or 0)
+            total_real = float(row.get('TOTAL') or 0)
+            estimativa_vazias = float(estimativas_vazias.get(nmes, 0.0) or 0.0)
+            item = {
+                'NMES': nmes,
+                'MES': str(row.get('MES') or '').strip(),
+                'EXPLORACAO': float(row.get('EXPLORACAO') or 0),
+                'GESTAO': float(row.get('GESTAO') or 0),
+                'TOTAL': total_real,
+                'ESTIMATIVA': total_real + estimativa_vazias,
+            }
+            totals['EXPLORACAO'] += item['EXPLORACAO']
+            totals['GESTAO'] += item['GESTAO']
+            totals['TOTAL'] += item['TOTAL']
+            totals['ESTIMATIVA'] += item['ESTIMATIVA']
+            out.append(item)
+        return out, totals
+
+    def _faturacao_anual_estimativas_mensais(ano: int):
+        try:
+            current_month_start = date(date.today().year, date.today().month, 1)
+            if date(ano, 12, 1) < current_month_start:
+                return {}
+        except Exception:
+            return {}
+
+        aloj_rows = db.session.execute(text("""
+            SELECT
+                LTRIM(RTRIM(ISNULL(AL.NOME, ''))) AS ALOJAMENTO,
+                LTRIM(RTRIM(ISNULL(AL.NOMETG, ''))) AS ALOJAMENTO_ALT,
+                CASE
+                    WHEN UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) = 'GESTAO' THEN 'GESTAO'
+                    ELSE 'EXPLORACAO'
+                END AS TIPO,
+                CASE WHEN ISNULL(AL.NOITES, 0) > 0 THEN ISNULL(AL.NOITES, 0) ELSE 1 END AS MIN_NOITES
+            FROM dbo.AL AL
+            WHERE ISNULL(AL.INATIVO, 0) = 0
+              AND ISNULL(AL.FECHADO, 0) = 0
+              AND NOT (
+                    UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) = 'GESTAO'
+                AND ISNULL(AL.COMISSAO, 0) = 0
+              )
+              AND LTRIM(RTRIM(ISNULL(AL.NOME, ''))) <> ''
+        """)).mappings().all()
+        alojamentos = []
+        aloj_by_name = {}
+        for row in aloj_rows:
+            nome = str(row.get('ALOJAMENTO') or '').strip()
+            if not nome:
+                continue
+            item = {
+                'nome': nome,
+                'tipo': str(row.get('TIPO') or '').strip().upper() or 'EXPLORACAO',
+                'min_noites': max(1, int(row.get('MIN_NOITES') or 1)),
+            }
+            alojamentos.append(item)
+            aloj_by_name[nome.upper()] = item
+            alt = str(row.get('ALOJAMENTO_ALT') or '').strip()
+            if alt:
+                aloj_by_name[alt.upper()] = item
+
+        if not alojamentos:
+            return {}
+
+        sold_rows = db.session.execute(text("""
+            SELECT
+                CAST(V.DATA AS date) AS DIA,
+                LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))) AS CCUSTO,
+                CASE
+                    WHEN UPPER(LTRIM(RTRIM(ISNULL(V.TIPO,'')))) = 'GESTAO' THEN 'GESTAO'
+                    ELSE 'EXPLORACAO'
+                END AS TIPO,
+                ISNULL(V.VALOR, 0) AS VALOR
+            FROM dbo.v_diario_v2 V
+            WHERE YEAR(V.DATA) = :ano
+              AND ISNULL(V.VALOR,0) <> 0
+              AND ISNULL(V.OBS,'') <> 'CANCELADA'
+        """), {'ano': ano}).mappings().all()
+
+        prev_rows = db.session.execute(text("""
+            SELECT
+                CASE
+                    WHEN UPPER(LTRIM(RTRIM(ISNULL(PV.TIPO,'')))) = 'GESTAO' THEN 'GESTAO'
+                    ELSE 'EXPLORACAO'
+                END AS TIPO,
+                SUM(ISNULL(PV.VALOR,0)) / NULLIF(COUNT(*), 0) AS ADR
+            FROM dbo.v_diario_v2 PV
+            WHERE YEAR(PV.DATA) = :ano_anterior
+              AND ISNULL(PV.VALOR,0) <> 0
+              AND ISNULL(PV.OBS,'') <> 'CANCELADA'
+            GROUP BY CASE
+                WHEN UPPER(LTRIM(RTRIM(ISNULL(PV.TIPO,'')))) = 'GESTAO' THEN 'GESTAO'
+                ELSE 'EXPLORACAO'
+            END
+        """), {'ano_anterior': ano - 1}).mappings().all()
+        prev_adr = {
+            str(row.get('TIPO') or '').strip().upper(): float(row.get('ADR') or 0)
+            for row in prev_rows
+        }
+
+        sold = {}
+        type_month = {}
+        occupied = {}
+        for row in sold_rows:
+            dia = row.get('DIA')
+            if not dia:
+                continue
+            ccusto = str(row.get('CCUSTO') or '').strip()
+            aloj = aloj_by_name.get(ccusto.upper())
+            tipo = aloj['tipo'] if aloj else str(row.get('TIPO') or '').strip().upper()
+            if tipo not in {'GESTAO', 'EXPLORACAO'}:
+                tipo = 'EXPLORACAO'
+            nome = aloj['nome'] if aloj else ccusto
+            if not nome:
+                continue
+            mes = int(dia.month)
+            valor = float(row.get('VALOR') or 0)
+            key = (mes, tipo, nome)
+            agg = sold.setdefault(key, {'noites': 0, 'total': 0.0})
+            agg['noites'] += 1
+            agg['total'] += valor
+            tkey = (mes, tipo)
+            tagg = type_month.setdefault(tkey, {'noites': 0, 'total': 0.0})
+            tagg['noites'] += 1
+            tagg['total'] += valor
+            occupied.setdefault((mes, nome), set()).add(dia)
+
+        type_month_adr = {
+            key: (val['total'] / val['noites']) if val['noites'] else 0.0
+            for key, val in type_month.items()
+        }
+
+        estimates = {}
+        for mes in range(1, 13):
+            try:
+                month_start = date(ano, mes, 1)
+                month_end = date(ano + 1, 1, 1) if mes == 12 else date(ano, mes + 1, 1)
+            except Exception:
+                continue
+            if month_start < current_month_start:
+                continue
+            start = max(month_start, date.today()) if month_start == current_month_start else month_start
+            if start >= month_end:
+                continue
+            total_est = 0.0
+            days_count = (month_end - start).days
+            month_days = [start + timedelta(days=idx) for idx in range(days_count)]
+            for aloj in alojamentos:
+                occ = occupied.get((mes, aloj['nome']), set())
+                run = 0
+                disponiveis = 0
+                for dia in month_days:
+                    if dia in occ:
+                        if run >= aloj['min_noites']:
+                            disponiveis += run
+                        run = 0
+                    else:
+                        run += 1
+                if run >= aloj['min_noites']:
+                    disponiveis += run
+                if disponiveis <= 0:
+                    continue
+                skey = (mes, aloj['tipo'], aloj['nome'])
+                sagg = sold.get(skey)
+                if sagg and sagg['noites']:
+                    preco = sagg['total'] / sagg['noites']
+                else:
+                    preco = type_month_adr.get((mes, aloj['tipo'])) or prev_adr.get(aloj['tipo']) or 0.0
+                total_est += disponiveis * preco * 0.75
+            estimates[mes] = total_est
+        return estimates
+
+    def _faturacao_anual_years():
+        rows = db.session.execute(text("""
+            SELECT DISTINCT YEAR(DATA) AS ANO
+            FROM dbo.v_diario_v2
+            WHERE DATA IS NOT NULL
+            ORDER BY YEAR(DATA) DESC
+        """)).fetchall()
+        return [int(r[0]) for r in rows if r and r[0] is not None]
+
+    def _faturacao_anual_detail_rows(ano: int, mes: int, tipo: str):
+        tipo_norm = str(tipo or '').strip().upper()
+        if tipo_norm not in {'GESTAO', 'EXPLORACAO'}:
+            return [], {'NOITES': 0, 'DISPONIVEIS': 0, 'TOTAL': 0.0, 'ADR': 0.0, 'ESTIMATIVA_PRECO': 0.0, 'ESTIMATIVA_VAZIAS': 0.0, 'TOTAL_GERAL': 0.0}, False
+        tipo_filter_v = (
+            "UPPER(LTRIM(RTRIM(ISNULL(V.TIPO,'')))) = 'GESTAO'"
+            if tipo_norm == 'GESTAO'
+            else "UPPER(LTRIM(RTRIM(ISNULL(V.TIPO,'')))) <> 'GESTAO'"
+        )
+        tipo_filter_pv = (
+            "UPPER(LTRIM(RTRIM(ISNULL(PV.TIPO,'')))) = 'GESTAO'"
+            if tipo_norm == 'GESTAO'
+            else "UPPER(LTRIM(RTRIM(ISNULL(PV.TIPO,'')))) <> 'GESTAO'"
+        )
+        tipo_filter_al = (
+            "UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) = 'GESTAO'"
+            if tipo_norm == 'GESTAO'
+            else "UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) <> 'GESTAO'"
+        )
+
+        try:
+            month_start = date(ano, mes, 1)
+            month_end = date(ano + 1, 1, 1) if mes == 12 else date(ano, mes + 1, 1)
+        except Exception:
+            return [], {'NOITES': 0, 'DISPONIVEIS': 0, 'TOTAL': 0.0, 'ADR': 0.0}, False
+        current_month_start = date(date.today().year, date.today().month, 1)
+        show_disponiveis = month_start >= current_month_start
+        avail_start = max(month_start, date.today()) if show_disponiveis else month_start
+
+        sql = text(f"""
+            WITH Aloj AS (
+                SELECT
+                    LTRIM(RTRIM(ISNULL(AL.NOME, ''))) AS ALOJAMENTO,
+                    LTRIM(RTRIM(ISNULL(AL.NOMETG, ''))) AS ALOJAMENTO_ALT,
+                    CASE WHEN ISNULL(AL.NOITES, 0) > 0 THEN ISNULL(AL.NOITES, 0) ELSE 1 END AS MIN_NOITES
+                FROM dbo.AL AL
+                WHERE ISNULL(AL.INATIVO, 0) = 0
+                  AND ISNULL(AL.FECHADO, 0) = 0
+                  AND NOT (
+                        UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) = 'GESTAO'
+                    AND ISNULL(AL.COMISSAO, 0) = 0
+                  )
+                  AND LTRIM(RTRIM(ISNULL(AL.NOME, ''))) <> ''
+                  AND {tipo_filter_al}
+            ),
+            Sold AS (
+                SELECT
+                    COALESCE(A.ALOJAMENTO, LTRIM(RTRIM(ISNULL(V.CCUSTO, '')))) AS ALOJAMENTO,
+                    COUNT(*) AS NOITES,
+                    SUM(ISNULL(V.VALOR,0)) AS TOTAL,
+                    SUM(ISNULL(V.VALOR,0)) / NULLIF(COUNT(*), 0) AS ADR
+                FROM dbo.v_diario_v2 V
+                LEFT JOIN Aloj A
+                  ON LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))) = A.ALOJAMENTO
+                  OR LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))) = A.ALOJAMENTO_ALT
+                WHERE YEAR(V.DATA) = :ano
+                  AND MONTH(V.DATA) = :mes
+                  AND ISNULL(V.VALOR,0) <> 0
+                  AND ISNULL(V.OBS,'') <> 'CANCELADA'
+                  AND {tipo_filter_v}
+                GROUP BY COALESCE(A.ALOJAMENTO, LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))))
+            ),
+            TipoMedia AS (
+                SELECT
+                    SUM(TOTAL) / NULLIF(SUM(NOITES), 0) AS ADR_TIPO
+                FROM Sold
+            ),
+            TipoMediaAnoAnterior AS (
+                SELECT
+                    SUM(ISNULL(PV.VALOR,0)) / NULLIF(COUNT(*), 0) AS ADR_TIPO_ANTERIOR
+                FROM dbo.v_diario_v2 PV
+                WHERE YEAR(PV.DATA) = :ano_anterior
+                  AND ISNULL(PV.VALOR,0) <> 0
+                  AND ISNULL(PV.OBS,'') <> 'CANCELADA'
+                  AND {tipo_filter_pv}
+            ),
+            Cal AS (
+                SELECT CAST(:avail_start AS date) AS DIA
+                WHERE :show_disponiveis = 1 AND CAST(:avail_start AS date) < CAST(:month_end AS date)
+                UNION ALL
+                SELECT DATEADD(day, 1, DIA)
+                FROM Cal
+                WHERE DATEADD(day, 1, DIA) < CAST(:month_end AS date)
+            ),
+            Occ AS (
+                SELECT DISTINCT
+                    A.ALOJAMENTO,
+                    CAST(V.DATA AS date) AS DIA
+                FROM Aloj A
+                JOIN dbo.v_diario_v2 V
+                  ON (
+                       LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))) = A.ALOJAMENTO
+                    OR LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))) = A.ALOJAMENTO_ALT
+                  )
+                 AND V.DATA >= :avail_start
+                 AND V.DATA < :month_end
+                 AND ISNULL(V.VALOR, 0) <> 0
+                 AND ISNULL(V.OBS, '') <> 'CANCELADA'
+            ),
+            FreeDays AS (
+                SELECT
+                    A.ALOJAMENTO,
+                    A.MIN_NOITES,
+                    C.DIA,
+                    DATEADD(
+                        day,
+                        -ROW_NUMBER() OVER (PARTITION BY A.ALOJAMENTO ORDER BY C.DIA),
+                        C.DIA
+                    ) AS GRP
+                FROM Aloj A
+                CROSS JOIN Cal C
+                LEFT JOIN Occ O
+                  ON O.ALOJAMENTO = A.ALOJAMENTO
+                 AND O.DIA = C.DIA
+                WHERE O.ALOJAMENTO IS NULL
+            ),
+            FreeRuns AS (
+                SELECT
+                    ALOJAMENTO,
+                    MIN(MIN_NOITES) AS MIN_NOITES,
+                    COUNT(*) AS RUN_NOITES
+                FROM FreeDays
+                GROUP BY ALOJAMENTO, GRP
+            ),
+            Disponiveis AS (
+                SELECT
+                    ALOJAMENTO,
+                    SUM(CASE WHEN RUN_NOITES >= MIN_NOITES THEN RUN_NOITES ELSE 0 END) AS DISPONIVEIS
+                FROM FreeRuns
+                GROUP BY ALOJAMENTO
+            ),
+            RowKeys AS (
+                SELECT ALOJAMENTO FROM Sold
+                UNION
+                SELECT ALOJAMENTO FROM Aloj
+            )
+            SELECT
+                R.ALOJAMENTO,
+                ISNULL(S.NOITES, 0) AS NOITES,
+                ISNULL(D.DISPONIVEIS, 0) AS DISPONIVEIS,
+                ISNULL(S.TOTAL, 0) AS TOTAL,
+                CASE WHEN ISNULL(S.NOITES, 0) > 0 THEN ISNULL(S.ADR, 0) ELSE 0 END AS ADR,
+                CASE
+                    WHEN ISNULL(S.NOITES, 0) > 0 THEN ISNULL(S.ADR, 0)
+                    ELSE COALESCE(TM.ADR_TIPO, TMA.ADR_TIPO_ANTERIOR, 0)
+                END AS ESTIMATIVA_PRECO,
+                ISNULL(D.DISPONIVEIS, 0)
+                * (
+                    CASE
+                        WHEN ISNULL(S.NOITES, 0) > 0 THEN ISNULL(S.ADR, 0)
+                        ELSE COALESCE(TM.ADR_TIPO, TMA.ADR_TIPO_ANTERIOR, 0)
+                    END
+                  )
+                * 0.75 AS ESTIMATIVA_VAZIAS,
+                ISNULL(S.TOTAL, 0)
+                + (
+                    ISNULL(D.DISPONIVEIS, 0)
+                    * (
+                        CASE
+                            WHEN ISNULL(S.NOITES, 0) > 0 THEN ISNULL(S.ADR, 0)
+                            ELSE COALESCE(TM.ADR_TIPO, TMA.ADR_TIPO_ANTERIOR, 0)
+                        END
+                      )
+                    * 0.75
+                  ) AS TOTAL_GERAL
+            FROM RowKeys R
+            LEFT JOIN Sold S ON S.ALOJAMENTO = R.ALOJAMENTO
+            LEFT JOIN Disponiveis D ON D.ALOJAMENTO = R.ALOJAMENTO
+            CROSS JOIN TipoMedia TM
+            CROSS JOIN TipoMediaAnoAnterior TMA
+            ORDER BY ISNULL(S.TOTAL,0) DESC, ISNULL(D.DISPONIVEIS,0) DESC, R.ALOJAMENTO
+            OPTION (MAXRECURSION 400)
+        """)
+        rows = db.session.execute(sql, {
+            'ano': ano,
+            'ano_anterior': ano - 1,
+            'mes': mes,
+            'avail_start': avail_start,
+            'month_end': month_end,
+            'show_disponiveis': 1 if show_disponiveis else 0,
+        }).mappings().all()
+        out = []
+        totals = {
+            'NOITES': 0,
+            'DISPONIVEIS': 0,
+            'TOTAL': 0.0,
+            'ADR': 0.0,
+            'ESTIMATIVA_PRECO': 0.0,
+            'ESTIMATIVA_VAZIAS': 0.0,
+            'TOTAL_GERAL': 0.0,
+        }
+        estimativa_sum = 0.0
+        estimativa_count = 0
+        for row in rows:
+            item = {
+                'ALOJAMENTO': str(row.get('ALOJAMENTO') or '').strip(),
+                'NOITES': int(row.get('NOITES') or 0),
+                'DISPONIVEIS': int(row.get('DISPONIVEIS') or 0),
+                'ADR': float(row.get('ADR') or 0),
+                'ESTIMATIVA_PRECO': float(row.get('ESTIMATIVA_PRECO') or 0),
+                'ESTIMATIVA_VAZIAS': float(row.get('ESTIMATIVA_VAZIAS') or 0),
+                'TOTAL_GERAL': float(row.get('TOTAL_GERAL') or 0),
+                'TOTAL': float(row.get('TOTAL') or 0),
+            }
+            totals['NOITES'] += item['NOITES']
+            totals['DISPONIVEIS'] += item['DISPONIVEIS']
+            totals['TOTAL'] += item['TOTAL']
+            totals['ESTIMATIVA_VAZIAS'] += item['ESTIMATIVA_VAZIAS']
+            totals['TOTAL_GERAL'] += item['TOTAL_GERAL']
+            if item['ESTIMATIVA_PRECO'] > 0:
+                estimativa_sum += item['ESTIMATIVA_PRECO']
+                estimativa_count += 1
+            out.append(item)
+        totals['ADR'] = (totals['TOTAL'] / totals['NOITES']) if totals['NOITES'] else 0.0
+        totals['ESTIMATIVA_PRECO'] = (estimativa_sum / estimativa_count) if estimativa_count else 0.0
+        return out, totals, show_disponiveis
+
+    @app.route('/indicadores/faturacao-anual')
+    @login_required
+    def indicador_faturacao_anual_page():
+        anos = _faturacao_anual_years()
+        current_year = date.today().year
+        try:
+            ano = int(request.args.get('ano') or current_year)
+        except Exception:
+            ano = current_year
+        if ano not in anos:
+            anos = sorted(set(anos + [ano]), reverse=True)
+        rows, totals = _faturacao_anual_rows(ano)
+        return render_template(
+            'indicador_faturacao_anual.html',
+            page_title='Faturação Anual',
+            ano=ano,
+            anos=anos,
+            rows=rows,
+            totals=totals,
+        )
+
+    @app.route('/api/indicadores/faturacao-anual/detalhe')
+    @login_required
+    def api_indicador_faturacao_anual_detalhe():
+        try:
+            ano = int(request.args.get('ano') or date.today().year)
+            mes = int(request.args.get('mes') or 0)
+        except Exception:
+            return jsonify({'error': 'Parâmetros inválidos'}), 400
+        tipo = str(request.args.get('tipo') or '').strip().upper()
+        if mes < 1 or mes > 12 or tipo not in {'GESTAO', 'EXPLORACAO'}:
+            return jsonify({'error': 'Parâmetros inválidos'}), 400
+        rows, totals, show_disponiveis = _faturacao_anual_detail_rows(ano, mes, tipo)
+        mes_nome = str(db.session.execute(text("SELECT dbo.NOMEMESPT(:mes)"), {'mes': mes}).scalar() or '').strip()
+        return jsonify({
+            'ano': ano,
+            'mes': mes,
+            'mes_nome': mes_nome,
+            'tipo': tipo,
+            'show_disponiveis': show_disponiveis,
+            'rows': rows,
+            'totals': totals,
+        })
+
     @app.route('/api/dashboard')
     @login_required
     def api_dashboard_widgets():
@@ -23707,6 +24191,7 @@ def create_app():
                 'titulo': widg.TITULO,
                 'tipo': widg.TIPO,
                 'fonte': widg.FONTE,
+                'url': getattr(widg, 'URL', '') or '',
                 'config': widg.CONFIG,
                 'filtros': getattr(widg, 'FILTROS', '') or '',
                 'coluna': coluna,
@@ -28687,7 +29172,15 @@ OPTION (MAXRECURSION 32767);
                     return jsonify({'error': 'Parâmetros de datas inválidos'}), 400
                 sql = text(
                     """
-                    SELECT N.NDSTAMP, N.DATA, N.TIPO, N.UTILIZADOR, U.NOME, U.COR
+                    SELECT
+                        N.NDSTAMP,
+                        N.DATA,
+                        N.TIPO,
+                        N.UTILIZADOR,
+                        U.NOME,
+                        U.COR,
+                        ISNULL(N.VALOR, 0) AS VALOR,
+                        ISNULL(N.OBS, '') AS OBS
                     FROM ND AS N
                     INNER JOIN US AS U ON U.LOGIN = N.UTILIZADOR
                     WHERE N.DATA BETWEEN :di AND :df
@@ -28695,6 +29188,22 @@ OPTION (MAXRECURSION 32767);
                     """
                 )
                 rows = db.session.execute(sql, {'di': di, 'df': df}).fetchall()
+                cleaning_rows = db.session.execute(text(
+                    """
+                    SELECT CAST(DATAOUT AS date) AS DATA, COUNT(*) AS TOTAL
+                    FROM RS
+                    WHERE CAST(DATAOUT AS date) BETWEEN :di AND :df
+                      AND ISNULL(CANCELADA, 0) = 0
+                      AND LTRIM(RTRIM(ISNULL(ALOJAMENTO, ''))) <> ''
+                      AND UPPER(LTRIM(RTRIM(ISNULL(ALOJAMENTO, '')))) NOT LIKE 'PORTO PRIME%'
+                      AND UPPER(LTRIM(RTRIM(ISNULL(ALOJAMENTO, '')))) NOT IN ('FERNANDO PESSOA', 'CASA DO CASTRO')
+                    GROUP BY CAST(DATAOUT AS date)
+                    """
+                ), {'di': di, 'df': df}).fetchall()
+                cleaning_counts = {
+                    r[0].isoformat(): int(r[1] or 0)
+                    for r in cleaning_rows
+                }
                 items = [
                     {
                         'id': r[0],
@@ -28702,11 +29211,13 @@ OPTION (MAXRECURSION 32767);
                         'tipo': r[2],
                         'login': r[3],
                         'nome': r[4],
-                        'cor': r[5] or '#94a3b8'
+                        'cor': r[5] or '#94a3b8',
+                        'valor': float(r[6] or 0),
+                        'obs': r[7] or ''
                     }
                     for r in rows
                 ]
-                return jsonify({'rows': items})
+                return jsonify({'rows': items, 'limpezas': cleaning_counts})
             # POST: inserir ND (FOLGA)
             body = request.get_json(silent=True) or {}
             data_str = (body.get('data') or '').strip()
@@ -28726,6 +29237,53 @@ OPTION (MAXRECURSION 32767);
             db.session.execute(ins, {'data': d, 'util': utilizador})
             db.session.commit()
             return jsonify({'ok': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/nd/update', methods=['POST'])
+    @login_required
+    def api_nd_update():
+        try:
+            body = request.get_json(silent=True) or {}
+            nd_id = (body.get('id') or '').strip()
+            if not nd_id:
+                return jsonify({'error': 'ID em falta'}), 400
+
+            updates = []
+            params = {'id': nd_id}
+            has_value = 'valor' in body
+            has_obs = 'obs' in body
+
+            if has_value:
+                raw_value = str(body.get('valor') if body.get('valor') is not None else '').strip()
+                if raw_value:
+                    try:
+                        valor = Decimal(raw_value.replace(' ', '').replace(',', '.')).quantize(Decimal('0.01'))
+                    except Exception:
+                        return jsonify({'error': 'Valor inválido'}), 400
+                else:
+                    valor = Decimal('0.00')
+                updates.append("VALOR = :valor")
+                params['valor'] = valor
+
+            if has_obs:
+                obs = str(body.get('obs') or '').strip()
+                updates.append("OBS = :obs")
+                params['obs'] = obs
+
+            if not updates:
+                return jsonify({'error': 'Nada para atualizar'}), 400
+
+            sql = text(f"UPDATE ND SET {', '.join(updates)} WHERE NDSTAMP = :id")
+            res = db.session.execute(sql, params)
+            db.session.commit()
+            return jsonify({
+                'ok': True,
+                'updated': res.rowcount,
+                'valor': float(params['valor']) if has_value else None,
+                'obs': params['obs'] if has_obs else None,
+            })
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
