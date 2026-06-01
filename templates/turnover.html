@@ -159,6 +159,17 @@
       background: color-mix(in srgb, var(--sz-color-danger) 88%, #94162c);
     }
 
+    .turn-block.out.editable {
+      cursor: pointer;
+    }
+
+    .turn-block.out.editable:hover,
+    .turn-block.out.editable:focus {
+      filter: brightness(1.08);
+      outline: 1px solid color-mix(in srgb, #fff 58%, transparent);
+      outline-offset: -2px;
+    }
+
     .turn-block.in {
       background: color-mix(in srgb, var(--sz-color-success) 80%, #12663a);
       cursor: pointer;
@@ -371,6 +382,7 @@
     }
 
     .turn-modal .form-check-input,
+    .turn-modal .form-control,
     .turn-modal .form-select {
       background-color: var(--sz-color-surface-alt);
       border-color: var(--sz-color-border);
@@ -378,6 +390,7 @@
     }
 
     .turn-modal .form-select:focus,
+    .turn-modal .form-control:focus,
     .turn-modal .form-check-input:focus {
       border-color: var(--sz-color-primary);
       box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--sz-color-primary) 22%, transparent);
@@ -689,6 +702,28 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="turnSaveCheckin">Gravar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade turn-modal" id="checkoutModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="turnCheckoutTitle">Check-out</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger d-none" id="turnCheckoutErr"></div>
+        <div>
+          <label class="form-label" for="turnCheckoutHora">Hora prevista de check-out</label>
+          <input class="form-control" type="time" id="turnCheckoutHora" step="60">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="turnSaveCheckout">Gravar</button>
       </div>
     </div>
   </div>

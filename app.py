@@ -27299,7 +27299,8 @@ OPTION (MAXRECURSION 32767);
             dia_iso = dia.isoformat()
 
             reservas_out = db.session.execute(text("""
-                SELECT LTRIM(RTRIM(ALOJAMENTO)) AS ALOJAMENTO, ISNULL(HORAOUT,'') AS HORAOUT, NOITES,
+                SELECT RSSTAMP,
+                       LTRIM(RTRIM(ALOJAMENTO)) AS ALOJAMENTO, ISNULL(HORAOUT,'') AS HORAOUT, NOITES,
                        ISNULL(ADULTOS,0) AS ADULTOS, ISNULL(CRIANCAS,0) AS CRIANCAS,
                        ISNULL(BERCO,0) AS BERCO, ISNULL(SOFACAMA,0) AS SOFACAMA
                 FROM RS
@@ -27486,6 +27487,7 @@ OPTION (MAXRECURSION 32767);
                         return ''
 
                 chk_out = first_val(out_list, 'HORAOUT') or ''
+                chk_out_rsstamp = str(first_val(out_list, 'RSSTAMP') or '').strip()
                 chk_in = first_val(in_list, 'HORAIN') or ''
                 noites = first_val(in_list, 'NOITES') or 0
                 try:
@@ -27617,6 +27619,7 @@ OPTION (MAXRECURSION 32767);
                     'alojamento': aloj_display or aloj,
                     'status': status,
                     'check_out': chk_out,
+                    'check_out_rsstamp': chk_out_rsstamp,
                     'has_check_out': bool(out_list),
                     'check_in': chk_in,
                     'has_check_in': bool(in_list),
@@ -27645,6 +27648,45 @@ OPTION (MAXRECURSION 32767);
         except Exception as e:
             try:
                 app.logger.exception('Erro em api_turnover')
+            except Exception:
+                pass
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/turnover/checkout', methods=['POST'])
+    @login_required
+    def api_turnover_checkout():
+        try:
+            body = request.get_json(silent=True) or {}
+            rsstamp = (body.get('rsstamp') or '').strip()
+            horaout = (body.get('horaout') or '').strip()
+            if not rsstamp:
+                return jsonify({'error': 'Reserva em falta'}), 400
+            if not horaout:
+                return jsonify({'error': 'Hora de check-out em falta'}), 400
+
+            match = re.match(r'^(\d{1,2}):(\d{2})$', horaout)
+            if not match:
+                return jsonify({'error': 'Hora inválida'}), 400
+            hh = int(match.group(1))
+            mm = int(match.group(2))
+            if hh > 23 or mm > 59:
+                return jsonify({'error': 'Hora inválida'}), 400
+            horaout = f'{hh:02d}:{mm:02d}'
+
+            res = db.session.execute(text("""
+                UPDATE RS
+                   SET HORAOUT = :horaout
+                 WHERE RSSTAMP = :rsstamp
+                   AND ISNULL(CANCELADA,0) = 0
+            """), {'horaout': horaout, 'rsstamp': rsstamp})
+            db.session.commit()
+            if res.rowcount == 0:
+                return jsonify({'error': 'Reserva não encontrada'}), 404
+            return jsonify({'ok': True, 'horaout': horaout, 'updated': res.rowcount})
+        except Exception as e:
+            db.session.rollback()
+            try:
+                app.logger.exception('Erro em api_turnover_checkout')
             except Exception:
                 pass
             return jsonify({'error': str(e)}), 500

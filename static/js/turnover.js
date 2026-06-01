@@ -14,6 +14,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const fieldEntro = document.getElementById('turnEntro');
   const btnSaveCheckin = document.getElementById('turnSaveCheckin');
   const msgErr = document.getElementById('turnCheckinErr');
+  const checkoutModalEl = document.getElementById('checkoutModal');
+  const checkoutModalTitle = document.getElementById('turnCheckoutTitle');
+  const checkoutHora = document.getElementById('turnCheckoutHora');
+  const btnSaveCheckout = document.getElementById('turnSaveCheckout');
+  const checkoutMsgErr = document.getElementById('turnCheckoutErr');
   const modal = (() => {
     if (!modalEl) return null;
     if (window.bootstrap && window.bootstrap.Modal) {
@@ -31,14 +36,31 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
   })();
+  const checkoutModal = (() => {
+    if (!checkoutModalEl) return null;
+    if (window.bootstrap && window.bootstrap.Modal) {
+      return new bootstrap.Modal(checkoutModalEl);
+    }
+    return {
+      show() {
+        checkoutModalEl.classList.add('show', 'd-block');
+        checkoutModalEl.removeAttribute('aria-hidden');
+      },
+      hide() {
+        checkoutModalEl.classList.remove('show', 'd-block');
+        checkoutModalEl.setAttribute('aria-hidden', 'true');
+      }
+    };
+  })();
   let currentAloj = '';
+  let currentCheckoutRsstamp = '';
 
   if (!dateInput) return;
 
   const fmtTime = (t) => {
     const s = String(t == null ? '' : t).trim();
     if (!s) return 'N/D';
-    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    const m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/);
     if (m) return `${m[1].padStart(2, '0')}:${m[2]}`;
     const digits = s.replace(/\D/g, '');
     if (!digits) return 'N/D';
@@ -84,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function toMinutes(hhmm) {
     const s = String(hhmm || '').trim();
     if (!s) return null;
-    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    const m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/);
     if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
     const digits = s.replace(/\D/g, '');
     if (digits.length >= 3) {
@@ -173,6 +195,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const inHtml = fallbackIn
         ? (fallbackIn.text ? `<div class="dow">${escapeHtml(fallbackIn.text)}</div>` : `<div class="dow">${escapeHtml(fallbackIn.dow || '')}</div><div class="date">${escapeHtml(fallbackIn.date || '')}</div>`)
         : escapeHtml(inText);
+      const checkoutEditable = hasOut && c.check_out_rsstamp;
+      const checkoutAttrs = checkoutEditable
+        ? ` data-checkout-edit="1" data-rsstamp="${escapeHtml(c.check_out_rsstamp)}" data-aloj="${escapeHtml(c.alojamento || '')}" data-hora="${escapeHtml(outText === 'N/D' ? '' : outText)}" role="button" tabindex="0" title="Editar hora de check-out"`
+        : '';
       return `
         <div class="turn-card" data-aloj="${escapeHtml(c.alojamento || '')}">
           <div class="card-header${headerClass}">
@@ -180,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="turn-status ${statusCls}">${escapeHtml(status)}</span>
           </div>
           <div class="card-body">
-            <div class="turn-block out ${hasOut ? '' : 'muted'}">
+            <div class="turn-block out ${hasOut ? '' : 'muted'}${checkoutEditable ? ' editable' : ''}"${checkoutAttrs}>
               <div class="label">&nbsp;</div>
               <div class="time">${outHtml}</div>
             </div>
@@ -204,6 +230,44 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
     }).join('');
+  }
+
+  function openCheckoutModal({ rsstamp, aloj, hora }) {
+    currentCheckoutRsstamp = rsstamp || '';
+    if (checkoutModalTitle) checkoutModalTitle.textContent = `Check-out · ${aloj || ''}`;
+    if (checkoutMsgErr) { checkoutMsgErr.classList.add('d-none'); checkoutMsgErr.textContent = ''; }
+    if (checkoutHora) checkoutHora.value = hora || '11:00';
+    btnSaveCheckout?.removeAttribute('disabled');
+    checkoutModal?.show();
+    setTimeout(() => checkoutHora?.focus(), 120);
+  }
+
+  async function saveCheckout() {
+    if (!currentCheckoutRsstamp) return;
+    const payload = {
+      rsstamp: currentCheckoutRsstamp,
+      horaout: checkoutHora?.value || ''
+    };
+    try {
+      btnSaveCheckout?.setAttribute('disabled', 'disabled');
+      const res = await fetch('/api/turnover/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao gravar');
+      checkoutModal?.hide();
+      loadData();
+    } catch (err) {
+      console.error(err);
+      if (checkoutMsgErr) {
+        checkoutMsgErr.textContent = err.message || 'Erro';
+        checkoutMsgErr.classList.remove('d-none');
+      }
+    } finally {
+      btnSaveCheckout?.removeAttribute('disabled');
+    }
   }
 
   async function openCheckinModal(aloj) {
@@ -291,6 +355,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   cardsWrap?.addEventListener('click', (ev) => {
+    const checkoutBlock = ev.target.closest('[data-checkout-edit]');
+    if (checkoutBlock) {
+      openCheckoutModal({
+        rsstamp: checkoutBlock.dataset.rsstamp || '',
+        aloj: checkoutBlock.dataset.aloj || '',
+        hora: checkoutBlock.dataset.hora || ''
+      });
+      return;
+    }
+
     const block = ev.target.closest('.turn-block.in');
     if (!block || block.classList.contains('muted')) return;
     const card = block.closest('.turn-card');
@@ -300,10 +374,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  cardsWrap?.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const checkoutBlock = ev.target.closest('[data-checkout-edit]');
+    if (!checkoutBlock) return;
+    ev.preventDefault();
+    openCheckoutModal({
+      rsstamp: checkoutBlock.dataset.rsstamp || '',
+      aloj: checkoutBlock.dataset.aloj || '',
+      hora: checkoutBlock.dataset.hora || ''
+    });
+  });
+
   btnPrev?.addEventListener('click', () => changeDate(-1));
   btnNext?.addEventListener('click', () => changeDate(1));
   dateInput.addEventListener('change', loadData);
   btnSaveCheckin?.addEventListener('click', saveCheckin);
+  btnSaveCheckout?.addEventListener('click', saveCheckout);
+  checkoutHora?.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') saveCheckout();
+  });
 
   if (!dateInput.value) {
     dateInput.value = window.TURNOVER_TODAY || new Date().toISOString().slice(0, 10);
