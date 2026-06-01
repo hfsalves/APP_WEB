@@ -10,7 +10,7 @@
 {%- endmacro %}
 
 {% block content %}
-<div class="sz_page">
+<div class="sz_page sz_indicator_page sz_faturacao_anual_page">
   <div class="sz_page_container">
     <header class="sz_contextbar sz_page_contextbar">
       <div class="sz_contextbar_left">
@@ -35,11 +35,11 @@
     <main class="sz_page_body">
       <section class="sz_panel">
         <div class="sz_section_body">
-          <div class="sz_table_wrap">
-            <table class="sz_table">
+          <div class="sz_table_wrap sz_indicator_summary_wrap">
+            <table class="sz_table sz_indicator_summary_table">
               <thead class="sz_table_head">
                 <tr>
-                  <th class="sz_table_cell">Mês</th>
+                  <th class="sz_table_cell sz_indicator_primary_col">Mês</th>
                   <th class="sz_table_cell text-end">Exploração</th>
                   <th class="sz_table_cell text-end">Gestão</th>
                   <th class="sz_table_cell text-end">Total</th>
@@ -48,16 +48,16 @@
               </thead>
               <tbody id="fatResumoBody">
                 <tr class="sz_table_row">
-                  <td class="sz_table_cell sz_text_muted text-center" colspan="5">A carregar...</td>
+                  <td class="sz_table_cell sz_text_muted text-center" colspan="5" data-label="Resumo">A carregar...</td>
                 </tr>
               </tbody>
               <tfoot>
                 <tr class="sz_table_row">
-                  <th class="sz_table_cell">Total</th>
-                  <th class="sz_table_cell text-end" id="fatResumoTotalExploracao">0</th>
-                  <th class="sz_table_cell text-end" id="fatResumoTotalGestao">0</th>
-                  <th class="sz_table_cell text-end" id="fatResumoTotalValor">0</th>
-                  <th class="sz_table_cell text-end" id="fatResumoTotalEstimativa">0</th>
+                  <th class="sz_table_cell sz_indicator_primary_col" data-label="Mês">Total</th>
+                  <th class="sz_table_cell text-end" id="fatResumoTotalExploracao" data-label="Exploração">0</th>
+                  <th class="sz_table_cell text-end" id="fatResumoTotalGestao" data-label="Gestão">0</th>
+                  <th class="sz_table_cell text-end" id="fatResumoTotalValor" data-label="Total">0</th>
+                  <th class="sz_table_cell text-end" id="fatResumoTotalEstimativa" data-label="Estimativa">0</th>
                 </tr>
               </tfoot>
             </table>
@@ -92,10 +92,10 @@
       </div>
       <div class="modal-body sz_modal_body">
         <div class="sz_table_wrap">
-          <table class="sz_table">
+          <table class="sz_table sz_indicator_detail_table">
             <thead class="sz_table_head">
               <tr>
-                <th class="sz_table_cell">Alojamento</th>
+                <th class="sz_table_cell sz_indicator_primary_col">Alojamento</th>
                 <th class="sz_table_cell text-end">Noites</th>
                 <th class="sz_table_cell text-end">Média/noite</th>
                 <th class="sz_table_cell text-end">Total</th>
@@ -107,19 +107,19 @@
             </thead>
             <tbody id="fatDetailBody">
               <tr class="sz_table_row">
-                <td class="sz_table_cell sz_text_muted text-center" colspan="4">A carregar...</td>
+                <td class="sz_table_cell sz_text_muted text-center" colspan="4" data-label="Detalhe">A carregar...</td>
               </tr>
             </tbody>
             <tfoot>
               <tr class="sz_table_row">
-                <th class="sz_table_cell">Total</th>
-                <th class="sz_table_cell text-end" id="fatDetailTotalNoites">0</th>
-                <th class="sz_table_cell text-end" id="fatDetailTotalAdr">0,00</th>
-                <th class="sz_table_cell text-end" id="fatDetailTotalValor">0</th>
-                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalDisponiveis" style="display:none;">0</th>
-                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalEstimativaPreco" style="display:none;">0,00</th>
-                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalEstimativaVazias" style="display:none;">0</th>
-                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalGeral" style="display:none;">0</th>
+                <th class="sz_table_cell sz_indicator_primary_col" data-label="Alojamento">Total</th>
+                <th class="sz_table_cell text-end" id="fatDetailTotalNoites" data-label="Noites">0</th>
+                <th class="sz_table_cell text-end" id="fatDetailTotalAdr" data-label="Média/noite">0,00</th>
+                <th class="sz_table_cell text-end" id="fatDetailTotalValor" data-label="Total">0</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalDisponiveis" data-label="Disp." style="display:none;">0</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalEstimativaPreco" data-label="Preço est." style="display:none;">0,00</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalEstimativaVazias" data-label="Est. vazias" style="display:none;">0</th>
+                <th class="sz_table_cell text-end fat-detail-future-col" id="fatDetailTotalGeral" data-label="Total geral" style="display:none;">0</th>
               </tr>
             </tfoot>
           </table>

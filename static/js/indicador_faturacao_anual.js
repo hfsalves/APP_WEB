@@ -26,7 +26,7 @@
   function setResumoLoading() {
     const body = document.getElementById('fatResumoBody');
     if (body) {
-      body.innerHTML = '<tr class="sz_table_row"><td class="sz_table_cell sz_text_muted text-center" colspan="5">A carregar...</td></tr>';
+      body.innerHTML = '<tr class="sz_table_row"><td class="sz_table_cell sz_text_muted text-center" colspan="5" data-label="Resumo">A carregar...</td></tr>';
     }
     ['fatResumoTotalExploracao', 'fatResumoTotalGestao', 'fatResumoTotalValor', 'fatResumoTotalEstimativa'].forEach((id) => {
       const el = document.getElementById(id);
@@ -46,19 +46,19 @@
     const ano = data.ano || document.getElementById('fatAno')?.value || '';
     const rows = Array.isArray(data.rows) ? data.rows : [];
     if (!rows.length) {
-      body.innerHTML = '<tr class="sz_table_row"><td class="sz_table_cell sz_text_muted text-center" colspan="5">Sem dados.</td></tr>';
+      body.innerHTML = '<tr class="sz_table_row"><td class="sz_table_cell sz_text_muted text-center" colspan="5" data-label="Resumo">Sem dados.</td></tr>';
     } else {
       body.innerHTML = rows.map((row) => `
         <tr class="sz_table_row">
-          <td class="sz_table_cell">${escapeHtml(row.MES)}</td>
-          <td class="sz_table_cell text-end">
+          <td class="sz_table_cell sz_indicator_primary_col" data-label="Mês">${escapeHtml(row.MES)}</td>
+          <td class="sz_table_cell text-end" data-label="Exploração">
             <button type="button" class="sz_indicator_value_btn" data-fat-detail data-ano="${escapeHtml(ano)}" data-mes="${escapeHtml(row.NMES)}" data-tipo="EXPLORACAO">${formatInt(row.EXPLORACAO)}</button>
           </td>
-          <td class="sz_table_cell text-end">
+          <td class="sz_table_cell text-end" data-label="Gestão">
             <button type="button" class="sz_indicator_value_btn" data-fat-detail data-ano="${escapeHtml(ano)}" data-mes="${escapeHtml(row.NMES)}" data-tipo="GESTAO">${formatInt(row.GESTAO)}</button>
           </td>
-          <td class="sz_table_cell text-end">${formatInt(row.TOTAL)}</td>
-          <td class="sz_table_cell text-end">${formatInt(row.ESTIMATIVA)}</td>
+          <td class="sz_table_cell text-end" data-label="Total">${formatInt(row.TOTAL)}</td>
+          <td class="sz_table_cell text-end" data-label="Estimativa">${formatInt(row.ESTIMATIVA)}</td>
         </tr>
       `).join('');
       bindDetailButtons(body);
@@ -91,7 +91,7 @@
     } catch (error) {
       const body = document.getElementById('fatResumoBody');
       if (body) {
-        body.innerHTML = `<tr class="sz_table_row"><td class="sz_table_cell text-center text-danger" colspan="5">${escapeHtml(error.message || 'Erro ao carregar resumo.')}</td></tr>`;
+        body.innerHTML = `<tr class="sz_table_row"><td class="sz_table_cell text-center text-danger" colspan="5" data-label="Resumo">${escapeHtml(error.message || 'Erro ao carregar resumo.')}</td></tr>`;
       }
     }
   }
@@ -99,7 +99,7 @@
   function setLoading() {
     const body = document.getElementById('fatDetailBody');
     if (body) {
-      body.innerHTML = '<tr class="sz_table_row"><td class="sz_table_cell sz_text_muted text-center" colspan="8">A carregar...</td></tr>';
+      body.innerHTML = '<tr class="sz_table_row"><td class="sz_table_cell sz_text_muted text-center" colspan="8" data-label="Detalhe">A carregar...</td></tr>';
     }
     [
       'fatDetailTotalNoites',
@@ -134,18 +134,18 @@
     });
     if (body) {
       if (!rows.length) {
-        body.innerHTML = `<tr class="sz_table_row"><td class="sz_table_cell sz_text_muted text-center" colspan="${showDisponiveis ? 8 : 4}">Sem dados.</td></tr>`;
+        body.innerHTML = `<tr class="sz_table_row"><td class="sz_table_cell sz_text_muted text-center" colspan="${showDisponiveis ? 8 : 4}" data-label="Detalhe">Sem dados.</td></tr>`;
       } else {
         body.innerHTML = rows.map((row) => `
           <tr class="sz_table_row">
-            <td class="sz_table_cell">${escapeHtml(row.ALOJAMENTO)}</td>
-            <td class="sz_table_cell text-end">${formatInt(row.NOITES)}</td>
-            <td class="sz_table_cell text-end">${formatMoney2(row.ADR)}</td>
-            <td class="sz_table_cell text-end">${formatInt(row.TOTAL)}</td>
-            ${showDisponiveis ? `<td class="sz_table_cell text-end">${formatInt(row.DISPONIVEIS)}</td>` : ''}
-            ${showDisponiveis ? `<td class="sz_table_cell text-end">${formatMoney2(row.ESTIMATIVA_PRECO)}</td>` : ''}
-            ${showDisponiveis ? `<td class="sz_table_cell text-end">${formatInt(row.ESTIMATIVA_VAZIAS)}</td>` : ''}
-            ${showDisponiveis ? `<td class="sz_table_cell text-end">${formatInt(row.TOTAL_GERAL)}</td>` : ''}
+            <td class="sz_table_cell sz_indicator_primary_col" data-label="Alojamento">${escapeHtml(row.ALOJAMENTO)}</td>
+            <td class="sz_table_cell text-end" data-label="Noites">${formatInt(row.NOITES)}</td>
+            <td class="sz_table_cell text-end" data-label="Média/noite">${formatMoney2(row.ADR)}</td>
+            <td class="sz_table_cell text-end" data-label="Total">${formatInt(row.TOTAL)}</td>
+            ${showDisponiveis ? `<td class="sz_table_cell text-end" data-label="Disp.">${formatInt(row.DISPONIVEIS)}</td>` : ''}
+            ${showDisponiveis ? `<td class="sz_table_cell text-end" data-label="Preço est.">${formatMoney2(row.ESTIMATIVA_PRECO)}</td>` : ''}
+            ${showDisponiveis ? `<td class="sz_table_cell text-end" data-label="Est. vazias">${formatInt(row.ESTIMATIVA_VAZIAS)}</td>` : ''}
+            ${showDisponiveis ? `<td class="sz_table_cell text-end" data-label="Total geral">${formatInt(row.TOTAL_GERAL)}</td>` : ''}
           </tr>
         `).join('');
       }
@@ -190,7 +190,7 @@
     } catch (error) {
       const body = document.getElementById('fatDetailBody');
       if (body) {
-        body.innerHTML = `<tr class="sz_table_row"><td class="sz_table_cell text-center text-danger" colspan="8">${escapeHtml(error.message || 'Erro ao carregar detalhe.')}</td></tr>`;
+        body.innerHTML = `<tr class="sz_table_row"><td class="sz_table_cell text-center text-danger" colspan="8" data-label="Detalhe">${escapeHtml(error.message || 'Erro ao carregar detalhe.')}</td></tr>`;
       }
     }
   }

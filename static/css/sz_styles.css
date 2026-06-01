@@ -2207,6 +2207,173 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   min-width: 1120px;
 }
 
+@media (max-width: 640px) {
+  .sz_faturacao_anual_page {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .sz_faturacao_anual_page .sz_page_container {
+    height: auto;
+    min-height: 100%;
+    grid-template-rows: auto auto auto;
+    padding: var(--sz-space-3) var(--sz-space-3) 0;
+  }
+
+  .sz_faturacao_anual_page .sz_page_body {
+    overflow: visible;
+  }
+
+  .sz_faturacao_anual_page .sz_page_title {
+    font-size: 1.05rem;
+  }
+
+  .sz_faturacao_anual_page .sz_page_subtitle {
+    display: none;
+  }
+
+  .sz_faturacao_anual_page .sz_contextbar,
+  .sz_faturacao_anual_page .sz_actionbar {
+    padding: var(--sz-space-3);
+  }
+
+  .sz_faturacao_anual_page .sz_panel {
+    padding: var(--sz-space-3);
+  }
+
+  .sz_faturacao_anual_page .sz_section_body,
+  .sz_indicator_detail_modal .sz_modal_body {
+    padding: 0;
+  }
+
+  .sz_faturacao_anual_page .sz_table_wrap,
+  .sz_indicator_detail_modal .sz_table_wrap {
+    overflow: visible;
+  }
+
+  .sz_faturacao_anual_page .sz_table,
+  .sz_indicator_detail_modal .sz_table {
+    display: block;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .sz_faturacao_anual_page .sz_table thead,
+  .sz_indicator_detail_modal .sz_table thead {
+    display: none;
+  }
+
+  .sz_faturacao_anual_page .sz_table tbody,
+  .sz_faturacao_anual_page .sz_table tfoot,
+  .sz_indicator_detail_modal .sz_table tbody,
+  .sz_indicator_detail_modal .sz_table tfoot {
+    display: block;
+  }
+
+  .sz_faturacao_anual_page .sz_table .sz_table_row,
+  .sz_indicator_detail_modal .sz_table .sz_table_row {
+    display: grid;
+    gap: 0;
+    margin-bottom: var(--sz-space-3);
+    padding: 0.15rem var(--sz-space-3);
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-1);
+  }
+
+  .sz_faturacao_anual_page .sz_table tfoot .sz_table_row,
+  .sz_indicator_detail_modal .sz_table tfoot .sz_table_row {
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 70%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 24%, var(--sz-color-border));
+  }
+
+  .sz_faturacao_anual_page .sz_table th,
+  .sz_faturacao_anual_page .sz_table td,
+  .sz_faturacao_anual_page .sz_table_cell,
+  .sz_indicator_detail_modal .sz_table th,
+  .sz_indicator_detail_modal .sz_table td,
+  .sz_indicator_detail_modal .sz_table_cell {
+    position: static;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+    width: 100%;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--sz-color-border) 72%, transparent);
+    background: transparent;
+    text-align: right !important;
+    white-space: normal;
+  }
+
+  .sz_faturacao_anual_page .sz_table th:last-child,
+  .sz_faturacao_anual_page .sz_table td:last-child,
+  .sz_indicator_detail_modal .sz_table th:last-child,
+  .sz_indicator_detail_modal .sz_table td:last-child {
+    border-bottom: 0;
+  }
+
+  .sz_faturacao_anual_page .sz_table_cell::before,
+  .sz_indicator_detail_modal .sz_table_cell::before {
+    content: attr(data-label);
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+    line-height: var(--sz-line-tight);
+    text-align: left;
+  }
+
+  .sz_faturacao_anual_page .sz_indicator_primary_col,
+  .sz_indicator_detail_modal .sz_indicator_primary_col {
+    display: block;
+    padding-top: 0.7rem;
+    padding-bottom: 0.65rem;
+    color: var(--sz-color-text);
+    font-size: var(--sz-font-size-md);
+    font-weight: var(--sz-font-weight-bold);
+    text-align: left !important;
+  }
+
+  .sz_faturacao_anual_page .sz_indicator_primary_col::before,
+  .sz_indicator_detail_modal .sz_indicator_primary_col::before,
+  .sz_faturacao_anual_page .sz_table_cell.text-center::before,
+  .sz_indicator_detail_modal .sz_table_cell.text-center::before {
+    display: none;
+  }
+
+  .sz_faturacao_anual_page .sz_table_cell.text-center,
+  .sz_indicator_detail_modal .sz_table_cell.text-center {
+    justify-content: center;
+    text-align: center !important;
+  }
+
+  .sz_faturacao_anual_page .sz_indicator_value_btn {
+    min-height: 2rem;
+    font-size: 1rem;
+    text-align: right;
+  }
+
+  .sz_indicator_detail_modal .modal-dialog {
+    max-width: none;
+    margin: var(--sz-space-2);
+  }
+
+  .sz_indicator_detail_modal .modal-content.sz_panel {
+    padding: var(--sz-space-3);
+  }
+
+  .sz_indicator_detail_modal .sz_modal_header,
+  .sz_indicator_detail_modal .sz_modal_footer {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
 .sz_dashboard_widget_body {
   color: var(--sz-color-text-secondary);
   overflow-x: auto;
