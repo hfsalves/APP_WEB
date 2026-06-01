@@ -61,6 +61,20 @@ function showDashboardError(message) {
     col.innerHTML = `<div class="sz_panel p-4 text-danger">${message}</div>`;
   });
 }
+function renderWidgetLoading(body) {
+  if (!body) return;
+  body.classList.remove('sz_dashboard_widget_body_loaded');
+  body.classList.add('sz_dashboard_widget_body_loading');
+  body.innerHTML = '<div class="sz_dashboard_widget_loading"><span class="sz_dashboard_loading_dot"></span><span>A carregar...</span></div>';
+}
+function revealWidget(body) {
+  if (!body) return;
+  body.classList.remove('sz_dashboard_widget_body_loading');
+  body.classList.remove('sz_dashboard_widget_body_loaded');
+  requestAnimationFrame(() => {
+    body.classList.add('sz_dashboard_widget_body_loaded');
+  });
+}
 
 // Loading ------------------------------------------------
 function showLoading() {
@@ -515,6 +529,8 @@ async function renderWidget(widget, colDiv) {
     if (btn) btn.addEventListener('click', () => openFilters(widget.nome));
   }
 
+  renderWidgetLoading(body);
+
   try {
     if (widget.tipo === 'ANALISE' || widget.tipo === 'GRAFICO') {
       const state = widgetState.get(widget.nome) || { widget, body, filtersDef, currentFilters: {} };
@@ -522,12 +538,15 @@ async function renderWidget(widget, colDiv) {
       const data = await runWidget(widget.nome, filters);
       widgetState.set(widget.nome, { widget, body, filtersDef, currentFilters: filters });
       renderDataIntoWidget(widgetState.get(widget.nome), data);
+      revealWidget(body);
     } else if (widget.tipo === 'HTML') {
       body.innerHTML = widget.config || '<em>(sem conteudo)</em>';
       applyWidgetTableClass(body);
+      revealWidget(body);
     }
   } catch (err) {
     body.innerHTML = `<span class="error-msg">Erro: ${err.message}</span>`;
+    revealWidget(body);
   } finally {
     toggleExpandBtn();
   }
@@ -539,22 +558,20 @@ document.addEventListener('DOMContentLoaded', () => {
   fetch('/api/dashboard')
     .then(r => parseJsonResponse(r, 'Erro ao carregar configuracao do dashboard'))
     .then(data => {
-      const widgetPromises = [];
       const linksHtml = data.links_html || {};
       [1,2,3].forEach(col => {
         const colDiv = document.getElementById('col-' + col);
         colDiv.innerHTML = linksHtml[col] || linksHtml[String(col)] || '';
         const widgets = Array.isArray(data[col]) ? data[col] : [];
         widgets.forEach(widget => {
-          const prom = renderWidget(widget, colDiv);
-          if (prom && typeof prom.then === 'function') widgetPromises.push(prom);
+          renderWidget(widget, colDiv);
         });
       });
-      return Promise.all(widgetPromises);
+      hideLoading();
     })
     .catch((err) => {
       console.error('Dashboard bootstrap failed:', err);
       showDashboardError(err.message || 'Falha ao carregar dashboard.');
-    })
-    .finally(hideLoading);
+      hideLoading();
+    });
 });

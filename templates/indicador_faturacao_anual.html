@@ -22,7 +22,7 @@
         <form method="get" action="{{ url_for('indicador_faturacao_anual_page') }}" class="sz_inline">
           <label class="sz_field" for="fatAno">
             <span class="sz_label">Ano</span>
-            <select id="fatAno" name="ano" class="sz_select" onchange="this.form.submit()">
+            <select id="fatAno" name="ano" class="sz_select" data-current-year="{{ ano }}">
               {% for y in anos %}
                 <option value="{{ y }}" {% if y == ano %}selected{% endif %}>{{ y }}</option>
               {% endfor %}
@@ -46,32 +46,18 @@
                   <th class="sz_table_cell text-end">Estimativa</th>
                 </tr>
               </thead>
-              <tbody>
-                {% for row in rows %}
-                  <tr class="sz_table_row">
-                    <td class="sz_table_cell">{{ row.MES }}</td>
-                    <td class="sz_table_cell text-end">
-                      <button type="button" class="sz_indicator_value_btn" data-fat-detail data-ano="{{ ano }}" data-mes="{{ row.NMES }}" data-tipo="EXPLORACAO">
-                        {{ money(row.EXPLORACAO) }}
-                      </button>
-                    </td>
-                    <td class="sz_table_cell text-end">
-                      <button type="button" class="sz_indicator_value_btn" data-fat-detail data-ano="{{ ano }}" data-mes="{{ row.NMES }}" data-tipo="GESTAO">
-                        {{ money(row.GESTAO) }}
-                      </button>
-                    </td>
-                    <td class="sz_table_cell text-end">{{ money(row.TOTAL) }}</td>
-                    <td class="sz_table_cell text-end">{{ money(row.ESTIMATIVA) }}</td>
-                  </tr>
-                {% endfor %}
+              <tbody id="fatResumoBody">
+                <tr class="sz_table_row">
+                  <td class="sz_table_cell sz_text_muted text-center" colspan="5">A carregar...</td>
+                </tr>
               </tbody>
               <tfoot>
                 <tr class="sz_table_row">
                   <th class="sz_table_cell">Total</th>
-                  <th class="sz_table_cell text-end">{{ money(totals.EXPLORACAO) }}</th>
-                  <th class="sz_table_cell text-end">{{ money(totals.GESTAO) }}</th>
-                  <th class="sz_table_cell text-end">{{ money(totals.TOTAL) }}</th>
-                  <th class="sz_table_cell text-end">{{ money(totals.ESTIMATIVA) }}</th>
+                  <th class="sz_table_cell text-end" id="fatResumoTotalExploracao">0</th>
+                  <th class="sz_table_cell text-end" id="fatResumoTotalGestao">0</th>
+                  <th class="sz_table_cell text-end" id="fatResumoTotalValor">0</th>
+                  <th class="sz_table_cell text-end" id="fatResumoTotalEstimativa">0</th>
                 </tr>
               </tfoot>
             </table>

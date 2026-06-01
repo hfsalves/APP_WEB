@@ -24123,15 +24123,26 @@ def create_app():
             ano = current_year
         if ano not in anos:
             anos = sorted(set(anos + [ano]), reverse=True)
-        rows, totals = _faturacao_anual_rows(ano)
         return render_template(
             'indicador_faturacao_anual.html',
             page_title='Faturação Anual',
             ano=ano,
             anos=anos,
-            rows=rows,
-            totals=totals,
         )
+
+    @app.route('/api/indicadores/faturacao-anual/resumo')
+    @login_required
+    def api_indicador_faturacao_anual_resumo():
+        try:
+            ano = int(request.args.get('ano') or date.today().year)
+        except Exception:
+            return jsonify({'error': 'Ano inválido'}), 400
+        rows, totals = _faturacao_anual_rows(ano)
+        return jsonify({
+            'ano': ano,
+            'rows': rows,
+            'totals': totals,
+        })
 
     @app.route('/api/indicadores/faturacao-anual/detalhe')
     @login_required

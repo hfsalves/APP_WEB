@@ -23,6 +23,79 @@
     }).replace(/\u00a0/g, ' ');
   }
 
+  function setResumoLoading() {
+    const body = document.getElementById('fatResumoBody');
+    if (body) {
+      body.innerHTML = '<tr class="sz_table_row"><td class="sz_table_cell sz_text_muted text-center" colspan="5">A carregar...</td></tr>';
+    }
+    ['fatResumoTotalExploracao', 'fatResumoTotalGestao', 'fatResumoTotalValor', 'fatResumoTotalEstimativa'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '0';
+    });
+  }
+
+  function bindDetailButtons(root) {
+    (root || document).querySelectorAll('[data-fat-detail]').forEach((btn) => {
+      btn.addEventListener('click', () => openDetail(btn));
+    });
+  }
+
+  function renderResumo(data) {
+    const body = document.getElementById('fatResumoBody');
+    if (!body) return;
+    const ano = data.ano || document.getElementById('fatAno')?.value || '';
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    if (!rows.length) {
+      body.innerHTML = '<tr class="sz_table_row"><td class="sz_table_cell sz_text_muted text-center" colspan="5">Sem dados.</td></tr>';
+    } else {
+      body.innerHTML = rows.map((row) => `
+        <tr class="sz_table_row">
+          <td class="sz_table_cell">${escapeHtml(row.MES)}</td>
+          <td class="sz_table_cell text-end">
+            <button type="button" class="sz_indicator_value_btn" data-fat-detail data-ano="${escapeHtml(ano)}" data-mes="${escapeHtml(row.NMES)}" data-tipo="EXPLORACAO">${formatInt(row.EXPLORACAO)}</button>
+          </td>
+          <td class="sz_table_cell text-end">
+            <button type="button" class="sz_indicator_value_btn" data-fat-detail data-ano="${escapeHtml(ano)}" data-mes="${escapeHtml(row.NMES)}" data-tipo="GESTAO">${formatInt(row.GESTAO)}</button>
+          </td>
+          <td class="sz_table_cell text-end">${formatInt(row.TOTAL)}</td>
+          <td class="sz_table_cell text-end">${formatInt(row.ESTIMATIVA)}</td>
+        </tr>
+      `).join('');
+      bindDetailButtons(body);
+    }
+
+    const totals = data.totals || {};
+    const totalExploracao = document.getElementById('fatResumoTotalExploracao');
+    const totalGestao = document.getElementById('fatResumoTotalGestao');
+    const totalValor = document.getElementById('fatResumoTotalValor');
+    const totalEstimativa = document.getElementById('fatResumoTotalEstimativa');
+    if (totalExploracao) totalExploracao.textContent = formatInt(totals.EXPLORACAO);
+    if (totalGestao) totalGestao.textContent = formatInt(totals.GESTAO);
+    if (totalValor) totalValor.textContent = formatInt(totals.TOTAL);
+    if (totalEstimativa) totalEstimativa.textContent = formatInt(totals.ESTIMATIVA);
+  }
+
+  async function loadResumo(ano, options) {
+    setResumoLoading();
+    try {
+      const qs = new URLSearchParams({ ano: ano || '' });
+      const response = await fetch(`/api/indicadores/faturacao-anual/resumo?${qs.toString()}`);
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || 'Erro ao carregar resumo.');
+      renderResumo(data);
+      if (options && options.updateUrl) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('ano', data.ano || ano);
+        window.history.replaceState({}, '', url.toString());
+      }
+    } catch (error) {
+      const body = document.getElementById('fatResumoBody');
+      if (body) {
+        body.innerHTML = `<tr class="sz_table_row"><td class="sz_table_cell text-center text-danger" colspan="5">${escapeHtml(error.message || 'Erro ao carregar resumo.')}</td></tr>`;
+      }
+    }
+  }
+
   function setLoading() {
     const body = document.getElementById('fatDetailBody');
     if (body) {
@@ -123,8 +196,11 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-fat-detail]').forEach((btn) => {
-      btn.addEventListener('click', () => openDetail(btn));
-    });
+    const yearSelect = document.getElementById('fatAno');
+    const initialYear = yearSelect ? (yearSelect.value || yearSelect.dataset.currentYear) : '';
+    if (yearSelect) {
+      yearSelect.addEventListener('change', () => loadResumo(yearSelect.value, { updateUrl: true }));
+    }
+    loadResumo(initialYear, { updateUrl: false });
   });
 })();
