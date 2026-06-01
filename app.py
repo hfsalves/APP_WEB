@@ -27714,6 +27714,7 @@ OPTION (MAXRECURSION 32767);
                 row = db.session.execute(text("""
                     SELECT TOP 1 ISNULL(PRESENCIAL,0) AS PRESENCIAL,
                            ISNULL(ENTROU,0) AS ENTROU,
+                           ISNULL(HORAIN,'') AS HORAIN,
                            ISNULL(USRCHECKIN,'') AS USRCHECKIN,
                            ISNULL(MOSTRA_INSTRUCOES_CHECKIN,0) AS MOSTRA_INSTRUCOES_CHECKIN
                     FROM RS
@@ -27728,6 +27729,7 @@ OPTION (MAXRECURSION 32767);
                 data = {
                     'presencial': bool(row.get('PRESENCIAL') or 0),
                     'entrou': bool(row.get('ENTROU') or 0),
+                    'horain': row.get('HORAIN') or '',
                     'usrcheckin': row.get('USRCHECKIN') or '',
                     'mostrar_instrucoes_checkin': bool(row.get('MOSTRA_INSTRUCOES_CHECKIN') or 0)
                 }
@@ -27747,12 +27749,23 @@ OPTION (MAXRECURSION 32767);
             presencial = 1 if body.get('presencial') else 0
             entrou = 1 if body.get('entrou') else 0
             usrcheckin = (body.get('usrcheckin') or '').strip()
+            horain = (body.get('horain') or '').strip()
+            if horain:
+                match = re.match(r'^(\d{1,2}):(\d{2})$', horain)
+                if not match:
+                    return jsonify({'error': 'Hora inválida'}), 400
+                hh = int(match.group(1))
+                mm = int(match.group(2))
+                if hh > 23 or mm > 59:
+                    return jsonify({'error': 'Hora inválida'}), 400
+                horain = f'{hh:02d}:{mm:02d}'
 
             upd = text("""
                 UPDATE RS
                    SET PRESENCIAL = :p,
                        ENTROU = :e,
                        USRCHECKIN = :u,
+                       HORAIN = :horain,
                        MOSTRA_INSTRUCOES_CHECKIN = :mostrar_instrucoes_checkin
                  WHERE CAST(DATAIN AS date) = :dia
                    AND LTRIM(RTRIM(ALOJAMENTO)) = LTRIM(RTRIM(:aloj))
@@ -27762,6 +27775,7 @@ OPTION (MAXRECURSION 32767);
                 'p': presencial,
                 'e': entrou,
                 'u': usrcheckin,
+                'horain': horain,
                 'mostrar_instrucoes_checkin': mostrar_instrucoes_checkin,
                 'dia': dia,
                 'aloj': aloj

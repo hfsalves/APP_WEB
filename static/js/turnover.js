@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalTitle = document.getElementById('turnCheckinTitle');
   const fieldPresencial = document.getElementById('turnPresencial');
   const fieldMostrarInstrucoes = document.getElementById('turnMostrarInstrucoes');
+  const fieldCheckinHora = document.getElementById('turnCheckinHora');
   const fieldUser = document.getElementById('turnUser');
   const fieldEntro = document.getElementById('turnEntro');
   const btnSaveCheckin = document.getElementById('turnSaveCheckin');
@@ -288,6 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const info = data.data || {};
       if (fieldMostrarInstrucoes) fieldMostrarInstrucoes.checked = !!info.mostrar_instrucoes_checkin;
+      if (fieldCheckinHora) fieldCheckinHora.value = fmtTime(info.horain) === 'N/D' ? '' : fmtTime(info.horain);
       if (fieldPresencial) fieldPresencial.checked = !!info.presencial;
       if (fieldEntro) fieldEntro.checked = !!info.entrou;
       if (fieldUser) fieldUser.value = info.usrcheckin || '';
@@ -308,6 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
       alojamento: currentAloj,
       data: d,
       mostrar_instrucoes_checkin: fieldMostrarInstrucoes?.checked || false,
+      horain: fieldCheckinHora?.value || '',
       presencial: fieldPresencial?.checked || false,
       entrou: fieldEntro?.checked || false,
       usrcheckin: fieldUser?.value || ''
