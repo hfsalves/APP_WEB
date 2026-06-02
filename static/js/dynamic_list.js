@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnFilterToggle = document.getElementById('btnFilterToggle');
   const btnNewAttachment= document.getElementById('btnNewAttachment');
   const btnNew          = document.getElementById('btnNew');
+  const btnImportPhcUsers = document.getElementById('btnImportPhcUsers');
   const modalSort       = document.getElementById('modalSort');
   const closeSortBtn    = document.getElementById('closeSortModal');
   const closeSortTopBtn = document.getElementById('closeSortModalTop');
@@ -19,8 +20,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeFiltersTopBtn = document.getElementById('closeFiltersModalTop');
   const filterForm      = document.getElementById('filter-form');
   const listSearchInput = document.getElementById('dynamicListSearch');
+  const modalImportPhcUsers = document.getElementById('modalImportPhcUsers');
+  const closeImportPhcUsersBtn = document.getElementById('closeImportPhcUsers');
+  const closeImportPhcUsersTopBtn = document.getElementById('closeImportPhcUsersTop');
+  const confirmImportPhcUsersBtn = document.getElementById('confirmImportPhcUsers');
+  const phcUsersImportStatus = document.getElementById('phcUsersImportStatus');
+  const phcUsersImportWarnings = document.getElementById('phcUsersImportWarnings');
+  const phcUsersImportRows = document.getElementById('phcUsersImportRows');
+  const phcUsersImportSelectAll = document.getElementById('phcUsersImportSelectAll');
   const userPerms       = window.USER_PERMS[tableName] || {};
   const isFoList        = (tableName || '').toUpperCase() === 'FO';
+  const isUsList        = (tableName || '').toUpperCase() === 'US';
   const tableForm       = (window.TABLE_FORM || '').trim();
   const menuStamp       = (window.MENU_STAMP || '').trim();
   const listUrl         = window.location.pathname + window.location.search;
@@ -31,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let dataRows          = [];
   let sortField         = null;
   let sortDir           = 1; // 1 = asc, -1 = desc
+  let phcUsersRowsState = [];
   const mobileListQuery = window.matchMedia('(max-width: 768px)');
   let pendingSortField  = null;
   let pendingSortDir    = 1;
@@ -91,6 +102,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btnNewAttachment.innerHTML = `<i class="fa fa-paperclip"></i><span>${escapeHtml(tr('common.new_attachment'))}</span>`;
     btnNewAttachment.classList.add('btn-attach-custom');
     btnNewAttachment.setAttribute('aria-label', tr('common.new_attachment'));
+  }
+  if (btnImportPhcUsers) {
+    btnImportPhcUsers.innerHTML = '<i class="fa-solid fa-file-import"></i><span>Importar do PHC</span>';
+    btnImportPhcUsers.className = 'sz_button sz_button_secondary';
+    btnImportPhcUsers.setAttribute('aria-label', 'Importar do PHC');
   }
   if (listSearchInput) {
     listSearchInput.addEventListener('input', () => {
@@ -169,6 +185,207 @@ document.addEventListener('DOMContentLoaded', () => {
     modalFiltros.classList.remove('sz_is_open');
     modalFiltros.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('modal-filtros-open');
+  }
+
+  function openImportPhcUsersModal() {
+    if (!modalImportPhcUsers) return;
+    modalImportPhcUsers.classList.add('sz_is_open');
+    modalImportPhcUsers.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeImportPhcUsersModal() {
+    if (!modalImportPhcUsers) return;
+    modalImportPhcUsers.classList.remove('sz_is_open');
+    modalImportPhcUsers.setAttribute('aria-hidden', 'true');
+  }
+
+  function setPhcUsersImportStatus(message, isError = false) {
+    if (!phcUsersImportStatus) return;
+    phcUsersImportStatus.textContent = message || '';
+    phcUsersImportStatus.className = isError ? 'text-danger' : 'sz_text_muted';
+  }
+
+  function selectedPhcUserKeys() {
+    if (!phcUsersImportRows) return [];
+    return [...phcUsersImportRows.querySelectorAll('input[data-phc-user-key]:not(:disabled):checked')]
+      .map((el) => String(el.dataset.phcUserKey || '').trim())
+      .filter(Boolean);
+  }
+
+  function updatePhcUsersImportActions() {
+    const selectedCount = selectedPhcUserKeys().length;
+    if (confirmImportPhcUsersBtn) {
+      confirmImportPhcUsersBtn.disabled = selectedCount <= 0;
+      confirmImportPhcUsersBtn.querySelector('span').textContent = selectedCount > 0
+        ? `Importar selecionados (${selectedCount})`
+        : 'Importar selecionados';
+    }
+    if (phcUsersImportSelectAll) {
+      const boxes = phcUsersImportRows ? [...phcUsersImportRows.querySelectorAll('input[data-phc-user-key]:not(:disabled)')] : [];
+      const checked = boxes.filter((box) => box.checked).length;
+      phcUsersImportSelectAll.checked = boxes.length > 0 && checked === boxes.length;
+      phcUsersImportSelectAll.indeterminate = checked > 0 && checked < boxes.length;
+    }
+  }
+
+  function renderPhcUsersImportWarnings(warnings) {
+    if (!phcUsersImportWarnings) return;
+    const items = Array.isArray(warnings) ? warnings.filter(Boolean) : [];
+    if (!items.length) {
+      phcUsersImportWarnings.hidden = true;
+      phcUsersImportWarnings.innerHTML = '';
+      return;
+    }
+    phcUsersImportWarnings.hidden = false;
+    phcUsersImportWarnings.innerHTML = items
+      .map((item) => `<div>${escapeHtml(item)}</div>`)
+      .join('');
+  }
+
+  function renderPhcUsersImportRows(rows) {
+    phcUsersRowsState = Array.isArray(rows) ? rows : [];
+    if (!phcUsersImportRows) return;
+    if (!phcUsersRowsState.length) {
+      phcUsersImportRows.innerHTML = `
+        <tr class="sz_table_row">
+          <td class="sz_table_cell" colspan="7">Sem utilizadores ativos para importar.</td>
+        </tr>
+      `;
+      updatePhcUsersImportActions();
+      return;
+    }
+    phcUsersImportRows.innerHTML = phcUsersRowsState.map((row) => {
+      const empresas = Array.isArray(row.empresas) ? row.empresas : [];
+      const dbs = empresas.map((empresa) => {
+        const name = empresa.nome || empresa.feid || '';
+        const dbName = empresa.phc_db ? ` (${empresa.phc_db})` : '';
+        return `${name}${dbName}`;
+      }).join(', ');
+      const canImport = row.can_import !== false;
+      const status = row.status || '';
+      const statusHtml = !canImport && status
+        ? `<span class="sz_phc_users_import_reason">${escapeHtml(status)}</span>`
+        : '';
+      return `
+        <tr class="sz_table_row${canImport ? '' : ' is-disabled'}" title="${canImport ? '' : escapeHtml(status)}">
+          <td class="sz_table_cell sz_phc_users_import_check">
+            <input type="checkbox" data-phc-user-key="${escapeHtml(row.key || row.login || '')}"${canImport ? '' : ` disabled title="${escapeHtml(status)}"`}>
+          </td>
+          <td class="sz_table_cell">${escapeHtml(row.nome || '')}</td>
+          <td class="sz_table_cell">${escapeHtml(row.email || '')}${statusHtml}</td>
+          <td class="sz_table_cell">${escapeHtml(row.login || '')}</td>
+          <td class="sz_table_cell">${escapeHtml(row.password || '')}</td>
+          <td class="sz_table_cell">${escapeHtml(dbs)}</td>
+          <td class="sz_table_cell">
+            <button type="button" class="sz_button sz_button_ghost sz_phc_users_import_action" data-phc-inactivate-key="${escapeHtml(row.key || row.login || '')}" title="Inativar no PHC" aria-label="Inativar no PHC">
+              <i class="fa-solid fa-user-slash"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    updatePhcUsersImportActions();
+  }
+
+  function removePhcUserImportRow(key) {
+    const cleanKey = String(key || '').trim().toUpperCase();
+    if (!cleanKey || !phcUsersImportRows) return;
+    phcUsersRowsState = phcUsersRowsState.filter((row) => (
+      String(row.key || row.login || '').trim().toUpperCase() !== cleanKey
+    ));
+    const checkbox = phcUsersImportRows.querySelector(`input[data-phc-user-key="${CSS.escape(key)}"]`);
+    const rowEl = checkbox ? checkbox.closest('tr') : null;
+    if (rowEl) rowEl.remove();
+    if (!phcUsersRowsState.length) {
+      phcUsersImportRows.innerHTML = `
+        <tr class="sz_table_row">
+          <td class="sz_table_cell" colspan="7">Sem utilizadores ativos para importar.</td>
+        </tr>
+      `;
+    }
+    setPhcUsersImportStatus(`${phcUsersRowsState.length} utilizador(es) encontrado(s).`);
+    updatePhcUsersImportActions();
+  }
+
+  async function scanPhcUsersForImport() {
+    if (!isUsList || !modalImportPhcUsers) return;
+    openImportPhcUsersModal();
+    renderPhcUsersImportWarnings([]);
+    renderPhcUsersImportRows([]);
+    setPhcUsersImportStatus('A carregar utilizadores ativos das bases PHC...');
+    if (confirmImportPhcUsersBtn) confirmImportPhcUsersBtn.disabled = true;
+    try {
+      const response = await fetch('/generic/api/us/phc_import/scan');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Erro ${response.status}`);
+      renderPhcUsersImportWarnings(payload.warnings || []);
+      renderPhcUsersImportRows(payload.rows || []);
+      const total = Array.isArray(payload.rows) ? payload.rows.length : 0;
+      setPhcUsersImportStatus(`${total} utilizador(es) encontrado(s).`);
+    } catch (error) {
+      renderPhcUsersImportRows([]);
+      setPhcUsersImportStatus(error.message || 'Erro ao carregar utilizadores PHC.', true);
+    }
+  }
+
+  async function importSelectedPhcUsers() {
+    const keys = selectedPhcUserKeys();
+    if (!keys.length || !confirmImportPhcUsersBtn) return;
+    confirmImportPhcUsersBtn.disabled = true;
+    confirmImportPhcUsersBtn.querySelector('span').textContent = 'A importar...';
+    setPhcUsersImportStatus('A importar utilizadores selecionados...');
+    try {
+      const response = await fetch('/generic/api/us/phc_import/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Erro ${response.status}`);
+      const skipped = Array.isArray(payload.skipped) ? payload.skipped : [];
+      const warningItems = [
+        ...(payload.warnings || []),
+        ...skipped.map((item) => `${item.login || '-'}: ${item.error || 'Erro ao importar'}`),
+      ];
+      const statusText = `Importados: ${payload.imported || 0}. Atualizados: ${payload.updated || 0}. Acessos a empresas: ${payload.linked || 0}.`;
+      await loadData();
+      await scanPhcUsersForImport();
+      renderPhcUsersImportWarnings(warningItems);
+      setPhcUsersImportStatus(statusText);
+    } catch (error) {
+      setPhcUsersImportStatus(error.message || 'Erro ao importar utilizadores PHC.', true);
+      updatePhcUsersImportActions();
+    }
+  }
+
+  async function inactivatePhcUser(button) {
+    const key = String(button?.dataset?.phcInactivateKey || '').trim();
+    if (!key) return;
+    const row = phcUsersRowsState.find((item) => String(item.key || item.login || '').trim().toUpperCase() === key.toUpperCase());
+    const label = row ? `${row.nome || row.login || key} (${row.login || key})` : key;
+    if (!window.confirm(`Inativar o utilizador ${label} nas bases de dados PHC onde existe?`)) return;
+
+    button.disabled = true;
+    const originalHtml = button.innerHTML;
+    button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    setPhcUsersImportStatus(`A inativar ${label} no PHC...`);
+    try {
+      const response = await fetch('/generic/api/us/phc_import/inactivate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Erro ${response.status}`);
+      const warningItems = Array.isArray(payload.warnings) ? payload.warnings : [];
+      removePhcUserImportRow(key);
+      renderPhcUsersImportWarnings(warningItems);
+      setPhcUsersImportStatus(`Utilizador ${payload.login || key} inativado no PHC. Registos alterados: ${payload.affected || 0}.`);
+    } catch (error) {
+      button.disabled = false;
+      button.innerHTML = originalHtml;
+      setPhcUsersImportStatus(error.message || 'Erro ao inativar utilizador PHC.', true);
+    }
   }
 
   function getVisibleSortColumns() {
@@ -334,6 +551,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape' && modalSort && modalSort.classList.contains('sz_is_open')) {
       closeSortModal();
     }
+    if (e.key === 'Escape' && modalImportPhcUsers && modalImportPhcUsers.classList.contains('sz_is_open')) {
+      closeImportPhcUsersModal();
+    }
   });
 
   if (sortFieldList) {
@@ -380,6 +600,53 @@ document.addEventListener('DOMContentLoaded', () => {
         alert(tr('dynamic_list.attachment_error', { error: err.message }));
       }
     });
+  }
+  if (btnImportPhcUsers) {
+    btnImportPhcUsers.addEventListener('click', () => {
+      scanPhcUsersForImport();
+    });
+  }
+  if (closeImportPhcUsersBtn) {
+    closeImportPhcUsersBtn.addEventListener('click', closeImportPhcUsersModal);
+  }
+  if (closeImportPhcUsersTopBtn) {
+    closeImportPhcUsersTopBtn.addEventListener('click', closeImportPhcUsersModal);
+  }
+  if (phcUsersImportRows) {
+    phcUsersImportRows.addEventListener('change', (event) => {
+      if (!event.target.matches('input[data-phc-user-key]')) return;
+      updatePhcUsersImportActions();
+    });
+    phcUsersImportRows.addEventListener('click', (event) => {
+      const actionButton = event.target.closest('[data-phc-inactivate-key]');
+      if (actionButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        inactivatePhcUser(actionButton);
+        return;
+      }
+      if (event.target.matches('input[data-phc-user-key]')) return;
+      const row = event.target.closest('tr');
+      if (!row) return;
+      const checkbox = row.querySelector('input[data-phc-user-key]:not(:disabled)');
+      if (!checkbox) return;
+      checkbox.checked = !checkbox.checked;
+      updatePhcUsersImportActions();
+    });
+  }
+  if (phcUsersImportSelectAll) {
+    phcUsersImportSelectAll.addEventListener('change', () => {
+      const checked = !!phcUsersImportSelectAll.checked;
+      if (phcUsersImportRows) {
+        phcUsersImportRows.querySelectorAll('input[data-phc-user-key]:not(:disabled)').forEach((box) => {
+          box.checked = checked;
+        });
+      }
+      updatePhcUsersImportActions();
+    });
+  }
+  if (confirmImportPhcUsersBtn) {
+    confirmImportPhcUsersBtn.addEventListener('click', importSelectedPhcUsers);
   }
   // 5) Ao submeter filtros, esconde modal e carrega dados
   filterForm.addEventListener('submit', e => {

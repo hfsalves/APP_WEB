@@ -1,0 +1,527 @@
+.gr-workshop-shell {
+  min-height: 100%;
+}
+
+.gr-workshop-contextbar {
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.gr-workshop-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: .7rem;
+  flex-wrap: wrap;
+}
+
+.gr-workshop-search {
+  width: min(24rem, 42vw);
+}
+
+.gr-workshop-state {
+  width: 10rem;
+}
+
+.gr-workshop-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 13rem;
+  gap: 1rem;
+  align-items: start;
+}
+
+.gr-workshop-table-panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.gr-workshop-table th:first-child,
+.gr-workshop-table td:first-child {
+  width: 5.5rem;
+}
+
+.gr-workshop-table th:last-child,
+.gr-workshop-table td:last-child {
+  width: 4rem;
+}
+
+.gr-workshop-row-title {
+  font-weight: 700;
+  color: var(--sz-color-text);
+}
+
+.gr-workshop-row-subtitle {
+  font-size: .82rem;
+  color: var(--sz-color-text-muted);
+  margin-top: .15rem;
+}
+
+.gr-workshop-mechanic-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  max-width: 100%;
+  color: var(--sz-color-text-secondary);
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.gr-workshop-mechanic-pill span {
+  width: .7rem;
+  height: .7rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--sz-color-border) 70%, transparent);
+  flex: 0 0 auto;
+}
+
+.gr-workshop-sidebar {
+  display: grid;
+  gap: .75rem;
+}
+
+.gr-workshop-metric {
+  border: 1px solid var(--sz-color-border);
+  background: var(--sz-color-surface);
+  border-radius: 8px;
+  padding: .85rem;
+}
+
+.gr-workshop-metric span {
+  display: block;
+  color: var(--sz-color-text-muted);
+  font-size: .78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.gr-workshop-metric strong {
+  display: block;
+  font-size: 1.7rem;
+  line-height: 1.1;
+  margin-top: .25rem;
+}
+
+#workshopSheetModal .modal-dialog {
+  max-width: min(1280px, calc(100vw - 2rem));
+}
+
+#workshopSheetModal .modal-backdrop,
+#workshopTypesModal .modal-backdrop {
+  background: #020817;
+}
+
+.gr-workshop-modal {
+  --bs-modal-bg: var(--sz-color-surface);
+  --bs-modal-color: var(--sz-color-text);
+  --bs-modal-border-color: var(--sz-color-border);
+  --bs-modal-header-border-color: var(--sz-color-border);
+  --bs-modal-footer-border-color: var(--sz-color-border);
+  color: var(--sz-color-text) !important;
+  color-scheme: inherit;
+  background: var(--sz-color-surface);
+  border: 1px solid var(--sz-color-border);
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .48);
+  overflow: hidden;
+}
+
+[data-sz-theme="dark"] .gr-workshop-modal {
+  color-scheme: dark;
+}
+
+[data-sz-theme="light"] .gr-workshop-modal {
+  color-scheme: light;
+}
+
+.gr-workshop-modal-header {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 88%, var(--sz-color-surface));
+  border-bottom: 1px solid var(--sz-color-border);
+  padding: 1rem 1.15rem;
+}
+
+.gr-workshop-modal .btn-close {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 8px;
+  opacity: 1;
+  filter: invert(1) grayscale(1);
+}
+
+.gr-workshop-modal .btn-close:hover,
+.gr-workshop-modal .btn-close:focus-visible {
+  background-color: color-mix(in srgb, var(--sz-color-primary) 14%, var(--sz-color-surface-alt));
+}
+
+.gr-workshop-modal-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--sz-color-text) !important;
+}
+
+.gr-workshop-modal-subtitle {
+  min-height: 1.25rem;
+  color: var(--sz-color-text-muted);
+  font-size: .86rem;
+  margin-top: .2rem;
+}
+
+.gr-workshop-modal-body {
+  background: var(--sz-color-surface);
+  padding: 1rem 1.15rem 1.15rem;
+}
+
+.gr-workshop-form-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: .85rem .9rem;
+  align-items: end;
+}
+
+.gr-workshop-field-no {
+  grid-column: span 1;
+}
+
+.gr-workshop-field-vehicle {
+  grid-column: span 3;
+}
+
+.gr-workshop-field-state {
+  grid-column: span 2;
+}
+
+.gr-workshop-field-date {
+  grid-column: span 2;
+}
+
+.gr-workshop-field-time {
+  grid-column: span 2;
+}
+
+.gr-workshop-field-duration,
+.gr-workshop-field-mechanic,
+.gr-workshop-field-plan-date,
+.gr-workshop-field-plan-time {
+  grid-column: span 2;
+}
+
+.gr-workshop-field-type {
+  grid-column: span 4;
+}
+
+.gr-workshop-field-job {
+  grid-column: span 8;
+}
+
+.gr-workshop-field-obs {
+  grid-column: span 12;
+}
+
+.gr-workshop-modal .sz_label {
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-workshop-modal .sz_input,
+.gr-workshop-modal .sz_select,
+.gr-workshop-modal .sz_textarea {
+  color: var(--sz-color-text) !important;
+  -webkit-text-fill-color: var(--sz-color-text);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 84%, var(--sz-color-bg-main));
+  border-color: var(--sz-color-border);
+}
+
+.gr-workshop-modal .sz_input[readonly] {
+  color: var(--sz-color-text-muted);
+  -webkit-text-fill-color: var(--sz-color-text-muted);
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 58%, var(--sz-color-bg-main));
+}
+
+.gr-workshop-modal .sz_input::placeholder,
+.gr-workshop-modal .sz_textarea::placeholder {
+  color: var(--sz-color-text-muted);
+  -webkit-text-fill-color: var(--sz-color-text-muted);
+}
+
+.gr-workshop-modal .sz_select option {
+  color: var(--sz-color-text);
+  background: var(--sz-color-surface);
+}
+
+.gr-workshop-modal input.sz_input[type="date"]::-webkit-datetime-edit,
+.gr-workshop-modal input.sz_input[type="time"]::-webkit-datetime-edit,
+.gr-workshop-modal input.sz_input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.gr-workshop-modal input.sz_input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+.gr-workshop-modal input.sz_input[type="date"]::-webkit-datetime-edit-text,
+.gr-workshop-modal input.sz_input[type="time"]::-webkit-datetime-edit-text,
+.gr-workshop-modal input.sz_input[type="date"]::-webkit-datetime-edit-month-field,
+.gr-workshop-modal input.sz_input[type="date"]::-webkit-datetime-edit-day-field,
+.gr-workshop-modal input.sz_input[type="date"]::-webkit-datetime-edit-year-field,
+.gr-workshop-modal input.sz_input[type="time"]::-webkit-datetime-edit-hour-field,
+.gr-workshop-modal input.sz_input[type="time"]::-webkit-datetime-edit-minute-field {
+  color: var(--sz-color-text);
+}
+
+.gr-workshop-modal input.sz_input[type="date"]::-webkit-calendar-picker-indicator,
+.gr-workshop-modal input.sz_input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: var(--sz-datepicker-icon-filter);
+}
+
+.gr-workshop-modal .sz_table,
+.gr-workshop-modal .sz_table th,
+.gr-workshop-modal .sz_table td,
+.gr-workshop-modal .sz_table_cell {
+  color: var(--sz-color-text);
+}
+
+.gr-workshop-modal .sz_table_head th {
+  color: var(--sz-color-text-secondary);
+}
+
+.gr-workshop-modal .sz_text_muted {
+  color: var(--sz-color-text-muted) !important;
+}
+
+.gr-workshop-modal .sz_table_lookup_dropdown {
+  z-index: 2050;
+  border-radius: 8px;
+  background: var(--sz-color-surface);
+  border-color: var(--sz-color-border);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, .36);
+}
+
+.gr-workshop-autocomplete {
+  position: relative;
+}
+
+.gr-workshop-results,
+.gr-workshop-line-results {
+  position: absolute;
+  z-index: 2050;
+  left: 0;
+  right: 0;
+  top: calc(100% + .25rem);
+  max-height: 15rem;
+  overflow: auto;
+  background: var(--sz-color-surface);
+  border: 1px solid var(--sz-color-border);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, .36);
+  border-radius: 8px;
+}
+
+.gr-workshop-result {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: .65rem .75rem;
+  text-align: left;
+  display: block;
+  color: var(--sz-color-text);
+}
+
+.gr-workshop-result:hover,
+.gr-workshop-result:focus-visible {
+  background: var(--sz-color-bg-subtle);
+}
+
+.gr-workshop-result strong {
+  display: block;
+  font-size: .92rem;
+}
+
+.gr-workshop-result span {
+  display: block;
+  color: var(--sz-color-text-muted);
+  font-size: .78rem;
+  margin-top: .12rem;
+}
+
+.gr-workshop-lines-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.1rem 0 .55rem;
+}
+
+.gr-workshop-section-title {
+  font-weight: 800;
+  color: var(--sz-color-text) !important;
+}
+
+.gr-workshop-lines-host {
+  border: 1px solid var(--sz-color-border);
+  border-radius: 8px;
+  overflow: visible;
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 58%, var(--sz-color-surface));
+}
+
+.gr-workshop-lines {
+  table-layout: fixed;
+}
+
+.gr-workshop-lines th:nth-child(1) { width: 8.5rem; }
+.gr-workshop-lines th:nth-child(2) { width: 18rem; }
+.gr-workshop-lines th:nth-child(3) { width: 5rem; }
+.gr-workshop-lines th:nth-child(4) { width: 6.5rem; }
+.gr-workshop-lines th:nth-child(5) { width: 7.5rem; }
+.gr-workshop-lines th:nth-child(6) { width: 7.5rem; }
+.gr-workshop-lines th:nth-child(8) { width: 3rem; }
+
+.gr-workshop-lines td {
+  vertical-align: top;
+}
+
+.gr-workshop-line-ref {
+  position: relative;
+}
+
+.gr-workshop-line-results {
+  top: calc(100% - .1rem);
+  min-width: 24rem;
+}
+
+.gr-workshop-line-total {
+  display: flex;
+  align-items: center;
+  min-height: 2.35rem;
+  justify-content: flex-end;
+  font-weight: 800;
+}
+
+.gr-workshop-modal-footer {
+  gap: .6rem;
+  background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, var(--sz-color-surface));
+  border-top: 1px solid var(--sz-color-border);
+  padding: .85rem 1.15rem;
+}
+
+.gr-workshop-total {
+  margin-right: auto;
+}
+
+.gr-workshop-total span {
+  display: block;
+  color: var(--sz-color-text-muted);
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.gr-workshop-total strong {
+  font-size: 1.25rem;
+  color: var(--sz-color-text) !important;
+}
+
+.gr-workshop-type-form {
+  display: grid;
+  grid-template-columns: 7rem minmax(14rem, 1fr) 6rem auto auto;
+  gap: .75rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.gr-workshop-type-active {
+  min-height: 2.35rem;
+  align-items: center;
+}
+
+.gr-workshop-types-list {
+  display: grid;
+  gap: .45rem;
+}
+
+.gr-workshop-type-row {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr) 5rem 5rem 3rem;
+  gap: .5rem;
+  align-items: center;
+  border: 1px solid var(--sz-color-border);
+  border-radius: 8px;
+  padding: .5rem;
+  background: var(--sz-color-surface);
+}
+
+.gr-workshop-type-row strong {
+  font-size: .9rem;
+}
+
+.gr-workshop-type-row span {
+  color: var(--sz-color-text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .gr-workshop-body {
+    grid-template-columns: 1fr;
+  }
+
+  .gr-workshop-sidebar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .gr-workshop-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gr-workshop-field-no,
+  .gr-workshop-field-vehicle,
+  .gr-workshop-field-state,
+  .gr-workshop-field-date,
+  .gr-workshop-field-time,
+  .gr-workshop-field-duration,
+  .gr-workshop-field-mechanic,
+  .gr-workshop-field-plan-date,
+  .gr-workshop-field-plan-time,
+  .gr-workshop-field-type,
+  .gr-workshop-field-job,
+  .gr-workshop-field-obs {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 760px) {
+  .gr-workshop-toolbar,
+  .gr-workshop-contextbar {
+    align-items: stretch;
+  }
+
+  .gr-workshop-search,
+  .gr-workshop-state,
+  .gr-workshop-toolbar .sz_button {
+    width: 100%;
+  }
+
+  .gr-workshop-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gr-workshop-form-grid,
+  .gr-workshop-type-form {
+    grid-template-columns: 1fr;
+  }
+
+  .gr-workshop-field-no,
+  .gr-workshop-field-vehicle,
+  .gr-workshop-field-state,
+  .gr-workshop-field-date,
+  .gr-workshop-field-time,
+  .gr-workshop-field-duration,
+  .gr-workshop-field-mechanic,
+  .gr-workshop-field-plan-date,
+  .gr-workshop-field-plan-time,
+  .gr-workshop-field-type,
+  .gr-workshop-field-job,
+  .gr-workshop-field-obs {
+    grid-column: span 1;
+  }
+
+  .gr-workshop-lines-host {
+    overflow-x: auto;
+  }
+
+  .gr-workshop-lines {
+    min-width: 58rem;
+  }
+}

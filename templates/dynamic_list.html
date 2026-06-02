@@ -25,6 +25,12 @@
               <i class="fa fa-filter"></i>
               <span>{{ _('common.filter') }}</span>
             </button>
+            {% if table_name|upper == 'US' and (table_perms.get('inserir') or table_perms.inserir or table_perms.get('editar') or table_perms.editar) %}
+              <button id="btnImportPhcUsers" type="button" class="sz_button sz_button_secondary">
+                <i class="fa-solid fa-file-import"></i>
+                <span>Importar do PHC</span>
+              </button>
+            {% endif %}
             {% if table_perms.get('inserir') or table_perms.inserir %}
               {% if table_name == 'FO' %}
                 <button id="btnNewAttachment" class="sz_button sz_button_secondary btn-attach-custom">
@@ -47,6 +53,51 @@
     </div>
   </div>
 </div>
+
+{% if table_name|upper == 'US' and (table_perms.get('inserir') or table_perms.inserir or table_perms.get('editar') or table_perms.editar) %}
+<div id="modalImportPhcUsers" class="sz_modal" aria-labelledby="modalImportPhcUsersLabel" aria-hidden="true">
+  <div class="sz_panel sz_phc_users_import_panel">
+    <div class="sz_modal_header">
+      <h3 class="sz_h4 sz_modal_title" id="modalImportPhcUsersLabel">Importar utilizadores do PHC</h3>
+      <button type="button" id="closeImportPhcUsersTop" class="sz_button sz_button_ghost" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="sz_modal_body sz_phc_users_import_body">
+      <div id="phcUsersImportStatus" class="sz_text_muted">A carregar utilizadores...</div>
+      <div id="phcUsersImportWarnings" class="sz_phc_users_import_warnings" hidden></div>
+      <div class="sz_phc_users_import_table_wrap">
+        <table class="sz_table sz_phc_users_import_table">
+          <thead class="sz_table_head">
+            <tr class="sz_table_row">
+              <th class="sz_table_cell sz_phc_users_import_check">
+                <input id="phcUsersImportSelectAll" type="checkbox" aria-label="Selecionar todos">
+              </th>
+              <th class="sz_table_cell">Nome</th>
+              <th class="sz_table_cell">Email</th>
+              <th class="sz_table_cell">Login</th>
+              <th class="sz_table_cell">Password</th>
+              <th class="sz_table_cell">Bases de dados</th>
+              <th class="sz_table_cell">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="phcUsersImportRows"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="sz_modal_footer">
+      <button type="button" id="closeImportPhcUsers" class="sz_button sz_button_secondary">
+        <i class="fa-solid fa-ban"></i>
+        <span>Fechar</span>
+      </button>
+      <button type="button" id="confirmImportPhcUsers" class="sz_button sz_button_primary" disabled>
+        <i class="fa-solid fa-file-import"></i>
+        <span>Importar selecionados</span>
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- Modal de Ordenação -->
 <div id="modalSort" class="sz_modal" aria-labelledby="modalSortLabel" aria-hidden="true">
@@ -176,6 +227,124 @@
     justify-content: center;
     width: 2rem;
     color: var(--sz-color-primary);
+  }
+
+  .sz_modal > .sz_phc_users_import_panel {
+    width: min(1500px, calc(100vw - 24px)) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: min(46rem, calc(100vh - 2rem));
+  }
+
+  .sz_phc_users_import_body {
+    min-height: 18rem;
+    overflow: hidden;
+  }
+
+  .sz_phc_users_import_table_wrap {
+    width: 100%;
+    max-height: min(30rem, calc(100vh - 16rem));
+    overflow-y: auto;
+    overflow-x: hidden;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+  }
+
+  .sz_phc_users_import_table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+  }
+
+  .sz_phc_users_import_table .sz_table_cell {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    padding-left: .65rem;
+    padding-right: .65rem;
+  }
+
+  .sz_phc_users_import_table tbody .sz_table_row {
+    cursor: pointer;
+  }
+
+  .sz_phc_users_import_table tbody .sz_table_row.is-disabled {
+    cursor: default;
+    opacity: .72;
+  }
+
+  .sz_phc_users_import_table th:nth-child(1),
+  .sz_phc_users_import_table td:nth-child(1) {
+    width: 4%;
+  }
+
+  .sz_phc_users_import_table th:nth-child(2),
+  .sz_phc_users_import_table td:nth-child(2) {
+    width: 16%;
+  }
+
+  .sz_phc_users_import_table th:nth-child(3),
+  .sz_phc_users_import_table td:nth-child(3) {
+    width: 22%;
+  }
+
+  .sz_phc_users_import_table th:nth-child(4),
+  .sz_phc_users_import_table td:nth-child(4) {
+    width: 10%;
+  }
+
+  .sz_phc_users_import_table th:nth-child(5),
+  .sz_phc_users_import_table td:nth-child(5) {
+    width: 14%;
+  }
+
+  .sz_phc_users_import_table th:nth-child(6),
+  .sz_phc_users_import_table td:nth-child(6) {
+    width: 34%;
+  }
+
+  .sz_phc_users_import_table th:nth-child(7),
+  .sz_phc_users_import_table td:nth-child(7) {
+    width: 6%;
+    text-align: center;
+  }
+
+  .sz_phc_users_import_check {
+    text-align: center;
+  }
+
+  .sz_phc_users_import_warnings {
+    padding: .75rem .9rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-warning, #f59e0b) 42%, var(--sz-color-border));
+    border-radius: var(--sz-radius-md);
+    color: var(--sz-color-text);
+    background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 12%, var(--sz-color-surface));
+    font-size: .9rem;
+  }
+
+  .sz_phc_users_import_badge {
+    display: inline-flex;
+    align-items: center;
+    padding: .18rem .48rem;
+    border-radius: 999px;
+    border: 1px solid var(--sz-color-border);
+    color: var(--sz-color-text-secondary);
+    font-size: .78rem;
+    font-weight: 700;
+  }
+
+  .sz_phc_users_import_reason {
+    display: block;
+    margin-top: .25rem;
+    color: var(--sz-color-text-secondary);
+    font-size: .75rem;
+    font-weight: 700;
+  }
+
+  .sz_phc_users_import_action {
+    width: 2.35rem;
+    min-width: 2.35rem;
+    height: 2.35rem;
+    padding: 0;
   }
 
   .sz_dynamic_list_cards {

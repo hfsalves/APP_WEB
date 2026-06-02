@@ -1,0 +1,405 @@
+.gr-workshop-planning-shell {
+  min-height: 100%;
+}
+
+.gr-workshop-planning-page {
+  --gr-workshop-plan-grid-height: 432px;
+  --gr-workshop-plan-hour-height: 36px;
+  --gr-workshop-plan-gutter-width: 4.5rem;
+  --gr-workshop-plan-days-width: 58rem;
+}
+
+.gr-workshop-planning-contextbar {
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.gr-workshop-planning-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: .6rem;
+  flex-wrap: wrap;
+}
+
+.gr-workshop-plan-week-field {
+  width: 10.5rem;
+}
+
+.gr-workshop-plan-mechanic-field {
+  width: 13rem;
+}
+
+.gr-workshop-planning-body {
+  display: grid;
+  grid-template-columns: minmax(17rem, 21rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.gr-workshop-backlog,
+.gr-workshop-week-panel {
+  min-width: 0;
+  color: var(--sz-color-text);
+}
+
+.gr-workshop-backlog {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 11rem);
+  overflow: hidden;
+}
+
+.gr-workshop-backlog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .85rem .95rem;
+  border-bottom: 1px solid var(--sz-color-border);
+}
+
+.gr-workshop-backlog-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--sz-color-text);
+}
+
+.gr-workshop-backlog-head span {
+  display: block;
+  margin-top: .2rem;
+  color: var(--sz-color-text-muted);
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.gr-workshop-backlog-list {
+  display: grid;
+  gap: .65rem;
+  padding: .85rem;
+  overflow: auto;
+}
+
+.gr-workshop-plan-empty {
+  border: 1px dashed color-mix(in srgb, var(--sz-color-border) 86%, transparent);
+  border-radius: 8px;
+  color: var(--sz-color-text-muted);
+  padding: .9rem;
+  text-align: center;
+}
+
+.gr-workshop-plan-card,
+.gr-workshop-plan-block {
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 34%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+  color: var(--sz-color-text);
+  border-radius: 8px;
+  cursor: grab;
+  user-select: none;
+}
+
+.gr-workshop-plan-card {
+  position: relative;
+  padding: .72rem .78rem;
+}
+
+.gr-workshop-plan-card:active,
+.gr-workshop-plan-block:active {
+  cursor: grabbing;
+}
+
+.gr-workshop-plan-card.is-no-time {
+  border-color: color-mix(in srgb, var(--sz-color-warning) 42%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-warning) 10%, var(--sz-color-surface));
+}
+
+.gr-workshop-plan-mechanic {
+  display: inline-flex !important;
+  align-items: center;
+  gap: .35rem;
+}
+
+.gr-workshop-plan-mechanic::before {
+  content: "";
+  width: .62rem;
+  height: .62rem;
+  border-radius: 999px;
+  background: var(--mechanic-color, var(--sz-color-primary));
+  border: 1px solid color-mix(in srgb, var(--sz-color-border) 70%, transparent);
+  flex: 0 0 auto;
+}
+
+.gr-workshop-plan-card strong,
+.gr-workshop-plan-block strong {
+  display: block;
+  color: var(--sz-color-text);
+  font-size: .9rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gr-workshop-plan-card span,
+.gr-workshop-plan-block span {
+  display: block;
+  color: var(--sz-color-text-secondary);
+  font-size: .78rem;
+  line-height: 1.3;
+  margin-top: .18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gr-workshop-plan-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+  margin-top: .5rem;
+  color: var(--sz-color-text-muted);
+  font-size: .76rem;
+  font-weight: 800;
+}
+
+.gr-workshop-week-panel {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.gr-workshop-week-head {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(8.25rem, 1fr));
+  border-bottom: 1px solid var(--sz-color-border);
+  margin-left: var(--gr-workshop-plan-gutter-width);
+  min-width: var(--gr-workshop-plan-days-width);
+}
+
+.gr-workshop-day-head {
+  padding: .75rem .85rem;
+  border-left: 1px solid var(--sz-color-border);
+  background: var(--sz-color-surface);
+}
+
+.gr-workshop-day-head.is-weekend {
+  background: color-mix(in srgb, var(--sz-color-warning) 9%, var(--sz-color-surface));
+}
+
+.gr-workshop-day-head strong {
+  display: block;
+  color: var(--sz-color-text);
+  font-size: .9rem;
+}
+
+.gr-workshop-day-head span {
+  display: block;
+  color: var(--sz-color-text-muted);
+  font-size: .78rem;
+  font-weight: 700;
+  margin-top: .12rem;
+}
+
+.gr-workshop-week-grid {
+  display: grid;
+  grid-template-columns: var(--gr-workshop-plan-gutter-width) minmax(var(--gr-workshop-plan-days-width), 1fr);
+  height: var(--gr-workshop-plan-grid-height);
+  min-height: var(--gr-workshop-plan-grid-height);
+  min-width: calc(var(--gr-workshop-plan-gutter-width) + var(--gr-workshop-plan-days-width));
+  overflow: visible;
+}
+
+.gr-workshop-time-gutter,
+.gr-workshop-days-grid {
+  position: relative;
+  height: var(--gr-workshop-plan-grid-height);
+  min-height: var(--gr-workshop-plan-grid-height);
+}
+
+.gr-workshop-time-row {
+  position: absolute;
+  left: 0;
+  right: .65rem;
+  height: 1.25rem;
+  transform: translateY(-.62rem);
+  color: var(--sz-color-text-muted);
+  font-size: .72rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.gr-workshop-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(8.25rem, 1fr));
+}
+
+.gr-workshop-day-column {
+  position: relative;
+  height: var(--gr-workshop-plan-grid-height);
+  min-height: var(--gr-workshop-plan-grid-height);
+  border-left: 1px solid var(--sz-color-border);
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--gr-workshop-plan-hour-height) - 1px),
+      color-mix(in srgb, var(--sz-color-border) 70%, transparent) var(--gr-workshop-plan-hour-height)
+    ),
+    var(--sz-color-surface);
+  overflow: visible;
+}
+
+.gr-workshop-day-column.is-weekend {
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--gr-workshop-plan-hour-height) - 1px),
+      color-mix(in srgb, var(--sz-color-border) 70%, transparent) var(--gr-workshop-plan-hour-height)
+    ),
+    color-mix(in srgb, var(--sz-color-warning) 8%, var(--sz-color-surface));
+}
+
+.gr-workshop-day-column.is-drop-target {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sz-color-primary) 58%, transparent);
+}
+
+.gr-workshop-drop-indicator {
+  position: absolute;
+  left: .35rem;
+  right: .35rem;
+  z-index: 3;
+  min-height: 1.5rem;
+  border: 1px dashed var(--sz-color-primary);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--sz-color-primary) 16%, transparent);
+  color: var(--sz-color-primary);
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.4;
+  padding: .15rem .35rem;
+  pointer-events: none;
+}
+
+.gr-workshop-plan-block {
+  position: absolute;
+  z-index: 2;
+  padding: .38rem .45rem;
+  overflow: hidden;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, .14);
+  border-color: color-mix(in srgb, var(--mechanic-color, var(--sz-color-primary)) 58%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--mechanic-color, var(--sz-color-primary)) 16%, var(--sz-color-surface));
+}
+
+.gr-workshop-plan-block:hover,
+.gr-workshop-plan-card:hover {
+  border-color: color-mix(in srgb, var(--sz-color-primary) 70%, var(--sz-color-border));
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .18);
+}
+
+.gr-workshop-plan-block-time {
+  color: var(--sz-color-primary) !important;
+  font-weight: 900;
+}
+
+.gr-workshop-plan-block-meta {
+  display: flex !important;
+  justify-content: space-between;
+  gap: .45rem;
+  font-weight: 800;
+}
+
+.gr-workshop-mechanic-menu {
+  position: absolute;
+  z-index: 20;
+  width: min(15rem, calc(100% - .7rem));
+  margin-top: .25rem;
+  border: 1px solid var(--sz-color-border);
+  border-radius: 8px;
+  background: var(--sz-color-surface);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, .32);
+  padding: .35rem;
+}
+
+.gr-workshop-mechanic-menu-title {
+  color: var(--sz-color-text-muted);
+  font-size: .72rem;
+  font-weight: 900;
+  padding: .35rem .55rem .25rem;
+  text-transform: uppercase;
+}
+
+.gr-workshop-mechanic-menu-separator {
+  height: 1px;
+  background: var(--sz-color-border);
+  margin: .3rem .15rem;
+}
+
+.gr-workshop-mechanic-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sz-color-text);
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .48rem .55rem;
+  text-align: left;
+}
+
+.gr-workshop-mechanic-menu button.is-danger {
+  color: var(--sz-color-danger);
+}
+
+.gr-workshop-mechanic-menu button:hover,
+.gr-workshop-mechanic-menu button:focus-visible {
+  background: var(--sz-color-bg-subtle);
+}
+
+.gr-workshop-mechanic-menu-dot {
+  width: .7rem;
+  height: .7rem;
+  border-radius: 999px;
+  background: var(--mechanic-color, var(--sz-color-primary));
+  border: 1px solid color-mix(in srgb, var(--sz-color-border) 70%, transparent);
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1180px) {
+  .gr-workshop-planning-body {
+    grid-template-columns: 1fr;
+  }
+
+  .gr-workshop-backlog {
+    max-height: none;
+  }
+
+  .gr-workshop-backlog-list {
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    max-height: 18rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .gr-workshop-planning-contextbar,
+  .gr-workshop-planning-toolbar {
+    align-items: stretch;
+  }
+
+  .gr-workshop-planning-toolbar .sz_button,
+  .gr-workshop-plan-week-field,
+  .gr-workshop-plan-mechanic-field {
+    width: 100%;
+  }
+
+  .gr-workshop-week-head {
+    margin-left: 3.75rem;
+  }
+
+  .gr-workshop-week-grid {
+    grid-template-columns: 3.75rem minmax(var(--gr-workshop-plan-days-width), 1fr);
+    min-width: calc(3.75rem + var(--gr-workshop-plan-days-width));
+  }
+}

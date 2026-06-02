@@ -1,0 +1,1889 @@
+{% extends 'base.html' %}
+
+{% set mapa_gestao_gr_i18n_keys = [
+  'mapa_gestao_gr.title',
+  'mapa_gestao_gr.subtitle',
+  'mapa_gestao_gr.origin',
+  'mapa_gestao_gr.all_origins',
+  'mapa_gestao_gr.no_origin',
+  'mapa_gestao_gr.origins_count',
+  'mapa_gestao_gr.date_start',
+  'mapa_gestao_gr.date_end',
+  'mapa_gestao_gr.cost_center',
+  'mapa_gestao_gr.all_centers',
+  'mapa_gestao_gr.no_center',
+  'mapa_gestao_gr.centers_count',
+  'mapa_gestao_gr.centers_available',
+  'mapa_gestao_gr.no_centers_filters',
+  'mapa_gestao_gr.accesses',
+  'mapa_gestao_gr.collapse_all',
+  'mapa_gestao_gr.expand_all',
+  'mapa_gestao_gr.family',
+  'mapa_gestao_gr.month_jan',
+  'mapa_gestao_gr.month_feb',
+  'mapa_gestao_gr.month_mar',
+  'mapa_gestao_gr.month_apr',
+  'mapa_gestao_gr.month_may',
+  'mapa_gestao_gr.month_jun',
+  'mapa_gestao_gr.month_jul',
+  'mapa_gestao_gr.month_aug',
+  'mapa_gestao_gr.month_sep',
+  'mapa_gestao_gr.month_oct',
+  'mapa_gestao_gr.month_nov',
+  'mapa_gestao_gr.month_dec',
+  'mapa_gestao_gr.total',
+  'mapa_gestao_gr.weight',
+  'mapa_gestao_gr.loading',
+  'mapa_gestao_gr.access_modal_title',
+  'mapa_gestao_gr.access_modal_hint',
+  'mapa_gestao_gr.user',
+  'mapa_gestao_gr.search_user',
+  'mapa_gestao_gr.clear_accesses',
+  'mapa_gestao_gr.users_empty',
+  'mapa_gestao_gr.origins_empty',
+  'mapa_gestao_gr.admin_full_access',
+  'mapa_gestao_gr.accesses_unsaved',
+  'mapa_gestao_gr.accesses_saved',
+  'mapa_gestao_gr.select_origins',
+  'mapa_gestao_gr.all',
+  'mapa_gestao_gr.none',
+  'mapa_gestao_gr.select_cost_centers',
+  'mapa_gestao_gr.selected',
+  'mapa_gestao_gr.type',
+  'mapa_gestao_gr.costs',
+  'mapa_gestao_gr.revenue',
+  'mapa_gestao_gr.balance',
+  'mapa_gestao_gr.accumulated',
+  'mapa_gestao_gr.no_access',
+  'mapa_gestao_gr.no_data_filters',
+  'mapa_gestao_gr.no_visible_data',
+  'mapa_gestao_gr.filters_all_origins',
+  'mapa_gestao_gr.filters_no_origins',
+  'mapa_gestao_gr.detail',
+  'mapa_gestao_gr.detail_select_value',
+  'mapa_gestao_gr.detail_empty',
+  'mapa_gestao_gr.detail_loading',
+  'mapa_gestao_gr.detail_records',
+  'mapa_gestao_gr.detail_total',
+  'mapa_gestao_gr.detail_error',
+  'mapa_gestao_gr.document',
+  'mapa_gestao_gr.number',
+  'mapa_gestao_gr.date',
+  'mapa_gestao_gr.name',
+  'mapa_gestao_gr.reference',
+  'mapa_gestao_gr.description',
+  'mapa_gestao_gr.quantity',
+  'mapa_gestao_gr.price',
+  'common.apply',
+  'common.clear',
+  'common.cancel',
+  'common.close',
+  'common.save'
+] %}
+
+{% block content %}
+<div class="sz_page sz_management_map_page">
+  <div class="sz_page_container sz_management_map_container">
+    <div class="sz_page_header sz_page_contextbar">
+      <div class="sz_contextbar sz_management_map_contextbar">
+        <div class="sz_contextbar_left sz_management_map_contextbar_left">
+          <div class="sz_page_title">{{ map_t('mapa_gestao_gr.title') }}</div>
+          <div class="sz_page_subtitle" id="mapTotal">{{ map_t('mapa_gestao_gr.subtitle') }}</div>
+        </div>
+        <div class="sz_contextbar_right sz_management_map_contextbar_right">
+          <div class="sz_management_map_filters">
+            <div class="sz_field sz_management_map_filter_origin">
+              <label class="sz_label">{{ map_t('mapa_gestao_gr.origin') }}</label>
+              <button class="sz_button sz_button_ghost sz_management_map_origin_btn" id="mapBtnOrigem" type="button">
+                <i class="fa-solid fa-database"></i>
+                <span id="mapOrigemLabel">{{ map_t('mapa_gestao_gr.all_origins') }}</span>
+              </button>
+            </div>
+            <div class="sz_field sz_management_map_filter_date">
+              <label for="mapDataInicio" class="sz_label">{{ map_t('mapa_gestao_gr.date_start') }}</label>
+              <input type="date" class="sz_input" id="mapDataInicio" value="{{ data_inicio_default }}">
+            </div>
+            <div class="sz_field sz_management_map_filter_date">
+              <label for="mapDataFim" class="sz_label">{{ map_t('mapa_gestao_gr.date_end') }}</label>
+              <input type="date" class="sz_input" id="mapDataFim" value="{{ data_fim_default }}">
+            </div>
+            <div class="sz_field sz_management_map_filter_cc">
+              <label class="sz_label">{{ map_t('mapa_gestao_gr.cost_center') }}</label>
+              <button class="sz_button sz_button_ghost sz_management_map_cc_btn" id="mapBtnCcusto" type="button">
+                <i class="fa-solid fa-building"></i>
+                <span id="mapCcustoLabel">{{ map_t('mapa_gestao_gr.all_centers') }}</span>
+              </button>
+            </div>
+            <div class="sz_management_map_filter_actions">
+              <button class="sz_button sz_button_primary" id="mapBtnAplicar" type="button">
+                <i class="fa-solid fa-filter"></i>
+                <span>{{ map_t('common.apply') }}</span>
+              </button>
+              <button class="sz_button sz_button_ghost" id="mapBtnLimpar" type="button">
+                <span>{{ map_t('common.clear') }}</span>
+              </button>
+            </div>
+          </div>
+          <div class="sz_caption sz_management_map_filters_caption" id="mapCcustoCount"></div>
+          <div class="sz_caption sz_management_map_filters_caption" id="mapFiltros"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sz_page_body sz_management_map_body">
+      <div class="sz_panel sz_management_map_main">
+        <div class="sz_management_map_toolbar">
+          <div class="sz_management_map_access_controls">
+            <button class="sz_button sz_button_ghost" id="mapAccessBtn" type="button">
+              <i class="fa-solid fa-user-lock"></i>
+              <span>{{ map_t('mapa_gestao_gr.accesses') }}</span>
+            </button>
+          </div>
+          <div class="sz_management_map_tree_controls" id="mapTreeControls">
+            <button class="sz_button sz_button_ghost" id="mapCollapseAll" type="button">
+              <i class="fa-solid fa-compress"></i>
+              <span>{{ map_t('mapa_gestao_gr.collapse_all') }}</span>
+            </button>
+            <button class="sz_button sz_button_ghost" id="mapExpandAll" type="button">
+              <i class="fa-solid fa-expand"></i>
+              <span>{{ map_t('mapa_gestao_gr.expand_all') }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="mapTableView" class="sz_management_map_table_view">
+          <div class="sz_table_host map-table-wrap sz_management_map_table_host">
+            <table class="sz_table sz_management_map_table" id="mapaTabela">
+              <thead class="sz_table_head">
+                <tr>
+                  <th>{{ map_t('mapa_gestao_gr.family') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_jan') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_feb') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_mar') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_apr') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_may') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_jun') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_jul') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_aug') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_sep') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_oct') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_nov') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.month_dec') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.total') }}</th>
+                  <th class="text-end">{{ map_t('mapa_gestao_gr.weight') }}</th>
+                </tr>
+              </thead>
+              <tbody id="mapaBody">
+                <tr>
+                  <td colspan="15" class="sz_table_cell sz_text_muted text-center">{{ map_t('mapa_gestao_gr.loading') }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Acessos -->
+<div class="modal fade" id="mapAccessModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable sz_management_map_access_modal_dialog">
+    <div class="modal-content sz_management_map_access_modal">
+      <div class="modal-header sz_modal_header">
+        <div>
+          <h5 class="modal-title sz_modal_title">{{ map_t('mapa_gestao_gr.access_modal_title') }}</h5>
+          <div class="sz_caption">{{ map_t('mapa_gestao_gr.access_modal_hint') }}</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ map_t('common.close') }}"></button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <div class="sz_management_map_access_header">
+          <div class="sz_field sz_management_map_access_search">
+            <label class="sz_label" for="mapAccessSearch">{{ map_t('mapa_gestao_gr.user') }}</label>
+            <input class="sz_input" id="mapAccessSearch" type="search" placeholder="{{ map_t('mapa_gestao_gr.search_user') }}">
+          </div>
+          <div class="sz_management_map_access_actions">
+            <button class="sz_button sz_button_ghost" id="mapAccessClearAll" type="button">{{ map_t('mapa_gestao_gr.clear_accesses') }}</button>
+          </div>
+        </div>
+        <div class="sz_table_host sz_management_map_access_table_host">
+          <table class="sz_table sz_management_map_access_table">
+            <thead class="sz_table_head">
+              <tr>
+                <th>{{ map_t('mapa_gestao_gr.user') }}</th>
+                <th>{{ map_t('mapa_gestao_gr.origin') }}</th>
+              </tr>
+            </thead>
+            <tbody id="mapAccessList">
+              <tr>
+                <td colspan="2" class="sz_table_cell sz_text_muted text-center">{{ map_t('mapa_gestao_gr.loading') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <div class="sz_caption" id="mapAccessStatus"></div>
+        <button class="sz_button sz_button_ghost" data-bs-dismiss="modal" type="button">{{ map_t('common.cancel') }}</button>
+        <button class="sz_button sz_button_primary" id="mapAccessSave" type="button">{{ map_t('common.save') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Origem -->
+<div class="modal fade" id="mapOrigemModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable sz_management_map_origin_modal_dialog">
+    <div class="modal-content sz_management_map_origin_modal">
+      <div class="modal-header sz_modal_header">
+        <h5 class="modal-title sz_modal_title">{{ map_t('mapa_gestao_gr.select_origins') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ map_t('common.close') }}"></button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <div class="cc-btns">
+          <button class="sz_button sz_button_ghost" id="mapOrigemAll" type="button">{{ map_t('mapa_gestao_gr.all') }}</button>
+          <button class="sz_button sz_button_ghost" id="mapOrigemNone" type="button">{{ map_t('mapa_gestao_gr.none') }}</button>
+        </div>
+        <div class="sz_table_host sz_management_map_origin_table_host">
+          <table class="sz_table sz_management_map_origin_table">
+            <thead class="sz_table_head">
+              <tr>
+                <th class="text-center">{{ map_t('mapa_gestao_gr.selected') }}</th>
+                <th>{{ map_t('mapa_gestao_gr.origin') }}</th>
+              </tr>
+            </thead>
+            <tbody id="mapOrigemList">
+              <tr>
+                <td colspan="2" class="sz_table_cell sz_text_muted text-center">{{ map_t('mapa_gestao_gr.loading') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button class="sz_button sz_button_ghost" data-bs-dismiss="modal" type="button">{{ map_t('common.cancel') }}</button>
+        <button class="sz_button sz_button_primary" id="mapOrigemApply" type="button">{{ map_t('common.apply') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Centro de Custo -->
+<div class="modal fade" id="mapCcustoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable sz_management_map_cc_modal_dialog">
+    <div class="modal-content sz_management_map_cc_modal">
+      <div class="modal-header sz_modal_header">
+        <h5 class="modal-title sz_modal_title">{{ map_t('mapa_gestao_gr.select_cost_centers') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ map_t('common.close') }}"></button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <div class="cc-btns">
+          <button class="sz_button sz_button_ghost" id="mapCcAll" type="button">{{ map_t('mapa_gestao_gr.all') }}</button>
+          <button class="sz_button sz_button_ghost" id="mapCcNone" type="button">{{ map_t('mapa_gestao_gr.none') }}</button>
+        </div>
+        <div class="sz_table_host sz_management_map_cc_table_host">
+          <table class="sz_table sz_management_map_cc_table">
+            <thead class="sz_table_head">
+              <tr>
+                <th class="text-center">{{ map_t('mapa_gestao_gr.selected') }}</th>
+                <th>{{ map_t('mapa_gestao_gr.cost_center') }}</th>
+                <th class="text-end">{{ map_t('mapa_gestao_gr.type') }}</th>
+              </tr>
+            </thead>
+            <tbody id="mapCcList">
+              <tr>
+                <td colspan="3" class="sz_table_cell sz_text_muted text-center">{{ map_t('mapa_gestao_gr.loading') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button class="sz_button sz_button_ghost" data-bs-dismiss="modal" type="button">{{ map_t('common.cancel') }}</button>
+        <button class="sz_button sz_button_primary" id="mapCcApply" type="button">{{ map_t('common.apply') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Detalhe -->
+<div class="modal fade" id="mapDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable sz_management_map_detail_dialog">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <h5 class="modal-title mb-0" id="mapDetailTitle">{{ map_t('mapa_gestao_gr.detail') }}</h5>
+        <div class="d-flex align-items-center gap-2 ms-auto">
+          <span class="sz_management_map_detail_count" id="mapDetailCount">{{ map_t('mapa_gestao_gr.detail_records', count=0) }}</span>
+          <button type="button" class="sz_button sz_button_ghost sz_management_map_modal_close" data-bs-dismiss="modal" aria-label="{{ map_t('common.close') }}">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body pt-2">
+        <div class="table-responsive rounded-3 shadow-sm detail-table-wrap">
+          <table class="table table-sm align-middle detail-table" id="mapDetailTable">
+            <thead>
+              <tr>
+                <th class="map-detail-sort" data-key="origem">{{ map_t('mapa_gestao_gr.origin') }} <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="documento">{{ map_t('mapa_gestao_gr.document') }} <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="numero">{{ map_t('mapa_gestao_gr.number') }} <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="data">{{ map_t('mapa_gestao_gr.date') }} <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="nome">{{ map_t('mapa_gestao_gr.name') }} <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="ccusto">{{ map_t('mapa_gestao_gr.cost_center') }} <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="familia">{{ map_t('mapa_gestao_gr.family') }} <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="referencia">{{ map_t('mapa_gestao_gr.reference') }} <span class="sort-ind"></span></th>
+                <th class="map-detail-sort" data-key="designacao">{{ map_t('mapa_gestao_gr.description') }} <span class="sort-ind"></span></th>
+                <th class="text-end map-detail-sort" data-key="quantidade">{{ map_t('mapa_gestao_gr.quantity') }} <span class="sort-ind"></span></th>
+                <th class="text-end map-detail-sort" data-key="preco">{{ map_t('mapa_gestao_gr.price') }} <span class="sort-ind"></span></th>
+                <th class="text-end map-detail-sort" data-key="total">{{ map_t('mapa_gestao_gr.total') }} <span class="sort-ind"></span></th>
+              </tr>
+            </thead>
+            <tbody id="mapDetailBody">
+              <tr><td colspan="12" class="text-center text-muted">{{ map_t('mapa_gestao_gr.detail_select_value') }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div id="mapDetailTotal">{{ map_t('mapa_gestao_gr.detail_total') }}: --</div>
+        <button class="sz_button sz_button_secondary" data-bs-dismiss="modal" type="button">{{ map_t('common.close') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Documento de origem -->
+<div class="modal fade" id="mapDocModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable sz_management_map_doc_dialog">
+    <div class="modal-content detail-card sz_management_map_doc_card">
+      <div class="modal-header border-0 pb-1">
+        <div>
+          <h5 class="modal-title mb-0" id="mapDocTitle">Documento</h5>
+          <div class="sz_management_map_doc_subtitle" id="mapDocSubtitle">Compra</div>
+        </div>
+        <button type="button" class="sz_button sz_button_ghost sz_management_map_modal_close" data-bs-dismiss="modal" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body pt-2">
+        <datalist id="mapDocRefs"></datalist>
+        <div class="sz_management_map_doc_header" id="mapDocHeader">
+          <div class="text-muted">Selecione um documento.</div>
+        </div>
+        <div class="table-responsive rounded-3 shadow-sm detail-table-wrap sz_management_map_doc_lines_wrap">
+          <table class="table table-sm align-middle detail-table sz_management_map_doc_lines" id="mapDocLinesTable">
+            <thead>
+              <tr>
+                <th>Refer&ecirc;ncia</th>
+                <th>Designa&ccedil;&atilde;o</th>
+                <th>Fam&iacute;lia</th>
+                <th>C. Custo</th>
+                <th class="text-end">Quantidade</th>
+                <th class="text-end">Pre&ccedil;o Unit.</th>
+                <th class="text-end">Total</th>
+                <th>Tabela IVA</th>
+                <th class="text-end">Taxa IVA</th>
+                <th>Data Custo</th>
+              </tr>
+            </thead>
+            <tbody id="mapDocLinesBody">
+              <tr><td colspan="10" class="text-center text-muted">Sem linhas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div id="mapDocStatus" class="sz_management_map_doc_status">Campos fiscais bloqueados.</div>
+        <div class="d-flex gap-2">
+          <button class="sz_button sz_button_secondary" data-bs-dismiss="modal" type="button">Fechar</button>
+          <button class="sz_button sz_button_primary" id="mapDocSave" type="button">Gravar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Reservas por dia -->
+<div class="modal fade" id="mapResDailyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Reservas recebidas por dia</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapResPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapResMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapResNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div style="height: 420px;">
+          <canvas id="mapResDailyChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapResDailyTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal ADR por dia -->
+<div class="modal fade" id="mapAdrDailyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Preco medio por noite (por dia)</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapAdrPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapAdrMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapAdrNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div style="height: 420px;">
+          <canvas id="mapAdrDailyChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapAdrDailyTotal">ADR: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Fatura��o por dia -->
+<div class="modal fade" id="mapFatDailyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Fatura��o por dia</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapFatPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapFatMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapFatNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div style="height: 420px;">
+          <canvas id="mapFatDailyChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapFatDailyTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Rubricas de Custos -->
+<div class="modal fade" id="mapCostsRubricModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Custos por rubrica (n�vel 2)</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapCostsPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapCostsMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapCostsNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div style="height: 520px;">
+          <canvas id="mapCostsRubricChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapCostsRubricTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Vendas por alojamento -->
+<div class="modal fade" id="mapSalesAlojModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Vendas vs Objetivo (por alojamento)</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapSalesPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapSalesMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapSalesNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div class="map-chart-scroll" style="height: 800px; overflow-y: auto; overflow-x: hidden;">
+          <canvas id="mapSalesAlojChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapSalesAlojTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Margem por alojamento -->
+<div class="modal fade" id="mapMarginAlojModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Margem (por alojamento)</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapMarginPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapMarginMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapMarginNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div class="map-chart-scroll" style="height: 800px; overflow-y: auto; overflow-x: hidden;">
+          <canvas id="mapMarginAlojChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapMarginAlojTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Demografia por pa�s -->
+<div class="modal fade" id="mapResCountryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content detail-card">
+      <div class="modal-header border-0 pb-1">
+        <div class="d-flex align-items-center justify-content-between w-100 gap-2">
+          <h5 class="modal-title mb-0">Reservas por pa�s</h5>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapCountryPrev">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="fw-semibold" id="mapCountryMonthLabel">--</div>
+            <button class="btn btn-sm btn-outline-light" type="button" id="mapCountryNext">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div class="table-responsive rounded-3 shadow-sm detail-table-wrap" style="max-height: 70vh;">
+          <table class="table table-sm align-middle detail-table" id="mapCountryTable">
+            <thead>
+              <tr>
+                <th class="country-sort" data-key="pais">Pa�s <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="reservas">Reservas <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="pct">% <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="valor">Valor <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="media_noites">Noites <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="media_noite">M�dia <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="media_hospedes">H�spedes <span class="sort-ind"></span></th>
+                <th class="text-end country-sort" data-key="media_antecip">Antecip. <span class="sort-ind"></span></th>
+              </tr>
+            </thead>
+            <tbody id="mapCountryBody">
+              <tr><td colspan="8" class="text-center text-muted">A carregar...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <div class="fw-semibold" id="mapCountryTotal">Total: --</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .sz_management_map_page {
+    height: 100%;
+    min-height: 0;
+    position: relative;
+  }
+
+  .sz_management_map_container {
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .sz_management_map_body {
+    min-height: 0;
+    overflow: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .sz_management_map_body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .sz_management_map_contextbar {
+    align-items: flex-start;
+  }
+
+  .sz_management_map_contextbar_left {
+    flex: 0 1 340px;
+    min-width: 240px;
+    max-width: 340px;
+  }
+
+  .sz_management_map_contextbar_right {
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: flex-end;
+  }
+
+  .sz_management_map_filters {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.65rem 0.75rem;
+    width: 100%;
+  }
+
+  .sz_management_map_filter_year {
+    width: 90px;
+  }
+
+  .sz_management_map_filter_origin,
+  .sz_management_map_filter_cc {
+    min-width: 220px;
+    max-width: 320px;
+  }
+
+  .sz_management_map_origin_btn,
+  .sz_management_map_cc_btn {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .sz_management_map_filter_actions {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+  }
+
+  .sz_management_map_toggle {
+    min-height: var(--sz-input-height);
+    align-self: flex-end;
+    white-space: nowrap;
+  }
+
+  .sz_management_map_pct {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 112px;
+    align-self: flex-end;
+  }
+
+  .sz_management_map_pct .sz_input {
+    width: 100%;
+  }
+
+  .sz_management_map_filters_caption {
+    width: 100%;
+    text-align: right;
+  }
+
+  .sz_management_map_main {
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.9rem;
+  }
+
+  .sz_management_map_toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .sz_management_map_tree_controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .sz_management_map_access_controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  #mapTableView {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .sz_management_map_table_host {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    border-radius: var(--sz-radius-md);
+  }
+
+  .sz_management_map_table_host::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .sz_management_map_table {
+    min-width: 1480px;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  .sz_management_map_table th,
+  .sz_management_map_table td {
+    padding: 0.35rem 0.55rem;
+  }
+
+  .sz_management_map_table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary);
+  }
+
+  .sz_management_map_table td:first-child,
+  .sz_management_map_table th:first-child {
+    text-align: left;
+  }
+
+  .sz_management_map_table td:first-child {
+    white-space: nowrap;
+    min-width: 310px;
+    padding-right: 0.75rem;
+  }
+
+  .fam-cell.level-1 {
+    font-weight: var(--sz-font-weight-bold);
+    padding-left: 0.35rem !important;
+  }
+
+  .fam-cell.level-2 {
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+    padding-left: 1.35rem !important;
+  }
+
+  .fam-cell.level-3 {
+    color: var(--sz-color-text-secondary);
+    padding-left: 2.35rem !important;
+  }
+
+  .mapa-row:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
+  }
+
+  .row-proveito td {
+    color: var(--sz-color-info);
+  }
+
+  .row-proveito .fam-cell {
+    color: var(--sz-color-info) !important;
+  }
+
+  .total-row td {
+    font-weight: var(--sz-font-weight-bold);
+    border-top: 2px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
+  }
+
+  .total-custos td {
+    color: var(--sz-color-danger);
+    background: color-mix(in srgb, var(--sz-color-danger) 11%, var(--sz-color-surface));
+  }
+
+  .total-proveitos td {
+    color: var(--sz-color-info);
+    background: color-mix(in srgb, var(--sz-color-info) 11%, var(--sz-color-surface));
+  }
+
+  .total-saldo td {
+    color: var(--sz-color-text);
+    background: color-mix(in srgb, var(--sz-color-border) 30%, var(--sz-color-surface));
+  }
+
+  .total-acumulado td {
+    color: var(--sz-color-text-muted);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 85%, var(--sz-color-surface));
+    font-weight: var(--sz-font-weight-medium);
+    font-size: 11px;
+  }
+
+  .diff-over {
+    background: color-mix(in srgb, var(--sz-color-danger) 18%, var(--sz-color-surface)) !important;
+    color: var(--sz-color-danger) !important;
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .diff-under {
+    background: color-mix(in srgb, var(--sz-color-success) 18%, var(--sz-color-surface)) !important;
+    color: var(--sz-color-success) !important;
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .cc-btns {
+    gap: 0.35rem;
+  }
+
+  .toggle-node {
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+  }
+
+  .toggle-node:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface-alt));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 65%, var(--sz-color-border));
+    color: var(--sz-color-primary);
+  }
+
+  .toggle-node:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--sz-color-primary) 45%, transparent);
+    outline-offset: 2px;
+  }
+
+  .toggle-spacer {
+    display: inline-block;
+    width: 22px;
+  }
+
+  .sz_management_map_chart_card,
+  .kpi-item {
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    color: var(--sz-color-text);
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-1);
+  }
+
+  .sz_management_map_chart_card .card-body {
+    color: var(--sz-color-text);
+  }
+
+  .kpi-item {
+    position: relative;
+    overflow: hidden;
+    padding: 0.85rem 0.95rem 0.85rem 1.1rem;
+    margin-bottom: 0.75rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .kpi-grid .kpi-item {
+    margin-bottom: 0;
+  }
+
+  .kpi-item:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--sz-shadow-2);
+  }
+
+  .kpi-item::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 5px;
+    background: color-mix(in srgb, var(--sz-color-text-muted) 60%, var(--sz-color-border));
+  }
+
+  .kpi-item.kpi-sales::before {
+    background: linear-gradient(180deg, var(--sz-color-info) 0%, var(--sz-color-primary) 100%);
+  }
+
+  .kpi-item.kpi-costs::before {
+    background: linear-gradient(180deg, var(--sz-color-warning) 0%, var(--sz-color-danger) 100%);
+  }
+
+  .kpi-item.kpi-margin::before {
+    background: linear-gradient(180deg, var(--sz-color-success) 0%, color-mix(in srgb, var(--sz-color-success) 70%, var(--sz-color-primary)) 100%);
+  }
+
+  .kpi-item.kpi-placeholder::before {
+    opacity: 0.65;
+  }
+
+  .kpi-title {
+    font-size: 12px;
+    font-weight: var(--sz-font-weight-bold);
+    letter-spacing: 0.02em;
+    color: var(--sz-color-text-secondary);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+  }
+
+  .kpi-value {
+    font-size: 1.4rem;
+    font-weight: var(--sz-font-weight-bold);
+    letter-spacing: -0.02em;
+    color: var(--sz-color-text);
+    line-height: 1.1;
+    margin-top: 0.15rem;
+  }
+
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--sz-color-text-muted);
+    margin-top: 0.15rem;
+  }
+
+  .kpi-badge {
+    font-weight: var(--sz-font-weight-bold);
+    letter-spacing: 0.01em;
+    padding: 0.35rem 0.55rem;
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
+    color: var(--sz-color-primary);
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
+  }
+
+  .kpi-clickable {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .country-sort {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .country-sort .sort-ind,
+  .map-detail-sort .sort-ind {
+    opacity: 0.65;
+    font-size: 11px;
+    margin-left: 4px;
+  }
+
+  .map-detail-sort {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .map-detail-sort:hover {
+    color: var(--sz-color-primary) !important;
+  }
+
+  .cell-drill {
+    cursor: pointer;
+    color: inherit;
+    transition: color 0.12s ease, background-color 0.12s ease;
+  }
+
+  .cell-drill:hover {
+    color: var(--sz-color-primary) !important;
+    background: color-mix(in srgb, var(--sz-color-primary) 8%, transparent);
+  }
+
+  .detail-card,
+  #mapOrigemModal .modal-content,
+  #mapCcustoModal .modal-content,
+  #mapAccessModal .modal-content {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    box-shadow: var(--sz-shadow-3);
+    overflow: hidden;
+  }
+
+  .detail-card .modal-header,
+  #mapOrigemModal .modal-header,
+  #mapCcustoModal .modal-header,
+  #mapAccessModal .modal-header {
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .detail-card .modal-header .btn-close,
+  #mapOrigemModal .modal-header .btn-close,
+  #mapCcustoModal .modal-header .btn-close,
+  #mapAccessModal .modal-header .btn-close {
+    filter: none;
+  }
+
+  .detail-card .modal-body,
+  .detail-card .modal-footer,
+  #mapOrigemModal .modal-body,
+  #mapOrigemModal .modal-footer,
+  #mapCcustoModal .modal-body,
+  #mapCcustoModal .modal-footer,
+  #mapAccessModal .modal-body,
+  #mapAccessModal .modal-footer {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border-top-color: var(--sz-color-border);
+  }
+
+  .detail-table-wrap {
+    max-height: 60vh;
+    overflow: auto;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .detail-table-wrap::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  #mapDetailModal {
+    overflow: hidden !important;
+  }
+
+  #mapDocModal {
+    overflow: hidden !important;
+  }
+
+  #mapDetailModal .sz_management_map_detail_dialog {
+    width: calc(100vw - 2rem);
+    max-width: min(1760px, calc(100vw - 2rem));
+    height: calc(100vh - var(--sz-topbar-height, 56px) - 1.5rem);
+    max-height: calc(100vh - var(--sz-topbar-height, 56px) - 1.5rem);
+    margin: calc(var(--sz-topbar-height, 56px) + 0.75rem) auto 0.75rem;
+  }
+
+  #mapDocModal .sz_management_map_doc_dialog {
+    width: calc(100vw - 2rem);
+    max-width: min(1680px, calc(100vw - 2rem));
+    height: calc(100vh - var(--sz-topbar-height, 56px) - 1.5rem);
+    max-height: calc(100vh - var(--sz-topbar-height, 56px) - 1.5rem);
+    margin: calc(var(--sz-topbar-height, 56px) + 0.75rem) auto 0.75rem;
+  }
+
+  #mapDetailModal .detail-card {
+    height: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #mapDocModal .detail-card {
+    height: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #mapDetailModal .modal-header,
+  #mapDetailModal .modal-footer {
+    flex: 0 0 auto;
+  }
+
+  #mapDocModal .modal-header,
+  #mapDocModal .modal-footer {
+    flex: 0 0 auto;
+  }
+
+  #mapDetailModal .modal-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #mapDocModal .modal-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  #mapDetailModal .detail-table-wrap {
+    height: 100%;
+    max-height: none;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--sz-color-primary) 30%, transparent) transparent;
+  }
+
+  #mapDocModal .detail-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--sz-color-primary) 28%, transparent) transparent;
+  }
+
+  #mapDetailModal .detail-table-wrap::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    display: block;
+  }
+
+  #mapDocModal .detail-table-wrap::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    display: block;
+  }
+
+  #mapDetailModal .detail-table-wrap::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--sz-color-primary) 28%, transparent);
+    border-radius: 999px;
+  }
+
+  #mapDocModal .detail-table-wrap::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--sz-color-primary) 24%, transparent);
+    border-radius: 999px;
+  }
+
+  #mapDetailModal .detail-table-wrap::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 45%, transparent);
+  }
+
+  #mapDocModal .detail-table-wrap::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 40%, transparent);
+  }
+
+  #mapDetailModal .detail-table-wrap::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  #mapDocModal .detail-table-wrap::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .detail-table {
+    width: 100%;
+    min-width: 1120px;
+    margin: 0;
+    border-collapse: collapse;
+    color: var(--sz-color-text);
+    table-layout: auto;
+  }
+
+  #mapDetailModal .detail-table {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+  }
+
+  #mapDocModal .detail-table {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+  }
+
+  .detail-table thead {
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .detail-table th,
+  .detail-table td {
+    border-color: var(--sz-color-border) !important;
+    color: var(--sz-color-text) !important;
+    font-size: 12px;
+    vertical-align: middle;
+    padding: 0.65rem 0.8rem;
+  }
+
+  #mapDetailModal .detail-table th,
+  #mapDetailModal .detail-table td {
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+
+  #mapDocModal .detail-table th,
+  #mapDocModal .detail-table td {
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+
+  .detail-table th {
+    border: 0 !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+  }
+
+  .detail-table td {
+    border: 0 !important;
+    border-bottom: 1px solid var(--sz-color-border) !important;
+    background: var(--sz-color-surface) !important;
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+
+  #mapDetailModal .detail-table td {
+    overflow-wrap: normal;
+  }
+
+  #mapDocModal .detail-table td {
+    overflow-wrap: normal;
+  }
+
+  .detail-table th:nth-child(1),
+  .detail-table td:nth-child(1) {
+    min-width: 110px;
+  }
+
+  #mapDetailModal .detail-table th:nth-child(1),
+  #mapDetailModal .detail-table td:nth-child(1) {
+    min-width: 120px;
+  }
+
+  .detail-table th:nth-child(2),
+  .detail-table td:nth-child(2) {
+    min-width: 120px;
+  }
+
+  #mapDetailModal .detail-table th:nth-child(2),
+  #mapDetailModal .detail-table td:nth-child(2) {
+    min-width: 90px;
+  }
+
+  .detail-table th:nth-child(3),
+  .detail-table td:nth-child(3) {
+    min-width: 100px;
+  }
+
+  #mapDetailModal .detail-table th:nth-child(4),
+  #mapDetailModal .detail-table td:nth-child(4) {
+    min-width: 245px;
+  }
+
+  #mapDetailModal .detail-table th:nth-child(5),
+  #mapDetailModal .detail-table td:nth-child(5) {
+    min-width: 170px;
+  }
+
+  #mapDetailModal .detail-table th:nth-child(6),
+  #mapDetailModal .detail-table td:nth-child(6) {
+    min-width: 125px;
+  }
+
+  #mapDetailModal .detail-table th:nth-child(7),
+  #mapDetailModal .detail-table td:nth-child(7) {
+    min-width: 170px;
+  }
+
+  .detail-table th:nth-child(8),
+  .detail-table td:nth-child(8) {
+    width: 90px;
+  }
+
+  .detail-table th:nth-child(9),
+  .detail-table td:nth-child(9),
+  .detail-table th:nth-child(10),
+  .detail-table td:nth-child(10) {
+    width: 90px;
+  }
+
+  .detail-table th:last-child,
+  .detail-table td:last-child {
+    width: 92px;
+    min-width: 92px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .map-detail-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+
+  .sz_management_map_detail_doc {
+    min-height: 32px;
+    padding-inline: 0.65rem;
+  }
+
+  .sz_management_map_doc_subtitle,
+  .sz_management_map_doc_status {
+    color: var(--sz-color-text-secondary);
+    font-size: 0.86rem;
+  }
+
+  .sz_management_map_doc_header {
+    display: grid;
+    grid-template-columns: minmax(190px, 1.1fr) minmax(220px, 1.7fr) repeat(6, minmax(120px, 0.8fr));
+    gap: 0.65rem;
+    padding: 0.85rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, var(--sz-color-surface));
+  }
+
+  .sz_management_map_doc_field {
+    min-width: 0;
+  }
+
+  .sz_management_map_doc_label {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--sz-color-text-secondary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .sz_management_map_doc_value {
+    min-height: var(--sz-input-height);
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: 0.48rem 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-border) 75%, transparent);
+    border-radius: var(--sz-radius-sm);
+    background: color-mix(in srgb, var(--sz-color-surface) 84%, transparent);
+    color: var(--sz-color-text);
+    font-weight: 650;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sz_management_map_doc_value.is-number {
+    justify-content: flex-end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sz_management_map_doc_input {
+    width: 100%;
+    min-width: 0;
+    height: var(--sz-input-height);
+    min-height: var(--sz-input-height);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    padding: 0.45rem 0.65rem;
+  }
+
+  .sz_management_map_doc_input:disabled,
+  .sz_management_map_doc_input[readonly] {
+    opacity: 0.85;
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 75%, var(--sz-color-surface));
+  }
+
+  .sz_management_map_doc_lines th:nth-child(1),
+  .sz_management_map_doc_lines td:nth-child(1) {
+    min-width: 155px;
+  }
+
+  .sz_management_map_doc_lines th:nth-child(2),
+  .sz_management_map_doc_lines td:nth-child(2) {
+    min-width: 260px;
+  }
+
+  .sz_management_map_doc_lines th:nth-child(3),
+  .sz_management_map_doc_lines td:nth-child(3),
+  .sz_management_map_doc_lines th:nth-child(4),
+  .sz_management_map_doc_lines td:nth-child(4) {
+    min-width: 155px;
+  }
+
+  .sz_management_map_doc_lines th:nth-child(10),
+  .sz_management_map_doc_lines td:nth-child(10) {
+    min-width: 145px;
+  }
+
+  @media (max-width: 1200px) {
+    .sz_management_map_doc_header {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 760px) {
+    #mapDocModal .sz_management_map_doc_dialog,
+    #mapDetailModal .sz_management_map_detail_dialog {
+      width: calc(100vw - 0.75rem);
+      max-width: calc(100vw - 0.75rem);
+      margin: calc(var(--sz-topbar-height, 56px) + 0.4rem) auto 0.4rem;
+    }
+
+    .sz_management_map_doc_header {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .detail-table tbody tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 78%, var(--sz-color-surface)) !important;
+  }
+
+  .detail-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface)) !important;
+  }
+
+  #mapDetailTotal,
+  #mapCountryTotal {
+    font-size: 14px;
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  #mapDetailTotal {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .sz_management_map_detail_metric {
+    color: var(--sz-color-text-muted);
+    font-size: 0.8125rem;
+  }
+
+  .sz_management_map_detail_metric strong {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .sz_management_map_detail_delta {
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .sz_management_map_detail_open {
+    min-height: 2rem;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.75rem;
+  }
+
+  .sz_management_map_modal_close {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--sz-radius-sm);
+    flex: 0 0 auto;
+  }
+
+  .sz_management_map_modal_close i {
+    font-size: 0.95rem;
+  }
+
+  #mapDetailTitle {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .sz_management_map_detail_count {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2rem;
+    padding: 0.3rem 0.65rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+    color: var(--sz-color-text-secondary);
+    font-size: 0.78rem;
+    font-weight: var(--sz-font-weight-semibold);
+    white-space: nowrap;
+  }
+
+  #mapOrigemModal .modal-body .form-check-label,
+  #mapOrigemModal .modal-body,
+  #mapOrigemModal .modal-body .btn-link,
+  #mapOrigemModal .modal-body .btn,
+  #mapOrigemModal .modal-footer .btn,
+  #mapCcustoModal .modal-body .form-check-label,
+  #mapCcustoModal .modal-body,
+  #mapCcustoModal .modal-body .btn-link,
+  #mapCcustoModal .modal-body .btn,
+  #mapCcustoModal .modal-footer .btn,
+  #mapAccessModal .modal-body,
+  #mapAccessModal .modal-footer,
+  #mapAccessModal .modal-body .btn,
+  #mapAccessModal .modal-footer .btn {
+    color: var(--sz-color-text);
+  }
+
+  .sz_management_map_origin_modal_dialog,
+  .sz_management_map_cc_modal_dialog {
+    max-width: 860px;
+  }
+
+  .sz_management_map_origin_modal .modal-header,
+  .sz_management_map_origin_modal .modal-body,
+  .sz_management_map_origin_modal .modal-footer,
+  .sz_management_map_cc_modal .modal-header,
+  .sz_management_map_cc_modal .modal-body,
+  .sz_management_map_cc_modal .modal-footer,
+  .sz_management_map_access_modal .modal-header,
+  .sz_management_map_access_modal .modal-body,
+  .sz_management_map_access_modal .modal-footer {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+  }
+
+  .sz_management_map_origin_modal .modal-header,
+  .sz_management_map_cc_modal .modal-header,
+  .sz_management_map_access_modal .modal-header {
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .sz_management_map_origin_modal .modal-footer,
+  .sz_management_map_cc_modal .modal-footer,
+  .sz_management_map_access_modal .modal-footer {
+    border-top: 1px solid var(--sz-color-border);
+  }
+
+  .sz_management_map_origin_modal .cc-btns,
+  .sz_management_map_cc_modal .cc-btns {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .sz_management_map_origin_modal .cc-btns .sz_button,
+  .sz_management_map_cc_modal .cc-btns .sz_button {
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .sz_management_map_origin_table_host {
+    max-height: min(58vh, 520px);
+  }
+
+  .sz_management_map_origin_table {
+    min-width: 0;
+  }
+
+  .sz_management_map_origin_table th,
+  .sz_management_map_origin_table td {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .sz_management_map_origin_table td:first-child,
+  .sz_management_map_origin_table th:first-child {
+    width: 64px;
+  }
+
+  .sz_management_map_cc_table_host {
+    max-height: min(62vh, 560px);
+  }
+
+  .sz_management_map_cc_table {
+    min-width: 0;
+  }
+
+  .sz_management_map_cc_table th,
+  .sz_management_map_cc_table td {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .sz_management_map_cc_table td:first-child,
+  .sz_management_map_cc_table th:first-child {
+    width: 64px;
+  }
+
+  .sz_management_map_cc_row_label {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin: 0;
+    color: var(--sz-color-text);
+  }
+
+  .sz_management_map_cc_row_label input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--sz-color-primary);
+    flex: 0 0 auto;
+  }
+
+  .sz_management_map_cc_name {
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+  }
+
+  .sz_management_map_cc_badge_wrap {
+    text-align: right;
+  }
+
+  .sz_management_map_access_header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .sz_management_map_access_search {
+    min-width: 260px;
+    max-width: 420px;
+    width: 100%;
+  }
+
+  .sz_management_map_access_table_host {
+    max-height: 62vh;
+    overflow: auto;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+  }
+
+  .sz_management_map_access_table td,
+  .sz_management_map_access_table th {
+    vertical-align: top;
+  }
+
+  .sz_management_map_access_table thead th {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .sz_management_map_access_table tbody td {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .sz_management_map_access_table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
+  }
+
+  .sz_management_map_access_user {
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+  }
+
+  .sz_management_map_access_user small {
+    display: block;
+    margin-top: 0.15rem;
+    color: var(--sz-color-text-muted);
+    font-weight: var(--sz-font-weight-medium);
+  }
+
+  .sz_management_map_access_origins {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.4rem 0.65rem;
+  }
+
+  .sz_management_map_access_origin {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0.3rem 0.4rem;
+    color: var(--sz-color-text);
+    font-size: 12px;
+    border: 1px solid color-mix(in srgb, var(--sz-color-border) 78%, transparent);
+    border-radius: var(--sz-radius-sm);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 55%, var(--sz-color-surface));
+  }
+
+  .sz_management_map_access_origin input {
+    width: 1rem;
+    height: 1rem;
+    flex: 0 0 auto;
+    accent-color: var(--sz-color-primary);
+  }
+
+  .sz_management_map_access_origin span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sz_management_map_origin_name {
+    font-weight: var(--sz-font-weight-semibold);
+    color: var(--sz-color-text);
+  }
+
+  #mapOrigemModal .btn-close,
+  #mapCcustoModal .btn-close,
+  #mapAccessModal .btn-close,
+  .detail-card .btn-close {
+    opacity: 0.9;
+  }
+
+  [data-sz-theme="dark"] #mapOrigemModal .btn-close,
+  [data-sz-theme="geek"] #mapOrigemModal .btn-close,
+  [data-sz-theme="dark"] #mapAccessModal .btn-close,
+  [data-sz-theme="geek"] #mapAccessModal .btn-close,
+  [data-sz-theme="dark"] #mapCcustoModal .btn-close,
+  [data-sz-theme="geek"] #mapCcustoModal .btn-close {
+    filter: invert(1) grayscale(100%) brightness(180%);
+  }
+
+  @media (max-width: 1200px) {
+    .sz_management_map_contextbar_left {
+      flex-basis: 280px;
+      max-width: 280px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .sz_management_map_contextbar {
+      flex-direction: column;
+    }
+
+    .sz_management_map_contextbar_left,
+    .sz_management_map_contextbar_right {
+      width: 100%;
+      max-width: none;
+      flex: 1 1 auto;
+    }
+
+    .sz_management_map_contextbar_right,
+    .sz_management_map_filters_caption {
+      align-items: flex-start;
+      text-align: left;
+    }
+
+    .sz_management_map_filters {
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .sz_management_map_main {
+      padding: 0.75rem;
+    }
+
+    .sz_management_map_toolbar {
+      align-items: stretch;
+    }
+
+    .sz_management_map_tree_controls {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .sz_management_map_access_controls {
+      width: 100%;
+    }
+
+    .sz_management_map_access_controls .sz_button {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .sz_management_map_tree_controls .sz_button {
+      flex: 1 1 0;
+    }
+
+    .sz_management_map_table {
+      min-width: 1320px;
+      font-size: 11px;
+    }
+
+    .sz_management_map_table td:first-child {
+      min-width: 250px;
+    }
+
+    .kpi-value {
+      font-size: 1.2rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ mapa_gestao_gr_i18n|tojson }});
+  window.MAPA_GESTAO_GR = {
+    anoPadrao: {{ ano_atual }},
+    dataInicioDefault: {{ data_inicio_default|tojson }},
+    dataFimDefault: {{ data_fim_default|tojson }},
+    isAdmin: {{ 'true' if is_admin else 'false' }},
+    hasMapAccess: {{ 'true' if has_map_access else 'false' }},
+    baseUrl: {{ url_for('gr_management_map.api_mapa_gestao_gr')|tojson }},
+    detalheUrl: {{ url_for('gr_management_map.api_mapa_gestao_gr_detalhe')|tojson }},
+    origensUrl: {{ url_for('gr_management_map.api_mapa_gestao_gr_origens')|tojson }},
+    ccustosUrl: {{ url_for('gr_management_map.api_mapa_gestao_gr_ccustos')|tojson }},
+    acessosUrl: {{ url_for('gr_management_map.api_mapa_gestao_gr_acessos')|tojson }}
+  };
+</script>
+<script src="{{ url_for('gr_management_map.static', filename='mapa_gestao_gr.js') }}?v={{ static_version }}-i18n3"></script>
+{% endblock %}

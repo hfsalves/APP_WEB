@@ -1,0 +1,1 @@
+"""GR management map module."""

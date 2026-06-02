@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnReload = document.getElementById('btnReloadImput');
   const searchInput = document.getElementById('imputSearch');
   const statusSelect = document.getElementById('imputStatus');
+  const alojamentoSelect = document.getElementById('imputAlojamento');
   const periodInput = document.getElementById('imputPeriod');
   const clearBtn = document.getElementById('imputClear');
   const totalGeralEl = document.getElementById('imputTotalGeral');
@@ -84,12 +85,27 @@ document.addEventListener('DOMContentLoaded', () => {
     ].map(v => (v ?? '').toString().toLowerCase()).join(' ');
   }
 
+  function populateAlojamentos(rows) {
+    if (!alojamentoSelect) return;
+    const selected = alojamentoSelect.value || 'all';
+    const alojamentos = [...new Set((rows || [])
+      .map(r => (r.ALOJAMENTO || '').toString().trim())
+      .filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'pt', { sensitivity: 'base' }));
+
+    alojamentoSelect.innerHTML = '<option value="all">Todos</option>' +
+      alojamentos.map(aloj => `<option value="${escapeHtml(aloj)}">${escapeHtml(aloj)}</option>`).join('');
+    alojamentoSelect.value = selected === 'all' || alojamentos.includes(selected) ? selected : 'all';
+  }
+
   function filterRows(rows) {
     const q = (searchInput?.value || '').toString().trim().toLowerCase();
     const st = (statusSelect?.value || 'all').toString();
+    const alojamento = (alojamentoSelect?.value || 'all').toString();
     const period = (periodInput?.value || '').toString().trim();
     return rows.filter(r => {
       if (st !== 'all' && rowImputState(r) !== st) return false;
+      if (alojamento !== 'all' && (r.ALOJAMENTO || '').toString().trim() !== alojamento) return false;
       if (period) {
         const mes = Number(r.IMPUTMES || 0) || currMonth;
         const ano = Number(r.IMPUTANO || 0) || currYear;
@@ -229,6 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     lastRows = Array.isArray(data.rows) ? data.rows : [];
+    populateAlojamentos(lastRows);
     render(lastRows);
   }
 
@@ -264,6 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnReload?.addEventListener('click', load);
   btnSave?.addEventListener('click', save);
   statusSelect?.addEventListener('change', () => render(lastRows));
+  alojamentoSelect?.addEventListener('change', () => render(lastRows));
   periodInput?.addEventListener('change', () => render(lastRows));
   clearBtn?.addEventListener('click', () => render(lastRows));
   document.querySelectorAll('.imput-table thead th[data-key]')?.forEach(th => {

@@ -8,6 +8,7 @@ from models import Campo, Menu, Acessos, CamposModal, Linhas
 from services.db_i18n_service import _extract_openai_text, _para_value, _strip_json_fence, _translation_model, translate_db_record
 from services.dashboard_links_service import DASHBOARD_LINKS_TABLES, ensure_dashboard_links_schema
 from services.multiempresa_service import get_current_feid, MissingCurrentEntityError
+from services.phc_user_import_service import import_phc_users, inactivate_phc_user, scan_phc_users_for_import
 import uuid
 from datetime import date, timedelta, datetime
 import json
@@ -1614,6 +1615,54 @@ def us_empresas_delete(usstamp, usfestamp):
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception('Erro ao eliminar US_FE')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/us/phc_import/scan', methods=['GET'])
+@login_required
+def us_phc_import_scan():
+    if not has_permission('US', 'consultar'):
+        return jsonify({'error': 'Sem permissão para consultar utilizadores'}), 403
+    try:
+        return jsonify(scan_phc_users_for_import())
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao pesquisar utilizadores PHC')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/us/phc_import/import', methods=['POST'])
+@login_required
+def us_phc_import_import():
+    if not has_permission('US', 'inserir') and not has_permission('US', 'editar'):
+        return jsonify({'error': 'Sem permissão para importar utilizadores'}), 403
+    try:
+        payload = request.get_json(force=True) or {}
+        keys = payload.get('keys') if isinstance(payload.get('keys'), list) else []
+        result = import_phc_users(keys, (getattr(current_user, 'LOGIN', '') or '').strip())
+        return jsonify(result)
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao importar utilizadores PHC')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/us/phc_import/inactivate', methods=['POST'])
+@login_required
+def us_phc_import_inactivate():
+    if not has_permission('US', 'editar'):
+        return jsonify({'error': 'Sem permissão para inativar utilizadores PHC'}), 403
+    try:
+        payload = request.get_json(force=True) or {}
+        result = inactivate_phc_user(payload.get('key') or payload.get('login') or '')
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        current_app.logger.exception('Erro ao inativar utilizador PHC')
         return jsonify({'error': str(e)}), 500
 
 

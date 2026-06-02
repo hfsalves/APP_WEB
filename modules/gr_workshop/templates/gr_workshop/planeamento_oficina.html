@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Planeamento de Oficina{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_workshop.static', filename='gr_workshop.css') }}">
+  <link rel="stylesheet" href="{{ url_for('gr_workshop.static', filename='gr_workshop_planning.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr-workshop-planning-page" id="grWorkshopPlanningPage">
+  <div class="sz_page_container gr-workshop-planning-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-workshop-planning-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Planeamento de Oficina</div>
+        <div class="sz_breadcrumbs">GR360 / OFICINA / PLANEAMENTO</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="gr-workshop-planning-toolbar">
+          <button id="workshopPlanPrev" class="sz_button sz_button_secondary" type="button" aria-label="Semana anterior">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <div class="sz_field gr-workshop-plan-week-field">
+            <label class="sz_label" for="workshopPlanWeek">Semana</label>
+            <input id="workshopPlanWeek" class="sz_input" type="date">
+          </div>
+          <div class="sz_field gr-workshop-plan-mechanic-field">
+            <label class="sz_label" for="workshopPlanMechanic">Mecânico</label>
+            <select id="workshopPlanMechanic" class="sz_select">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <button id="workshopPlanNext" class="sz_button sz_button_secondary" type="button" aria-label="Semana seguinte">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button id="workshopPlanToday" class="sz_button sz_button_secondary" type="button">
+            <i class="fa-solid fa-calendar-day"></i>
+            <span>Hoje</span>
+          </button>
+          <button id="workshopPlanRefresh" class="sz_button sz_button_secondary" type="button">
+            <i class="fa-solid fa-rotate"></i>
+            <span>Atualizar</span>
+          </button>
+          <a class="sz_button sz_button_secondary" href="{{ url_for('gr_workshop.workshop_page') }}">
+            <i class="fa-solid fa-list"></i>
+            <span>Folhas</span>
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <section class="sz_page_body gr-workshop-planning-body">
+      <aside class="sz_panel gr-workshop-backlog">
+        <div class="gr-workshop-backlog-head">
+          <div>
+            <h2>Por planear</h2>
+            <span id="workshopPlanBacklogCount">0 trabalhos</span>
+          </div>
+        </div>
+        <div id="workshopPlanBacklog" class="gr-workshop-backlog-list">
+          <div class="gr-workshop-plan-empty">A carregar...</div>
+        </div>
+      </aside>
+
+      <main class="sz_panel gr-workshop-week-panel">
+        <div class="gr-workshop-week-head" id="workshopPlanDays"></div>
+        <div class="gr-workshop-week-grid">
+          <div class="gr-workshop-time-gutter" id="workshopPlanTimes"></div>
+          <div class="gr-workshop-days-grid" id="workshopPlanGrid"></div>
+        </div>
+      </main>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    window.GR_WORKSHOP_PLANNING = {
+      planningUrl: {{ url_for('gr_workshop.api_planning_week')|tojson }},
+      planUrlTemplate: {{ url_for('gr_workshop.api_plan_sheet', stamp='__STAMP__')|tojson }},
+      assignMechanicUrlTemplate: {{ url_for('gr_workshop.api_plan_sheet_mechanic', stamp='__STAMP__')|tojson }},
+      mechanicsUrl: {{ url_for('gr_workshop.api_mechanics')|tojson }},
+      sheetPageUrl: {{ url_for('gr_workshop.workshop_page')|tojson }},
+      sheetUrlBase: {{ url_for('gr_workshop.api_sheets')|replace('/folhas', '/folhas/')|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('gr_workshop.static', filename='gr_workshop_planning.js') }}" defer></script>
+{% endblock %}

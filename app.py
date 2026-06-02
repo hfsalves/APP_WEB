@@ -563,6 +563,12 @@ def create_app():
     from modules.gr_planning.routes import bp as gr_planning_bp
     app.register_blueprint(gr_planning_bp)
 
+    from modules.gr_workshop.routes import bp as gr_workshop_bp
+    app.register_blueprint(gr_workshop_bp)
+
+    from modules.gr_management_map.routes import bp as gr_management_map_bp
+    app.register_blueprint(gr_management_map_bp)
+
     register_pricing(app)
 
     @app.cli.command('process-email-queue')

@@ -21,6 +21,12 @@
           <option value="pending">Por decidir</option>
         </select>
       </label>
+      <label class="sz_field sz_imput_aloj_field" for="imputAlojamento">
+        <span class="sz_label">Alojamento</span>
+        <select class="sz_select" id="imputAlojamento">
+          <option value="all">Todos</option>
+        </select>
+      </label>
       <label class="sz_field sz_imput_period_field" for="imputPeriod">
         <span class="sz_label">M&ecirc;s/Ano</span>
         <input class="sz_input" id="imputPeriod" type="month">
@@ -127,6 +133,7 @@
   }
 
   .sz_imput_status_field,
+  .sz_imput_aloj_field,
   .sz_imput_period_field {
     flex: 0 0 165px;
     width: 165px;
@@ -139,7 +146,13 @@
     width: 155px;
   }
 
+  .sz_imput_aloj_field {
+    flex-basis: 220px;
+    width: 220px;
+  }
+
   .sz_imput_status_field .sz_select,
+  .sz_imput_aloj_field .sz_select,
   .sz_imput_period_field .sz_input {
     width: 100%;
   }
@@ -391,6 +404,7 @@
 
     .sz_imput_filters,
     .sz_imput_status_field,
+    .sz_imput_aloj_field,
     .sz_imput_filters .sz_select,
     .sz_imput_filters .sz_button {
       width: 100%;

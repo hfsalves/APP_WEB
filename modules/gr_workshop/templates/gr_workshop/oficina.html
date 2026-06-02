@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+
+{% block title %}Folhas de Obra Oficina{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_workshop.static', filename='gr_workshop.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr-workshop-page" id="grWorkshopPage">
+  <div class="sz_page_container gr-workshop-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-workshop-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Folhas de Obra Oficina</div>
+        <div class="sz_breadcrumbs">GR360 / OFICINA</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="gr-workshop-toolbar">
+          <div class="sz_field gr-workshop-search">
+            <label class="sz_label" for="workshopSearch">Pesquisar</label>
+            <input id="workshopSearch" class="sz_input" type="search" placeholder="Nº, matrícula ou trabalho">
+          </div>
+          <div class="sz_field gr-workshop-state">
+            <label class="sz_label" for="workshopStateFilter">Estado</label>
+            <select id="workshopStateFilter" class="sz_select">
+              <option value="">Todos</option>
+              {% for state in states %}
+                <option value="{{ state.code }}">{{ state.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button id="workshopTypesBtn" type="button" class="sz_button sz_button_secondary">
+            <i class="fa-solid fa-list-check"></i>
+            <span>Trabalhos</span>
+          </button>
+          <button id="workshopRefreshBtn" type="button" class="sz_button sz_button_secondary">
+            <i class="fa-solid fa-rotate"></i>
+            <span>Atualizar</span>
+          </button>
+          <a class="sz_button sz_button_secondary" href="{{ url_for('gr_workshop.workshop_planning_page') }}">
+            <i class="fa-solid fa-calendar-week"></i>
+            <span>Planeamento</span>
+          </a>
+          <button id="workshopNewBtn" type="button" class="sz_button sz_button_primary">
+            <i class="fa-solid fa-plus"></i>
+            <span>Nova folha</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="sz_page_body gr-workshop-body">
+      <main class="gr-workshop-main">
+        <div class="sz_panel gr-workshop-table-panel">
+          <div class="sz_table_host">
+            <table class="sz_table gr-workshop-table">
+              <thead class="sz_table_head">
+                <tr>
+                  <th>Nº</th>
+                  <th>Viatura</th>
+                  <th>Trabalho</th>
+                  <th>Início</th>
+                  <th>Fim</th>
+                  <th>Mecânico</th>
+                  <th>Estado</th>
+                  <th class="sz_text_right">Total</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="workshopTableBody">
+                <tr><td colspan="8" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+
+      <aside class="gr-workshop-sidebar">
+        <div class="gr-workshop-metric">
+          <span>Visíveis</span>
+          <strong id="workshopMetricTotal">0</strong>
+        </div>
+        <div class="gr-workshop-metric">
+          <span>Abertas</span>
+          <strong id="workshopMetricOpen">0</strong>
+        </div>
+        <div class="gr-workshop-metric">
+          <span>Concluídas</span>
+          <strong id="workshopMetricDone">0</strong>
+        </div>
+        <div class="gr-workshop-metric">
+          <span>Anuladas</span>
+          <strong id="workshopMetricVoid">0</strong>
+        </div>
+      </aside>
+    </section>
+  </div>
+</div>
+
+<div class="modal fade" id="workshopSheetModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content gr-workshop-modal">
+      <div class="modal-header gr-workshop-modal-header">
+        <div>
+          <div class="gr-workshop-modal-title" id="workshopSheetTitle">Folha de obra</div>
+          <div class="gr-workshop-modal-subtitle" id="workshopSheetStatus"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body gr-workshop-modal-body">
+        <input type="hidden" id="workshopSheetStamp">
+        <input type="hidden" id="workshopVehicleStamp">
+        <input type="hidden" id="workshopTypeStamp">
+
+        <div class="gr-workshop-form-grid">
+          <div class="sz_field gr-workshop-field-no">
+            <label class="sz_label" for="workshopSheetNo">Nº</label>
+            <input id="workshopSheetNo" class="sz_input" type="text" readonly>
+          </div>
+          <div class="sz_field sz_table_lookup_field gr-workshop-field-vehicle">
+            <label class="sz_label" for="workshopVehicleSearch">Matrícula</label>
+            <div class="sz_table_lookup gr-workshop-vehicle-lookup">
+              <input id="workshopVehicleSearch" class="sz_input" type="search" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Pesquisar...">
+              <div id="workshopVehicleResults" class="sz_table_lookup_dropdown gr-workshop-lookup-dropdown" hidden></div>
+            </div>
+          </div>
+          <div class="sz_field gr-workshop-field-state">
+            <label class="sz_label" for="workshopState">Estado</label>
+            <select id="workshopState" class="sz_select">
+              {% for state in states %}
+                <option value="{{ state.code }}">{{ state.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="sz_field gr-workshop-field-date">
+            <label class="sz_label" for="workshopDate">Data</label>
+            <input id="workshopDate" class="sz_input" type="date">
+          </div>
+          <div class="sz_field gr-workshop-field-time">
+            <label class="sz_label" for="workshopStart">Hora início</label>
+            <input id="workshopStart" class="sz_input" type="time" step="60" pattern="[0-9]{2}:[0-9]{2}">
+          </div>
+          <div class="sz_field gr-workshop-field-time">
+            <label class="sz_label" for="workshopEnd">Hora fim</label>
+            <input id="workshopEnd" class="sz_input" type="time" step="60" pattern="[0-9]{2}:[0-9]{2}">
+          </div>
+          <div class="sz_field gr-workshop-field-duration">
+            <label class="sz_label" for="workshopTempo">Tempo (min)</label>
+            <input id="workshopTempo" class="sz_input" type="number" min="0" step="1">
+          </div>
+          <div class="sz_field gr-workshop-field-mechanic">
+            <label class="sz_label" for="workshopMechanic">Mecânico</label>
+            <select id="workshopMechanic" class="sz_select">
+              <option value="">Sem mecânico</option>
+            </select>
+          </div>
+          <div class="sz_field gr-workshop-field-plan-date">
+            <label class="sz_label" for="workshopPlanDate">Plan. data</label>
+            <input id="workshopPlanDate" class="sz_input" type="date">
+          </div>
+          <div class="sz_field gr-workshop-field-plan-time">
+            <label class="sz_label" for="workshopPlanStart">Plan. hora início</label>
+            <input id="workshopPlanStart" class="sz_input" type="time" step="60" pattern="[0-9]{2}:[0-9]{2}">
+          </div>
+          <div class="sz_field gr-workshop-field-plan-time">
+            <label class="sz_label" for="workshopPlanEnd">Plan. hora fim</label>
+            <input id="workshopPlanEnd" class="sz_input" type="time" step="60" pattern="[0-9]{2}:[0-9]{2}">
+          </div>
+          <div class="sz_field gr-workshop-autocomplete gr-workshop-field-type">
+            <label class="sz_label" for="workshopTypeSearch">Trabalho pré-definido</label>
+            <input id="workshopTypeSearch" class="sz_input" type="text" maxlength="255" autocomplete="off">
+            <div id="workshopTypeResults" class="gr-workshop-results" hidden></div>
+          </div>
+          <div class="sz_field gr-workshop-field-job">
+            <label class="sz_label" for="workshopJobText">Trabalho a executar</label>
+            <textarea id="workshopJobText" class="sz_textarea" rows="3" maxlength="1000"></textarea>
+          </div>
+          <div class="sz_field gr-workshop-field-obs">
+            <label class="sz_label" for="workshopObs">Observações</label>
+            <textarea id="workshopObs" class="sz_textarea" rows="2" maxlength="1000"></textarea>
+          </div>
+        </div>
+
+        <div class="gr-workshop-lines-head">
+          <div class="gr-workshop-section-title">Consumos</div>
+          <button id="workshopAddLineBtn" type="button" class="sz_button sz_button_secondary">
+            <i class="fa-solid fa-plus"></i>
+            <span>Linha</span>
+          </button>
+        </div>
+        <div class="gr-workshop-lines-host">
+          <table class="sz_table gr-workshop-lines">
+            <thead class="sz_table_head">
+              <tr>
+                <th>Ref.</th>
+                <th>Descrição</th>
+                <th>Un.</th>
+                <th>Qtd.</th>
+                <th>Unitário</th>
+                <th>Total</th>
+                <th>Obs.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="workshopLinesBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer gr-workshop-modal-footer">
+        <div class="gr-workshop-total">
+          <span>Total</span>
+          <strong id="workshopSheetTotal">0,00 €</strong>
+        </div>
+        <button id="workshopAnnulBtn" type="button" class="sz_button sz_button_ghost">
+          <i class="fa-solid fa-ban"></i>
+          <span>Anular</span>
+        </button>
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Fechar</button>
+        <button id="workshopSaveBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-save"></i>
+          <span>Gravar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="workshopTypesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content gr-workshop-modal">
+      <div class="modal-header gr-workshop-modal-header">
+        <div class="gr-workshop-modal-title">Trabalhos pré-definidos</div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body gr-workshop-modal-body">
+        <input type="hidden" id="workshopTypeEditStamp">
+        <div class="gr-workshop-type-form">
+          <div class="sz_field">
+            <label class="sz_label" for="workshopTypeCode">Código</label>
+            <input id="workshopTypeCode" class="sz_input" maxlength="20">
+          </div>
+          <div class="sz_field gr-workshop-type-description">
+            <label class="sz_label" for="workshopTypeDescription">Descrição</label>
+            <input id="workshopTypeDescription" class="sz_input" maxlength="255">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="workshopTypeOrder">Ordem</label>
+            <input id="workshopTypeOrder" class="sz_input" type="number" step="1" value="0">
+          </div>
+          <label class="sz_checkbox gr-workshop-type-active">
+            <input id="workshopTypeActive" type="checkbox" checked>
+            <span>Ativo</span>
+          </label>
+          <button id="workshopTypeSaveBtn" type="button" class="sz_button sz_button_primary">
+            <i class="fa-solid fa-save"></i>
+            <span>Gravar</span>
+          </button>
+        </div>
+        <div class="gr-workshop-types-list" id="workshopTypesList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    window.GR_WORKSHOP = {
+      metaUrl: {{ url_for('gr_workshop.api_meta')|tojson }},
+      sheetsUrl: {{ url_for('gr_workshop.api_sheets')|tojson }},
+      vehiclesUrl: {{ url_for('gr_workshop.api_vehicles')|tojson }},
+      articlesUrl: {{ url_for('gr_workshop.api_articles')|tojson }},
+      mechanicsUrl: {{ url_for('gr_workshop.api_mechanics')|tojson }},
+      workTypesUrl: {{ url_for('gr_workshop.api_work_types')|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('gr_workshop.static', filename='gr_workshop.js') }}" defer></script>
+{% endblock %}
