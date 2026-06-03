@@ -1213,6 +1213,23 @@
           </div>
         </article>
 
+        {% if page_data.wifi_available %}
+          <article class="r-card">
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+              <h3 class="mb-0" data-i18n="card_wifi">Wi-Fi</h3>
+              <span class="badge bg-success-subtle text-success-emphasis border">
+                <i class="fa-solid fa-wifi"></i>
+              </span>
+            </div>
+            <div class="kv">
+              <div class="k" data-i18n="wifi_network_label">Rede</div>
+              <div><strong>{{ page_data.wifi_ssid }}</strong></div>
+              <div class="k" data-i18n="wifi_password_label">Password</div>
+              <div><strong>{{ page_data.wifi_password }}</strong></div>
+            </div>
+          </article>
+        {% endif %}
+
         <article class="r-card">
           <h3 data-i18n="card_how_to_get">Como Chegar</h3>
           <div class="mb-2 muted">{{ page_data.address_text or "" }}{% if not page_data.address_text %}<span data-i18n="placeholder_no_address">Morada n&atilde;o dispon&iacute;vel</span>{% endif %}</div>
@@ -1586,6 +1603,8 @@
           placeholder_no_nav: 'Sem morada/coordenadas para navega\u00e7\u00e3o.',
           card_parking: 'Estacionamento',
           card_wifi: 'Wi-Fi',
+          wifi_network_label: 'Rede',
+          wifi_password_label: 'Password',
           card_supermarkets: 'Supermercados',
           card_restaurants: 'Restaurantes',
           card_laundries: 'Lavandarias',
@@ -1763,6 +1782,8 @@
           placeholder_no_nav: 'No address/coordinates available for navigation.',
           card_parking: 'Parking',
           card_wifi: 'Wi-Fi',
+          wifi_network_label: 'Network',
+          wifi_password_label: 'Password',
           card_supermarkets: 'Supermarkets',
           card_restaurants: 'Restaurants',
           card_laundries: 'Laundries',
@@ -1940,6 +1961,8 @@
           placeholder_no_nav: 'Aucune adresse ou coordonn\u00e9e disponible pour la navigation.',
           card_parking: 'Stationnement',
           card_wifi: 'Wi-Fi',
+          wifi_network_label: 'R\u00e9seau',
+          wifi_password_label: 'Mot de passe',
           card_supermarkets: 'Supermarch\u00e9s',
           card_restaurants: 'Restaurants',
           card_laundries: 'Laveries',
@@ -2117,6 +2140,8 @@
           placeholder_no_nav: 'Sin direcci\u00f3n ni coordenadas para la navegaci\u00f3n.',
           card_parking: 'Aparcamiento',
           card_wifi: 'Wi-Fi',
+          wifi_network_label: 'Red',
+          wifi_password_label: 'Contrase\u00f1a',
           card_supermarkets: 'Supermercados',
           card_restaurants: 'Restaurantes',
           card_laundries: 'Lavander\u00edas',
@@ -2481,6 +2506,8 @@
         checkin_instructions_before: 'As instrucoes de check-in ficam disponiveis no dia {date}.',
         checkin_instructions_waiting: 'Aguardamos os dados obrigatorios dos hospedes para mostrar as instrucoes de entrada.',
         checkin_instructions_empty: 'As instrucoes de check-in ainda nao estao disponiveis.',
+        wifi_network_label: 'Rede',
+        wifi_password_label: 'Password',
         btn_poi_show_more: 'Mostrar mais',
         btn_poi_show_less: 'Mostrar menos',
         card_stay_plan: 'Ajuda-nos a preparar a tua chegada e saida',

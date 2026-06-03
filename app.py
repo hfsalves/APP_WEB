@@ -1155,7 +1155,11 @@ def create_app():
         for r in rows:
             tag = str(r.get('TAG') or '').strip().strip('[]')
             if tag:
-                tags[tag.lower()] = str(r.get('VALOR') or '').strip()
+                value = str(r.get('VALOR') or '').strip()
+                key = tag.lower()
+                tags[key] = value
+                tags[key.replace('-', '_')] = value
+                tags[key.replace('_', '-')] = value
         return tags
 
     def _public_replace_instruction_tags(text_value, tag_values):
@@ -2923,6 +2927,9 @@ def create_app():
         hospedes = adultos + criancas
         shop_state = _public_shop_state(row)
         checkin_release = _public_checkin_release_state(row)
+        al_tag_values = _public_al_tag_values(row.get('ALOJAMENTO'))
+        wifi_ssid = str(al_tag_values.get('wifi-ssid') or '').strip()
+        wifi_password = str(al_tag_values.get('wifi_password') or al_tag_values.get('wifi-password') or '').strip()
 
         page_data = {
             'public_code': canonical_reserva_code,
@@ -2958,6 +2965,9 @@ def create_app():
             'shop_url': url_for('public_reserva_shop_page', reserva_code=canonical_reserva_code),
             'checkin_instructions_release_label': checkin_release.get('release_label') or '',
             'checkin_instructions_date_available': bool(checkin_release.get('available')),
+            'wifi_ssid': wifi_ssid,
+            'wifi_password': wifi_password,
+            'wifi_available': bool(wifi_ssid and wifi_password),
         }
 
         # POI associados ao alojamento (agrupados por grupo)
