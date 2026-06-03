@@ -1,0 +1,506 @@
+{% extends "base.html" %}
+{% block title %}Seguros e Licen&ccedil;as{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+  .al-insurance-page .sz_page_container {
+    gap: var(--sz-space-3);
+  }
+
+  .al-insurance-page .sz_contextbar {
+    align-items: center;
+    gap: var(--sz-space-3);
+  }
+
+  .al-insurance-page .sz_contextbar_left {
+    flex: 0 0 clamp(15rem, 24vw, 25rem);
+    width: auto;
+  }
+
+  .al-insurance-page .sz_page_subtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .al-insurance-page .sz_contextbar_right {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .al-insurance-toolbar {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--sz-space-2);
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .al-insurance-toolbar .sz_input {
+    width: clamp(13rem, 22vw, 22rem);
+  }
+
+  .al-insurance-toolbar .sz_select {
+    width: 10.5rem;
+  }
+
+  .al-insurance-toolbar .sz_button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .al-insurance-kpis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sz-space-2);
+    min-width: 0;
+  }
+
+  .al-insurance-kpi {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    min-height: 2.25rem;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, transparent);
+    box-shadow: none;
+  }
+
+  .al-insurance-kpi span {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+    text-transform: uppercase;
+  }
+
+  .al-insurance-kpi strong {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .al-insurance-panel {
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .al-insurance-table-wrap {
+    max-height: calc(100vh - 18rem);
+    overflow: auto;
+  }
+
+  .al-insurance-table {
+    min-width: 880px;
+  }
+
+  .al-insurance-table th,
+  .al-insurance-table td {
+    vertical-align: middle;
+  }
+
+  .al-insurance-license-cell {
+    width: 15rem;
+  }
+
+  .al-insurance-license-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 2.35rem;
+    gap: var(--sz-space-1);
+    align-items: center;
+  }
+
+  .al-insurance-license-form .sz_input {
+    min-width: 0;
+    height: 2.1rem;
+  }
+
+  .al-insurance-save {
+    width: 2.35rem;
+    min-width: 2.35rem;
+    height: 2.1rem;
+    padding: 0;
+  }
+
+  .al-insurance-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--sz-color-border);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+    white-space: nowrap;
+  }
+
+  .al-insurance-badge.is-ok {
+    background: color-mix(in srgb, var(--sz-color-success) 12%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-success) 42%, var(--sz-color-border));
+    color: var(--sz-color-success);
+  }
+
+  .al-insurance-badge.is-warning {
+    background: color-mix(in srgb, var(--sz-color-warning) 15%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-warning) 46%, var(--sz-color-border));
+    color: var(--sz-color-warning);
+  }
+
+  .al-insurance-badge.is-danger {
+    background: color-mix(in srgb, var(--sz-color-danger) 12%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-danger) 42%, var(--sz-color-border));
+    color: var(--sz-color-danger);
+  }
+
+  .al-insurance-badge.is-muted {
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-muted);
+  }
+
+  .al-insurance-row-muted {
+    opacity: 0.66;
+  }
+
+  .al-insurance-empty {
+    padding: var(--sz-space-5);
+    text-align: center;
+    color: var(--sz-color-text-muted);
+  }
+
+  .al-insurance-sort {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0;
+    font: inherit;
+    font-weight: var(--sz-font-weight-bold);
+    cursor: pointer;
+  }
+
+  .al-insurance-sort i {
+    color: var(--sz-color-text-muted);
+    font-size: 0.75rem;
+  }
+
+  .al-insurance-sort.is-active i {
+    color: var(--sz-color-primary);
+  }
+
+  @media (max-width: 1100px) {
+    .al-insurance-page .sz_contextbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .al-insurance-page .sz_contextbar_left,
+    .al-insurance-page .sz_contextbar_right {
+      flex: 0 1 auto;
+      width: 100%;
+    }
+
+    .al-insurance-toolbar {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+
+    .al-insurance-toolbar .sz_input {
+      width: min(100%, 24rem);
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page al-insurance-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Seguros e Licen&ccedil;as</div>
+        <div class="sz_page_subtitle">Alojamentos, data de seguro e n&uacute;mero de licen&ccedil;a em AL.</div>
+      </div>
+      <div class="sz_contextbar_right al-insurance-toolbar">
+        <label class="sz_field" for="alInsuranceSearch">
+          <span class="sz_label">Pesquisar</span>
+          <input id="alInsuranceSearch" class="sz_input" type="search" placeholder="Alojamento ou licen&ccedil;a">
+        </label>
+        <label class="sz_field" for="alInsuranceStatus">
+          <span class="sz_label">Estado</span>
+          <select id="alInsuranceStatus" class="sz_select">
+            <option value="">Todos</option>
+            <option value="expirado">Seguro ultrapassado</option>
+            <option value="proximo">Seguro pr&oacute;ximo</option>
+            <option value="sem_data">Sem data seguro</option>
+            <option value="sem_licenca">Sem licen&ccedil;a</option>
+          </select>
+        </label>
+        <button id="alInsuranceRefresh" class="sz_button sz_button_secondary" type="button">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="al-insurance-kpis" aria-live="polite">
+      <div class="al-insurance-kpi"><span>Total</span><strong id="alKpiTotal">0</strong></div>
+      <div class="al-insurance-kpi"><span>Seguro ultrapassado</span><strong id="alKpiExpired">0</strong></div>
+      <div class="al-insurance-kpi"><span>Pr&oacute;ximos 3 dias</span><strong id="alKpiSoon">0</strong></div>
+      <div class="al-insurance-kpi"><span>Sem data seguro</span><strong id="alKpiNoDate">0</strong></div>
+      <div class="al-insurance-kpi"><span>Sem licen&ccedil;a</span><strong id="alKpiNoLicense">0</strong></div>
+    </section>
+
+    <section class="sz_panel al-insurance-panel">
+      <div class="al-insurance-table-wrap">
+        <table class="sz_table sz_table_compact al-insurance-table">
+          <thead>
+            <tr>
+              <th>
+                <button class="al-insurance-sort is-active" type="button" data-sort="alojamento">
+                  <span>Alojamento</span>
+                  <i class="fa-solid fa-arrow-up-wide-short" aria-hidden="true"></i>
+                </button>
+              </th>
+              <th>
+                <button class="al-insurance-sort" type="button" data-sort="data_seguro">
+                  <span>Data seguro</span>
+                  <i class="fa-solid fa-sort" aria-hidden="true"></i>
+                </button>
+              </th>
+              <th>Estado seguro</th>
+              <th>Licen&ccedil;a</th>
+              <th>Tem licen&ccedil;a</th>
+              <th>Estado AL</th>
+            </tr>
+          </thead>
+          <tbody id="alInsuranceRows">
+            <tr><td colspan="6" class="al-insurance-empty">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const state = { rows: [], sortKey: 'alojamento', sortDir: 'asc' };
+  const els = {
+    rows: document.getElementById('alInsuranceRows'),
+    search: document.getElementById('alInsuranceSearch'),
+    status: document.getElementById('alInsuranceStatus'),
+    refresh: document.getElementById('alInsuranceRefresh'),
+    total: document.getElementById('alKpiTotal'),
+    expired: document.getElementById('alKpiExpired'),
+    soon: document.getElementById('alKpiSoon'),
+    noDate: document.getElementById('alKpiNoDate'),
+    noLicense: document.getElementById('alKpiNoLicense')
+  };
+
+  const esc = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  const formatDate = (value) => {
+    if (!value) return '-';
+    const parts = String(value).split('-');
+    if (parts.length !== 3) return esc(value);
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  };
+
+  const badge = (label, kind) => `<span class="al-insurance-badge ${kind}">${esc(label)}</span>`;
+
+  const insuranceBadge = (row) => {
+    const key = row.seguro_estado_key || '';
+    if (key === 'expirado') return badge(row.seguro_estado || 'Ultrapassado', 'is-danger');
+    if (key === 'proximo') return badge(row.seguro_estado || 'Próximos 3 dias', 'is-warning');
+    if (key === 'sem_data') return badge(row.seguro_estado || 'Sem data', 'is-muted');
+    return badge(row.seguro_estado || 'OK', 'is-ok');
+  };
+
+  const licenseBadge = (row) => row.tem_licenca
+    ? badge('Sim', 'is-ok')
+    : badge('Não', 'is-danger');
+
+  const alState = (row) => {
+    const parts = [];
+    if (row.inativo) parts.push('Inativo');
+    if (row.fechado) parts.push('Fechado');
+    return parts.length ? parts.join(' / ') : 'Ativo';
+  };
+
+  const updateKpis = (totals) => {
+    els.total.textContent = String(totals.total || 0);
+    els.expired.textContent = String(totals.seguro_expirado || 0);
+    els.soon.textContent = String(totals.seguro_proximo || 0);
+    els.noDate.textContent = String(totals.seguro_sem_data || 0);
+    els.noLicense.textContent = String(totals.sem_licenca || 0);
+  };
+
+  const computeTotals = () => state.rows.reduce((acc, row) => {
+    acc.total += 1;
+    if (row.seguro_estado_key === 'expirado') acc.seguro_expirado += 1;
+    if (row.seguro_estado_key === 'proximo') acc.seguro_proximo += 1;
+    if (row.seguro_estado_key === 'sem_data') acc.seguro_sem_data += 1;
+    if (!row.tem_licenca) acc.sem_licenca += 1;
+    return acc;
+  }, {
+    total: 0,
+    seguro_expirado: 0,
+    seguro_proximo: 0,
+    seguro_sem_data: 0,
+    sem_licenca: 0
+  });
+
+  const compareRows = (a, b) => {
+    let result = 0;
+    if (state.sortKey === 'data_seguro') {
+      const av = a.data_seguro || '9999-12-31';
+      const bv = b.data_seguro || '9999-12-31';
+      result = av.localeCompare(bv);
+    } else {
+      result = String(a.alojamento || '').localeCompare(String(b.alojamento || ''), 'pt-PT', { sensitivity: 'base' });
+    }
+    return state.sortDir === 'desc' ? -result : result;
+  };
+
+  const updateSortButtons = () => {
+    document.querySelectorAll('[data-sort]').forEach((btn) => {
+      const isActive = btn.dataset.sort === state.sortKey;
+      btn.classList.toggle('is-active', isActive);
+      const icon = btn.querySelector('i');
+      if (!icon) return;
+      icon.className = isActive
+        ? `fa-solid ${state.sortDir === 'asc' ? 'fa-arrow-up-wide-short' : 'fa-arrow-down-wide-short'}`
+        : 'fa-solid fa-sort';
+    });
+  };
+
+  const filteredRows = () => {
+    const q = String(els.search.value || '').trim().toLowerCase();
+    const status = String(els.status.value || '').trim();
+    return state.rows.filter((row) => {
+      if (q) {
+        const hay = `${row.alojamento || ''} ${row.licenca || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (status === 'sem_licenca') return !row.tem_licenca;
+      if (status && row.seguro_estado_key !== status) return false;
+      return true;
+    }).sort(compareRows);
+  };
+
+  const renderRows = () => {
+    updateSortButtons();
+    const rows = filteredRows();
+    if (!rows.length) {
+      els.rows.innerHTML = '<tr><td colspan="6" class="al-insurance-empty">Sem alojamentos para os filtros selecionados.</td></tr>';
+      return;
+    }
+    els.rows.innerHTML = rows.map((row) => `
+      <tr class="${row.inativo || row.fechado ? 'al-insurance-row-muted' : ''}" data-alstamp="${esc(row.alstamp)}">
+        <td>${esc(row.alojamento)}</td>
+        <td>${formatDate(row.data_seguro)}</td>
+        <td>${insuranceBadge(row)}</td>
+        <td class="al-insurance-license-cell">
+          <div class="al-insurance-license-form">
+            <input class="sz_input" type="text" maxlength="18" value="${esc(row.licenca || '')}" data-license-input>
+            <button class="sz_button sz_button_primary al-insurance-save" type="button" title="Gravar licença" data-license-save>
+              <i class="fa-solid fa-floppy-disk"></i>
+            </button>
+          </div>
+        </td>
+        <td data-license-state>${licenseBadge(row)}</td>
+        <td>${esc(alState(row))}</td>
+      </tr>
+    `).join('');
+  };
+
+  const loadRows = async () => {
+    els.rows.innerHTML = '<tr><td colspan="6" class="al-insurance-empty">A carregar...</td></tr>';
+    const res = await fetch('/api/alojamentos-seguros', { cache: 'no-store' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar alojamentos.');
+    state.rows = Array.isArray(data.rows) ? data.rows : [];
+    updateKpis(data.totals || {});
+    renderRows();
+  };
+
+  const saveLicense = async (tr) => {
+    const stamp = tr?.dataset?.alstamp || '';
+    const input = tr?.querySelector('[data-license-input]');
+    const btn = tr?.querySelector('[data-license-save]');
+    const licenca = String(input?.value || '').trim().slice(0, 18);
+    if (!stamp || !input || !btn) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/alojamentos-seguros/${encodeURIComponent(stamp)}/licenca`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ licenca })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao gravar licença.');
+      const row = state.rows.find((item) => String(item.alstamp || '') === stamp);
+      if (row) {
+        row.licenca = data.licenca || '';
+        row.tem_licenca = Boolean(data.tem_licenca);
+      }
+      updateKpis(computeTotals());
+      renderRows();
+      if (typeof window.showToast === 'function') window.showToast('Licença gravada.', 'success');
+    } catch (error) {
+      if (typeof window.showToast === 'function') window.showToast(error.message || 'Erro ao gravar licença.', 'danger');
+      else alert(error.message || 'Erro ao gravar licença.');
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  els.rows.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-license-save]');
+    if (!btn) return;
+    saveLicense(btn.closest('tr'));
+  });
+  els.rows.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter') return;
+    const input = ev.target.closest('[data-license-input]');
+    if (!input) return;
+    ev.preventDefault();
+    saveLicense(input.closest('tr'));
+  });
+  els.search.addEventListener('input', renderRows);
+  els.status.addEventListener('change', renderRows);
+  els.refresh.addEventListener('click', () => loadRows().catch((error) => {
+    els.rows.innerHTML = `<tr><td colspan="6" class="al-insurance-empty">${esc(error.message || 'Erro ao carregar.')}</td></tr>`;
+  }));
+  document.querySelectorAll('[data-sort]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.sort || 'alojamento';
+      if (state.sortKey === key) {
+        state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.sortKey = key;
+        state.sortDir = 'asc';
+      }
+      renderRows();
+    });
+  });
+
+  loadRows().catch((error) => {
+    els.rows.innerHTML = `<tr><td colspan="6" class="al-insurance-empty">${esc(error.message || 'Erro ao carregar.')}</td></tr>`;
+  });
+})();
+</script>
+{% endblock %}

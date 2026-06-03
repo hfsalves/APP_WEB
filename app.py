@@ -689,6 +689,37 @@ def create_app():
         session_key = app.config.get('I18N_SESSION_KEY', SESSION_LANGUAGE_KEY)
         return session.get(session_key) or session.get('lang')
 
+    def _clear_current_user_language_when_i18n_disabled():
+        if i18n_enabled(app) or not getattr(current_user, 'is_authenticated', False):
+            return
+        user_stamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
+        login_value = str(getattr(current_user, 'LOGIN', '') or '').strip()
+        if not user_stamp and not login_value:
+            return
+        try:
+            has_language_column = db.session.execute(
+                text("SELECT COL_LENGTH('dbo.US', 'LANGUAGE')")
+            ).scalar()
+            if has_language_column is None:
+                return
+            db.session.execute(text("""
+                UPDATE dbo.US
+                   SET [LANGUAGE] = NULL
+                 WHERE (
+                        (NULLIF(:user_stamp, '') IS NOT NULL AND USSTAMP = :user_stamp)
+                     OR (NULLIF(:login_value, '') IS NOT NULL AND LOGIN = :login_value)
+                 )
+                   AND LTRIM(RTRIM(ISNULL([LANGUAGE], ''))) <> ''
+            """), {'user_stamp': user_stamp, 'login_value': login_value})
+            db.session.commit()
+            try:
+                setattr(current_user, 'LANGUAGE', '')
+            except Exception:
+                pass
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao limpar US.LANGUAGE com multiidioma desligado.')
+
     def _resolve_i18n_runtime_for_request(force_reload=False):
         if force_reload:
             _reload_i18n_runtime_from_params(sync_db=False, update_session=False)
@@ -696,6 +727,9 @@ def create_app():
             _ensure_i18n_runtime_current(sync_db=False)
 
         if not i18n_enabled(app):
+            session.pop(app.config.get('I18N_SESSION_KEY', SESSION_LANGUAGE_KEY), None)
+            session.pop('lang', None)
+            _clear_current_user_language_when_i18n_disabled()
             g.language = BASE_LANGUAGE
             g.language_tag = language_tag(BASE_LANGUAGE)
             return BASE_LANGUAGE
@@ -748,7 +782,13 @@ def create_app():
 
     @app.route('/api/i18n/language', methods=['GET', 'POST'])
     def api_i18n_language():
-        if not _ensure_i18n_runtime_current():
+        _reload_i18n_runtime_from_params(sync_db=False, update_session=False)
+        if not i18n_enabled(app):
+            session.pop(app.config.get('I18N_SESSION_KEY', SESSION_LANGUAGE_KEY), None)
+            session.pop('lang', None)
+            _clear_current_user_language_when_i18n_disabled()
+            g.language = BASE_LANGUAGE
+            g.language_tag = language_tag(BASE_LANGUAGE)
             return jsonify({
                 'ok': True,
                 'enabled': False,
@@ -23666,6 +23706,102 @@ def create_app():
             db.session.rollback()
             app.logger.exception('Erro ao preparar Dashboard Links.')
         return render_template('dashboard.html')
+
+    @app.route('/alojamentos-seguros')
+    @app.route('/alojamentos_seguros')
+    @login_required
+    def alojamentos_seguros_page():
+        return render_template('alojamentos_seguros.html', page_title='Seguros e Licenças')
+
+    @app.route('/api/alojamentos-seguros')
+    @login_required
+    def api_alojamentos_seguros():
+        try:
+            rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(ALSTAMP, ''))) AS ALSTAMP,
+                    LTRIM(RTRIM(ISNULL(NOME, ''))) AS ALOJAMENTO,
+                    CASE
+                        WHEN DTRNAL IS NULL OR CAST(DTRNAL AS date) <= CAST('19000101' AS date) THEN NULL
+                        ELSE CAST(DTRNAL AS date)
+                    END AS DATA_SEGURO,
+                    LTRIM(RTRIM(ISNULL(LICENCA, ''))) AS LICENCA,
+                    ISNULL(INATIVO, 0) AS INATIVO,
+                    ISNULL(FECHADO, 0) AS FECHADO
+                FROM dbo.AL
+                WHERE LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''
+                  AND ISNULL(INATIVO, 0) = 0
+                ORDER BY ISNULL(INATIVO, 0), ISNULL(FECHADO, 0), LTRIM(RTRIM(ISNULL(NOME, '')))
+            """)).mappings().all()
+            today = date.today()
+            soon = today + timedelta(days=3)
+            items = []
+            totals = {
+                'total': 0,
+                'seguro_expirado': 0,
+                'seguro_proximo': 0,
+                'seguro_sem_data': 0,
+                'sem_licenca': 0,
+            }
+            for row in rows:
+                data_seguro = row.get('DATA_SEGURO')
+                licenca = str(row.get('LICENCA') or '').strip()
+                if not data_seguro:
+                    seguro_estado = 'Sem data'
+                    seguro_estado_key = 'sem_data'
+                    totals['seguro_sem_data'] += 1
+                elif data_seguro < today:
+                    seguro_estado = 'Ultrapassado'
+                    seguro_estado_key = 'expirado'
+                    totals['seguro_expirado'] += 1
+                elif data_seguro <= soon:
+                    seguro_estado = 'Próximos 3 dias'
+                    seguro_estado_key = 'proximo'
+                    totals['seguro_proximo'] += 1
+                else:
+                    seguro_estado = 'OK'
+                    seguro_estado_key = 'ok'
+                if not licenca:
+                    totals['sem_licenca'] += 1
+                totals['total'] += 1
+                items.append({
+                    'alstamp': row.get('ALSTAMP') or '',
+                    'alojamento': row.get('ALOJAMENTO') or '',
+                    'data_seguro': data_seguro.isoformat() if data_seguro else '',
+                    'seguro_estado': seguro_estado,
+                    'seguro_estado_key': seguro_estado_key,
+                    'licenca': licenca,
+                    'tem_licenca': bool(licenca),
+                    'inativo': bool(row.get('INATIVO')),
+                    'fechado': bool(row.get('FECHADO')),
+                })
+            return jsonify({'rows': items, 'totals': totals})
+        except Exception as exc:
+            current_app.logger.exception('Erro ao carregar seguros/licenças dos alojamentos.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/alojamentos-seguros/<alstamp>/licenca', methods=['PUT'])
+    @login_required
+    def api_alojamentos_seguros_licenca(alstamp):
+        data = request.get_json(silent=True) or {}
+        licenca = str(data.get('licenca') or '').strip()[:18]
+        stamp = str(alstamp or '').strip()
+        if not stamp:
+            return jsonify({'error': 'Alojamento inválido.'}), 400
+        try:
+            result = db.session.execute(text("""
+                UPDATE dbo.AL
+                   SET LICENCA = :licenca
+                 WHERE ALSTAMP = :alstamp
+            """), {'licenca': licenca, 'alstamp': stamp})
+            db.session.commit()
+            if not result.rowcount:
+                return jsonify({'error': 'Alojamento não encontrado.'}), 404
+            return jsonify({'ok': True, 'licenca': licenca, 'tem_licenca': bool(licenca)})
+        except Exception as exc:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao gravar licença do alojamento.')
+            return jsonify({'error': str(exc)}), 500
 
     @app.route('/dashboard_links')
     @app.route('/dashboard-links')
