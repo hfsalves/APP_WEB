@@ -2866,9 +2866,9 @@ def create_app():
             for row in rows:
                 values = {
                     's': row.get('RSGUESTSTAMP'),
-                    'nacionalidade_icao': (row.get('NACIONALIDADE_ICAO') or '').strip() or country_to_icao(row.get('NACIONALIDADE')),
-                    'pais_residencia_icao': (row.get('PAIS_RESIDENCIA_ICAO') or '').strip() or country_to_icao(row.get('PAIS_RESIDENCIA')),
-                    'pais_emissor_doc_icao': (row.get('PAIS_EMISSOR_DOC_ICAO') or '').strip() or country_to_icao(row.get('PAIS_EMISSOR_DOC')),
+                    'nacionalidade_icao': country_to_icao(row.get('NACIONALIDADE_ICAO')) or country_to_icao(row.get('NACIONALIDADE')),
+                    'pais_residencia_icao': country_to_icao(row.get('PAIS_RESIDENCIA_ICAO')) or country_to_icao(row.get('PAIS_RESIDENCIA')),
+                    'pais_emissor_doc_icao': country_to_icao(row.get('PAIS_EMISSOR_DOC_ICAO')) or country_to_icao(row.get('PAIS_EMISSOR_DOC')),
                     'tipo_doc_siba': doc_type_to_siba(row.get('TIPO_DOC')) or (row.get('TIPO_DOC_SIBA') or '').strip(),
                 }
                 db.session.execute(text("""
@@ -16107,14 +16107,9 @@ def create_app():
         db.session.commit()
         return jsonify({'ok': True})
 
-    @app.route('/api/reservas/rs/<rsstamp>/siba/communicate', methods=['POST'])
-    @login_required
-    def api_reservas_rs_siba_communicate(rsstamp):
-        current_feid, error_response = _current_feid_or_json_error()
-        if error_response:
-            return error_response
-
+    def _siba_prepare_and_send_reservation(rsstamp, current_feid, user_login='', send=True):
         _ensure_rsguests_siba_columns()
+        actor_login = str(user_login or '').strip() or 'AUTO'
         flags = db.session.execute(text("""
             SELECT
                 CASE WHEN COL_LENGTH('dbo.AL', 'SIBA_UH') IS NULL THEN 0 ELSE 1 END AS HAS_SIBA_UH,
@@ -16158,8 +16153,8 @@ def create_app():
         """), {'s': rsstamp, 'current_feid': current_feid}).mappings().first()
         if not rs:
             if _rs_exists_any(rsstamp):
-                return jsonify({'error': 'Sem permissao para comunicar esta reserva na empresa ativa.'}), 403
-            return jsonify({'error': 'Reserva nao encontrada'}), 404
+                return {'error': 'Sem permissao para comunicar esta reserva na empresa ativa.'}, 403
+            return {'error': 'Reserva nao encontrada'}, 404
 
         guest_rows = db.session.execute(text("""
             SELECT
@@ -16247,11 +16242,11 @@ def create_app():
                 birth_text = birth.isoformat()
             else:
                 birth_text = str(birth or '').strip()[:10]
-            nacionalidade_icao = (str(guest.get('NACIONALIDADE_ICAO') or '').strip()
+            nacionalidade_icao = (country_to_icao(guest.get('NACIONALIDADE_ICAO'))
                                   or country_to_icao(guest.get('NACIONALIDADE')))
-            residencia_icao = (str(guest.get('PAIS_RESIDENCIA_ICAO') or '').strip()
+            residencia_icao = (country_to_icao(guest.get('PAIS_RESIDENCIA_ICAO'))
                                or country_to_icao(guest.get('PAIS_RESIDENCIA')))
-            emissor_icao = (str(guest.get('PAIS_EMISSOR_DOC_ICAO') or '').strip()
+            emissor_icao = (country_to_icao(guest.get('PAIS_EMISSOR_DOC_ICAO'))
                             or country_to_icao(guest.get('PAIS_EMISSOR_DOC')))
             tipo_doc_siba = (str(guest.get('TIPO_DOC_SIBA') or '').strip()
                              or doc_type_to_siba(guest.get('TIPO_DOC')))
@@ -16316,7 +16311,7 @@ def create_app():
                 'codpost': str(rs.get('AL_CODPOST') or '').strip(),
                 'telefone': unit_phone_digits,
                 'fax': '',
-                'contacto_nome': str(rs.get('FE_NOME') or '').strip() or str(getattr(current_user, 'LOGIN', '') or '').strip(),
+                'contacto_nome': str(rs.get('FE_NOME') or '').strip() or actor_login,
                 'contacto_email': unit_email,
             },
             'guests': guests_payload,
@@ -16326,12 +16321,22 @@ def create_app():
 
         if missing:
             payload['siba'].pop('chave', None)
-            return jsonify({
+            return {
                 'ok': False,
                 'error': 'Dados insuficientes para comunicar AIMA/SEF.',
                 'missing': missing,
                 'payload': payload,
-            }), 400
+            }, 400
+
+        if not send:
+            payload['siba'].pop('chave', None)
+            return {
+                'ok': True,
+                'sent': False,
+                'ready': True,
+                'message': 'Reserva pronta para comunicar AIMA/SEF.',
+                'payload': payload,
+            }, 200
 
         try:
             siba_result = send_siba_boletins(
@@ -16341,24 +16346,23 @@ def create_app():
             )
         except SibaError as exc:
             payload['siba'].pop('chave', None)
-            return jsonify({
+            return {
                 'ok': False,
                 'sent': False,
                 'error': str(exc),
                 'payload': payload,
-            }), 502
+            }, 502
 
-        user_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
         db.session.execute(text(f"""
             UPDATE dbo.RS
             SET SEF = 1,
                 USRSEF = :usrsef
             WHERE RSSTAMP = :s
               {_rs_write_clause('RS')}
-        """), {'s': rsstamp, 'current_feid': current_feid, 'usrsef': user_login})
+        """), {'s': rsstamp, 'current_feid': current_feid, 'usrsef': actor_login})
         db.session.commit()
         payload['siba'].pop('chave', None)
-        return jsonify({
+        return {
             'ok': True,
             'sent': True,
             'ready': True,
@@ -16367,8 +16371,206 @@ def create_app():
             'payload': payload,
             'header': {
                 'SEF': 1,
-                'USRSEF': user_login,
+                'USRSEF': actor_login,
             },
+        }, 200
+
+    @app.route('/api/reservas/rs/<rsstamp>/siba/communicate', methods=['POST'])
+    @login_required
+    def api_reservas_rs_siba_communicate(rsstamp):
+        current_feid, error_response = _current_feid_or_json_error()
+        if error_response:
+            return error_response
+
+        user_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+        result, status = _siba_prepare_and_send_reservation(rsstamp, current_feid, user_login=user_login, send=True)
+        return jsonify(result), status
+
+    def _siba_robot_expected_token():
+        return (
+            str(current_app.config.get('SIBA_ROBOT_TOKEN') or '').strip()
+            or str(os.environ.get('SIBA_ROBOT_TOKEN') or '').strip()
+            or str(current_app.config.get('ROBOT_API_TOKEN') or '').strip()
+            or str(os.environ.get('ROBOT_API_TOKEN') or '').strip()
+            or str(current_app.config.get('INTEGRATION_API_TOKEN') or '').strip()
+            or str(os.environ.get('INTEGRATION_API_TOKEN') or '').strip()
+            or str(current_app.config.get('SYNC_ENGINE_TOKEN') or '').strip()
+            or str(os.environ.get('SYNC_ENGINE_TOKEN') or '').strip()
+        )
+
+    def _siba_robot_received_token():
+        auth = str(request.headers.get('Authorization') or '').strip()
+        if auth.lower().startswith('bearer '):
+            return auth[7:].strip()
+        return str(
+            request.headers.get('X-Internal-Token')
+            or request.headers.get('X-Robot-Token')
+            or request.args.get('token')
+            or ''
+        ).strip()
+
+    def _require_siba_robot_token():
+        expected = _siba_robot_expected_token()
+        if not expected:
+            return jsonify({'error': 'Token do robot SIBA nao configurado.'}), 503
+        received = _siba_robot_received_token()
+        if not received or not hmac.compare_digest(received, expected):
+            return jsonify({'error': 'Unauthorized'}), 401
+        return None
+
+    def _robot_bool(value, default=False):
+        if value is None:
+            return default
+        raw = str(value).strip().lower()
+        if raw in ('1', 'true', 'yes', 'sim', 's', 'on'):
+            return True
+        if raw in ('0', 'false', 'no', 'nao', 'não', 'n', 'off'):
+            return False
+        return default
+
+    @app.route('/api/robot/siba/send-daily', methods=['POST'])
+    @app.route('/api/robot/siba/enviar-diario', methods=['POST'])
+    def api_robot_siba_send_daily():
+        auth_error = _require_siba_robot_token()
+        if auth_error:
+            return auth_error
+
+        data = request.get_json(silent=True) or {}
+        today = date.today()
+        raw_target = str(data.get('target_date') or request.args.get('target_date') or '').strip()
+        try:
+            target_date = datetime.strptime(raw_target[:10], '%Y-%m-%d').date() if raw_target else today - timedelta(days=1)
+        except Exception:
+            return jsonify({'error': 'target_date invalida. Usa YYYY-MM-DD.'}), 400
+
+        dry_run = _robot_bool(data.get('dry_run', request.args.get('dry_run')), default=False)
+        include_late = _robot_bool(data.get('include_late', request.args.get('include_late')), default=True)
+        include_payload = _robot_bool(data.get('include_payload', request.args.get('include_payload')), default=False)
+        feid_filter = _to_int(data.get('feid') or request.args.get('feid'), 0)
+        limit = _to_int(data.get('limit') or request.args.get('limit'), 100)
+        limit = max(1, min(limit, 250))
+
+        effective_feid_sql = """
+            CASE
+                WHEN ISNULL(AL.FEID_GESTOR, 0) <> 0 THEN ISNULL(AL.FEID_GESTOR, 0)
+                ELSE ISNULL(RS.FEID, 0)
+            END
+        """
+        date_operator = '<=' if include_late else '='
+        where = [
+            'ISNULL(RS.CANCELADA, 0) = 0',
+            'ISNULL(RS.SEF, 0) = 0',
+            'RS.DATAIN IS NOT NULL',
+            f'CAST(RS.DATAIN AS date) {date_operator} :target_date',
+            f'{effective_feid_sql} > 0',
+            """
+            EXISTS (
+                SELECT 1
+                FROM dbo.RSGUESTS G
+                WHERE G.RSSTAMP = RS.RSSTAMP
+                  AND ISNULL(G.ATIVO, 1) = 1
+                  AND (
+                         LTRIM(RTRIM(ISNULL(G.NOME_COMPLETO, ''))) <> ''
+                      OR LTRIM(RTRIM(ISNULL(G.NOME, ''))) <> ''
+                      OR LTRIM(RTRIM(ISNULL(G.APELIDO, ''))) <> ''
+                      OR LTRIM(RTRIM(ISNULL(G.NUM_DOC, ''))) <> ''
+                      OR LTRIM(RTRIM(ISNULL(G.TIPO_DOC, ''))) <> ''
+                      OR LTRIM(RTRIM(ISNULL(G.NACIONALIDADE, ''))) <> ''
+                      OR LTRIM(RTRIM(ISNULL(G.PAIS_RESIDENCIA, ''))) <> ''
+                      OR LTRIM(RTRIM(ISNULL(G.PAIS_EMISSOR_DOC, ''))) <> ''
+                      OR (G.DTNASC IS NOT NULL AND CAST(G.DTNASC AS date) > CAST('19000101' AS date))
+                  )
+            )
+            """,
+        ]
+        params = {'target_date': target_date, 'limit': limit}
+        if feid_filter > 0:
+            where.append(f'{effective_feid_sql} = :feid')
+            params['feid'] = feid_filter
+
+        candidates = db.session.execute(text(f"""
+            SELECT TOP (:limit)
+                RS.RSSTAMP,
+                LTRIM(RTRIM(ISNULL(RS.RESERVA, ''))) AS RESERVA,
+                LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                CAST(RS.DATAIN AS date) AS DATAIN,
+                {effective_feid_sql} AS CURRENT_FEID
+            FROM dbo.RS AS RS
+            LEFT JOIN dbo.AL AS AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
+            WHERE {' AND '.join(where)}
+            ORDER BY CAST(RS.DATAIN AS date), LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))), LTRIM(RTRIM(ISNULL(RS.RESERVA, '')))
+        """), params).mappings().all()
+
+        rows = []
+        summary = {
+            'candidates': len(candidates),
+            'sent': 0,
+            'ready': 0,
+            'skipped': 0,
+            'failed': 0,
+        }
+        for candidate in candidates:
+            rsstamp = str(candidate.get('RSSTAMP') or '').strip()
+            current_feid = _to_int(candidate.get('CURRENT_FEID'), 0)
+            row_info = {
+                'rsstamp': rsstamp,
+                'reserva': str(candidate.get('RESERVA') or '').strip(),
+                'alojamento': str(candidate.get('ALOJAMENTO') or '').strip(),
+                'datain': candidate.get('DATAIN').isoformat() if candidate.get('DATAIN') else '',
+                'feid': current_feid,
+            }
+            try:
+                result, status = _siba_prepare_and_send_reservation(
+                    rsstamp,
+                    current_feid,
+                    user_login='AUTO',
+                    send=not dry_run,
+                )
+                if not include_payload:
+                    result.pop('payload', None)
+                row_info.update({
+                    'status': status,
+                    'ok': bool(result.get('ok')),
+                    'sent': bool(result.get('sent')),
+                    'ready': bool(result.get('ready')),
+                    'message': result.get('message') or result.get('error') or '',
+                    'missing': result.get('missing') or [],
+                    'siba_result': result.get('siba_result'),
+                })
+                if status == 200 and row_info['sent']:
+                    summary['sent'] += 1
+                elif status == 200 and row_info['ready']:
+                    summary['ready'] += 1
+                elif status == 400:
+                    summary['skipped'] += 1
+                else:
+                    summary['failed'] += 1
+                    current_app.logger.warning('Robot SIBA falhou reserva %s: %s', rsstamp, row_info['message'])
+            except Exception as exc:
+                db.session.rollback()
+                row_info.update({
+                    'status': 500,
+                    'ok': False,
+                    'sent': False,
+                    'ready': False,
+                    'message': str(exc),
+                    'missing': [],
+                    'siba_result': None,
+                })
+                summary['failed'] += 1
+                current_app.logger.exception('Erro no robot SIBA para reserva %s.', rsstamp)
+            rows.append(row_info)
+
+        return jsonify({
+            'ok': True,
+            'dry_run': dry_run,
+            'target_date': target_date.isoformat(),
+            'include_late': include_late,
+            'limit': limit,
+            'feid': feid_filter or None,
+            'summary': summary,
+            'rows': rows,
         })
 
     @app.route('/api/reservas/siba/comunicacoes', methods=['GET'])
@@ -16421,9 +16623,10 @@ def create_app():
         if alojamento:
             where.append("LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) = LTRIM(RTRIM(:alojamento))")
             params['alojamento'] = alojamento
+        ready_filter = estado in ('ready', 'pronto', 'pronto_enviar', 'pronto_a_enviar', 'prontas')
         if estado in ('yes', 'sim', 'comunicadas', 'comunicada', '1', 'true'):
             where.append("ISNULL(RS.SEF, 0) = 1")
-        elif estado in ('no', 'nao', 'não', 'pendentes', 'pending', 'por_comunicar', '0', 'false'):
+        elif ready_filter or estado in ('no', 'nao', 'não', 'pendentes', 'pending', 'por_comunicar', '0', 'false'):
             where.append("ISNULL(RS.SEF, 0) = 0")
 
         rows = db.session.execute(text(f"""
@@ -16520,9 +16723,9 @@ def create_app():
             nome = str(guest.get('NOME') or '').strip()
             apelido = str(guest.get('APELIDO') or '').strip()
             nome_completo = str(guest.get('NOME_COMPLETO') or f'{nome} {apelido}').strip()
-            nacionalidade_icao = str(guest.get('NACIONALIDADE_ICAO') or '').strip() or country_to_icao(guest.get('NACIONALIDADE'))
-            residencia_icao = str(guest.get('PAIS_RESIDENCIA_ICAO') or '').strip() or country_to_icao(guest.get('PAIS_RESIDENCIA'))
-            emissor_icao = str(guest.get('PAIS_EMISSOR_DOC_ICAO') or '').strip() or country_to_icao(guest.get('PAIS_EMISSOR_DOC'))
+            nacionalidade_icao = country_to_icao(guest.get('NACIONALIDADE_ICAO')) or country_to_icao(guest.get('NACIONALIDADE'))
+            residencia_icao = country_to_icao(guest.get('PAIS_RESIDENCIA_ICAO')) or country_to_icao(guest.get('PAIS_RESIDENCIA'))
+            emissor_icao = country_to_icao(guest.get('PAIS_EMISSOR_DOC_ICAO')) or country_to_icao(guest.get('PAIS_EMISSOR_DOC'))
             tipo_doc_siba = str(guest.get('TIPO_DOC_SIBA') or '').strip() or doc_type_to_siba(guest.get('TIPO_DOC'))
             return bool(
                 nome_completo and nome and apelido and _valid_birth(guest.get('DTNASC'))
@@ -16600,16 +16803,7 @@ def create_app():
                 blockers.append('O SIBA só aceita check-ins até à data de hoje.')
 
             ready_to_send = not blockers
-            summary['total'] += 1
-            summary['communicated' if communicated else 'pending'] += 1
-            if ready_to_send:
-                summary['ready'] += 1
-            if data_state in summary:
-                summary[data_state] += 1
-            if not credentials_ok:
-                summary['credentials_missing'] += 1
-
-            output.append({
+            row_payload = {
                 'rsstamp': rsstamp,
                 'reserva': str(row.get('RESERVA') or '').strip(),
                 'alojamento': str(row.get('ALOJAMENTO') or '').strip(),
@@ -16631,7 +16825,20 @@ def create_app():
                 'unit_missing': unit_missing,
                 'ready_to_send': ready_to_send,
                 'send_blockers': blockers,
-            })
+            }
+            if ready_filter and not ready_to_send:
+                continue
+
+            summary['total'] += 1
+            summary['communicated' if communicated else 'pending'] += 1
+            if ready_to_send:
+                summary['ready'] += 1
+            if data_state in summary:
+                summary[data_state] += 1
+            if not credentials_ok:
+                summary['credentials_missing'] += 1
+
+            output.append(row_payload)
 
         return jsonify({
             'date_from': start_date.isoformat(),

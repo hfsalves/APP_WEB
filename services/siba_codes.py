@@ -17,7 +17,7 @@ ISO2_TO_ICAO = {
     "DK": "DNK", "DJ": "DJI", "DM": "DMA", "DO": "DOM", "EC": "ECU", "EG": "EGY",
     "SV": "SLV", "GQ": "GNQ", "ER": "ERI", "EE": "EST", "SZ": "SWZ", "ET": "ETH",
     "FK": "FLK", "FO": "FRO", "FJ": "FJI", "FI": "FIN", "FR": "FRA", "GF": "GUF",
-    "PF": "PYF", "TF": "ATF", "GA": "GAB", "GM": "GMB", "GE": "GEO", "DE": "DEU",
+    "PF": "PYF", "TF": "ATF", "GA": "GAB", "GM": "GMB", "GE": "GEO", "DE": "D",
     "GH": "GHA", "GI": "GIB", "GR": "GRC", "GL": "GRL", "GD": "GRD", "GP": "GLP",
     "GU": "GUM", "GT": "GTM", "GG": "GGY", "GN": "GIN", "GW": "GNB", "GY": "GUY",
     "HT": "HTI", "HM": "HMD", "VA": "VAT", "HN": "HND", "HK": "HKG", "HU": "HUN",
@@ -49,13 +49,16 @@ ISO2_TO_ICAO = {
 }
 
 ICAO_CODES = set(ISO2_TO_ICAO.values())
+SIBA_CODE_ALIASES = {
+    "DEU": "D",
+}
 
 COUNTRY_NAME_PT_TO_ICAO = {
     "AFEGANISTAO": "AFG",
     "AFRICA DO SUL": "ZAF",
     "ALANDA": "ALA",
     "ALBANIA": "ALB",
-    "ALEMANHA": "DEU",
+    "ALEMANHA": "D",
     "ANDORRA": "AND",
     "ANGOLA": "AGO",
     "ANGUILA": "AIA",
@@ -316,9 +319,9 @@ COUNTRY_NAME_TO_ICAO = {
     "INGLATERRA": "GBR",
     "IRELAND": "IRL",
     "IRLANDA": "IRL",
-    "ALEMANHA": "DEU",
-    "GERMANY": "DEU",
-    "DEUTSCHLAND": "DEU",
+    "ALEMANHA": "D",
+    "GERMANY": "D",
+    "DEUTSCHLAND": "D",
     "ITALIA": "ITA",
     "ITALY": "ITA",
     "PAISES BAIXOS": "NLD",
@@ -405,6 +408,8 @@ def country_to_icao(value: Any) -> str:
     if not key:
         return ""
     compact = key.replace(" ", "")
+    if compact in SIBA_CODE_ALIASES:
+        return SIBA_CODE_ALIASES[compact]
     if len(compact) == 3 and compact in ICAO_CODES:
         return compact
     if len(compact) == 2 and compact in ISO2_TO_ICAO:

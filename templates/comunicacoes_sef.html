@@ -172,6 +172,14 @@
       opacity: 0.72;
     }
 
+    .siba-table tbody tr[data-rsstamp]:not(.siba-row-blocked) {
+      cursor: pointer;
+    }
+
+    .siba-row-selected {
+      background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
+    }
+
     .siba-actionbar .sz_actionbar_left {
       color: var(--sz-color-text-muted);
       font-weight: var(--sz-font-weight-semibold);
@@ -262,6 +270,7 @@
           </select>
           <select id="sibaComunicada" class="sz_select" aria-label="Estado de comunicação">
             <option value="pending">Por comunicar</option>
+            <option value="ready">Pronto a enviar</option>
             <option value="all">Todas</option>
             <option value="yes">Comunicadas</option>
             <option value="no">Não comunicadas</option>

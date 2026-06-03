@@ -125,7 +125,7 @@
       const blockedTitle = blockers.join(' ');
       const communicatedBadge = row.communicated
         ? badge(row.usrsef ? `Comunicada por ${row.usrsef}` : 'Comunicada', 'ok', 'fa-check')
-        : badge('Por comunicar', 'warn', 'fa-clock');
+        : (row.ready_to_send ? badge('Pronto a enviar', 'ok', 'fa-paper-plane') : badge('Por comunicar', 'warn', 'fa-clock'));
       const dataKind = row.data_state === 'complete' ? 'ok' : (row.data_state === 'partial' ? 'warn' : 'danger');
       const dataIcon = row.data_state === 'complete' ? 'fa-user-check' : (row.data_state === 'partial' ? 'fa-user-pen' : 'fa-user-xmark');
       const credentialsBadge = row.credentials_ok
@@ -134,7 +134,11 @@
       const checked = state.selected.has(row.rsstamp) ? ' checked' : '';
       const pickDisabled = row.ready_to_send ? '' : ' disabled';
       const sendDisabled = row.ready_to_send ? '' : ' disabled';
-      const trClass = row.ready_to_send ? 'sz_table_row' : 'sz_table_row siba-row-blocked';
+      const trClass = [
+        'sz_table_row',
+        row.ready_to_send ? '' : 'siba-row-blocked',
+        state.selected.has(row.rsstamp) ? 'siba-row-selected' : ''
+      ].filter(Boolean).join(' ');
       const openUrl = `/generic/rs_reservas_form/${encodeURIComponent(row.rsstamp)}?return_to=${encodeURIComponent('/reservas/comunicacoes-sef')}`;
 
       return `
@@ -352,12 +356,23 @@
       const stamp = target.getAttribute('data-rsstamp') || '';
       if (target.checked) state.selected.add(stamp);
       else state.selected.delete(stamp);
-      updateSelectionUi();
+      renderRows();
     });
     els.rows?.addEventListener('click', (event) => {
       const btn = event.target?.closest?.('.siba-send-one');
-      if (!btn) return;
-      sendOne(btn.getAttribute('data-rsstamp') || '');
+      if (btn) {
+        sendOne(btn.getAttribute('data-rsstamp') || '');
+        return;
+      }
+      if (event.target?.closest?.('a, button, input, select, textarea, label')) return;
+      const tr = event.target?.closest?.('tr[data-rsstamp]');
+      if (!tr) return;
+      const stamp = tr.getAttribute('data-rsstamp') || '';
+      const row = rowByStamp(stamp);
+      if (!row?.ready_to_send) return;
+      if (state.selected.has(stamp)) state.selected.delete(stamp);
+      else state.selected.add(stamp);
+      renderRows();
     });
   }
 
