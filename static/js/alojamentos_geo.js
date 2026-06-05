@@ -82,10 +82,12 @@ const geoEls = {
   alojPoiModal: document.getElementById('geoAlojPoiModal'),
   alojPoiName: document.getElementById('geoAlojPoiName'),
   alojPoiSearch: document.getElementById('geoAlojPoiSearch'),
+  alojPoiSelectAll: document.getElementById('geoAlojPoiSelectAll'),
   alojPoiList: document.getElementById('geoAlojPoiList'),
   alojPoiSave: document.getElementById('geoAlojPoiSave'),
   poiAssocBack: document.getElementById('geoPoiAssocBack'),
   poiAssocName: document.getElementById('geoPoiAssocName'),
+  poiAssocSelectAll: document.getElementById('geoPoiAssocSelectAll'),
   poiAssocList: document.getElementById('geoPoiAssocList'),
   poiAssocConfirm: document.getElementById('geoPoiAssocConfirm'),
   poigModal: document.getElementById('geoPoigModal'),
@@ -994,6 +996,13 @@ const openPoiAssocStep = async (poistamp, rowsCache = null) => {
   }
 };
 
+const selectAllPoiAssocRows = () => {
+  const inputs = Array.from(geoEls.poiAssocList?.querySelectorAll('input[type="checkbox"][data-assoc-nome]') || []);
+  inputs.forEach((input) => {
+    input.checked = true;
+  });
+};
+
 const openPoiModal = async () => {
   await loadPoiGroups();
   geoState.poiEditStamp = null;
@@ -1201,6 +1210,16 @@ const renderAlojPoiList = () => {
   });
 };
 
+const selectAllAlojPoiRows = () => {
+  const inputs = Array.from(geoEls.alojPoiList?.querySelectorAll('input[type="checkbox"][data-aloj-poi]') || []);
+  inputs.forEach((input) => {
+    input.checked = true;
+    const stamp = input.getAttribute('data-aloj-poi') || '';
+    const row = (geoState.alojPoiRows || []).find((item) => String(item.POISTAMP || '') === stamp);
+    if (row) row.ASSOCIADO = 1;
+  });
+};
+
 const openAlojPoiModal = async () => {
   if (!geoState.selected || !geoState.selected.ALSTAMP || isSedeSelected()) {
     showToast('Seleciona um alojamento primeiro.', 'warning');
@@ -1282,12 +1301,14 @@ const bindFormEvents = () => {
   geoEls.poiGroupsBtn?.addEventListener('click', openPoigModal);
   geoEls.alojPoiBtn?.addEventListener('click', openAlojPoiModal);
   geoEls.alojPoiSearch?.addEventListener('input', renderAlojPoiList);
+  geoEls.alojPoiSelectAll?.addEventListener('click', selectAllAlojPoiRows);
   geoEls.alojPoiSave?.addEventListener('click', saveAlojPoiAssociations);
   geoEls.poiModalSearch?.addEventListener('input', poiSearchModal);
   geoEls.poiShowCreate?.addEventListener('click', () => poiSetStep('create'));
   geoEls.poiCreateCancel?.addEventListener('click', () => poiSetStep('search'));
   geoEls.poiCreateSave?.addEventListener('click', createPoiFromModal);
   geoEls.poiAssocBack?.addEventListener('click', () => poiSetStep('search'));
+  geoEls.poiAssocSelectAll?.addEventListener('click', selectAllPoiAssocRows);
   geoEls.poiAssocConfirm?.addEventListener('click', confirmPoiAssociations);
   geoEls.poigSave?.addEventListener('click', savePoig);
   geoEls.poigClear?.addEventListener('click', clearPoigForm);
