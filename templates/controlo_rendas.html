@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block title %}Contratos e Rendas{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+  .rent-control-page .sz_page_container {
+    gap: var(--sz-space-3);
+  }
+
+  .rent-control-page .sz_contextbar {
+    align-items: center;
+    gap: var(--sz-space-3);
+  }
+
+  .rent-control-page .sz_contextbar_left {
+    flex: 0 0 clamp(15rem, 24vw, 25rem);
+    width: auto;
+  }
+
+  .rent-control-page .sz_page_subtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rent-control-page .sz_contextbar_right {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .rent-control-toolbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    width: 100%;
+  }
+
+  .rent-control-toolbar .sz_input {
+    width: 8rem;
+  }
+
+  .rent-control-kpis {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: var(--sz-space-2);
+    min-width: 0;
+  }
+
+  .rent-control-kpi {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    min-height: 2.25rem;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, transparent);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .rent-control-kpi span {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+    text-transform: uppercase;
+  }
+
+  .rent-control-kpi strong {
+    min-width: 5.8rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rent-control-panel {
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .rent-control-table-wrap {
+    max-height: calc(100vh - 17rem);
+    overflow: auto;
+  }
+
+  .rent-control-table {
+    min-width: 1180px;
+  }
+
+  .rent-control-table th,
+  .rent-control-table td {
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .rent-control-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .rent-control-table .rent-sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 16rem;
+    max-width: 16rem;
+    background: var(--sz-color-surface);
+    box-shadow: 1px 0 0 var(--sz-color-border);
+  }
+
+  .rent-control-table thead .rent-sticky-col {
+    z-index: 3;
+  }
+
+  .rent-control-lodge {
+    display: grid;
+    min-width: 0;
+  }
+
+  .rent-control-lodge strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rent-control-table th.rent-control-value,
+  .rent-control-table td.rent-control-value {
+    text-align: right !important;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rent-control-value.is-empty {
+    color: var(--sz-color-text-muted);
+  }
+
+  .rent-control-value.is-total,
+  .rent-control-total-row {
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .rent-control-total-row td {
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 82%, transparent);
+  }
+
+  .rent-control-empty {
+    padding: var(--sz-space-5);
+    text-align: center;
+    color: var(--sz-color-text-muted);
+  }
+
+  @media (max-width: 1100px) {
+    .rent-control-page .sz_contextbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .rent-control-page .sz_contextbar_left,
+    .rent-control-page .sz_contextbar_right {
+      flex: 0 1 auto;
+      width: 100%;
+    }
+
+    .rent-control-toolbar {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .rent-control-kpis {
+      flex-wrap: wrap;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page rent-control-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Contratos e Rendas</div>
+        <div class="sz_page_subtitle">Rendas pagas por alojamento de exploração e sede.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="rent-control-toolbar">
+          <div class="rent-control-kpis" aria-live="polite">
+            <div class="rent-control-kpi"><span>Total anual</span><strong id="rentKpiTotal">0,00</strong></div>
+            <div class="rent-control-kpi"><span>Alojamentos</span><strong id="rentKpiRows">0</strong></div>
+          </div>
+          <label class="sz_field" for="rentControlYear">
+            <span class="sz_label">Ano</span>
+            <input id="rentControlYear" class="sz_input" type="number" min="2000" max="2100" step="1">
+          </label>
+          <a class="sz_button sz_button_secondary" href="{{ url_for('contratos_page') }}">
+            <i class="fa-solid fa-file-contract"></i>
+            <span>Contratos</span>
+          </a>
+          <button id="rentControlRefresh" class="sz_button sz_button_secondary" type="button">
+            <i class="fa-solid fa-rotate"></i>
+            <span>Atualizar</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="sz_panel rent-control-panel">
+      <div class="rent-control-table-wrap">
+        <table class="sz_table sz_table_compact rent-control-table">
+          <thead>
+            <tr id="rentControlHead">
+              <th class="rent-sticky-col">Alojamento</th>
+            </tr>
+          </thead>
+          <tbody id="rentControlRows">
+            <tr><td class="rent-control-empty">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const els = {
+    year: document.getElementById('rentControlYear'),
+    refresh: document.getElementById('rentControlRefresh'),
+    head: document.getElementById('rentControlHead'),
+    rows: document.getElementById('rentControlRows'),
+    total: document.getElementById('rentKpiTotal'),
+    rowCount: document.getElementById('rentKpiRows')
+  };
+
+  const fmtMoney = new Intl.NumberFormat('pt-PT', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+
+  const esc = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  const moneyCell = (value, extra = '') => {
+    const num = Number(value || 0);
+    const cls = ['rent-control-value', extra, num ? '' : 'is-empty'].filter(Boolean).join(' ');
+    return `<td class="${cls}">${num ? esc(fmtMoney.format(num)) : '-'}</td>`;
+  };
+
+  const render = (data) => {
+    const months = Array.isArray(data.months) ? data.months : [];
+    els.head.innerHTML = '<th class="rent-sticky-col">Alojamento</th>'
+      + months.map((m) => `<th class="rent-control-value">${esc(m.label)}</th>`).join('')
+      + '<th class="rent-control-value">Total</th>';
+
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    if (!rows.length) {
+      els.rows.innerHTML = `<tr><td colspan="${months.length + 2}" class="rent-control-empty">Sem alojamentos para apresentar.</td></tr>`;
+      return;
+    }
+
+    const body = rows.map((row) => {
+      return `
+        <tr>
+          <td class="rent-sticky-col">
+            <div class="rent-control-lodge">
+              <strong>${esc(row.nome || '')}</strong>
+            </div>
+          </td>
+          ${months.map((m) => moneyCell(row.meses?.[String(m.num)] || 0)).join('')}
+          ${moneyCell(row.total || 0, 'is-total')}
+        </tr>
+      `;
+    }).join('');
+
+    const totals = data.totals || {};
+    const totalRow = `
+      <tr class="rent-control-total-row">
+        <td class="rent-sticky-col">TOTAL</td>
+        ${months.map((m) => moneyCell(totals.meses?.[String(m.num)] || 0, 'is-total')).join('')}
+        ${moneyCell(totals.total || 0, 'is-total')}
+      </tr>
+    `;
+
+    els.rows.innerHTML = body + totalRow;
+    els.total.textContent = fmtMoney.format(Number(totals.total || 0));
+    els.rowCount.textContent = String(rows.length || 0);
+  };
+
+  const load = async () => {
+    const ano = Number(els.year.value || new Date().getFullYear()) || new Date().getFullYear();
+    els.rows.innerHTML = '<tr><td class="rent-control-empty">A carregar...</td></tr>';
+    const res = await fetch(`/api/controlo-rendas?ano=${encodeURIComponent(ano)}`, { cache: 'no-store' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) throw new Error(data.error || 'Erro ao carregar rendas.');
+    render(data);
+  };
+
+  els.year.value = String(new Date().getFullYear());
+  els.refresh.addEventListener('click', () => load().catch((error) => {
+    els.rows.innerHTML = `<tr><td class="rent-control-empty">${esc(error.message || 'Erro ao carregar.')}</td></tr>`;
+  }));
+  els.year.addEventListener('change', () => els.refresh.click());
+  els.refresh.click();
+})();
+</script>
+{% endblock %}

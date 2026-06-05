@@ -5558,6 +5558,40 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   justify-content: flex-end;
 }
 
+.geo-actions-dropdown {
+  position: relative;
+}
+
+.geo-actions-menu {
+  min-width: 12rem;
+  padding: var(--sz-space-1);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  background: var(--sz-color-surface);
+  box-shadow: var(--sz-shadow-3);
+}
+
+.geo-action-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sz-space-2);
+  min-height: 2.25rem;
+  border-radius: var(--sz-radius-sm);
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-sm);
+}
+
+.geo-action-item:hover,
+.geo-action-item:focus {
+  background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
+  color: var(--sz-color-text);
+}
+
+.geo-action-item:disabled {
+  color: var(--sz-color-text-muted);
+  opacity: 0.6;
+}
+
 .geo-selected-name {
   color: var(--sz-color-text);
   font-size: 1rem;
@@ -5577,7 +5611,7 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
 
 .geo-fields {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: minmax(18rem, 2.2fr) minmax(9rem, 1fr) minmax(8rem, 0.9fr);
   gap: var(--sz-space-2);
   margin-top: var(--sz-space-3);
 }
@@ -5587,15 +5621,24 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   gap: 0.28rem;
 }
 
-.geo-field:nth-child(1) {
-  grid-column: span 3;
+.geo-field-address {
+  grid-column: 1;
 }
 
-.geo-field:nth-child(2),
-.geo-field:nth-child(3),
-.geo-field:nth-child(4),
-.geo-field:nth-child(5) {
-  grid-column: span 1;
+.geo-field-local {
+  grid-column: 2;
+}
+
+.geo-field-postal {
+  grid-column: 3;
+}
+
+.geo-field-lat {
+  grid-column: 1;
+}
+
+.geo-field-lon {
+  grid-column: 2;
 }
 
 .geo-field-value {
@@ -5849,6 +5892,10 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   margin-top: var(--sz-space-3);
 }
 
+.geo-assoc-search {
+  max-width: 18rem;
+}
+
 .geo-checkbox {
   margin-top: var(--sz-space-3);
 }
@@ -5919,6 +5966,11 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   .geo-field:nth-child(3),
   .geo-field:nth-child(4),
   .geo-field:nth-child(5),
+  .geo-field-address,
+  .geo-field-local,
+  .geo-field-postal,
+  .geo-field-lat,
+  .geo-field-lon,
   .geo-span-2,
   .geo-span-4 {
     grid-column: auto;

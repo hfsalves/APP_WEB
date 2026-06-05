@@ -23930,6 +23930,755 @@ def create_app():
     def alojamentos_seguros_page():
         return render_template('alojamentos_seguros.html', page_title='Seguros e Licenças')
 
+    @app.route('/controlo-rendas')
+    @app.route('/controlo_rendas')
+    @app.route('/rendas')
+    @login_required
+    def controlo_rendas_page():
+        return render_template('controlo_rendas.html', page_title='Contratos e Rendas')
+
+    def _ensure_contratos_schema():
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.CONTRATOS', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.CONTRATOS (
+                    CONTRATOSTAMP varchar(25) NOT NULL CONSTRAINT PK_CONTRATOS PRIMARY KEY,
+                    FORNECEDOR_NO int NOT NULL CONSTRAINT DF_CONTRATOS_FORNECEDOR_NO DEFAULT 0,
+                    FORNECEDOR_NOME varchar(120) NOT NULL CONSTRAINT DF_CONTRATOS_FORNECEDOR_NOME DEFAULT '',
+                    FLSTAMP varchar(25) NOT NULL CONSTRAINT DF_CONTRATOS_FLSTAMP DEFAULT '',
+                    DATA_INICIO date NULL,
+                    DURACAO_MESES int NOT NULL CONSTRAINT DF_CONTRATOS_DURACAO DEFAULT 0,
+                    VALOR_RENDA decimal(18, 2) NOT NULL CONSTRAINT DF_CONTRATOS_VALOR_RENDA DEFAULT 0,
+                    MES_ADIANTADO bit NOT NULL CONSTRAINT DF_CONTRATOS_MES_ADIANTADO DEFAULT 0,
+                    VALOR_CAUCAO decimal(18, 2) NOT NULL CONSTRAINT DF_CONTRATOS_VALOR_CAUCAO DEFAULT 0,
+                    OBS varchar(max) NOT NULL CONSTRAINT DF_CONTRATOS_OBS DEFAULT '',
+                    ATIVO bit NOT NULL CONSTRAINT DF_CONTRATOS_ATIVO DEFAULT 1,
+                    DTCRI datetime2(0) NOT NULL CONSTRAINT DF_CONTRATOS_DTCRI DEFAULT SYSDATETIME(),
+                    DTALT datetime2(0) NULL,
+                    USERCRIACAO varchar(60) NOT NULL CONSTRAINT DF_CONTRATOS_USERCRIACAO DEFAULT '',
+                    USERALTERACAO varchar(60) NOT NULL CONSTRAINT DF_CONTRATOS_USERALTERACAO DEFAULT ''
+                )
+            END
+
+            IF OBJECT_ID('dbo.CONTRATO_LINHAS', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.CONTRATO_LINHAS (
+                    CONTRATOLINHASTAMP varchar(25) NOT NULL CONSTRAINT PK_CONTRATO_LINHAS PRIMARY KEY,
+                    CONTRATOSTAMP varchar(25) NOT NULL,
+                    ALSTAMP varchar(25) NOT NULL CONSTRAINT DF_CONTRATO_LINHAS_ALSTAMP DEFAULT '',
+                    ALOJAMENTO varchar(120) NOT NULL CONSTRAINT DF_CONTRATO_LINHAS_ALOJAMENTO DEFAULT '',
+                    CCUSTO varchar(80) NOT NULL CONSTRAINT DF_CONTRATO_LINHAS_CCUSTO DEFAULT '',
+                    DATA_ADICIONADO date NULL,
+                    VALOR_RENDA decimal(18, 2) NOT NULL CONSTRAINT DF_CONTRATO_LINHAS_VALOR_RENDA DEFAULT 0,
+                    ATIVO bit NOT NULL CONSTRAINT DF_CONTRATO_LINHAS_ATIVO DEFAULT 1,
+                    DTCRI datetime2(0) NOT NULL CONSTRAINT DF_CONTRATO_LINHAS_DTCRI DEFAULT SYSDATETIME(),
+                    DTALT datetime2(0) NULL,
+                    USERCRIACAO varchar(60) NOT NULL CONSTRAINT DF_CONTRATO_LINHAS_USERCRIACAO DEFAULT '',
+                    USERALTERACAO varchar(60) NOT NULL CONSTRAINT DF_CONTRATO_LINHAS_USERALTERACAO DEFAULT '',
+                    CONSTRAINT FK_CONTRATO_LINHAS_CONTRATOS FOREIGN KEY (CONTRATOSTAMP)
+                        REFERENCES dbo.CONTRATOS (CONTRATOSTAMP)
+                )
+            END
+
+            IF OBJECT_ID('dbo.CONTRATO_CADASTRO', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.CONTRATO_CADASTRO (
+                    CONTRATOCADASTROSTAMP varchar(25) NOT NULL CONSTRAINT PK_CONTRATO_CADASTRO PRIMARY KEY,
+                    CONTRATOSTAMP varchar(25) NOT NULL CONSTRAINT DF_CONTRATO_CADASTRO_CONTRATOSTAMP DEFAULT '',
+                    CONTRATOLINHASTAMP varchar(25) NOT NULL CONSTRAINT DF_CONTRATO_CADASTRO_LINHASTAMP DEFAULT '',
+                    TABELA varchar(40) NOT NULL CONSTRAINT DF_CONTRATO_CADASTRO_TABELA DEFAULT '',
+                    ACAO varchar(20) NOT NULL CONSTRAINT DF_CONTRATO_CADASTRO_ACAO DEFAULT '',
+                    CAMPO varchar(80) NOT NULL CONSTRAINT DF_CONTRATO_CADASTRO_CAMPO DEFAULT '',
+                    VALOR_ANTERIOR nvarchar(max) NULL,
+                    VALOR_NOVO nvarchar(max) NULL,
+                    UTILIZADOR varchar(60) NOT NULL CONSTRAINT DF_CONTRATO_CADASTRO_UTILIZADOR DEFAULT '',
+                    DTCRI datetime2(0) NOT NULL CONSTRAINT DF_CONTRATO_CADASTRO_DTCRI DEFAULT SYSDATETIME()
+                )
+            END
+
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = 'IX_CONTRATO_LINHAS_CONTRATOSTAMP'
+                  AND object_id = OBJECT_ID('dbo.CONTRATO_LINHAS')
+            )
+                CREATE INDEX IX_CONTRATO_LINHAS_CONTRATOSTAMP
+                ON dbo.CONTRATO_LINHAS (CONTRATOSTAMP, ATIVO)
+
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = 'IX_CONTRATO_CADASTRO_CONTRATOSTAMP'
+                  AND object_id = OBJECT_ID('dbo.CONTRATO_CADASTRO')
+            )
+                CREATE INDEX IX_CONTRATO_CADASTRO_CONTRATOSTAMP
+                ON dbo.CONTRATO_CADASTRO (CONTRATOSTAMP, DTCRI DESC)
+        """))
+        db.session.commit()
+
+    def _contratos_stamp():
+        return uuid.uuid4().hex[:25].upper()
+
+    def _contratos_user():
+        return (getattr(current_user, 'LOGIN', '') or '').strip()[:60]
+
+    def _contratos_str(value, max_len=None):
+        out = str(value or '').strip()
+        return out[:max_len] if max_len else out
+
+    def _contratos_int(value, default=0):
+        try:
+            return int(value)
+        except Exception:
+            return default
+
+    def _contratos_money(value):
+        try:
+            return float(Decimal(str(value or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+        except Exception:
+            return 0.0
+
+    def _contratos_date(value):
+        raw = _contratos_str(value, 10)
+        if not raw:
+            return None
+        try:
+            return date.fromisoformat(raw).isoformat()
+        except Exception:
+            return None
+
+    def _contratos_bool(value):
+        if isinstance(value, str):
+            return value.strip().lower() in {'1', 'true', 'sim', 'yes', 'on'}
+        return bool(value)
+
+    def _contratos_json_date(value):
+        if isinstance(value, datetime):
+            return value.isoformat(timespec='seconds')
+        if isinstance(value, date):
+            return value.isoformat()
+        return value
+
+    def _contratos_json_money(value):
+        try:
+            return float(value or 0)
+        except Exception:
+            return 0.0
+
+    def _contratos_header_dict(row):
+        if not row:
+            return None
+        data = dict(row)
+        return {
+            'contratostamp': _contratos_str(data.get('CONTRATOSTAMP')),
+            'fornecedor_no': _contratos_int(data.get('FORNECEDOR_NO')),
+            'fornecedor_nome': _contratos_str(data.get('FORNECEDOR_NOME')),
+            'flstamp': _contratos_str(data.get('FLSTAMP')),
+            'data_inicio': _contratos_json_date(data.get('DATA_INICIO')),
+            'duracao_meses': _contratos_int(data.get('DURACAO_MESES')),
+            'valor_renda': _contratos_json_money(data.get('VALOR_RENDA')),
+            'mes_adiantado': bool(data.get('MES_ADIANTADO')),
+            'valor_caucao': _contratos_json_money(data.get('VALOR_CAUCAO')),
+            'obs': _contratos_str(data.get('OBS')),
+            'ativo': bool(data.get('ATIVO')),
+            'linhas_count': _contratos_int(data.get('LINHAS_COUNT')),
+            'linhas_total': _contratos_json_money(data.get('LINHAS_TOTAL')),
+        }
+
+    def _contratos_line_dict(row):
+        data = dict(row)
+        return {
+            'contratolinhastamp': _contratos_str(data.get('CONTRATOLINHASTAMP')),
+            'contratostamp': _contratos_str(data.get('CONTRATOSTAMP')),
+            'alstamp': _contratos_str(data.get('ALSTAMP')),
+            'alojamento': _contratos_str(data.get('ALOJAMENTO')),
+            'ccusto': _contratos_str(data.get('CCUSTO')),
+            'data_adicionado': _contratos_json_date(data.get('DATA_ADICIONADO')),
+            'valor_renda': _contratos_json_money(data.get('VALOR_RENDA')),
+            'ativo': bool(data.get('ATIVO')),
+        }
+
+    def _contratos_log(contratostamp, acao, tabela, campo='', old_value=None, new_value=None, linhastamp=''):
+        db.session.execute(text("""
+            INSERT INTO dbo.CONTRATO_CADASTRO (
+                CONTRATOCADASTROSTAMP, CONTRATOSTAMP, CONTRATOLINHASTAMP,
+                TABELA, ACAO, CAMPO, VALOR_ANTERIOR, VALOR_NOVO, UTILIZADOR
+            )
+            VALUES (
+                :stamp, :contratostamp, :linhastamp,
+                :tabela, :acao, :campo, :old_value, :new_value, :utilizador
+            )
+        """), {
+            'stamp': _contratos_stamp(),
+            'contratostamp': _contratos_str(contratostamp, 25),
+            'linhastamp': _contratos_str(linhastamp, 25),
+            'tabela': _contratos_str(tabela, 40),
+            'acao': _contratos_str(acao, 20),
+            'campo': _contratos_str(campo, 80),
+            'old_value': None if old_value is None else str(old_value),
+            'new_value': None if new_value is None else str(new_value),
+            'utilizador': _contratos_user(),
+        })
+
+    def _contratos_changed(old_row, payload, field_map, contratostamp, tabela, linhastamp=''):
+        old = dict(old_row or {})
+        changed = []
+        for json_key, column in field_map.items():
+            previous = old.get(column)
+            current = payload.get(json_key)
+            if isinstance(previous, Decimal):
+                previous_cmp = _contratos_money(previous)
+            elif isinstance(previous, (datetime, date)):
+                previous_cmp = _contratos_json_date(previous)
+            elif column in {'FORNECEDOR_NO', 'DURACAO_MESES'}:
+                previous_cmp = _contratos_int(previous)
+            elif column in {'MES_ADIANTADO', 'ATIVO'}:
+                previous_cmp = bool(previous)
+            else:
+                previous_cmp = '' if previous is None else str(previous).strip()
+            current_cmp = current
+            if isinstance(current_cmp, str):
+                current_cmp = current_cmp.strip()
+            if column in {'FORNECEDOR_NO', 'DURACAO_MESES'}:
+                current_cmp = _contratos_int(current_cmp)
+            if previous_cmp != current_cmp:
+                changed.append((column, previous_cmp, current_cmp))
+                _contratos_log(contratostamp, 'UPDATE', tabela, column, previous_cmp, current_cmp, linhastamp)
+        return changed
+
+    def _contratos_get_header(stamp):
+        return db.session.execute(text("""
+            SELECT
+                C.*,
+                ISNULL(L.LINHAS_COUNT, 0) AS LINHAS_COUNT,
+                ISNULL(L.LINHAS_TOTAL, 0) AS LINHAS_TOTAL
+            FROM dbo.CONTRATOS AS C
+            OUTER APPLY (
+                SELECT COUNT(*) AS LINHAS_COUNT, SUM(ISNULL(VALOR_RENDA, 0)) AS LINHAS_TOTAL
+                FROM dbo.CONTRATO_LINHAS
+                WHERE CONTRATOSTAMP = C.CONTRATOSTAMP
+                  AND ISNULL(ATIVO, 1) = 1
+            ) AS L
+            WHERE C.CONTRATOSTAMP = :stamp
+        """), {'stamp': stamp}).mappings().first()
+
+    @app.route('/contratos')
+    @app.route('/contratos-rendas')
+    @app.route('/contratos_rendas')
+    @login_required
+    def contratos_page():
+        try:
+            _ensure_contratos_schema()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao preparar tabelas de contratos.')
+        return render_template('contratos_rendas.html', page_title='Contratos')
+
+    @app.route('/api/contratos/options')
+    @login_required
+    def api_contratos_options():
+        try:
+            _ensure_contratos_schema()
+            fornecedores = db.session.execute(text("""
+                SELECT TOP 1000
+                    LTRIM(RTRIM(ISNULL(FLSTAMP, ''))) AS FLSTAMP,
+                    ISNULL(NO, 0) AS NO,
+                    LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                    LTRIM(RTRIM(ISNULL(NIF, ''))) AS NIF
+                FROM dbo.FL
+                WHERE LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''
+                  AND ISNULL(INATIVO, 0) = 0
+                ORDER BY LTRIM(RTRIM(ISNULL(NOME, '')))
+            """)).mappings().all()
+            alojamentos = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(ALSTAMP, ''))) AS ALSTAMP,
+                    LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                    LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO,
+                    ISNULL(FECHADO, 0) AS FECHADO
+                FROM dbo.AL
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(TIPO, '')))) = 'EXPLORACAO'
+                  AND ISNULL(INATIVO, 0) = 0
+                  AND LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''
+                ORDER BY ISNULL(FECHADO, 0), LTRIM(RTRIM(ISNULL(NOME, '')))
+            """)).mappings().all()
+            return jsonify({
+                'fornecedores': [
+                    {
+                        'flstamp': _contratos_str(r.get('FLSTAMP')),
+                        'no': _contratos_int(r.get('NO')),
+                        'nome': _contratos_str(r.get('NOME')),
+                        'nif': _contratos_str(r.get('NIF')),
+                    }
+                    for r in fornecedores
+                ],
+                'alojamentos': [
+                    {
+                        'alstamp': _contratos_str(r.get('ALSTAMP')),
+                        'nome': _contratos_str(r.get('NOME')),
+                        'ccusto': _contratos_str(r.get('CCUSTO')) or _contratos_str(r.get('NOME')),
+                        'fechado': bool(r.get('FECHADO')),
+                    }
+                    for r in alojamentos
+                ],
+            })
+        except Exception as exc:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao carregar opções de contratos.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/contratos')
+    @login_required
+    def api_contratos_list():
+        try:
+            _ensure_contratos_schema()
+            rows = db.session.execute(text("""
+                SELECT
+                    C.*,
+                    ISNULL(L.LINHAS_COUNT, 0) AS LINHAS_COUNT,
+                    ISNULL(L.LINHAS_TOTAL, 0) AS LINHAS_TOTAL
+                FROM dbo.CONTRATOS AS C
+                OUTER APPLY (
+                    SELECT COUNT(*) AS LINHAS_COUNT, SUM(ISNULL(VALOR_RENDA, 0)) AS LINHAS_TOTAL
+                    FROM dbo.CONTRATO_LINHAS
+                    WHERE CONTRATOSTAMP = C.CONTRATOSTAMP
+                      AND ISNULL(ATIVO, 1) = 1
+                ) AS L
+                WHERE ISNULL(C.ATIVO, 1) = 1
+                ORDER BY C.DATA_INICIO DESC, C.FORNECEDOR_NOME
+            """)).mappings().all()
+            return jsonify({'rows': [_contratos_header_dict(r) for r in rows]})
+        except Exception as exc:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao listar contratos.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/contratos/<stamp>')
+    @login_required
+    def api_contratos_detail(stamp):
+        try:
+            _ensure_contratos_schema()
+            stamp = _contratos_str(stamp, 25)
+            header = _contratos_get_header(stamp)
+            if not header:
+                return jsonify({'error': 'Contrato não encontrado.'}), 404
+            linhas = db.session.execute(text("""
+                SELECT *
+                FROM dbo.CONTRATO_LINHAS
+                WHERE CONTRATOSTAMP = :stamp
+                  AND ISNULL(ATIVO, 1) = 1
+                ORDER BY DATA_ADICIONADO, ALOJAMENTO
+            """), {'stamp': stamp}).mappings().all()
+            cadastro = db.session.execute(text("""
+                SELECT TOP 200
+                    CONTRATOCADASTROSTAMP,
+                    CONTRATOSTAMP,
+                    CONTRATOLINHASTAMP,
+                    TABELA,
+                    ACAO,
+                    CAMPO,
+                    VALOR_ANTERIOR,
+                    VALOR_NOVO,
+                    UTILIZADOR,
+                    DTCRI
+                FROM dbo.CONTRATO_CADASTRO
+                WHERE CONTRATOSTAMP = :stamp
+                ORDER BY DTCRI DESC, CONTRATOCADASTROSTAMP DESC
+            """), {'stamp': stamp}).mappings().all()
+            return jsonify({
+                'header': _contratos_header_dict(header),
+                'linhas': [_contratos_line_dict(r) for r in linhas],
+                'cadastro': [
+                    {
+                        'stamp': _contratos_str(r.get('CONTRATOCADASTROSTAMP')),
+                        'contratostamp': _contratos_str(r.get('CONTRATOSTAMP')),
+                        'linhastamp': _contratos_str(r.get('CONTRATOLINHASTAMP')),
+                        'tabela': _contratos_str(r.get('TABELA')),
+                        'acao': _contratos_str(r.get('ACAO')),
+                        'campo': _contratos_str(r.get('CAMPO')),
+                        'valor_anterior': r.get('VALOR_ANTERIOR'),
+                        'valor_novo': r.get('VALOR_NOVO'),
+                        'utilizador': _contratos_str(r.get('UTILIZADOR')),
+                        'dtcri': _contratos_json_date(r.get('DTCRI')),
+                    }
+                    for r in cadastro
+                ],
+            })
+        except Exception as exc:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao carregar contrato.')
+            return jsonify({'error': str(exc)}), 500
+
+    def _contratos_payload_header(payload):
+        fornecedor_no = _contratos_int(payload.get('fornecedor_no'))
+        fornecedor_nome = _contratos_str(payload.get('fornecedor_nome'), 120)
+        flstamp = _contratos_str(payload.get('flstamp'), 25)
+        if fornecedor_no:
+            row = db.session.execute(text("""
+                SELECT TOP 1
+                    LTRIM(RTRIM(ISNULL(FLSTAMP, ''))) AS FLSTAMP,
+                    ISNULL(NO, 0) AS NO,
+                    LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
+                FROM dbo.FL
+                WHERE NO = :no
+            """), {'no': fornecedor_no}).mappings().first()
+            if row:
+                fornecedor_no = _contratos_int(row.get('NO'))
+                fornecedor_nome = _contratos_str(row.get('NOME'), 120)
+                flstamp = _contratos_str(row.get('FLSTAMP'), 25)
+        return {
+            'fornecedor_no': fornecedor_no,
+            'fornecedor_nome': fornecedor_nome,
+            'flstamp': flstamp,
+            'data_inicio': _contratos_date(payload.get('data_inicio')),
+            'duracao_meses': max(0, _contratos_int(payload.get('duracao_meses'))),
+            'valor_renda': _contratos_money(payload.get('valor_renda')),
+            'mes_adiantado': _contratos_bool(payload.get('mes_adiantado')),
+            'valor_caucao': _contratos_money(payload.get('valor_caucao')),
+            'obs': _contratos_str(payload.get('obs')),
+        }
+
+    def _contratos_payload_line(payload):
+        alstamp = _contratos_str(payload.get('alstamp'), 25)
+        alojamento = _contratos_str(payload.get('alojamento'), 120)
+        ccusto = _contratos_str(payload.get('ccusto'), 80)
+        if alstamp:
+            row = db.session.execute(text("""
+                SELECT TOP 1
+                    LTRIM(RTRIM(ISNULL(ALSTAMP, ''))) AS ALSTAMP,
+                    LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                    LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO
+                FROM dbo.AL
+                WHERE ALSTAMP = :alstamp
+            """), {'alstamp': alstamp}).mappings().first()
+            if row:
+                alstamp = _contratos_str(row.get('ALSTAMP'), 25)
+                alojamento = _contratos_str(row.get('NOME'), 120)
+                ccusto = _contratos_str(row.get('CCUSTO'), 80) or alojamento
+        return {
+            'alstamp': alstamp,
+            'alojamento': alojamento,
+            'ccusto': ccusto or alojamento,
+            'data_adicionado': _contratos_date(payload.get('data_adicionado')) or date.today().isoformat(),
+            'valor_renda': _contratos_money(payload.get('valor_renda')),
+        }
+
+    @app.route('/api/contratos', methods=['POST'])
+    @login_required
+    def api_contratos_create():
+        try:
+            _ensure_contratos_schema()
+            payload = _contratos_payload_header(request.get_json(silent=True) or {})
+            stamp = _contratos_stamp()
+            user = _contratos_user()
+            db.session.execute(text("""
+                INSERT INTO dbo.CONTRATOS (
+                    CONTRATOSTAMP, FORNECEDOR_NO, FORNECEDOR_NOME, FLSTAMP,
+                    DATA_INICIO, DURACAO_MESES, VALOR_RENDA, MES_ADIANTADO,
+                    VALOR_CAUCAO, OBS, USERCRIACAO, USERALTERACAO
+                )
+                VALUES (
+                    :stamp, :fornecedor_no, :fornecedor_nome, :flstamp,
+                    :data_inicio, :duracao_meses, :valor_renda, :mes_adiantado,
+                    :valor_caucao, :obs, :user, :user
+                )
+            """), {'stamp': stamp, 'user': user, **payload})
+            _contratos_log(stamp, 'INSERT', 'CONTRATO', '*', None, 'Contrato criado')
+            db.session.commit()
+            return jsonify({'ok': True, 'contratostamp': stamp})
+        except Exception as exc:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao criar contrato.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/contratos/<stamp>', methods=['PUT'])
+    @login_required
+    def api_contratos_update(stamp):
+        try:
+            _ensure_contratos_schema()
+            stamp = _contratos_str(stamp, 25)
+            old = db.session.execute(text("SELECT * FROM dbo.CONTRATOS WHERE CONTRATOSTAMP = :stamp"), {'stamp': stamp}).mappings().first()
+            if not old:
+                return jsonify({'error': 'Contrato não encontrado.'}), 404
+            payload = _contratos_payload_header(request.get_json(silent=True) or {})
+            field_map = {
+                'fornecedor_no': 'FORNECEDOR_NO',
+                'fornecedor_nome': 'FORNECEDOR_NOME',
+                'flstamp': 'FLSTAMP',
+                'data_inicio': 'DATA_INICIO',
+                'duracao_meses': 'DURACAO_MESES',
+                'valor_renda': 'VALOR_RENDA',
+                'mes_adiantado': 'MES_ADIANTADO',
+                'valor_caucao': 'VALOR_CAUCAO',
+                'obs': 'OBS',
+            }
+            _contratos_changed(old, payload, field_map, stamp, 'CONTRATO')
+            db.session.execute(text("""
+                UPDATE dbo.CONTRATOS
+                SET FORNECEDOR_NO = :fornecedor_no,
+                    FORNECEDOR_NOME = :fornecedor_nome,
+                    FLSTAMP = :flstamp,
+                    DATA_INICIO = :data_inicio,
+                    DURACAO_MESES = :duracao_meses,
+                    VALOR_RENDA = :valor_renda,
+                    MES_ADIANTADO = :mes_adiantado,
+                    VALOR_CAUCAO = :valor_caucao,
+                    OBS = :obs,
+                    DTALT = SYSDATETIME(),
+                    USERALTERACAO = :user
+                WHERE CONTRATOSTAMP = :stamp
+            """), {'stamp': stamp, 'user': _contratos_user(), **payload})
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao atualizar contrato.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/contratos/<stamp>', methods=['DELETE'])
+    @login_required
+    def api_contratos_delete(stamp):
+        try:
+            _ensure_contratos_schema()
+            stamp = _contratos_str(stamp, 25)
+            old = db.session.execute(text("SELECT * FROM dbo.CONTRATOS WHERE CONTRATOSTAMP = :stamp"), {'stamp': stamp}).mappings().first()
+            if not old:
+                return jsonify({'error': 'Contrato não encontrado.'}), 404
+            db.session.execute(text("""
+                UPDATE dbo.CONTRATOS
+                SET ATIVO = 0, DTALT = SYSDATETIME(), USERALTERACAO = :user
+                WHERE CONTRATOSTAMP = :stamp
+            """), {'stamp': stamp, 'user': _contratos_user()})
+            _contratos_log(stamp, 'DELETE', 'CONTRATO', 'ATIVO', '1', '0')
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao eliminar contrato.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/contratos/<stamp>/linhas', methods=['POST'])
+    @login_required
+    def api_contratos_linha_create(stamp):
+        try:
+            _ensure_contratos_schema()
+            stamp = _contratos_str(stamp, 25)
+            if not _contratos_get_header(stamp):
+                return jsonify({'error': 'Contrato não encontrado.'}), 404
+            payload = _contratos_payload_line(request.get_json(silent=True) or {})
+            linha_stamp = _contratos_stamp()
+            user = _contratos_user()
+            db.session.execute(text("""
+                INSERT INTO dbo.CONTRATO_LINHAS (
+                    CONTRATOLINHASTAMP, CONTRATOSTAMP, ALSTAMP, ALOJAMENTO,
+                    CCUSTO, DATA_ADICIONADO, VALOR_RENDA, USERCRIACAO, USERALTERACAO
+                )
+                VALUES (
+                    :linha_stamp, :stamp, :alstamp, :alojamento,
+                    :ccusto, :data_adicionado, :valor_renda, :user, :user
+                )
+            """), {'linha_stamp': linha_stamp, 'stamp': stamp, 'user': user, **payload})
+            _contratos_log(stamp, 'INSERT', 'CONTRATO_LINHA', '*', None, payload.get('alojamento'), linha_stamp)
+            db.session.commit()
+            return jsonify({'ok': True, 'contratolinhastamp': linha_stamp})
+        except Exception as exc:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao criar linha de contrato.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/contratos/<stamp>/linhas/<linha_stamp>', methods=['PUT'])
+    @login_required
+    def api_contratos_linha_update(stamp, linha_stamp):
+        try:
+            _ensure_contratos_schema()
+            stamp = _contratos_str(stamp, 25)
+            linha_stamp = _contratos_str(linha_stamp, 25)
+            old = db.session.execute(text("""
+                SELECT *
+                FROM dbo.CONTRATO_LINHAS
+                WHERE CONTRATOSTAMP = :stamp
+                  AND CONTRATOLINHASTAMP = :linha_stamp
+            """), {'stamp': stamp, 'linha_stamp': linha_stamp}).mappings().first()
+            if not old:
+                return jsonify({'error': 'Linha não encontrada.'}), 404
+            payload = _contratos_payload_line(request.get_json(silent=True) or {})
+            field_map = {
+                'alstamp': 'ALSTAMP',
+                'alojamento': 'ALOJAMENTO',
+                'ccusto': 'CCUSTO',
+                'data_adicionado': 'DATA_ADICIONADO',
+                'valor_renda': 'VALOR_RENDA',
+            }
+            _contratos_changed(old, payload, field_map, stamp, 'CONTRATO_LINHA', linha_stamp)
+            db.session.execute(text("""
+                UPDATE dbo.CONTRATO_LINHAS
+                SET ALSTAMP = :alstamp,
+                    ALOJAMENTO = :alojamento,
+                    CCUSTO = :ccusto,
+                    DATA_ADICIONADO = :data_adicionado,
+                    VALOR_RENDA = :valor_renda,
+                    DTALT = SYSDATETIME(),
+                    USERALTERACAO = :user
+                WHERE CONTRATOSTAMP = :stamp
+                  AND CONTRATOLINHASTAMP = :linha_stamp
+            """), {'stamp': stamp, 'linha_stamp': linha_stamp, 'user': _contratos_user(), **payload})
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao atualizar linha de contrato.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/contratos/<stamp>/linhas/<linha_stamp>', methods=['DELETE'])
+    @login_required
+    def api_contratos_linha_delete(stamp, linha_stamp):
+        try:
+            _ensure_contratos_schema()
+            stamp = _contratos_str(stamp, 25)
+            linha_stamp = _contratos_str(linha_stamp, 25)
+            old = db.session.execute(text("""
+                SELECT *
+                FROM dbo.CONTRATO_LINHAS
+                WHERE CONTRATOSTAMP = :stamp
+                  AND CONTRATOLINHASTAMP = :linha_stamp
+            """), {'stamp': stamp, 'linha_stamp': linha_stamp}).mappings().first()
+            if not old:
+                return jsonify({'error': 'Linha não encontrada.'}), 404
+            db.session.execute(text("""
+                UPDATE dbo.CONTRATO_LINHAS
+                SET ATIVO = 0, DTALT = SYSDATETIME(), USERALTERACAO = :user
+                WHERE CONTRATOSTAMP = :stamp
+                  AND CONTRATOLINHASTAMP = :linha_stamp
+            """), {'stamp': stamp, 'linha_stamp': linha_stamp, 'user': _contratos_user()})
+            _contratos_log(stamp, 'DELETE', 'CONTRATO_LINHA', 'ATIVO', '1', '0', linha_stamp)
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            current_app.logger.exception('Erro ao eliminar linha de contrato.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/controlo-rendas')
+    @login_required
+    def api_controlo_rendas():
+        try:
+            ano = int(request.args.get('ano') or date.today().year)
+        except Exception:
+            ano = date.today().year
+        if ano < 2000 or ano > 2100:
+            ano = date.today().year
+
+        months = [
+            {'num': 1, 'label': 'Jan'}, {'num': 2, 'label': 'Fev'}, {'num': 3, 'label': 'Mar'},
+            {'num': 4, 'label': 'Abr'}, {'num': 5, 'label': 'Mai'}, {'num': 6, 'label': 'Jun'},
+            {'num': 7, 'label': 'Jul'}, {'num': 8, 'label': 'Ago'}, {'num': 9, 'label': 'Set'},
+            {'num': 10, 'label': 'Out'}, {'num': 11, 'label': 'Nov'}, {'num': 12, 'label': 'Dez'},
+        ]
+
+        def _key(value):
+            return str(value or '').strip().upper()
+
+        def _row_template(nome, ccusto, referencia, origem, fechado=False):
+            return {
+                'nome': nome,
+                'ccusto': ccusto,
+                'referencia': referencia,
+                'origem': origem,
+                'fechado': bool(fechado),
+                'meses': {str(m['num']): 0.0 for m in months},
+                'total': 0.0,
+            }
+
+        try:
+            alojamentos = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                    LTRIM(RTRIM(ISNULL(CCUSTO, ''))) AS CCUSTO,
+                    ISNULL(FECHADO, 0) AS FECHADO
+                FROM dbo.AL
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(TIPO, '')))) = 'EXPLORACAO'
+                  AND ISNULL(INATIVO, 0) = 0
+                  AND LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''
+                ORDER BY ISNULL(FECHADO, 0), LTRIM(RTRIM(ISNULL(NOME, '')))
+            """)).mappings().all()
+
+            custos = db.session.execute(text("""
+                SELECT
+                    UPPER(LTRIM(RTRIM(ISNULL(C.CCUSTO, '')))) AS CCUSTO,
+                    UPPER(LTRIM(RTRIM(ISNULL(C.REF, '')))) AS REF,
+                    MONTH(C.[DATA]) AS MES,
+                    SUM(ISNULL(C.TOTAL, 0)) AS TOTAL
+                FROM dbo.v_custo AS C
+                WHERE YEAR(C.[DATA]) = :ano
+                  AND UPPER(LTRIM(RTRIM(ISNULL(C.REF, '')))) IN ('RENDA', 'RENDA.SEDE')
+                GROUP BY
+                    UPPER(LTRIM(RTRIM(ISNULL(C.CCUSTO, '')))),
+                    UPPER(LTRIM(RTRIM(ISNULL(C.REF, '')))),
+                    MONTH(C.[DATA])
+            """), {'ano': ano}).mappings().all()
+        except Exception as exc:
+            current_app.logger.exception('Erro ao carregar controlo de rendas.')
+            return jsonify({'error': str(exc)}), 500
+
+        rows = [_row_template('SEDE', 'SEDE', 'RENDA.SEDE', 'SEDE')]
+        row_map = {('SEDE', 'RENDA.SEDE'): [rows[0]]}
+
+        for aloj in alojamentos:
+            nome = str(aloj.get('NOME') or '').strip()
+            ccusto = str(aloj.get('CCUSTO') or '').strip() or nome
+            row = _row_template(nome, ccusto, 'RENDA', 'EXPLORACAO', fechado=bool(aloj.get('FECHADO')))
+            rows.append(row)
+            row_map.setdefault((_key(ccusto), 'RENDA'), []).append(row)
+
+        unmatched = []
+        for custo in custos:
+            ccusto = _key(custo.get('CCUSTO'))
+            ref = _key(custo.get('REF'))
+            mes = int(custo.get('MES') or 0)
+            if mes < 1 or mes > 12:
+                continue
+            total = float(custo.get('TOTAL') or 0)
+            matches = row_map.get((ccusto, ref), [])
+            if not matches:
+                unmatched.append({
+                    'ccusto': ccusto,
+                    'referencia': ref,
+                    'mes': mes,
+                    'total': round(total, 2),
+                })
+                continue
+            for row in matches:
+                row['meses'][str(mes)] = round(float(row['meses'].get(str(mes)) or 0) + total, 2)
+
+        month_totals = {str(m['num']): 0.0 for m in months}
+        for row in rows:
+            row_total = 0.0
+            for m in months:
+                key = str(m['num'])
+                value = round(float(row['meses'].get(key) or 0), 2)
+                row['meses'][key] = value
+                row_total += value
+                month_totals[key] = round(float(month_totals[key] or 0) + value, 2)
+            row['total'] = round(row_total, 2)
+
+        annual_total = round(sum(float(v or 0) for v in month_totals.values()), 2)
+        missing_cells = sum(
+            1
+            for row in rows
+            for value in row['meses'].values()
+            if not float(value or 0)
+        )
+
+        return jsonify({
+            'ano': ano,
+            'months': months,
+            'rows': rows,
+            'totals': {
+                'meses': month_totals,
+                'total': annual_total,
+                'missing_cells': missing_cells,
+                'unmatched': unmatched,
+            },
+        })
+
     @app.route('/api/alojamentos-seguros')
     @login_required
     def api_alojamentos_seguros():
@@ -37768,6 +38517,7 @@ OPTION (MAXRECURSION 32767);
         rows = db.session.execute(text("""
             SELECT ALSTAMP, NOME, MORADA, CODPOST, LOCAL, LAT, LON
             FROM AL
+            WHERE ISNULL(INATIVO, 0) = 0
             ORDER BY NOME
         """)).mappings().all()
         para_rows = db.session.execute(text("""
@@ -37895,6 +38645,139 @@ OPTION (MAXRECURSION 32767);
         })
         db.session.commit()
         return jsonify({'success': True})
+
+    @app.route('/api/alojamentos_geo/<alstamp>/pois', methods=['GET', 'PUT'])
+    @login_required
+    def api_alojamentos_geo_pois(alstamp):
+        if str(alstamp or '').strip() == '__SEDE__':
+            return jsonify({'error': 'A sede não permite associação de POI neste ecrã.'}), 400
+
+        aloj = db.session.execute(text("""
+            SELECT ALSTAMP, NOME, LAT, LON
+            FROM dbo.AL
+            WHERE ALSTAMP = :s
+              AND ISNULL(INATIVO, 0) = 0
+        """), {'s': alstamp}).mappings().first()
+        if not aloj:
+            return jsonify({'error': 'Alojamento não encontrado'}), 404
+
+        al_nome = str(aloj.get('NOME') or '').strip()
+        if request.method == 'GET':
+            rows = db.session.execute(text("""
+                SELECT
+                    P.POISTAMP,
+                    P.NOME,
+                    P.TIPO,
+                    P.MORADA,
+                    P.LAT,
+                    P.LNG,
+                    P.ATIVO,
+                    P.POIGSTAMP,
+                    G.NOME AS GRUPO_NOME,
+                    ISNULL(A.CNT, 0) AS ALOJ_CNT,
+                    CASE WHEN X.POIALSTAMP IS NULL THEN 0 ELSE 1 END AS ASSOCIADO
+                FROM dbo.POI P
+                LEFT JOIN dbo.POIG G ON G.POIGSTAMP = P.POIGSTAMP
+                OUTER APPLY (
+                    SELECT COUNT(1) AS CNT
+                    FROM dbo.POIAL PA
+                    WHERE PA.POISTAMP = P.POISTAMP
+                      AND ISNULL(PA.ATIVO, 1) = 1
+                ) A
+                OUTER APPLY (
+                    SELECT TOP 1 PA.POIALSTAMP
+                    FROM dbo.POIAL PA
+                    WHERE PA.POISTAMP = P.POISTAMP
+                      AND ISNULL(PA.ATIVO, 1) = 1
+                      AND LTRIM(RTRIM(ISNULL(PA.AL_NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                        = LTRIM(RTRIM(:al_nome)) COLLATE SQL_Latin1_General_CP1_CI_AI
+                ) X
+                ORDER BY ISNULL(P.ORDEM_GLOBAL, 0), ISNULL(G.ORDEM, 9999), G.NOME, P.NOME
+            """), {'al_nome': al_nome}).mappings().all()
+            return jsonify({'alojamento': dict(aloj), 'rows': [dict(r) for r in rows]})
+
+        body = request.get_json(silent=True) or {}
+        poistamps = body.get('poistamps') or []
+        if not isinstance(poistamps, list):
+            return jsonify({'error': 'Lista de POI inválida'}), 400
+        selected = []
+        seen = set()
+        for raw in poistamps:
+            stamp = str(raw or '').strip()
+            if stamp and stamp not in seen:
+                seen.add(stamp)
+                selected.append(stamp)
+
+        valid_rows = db.session.execute(text("""
+            SELECT POISTAMP, LAT, LNG
+            FROM dbo.POI
+            WHERE POISTAMP IN :stamps
+        """).bindparams(bindparam('stamps', expanding=True)), {'stamps': selected or ['__none__']}).mappings().all()
+        valid = {str(r.get('POISTAMP')): dict(r) for r in valid_rows}
+        invalid = [s for s in selected if s not in valid]
+        if invalid:
+            return jsonify({'error': 'Existem POI inválidos na seleção.'}), 400
+
+        db.session.execute(text("""
+            UPDATE dbo.POIAL
+            SET ATIVO = 0,
+                DTALT = GETDATE()
+            WHERE LTRIM(RTRIM(ISNULL(AL_NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                = LTRIM(RTRIM(:al_nome)) COLLATE SQL_Latin1_General_CP1_CI_AI
+        """), {'al_nome': al_nome})
+
+        import math
+
+        def _distance_m(poi_row):
+            try:
+                lat1 = float(aloj.get('LAT'))
+                lon1 = float(aloj.get('LON'))
+                lat2 = float(poi_row.get('LAT'))
+                lon2 = float(poi_row.get('LNG'))
+            except Exception:
+                return None
+            if abs(lat1) < 0.000001 and abs(lon1) < 0.000001:
+                return None
+            r = 6371000.0
+            p1 = math.radians(lat1)
+            p2 = math.radians(lat2)
+            dp = math.radians(lat2 - lat1)
+            dl = math.radians(lon2 - lon1)
+            a = math.sin(dp / 2.0) ** 2 + math.cos(p1) * math.cos(p2) * (math.sin(dl / 2.0) ** 2)
+            a = max(0.0, min(1.0, a))
+            return int(round(r * (2.0 * math.asin(math.sqrt(a)))))
+
+        inserted = 0
+        updated = 0
+        for stamp in selected:
+            existing = db.session.execute(text("""
+                SELECT TOP 1 POIALSTAMP
+                FROM dbo.POIAL
+                WHERE POISTAMP = :p
+                  AND LTRIM(RTRIM(ISNULL(AL_NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                    = LTRIM(RTRIM(:al_nome)) COLLATE SQL_Latin1_General_CP1_CI_AI
+            """), {'p': stamp, 'al_nome': al_nome}).mappings().first()
+            dist = _distance_m(valid.get(stamp) or {})
+            if existing:
+                db.session.execute(text("""
+                    UPDATE dbo.POIAL
+                    SET ATIVO = 1,
+                        DIST_METROS = COALESCE(:d, DIST_METROS),
+                        DTALT = GETDATE()
+                    WHERE POIALSTAMP = :s
+                """), {'s': existing.get('POIALSTAMP'), 'd': dist})
+                updated += 1
+            else:
+                db.session.execute(text("""
+                    INSERT INTO dbo.POIAL
+                    (POIALSTAMP, AL_NOME, POISTAMP, ORDEM, DIST_METROS, NOTA, DESTAQUE, ATIVO, DTCRI, DTALT)
+                    VALUES
+                    (:s, :al_nome, :p, 0, :d, '', 0, 1, GETDATE(), GETDATE())
+                """), {'s': new_stamp(), 'al_nome': al_nome, 'p': stamp, 'd': dist})
+                inserted += 1
+
+        db.session.commit()
+        return jsonify({'ok': True, 'associated': len(selected), 'inserted': inserted, 'updated': updated})
 
 
     @app.route('/api/alojamentos_geo/geocode', methods=['POST'])
@@ -38424,13 +39307,15 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def api_poi_nearby(poistamp):
         try:
+            raw_limit = (request.args.get('limit') or '20').strip().lower()
+            show_all = raw_limit in ('all', 'todos', '*')
             try:
-                limit = int(request.args.get('limit') or 20)
+                limit = int(raw_limit) if not show_all else None
             except Exception:
                 limit = 20
-            if limit < 1:
+            if limit is not None and limit < 1:
                 limit = 20
-            if limit > 200:
+            if limit is not None and limit > 200:
                 limit = 200
 
             poi = db.session.execute(text("""
@@ -38458,6 +39343,7 @@ OPTION (MAXRECURSION 32767);
                     FROM dbo.AL
                     WHERE TRY_CONVERT(float, NULLIF(LTRIM(RTRIM(CONVERT(varchar(50), LAT))), '')) IS NOT NULL
                       AND TRY_CONVERT(float, NULLIF(LTRIM(RTRIM(CONVERT(varchar(50), LON))), '')) IS NOT NULL
+                      AND ISNULL(INATIVO, 0) = 0
                 """)).mappings().all()
             except Exception as ex:
                 return jsonify({'error': f'Erro a ler alojamentos (coords): {ex}'}), 500
@@ -38490,7 +39376,7 @@ OPTION (MAXRECURSION 32767);
                 })
 
             out.sort(key=lambda x: (x.get('DIST_METROS', 0), str(x.get('NOME') or '')))
-            return jsonify(out[:limit])
+            return jsonify(out if show_all else out[:limit])
         except Exception as ex:
             return jsonify({'error': f'Erro a calcular alojamentos próximos: {ex}'}), 500
 

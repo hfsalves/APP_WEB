@@ -1,0 +1,766 @@
+{% extends "base.html" %}
+{% block title %}Contratos{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+  .contracts-page .sz_page_container {
+    gap: var(--sz-space-3);
+  }
+
+  .contracts-page .sz_contextbar {
+    align-items: center;
+    gap: var(--sz-space-3);
+  }
+
+  .contracts-page .sz_contextbar_left {
+    flex: 0 0 clamp(14rem, 22vw, 22rem);
+    width: auto;
+  }
+
+  .contracts-page .sz_contextbar_right {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .contracts-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    width: 100%;
+  }
+
+  .contracts-layout {
+    display: grid;
+    grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    min-height: 0;
+  }
+
+  .contracts-panel {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .contracts-list {
+    max-height: calc(100vh - 14rem);
+    overflow: auto;
+    padding: 0;
+  }
+
+  .contracts-list-row {
+    display: grid;
+    gap: 0.35rem;
+    width: 100%;
+    padding: 0.85rem 1rem;
+    border: 0;
+    border-bottom: 1px solid var(--sz-color-border);
+    background: transparent;
+    color: var(--sz-color-text);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .contracts-list-row:hover,
+  .contracts-list-row.is-active {
+    background: color-mix(in srgb, var(--sz-color-primary) 16%, transparent);
+  }
+
+  .contracts-list-row strong,
+  .contracts-line-lodge strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .contracts-list-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-2);
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .contracts-money {
+    text-align: right !important;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .contracts-editor {
+    display: grid;
+    gap: var(--sz-space-3);
+    min-height: 0;
+    max-height: calc(100vh - 14rem);
+    overflow: auto;
+  }
+
+  .contracts-section {
+    padding: var(--sz-space-3);
+  }
+
+  .contracts-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-2);
+    margin-bottom: var(--sz-space-3);
+  }
+
+  .contracts-section-title {
+    font-size: var(--sz-font-size-md);
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .contracts-form-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+  }
+
+  .contracts-form-grid .is-wide {
+    grid-column: span 2;
+  }
+
+  .contracts-form-grid .is-full {
+    grid-column: 1 / -1;
+  }
+
+  .contracts-page .sz_table_lookup_dropdown {
+    max-height: 18rem;
+  }
+
+  .contracts-check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    min-height: 2.5rem;
+    padding-top: 1.2rem;
+  }
+
+  .contracts-table-wrap {
+    overflow: auto;
+  }
+
+  .contracts-table {
+    min-width: 900px;
+  }
+
+  .contracts-table th,
+  .contracts-table td {
+    vertical-align: middle;
+  }
+
+  .contracts-table select,
+  .contracts-table input {
+    width: 100%;
+  }
+
+  .contracts-actions {
+    display: inline-flex;
+    justify-content: flex-end;
+    gap: var(--sz-space-1);
+    width: 100%;
+  }
+
+  .contracts-empty {
+    padding: var(--sz-space-4);
+    color: var(--sz-color-text-muted);
+    text-align: center;
+  }
+
+  .contracts-history {
+    max-height: 16rem;
+    overflow: auto;
+  }
+
+  @media (max-width: 1200px) {
+    .contracts-layout,
+    .contracts-form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .contracts-form-grid .is-wide,
+    .contracts-form-grid .is-full {
+      grid-column: auto;
+    }
+
+    .contracts-page .sz_contextbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .contracts-toolbar {
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page contracts-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Contratos</div>
+        <div class="sz_page_subtitle">Cadastro de contratos, alojamentos associados e histórico.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="contracts-toolbar">
+          <a class="sz_button sz_button_secondary" href="{{ url_for('controlo_rendas_page') }}">
+            <i class="fa-solid fa-table"></i>
+            <span>Rendas</span>
+          </a>
+          <button id="contractsNew" class="sz_button sz_button_primary" type="button">
+            <i class="fa-solid fa-plus"></i>
+            <span>Novo contrato</span>
+          </button>
+          <button id="contractsRefresh" class="sz_button sz_button_secondary" type="button">
+            <i class="fa-solid fa-rotate"></i>
+            <span>Atualizar</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="contracts-layout">
+      <section class="sz_panel contracts-panel contracts-list" id="contractsList">
+        <div class="contracts-empty">A carregar contratos...</div>
+      </section>
+
+      <section class="contracts-editor">
+        <div class="sz_panel contracts-section">
+          <div class="contracts-section-head">
+            <div class="contracts-section-title">Cabeçalho</div>
+            <div class="contracts-actions">
+              <button id="contractsDelete" class="sz_button sz_button_secondary" type="button" disabled>
+                <i class="fa-solid fa-trash"></i>
+                <span>Eliminar</span>
+              </button>
+              <button id="contractsSave" class="sz_button sz_button_primary" type="button">
+                <i class="fa-solid fa-floppy-disk"></i>
+                <span>Gravar</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="contracts-form-grid">
+            <div class="sz_field sz_table_lookup_field is-wide">
+              <label class="sz_label" for="contractSupplierLookup">Proprietário</label>
+              <div class="sz_table_lookup">
+                <input id="contractSupplierLookup" class="sz_input" type="search" autocomplete="off" spellcheck="false" placeholder="Pesquisar...">
+                <input id="contractSupplierNo" type="hidden">
+                <input id="contractSupplierFlstamp" type="hidden">
+                <input id="contractSupplierName" type="hidden">
+                <div id="contractSupplierMenu" class="sz_table_lookup_dropdown" hidden></div>
+              </div>
+            </div>
+            <label class="sz_field" for="contractStart">
+              <span class="sz_label">Data início</span>
+              <input id="contractStart" class="sz_input" type="date">
+            </label>
+            <label class="sz_field" for="contractDuration">
+              <span class="sz_label">Duração meses</span>
+              <input id="contractDuration" class="sz_input contracts-money" type="number" min="0" step="1">
+            </label>
+            <label class="sz_field" for="contractRent">
+              <span class="sz_label">Valor renda</span>
+              <input id="contractRent" class="sz_input contracts-money" type="number" min="0" step="0.01">
+            </label>
+            <label class="sz_field" for="contractDeposit">
+              <span class="sz_label">Valor caução</span>
+              <input id="contractDeposit" class="sz_input contracts-money" type="number" min="0" step="0.01">
+            </label>
+            <label class="contracts-check" for="contractAdvance">
+              <input id="contractAdvance" type="checkbox">
+              <span>Mês adiantado</span>
+            </label>
+            <label class="sz_field is-full" for="contractObs">
+              <span class="sz_label">Observações</span>
+              <textarea id="contractObs" class="sz_input" rows="3"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="sz_panel contracts-section">
+          <div class="contracts-section-head">
+            <div class="contracts-section-title">Alojamentos do contrato</div>
+            <button id="contractAddLine" class="sz_button sz_button_secondary" type="button" disabled>
+              <i class="fa-solid fa-plus"></i>
+              <span>Adicionar linha</span>
+            </button>
+          </div>
+          <div class="contracts-table-wrap">
+            <table class="sz_table sz_table_compact contracts-table">
+              <thead>
+                <tr>
+                  <th>Alojamento</th>
+                  <th style="width: 11rem;">Adicionado em</th>
+                  <th class="contracts-money" style="width: 10rem;">Valor renda</th>
+                  <th style="width: 8rem;"></th>
+                </tr>
+              </thead>
+              <tbody id="contractLines">
+                <tr><td colspan="4" class="contracts-empty">Grave ou selecione um contrato.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="sz_panel contracts-section">
+          <div class="contracts-section-head">
+            <div class="contracts-section-title">Cadastro</div>
+          </div>
+          <div class="contracts-table-wrap contracts-history">
+            <table class="sz_table sz_table_compact contracts-table">
+              <thead>
+                <tr>
+                  <th style="width: 10rem;">Data</th>
+                  <th style="width: 7rem;">Utilizador</th>
+                  <th style="width: 8rem;">Ação</th>
+                  <th style="width: 10rem;">Campo</th>
+                  <th>Anterior</th>
+                  <th>Novo</th>
+                </tr>
+              </thead>
+              <tbody id="contractHistory">
+                <tr><td colspan="6" class="contracts-empty">Sem histórico carregado.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const state = {
+    contracts: [],
+    fornecedores: [],
+    alojamentos: [],
+    current: null,
+    detail: null,
+  };
+
+  const els = {
+    list: document.getElementById('contractsList'),
+    refresh: document.getElementById('contractsRefresh'),
+    create: document.getElementById('contractsNew'),
+    save: document.getElementById('contractsSave'),
+    delete: document.getElementById('contractsDelete'),
+    supplierLookup: document.getElementById('contractSupplierLookup'),
+    supplierNo: document.getElementById('contractSupplierNo'),
+    supplierFlstamp: document.getElementById('contractSupplierFlstamp'),
+    supplierName: document.getElementById('contractSupplierName'),
+    supplierMenu: document.getElementById('contractSupplierMenu'),
+    start: document.getElementById('contractStart'),
+    duration: document.getElementById('contractDuration'),
+    rent: document.getElementById('contractRent'),
+    advance: document.getElementById('contractAdvance'),
+    deposit: document.getElementById('contractDeposit'),
+    obs: document.getElementById('contractObs'),
+    addLine: document.getElementById('contractAddLine'),
+    lines: document.getElementById('contractLines'),
+    history: document.getElementById('contractHistory'),
+  };
+
+  const fmtMoney = new Intl.NumberFormat('pt-PT', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+
+  const esc = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+  const money = (value) => Number(value || 0).toFixed(2);
+  const lodgeValue = (row) => `${row.alstamp || ''}|${row.ccusto || ''}|${row.nome || ''}`;
+  let supplierDebounce = null;
+  let supplierRows = [];
+  let supplierActive = -1;
+
+  const fetchJson = async (url, options = {}) => {
+    const res = await fetch(url, {
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      ...options
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) throw new Error(data.error || 'Erro de comunicação.');
+    return data;
+  };
+
+  const selectedSupplier = () => ({
+    no: Number(els.supplierNo.value || 0),
+    flstamp: els.supplierFlstamp.value || '',
+    nome: els.supplierName.value || ''
+  });
+
+  const setSupplier = (row = {}) => {
+    const no = Number(row.no || row.fornecedor_no || 0) || 0;
+    const flstamp = row.flstamp || '';
+    const nome = row.nome || row.fornecedor_nome || '';
+    els.supplierNo.value = no ? String(no) : '';
+    els.supplierFlstamp.value = flstamp;
+    els.supplierName.value = nome;
+    els.supplierLookup.value = nome || (no ? String(no) : '');
+  };
+
+  const closeSupplierMenu = () => {
+    els.supplierMenu.hidden = true;
+    els.supplierMenu.innerHTML = '';
+    supplierRows = [];
+    supplierActive = -1;
+  };
+
+  const renderSupplierMessage = (message, tone = 'muted') => {
+    els.supplierMenu.innerHTML = `<div class="sz_table_lookup_empty${tone === 'danger' ? ' is-danger' : ''}">${esc(message)}</div>`;
+    els.supplierMenu.hidden = false;
+  };
+
+  const setActiveSupplier = (index) => {
+    const buttons = Array.from(els.supplierMenu.querySelectorAll('.sz_table_lookup_item'));
+    buttons.forEach((button, buttonIndex) => button.classList.toggle('is-active', buttonIndex === index));
+    supplierActive = index;
+  };
+
+  const selectSupplierRow = (row) => {
+    if (!row) return;
+    setSupplier(row);
+    closeSupplierMenu();
+    els.supplierLookup.focus();
+  };
+
+  const renderSupplierRows = (rows) => {
+    supplierRows = Array.isArray(rows) ? rows : [];
+    els.supplierMenu.innerHTML = '';
+    if (!supplierRows.length) {
+      renderSupplierMessage('Sem resultados');
+      return;
+    }
+    supplierRows.forEach((row, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'sz_table_lookup_item';
+      button.dataset.index = String(index);
+      button.innerHTML = `
+        <span class="sz_table_lookup_item_label">${esc(row.nome || '-')}</span>
+        <span class="sz_table_lookup_item_value">${esc(row.nif ? `NIF ${row.nif}` : 'Sem NIF')}</span>
+      `;
+      button.addEventListener('mouseenter', () => setActiveSupplier(index));
+      button.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        selectSupplierRow(row);
+      });
+      els.supplierMenu.appendChild(button);
+    });
+    els.supplierMenu.hidden = false;
+    setActiveSupplier(0);
+  };
+
+  const filterSupplierRows = () => {
+    const q = String(els.supplierLookup.value || '').trim().toLowerCase();
+    if (!q) {
+      closeSupplierMenu();
+      return;
+    }
+    renderSupplierMessage('A procurar...');
+    const rows = state.fornecedores
+      .filter((row) => {
+        const haystack = `${row.nome || ''} ${row.nif || ''} ${row.no || ''}`.toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice(0, 30);
+    renderSupplierRows(rows);
+  };
+
+  const scheduleSupplierLookup = () => {
+    window.clearTimeout(supplierDebounce);
+    supplierDebounce = window.setTimeout(filterSupplierRows, 200);
+  };
+
+  const renderList = () => {
+    if (!state.contracts.length) {
+      els.list.innerHTML = '<div class="contracts-empty">Sem contratos criados.</div>';
+      return;
+    }
+    els.list.innerHTML = state.contracts.map((row) => {
+      const active = row.contratostamp === state.current ? ' is-active' : '';
+      return `
+        <button class="contracts-list-row${active}" type="button" data-stamp="${esc(row.contratostamp)}">
+          <strong>${esc(row.fornecedor_nome || 'Sem proprietário')}</strong>
+          <span class="contracts-list-meta">
+            <span>${esc(row.data_inicio || '-')} · ${esc(row.duracao_meses || 0)} meses</span>
+            <span>${esc(fmtMoney.format(Number(row.valor_renda || 0)))}</span>
+          </span>
+          <span class="contracts-list-meta">
+            <span>${esc(row.linhas_count || 0)} aloj.</span>
+            <span>${esc(fmtMoney.format(Number(row.linhas_total || 0)))}</span>
+          </span>
+        </button>
+      `;
+    }).join('');
+    els.list.querySelectorAll('[data-stamp]').forEach((btn) => {
+      btn.addEventListener('click', () => loadDetail(btn.dataset.stamp));
+    });
+  };
+
+  const clearForm = () => {
+    state.current = null;
+    state.detail = null;
+    setSupplier();
+    els.start.value = todayIso();
+    els.duration.value = '';
+    els.rent.value = '';
+    els.advance.checked = false;
+    els.deposit.value = '';
+    els.obs.value = '';
+    els.delete.disabled = true;
+    els.addLine.disabled = true;
+    els.lines.innerHTML = '<tr><td colspan="4" class="contracts-empty">Grave o contrato antes de adicionar alojamentos.</td></tr>';
+    els.history.innerHTML = '<tr><td colspan="6" class="contracts-empty">Sem histórico carregado.</td></tr>';
+    renderList();
+  };
+
+  const setHeader = (header) => {
+    state.current = header.contratostamp;
+    setSupplier({
+      no: header.fornecedor_no,
+      flstamp: header.flstamp,
+      nome: header.fornecedor_nome
+    });
+    els.start.value = header.data_inicio || '';
+    els.duration.value = header.duracao_meses || '';
+    els.rent.value = money(header.valor_renda);
+    els.advance.checked = !!header.mes_adiantado;
+    els.deposit.value = money(header.valor_caucao);
+    els.obs.value = header.obs || '';
+    els.delete.disabled = false;
+    els.addLine.disabled = false;
+    renderList();
+  };
+
+  const lineSelect = (line = {}) => {
+    const current = lodgeValue({
+      alstamp: line.alstamp,
+      ccusto: line.ccusto,
+      nome: line.alojamento
+    });
+    const options = state.alojamentos.map((row) => {
+      const value = lodgeValue(row);
+      return `<option value="${esc(value)}"${value === current ? ' selected' : ''}>${esc(row.nome)}${row.fechado ? ' · fechado' : ''}</option>`;
+    }).join('');
+    return `<select class="sz_input js-line-lodge">${options}</select>`;
+  };
+
+  const renderLines = (linhas = []) => {
+    const addRow = `
+      <tr data-new="1">
+        <td>${lineSelect()}</td>
+        <td><input class="sz_input js-line-date" type="date" value="${esc(todayIso())}"></td>
+        <td><input class="sz_input contracts-money js-line-rent" type="number" min="0" step="0.01"></td>
+        <td><div class="contracts-actions"><button class="sz_button sz_button_secondary js-line-create" type="button"><i class="fa-solid fa-plus"></i></button></div></td>
+      </tr>
+    `;
+    if (!state.current) {
+      els.lines.innerHTML = '<tr><td colspan="4" class="contracts-empty">Grave ou selecione um contrato.</td></tr>';
+      return;
+    }
+    const body = linhas.map((line) => `
+      <tr data-line="${esc(line.contratolinhastamp)}">
+        <td>${lineSelect(line)}</td>
+        <td><input class="sz_input js-line-date" type="date" value="${esc(line.data_adicionado || '')}"></td>
+        <td><input class="sz_input contracts-money js-line-rent" type="number" min="0" step="0.01" value="${esc(money(line.valor_renda))}"></td>
+        <td>
+          <div class="contracts-actions">
+            <button class="sz_button sz_button_secondary js-line-save" type="button"><i class="fa-solid fa-floppy-disk"></i></button>
+            <button class="sz_button sz_button_secondary js-line-delete" type="button"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+    els.lines.innerHTML = addRow + (body || '<tr><td colspan="4" class="contracts-empty">Sem alojamentos neste contrato.</td></tr>');
+    bindLineActions();
+  };
+
+  const renderHistory = (rows = []) => {
+    if (!rows.length) {
+      els.history.innerHTML = '<tr><td colspan="6" class="contracts-empty">Sem alterações registadas.</td></tr>';
+      return;
+    }
+    els.history.innerHTML = rows.map((row) => `
+      <tr>
+        <td>${esc((row.dtcri || '').replace('T', ' '))}</td>
+        <td>${esc(row.utilizador || '')}</td>
+        <td>${esc(row.acao || '')}</td>
+        <td>${esc(row.campo || '')}</td>
+        <td>${esc(row.valor_anterior ?? '')}</td>
+        <td>${esc(row.valor_novo ?? '')}</td>
+      </tr>
+    `).join('');
+  };
+
+  const headerPayload = () => {
+    const supplier = selectedSupplier();
+    return {
+      fornecedor_no: supplier.no,
+      flstamp: supplier.flstamp,
+      fornecedor_nome: supplier.nome,
+      data_inicio: els.start.value || null,
+      duracao_meses: Number(els.duration.value || 0),
+      valor_renda: Number(els.rent.value || 0),
+      mes_adiantado: els.advance.checked,
+      valor_caucao: Number(els.deposit.value || 0),
+      obs: els.obs.value || '',
+    };
+  };
+
+  const linePayload = (tr) => {
+    const [alstamp, ccusto, nome] = String(tr.querySelector('.js-line-lodge')?.value || '||').split('|');
+    return {
+      alstamp: alstamp || '',
+      ccusto: ccusto || '',
+      alojamento: nome || '',
+      data_adicionado: tr.querySelector('.js-line-date')?.value || todayIso(),
+      valor_renda: Number(tr.querySelector('.js-line-rent')?.value || 0),
+    };
+  };
+
+  const loadDetail = async (stamp) => {
+    const data = await fetchJson(`/api/contratos/${encodeURIComponent(stamp)}`);
+    state.detail = data;
+    setHeader(data.header);
+    renderLines(data.linhas || []);
+    renderHistory(data.cadastro || []);
+  };
+
+  const loadAll = async () => {
+    const [options, list] = await Promise.all([
+      fetchJson('/api/contratos/options'),
+      fetchJson('/api/contratos')
+    ]);
+    state.fornecedores = options.fornecedores || [];
+    state.alojamentos = options.alojamentos || [];
+    state.contracts = list.rows || [];
+    if (state.current && state.contracts.some((row) => row.contratostamp === state.current)) {
+      await loadDetail(state.current);
+    } else if (state.contracts.length) {
+      await loadDetail(state.contracts[0].contratostamp);
+    } else {
+      clearForm();
+    }
+  };
+
+  const saveHeader = async () => {
+    if (state.current) {
+      await fetchJson(`/api/contratos/${encodeURIComponent(state.current)}`, {
+        method: 'PUT',
+        body: JSON.stringify(headerPayload())
+      });
+      await loadAll();
+      return;
+    }
+    const created = await fetchJson('/api/contratos', {
+      method: 'POST',
+      body: JSON.stringify(headerPayload())
+    });
+    state.current = created.contratostamp;
+    await loadAll();
+  };
+
+  const bindLineActions = () => {
+    els.lines.querySelectorAll('.js-line-create').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        await fetchJson(`/api/contratos/${encodeURIComponent(state.current)}/linhas`, {
+          method: 'POST',
+          body: JSON.stringify(linePayload(btn.closest('tr')))
+        });
+        await loadAll();
+      });
+    });
+    els.lines.querySelectorAll('.js-line-save').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const tr = btn.closest('tr');
+        await fetchJson(`/api/contratos/${encodeURIComponent(state.current)}/linhas/${encodeURIComponent(tr.dataset.line)}`, {
+          method: 'PUT',
+          body: JSON.stringify(linePayload(tr))
+        });
+        await loadAll();
+      });
+    });
+    els.lines.querySelectorAll('.js-line-delete').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const tr = btn.closest('tr');
+        if (!confirm('Eliminar esta linha do contrato?')) return;
+        await fetchJson(`/api/contratos/${encodeURIComponent(state.current)}/linhas/${encodeURIComponent(tr.dataset.line)}`, {
+          method: 'DELETE'
+        });
+        await loadAll();
+      });
+    });
+  };
+
+  els.create.addEventListener('click', clearForm);
+  els.supplierLookup.addEventListener('input', () => {
+    els.supplierNo.value = '';
+    els.supplierFlstamp.value = '';
+    els.supplierName.value = '';
+    scheduleSupplierLookup();
+  });
+  els.supplierLookup.addEventListener('focus', () => {
+    if (els.supplierLookup.value.trim()) scheduleSupplierLookup();
+  });
+  els.supplierLookup.addEventListener('keydown', (event) => {
+    if (els.supplierMenu.hidden) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveSupplier(Math.min(supplierRows.length - 1, supplierActive + 1));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveSupplier(Math.max(0, supplierActive - 1));
+    } else if (event.key === 'Enter') {
+      if (supplierActive >= 0 && supplierRows[supplierActive]) {
+        event.preventDefault();
+        selectSupplierRow(supplierRows[supplierActive]);
+      }
+    } else if (event.key === 'Escape') {
+      closeSupplierMenu();
+    }
+  });
+  els.supplierLookup.addEventListener('blur', () => {
+    window.setTimeout(() => {
+      const supplier = selectedSupplier();
+      if (!supplier.no && !supplier.flstamp) {
+        els.supplierLookup.value = '';
+        els.supplierName.value = '';
+      }
+      closeSupplierMenu();
+    }, 150);
+  });
+  els.refresh.addEventListener('click', () => loadAll().catch((error) => {
+    els.list.innerHTML = `<div class="contracts-empty">${esc(error.message || 'Erro ao carregar.')}</div>`;
+  }));
+  els.save.addEventListener('click', () => saveHeader().catch((error) => alert(error.message || 'Erro ao gravar.')));
+  els.delete.addEventListener('click', async () => {
+    if (!state.current || !confirm('Eliminar este contrato?')) return;
+    await fetchJson(`/api/contratos/${encodeURIComponent(state.current)}`, { method: 'DELETE' });
+    state.current = null;
+    await loadAll();
+  });
+  els.addLine.addEventListener('click', () => {
+    if (!state.current) return;
+    renderLines(state.detail?.linhas || []);
+  });
+
+  els.refresh.click();
+})();
+</script>
+{% endblock %}

@@ -23,7 +23,8 @@ const geoState = {
   poiModalSelectedStamp: null,
   poiPlaceResults: [],
   poiMarker: null,
-  poiEditStamp: null
+  poiEditStamp: null,
+  alojPoiRows: []
 };
 
 const geoEls = {
@@ -77,6 +78,12 @@ const geoEls = {
   poiCreateUrlMaps: document.getElementById('geoPoiCreateUrlMaps'),
   poiCreateSave: document.getElementById('geoPoiCreateSave'),
   poiCreateCancel: document.getElementById('geoPoiCreateCancel'),
+  alojPoiBtn: document.getElementById('geoAlojPoiBtn'),
+  alojPoiModal: document.getElementById('geoAlojPoiModal'),
+  alojPoiName: document.getElementById('geoAlojPoiName'),
+  alojPoiSearch: document.getElementById('geoAlojPoiSearch'),
+  alojPoiList: document.getElementById('geoAlojPoiList'),
+  alojPoiSave: document.getElementById('geoAlojPoiSave'),
   poiAssocBack: document.getElementById('geoPoiAssocBack'),
   poiAssocName: document.getElementById('geoPoiAssocName'),
   poiAssocList: document.getElementById('geoPoiAssocList'),
@@ -454,6 +461,7 @@ const fillForm = (item) => {
   geoEls.save.disabled = locked || !geoState.dirty;
   geoEls.reset.disabled = locked;
   if (geoEls.routeBtn) geoEls.routeBtn.disabled = (geoState.mode === 'all' || !item.ALSTAMP);
+  if (geoEls.alojPoiBtn) geoEls.alojPoiBtn.disabled = (geoState.mode === 'all' || !item.ALSTAMP || Number(item.IS_SEDE || 0) === 1);
 };
 
 const selectItem = async (alstamp) => {
@@ -559,6 +567,7 @@ const setAllModeUI = (enabled) => {
   geoEls.save.disabled = enabled || !geoState.dirty;
   geoEls.reset.disabled = enabled;
   geoEls.routeBtn.disabled = enabled || !geoState.selected;
+  if (geoEls.alojPoiBtn) geoEls.alojPoiBtn.disabled = enabled || !geoState.selected || isSedeSelected();
   if (geoEls.toggleAll) {
     geoEls.toggleAll.classList.toggle('sz_button_ghost', !enabled);
     geoEls.toggleAll.classList.toggle('sz_button_primary', enabled);
@@ -800,6 +809,7 @@ const debounce = (fn, wait = 300) => {
 };
 
 const poiModal = geoEls.poiModal ? bootstrap.Modal.getOrCreateInstance(geoEls.poiModal) : null;
+const alojPoiModal = geoEls.alojPoiModal ? bootstrap.Modal.getOrCreateInstance(geoEls.alojPoiModal) : null;
 const poigModal = geoEls.poigModal ? bootstrap.Modal.getOrCreateInstance(geoEls.poigModal) : null;
 
 const poiSetStep = (step) => {
@@ -960,7 +970,7 @@ const openPoiAssocStep = async (poistamp, rowsCache = null) => {
     }
   } catch (_) {}
 
-  const res = await fetch(`/api/poi/${encodeURIComponent(poistamp)}/nearby?limit=20`);
+  const res = await fetch(`/api/poi/${encodeURIComponent(poistamp)}/nearby?limit=all`);
   const rows = await res.json().catch(() => []);
   if (!res.ok || rows.error) {
     if (geoEls.poiAssocList) geoEls.poiAssocList.innerHTML = `<div class="text-danger small">${esc(rows.error || 'Erro')}</div>`;
@@ -1157,6 +1167,86 @@ const savePoig = async () => {
   renderPoigList();
 };
 
+const renderAlojPoiList = () => {
+  if (!geoEls.alojPoiList) return;
+  const term = String(geoEls.alojPoiSearch?.value || '').trim().toLowerCase();
+  const rows = (geoState.alojPoiRows || []).filter((row) => {
+    if (!term) return true;
+    const text = `${row.NOME || ''} ${row.TIPO || ''} ${row.GRUPO_NOME || ''} ${row.MORADA || ''}`.toLowerCase();
+    return text.includes(term);
+  });
+  if (!rows.length) {
+    geoEls.alojPoiList.innerHTML = '<div class="geo-empty">Sem POI</div>';
+    return;
+  }
+  geoEls.alojPoiList.innerHTML = rows.map((row) => {
+    const checked = Number(row.ASSOCIADO || 0) ? 'checked' : '';
+    const activeText = Number(row.ATIVO || 0) ? 'Ativo' : 'Inativo';
+    return `
+      <label class="geo-poi-modal-row geo-modal-result-row">
+        <div>
+          <div class="geo-modal-row-title">${esc(row.NOME || '')}</div>
+          <div class="geo-modal-row-sub">${esc(row.GRUPO_NOME || 'Sem grupo')} · ${esc(row.TIPO || '-')} · ${activeText}</div>
+        </div>
+        <input class="form-check-input" type="checkbox" data-aloj-poi="${esc(row.POISTAMP || '')}" ${checked}>
+      </label>
+    `;
+  }).join('');
+  geoEls.alojPoiList.querySelectorAll('input[type="checkbox"][data-aloj-poi]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const stamp = input.getAttribute('data-aloj-poi') || '';
+      const row = (geoState.alojPoiRows || []).find((item) => String(item.POISTAMP || '') === stamp);
+      if (row) row.ASSOCIADO = input.checked ? 1 : 0;
+    });
+  });
+};
+
+const openAlojPoiModal = async () => {
+  if (!geoState.selected || !geoState.selected.ALSTAMP || isSedeSelected()) {
+    showToast('Seleciona um alojamento primeiro.', 'warning');
+    return;
+  }
+  if (geoEls.alojPoiName) geoEls.alojPoiName.textContent = geoState.selected.NOME || '—';
+  if (geoEls.alojPoiSearch) geoEls.alojPoiSearch.value = '';
+  if (geoEls.alojPoiList) geoEls.alojPoiList.innerHTML = '<div class="geo-empty">A carregar POI...</div>';
+  if (geoEls.alojPoiSave) geoEls.alojPoiSave.disabled = true;
+  alojPoiModal?.show();
+
+  const res = await fetch(`/api/alojamentos_geo/${encodeURIComponent(geoState.selected.ALSTAMP)}/pois`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) {
+    if (geoEls.alojPoiList) geoEls.alojPoiList.innerHTML = `<div class="text-danger small">${esc(data.error || 'Erro ao carregar POI')}</div>`;
+    return;
+  }
+  geoState.alojPoiRows = Array.isArray(data.rows) ? data.rows : [];
+  renderAlojPoiList();
+  if (geoEls.alojPoiSave) geoEls.alojPoiSave.disabled = false;
+};
+
+const saveAlojPoiAssociations = async () => {
+  if (!geoState.selected || !geoState.selected.ALSTAMP || isSedeSelected()) return;
+  const poistamps = (geoState.alojPoiRows || [])
+    .filter((row) => Number(row.ASSOCIADO || 0))
+    .map((row) => String(row.POISTAMP || ''))
+    .filter(Boolean);
+  if (geoEls.alojPoiSave) geoEls.alojPoiSave.disabled = true;
+  const res = await fetch(`/api/alojamentos_geo/${encodeURIComponent(geoState.selected.ALSTAMP)}/pois`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ poistamps })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (geoEls.alojPoiSave) geoEls.alojPoiSave.disabled = false;
+  if (!res.ok || data.error) return showToast(data.error || 'Erro ao guardar POI', 'danger');
+  showToast(`POI associados: ${data.associated || 0}`);
+  if (geoEls.alojPoiModal) {
+    bootstrap.Modal.getOrCreateInstance(geoEls.alojPoiModal).hide();
+  } else {
+    alojPoiModal?.hide();
+  }
+  loadPoiList();
+};
+
 const openPoigModal = async () => {
   await loadPoiGroups();
   renderPoigList();
@@ -1166,6 +1256,7 @@ const openPoigModal = async () => {
 
 const bindFormEvents = () => {
   if (geoEls.routeBtn) geoEls.routeBtn.disabled = true;
+  if (geoEls.alojPoiBtn) geoEls.alojPoiBtn.disabled = true;
   [geoEls.morada, geoEls.codpost, geoEls.local].forEach(el => {
     if (isInputEl(el)) {
       el.addEventListener('input', () => setDirty(true));
@@ -1189,6 +1280,9 @@ const bindFormEvents = () => {
   geoEls.poiSearch?.addEventListener('input', debounce(loadPoiList, 250));
   geoEls.poiAddBtn?.addEventListener('click', openPoiModal);
   geoEls.poiGroupsBtn?.addEventListener('click', openPoigModal);
+  geoEls.alojPoiBtn?.addEventListener('click', openAlojPoiModal);
+  geoEls.alojPoiSearch?.addEventListener('input', renderAlojPoiList);
+  geoEls.alojPoiSave?.addEventListener('click', saveAlojPoiAssociations);
   geoEls.poiModalSearch?.addEventListener('input', poiSearchModal);
   geoEls.poiShowCreate?.addEventListener('click', () => poiSetStep('create'));
   geoEls.poiCreateCancel?.addEventListener('click', () => poiSetStep('search'));

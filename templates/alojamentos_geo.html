@@ -51,43 +51,55 @@
                   <div id="geoDirty" class="geo-dirty">Alteracoes por guardar</div>
                 </div>
                 <div class="geo-actions">
-                  <button id="geoLocate" class="sz_button sz_button_ghost" type="button">
-                    <i class="fa-solid fa-location-crosshairs"></i>
-                    <span>Localizar</span>
-                  </button>
-                  <button id="geoReset" class="sz_button sz_button_secondary" type="button">
-                    <i class="fa-solid fa-rotate-left"></i>
-                    <span>Repor</span>
-                  </button>
                   <button id="geoSave" class="sz_button sz_button_primary" type="button" disabled>
                     <i class="fa-solid fa-floppy-disk"></i>
                     <span>Guardar</span>
                   </button>
-                  <button id="geoRouteBtn" class="sz_button sz_button_secondary" type="button">
-                    <i class="fa-solid fa-route"></i>
-                    <span>Percurso</span>
-                  </button>
+                  <div class="dropdown geo-actions-dropdown">
+                    <button class="sz_button sz_button_secondary dropdown-toggle" type="button" id="geoActionsMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                      <i class="fa-solid fa-ellipsis"></i>
+                      <span>Ações</span>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end geo-actions-menu" aria-labelledby="geoActionsMenu">
+                      <button id="geoLocate" class="dropdown-item geo-action-item" type="button">
+                        <i class="fa-solid fa-location-crosshairs"></i>
+                        <span>Localizar</span>
+                      </button>
+                      <button id="geoReset" class="dropdown-item geo-action-item" type="button">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span>Repor</span>
+                      </button>
+                      <button id="geoRouteBtn" class="dropdown-item geo-action-item" type="button">
+                        <i class="fa-solid fa-route"></i>
+                        <span>Percurso</span>
+                      </button>
+                      <button id="geoAlojPoiBtn" class="dropdown-item geo-action-item" type="button">
+                        <i class="fa-solid fa-map-pin"></i>
+                        <span>POI</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div class="geo-fields">
-                <div class="geo-field">
+                <div class="geo-field geo-field-address">
                   <span class="sz_label">Morada</span>
                   <div id="geoMorada" class="geo-field-value">&mdash;</div>
                 </div>
-                <div class="geo-field">
-                  <span class="sz_label">Codigo postal</span>
-                  <div id="geoCodpost" class="geo-field-value">&mdash;</div>
-                </div>
-                <div class="geo-field">
+                <div class="geo-field geo-field-local">
                   <span class="sz_label">Localidade</span>
                   <div id="geoLocal" class="geo-field-value">&mdash;</div>
                 </div>
-                <div class="geo-field">
+                <div class="geo-field geo-field-postal">
+                  <span class="sz_label">Codigo postal</span>
+                  <div id="geoCodpost" class="geo-field-value">&mdash;</div>
+                </div>
+                <div class="geo-field geo-field-lat">
                   <span class="sz_label">Latitude</span>
                   <div id="geoLat" class="geo-field-value">&mdash;</div>
                 </div>
-                <div class="geo-field">
+                <div class="geo-field geo-field-lon">
                   <span class="sz_label">Longitude</span>
                   <div id="geoLon" class="geo-field-value">&mdash;</div>
                 </div>
@@ -181,6 +193,28 @@
       <div class="modal-footer sz_modal_footer">
         <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="sz_button sz_button_primary" id="geoRouteApply">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="geoAlojPoiModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content geo-modal-content">
+      <div class="modal-header sz_modal_header">
+        <h5 class="modal-title sz_modal_title">Associar POI ao alojamento</h5>
+        <button type="button" class="sz_button sz_button_ghost geo-modal-close" data-bs-dismiss="modal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <div class="geo-assoc-head">
+          <div class="sz_text_sm sz_text_muted">Alojamento: <strong id="geoAlojPoiName">&mdash;</strong></div>
+          <input id="geoAlojPoiSearch" class="sz_input geo-assoc-search" placeholder="Pesquisar POI..." />
+        </div>
+        <div id="geoAlojPoiList" class="geo-poi-modal-results"></div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button id="geoAlojPoiSave" class="sz_button sz_button_primary" type="button">Guardar</button>
       </div>
     </div>
   </div>
