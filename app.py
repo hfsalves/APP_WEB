@@ -557,6 +557,9 @@ def create_app():
     from blueprints.document_ai import bp as document_ai_bp
     app.register_blueprint(document_ai_bp)
 
+    from blueprints.photo_enhancer import bp as photo_enhancer_bp
+    app.register_blueprint(photo_enhancer_bp)
+
     from blueprints.email_service import bp as email_service_bp
     app.register_blueprint(email_service_bp)
 

@@ -1,0 +1,460 @@
+{% extends "base.html" %}
+{% block title %}Melhoria de Fotos{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+  .photo-enhancer-page .sz_page_container {
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--sz-space-3);
+  }
+
+  .photo-enhancer-page .sz_contextbar {
+    align-items: center;
+    gap: var(--sz-space-3);
+  }
+
+  .photo-enhancer-page .sz_contextbar_left {
+    flex: 0 0 clamp(14rem, 22vw, 22rem);
+    width: auto;
+  }
+
+  .photo-enhancer-page .sz_contextbar_right {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .photo-enhancer-toolbar {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    width: 100%;
+    min-width: 0;
+  }
+
+  .photo-enhancer-toolbar .sz_field {
+    min-width: 0;
+  }
+
+  .photo-enhancer-lodge {
+    flex: 1 1 20rem;
+    max-width: 31rem;
+  }
+
+  .photo-enhancer-session-field {
+    flex: 0 1 17rem;
+  }
+
+  .photo-enhancer-lodge .sz_input {
+    width: 100%;
+  }
+
+  .photo-enhancer-session-field .sz_select {
+    width: 100%;
+  }
+
+  .photo-enhancer-toolbar .sz_button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .photo-enhancer-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .photo-enhancer-kpis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sz-space-2);
+    flex: 0 0 auto;
+  }
+
+  .photo-enhancer-kpi {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    min-height: 2.35rem;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, transparent);
+  }
+
+  .photo-enhancer-kpi span {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-semibold);
+    text-transform: uppercase;
+  }
+
+  .photo-enhancer-kpi strong {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .photo-enhancer-drop {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--sz-space-3);
+    min-height: 5.25rem;
+    padding: var(--sz-space-3);
+    border: 1px dashed color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
+    border-radius: var(--sz-radius-lg);
+    background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface));
+    flex: 0 0 auto;
+  }
+
+  .photo-enhancer-drop_text {
+    min-width: 0;
+  }
+
+  .photo-enhancer-drop_title {
+    font-weight: var(--sz-font-weight-bold);
+    color: var(--sz-color-text);
+  }
+
+  .photo-enhancer-drop_meta {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .photo-enhancer-input {
+    display: none;
+  }
+
+  .photo-enhancer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    gap: var(--sz-space-3);
+    min-height: 0;
+    flex: 0 0 auto;
+  }
+
+  .photo-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    background: var(--sz-color-surface);
+  }
+
+  .photo-card_thumbs {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1px;
+    background: var(--sz-color-border);
+  }
+
+  .photo-card_thumbs.has-enhanced {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .photo-card_thumb {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background: var(--sz-color-bg-main);
+    overflow: hidden;
+  }
+
+  .photo-card_thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .photo-card_thumb_label {
+    position: absolute;
+    left: 0.45rem;
+    top: 0.45rem;
+    z-index: 1;
+    max-width: calc(100% - 0.9rem);
+    padding: 0.12rem 0.42rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-surface) 82%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sz-color-border) 70%, transparent);
+    color: var(--sz-color-text);
+    font-size: 0.64rem;
+    font-weight: var(--sz-font-weight-bold);
+    line-height: 1.2;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    backdrop-filter: blur(8px);
+  }
+
+  .photo-card_body {
+    display: grid;
+    gap: var(--sz-space-2);
+    padding: var(--sz-space-3);
+    min-width: 0;
+  }
+
+  .photo-card_name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .photo-card_status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: fit-content;
+    max-width: 100%;
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--sz-color-border);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+    color: var(--sz-color-text-muted);
+    background: var(--sz-color-surface-alt);
+  }
+
+  .photo-card_status.is-processing {
+    color: var(--sz-color-primary);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
+  }
+
+  .photo-card_status.is-enhanced {
+    color: var(--sz-color-success);
+    border-color: color-mix(in srgb, var(--sz-color-success) 42%, var(--sz-color-border));
+  }
+
+  .photo-card_status.is-error {
+    color: var(--sz-color-danger);
+    border-color: color-mix(in srgb, var(--sz-color-danger) 42%, var(--sz-color-border));
+  }
+
+  .photo-card_error {
+    display: none;
+    color: var(--sz-color-danger);
+    font-size: var(--sz-font-size-sm);
+    overflow-wrap: anywhere;
+  }
+
+  .photo-card_error:not(:empty) {
+    display: block;
+  }
+
+  .photo-card_actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sz-space-2);
+  }
+
+  .photo-card_actions .sz_button {
+    min-width: 0;
+  }
+
+  .photo-enhancer-empty {
+    padding: var(--sz-space-5);
+    text-align: center;
+    color: var(--sz-color-text-muted);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 72%, transparent);
+    flex: 0 0 auto;
+  }
+
+  .photo-comparison {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+  }
+
+  .photo-comparison-modal .modal-content {
+    color: var(--sz-color-text);
+    background: var(--sz-color-surface);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    box-shadow: var(--sz-shadow-4);
+  }
+
+  .photo-comparison-modal .modal-header,
+  .photo-comparison-modal .modal-footer {
+    border-color: var(--sz-color-border);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 68%, var(--sz-color-surface));
+  }
+
+  .photo-comparison-modal .modal-body {
+    background: var(--sz-color-surface);
+  }
+
+  .photo-comparison-modal .modal-title {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .photo-comparison_panel {
+    min-width: 0;
+  }
+
+  .photo-comparison_label {
+    margin-bottom: var(--sz-space-1);
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+    text-transform: uppercase;
+  }
+
+  .photo-comparison_img {
+    width: 100%;
+    aspect-ratio: var(--photo-comparison-ratio, 4 / 3);
+    max-height: 68vh;
+    object-fit: contain;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-bg-main);
+  }
+
+  @media (max-width: 1100px) {
+    .photo-enhancer-page .sz_contextbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .photo-enhancer-page .sz_contextbar_left,
+    .photo-enhancer-page .sz_contextbar_right {
+      flex: 0 1 auto;
+      width: 100%;
+    }
+
+    .photo-enhancer-toolbar {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .photo-enhancer-lodge {
+      flex-basis: min(100%, 30rem);
+      max-width: none;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .photo-enhancer-drop {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: stretch;
+    }
+
+    .photo-comparison {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page photo-enhancer-page"
+     data-photo-enhancer-max-mb="{{ max_upload_mb }}">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Melhoria de Fotos</div>
+        <div class="sz_page_subtitle">Fotos de alojamentos para listagens.</div>
+      </div>
+      <div class="sz_contextbar_right photo-enhancer-toolbar">
+        <label class="sz_field photo-enhancer-lodge" for="photoEnhancerLodge">
+          <span class="sz_label">Alojamento</span>
+          <input id="photoEnhancerLodge" class="sz_input" type="search" list="photoEnhancerLodgeList" autocomplete="off" placeholder="Pesquisar alojamento">
+          <datalist id="photoEnhancerLodgeList"></datalist>
+        </label>
+        <label class="sz_field photo-enhancer-session-field" for="photoEnhancerSessionSelect">
+          <span class="sz_label">Sessão</span>
+          <select id="photoEnhancerSessionSelect" class="sz_select" disabled>
+            <option value="">Sem sessões</option>
+          </select>
+        </label>
+        <button id="photoEnhancerNewSession" class="sz_button sz_button_secondary" type="button">
+          <i class="fa-solid fa-plus"></i>
+          <span>Nova sessão</span>
+        </button>
+        <button id="photoEnhancerEnhanceAll" class="sz_button sz_button_secondary" type="button" disabled>
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>Melhorar todas</span>
+        </button>
+        <button id="photoEnhancerDeleteSession" class="sz_button sz_button_danger" type="button" disabled>
+          <i class="fa-solid fa-trash"></i>
+          <span>Remover sessão</span>
+        </button>
+        <button id="photoEnhancerZip" class="sz_button sz_button_primary" type="button" disabled>
+          <i class="fa-solid fa-file-zipper"></i>
+          <span>Descarregar melhoradas</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="sz_page_body photo-enhancer-body">
+      <section class="photo-enhancer-kpis" aria-live="polite">
+        <div class="photo-enhancer-kpi"><span>Carregadas</span><strong id="photoKpiLoaded">0</strong></div>
+        <div class="photo-enhancer-kpi"><span>Melhoradas</span><strong id="photoKpiEnhanced">0</strong></div>
+        <div class="photo-enhancer-kpi"><span>Erros</span><strong id="photoKpiErrors">0</strong></div>
+      </section>
+
+      <section class="photo-enhancer-drop">
+        <div class="photo-enhancer-drop_text">
+          <div class="photo-enhancer-drop_title" id="photoEnhancerSessionLabel">Sem sessão ativa</div>
+          <div class="photo-enhancer-drop_meta" id="photoEnhancerStatus">Escolhe um alojamento para iniciar.</div>
+        </div>
+        <div>
+          <input id="photoEnhancerFiles" class="photo-enhancer-input" type="file" multiple accept="image/jpeg,image/png,image/webp">
+          <button id="photoEnhancerPickFiles" class="sz_button sz_button_secondary" type="button" disabled>
+            <i class="fa-solid fa-images"></i>
+            <span>Adicionar fotos</span>
+          </button>
+        </div>
+      </section>
+
+      <section id="photoEnhancerGrid" class="photo-enhancer-grid"></section>
+      <div id="photoEnhancerEmpty" class="photo-enhancer-empty">Sem fotos carregadas.</div>
+    </main>
+  </div>
+</div>
+
+<div class="modal fade photo-comparison-modal" id="photoComparisonModal" tabindex="-1" aria-labelledby="photoComparisonTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content sz_modal_content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="photoComparisonTitle">Comparação</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="photo-comparison">
+          <div class="photo-comparison_panel">
+            <div class="photo-comparison_label">Original</div>
+            <img id="photoComparisonOriginal" class="photo-comparison_img" alt="Original">
+          </div>
+          <div class="photo-comparison_panel">
+            <div class="photo-comparison_label">Melhorada</div>
+            <img id="photoComparisonEnhanced" class="photo-comparison_img" alt="Melhorada">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <a id="photoComparisonDownload" class="sz_button sz_button_primary" href="#" download>
+          <i class="fa-solid fa-download"></i>
+          <span>Descarregar</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.PHOTO_ENHANCER_PROMPT = {{ prompt_used|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/photo_enhancer.js') }}?v={{ static_version }}"></script>
+{% endblock %}
