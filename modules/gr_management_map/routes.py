@@ -186,6 +186,14 @@ def _parse_list_param(value: str | None) -> list[str]:
     return [part.strip() for part in str(value or "").split(",") if part.strip()]
 
 
+def _normalize_origin_key(value: str | None) -> str:
+    return str(value or "").strip().replace("-", "_").upper()
+
+
+def _origin_sql_expr(column: str) -> str:
+    return f"UPPER(REPLACE(LTRIM(RTRIM(ISNULL({column}, ''))), '-', '_'))"
+
+
 def _session_first_language() -> str:
     active_language = normalize_language(getattr(g, "language", None))
     if active_language:
@@ -299,11 +307,11 @@ def _available_origins() -> list[str]:
     rows = _master_rows("""
         SELECT origem
         FROM (
-            SELECT DISTINCT LTRIM(RTRIM(ISNULL(BDADOS, ''))) AS origem
+            SELECT DISTINCT UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')) AS origem
             FROM dbo.V_CUSTO_ORIGENS
             WHERE LTRIM(RTRIM(ISNULL(BDADOS, ''))) <> ''
             UNION
-            SELECT DISTINCT LTRIM(RTRIM(ISNULL(BDADOS, ''))) AS origem
+            SELECT DISTINCT UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')) AS origem
             FROM dbo.V_FT_ORIGENS
             WHERE LTRIM(RTRIM(ISNULL(BDADOS, ''))) <> ''
         ) AS origins
@@ -330,18 +338,19 @@ def _allowed_origins_for_current_user() -> list[str] | None:
         """),
         {"usstamp": _current_usstamp(), "login": _current_login()},
     ).mappings().all()
-    return [str(row.get("origem") or "").strip() for row in rows if str(row.get("origem") or "").strip()]
+    return [_normalize_origin_key(row.get("origem")) for row in rows if _normalize_origin_key(row.get("origem"))]
 
 
 def _effective_origins(requested_origins: list[str]) -> tuple[list[str], list[str] | None, bool]:
     allowed_origins = _allowed_origins_for_current_user()
+    normalized_requested = [_normalize_origin_key(origem) for origem in requested_origins if _normalize_origin_key(origem)]
     if allowed_origins is None:
-        return requested_origins, None, True
+        return normalized_requested, None, True
     if not allowed_origins:
         return [NO_ACCESS_ORIGIN], [], False
     allowed_set = set(allowed_origins)
-    if requested_origins:
-        effective = [origem for origem in requested_origins if origem in allowed_set]
+    if normalized_requested:
+        effective = [origem for origem in normalized_requested if origem in allowed_set]
     else:
         effective = allowed_origins
     return (effective or [NO_ACCESS_ORIGIN], allowed_origins, bool(effective))
@@ -378,7 +387,7 @@ def _filtered_where(
     ordered_values: list = [params["data_inicio"], params["data_fim_exclusive"]]
 
     if include_origins and origens:
-        where_parts.append(f"LTRIM(RTRIM(ISNULL({origin_column}, ''))) IN (" + ",".join("?" for _ in origens) + ")")
+        where_parts.append(f"{_origin_sql_expr(origin_column)} IN (" + ",".join("?" for _ in origens) + ")")
         ordered_values.extend(origens)
     if include_ccustos and ccustos:
         where_parts.append(f"LTRIM(RTRIM(ISNULL({ccusto_column}, ''))) IN (" + ",".join("?" for _ in ccustos) + ")")
@@ -499,12 +508,12 @@ def api_mapa_gestao_gr_origens():
             f"""
             SELECT origem
             FROM (
-                SELECT DISTINCT LTRIM(RTRIM(ISNULL(BDADOS, ''))) AS origem
+                SELECT DISTINCT UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')) AS origem
                 FROM dbo.V_CUSTO_ORIGENS
                 WHERE {cost_where_sql}
                   AND LTRIM(RTRIM(ISNULL(BDADOS, ''))) <> ''
                 UNION
-                SELECT DISTINCT LTRIM(RTRIM(ISNULL(BDADOS, ''))) AS origem
+                SELECT DISTINCT UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')) AS origem
                 FROM dbo.V_FT_ORIGENS
                 WHERE {sales_where_sql}
                   AND LTRIM(RTRIM(ISNULL(BDADOS, ''))) <> ''
@@ -513,7 +522,7 @@ def api_mapa_gestao_gr_origens():
             """,
             list(cost_bind["values"]) + list(sales_bind["values"]),
         )
-        options = [row["origem"] for row in rows if row.get("origem")]
+        options = [_normalize_origin_key(row.get("origem")) for row in rows if _normalize_origin_key(row.get("origem"))]
         if allowed_origins is not None:
             allowed_set = set(allowed_origins)
             options = [origem for origem in options if origem in allowed_set]
@@ -590,10 +599,10 @@ def api_mapa_gestao_gr_acessos():
                         {
                             "usstamp": str(row.get("usstamp") or "").strip(),
                             "login": str(row.get("login") or "").strip(),
-                            "origem": str(row.get("origem") or "").strip(),
+                            "origem": _normalize_origin_key(row.get("origem")),
                         }
                         for row in assignments
-                        if str(row.get("origem") or "").strip()
+                        if _normalize_origin_key(row.get("origem"))
                     ],
                 }
             )
@@ -616,7 +625,7 @@ def api_mapa_gestao_gr_acessos():
                 FROM dbo.US
             """)).mappings().all()
         }
-        valid_origins = set(_available_origins())
+        valid_origins = set(_normalize_origin_key(origin) for origin in _available_origins())
         normalized: list[tuple[str, str, str]] = []
         seen: set[tuple[str, str]] = set()
         for item in access_rows:
@@ -627,7 +636,7 @@ def api_mapa_gestao_gr_acessos():
                 continue
             login = str(valid_users[usstamp].get("login") or "").strip()
             for origem in item.get("origens") or []:
-                clean_origin = str(origem or "").strip()
+                clean_origin = _normalize_origin_key(origem)
                 key = (usstamp, clean_origin)
                 if clean_origin and clean_origin in valid_origins and key not in seen:
                     normalized.append((usstamp, login, clean_origin))

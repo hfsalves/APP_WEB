@@ -17,6 +17,7 @@ from services.multiempresa_service import MissingCurrentEntityError, get_current
 DEFAULT_HORIZON_DAYS = 400
 DEFAULT_UPDATE_THRESHOLD = Decimal("1.00")
 DEFAULT_DAILY_VARIATION_LIMIT = Decimal("0.00")
+_PRICING_COLUMN_EXISTS_CACHE = {}
 
 
 pricing_bp = Blueprint("pricing", __name__, url_prefix="/pricing")
@@ -300,6 +301,18 @@ def _get_al_nome_sql_type(session):
     if collation and data_type in {"VARCHAR", "NVARCHAR", "CHAR", "NCHAR"}:
         sql_type = f"{sql_type} COLLATE {collation}"
     return sql_type
+
+
+def _pricing_column_exists(session, table_name, column_name):
+    key = (str(table_name or "").upper(), str(column_name or "").upper())
+    if key in _PRICING_COLUMN_EXISTS_CACHE:
+        return _PRICING_COLUMN_EXISTS_CACHE[key]
+    exists = bool(session.execute(
+        text("SELECT CASE WHEN COL_LENGTH(:table_name, :column_name) IS NULL THEN 0 ELSE 1 END"),
+        {"table_name": f"dbo.{key[0]}", "column_name": key[1]},
+    ).scalar())
+    _PRICING_COLUMN_EXISTS_CACHE[key] = exists
+    return exists
 
 
 def validate_al_key(session):
@@ -2754,6 +2767,14 @@ def pricing_planner():
     )
 
 
+@pricing_bp.route("/atencao-imediata")
+@pricing_bp.route("/atencao_imediata")
+@login_required
+def pricing_attention_now():
+    _ensure_pricing_alojamentos_registered(db.session)
+    return render_template("atencao_imediata.html", page_title="Atenção Imediata")
+
+
 @pricing_bp.route("/sync-monitor")
 @login_required
 def pricing_sync_monitor():
@@ -3621,6 +3642,355 @@ def pricing_api_planner():
     return jsonify({"alojamento": alojamento, "start": start_date.isoformat(), "days": data})
 
 
+def _attention_day_payload(day_value):
+    return {
+        "date": day_value.isoformat(),
+        "day": day_value.day,
+        "dow": day_value.strftime("%a"),
+        "is_weekend": day_value.weekday() >= 5,
+    }
+
+
+@pricing_bp.route("/api/atencao-imediata")
+@login_required
+def pricing_api_attention_now():
+    ensure_pricing_schema(db.session)
+    start_date = date.today()
+    end_date = start_date + timedelta(days=19)
+    end_exclusive = end_date + timedelta(days=1)
+    regime_filter = str(request.args.get("regime") or "").strip().upper()
+    if regime_filter not in {"", "TODOS", "EXPLORACAO", "GESTAO"}:
+        return jsonify({"error": "Regime invalido."}), 400
+
+    try:
+        recalculate_prices(from_date=start_date, to_date=end_date)
+    except Exception:
+        current_app.logger.exception("Falha ao recalcular preços para Atenção Imediata.")
+
+    current_feid = _pricing_current_feid_or_none()
+    feid_clause = ""
+    params = {"start_date": start_date, "end_date": end_date, "end_exclusive": end_exclusive}
+    if current_feid:
+        if _pricing_column_exists(db.session, "AL", "FEID_GESTOR"):
+            feid_clause = " AND (ISNULL(AL.FEID, 0) = :current_feid OR ISNULL(AL.FEID_GESTOR, 0) = :current_feid)"
+        else:
+            feid_clause = " AND ISNULL(AL.FEID, 0) = :current_feid"
+        params["current_feid"] = current_feid
+
+    regime_clause = ""
+    if regime_filter in {"EXPLORACAO", "GESTAO"}:
+        regime_clause = """
+          AND UPPER(LTRIM(RTRIM(COALESCE(NULLIF(pa.REGIME, ''), NULLIF(AL.TIPO, ''), 'GESTAO')))) = :regime
+        """
+        params["regime"] = regime_filter
+
+    al_status_clause = ""
+    if _pricing_column_exists(db.session, "AL", "INATIVO"):
+        al_status_clause += " AND ISNULL(AL.INATIVO, 0) = 0"
+    if _pricing_column_exists(db.session, "AL", "FECHADO"):
+        al_status_clause += " AND ISNULL(AL.FECHADO, 0) = 0"
+
+    aloj_rows = db.session.execute(
+        text(
+            f"""
+            SELECT
+                LTRIM(RTRIM(COALESCE(NULLIF(AL.NOME, ''), NULLIF(pa.AL_NOME, '')))) AS ALOJAMENTO,
+                LTRIM(RTRIM(pa.AL_NOME)) AS PRICE_ALOJAMENTO,
+                UPPER(LTRIM(RTRIM(COALESCE(NULLIF(pa.REGIME, ''), NULLIF(AL.TIPO, ''), 'GESTAO')))) AS REGIME,
+                LTRIM(RTRIM(ISNULL(AL.TIPO, ''))) AS TIPO,
+                LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, ''))) AS TIPOLOGIA,
+                CASE WHEN ISNULL(AL.NOITES, 0) > 0 THEN ISNULL(AL.NOITES, 0) ELSE 1 END AS MIN_NOITES
+            FROM dbo.PR_ALOJAMENTO AS pa
+            LEFT JOIN dbo.AL AS AL
+                ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                 = LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE ISNULL(pa.ATIVO, 0) = 1
+              AND LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) <> ''
+              {al_status_clause}
+              {feid_clause}
+              {regime_clause}
+            ORDER BY LTRIM(RTRIM(COALESCE(NULLIF(AL.NOME, ''), NULLIF(pa.AL_NOME, ''))))
+            """
+        ),
+        params,
+    ).mappings().all()
+
+    alojamentos = [row.get("ALOJAMENTO") for row in aloj_rows if row.get("ALOJAMENTO")]
+    price_alojamentos = [row.get("PRICE_ALOJAMENTO") for row in aloj_rows if row.get("PRICE_ALOJAMENTO")]
+    display_by_key = {}
+    for row in aloj_rows:
+        display_name = row.get("ALOJAMENTO")
+        if not display_name:
+            continue
+        display_by_key[_aloj_cache_key(display_name)] = display_name
+        display_by_key[_aloj_cache_key(row.get("PRICE_ALOJAMENTO"))] = display_name
+    if not alojamentos:
+        return jsonify({
+            "start": start_date.isoformat(),
+            "end": end_date.isoformat(),
+            "dates": [_attention_day_payload(start_date + timedelta(days=i)) for i in range(20)],
+            "rows": [],
+        })
+
+    reservation_rows = db.session.execute(
+        text(
+            f"""
+            SELECT
+                LTRIM(RTRIM(COALESCE(NULLIF(AL.NOME, ''), NULLIF(pa.AL_NOME, ''), NULLIF(RS.ALOJAMENTO, '')))) AS ALOJAMENTO,
+                LTRIM(RTRIM(ISNULL(RS.RESERVA, ''))) AS RESERVA,
+                LTRIM(RTRIM(ISNULL(RS.NOME, ''))) AS NOME,
+                LTRIM(RTRIM(ISNULL(RS.ORIGEM, ''))) AS ORIGEM,
+                CAST(RS.DATAIN AS date) AS DATAIN,
+                CAST(RS.DATAOUT AS date) AS DATAOUT,
+                ISNULL(RS.ESTADIA, 0) AS ESTADIA,
+                ISNULL(RS.NOITES, 0) AS NOITES
+            FROM dbo.RS AS RS
+            INNER JOIN dbo.PR_ALOJAMENTO AS pa
+                ON LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                 = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+            LEFT JOIN dbo.AL AS AL
+                ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                 = LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE ISNULL(pa.ATIVO, 0) = 1
+              AND LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) <> ''
+              {al_status_clause}
+              {feid_clause}
+              {regime_clause}
+              AND RS.DATAIN IS NOT NULL
+              AND RS.DATAOUT IS NOT NULL
+              AND ISNULL(RS.CANCELADA, 0) = 0
+              AND RS.DATAOUT > :start_date
+              AND RS.DATAIN < :end_exclusive
+            ORDER BY RS.DATAIN, RS.DATAOUT
+            """
+        ),
+        params,
+    ).mappings().all()
+
+    price_rows = db.session.execute(
+        text(
+            """
+            SELECT
+                LTRIM(RTRIM(AL_NOME)) AS ALOJAMENTO,
+                CAST([DATA] AS date) AS DIA,
+                PRECO_FINAL,
+                ISNULL([SYNC], 0) AS [SYNC]
+            FROM dbo.PR_CALC_DAY
+            WHERE LTRIM(RTRIM(AL_NOME)) IN :alojamentos
+              AND [DATA] BETWEEN :start_date AND :end_date
+            """
+        ).bindparams(bindparam("alojamentos", expanding=True)),
+        {**params, "alojamentos": price_alojamentos or alojamentos},
+    ).mappings().all()
+
+    prices = {
+        (display_by_key.get(_aloj_cache_key(row.get("ALOJAMENTO")), row.get("ALOJAMENTO")), row.get("DIA")): {
+            "price": _to_float(row.get("PRECO_FINAL")),
+            "synced": bool(row.get("SYNC")),
+        }
+        for row in price_rows
+    }
+    reservations_by_al = {}
+    occupied = {}
+    for row in reservation_rows:
+        alojamento = row.get("ALOJAMENTO")
+        stay_start = row.get("DATAIN")
+        stay_end = row.get("DATAOUT")
+        if not alojamento or not stay_start or not stay_end:
+            continue
+        visible_start = max(stay_start, start_date)
+        visible_end = min(stay_end, end_exclusive)
+        if visible_start >= visible_end:
+            continue
+        nightly_price = None
+        noites = _safe_decimal(row.get("NOITES"), "0")
+        if noites > 0:
+            nightly_price = _to_float(_round_price(_safe_decimal(row.get("ESTADIA"), "0") / noites))
+        reservation = {
+            "reserva": row.get("RESERVA") or "",
+            "nome": row.get("NOME") or "",
+            "origem": row.get("ORIGEM") or "",
+            "datain": stay_start.isoformat(),
+            "dataout": stay_end.isoformat(),
+            "start": visible_start.isoformat(),
+            "end": visible_end.isoformat(),
+            "start_index": (visible_start - start_date).days,
+            "span": max(1, (visible_end - visible_start).days),
+            "nightly_price": nightly_price,
+        }
+        reservations_by_al.setdefault(alojamento, []).append(reservation)
+        cursor = visible_start
+        while cursor < visible_end:
+            occupied[(alojamento, cursor)] = reservation
+            cursor += timedelta(days=1)
+
+    dates = [start_date + timedelta(days=i) for i in range(20)]
+    rows = []
+    for aloj_row in aloj_rows:
+        alojamento = aloj_row.get("ALOJAMENTO")
+        min_noites = max(1, int(aloj_row.get("MIN_NOITES") or 1))
+        sellable_dates = set()
+        gap_start = None
+        gap_dates = []
+        for day_value in dates:
+            if occupied.get((alojamento, day_value)):
+                if len(gap_dates) >= min_noites:
+                    sellable_dates.update(gap_dates)
+                gap_start = None
+                gap_dates = []
+                continue
+            if gap_start is None:
+                gap_start = day_value
+            gap_dates.append(day_value)
+        if len(gap_dates) >= min_noites:
+            sellable_dates.update(gap_dates)
+
+        if not sellable_dates:
+            continue
+
+        days = []
+        vacant_count = 0
+        vacant_total = Decimal("0")
+        for day_value in dates:
+            reservation = occupied.get((alojamento, day_value))
+            price = prices.get((alojamento, day_value), {})
+            if reservation:
+                days.append({
+                    "date": day_value.isoformat(),
+                    "state": "occupied",
+                    "reservation": reservation,
+                    "price": reservation.get("nightly_price"),
+                })
+            else:
+                day_price = price.get("price")
+                is_sellable = day_value in sellable_dates
+                if is_sellable:
+                    vacant_count += 1
+                    try:
+                        vacant_total += Decimal(str(day_price or 0))
+                    except Exception:
+                        pass
+                days.append({
+                    "date": day_value.isoformat(),
+                    "state": "vacant" if is_sellable else "blocked_gap",
+                    "price": day_price,
+                    "synced": bool(price.get("synced")),
+                    "sellable": is_sellable,
+                })
+        rows.append({
+            "alojamento": alojamento,
+            "price_alojamento": aloj_row.get("PRICE_ALOJAMENTO") or alojamento,
+            "regime": aloj_row.get("REGIME") or "",
+            "tipo": aloj_row.get("TIPO") or "",
+            "tipologia": aloj_row.get("TIPOLOGIA") or "",
+            "min_noites": min_noites,
+            "vacant_count": vacant_count,
+            "vacant_total": _to_float(vacant_total),
+            "days": days,
+            "reservations": reservations_by_al.get(alojamento, []),
+        })
+
+    return jsonify({
+        "start": start_date.isoformat(),
+        "end": end_date.isoformat(),
+        "dates": [_attention_day_payload(day_value) for day_value in dates],
+        "rows": rows,
+        "totals": {
+            "alojamentos": len(rows),
+            "noites_vazias": sum(row["vacant_count"] for row in rows),
+            "potencial": _to_float(sum(Decimal(str(row["vacant_total"] or 0)) for row in rows)),
+            "por_sincronizar": sum(
+                1
+                for row in rows
+                for day_item in row.get("days", [])
+                if day_item.get("state") == "vacant" and not day_item.get("synced")
+            ),
+        },
+    })
+
+
+@pricing_bp.route("/api/atencao-imediata-sync", methods=["POST"])
+@login_required
+def pricing_api_attention_now_sync():
+    payload = request.get_json(silent=True) or {}
+    try:
+        start_date = _parse_date(payload.get("start"), "start")
+        end_date = _parse_date(payload.get("end"), "end")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if not start_date or not end_date:
+        return jsonify({"error": "start e end sao obrigatorios."}), 400
+    if end_date < start_date:
+        return jsonify({"error": "end nao pode ser inferior a start."}), 400
+
+    raw_items = payload.get("items") or []
+    price_alojamentos = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        name = _normalize_alojamento(item.get("price_alojamento") or item.get("alojamento"))
+        if name and name not in price_alojamentos:
+            price_alojamentos.append(name)
+    if not price_alojamentos:
+        return jsonify({"items": []})
+
+    current_feid = _pricing_current_feid_or_none()
+    params = {"start_date": start_date, "end_date": end_date, "alojamentos": price_alojamentos}
+    feid_clause = ""
+    if current_feid:
+        if _pricing_column_exists(db.session, "AL", "FEID_GESTOR"):
+            feid_clause = " AND (ISNULL(AL.FEID, 0) = :current_feid OR ISNULL(AL.FEID_GESTOR, 0) = :current_feid)"
+        else:
+            feid_clause = " AND ISNULL(AL.FEID, 0) = :current_feid"
+        params["current_feid"] = current_feid
+
+    al_status_clause = ""
+    if _pricing_column_exists(db.session, "AL", "INATIVO"):
+        al_status_clause += " AND ISNULL(AL.INATIVO, 0) = 0"
+    if _pricing_column_exists(db.session, "AL", "FECHADO"):
+        al_status_clause += " AND ISNULL(AL.FECHADO, 0) = 0"
+
+    rows = db.session.execute(
+        text(
+            f"""
+            SELECT
+                LTRIM(RTRIM(COALESCE(NULLIF(AL.NOME, ''), NULLIF(pa.AL_NOME, ''), NULLIF(d.AL_NOME, '')))) AS ALOJAMENTO,
+                LTRIM(RTRIM(d.AL_NOME)) AS PRICE_ALOJAMENTO,
+                CAST(d.[DATA] AS date) AS DIA,
+                d.PRECO_FINAL,
+                ISNULL(d.[SYNC], 0) AS [SYNC]
+            FROM dbo.PR_CALC_DAY AS d
+            INNER JOIN dbo.PR_ALOJAMENTO AS pa
+                ON LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                 = LTRIM(RTRIM(ISNULL(d.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+            LEFT JOIN dbo.AL AS AL
+                ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                 = LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+            WHERE LTRIM(RTRIM(d.AL_NOME)) IN :alojamentos
+              AND d.[DATA] BETWEEN :start_date AND :end_date
+              AND ISNULL(pa.ATIVO, 0) = 1
+              AND LTRIM(RTRIM(ISNULL(pa.AL_NOME, ''))) <> ''
+              {al_status_clause}
+              {feid_clause}
+            """
+        ).bindparams(bindparam("alojamentos", expanding=True)),
+        params,
+    ).mappings().all()
+
+    return jsonify({
+        "items": [
+            {
+                "alojamento": row.get("ALOJAMENTO") or "",
+                "price_alojamento": row.get("PRICE_ALOJAMENTO") or "",
+                "date": row["DIA"].isoformat() if row.get("DIA") else "",
+                "price": _to_float(row.get("PRECO_FINAL")),
+                "synced": bool(row.get("SYNC")),
+            }
+            for row in rows
+        ]
+    })
+
+
 @pricing_bp.route("/api/planner-sync")
 @login_required
 def pricing_api_planner_sync():
@@ -3966,6 +4336,9 @@ def register_pricing(app):
     def _pricing_sync_monitor_legacy():
         return redirect(url_for("pricing.pricing_sync_monitor"))
 
+    def _pricing_attention_now_legacy():
+        return redirect(url_for("pricing.pricing_attention_now"))
+
     app.add_url_rule("/pricing_planner", endpoint="pricing_planner_legacy", view_func=_pricing_planner_legacy)
     app.add_url_rule("/pricing_planner/", endpoint="pricing_planner_legacy_slash", view_func=_pricing_planner_legacy)
     app.add_url_rule("/pricing_config", endpoint="pricing_settings_legacy", view_func=_pricing_settings_legacy)
@@ -3982,6 +4355,10 @@ def register_pricing(app):
     app.add_url_rule("/pickup-curves/", endpoint="pricing_pickup_curves_legacy_alt_slash", view_func=_pricing_pickup_curves_legacy)
     app.add_url_rule("/pricing_sync_monitor", endpoint="pricing_sync_monitor_legacy", view_func=_pricing_sync_monitor_legacy)
     app.add_url_rule("/pricing_sync_monitor/", endpoint="pricing_sync_monitor_legacy_slash", view_func=_pricing_sync_monitor_legacy)
+    app.add_url_rule("/atencao-imediata", endpoint="pricing_attention_now_legacy", view_func=_pricing_attention_now_legacy)
+    app.add_url_rule("/atencao-imediata/", endpoint="pricing_attention_now_legacy_slash", view_func=_pricing_attention_now_legacy)
+    app.add_url_rule("/atencao_imediata", endpoint="pricing_attention_now_legacy_alt", view_func=_pricing_attention_now_legacy)
+    app.add_url_rule("/atencao_imediata/", endpoint="pricing_attention_now_legacy_alt_slash", view_func=_pricing_attention_now_legacy)
 
     @app.cli.command("pricing:recalc")
     @click.option("--days", default=DEFAULT_HORIZON_DAYS, type=int, show_default=True)

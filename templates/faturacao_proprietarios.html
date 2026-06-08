@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}Faturacao de Proprietarios{% endblock %}
+
+{% block content %}
+<div class="fatprop-page">
+  <header class="fatprop-header">
+    <div class="fatprop-header-title">
+      <h1 class="sz_page_title">Faturacao de Proprietarios</h1>
+      <p id="fatpropStats" class="sz_page_subtitle">0 selecionadas de 0 por faturar</p>
+    </div>
+    <div class="fatprop-toolbar">
+      <label class="fatprop-field">
+        <span>Checkout de</span>
+        <input class="sz_input" id="fatpropDataIni" type="date" value="{{ data_ini }}">
+      </label>
+      <label class="fatprop-field">
+        <span>ate</span>
+        <input class="sz_input" id="fatpropDataFim" type="date" value="{{ data_fim }}">
+      </label>
+      <select class="sz_select fatprop-select" id="fatpropAlojamento">
+        <option value="">Todos os alojamentos</option>
+      </select>
+      <select class="sz_select fatprop-select" id="fatpropCliente">
+        <option value="">Todos os proprietarios</option>
+      </select>
+      <button class="sz_button sz_button_ghost fatprop-icon-btn" id="fatpropRefresh" type="button" title="Atualizar" aria-label="Atualizar">
+        <i class="fa-solid fa-rotate"></i>
+      </button>
+      <button class="sz_button sz_button_primary" id="fatpropEnviar" type="button">
+        <i class="fa-solid fa-paper-plane"></i>
+        <span>Enviar PHC</span>
+      </button>
+    </div>
+  </header>
+
+  <section class="fatprop-summary">
+    <div>
+      <span class="fatprop-summary-label">Reservas</span>
+      <strong id="fatpropTotalRows">0</strong>
+    </div>
+    <div>
+      <span class="fatprop-summary-label">Valor por faturar</span>
+      <strong id="fatpropTotalValor">0,00</strong>
+    </div>
+    <div>
+      <span class="fatprop-summary-label">Selecionado</span>
+      <strong id="fatpropSelectedValor">0,00</strong>
+    </div>
+  </section>
+
+  <section class="sz_table_host fatprop-table-host">
+    <div class="sz_table_wrap">
+      <table class="sz_table fatprop-table">
+        <thead class="sz_table_head">
+          <tr>
+            <th class="fatprop-check-col"><input type="checkbox" id="fatpropCheckAll"></th>
+            <th>Reserva</th>
+            <th>Checkout</th>
+            <th>Alojamento</th>
+            <th>Proprietario</th>
+            <th>Hospede</th>
+            <th class="sz_text_right">Estadia</th>
+            <th class="sz_text_right">Limpeza</th>
+            <th class="sz_text_right">Comissao TG</th>
+            <th class="sz_text_right">Comissao</th>
+            <th class="sz_text_right">A faturar</th>
+          </tr>
+        </thead>
+        <tbody id="fatpropBody">
+          <tr><td colspan="11" class="sz_table_cell fatprop-empty">A carregar...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<div id="fatpropOverlay" class="fatprop-overlay" aria-hidden="true">
+  <div class="fatprop-overlay-card">
+    <div class="fatprop-overlay-title">
+      <i class="fa-solid fa-paper-plane"></i>
+      <span>A enviar pedido para o PHC...</span>
+    </div>
+    <div class="fatprop-overlay-sub" id="fatpropOverlaySub">A preparar</div>
+  </div>
+</div>
+
+<style>
+  .fatprop-page {
+    width: 100%;
+    min-height: 100%;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-2) var(--sz-space-4) var(--sz-space-3);
+    background: var(--sz-color-bg-main);
+    color: var(--sz-color-text);
+  }
+
+  .fatprop-header {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto;
+    align-items: end;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+  }
+
+  .fatprop-header-title {
+    min-width: 0;
+  }
+
+  .fatprop-header-title .sz_page_title,
+  .fatprop-header-title .sz_page_subtitle {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .fatprop-toolbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    flex-wrap: wrap;
+    width: min(100%, 980px);
+  }
+
+  .fatprop-field {
+    display: grid;
+    gap: 0.2rem;
+    width: 8.8rem;
+    font-size: var(--sz-font-size-xs);
+    color: var(--sz-color-text-muted);
+  }
+
+  .fatprop-select {
+    width: 13rem;
+  }
+
+  .fatprop-icon-btn {
+    width: var(--sz-button-height);
+    min-width: var(--sz-button-height);
+    padding: 0;
+  }
+
+  .fatprop-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sz-space-2);
+  }
+
+  .fatprop-summary > div {
+    min-width: 0;
+    padding: var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface);
+  }
+
+  .fatprop-summary-label {
+    display: block;
+    margin-bottom: 0.2rem;
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .fatprop-summary strong {
+    font-size: var(--sz-font-size-lg);
+    color: var(--sz-color-text);
+  }
+
+  .fatprop-table-host {
+    height: 100%;
+  }
+
+  .fatprop-table {
+    min-width: 1220px;
+    background: var(--sz-color-surface);
+  }
+
+  .fatprop-table th,
+  .fatprop-table td {
+    font-family: var(--sz-font-family);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .fatprop-table thead th {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+
+  .fatprop-table tbody td {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  .fatprop-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 4%, var(--sz-color-surface)) !important;
+  }
+
+  .fatprop-table tbody tr.fatprop-row-selected td {
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface)) !important;
+  }
+
+  .fatprop-table tbody tr.fatprop-row-warning td {
+    background: color-mix(in srgb, var(--sz-color-warning) 5%, var(--sz-color-surface)) !important;
+  }
+
+  .fatprop-check-col,
+  .fatprop-check-cell {
+    width: 42px;
+    text-align: center;
+  }
+
+  .fatprop-money {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fatprop-owner-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .fatprop-warning {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    color: var(--sz-color-warning);
+  }
+
+  .fatprop-empty {
+    text-align: center;
+    color: var(--sz-color-text-muted) !important;
+    padding: var(--sz-space-4) !important;
+  }
+
+  .fatprop-overlay {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    background: color-mix(in srgb, #000 38%, transparent);
+    padding: var(--sz-space-4);
+  }
+
+  .fatprop-overlay.show {
+    display: flex;
+  }
+
+  .fatprop-overlay-card {
+    width: min(460px, 92vw);
+    padding: var(--sz-space-4);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    box-shadow: var(--sz-shadow-3);
+  }
+
+  .fatprop-overlay-title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    margin-bottom: 0.35rem;
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .fatprop-overlay-sub {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  @media (max-width: 900px) {
+    .fatprop-page {
+      padding-inline: var(--sz-space-3);
+    }
+
+    .fatprop-header {
+      grid-template-columns: 1fr;
+    }
+
+    .fatprop-summary {
+      grid-template-columns: 1fr;
+    }
+
+    .fatprop-toolbar,
+    .fatprop-field,
+    .fatprop-select,
+    .fatprop-toolbar .sz_button {
+      width: 100%;
+    }
+  }
+</style>
+
+<script>
+  window.FATPROP_DATA_INI = "{{ data_ini }}";
+  window.FATPROP_DATA_FIM = "{{ data_fim }}";
+</script>
+<script src="{{ url_for('static', filename='js/faturacao_proprietarios.js') }}?v={{ static_version }}"></script>
+{% endblock %}

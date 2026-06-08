@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+{% block title %}Atenção Imediata{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<style>
+  .attention-page .sz_page_container {
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--sz-space-3);
+  }
+
+  .attention-page .sz_contextbar {
+    align-items: center;
+  }
+
+  .attention-page .sz_contextbar_left {
+    flex: 0 0 clamp(16rem, 26vw, 28rem);
+    width: auto;
+  }
+
+  .attention-page .sz_contextbar_right {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+  }
+
+  .attention-toolbar .sz_select {
+    width: 11rem;
+  }
+
+  .attention-kpi {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    min-height: 2.25rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 82%, transparent);
+    white-space: nowrap;
+  }
+
+  .attention-kpi span {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+    text-transform: uppercase;
+  }
+
+  .attention-kpi strong {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .attention-kpi-warning {
+    border-color: color-mix(in srgb, var(--sz-color-warning) 54%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-warning) 10%, var(--sz-color-surface-alt));
+  }
+
+  .attention-kpi-warning strong {
+    color: var(--sz-color-warning);
+  }
+
+  .attention-body {
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    background: var(--sz-color-surface);
+  }
+
+  .attention-scroll {
+    height: 100%;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .attention-grid {
+    --attention-lodge-width: 13.5rem;
+    --attention-day-width: 4.35rem;
+    display: grid;
+    grid-template-columns: var(--attention-lodge-width) repeat(20, var(--attention-day-width));
+    min-width: calc(var(--attention-lodge-width) + 20 * var(--attention-day-width));
+  }
+
+  .attention-head {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: contents;
+  }
+
+  .attention-corner,
+  .attention-date-head {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    min-height: 2.6rem;
+    padding: 0.35rem 0.4rem;
+    border-bottom: 1px solid var(--sz-color-border);
+    border-right: 1px solid var(--sz-color-border);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 88%, var(--sz-color-surface));
+  }
+
+  .attention-corner {
+    left: 0;
+    z-index: 14;
+    display: flex;
+    align-items: center;
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .attention-date-head {
+    text-align: center;
+  }
+
+  .attention-date-head.is-weekend {
+    background: color-mix(in srgb, var(--sz-color-primary) 9%, var(--sz-color-surface-alt));
+  }
+
+  .attention-date-day {
+    color: var(--sz-color-text);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-bold);
+    line-height: 1;
+  }
+
+  .attention-date-meta {
+    margin-top: 0.12rem;
+    color: var(--sz-color-text-muted);
+    font-size: 0.66rem;
+    text-transform: uppercase;
+  }
+
+  .attention-row {
+    display: contents;
+  }
+
+  .attention-lodge {
+    position: sticky;
+    left: 0;
+    z-index: 7;
+    min-height: 2.35rem;
+    display: flex;
+    align-items: center;
+    padding: 0.32rem 0.55rem;
+    border-right: 1px solid var(--sz-color-border);
+    border-bottom: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface);
+  }
+
+  .attention-lodge-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .attention-day {
+    position: relative;
+    min-height: 2.35rem;
+    padding: 0.22rem;
+    border-right: 1px solid var(--sz-color-border);
+    border-bottom: 1px solid var(--sz-color-border);
+    background: var(--sz-color-surface);
+  }
+
+  .attention-day.is-weekend {
+    background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface));
+  }
+
+  .attention-day.is-occupied {
+    background:
+      linear-gradient(135deg, rgba(96, 165, 250, 0.12), rgba(96, 165, 250, 0.03)),
+      color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+  }
+
+  .attention-day.is-short-gap {
+    background: color-mix(in srgb, var(--sz-color-warning) 12%, var(--sz-color-surface));
+  }
+
+  .attention-short-gap {
+    width: 100%;
+    min-height: 1.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed color-mix(in srgb, var(--sz-color-warning) 76%, white);
+    border-radius: var(--sz-radius-sm);
+    background: rgba(245, 158, 11, 0.11);
+    color: #ffd166;
+    font-size: 0.62rem;
+    font-weight: var(--sz-font-weight-bold);
+    text-transform: uppercase;
+  }
+
+  .attention-price {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 1.65rem;
+    border: 1px solid rgba(45, 212, 191, 0.78);
+    border-radius: var(--sz-radius-sm);
+    background: rgba(15, 118, 110, 0.28);
+    color: #f0fffb;
+    font-weight: var(--sz-font-weight-bold);
+    text-align: right;
+    padding: 0.25rem 0.35rem;
+    font-size: var(--sz-font-size-sm);
+    cursor: pointer;
+  }
+
+  .attention-price.is-unsynced {
+    border-color: #f59e0b;
+    box-shadow:
+      inset 0 0 0 1px rgba(245, 158, 11, 0.22);
+  }
+
+  .attention-price.is-unsynced::after {
+    content: "";
+    position: absolute;
+    top: 0.24rem;
+    left: 0.28rem;
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 999px;
+    background: #f59e0b;
+    box-shadow: none;
+  }
+
+  .attention-price:hover {
+    border-color: #5eead4;
+    background: rgba(15, 118, 110, 0.36);
+  }
+
+  .attention-reservation {
+    z-index: 4;
+    align-self: center;
+    justify-self: stretch;
+    min-height: 1.55rem;
+    display: flex;
+    align-items: center;
+    margin: 0 0.18rem;
+    padding: 0.18rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid rgba(147, 197, 253, 0.72);
+    background: rgba(37, 99, 235, 0.62);
+    box-shadow: none;
+    color: #f8fbff;
+    font-size: 0.68rem;
+    font-weight: var(--sz-font-weight-bold);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  [data-sz-theme="light"] .attention-price {
+    border-color: #14b8a6;
+    background: #bff5ea;
+    color: #083f3a;
+    box-shadow: none;
+  }
+
+  [data-sz-theme="light"] .attention-price:hover {
+    border-color: #0f766e;
+    background: #99f6e4;
+    color: #042f2e;
+  }
+
+  [data-sz-theme="light"] .attention-price.is-unsynced {
+    border-color: #d97706;
+    box-shadow:
+      inset 0 0 0 1px rgba(217, 119, 6, 0.28);
+  }
+
+  [data-sz-theme="light"] .attention-reservation {
+    border-color: #2563eb;
+    background: #3b82f6;
+    color: #ffffff;
+    box-shadow: none;
+  }
+
+  [data-sz-theme="light"] .attention-short-gap {
+    border-color: #d97706;
+    background: #fff7ed;
+    color: #92400e;
+  }
+
+  .attention-empty {
+    padding: var(--sz-space-5);
+    color: var(--sz-color-text-muted);
+    text-align: center;
+  }
+
+  .attention-status {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .attention-status.is-error {
+    color: var(--sz-color-danger);
+  }
+
+  #attentionPriceModal .attention-price-modal_content {
+    --bs-modal-bg: var(--sz-color-surface);
+    --bs-modal-color: var(--sz-color-text);
+    --bs-modal-border-color: var(--sz-color-border);
+    overflow: hidden;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  }
+
+  #attentionPriceModal .attention-price-modal_header,
+  #attentionPriceModal .attention-price-modal_footer {
+    border-color: var(--sz-color-border);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 78%, var(--sz-color-surface));
+  }
+
+  #attentionPriceModal .attention-price-modal_body {
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+  }
+
+  #attentionPriceModal .attention-price-modal_close {
+    opacity: 0.72;
+  }
+
+  [data-sz-theme="dark"] #attentionPriceModal .attention-price-modal_close,
+  [data-sz-theme="geek"] #attentionPriceModal .attention-price-modal_close {
+    filter: invert(1) grayscale(100%) brightness(190%);
+  }
+
+  #attentionPriceModal .form-check {
+    color: var(--sz-color-text);
+  }
+
+  #attentionPriceModal .form-check-input {
+    border-color: var(--sz-color-border);
+    background-color: var(--sz-color-surface-alt);
+    accent-color: var(--sz-color-primary);
+  }
+
+  #attentionPriceModal .form-check-input:checked {
+    border-color: var(--sz-color-primary);
+    background-color: var(--sz-color-primary);
+  }
+
+  @media (max-width: 1100px) {
+    .attention-page .sz_contextbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .attention-page .sz_contextbar_left,
+    .attention-page .sz_contextbar_right {
+      flex: 0 1 auto;
+      width: 100%;
+    }
+
+    .attention-page .sz_contextbar_right {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page attention-page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Aten&ccedil;&atilde;o Imediata</div>
+        <div class="sz_page_subtitle">Buracos vend&aacute;veis nos pr&oacute;ximos 20 dias.</div>
+      </div>
+      <div class="sz_contextbar_right attention-toolbar">
+        <div class="attention-kpi"><span>Alojamentos</span><strong id="attentionKpiAloj">0</strong></div>
+        <div class="attention-kpi"><span>Noites vazias</span><strong id="attentionKpiNights">0</strong></div>
+        <div class="attention-kpi"><span>Potencial</span><strong id="attentionKpiPotential">0</strong></div>
+        <div class="attention-kpi attention-kpi-warning"><span>Por sincronizar</span><strong id="attentionKpiUnsynced">0</strong></div>
+        <label class="sz_field" for="attentionRegime">
+          <span class="sz_label">Regime</span>
+          <select id="attentionRegime" class="sz_select">
+            <option value="">Todos</option>
+            <option value="EXPLORACAO">Explora&ccedil;&atilde;o</option>
+            <option value="GESTAO">Gest&atilde;o</option>
+          </select>
+        </label>
+        <button id="attentionRefresh" class="sz_button sz_button_secondary" type="button">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="attention-body">
+      <div class="attention-scroll">
+        <div id="attentionGrid" class="attention-grid"></div>
+        <div id="attentionEmpty" class="attention-empty" hidden>Sem buracos vend&aacute;veis nos pr&oacute;ximos 20 dias.</div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="modal fade" id="attentionPriceModal" tabindex="-1" aria-labelledby="attentionPriceTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content sz_panel attention-price-modal_content">
+      <form id="attentionPriceForm">
+        <div class="modal-header sz_modal_header attention-price-modal_header">
+          <h5 class="modal-title sz_modal_title" id="attentionPriceTitle">Alterar pre&ccedil;o</h5>
+          <button type="button" class="btn-close attention-price-modal_close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body sz_modal_body attention-price-modal_body">
+          <div id="attentionPriceSummary" class="sz_text_muted mb-3"></div>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="sz_label" for="attentionPriceValue">Pre&ccedil;o fixo</label>
+              <input id="attentionPriceValue" class="sz_input text-end" type="number" min="0" step="0.01" required>
+            </div>
+            <div class="col-md-4">
+              <label class="sz_label" for="attentionPriceDateIni">De</label>
+              <input id="attentionPriceDateIni" class="sz_input" type="date" required>
+            </div>
+            <div class="col-md-4">
+              <label class="sz_label" for="attentionPriceDateFim">At&eacute;</label>
+              <input id="attentionPriceDateFim" class="sz_input" type="date" required>
+            </div>
+            <div class="col-12">
+              <label class="sz_label" for="attentionPriceMotivo">Motivo</label>
+              <input id="attentionPriceMotivo" class="sz_input" type="text" maxlength="200" value="Atenção Imediata">
+            </div>
+            <div class="col-12">
+              <label class="form-check d-inline-flex align-items-center gap-2">
+                <input id="attentionPriceBelowMin" class="form-check-input" type="checkbox">
+                <span>Permitir abaixo do m&iacute;nimo</span>
+              </label>
+            </div>
+          </div>
+          <div id="attentionPriceStatus" class="attention-status mt-3"></div>
+        </div>
+        <div class="modal-footer sz_modal_footer attention-price-modal_footer">
+          <button type="button" class="sz_button sz_button_secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="sz_button sz_button_primary">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>Gravar</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/atencao_imediata.js') }}?v={{ static_version }}"></script>
+{% endblock %}

@@ -55,18 +55,28 @@ PHOTO_ENHANCER_PROFILES = {
     },
     'guestspa_premium': {
         'label': 'GuestSpa Premium',
-        'prompt': """You are a world-class Airbnb, hospitality and luxury real estate photographer.
+        'prompt': """You are a world-class Airbnb, Booking.com, hospitality and luxury real estate photo editor.
 
-Enhance this image as if it had been photographed and edited by a professional Airbnb photographer.
+This is a RETOUCHING task, not a redesign task.
 
-Preserve exactly the same room, architecture, furniture, decoration, windows, doors, walls, flooring, bedding, curtains, lighting fixtures and objects.
+First identify what the source photo actually shows:
+- If it is an interior photo, keep it as the exact same interior.
+- If it is an exterior facade, street, balcony, terrace, view, building, entrance, garden, pool, or city/landscape photo, keep it as the exact same exterior/view.
+- Never convert an exterior photo into an interior.
+- Never convert an interior photo into an exterior.
+
+Preserve exactly the same scene, subject, camera viewpoint, framing, perspective, architecture, visible buildings, facade, street, balcony railings, windows, doors, walls, flooring, ceilings, furniture, decoration, bedding, curtains, lamps, signs, trees, sky, road, pavement, objects and all visible details.
 
 Do not add any object.
 Do not remove any object.
 Do not replace any object.
 Do not invent decor.
-Do not modify the room layout.
+Do not modify the scene layout.
 Do not modify dimensions or proportions.
+Do not change the location.
+Do not change the property.
+Do not change the room type or scene type.
+Do not create a different image.
 
 Enhance:
 
@@ -80,8 +90,7 @@ Enhance:
 - highlight recovery
 - texture detail
 - sharpness
-- room depth
-- perceived spaciousness
+- visual depth
 - natural daylight
 
 Correct:
@@ -93,6 +102,7 @@ Correct:
 Create a warm, inviting, premium hospitality atmosphere suitable for Airbnb and Booking.com listings.
 
 The image must look natural, realistic and trustworthy.
+The final image must be recognizably the same photograph, only professionally retouched.
 
 Avoid:
 - fake HDR
@@ -102,7 +112,7 @@ Avoid:
 - CGI appearance
 - generated-image appearance
 
-The final result should look like a high-end professional real estate photograph while remaining 100% faithful to the actual property.""",
+The final result should look like a high-end professional real estate photograph while remaining 100% faithful to the actual property and the actual original scene.""",
     },
 }
 
@@ -223,6 +233,16 @@ def photo_enhancer_retries() -> int:
         return max(0, min(4, int(float(str(raw).replace(',', '.')))))
     except Exception:
         return 2
+
+
+def photo_enhancer_input_fidelity() -> str:
+    raw = (
+        _para_value('PHOTO_ENHANCER_INPUT_FIDELITY')
+        or os.getenv('PHOTO_ENHANCER_INPUT_FIDELITY')
+        or 'high'
+    )
+    value = str(raw or '').strip().lower()
+    return value if value in {'low', 'high'} else 'high'
 
 
 def normalize_photo_enhancer_profile(profile: str | None = None) -> str:
@@ -603,6 +623,7 @@ def enhance_photo(original_path: str, enhanced_abs: str, user_id: str = '', prof
         'size': _openai_size_for_aspect(original_size),
         'quality': 'medium',
         'output_format': 'jpeg',
+        'input_fidelity': photo_enhancer_input_fidelity(),
     }
     if user_id:
         fields['user'] = _clean_text(user_id, 64)

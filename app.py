@@ -15004,6 +15004,19 @@ def create_app():
             mes_inicial=today.month,
         )
 
+    @app.route('/faturacao/proprietarios')
+    @app.route('/faturacao_proprietarios')
+    @login_required
+    def faturacao_proprietarios_page():
+        today = date.today()
+        first_day = today.replace(day=1)
+        last_day = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+        return render_template(
+            'faturacao_proprietarios.html',
+            data_ini=first_day.isoformat(),
+            data_fim=last_day.isoformat(),
+        )
+
     @app.route('/emissao_saft')
     @app.route('/faturacao/emissao_saft')
     @login_required
@@ -20168,6 +20181,401 @@ def create_app():
                 'PDF_OK': pdf_ok,
             })
         return jsonify({'ano': ano, 'mes': mes, 'rows': out})
+
+    def _ensure_faturacao_proprietarios_schema():
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.FAT_PROP_PHC_LOG', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.FAT_PROP_PHC_LOG (
+                    FATPROPSTAMP varchar(25) NOT NULL CONSTRAINT PK_FAT_PROP_PHC_LOG PRIMARY KEY,
+                    RSSTAMP varchar(25) NOT NULL,
+                    RESERVA varchar(80) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_RESERVA DEFAULT '',
+                    ALSTAMP varchar(25) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_ALSTAMP DEFAULT '',
+                    ALOJAMENTO varchar(120) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_ALOJAMENTO DEFAULT '',
+                    CLIENTE varchar(120) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_CLIENTE DEFAULT '',
+                    CLIENTE_NO numeric(10,0) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_CLIENTE_NO DEFAULT 0,
+                    DATAOUT date NULL,
+                    VALOR numeric(18,2) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_VALOR DEFAULT 0,
+                    STATUS varchar(20) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_STATUS DEFAULT 'PENDING',
+                    PHC_DOC varchar(80) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_PHC_DOC DEFAULT '',
+                    REQUEST_JSON nvarchar(max) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_REQUEST DEFAULT '',
+                    RESPONSE_JSON nvarchar(max) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_RESPONSE DEFAULT '',
+                    ERROR_MSG nvarchar(max) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_ERROR DEFAULT '',
+                    USERCRIACAO varchar(60) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_USER DEFAULT '',
+                    DTCRI datetime2(0) NOT NULL CONSTRAINT DF_FAT_PROP_PHC_LOG_DTCRI DEFAULT SYSUTCDATETIME(),
+                    DTALT datetime2(0) NULL
+                );
+                CREATE INDEX IX_FAT_PROP_PHC_LOG_RSSTAMP_STATUS ON dbo.FAT_PROP_PHC_LOG (RSSTAMP, STATUS);
+            END
+        """))
+        db.session.commit()
+        return True
+
+    def _faturacao_proprietarios_log_available():
+        try:
+            value = db.session.execute(text("SELECT OBJECT_ID('dbo.FAT_PROP_PHC_LOG', 'U')")).scalar()
+            return bool(value)
+        except Exception:
+            return False
+
+    def _try_ensure_faturacao_proprietarios_schema():
+        try:
+            return _ensure_faturacao_proprietarios_schema()
+        except Exception:
+            db.session.rollback()
+            app.logger.warning('Tabela FAT_PROP_PHC_LOG indisponivel; a listagem segue sem excluir envios anteriores.', exc_info=True)
+            return False
+
+    def _faturacao_proprietarios_table_cols(table_name: str):
+        try:
+            rows = db.session.execute(text("""
+                SELECT UPPER(COLUMN_NAME) AS CN
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = :table_name
+            """), {'table_name': table_name}).mappings().all()
+            return {str(r.get('CN') or '').upper() for r in rows}
+        except Exception:
+            return set()
+
+    def _faturacao_proprietarios_base_where(filters: dict):
+        where = [
+            "RS.DATAOUT IS NOT NULL",
+            "ISNULL(RS.CANCELADA,0) = 0",
+            "UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) = 'GESTAO'",
+            "LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) <> ''",
+        ]
+        if _faturacao_proprietarios_log_available():
+            where.append("""NOT EXISTS (
+                SELECT 1
+                FROM dbo.FAT_PROP_PHC_LOG L
+                WHERE L.RSSTAMP = RS.RSSTAMP
+                  AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
+            )""")
+        params = {}
+        data_ini = str(filters.get('data_ini') or '').strip()
+        data_fim = str(filters.get('data_fim') or '').strip()
+        alojamento = str(filters.get('alojamento') or '').strip()
+        cliente = str(filters.get('cliente') or '').strip()
+        if data_ini:
+            where.append("CAST(RS.DATAOUT AS date) >= :data_ini")
+            params['data_ini'] = data_ini
+        if data_fim:
+            where.append("CAST(RS.DATAOUT AS date) <= :data_fim")
+            params['data_fim'] = data_fim
+        if alojamento:
+            where.append("LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, AL.NOME))) = :alojamento")
+            params['alojamento'] = alojamento
+        if cliente:
+            where.append("LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) = :cliente")
+            params['cliente'] = cliente
+        return where, params
+
+    def _faturacao_proprietarios_select_sql(extra_where_sql: str = ""):
+        rs_cols = _faturacao_proprietarios_table_cols('RS')
+        al_cols = _faturacao_proprietarios_table_cols('AL')
+        cl_cols = _faturacao_proprietarios_table_cols('CL')
+        rs_reserva_expr = "LTRIM(RTRIM(ISNULL(RS.RESERVA,'')))" if 'RESERVA' in rs_cols else "''"
+        rs_nome_expr = "LTRIM(RTRIM(ISNULL(RS.NOME,'')))" if 'NOME' in rs_cols else "''"
+        rs_noites_expr = "ISNULL(RS.NOITES,0)" if 'NOITES' in rs_cols else "0"
+        rs_estadia_expr = "ISNULL(RS.ESTADIA,0)" if 'ESTADIA' in rs_cols else "0"
+        rs_limpeza_expr = "ISNULL(RS.LIMPEZA,0)" if 'LIMPEZA' in rs_cols else "0"
+        rs_comissao_expr = "ISNULL(RS.COMISSAO,0)" if 'COMISSAO' in rs_cols else "0"
+        rs_pcancel_expr = "ISNULL(RS.PCANCEL,0)" if 'PCANCEL' in rs_cols else "0"
+        al_alstamp_expr = "LTRIM(RTRIM(ISNULL(AL.ALSTAMP,'')))" if 'ALSTAMP' in al_cols else "''"
+        al_comissao_expr = "ISNULL(AL.COMISSAO,0)" if 'COMISSAO' in al_cols else "0"
+        al_ftlimpeza_expr = "ISNULL(AL.FTLIMPEZA,0)" if 'FTLIMPEZA' in al_cols else "0"
+        cl_no_expr = "ISNULL(CL.NO, 0)" if 'NO' in cl_cols else "0"
+        cl_nome_expr = "LTRIM(RTRIM(ISNULL(CL.NOME, AL.CLIENTE)))" if 'NOME' in cl_cols else "LTRIM(RTRIM(ISNULL(AL.CLIENTE,'')))"
+        cl_nif_expr = (
+            "LTRIM(RTRIM(CASE WHEN CL.NCONT IS NULL THEN '' ELSE CONVERT(varchar(40), CL.NCONT) END))"
+            if 'NCONT' in cl_cols else "''"
+        )
+        cl_bdphc_expr = "LTRIM(RTRIM(ISNULL(CL.BDPHC,'')))" if 'BDPHC' in cl_cols else "''"
+        faturar_expr = """
+            ROUND(CASE WHEN {al_ftlimpeza_expr} = 0 THEN
+              CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                THEN {rs_pcancel_expr}
+                ELSE {rs_estadia_expr} + {rs_limpeza_expr} - {rs_comissao_expr}
+              END * ({al_comissao_expr} / 100.0)
+            ELSE
+              CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                THEN {rs_pcancel_expr}
+                ELSE {rs_estadia_expr} - {rs_comissao_expr}
+              END * ({al_comissao_expr} / 100.0) + {rs_limpeza_expr}
+            END, 2)
+        """.format(
+            al_ftlimpeza_expr=al_ftlimpeza_expr,
+            rs_pcancel_expr=rs_pcancel_expr,
+            rs_estadia_expr=rs_estadia_expr,
+            rs_limpeza_expr=rs_limpeza_expr,
+            rs_comissao_expr=rs_comissao_expr,
+            al_comissao_expr=al_comissao_expr,
+        )
+        return f"""
+            SELECT
+              RS.RSSTAMP,
+              {rs_reserva_expr} AS RESERVA,
+              {al_alstamp_expr} AS ALSTAMP,
+              LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, AL.NOME))) AS ALOJAMENTO,
+              LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) AS CLIENTE,
+              {cl_no_expr} AS CLIENTE_NO,
+              {cl_nome_expr} AS CLIENTE_NOME,
+              {cl_nif_expr} AS CLIENTE_NIF,
+              {cl_bdphc_expr} AS CLIENTE_BDPHC,
+              {rs_nome_expr} AS HOSPEDE,
+              CAST(RS.DATAIN AS date) AS DATAIN,
+              CAST(RS.DATAOUT AS date) AS DATAOUT,
+              {rs_noites_expr} AS NOITES,
+              {rs_estadia_expr} AS ESTADIA,
+              {rs_limpeza_expr} AS LIMPEZA,
+              {rs_comissao_expr} AS COMISSAO_TG,
+              {al_comissao_expr} AS COMISSAO_PERC,
+              {al_ftlimpeza_expr} AS FTLIMPEZA,
+              {faturar_expr} AS VALOR_FATURAR
+            FROM dbo.RS RS
+            INNER JOIN dbo.AL AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
+            LEFT JOIN dbo.CL CL
+              ON LTRIM(RTRIM(ISNULL(CL.NOME,''))) = LTRIM(RTRIM(ISNULL(AL.CLIENTE,'')))
+            {extra_where_sql}
+        """
+
+    @app.route('/api/faturacao/proprietarios/options', methods=['GET'])
+    @login_required
+    def api_faturacao_proprietarios_options():
+        try:
+            _try_ensure_faturacao_proprietarios_schema()
+            rows = db.session.execute(text("""
+                SELECT DISTINCT
+                  LTRIM(RTRIM(ISNULL(AL.NOME,''))) AS ALOJAMENTO,
+                  LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) AS CLIENTE
+                FROM dbo.AL AL
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) = 'GESTAO'
+                  AND LTRIM(RTRIM(ISNULL(AL.NOME,''))) <> ''
+                  AND LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) <> ''
+                ORDER BY CLIENTE, ALOJAMENTO
+            """)).mappings().all()
+            alojamentos = []
+            clientes = []
+            seen_al = set()
+            seen_cl = set()
+            for row in rows:
+                aloj = str(row.get('ALOJAMENTO') or '').strip()
+                cli = str(row.get('CLIENTE') or '').strip()
+                if aloj and aloj.upper() not in seen_al:
+                    seen_al.add(aloj.upper())
+                    alojamentos.append(aloj)
+                if cli and cli.upper() not in seen_cl:
+                    seen_cl.add(cli.upper())
+                    clientes.append(cli)
+            return jsonify({'alojamentos': alojamentos, 'clientes': clientes})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar filtros de faturacao de proprietarios.')
+            return jsonify({'error': f'Erro ao carregar filtros: {exc}'}), 500
+
+    @app.route('/api/faturacao/proprietarios', methods=['GET'])
+    @login_required
+    def api_faturacao_proprietarios():
+        try:
+            _try_ensure_faturacao_proprietarios_schema()
+            filters = {
+                'data_ini': request.args.get('data_ini'),
+                'data_fim': request.args.get('data_fim'),
+                'alojamento': request.args.get('alojamento'),
+                'cliente': request.args.get('cliente'),
+            }
+            where, params = _faturacao_proprietarios_base_where(filters)
+            sql = _faturacao_proprietarios_select_sql("WHERE " + " AND ".join(where)) + """
+                ORDER BY CAST(RS.DATAOUT AS date), CLIENTE, ALOJAMENTO, RESERVA
+            """
+            rows = db.session.execute(text(sql), params).mappings().all()
+            out = []
+            for r in rows:
+                out.append({
+                    'RSSTAMP': str(r.get('RSSTAMP') or '').strip(),
+                    'RESERVA': str(r.get('RESERVA') or '').strip(),
+                    'ALSTAMP': str(r.get('ALSTAMP') or '').strip(),
+                    'ALOJAMENTO': str(r.get('ALOJAMENTO') or '').strip(),
+                    'CLIENTE': str(r.get('CLIENTE') or '').strip(),
+                    'CLIENTE_NO': int(r.get('CLIENTE_NO') or 0),
+                    'CLIENTE_NOME': str(r.get('CLIENTE_NOME') or '').strip(),
+                    'CLIENTE_NIF': str(r.get('CLIENTE_NIF') or '').strip(),
+                    'CLIENTE_BDPHC': str(r.get('CLIENTE_BDPHC') or '').strip(),
+                    'CONFIG_OK': 1 if str(r.get('CLIENTE_BDPHC') or '').strip() else 0,
+                    'CONFIG_WARNINGS': [] if str(r.get('CLIENTE_BDPHC') or '').strip() else ['BDPHC em falta'],
+                    'HOSPEDE': str(r.get('HOSPEDE') or '').strip(),
+                    'DATAIN': r.get('DATAIN').isoformat() if r.get('DATAIN') else '',
+                    'DATAOUT': r.get('DATAOUT').isoformat() if r.get('DATAOUT') else '',
+                    'NOITES': int(r.get('NOITES') or 0),
+                    'ESTADIA': float(r.get('ESTADIA') or 0),
+                    'LIMPEZA': float(r.get('LIMPEZA') or 0),
+                    'COMISSAO_TG': float(r.get('COMISSAO_TG') or 0),
+                    'COMISSAO_PERC': float(r.get('COMISSAO_PERC') or 0),
+                    'FTLIMPEZA': int(r.get('FTLIMPEZA') or 0),
+                    'VALOR_FATURAR': float(r.get('VALOR_FATURAR') or 0),
+                })
+            return jsonify({'rows': out})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar reservas de faturacao de proprietarios.')
+            return jsonify({'error': f'Erro ao carregar reservas: {exc}'}), 500
+
+    def _build_faturacao_proprietarios_phc_payload(rows, user_login: str):
+        docs = []
+        for r in rows:
+            dataout = r.get('DATAOUT')
+            datain = r.get('DATAIN') or dataout
+            dataout_iso = dataout.isoformat() if hasattr(dataout, 'isoformat') and dataout else ''
+            datain_iso = datain.isoformat() if hasattr(datain, 'isoformat') and datain else ''
+            docs.append({
+                'external_id': str(r.get('RSSTAMP') or '').strip(),
+                'reserva': str(r.get('RESERVA') or '').strip(),
+                'cliente': {
+                    'no': int(r.get('CLIENTE_NO') or 0),
+                    'nome': str(r.get('CLIENTE_NOME') or r.get('CLIENTE') or '').strip(),
+                    'nif': str(r.get('CLIENTE_NIF') or '').strip(),
+                    'bdphc': str(r.get('CLIENTE_BDPHC') or '').strip(),
+                },
+                'alojamento': {
+                    'alstamp': str(r.get('ALSTAMP') or '').strip(),
+                    'nome': str(r.get('ALOJAMENTO') or '').strip(),
+                },
+                'reserva_datas': {
+                    'checkin': datain_iso,
+                    'checkout': dataout_iso,
+                    'noites': int(r.get('NOITES') or 0),
+                },
+                'linha': {
+                    'ref': 'GESTAO_RESERVA',
+                    'design': f"Comissao gestao reserva {str(r.get('RESERVA') or '').strip()}".strip()[:120],
+                    'quantidade': 1,
+                    'valor': round(float(r.get('VALOR_FATURAR') or 0), 2),
+                    'iva': 23,
+                },
+                'valores_origem': {
+                    'estadia': round(float(r.get('ESTADIA') or 0), 2),
+                    'limpeza': round(float(r.get('LIMPEZA') or 0), 2),
+                    'comissao_tg': round(float(r.get('COMISSAO_TG') or 0), 2),
+                    'comissao_perc': round(float(r.get('COMISSAO_PERC') or 0), 2),
+                    'ftlimpeza': int(r.get('FTLIMPEZA') or 0),
+                },
+            })
+        return {
+            'source': 'stationzero',
+            'type': 'owner_management_reservation_invoice_request',
+            'requested_at': datetime.now().isoformat(timespec='seconds'),
+            'requested_by': user_login,
+            'documents': docs,
+        }
+
+    def _send_faturacao_proprietarios_to_phc(payload: dict):
+        endpoint = os.environ.get('PHC_OWNER_BILLING_ENDPOINT', '').strip()
+        token = os.environ.get('PHC_OWNER_BILLING_TOKEN', '').strip()
+        timeout = _to_int(os.environ.get('PHC_OWNER_BILLING_TIMEOUT'), 35)
+        if not endpoint:
+            return {'ok': True, 'dry_run': True, 'message': 'PHC_OWNER_BILLING_ENDPOINT nao configurado.', 'payload': payload}
+        body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
+        headers = {'Content-Type': 'application/json; charset=utf-8', 'Accept': 'application/json'}
+        if token:
+            headers['Authorization'] = f'Bearer {token}'
+        req = Request(endpoint, data=body, headers=headers, method='POST')
+        try:
+            with urlopen(req, timeout=timeout) as resp:
+                raw = resp.read().decode('utf-8', errors='replace')
+                try:
+                    data = json.loads(raw) if raw else {}
+                except Exception:
+                    data = {'raw': raw}
+                return {'ok': 200 <= int(resp.status) < 300, 'dry_run': False, 'status_code': int(resp.status), 'response': data}
+        except HTTPError as exc:
+            raw = exc.read().decode('utf-8', errors='replace')
+            return {'ok': False, 'dry_run': False, 'status_code': int(exc.code), 'error': raw or str(exc)}
+        except URLError as exc:
+            return {'ok': False, 'dry_run': False, 'error': str(exc)}
+
+    @app.route('/api/faturacao/proprietarios/enviar-phc', methods=['POST'])
+    @login_required
+    def api_faturacao_proprietarios_enviar_phc():
+        _ensure_faturacao_proprietarios_schema()
+        body = request.get_json(silent=True) or {}
+        rsstamps = [str(x or '').strip() for x in (body.get('rsstamps') or []) if str(x or '').strip()]
+        if not rsstamps:
+            return jsonify({'error': 'Sem reservas selecionadas.'}), 400
+        if len(rsstamps) > 300:
+            return jsonify({'error': 'Seleciona no maximo 300 reservas de cada vez.'}), 400
+
+        placeholders = []
+        params = {}
+        for idx, stamp in enumerate(rsstamps):
+            key = f'rs{idx}'
+            placeholders.append(f':{key}')
+            params[key] = stamp
+        sql = _faturacao_proprietarios_select_sql(
+            "WHERE RS.RSSTAMP IN (" + ",".join(placeholders) + ")"
+            " AND RS.DATAOUT IS NOT NULL"
+            " AND ISNULL(RS.CANCELADA,0) = 0"
+            " AND UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) = 'GESTAO'"
+            " AND LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) <> ''"
+            " AND NOT EXISTS ("
+            "   SELECT 1 FROM dbo.FAT_PROP_PHC_LOG L"
+            "   WHERE L.RSSTAMP = RS.RSSTAMP"
+            "     AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')"
+            " )"
+        ) + " ORDER BY CLIENTE, DATAOUT, ALOJAMENTO, RESERVA"
+        rows = [dict(r) for r in db.session.execute(text(sql), params).mappings().all()]
+        if not rows:
+            return jsonify({'error': 'Nenhuma das reservas selecionadas esta elegivel para envio.'}), 400
+
+        missing_config = [
+            {
+                'RSSTAMP': str(row.get('RSSTAMP') or '').strip(),
+                'RESERVA': str(row.get('RESERVA') or '').strip(),
+                'CLIENTE': str(row.get('CLIENTE_NOME') or row.get('CLIENTE') or '').strip(),
+                'missing': ['BDPHC'],
+            }
+            for row in rows
+            if not str(row.get('CLIENTE_BDPHC') or '').strip()
+        ]
+        if missing_config:
+            return jsonify({
+                'error': 'Existem proprietarios sem configuracao PHC obrigatoria.',
+                'missing_config': missing_config,
+            }), 400
+
+        user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+        payload = _build_faturacao_proprietarios_phc_payload(rows, user_login)
+        result = _send_faturacao_proprietarios_to_phc(payload)
+        status = 'SENT' if result.get('ok') and not result.get('dry_run') else ('DRY_RUN' if result.get('dry_run') else 'ERROR')
+        response_json = json.dumps(result, ensure_ascii=False, default=str)
+        request_json = json.dumps(payload, ensure_ascii=False, default=str)
+        for row in rows:
+            db.session.execute(text("""
+                INSERT INTO dbo.FAT_PROP_PHC_LOG
+                (FATPROPSTAMP, RSSTAMP, RESERVA, ALSTAMP, ALOJAMENTO, CLIENTE, CLIENTE_NO, DATAOUT, VALOR,
+                 STATUS, PHC_DOC, REQUEST_JSON, RESPONSE_JSON, ERROR_MSG, USERCRIACAO, DTCRI, DTALT)
+                VALUES
+                (:stamp, :rsstamp, :reserva, :alstamp, :alojamento, :cliente, :cliente_no, :dataout, :valor,
+                 :status, :phc_doc, :request_json, :response_json, :error_msg, :user, SYSUTCDATETIME(), SYSUTCDATETIME())
+            """), {
+                'stamp': _new_stamp_25(),
+                'rsstamp': str(row.get('RSSTAMP') or '').strip(),
+                'reserva': str(row.get('RESERVA') or '').strip()[:80],
+                'alstamp': str(row.get('ALSTAMP') or '').strip()[:25],
+                'alojamento': str(row.get('ALOJAMENTO') or '').strip()[:120],
+                'cliente': str(row.get('CLIENTE') or '').strip()[:120],
+                'cliente_no': int(row.get('CLIENTE_NO') or 0),
+                'dataout': row.get('DATAOUT'),
+                'valor': round(float(row.get('VALOR_FATURAR') or 0), 2),
+                'status': status,
+                'phc_doc': str((result.get('response') or {}).get('documento') or (result.get('response') or {}).get('doc') or '')[:80] if isinstance(result.get('response'), dict) else '',
+                'request_json': request_json,
+                'response_json': response_json,
+                'error_msg': str(result.get('error') or '')[:4000],
+                'user': user_login[:60],
+            })
+        db.session.commit()
+        return jsonify({'ok': bool(result.get('ok')), 'status': status, 'sent': len(rows), 'result': result, 'payload': payload})
 
     def _month_bounds(ano: int, mes: int):
         try:
