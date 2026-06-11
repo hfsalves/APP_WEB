@@ -24330,6 +24330,7 @@ def create_app():
         try:
             ensure_dashboard_links_schema()
             ensure_dashboard_links_for_user(getattr(current_user, 'USSTAMP', ''))
+            _ensure_gr_management_summary_widget_for_current_user()
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao preparar Dashboard Links.')
@@ -25686,12 +25687,102 @@ def create_app():
             'totals': totals,
         })
 
+    def _ensure_gr_management_summary_widget_for_current_user():
+        allowed_logins = {'sa', 'acruz', 'hgaspar'}
+        current_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+        if current_login.lower() not in allowed_logins:
+            return
+
+        widget_name = 'MAPA_GESTAO_GR_RESUMO'
+        config = json.dumps({'handler': 'gr_management_map_summary'}, ensure_ascii=False)
+        filtros = json.dumps({
+            'fields': [
+                {
+                    'key': 'ano',
+                    'label': 'Ano',
+                    'input_type': 'number',
+                    'default': 'CURRENT_YEAR',
+                    'required': True,
+                }
+            ]
+        }, ensure_ascii=False)
+        widget_row = db.session.execute(text("""
+            SELECT TOP 1 WIDGETSSTAMP
+            FROM dbo.WIDGETS
+            WHERE NOME = :nome
+        """), {'nome': widget_name}).mappings().first()
+        if widget_row:
+            db.session.execute(text("""
+                UPDATE dbo.WIDGETS
+                SET TITULO = :titulo,
+                    TIPO = 'ANALISE',
+                    FONTE = 'HSOLS_MASTER',
+                    URL = :url,
+                    CONFIG = :config,
+                    FILTROS = :filtros,
+                    ATIVO = 1
+                WHERE NOME = :nome
+            """), {
+                'nome': widget_name,
+                'titulo': 'Mapa Gestão GR',
+                'url': '/gr_planning/mapa_gestao_gr',
+                'config': config,
+                'filtros': filtros,
+            })
+        else:
+            db.session.execute(text("""
+                INSERT INTO dbo.WIDGETS (WIDGETSSTAMP, NOME, TITULO, TIPO, FONTE, URL, CONFIG, FILTROS, ATIVO)
+                VALUES (:stamp, :nome, :titulo, 'ANALISE', 'HSOLS_MASTER', :url, :config, :filtros, 1)
+            """), {
+                'stamp': uuid.uuid4().hex.upper()[:25],
+                'nome': widget_name,
+                'titulo': 'Mapa Gestão GR',
+                'url': '/gr_planning/mapa_gestao_gr',
+                'config': config,
+                'filtros': filtros,
+            })
+
+        user_rows = db.session.execute(text("""
+            SELECT LTRIM(RTRIM(ISNULL(LOGIN, ''))) AS LOGIN
+            FROM dbo.US
+            WHERE LOWER(LTRIM(RTRIM(ISNULL(LOGIN, '')))) IN ('sa', 'acruz', 'hgaspar')
+        """)).mappings().all()
+        target_logins = {str(row.get('LOGIN') or '').strip() for row in user_rows if str(row.get('LOGIN') or '').strip()}
+        target_logins.add(current_login)
+        for login in sorted(target_logins):
+            existing = db.session.execute(text("""
+                SELECT TOP 1 USWIDGETSSTAMP
+                FROM dbo.USWIDGETS
+                WHERE WIDGET = :widget
+                  AND UTILIZADOR = :utilizador
+            """), {'widget': widget_name, 'utilizador': login}).scalar()
+            if existing:
+                db.session.execute(text("""
+                    UPDATE dbo.USWIDGETS
+                    SET COLUNA = 1,
+                        ORDEM = 1,
+                        VISIVEL = 1,
+                        MAXHEIGHT = 360
+                    WHERE USWIDGETSSTAMP = :stamp
+                """), {'stamp': existing})
+            else:
+                db.session.execute(text("""
+                    INSERT INTO dbo.USWIDGETS (USWIDGETSSTAMP, UTILIZADOR, WIDGET, COLUNA, ORDEM, VISIVEL, MAXHEIGHT)
+                    VALUES (:stamp, :utilizador, :widget, 1, 1, 1, 360)
+                """), {
+                    'stamp': uuid.uuid4().hex.upper()[:25],
+                    'utilizador': login,
+                    'widget': widget_name,
+                })
+        db.session.commit()
+
     @app.route('/api/dashboard')
     @login_required
     def api_dashboard_widgets():
         try:
             ensure_dashboard_links_schema()
             ensure_dashboard_links_for_user(getattr(current_user, 'USSTAMP', ''))
+            _ensure_gr_management_summary_widget_for_current_user()
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao preparar Dashboard Links.')
@@ -25908,11 +25999,80 @@ def create_app():
 
         try:
             config = json.loads(widget.CONFIG or '{}')
+            handler = str(config.get('handler') or '').strip()
             query = config.get('query')
-            if not query:
+            if handler == 'gr_management_map_summary':
+                query = ''
+            elif not query:
                 return jsonify({'error': 'Query não definida no config'}), 400
         except Exception as e:
             return jsonify({'error': f'Config inválido: {e}'}), 400
+
+        if handler == 'gr_management_map_summary':
+            try:
+                try:
+                    ano = int((filters or {}).get('ano') or date.today().year)
+                except Exception:
+                    ano = date.today().year
+                if ano < 2000 or ano > 2100:
+                    ano = date.today().year
+
+                today = date.today()
+                start = date(ano, 1, 1)
+                if ano == today.year:
+                    end_exclusive = date(today.year, today.month, 1)
+                else:
+                    end_exclusive = date(ano + 1, 1, 1)
+
+                from modules.gr_management_map.routes import _hsols_master_conn_str
+
+                sql = """
+                    WITH Custos AS (
+                        SELECT
+                            UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')) AS ORIGEM,
+                            SUM(ISNULL(TOTAL, 0)) AS CUSTOS
+                        FROM dbo.V_CUSTO_ORIGENS
+                        WHERE DATA >= ? AND DATA < ?
+                          AND LTRIM(RTRIM(ISNULL(BDADOS, ''))) <> ''
+                        GROUP BY UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_'))
+                    ),
+                    Proveitos AS (
+                        SELECT
+                            UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')) AS ORIGEM,
+                            SUM(ISNULL(ETTILIQ, 0)) AS PROVEITOS
+                        FROM dbo.V_FT_ORIGENS
+                        WHERE FDATA >= ? AND FDATA < ?
+                          AND LTRIM(RTRIM(ISNULL(BDADOS, ''))) <> ''
+                        GROUP BY UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_'))
+                    )
+                    SELECT
+                        COALESCE(P.ORIGEM, C.ORIGEM) AS ORIGEM,
+                        ISNULL(P.PROVEITOS, 0) AS PROVEITOS,
+                        ISNULL(C.CUSTOS, 0) AS CUSTOS,
+                        ISNULL(P.PROVEITOS, 0) - ISNULL(C.CUSTOS, 0) AS RESULTADO
+                    FROM Proveitos P
+                    FULL OUTER JOIN Custos C ON C.ORIGEM = P.ORIGEM
+                    ORDER BY COALESCE(P.ORIGEM, C.ORIGEM)
+                """
+                with pyodbc.connect(_hsols_master_conn_str(), timeout=20) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(sql, start, end_exclusive, start, end_exclusive)
+                    columns = [col[0] for col in cursor.description or []]
+                    rows = []
+                    for row in cursor.fetchall():
+                        item = {}
+                        for col, val in zip(columns, row):
+                            if isinstance(val, Decimal):
+                                item[col] = float(val)
+                            elif isinstance(val, (date, datetime)):
+                                item[col] = val.strftime('%Y-%m-%d')
+                            else:
+                                item[col] = val
+                        rows.append(item)
+                return jsonify({'columns': ['ORIGEM', 'PROVEITOS', 'CUSTOS', 'RESULTADO'], 'rows': rows})
+            except Exception as e:
+                current_app.logger.exception('Erro ao executar widget GR Management Map Summary')
+                return jsonify({'error': f'Erro ao executar widget GR: {e}'}), 500
 
         # Prepara bind params apenas para as keys presentes na query (simples heurística por prefixo :)
         bind_params = {}
