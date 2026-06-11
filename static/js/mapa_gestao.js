@@ -2,6 +2,8 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   const anoInput = document.getElementById('mapAno');
+  const dataIniInput = document.getElementById('mapDataIni');
+  const dataFimInput = document.getElementById('mapDataFim');
   const diffEnableEl = document.getElementById('mapDiffEnable');
   const diffPctEl = document.getElementById('mapDiffPct');
   const showBudgetEl = document.getElementById('mapShowBudget');
@@ -44,6 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const totalLbl = document.getElementById('mapTotal');
   const filtrosLbl = document.getElementById('mapFiltros');
   const defaultYear = window.MAPA_ANO_PADRAO || new Date().getFullYear();
+  const defaultDataIni = window.MAPA_DATA_INI_PADRAO || `${defaultYear}-01-01`;
+  const defaultDataFim = window.MAPA_DATA_FIM_PADRAO || `${defaultYear}-12-31`;
   const modalCcusto = ccModalEl ? new bootstrap.Modal(ccModalEl) : null;
   let ccOptions = []; // [{ccusto, tipo}]
   let ccSelected = new Set();
@@ -90,6 +94,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (anoInput && !anoInput.value) {
     anoInput.value = defaultYear;
   }
+  if (dataIniInput && !dataIniInput.value) dataIniInput.value = defaultDataIni;
+  if (dataFimInput && !dataFimInput.value) dataFimInput.value = defaultDataFim;
 
   // evidenciar diferenças vs orçamento (persistência)
   const savedPct = localStorage.getItem('mapDiffPct');
@@ -106,6 +112,49 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  function parseIsoDate(value) {
+    const raw = String(value || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+    const d = new Date(`${raw}T00:00:00`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  function getDateFilters() {
+    let ini = String(dataIniInput?.value || defaultDataIni || '').trim();
+    let fim = String(dataFimInput?.value || defaultDataFim || '').trim();
+    const dIni = parseIsoDate(ini);
+    const dFim = parseIsoDate(fim);
+    if (!dIni) ini = defaultDataIni;
+    if (!dFim) fim = defaultDataFim;
+    if (parseIsoDate(ini) && parseIsoDate(fim) && parseIsoDate(fim) < parseIsoDate(ini)) {
+      fim = ini;
+      if (dataFimInput) dataFimInput.value = fim;
+    }
+    const ano = Number(String(ini).slice(0, 4)) || defaultYear;
+    if (anoInput) anoInput.value = String(ano);
+    return { data_ini: ini, data_fim: fim, ano };
+  }
+
+  function addDateFilters(qs) {
+    const f = getDateFilters();
+    qs.set('ano', String(f.ano));
+    qs.set('data_ini', f.data_ini);
+    qs.set('data_fim', f.data_fim);
+    return f;
+  }
+
+  function formatDatePt(iso) {
+    const d = parseIsoDate(iso);
+    if (!d) return String(iso || '');
+    return d.toLocaleDateString('pt-PT');
+  }
+
+  function selectedPeriodEndMonth() {
+    const f = getDateFilters();
+    const d = parseIsoDate(f.data_fim) || new Date();
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
   }
 
   function setView(view) {
@@ -128,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderCharts() {
     if (typeof Chart === 'undefined') return;
 
-    // KPIs (Totais do ano)
+    // KPIs (totais do período)
     {
       const salesMain = document.getElementById('mapKpiSalesMain');
       const salesSub = document.getElementById('mapKpiSalesSub');
@@ -256,10 +305,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (kpi6Sub) {
         const rawTot = lastKpis?.reservas_ano_total;
-        if (rawTot === null || rawTot === undefined || rawTot === '') kpi6Sub.textContent = 'Total ano: --';
+        if (rawTot === null || rawTot === undefined || rawTot === '') kpi6Sub.textContent = 'Total período: --';
         else {
           const n = Number(rawTot);
-          kpi6Sub.textContent = isFinite(n) ? `Total ano: ${fmtCur.format(n)}` : 'Total ano: --';
+          kpi6Sub.textContent = isFinite(n) ? `Total período: ${fmtCur.format(n)}` : 'Total período: --';
         }
       }
 
@@ -273,10 +322,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (kpi7Sub) {
         const rawTot = lastKpis?.faturado_ano_total;
-        if (rawTot === null || rawTot === undefined || rawTot === '') kpi7Sub.textContent = 'Total até hoje: --';
+        if (rawTot === null || rawTot === undefined || rawTot === '') kpi7Sub.textContent = 'Total período: --';
         else {
           const n = Number(rawTot);
-          kpi7Sub.textContent = isFinite(n) ? `Total até hoje: ${fmtCur.format(n)}` : 'Total até hoje: --';
+          kpi7Sub.textContent = isFinite(n) ? `Total período: ${fmtCur.format(n)}` : 'Total período: --';
         }
       }
     }
@@ -559,6 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const countryBodyEl = document.getElementById('mapCountryBody');
   const countryTotalEl = document.getElementById('mapCountryTotal');
   let countryYear = null;
+  let countryUseContextPeriod = false;
   let countryRowsCache = [];
   let countryTotalValCache = 0;
   let countrySort = { key: 'valor', dir: 'desc' }; // default: maior valor
@@ -1199,12 +1249,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadCountryStats(ano) {
     if (!countryModalEl || !countryBodyEl) return;
-    if (countryMonthLabelEl) countryMonthLabelEl.textContent = `Ano ${ano}`;
     countryBodyEl.innerHTML = '<tr><td colspan="8" class="text-center text-muted">A carregar...</td></tr>';
     if (countryTotalEl) countryTotalEl.textContent = 'Total: --';
 
     const ccustos = getSelectedCcustos();
     const qs = new URLSearchParams({ ano: String(ano) });
+    if (countryUseContextPeriod) {
+      const f = addDateFilters(qs);
+      if (countryMonthLabelEl) countryMonthLabelEl.textContent = `${formatDatePt(f.data_ini)} a ${formatDatePt(f.data_fim)}`;
+    } else if (countryMonthLabelEl) {
+      countryMonthLabelEl.textContent = `Ano ${ano}`;
+    }
     if (ccustos.length) qs.set('ccustos', ccustos.join(','));
 
     let data;
@@ -1309,9 +1364,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('mapKpi6Card')?.addEventListener('click', () => {
-    const now = new Date();
-    resDailyYear = parseInt(anoInput?.value, 10) || now.getFullYear();
-    resDailyMonth = now.getMonth() + 1;
+    const period = selectedPeriodEndMonth();
+    resDailyYear = period.year;
+    resDailyMonth = period.month;
     resDailyModal?.show();
     // esperar a animação do modal para garantir canvas com tamanho
     setTimeout(loadResDaily, 150);
@@ -1332,9 +1387,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('mapKpi7Card')?.addEventListener('click', () => {
-    const now = new Date();
-    fatDailyYear = parseInt(anoInput?.value, 10) || now.getFullYear();
-    fatDailyMonth = now.getMonth() + 1;
+    const period = selectedPeriodEndMonth();
+    fatDailyYear = period.year;
+    fatDailyMonth = period.month;
     fatDailyModal?.show();
     setTimeout(loadFatDaily, 150);
   });
@@ -1354,9 +1409,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('mapKpiAdrCard')?.addEventListener('click', () => {
-    const now = new Date();
-    adrDailyYear = parseInt(anoInput?.value, 10) || now.getFullYear();
-    adrDailyMonth = now.getMonth() + 1;
+    const period = selectedPeriodEndMonth();
+    adrDailyYear = period.year;
+    adrDailyMonth = period.month;
     adrDailyModal?.show();
     setTimeout(loadAdrDaily, 150);
   });
@@ -1376,9 +1431,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('mapKpiCostsCard')?.addEventListener('click', () => {
-    const now = new Date();
-    costsRubricsYear = parseInt(anoInput?.value, 10) || now.getFullYear();
-    costsRubricsMonth = now.getMonth() + 1;
+    const period = selectedPeriodEndMonth();
+    costsRubricsYear = period.year;
+    costsRubricsMonth = period.month;
     costsRubricModal?.show();
     setTimeout(() => renderCostsRubricsChart(costsRubricsYear, costsRubricsMonth), 150);
   });
@@ -1398,9 +1453,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('mapKpiSalesCard')?.addEventListener('click', () => {
-    const now = new Date();
-    salesAlojYear = parseInt(anoInput?.value, 10) || now.getFullYear();
-    salesAlojMonth = now.getMonth() + 1;
+    const period = selectedPeriodEndMonth();
+    salesAlojYear = period.year;
+    salesAlojMonth = period.month;
     salesAlojModal?.show();
     setTimeout(() => loadSalesAloj(salesAlojYear, salesAlojMonth), 150);
   });
@@ -1420,9 +1475,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('mapKpiMarginCard')?.addEventListener('click', () => {
-    const now = new Date();
-    marginAlojYear = parseInt(anoInput?.value, 10) || now.getFullYear();
-    marginAlojMonth = now.getMonth() + 1;
+    const period = selectedPeriodEndMonth();
+    marginAlojYear = period.year;
+    marginAlojMonth = period.month;
     marginAlojModal?.show();
     setTimeout(() => loadMarginAloj(marginAlojYear, marginAlojMonth), 150);
   });
@@ -1433,12 +1488,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const baseYear = Number(countryYear || parseInt(anoInput?.value, 10) || new Date().getFullYear());
     const y = baseYear + Number(delta || 0);
     countryYear = y;
+    countryUseContextPeriod = false;
     loadCountryStats(y);
   }
 
   document.getElementById('mapKpiResCard')?.addEventListener('click', () => {
-    const now = new Date();
-    countryYear = parseInt(anoInput?.value, 10) || now.getFullYear();
+    countryYear = getDateFilters().ano;
+    countryUseContextPeriod = true;
     countryModal?.show();
     setTimeout(() => loadCountryStats(countryYear), 150);
   });
@@ -1570,9 +1626,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadMapa() {
     setLoading('A carregar...');
-    const ano = parseInt(anoInput?.value, 10) || defaultYear;
     const ccustos = getSelectedCcustos();
-    const qs = new URLSearchParams({ ano: String(ano) });
+    const qs = new URLSearchParams();
+    const dateFilters = addDateFilters(qs);
     if (ccustos.length) qs.set('ccustos', ccustos.join(','));
 
     try {
@@ -1597,6 +1653,8 @@ document.addEventListener('DOMContentLoaded', () => {
       updateBudgetAvailability();
       renderTabela();
       if (currentView === 'charts') renderCharts();
+      if (totalLbl) totalLbl.textContent = `Analise de ${formatDatePt(data.data_ini || dateFilters.data_ini)} a ${formatDatePt(data.data_fim || dateFilters.data_fim)}.`;
+      if (filtrosLbl) filtrosLbl.textContent = ccustos.length && ccustos.length !== ccOptions.length ? `${ccustos.length} centro(s) selecionado(s)` : '';
     } catch (err) {
       console.error(err);
       setLoading(err.message || 'Erro ao carregar dados');
@@ -2061,9 +2119,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function openDetalhe(ref, mes, nome, level) {
     if (!detailBody || !detailModal) return;
-    const ano = parseInt(anoInput?.value, 10) || defaultYear;
     const ccustos = getSelectedCcustos();
-    const qs = new URLSearchParams({ ano: String(ano), familia: ref });
+    const qs = new URLSearchParams({ familia: ref });
+    addDateFilters(qs);
     if (mes && mes !== 'all') qs.set('mes', mes);
     if (ccustos.length) qs.set('ccustos', ccustos.join(','));
     if (level <= 2) qs.set('include_children', '1');
@@ -2132,6 +2190,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnLimpar) btnLimpar.addEventListener('click', () => {
     ccSelected = new Set(ccOptions.map(o => o.ccusto)); // todos
     if (anoInput) anoInput.value = defaultYear;
+    if (dataIniInput) dataIniInput.value = defaultDataIni;
+    if (dataFimInput) dataFimInput.value = defaultDataFim;
     updateCcSummary();
     renderCcList();
     loadMapa();

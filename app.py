@@ -26886,10 +26886,43 @@ OPTION (MAXRECURSION 32767);
             radar_error=radar_error
         ), status_code
 
+    def _mapa_gestao_default_period(today=None):
+        today = today or date.today()
+        if today.month == 1:
+            year = today.year - 1
+            return date(year, 1, 1), date(year, 12, 31)
+        return date(today.year, 1, 1), date(today.year, today.month, 1) - timedelta(days=1)
+
+    def _mapa_gestao_parse_date_arg(name, fallback):
+        raw = (request.args.get(name) or '').strip()
+        if not raw:
+            return fallback
+        try:
+            return datetime.strptime(raw[:10], '%Y-%m-%d').date()
+        except Exception:
+            raise ValueError(f'{name} invalida')
+
+    def _mapa_gestao_period_args():
+        default_ini, default_fim = _mapa_gestao_default_period()
+        data_ini = _mapa_gestao_parse_date_arg('data_ini', default_ini)
+        data_fim = _mapa_gestao_parse_date_arg('data_fim', default_fim)
+        if data_fim < data_ini:
+            raise ValueError('data final inferior a data inicial')
+        if data_ini.year != data_fim.year:
+            raise ValueError('o periodo deve estar dentro do mesmo ano')
+        return data_ini, data_fim, data_fim + timedelta(days=1), data_ini.year
+
     @app.route('/mapa-gestao')
     @login_required
     def mapa_gestao_page():
-        return render_template('mapa_gestao.html', page_title='Mapa de Gestao', ano_atual=date.today().year)
+        data_ini, data_fim = _mapa_gestao_default_period()
+        return render_template(
+            'mapa_gestao.html',
+            page_title='Mapa de Gestao',
+            ano_atual=data_ini.year,
+            data_ini_default=data_ini.isoformat(),
+            data_fim_default=data_fim.isoformat()
+        )
 
     @app.route('/mapa-controlo')
     @login_required
@@ -27348,9 +27381,10 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def api_mapa_gestao():
         try:
-            ano = request.args.get('ano', type=int) or date.today().year
-        except Exception:
-            ano = date.today().year
+            data_ini, data_fim, data_fim_excl, ano = _mapa_gestao_period_args()
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        period_months = set(range(data_ini.month, data_fim.month + 1))
 
         ccustos_raw = (request.args.get('ccustos') or '').strip()
         ccustos = [c.strip() for c in ccustos_raw.split(',') if c.strip()]
@@ -27401,8 +27435,8 @@ OPTION (MAXRECURSION 32767);
                 return False
 
         # Custos por familia/mes
-        where_parts = ["YEAR(DATA) = :ano"]
-        params = {'ano': ano}
+        where_parts = ["DATA >= :data_ini", "DATA < :data_fim_excl"]
+        params = {'data_ini': data_ini, 'data_fim_excl': data_fim_excl}
         if ccustos:
             keys = []
             for idx, cc in enumerate(ccustos):
@@ -27444,8 +27478,8 @@ OPTION (MAXRECURSION 32767);
         # Orçamento (OC) por familia/mes (custos)
         try:
             oc_rows = db.session.execute(
-                text("SELECT FAMILIA, MES, VALOR FROM OC WHERE ANO = :ano"),
-                {'ano': ano}
+                text("SELECT FAMILIA, MES, VALOR FROM OC WHERE ANO = :ano AND MES BETWEEN :mes_ini AND :mes_fim"),
+                {'ano': ano, 'mes_ini': data_ini.month, 'mes_fim': data_fim.month}
             ).fetchall()
         except Exception as e:
             return jsonify({'error': f'Erro ao obter orçamento (OC): {e}'}), 500
@@ -27458,6 +27492,8 @@ OPTION (MAXRECURSION 32767);
                 mes = None
             valor = float(row[2] or 0)
             if not familia or mes is None or mes < 1 or mes > 12:
+                continue
+            if mes not in period_months:
                 continue
             if is_prov_ref(familia):
                 continue
@@ -27539,6 +27575,8 @@ OPTION (MAXRECURSION 32767);
         ensure_node('9.1')
         ensure_node('9.2')
         for i in range(12):
+            if (i + 1) not in period_months:
+                continue
             familias_map['9.1']['orc_meses'][i] += expl[i]
             familias_map['9.1']['orc_total'] += expl[i]
             familias_map['9.2']['orc_meses'][i] += gest[i]
@@ -27586,13 +27624,14 @@ OPTION (MAXRECURSION 32767);
         kpi_rs_hospedes = 0
         try:
             where_rs = [
-                "YEAR(ISNULL(RS.DATAOUT, RS.DATAIN)) = :ano",
+                "ISNULL(RS.DATAOUT, RS.DATAIN) >= :data_ini",
+                "ISNULL(RS.DATAOUT, RS.DATAIN) < :data_fim_excl",
                 "ISNULL(RS.CANCELADA,0) = 0",
                 "ISNULL(RS.NOITES,0) > 0",
                 # excluir reservas do proprietario (valor medio/noite = 0)
                 "ABS(((ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0)) - ISNULL(RS.COMISSAO,0))) > 0.005",
             ]
-            params_rs = {'ano': ano}
+            params_rs = {'data_ini': data_ini, 'data_fim_excl': data_fim_excl}
             if ccustos:
                 keys = []
                 for idx, cc in enumerate(ccustos):
@@ -27629,8 +27668,12 @@ OPTION (MAXRECURSION 32767);
 
         # KPI: numero de reservas + numero de hospedes (adultos+criancas)
         try:
-            where_rs2 = ["YEAR(ISNULL(RS.DATAOUT, RS.DATAIN)) = :ano", "ISNULL(RS.CANCELADA,0) = 0"]
-            params_rs2 = {'ano': ano}
+            where_rs2 = [
+                "ISNULL(RS.DATAOUT, RS.DATAIN) >= :data_ini",
+                "ISNULL(RS.DATAOUT, RS.DATAIN) < :data_fim_excl",
+                "ISNULL(RS.CANCELADA,0) = 0"
+            ]
+            params_rs2 = {'data_ini': data_ini, 'data_fim_excl': data_fim_excl}
             if ccustos:
                 keys = []
                 for idx, cc in enumerate(ccustos):
@@ -27668,14 +27711,9 @@ OPTION (MAXRECURSION 32767);
         kpi_fat_ano_total = 0.0
         kpi_fat_ano_media_dia = None
         try:
-            start_y = date(ano, 1, 1)
-            end_y = date(ano + 1, 1, 1)
-            today_d = date.today()
-            if ano == today_d.year:
-                end_window = min(end_y, today_d + timedelta(days=1))  # até hoje (inclui hoje)
-            else:
-                end_window = end_y
-            days_in_year = (end_window - start_y).days or 365
+            start_y = data_ini
+            end_window = data_fim_excl
+            days_in_year = (end_window - start_y).days or 1
 
             where_rsy = ["RS.RDATA >= :start", "RS.RDATA < :end"]
             params_rsy = {'start': start_y, 'end': end_window}
@@ -27762,6 +27800,8 @@ OPTION (MAXRECURSION 32767);
 
         return jsonify({
             'ano': ano,
+            'data_ini': data_ini.isoformat(),
+            'data_fim': data_fim.isoformat(),
             'ccustos': ccustos,
             'total_geral': round(float(total_base or 0), 2),
             'kpis': {
@@ -27782,9 +27822,10 @@ OPTION (MAXRECURSION 32767);
     @login_required
     def api_mapa_gestao_detalhe():
         try:
-            ano = request.args.get('ano', type=int) or date.today().year
-        except Exception:
-            ano = date.today().year
+            data_ini, data_fim, data_fim_excl, ano = _mapa_gestao_period_args()
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        period_months = set(range(data_ini.month, data_fim.month + 1))
         familia = (request.args.get('familia') or '').strip()
         if not familia:
             return jsonify({'error': 'familia obrigatoria'}), 400
@@ -27793,8 +27834,8 @@ OPTION (MAXRECURSION 32767);
         ccustos_raw = (request.args.get('ccustos') or '').strip()
         ccustos = [c.strip() for c in ccustos_raw.split(',') if c.strip()]
 
-        where_parts = ["YEAR(data) = :ano"]
-        params = {'ano': ano, 'familia': familia}
+        where_parts = ["data >= :data_ini", "data < :data_fim_excl"]
+        params = {'data_ini': data_ini, 'data_fim_excl': data_fim_excl, 'familia': familia}
         if include_children:
             where_parts.append("(FAMILIA = :familia OR FAMILIA LIKE :familia_like)")
             params['familia_like'] = familia + ".%"
@@ -27892,8 +27933,8 @@ OPTION (MAXRECURSION 32767);
                         # 9 (ou outras) -> soma
                         orc_total = val_exp + val_ges
                 else:
-                    val_exp = sum(float(exp.get(c) or 0) for c in month_cols)
-                    val_ges = sum(float(ges.get(c) or 0) for c in month_cols)
+                    val_exp = sum(float(exp.get(c) or 0) for idx, c in enumerate(month_cols, start=1) if idx in period_months)
+                    val_ges = sum(float(ges.get(c) or 0) for idx, c in enumerate(month_cols, start=1) if idx in period_months)
                     fam = str(familia or '').strip()
                     if fam.startswith('9.1'):
                         orc_total = val_exp
@@ -27915,6 +27956,10 @@ OPTION (MAXRECURSION 32767);
                 if mes and 1 <= mes <= 12:
                     oc_where.append("MES = :mes")
                     oc_params['mes'] = mes
+                else:
+                    oc_where.append("MES BETWEEN :mes_ini AND :mes_fim")
+                    oc_params['mes_ini'] = data_ini.month
+                    oc_params['mes_fim'] = data_fim.month
                 oc_sql = "SELECT SUM(ISNULL(VALOR,0)) AS ORCAMENTO FROM OC WHERE " + " AND ".join(oc_where)
                 oc_row = db.session.execute(text(oc_sql), oc_params).mappings().first() or {}
                 orc_total = float(oc_row.get('ORCAMENTO') or 0)
@@ -28681,21 +28726,26 @@ OPTION (MAXRECURSION 32767);
     @app.route('/api/mapa_gestao/reservas_paises')
     @login_required
     def api_mapa_gestao_reservas_paises():
-        from datetime import timedelta
-
-        try:
-            ano = request.args.get('ano', type=int) or date.today().year
-        except Exception:
-            ano = date.today().year
+        has_period_filter = bool((request.args.get('data_ini') or '').strip() or (request.args.get('data_fim') or '').strip())
+        if has_period_filter:
+            try:
+                data_ini, data_fim, data_fim_excl, ano = _mapa_gestao_period_args()
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 400
+        else:
+            try:
+                ano = request.args.get('ano', type=int) or date.today().year
+            except Exception:
+                ano = date.today().year
+            try:
+                data_ini = date(ano, 1, 1)
+                data_fim_excl = date(ano + 1, 1, 1)
+                data_fim = data_fim_excl - timedelta(days=1)
+            except Exception:
+                return jsonify({'error': 'ano invalido'}), 400
 
         ccustos_raw = (request.args.get('ccustos') or '').strip()
         ccustos = [c.strip() for c in ccustos_raw.split(',') if c.strip()]
-
-        try:
-            start = date(ano, 1, 1)
-            end = date(ano + 1, 1, 1)
-        except Exception:
-            return jsonify({'error': 'ano invalido'}), 400
 
         where_parts = [
             "RS.DATAIN >= :start",
@@ -28703,7 +28753,7 @@ OPTION (MAXRECURSION 32767);
             "ISNULL(RS.NOITES,0) > 0",
             "ISNULL(RS.CANCELADA,0) = 0",
         ]
-        params = {'start': start, 'end': end}
+        params = {'start': data_ini, 'end': data_fim_excl}
         if ccustos:
             keys = []
             for idx, cc in enumerate(ccustos):
@@ -28798,6 +28848,8 @@ OPTION (MAXRECURSION 32767);
 
         return jsonify({
             'ano': ano,
+            'data_ini': data_ini.isoformat(),
+            'data_fim': data_fim.isoformat(),
             'total_valor': round(total_valor, 2),
             'total_reservas': total_res,
             'rows': out

@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnOrigemApply = document.getElementById('mapOrigemApply');
   const btnCcAll = document.getElementById('mapCcAll');
   const btnCcNone = document.getElementById('mapCcNone');
+  const btnCcStructure = document.getElementById('mapCcStructure');
+  const btnCcWorks = document.getElementById('mapCcWorks');
   const btnCcApply = document.getElementById('mapCcApply');
   const origemModalEl = document.getElementById('mapOrigemModal');
   const ccModalEl = document.getElementById('mapCcustoModal');
@@ -28,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const origemList = document.getElementById('mapOrigemList');
   const origemLabel = document.getElementById('mapOrigemLabel');
   const ccList = document.getElementById('mapCcList');
+  const ccSearch = document.getElementById('mapCcSearch');
   const ccLabel = document.getElementById('mapCcustoLabel');
   const ccCount = document.getElementById('mapCcustoCount');
   const filtrosLbl = document.getElementById('mapFiltros');
@@ -59,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let ccOptions = [];
   let ccSelected = new Set();
+  let ccScope = '';
   let origemOptions = [];
   let origemSelected = new Set();
   let accessUsers = [];
@@ -96,6 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
     'mapa_gestao_gr.all_origins': 'Todas as origens',
     'mapa_gestao_gr.all_centers': 'Todos os centros',
     'mapa_gestao_gr.filters_all_origins': 'Todas as origens',
+    'mapa_gestao_gr.centers_loading': 'A atualizar centros de custo...',
+    'mapa_gestao_gr.structure': 'Estrutura',
+    'mapa_gestao_gr.works': 'Obras',
     'mapa_gestao_gr.costs': 'Custos',
     'mapa_gestao_gr.revenue': 'Proveitos',
     'mapa_gestao_gr.balance': 'Saldo',
@@ -149,6 +156,39 @@ document.addEventListener('DOMContentLoaded', () => {
     [btnAplicar, btnLimpar, btnOrigem, btnCcusto, btnExpandAll, btnCollapseAll, btnAccess, btnAccessSave].forEach((btn) => {
       if (btn) btn.disabled = active;
     });
+  }
+
+  function filterSummary() {
+    const origem = isAllOriginsSelected()
+      ? tr('mapa_gestao_gr.filters_all_origins')
+      : (getSelectedOrigens().length
+        ? tr('mapa_gestao_gr.origins_count', { selected: getSelectedOrigens().length, total: origemOptions.length || getSelectedOrigens().length })
+        : tr('mapa_gestao_gr.filters_no_origins'));
+    const ccustos = getSelectedCcustos();
+    const scopeLabel = ccScope === 'estrutura'
+      ? tr('mapa_gestao_gr.structure')
+      : (ccScope === 'obras' ? tr('mapa_gestao_gr.works') : '');
+    const centersLabel = scopeLabel || (isAllCentersSelected()
+      ? tr('mapa_gestao_gr.all_centers')
+      : (ccustos.length
+        ? tr('mapa_gestao_gr.centers_count', { selected: ccustos.length, total: ccOptions.length || ccustos.length })
+        : tr('mapa_gestao_gr.no_center')));
+    return `${getDateFilters().data_inicio} a ${getDateFilters().data_fim} | ${origem} | ${centersLabel}`;
+  }
+
+  async function withFilterOptionsBusy(task) {
+    if (ccCount) ccCount.textContent = tr('mapa_gestao_gr.centers_loading');
+    [btnOrigem, btnCcusto, btnOrigemApply, btnCcApply].forEach((btn) => {
+      if (btn) btn.disabled = true;
+    });
+    try {
+      return await task();
+    } finally {
+      [btnOrigem, btnCcusto, btnOrigemApply, btnCcApply].forEach((btn) => {
+        if (btn) btn.disabled = false;
+      });
+      updateCcLabel();
+    }
   }
 
   async function withBusy(task) {
@@ -205,6 +245,25 @@ document.addEventListener('DOMContentLoaded', () => {
     return Array.from(ccSelected).filter(Boolean);
   }
 
+  function ccustoNumber(ccusto) {
+    const match = String(ccusto || '').trim().match(/^[A-Za-z]{2}(\d{4})/);
+    if (!match) return null;
+    return Number.parseInt(match[1], 10);
+  }
+
+  function ccustoMatchesScope(ccusto, scope) {
+    const value = ccustoNumber(ccusto);
+    if (value === null || Number.isNaN(value)) return false;
+    if (scope === 'estrutura') return value >= 0 && value <= 999;
+    if (scope === 'obras') return value >= 1001 && value <= 9999;
+    return false;
+  }
+
+  function updateCcScopeButtons() {
+    btnCcStructure?.classList.toggle('sz_management_map_cc_scope_active', ccScope === 'estrutura');
+    btnCcWorks?.classList.toggle('sz_management_map_cc_scope_active', ccScope === 'obras');
+  }
+
   function isAllCentersSelected() {
     return ccOptions.length > 0 && ccSelected.size >= ccOptions.length;
   }
@@ -216,7 +275,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (includeOrigens && origens.length && !isAllOriginsSelected()) qs.set('origens', origens.join(','));
     if (includeCcustos) {
       const ccustos = getSelectedCcustos();
-      if (ccustos.length && !isAllCentersSelected()) qs.set('ccustos', ccustos.join(','));
+      if (ccScope) qs.set('cc_scope', ccScope);
+      else if (ccustos.length && !isAllCentersSelected()) qs.set('ccustos', ccustos.join(','));
     }
     return qs;
   }
@@ -241,14 +301,19 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateCcLabel() {
     const total = ccOptions.length;
     const selected = ccSelected.size;
+    const scopeLabel = ccScope === 'estrutura'
+      ? tr('mapa_gestao_gr.structure')
+      : (ccScope === 'obras' ? tr('mapa_gestao_gr.works') : '');
     if (ccLabel) {
-      if (!total || selected === total) ccLabel.textContent = tr('mapa_gestao_gr.all_centers');
+      if (scopeLabel) ccLabel.textContent = scopeLabel;
+      else if (!total || selected === total) ccLabel.textContent = tr('mapa_gestao_gr.all_centers');
       else if (!selected) ccLabel.textContent = tr('mapa_gestao_gr.no_center');
       else ccLabel.textContent = tr('mapa_gestao_gr.centers_count', { selected, total });
     }
     if (ccCount) {
       ccCount.textContent = total ? tr('mapa_gestao_gr.centers_available', { selected, total }) : tr('mapa_gestao_gr.no_centers_filters');
     }
+    updateCcScopeButtons();
   }
 
   function updateOrigemLabel() {
@@ -289,27 +354,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderCcList() {
     if (!ccList) return;
-    if (!ccOptions.length) {
+    const term = String(ccSearch?.value || '').trim().toLowerCase();
+    const visibleOptions = ccOptions.filter((option) => {
+      if (!term) return true;
+      return `${option.ccusto || ''} ${option.nome || ''}`.toLowerCase().includes(term);
+    });
+    if (!visibleOptions.length) {
       ccList.innerHTML = `<tr><td colspan="3" class="sz_table_cell sz_text_muted text-center">${escapeHtml(tr('mapa_gestao_gr.no_centers_filters'))}</td></tr>`;
       updateCcLabel();
       return;
     }
-    ccList.innerHTML = ccOptions.map((option) => {
+    ccList.innerHTML = visibleOptions.map((option) => {
       const ccusto = String(option.ccusto || '').trim();
+      const nome = String(option.nome || '').trim();
       const checked = ccSelected.has(ccusto) ? ' checked' : '';
+      const selectedClass = ccSelected.has(ccusto) ? ' is-selected' : '';
+      const nomeHtml = nome && nome !== ccusto
+        ? `<small class="sz_management_map_cc_desc">${escapeHtml(nome)}</small>`
+        : '';
       return `
-        <tr>
+        <tr class="sz_management_map_cc_row${selectedClass}" data-ccusto="${attrEscape(ccusto)}">
           <td class="text-center"><input type="checkbox" class="form-check-input map-cc-check" value="${attrEscape(ccusto)}"${checked}></td>
-          <td><span class="sz_management_map_cc_name">${escapeHtml(ccusto)}</span></td>
+          <td>
+            <span class="sz_management_map_cc_name">${escapeHtml(ccusto)}</span>
+            ${nomeHtml}
+          </td>
           <td class="text-end"><span class="badge rounded-pill text-bg-light">${escapeHtml(option.tipo || '')}</span></td>
         </tr>
       `;
     }).join('');
     ccList.querySelectorAll('.map-cc-check').forEach((input) => {
       input.addEventListener('change', () => {
+        ccScope = '';
         const value = input.value;
         if (input.checked) ccSelected.add(value);
         else ccSelected.delete(value);
+        input.closest('.sz_management_map_cc_row')?.classList.toggle('is-selected', input.checked);
         updateCcLabel();
       });
     });
@@ -436,6 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const previous = new Set(ccSelected);
+    if (!keepSelection) ccScope = '';
     const qs = buildFilterParams({ includeCcustos: false });
     const data = await fetchJson(`${apiUrl('ccustosUrl', '/api/mapa_gestao_gr/ccustos')}?${qs.toString()}`);
     if (data.has_access === false) {
@@ -449,7 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const byCc = new Map();
     raw.forEach((item) => {
       const ccusto = String((item && item.ccusto) || item || '').trim();
-      if (ccusto && !byCc.has(ccusto)) byCc.set(ccusto, { ccusto, tipo: (item && item.tipo) || '' });
+      if (ccusto && !byCc.has(ccusto)) byCc.set(ccusto, { ccusto, nome: (item && item.nome) || '', tipo: (item && item.tipo) || '' });
     });
     ccOptions = Array.from(byCc.values());
     const available = new Set(ccOptions.map((item) => item.ccusto));
@@ -492,20 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateHeader(data) {
     if (totalLbl) totalLbl.textContent = tr('mapa_gestao_gr.subtitle');
-    if (filtrosLbl) {
-      const origem = isAllOriginsSelected()
-        ? tr('mapa_gestao_gr.filters_all_origins')
-        : (getSelectedOrigens().length
-          ? tr('mapa_gestao_gr.origins_count', { selected: getSelectedOrigens().length, total: origemOptions.length || getSelectedOrigens().length })
-          : tr('mapa_gestao_gr.filters_no_origins'));
-      const ccustos = getSelectedCcustos();
-      const centersLabel = isAllCentersSelected()
-        ? tr('mapa_gestao_gr.all_centers')
-        : (ccustos.length
-          ? tr('mapa_gestao_gr.centers_count', { selected: ccustos.length, total: ccOptions.length || ccustos.length })
-          : tr('mapa_gestao_gr.no_center'));
-      filtrosLbl.textContent = `${getDateFilters().data_inicio} a ${getDateFilters().data_fim} | ${origem} | ${centersLabel}`;
-    }
+    if (filtrosLbl) filtrosLbl.textContent = filterSummary();
   }
 
   function monthLabel(month) {
@@ -730,9 +798,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   btnCcusto?.addEventListener('click', () => modalCcusto?.show());
+  ccList?.addEventListener('click', (event) => {
+    if (event.target.closest('input, button, a, label')) return;
+    const row = event.target.closest('.sz_management_map_cc_row');
+    const input = row?.querySelector('.map-cc-check');
+    if (!input) return;
+    input.checked = !input.checked;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  ccSearch?.addEventListener('input', renderCcList);
   btnOrigem?.addEventListener('click', async () => {
     modalOrigem?.show();
-    await withBusy(loadOrigens);
+    await withFilterOptionsBusy(loadOrigens);
   });
   btnOrigemAll?.addEventListener('click', () => {
     origemSelected = new Set(origemOptions);
@@ -746,6 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modalOrigem?.hide();
     await withBusy(async () => {
       await loadCcustos({ keepSelection: false });
+      await loadMapa();
     });
   });
   btnAccess?.addEventListener('click', async () => {
@@ -773,10 +851,30 @@ document.addEventListener('DOMContentLoaded', () => {
     await withBusy(saveAccessConfig);
   });
   btnCcAll?.addEventListener('click', () => {
+    ccScope = '';
     ccSelected = new Set(ccOptions.map((option) => option.ccusto));
     renderCcList();
   });
+  btnCcStructure?.addEventListener('click', () => {
+    ccScope = 'estrutura';
+    ccSelected = new Set(
+      ccOptions
+        .filter((option) => ccustoMatchesScope(option.ccusto, ccScope))
+        .map((option) => option.ccusto)
+    );
+    renderCcList();
+  });
+  btnCcWorks?.addEventListener('click', () => {
+    ccScope = 'obras';
+    ccSelected = new Set(
+      ccOptions
+        .filter((option) => ccustoMatchesScope(option.ccusto, ccScope))
+        .map((option) => option.ccusto)
+    );
+    renderCcList();
+  });
   btnCcNone?.addEventListener('click', () => {
+    ccScope = '';
     ccSelected = new Set();
     renderCcList();
   });
@@ -784,6 +882,14 @@ document.addEventListener('DOMContentLoaded', () => {
     modalCcusto?.hide();
     withBusy(loadMapa);
   });
+  dataInicioInput?.addEventListener('change', () => withBusy(async () => {
+    await refreshFilterOptions({ keepSelection: true });
+    await loadMapa();
+  }));
+  dataFimInput?.addEventListener('change', () => withBusy(async () => {
+    await refreshFilterOptions({ keepSelection: true });
+    await loadMapa();
+  }));
   btnAplicar?.addEventListener('click', async () => {
     await withBusy(async () => {
       await refreshFilterOptions({ keepSelection: true });

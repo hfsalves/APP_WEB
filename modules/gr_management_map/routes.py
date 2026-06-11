@@ -71,6 +71,9 @@ MAPA_GESTAO_GR_I18N_KEYS = [
     "mapa_gestao_gr.all",
     "mapa_gestao_gr.none",
     "mapa_gestao_gr.select_cost_centers",
+    "mapa_gestao_gr.search_cost_center",
+    "mapa_gestao_gr.structure",
+    "mapa_gestao_gr.works",
     "mapa_gestao_gr.selected",
     "mapa_gestao_gr.type",
     "mapa_gestao_gr.costs",
@@ -82,6 +85,7 @@ MAPA_GESTAO_GR_I18N_KEYS = [
     "mapa_gestao_gr.no_visible_data",
     "mapa_gestao_gr.filters_all_origins",
     "mapa_gestao_gr.filters_no_origins",
+    "mapa_gestao_gr.centers_loading",
     "mapa_gestao_gr.detail",
     "mapa_gestao_gr.detail_select_value",
     "mapa_gestao_gr.detail_empty",
@@ -356,7 +360,49 @@ def _effective_origins(requested_origins: list[str]) -> tuple[list[str], list[st
     return (effective or [NO_ACCESS_ORIGIN], allowed_origins, bool(effective))
 
 
-def _base_filters() -> tuple[date, date, list[str], list[str]]:
+def _ccusto_scope_param() -> str:
+    raw = str(request.args.get("cc_scope") or "").strip().lower()
+    if raw in {"estrutura", "structure"}:
+        return "estrutura"
+    if raw in {"obras", "works"}:
+        return "obras"
+    return ""
+
+
+def _ccusto_scope_sql(ccusto_column: str, scope: str) -> str:
+    digits = _ccusto_digits_int_sql(ccusto_column)
+    if scope == "estrutura":
+        return f"{digits} BETWEEN 0 AND 999"
+    if scope == "obras":
+        return f"{digits} BETWEEN 1001 AND 9999"
+    return ""
+
+
+def _ccusto_digits_text_sql(ccusto_column: str) -> str:
+    clean = f"LTRIM(RTRIM(ISNULL({ccusto_column}, '')))"
+    return (
+        "CASE "
+        f"WHEN {clean} LIKE '[A-Za-z][A-Za-z][0-9][0-9][0-9][0-9]%' THEN SUBSTRING({clean}, 3, 4) "
+        f"WHEN {clean} LIKE '[0-9][0-9][0-9][0-9]%' THEN LEFT({clean}, 4) "
+        "ELSE '' END"
+    )
+
+
+def _ccusto_digits_int_sql(ccusto_column: str) -> str:
+    return f"TRY_CONVERT(int, {_ccusto_digits_text_sql(ccusto_column)})"
+
+
+def _ccusto_digits(value: str) -> str:
+    match = re.match(r"^[A-Za-z]{2}(\d{4})", str(value or "").strip())
+    if match:
+        return match.group(1)
+    match = re.match(r"^(\d{4})", str(value or "").strip())
+    if match:
+        return match.group(1)
+    return ""
+
+
+def _base_filters() -> tuple[date, date, list[str], list[str], str]:
     default_start, default_end = _default_period()
     start = _parse_date_param(request.args.get("data_inicio"), default_start)
     end = _parse_date_param(request.args.get("data_fim"), default_end)
@@ -367,7 +413,7 @@ def _base_filters() -> tuple[date, date, list[str], list[str]]:
     ccustos = _parse_list_param(request.args.get("ccustos"))
     if len(ccustos) > 200:
         ccustos = []
-    return (start, end, origens, ccustos)
+    return (start, end, origens, ccustos, _ccusto_scope_param())
 
 
 def _filtered_where(
@@ -378,7 +424,7 @@ def _filtered_where(
     include_origins: bool = True,
     include_ccustos: bool = True,
 ) -> tuple[str, dict]:
-    start, end, origens, ccustos = _base_filters()
+    start, end, origens, ccustos, cc_scope = _base_filters()
     params: dict = {"data_inicio": start, "data_fim_exclusive": end + timedelta(days=1)}
     where_parts = [
         f"{date_column} >= ?",
@@ -389,9 +435,20 @@ def _filtered_where(
     if include_origins and origens:
         where_parts.append(f"{_origin_sql_expr(origin_column)} IN (" + ",".join("?" for _ in origens) + ")")
         ordered_values.extend(origens)
-    if include_ccustos and ccustos:
-        where_parts.append(f"LTRIM(RTRIM(ISNULL({ccusto_column}, ''))) IN (" + ",".join("?" for _ in ccustos) + ")")
+    if include_ccustos and cc_scope:
+        scope_sql = _ccusto_scope_sql(ccusto_column, cc_scope)
+        if scope_sql:
+            where_parts.append(scope_sql)
+    elif include_ccustos and ccustos:
+        ccusto_digits = sorted(set(digit for digit in (_ccusto_digits(ccusto) for ccusto in ccustos) if digit))
+        ccusto_clauses = [
+            f"LTRIM(RTRIM(ISNULL({ccusto_column}, ''))) IN (" + ",".join("?" for _ in ccustos) + ")"
+        ]
         ordered_values.extend(ccustos)
+        if ccusto_digits:
+            ccusto_clauses.append(f"{_ccusto_digits_text_sql(ccusto_column)} IN (" + ",".join("?" for _ in ccusto_digits) + ")")
+            ordered_values.extend(ccusto_digits)
+        where_parts.append("(" + " OR ".join(ccusto_clauses) + ")")
 
     return " AND ".join(where_parts), {"values": ordered_values}
 
@@ -549,7 +606,48 @@ def api_mapa_gestao_gr_ccustos():
             """,
             bind["values"],
         )
-        return jsonify({"options": [{"ccusto": row["ccusto"], "tipo": ""} for row in rows if row.get("ccusto")]})
+        ccustos = [str(row.get("ccusto") or "").strip() for row in rows if str(row.get("ccusto") or "").strip()]
+        nomes_by_ccusto: dict[str, str] = {}
+        if ccustos:
+            processo_by_ccusto = {}
+            for ccusto in ccustos:
+                match = re.match(r"^[A-Za-z]{2}(\d{4})", ccusto.strip())
+                if match:
+                    processo_by_ccusto[ccusto] = f"HS{match.group(1)}"
+            try:
+                processos = sorted(set(processo_by_ccusto.values()))
+                if processos:
+                    proc_params = {f"p{idx}": processo for idx, processo in enumerate(processos)}
+                    proc_placeholders = ",".join(f":p{idx}" for idx in range(len(processos)))
+                    name_rows = db.session.execute(
+                        text(f"""
+                            SELECT
+                                LTRIM(RTRIM(ISNULL(CAST(PROCESSO AS nvarchar(120)), ''))) AS processo,
+                                LTRIM(RTRIM(ISNULL(CAST(DESCRICAO AS nvarchar(255)), ''))) AS nome
+                            FROM dbo.OPC
+                            WHERE LTRIM(RTRIM(ISNULL(CAST(PROCESSO AS nvarchar(120)), ''))) IN ({proc_placeholders})
+                        """),
+                        proc_params,
+                    ).mappings().all()
+                    nomes_by_processo = {
+                        str(row.get("processo") or "").strip().upper(): str(row.get("nome") or "").strip()
+                        for row in name_rows
+                        if str(row.get("processo") or "").strip()
+                    }
+                    for ccusto, processo in processo_by_ccusto.items():
+                        nome = nomes_by_processo.get(processo.upper(), "")
+                        nomes_by_ccusto[ccusto] = nome
+            except Exception:
+                db.session.rollback()
+                nomes_by_ccusto = {}
+        return jsonify(
+            {
+                "options": [
+                    {"ccusto": ccusto, "nome": nomes_by_ccusto.get(ccusto, ""), "tipo": ""}
+                    for ccusto in ccustos
+                ]
+            }
+        )
     except Exception as exc:
         return jsonify({"error": f"Erro ao obter centros de custo: {exc}"}), 500
 
@@ -820,7 +918,7 @@ def api_mapa_gestao_gr():
                     "kpis": {"total_custos": 0, "total_proveitos": 0, "resultado": 0},
                 }
             )
-        start, end, origens, ccustos = _base_filters()
+        start, end, origens, ccustos, cc_scope = _base_filters()
         family_rows = db.session.execute(text("""
             SELECT
                 LTRIM(RTRIM(ISNULL(REF, ''))) AS ref,
@@ -944,6 +1042,7 @@ def api_mapa_gestao_gr():
             "data_fim": end.isoformat(),
             "origens": origens,
             "ccustos": ccustos,
+            "cc_scope": cc_scope,
             "total_geral": round(float(total_custos or 0), 2),
             "total_custos": round(float(total_custos or 0), 2),
             "total_proveitos": round(float(total_proveitos or 0), 2),

@@ -48,6 +48,9 @@
   'mapa_gestao_gr.all',
   'mapa_gestao_gr.none',
   'mapa_gestao_gr.select_cost_centers',
+  'mapa_gestao_gr.search_cost_center',
+  'mapa_gestao_gr.structure',
+  'mapa_gestao_gr.works',
   'mapa_gestao_gr.selected',
   'mapa_gestao_gr.type',
   'mapa_gestao_gr.costs',
@@ -59,6 +62,7 @@
   'mapa_gestao_gr.no_visible_data',
   'mapa_gestao_gr.filters_all_origins',
   'mapa_gestao_gr.filters_no_origins',
+  'mapa_gestao_gr.centers_loading',
   'mapa_gestao_gr.detail',
   'mapa_gestao_gr.detail_select_value',
   'mapa_gestao_gr.detail_empty',
@@ -278,8 +282,14 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ map_t('common.close') }}"></button>
       </div>
       <div class="modal-body sz_modal_body">
+        <div class="sz_field sz_management_map_cc_search">
+          <label class="sz_label" for="mapCcSearch">{{ map_t('mapa_gestao_gr.search_cost_center') }}</label>
+          <input class="sz_input" id="mapCcSearch" type="search" placeholder="{{ map_t('mapa_gestao_gr.search_cost_center') }}">
+        </div>
         <div class="cc-btns">
           <button class="sz_button sz_button_ghost" id="mapCcAll" type="button">{{ map_t('mapa_gestao_gr.all') }}</button>
+          <button class="sz_button sz_button_ghost" id="mapCcStructure" type="button">{{ map_t('mapa_gestao_gr.structure') }}</button>
+          <button class="sz_button sz_button_ghost" id="mapCcWorks" type="button">{{ map_t('mapa_gestao_gr.works') }}</button>
           <button class="sz_button sz_button_ghost" id="mapCcNone" type="button">{{ map_t('mapa_gestao_gr.none') }}</button>
         </div>
         <div class="sz_table_host sz_management_map_cc_table_host">
@@ -1649,6 +1659,10 @@
     max-height: min(62vh, 560px);
   }
 
+  .sz_management_map_cc_search {
+    margin-bottom: 0.75rem;
+  }
+
   .sz_management_map_cc_table {
     min-width: 0;
   }
@@ -1661,6 +1675,20 @@
   .sz_management_map_cc_table td:first-child,
   .sz_management_map_cc_table th:first-child {
     width: 64px;
+  }
+
+  .sz_management_map_cc_row {
+    cursor: pointer;
+  }
+
+  .sz_management_map_cc_row.is-selected td {
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, transparent);
+  }
+
+  .sz_management_map_cc_scope_active {
+    background: color-mix(in srgb, var(--sz-color-primary) 14%, transparent);
+    border-color: var(--sz-color-primary);
+    color: var(--sz-color-primary);
   }
 
   .sz_management_map_cc_row_label {
@@ -1679,8 +1707,17 @@
   }
 
   .sz_management_map_cc_name {
+    display: block;
     font-weight: var(--sz-font-weight-semibold);
     color: var(--sz-color-text);
+  }
+
+  .sz_management_map_cc_desc {
+    display: block;
+    margin-top: 0.1rem;
+    color: var(--sz-color-text-muted);
+    font-size: 11px;
+    line-height: 1.25;
   }
 
   .sz_management_map_cc_badge_wrap {
@@ -1885,5 +1922,5 @@
     acessosUrl: {{ url_for('gr_management_map.api_mapa_gestao_gr_acessos')|tojson }}
   };
 </script>
-<script src="{{ url_for('gr_management_map.static', filename='mapa_gestao_gr.js') }}?v={{ static_version }}-i18n3"></script>
+<script src="{{ url_for('gr_management_map.static', filename='mapa_gestao_gr.js') }}?v={{ static_version }}-ccscope1"></script>
 {% endblock %}

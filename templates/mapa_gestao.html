@@ -11,9 +11,14 @@
         </div>
         <div class="sz_contextbar_right sz_management_map_contextbar_right">
           <div class="sz_management_map_filters">
-            <div class="sz_field sz_management_map_filter_year">
-              <label for="mapAno" class="sz_label">Ano</label>
-              <input type="number" class="sz_input" id="mapAno" min="2000" max="2100" value="{{ ano_atual }}">
+            <input type="hidden" id="mapAno" value="{{ ano_atual }}">
+            <div class="sz_field sz_management_map_filter_date">
+              <label for="mapDataIni" class="sz_label">Data inicial</label>
+              <input type="date" class="sz_input" id="mapDataIni" value="{{ data_ini_default }}">
+            </div>
+            <div class="sz_field sz_management_map_filter_date">
+              <label for="mapDataFim" class="sz_label">Data final</label>
+              <input type="date" class="sz_input" id="mapDataFim" value="{{ data_fim_default }}">
             </div>
             <div class="sz_field sz_management_map_filter_cc">
               <label class="sz_label">Centro de Custo</label>
@@ -152,7 +157,7 @@
                 <div class="card-body">
                   <div class="d-flex justify-content-between align-items-center mb-2">
                     <div class="fw-semibold">KPIs</div>
-                    <div class="text-muted small">Totais do ano</div>
+                    <div class="text-muted small">Totais do período</div>
                   </div>
 
                   <div class="row g-2 kpi-grid">
@@ -711,8 +716,8 @@
     width: 100%;
   }
 
-  .sz_management_map_filter_year {
-    width: 90px;
+  .sz_management_map_filter_date {
+    width: 142px;
   }
 
   .sz_management_map_filter_cc {
@@ -1733,9 +1738,9 @@
 {% block scripts %}
 <script>
   window.MAPA_ANO_PADRAO = {{ ano_atual }};
+  window.MAPA_DATA_INI_PADRAO = {{ data_ini_default|tojson }};
+  window.MAPA_DATA_FIM_PADRAO = {{ data_fim_default|tojson }};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{{ url_for('static', filename='js/mapa_gestao.js') }}"></script>
 {% endblock %}
-
-
