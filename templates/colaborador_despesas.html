@@ -2,6 +2,17 @@
 
 {% block title %}Despesas{% endblock %}
 
+{% block extra_head %}
+  {{ super() }}
+  <script>
+    (() => {
+      const viewport = document.querySelector('meta[name="viewport"]');
+      const content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+      if (viewport) viewport.setAttribute('content', content);
+    })();
+  </script>
+{% endblock %}
+
 {% block content %}
 <div class="sz_page expense-page">
   <div class="sz_page_container expense-shell">
@@ -52,9 +63,13 @@
 {{ super() }}
 <style>
   .expense-page {
-    min-height: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
@@ -66,7 +81,13 @@
   }
 
   .expense-shell {
-    min-height: max-content;
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: 100%;
+    max-width: none;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
     padding-bottom: var(--sz-space-4);
   }
 
@@ -80,8 +101,18 @@
     flex-direction: column;
     gap: var(--sz-space-3);
     min-height: 0;
-    overflow-y: visible;
+    max-width: 100%;
+    overflow-y: auto;
     overflow-x: hidden;
+    overscroll-behavior-x: none;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .expense-body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
   }
 
   .expense-alert {
@@ -120,6 +151,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--sz-space-3);
+    min-width: 0;
+    max-width: 100%;
   }
 
   .expense-section-head {
@@ -159,6 +192,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--sz-space-3);
+    min-width: 0;
+    max-width: 100%;
   }
 
   .expense-line-card {
@@ -169,6 +204,9 @@
     border: 1px solid var(--sz-color-border);
     border-radius: var(--sz-radius-md);
     background: var(--sz-color-surface);
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   .expense-line-card.is-collapsed {
@@ -242,6 +280,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--sz-space-3);
+    min-width: 0;
+    max-width: 100%;
   }
 
   .expense-line-photo {
@@ -285,12 +325,16 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--sz-space-3);
+    min-width: 0;
+    max-width: 100%;
   }
 
   .expense-vehicle-fields {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--sz-space-3);
+    min-width: 0;
+    max-width: 100%;
   }
 
   .expense-vehicle-fields[hidden] {
@@ -315,6 +359,44 @@
     cursor: pointer;
   }
 
+  .expense-line-fields > *,
+  .expense-vehicle-fields > *,
+  .expense-line-fields .sz_field,
+  .expense-vehicle-fields .sz_field,
+  .expense-line-fields input,
+  .expense-line-fields select,
+  .expense-line-fields textarea,
+  .expense-vehicle-fields input,
+  .expense-vehicle-fields select,
+  .expense-vehicle-fields textarea {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .expense-line-fields input,
+  .expense-line-fields select,
+  .expense-line-fields textarea,
+  .expense-vehicle-fields input,
+  .expense-vehicle-fields select,
+  .expense-vehicle-fields textarea {
+    display: block;
+    inline-size: 100%;
+    width: 100% !important;
+  }
+
+  .expense-line-fields input[type="date"],
+  .expense-line-fields input[type="time"],
+  .expense-vehicle-fields input[type="date"],
+  .expense-vehicle-fields input[type="time"] {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   .expense-add-card:hover {
     border-color: color-mix(in srgb, var(--sz-color-primary) 48%, var(--sz-color-border));
     background: color-mix(in srgb, var(--sz-color-primary) 11%, var(--sz-color-surface));
@@ -329,6 +411,17 @@
   }
 
   @media (max-width: 640px) {
+    html,
+    body,
+    .app-container,
+    .main-content,
+    .expense-page,
+    .expense-shell,
+    .expense-body {
+      max-width: 100vw;
+      overflow-x: hidden !important;
+    }
+
     body.sz-base-shell,
     body.sz-base-shell .main-content {
       overflow-y: auto;
@@ -351,6 +444,16 @@
     .expense-contextbar {
       padding: var(--sz-space-3);
     }
+
+    .expense-line-fields input,
+    .expense-line-fields select,
+    .expense-line-fields textarea,
+    .expense-vehicle-fields input,
+    .expense-vehicle-fields select,
+    .expense-vehicle-fields textarea,
+    .expense-add-card {
+      font-size: 16px;
+    }
   }
 </style>
 <script>
@@ -359,6 +462,12 @@
   window.COLLAB_EXPENSE_VEHICLES = {{ expense_vehicles|tojson }};
   window.COLLAB_EXPENSE_TODAY = {{ today|tojson }};
   (() => {
+    document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
+    document.addEventListener('touchmove', (event) => {
+      if (event.touches && event.touches.length > 1) event.preventDefault();
+    }, { passive: false });
+
     const linesHost = document.getElementById('expenseLines');
     const counter = document.getElementById('expenseLineCount');
     const addCard = document.getElementById('expenseAddCard');
