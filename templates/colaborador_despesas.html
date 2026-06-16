@@ -197,6 +197,18 @@
   }
 
   .expense-line-card {
+    position: relative;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-danger, #ef4444) 18%, var(--sz-color-surface));
+    touch-action: pan-y;
+  }
+
+  .expense-line-content {
+    position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     gap: var(--sz-space-3);
@@ -207,11 +219,45 @@
     min-width: 0;
     max-width: 100%;
     overflow-x: hidden;
+    transition: transform .2s ease;
+    will-change: transform;
+  }
+
+  .expense-line-card.is-delete-open .expense-line-content {
+    transform: translateX(-5.75rem);
+  }
+
+  .expense-line-delete {
+    position: absolute;
+    z-index: 0;
+    inset-block: 0;
+    right: 0;
+    width: 5.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .25rem;
+    border: 0;
+    border-radius: var(--sz-radius-md);
+    color: #fff;
+    background: var(--sz-color-danger, #ef4444);
+    font: inherit;
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+    cursor: pointer;
+  }
+
+  .expense-line-delete i {
+    font-size: 1.05rem;
   }
 
   .expense-line-card.is-collapsed {
-    padding: var(--sz-space-2);
     cursor: pointer;
+  }
+
+  .expense-line-card.is-collapsed .expense-line-content {
+    padding: var(--sz-space-2);
   }
 
   .expense-line-card.is-collapsed .expense-line-editor {
@@ -632,11 +678,89 @@
 
     function setActiveCard(card) {
       if (!card || activeCard === card) return;
+      closeDeleteActions();
       linesHost?.querySelectorAll('.expense-line-card').forEach((item) => {
         item.classList.toggle('is-collapsed', item !== card);
         refreshSummary(item);
       });
       activeCard = card;
+    }
+
+    function closeDeleteActions(exceptCard = null) {
+      linesHost?.querySelectorAll('.expense-line-card.is-delete-open').forEach((item) => {
+        if (item !== exceptCard) item.classList.remove('is-delete-open');
+      });
+    }
+
+    function deleteCard(card) {
+      if (!card) return;
+      const objectUrl = card.dataset.objectUrl || '';
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (activeCard === card) activeCard = null;
+      card.remove();
+      updateCounter();
+    }
+
+    function wireDeleteGesture(card) {
+      const content = card?.querySelector('[data-expense-card-content]');
+      const deleteBtn = card?.querySelector('[data-expense-delete]');
+      if (!card || !content || !deleteBtn) return;
+      let startX = 0;
+      let startY = 0;
+      let currentX = 0;
+      let pointerId = null;
+      let dragging = false;
+      let horizontalIntent = false;
+      const revealWidth = 92;
+
+      deleteBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteCard(card);
+      });
+
+      content.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        if (event.target.closest('input, select, textarea, button, a, .expense-line-photo')) return;
+        pointerId = event.pointerId;
+        startX = event.clientX;
+        startY = event.clientY;
+        currentX = card.classList.contains('is-delete-open') ? -revealWidth : 0;
+        dragging = true;
+        horizontalIntent = false;
+        content.style.transition = 'none';
+        content.setPointerCapture?.(pointerId);
+      });
+
+      content.addEventListener('pointermove', (event) => {
+        if (!dragging || event.pointerId !== pointerId) return;
+        const dx = event.clientX - startX;
+        const dy = event.clientY - startY;
+        if (!horizontalIntent && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+          horizontalIntent = true;
+          closeDeleteActions(card);
+        }
+        if (!horizontalIntent) return;
+        event.preventDefault();
+        const nextX = Math.max(-revealWidth, Math.min(0, currentX + dx));
+        content.style.transform = `translateX(${nextX}px)`;
+      });
+
+      function finishDrag(event) {
+        if (!dragging || event.pointerId !== pointerId) return;
+        const dx = event.clientX - startX;
+        dragging = false;
+        content.style.transition = '';
+        content.style.transform = '';
+        content.releasePointerCapture?.(pointerId);
+        pointerId = null;
+        if (!horizontalIntent) return;
+        const shouldOpen = (currentX + dx) < -(revealWidth * 0.42);
+        card.classList.toggle('is-delete-open', shouldOpen);
+      }
+
+      content.addEventListener('pointerup', finishDrag);
+      content.addEventListener('pointercancel', finishDrag);
     }
 
     function addDraftLine(mode, file) {
@@ -646,45 +770,51 @@
       const hasFile = !!file;
       const photoText = hasFile ? file.name : (mode === 'photo' ? 'Foto por classificar' : 'Foto em falta');
       card.innerHTML = `
-        <div class="expense-line-summary">
-          <div class="expense-line-summary-thumb" data-summary-thumb>
-            <i class="fa-solid fa-camera"></i>
+        <button type="button" class="expense-line-delete" data-expense-delete aria-label="Eliminar despesa">
+          <i class="fa-solid fa-trash"></i>
+          <span>Eliminar</span>
+        </button>
+        <div class="expense-line-content" data-expense-card-content>
+          <div class="expense-line-summary">
+            <div class="expense-line-summary-thumb" data-summary-thumb>
+              <i class="fa-solid fa-camera"></i>
+            </div>
+            <div class="expense-line-summary-body">
+              <strong class="expense-line-summary-title" data-summary-title>Despesa por preencher</strong>
+              <span class="expense-line-summary-meta" data-summary-meta>Sem data · Sem valor</span>
+            </div>
           </div>
-          <div class="expense-line-summary-body">
-            <strong class="expense-line-summary-title" data-summary-title>Despesa por preencher</strong>
-            <span class="expense-line-summary-meta" data-summary-meta>Sem data · Sem valor</span>
-          </div>
-        </div>
-        <div class="expense-line-editor">
-          <div class="expense-line-photo ${hasFile || mode === 'photo' ? 'has-photo' : ''} ${hasFile ? 'is-preview' : ''}" role="button" tabindex="0" aria-label="Adicionar ou substituir foto">
-            ${hasFile ? '<i class="fa-solid fa-image"></i><span>A carregar ficheiro</span>' : `<i class="fa-solid ${mode === 'photo' ? 'fa-image' : 'fa-camera'}"></i><span>${photoText}</span>`}
-          </div>
-          <div class="expense-line-fields">
-            <label class="sz_field">
-              <span class="sz_label">Data da despesa</span>
-              <input class="sz_date" type="date" value="${escapeHtml(defaultDate)}" autocomplete="off" data-expense-date>
-            </label>
-            <label class="sz_field">
-              <span class="sz_label">Tipo de despesa</span>
-              <select class="sz_select" data-expense-type>
-                ${expenseTypeOptions()}
-              </select>
-            </label>
-            <label class="sz_field">
-              <span class="sz_label">Valor</span>
-              <input class="sz_input_number" type="number" step="0.01" min="0" placeholder="0,00" data-expense-value>
-            </label>
-            <div class="expense-vehicle-fields" data-vehicle-fields hidden>
+          <div class="expense-line-editor">
+            <div class="expense-line-photo ${hasFile || mode === 'photo' ? 'has-photo' : ''} ${hasFile ? 'is-preview' : ''}" role="button" tabindex="0" aria-label="Adicionar ou substituir foto">
+              ${hasFile ? '<i class="fa-solid fa-image"></i><span>A carregar ficheiro</span>' : `<i class="fa-solid ${mode === 'photo' ? 'fa-image' : 'fa-camera'}"></i><span>${photoText}</span>`}
+            </div>
+            <div class="expense-line-fields">
               <label class="sz_field">
-                <span class="sz_label">Kms</span>
-                <input class="sz_input_number" type="number" step="1" min="0" inputmode="numeric" data-expense-kms>
+                <span class="sz_label">Data da despesa</span>
+                <input class="sz_date" type="date" value="${escapeHtml(defaultDate)}" autocomplete="off" data-expense-date>
               </label>
               <label class="sz_field">
-                <span class="sz_label">Viatura</span>
-                <select class="sz_select" data-expense-vehicle>
-                  ${vehicleOptions()}
+                <span class="sz_label">Tipo de despesa</span>
+                <select class="sz_select" data-expense-type>
+                  ${expenseTypeOptions()}
                 </select>
               </label>
+              <label class="sz_field">
+                <span class="sz_label">Valor</span>
+                <input class="sz_input_number" type="number" step="0.01" min="0" placeholder="0,00" data-expense-value>
+              </label>
+              <div class="expense-vehicle-fields" data-vehicle-fields hidden>
+                <label class="sz_field">
+                  <span class="sz_label">Kms</span>
+                  <input class="sz_input_number" type="number" step="1" min="0" inputmode="numeric" data-expense-kms>
+                </label>
+                <label class="sz_field">
+                  <span class="sz_label">Viatura</span>
+                  <select class="sz_select" data-expense-vehicle>
+                    ${vehicleOptions()}
+                  </select>
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -699,11 +829,21 @@
       });
       refreshSummary(card);
       setActiveCard(card);
+      wireDeleteGesture(card);
       updateCounter();
     }
 
-    addCard?.addEventListener('click', () => addDraftLine('line'));
+    addCard?.addEventListener('click', () => {
+      closeDeleteActions();
+      addDraftLine('line');
+    });
     linesHost?.addEventListener('click', (event) => {
+      if (event.target.closest('[data-expense-delete]')) return;
+      const openDeleteCard = event.target.closest('.expense-line-card.is-delete-open');
+      if (openDeleteCard && !event.target.closest('input, select, textarea, button, a')) {
+        closeDeleteActions();
+        return;
+      }
       const collapsedCard = event.target.closest('.expense-line-card.is-collapsed');
       if (collapsedCard) {
         setActiveCard(collapsedCard);
