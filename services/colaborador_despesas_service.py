@@ -274,6 +274,7 @@ def list_draft_lines(header_stamp: str) -> list[dict[str, Any]]:
         FROM dbo.COLAB_DESPESA_LINHA
         WHERE DESPCABSTAMP = :header_stamp
           AND ISNULL(ANULADA, 0) = 0
+          AND ESTADO = 'RASCUNHO'
         ORDER BY ORDEM, DTCRI
     """), {'header_stamp': str(header_stamp or '').strip()}).mappings().all()
     return [serialize_line(row) for row in rows]
@@ -472,3 +473,27 @@ def delete_expense_line(user, line_stamp: str) -> dict[str, Any]:
         raise ValueError('Despesa não encontrada.')
     db.session.commit()
     return {'ok': True, 'stamp': stamp}
+
+
+def close_expense_line(user, line_stamp: str) -> dict[str, Any]:
+    ensure_colaborador_despesas_schema()
+    colaborador = get_colaborador_context(user)
+    stamp = str(line_stamp or '').strip()
+    result = db.session.execute(text(f"""
+        UPDATE L
+        SET ESTADO = 'FECHADO',
+            DTALT = GETDATE(),
+            USERALTERACAO = :login
+        FROM dbo.COLAB_DESPESA_LINHA L
+        WHERE L.DESPLINHASTAMP = :stamp
+          AND ISNULL(L.ANULADA, 0) = 0
+          AND {_user_header_scope_sql()}
+    """), {
+        'stamp': stamp,
+        'userstamp': str(colaborador.get('userstamp') or '').strip(),
+        'login': str(colaborador.get('login') or '').strip(),
+    })
+    if result.rowcount == 0:
+        raise ValueError('Despesa não encontrada.')
+    db.session.commit()
+    return {'ok': True, 'stamp': stamp, 'estado': 'FECHADO'}

@@ -24746,6 +24746,21 @@ def create_app():
             app.logger.exception('Erro ao remover despesa do colaborador.')
             return jsonify({'ok': False, 'error': 'Erro ao remover despesa.'}), 500
 
+    @app.route('/api/colaborador/despesas/line/<string:line_stamp>/close', methods=['POST'])
+    @login_required
+    def api_colaborador_despesas_line_close(line_stamp):
+        from services.colaborador_despesas_service import close_expense_line
+
+        try:
+            return jsonify(close_expense_line(current_user, line_stamp))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 404
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao fechar despesa do colaborador.')
+            return jsonify({'ok': False, 'error': 'Erro ao fechar despesa.'}), 500
+
     @app.route('/alojamentos-seguros')
     @app.route('/alojamentos_seguros')
     @login_required
