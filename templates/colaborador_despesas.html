@@ -54,7 +54,7 @@
       </section>
     </main>
 
-    <input id="expensePhotoInput" class="expense-file-input" type="file" accept="image/*,.pdf,application/pdf">
+    <input id="expensePhotoInput" class="expense-file-input" type="file" accept="image/*,.pdf,application/pdf,.heic,.heif,image/heic,image/heif">
   </div>
 </div>
 {% endblock %}
@@ -226,6 +226,34 @@
     overflow-x: hidden;
     transition: transform .2s ease;
     will-change: transform;
+  }
+
+  .expense-line-content::after {
+    content: '';
+    position: absolute;
+    top: .65rem;
+    right: .65rem;
+    width: .5rem;
+    height: .5rem;
+    border-radius: 999px;
+    background: var(--sz-color-primary);
+    opacity: 0;
+    transform: scale(.7);
+    transition: opacity .16s ease, transform .16s ease;
+  }
+
+  .expense-line-card.is-saving .expense-line-content::after,
+  .expense-line-card.is-saved .expense-line-content::after {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .expense-line-card.is-saved .expense-line-content::after {
+    background: var(--sz-color-success, #22c55e);
+  }
+
+  .expense-line-card.is-save-error .expense-line-content {
+    border-color: color-mix(in srgb, var(--sz-color-danger, #ef4444) 60%, var(--sz-color-border));
   }
 
   .expense-line-card.is-auto-collapsing .expense-line-content {
@@ -543,6 +571,7 @@
   window.COLLAB_EXPENSE_CONTEXT = {{ colaborador|tojson }};
   window.COLLAB_EXPENSE_TYPES = {{ expense_types|tojson }};
   window.COLLAB_EXPENSE_VEHICLES = {{ expense_vehicles|tojson }};
+  window.COLLAB_EXPENSE_DRAFT = {{ expense_draft|tojson }};
   window.COLLAB_EXPENSE_TODAY = {{ today|tojson }};
   (() => {
     document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
@@ -557,9 +586,12 @@
     const photoInput = document.getElementById('expensePhotoInput');
     const vehicleExpenseTypes = new Set(['CARBURANT', 'DKV', 'VOITURES']);
     const defaultDate = window.COLLAB_EXPENSE_TODAY || '';
+    const draftState = window.COLLAB_EXPENSE_DRAFT || { header_stamp: '', lines: [] };
     let pendingPhotoZone = null;
     let activeCard = null;
     const autoCollapseTimers = new WeakMap();
+    const autoSaveTimers = new WeakMap();
+    const pendingFiles = new WeakMap();
 
     function updateCounter() {
       if (!counter || !linesHost) return;
@@ -593,10 +625,15 @@
       if (!thumb) return;
       const fileName = card.dataset.fileName || '';
       const fileType = card.dataset.fileType || '';
+      const filePath = card.dataset.filePath || '';
       const objectUrl = card.dataset.objectUrl || '';
       thumb.classList.toggle('has-photo', !!fileName);
       if (objectUrl && fileType.startsWith('image/')) {
         thumb.innerHTML = `<img src="${objectUrl}" alt="${escapeHtml(fileName)}">`;
+        return;
+      }
+      if (filePath && fileType.startsWith('image/')) {
+        thumb.innerHTML = `<img src="${escapeHtml(filePath)}" alt="${escapeHtml(fileName)}">`;
         return;
       }
       if (fileName && fileType === 'application/pdf') {
@@ -656,9 +693,92 @@
         card.dataset.fileName = file.name || '';
         card.dataset.fileType = file.type || '';
         card.dataset.objectUrl = photoZone.dataset.objectUrl || '';
+        pendingFiles.set(card, file);
         refreshSummary(card);
+        scheduleAutoSave(card, 120);
         scheduleAutoCollapse(card);
       }
+    }
+
+    function applySavedFile(card, photoZone, line) {
+      const fileName = line?.file_original || line?.file_name || '';
+      const fileType = line?.mime_type || '';
+      const filePath = line?.file_path || '';
+      if (!card || !photoZone || !fileName) return;
+      card.dataset.fileName = fileName;
+      card.dataset.fileType = fileType;
+      card.dataset.filePath = filePath;
+      photoZone.classList.add('has-photo', 'is-preview');
+      if (filePath && fileType.startsWith('image/')) {
+        photoZone.innerHTML = `<img src="${escapeHtml(filePath)}" alt="${escapeHtml(fileName)}">`;
+      } else if (fileType === 'application/pdf' || String(line?.file_ext || '').toLowerCase() === '.pdf') {
+        photoZone.innerHTML = `<i class="fa-solid fa-file-pdf"></i><span>${escapeHtml(fileName)}</span>`;
+      } else {
+        photoZone.innerHTML = `<i class="fa-solid fa-file"></i><span>${escapeHtml(fileName)}</span>`;
+      }
+    }
+
+    function linePayloadFromCard(card) {
+      return {
+        stamp: card?.dataset?.lineStamp || '',
+        data_despesa: card?.querySelector('[data-expense-date]')?.value || '',
+        tipo: card?.querySelector('[data-expense-type]')?.value || '',
+        valor: card?.querySelector('[data-expense-value]')?.value || '',
+        kms: card?.querySelector('[data-expense-kms]')?.value || '',
+        viatura: card?.querySelector('[data-expense-vehicle]')?.value || '',
+        obs: '',
+      };
+    }
+
+    function clearAutoSave(card) {
+      const timer = autoSaveTimers.get(card);
+      if (timer) window.clearTimeout(timer);
+      autoSaveTimers.delete(card);
+    }
+
+    async function saveCardNow(card) {
+      if (!card || card.classList.contains('is-deleting')) return;
+      clearAutoSave(card);
+      const form = new FormData();
+      const payload = linePayloadFromCard(card);
+      Object.entries(payload).forEach(([key, value]) => form.append(key, value));
+      if (draftState.header_stamp) form.append('header_stamp', draftState.header_stamp);
+      const file = pendingFiles.get(card);
+      if (file) form.append('file', file);
+      card.classList.add('is-saving');
+      card.classList.remove('is-saved', 'is-save-error');
+      try {
+        const response = await fetch('/api/colaborador/despesas/line', {
+          method: 'POST',
+          body: form,
+          credentials: 'same-origin',
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao gravar despesa.');
+        const line = result.line || {};
+        card.dataset.lineStamp = line.stamp || card.dataset.lineStamp || '';
+        draftState.header_stamp = result.header_stamp || draftState.header_stamp || '';
+        if (line.file_original || line.file_name) {
+          card.dataset.fileName = line.file_original || line.file_name || '';
+          card.dataset.fileType = line.mime_type || '';
+          card.dataset.filePath = line.file_path || '';
+          pendingFiles.delete(card);
+        }
+        card.classList.remove('is-saving');
+        card.classList.add('is-saved');
+        window.setTimeout(() => card.classList.remove('is-saved'), 900);
+        refreshSummary(card);
+      } catch (error) {
+        card.classList.remove('is-saving');
+        card.classList.add('is-save-error');
+        console.error(error);
+      }
+    }
+
+    function scheduleAutoSave(card, delay = 700) {
+      if (!card || card.classList.contains('is-deleting')) return;
+      clearAutoSave(card);
+      autoSaveTimers.set(card, window.setTimeout(() => saveCardNow(card), delay));
     }
 
     function openPhotoPicker(photoZone = null) {
@@ -676,22 +796,27 @@
       }[ch]));
     }
 
-    function expenseTypeOptions() {
+    function expenseTypeOptions(selectedValue = '') {
       const rows = Array.isArray(window.COLLAB_EXPENSE_TYPES) ? window.COLLAB_EXPENSE_TYPES : [];
       return [
-        '<option value="">Selecione uma opção</option>',
-        ...rows.map((row) => `<option value="${escapeHtml(row.value)}">${escapeHtml(row.label || row.value)}</option>`)
+        `<option value=""${selectedValue ? '' : ' selected'}>Selecione uma opção</option>`,
+        ...rows.map((row) => {
+          const value = String(row.value || '');
+          const selected = value === String(selectedValue || '') ? ' selected' : '';
+          return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(row.label || value)}</option>`;
+        })
       ].join('');
     }
 
-    function vehicleOptions() {
+    function vehicleOptions(selectedValue = '') {
       const rows = Array.isArray(window.COLLAB_EXPENSE_VEHICLES) ? window.COLLAB_EXPENSE_VEHICLES : [];
       return [
-        '<option value="">Selecione uma viatura</option>',
+        `<option value=""${selectedValue ? '' : ' selected'}>Selecione uma viatura</option>`,
         ...rows.map((row) => {
           const value = row.MATRICULA || row.value || '';
           const label = row.LABEL || row.label || row.MATRICULA || row.value || '';
-          return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
+          const selected = String(value) === String(selectedValue || '') ? ' selected' : '';
+          return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(label)}</option>`;
         })
       ].join('');
     }
@@ -780,6 +905,8 @@
     function deleteCard(card) {
       if (!card) return;
       clearAutoCollapse(card);
+      clearAutoSave(card);
+      const lineStamp = card.dataset.lineStamp || '';
       const objectUrl = card.dataset.objectUrl || '';
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       if (activeCard === card) activeCard = null;
@@ -796,6 +923,12 @@
         card.remove();
         updateCounter();
       }, 290);
+      if (lineStamp) {
+        fetch(`/api/colaborador/despesas/line/${encodeURIComponent(lineStamp)}`, {
+          method: 'DELETE',
+          credentials: 'same-origin',
+        }).catch((error) => console.error(error));
+      }
     }
 
     function wireDeleteGesture(card) {
@@ -862,12 +995,21 @@
       content.addEventListener('pointercancel', finishDrag);
     }
 
-    function addDraftLine(mode, file) {
+    function addDraftLine(mode, file, savedLine = null, options = {}) {
       if (!linesHost) return;
       const card = document.createElement('article');
       card.className = 'expense-line-card';
       const hasFile = !!file;
-      const photoText = hasFile ? file.name : (mode === 'photo' ? 'Foto por classificar' : 'Foto em falta');
+      const saved = savedLine || {};
+      if (saved.stamp) card.dataset.lineStamp = saved.stamp;
+      const savedDate = saved.data_despesa || defaultDate;
+      const savedType = saved.tipo || '';
+      const savedVehicle = saved.viatura || '';
+      const savedValor = Number(saved.valor || 0) > 0 ? String(saved.valor) : '';
+      const savedKms = Number(saved.kms || 0) > 0 ? String(saved.kms) : '';
+      const savedFileName = saved.file_original || saved.file_name || '';
+      const photoText = hasFile ? file.name : (savedFileName || (mode === 'photo' ? 'Foto por classificar' : 'Foto em falta'));
+      const hasSavedFile = !!savedFileName;
       card.innerHTML = `
         <button type="button" class="expense-line-delete" data-expense-delete aria-label="Eliminar despesa">
           <i class="fa-solid fa-trash"></i>
@@ -884,33 +1026,33 @@
             </div>
           </div>
           <div class="expense-line-editor">
-            <div class="expense-line-photo ${hasFile || mode === 'photo' ? 'has-photo' : ''} ${hasFile ? 'is-preview' : ''}" role="button" tabindex="0" aria-label="Adicionar ou substituir foto">
-              ${hasFile ? '<i class="fa-solid fa-image"></i><span>A carregar ficheiro</span>' : `<i class="fa-solid ${mode === 'photo' ? 'fa-image' : 'fa-camera'}"></i><span>${photoText}</span>`}
+            <div class="expense-line-photo ${hasFile || hasSavedFile || mode === 'photo' ? 'has-photo' : ''} ${hasFile || hasSavedFile ? 'is-preview' : ''}" role="button" tabindex="0" aria-label="Adicionar ou substituir foto">
+              ${hasFile ? '<i class="fa-solid fa-image"></i><span>A carregar ficheiro</span>' : `<i class="fa-solid ${hasSavedFile || mode === 'photo' ? 'fa-image' : 'fa-camera'}"></i><span>${escapeHtml(photoText)}</span>`}
             </div>
             <div class="expense-line-fields">
               <label class="sz_field">
                 <span class="sz_label">Data da despesa</span>
-                <input class="sz_date" type="date" value="${escapeHtml(defaultDate)}" autocomplete="off" data-expense-date>
+                <input class="sz_date" type="date" value="${escapeHtml(savedDate)}" autocomplete="off" data-expense-date>
               </label>
               <label class="sz_field">
                 <span class="sz_label">Tipo de despesa</span>
                 <select class="sz_select" data-expense-type>
-                  ${expenseTypeOptions()}
+                  ${expenseTypeOptions(savedType)}
                 </select>
               </label>
               <label class="sz_field">
                 <span class="sz_label">Valor</span>
-                <input class="sz_input_number" type="number" step="0.01" min="0" placeholder="0,00" data-expense-value>
+                <input class="sz_input_number" type="number" step="0.01" min="0" placeholder="0,00" value="${escapeHtml(savedValor)}" data-expense-value>
               </label>
               <div class="expense-vehicle-fields" data-vehicle-fields hidden>
                 <label class="sz_field">
                   <span class="sz_label">Kms</span>
-                  <input class="sz_input_number" type="number" step="1" min="0" inputmode="numeric" data-expense-kms>
+                  <input class="sz_input_number" type="number" step="1" min="0" inputmode="numeric" value="${escapeHtml(savedKms)}" data-expense-kms>
                 </label>
                 <label class="sz_field">
                   <span class="sz_label">Viatura</span>
                   <select class="sz_select" data-expense-vehicle>
-                    ${vehicleOptions()}
+                    ${vehicleOptions(savedVehicle)}
                   </select>
                 </label>
               </div>
@@ -921,24 +1063,36 @@
       linesHost.insertBefore(card, addCard || null);
       const photoZone = card.querySelector('.expense-line-photo');
       if (hasFile && photoZone) setPhotoZoneFile(photoZone, file);
+      if (hasSavedFile && photoZone) applySavedFile(card, photoZone, saved);
       wireVehicleVisibility(card);
       card.querySelectorAll('input, select').forEach((field) => {
         field.addEventListener('input', () => {
           refreshSummary(card);
+          scheduleAutoSave(card);
           scheduleAutoCollapse(card);
         });
         field.addEventListener('change', () => {
           refreshSummary(card);
+          scheduleAutoSave(card);
           scheduleAutoCollapse(card);
         });
         field.addEventListener('focus', () => clearAutoCollapse(card));
         field.addEventListener('blur', () => scheduleAutoCollapse(card));
       });
       refreshSummary(card);
-      setActiveCard(card);
+      if (options.collapsed) {
+        card.classList.add('is-collapsed');
+      } else {
+        setActiveCard(card);
+      }
       wireDeleteGesture(card);
       updateCounter();
     }
+
+    if (Array.isArray(draftState.lines)) {
+      draftState.lines.forEach((line) => addDraftLine('line', null, line, { collapsed: true }));
+    }
+    updateCounter();
 
     addCard?.addEventListener('click', () => {
       closeDeleteActions();

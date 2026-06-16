@@ -24675,43 +24675,16 @@ def create_app():
     @app.route('/colaborador/despesas')
     @login_required
     def colaborador_despesas_page():
-        userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
-        login = str(getattr(current_user, 'LOGIN', '') or '').strip()
-        row = db.session.execute(text("""
-            SELECT TOP 1
-                ISNULL(U.PENO, 0) AS PENO,
-                LTRIM(RTRIM(ISNULL(U.PENOME, ''))) AS PENOME,
-                ISNULL(U.PEFEID, 0) AS PEFEID,
-                LTRIM(RTRIM(ISNULL(U.PEEMPRESA, ''))) AS PEEMPRESA,
-                ISNULL(FE.FEID, 0) AS FEID,
-                LTRIM(RTRIM(ISNULL(FE.NOME, ''))) AS FE_NOME,
-                LTRIM(RTRIM(ISNULL(FE.PHC_DB, ''))) AS PHC_DB,
-                LTRIM(RTRIM(ISNULL(FE.PHC_SERVER, ''))) AS PHC_SERVER
-            FROM dbo.US U
-            LEFT JOIN dbo.FE FE
-              ON FE.FEID = U.PEFEID
-            WHERE (:userstamp <> '' AND U.USSTAMP = :userstamp)
-               OR (:userstamp = '' AND U.LOGIN = :login)
-        """), {
-            'userstamp': userstamp,
-            'login': login,
-        }).mappings().first() or {}
+        from services.colaborador_despesas_service import get_or_create_draft_header, list_draft_lines
 
-        colaborador = {
-            'peno': int(row.get('PENO') or 0),
-            'penome': str(row.get('PENOME') or '').strip(),
-            'pefeid': int(row.get('PEFEID') or 0),
-            'empresa': str(row.get('FE_NOME') or row.get('PEEMPRESA') or '').strip(),
-            'phc_db': str(row.get('PHC_DB') or '').strip(),
-            'phc_server': str(row.get('PHC_SERVER') or '').strip(),
-            'login': login,
+        draft = get_or_create_draft_header(current_user)
+        header = draft.get('header') or {}
+        colaborador = draft.get('colaborador') or {}
+        header_stamp = str(header.get('DESPCABSTAMP') or '').strip()
+        expense_draft = {
+            'header_stamp': header_stamp,
+            'lines': list_draft_lines(header_stamp) if header_stamp else [],
         }
-        colaborador['completo'] = bool(
-            colaborador['peno']
-            and colaborador['penome']
-            and colaborador['pefeid']
-            and colaborador['phc_db']
-        )
         expense_types = [
             {'value': 'AUTRES', 'label': 'AUTRES'},
             {'value': 'CARBURANT', 'label': 'CARBURANT'},
@@ -24733,8 +24706,45 @@ def create_app():
             colaborador=colaborador,
             expense_types=expense_types,
             expense_vehicles=expense_vehicles,
+            expense_draft=expense_draft,
             today=date.today().isoformat(),
         )
+
+    @app.route('/api/colaborador/despesas/line', methods=['POST'])
+    @login_required
+    def api_colaborador_despesas_line_save():
+        from services.colaborador_despesas_service import upsert_expense_line
+
+        try:
+            if request.content_type and request.content_type.startswith('multipart/form-data'):
+                payload = request.form.to_dict()
+                file_storage = request.files.get('file')
+            else:
+                payload = request.get_json(silent=True) or {}
+                file_storage = None
+            return jsonify(upsert_expense_line(current_user, payload, file_storage))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar despesa do colaborador.')
+            return jsonify({'ok': False, 'error': 'Erro ao gravar despesa.'}), 500
+
+    @app.route('/api/colaborador/despesas/line/<string:line_stamp>', methods=['DELETE'])
+    @login_required
+    def api_colaborador_despesas_line_delete(line_stamp):
+        from services.colaborador_despesas_service import delete_expense_line
+
+        try:
+            return jsonify(delete_expense_line(current_user, line_stamp))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 404
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao remover despesa do colaborador.')
+            return jsonify({'ok': False, 'error': 'Erro ao remover despesa.'}), 500
 
     @app.route('/alojamentos-seguros')
     @app.route('/alojamentos_seguros')
@@ -26424,9 +26434,26 @@ def create_app():
                 else:
                     end_exclusive = date(ano + 1, 1, 1)
 
-                from modules.gr_management_map.routes import _hsols_master_conn_str
+                from modules.gr_management_map.routes import _allowed_origins_for_current_user, _hsols_master_conn_str
 
-                sql = """
+                allowed_origins = _allowed_origins_for_current_user()
+                columns = ['ORIGEM', 'PROVEITOS', 'CUSTOS', 'RESULTADO']
+                if allowed_origins == []:
+                    return jsonify({'columns': columns, 'rows': []})
+
+                origin_filter_sql = ''
+                cost_params = [start, end_exclusive]
+                revenue_params = [start, end_exclusive]
+                if allowed_origins is not None:
+                    origin_placeholders = ','.join('?' for _ in allowed_origins)
+                    origin_filter_sql = (
+                        " AND UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')) "
+                        f"IN ({origin_placeholders})"
+                    )
+                    cost_params.extend(allowed_origins)
+                    revenue_params.extend(allowed_origins)
+
+                sql = f"""
                     WITH Custos AS (
                         SELECT
                             UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')) AS ORIGEM,
@@ -26434,6 +26461,7 @@ def create_app():
                         FROM dbo.V_CUSTO_ORIGENS
                         WHERE DATA >= ? AND DATA < ?
                           AND LTRIM(RTRIM(ISNULL(BDADOS, ''))) <> ''
+                          {origin_filter_sql}
                         GROUP BY UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_'))
                     ),
                     Proveitos AS (
@@ -26443,6 +26471,7 @@ def create_app():
                         FROM dbo.V_FT_ORIGENS
                         WHERE FDATA >= ? AND FDATA < ?
                           AND LTRIM(RTRIM(ISNULL(BDADOS, ''))) <> ''
+                          {origin_filter_sql}
                         GROUP BY UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_'))
                     )
                     SELECT
@@ -26456,12 +26485,12 @@ def create_app():
                 """
                 with pyodbc.connect(_hsols_master_conn_str(), timeout=20) as conn:
                     cursor = conn.cursor()
-                    cursor.execute(sql, start, end_exclusive, start, end_exclusive)
-                    columns = [col[0] for col in cursor.description or []]
+                    cursor.execute(sql, *(cost_params + revenue_params))
+                    result_columns = [col[0] for col in cursor.description or []]
                     rows = []
                     for row in cursor.fetchall():
                         item = {}
-                        for col, val in zip(columns, row):
+                        for col, val in zip(result_columns, row):
                             if isinstance(val, Decimal):
                                 item[col] = float(val)
                             elif isinstance(val, (date, datetime)):
@@ -26469,7 +26498,7 @@ def create_app():
                             else:
                                 item[col] = val
                         rows.append(item)
-                return jsonify({'columns': ['ORIGEM', 'PROVEITOS', 'CUSTOS', 'RESULTADO'], 'rows': rows})
+                return jsonify({'columns': columns, 'rows': rows})
             except Exception as e:
                 current_app.logger.exception('Erro ao executar widget GR Management Map Summary')
                 return jsonify({'error': f'Erro ao executar widget GR: {e}'}), 500
