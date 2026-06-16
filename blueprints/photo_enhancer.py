@@ -277,8 +277,18 @@ def api_photo_enhancer_upload(session_id):
         """), {'id': _stamp(session_id)})
         db.session.commit()
         status = 201 if created else 400
+        error_message = ''
+        if not created and errors:
+            first_error = errors[0]
+            error_message = ': '.join(
+                item for item in [
+                    str(first_error.get('filename') or '').strip(),
+                    str(first_error.get('error') or '').strip(),
+                ] if item
+            )
         return jsonify({
             'ok': bool(created),
+            'error': error_message,
             'created': created,
             'errors': errors,
             'session': _session_payload(get_session(session_id)),
@@ -298,6 +308,8 @@ def api_photo_enhancer_enhance(file_id):
         ensure_photo_enhancer_schema()
         file_row, session_row = _assert_file_access(file_id)
         file_dict = row_to_file(file_row)
+        payload = request.get_json(silent=True) or {}
+        custom_instructions = str(payload.get('custom_instructions') or '').strip()[:2000]
 
         db.session.execute(text("""
             UPDATE dbo.PHOTO_ENHANCER_FILE
@@ -319,6 +331,7 @@ def api_photo_enhancer_enhance(file_id):
             file_dict['original_path'],
             enhanced_abs,
             user_id=getattr(current_user, 'USSTAMP', '') or getattr(current_user, 'LOGIN', ''),
+            custom_instructions=custom_instructions,
         )
         feid_part, aloj_part, session_part = (
             str(int(session_row.get('FEID') or 0)),

@@ -25,17 +25,27 @@
     comparisonTitle: document.getElementById('photoComparisonTitle'),
     comparisonOriginal: document.getElementById('photoComparisonOriginal'),
     comparisonEnhanced: document.getElementById('photoComparisonEnhanced'),
-    comparisonDownload: document.getElementById('photoComparisonDownload')
+    comparisonDownload: document.getElementById('photoComparisonDownload'),
+    reenhanceModal: document.getElementById('photoReenhanceModal'),
+    reenhanceTitle: document.getElementById('photoReenhanceTitle'),
+    reenhanceOriginal: document.getElementById('photoReenhanceOriginal'),
+    reenhancePrevious: document.getElementById('photoReenhancePrevious'),
+    reenhancePrompt: document.getElementById('photoReenhancePrompt'),
+    reenhanceInstructions: document.getElementById('photoReenhanceInstructions'),
+    reenhanceSubmit: document.getElementById('photoReenhanceSubmit'),
+    reenhanceSuggestionButtons: document.querySelectorAll('[data-instruction]')
   };
 
   const state = {
     alojamentos: [],
     sessions: [],
     session: null,
+    reenhanceFile: null,
     busy: false
   };
 
   const maxMb = Number(page.dataset.photoEnhancerMaxMb || 50);
+  els.files?.removeAttribute('accept');
 
   function setStatus(message, kind) {
     if (!els.status) return;
@@ -44,10 +54,19 @@
   }
 
   async function fetchJson(url, options) {
-    const response = await fetch(url, {
-      credentials: 'same-origin',
-      ...(options || {})
-    });
+    let response;
+    try {
+      response = await fetch(url, {
+        credentials: 'same-origin',
+        ...(options || {})
+      });
+    } catch (error) {
+      const message = String(error && error.message ? error.message : error || '');
+      if (/failed to fetch|networkerror|load failed/i.test(message)) {
+        throw new Error('Não foi possível comunicar com o servidor. Em produtivo isto costuma acontecer quando o upload é cortado pelo limite do proxy/web server.');
+      }
+      throw error;
+    }
     let payload = null;
     try {
       payload = await response.json();
@@ -55,7 +74,9 @@
       payload = null;
     }
     if (!response.ok || (payload && payload.ok === false)) {
-      throw new Error((payload && payload.error) || `Erro HTTP ${response.status}`);
+      const firstError = payload && Array.isArray(payload.errors) && payload.errors.length ? payload.errors[0] : null;
+      const detail = firstError ? [firstError.filename, firstError.error].filter(Boolean).join(': ') : '';
+      throw new Error((payload && payload.error) || detail || `Erro HTTP ${response.status}`);
     }
     return payload || {};
   }
@@ -234,7 +255,13 @@
       actions.className = 'photo-card_actions';
       const enhanceBtn = button('sz_button sz_button_secondary', 'wand-magic-sparkles', item.enhanced_path ? 'Melhorar novamente' : 'Melhorar');
       enhanceBtn.disabled = state.busy;
-      enhanceBtn.addEventListener('click', () => enhanceFile(item.id));
+      enhanceBtn.addEventListener('click', () => {
+        if (item.enhanced_path) {
+          openReenhanceModal(item);
+        } else {
+          enhanceFile(item.id);
+        }
+      });
       actions.appendChild(enhanceBtn);
 
       if (item.enhanced_path) {
@@ -366,20 +393,37 @@
       setStatus(`${tooLarge.name} excede ${maxMb} MB.`, 'error');
       return;
     }
-    const form = new FormData();
-    selected.forEach((file) => form.append('files', file));
     state.busy = true;
     setStatus('A carregar fotos...', 'busy');
     updateSummary();
     renderCards();
     try {
-      const payload = await fetchJson(`/api/photo-enhancer/sessions/${encodeURIComponent(session.id)}/upload`, {
-        method: 'POST',
-        body: form
-      });
-      state.session = payload.session || state.session;
-      const errors = payload.errors || [];
-      setStatus(errors.length ? `${selected.length - errors.length} fotos carregadas, ${errors.length} com erro.` : 'Fotos carregadas.', errors.length ? 'warning' : 'success');
+      const errors = [];
+      let loaded = 0;
+      for (let i = 0; i < selected.length; i += 1) {
+        const file = selected[i];
+        const form = new FormData();
+        form.append('files', file);
+        setStatus(`A carregar ${i + 1} de ${selected.length}: ${file.name}`, 'busy');
+        try {
+          const payload = await fetchJson(`/api/photo-enhancer/sessions/${encodeURIComponent(session.id)}/upload`, {
+            method: 'POST',
+            body: form
+          });
+          state.session = payload.session || state.session;
+          loaded += Array.isArray(payload.created) ? payload.created.length : 0;
+          (payload.errors || []).forEach((item) => errors.push(item));
+        } catch (error) {
+          errors.push({ filename: file.name, error: error.message || 'Erro no upload.' });
+        }
+      }
+      if (errors.length && !loaded) {
+        setStatus(errors[0].error || 'Erro no upload.', 'error');
+      } else if (errors.length) {
+        setStatus(`${loaded} fotos carregadas, ${errors.length} com erro.`, 'warning');
+      } else {
+        setStatus('Fotos carregadas.', 'success');
+      }
       renderCards();
     } catch (error) {
       setStatus(error.message || 'Erro no upload.', 'error');
@@ -402,7 +446,7 @@
     }
   }
 
-  async function enhanceFile(fileId) {
+  async function enhanceFile(fileId, customInstructions) {
     state.busy = true;
     const files = fileList();
     const target = files.find((item) => item.id === fileId);
@@ -413,7 +457,7 @@
       const payload = await fetchJson(`/api/photo-enhancer/files/${encodeURIComponent(fileId)}/enhance`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({})
+        body: JSON.stringify({custom_instructions: customInstructions || ''})
       });
       mergeFile(payload.file);
       setStatus('Foto melhorada.', 'success');
@@ -527,7 +571,7 @@
         const height = els.comparisonOriginal.naturalHeight || 3;
         document.documentElement.style.setProperty('--photo-comparison-ratio', `${width} / ${height}`);
       };
-      els.comparisonOriginal.src = imageUrl(item.original_path);
+      els.comparisonOriginal.src = imageUrl(item.thumb_path || item.original_path);
     }
     if (els.comparisonEnhanced) els.comparisonEnhanced.src = imageUrl(item.enhanced_path);
     if (els.comparisonDownload) {
@@ -536,6 +580,54 @@
     if (window.bootstrap && els.comparisonModal) {
       window.bootstrap.Modal.getOrCreateInstance(els.comparisonModal).show();
     }
+  }
+
+  function promptForItem(item, customInstructions) {
+    const basePrompt = String(window.PHOTO_ENHANCER_PROMPT || (item && item.prompt_used) || '').trim();
+    const extra = String(customInstructions || '').trim();
+    if (!extra) return basePrompt;
+    return `${basePrompt}\n\nAdditional user instructions for this re-edit:\n${extra}\n\nFollow the additional instructions only when they are compatible with a realistic, faithful property photo.`;
+  }
+
+  function openReenhanceModal(item) {
+    if (!item || !item.enhanced_path) return;
+    state.reenhanceFile = item;
+    if (els.reenhanceTitle) els.reenhanceTitle.textContent = item.original_filename || 'Melhorar novamente';
+    if (els.reenhanceOriginal) els.reenhanceOriginal.src = imageUrl(item.thumb_path || item.original_path);
+    if (els.reenhancePrevious) els.reenhancePrevious.src = imageUrl(item.enhanced_path);
+    if (els.reenhanceInstructions) els.reenhanceInstructions.value = '';
+    if (els.reenhancePrompt) els.reenhancePrompt.value = promptForItem(item, '');
+    if (window.bootstrap && els.reenhanceModal) {
+      window.bootstrap.Modal.getOrCreateInstance(els.reenhanceModal).show();
+    }
+  }
+
+  function refreshReenhancePrompt() {
+    if (els.reenhancePrompt && state.reenhanceFile) {
+      els.reenhancePrompt.value = promptForItem(state.reenhanceFile, els.reenhanceInstructions?.value || '');
+    }
+  }
+
+  function appendReenhanceInstruction(text) {
+    if (!els.reenhanceInstructions) return;
+    const current = String(els.reenhanceInstructions.value || '').trim();
+    const addition = String(text || '').trim();
+    if (!addition) return;
+    els.reenhanceInstructions.value = current ? `${current}\n\n${addition}` : addition;
+    els.reenhanceInstructions.focus();
+    refreshReenhancePrompt();
+  }
+
+  async function submitReenhance() {
+    const item = state.reenhanceFile;
+    if (!item || state.busy) return;
+    const instructions = String(els.reenhanceInstructions?.value || '').trim();
+    if (els.reenhancePrompt) els.reenhancePrompt.value = promptForItem(item, instructions);
+    if (window.bootstrap && els.reenhanceModal) {
+      window.bootstrap.Modal.getOrCreateInstance(els.reenhanceModal).hide();
+    }
+    await enhanceFile(item.id, instructions);
+    state.reenhanceFile = null;
   }
 
   function downloadZip() {
@@ -550,6 +642,13 @@
     els.pickFiles?.addEventListener('click', () => els.files?.click());
     els.files?.addEventListener('change', () => uploadFiles(els.files.files));
     els.zip?.addEventListener('click', downloadZip);
+    els.reenhanceSubmit?.addEventListener('click', submitReenhance);
+    els.reenhanceInstructions?.addEventListener('input', refreshReenhancePrompt);
+    els.reenhanceSuggestionButtons?.forEach((button) => {
+      button.addEventListener('click', () => {
+        appendReenhanceInstruction(button.dataset.instruction);
+      });
+    });
     els.sessionSelect?.addEventListener('change', () => openSession(els.sessionSelect.value));
     els.lodge?.addEventListener('input', () => {
       updateSummary();

@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}RevPAR por Alojamento{% endblock %}
+
+{% block content %}
+<div class="sz_page sz_revpar_page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar sz_revpar_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_breadcrumbs">Analytics</div>
+        <div class="sz_page_title">RevPAR por Alojamento</div>
+        <div class="sz_page_subtitle">Comparação mensal do RevPAR líquido contra o ano anterior.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="sz_metric_pill">
+          <span id="revparKpiCurrentLabel">RevPAR {{ ano }}</span>
+          <strong id="revparKpiCurrent">--</strong>
+        </div>
+        <div class="sz_metric_pill">
+          <span id="revparKpiPreviousLabel">RevPAR {{ ano - 1 }}</span>
+          <strong id="revparKpiPrevious">--</strong>
+        </div>
+        <div class="sz_metric_pill">
+          <span>Variação</span>
+          <strong id="revparKpiDelta">--</strong>
+        </div>
+        <label class="sz_field" for="revparAlojamento">
+          <span class="sz_label">Alojamento</span>
+          <select id="revparAlojamento" class="sz_select" data-initial="{{ alojamento }}">
+            <option value="">Todos</option>
+          </select>
+        </label>
+        <label class="sz_field" for="revparTipo">
+          <span class="sz_label">Tipo</span>
+          <select id="revparTipo" class="sz_select" data-initial="{{ tipo }}">
+            <option value="Todos" {% if tipo == 'Todos' or not tipo %}selected{% endif %}>Todos</option>
+            <option value="Gestão" {% if tipo == 'Gestão' %}selected{% endif %}>Gestão</option>
+            <option value="Exploração" {% if tipo == 'Exploração' %}selected{% endif %}>Exploração</option>
+          </select>
+        </label>
+        <label class="sz_field" for="revparAno">
+          <span class="sz_label">Ano</span>
+          <select id="revparAno" class="sz_select" data-initial="{{ ano }}">
+            {% for y in anos %}
+              <option value="{{ y }}" {% if y == ano %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="button" class="sz_button sz_button_primary" id="revparRefresh">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="sz_page_body">
+      <section class="sz_panel sz_revpar_panel">
+        <div class="sz_table_wrap sz_revpar_table_wrap">
+          <table class="sz_table sz_revpar_table">
+            <thead id="revparHead" class="sz_table_head"></thead>
+            <tbody id="revparBody">
+              <tr class="sz_table_row">
+                <td class="sz_table_cell sz_text_muted text-center" colspan="41">A carregar...</td>
+              </tr>
+            </tbody>
+            <tfoot id="revparFoot"></tfoot>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<style>
+  .sz_revpar_contextbar {
+    align-items: center;
+    gap: var(--sz-space-3);
+  }
+
+  .sz_revpar_contextbar .sz_contextbar_left {
+    flex: 0 0 clamp(20rem, 28vw, 34rem);
+    width: auto;
+    min-width: 0;
+  }
+
+  .sz_revpar_contextbar .sz_page_subtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sz_revpar_contextbar .sz_contextbar_right {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+  }
+
+  .sz_revpar_contextbar .sz_field {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  .sz_revpar_contextbar #revparAlojamento {
+    width: clamp(12rem, 18vw, 18rem);
+  }
+
+  .sz_revpar_contextbar #revparTipo {
+    width: 9rem;
+  }
+
+  .sz_revpar_contextbar #revparAno {
+    width: 7rem;
+  }
+
+  .sz_revpar_contextbar .sz_button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .sz_metric_pill {
+    display: inline-flex;
+    flex: 0 0 auto;
+    min-height: 2.5rem;
+    min-width: 6.9rem;
+    flex-direction: column;
+    justify-content: center;
+    border: 1px solid var(--sz-border, rgba(91, 141, 199, .32));
+    border-radius: var(--sz-radius-md);
+    padding: 0.35rem 0.65rem;
+    background: color-mix(in srgb, var(--sz-panel, #14263b) 92%, transparent);
+  }
+
+  .sz_metric_pill span {
+    color: var(--sz-muted, #9fb3c8);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
+  .sz_metric_pill strong {
+    color: var(--sz-text, #eef5ff);
+    font-size: 0.98rem;
+    line-height: 1.15;
+    text-align: right;
+  }
+
+  .sz_metric_pill strong.is-positive {
+    color: var(--sz-success, #34d399);
+  }
+
+  .sz_metric_pill strong.is-negative {
+    color: var(--sz-danger, #fb7185);
+  }
+
+  .sz_revpar_panel {
+    overflow: hidden;
+  }
+
+  .sz_revpar_table_wrap {
+    max-height: calc(100vh - 260px);
+    overflow: auto;
+  }
+
+  .sz_revpar_table {
+    min-width: 1500px;
+    table-layout: fixed;
+  }
+
+  .sz_revpar_table .sz_table_cell {
+    padding: 8px 10px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .sz_revpar_table th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--sz-panel-strong, #18304a);
+  }
+
+  .sz_revpar_table tfoot th,
+  .sz_revpar_table tfoot td {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--sz-panel-strong, #18304a);
+    font-weight: 800;
+  }
+
+  .sz_revpar_col-name {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    min-width: 220px;
+    width: 220px;
+    background: var(--sz-color-surface);
+    box-shadow: 1px 0 0 var(--sz-color-border);
+  }
+
+  .sz_revpar_table th.sz_revpar_col-name {
+    z-index: 7;
+    background: var(--sz-panel-strong, #18304a);
+  }
+
+  .sz_revpar_table tbody .sz_revpar_col-name {
+    z-index: 2;
+    background: var(--sz-color-surface);
+  }
+
+  .sz_revpar_table tfoot .sz_revpar_col-name {
+    z-index: 6;
+    background: var(--sz-panel-strong, #18304a);
+  }
+
+  .sz_revpar_col-type {
+    min-width: 100px;
+    width: 100px;
+  }
+
+  .sz_revpar_col-money {
+    min-width: 110px;
+    width: 110px;
+  }
+
+  .sz_revpar_col-delta {
+    min-width: 86px;
+    width: 86px;
+  }
+
+  .sz_revpar_table .text-end {
+    text-align: right;
+  }
+
+  .sz_revpar_delta {
+    display: inline-flex;
+    min-width: 68px;
+    justify-content: flex-end;
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-weight: 800;
+  }
+
+  .sz_revpar_delta.is-positive {
+    color: var(--sz-success, #34d399);
+    background: rgba(16, 185, 129, .12);
+  }
+
+  .sz_revpar_delta.is-negative {
+    color: var(--sz-danger, #fb7185);
+    background: rgba(244, 63, 94, .12);
+  }
+
+  .sz_revpar_delta.is-empty {
+    color: var(--sz-muted, #9fb3c8);
+    background: transparent;
+  }
+
+  .sz_revpar_type_badge {
+    display: inline-flex;
+    border: 1px solid var(--sz-border, rgba(91, 141, 199, .32));
+    border-radius: 999px;
+    padding: 3px 8px;
+    color: var(--sz-muted, #9fb3c8);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  @media (max-width: 900px) {
+    .sz_revpar_contextbar {
+      align-items: stretch;
+    }
+
+    .sz_revpar_contextbar .sz_contextbar_left,
+    .sz_revpar_contextbar .sz_contextbar_right,
+    .sz_revpar_contextbar .sz_field,
+    .sz_revpar_contextbar #revparAlojamento {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .sz_revpar_contextbar .sz_contextbar_right {
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+
+    .sz_metric_pill {
+      flex: 1 1 30%;
+      min-width: 0;
+    }
+
+    .sz_revpar_table_wrap {
+      max-height: calc(100vh - 330px);
+    }
+  }
+</style>
+
+<script src="{{ url_for('static', filename='js/analytics_revpar.js') }}?v={{ static_version }}"></script>
+{% endblock %}

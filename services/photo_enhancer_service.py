@@ -21,7 +21,17 @@ from werkzeug.utils import secure_filename
 from models import db
 
 
-PHOTO_ENHANCER_ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
+try:
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+    PHOTO_ENHANCER_HEIF_ENABLED = True
+except Exception:
+    PHOTO_ENHANCER_HEIF_ENABLED = False
+
+
+PHOTO_ENHANCER_HEIF_EXTENSIONS = {'.heic', '.heif'}
+PHOTO_ENHANCER_ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', *PHOTO_ENHANCER_HEIF_EXTENSIONS}
 PHOTO_ENHANCER_DEFAULT_PROFILE = 'guestspa_premium'
 
 PHOTO_ENHANCER_PROFILES = {
@@ -424,7 +434,9 @@ def validate_upload(file_storage) -> tuple[str, str]:
     _, ext = os.path.splitext(original_name)
     ext = ext.lower()
     if ext not in PHOTO_ENHANCER_ALLOWED_EXTENSIONS:
-        raise PhotoEnhancerError('Apenas sao aceites imagens jpg, jpeg, png e webp.')
+        raise PhotoEnhancerError('Apenas sao aceites imagens jpg, jpeg, png, webp, heic e heif.')
+    if ext in PHOTO_ENHANCER_HEIF_EXTENSIONS and not PHOTO_ENHANCER_HEIF_ENABLED:
+        raise PhotoEnhancerError('Este servidor ainda nao consegue ler HEIC/HEIF. Instala a dependencia pillow-heif e reinicia a aplicacao.')
     return original_name, ext
 
 
@@ -603,7 +615,13 @@ def _friendly_openai_error(details: str) -> str:
     return f'Falha na OpenAI: {text_value[:500]}'
 
 
-def enhance_photo(original_path: str, enhanced_abs: str, user_id: str = '', profile: str | None = None) -> dict[str, Any]:
+def enhance_photo(
+    original_path: str,
+    enhanced_abs: str,
+    user_id: str = '',
+    profile: str | None = None,
+    custom_instructions: str = '',
+) -> dict[str, Any]:
     api_key = photo_enhancer_api_key()
     if not api_key:
         raise PhotoEnhancerError('Integração OpenAI indisponível. Configura SHOP_TRANSLATE_OPENAI_API_KEY na tabela PARA.')
@@ -616,6 +634,14 @@ def enhance_photo(original_path: str, enhanced_abs: str, user_id: str = '', prof
 
     model = photo_enhancer_model()
     profile_key, prompt = photo_enhancer_prompt_for_profile(profile)
+    custom_instructions = _clean_text(custom_instructions, 2000)
+    if custom_instructions:
+        prompt = (
+            f'{prompt}\n\n'
+            'Additional user instructions for this re-edit:\n'
+            f'{custom_instructions}\n\n'
+            'Follow the additional instructions only when they are compatible with a realistic, faithful property photo.'
+        )
     fields = {
         'model': model,
         'prompt': prompt,
@@ -712,6 +738,7 @@ def row_to_file(row) -> dict[str, Any]:
         'error_message': _clean_text(data.get('ERROR_MESSAGE')),
         'processing_profile': _clean_text(data.get('PROCESSING_PROFILE'), 40) or PHOTO_ENHANCER_DEFAULT_PROFILE,
         'openai_model': _clean_text(data.get('OPENAI_MODEL'), 80),
+        'prompt_used': _clean_text(data.get('PROMPT_USED')),
         'cost_estimated': _json_decimal(data.get('COST_ESTIMATED')),
         'created_at': _json_datetime(data.get('CREATED_AT')),
         'updated_at': _json_datetime(data.get('UPDATED_AT')),

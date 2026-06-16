@@ -1,0 +1,626 @@
+{% extends "base.html" %}
+
+{% block title %}Despesas{% endblock %}
+
+{% block content %}
+<div class="sz_page expense-page">
+  <div class="sz_page_container expense-shell">
+    <header class="sz_contextbar sz_page_contextbar expense-contextbar">
+      <div class="sz_contextbar_left expense-context-main">
+        <div class="sz_page_title">Lançamento de despesas</div>
+        <div class="sz_page_subtitle">
+          N.º {{ colaborador.peno or '-' }} · {{ colaborador.penome or 'Sem ficha associada' }} · {{ colaborador.empresa or 'Sem empresa' }}
+        </div>
+      </div>
+    </header>
+
+    <main class="sz_page_body expense-body">
+      {% if not colaborador.completo %}
+        <section class="expense-alert" role="status">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <div>
+            <strong>Ficha de colaborador incompleta</strong>
+            <span>Confirma os campos US.PENO, US.PENOME e US.PEFEID antes de gravarmos despesas.</span>
+          </div>
+        </section>
+      {% endif %}
+
+      <section class="expense-section">
+        <div class="expense-section-head">
+          <div>
+            <h2>Linhas da despesa</h2>
+            <p>Cada linha tem a sua data, tipo, valor e fotografia.</p>
+          </div>
+          <span class="expense-counter" id="expenseLineCount">0</span>
+        </div>
+
+        <div id="expenseLines" class="expense-lines">
+          <button type="button" class="expense-add-card" id="expenseAddCard">
+            <i class="fa-solid fa-plus"></i>
+            <span>Adicionar despesa</span>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <input id="expensePhotoInput" class="expense-file-input" type="file" accept="image/*,.pdf,application/pdf">
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .expense-page {
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .expense-page::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .expense-shell {
+    min-height: max-content;
+    padding-bottom: var(--sz-space-4);
+  }
+
+  .expense-context-main {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .expense-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    min-height: 0;
+    overflow-y: visible;
+    overflow-x: hidden;
+  }
+
+  .expense-alert {
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+  }
+
+  .expense-alert {
+    display: flex;
+    gap: var(--sz-space-3);
+    align-items: flex-start;
+    padding: var(--sz-space-3);
+    color: var(--sz-color-text);
+    background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 12%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 44%, var(--sz-color-border));
+  }
+
+  .expense-alert i {
+    margin-top: .15rem;
+    color: var(--sz-color-warning, #f59e0b);
+  }
+
+  .expense-alert strong,
+  .expense-alert span {
+    display: block;
+  }
+
+  .expense-alert span {
+    margin-top: .18rem;
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .expense-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+  }
+
+  .expense-section-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+    padding-inline: .2rem;
+  }
+
+  .expense-section-head h2 {
+    margin: 0;
+    color: var(--sz-color-text);
+    font-size: 1rem;
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .expense-section-head p {
+    margin: .15rem 0 0;
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .expense-counter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: 999px;
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .expense-lines {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+  }
+
+  .expense-line-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+  }
+
+  .expense-line-card.is-collapsed {
+    padding: var(--sz-space-2);
+    cursor: pointer;
+  }
+
+  .expense-line-card.is-collapsed .expense-line-editor {
+    display: none;
+  }
+
+  .expense-line-card:not(.is-collapsed) .expense-line-summary {
+    display: none;
+  }
+
+  .expense-line-summary {
+    display: grid;
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+    gap: var(--sz-space-2);
+    align-items: center;
+  }
+
+  .expense-line-summary-thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    overflow: hidden;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    color: var(--sz-color-text-secondary);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 45%, transparent);
+  }
+
+  .expense-line-summary-thumb.has-photo {
+    color: var(--sz-color-primary);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 38%, var(--sz-color-border));
+  }
+
+  .expense-line-summary-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .expense-line-summary-body {
+    min-width: 0;
+  }
+
+  .expense-line-summary-title,
+  .expense-line-summary-meta {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .expense-line-summary-title {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .expense-line-summary-meta {
+    margin-top: .15rem;
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .expense-line-editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+  }
+
+  .expense-line-photo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sz-space-2);
+    min-height: 7.5rem;
+    border: 1px dashed var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    color: var(--sz-color-text-secondary);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 38%, transparent);
+    font-weight: var(--sz-font-weight-semibold);
+    cursor: pointer;
+  }
+
+  .expense-line-photo.has-photo {
+    border-style: solid;
+    border-color: color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-border));
+    color: var(--sz-color-primary);
+    background: color-mix(in srgb, var(--sz-color-primary) 9%, var(--sz-color-surface));
+  }
+
+  .expense-line-photo:hover {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 46%, var(--sz-color-border));
+  }
+
+  .expense-line-photo img {
+    width: 100%;
+    max-height: 14rem;
+    object-fit: cover;
+    border-radius: calc(var(--sz-radius-md) - 2px);
+  }
+
+  .expense-line-photo.is-preview {
+    min-height: 0;
+    padding: var(--sz-space-2);
+  }
+
+  .expense-line-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sz-space-3);
+  }
+
+  .expense-vehicle-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sz-space-3);
+  }
+
+  .expense-vehicle-fields[hidden] {
+    display: none;
+  }
+
+  .expense-add-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sz-space-2);
+    width: 100%;
+    min-height: 5rem;
+    padding: var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-style: dashed;
+    border-radius: var(--sz-radius-md);
+    color: var(--sz-color-primary);
+    background: color-mix(in srgb, var(--sz-color-primary) 7%, var(--sz-color-surface));
+    font: inherit;
+    font-weight: var(--sz-font-weight-semibold);
+    cursor: pointer;
+  }
+
+  .expense-add-card:hover {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 48%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-primary) 11%, var(--sz-color-surface));
+  }
+
+  .expense-file-input {
+    position: fixed;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  @media (max-width: 640px) {
+    body.sz-base-shell,
+    body.sz-base-shell .main-content {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    body.sz-base-shell::-webkit-scrollbar,
+    body.sz-base-shell .main-content::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    .expense-shell {
+      padding-inline: var(--sz-space-3);
+      padding-block: var(--sz-space-2) var(--sz-space-4);
+    }
+
+    .expense-contextbar {
+      padding: var(--sz-space-3);
+    }
+  }
+</style>
+<script>
+  window.COLLAB_EXPENSE_CONTEXT = {{ colaborador|tojson }};
+  window.COLLAB_EXPENSE_TYPES = {{ expense_types|tojson }};
+  window.COLLAB_EXPENSE_VEHICLES = {{ expense_vehicles|tojson }};
+  window.COLLAB_EXPENSE_TODAY = {{ today|tojson }};
+  (() => {
+    const linesHost = document.getElementById('expenseLines');
+    const counter = document.getElementById('expenseLineCount');
+    const addCard = document.getElementById('expenseAddCard');
+    const photoInput = document.getElementById('expensePhotoInput');
+    const vehicleExpenseTypes = new Set(['CARBURANT', 'DKV', 'VOITURES']);
+    const defaultDate = window.COLLAB_EXPENSE_TODAY || '';
+    let pendingPhotoZone = null;
+    let activeCard = null;
+
+    function updateCounter() {
+      if (!counter || !linesHost) return;
+      counter.textContent = String(linesHost.querySelectorAll('.expense-line-card').length);
+    }
+
+    function filePreview(file, photoZone) {
+      if (!file) return '';
+      const name = String(file.name || 'Ficheiro').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[ch]));
+      if (file.type && file.type.startsWith('image/')) {
+        if (photoZone?.dataset?.objectUrl) URL.revokeObjectURL(photoZone.dataset.objectUrl);
+        const url = URL.createObjectURL(file);
+        if (photoZone?.dataset) photoZone.dataset.objectUrl = url;
+        return `<img src="${url}" alt="${name}">`;
+      }
+      if (photoZone?.dataset?.objectUrl) {
+        URL.revokeObjectURL(photoZone.dataset.objectUrl);
+        photoZone.dataset.objectUrl = '';
+      }
+      return `<i class="fa-solid fa-file-pdf"></i><span>${name}</span>`;
+    }
+
+    function renderSummaryThumb(card) {
+      const thumb = card?.querySelector('[data-summary-thumb]');
+      if (!thumb) return;
+      const fileName = card.dataset.fileName || '';
+      const fileType = card.dataset.fileType || '';
+      const objectUrl = card.dataset.objectUrl || '';
+      thumb.classList.toggle('has-photo', !!fileName);
+      if (objectUrl && fileType.startsWith('image/')) {
+        thumb.innerHTML = `<img src="${objectUrl}" alt="${escapeHtml(fileName)}">`;
+        return;
+      }
+      if (fileName && fileType === 'application/pdf') {
+        thumb.innerHTML = '<i class="fa-solid fa-file-pdf"></i>';
+        return;
+      }
+      if (fileName) {
+        thumb.innerHTML = '<i class="fa-solid fa-file"></i>';
+        return;
+      }
+      thumb.innerHTML = '<i class="fa-solid fa-camera"></i>';
+    }
+
+    function formatDate(value) {
+      if (!value) return 'Sem data';
+      const parts = String(value).split('-');
+      if (parts.length !== 3) return value;
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+
+    function formatAmount(value) {
+      const raw = String(value || '').replace(',', '.');
+      if (!raw) return 'Sem valor';
+      const number = Number(raw);
+      if (!Number.isFinite(number)) return 'Sem valor';
+      return `${number.toFixed(2).replace('.', ',')} €`;
+    }
+
+    function refreshSummary(card) {
+      if (!card) return;
+      const typeSelect = card.querySelector('[data-expense-type]');
+      const dateInput = card.querySelector('[data-expense-date]');
+      const amountInput = card.querySelector('[data-expense-value]');
+      const kmsInput = card.querySelector('[data-expense-kms]');
+      const vehicleSelect = card.querySelector('[data-expense-vehicle]');
+      const title = card.querySelector('[data-summary-title]');
+      const meta = card.querySelector('[data-summary-meta]');
+      const typeLabel = typeSelect?.selectedOptions?.[0]?.textContent?.trim();
+      const vehicleLabel = vehicleSelect?.selectedOptions?.[0]?.textContent?.trim();
+      if (title) title.textContent = typeSelect?.value ? typeLabel : 'Despesa por preencher';
+      const metaParts = [
+        formatDate(dateInput?.value),
+        formatAmount(amountInput?.value)
+      ];
+      if (kmsInput?.value) metaParts.push(`${kmsInput.value} kms`);
+      if (vehicleSelect?.value && vehicleLabel) metaParts.push(vehicleLabel);
+      if (meta) meta.textContent = metaParts.join(' · ');
+      renderSummaryThumb(card);
+    }
+
+    function setPhotoZoneFile(photoZone, file) {
+      if (!photoZone || !file) return;
+      photoZone.classList.add('has-photo', 'is-preview');
+      photoZone.innerHTML = filePreview(file, photoZone);
+      const card = photoZone.closest('.expense-line-card');
+      if (card) {
+        card.dataset.fileName = file.name || '';
+        card.dataset.fileType = file.type || '';
+        card.dataset.objectUrl = photoZone.dataset.objectUrl || '';
+        refreshSummary(card);
+      }
+    }
+
+    function openPhotoPicker(photoZone = null) {
+      pendingPhotoZone = photoZone;
+      photoInput?.click();
+    }
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[ch]));
+    }
+
+    function expenseTypeOptions() {
+      const rows = Array.isArray(window.COLLAB_EXPENSE_TYPES) ? window.COLLAB_EXPENSE_TYPES : [];
+      return [
+        '<option value="">Selecione uma opção</option>',
+        ...rows.map((row) => `<option value="${escapeHtml(row.value)}">${escapeHtml(row.label || row.value)}</option>`)
+      ].join('');
+    }
+
+    function vehicleOptions() {
+      const rows = Array.isArray(window.COLLAB_EXPENSE_VEHICLES) ? window.COLLAB_EXPENSE_VEHICLES : [];
+      return [
+        '<option value="">Selecione uma viatura</option>',
+        ...rows.map((row) => {
+          const value = row.MATRICULA || row.value || '';
+          const label = row.LABEL || row.label || row.MATRICULA || row.value || '';
+          return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
+        })
+      ].join('');
+    }
+
+    function wireVehicleVisibility(card) {
+      const typeSelect = card.querySelector('[data-expense-type]');
+      const vehicleFields = card.querySelector('[data-vehicle-fields]');
+      const kmsInput = card.querySelector('[data-expense-kms]');
+      const vehicleSelect = card.querySelector('[data-expense-vehicle]');
+      const sync = () => {
+        const selectedType = String(typeSelect?.value || '').trim().toUpperCase();
+        const shouldShow = vehicleExpenseTypes.has(selectedType);
+        if (vehicleFields) vehicleFields.hidden = !shouldShow;
+        if (!shouldShow) {
+          if (kmsInput) kmsInput.value = '';
+          if (vehicleSelect) vehicleSelect.value = '';
+        }
+        refreshSummary(card);
+      };
+      typeSelect?.addEventListener('change', sync);
+      sync();
+    }
+
+    function setActiveCard(card) {
+      if (!card || activeCard === card) return;
+      linesHost?.querySelectorAll('.expense-line-card').forEach((item) => {
+        item.classList.toggle('is-collapsed', item !== card);
+        refreshSummary(item);
+      });
+      activeCard = card;
+    }
+
+    function addDraftLine(mode, file) {
+      if (!linesHost) return;
+      const card = document.createElement('article');
+      card.className = 'expense-line-card';
+      const hasFile = !!file;
+      const photoText = hasFile ? file.name : (mode === 'photo' ? 'Foto por classificar' : 'Foto em falta');
+      card.innerHTML = `
+        <div class="expense-line-summary">
+          <div class="expense-line-summary-thumb" data-summary-thumb>
+            <i class="fa-solid fa-camera"></i>
+          </div>
+          <div class="expense-line-summary-body">
+            <strong class="expense-line-summary-title" data-summary-title>Despesa por preencher</strong>
+            <span class="expense-line-summary-meta" data-summary-meta>Sem data · Sem valor</span>
+          </div>
+        </div>
+        <div class="expense-line-editor">
+          <div class="expense-line-photo ${hasFile || mode === 'photo' ? 'has-photo' : ''} ${hasFile ? 'is-preview' : ''}" role="button" tabindex="0" aria-label="Adicionar ou substituir foto">
+            ${hasFile ? '<i class="fa-solid fa-image"></i><span>A carregar ficheiro</span>' : `<i class="fa-solid ${mode === 'photo' ? 'fa-image' : 'fa-camera'}"></i><span>${photoText}</span>`}
+          </div>
+          <div class="expense-line-fields">
+            <label class="sz_field">
+              <span class="sz_label">Data da despesa</span>
+              <input class="sz_date" type="date" value="${escapeHtml(defaultDate)}" autocomplete="off" data-expense-date>
+            </label>
+            <label class="sz_field">
+              <span class="sz_label">Tipo de despesa</span>
+              <select class="sz_select" data-expense-type>
+                ${expenseTypeOptions()}
+              </select>
+            </label>
+            <label class="sz_field">
+              <span class="sz_label">Valor</span>
+              <input class="sz_input_number" type="number" step="0.01" min="0" placeholder="0,00" data-expense-value>
+            </label>
+            <div class="expense-vehicle-fields" data-vehicle-fields hidden>
+              <label class="sz_field">
+                <span class="sz_label">Kms</span>
+                <input class="sz_input_number" type="number" step="1" min="0" inputmode="numeric" data-expense-kms>
+              </label>
+              <label class="sz_field">
+                <span class="sz_label">Viatura</span>
+                <select class="sz_select" data-expense-vehicle>
+                  ${vehicleOptions()}
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+      `;
+      linesHost.insertBefore(card, addCard || null);
+      const photoZone = card.querySelector('.expense-line-photo');
+      if (hasFile && photoZone) setPhotoZoneFile(photoZone, file);
+      wireVehicleVisibility(card);
+      card.querySelectorAll('input, select').forEach((field) => {
+        field.addEventListener('input', () => refreshSummary(card));
+        field.addEventListener('change', () => refreshSummary(card));
+      });
+      refreshSummary(card);
+      setActiveCard(card);
+      updateCounter();
+    }
+
+    addCard?.addEventListener('click', () => addDraftLine('line'));
+    linesHost?.addEventListener('click', (event) => {
+      const collapsedCard = event.target.closest('.expense-line-card.is-collapsed');
+      if (collapsedCard) {
+        setActiveCard(collapsedCard);
+        return;
+      }
+      const photoZone = event.target.closest('.expense-line-photo');
+      if (!photoZone) return;
+      openPhotoPicker(photoZone);
+    });
+    linesHost?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const photoZone = event.target.closest('.expense-line-photo');
+      if (!photoZone) return;
+      event.preventDefault();
+      openPhotoPicker(photoZone);
+    });
+    photoInput?.addEventListener('change', () => {
+      const file = photoInput.files && photoInput.files[0] ? photoInput.files[0] : null;
+      if (file && pendingPhotoZone) {
+        setPhotoZoneFile(pendingPhotoZone, file);
+      } else if (file) {
+        addDraftLine('photo', file);
+      }
+      pendingPhotoZone = null;
+      photoInput.value = '';
+    });
+  })();
+</script>
+{% endblock %}

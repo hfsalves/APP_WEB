@@ -560,6 +560,9 @@ def create_app():
     from blueprints.photo_enhancer import bp as photo_enhancer_bp
     app.register_blueprint(photo_enhancer_bp)
 
+    from blueprints.analytics_revpar import bp as analytics_revpar_bp
+    app.register_blueprint(analytics_revpar_bp)
+
     from blueprints.email_service import bp as email_service_bp
     app.register_blueprint(email_service_bp)
 
@@ -2618,6 +2621,30 @@ def create_app():
             clnome = getattr(source, 'CLNOME', None)
         return bool(str(clno or '').strip() and str(clnome or '').strip())
 
+    def _is_warehouse_monitor_user(user_or_row=None) -> bool:
+        source = user_or_row if user_or_row is not None else current_user
+        if isinstance(source, dict):
+            login_value = source.get('LOGIN')
+            home_value = source.get('HOME')
+        else:
+            login_value = getattr(source, 'LOGIN', '')
+            home_value = getattr(source, 'HOME', '')
+        login_key = str(login_value or '').strip().lower()
+        home_key = str(home_value or '').strip().lower().strip('/')
+        return login_key == 'armazem' or home_key in {
+            'monitor/limpezas',
+            'limpezas/monitor',
+            'warehouse/cleanings',
+            'armazem',
+        }
+
+    def _can_view_monitor_limpezas() -> bool:
+        return bool(
+            _is_warehouse_monitor_user()
+            or getattr(current_user, 'ADMIN', False)
+            or getattr(current_user, 'LPADMIN', False)
+        )
+
     # Rotas de autenticação
     @app.route('/login', methods=['GET', 'POST'])
     def login():
@@ -2721,6 +2748,8 @@ def create_app():
                         return redirect(url_for('database_consistency_page'))
                     if _is_cliente_user(result.row):
                         return redirect(url_for('cliente_portal_page'))
+                    if _is_warehouse_monitor_user(result.row):
+                        return redirect(url_for('monitor_limpezas_page'))
                     return redirect(
                         _safe_next_url(request.form.get('next') or request.args.get('next'))
                         or url_for('home_page')
@@ -23490,6 +23519,8 @@ def create_app():
     def home_page():
         if _is_cliente_user():
             return redirect(url_for('cliente_portal_page'))
+        if _is_warehouse_monitor_user():
+            return redirect(url_for('monitor_limpezas_page'))
 
         home_raw = str(getattr(current_user, 'HOME', '') or '').strip()
         home = home_raw.lower().strip().strip('/')
@@ -23534,6 +23565,310 @@ def create_app():
             return redirect(home_path)
 
         return redirect(url_for('dashboard_page'))
+
+    @app.route('/monitor/limpezas')
+    @app.route('/limpezas/monitor')
+    @login_required
+    def monitor_limpezas_page():
+        if not _can_view_monitor_limpezas():
+            abort(403)
+        return render_template(
+            'monitor_limpezas.html',
+            page_title='Monitor de Limpezas',
+            current_login=(getattr(current_user, 'LOGIN', '') or '').strip(),
+        )
+
+    def _monitor_limpezas_duration_sql(al_cols: set[str]) -> str:
+        if 'LPTEMPO' in al_cols:
+            return """
+                CASE
+                    WHEN ISNULL(AL.LPTEMPO, 0) > 0 THEN ISNULL(AL.LPTEMPO, 0)
+                    WHEN UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, '')))) IN ('T0', 'T1') THEN 60
+                    WHEN UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, '')))) = 'T2' THEN 90
+                    WHEN UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, '')))) = 'T3' THEN 120
+                    WHEN UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, '')))) = 'T4' THEN 150
+                    ELSE 75
+                END
+            """
+        return """
+            CASE
+                WHEN UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, '')))) IN ('T0', 'T1') THEN 60
+                WHEN UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, '')))) = 'T2' THEN 90
+                WHEN UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, '')))) = 'T3' THEN 120
+                WHEN UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, '')))) = 'T4' THEN 150
+                ELSE 75
+            END
+        """
+
+    def _monitor_limpezas_parse_time(value: str) -> tuple[int | None, int | None]:
+        raw = str(value or '').strip()
+        if not raw:
+            return None, None
+        match = re.match(r'^(\d{1,2}):(\d{2})', raw)
+        if match:
+            return int(match.group(1)), int(match.group(2))
+        digits = re.sub(r'\D', '', raw)
+        if not digits:
+            return None, None
+        try:
+            if len(digits) >= 3:
+                return int(digits[:-2]), int(digits[-2:])
+            return int(digits), 0
+        except Exception:
+            return None, None
+
+    def _monitor_limpezas_format_minutes(total: int) -> str:
+        total = max(0, int(total or 0))
+        hours, minutes = divmod(total, 60)
+        if hours and minutes:
+            return f'{hours}h{minutes:02d}'
+        if hours:
+            return f'{hours}h'
+        return f'{minutes}m'
+
+    def _monitor_limpezas_time_to_minutes(value: str) -> int | None:
+        h, m = _monitor_limpezas_parse_time(value)
+        if h is None or m is None or h > 23 or m > 59:
+            return None
+        return h * 60 + m
+
+    def _monitor_limpezas_status(item: dict, today: date, target_day: date, now_minutes: int) -> dict:
+        done = bool(item.get('done'))
+        started_at = str(item.get('started_at') or '').strip()
+        finished_at = str(item.get('finished_at') or '').strip()
+        task_id = str(item.get('task_id') or '').strip()
+        start_minutes = item.get('start_minutes')
+        end_minutes = item.get('end_minutes')
+        if finished_at or done:
+            return {'key': 'done', 'label': 'Concluida', 'tone': 'ok', 'detail': finished_at or 'Fechada'}
+        if started_at:
+            late = target_day < today or (target_day == today and end_minutes is not None and now_minutes > end_minutes)
+            return {
+                'key': 'late_running' if late else 'running',
+                'label': 'A atrasar' if late else 'Em curso',
+                'tone': 'danger' if late else 'active',
+                'detail': f'Desde {started_at}',
+            }
+        if not task_id:
+            return {'key': 'unassigned', 'label': 'Por atribuir', 'tone': 'warning', 'detail': 'Sem tarefa'}
+        if target_day < today:
+            return {'key': 'late', 'label': 'Atrasada', 'tone': 'danger', 'detail': 'Dia ultrapassado'}
+        if target_day == today and end_minutes is not None and now_minutes > end_minutes:
+            return {'key': 'late', 'label': 'Atrasada', 'tone': 'danger', 'detail': 'Fim previsto ultrapassado'}
+        if target_day == today and start_minutes is not None and now_minutes >= start_minutes:
+            return {'key': 'due', 'label': 'Deve iniciar', 'tone': 'attention', 'detail': 'Dentro da janela'}
+        return {'key': 'planned', 'label': 'Por iniciar', 'tone': 'quiet', 'detail': 'Planeada'}
+
+    @app.route('/api/monitor/limpezas')
+    @login_required
+    def api_monitor_limpezas():
+        if not _can_view_monitor_limpezas():
+            return jsonify({'error': 'Sem permissao para consultar'}), 403
+
+        raw_date = str(request.args.get('date') or '').strip()
+        try:
+            target_day = datetime.strptime(raw_date[:10], '%Y-%m-%d').date() if raw_date else date.today()
+        except Exception:
+            return jsonify({'error': 'Data invalida'}), 400
+
+        try:
+            al_cols = {
+                str(r[0] or '').strip().upper()
+                for r in db.session.execute(text("""
+                    SELECT UPPER(COLUMN_NAME)
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'AL'
+                """)).fetchall()
+                if r and r[0]
+            }
+            lp_cols = {
+                str(r[0] or '').strip().upper()
+                for r in db.session.execute(text("""
+                    SELECT UPPER(COLUMN_NAME)
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'LP'
+                """)).fetchall()
+                if r and r[0]
+            }
+            tarefas_cols = {
+                str(r[0] or '').strip().upper()
+                for r in db.session.execute(text("""
+                    SELECT UPPER(COLUMN_NAME)
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'TAREFAS'
+                """)).fetchall()
+                if r and r[0]
+            }
+            duration_sql = _monitor_limpezas_duration_sql(al_cols)
+            tarefa_horaini_sql = "T.HORAINI" if 'HORAINI' in tarefas_cols else "''"
+            tarefa_horafim_sql = "T.HORAFIM" if 'HORAFIM' in tarefas_cols else "''"
+            try:
+                current_feid = int(get_current_feid() or 0)
+            except Exception:
+                current_feid = 0
+            scope_parts = [":current_feid = 0"]
+            if 'FEID' in lp_cols:
+                scope_parts.append("ISNULL(LP.FEID, 0) = :current_feid")
+            if 'FEID' in al_cols:
+                scope_parts.append("ISNULL(AL.FEID, 0) = :current_feid")
+            if 'FEID_GESTOR' in al_cols:
+                scope_parts.append("ISNULL(AL.FEID_GESTOR, 0) = :current_feid")
+            feid_scope_sql = " OR ".join(scope_parts)
+            sql = text(f"""
+                SELECT
+                    LP.LPSTAMP,
+                    CAST(LP.DATA AS date) AS DATA,
+                    LTRIM(RTRIM(ISNULL(LP.HORA, ''))) AS HORA,
+                    LTRIM(RTRIM(ISNULL(LP.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                    LTRIM(RTRIM(ISNULL(LP.EQUIPA, ''))) AS EQUIPA,
+                    ISNULL(LP.TERMINADA, 0) AS TERMINADA,
+                    ISNULL(LP.HOSPEDES, 0) AS HOSPEDES,
+                    ISNULL(LP.NOITES, 0) AS NOITES,
+                    LTRIM(RTRIM(ISNULL(LP.OBS, ''))) AS OBS,
+                    ISNULL(AL.TIPOLOGIA, '') AS TIPOLOGIA,
+                    ISNULL(AL.ZONA, '') AS ZONA,
+                    {duration_sql} AS DURACAO_MIN,
+                    T.TAREFASSTAMP,
+                    ISNULL(T.TRATADO, 0) AS TAREFA_TRATADA,
+                    LTRIM(RTRIM(ISNULL(T.HORAINI, ''))) AS HORAINI,
+                    LTRIM(RTRIM(ISNULL(T.HORAFIM, ''))) AS HORAFIM,
+                    ISNULL(U.NOME, T.UTILIZADOR) AS UTILIZADOR_NOME,
+                    CO.HORAOUT AS CHECKOUT_HORA,
+                    CI.HORAIN AS CHECKIN_HORA
+                FROM dbo.LP AS LP
+                LEFT JOIN dbo.AL AS AL
+                  ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(LP.ALOJAMENTO, '')))
+                OUTER APPLY (
+                    SELECT TOP 1
+                        T.TAREFASSTAMP,
+                        T.TRATADO,
+                        {tarefa_horaini_sql} AS HORAINI,
+                        {tarefa_horafim_sql} AS HORAFIM,
+                        T.UTILIZADOR
+                    FROM dbo.TAREFAS AS T
+                    WHERE LTRIM(RTRIM(ISNULL(T.ORIGEM, ''))) = 'LP'
+                      AND CAST(T.DATA AS date) = CAST(LP.DATA AS date)
+                      AND LTRIM(RTRIM(ISNULL(T.ALOJAMENTO, ''))) = LTRIM(RTRIM(ISNULL(LP.ALOJAMENTO, '')))
+                      AND (
+                          LTRIM(RTRIM(ISNULL(T.ORISTAMP, ''))) = LTRIM(RTRIM(ISNULL(LP.LPSTAMP, '')))
+                          OR (
+                              LTRIM(RTRIM(ISNULL(T.ORISTAMP, ''))) = ''
+                              AND LTRIM(RTRIM(ISNULL(T.HORA, ''))) = LTRIM(RTRIM(ISNULL(LP.HORA, '')))
+                          )
+                      )
+                    ORDER BY
+                        CASE WHEN LTRIM(RTRIM(ISNULL(T.ORISTAMP, ''))) = LTRIM(RTRIM(ISNULL(LP.LPSTAMP, ''))) THEN 0 ELSE 1 END,
+                        T.TAREFASSTAMP
+                ) AS T
+                LEFT JOIN dbo.US AS U ON U.LOGIN = T.UTILIZADOR
+                OUTER APPLY (
+                    SELECT TOP 1 ISNULL(RS.HORAOUT, '') AS HORAOUT
+                    FROM dbo.RS AS RS
+                    WHERE LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) = LTRIM(RTRIM(ISNULL(LP.ALOJAMENTO, '')))
+                      AND CAST(RS.DATAOUT AS date) = CAST(LP.DATA AS date)
+                      AND ISNULL(RS.CANCELADA, 0) = 0
+                    ORDER BY RS.RSSTAMP
+                ) AS CO
+                OUTER APPLY (
+                    SELECT TOP 1 ISNULL(RS.HORAIN, '') AS HORAIN
+                    FROM dbo.RS AS RS
+                    WHERE LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, ''))) = LTRIM(RTRIM(ISNULL(LP.ALOJAMENTO, '')))
+                      AND CAST(RS.DATAIN AS date) = CAST(LP.DATA AS date)
+                      AND ISNULL(RS.CANCELADA, 0) = 0
+                    ORDER BY RS.RSSTAMP
+                ) AS CI
+                WHERE CAST(LP.DATA AS date) = :target_day
+                  AND ({feid_scope_sql})
+                ORDER BY
+                    CASE WHEN LTRIM(RTRIM(ISNULL(LP.HORA, ''))) = '' THEN 1 ELSE 0 END,
+                    LTRIM(RTRIM(ISNULL(LP.HORA, ''))),
+                    LTRIM(RTRIM(ISNULL(LP.EQUIPA, ''))),
+                    LTRIM(RTRIM(ISNULL(LP.ALOJAMENTO, '')))
+            """)
+            rows = db.session.execute(sql, {
+                'target_day': target_day,
+                'current_feid': current_feid,
+            }).mappings().all()
+        except Exception as exc:
+            app.logger.exception('Erro no monitor de limpezas')
+            return jsonify({'error': str(exc)}), 500
+
+        today = date.today()
+        now = datetime.now()
+        now_minutes = now.hour * 60 + now.minute
+        items = []
+        totals = {'total': 0, 'done': 0, 'running': 0, 'late': 0, 'planned': 0, 'unassigned': 0}
+        next_item = None
+
+        for r in rows:
+            start_minutes = _monitor_limpezas_time_to_minutes(r.get('HORA'))
+            duration = int(r.get('DURACAO_MIN') or 75)
+            end_minutes = start_minutes + duration if start_minutes is not None else None
+            item = {
+                'id': r.get('LPSTAMP') or '',
+                'date': target_day.isoformat(),
+                'time': r.get('HORA') or '',
+                'end_time': f'{(end_minutes // 60) % 24:02d}:{end_minutes % 60:02d}' if end_minutes is not None else '',
+                'lodging': r.get('ALOJAMENTO') or '',
+                'team': r.get('EQUIPA') or r.get('UTILIZADOR_NOME') or '',
+                'zone': r.get('ZONA') or '',
+                'typology': r.get('TIPOLOGIA') or '',
+                'duration_minutes': duration,
+                'duration_label': _monitor_limpezas_format_minutes(duration),
+                'guests': int(r.get('HOSPEDES') or 0),
+                'nights': int(r.get('NOITES') or 0),
+                'notes': r.get('OBS') or '',
+                'checkout_time': r.get('CHECKOUT_HORA') or '',
+                'checkin_time': r.get('CHECKIN_HORA') or '',
+                'task_id': r.get('TAREFASSTAMP') or '',
+                'done': bool(int(r.get('TERMINADA') or 0) or int(r.get('TAREFA_TRATADA') or 0)),
+                'started_at': r.get('HORAINI') or '',
+                'finished_at': r.get('HORAFIM') or '',
+                'start_minutes': start_minutes,
+                'end_minutes': end_minutes,
+            }
+            item['status'] = _monitor_limpezas_status(item, today, target_day, now_minutes)
+            status_key = item['status']['key']
+            totals['total'] += 1
+            if status_key == 'done':
+                totals['done'] += 1
+            elif status_key in {'running', 'late_running'}:
+                totals['running'] += 1
+                if status_key == 'late_running':
+                    totals['late'] += 1
+            elif status_key == 'late':
+                totals['late'] += 1
+            elif status_key == 'unassigned':
+                totals['unassigned'] += 1
+            else:
+                totals['planned'] += 1
+            item.pop('start_minutes', None)
+            item.pop('end_minutes', None)
+            items.append(item)
+
+        for item in items:
+            status_key = item.get('status', {}).get('key')
+            if status_key in {'done'}:
+                continue
+            start_minutes = _monitor_limpezas_time_to_minutes(item.get('time'))
+            if next_item is None:
+                next_item = item
+                continue
+            next_minutes = _monitor_limpezas_time_to_minutes(next_item.get('time'))
+            if start_minutes is None:
+                continue
+            if next_minutes is None or start_minutes < next_minutes:
+                next_item = item
+
+        progress = 0 if totals['total'] <= 0 else round((totals['done'] / totals['total']) * 100)
+        return jsonify({
+            'date': target_day.isoformat(),
+            'updated_at': now.strftime('%H:%M'),
+            'items': items,
+            'totals': totals,
+            'progress': progress,
+            'next': next_item,
+        })
 
     @app.route('/cliente')
     @app.route('/portal_cliente')
@@ -24335,6 +24670,71 @@ def create_app():
             db.session.rollback()
             app.logger.exception('Erro ao preparar Dashboard Links.')
         return render_template('dashboard.html')
+
+    @app.route('/despesas')
+    @app.route('/colaborador/despesas')
+    @login_required
+    def colaborador_despesas_page():
+        userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
+        login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+        row = db.session.execute(text("""
+            SELECT TOP 1
+                ISNULL(U.PENO, 0) AS PENO,
+                LTRIM(RTRIM(ISNULL(U.PENOME, ''))) AS PENOME,
+                ISNULL(U.PEFEID, 0) AS PEFEID,
+                LTRIM(RTRIM(ISNULL(U.PEEMPRESA, ''))) AS PEEMPRESA,
+                ISNULL(FE.FEID, 0) AS FEID,
+                LTRIM(RTRIM(ISNULL(FE.NOME, ''))) AS FE_NOME,
+                LTRIM(RTRIM(ISNULL(FE.PHC_DB, ''))) AS PHC_DB,
+                LTRIM(RTRIM(ISNULL(FE.PHC_SERVER, ''))) AS PHC_SERVER
+            FROM dbo.US U
+            LEFT JOIN dbo.FE FE
+              ON FE.FEID = U.PEFEID
+            WHERE (:userstamp <> '' AND U.USSTAMP = :userstamp)
+               OR (:userstamp = '' AND U.LOGIN = :login)
+        """), {
+            'userstamp': userstamp,
+            'login': login,
+        }).mappings().first() or {}
+
+        colaborador = {
+            'peno': int(row.get('PENO') or 0),
+            'penome': str(row.get('PENOME') or '').strip(),
+            'pefeid': int(row.get('PEFEID') or 0),
+            'empresa': str(row.get('FE_NOME') or row.get('PEEMPRESA') or '').strip(),
+            'phc_db': str(row.get('PHC_DB') or '').strip(),
+            'phc_server': str(row.get('PHC_SERVER') or '').strip(),
+            'login': login,
+        }
+        colaborador['completo'] = bool(
+            colaborador['peno']
+            and colaborador['penome']
+            and colaborador['pefeid']
+            and colaborador['phc_db']
+        )
+        expense_types = [
+            {'value': 'AUTRES', 'label': 'AUTRES'},
+            {'value': 'CARBURANT', 'label': 'CARBURANT'},
+            {'value': 'DKV', 'label': 'DKV'},
+            {'value': 'MATÉRIAUX', 'label': 'MATÉRIAUX'},
+            {'value': 'OUTILS', 'label': 'OUTILS'},
+            {'value': 'VOITURES', 'label': 'VOITURES'},
+        ]
+        try:
+            from modules.gr_workshop.service import list_vehicles
+            expense_vehicles = list_vehicles(limit=100)
+        except Exception:
+            app.logger.exception('Erro ao carregar viaturas para despesas.')
+            expense_vehicles = []
+
+        return render_template(
+            'colaborador_despesas.html',
+            page_title='Despesas',
+            colaborador=colaborador,
+            expense_types=expense_types,
+            expense_vehicles=expense_vehicles,
+            today=date.today().isoformat(),
+        )
 
     @app.route('/alojamentos-seguros')
     @app.route('/alojamentos_seguros')
@@ -31207,17 +31607,23 @@ OPTION (MAXRECURSION 32767);
             if not utilizador:
                 return jsonify({'error': 'Utilizador inválido'}), 400
             today = datetime.now().date()
+            week_start = today - timedelta(days=today.weekday())
+            next_week_end = week_start + timedelta(days=13)
             sql = text(
                 """
                 SELECT NDSTAMP, DATA, ISNULL(TIPO, '') AS TIPO
                 FROM ND
                 WHERE UTILIZADOR = :util
                   AND UPPER(ISNULL(TIPO, '')) IN ('FOLGA', 'FERIAS')
-                  AND DATA > :today
+                  AND CAST(DATA AS date) BETWEEN :week_start AND :next_week_end
                 ORDER BY DATA, NDSTAMP
                 """
             )
-            rows = db.session.execute(sql, {'util': utilizador, 'today': today}).fetchall()
+            rows = db.session.execute(sql, {
+                'util': utilizador,
+                'week_start': week_start,
+                'next_week_end': next_week_end
+            }).fetchall()
             weekdays = [
                 'Segunda-feira',
                 'Terça-feira',
@@ -31243,7 +31649,12 @@ OPTION (MAXRECURSION 32767);
                     'tipo': tipo,
                     'tipo_label': 'Férias' if tipo == 'FERIAS' else 'Folga',
                 })
-            return jsonify({'rows': items, 'utilizador': utilizador})
+            return jsonify({
+                'rows': items,
+                'utilizador': utilizador,
+                'data_inicio': week_start.isoformat(),
+                'data_fim': next_week_end.isoformat()
+            })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 

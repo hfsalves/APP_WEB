@@ -276,6 +276,54 @@
     gap: var(--sz-space-3);
   }
 
+  .photo-reenhance {
+    display: grid;
+    gap: var(--sz-space-3);
+  }
+
+  .photo-reenhance_preview {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+  }
+
+  .photo-reenhance_fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sz-space-3);
+  }
+
+  .photo-reenhance_instruction_panel {
+    display: grid;
+    gap: var(--sz-space-2);
+    min-width: 0;
+  }
+
+  .photo-reenhance_suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sz-space-2);
+  }
+
+  .photo-reenhance_chip {
+    flex: 0 0 auto;
+    min-height: 2rem;
+    padding: 0.25rem 0.65rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: 999px;
+    color: var(--sz-color-text);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 78%, var(--sz-color-surface));
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+    line-height: 1.2;
+    cursor: pointer;
+  }
+
+  .photo-reenhance_chip:hover {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 52%, var(--sz-color-border));
+    color: var(--sz-color-primary);
+  }
+
   .photo-comparison-modal .modal-content {
     color: var(--sz-color-text);
     background: var(--sz-color-surface);
@@ -321,6 +369,12 @@
     background: var(--sz-color-bg-main);
   }
 
+  .photo-reenhance_prompt,
+  .photo-reenhance_instructions {
+    min-height: 12rem;
+    resize: vertical;
+  }
+
   @media (max-width: 1100px) {
     .photo-enhancer-page .sz_contextbar {
       align-items: stretch;
@@ -350,7 +404,9 @@
       align-items: stretch;
     }
 
-    .photo-comparison {
+    .photo-comparison,
+    .photo-reenhance_preview,
+    .photo-reenhance_fields {
       grid-template-columns: minmax(0, 1fr);
     }
   }
@@ -410,7 +466,7 @@
           <div class="photo-enhancer-drop_meta" id="photoEnhancerStatus">Escolhe um alojamento para iniciar.</div>
         </div>
         <div>
-          <input id="photoEnhancerFiles" class="photo-enhancer-input" type="file" multiple accept="image/jpeg,image/png,image/webp">
+          <input id="photoEnhancerFiles" class="photo-enhancer-input" type="file" multiple>
           <button id="photoEnhancerPickFiles" class="sz_button sz_button_secondary" type="button" disabled>
             <i class="fa-solid fa-images"></i>
             <span>Adicionar fotos</span>
@@ -448,6 +504,62 @@
           <i class="fa-solid fa-download"></i>
           <span>Descarregar</span>
         </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade photo-comparison-modal" id="photoReenhanceModal" tabindex="-1" aria-labelledby="photoReenhanceTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content sz_modal_content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="photoReenhanceTitle">Melhorar novamente</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="photo-reenhance">
+          <div class="photo-reenhance_preview">
+            <div class="photo-comparison_panel">
+              <div class="photo-comparison_label">Original</div>
+              <img id="photoReenhanceOriginal" class="photo-comparison_img" alt="Original">
+            </div>
+            <div class="photo-comparison_panel">
+              <div class="photo-comparison_label">Anterior</div>
+              <img id="photoReenhancePrevious" class="photo-comparison_img" alt="Versão anterior">
+            </div>
+          </div>
+          <div class="photo-reenhance_fields">
+            <label class="sz_field" for="photoReenhancePrompt">
+              <span class="sz_label">Prompt OpenAI</span>
+              <textarea id="photoReenhancePrompt" class="sz_textarea photo-reenhance_prompt" readonly></textarea>
+            </label>
+            <div class="photo-reenhance_instruction_panel">
+              <label class="sz_field" for="photoReenhanceInstructions">
+                <span class="sz_label">Instruções adicionais</span>
+                <textarea id="photoReenhanceInstructions" class="sz_textarea photo-reenhance_instructions" maxlength="2000" placeholder="Ex.: adiciona mais luz, remove os cabos da televisão, corrige reflexos..."></textarea>
+              </label>
+              <div class="photo-reenhance_suggestions" aria-label="Sugestões rápidas">
+                <button class="photo-reenhance_chip" type="button" data-instruction="Aumenta a luminosidade natural da divisão, mantendo a imagem realista, com brancos limpos, sombras suaves e sem aparência artificial.">Mais luz</button>
+                <button class="photo-reenhance_chip" type="button" data-instruction="Corrige pequenas manchas, marcas e irregularidades visuais nas paredes, mantendo a textura e a cor original da divisão.">Corrigir paredes</button>
+                <button class="photo-reenhance_chip" type="button" data-instruction="Na mesa, coloca um pequeno-almoço tradicional e elegante, com fruta fresca, croissants, sumo de laranja e café, integrado de forma natural na cena.">Adicionar pequeno-almoço</button>
+                <button class="photo-reenhance_chip" type="button" data-instruction="Remove ou disfarça os cabos visíveis da televisão e pequenos fios soltos, sem alterar a disposição real do mobiliário.">Remover cabos TV</button>
+                <button class="photo-reenhance_chip" type="button" data-instruction="Reduz reflexos fortes em superfícies brilhantes, espelhos, janelas e eletrodomésticos, mantendo a luz natural da fotografia.">Corrigir reflexos</button>
+                <button class="photo-reenhance_chip" type="button" data-instruction="Deixa a cama, almofadas, cortinas e tecidos mais alinhados e cuidados, preservando as cores, materiais e objetos existentes.">Arrumar tecidos</button>
+                <button class="photo-reenhance_chip" type="button" data-instruction="Equilibra a luz das janelas para recuperar detalhe exterior quando possível, sem criar uma vista falsa nem alterar o enquadramento.">Janelas naturais</button>
+                <button class="photo-reenhance_chip" type="button" data-instruction="Remove pequenos objetos soltos ou distrações visuais que prejudiquem a apresentação, mantendo a arquitetura, móveis e decoração principal.">Remover distrações</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="photoReenhanceCancel" class="sz_button sz_button_secondary" type="button" data-bs-dismiss="modal">
+          <span>Cancelar</span>
+        </button>
+        <button id="photoReenhanceSubmit" class="sz_button sz_button_primary" type="button">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>Enviar para OpenAI</span>
+        </button>
       </div>
     </div>
   </div>

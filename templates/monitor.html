@@ -1580,7 +1580,7 @@
           if (!resp.ok || js.error) throw new Error(js.error || 'Falha ao carregar folgas');
           const rows = Array.isArray(js.rows) ? js.rows : [];
           if (!rows.length) {
-            list.innerHTML = '<div class="text-muted small">Não existem folgas ou férias registadas para o teu utilizador.</div>';
+            list.innerHTML = '<div class="text-muted small">Não existem folgas ou férias registadas para esta semana e a próxima.</div>';
             return;
           }
 
@@ -2219,7 +2219,6 @@
           };
         }
       } catch(_){}
-
 
 
 
