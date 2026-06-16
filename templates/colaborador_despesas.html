@@ -204,6 +204,11 @@
     border-radius: var(--sz-radius-md);
     background: color-mix(in srgb, var(--sz-color-danger, #ef4444) 18%, var(--sz-color-surface));
     touch-action: pan-y;
+    transition:
+      height .24s ease,
+      margin .24s ease,
+      opacity .22s ease,
+      transform .22s ease;
   }
 
   .expense-line-content {
@@ -221,6 +226,25 @@
     overflow-x: hidden;
     transition: transform .2s ease;
     will-change: transform;
+  }
+
+  .expense-line-card.is-auto-collapsing .expense-line-content {
+    animation: expenseAutoCollapse .48s ease both;
+  }
+
+  .expense-line-card.is-deleting {
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(.985);
+  }
+
+  .expense-line-card.is-deleting .expense-line-content {
+    transform: translateX(-110%) scale(.96);
+    opacity: 0;
+  }
+
+  .expense-line-card.is-deleting .expense-line-delete {
+    opacity: 0;
   }
 
   .expense-line-card.is-delete-open .expense-line-content {
@@ -250,6 +274,19 @@
 
   .expense-line-delete i {
     font-size: 1.05rem;
+  }
+
+  @keyframes expenseAutoCollapse {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--sz-color-primary) 0%, transparent);
+    }
+    45% {
+      border-color: color-mix(in srgb, var(--sz-color-primary) 55%, var(--sz-color-border));
+      box-shadow: 0 0 0 .22rem color-mix(in srgb, var(--sz-color-primary) 16%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--sz-color-primary) 0%, transparent);
+    }
   }
 
   .expense-line-card.is-collapsed {
@@ -522,6 +559,7 @@
     const defaultDate = window.COLLAB_EXPENSE_TODAY || '';
     let pendingPhotoZone = null;
     let activeCard = null;
+    const autoCollapseTimers = new WeakMap();
 
     function updateCounter() {
       if (!counter || !linesHost) return;
@@ -619,6 +657,7 @@
         card.dataset.fileType = file.type || '';
         card.dataset.objectUrl = photoZone.dataset.objectUrl || '';
         refreshSummary(card);
+        scheduleAutoCollapse(card);
       }
     }
 
@@ -684,6 +723,7 @@
         refreshSummary(item);
       });
       activeCard = card;
+      scheduleAutoCollapse(card);
     }
 
     function closeDeleteActions(exceptCard = null) {
@@ -692,13 +732,70 @@
       });
     }
 
+    function clearAutoCollapse(card) {
+      const timer = autoCollapseTimers.get(card);
+      if (timer) window.clearTimeout(timer);
+      autoCollapseTimers.delete(card);
+    }
+
+    function isCardComplete(card) {
+      if (!card) return false;
+      const typeSelect = card.querySelector('[data-expense-type]');
+      const selectedType = String(typeSelect?.value || '').trim().toUpperCase();
+      const dateValue = String(card.querySelector('[data-expense-date]')?.value || '').trim();
+      const amountRaw = String(card.querySelector('[data-expense-value]')?.value || '').replace(',', '.').trim();
+      const amount = Number(amountRaw);
+      const hasBaseFields = !!dateValue && !!selectedType && Number.isFinite(amount) && amount > 0;
+      const hasPhoto = !!String(card.dataset.fileName || '').trim();
+      if (!hasBaseFields || !hasPhoto) return false;
+      if (!vehicleExpenseTypes.has(selectedType)) return true;
+      const kmsRaw = String(card.querySelector('[data-expense-kms]')?.value || '').trim();
+      const vehicleValue = String(card.querySelector('[data-expense-vehicle]')?.value || '').trim();
+      return !!kmsRaw && !!vehicleValue;
+    }
+
+    function collapseCardWithEffect(card) {
+      if (!card || card.classList.contains('is-collapsed') || card.classList.contains('is-deleting')) return;
+      clearAutoCollapse(card);
+      card.classList.add('is-auto-collapsing');
+      window.setTimeout(() => {
+        if (!card.isConnected) return;
+        card.classList.add('is-collapsed');
+        card.classList.remove('is-delete-open');
+        if (activeCard === card) activeCard = null;
+        refreshSummary(card);
+      }, 160);
+      window.setTimeout(() => {
+        if (card.isConnected) card.classList.remove('is-auto-collapsing');
+      }, 560);
+    }
+
+    function scheduleAutoCollapse(card) {
+      clearAutoCollapse(card);
+      if (!card || card.classList.contains('is-collapsed') || card.classList.contains('is-delete-open')) return;
+      if (!isCardComplete(card)) return;
+      autoCollapseTimers.set(card, window.setTimeout(() => collapseCardWithEffect(card), 5000));
+    }
+
     function deleteCard(card) {
       if (!card) return;
+      clearAutoCollapse(card);
       const objectUrl = card.dataset.objectUrl || '';
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       if (activeCard === card) activeCard = null;
-      card.remove();
-      updateCounter();
+      const startHeight = card.getBoundingClientRect().height;
+      card.style.height = `${startHeight}px`;
+      card.style.marginBlock = '0';
+      card.offsetHeight;
+      card.classList.add('is-deleting');
+      window.setTimeout(() => {
+        card.style.height = '0px';
+        card.style.marginBlock = '0';
+      }, 40);
+      window.setTimeout(() => {
+        card.remove();
+        updateCounter();
+      }, 290);
     }
 
     function wireDeleteGesture(card) {
@@ -722,6 +819,7 @@
       content.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
         if (event.target.closest('input, select, textarea, button, a, .expense-line-photo')) return;
+        clearAutoCollapse(card);
         pointerId = event.pointerId;
         startX = event.clientX;
         startY = event.clientY;
@@ -757,6 +855,7 @@
         if (!horizontalIntent) return;
         const shouldOpen = (currentX + dx) < -(revealWidth * 0.42);
         card.classList.toggle('is-delete-open', shouldOpen);
+        if (!shouldOpen) scheduleAutoCollapse(card);
       }
 
       content.addEventListener('pointerup', finishDrag);
@@ -824,8 +923,16 @@
       if (hasFile && photoZone) setPhotoZoneFile(photoZone, file);
       wireVehicleVisibility(card);
       card.querySelectorAll('input, select').forEach((field) => {
-        field.addEventListener('input', () => refreshSummary(card));
-        field.addEventListener('change', () => refreshSummary(card));
+        field.addEventListener('input', () => {
+          refreshSummary(card);
+          scheduleAutoCollapse(card);
+        });
+        field.addEventListener('change', () => {
+          refreshSummary(card);
+          scheduleAutoCollapse(card);
+        });
+        field.addEventListener('focus', () => clearAutoCollapse(card));
+        field.addEventListener('blur', () => scheduleAutoCollapse(card));
       });
       refreshSummary(card);
       setActiveCard(card);
