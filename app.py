@@ -534,6 +534,8 @@ def create_app():
         path = (request.path or '/').strip() or '/'
 
         if is_portobreak_domain(host):
+            if path == '/':
+                return redirect(url_for('booking_portal.index'))
             if is_allowed_portobreak_path(path):
                 return None
             app.logger.warning(
