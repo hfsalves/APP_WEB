@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="pt">
+<html lang="{{ lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PortoBreak.com - {{ page_title or "Reservas" }}</title>
+  <title>PortoBreak.com - {{ page_title or t.page_reservations }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -16,35 +16,41 @@
         <a class="booking-brand" href="{{ url_for('booking_portal.index') }}" aria-label="PortoBreak.com">
           <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-current.png') }}" alt="PortoBreak.com">
         </a>
+        <div class="booking-language-switcher" aria-label="Language">
+          {% for item in language_links %}
+            <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
+          {% endfor %}
+        </div>
       </nav>
 
       <form class="booking-search" method="get" action="{{ url_for('booking_portal.index') }}" data-search-form>
+        <input type="hidden" name="lang" value="{{ lang }}">
         <label>
-          <span>Check-in</span>
+          <span>{{ t.checkin }}</span>
           <input type="date" name="checkin" value="{{ search.raw.checkin }}">
         </label>
         <label>
-          <span>Check-out</span>
+          <span>{{ t.checkout }}</span>
           <input type="date" name="checkout" value="{{ search.raw.checkout }}">
         </label>
         <label>
-          <span>Hospedes</span>
+          <span>{{ t.guests }}</span>
           <input type="number" name="hospedes" min="1" max="50" inputmode="numeric" value="{{ search.raw.hospedes }}" placeholder="2">
         </label>
         <label class="booking-search-query">
-          <span>Nome ou localizacao</span>
-          <input type="search" name="q" value="{{ search.raw.query }}" placeholder="Porto, centro, estudio...">
+          <span>{{ t.name_location }}</span>
+          <input type="search" name="q" value="{{ search.raw.query }}" placeholder="{{ t.search_placeholder }}">
         </label>
-        <button class="booking-button booking-button-primary" type="submit" data-search-button>Pesquisar</button>
+        <button class="booking-button booking-button-primary" type="submit" data-search-button>{{ t.search }}</button>
       </form>
     </header>
 
     <section class="booking-hero">
       <div class="booking-hero-content">
         <div class="booking-hero-copy">
-          <p class="booking-kicker">Alojamento local</p>
-          <h1>Reserve a sua pausa no Porto.</h1>
-          <p class="booking-lead">Apartamentos selecionados, pesquisa direta por datas e disponibilidade em tempo real.</p>
+          <p class="booking-kicker">{{ t.local_stay }}</p>
+          <h1>{{ t.hero_title }}</h1>
+          <p class="booking-lead">{{ t.hero_lead }}</p>
         </div>
       </div>
     </section>
@@ -52,10 +58,10 @@
     <section id="resultados" class="booking-results">
       <div class="booking-section-head">
         <div>
-          <p class="booking-kicker booking-kicker-dark">Disponibilidade</p>
-          <h2>{% if search.has_search and not search.errors %}Resultados encontrados{% else %}Alojamentos disponiveis{% endif %}</h2>
+          <p class="booking-kicker booking-kicker-dark">{{ t.availability }}</p>
+          <h2>{% if search.has_search and not search.errors %}{{ t.results_found }}{% else %}{{ t.available_stays }}{% endif %}</h2>
         </div>
-        <span class="booking-count">{{ alojamentos|length }} alojamento{% if alojamentos|length != 1 %}s{% endif %}</span>
+        <span class="booking-count">{{ alojamentos|length }} {% if alojamentos|length == 1 %}{{ t.stay }}{% else %}{{ t.stays }}{% endif %}</span>
       </div>
 
       {% if search.errors %}
@@ -70,7 +76,7 @@
         <div class="booking-grid">
           {% for al in alojamentos %}
             <article class="booking-card">
-              <a class="booking-card-media" href="{{ al.detail_url }}" aria-label="Ver {{ al.nome }}">
+              <a class="booking-card-media" href="{{ al.detail_url }}" aria-label="{{ t.view_stay }} {{ al.nome }}">
                 {% if al.foto_principal %}
                   <img src="{{ al.foto_principal }}" alt="{{ al.nome }}" loading="lazy">
                 {% else %}
@@ -87,7 +93,7 @@
                   {% endif %}
                 </div>
                 <div class="booking-meta">
-                  <span>{{ al.capacidade }} hospedes</span>
+                  <span>{{ al.capacidade }} {% if al.capacidade == 1 %}{{ t.guest }}{% else %}{{ t.guests }}{% endif %}</span>
                   {% if al.localizacao %}<span>{{ al.localizacao }}</span>{% endif %}
                 </div>
                 {% if al.descricao_curta %}
@@ -96,13 +102,13 @@
                 <div class="booking-card-footer">
                   <div class="booking-price">
                     {% if al.preco_desde %}
-                      <small>desde</small>
+                      <small>{{ t.from }}</small>
                       <strong>{{ al.preco_desde }}</strong>
                     {% else %}
-                      <strong>Preco sob consulta</strong>
+                      <strong>{{ t.price_on_request }}</strong>
                     {% endif %}
                   </div>
-                  <a class="booking-button" href="{{ al.detail_url }}">Ver alojamento</a>
+                  <a class="booking-button" href="{{ al.detail_url }}">{{ t.view_stay }}</a>
                 </div>
               </div>
             </article>
@@ -110,9 +116,9 @@
         </div>
       {% else %}
         <div class="booking-empty">
-          <h3>Nao encontramos alojamentos para esta pesquisa.</h3>
-          <p>Ajuste as datas, o numero de hospedes ou a localizacao.</p>
-          <a class="booking-button booking-button-primary" href="{{ url_for('booking_portal.index') }}">Limpar pesquisa</a>
+          <h3>{{ t.empty_title }}</h3>
+          <p>{{ t.empty_text }}</p>
+          <a class="booking-button booking-button-primary" href="{{ url_for('booking_portal.index', lang=lang) }}">{{ t.clear_search }}</a>
         </div>
       {% endif %}
     </section>
@@ -124,7 +130,7 @@
         var button = form.querySelector("[data-search-button]");
         if (button) {
           button.disabled = true;
-          button.textContent = "A pesquisar...";
+          button.textContent = {{ t.searching|tojson }};
         }
       });
     });

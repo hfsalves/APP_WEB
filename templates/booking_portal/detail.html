@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt">
+<html lang="{{ lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,10 +11,15 @@
 </head>
 <body>
   <main class="booking-shell booking-detail-shell">
-    <nav class="booking-nav booking-topbar-light" aria-label="Reservas">
-      <a class="booking-brand" href="{{ url_for('booking_portal.index', checkin=search.raw.checkin, checkout=search.raw.checkout, hospedes=search.raw.hospedes, q=search.raw.query) }}" aria-label="PortoBreak.com">
+    <nav class="booking-nav booking-topbar-light" aria-label="{{ t.page_reservations }}">
+      <a class="booking-brand" href="{{ url_for('booking_portal.index', checkin=search.raw.checkin, checkout=search.raw.checkout, hospedes=search.raw.hospedes, q=search.raw.query, lang=lang) }}" aria-label="PortoBreak.com">
         <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-current.png') }}" alt="PortoBreak.com">
       </a>
+      <div class="booking-language-switcher" aria-label="Language">
+        {% for item in language_links %}
+          <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
+        {% endfor %}
+      </div>
     </nav>
 
     <section class="booking-detail-hero">
@@ -35,7 +40,7 @@
           {% endfor %}
           {% if alojamento.fotos|length <= 1 %}
             <div class="booking-photo-placeholder"><span>{{ alojamento.tipologia or "AL" }}</span></div>
-            <div class="booking-photo-placeholder"><span>{{ alojamento.capacidade }} hospedes</span></div>
+            <div class="booking-photo-placeholder"><span>{{ alojamento.capacidade }} {% if alojamento.capacidade == 1 %}{{ t.guest }}{% else %}{{ t.guests }}{% endif %}</span></div>
           {% endif %}
         </div>
       </div>
@@ -43,11 +48,11 @@
 
     <section class="booking-detail-layout">
       <article class="booking-detail-main">
-        <p class="booking-kicker booking-kicker-dark">Alojamento</p>
+        <p class="booking-kicker booking-kicker-dark">{{ t.stay_label }}</p>
         <h1>{{ alojamento.nome }}</h1>
         <div class="booking-meta booking-meta-large">
           {% if alojamento.tipologia %}<span>{{ alojamento.tipologia }}</span>{% endif %}
-          <span>{{ alojamento.capacidade }} hospedes</span>
+          <span>{{ alojamento.capacidade }} {% if alojamento.capacidade == 1 %}{{ t.guest }}{% else %}{{ t.guests }}{% endif %}</span>
           {% if alojamento.localizacao %}<span>{{ alojamento.localizacao }}</span>{% endif %}
         </div>
 
@@ -65,15 +70,15 @@
       <aside class="booking-reserve-panel">
         <div class="booking-panel-price">
           {% if preco.valor %}
-            <small>Estimativa</small>
+            <small>{{ t.estimate }}</small>
             <strong>{{ preco.label }}</strong>
-            <span>{{ preco.noites }} noite{% if preco.noites != 1 %}s{% endif %}</span>
+            <span>{{ preco.noites }} {% if preco.noites == 1 %}{{ t.night }}{% else %}{{ t.nights }}{% endif %}</span>
           {% elif alojamento.preco_desde %}
-            <small>desde</small>
+            <small>{{ t.from }}</small>
             <strong>{{ alojamento.preco_desde }}</strong>
-            <span>por noite</span>
+            <span>{{ t.per_night }}</span>
           {% else %}
-            <strong>Preco sob consulta</strong>
+            <strong>{{ t.price_on_request }}</strong>
           {% endif %}
         </div>
 
@@ -90,16 +95,16 @@
 
         <dl class="booking-selected">
           <div>
-            <dt>Check-in</dt>
-            <dd>{{ search.raw.checkin or "A escolher" }}</dd>
+            <dt>{{ t.checkin }}</dt>
+            <dd>{{ search.raw.checkin or t.choose }}</dd>
           </div>
           <div>
-            <dt>Check-out</dt>
-            <dd>{{ search.raw.checkout or "A escolher" }}</dd>
+            <dt>{{ t.checkout }}</dt>
+            <dd>{{ search.raw.checkout or t.choose }}</dd>
           </div>
           <div>
-            <dt>Hospedes</dt>
-            <dd>{{ search.raw.hospedes or "A escolher" }}</dd>
+            <dt>{{ t.guests }}</dt>
+            <dd>{{ search.raw.hospedes or t.choose }}</dd>
           </div>
         </dl>
 
@@ -110,47 +115,49 @@
             {% endfor %}
           </div>
         {% elif disponibilidade is sameas true %}
-          <div class="booking-status booking-status-ok">Disponivel para as datas selecionadas</div>
+          <div class="booking-status booking-status-ok">{{ t.available_selected }}</div>
         {% elif disponibilidade is sameas false %}
-          <div class="booking-status booking-status-bad">Indisponivel para as datas selecionadas</div>
+          <div class="booking-status booking-status-bad">{{ t.unavailable_selected }}</div>
         {% else %}
-          <div class="booking-status">Escolha datas para confirmar disponibilidade</div>
+          <div class="booking-status">{{ t.choose_dates_status }}</div>
         {% endif %}
 
         <form class="booking-panel-form" method="get" action="{{ url_for('booking_portal.detail', al_id=alojamento.id) }}" data-booking-calendar-form>
+          <input type="hidden" name="lang" value="{{ lang }}">
           <input type="hidden" name="checkin" value="{{ search.raw.checkin }}" data-checkin-input>
           <input type="hidden" name="checkout" value="{{ search.raw.checkout }}" data-checkout-input>
 
           <section class="booking-calendar" data-calendar data-initial-month="{{ calendario.initial_month }}" data-selected-checkin="{{ search.raw.checkin }}" data-selected-checkout="{{ search.raw.checkout }}">
             <div class="booking-calendar-head">
-              <button type="button" class="booking-calendar-nav" data-calendar-prev aria-label="Mes anterior">&lt;</button>
-              <strong data-calendar-title>Calendario</strong>
-              <button type="button" class="booking-calendar-nav" data-calendar-next aria-label="Mes seguinte">&gt;</button>
+              <button type="button" class="booking-calendar-nav" data-calendar-prev aria-label="{{ t.previous_month }}">&lt;</button>
+              <strong data-calendar-title>{{ t.calendar }}</strong>
+              <button type="button" class="booking-calendar-nav" data-calendar-next aria-label="{{ t.next_month }}">&gt;</button>
             </div>
             <div class="booking-calendar-weekdays" aria-hidden="true">
-              <span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sab</span><span>Dom</span>
+              {% for day in t.weekdays %}<span>{{ day }}</span>{% endfor %}
             </div>
             <div class="booking-calendar-months" data-calendar-months></div>
-            <p class="booking-calendar-message" data-calendar-message>Escolha a data de entrada e depois a data de saida.</p>
+            <p class="booking-calendar-message" data-calendar-message>{{ t.calendar_start }}</p>
             <div class="booking-calendar-legend">
-              <span><i class="legend-free"></i>Livre</span>
-              <span><i class="legend-occupied"></i>Noite ocupada</span>
-              <span><i class="legend-selected"></i>Selecionado</span>
+              <span><i class="legend-free"></i>{{ t.free }}</span>
+              <span><i class="legend-occupied"></i>{{ t.occupied_night }}</span>
+              <span><i class="legend-selected"></i>{{ t.selected }}</span>
             </div>
           </section>
 
           <label>
-            <span>Hospedes</span>
+            <span>{{ t.guests }}</span>
             <input type="number" name="hospedes" min="1" max="50" value="{{ search.raw.hospedes }}" placeholder="2">
           </label>
-          <button class="booking-button booking-button-primary" type="submit">Atualizar</button>
+          <button class="booking-button booking-button-primary" type="submit">{{ t.update }}</button>
         </form>
 
-        <button class="booking-button booking-button-wide" type="button" disabled>Pedido de reserva em breve</button>
+        <button class="booking-button booking-button-wide" type="button" disabled>{{ t.request_soon }}</button>
       </aside>
     </section>
   </main>
   <script type="application/json" id="booking-occupied-nights">{{ calendario.occupied|tojson }}</script>
+  <script type="application/json" id="booking-i18n">{{ t|tojson }}</script>
   <script>
     (function () {
       var root = document.querySelector("[data-calendar]");
@@ -159,6 +166,8 @@
 
       var occupiedNode = document.getElementById("booking-occupied-nights");
       var occupied = new Set(JSON.parse((occupiedNode && occupiedNode.textContent) || "[]"));
+      var i18nNode = document.getElementById("booking-i18n");
+      var i18n = JSON.parse((i18nNode && i18nNode.textContent) || "{}");
       var monthsEl = root.querySelector("[data-calendar-months]");
       var titleEl = root.querySelector("[data-calendar-title]");
       var messageEl = root.querySelector("[data-calendar-message]");
@@ -168,7 +177,7 @@
       var selectedEnd = root.dataset.selectedCheckout || "";
       var cursor = parseIso(root.dataset.initialMonth) || firstOfMonth(new Date());
       var todayIso = toIso(new Date());
-      var monthNames = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+      var monthNames = i18n.months || ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
       function parseIso(value) {
         var parts = String(value || "").split("-").map(Number);
@@ -221,18 +230,18 @@
         var isPast = dayIso < todayIso;
         if (!selectedStart || selectedEnd || dayIso <= selectedStart) {
           if (isOccupied || isPast) {
-            setMessage("Escolha uma noite livre para iniciar a estadia.", "error");
+            setMessage(i18n.calendar_pick_free || "Escolha uma noite livre para iniciar a estadia.", "error");
             return;
           }
           selectedStart = dayIso;
           selectedEnd = "";
-          setMessage("Agora escolha a data de saida.", "");
+          setMessage(i18n.calendar_pick_checkout || "Agora escolha a data de saida.", "");
           render();
           return;
         }
 
         if (rangeHasOccupied(selectedStart, dayIso)) {
-          setMessage("O intervalo escolhido cruza noites ocupadas.", "error");
+          setMessage(i18n.calendar_range_occupied || "O intervalo escolhido cruza noites ocupadas.", "error");
           selectedStart = isOccupied || isPast ? "" : dayIso;
           selectedEnd = "";
           render();
@@ -240,7 +249,7 @@
         }
 
         selectedEnd = dayIso;
-        setMessage("Datas selecionadas. Atualize para recalcular disponibilidade e preco.", "ok");
+        setMessage(i18n.calendar_dates_selected || "Datas selecionadas. Atualize para recalcular disponibilidade e preco.", "ok");
         render();
       }
 
@@ -306,7 +315,7 @@
       form.addEventListener("submit", function (event) {
         if (!checkinInput.value || !checkoutInput.value) {
           event.preventDefault();
-          setMessage("Escolha a data de entrada e a data de saida.", "error");
+          setMessage(i18n.calendar_need_dates || "Escolha a data de entrada e a data de saida.", "error");
         }
       });
 

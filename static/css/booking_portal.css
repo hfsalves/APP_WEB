@@ -69,10 +69,10 @@ input {
 }
 
 .booking-nav {
-  display: flex;
-  align-items: center;
+  display: grid;
+  align-items: start;
   justify-content: flex-start;
-  gap: 0;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -122,6 +122,32 @@ input {
 
 .booking-topbar-light .booking-toplink {
   color: var(--bp-accent-dark);
+}
+
+.booking-language-switcher {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.booking-language-switcher a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 24px;
+  border: 1px solid rgba(222, 214, 203, 0.85);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--bp-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.booking-language-switcher a.is-active {
+  border-color: rgba(249, 115, 22, 0.45);
+  background: rgba(249, 115, 22, 0.12);
+  color: var(--bp-warm);
 }
 
 .booking-hero {
