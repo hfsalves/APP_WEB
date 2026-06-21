@@ -7,6 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  {% if alojamento.tem_mapa %}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  {% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
 </head>
 <body>
@@ -24,52 +27,82 @@
 
     <section class="booking-detail-content">
       <div class="booking-detail-left">
-      <div class="booking-gallery {% if alojamento.fotos|length <= 1 %}booking-gallery-single{% endif %}">
-        {% set main_photo = alojamento.fotos[0] if alojamento.fotos else none %}
-        <div class="booking-gallery-main">
-          {% if main_photo %}
-            <img src="{{ main_photo.url }}" alt="{{ main_photo.alt or alojamento.nome }}">
-          {% else %}
-            <div class="booking-photo-placeholder booking-photo-placeholder-large">
-              <span>{{ alojamento.nome }}</span>
+        <section class="booking-gallery-slider" data-photo-gallery>
+          <div class="booking-gallery-frame">
+            {% if alojamento.fotos %}
+              {% for photo in alojamento.fotos %}
+                <button class="booking-gallery-slide {% if loop.first %}is-active{% endif %}" type="button" data-gallery-slide data-index="{{ loop.index0 }}" aria-label="{{ photo.alt or alojamento.nome }}">
+                  <img src="{{ photo.url }}" alt="{{ photo.alt or alojamento.nome }}" loading="{% if loop.first %}eager{% else %}lazy{% endif %}">
+                </button>
+              {% endfor %}
+            {% else %}
+              <div class="booking-gallery-slide is-active booking-gallery-placeholder" data-gallery-slide data-index="0">
+                <div class="booking-photo-placeholder booking-photo-placeholder-large">
+                  <span>{{ alojamento.nome }}</span>
+                </div>
+              </div>
+            {% endif %}
+
+            {% if alojamento.fotos|length > 1 %}
+              <button class="booking-gallery-nav booking-gallery-prev" type="button" data-gallery-prev aria-label="{{ t.previous }}">&lt;</button>
+              <button class="booking-gallery-nav booking-gallery-next" type="button" data-gallery-next aria-label="{{ t.next }}">&gt;</button>
+              <div class="booking-gallery-count" data-gallery-count>1 / {{ alojamento.fotos|length }}</div>
+            {% endif %}
+          </div>
+
+          {% if alojamento.fotos|length > 1 %}
+            <div class="booking-gallery-thumbs" aria-label="{{ t.selected }}">
+              {% for photo in alojamento.fotos %}
+                <button class="booking-gallery-thumb {% if loop.first %}is-active{% endif %}" type="button" data-gallery-thumb data-index="{{ loop.index0 }}" aria-label="{{ photo.alt or alojamento.nome }}">
+                  <img src="{{ photo.url }}" alt="" loading="lazy">
+                </button>
+              {% endfor %}
             </div>
           {% endif %}
-        </div>
-        {% if alojamento.fotos|length > 1 %}
-          <div class="booking-gallery-side">
-            {% for photo in alojamento.fotos[1:5] %}
-              <img src="{{ photo.url }}" alt="{{ photo.alt or alojamento.nome }}">
-            {% endfor %}
-          </div>
-        {% endif %}
-      </div>
+        </section>
 
-      <article class="booking-detail-main">
-        <p class="booking-kicker booking-kicker-dark">{{ t.stay_label }}</p>
-        <h1>{{ alojamento.nome }}</h1>
-        {% if alojamento.localizacao %}
-          <div class="booking-meta booking-meta-large">
-            <span>{{ alojamento.localizacao }}</span>
-          </div>
-        {% endif %}
-
-        {% if alojamento.morada %}
-          <p class="booking-address">{{ alojamento.morada }}{% if alojamento.codpost %}, {{ alojamento.codpost }}{% endif %}</p>
-        {% endif %}
-
-        <div class="booking-property-facts" aria-label="{{ t.stay_label }}">
-          {% if alojamento.tipologia %}
-            <span>{{ alojamento.tipologia }}</span>
+        <article class="booking-detail-main">
+          <p class="booking-kicker booking-kicker-dark">{{ t.stay_label }}</p>
+          <h1>{{ alojamento.nome }}</h1>
+          {% if alojamento.localizacao %}
+            <div class="booking-meta booking-meta-large">
+              <span>{{ alojamento.localizacao }}</span>
+            </div>
           {% endif %}
-          <span>{{ alojamento.capacidade }} {% if alojamento.capacidade == 1 %}{{ t.guest }}{% else %}{{ t.guests }}{% endif %}</span>
-        </div>
 
-        {% if alojamento.descricao %}
-          <div class="booking-copy">
-            <p>{{ alojamento.descricao }}</p>
+          <div class="booking-property-facts" aria-label="{{ t.stay_label }}">
+            {% if alojamento.tipologia %}
+              <span>{{ alojamento.tipologia }}</span>
+            {% endif %}
+            <span>{{ alojamento.capacidade }} {% if alojamento.capacidade == 1 %}{{ t.guest }}{% else %}{{ t.guests }}{% endif %}</span>
           </div>
-        {% endif %}
-      </article>
+
+          <section class="booking-location-card">
+            <div class="booking-location-head">
+              <div>
+                <p class="booking-kicker booking-kicker-dark">{{ t.location }}</p>
+                <h2>{{ alojamento.localizacao or t.location }}</h2>
+                <span>{{ t.map_hint }}</span>
+              </div>
+              {% if alojamento.tem_mapa %}
+                <button class="booking-button booking-button-map" type="button" data-map-open>{{ t.open_map }}</button>
+              {% endif %}
+            </div>
+            {% if alojamento.tem_mapa %}
+              <button class="booking-map-preview" type="button" data-map-open aria-label="{{ t.open_map }}">
+                <div id="bookingMapPreview" class="booking-map-canvas" data-lat="{{ alojamento.lat }}" data-lon="{{ alojamento.lon }}"></div>
+              </button>
+            {% else %}
+              <div class="booking-map-empty">{{ t.map_unavailable }}</div>
+            {% endif %}
+          </section>
+
+          {% if alojamento.descricao %}
+            <div class="booking-copy">
+              <p>{{ alojamento.descricao }}</p>
+            </div>
+          {% endif %}
+        </article>
       </div>
 
       <aside class="booking-reserve-panel">
@@ -161,8 +194,39 @@
       </aside>
     </section>
   </main>
+  {% if alojamento.tem_mapa %}
+    <div class="booking-map-modal" data-map-modal aria-hidden="true">
+      <div class="booking-map-modal-backdrop" data-map-close></div>
+      <div class="booking-map-modal-dialog" role="dialog" aria-modal="true" aria-label="{{ t.location }}">
+        <div class="booking-map-modal-head">
+          <div>
+            <p class="booking-kicker booking-kicker-dark">{{ t.location }}</p>
+            <h2>{{ alojamento.nome }}</h2>
+          </div>
+          <button class="booking-map-close" type="button" data-map-close aria-label="{{ t.close }}">&times;</button>
+        </div>
+        <div id="bookingMapModalCanvas" class="booking-map-modal-canvas"></div>
+      </div>
+    </div>
+  {% endif %}
+  {% if alojamento.fotos %}
+    <div class="booking-photo-modal" data-photo-modal aria-hidden="true">
+      <div class="booking-photo-modal-backdrop" data-photo-close></div>
+      <div class="booking-photo-modal-dialog" role="dialog" aria-modal="true" aria-label="{{ alojamento.nome }}">
+        <button class="booking-photo-close" type="button" data-photo-close aria-label="{{ t.close }}">&times;</button>
+        <button class="booking-photo-modal-nav booking-photo-modal-prev" type="button" data-photo-modal-prev aria-label="{{ t.previous }}">&lt;</button>
+        <img src="{{ alojamento.fotos[0].url }}" alt="{{ alojamento.fotos[0].alt or alojamento.nome }}" data-photo-modal-image>
+        <button class="booking-photo-modal-nav booking-photo-modal-next" type="button" data-photo-modal-next aria-label="{{ t.next }}">&gt;</button>
+        <div class="booking-photo-modal-count" data-photo-modal-count>1 / {{ alojamento.fotos|length }}</div>
+      </div>
+    </div>
+  {% endif %}
   <script type="application/json" id="booking-occupied-nights">{{ calendario.occupied|tojson }}</script>
   <script type="application/json" id="booking-i18n">{{ t|tojson }}</script>
+  <script type="application/json" id="booking-gallery-photos">{{ alojamento.fotos|tojson }}</script>
+  {% if alojamento.tem_mapa %}
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  {% endif %}
   <script>
     (function () {
       var root = document.querySelector("[data-calendar]");
@@ -326,6 +390,181 @@
 
       render();
     })();
+    (function () {
+      var gallery = document.querySelector("[data-photo-gallery]");
+      var photosNode = document.getElementById("booking-gallery-photos");
+      if (!gallery || !photosNode) return;
+
+      var photos = [];
+      try {
+        photos = JSON.parse(photosNode.textContent || "[]");
+      } catch (error) {
+        photos = [];
+      }
+      var slides = Array.prototype.slice.call(gallery.querySelectorAll("[data-gallery-slide]"));
+      var thumbs = Array.prototype.slice.call(gallery.querySelectorAll("[data-gallery-thumb]"));
+      var countEl = gallery.querySelector("[data-gallery-count]");
+      var modal = document.querySelector("[data-photo-modal]");
+      var modalImage = document.querySelector("[data-photo-modal-image]");
+      var modalCount = document.querySelector("[data-photo-modal-count]");
+      var defaultAlt = {{ alojamento.nome|tojson }};
+      var index = 0;
+      var touchStartX = 0;
+
+      function setIndex(nextIndex) {
+        if (!slides.length) return;
+        index = (nextIndex + slides.length) % slides.length;
+        slides.forEach(function (slide, idx) {
+          slide.classList.toggle("is-active", idx === index);
+        });
+        thumbs.forEach(function (thumb, idx) {
+          thumb.classList.toggle("is-active", idx === index);
+        });
+        if (countEl) countEl.textContent = String(index + 1) + " / " + String(slides.length);
+        if (modalImage && photos[index]) {
+          modalImage.src = photos[index].url || "";
+          modalImage.alt = photos[index].alt || defaultAlt;
+        }
+        if (modalCount) modalCount.textContent = String(index + 1) + " / " + String(slides.length);
+      }
+
+      function next() {
+        setIndex(index + 1);
+      }
+
+      function previous() {
+        setIndex(index - 1);
+      }
+
+      function openModal() {
+        if (!modal || !modalImage || !photos.length) return;
+        setIndex(index);
+        modal.classList.add("is-open");
+        modal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("booking-modal-open");
+      }
+
+      function closeModal() {
+        if (!modal) return;
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("booking-modal-open");
+      }
+
+      gallery.querySelector("[data-gallery-prev]")?.addEventListener("click", previous);
+      gallery.querySelector("[data-gallery-next]")?.addEventListener("click", next);
+      gallery.querySelectorAll("[data-gallery-thumb]").forEach(function (thumb) {
+        thumb.addEventListener("click", function () {
+          setIndex(Number(thumb.dataset.index || 0));
+        });
+      });
+      slides.forEach(function (slide) {
+        slide.addEventListener("click", function () {
+          setIndex(Number(slide.dataset.index || 0));
+          openModal();
+        });
+      });
+      gallery.addEventListener("touchstart", function (event) {
+        touchStartX = event.touches && event.touches.length ? event.touches[0].clientX : 0;
+      }, { passive: true });
+      gallery.addEventListener("touchend", function (event) {
+        var endX = event.changedTouches && event.changedTouches.length ? event.changedTouches[0].clientX : 0;
+        var delta = endX - touchStartX;
+        if (Math.abs(delta) < 45) return;
+        if (delta < 0) next();
+        else previous();
+      }, { passive: true });
+
+      document.querySelector("[data-photo-modal-prev]")?.addEventListener("click", previous);
+      document.querySelector("[data-photo-modal-next]")?.addEventListener("click", next);
+      document.querySelectorAll("[data-photo-close]").forEach(function (button) {
+        button.addEventListener("click", closeModal);
+      });
+      document.addEventListener("keydown", function (event) {
+        var photoOpen = modal && modal.classList.contains("is-open");
+        if (event.key === "Escape" && photoOpen) closeModal();
+        if (event.key === "ArrowRight" && (photoOpen || document.activeElement.closest?.("[data-photo-gallery]"))) next();
+        if (event.key === "ArrowLeft" && (photoOpen || document.activeElement.closest?.("[data-photo-gallery]"))) previous();
+      });
+      setIndex(0);
+    })();
+    {% if alojamento.tem_mapa %}
+    (function () {
+      if (!window.L) return;
+
+      var previewEl = document.getElementById("bookingMapPreview");
+      var modalEl = document.querySelector("[data-map-modal]");
+      var modalCanvas = document.getElementById("bookingMapModalCanvas");
+      if (!previewEl || !modalEl || !modalCanvas) return;
+
+      var lat = Number(previewEl.dataset.lat);
+      var lon = Number(previewEl.dataset.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+      var center = [lat, lon];
+      var tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+      var tileOptions = {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap"
+      };
+
+      var previewMap = L.map(previewEl, {
+        center: center,
+        zoom: 14,
+        zoomControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        keyboard: false,
+        tap: false
+      });
+      L.tileLayer(tileUrl, tileOptions).addTo(previewMap);
+      L.marker(center).addTo(previewMap);
+
+      var modalMap = null;
+      function ensureModalMap() {
+        if (modalMap) {
+          setTimeout(function () {
+            modalMap.invalidateSize();
+            modalMap.setView(center, 15);
+          }, 60);
+          return;
+        }
+        modalMap = L.map(modalCanvas, {
+          center: center,
+          zoom: 15
+        });
+        L.tileLayer(tileUrl, tileOptions).addTo(modalMap);
+        L.marker(center).addTo(modalMap);
+      }
+
+      function openModal() {
+        modalEl.classList.add("is-open");
+        modalEl.setAttribute("aria-hidden", "false");
+        document.body.classList.add("booking-modal-open");
+        ensureModalMap();
+      }
+
+      function closeModal() {
+        modalEl.classList.remove("is-open");
+        modalEl.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("booking-modal-open");
+      }
+
+      document.querySelectorAll("[data-map-open]").forEach(function (button) {
+        button.addEventListener("click", openModal);
+      });
+      document.querySelectorAll("[data-map-close]").forEach(function (button) {
+        button.addEventListener("click", closeModal);
+      });
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && modalEl.classList.contains("is-open")) {
+          closeModal();
+        }
+      });
+    })();
+    {% endif %}
   </script>
 </body>
 </html>

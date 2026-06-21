@@ -81,6 +81,11 @@ TRANSLATIONS = {
         "page": "Pagina",
         "previous": "Anterior",
         "next": "Seguinte",
+        "location": "Localizacao",
+        "map_hint": "Zona aproximada do alojamento",
+        "open_map": "Abrir mapa",
+        "close": "Fechar",
+        "map_unavailable": "Localizacao indisponivel",
     },
     "en": {
         "page_reservations": "Bookings",
@@ -143,6 +148,11 @@ TRANSLATIONS = {
         "page": "Page",
         "previous": "Previous",
         "next": "Next",
+        "location": "Location",
+        "map_hint": "Approximate stay location",
+        "open_map": "Open map",
+        "close": "Close",
+        "map_unavailable": "Location unavailable",
     },
     "es": {
         "page_reservations": "Reservas",
@@ -205,6 +215,11 @@ TRANSLATIONS = {
         "page": "Pagina",
         "previous": "Anterior",
         "next": "Siguiente",
+        "location": "Ubicacion",
+        "map_hint": "Zona aproximada del alojamiento",
+        "open_map": "Abrir mapa",
+        "close": "Cerrar",
+        "map_unavailable": "Ubicacion no disponible",
     },
     "fr": {
         "page_reservations": "Reservations",
@@ -267,6 +282,11 @@ TRANSLATIONS = {
         "page": "Page",
         "previous": "Precedent",
         "next": "Suivant",
+        "location": "Emplacement",
+        "map_hint": "Zone approximative du logement",
+        "open_map": "Ouvrir la carte",
+        "close": "Fermer",
+        "map_unavailable": "Emplacement indisponible",
     },
 }
 

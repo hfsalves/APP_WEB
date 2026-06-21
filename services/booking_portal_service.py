@@ -5,6 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from models import db
 
@@ -23,6 +24,7 @@ _DEC2 = Decimal("0.01")
 CLEANING_FEE = Decimal("30.00")
 TOURIST_TAX_PER_GUEST_NIGHT = Decimal("3.00")
 TOURIST_TAX_MAX_DAYS = 7
+_TABLE_EXISTS_CACHE = {}
 
 
 def _clean(value) -> str:
@@ -55,6 +57,19 @@ def _to_decimal(value):
         return Decimal(str(value or "0")).quantize(_DEC2, rounding=ROUND_HALF_UP)
     except Exception:
         return Decimal("0.00")
+
+
+def _to_float(value):
+    try:
+        text_value = str(value or "").strip().replace(",", ".")
+        if not text_value:
+            return None
+        number = float(text_value)
+        if abs(number) < 0.000001:
+            return None
+        return number
+    except Exception:
+        return None
 
 
 def _money(value):
@@ -102,20 +117,31 @@ def _row_dict(row) -> dict:
 
 
 def _table_exists(table_name: str) -> bool:
-    return bool(
-        db.session.execute(
-            text(
-                """
-                SELECT COUNT(*)
-                FROM INFORMATION_SCHEMA.TABLES
-                WHERE TABLE_SCHEMA = 'dbo'
-                  AND TABLE_NAME = :table_name
-                """
-            ),
-            {"table_name": table_name},
-        ).scalar()
-        or 0
-    )
+    name = _clean(table_name).upper()
+    if not name:
+        return False
+    if name in _TABLE_EXISTS_CACHE:
+        return _TABLE_EXISTS_CACHE[name]
+    try:
+        exists = bool(
+            db.session.execute(
+                text(
+                    """
+                    SELECT COUNT(*)
+                    FROM INFORMATION_SCHEMA.TABLES
+                    WHERE TABLE_SCHEMA = 'dbo'
+                      AND TABLE_NAME = :table_name
+                    """
+                ),
+                {"table_name": name},
+            ).scalar()
+            or 0
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        return False
+    _TABLE_EXISTS_CACHE[name] = exists
+    return exists
 
 
 def alojamento_disponivel(al_id, checkin, checkout) -> bool:
@@ -177,6 +203,8 @@ def _alojamento_base_select(where_sql: str) -> str:
             LTRIM(RTRIM(ISNULL(AL.LOCAL, ''))) AS LOCAL,
             LTRIM(RTRIM(ISNULL(AL.CODPOST, ''))) AS CODPOST,
             LTRIM(RTRIM(ISNULL(AL.ZONA, ''))) AS ZONA,
+            LTRIM(RTRIM(ISNULL(AL.LAT, ''))) AS LAT,
+            LTRIM(RTRIM(ISNULL(AL.LON, ''))) AS LON,
             LTRIM(RTRIM(ISNULL(AL.NMPESQUISA, ''))) AS NMPESQUISA,
             CAST(ISNULL(AL.PBASE, 0) AS decimal(12, 2)) AS PBASE,
             CAST(COALESCE(
@@ -211,9 +239,29 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
     item = _row_dict(row)
     tipologia = _clean(item.get("TIPOLOGIA"))
     capacidade = capacidade_por_tipologia(tipologia)
-    fotos = get_fotos_alojamento(item.get("ALSTAMP")) if include_gallery else []
-    foto_principal = fotos[0]["url"] if fotos else get_foto_principal(item.get("ALSTAMP"))
+    alstamp = item.get("ALSTAMP")
+    fotos_al = get_fotos_alojamento(alstamp) if include_gallery else []
+    foto_principal = fotos_al[0]["url"] if fotos_al else get_foto_principal(alstamp)
+    fotos = []
+    seen_urls = set()
+    if include_gallery and foto_principal:
+        fotos.append({
+            "url": foto_principal,
+            "alt": _clean(item.get("NOME")) or "Alojamento",
+            "capa": True,
+            "source": "cover",
+        })
+        seen_urls.add(foto_principal)
+    if include_gallery:
+        for photo in get_fotos_melhoradas_alojamento(alstamp):
+            url = _clean(photo.get("url"))
+            if not url or url in seen_urls:
+                continue
+            fotos.append(photo)
+            seen_urls.add(url)
     descricao = _clean(item.get("DESCRICAO"))
+    lat = _to_float(item.get("LAT"))
+    lon = _to_float(item.get("LON"))
     return {
         "id": _clean(item.get("ALSTAMP")),
         "nome": _clean(item.get("NOME")),
@@ -224,6 +272,9 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
         "local": _clean(item.get("LOCAL")),
         "codpost": _clean(item.get("CODPOST")),
         "zona": _clean(item.get("ZONA")),
+        "lat": lat,
+        "lon": lon,
+        "tem_mapa": lat is not None and lon is not None,
         "localizacao": ", ".join(part for part in [_clean(item.get("LOCAL")), _clean(item.get("ZONA"))] if part),
         "descricao": descricao,
         "descricao_curta": descricao[:180] + ("..." if len(descricao) > 180 else ""),
@@ -287,6 +338,60 @@ def get_fotos_alojamento(al_id) -> list[dict]:
         }
         for row in rows
         if _clean(row.get("CAMINHO"))
+    ]
+
+
+def get_fotos_melhoradas_alojamento(al_id) -> list[dict]:
+    al_id_clean = _clean(al_id)
+    if not al_id_clean or not _table_exists("PHOTO_ENHANCER_SESSION") or not _table_exists("PHOTO_ENHANCER_FILE"):
+        return []
+
+    session_row = db.session.execute(
+        text(
+            """
+            SELECT TOP 1 S.ID
+            FROM dbo.PHOTO_ENHANCER_SESSION AS S
+            WHERE LTRIM(RTRIM(ISNULL(S.ALOJAMENTO_ID, ''))) = :al_id
+              AND EXISTS (
+                  SELECT 1
+                  FROM dbo.PHOTO_ENHANCER_FILE AS F
+                  WHERE F.SESSION_ID = S.ID
+                    AND LTRIM(RTRIM(ISNULL(F.ENHANCED_PATH, ''))) <> ''
+                    AND LTRIM(RTRIM(ISNULL(F.STATUS, ''))) = 'melhorada'
+              )
+            ORDER BY COALESCE(S.UPDATED_AT, S.CREATED_AT) DESC, S.CREATED_AT DESC, S.ID DESC
+            """
+        ),
+        {"al_id": al_id_clean},
+    ).mappings().first()
+    session_id = _clean((session_row or {}).get("ID"))
+    if not session_id:
+        return []
+
+    rows = db.session.execute(
+        text(
+            """
+            SELECT
+                ISNULL(F.ORIGINAL_FILENAME, '') AS ORIGINAL_FILENAME,
+                ISNULL(F.ENHANCED_PATH, '') AS ENHANCED_PATH
+            FROM dbo.PHOTO_ENHANCER_FILE AS F
+            WHERE F.SESSION_ID = :session_id
+              AND LTRIM(RTRIM(ISNULL(F.ENHANCED_PATH, ''))) <> ''
+              AND LTRIM(RTRIM(ISNULL(F.STATUS, ''))) = 'melhorada'
+            ORDER BY F.CREATED_AT, F.ID
+            """
+        ),
+        {"session_id": session_id},
+    ).mappings().all()
+    return [
+        {
+            "url": _public_image_url(row.get("ENHANCED_PATH")),
+            "alt": _clean(row.get("ORIGINAL_FILENAME")) or "Alojamento",
+            "capa": False,
+            "source": "photo_enhancer",
+        }
+        for row in rows
+        if _clean(row.get("ENHANCED_PATH"))
     ]
 
 
