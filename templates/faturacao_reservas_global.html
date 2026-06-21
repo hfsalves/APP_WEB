@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+
+{% block title %}Faturacao Global de Reservas{% endblock %}
+
+{% block content %}
+<div class="fatglob-page">
+  <header class="sz_contextbar fatglob-contextbar">
+    <div class="sz_contextbar_left fatglob-contextbar-left">
+      <h1 class="sz_page_title">Faturacao de Reservas</h1>
+      <p id="fatglobStats" class="sz_page_subtitle">0 selecionadas de 0 reservas</p>
+    </div>
+    <div class="sz_contextbar_right fatglob-contextbar-right">
+      <div class="fatglob-date-group" aria-label="Filtro por checkout">
+        <span class="fatglob-date-title">Checkout</span>
+        <div class="fatglob-date-inputs">
+          <label class="fatglob-date-field">
+            <span>de</span>
+            <input class="sz_input" id="fatglobDataIni" type="date" value="{{ data_ini }}">
+          </label>
+          <label class="fatglob-date-field">
+            <span>ate</span>
+            <input class="sz_input" id="fatglobDataFim" type="date" value="{{ data_fim }}">
+          </label>
+        </div>
+      </div>
+      <select class="sz_select fatglob-select-sm" id="fatglobFaturado">
+        <option value="por_faturar">Por faturar</option>
+        <option value="faturado">Faturado</option>
+        <option value="todos">Todos</option>
+      </select>
+      <select class="sz_select fatglob-select-sm" id="fatglobTipo">
+        <option value="">Exploracao e gestao</option>
+        <option value="EXPLORACAO">Exploracao</option>
+        <option value="GESTAO">Gestao</option>
+      </select>
+      <select class="sz_select fatglob-select" id="fatglobAlojamento">
+        <option value="">Todos os alojamentos</option>
+      </select>
+      <select class="sz_select fatglob-select" id="fatglobCliente">
+        <option value="">Todos os proprietarios</option>
+      </select>
+      <button class="sz_button sz_button_ghost fatglob-icon-btn" id="fatglobRefresh" type="button" title="Atualizar" aria-label="Atualizar">
+        <i class="fa-solid fa-rotate"></i>
+      </button>
+      <button class="sz_button sz_button_primary" id="fatglobEmitir" type="button">
+        <i class="fa-solid fa-file-invoice"></i>
+        <span>Emitir fatura</span>
+      </button>
+    </div>
+  </header>
+
+  <section class="fatglob-summary">
+    <div>
+      <span>Reservas</span>
+      <strong id="fatglobTotalRows">0</strong>
+    </div>
+    <div>
+      <span>Valor por faturar</span>
+      <strong id="fatglobTotalValor">0,00</strong>
+    </div>
+    <div>
+      <span>Selecionado</span>
+      <strong id="fatglobSelectedValor">0,00</strong>
+    </div>
+    <div>
+      <span>Bloqueadas</span>
+      <strong id="fatglobBlockedRows">0</strong>
+    </div>
+  </section>
+
+  <section class="sz_table_host fatglob-table-host">
+    <div class="sz_table_wrap">
+      <table class="sz_table fatglob-table">
+        <thead class="sz_table_head">
+          <tr>
+            <th class="fatglob-check-col"><input type="checkbox" id="fatglobCheckAll"></th>
+            <th>Estado</th>
+            <th>PDF</th>
+            <th>Tipo</th>
+            <th>Reserva</th>
+            <th>Checkout</th>
+            <th>Fatura em</th>
+            <th>Alojamento</th>
+            <th>Proprietario</th>
+            <th>Hospede</th>
+            <th class="sz_text_right">Estadia</th>
+            <th class="sz_text_right">Limpeza</th>
+            <th class="sz_text_right">Total</th>
+          </tr>
+        </thead>
+        <tbody id="fatglobBody">
+          <tr><td colspan="13" class="sz_table_cell fatglob-empty">A carregar...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<div id="fatglobOverlay" class="fatglob-overlay" aria-hidden="true">
+  <div class="fatglob-overlay-card">
+    <div class="fatglob-overlay-title">
+      <i class="fa-solid fa-file-signature"></i>
+      <span>A emitir faturas no PHC...</span>
+    </div>
+    <div class="fatglob-overlay-sub" id="fatglobOverlaySub">A preparar</div>
+  </div>
+</div>
+
+<style>
+  .fatglob-page {
+    width: 100%;
+    min-height: 100%;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-2) var(--sz-space-4) var(--sz-space-3);
+    background: var(--sz-color-bg-main);
+    color: var(--sz-color-text);
+  }
+
+  .fatglob-contextbar-left {
+    flex: 0 0 390px;
+    min-width: 220px;
+    max-width: 390px;
+    grid-template-columns: 1fr;
+    grid-template-areas: "title" "subtitle";
+  }
+
+  .fatglob-contextbar-left .sz_page_title,
+  .fatglob-contextbar-left .sz_page_subtitle {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .fatglob-contextbar-right {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: end;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .fatglob-date-group {
+    display: grid;
+    gap: 0.25rem;
+    flex: 0 0 315px;
+    min-width: 315px;
+  }
+
+  .fatglob-date-title,
+  .fatglob-date-field span {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+    line-height: 1;
+  }
+
+  .fatglob-date-inputs {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.4rem;
+  }
+
+  .fatglob-date-field {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .fatglob-date-field .sz_input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .fatglob-select {
+    flex: 0 1 13.2rem;
+    width: 13.2rem;
+    min-width: 10.5rem;
+  }
+
+  .fatglob-select-sm {
+    flex: 0 1 10.5rem;
+    width: 10.5rem;
+    min-width: 9rem;
+  }
+
+  .fatglob-icon-btn {
+    width: var(--sz-button-height);
+    min-width: var(--sz-button-height);
+    padding: 0;
+  }
+
+  .fatglob-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--sz-space-2);
+  }
+
+  .fatglob-summary > div {
+    min-width: 0;
+    padding: var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface);
+  }
+
+  .fatglob-summary span {
+    display: block;
+    margin-bottom: 0.2rem;
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .fatglob-summary strong {
+    font-size: var(--sz-font-size-lg);
+    color: var(--sz-color-text);
+  }
+
+  .fatglob-table-host {
+    height: 100%;
+  }
+
+  .fatglob-table {
+    min-width: 1420px;
+    background: var(--sz-color-surface);
+  }
+
+  .fatglob-table th,
+  .fatglob-table td {
+    font-family: var(--sz-font-family);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .fatglob-table thead th {
+    background: var(--sz-color-surface-alt) !important;
+    color: var(--sz-color-text-secondary) !important;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+
+  .fatglob-table tbody td {
+    background: var(--sz-color-surface) !important;
+    color: var(--sz-color-text) !important;
+  }
+
+  .fatglob-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--sz-color-primary) 4%, var(--sz-color-surface)) !important;
+  }
+
+  .fatglob-table tbody tr.fatglob-row-selected td {
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface)) !important;
+  }
+
+  .fatglob-table tbody tr.fatglob-row-blocked td {
+    background: color-mix(in srgb, var(--sz-color-warning) 5%, var(--sz-color-surface)) !important;
+  }
+
+  .fatglob-check-col,
+  .fatglob-check-cell {
+    width: 42px;
+    text-align: center;
+  }
+
+  .fatglob-pdf-cell {
+    width: 46px;
+    text-align: center;
+  }
+
+  .fatglob-pdf-link,
+  .fatglob-pdf-empty {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: var(--sz-radius-xs);
+  }
+
+  .fatglob-pdf-link {
+    border: 1px solid color-mix(in srgb, var(--sz-color-danger) 42%, var(--sz-color-border));
+    color: var(--sz-color-danger);
+    background: color-mix(in srgb, var(--sz-color-danger) 8%, transparent);
+    text-decoration: none;
+  }
+
+  .fatglob-pdf-link:hover {
+    background: color-mix(in srgb, var(--sz-color-danger) 14%, transparent);
+  }
+
+  .fatglob-pdf-empty {
+    color: var(--sz-color-text-muted);
+    opacity: 0.45;
+  }
+
+  .fatglob-money {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fatglob-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 1.45rem;
+    max-width: 100%;
+    padding: 0 0.5rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-xs);
+    color: var(--sz-color-text-secondary);
+    background: var(--sz-color-surface-alt);
+    white-space: nowrap;
+  }
+
+  .fatglob-badge.ok {
+    color: var(--sz-color-success);
+  }
+
+  .fatglob-badge.warn {
+    color: var(--sz-color-warning);
+  }
+
+  .fatglob-owner-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .fatglob-owner-name {
+    min-width: 0;
+    max-width: 18rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .fatglob-config-warning {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.35rem;
+    padding: 0 0.45rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-warning) 45%, var(--sz-color-border));
+    border-radius: var(--sz-radius-xs);
+    color: var(--sz-color-warning);
+    background: color-mix(in srgb, var(--sz-color-warning) 8%, transparent);
+    font-size: var(--sz-font-size-xs);
+    white-space: nowrap;
+  }
+
+  .fatglob-warning {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    color: var(--sz-color-warning);
+  }
+
+  .fatglob-empty {
+    text-align: center;
+    color: var(--sz-color-text-muted) !important;
+    padding: var(--sz-space-4) !important;
+  }
+
+  .fatglob-overlay {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    background: color-mix(in srgb, #000 38%, transparent);
+    padding: var(--sz-space-4);
+  }
+
+  .fatglob-overlay.show {
+    display: flex;
+  }
+
+  .fatglob-overlay-card {
+    width: min(460px, 92vw);
+    padding: var(--sz-space-4);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    box-shadow: var(--sz-shadow-3);
+  }
+
+  .fatglob-overlay-title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sz-space-2);
+    margin-bottom: 0.35rem;
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .fatglob-overlay-sub {
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  @media (max-width: 1100px) {
+    .fatglob-contextbar {
+      align-items: stretch;
+    }
+
+    .fatglob-contextbar-left {
+      max-width: none;
+    }
+
+    .fatglob-contextbar-right,
+    .fatglob-date-group,
+    .fatglob-date-inputs,
+    .fatglob-select,
+    .fatglob-select-sm,
+    .fatglob-contextbar-right .sz_button {
+      width: 100%;
+      min-width: 0;
+      flex-basis: auto;
+    }
+
+    .fatglob-date-inputs {
+      grid-template-columns: 1fr;
+    }
+
+    .fatglob-summary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 720px) {
+    .fatglob-page {
+      padding-inline: var(--sz-space-3);
+    }
+
+    .fatglob-summary {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script>
+  window.FATGLOB_DATA_INI = "{{ data_ini }}";
+  window.FATGLOB_DATA_FIM = "{{ data_fim }}";
+</script>
+<script src="{{ url_for('static', filename='js/faturacao_reservas_global.js') }}?v={{ static_version }}"></script>
+{% endblock %}

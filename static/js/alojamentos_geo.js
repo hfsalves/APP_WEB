@@ -1086,7 +1086,6 @@ const confirmPoiAssociations = async () => {
   if (!poistamp) return;
   const picks = Array.from(geoEls.poiAssocList?.querySelectorAll('input[type="checkbox"][data-assoc-nome]:checked') || [])
     .map(i => ({ AL_NOME: i.getAttribute('data-assoc-nome') || '', DIST_METROS: Number(i.getAttribute('data-assoc-dist') || 0) }));
-  if (!picks.length) return showToast('Seleciona pelo menos um alojamento.', 'warning');
   const res = await fetch(`/api/poi/${encodeURIComponent(poistamp)}/associacoes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1094,7 +1093,7 @@ const confirmPoiAssociations = async () => {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.error) return showToast(data.error || 'Erro ao associar', 'danger');
-  showToast(`Associações: ${data.inserted || 0} novas, ${data.updated || 0} atualizadas`);
+  showToast(`Associações guardadas: ${data.active || 0} ativas`);
   poiModal?.hide();
   loadPoiList();
   selectPoi(poistamp);

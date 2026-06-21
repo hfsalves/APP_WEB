@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PortoBreak.com - {{ page_title or alojamento.nome }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+</head>
+<body>
+  <main class="booking-shell booking-detail-shell">
+    <nav class="booking-nav booking-topbar-light" aria-label="Reservas">
+      <a class="booking-brand" href="{{ url_for('booking_portal.index', checkin=search.raw.checkin, checkout=search.raw.checkout, hospedes=search.raw.hospedes, q=search.raw.query) }}" aria-label="PortoBreak.com">
+        <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-current.png') }}" alt="PortoBreak.com">
+      </a>
+    </nav>
+
+    <section class="booking-detail-hero">
+      <div class="booking-gallery">
+        {% set main_photo = alojamento.fotos[0] if alojamento.fotos else none %}
+        <div class="booking-gallery-main">
+          {% if main_photo %}
+            <img src="{{ main_photo.url }}" alt="{{ main_photo.alt or alojamento.nome }}">
+          {% else %}
+            <div class="booking-photo-placeholder booking-photo-placeholder-large">
+              <span>{{ alojamento.tipologia or "AL" }}</span>
+            </div>
+          {% endif %}
+        </div>
+        <div class="booking-gallery-side">
+          {% for photo in alojamento.fotos[1:5] %}
+            <img src="{{ photo.url }}" alt="{{ photo.alt or alojamento.nome }}">
+          {% endfor %}
+          {% if alojamento.fotos|length <= 1 %}
+            <div class="booking-photo-placeholder"><span>{{ alojamento.tipologia or "AL" }}</span></div>
+            <div class="booking-photo-placeholder"><span>{{ alojamento.capacidade }} hospedes</span></div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="booking-detail-layout">
+      <article class="booking-detail-main">
+        <p class="booking-kicker booking-kicker-dark">Alojamento</p>
+        <h1>{{ alojamento.nome }}</h1>
+        <div class="booking-meta booking-meta-large">
+          {% if alojamento.tipologia %}<span>{{ alojamento.tipologia }}</span>{% endif %}
+          <span>{{ alojamento.capacidade }} hospedes</span>
+          {% if alojamento.localizacao %}<span>{{ alojamento.localizacao }}</span>{% endif %}
+        </div>
+
+        {% if alojamento.morada %}
+          <p class="booking-address">{{ alojamento.morada }}{% if alojamento.codpost %}, {{ alojamento.codpost }}{% endif %}</p>
+        {% endif %}
+
+        {% if alojamento.descricao %}
+          <div class="booking-copy">
+            <p>{{ alojamento.descricao }}</p>
+          </div>
+        {% endif %}
+      </article>
+
+      <aside class="booking-reserve-panel">
+        <div class="booking-panel-price">
+          {% if preco.valor %}
+            <small>Estimativa</small>
+            <strong>{{ preco.label }}</strong>
+            <span>{{ preco.noites }} noite{% if preco.noites != 1 %}s{% endif %}</span>
+          {% elif alojamento.preco_desde %}
+            <small>desde</small>
+            <strong>{{ alojamento.preco_desde }}</strong>
+            <span>por noite</span>
+          {% else %}
+            <strong>Preco sob consulta</strong>
+          {% endif %}
+        </div>
+
+        {% if preco.valor and preco.linhas %}
+          <div class="booking-price-breakdown">
+            {% for linha in preco.linhas %}
+              <div>
+                <span>{{ linha.label }}</span>
+                <strong>{{ linha.value }}</strong>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <dl class="booking-selected">
+          <div>
+            <dt>Check-in</dt>
+            <dd>{{ search.raw.checkin or "A escolher" }}</dd>
+          </div>
+          <div>
+            <dt>Check-out</dt>
+            <dd>{{ search.raw.checkout or "A escolher" }}</dd>
+          </div>
+          <div>
+            <dt>Hospedes</dt>
+            <dd>{{ search.raw.hospedes or "A escolher" }}</dd>
+          </div>
+        </dl>
+
+        {% if search.errors %}
+          <div class="booking-alert booking-alert-compact">
+            {% for error in search.errors %}
+              <p>{{ error }}</p>
+            {% endfor %}
+          </div>
+        {% elif disponibilidade is sameas true %}
+          <div class="booking-status booking-status-ok">Disponivel para as datas selecionadas</div>
+        {% elif disponibilidade is sameas false %}
+          <div class="booking-status booking-status-bad">Indisponivel para as datas selecionadas</div>
+        {% else %}
+          <div class="booking-status">Escolha datas para confirmar disponibilidade</div>
+        {% endif %}
+
+        <form class="booking-panel-form" method="get" action="{{ url_for('booking_portal.detail', al_id=alojamento.id) }}" data-booking-calendar-form>
+          <input type="hidden" name="checkin" value="{{ search.raw.checkin }}" data-checkin-input>
+          <input type="hidden" name="checkout" value="{{ search.raw.checkout }}" data-checkout-input>
+
+          <section class="booking-calendar" data-calendar data-initial-month="{{ calendario.initial_month }}" data-selected-checkin="{{ search.raw.checkin }}" data-selected-checkout="{{ search.raw.checkout }}">
+            <div class="booking-calendar-head">
+              <button type="button" class="booking-calendar-nav" data-calendar-prev aria-label="Mes anterior">&lt;</button>
+              <strong data-calendar-title>Calendario</strong>
+              <button type="button" class="booking-calendar-nav" data-calendar-next aria-label="Mes seguinte">&gt;</button>
+            </div>
+            <div class="booking-calendar-weekdays" aria-hidden="true">
+              <span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sab</span><span>Dom</span>
+            </div>
+            <div class="booking-calendar-months" data-calendar-months></div>
+            <p class="booking-calendar-message" data-calendar-message>Escolha a data de entrada e depois a data de saida.</p>
+            <div class="booking-calendar-legend">
+              <span><i class="legend-free"></i>Livre</span>
+              <span><i class="legend-occupied"></i>Noite ocupada</span>
+              <span><i class="legend-selected"></i>Selecionado</span>
+            </div>
+          </section>
+
+          <label>
+            <span>Hospedes</span>
+            <input type="number" name="hospedes" min="1" max="50" value="{{ search.raw.hospedes }}" placeholder="2">
+          </label>
+          <button class="booking-button booking-button-primary" type="submit">Atualizar</button>
+        </form>
+
+        <button class="booking-button booking-button-wide" type="button" disabled>Pedido de reserva em breve</button>
+      </aside>
+    </section>
+  </main>
+  <script type="application/json" id="booking-occupied-nights">{{ calendario.occupied|tojson }}</script>
+  <script>
+    (function () {
+      var root = document.querySelector("[data-calendar]");
+      var form = document.querySelector("[data-booking-calendar-form]");
+      if (!root || !form) return;
+
+      var occupiedNode = document.getElementById("booking-occupied-nights");
+      var occupied = new Set(JSON.parse((occupiedNode && occupiedNode.textContent) || "[]"));
+      var monthsEl = root.querySelector("[data-calendar-months]");
+      var titleEl = root.querySelector("[data-calendar-title]");
+      var messageEl = root.querySelector("[data-calendar-message]");
+      var checkinInput = form.querySelector("[data-checkin-input]");
+      var checkoutInput = form.querySelector("[data-checkout-input]");
+      var selectedStart = root.dataset.selectedCheckin || "";
+      var selectedEnd = root.dataset.selectedCheckout || "";
+      var cursor = parseIso(root.dataset.initialMonth) || firstOfMonth(new Date());
+      var todayIso = toIso(new Date());
+      var monthNames = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+      function parseIso(value) {
+        var parts = String(value || "").split("-").map(Number);
+        if (parts.length < 3 || !parts[0] || !parts[1] || !parts[2]) return null;
+        return new Date(parts[0], parts[1] - 1, parts[2]);
+      }
+
+      function firstOfMonth(value) {
+        return new Date(value.getFullYear(), value.getMonth(), 1);
+      }
+
+      function toIso(value) {
+        var y = value.getFullYear();
+        var m = String(value.getMonth() + 1).padStart(2, "0");
+        var d = String(value.getDate()).padStart(2, "0");
+        return y + "-" + m + "-" + d;
+      }
+
+      function addDays(value, days) {
+        var next = new Date(value.getFullYear(), value.getMonth(), value.getDate());
+        next.setDate(next.getDate() + days);
+        return next;
+      }
+
+      function addMonths(value, months) {
+        return new Date(value.getFullYear(), value.getMonth() + months, 1);
+      }
+
+      function isBetween(dayIso, startIso, endIso) {
+        return startIso && endIso && dayIso > startIso && dayIso < endIso;
+      }
+
+      function rangeHasOccupied(startIso, endIso) {
+        var cursorDay = parseIso(startIso);
+        var endDay = parseIso(endIso);
+        while (cursorDay && endDay && cursorDay < endDay) {
+          if (occupied.has(toIso(cursorDay))) return true;
+          cursorDay = addDays(cursorDay, 1);
+        }
+        return false;
+      }
+
+      function setMessage(text, tone) {
+        messageEl.textContent = text;
+        messageEl.dataset.tone = tone || "";
+      }
+
+      function selectDay(dayIso) {
+        var isOccupied = occupied.has(dayIso);
+        var isPast = dayIso < todayIso;
+        if (!selectedStart || selectedEnd || dayIso <= selectedStart) {
+          if (isOccupied || isPast) {
+            setMessage("Escolha uma noite livre para iniciar a estadia.", "error");
+            return;
+          }
+          selectedStart = dayIso;
+          selectedEnd = "";
+          setMessage("Agora escolha a data de saida.", "");
+          render();
+          return;
+        }
+
+        if (rangeHasOccupied(selectedStart, dayIso)) {
+          setMessage("O intervalo escolhido cruza noites ocupadas.", "error");
+          selectedStart = isOccupied || isPast ? "" : dayIso;
+          selectedEnd = "";
+          render();
+          return;
+        }
+
+        selectedEnd = dayIso;
+        setMessage("Datas selecionadas. Atualize para recalcular disponibilidade e preco.", "ok");
+        render();
+      }
+
+      function renderMonth(monthDate) {
+        var month = document.createElement("section");
+        month.className = "booking-calendar-month";
+        var heading = document.createElement("h3");
+        heading.textContent = monthNames[monthDate.getMonth()] + " " + monthDate.getFullYear();
+        month.appendChild(heading);
+
+        var grid = document.createElement("div");
+        grid.className = "booking-calendar-grid";
+        var firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+        var startOffset = (firstDay.getDay() + 6) % 7;
+        var daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+
+        for (var pad = 0; pad < startOffset; pad += 1) {
+          var empty = document.createElement("span");
+          empty.className = "booking-calendar-empty";
+          grid.appendChild(empty);
+        }
+
+        for (var day = 1; day <= daysInMonth; day += 1) {
+          var dateValue = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
+          var iso = toIso(dateValue);
+          var button = document.createElement("button");
+          button.type = "button";
+          button.className = "booking-calendar-day";
+          button.textContent = String(day);
+          button.dataset.date = iso;
+          if (iso < todayIso) button.classList.add("is-past");
+          if (occupied.has(iso)) button.classList.add("is-occupied");
+          if (iso === selectedStart) button.classList.add("is-start");
+          if (iso === selectedEnd) button.classList.add("is-end");
+          if (isBetween(iso, selectedStart, selectedEnd)) button.classList.add("is-range");
+          button.addEventListener("click", function (event) {
+            selectDay(event.currentTarget.dataset.date);
+          });
+          grid.appendChild(button);
+        }
+
+        month.appendChild(grid);
+        return month;
+      }
+
+      function render() {
+        monthsEl.innerHTML = "";
+        titleEl.textContent = monthNames[cursor.getMonth()] + " - " + monthNames[addMonths(cursor, 1).getMonth()];
+        monthsEl.appendChild(renderMonth(cursor));
+        monthsEl.appendChild(renderMonth(addMonths(cursor, 1)));
+        checkinInput.value = selectedStart || "";
+        checkoutInput.value = selectedEnd || "";
+      }
+
+      root.querySelector("[data-calendar-prev]").addEventListener("click", function () {
+        cursor = addMonths(cursor, -1);
+        render();
+      });
+      root.querySelector("[data-calendar-next]").addEventListener("click", function () {
+        cursor = addMonths(cursor, 1);
+        render();
+      });
+      form.addEventListener("submit", function (event) {
+        if (!checkinInput.value || !checkoutInput.value) {
+          event.preventDefault();
+          setMessage("Escolha a data de entrada e a data de saida.", "error");
+        }
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

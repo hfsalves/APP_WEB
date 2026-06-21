@@ -275,27 +275,8 @@
     opacity: 0;
   }
 
-  .expense-line-card.is-closing {
-    pointer-events: none;
-    opacity: 0;
-    transform: scale(.985);
-  }
-
-  .expense-line-card.is-closing .expense-line-content {
-    transform: translateX(110%) scale(.96);
-    opacity: 0;
-  }
-
-  .expense-line-card.is-closing .expense-line-validate {
-    opacity: 0;
-  }
-
-  .expense-line-card.is-validate-open .expense-line-content {
-    transform: translateX(5.75rem);
-  }
-
   .expense-line-card.is-delete-open .expense-line-content {
-    transform: translateX(-5.75rem);
+    transform: translateX(-11.5rem);
   }
 
   .expense-line-validate,
@@ -310,7 +291,7 @@
     justify-content: center;
     gap: .25rem;
     border: 0;
-    border-radius: var(--sz-radius-md);
+    border-radius: 0;
     color: #fff;
     background: var(--sz-color-danger, #ef4444);
     font: inherit;
@@ -320,18 +301,61 @@
   }
 
   .expense-line-validate {
-    left: 0;
+    right: 0;
+    border-radius: 0 var(--sz-radius-md) var(--sz-radius-md) 0;
     background: var(--sz-color-success, #22c55e);
   }
 
   .expense-line-delete {
-    right: 0;
+    right: 5.75rem;
+    border-radius: var(--sz-radius-md) 0 0 var(--sz-radius-md);
     background: var(--sz-color-danger, #ef4444);
   }
 
   .expense-line-validate i,
   .expense-line-delete i {
     font-size: 1.05rem;
+  }
+
+  .expense-line-card.is-closed {
+    background: color-mix(in srgb, var(--sz-color-success, #22c55e) 10%, var(--sz-color-surface));
+  }
+
+  .expense-line-card.is-closed .expense-line-content {
+    border-color: color-mix(in srgb, var(--sz-color-success, #22c55e) 42%, var(--sz-color-border));
+  }
+
+  .expense-line-card.is-closed .expense-line-validate,
+  .expense-line-card.is-closed .expense-line-delete {
+    display: none;
+  }
+
+  .expense-line-card.is-closed .expense-line-photo,
+  .expense-line-card.is-closed input,
+  .expense-line-card.is-closed select,
+  .expense-line-card.is-closed textarea {
+    cursor: default;
+  }
+
+  .expense-line-card.is-closed input,
+  .expense-line-card.is-closed select,
+  .expense-line-card.is-closed textarea {
+    opacity: .78;
+  }
+
+  .expense-line-lock {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 999px;
+    color: var(--sz-color-success, #22c55e);
+    background: color-mix(in srgb, var(--sz-color-success, #22c55e) 14%, var(--sz-color-surface));
+  }
+
+  .expense-line-card.is-closed .expense-line-lock {
+    display: inline-flex;
   }
 
   @keyframes expenseAutoCollapse {
@@ -396,6 +420,13 @@
 
   .expense-line-summary-body {
     min-width: 0;
+  }
+
+  .expense-line-summary-title-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sz-space-2);
+    align-items: center;
   }
 
   .expense-line-summary-title,
@@ -628,6 +659,13 @@
       counter.textContent = String(linesHost.querySelectorAll('.expense-line-card').length);
     }
 
+    function isClosedCard(card) {
+      return !!card && (
+        card.classList.contains('is-closed')
+        || String(card.dataset.estado || '').trim().toUpperCase() === 'FECHADO'
+      );
+    }
+
     function filePreview(file, photoZone) {
       if (!file) return '';
       const name = String(file.name || 'Ficheiro').replace(/[&<>"']/g, (ch) => ({
@@ -710,6 +748,7 @@
       ];
       if (kmsInput?.value) metaParts.push(`${kmsInput.value} kms`);
       if (vehicleSelect?.value && vehicleLabel) metaParts.push(vehicleLabel);
+      if (isClosedCard(card)) metaParts.push('Fechada');
       if (meta) meta.textContent = metaParts.join(' · ');
       renderSummaryThumb(card);
     }
@@ -720,6 +759,7 @@
       photoZone.innerHTML = filePreview(file, photoZone);
       const card = photoZone.closest('.expense-line-card');
       if (card) {
+        if (isClosedCard(card)) return;
         card.dataset.fileName = file.name || '';
         card.dataset.fileType = file.type || '';
         card.dataset.objectUrl = photoZone.dataset.objectUrl || '';
@@ -767,7 +807,7 @@
     }
 
     async function saveCardNow(card) {
-      if (!card || card.classList.contains('is-deleting') || card.classList.contains('is-closing')) return null;
+      if (!card || card.classList.contains('is-deleting') || isClosedCard(card)) return null;
       clearAutoSave(card);
       const form = new FormData();
       const payload = linePayloadFromCard(card);
@@ -808,9 +848,31 @@
     }
 
     function scheduleAutoSave(card, delay = 700) {
-      if (!card || card.classList.contains('is-deleting') || card.classList.contains('is-closing')) return;
+      if (!card || card.classList.contains('is-deleting') || isClosedCard(card)) return;
       clearAutoSave(card);
       autoSaveTimers.set(card, window.setTimeout(() => saveCardNow(card), delay));
+    }
+
+    function markCardClosed(card, options = {}) {
+      if (!card) return;
+      clearAutoCollapse(card);
+      clearAutoSave(card);
+      card.dataset.estado = 'FECHADO';
+      card.classList.add('is-closed');
+      card.classList.remove('is-delete-open', 'is-save-error', 'is-saving', 'is-saved');
+      card.querySelectorAll('input, select, textarea').forEach((field) => {
+        field.disabled = true;
+      });
+      const photoZone = card.querySelector('.expense-line-photo');
+      if (photoZone) {
+        photoZone.setAttribute('aria-label', 'Ficheiro da despesa fechada');
+        photoZone.tabIndex = -1;
+      }
+      if (options.collapse !== false) {
+        card.classList.add('is-collapsed');
+      }
+      if (activeCard === card) activeCard = null;
+      refreshSummary(card);
     }
 
     function openPhotoPicker(photoZone = null) {
@@ -884,8 +946,8 @@
     }
 
     function closeDeleteActions(exceptCard = null) {
-      linesHost?.querySelectorAll('.expense-line-card.is-delete-open, .expense-line-card.is-validate-open').forEach((item) => {
-        if (item !== exceptCard) item.classList.remove('is-delete-open', 'is-validate-open');
+      linesHost?.querySelectorAll('.expense-line-card.is-delete-open').forEach((item) => {
+        if (item !== exceptCard) item.classList.remove('is-delete-open');
       });
     }
 
@@ -918,7 +980,7 @@
       window.setTimeout(() => {
         if (!card.isConnected) return;
         card.classList.add('is-collapsed');
-        card.classList.remove('is-delete-open', 'is-validate-open');
+        card.classList.remove('is-delete-open');
         if (activeCard === card) activeCard = null;
         refreshSummary(card);
       }, 160);
@@ -929,13 +991,14 @@
 
     function scheduleAutoCollapse(card) {
       clearAutoCollapse(card);
-      if (!card || card.classList.contains('is-collapsed') || card.classList.contains('is-delete-open') || card.classList.contains('is-validate-open')) return;
+      if (isClosedCard(card)) return;
+      if (!card || card.classList.contains('is-collapsed') || card.classList.contains('is-delete-open')) return;
       if (!isCardComplete(card)) return;
       autoCollapseTimers.set(card, window.setTimeout(() => collapseCardWithEffect(card), 5000));
     }
 
     function deleteCard(card) {
-      if (!card) return;
+      if (!card || isClosedCard(card)) return;
       clearAutoCollapse(card);
       clearAutoSave(card);
       const lineStamp = card.dataset.lineStamp || '';
@@ -964,10 +1027,10 @@
     }
 
     async function closeCard(card) {
-      if (!card || card.classList.contains('is-deleting') || card.classList.contains('is-closing')) return;
+      if (!card || card.classList.contains('is-deleting') || isClosedCard(card)) return;
       clearAutoCollapse(card);
       clearAutoSave(card);
-      card.classList.remove('is-delete-open', 'is-validate-open', 'is-save-error');
+      card.classList.remove('is-delete-open', 'is-save-error');
       if (!isCardComplete(card)) {
         card.classList.add('is-save-error');
         window.setTimeout(() => card.classList.remove('is-save-error'), 1200);
@@ -990,22 +1053,7 @@
         console.error(error);
         return;
       }
-      const objectUrl = card.dataset.objectUrl || '';
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-      if (activeCard === card) activeCard = null;
-      const startHeight = card.getBoundingClientRect().height;
-      card.style.height = `${startHeight}px`;
-      card.style.marginBlock = '0';
-      card.offsetHeight;
-      card.classList.add('is-closing');
-      window.setTimeout(() => {
-        card.style.height = '0px';
-        card.style.marginBlock = '0';
-      }, 40);
-      window.setTimeout(() => {
-        card.remove();
-        updateCounter();
-      }, 290);
+      markCardClosed(card);
     }
 
     function wireDeleteGesture(card) {
@@ -1013,36 +1061,44 @@
       const deleteBtn = card?.querySelector('[data-expense-delete]');
       const validateBtn = card?.querySelector('[data-expense-validate]');
       if (!card || !content || !deleteBtn || !validateBtn) return;
+      if (isClosedCard(card)) return;
       let startX = 0;
       let startY = 0;
       let currentX = 0;
       let pointerId = null;
       let dragging = false;
       let horizontalIntent = false;
-      const revealWidth = 92;
+      const revealWidth = (deleteBtn.offsetWidth || 92) + (validateBtn.offsetWidth || 92);
 
       deleteBtn.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
+        if (!window.confirm('Quer eliminar esta despesa?')) {
+          closeDeleteActions();
+          return;
+        }
         deleteCard(card);
       });
 
       validateBtn.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
+        if (!window.confirm('Quer validar esta despesa?')) {
+          closeDeleteActions();
+          return;
+        }
         closeCard(card);
       });
 
       content.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
+        if (isClosedCard(card)) return;
         if (event.target.closest('input, select, textarea, button, a, .expense-line-photo')) return;
         clearAutoCollapse(card);
         pointerId = event.pointerId;
         startX = event.clientX;
         startY = event.clientY;
-        currentX = card.classList.contains('is-delete-open')
-          ? -revealWidth
-          : (card.classList.contains('is-validate-open') ? revealWidth : 0);
+        currentX = card.classList.contains('is-delete-open') ? -revealWidth : 0;
         dragging = true;
         horizontalIntent = false;
         content.style.transition = 'none';
@@ -1059,7 +1115,7 @@
         }
         if (!horizontalIntent) return;
         event.preventDefault();
-        const nextX = Math.max(-revealWidth, Math.min(revealWidth, currentX + dx));
+        const nextX = Math.max(-revealWidth, Math.min(0, currentX + dx));
         content.style.transform = `translateX(${nextX}px)`;
       });
 
@@ -1074,10 +1130,8 @@
         if (!horizontalIntent) return;
         const finalX = currentX + dx;
         const shouldDeleteOpen = finalX < -(revealWidth * 0.42);
-        const shouldValidateOpen = finalX > (revealWidth * 0.42);
         card.classList.toggle('is-delete-open', shouldDeleteOpen);
-        card.classList.toggle('is-validate-open', shouldValidateOpen);
-        if (!shouldDeleteOpen && !shouldValidateOpen) scheduleAutoCollapse(card);
+        if (!shouldDeleteOpen) scheduleAutoCollapse(card);
       }
 
       content.addEventListener('pointerup', finishDrag);
@@ -1091,6 +1145,8 @@
       const hasFile = !!file;
       const saved = savedLine || {};
       if (saved.stamp) card.dataset.lineStamp = saved.stamp;
+      const savedEstado = String(saved.estado || 'RASCUNHO').trim().toUpperCase();
+      card.dataset.estado = savedEstado;
       const savedDate = saved.data_despesa || defaultDate;
       const savedType = saved.tipo || '';
       const savedVehicle = saved.viatura || '';
@@ -1114,7 +1170,10 @@
               <i class="fa-solid fa-camera"></i>
             </div>
             <div class="expense-line-summary-body">
-              <strong class="expense-line-summary-title" data-summary-title>Despesa por preencher</strong>
+              <div class="expense-line-summary-title-row">
+                <strong class="expense-line-summary-title" data-summary-title>Despesa por preencher</strong>
+                <span class="expense-line-lock" aria-label="Despesa fechada"><i class="fa-solid fa-lock"></i></span>
+              </div>
               <span class="expense-line-summary-meta" data-summary-meta>Sem data · Sem valor</span>
             </div>
           </div>
@@ -1173,7 +1232,9 @@
         field.addEventListener('blur', () => scheduleAutoCollapse(card));
       });
       refreshSummary(card);
-      if (options.collapsed) {
+      if (savedEstado === 'FECHADO') {
+        markCardClosed(card, { collapse: true });
+      } else if (options.collapsed) {
         card.classList.add('is-collapsed');
       } else {
         setActiveCard(card);
@@ -1193,7 +1254,7 @@
     });
     linesHost?.addEventListener('click', (event) => {
       if (event.target.closest('[data-expense-delete], [data-expense-validate]')) return;
-      const openDeleteCard = event.target.closest('.expense-line-card.is-delete-open, .expense-line-card.is-validate-open');
+      const openDeleteCard = event.target.closest('.expense-line-card.is-delete-open');
       if (openDeleteCard && !event.target.closest('input, select, textarea, button, a')) {
         closeDeleteActions();
         return;
@@ -1205,12 +1266,14 @@
       }
       const photoZone = event.target.closest('.expense-line-photo');
       if (!photoZone) return;
+      if (isClosedCard(photoZone.closest('.expense-line-card'))) return;
       openPhotoPicker(photoZone);
     });
     linesHost?.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
       const photoZone = event.target.closest('.expense-line-photo');
       if (!photoZone) return;
+      if (isClosedCard(photoZone.closest('.expense-line-card'))) return;
       event.preventDefault();
       openPhotoPicker(photoZone);
     });

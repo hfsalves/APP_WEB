@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 import click
 from email.utils import parsedate_to_datetime
 from decimal import Decimal, ROUND_HALF_UP
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session, Response, abort, has_request_context, g, current_app
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, send_file, session, Response, abort, has_request_context, g, current_app
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime, date, timedelta, time as dtime
 from sqlalchemy import text, bindparam
@@ -485,6 +485,43 @@ def create_app():
     def _guest_host_invalid_response():
         return _public_reserva_unavailable_page('not_found')
 
+    PORTOBREAK_DOMAINS = {'portobreak.com', 'www.portobreak.com'}
+    PORTOBREAK_ALLOWED_PREFIXES = [
+        '/reservas',
+        '/static',
+        '/assets',
+    ]
+    PORTOBREAK_ALLOWED_EXACT_PATHS = {
+        '/favicon.ico',
+    }
+    PORTOBREAK_BLOCKED_PREFIXES = [
+        '/reservas/rs',
+        '/reservas/resumo',
+        '/reservas/comunicacoes-sef',
+        '/reservas_canceladas',
+        '/api',
+        '/generic',
+    ]
+
+    def _path_matches_prefix(path: str, prefix: str) -> bool:
+        clean_path = str(path or '/').strip() or '/'
+        clean_prefix = str(prefix or '').strip().rstrip('/')
+        if not clean_prefix:
+            return False
+        return clean_path == clean_prefix or clean_path.startswith(f"{clean_prefix}/")
+
+    def is_portobreak_domain(hostname: str | None = None) -> bool:
+        host = (hostname if hostname is not None else _normalized_request_host())
+        return str(host or '').strip().lower() in PORTOBREAK_DOMAINS
+
+    def is_allowed_portobreak_path(path_value: str | None = None) -> bool:
+        path = (path_value if path_value is not None else request.path or '/').strip() or '/'
+        if path in PORTOBREAK_ALLOWED_EXACT_PATHS:
+            return True
+        if any(_path_matches_prefix(path, prefix) for prefix in PORTOBREAK_BLOCKED_PREFIXES):
+            return False
+        return any(_path_matches_prefix(path, prefix) for prefix in PORTOBREAK_ALLOWED_PREFIXES)
+
     @app.before_request
     def _enforce_host_rules():
         host = _normalized_request_host()
@@ -495,9 +532,26 @@ def create_app():
         app_hosts = set((app.config.get('DB_HOST_TARGETS') or {}).keys())
 
         path = (request.path or '/').strip() or '/'
+
+        if is_portobreak_domain(host):
+            if is_allowed_portobreak_path(path):
+                return None
+            app.logger.warning(
+                "Rota bloqueada no domínio PortoBreak: host=%s path=%s method=%s remote=%s",
+                host,
+                path,
+                request.method,
+                request.headers.get('X-Forwarded-For', request.remote_addr),
+            )
+            return ('Not Found', 404)
+
         is_guest_public_path = (
             path.startswith('/r/') or
             path.startswith('/api/r/') or
+            path == '/reservas' or
+            path.startswith('/reservas/') or
+            path == '/portal-reservas' or
+            path.startswith('/portal-reservas/') or
             path.startswith('/static/') or
             path == '/favicon.ico'
         )
@@ -565,6 +619,9 @@ def create_app():
 
     from blueprints.email_service import bp as email_service_bp
     app.register_blueprint(email_service_bp)
+
+    from blueprints.booking_portal import bp as booking_portal_bp
+    app.register_blueprint(booking_portal_bp)
 
     from modules.gr_planning.routes import bp as gr_planning_bp
     app.register_blueprint(gr_planning_bp)
@@ -2401,12 +2458,21 @@ def create_app():
                 )
 
             client_portal_tables = {'CLIENTE_DASHBOARD', 'CLIENTE_RESERVAS', 'CLIENTE_DOCUMENTOS'}
+            gr_management_dashboard_logins = {'sa', 'acruz', 'hgaspar', 'cbarthel'}
+            has_gr_management_dashboard_widget = (
+                str(getattr(current_user, 'LOGIN', '') or '').strip().lower()
+                in gr_management_dashboard_logins
+            )
             allowed_menu_stamps = _get_allowed_menu_stamps_for_current_entity()
             if allowed_menu_stamps is not None:
                 menu_items = [
                     item for item in menu_items
                     if (item.ordem % 100 == 0)
                     or (str(getattr(item, 'menustamp', '') or '').strip() in allowed_menu_stamps)
+                    or (
+                        str(getattr(item, 'tabela', '') or '').strip().lower() == 'dashboard'
+                        or _app_relative_url(getattr(item, 'url', '') or '').rstrip('/') == '/dashboard'
+                    )
                     or (_is_cliente_user() and str(getattr(item, 'tabela', '') or '').strip().upper() in client_portal_tables)
                 ]
 
@@ -2509,6 +2575,11 @@ def create_app():
             user_widgets = set()
             user_dashboard_links = False
             if not user_is_admin:
+                if has_gr_management_dashboard_widget:
+                    try:
+                        _ensure_gr_management_summary_widget_for_current_user()
+                    except Exception:
+                        db.session.rollback()
                 user_widgets = {uw.WIDGET for uw in UsWidget.query.filter_by(UTILIZADOR=current_user.LOGIN, VISIVEL=True)}
                 try:
                     user_dashboard_links = user_has_dashboard_links(getattr(current_user, 'USSTAMP', ''))
@@ -2526,9 +2597,15 @@ def create_app():
                     mostrar = table_key in client_portal_tables
                 elif table_key in client_portal_tables:
                     mostrar = False
-                # Dashboard sÃ³ para quem tem widgets
-                elif str(m.tabela or '').strip().lower() == "dashboard" and not user_is_admin:
-                    mostrar = bool(user_widgets) or user_dashboard_links
+                # Dashboard disponivel para todos; pode aparecer vazio.
+                elif (
+                    (
+                        str(m.tabela or '').strip().lower() == "dashboard"
+                        or _app_relative_url(getattr(m, 'url', '') or '').rstrip('/') == '/dashboard'
+                    )
+                    and not user_is_admin
+                ):
+                    mostrar = True
                 # Monitor de Trabalho é operacional; clientes ficam no portal.
                 elif m.tabela == "monitor":
                     mostrar = not user_is_cliente
@@ -15046,6 +15123,21 @@ def create_app():
             data_fim=last_day.isoformat(),
         )
 
+    @app.route('/faturacao/reservas-global')
+    @app.route('/faturacao_reservas_global')
+    @login_required
+    def faturacao_reservas_global_page():
+        today = date.today()
+        first_day = today.replace(day=1)
+        default_end = today - timedelta(days=1)
+        if default_end < first_day:
+            default_end = today
+        return render_template(
+            'faturacao_reservas_global.html',
+            data_ini=first_day.isoformat(),
+            data_fim=default_end.isoformat(),
+        )
+
     @app.route('/emissao_saft')
     @app.route('/faturacao/emissao_saft')
     @login_required
@@ -20606,6 +20698,690 @@ def create_app():
         db.session.commit()
         return jsonify({'ok': bool(result.get('ok')), 'status': status, 'sent': len(rows), 'result': result, 'payload': payload})
 
+    def _ensure_faturacao_reservas_global_schema():
+        db.session.execute(text("""
+            IF COL_LENGTH('dbo.RS', 'FATURADO') IS NULL
+            BEGIN
+                ALTER TABLE dbo.RS
+                ADD FATURADO bit NOT NULL CONSTRAINT DF_RS_FATURADO DEFAULT (0) WITH VALUES;
+            END;
+
+            IF COL_LENGTH('dbo.RS', 'FTSTAMP') IS NULL
+            BEGIN
+                ALTER TABLE dbo.RS
+                ADD FTSTAMP varchar(80) NOT NULL CONSTRAINT DF_RS_FTSTAMP DEFAULT ('') WITH VALUES;
+            END;
+        """))
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.FAT_RESERVAS_PHC_LOG', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.FAT_RESERVAS_PHC_LOG (
+                    FATRESPHCSTAMP varchar(25) NOT NULL CONSTRAINT PK_FAT_RESERVAS_PHC_LOG PRIMARY KEY,
+                    RSSTAMP varchar(25) NOT NULL,
+                    RESERVA varchar(80) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_RESERVA DEFAULT '',
+                    TIPO varchar(20) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_TIPO DEFAULT '',
+                    ALSTAMP varchar(25) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_ALSTAMP DEFAULT '',
+                    ALOJAMENTO varchar(120) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_ALOJAMENTO DEFAULT '',
+                    CLIENTE varchar(120) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_CLIENTE DEFAULT '',
+                    CLIENTE_BDPHC varchar(120) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_BDPHC DEFAULT '',
+                    DATAIN date NULL,
+                    DATAOUT date NULL,
+                    FDATA date NULL,
+                    VALOR numeric(18,2) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_VALOR DEFAULT 0,
+                    STATUS varchar(20) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_STATUS DEFAULT 'PENDING',
+                    PHC_STAMP varchar(80) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_PHC_STAMP DEFAULT '',
+                    PHC_NUMERO varchar(80) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_PHC_NUMERO DEFAULT '',
+                    PHC_DOC varchar(80) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_PHC_DOC DEFAULT '',
+                    PHC_PDF nvarchar(500) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_PHC_PDF DEFAULT '',
+                    REQUEST_JSON nvarchar(max) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_REQUEST DEFAULT '',
+                    RESPONSE_JSON nvarchar(max) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_RESPONSE DEFAULT '',
+                    ERROR_MSG nvarchar(max) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_ERROR DEFAULT '',
+                    USERCRIACAO varchar(60) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_USER DEFAULT '',
+                    DTCRI datetime2(0) NOT NULL CONSTRAINT DF_FAT_RESERVAS_PHC_LOG_DTCRI DEFAULT SYSUTCDATETIME(),
+                    DTALT datetime2(0) NULL
+                );
+                CREATE INDEX IX_FAT_RESERVAS_PHC_LOG_RSSTAMP_STATUS ON dbo.FAT_RESERVAS_PHC_LOG (RSSTAMP, STATUS);
+                CREATE INDEX IX_FAT_RESERVAS_PHC_LOG_DATAOUT ON dbo.FAT_RESERVAS_PHC_LOG (DATAOUT);
+            END
+        """))
+        db.session.commit()
+        return True
+
+    def _faturacao_reservas_global_log_available():
+        try:
+            value = db.session.execute(text("SELECT OBJECT_ID('dbo.FAT_RESERVAS_PHC_LOG', 'U')")).scalar()
+            return bool(value)
+        except Exception:
+            return False
+
+    def _try_ensure_faturacao_reservas_global_schema():
+        try:
+            return _ensure_faturacao_reservas_global_schema()
+        except Exception:
+            db.session.rollback()
+            app.logger.warning('Tabela FAT_RESERVAS_PHC_LOG indisponivel; a listagem segue sem estado de faturacao PHC.', exc_info=True)
+            return False
+
+    def _faturacao_reservas_global_select_sql(extra_where_sql: str = ""):
+        rs_cols = _faturacao_proprietarios_table_cols('RS')
+        al_cols = _faturacao_proprietarios_table_cols('AL')
+        cl_cols = _faturacao_proprietarios_table_cols('CL')
+        rs_reserva_expr = "LTRIM(RTRIM(ISNULL(RS.RESERVA,'')))" if 'RESERVA' in rs_cols else "''"
+        rs_nome_expr = "LTRIM(RTRIM(ISNULL(RS.NOME,'')))" if 'NOME' in rs_cols else "''"
+        rs_noites_expr = "ISNULL(RS.NOITES,0)" if 'NOITES' in rs_cols else "DATEDIFF(day, CAST(RS.DATAIN AS date), CAST(RS.DATAOUT AS date))"
+        rs_estadia_expr = "ISNULL(RS.ESTADIA,0)" if 'ESTADIA' in rs_cols else "0"
+        rs_limpeza_expr = "ISNULL(RS.LIMPEZA,0)" if 'LIMPEZA' in rs_cols else "0"
+        rs_ftmorada_expr = "LTRIM(RTRIM(ISNULL(RS.FTMORADA,'')))" if 'FTMORADA' in rs_cols else "''"
+        rs_ftlocal_expr = "LTRIM(RTRIM(ISNULL(RS.FTLOCAL,'')))" if 'FTLOCAL' in rs_cols else "''"
+        rs_ftcodpost_expr = "LTRIM(RTRIM(ISNULL(RS.FTCODPOST,'')))" if 'FTCODPOST' in rs_cols else "''"
+        rs_ftncont_expr = (
+            "LTRIM(RTRIM(CASE WHEN RS.FTNCONT IS NULL THEN '' ELSE CONVERT(varchar(40), RS.FTNCONT) END))"
+            if 'FTNCONT' in rs_cols else "''"
+        )
+        rs_faturado_expr = "ISNULL(RS.FATURADO,0)" if 'FATURADO' in rs_cols else "0"
+        rs_ftstamp_expr = "LTRIM(RTRIM(ISNULL(RS.FTSTAMP,'')))" if 'FTSTAMP' in rs_cols else "''"
+        al_alstamp_expr = "LTRIM(RTRIM(ISNULL(AL.ALSTAMP,'')))" if 'ALSTAMP' in al_cols else "''"
+        cl_nome_expr = "LTRIM(RTRIM(ISNULL(CL.NOME, AL.CLIENTE)))" if 'NOME' in cl_cols else "LTRIM(RTRIM(ISNULL(AL.CLIENTE,'')))"
+        cl_bdphc_expr = "LTRIM(RTRIM(ISNULL(CL.BDPHC,'')))" if 'BDPHC' in cl_cols else "''"
+        faturado_expr = f"CASE WHEN {rs_faturado_expr}=1 THEN 1 ELSE 0 END"
+        phc_doc_expr = "''"
+        phc_numero_expr = "''"
+        if _faturacao_reservas_global_log_available():
+            faturado_expr = """
+              CASE WHEN {rs_faturado_expr}=1 OR EXISTS(
+                SELECT 1
+                FROM dbo.FAT_RESERVAS_PHC_LOG L
+                WHERE L.RSSTAMP = RS.RSSTAMP
+                  AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
+              ) THEN 1 ELSE 0 END
+            """.format(rs_faturado_expr=rs_faturado_expr)
+            phc_doc_expr = """
+              ISNULL((
+                SELECT TOP 1 L.PHC_DOC
+                FROM dbo.FAT_RESERVAS_PHC_LOG L
+                WHERE L.RSSTAMP = RS.RSSTAMP
+                  AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
+                ORDER BY L.DTCRI DESC
+              ), '')
+            """
+            phc_numero_expr = """
+              ISNULL((
+                SELECT TOP 1 L.PHC_NUMERO
+                FROM dbo.FAT_RESERVAS_PHC_LOG L
+                WHERE L.RSSTAMP = RS.RSSTAMP
+                  AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
+                ORDER BY L.DTCRI DESC
+              ), '')
+            """
+        return f"""
+            SELECT
+              RS.RSSTAMP,
+              {rs_reserva_expr} AS RESERVA,
+              {al_alstamp_expr} AS ALSTAMP,
+              LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, AL.NOME))) AS ALOJAMENTO,
+              UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) AS TIPO,
+              LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) AS CLIENTE,
+              {cl_nome_expr} AS CLIENTE_NOME,
+              {cl_bdphc_expr} AS CLIENTE_BDPHC,
+              {rs_nome_expr} AS HOSPEDE,
+              {rs_ftmorada_expr} AS FTMORADA,
+              {rs_ftlocal_expr} AS FTLOCAL,
+              {rs_ftcodpost_expr} AS FTCODPOST,
+              {rs_ftncont_expr} AS FTNCONT,
+              CAST(RS.DATAIN AS date) AS DATAIN,
+              CAST(RS.DATAOUT AS date) AS DATAOUT,
+              DATEADD(day, 1, CAST(RS.DATAOUT AS date)) AS FDATA,
+              {rs_noites_expr} AS NOITES,
+              {rs_estadia_expr} AS ESTADIA,
+              {rs_limpeza_expr} AS LIMPEZA,
+              ({rs_estadia_expr} + {rs_limpeza_expr}) AS VALOR_TOTAL,
+              {faturado_expr} AS FATURADO,
+              {rs_ftstamp_expr} AS RS_FTSTAMP,
+              {phc_doc_expr} AS PHC_DOC,
+              {phc_numero_expr} AS PHC_NUMERO
+            FROM dbo.RS RS
+            INNER JOIN dbo.AL AL
+              ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
+            LEFT JOIN dbo.CL CL
+              ON LTRIM(RTRIM(ISNULL(CL.NOME,''))) = LTRIM(RTRIM(ISNULL(AL.CLIENTE,'')))
+            {extra_where_sql}
+        """
+
+    def _faturacao_reservas_global_where(filters: dict):
+        where = [
+            "RS.DATAOUT IS NOT NULL",
+            "ISNULL(RS.CANCELADA,0) = 0",
+            "UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) IN ('EXPLORACAO','GESTAO')",
+        ]
+        params = {}
+        data_ini = str(filters.get('data_ini') or '').strip()
+        data_fim = str(filters.get('data_fim') or '').strip()
+        alojamento = str(filters.get('alojamento') or '').strip()
+        cliente = str(filters.get('cliente') or '').strip()
+        tipo = str(filters.get('tipo') or '').strip().upper()
+        faturado = str(filters.get('faturado') or 'por_faturar').strip().lower()
+        elegibilidade = str(filters.get('elegibilidade') or 'todos').strip().lower()
+        if data_ini:
+            where.append("CAST(RS.DATAOUT AS date) >= :data_ini")
+            params['data_ini'] = data_ini
+        if data_fim:
+            where.append("CAST(RS.DATAOUT AS date) <= :data_fim")
+            params['data_fim'] = data_fim
+        if alojamento:
+            where.append("LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, AL.NOME))) = :alojamento")
+            params['alojamento'] = alojamento
+        if cliente:
+            where.append("LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) = :cliente")
+            params['cliente'] = cliente
+        if tipo in ('EXPLORACAO', 'GESTAO'):
+            where.append("UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) = :tipo")
+            params['tipo'] = tipo
+        if elegibilidade == 'elegivel':
+            where.append("DATEADD(day, 1, CAST(RS.DATAOUT AS date)) <= CAST(GETDATE() AS date)")
+        elif elegibilidade == 'futuro':
+            where.append("DATEADD(day, 1, CAST(RS.DATAOUT AS date)) > CAST(GETDATE() AS date)")
+        if faturado in ('por_faturar', 'faturado'):
+            rs_cols = _faturacao_proprietarios_table_cols('RS')
+            rs_faturado_expr = "ISNULL(RS.FATURADO,0)" if 'FATURADO' in rs_cols else "0"
+            if _faturacao_reservas_global_log_available():
+                faturado_sql = f"""
+                ({rs_faturado_expr}=1 OR EXISTS (
+                    SELECT 1
+                    FROM dbo.FAT_RESERVAS_PHC_LOG L
+                    WHERE L.RSSTAMP = RS.RSSTAMP
+                      AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
+                ))
+                """
+            else:
+                faturado_sql = f"({rs_faturado_expr}=1)"
+            where.append(("NOT " if faturado == 'por_faturar' else "") + faturado_sql)
+        return where, params
+
+    def _format_reserva_line_date(value):
+        if hasattr(value, 'strftime'):
+            return value.strftime('%d.%m.%Y')
+        return ''
+
+    def _build_faturacao_reservas_global_phc_payload(row: dict, user_login: str):
+        reserva = str(row.get('RESERVA') or row.get('RSSTAMP') or '').strip()
+        datain = row.get('DATAIN') or row.get('DATAOUT')
+        dataout = row.get('DATAOUT') or datain
+        fdata = date.today() - timedelta(days=1)
+        hospede = str(row.get('HOSPEDE') or '').strip() or 'Cliente Final'
+        tipo = str(row.get('TIPO') or '').strip().upper()
+        bdphc = str(row.get('CLIENTE_BDPHC') or '').strip()
+        estadia = round(_num(row.get('ESTADIA'), 0), 2)
+        limpeza = round(_num(row.get('LIMPEZA'), 0), 2)
+        linhas = []
+        if estadia > 0:
+            linhas.append({
+                'ref': 'ESTADIA',
+                'design': f"Estadia de {_format_reserva_line_date(datain)} a {_format_reserva_line_date(dataout)} -({reserva})"[:120],
+                'qtt': 1,
+                'epv': estadia,
+            })
+        if limpeza > 0:
+            linhas.append({
+                'ref': 'LIMPEZA',
+                'design': 'Taxa de Limpeza',
+                'qtt': 1,
+                'epv': limpeza,
+            })
+        payload = {
+            'ndoc': _to_int(os.environ.get('PHC_RESERVAS_NDOC'), 3),
+            'no': 1,
+            'nome': hospede[:80],
+            'morada': str(row.get('FTMORADA') or '').strip()[:120],
+            'local': str(row.get('FTLOCAL') or '').strip()[:80],
+            'codpost': str(row.get('FTCODPOST') or '').strip()[:30],
+            'ncont': str(row.get('FTNCONT') or '').strip()[:30],
+            'data': fdata.isoformat(),
+            'reserva': reserva,
+            'rsstamp': str(row.get('RSSTAMP') or '').strip(),
+            'tipo': tipo,
+            'alojamento': str(row.get('ALOJAMENTO') or '').strip(),
+            'linhas': linhas,
+        }
+        if tipo == 'GESTAO':
+            payload['bdphc'] = bdphc
+            payload['bd'] = bdphc
+            payload['database'] = bdphc
+            payload['baseDados'] = bdphc
+            payload['proprietario'] = str(row.get('CLIENTE_NOME') or row.get('CLIENTE') or '').strip()
+        else:
+            guestspa_bd = os.environ.get('PHC_GUESTSPA_BDPHC', '').strip()
+            if guestspa_bd:
+                payload['bdphc'] = guestspa_bd
+                payload['bd'] = guestspa_bd
+                payload['database'] = guestspa_bd
+                payload['baseDados'] = guestspa_bd
+        payload['origem'] = {'app': 'stationzero', 'user': user_login}
+        return payload
+
+    def _phc_ws_endpoint_for_bdphc(bdphc: str = ''):
+        default_endpoint = os.environ.get('PHC_WS_ENDPOINT', '').strip() or 'http://192.168.1.51/intranet/ws/wscript.asmx'
+        database_name = str(bdphc or '').strip().strip('/')
+        if not database_name:
+            return default_endpoint
+        try:
+            parts = urlsplit(default_endpoint)
+            if parts.scheme and parts.netloc:
+                return f"{parts.scheme}://{parts.netloc}/{quote(database_name)}/ws/wscript.asmx"
+        except Exception:
+            pass
+        return f"http://192.168.1.51/{quote(database_name)}/ws/wscript.asmx"
+
+    def _phc_run_code(code: str, parameter_payload: dict):
+        endpoint = _phc_ws_endpoint_for_bdphc((parameter_payload or {}).get('bdphc'))
+        username = os.environ.get('PHC_WS_USER', '').strip() or 'sa'
+        password = os.environ.get('PHC_WS_PASSWORD', '').strip() or 'maisritmo'
+        timeout = _to_int(os.environ.get('PHC_WS_TIMEOUT'), 45)
+        code_value = str(code or os.environ.get('PHC_WS_CODE') or 'CriaFT').strip() or 'CriaFT'
+        soap_ns = 'http://schemas.xmlsoap.org/soap/envelope/'
+        phc_ns = 'http://www.phc.pt/'
+        envelope = ET.Element(f'{{{soap_ns}}}Envelope')
+        body = ET.SubElement(envelope, f'{{{soap_ns}}}Body')
+        run_code = ET.SubElement(body, f'{{{phc_ns}}}RunCode')
+        ET.SubElement(run_code, f'{{{phc_ns}}}userName').text = username
+        ET.SubElement(run_code, f'{{{phc_ns}}}password').text = password
+        ET.SubElement(run_code, f'{{{phc_ns}}}code').text = code_value
+        ET.SubElement(run_code, f'{{{phc_ns}}}parameter').text = json.dumps(parameter_payload, ensure_ascii=False, default=str)
+        xml_body = ET.tostring(envelope, encoding='utf-8', xml_declaration=True)
+        req = Request(
+            endpoint,
+            data=xml_body,
+            headers={
+                'Content-Type': 'text/xml; charset=utf-8',
+                'SOAPAction': '"http://www.phc.pt/RunCode"',
+            },
+            method='POST',
+        )
+        try:
+            with urlopen(req, timeout=timeout) as resp:
+                raw = resp.read().decode('utf-8', errors='replace')
+                status_code = int(getattr(resp, 'status', 200) or 200)
+        except HTTPError as exc:
+            raw = exc.read().decode('utf-8', errors='replace')
+            return {'ok': False, 'endpoint': endpoint, 'status_code': int(exc.code), 'raw': raw, 'error': raw or str(exc)}
+        except URLError as exc:
+            return {'ok': False, 'endpoint': endpoint, 'error': str(exc)}
+
+        parsed = {'raw': raw}
+        try:
+            root = ET.fromstring(raw.encode('utf-8'))
+            result_el = root.find('.//{http://www.phc.pt/}RunCodeResult')
+            result_text = result_el.text if result_el is not None else ''
+            parsed['result_text'] = result_text or ''
+            if result_text:
+                try:
+                    parsed['response'] = json.loads(result_text)
+                except Exception:
+                    parsed['response'] = {'text': result_text}
+        except Exception as exc:
+            parsed['parse_error'] = str(exc)
+        response_obj = parsed.get('response') if isinstance(parsed.get('response'), dict) else {}
+        phc_error = bool(response_obj.get('erro')) if response_obj else False
+        return {
+            'ok': 200 <= status_code < 300 and not phc_error,
+            'endpoint': endpoint,
+            'status_code': status_code,
+            **parsed,
+            'error': str(response_obj.get('msg') or '') if phc_error else '',
+        }
+
+    @app.route('/api/faturacao/reservas-global/options', methods=['GET'])
+    @login_required
+    def api_faturacao_reservas_global_options():
+        try:
+            _try_ensure_faturacao_reservas_global_schema()
+            rows = db.session.execute(text("""
+                SELECT DISTINCT
+                  LTRIM(RTRIM(ISNULL(AL.NOME,''))) AS ALOJAMENTO,
+                  LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) AS CLIENTE,
+                  UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) AS TIPO
+                FROM dbo.AL AL
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) IN ('EXPLORACAO','GESTAO')
+                  AND LTRIM(RTRIM(ISNULL(AL.NOME,''))) <> ''
+                ORDER BY TIPO, CLIENTE, ALOJAMENTO
+            """)).mappings().all()
+            alojamentos, clientes, seen_al, seen_cl = [], [], set(), set()
+            for row in rows:
+                aloj = str(row.get('ALOJAMENTO') or '').strip()
+                cli = str(row.get('CLIENTE') or '').strip()
+                if aloj and aloj.upper() not in seen_al:
+                    seen_al.add(aloj.upper())
+                    alojamentos.append(aloj)
+                if cli and cli.upper() not in seen_cl:
+                    seen_cl.add(cli.upper())
+                    clientes.append(cli)
+            return jsonify({'alojamentos': alojamentos, 'clientes': clientes})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar filtros de faturacao global de reservas.')
+            return jsonify({'error': f'Erro ao carregar filtros: {exc}'}), 500
+
+    def _fatglob_pdf_safe_part(value: str):
+        raw = str(value or '').strip()
+        safe = re.sub(r'[^A-Za-z0-9_-]+', '_', raw)
+        safe = re.sub(r'_+', '_', safe).strip('_')
+        return safe
+
+    def _fatglob_pdf_filename(bdphc: str, numero: str):
+        bd_part = _fatglob_pdf_safe_part(bdphc)
+        numero_part = _fatglob_pdf_safe_part(numero)
+        if not bd_part or not numero_part:
+            return ''
+        return f'{bd_part}_FR_{numero_part}.pdf'
+
+    def _fatglob_pdf_base_url():
+        value = (os.environ.get('PHC_PDF_BASE_URL') or os.environ.get('PHC_FATURAS_BASE_URL') or '').strip()
+        return value.rstrip('/') if value else 'http://192.168.1.51/faturas'
+
+    def _fatglob_pdf_dirs():
+        configured = (os.environ.get('PHC_PDF_DIR') or os.environ.get('PHC_FATURAS_DIR') or '').strip()
+        dirs = []
+        if configured:
+            dirs.append(configured)
+        dirs.extend(['/Volumes/faturas', '/Volumes/FATURAS', '/mnt/faturas'])
+        out = []
+        seen = set()
+        for path in dirs:
+            p = str(path or '').strip()
+            key = p.lower()
+            if p and key not in seen:
+                seen.add(key)
+                out.append(p)
+        return out
+
+    def _fatglob_pdf_url_from_values(rsstamp: str, bdphc: str, numero: str):
+        filename = _fatglob_pdf_filename(bdphc, numero)
+        if not filename:
+            return ''
+        stamp = quote(str(rsstamp or '').strip(), safe='')
+        return f'/api/faturacao/reservas-global/pdf/{stamp}'
+
+    @app.route('/api/faturacao/reservas-global/pdf/<path:rsstamp>', methods=['GET'])
+    @login_required
+    def api_faturacao_reservas_global_pdf(rsstamp):
+        stamp = str(rsstamp or '').strip()
+        if not stamp:
+            abort(404)
+        try:
+            _try_ensure_faturacao_reservas_global_schema()
+            row = db.session.execute(text("""
+                SELECT TOP 1
+                  L.RSSTAMP,
+                  LTRIM(RTRIM(ISNULL(L.CLIENTE_BDPHC,''))) AS CLIENTE_BDPHC,
+                  LTRIM(RTRIM(ISNULL(L.PHC_NUMERO,''))) AS PHC_NUMERO,
+                  LTRIM(RTRIM(ISNULL(L.PHC_PDF,''))) AS PHC_PDF
+                FROM dbo.FAT_RESERVAS_PHC_LOG L
+                WHERE L.RSSTAMP = :rsstamp
+                  AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
+                ORDER BY L.DTCRI DESC
+            """), {'rsstamp': stamp}).mappings().first()
+            if not row:
+                abort(404)
+            filename = _fatglob_pdf_filename(row.get('CLIENTE_BDPHC'), row.get('PHC_NUMERO'))
+            if not filename:
+                abort(404)
+            for base_dir in _fatglob_pdf_dirs():
+                candidate = os.path.abspath(os.path.join(base_dir, filename))
+                base_abs = os.path.abspath(base_dir)
+                if candidate.startswith(base_abs + os.sep) and os.path.isfile(candidate):
+                    return send_file(candidate, mimetype='application/pdf', as_attachment=False, download_name=filename, max_age=0, conditional=True)
+            return redirect(f"{_fatglob_pdf_base_url()}/{quote(filename)}")
+        except Exception:
+            app.logger.exception('Erro ao abrir PDF PHC da reserva.')
+            abort(404)
+
+    @app.route('/api/faturacao/reservas-global', methods=['GET'])
+    @login_required
+    def api_faturacao_reservas_global():
+        try:
+            _try_ensure_faturacao_reservas_global_schema()
+            filters = {
+                'data_ini': request.args.get('data_ini'),
+                'data_fim': request.args.get('data_fim'),
+                'alojamento': request.args.get('alojamento'),
+                'cliente': request.args.get('cliente'),
+                'tipo': request.args.get('tipo'),
+                'faturado': request.args.get('faturado') or 'por_faturar',
+                'elegibilidade': request.args.get('elegibilidade') or 'todos',
+            }
+            where, params = _faturacao_reservas_global_where(filters)
+            sql = _faturacao_reservas_global_select_sql("WHERE " + " AND ".join(where)) + """
+                ORDER BY CAST(RS.DATAOUT AS date), TIPO, CLIENTE, ALOJAMENTO, RESERVA
+            """
+            rows = db.session.execute(text(sql), params).mappings().all()
+            today_value = date.today()
+            out = []
+            for r in rows:
+                row = dict(r)
+                tipo = str(row.get('TIPO') or '').strip().upper()
+                bdphc = str(row.get('CLIENTE_BDPHC') or '').strip()
+                fdata = row.get('FDATA')
+                elegivel_data = 1 if (hasattr(fdata, 'toordinal') and fdata <= today_value) else 0
+                warnings = []
+                if tipo == 'GESTAO' and not bdphc:
+                    warnings.append('BDPHC em falta')
+                if not elegivel_data:
+                    warnings.append('Fatura apenas no dia seguinte ao checkout')
+                valor_total = round(_num(row.get('VALOR_TOTAL'), 0), 2)
+                if valor_total <= 0:
+                    warnings.append('Reserva sem valor faturável')
+                out.append({
+                    'RSSTAMP': str(row.get('RSSTAMP') or '').strip(),
+                    'RESERVA': str(row.get('RESERVA') or '').strip(),
+                    'ALSTAMP': str(row.get('ALSTAMP') or '').strip(),
+                    'ALOJAMENTO': str(row.get('ALOJAMENTO') or '').strip(),
+                    'TIPO': tipo,
+                    'CLIENTE': str(row.get('CLIENTE') or '').strip(),
+                    'CLIENTE_NOME': str(row.get('CLIENTE_NOME') or row.get('CLIENTE') or '').strip(),
+                    'CLIENTE_BDPHC': bdphc,
+                    'HOSPEDE': str(row.get('HOSPEDE') or '').strip(),
+                    'FTMORADA': str(row.get('FTMORADA') or '').strip(),
+                    'FTLOCAL': str(row.get('FTLOCAL') or '').strip(),
+                    'FTCODPOST': str(row.get('FTCODPOST') or '').strip(),
+                    'FTNCONT': str(row.get('FTNCONT') or '').strip(),
+                    'DATAIN': row.get('DATAIN').isoformat() if row.get('DATAIN') else '',
+                    'DATAOUT': row.get('DATAOUT').isoformat() if row.get('DATAOUT') else '',
+                    'FDATA': row.get('FDATA').isoformat() if row.get('FDATA') else '',
+                    'NOITES': int(row.get('NOITES') or 0),
+                    'ESTADIA': round(_num(row.get('ESTADIA'), 0), 2),
+                    'LIMPEZA': round(_num(row.get('LIMPEZA'), 0), 2),
+                    'VALOR_TOTAL': valor_total,
+                    'FATURADO': int(row.get('FATURADO') or 0),
+                    'RS_FTSTAMP': str(row.get('RS_FTSTAMP') or '').strip(),
+                    'PHC_DOC': str(row.get('PHC_DOC') or '').strip(),
+                    'PHC_NUMERO': str(row.get('PHC_NUMERO') or '').strip(),
+                    'PHC_PDF_URL': _fatglob_pdf_url_from_values(
+                        str(row.get('RSSTAMP') or '').strip(),
+                        bdphc,
+                        str(row.get('PHC_NUMERO') or '').strip(),
+                    ) if int(row.get('FATURADO') or 0) == 1 else '',
+                    'ELEGIVEL_DATA': elegivel_data,
+                    'CONFIG_OK': 1 if not warnings else 0,
+                    'CONFIG_WARNINGS': warnings,
+                })
+            return jsonify({'rows': out, 'today': today_value.isoformat()})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar faturacao global de reservas.')
+            return jsonify({'error': f'Erro ao carregar reservas: {exc}'}), 500
+
+    def _faturacao_reservas_global_fetch_selected(rsstamps):
+        placeholders = []
+        params = {}
+        for idx, stamp in enumerate(rsstamps):
+            key = f'rs{idx}'
+            placeholders.append(f':{key}')
+            params[key] = stamp
+        sql = _faturacao_reservas_global_select_sql(
+            "WHERE RS.RSSTAMP IN (" + ",".join(placeholders) + ")"
+            " AND RS.DATAOUT IS NOT NULL"
+            " AND ISNULL(RS.CANCELADA,0) = 0"
+            " AND UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) IN ('EXPLORACAO','GESTAO')"
+        ) + " ORDER BY CAST(RS.DATAOUT AS date), TIPO, CLIENTE, ALOJAMENTO, RESERVA"
+        return [dict(r) for r in db.session.execute(text(sql), params).mappings().all()]
+
+    def _faturacao_reservas_global_emit_logic(body: dict, user_login: str):
+        _ensure_faturacao_reservas_global_schema()
+        rsstamps = [str(x or '').strip() for x in (body.get('rsstamps') or []) if str(x or '').strip()]
+        if not rsstamps:
+            raise ValueError('Sem reservas selecionadas.')
+        if len(rsstamps) > 100:
+            raise ValueError('Seleciona no máximo 100 reservas por emissão.')
+        rows = _faturacao_reservas_global_fetch_selected(rsstamps)
+        row_map = {str(r.get('RSSTAMP') or '').strip(): r for r in rows}
+        created, errors = [], []
+        today_value = date.today()
+        for rsstamp in rsstamps:
+            row = row_map.get(rsstamp)
+            if not row:
+                errors.append({'RSSTAMP': rsstamp, 'error': 'Reserva não encontrada ou não elegível.'})
+                continue
+            reserva = str(row.get('RESERVA') or '').strip()
+            tipo = str(row.get('TIPO') or '').strip().upper()
+            bdphc = str(row.get('CLIENTE_BDPHC') or '').strip()
+            dataout = row.get('DATAOUT')
+            elegibilidade_data = row.get('FDATA')
+            fdata = date.today() - timedelta(days=1)
+            valor_total = round(_num(row.get('VALOR_TOTAL'), 0), 2)
+            if int(row.get('FATURADO') or 0) == 1:
+                errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'Reserva já faturada no PHC.'})
+                continue
+            if not hasattr(elegibilidade_data, 'toordinal') or elegibilidade_data > today_value:
+                errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'A fatura só pode ser emitida no dia seguinte ao checkout.'})
+                continue
+            if tipo == 'GESTAO' and not bdphc:
+                errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'Proprietário sem BDPHC definida.'})
+                continue
+            if valor_total <= 0:
+                errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'Reserva sem valor faturável.'})
+                continue
+            payload = _build_faturacao_reservas_global_phc_payload(row, user_login)
+            if not payload.get('linhas'):
+                errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'Reserva sem linhas faturáveis.'})
+                continue
+            result = _phc_run_code(os.environ.get('PHC_WS_CODE', 'CriaFT'), payload)
+            response_obj = result.get('response') if isinstance(result.get('response'), dict) else {}
+            dados = response_obj.get('dados') if isinstance(response_obj.get('dados'), dict) else {}
+            status = 'OK' if result.get('ok') else 'ERROR'
+            db.session.execute(text("""
+                INSERT INTO dbo.FAT_RESERVAS_PHC_LOG
+                (FATRESPHCSTAMP, RSSTAMP, RESERVA, TIPO, ALSTAMP, ALOJAMENTO, CLIENTE, CLIENTE_BDPHC,
+                 DATAIN, DATAOUT, FDATA, VALOR, STATUS, PHC_STAMP, PHC_NUMERO, PHC_DOC, PHC_PDF,
+                 REQUEST_JSON, RESPONSE_JSON, ERROR_MSG, USERCRIACAO, DTCRI, DTALT)
+                VALUES
+                (:stamp, :rsstamp, :reserva, :tipo, :alstamp, :alojamento, :cliente, :bdphc,
+                 :datain, :dataout, :fdata, :valor, :status, :phc_stamp, :phc_numero, :phc_doc, :phc_pdf,
+                 :request_json, :response_json, :error_msg, :user, SYSUTCDATETIME(), SYSUTCDATETIME())
+            """), {
+                'stamp': _new_stamp_25(),
+                'rsstamp': rsstamp,
+                'reserva': reserva[:80],
+                'tipo': tipo[:20],
+                'alstamp': str(row.get('ALSTAMP') or '').strip()[:25],
+                'alojamento': str(row.get('ALOJAMENTO') or '').strip()[:120],
+                'cliente': str(row.get('CLIENTE_NOME') or row.get('CLIENTE') or '').strip()[:120],
+                'bdphc': bdphc[:120],
+                'datain': row.get('DATAIN'),
+                'dataout': dataout,
+                'fdata': fdata,
+                'valor': valor_total,
+                'status': status,
+                'phc_stamp': str(dados.get('stamp') or '')[:80],
+                'phc_numero': str(dados.get('numero') or '')[:80],
+                'phc_doc': str(dados.get('documento') or '')[:80],
+                'phc_pdf': str(dados.get('pdfCaminho') or '')[:500],
+                'request_json': json.dumps(payload, ensure_ascii=False, default=str),
+                'response_json': json.dumps(result, ensure_ascii=False, default=str),
+                'error_msg': str(result.get('error') or response_obj.get('msg') or '')[:4000] if not result.get('ok') else '',
+                'user': user_login[:60],
+            })
+            if result.get('ok'):
+                db.session.execute(text("""
+                    UPDATE dbo.RS
+                    SET FATURADO = 1,
+                        FTSTAMP = :ftstamp
+                    WHERE RSSTAMP = :rsstamp
+                """), {
+                    'ftstamp': str(dados.get('stamp') or '')[:80],
+                    'rsstamp': rsstamp,
+                })
+            db.session.commit()
+            if result.get('ok'):
+                created.append({
+                    'RSSTAMP': rsstamp,
+                    'RESERVA': reserva,
+                    'PHC_STAMP': str(dados.get('stamp') or ''),
+                    'PHC_NUMERO': str(dados.get('numero') or ''),
+                    'PHC_DOC': str(dados.get('documento') or ''),
+                    'PHC_PDF': str(dados.get('pdfCaminho') or ''),
+                })
+            else:
+                errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': str(result.get('error') or response_obj.get('msg') or 'Erro PHC')})
+        return {'ok': len(errors) == 0, 'created': created, 'errors': errors, 'total_selected': len(rsstamps)}
+
+    @app.route('/api/faturacao/reservas-global/emitir', methods=['POST'])
+    @login_required
+    def api_faturacao_reservas_global_emitir():
+        try:
+            body = request.get_json(silent=True) or {}
+            user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+            result = _faturacao_reservas_global_emit_logic(body, user_login)
+            return jsonify(result), (200 if result.get('created') else (400 if result.get('errors') else 200))
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao emitir faturacao global de reservas.')
+            return jsonify({'error': str(exc)}), 400
+
+    @app.route('/api/faturacao/reservas-global/auto-emitir', methods=['POST'])
+    @login_required
+    def api_faturacao_reservas_global_auto_emitir():
+        try:
+            body = request.get_json(silent=True) or {}
+            yesterday = date.today() - timedelta(days=1)
+            filters = {
+                'data_ini': body.get('data_ini') or yesterday.isoformat(),
+                'data_fim': body.get('data_fim') or yesterday.isoformat(),
+                'alojamento': body.get('alojamento'),
+                'cliente': body.get('cliente'),
+                'tipo': body.get('tipo'),
+                'faturado': 'por_faturar',
+                'elegibilidade': 'elegivel',
+            }
+            max_docs = max(1, min(_to_int(body.get('max_docs'), 50), 100))
+            _ensure_faturacao_reservas_global_schema()
+            where, params = _faturacao_reservas_global_where(filters)
+            sql = _faturacao_reservas_global_select_sql("WHERE " + " AND ".join(where)) + """
+                ORDER BY CAST(RS.DATAOUT AS date), TIPO, CLIENTE, ALOJAMENTO, RESERVA
+            """
+            rows = db.session.execute(text(sql), params).mappings().all()
+            rsstamps = []
+            for row in rows:
+                row_dict = dict(row)
+                tipo = str(row_dict.get('TIPO') or '').strip().upper()
+                bdphc = str(row_dict.get('CLIENTE_BDPHC') or '').strip()
+                valor_total = round(_num(row_dict.get('VALOR_TOTAL'), 0), 2)
+                if tipo == 'GESTAO' and not bdphc:
+                    continue
+                if valor_total <= 0:
+                    continue
+                rsstamps.append(str(row_dict.get('RSSTAMP') or '').strip())
+                if len(rsstamps) >= max_docs:
+                    break
+            if not rsstamps:
+                return jsonify({'ok': True, 'created': [], 'errors': [], 'total_selected': 0, 'message': 'Sem reservas elegíveis para emissão automática.'})
+            user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+            result = _faturacao_reservas_global_emit_logic({'rsstamps': rsstamps}, user_login)
+            result['filters'] = filters
+            return jsonify(result), (200 if result.get('created') or not result.get('errors') else 400)
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro na auto-emissao de faturacao global de reservas.')
+            return jsonify({'error': str(exc)}), 400
+
     def _month_bounds(ano: int, mes: int):
         try:
             start = date(int(ano), int(mes), 1)
@@ -26113,92 +26889,128 @@ def create_app():
         })
 
     def _ensure_gr_management_summary_widget_for_current_user():
-        allowed_logins = {'sa', 'acruz', 'hgaspar'}
+        allowed_logins = {'sa', 'acruz', 'hgaspar', 'cbarthel'}
         current_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
         if current_login.lower() not in allowed_logins:
             return
 
-        widget_name = 'MAPA_GESTAO_GR_RESUMO'
-        config = json.dumps({'handler': 'gr_management_map_summary'}, ensure_ascii=False)
         filtros = json.dumps({
             'fields': [
                 {
                     'key': 'ano',
-                    'label': 'Ano',
+                    'label': 'Année',
                     'input_type': 'number',
                     'default': 'CURRENT_YEAR',
                     'required': True,
                 }
             ]
         }, ensure_ascii=False)
-        widget_row = db.session.execute(text("""
-            SELECT TOP 1 WIDGETSSTAMP
-            FROM dbo.WIDGETS
-            WHERE NOME = :nome
-        """), {'nome': widget_name}).mappings().first()
-        if widget_row:
-            db.session.execute(text("""
-                UPDATE dbo.WIDGETS
-                SET TITULO = :titulo,
-                    TIPO = 'ANALISE',
-                    FONTE = 'HSOLS_MASTER',
-                    URL = :url,
-                    CONFIG = :config,
-                    FILTROS = :filtros,
-                    ATIVO = 1
+        widget_specs = [
+            {
+                'nome': 'MAPA_GESTAO_GR_RESUMO',
+                'titulo': 'Carte de Gestion GR',
+                'config': {'handler': 'gr_management_map_summary'},
+                'coluna': 1,
+                'ordem': 1,
+                'maxheight': 360,
+            },
+            {
+                'nome': 'MAPA_GESTAO_GR_TOP_LUCRO',
+                'titulo': 'Top 10 Projets avec Bénéfice',
+                'config': {'handler': 'gr_management_project_top', 'direction': 'profit'},
+                'coluna': 2,
+                'ordem': 1,
+                'maxheight': 360,
+            },
+            {
+                'nome': 'MAPA_GESTAO_GR_TOP_PREJUIZO',
+                'titulo': 'Top 10 Projets avec Perte',
+                'config': {'handler': 'gr_management_project_top', 'direction': 'loss'},
+                'coluna': 3,
+                'ordem': 1,
+                'maxheight': 360,
+            },
+        ]
+
+        for spec in widget_specs:
+            widget_row = db.session.execute(text("""
+                SELECT TOP 1 WIDGETSSTAMP
+                FROM dbo.WIDGETS
                 WHERE NOME = :nome
-            """), {
-                'nome': widget_name,
-                'titulo': 'Mapa Gestão GR',
-                'url': '/gr_planning/mapa_gestao_gr',
-                'config': config,
-                'filtros': filtros,
-            })
-        else:
-            db.session.execute(text("""
-                INSERT INTO dbo.WIDGETS (WIDGETSSTAMP, NOME, TITULO, TIPO, FONTE, URL, CONFIG, FILTROS, ATIVO)
-                VALUES (:stamp, :nome, :titulo, 'ANALISE', 'HSOLS_MASTER', :url, :config, :filtros, 1)
-            """), {
-                'stamp': uuid.uuid4().hex.upper()[:25],
-                'nome': widget_name,
-                'titulo': 'Mapa Gestão GR',
-                'url': '/gr_planning/mapa_gestao_gr',
-                'config': config,
-                'filtros': filtros,
-            })
+            """), {'nome': spec['nome']}).mappings().first()
+            config = json.dumps(spec['config'], ensure_ascii=False)
+            if widget_row:
+                db.session.execute(text("""
+                    UPDATE dbo.WIDGETS
+                    SET TITULO = :titulo,
+                        TIPO = 'ANALISE',
+                        FONTE = 'HSOLS_MASTER',
+                        URL = :url,
+                        CONFIG = :config,
+                        FILTROS = :filtros,
+                        ATIVO = 1
+                    WHERE NOME = :nome
+                """), {
+                    'nome': spec['nome'],
+                    'titulo': spec['titulo'],
+                    'url': '/gr_planning/mapa_gestao_gr',
+                    'config': config,
+                    'filtros': filtros,
+                })
+            else:
+                db.session.execute(text("""
+                    INSERT INTO dbo.WIDGETS (WIDGETSSTAMP, NOME, TITULO, TIPO, FONTE, URL, CONFIG, FILTROS, ATIVO)
+                    VALUES (:stamp, :nome, :titulo, 'ANALISE', 'HSOLS_MASTER', :url, :config, :filtros, 1)
+                """), {
+                    'stamp': uuid.uuid4().hex.upper()[:25],
+                    'nome': spec['nome'],
+                    'titulo': spec['titulo'],
+                    'url': '/gr_planning/mapa_gestao_gr',
+                    'config': config,
+                    'filtros': filtros,
+                })
 
         user_rows = db.session.execute(text("""
             SELECT LTRIM(RTRIM(ISNULL(LOGIN, ''))) AS LOGIN
             FROM dbo.US
-            WHERE LOWER(LTRIM(RTRIM(ISNULL(LOGIN, '')))) IN ('sa', 'acruz', 'hgaspar')
+            WHERE LOWER(LTRIM(RTRIM(ISNULL(LOGIN, '')))) IN ('sa', 'acruz', 'hgaspar', 'cbarthel')
         """)).mappings().all()
         target_logins = {str(row.get('LOGIN') or '').strip() for row in user_rows if str(row.get('LOGIN') or '').strip()}
         target_logins.add(current_login)
-        for login in sorted(target_logins):
-            existing = db.session.execute(text("""
-                SELECT TOP 1 USWIDGETSSTAMP
-                FROM dbo.USWIDGETS
-                WHERE WIDGET = :widget
-                  AND UTILIZADOR = :utilizador
-            """), {'widget': widget_name, 'utilizador': login}).scalar()
-            if existing:
-                db.session.execute(text("""
-                    UPDATE dbo.USWIDGETS
-                    SET COLUNA = 1,
-                        ORDEM = 1,
-                        VISIVEL = 1,
-                        MAXHEIGHT = 360
-                    WHERE USWIDGETSSTAMP = :stamp
-                """), {'stamp': existing})
-            else:
-                db.session.execute(text("""
-                    INSERT INTO dbo.USWIDGETS (USWIDGETSSTAMP, UTILIZADOR, WIDGET, COLUNA, ORDEM, VISIVEL, MAXHEIGHT)
-                    VALUES (:stamp, :utilizador, :widget, 1, 1, 1, 360)
-                """), {
-                    'stamp': uuid.uuid4().hex.upper()[:25],
-                    'utilizador': login,
-                    'widget': widget_name,
-                })
+        for spec in widget_specs:
+            for login in sorted(target_logins):
+                existing = db.session.execute(text("""
+                    SELECT TOP 1 USWIDGETSSTAMP
+                    FROM dbo.USWIDGETS
+                    WHERE WIDGET = :widget
+                      AND UTILIZADOR = :utilizador
+                """), {'widget': spec['nome'], 'utilizador': login}).scalar()
+                if existing:
+                    db.session.execute(text("""
+                        UPDATE dbo.USWIDGETS
+                        SET COLUNA = :coluna,
+                            ORDEM = :ordem,
+                            VISIVEL = 1,
+                            MAXHEIGHT = :maxheight
+                        WHERE USWIDGETSSTAMP = :stamp
+                    """), {
+                        'stamp': existing,
+                        'coluna': spec['coluna'],
+                        'ordem': spec['ordem'],
+                        'maxheight': spec['maxheight'],
+                    })
+                else:
+                    db.session.execute(text("""
+                        INSERT INTO dbo.USWIDGETS (USWIDGETSSTAMP, UTILIZADOR, WIDGET, COLUNA, ORDEM, VISIVEL, MAXHEIGHT)
+                        VALUES (:stamp, :utilizador, :widget, :coluna, :ordem, 1, :maxheight)
+                    """), {
+                        'stamp': uuid.uuid4().hex.upper()[:25],
+                        'utilizador': login,
+                        'widget': spec['nome'],
+                        'coluna': spec['coluna'],
+                        'ordem': spec['ordem'],
+                        'maxheight': spec['maxheight'],
+                    })
         db.session.commit()
 
     @app.route('/api/dashboard')
@@ -26426,7 +27238,7 @@ def create_app():
             config = json.loads(widget.CONFIG or '{}')
             handler = str(config.get('handler') or '').strip()
             query = config.get('query')
-            if handler == 'gr_management_map_summary':
+            if handler in {'gr_management_map_summary', 'gr_management_project_top'}:
                 query = ''
             elif not query:
                 return jsonify({'error': 'Query não definida no config'}), 400
@@ -26452,7 +27264,7 @@ def create_app():
                 from modules.gr_management_map.routes import _allowed_origins_for_current_user, _hsols_master_conn_str
 
                 allowed_origins = _allowed_origins_for_current_user()
-                columns = ['ORIGEM', 'PROVEITOS', 'CUSTOS', 'RESULTADO']
+                columns = ['ORIGINE', 'PRODUITS', 'COÛTS', 'RÉSULTAT']
                 if allowed_origins == []:
                     return jsonify({'columns': columns, 'rows': []})
 
@@ -26490,10 +27302,10 @@ def create_app():
                         GROUP BY UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_'))
                     )
                     SELECT
-                        COALESCE(P.ORIGEM, C.ORIGEM) AS ORIGEM,
-                        ISNULL(P.PROVEITOS, 0) AS PROVEITOS,
-                        ISNULL(C.CUSTOS, 0) AS CUSTOS,
-                        ISNULL(P.PROVEITOS, 0) - ISNULL(C.CUSTOS, 0) AS RESULTADO
+                        COALESCE(P.ORIGEM, C.ORIGEM) AS ORIGINE,
+                        ISNULL(P.PROVEITOS, 0) AS PRODUITS,
+                        ISNULL(C.CUSTOS, 0) AS [COÛTS],
+                        ISNULL(P.PROVEITOS, 0) - ISNULL(C.CUSTOS, 0) AS [RÉSULTAT]
                     FROM Proveitos P
                     FULL OUTER JOIN Custos C ON C.ORIGEM = P.ORIGEM
                     ORDER BY COALESCE(P.ORIGEM, C.ORIGEM)
@@ -26517,6 +27329,126 @@ def create_app():
             except Exception as e:
                 current_app.logger.exception('Erro ao executar widget GR Management Map Summary')
                 return jsonify({'error': f'Erro ao executar widget GR: {e}'}), 500
+
+        if handler == 'gr_management_project_top':
+            try:
+                try:
+                    ano = int((filters or {}).get('ano') or date.today().year)
+                except Exception:
+                    ano = date.today().year
+                if ano < 2000 or ano > 2100:
+                    ano = date.today().year
+
+                today = date.today()
+                start = date(ano, 1, 1)
+                if ano == today.year:
+                    end_exclusive = date(today.year, today.month, 1)
+                else:
+                    end_exclusive = date(ano + 1, 1, 1)
+
+                direction = str(config.get('direction') or '').strip().lower()
+                if direction == 'loss':
+                    result_filter_sql = '[RÉSULTAT] < 0'
+                    order_sql = '[RÉSULTAT] ASC, ORIGINE, PROJET'
+                else:
+                    result_filter_sql = '[RÉSULTAT] > 0'
+                    order_sql = '[RÉSULTAT] DESC, ORIGINE, PROJET'
+
+                from modules.gr_management_map.routes import _allowed_origins_for_current_user, _hsols_master_conn_str
+
+                allowed_origins = _allowed_origins_for_current_user()
+                columns = ['ORIGINE', 'PROJET', 'PRODUITS', 'COÛTS', 'RÉSULTAT']
+                if allowed_origins == []:
+                    return jsonify({'columns': columns, 'rows': []})
+
+                origin_filter_sql = ''
+                cost_params = [start, end_exclusive]
+                revenue_params = [start, end_exclusive]
+                if allowed_origins is not None:
+                    origin_placeholders = ','.join('?' for _ in allowed_origins)
+                    origin_filter_sql = (
+                        " AND UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')) "
+                        f"IN ({origin_placeholders})"
+                    )
+                    cost_params.extend(allowed_origins)
+                    revenue_params.extend(allowed_origins)
+
+                cost_cc = "LTRIM(RTRIM(ISNULL(CCUSTO, '')))"
+                revenue_cc = "LTRIM(RTRIM(ISNULL(CCUSTO_GERAL, '')))"
+                cost_key = (
+                    f"CASE WHEN {cost_cc} LIKE '[A-Za-z][A-Za-z][0-9][0-9][0-9][0-9]%' THEN SUBSTRING({cost_cc}, 3, 4) "
+                    f"WHEN {cost_cc} LIKE '[0-9][0-9][0-9][0-9]%' THEN LEFT({cost_cc}, 4) ELSE '' END"
+                )
+                revenue_key = (
+                    f"CASE WHEN {revenue_cc} LIKE '[A-Za-z][A-Za-z][0-9][0-9][0-9][0-9]%' THEN SUBSTRING({revenue_cc}, 3, 4) "
+                    f"WHEN {revenue_cc} LIKE '[0-9][0-9][0-9][0-9]%' THEN LEFT({revenue_cc}, 4) ELSE '' END"
+                )
+
+                sql = f"""
+                    WITH Custos AS (
+                        SELECT
+                            UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')) AS ORIGEM,
+                            {cost_key} AS PROJETO_KEY,
+                            MAX({cost_cc}) AS PROJETO,
+                            SUM(ISNULL(TOTAL, 0)) AS CUSTOS
+                        FROM dbo.V_CUSTO_ORIGENS
+                        WHERE DATA >= ? AND DATA < ?
+                          AND LTRIM(RTRIM(ISNULL(BDADOS, ''))) <> ''
+                          AND {cost_key} <> ''
+                          AND {cost_key} LIKE '[1-9][0-9][0-9][0-9]'
+                          {origin_filter_sql}
+                        GROUP BY UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')), {cost_key}
+                    ),
+                    Proveitos AS (
+                        SELECT
+                            UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')) AS ORIGEM,
+                            {revenue_key} AS PROJETO_KEY,
+                            MAX({revenue_cc}) AS PROJETO,
+                            SUM(ISNULL(ETTILIQ, 0)) AS PROVEITOS
+                        FROM dbo.V_FT_ORIGENS
+                        WHERE FDATA >= ? AND FDATA < ?
+                          AND LTRIM(RTRIM(ISNULL(BDADOS, ''))) <> ''
+                          AND {revenue_key} <> ''
+                          AND {revenue_key} LIKE '[1-9][0-9][0-9][0-9]'
+                          {origin_filter_sql}
+                        GROUP BY UPPER(REPLACE(LTRIM(RTRIM(ISNULL(BDADOS, ''))), '-', '_')), {revenue_key}
+                    ),
+                    Resultados AS (
+                        SELECT
+                            COALESCE(P.ORIGEM, C.ORIGEM) AS ORIGINE,
+                            COALESCE(C.PROJETO, P.PROJETO, COALESCE(P.PROJETO_KEY, C.PROJETO_KEY)) AS PROJET,
+                            ISNULL(P.PROVEITOS, 0) AS PRODUITS,
+                            ISNULL(C.CUSTOS, 0) AS [COÛTS],
+                            ISNULL(P.PROVEITOS, 0) - ISNULL(C.CUSTOS, 0) AS [RÉSULTAT]
+                        FROM Proveitos P
+                        FULL OUTER JOIN Custos C
+                          ON C.ORIGEM = P.ORIGEM
+                         AND C.PROJETO_KEY = P.PROJETO_KEY
+                    )
+                    SELECT TOP 10 ORIGINE, PROJET, PRODUITS, [COÛTS], [RÉSULTAT]
+                    FROM Resultados
+                    WHERE {result_filter_sql}
+                    ORDER BY {order_sql}
+                """
+                with pyodbc.connect(_hsols_master_conn_str(), timeout=20) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(sql, *(cost_params + revenue_params))
+                    result_columns = [col[0] for col in cursor.description or []]
+                    rows = []
+                    for row in cursor.fetchall():
+                        item = {}
+                        for col, val in zip(result_columns, row):
+                            if isinstance(val, Decimal):
+                                item[col] = float(val)
+                            elif isinstance(val, (date, datetime)):
+                                item[col] = val.strftime('%Y-%m-%d')
+                            else:
+                                item[col] = val
+                        rows.append(item)
+                return jsonify({'columns': columns, 'rows': rows})
+            except Exception as e:
+                current_app.logger.exception('Erro ao executar widget GR Management Project Top')
+                return jsonify({'error': f'Erro ao executar top projetos GR: {e}'}), 500
 
         # Prepara bind params apenas para as keys presentes na query (simples heurística por prefixo :)
         bind_params = {}
@@ -40463,8 +41395,16 @@ OPTION (MAXRECURSION 32767);
     def api_poi_assoc_create(poistamp):
         body = request.get_json(silent=True) or {}
         alojs = body.get('alojamentos') or []
-        if not isinstance(alojs, list) or not alojs:
+        if not isinstance(alojs, list):
             return jsonify({'error': 'Lista de alojamentos obrigatória'}), 400
+
+        deactivated = db.session.execute(text("""
+            UPDATE dbo.POIAL
+            SET ATIVO = 0,
+                DTALT = GETDATE()
+            WHERE POISTAMP = :p
+              AND ISNULL(ATIVO, 1) = 1
+        """), {'p': poistamp}).rowcount or 0
 
         inserted = 0
         updated = 0
@@ -40506,7 +41446,13 @@ OPTION (MAXRECURSION 32767);
                 """), {'s': new_stamp(), 'n': al_nome, 'p': poistamp, 'd': dist_v})
                 inserted += 1
         db.session.commit()
-        return jsonify({'ok': True, 'inserted': inserted, 'updated': updated})
+        return jsonify({
+            'ok': True,
+            'inserted': inserted,
+            'updated': updated,
+            'deactivated': deactivated,
+            'active': inserted + updated
+        })
 
     @app.route('/api/poi/associacao/<poialstamp>', methods=['PUT', 'DELETE'])
     @login_required

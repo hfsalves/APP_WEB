@@ -274,7 +274,7 @@ def list_draft_lines(header_stamp: str) -> list[dict[str, Any]]:
         FROM dbo.COLAB_DESPESA_LINHA
         WHERE DESPCABSTAMP = :header_stamp
           AND ISNULL(ANULADA, 0) = 0
-          AND ESTADO = 'RASCUNHO'
+          AND ESTADO IN ('RASCUNHO', 'FECHADO')
         ORDER BY ORDEM, DTCRI
     """), {'header_stamp': str(header_stamp or '').strip()}).mappings().all()
     return [serialize_line(row) for row in rows]
@@ -358,7 +358,7 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
         })
     else:
         existing = db.session.execute(text(f"""
-            SELECT TOP 1 L.DESPLINHASTAMP
+            SELECT TOP 1 L.DESPLINHASTAMP, L.ESTADO
             FROM dbo.COLAB_DESPESA_LINHA L
             WHERE L.DESPLINHASTAMP = :stamp
               AND {_user_header_scope_sql()}
@@ -369,6 +369,8 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
         }).mappings().first()
         if not existing:
             raise ValueError('Despesa não encontrada.')
+        if str(existing.get('ESTADO') or '').strip().upper() != 'RASCUNHO':
+            raise ValueError('Despesa fechada.')
 
     file_payload = None
     if file_storage:
@@ -463,6 +465,7 @@ def delete_expense_line(user, line_stamp: str) -> dict[str, Any]:
             USERALTERACAO = :login
         FROM dbo.COLAB_DESPESA_LINHA L
         WHERE L.DESPLINHASTAMP = :stamp
+          AND L.ESTADO = 'RASCUNHO'
           AND {_user_header_scope_sql()}
     """), {
         'stamp': stamp,
