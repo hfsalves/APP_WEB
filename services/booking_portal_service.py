@@ -371,11 +371,19 @@ def get_noites_ocupadas(al_id, start=None, months=12) -> list[str]:
     return sorted(occupied)
 
 
-def get_alojamentos_disponiveis(checkin=None, checkout=None, hospedes=None, query=None) -> list[dict]:
+def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None, query=None, page=1, per_page=30) -> dict:
     checkin_date = _to_date(checkin)
     checkout_date = _to_date(checkout)
     guest_count = _to_int(hospedes)
     query_clean = _clean(query)
+    try:
+        page_number = max(1, int(page or 1))
+    except Exception:
+        page_number = 1
+    try:
+        page_size = min(10000, max(1, int(per_page or 30)))
+    except Exception:
+        page_size = 30
 
     where = [
         "LTRIM(RTRIM(ISNULL(AL.NOME, ''))) <> ''",
@@ -418,11 +426,38 @@ def get_alojamentos_disponiveis(checkin=None, checkout=None, hospedes=None, quer
         params["checkin"] = checkin_date
         params["checkout"] = checkout_date
 
-    rows = db.session.execute(text(_alojamento_base_select(" AND ".join(where))), params).mappings().all()
-    alojamentos = [_decorate_alojamento(row) for row in rows]
+    rows = list(db.session.execute(text(_alojamento_base_select(" AND ".join(where))), params).mappings().all())
     if guest_count:
-        alojamentos = [item for item in alojamentos if item["capacidade"] >= guest_count]
-    return alojamentos
+        rows = [row for row in rows if capacidade_por_tipologia(row.get("TIPOLOGIA")) >= guest_count]
+
+    total = len(rows)
+    total_pages = max(1, ((total + page_size - 1) // page_size))
+    page_number = min(page_number, total_pages)
+    start = (page_number - 1) * page_size
+    end = start + page_size
+    alojamentos = [_decorate_alojamento(row) for row in rows[start:end]]
+    return {
+        "items": alojamentos,
+        "total": total,
+        "page": page_number,
+        "per_page": page_size,
+        "pages": total_pages,
+        "has_prev": page_number > 1,
+        "has_next": page_number < total_pages,
+        "prev_page": page_number - 1 if page_number > 1 else None,
+        "next_page": page_number + 1 if page_number < total_pages else None,
+    }
+
+
+def get_alojamentos_disponiveis(checkin=None, checkout=None, hospedes=None, query=None) -> list[dict]:
+    return get_alojamentos_disponiveis_page(
+        checkin=checkin,
+        checkout=checkout,
+        hospedes=hospedes,
+        query=query,
+        page=1,
+        per_page=10000,
+    )["items"]
 
 
 def _price_manager_base_price(alojamento_nome) -> Decimal:

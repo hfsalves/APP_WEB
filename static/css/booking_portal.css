@@ -55,8 +55,8 @@ input {
 
 .booking-topbar {
   display: grid;
-  grid-template-columns: 185px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 270px minmax(0, 1fr);
+  gap: 20px;
   align-items: center;
   padding: 12px 0 10px;
   margin-bottom: 16px;
@@ -72,7 +72,7 @@ input {
   display: grid;
   align-items: start;
   justify-content: flex-start;
-  gap: 5px;
+  gap: 0;
   min-width: 0;
 }
 
@@ -83,6 +83,10 @@ input {
 }
 
 .booking-topbar-light {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
   margin-bottom: 18px;
 }
 
@@ -103,7 +107,7 @@ input {
 }
 
 .booking-brand img {
-  width: 185px;
+  width: 250px;
   height: auto;
   display: block;
 }
@@ -128,6 +132,21 @@ input {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 4px;
+  justify-content: flex-end;
+}
+
+.booking-search-stack {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.booking-search-stack .booking-language-switcher {
+  justify-self: end;
+}
+
+.booking-language-switcher-nav {
+  padding-top: 6px;
 }
 
 .booking-language-switcher a {
@@ -448,6 +467,47 @@ input {
 .booking-panel-price strong {
   color: var(--bp-text);
   font-size: 1.05rem;
+}
+
+.booking-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.booking-page-numbers {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.booking-page-link,
+.booking-page-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  min-height: 38px;
+  border: 1px solid var(--bp-line);
+  border-radius: 999px;
+  padding: 0 13px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--bp-text);
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(28, 25, 23, 0.06);
+}
+
+.booking-page-number.is-active {
+  border-color: var(--bp-warm);
+  background: var(--bp-warm);
+  color: #fff;
+}
+
+.booking-page-link.is-disabled {
+  color: rgba(107, 98, 88, 0.46);
+  pointer-events: none;
 }
 
 .booking-empty {
@@ -909,7 +969,7 @@ input {
   }
 
   .booking-brand img {
-    width: 140px;
+    width: 160px;
     height: auto;
   }
 
@@ -936,9 +996,15 @@ input {
   }
 
   .booking-section-head,
-  .booking-card-footer {
+  .booking-card-footer,
+  .booking-pagination {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .booking-page-numbers {
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   .booking-count {

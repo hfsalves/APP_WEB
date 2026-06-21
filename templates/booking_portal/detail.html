@@ -15,7 +15,7 @@
       <a class="booking-brand" href="{{ url_for('booking_portal.index', checkin=search.raw.checkin, checkout=search.raw.checkout, hospedes=search.raw.hospedes, q=search.raw.query, lang=lang) }}" aria-label="PortoBreak.com">
         <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-current.png') }}" alt="PortoBreak.com">
       </a>
-      <div class="booking-language-switcher" aria-label="Language">
+      <div class="booking-language-switcher booking-language-switcher-nav" aria-label="Language">
         {% for item in language_links %}
           <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
         {% endfor %}

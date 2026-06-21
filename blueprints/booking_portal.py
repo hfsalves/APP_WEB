@@ -8,7 +8,7 @@ from services.booking_portal_service import (
     alojamento_disponivel,
     calcular_preco,
     get_alojamento,
-    get_alojamentos_disponiveis,
+    get_alojamentos_disponiveis_page,
     get_noites_ocupadas,
 )
 
@@ -17,6 +17,7 @@ bp = Blueprint("booking_portal", __name__)
 
 SUPPORTED_LANGS = ("pt", "en", "es", "fr")
 LANG_COOKIE = "portobreak_lang"
+BOOKING_PAGE_SIZE = 30
 
 TRANSLATIONS = {
     "pt": {
@@ -77,6 +78,9 @@ TRANSLATIONS = {
         "tourist_tax": "Taxa turistica",
         "day": "dia",
         "days": "dias",
+        "page": "Pagina",
+        "previous": "Anterior",
+        "next": "Seguinte",
     },
     "en": {
         "page_reservations": "Bookings",
@@ -136,6 +140,9 @@ TRANSLATIONS = {
         "tourist_tax": "Tourist tax",
         "day": "day",
         "days": "days",
+        "page": "Page",
+        "previous": "Previous",
+        "next": "Next",
     },
     "es": {
         "page_reservations": "Reservas",
@@ -195,6 +202,9 @@ TRANSLATIONS = {
         "tourist_tax": "Tasa turistica",
         "day": "dia",
         "days": "dias",
+        "page": "Pagina",
+        "previous": "Anterior",
+        "next": "Siguiente",
     },
     "fr": {
         "page_reservations": "Reservations",
@@ -254,6 +264,9 @@ TRANSLATIONS = {
         "tourist_tax": "Taxe de sejour",
         "day": "jour",
         "days": "jours",
+        "page": "Page",
+        "previous": "Precedent",
+        "next": "Suivant",
     },
 }
 
@@ -321,7 +334,7 @@ def _parse_date_arg(name: str):
     try:
         return date.fromisoformat(value), ""
     except Exception:
-            return None, "invalid_date"
+        return None, "invalid_date"
 
 
 def _parse_hospedes_arg():
@@ -331,7 +344,7 @@ def _parse_hospedes_arg():
     try:
         number = int(value)
         if number <= 0 or number > 50:
-                return None, "invalid_guests"
+            return None, "invalid_guests"
         return number, ""
     except Exception:
         return None, "invalid_guests"
@@ -345,9 +358,11 @@ def _search_params(lang):
     query = str(request.args.get("q") or request.args.get("query") or "").strip()
 
     errors = []
+    error_keys = set()
     for error in (checkin_error, checkout_error, hospedes_error):
-        if error and error not in errors:
+        if error and error not in error_keys:
             errors.append(t.get(error, error))
+            error_keys.add(error)
 
     if (checkin and not checkout) or (checkout and not checkin):
         errors.append(t["need_dates"])
@@ -371,6 +386,13 @@ def _search_params(lang):
     }
 
 
+def _parse_page_arg():
+    try:
+        return max(1, int(str(request.args.get("page") or "1").strip()))
+    except Exception:
+        return 1
+
+
 def _detail_url(al_id: str, params: dict):
     query = {}
     for key in ("checkin", "checkout", "hospedes"):
@@ -381,6 +403,40 @@ def _detail_url(al_id: str, params: dict):
     if lang:
         query["lang"] = lang
     return url_for("booking_portal.detail", al_id=al_id, **query)
+
+
+def _pagination_url(page_number: int, lang: str):
+    args = {}
+    for key in ("checkin", "checkout", "hospedes", "q"):
+        value = request.args.get(key)
+        if value:
+            args[key] = value
+    args["lang"] = lang
+    args["page"] = max(1, int(page_number or 1))
+    return url_for("booking_portal.index", **args)
+
+
+def _pagination_context(pagination: dict, lang: str) -> dict:
+    page = int(pagination.get("page") or 1)
+    pages = int(pagination.get("pages") or 1)
+    start_page = max(1, page - 2)
+    end_page = min(pages, page + 2)
+    if end_page - start_page < 4:
+        start_page = max(1, min(start_page, end_page - 4))
+        end_page = min(pages, max(end_page, start_page + 4))
+    return {
+        **pagination,
+        "prev_url": _pagination_url(page - 1, lang) if page > 1 else "",
+        "next_url": _pagination_url(page + 1, lang) if page < pages else "",
+        "page_links": [
+            {
+                "page": page_number,
+                "url": _pagination_url(page_number, lang),
+                "active": page_number == page,
+            }
+            for page_number in range(start_page, end_page + 1)
+        ],
+    }
 
 
 def _translate_price(preco, t):
@@ -413,13 +469,17 @@ def _translate_price(preco, t):
 def index():
     lang = _resolve_lang()
     params = _search_params(lang)
+    page = _parse_page_arg()
     query_allowed = not params["errors"]
-    alojamentos = get_alojamentos_disponiveis(
+    pagination = get_alojamentos_disponiveis_page(
         checkin=params["checkin"] if query_allowed else None,
         checkout=params["checkout"] if query_allowed else None,
         hospedes=params["hospedes"] if query_allowed else None,
         query=params["query"] if query_allowed else None,
+        page=page,
+        per_page=BOOKING_PAGE_SIZE,
     )
+    alojamentos = pagination["items"]
     for alojamento in alojamentos:
         alojamento["detail_url"] = _detail_url(alojamento["id"], params)
 
@@ -427,6 +487,7 @@ def index():
         "booking_portal/index.html",
         lang,
         alojamentos=alojamentos,
+        pagination=_pagination_context(pagination, lang),
         search=params,
         page_title=_t(lang)["page_reservations"],
     )
