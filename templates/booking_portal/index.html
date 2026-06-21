@@ -14,7 +14,10 @@
     <header class="booking-topbar">
       <nav class="booking-nav booking-site-header" aria-label="PortoBreak.com">
         <a class="booking-brand" href="{{ url_for('booking_portal.index', lang=lang) }}" aria-label="PortoBreak.com">
-          <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-current.png') }}" alt="PortoBreak.com">
+          <picture>
+            <source media="(max-width: 768px)" srcset="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}">
+            <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-current.png') }}" alt="PortoBreak.com">
+          </picture>
         </a>
       </nav>
 

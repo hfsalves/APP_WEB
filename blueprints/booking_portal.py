@@ -17,7 +17,7 @@ bp = Blueprint("booking_portal", __name__)
 
 SUPPORTED_LANGS = ("pt", "en", "es", "fr")
 LANG_COOKIE = "portobreak_lang"
-BOOKING_PAGE_SIZE = 30
+BOOKING_PAGE_SIZE = 18
 
 TRANSLATIONS = {
     "pt": {

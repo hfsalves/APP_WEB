@@ -13,7 +13,7 @@
   <main class="booking-shell booking-detail-shell">
     <nav class="booking-nav booking-topbar-light" aria-label="{{ t.page_reservations }}">
       <a class="booking-brand" href="{{ url_for('booking_portal.index', checkin=search.raw.checkin, checkout=search.raw.checkout, hospedes=search.raw.hospedes, q=search.raw.query, lang=lang) }}" aria-label="PortoBreak.com">
-        <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-current.png') }}" alt="PortoBreak.com">
+        <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}" alt="PortoBreak.com">
       </a>
       <div class="booking-language-switcher booking-language-switcher-nav" aria-label="Language">
         {% for item in language_links %}
@@ -22,43 +22,47 @@
       </div>
     </nav>
 
-    <section class="booking-detail-hero">
-      <div class="booking-gallery">
+    <section class="booking-detail-content">
+      <div class="booking-detail-left">
+      <div class="booking-gallery {% if alojamento.fotos|length <= 1 %}booking-gallery-single{% endif %}">
         {% set main_photo = alojamento.fotos[0] if alojamento.fotos else none %}
         <div class="booking-gallery-main">
           {% if main_photo %}
             <img src="{{ main_photo.url }}" alt="{{ main_photo.alt or alojamento.nome }}">
           {% else %}
             <div class="booking-photo-placeholder booking-photo-placeholder-large">
-              <span>{{ alojamento.tipologia or "AL" }}</span>
+              <span>{{ alojamento.nome }}</span>
             </div>
           {% endif %}
         </div>
-        <div class="booking-gallery-side">
-          {% for photo in alojamento.fotos[1:5] %}
-            <img src="{{ photo.url }}" alt="{{ photo.alt or alojamento.nome }}">
-          {% endfor %}
-          {% if alojamento.fotos|length <= 1 %}
-            <div class="booking-photo-placeholder"><span>{{ alojamento.tipologia or "AL" }}</span></div>
-            <div class="booking-photo-placeholder"><span>{{ alojamento.capacidade }} {% if alojamento.capacidade == 1 %}{{ t.guest }}{% else %}{{ t.guests }}{% endif %}</span></div>
-          {% endif %}
-        </div>
+        {% if alojamento.fotos|length > 1 %}
+          <div class="booking-gallery-side">
+            {% for photo in alojamento.fotos[1:5] %}
+              <img src="{{ photo.url }}" alt="{{ photo.alt or alojamento.nome }}">
+            {% endfor %}
+          </div>
+        {% endif %}
       </div>
-    </section>
 
-    <section class="booking-detail-layout">
       <article class="booking-detail-main">
         <p class="booking-kicker booking-kicker-dark">{{ t.stay_label }}</p>
         <h1>{{ alojamento.nome }}</h1>
-        <div class="booking-meta booking-meta-large">
-          {% if alojamento.tipologia %}<span>{{ alojamento.tipologia }}</span>{% endif %}
-          <span>{{ alojamento.capacidade }} {% if alojamento.capacidade == 1 %}{{ t.guest }}{% else %}{{ t.guests }}{% endif %}</span>
-          {% if alojamento.localizacao %}<span>{{ alojamento.localizacao }}</span>{% endif %}
-        </div>
+        {% if alojamento.localizacao %}
+          <div class="booking-meta booking-meta-large">
+            <span>{{ alojamento.localizacao }}</span>
+          </div>
+        {% endif %}
 
         {% if alojamento.morada %}
           <p class="booking-address">{{ alojamento.morada }}{% if alojamento.codpost %}, {{ alojamento.codpost }}{% endif %}</p>
         {% endif %}
+
+        <div class="booking-property-facts" aria-label="{{ t.stay_label }}">
+          {% if alojamento.tipologia %}
+            <span>{{ alojamento.tipologia }}</span>
+          {% endif %}
+          <span>{{ alojamento.capacidade }} {% if alojamento.capacidade == 1 %}{{ t.guest }}{% else %}{{ t.guests }}{% endif %}</span>
+        </div>
 
         {% if alojamento.descricao %}
           <div class="booking-copy">
@@ -66,6 +70,7 @@
           </div>
         {% endif %}
       </article>
+      </div>
 
       <aside class="booking-reserve-panel">
         <div class="booking-panel-price">

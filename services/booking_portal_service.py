@@ -371,7 +371,7 @@ def get_noites_ocupadas(al_id, start=None, months=12) -> list[str]:
     return sorted(occupied)
 
 
-def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None, query=None, page=1, per_page=30) -> dict:
+def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None, query=None, page=1, per_page=18) -> dict:
     checkin_date = _to_date(checkin)
     checkout_date = _to_date(checkout)
     guest_count = _to_int(hospedes)
