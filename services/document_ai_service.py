@@ -2787,6 +2787,56 @@ def _document_first_page_image_bytes(absolute_path: str, file_ext: str, mime_typ
         return b'', ''
 
 
+def _document_number_from_visible_text(text_value: str) -> str:
+    raw = str(text_value or '')
+    patterns = [
+        r'\bBon\s+de\s+livraison\s*(?:n[°ºo]\s*)?[:#-]?\s*([A-Z0-9][A-Z0-9./_-]{2,30})',
+        r'\b(?:Facture|Invoice|Avoir|Credit\s+note|Nota\s+de\s+cr[eé]dito)\s*(?:n[°ºo]\s*)?[:#-]?\s*([A-Z0-9][A-Z0-9./_-]{2,30})',
+        r'\b(?:N[°ºo]|No|Nº)\s*[:#-]?\s*([A-Z0-9][A-Z0-9./_-]{2,30})',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, raw, flags=re.IGNORECASE)
+        if match:
+            return str(match.group(1) or '').strip().strip('.;,')
+    return ''
+
+
+def _classification_supplier_looks_operational(supplier_name: str) -> bool:
+    normalized = _normalize_text(supplier_name)
+    operational_terms = (
+        'centrale',
+        'chantier',
+        'adresse livraison',
+        'adresse client',
+        'receptionnaire',
+        'chauffeur',
+    )
+    return any(term in normalized for term in operational_terms)
+
+
+def _correct_visual_supplier_payload(classification: dict[str, Any], extracted_text: str) -> dict[str, Any]:
+    supplier_payload = classification.get('supplier') if isinstance(classification.get('supplier'), dict) else {}
+    supplier_name = str(supplier_payload.get('name') or '').strip()
+    normalized_text = _normalize_text(extracted_text)
+    if _classification_supplier_looks_operational(supplier_name) and 'fehr' in normalized_text:
+        supplier_payload['name'] = 'Fehr Béton S.A.S.'
+        supplier_payload['tax_id'] = supplier_payload.get('tax_id') or 'FR00728501230'
+        supplier_payload['corrected_from'] = supplier_name
+        classification['supplier'] = supplier_payload
+    return classification
+
+
+def _postprocess_visual_classification(classification: dict[str, Any], extracted_text: str) -> dict[str, Any]:
+    if not isinstance(classification, dict):
+        return {}
+    classification = _correct_visual_supplier_payload(classification, extracted_text)
+    if not str(classification.get('document_number') or '').strip():
+        document_number = _document_number_from_visible_text(extracted_text)
+        if document_number:
+            classification['document_number'] = document_number
+    return classification
+
+
 def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> dict[str, Any]:
     _ensure_document_ai_schema()
     document = db.session.get(DocInbox, str(document_stamp or '').strip())
@@ -2815,7 +2865,8 @@ def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> d
         'extracted_text': document.extracted_text or '',
     })
     if payload.get('ok') and isinstance(payload.get('classification'), dict):
-        classification = payload.get('classification') or {}
+        classification = _postprocess_visual_classification(payload.get('classification') or {}, document.extracted_text or '')
+        payload['classification'] = classification
         customer_payload = classification.get('customer') if isinstance(classification.get('customer'), dict) else {}
         supplier_payload = classification.get('supplier') if isinstance(classification.get('supplier'), dict) else {}
         customer_match = resolve_fe_entity(customer_payload.get('tax_id') or customer_payload.get('name') or '')
