@@ -1,6 +1,6 @@
 ﻿# blueprints/generic_crud.py
 
-from flask import Blueprint, render_template, request, jsonify, abort, current_app, g
+from flask import Blueprint, render_template, request, jsonify, abort, current_app, g, url_for
 from flask_login import login_required, current_user
 from sqlalchemy import MetaData, Table, select, text, String, or_, and_, exists, bindparam
 from app import db
@@ -2000,6 +2000,61 @@ def fo_compras_form(record_stamp):
         record_stamp=record_stamp,
         menu_label=menu_label
     )
+
+@bp.route('/opc_projetos_form/', defaults={'record_stamp': None})
+@bp.route('/opc_projetos_form/<record_stamp>')
+@login_required
+def opc_projetos_form(record_stamp):
+    from models import MenuBotoes
+
+    table_name = 'OPC'
+    requested_menu_stamp = (request.args.get('menustamp') or '').strip()
+    menu_item = None
+    if requested_menu_stamp:
+        menu_item = Menu.query.filter_by(menustamp=requested_menu_stamp, tabela=table_name).first()
+    if menu_item is None:
+        menu_item = Menu.query.filter_by(tabela=table_name).first()
+
+    menu_label = _translated_menu_label(menu_item, menu_item.nome) if menu_item else "Obras"
+    exact_widths = _menu_uses_exact_widths(table_name)
+    botoes_query = MenuBotoes.query.filter_by(
+        TABELA=table_name, ATIVO=True
+    ).order_by(MenuBotoes.ORDEM)
+    botoes = [{
+        'NOME': b.NOME,
+        'ICONE': b.ICONE,
+        'TEXTO': b.TEXTO,
+        'COR': b.COR,
+        'TIPO': b.TIPO,
+        'ACAO': b.ACAO,
+        'CONDICAO': b.CONDICAO,
+        'DESTINO': b.DESTINO
+    } for b in botoes_query]
+    linhas_exist = Linhas.query.filter_by(MAE=table_name).count() > 0
+
+    return render_template(
+        'opc_projetos_form.html',
+        table_name=table_name,
+        record_stamp=record_stamp,
+        menu_label=menu_label,
+        botoes=botoes,
+        linhas_exist=linhas_exist,
+        exact_widths=exact_widths,
+        menu_stamp=(menu_item.menustamp if menu_item else ''),
+        return_to_default=url_for('generic.view_table', table_name=table_name),
+    )
+
+@bp.route('/api/opc/<path:record_stamp>/phc_info', methods=['GET'])
+@login_required
+def api_opc_phc_info(record_stamp):
+    if not has_permission('OPC', 'consultar'):
+        return jsonify({'error': 'Sem permissão para consultar obras'}), 403
+    try:
+        from services.opc_phc_info_service import get_opc_phc_info
+        return jsonify(get_opc_phc_info(record_stamp))
+    except Exception as e:
+        current_app.logger.exception('Erro ao consultar informação PHC da obra OPC')
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/fo/pagamento/<fostamp>', methods=['GET'])
 @login_required

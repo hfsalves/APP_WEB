@@ -911,6 +911,7 @@ input.sz_date[type="time"]::-webkit-calendar-picker-indicator {
 
 .sz_dynamic_form_scroll {
   min-height: 0;
+  height: 100%;
   overflow: auto;
   display: flex;
   flex-direction: column;

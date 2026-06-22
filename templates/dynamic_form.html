@@ -3,7 +3,7 @@
 {% block title %}{{ table_name|capitalize }}{% endblock %}
 
 {% block content %}
-<div class="sz_dynamic_form_page">
+<div class="sz_dynamic_form_page {% block dynamic_form_page_class %}{% endblock %}">
   <header class="sz_contextbar sz_dynamic_form_contextbar">
     <div class="sz_contextbar_left">
       <div class="sz_page_title">{{ menu_label or table_name|capitalize }}</div>
@@ -76,6 +76,8 @@
       <form id="editForm" class="row g-2" style="--bs-gutter-y:0">
       </form>
     </section>
+
+    {% block dynamic_form_extra_content %}{% endblock %}
 
     <section class="sz_dynamic_form_panels">
       <div class="accordion" id="accordionExtras">
@@ -245,6 +247,7 @@
         {% endif %}
       </div>
     </section>
+
   </section>
 
 
@@ -397,7 +400,7 @@
 </div>
 {% endif %}
 
-{% set return_to = request.args.get('return_to', url_for('generic.edit_table', table_name=table_name, record_stamp=record_stamp)) %}
+{% set return_to = request.args.get('return_to', return_to_default|default(url_for('generic.edit_table', table_name=table_name, record_stamp=record_stamp))) %}
 <script>
   window.TABLE_NAME    = "{{ table_name }}";
   window.RECORD_STAMP  = {{ record_stamp|tojson }};
@@ -481,4 +484,3 @@
 
 {% endblock %}
 {% endblock %}
-

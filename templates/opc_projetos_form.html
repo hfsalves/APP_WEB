@@ -1,0 +1,134 @@
+{% extends "dynamic_form.html" %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/opc_projetos_form.css') }}?v=opc-scroll-4">
+{% endblock %}
+
+{% block dynamic_form_page_class %}opc-projetos-page{% endblock %}
+
+{% block dynamic_form_extra_content %}
+<section class="sz_panel opc-phc-info"
+         id="opcPhcInfo"
+         data-record-stamp="{{ record_stamp or '' }}"
+         data-info-url="{% if record_stamp %}{{ url_for('generic.api_opc_phc_info', record_stamp=record_stamp) }}{% endif %}">
+  <section class="opc-phc-grid-section" aria-labelledby="opcPhcDevisTitle">
+    <h3 class="sz_page_title opc-phc-section_title" id="opcPhcDevisTitle">Orçamentos</h3>
+    <div class="sz_table_wrap opc-phc-table_wrap">
+      <table class="sz_table sz_table_compact opc-phc-table" id="opcPhcDevisTable">
+        <thead class="sz_table_head">
+          <tr>
+            <th>Descrição</th>
+            <th class="opc-phc-num">Produção</th>
+            <th class="opc-phc-num">Ajustes</th>
+            <th class="opc-phc-num">Multas</th>
+            <th class="opc-phc-num">Ret. garantia</th>
+            <th class="opc-phc-num">Ret. fim trabalho</th>
+            <th class="opc-phc-num">Prorata</th>
+            <th class="opc-phc-num">Outras retenções</th>
+            <th class="opc-phc-num">IVA %</th>
+            <th class="opc-phc-num">IVA</th>
+            <th class="opc-phc-num">Total c/ IVA</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="opc-phc-empty-row">
+            <td colspan="11" class="sz_text_muted">Sem dados carregados.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="opc-phc-grid-section" aria-labelledby="opcPhcSituationsTitle">
+    <h3 class="sz_page_title opc-phc-section_title" id="opcPhcSituationsTitle">Autos de Medição de Cliente</h3>
+    <div class="sz_table_wrap opc-phc-table_wrap">
+      <table class="sz_table sz_table_compact opc-phc-table" id="opcPhcSituationsTable">
+        <thead class="sz_table_head">
+          <tr>
+            <th>Descrição</th>
+            <th class="opc-phc-num">Produção</th>
+            <th class="opc-phc-num">Ajustes</th>
+            <th class="opc-phc-num">Ret. garantia</th>
+            <th class="opc-phc-num">Ret. fim trabalho</th>
+            <th class="opc-phc-num">Prorata</th>
+            <th class="opc-phc-num">Outras retenções</th>
+            <th class="opc-phc-num">Multas</th>
+            <th class="opc-phc-num">IVA</th>
+            <th class="opc-phc-num">IVA %</th>
+            <th class="opc-phc-num">Total c/ IVA</th>
+            <th class="opc-phc-num">Desc. fin.</th>
+            <th class="opc-phc-num">Adiantamento</th>
+            <th class="opc-phc-check">Faturado</th>
+            <th>Descrição fatura</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="opc-phc-empty-row">
+            <td colspan="15" class="sz_text_muted">Sem dados carregados.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="opc-phc-totals" aria-labelledby="opcPhcResumoTitle">
+    <h3 class="sz_page_title opc-phc-section_title" id="opcPhcResumoTitle">Resumo</h3>
+    <div class="sz_table_wrap opc-phc-totals_wrap">
+      <table class="sz_table sz_table_compact opc-phc-totals_table">
+        <thead class="sz_table_head">
+          <tr>
+            <th></th>
+            <th class="opc-phc-num">Produção</th>
+            <th class="opc-phc-num">Ajustes</th>
+            <th class="opc-phc-num">Multas</th>
+            <th class="opc-phc-num">Ret. garantia</th>
+            <th class="opc-phc-num">Ret. fim trabalho</th>
+            <th class="opc-phc-num">Prorata</th>
+            <th class="opc-phc-num">Outras retenções</th>
+            <th class="opc-phc-num">IVA</th>
+            <th class="opc-phc-num">Total c/ IVA</th>
+            <th class="opc-phc-num">Adiantamento</th>
+            <th class="opc-phc-num">Desc. fin.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>DV</th>
+            <td class="opc-phc-num" data-total="orcamentos.producao">0,00</td>
+            <td class="opc-phc-num" data-total="orcamentos.ajustes">0,00</td>
+            <td class="opc-phc-num" data-total="orcamentos.multas">0,00</td>
+            <td class="opc-phc-num" data-total="orcamentos.ret_garantia">0,00</td>
+            <td class="opc-phc-num" data-total="orcamentos.ret_fim_trabalho">0,00</td>
+            <td class="opc-phc-num" data-total="orcamentos.prorata">0,00</td>
+            <td class="opc-phc-num" data-total="orcamentos.outras_retencoes">0,00</td>
+            <td class="opc-phc-num" data-total="orcamentos.iva">0,00</td>
+            <td class="opc-phc-num" data-total="orcamentos.total_iva">0,00</td>
+            <td class="opc-phc-num" data-total="orcamentos.adiantamento">0,00</td>
+            <td class="opc-phc-num" data-total="orcamentos.desc_financeiro">0,00</td>
+          </tr>
+          <tr>
+            <th>ST</th>
+            <td class="opc-phc-num" data-total="autos.producao">0,00</td>
+            <td class="opc-phc-num" data-total="autos.ajustes">0,00</td>
+            <td class="opc-phc-num" data-total="autos.multas">0,00</td>
+            <td class="opc-phc-num" data-total="autos.ret_garantia">0,00</td>
+            <td class="opc-phc-num" data-total="autos.ret_fim_trabalho">0,00</td>
+            <td class="opc-phc-num" data-total="autos.prorata">0,00</td>
+            <td class="opc-phc-num" data-total="autos.outras_retencoes">0,00</td>
+            <td class="opc-phc-num" data-total="autos.iva">0,00</td>
+            <td class="opc-phc-num" data-total="autos.total_iva">0,00</td>
+            <td class="opc-phc-num" data-total="autos.adiantamento">0,00</td>
+            <td class="opc-phc-num" data-total="autos.desc_financeiro">0,00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/opc_projetos_form.js') }}"></script>
+{% endblock %}

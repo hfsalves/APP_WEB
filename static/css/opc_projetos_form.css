@@ -1,0 +1,140 @@
+.opc-projetos-main {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.opc-projetos-page {
+  flex: 1 1 0;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.opc-projetos-page .sz_dynamic_form_contextbar,
+.opc-projetos-page .sz_dynamic_form_actionbar {
+  flex: 0 0 auto !important;
+}
+
+.opc-projetos-page .sz_dynamic_form_scroll {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  -ms-overflow-style: auto;
+}
+
+.opc-projetos-page .sz_dynamic_form_body,
+.opc-projetos-page .opc-phc-info,
+.opc-projetos-page .sz_dynamic_form_panels {
+  flex: 0 0 auto !important;
+}
+
+.opc-phc-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-3);
+  padding: var(--sz-space-3);
+  overflow: visible;
+}
+
+.opc-phc-section_title {
+  margin: 0;
+  color: var(--sz-color-text);
+  font-size: var(--sz-font-size-md);
+  line-height: var(--sz-line-tight);
+}
+
+.opc-phc-grid-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sz-space-2);
+  min-width: 0;
+}
+
+.opc-phc-table_wrap,
+.opc-phc-totals_wrap {
+  overflow: auto;
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  background: var(--sz-color-surface);
+}
+
+.opc-phc-table {
+  min-width: 1380px;
+}
+
+.opc-phc-totals_table {
+  min-width: 980px;
+}
+
+.opc-phc-table th,
+.opc-phc-table td,
+.opc-phc-totals_table th,
+.opc-phc-totals_table td {
+  font-size: var(--sz-font-size-xs);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.opc-phc-table th,
+.opc-phc-totals_table th {
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.opc-phc-table th:first-child,
+.opc-phc-table td:first-child {
+  min-width: 16rem;
+}
+
+.opc-phc-table th:last-child,
+.opc-phc-table td:last-child {
+  min-width: 18rem;
+}
+
+.opc-phc-num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.opc-phc-check {
+  text-align: center !important;
+  width: 4.5rem;
+}
+
+.opc-phc-empty-row td {
+  height: 3rem;
+  text-align: center;
+}
+
+.opc-phc-totals {
+  min-width: 0;
+}
+
+.opc-phc-totals_table tbody th {
+  color: var(--sz-color-text-secondary);
+  background: var(--sz-color-surface-alt);
+  font-weight: var(--sz-font-weight-semibold);
+}
+
+.opc-projetos-page .sz_dynamic_form_scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .opc-phc-info {
+    padding: var(--sz-space-3);
+  }
+}
