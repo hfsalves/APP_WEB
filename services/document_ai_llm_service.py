@@ -204,10 +204,11 @@ def _document_classification_schema() -> dict[str, Any]:
                 'type': 'object',
                 'additionalProperties': False,
                 'properties': {
+                    'supplier_no': {'type': 'number'},
                     'tax_id': {'type': 'string'},
                     'name': {'type': 'string'},
                 },
-                'required': ['tax_id', 'name'],
+                'required': ['supplier_no', 'tax_id', 'name'],
             },
             'customer': {
                 'type': 'object',
@@ -463,6 +464,9 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Amounts must be numeric values without currency symbols.',
             'Extract supplier name and tax/VAT id from the issuer/seller section.',
             'The supplier is the legal issuer shown in the logo/header/footer/contact/tax block, not an operational site.',
+            'Use known_supplier_candidates as the preferred supplier list. If a visible company/logo/header/footer name matches one of those candidates, choose that candidate.',
+            'When a candidate matches the visible supplier, return its supplier_no and tax_id when provided.',
+            'If no supplier candidate matches, return supplier_no as 0.',
             'Never use values labelled CENTRALE, CHANTIER, CLIENT, RECEPTIONNAIRE, CHAUFFEUR, ADRESSE LIVRAISON or ADRESSE CLIENT as supplier.',
             'In concrete delivery notes, CENTRALE usually means the batching plant; it is not the supplier.',
             'Extract customer name and tax/VAT id from the buyer/delivery/customer section.',
@@ -474,6 +478,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Use unknown when the visible document type is uncertain.',
         ],
         'file_name': file_name,
+        'known_supplier_candidates': source_context.get('supplier_candidates') or [],
         'ocr_text_sample': extracted_text[:_document_ai_text_sample_limit()],
     }
 

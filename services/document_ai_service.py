@@ -2826,15 +2826,71 @@ def _correct_visual_supplier_payload(classification: dict[str, Any], extracted_t
     return classification
 
 
-def _postprocess_visual_classification(classification: dict[str, Any], extracted_text: str) -> dict[str, Any]:
+def _postprocess_visual_classification(
+    classification: dict[str, Any],
+    extracted_text: str,
+    supplier_candidates: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     if not isinstance(classification, dict):
         return {}
     classification = _correct_visual_supplier_payload(classification, extracted_text)
+    supplier_payload = classification.get('supplier') if isinstance(classification.get('supplier'), dict) else {}
+    if _classification_supplier_looks_operational(str(supplier_payload.get('name') or '')):
+        original_supplier_name = str(supplier_payload.get('name') or '').strip()
+        best_candidate = next(
+            (
+                item for item in (supplier_candidates or [])
+                if float(item.get('score') or 0) >= 0.35 and str(item.get('name') or '').strip()
+            ),
+            None,
+        )
+        if best_candidate:
+            supplier_payload['supplier_no'] = best_candidate.get('supplier_no') or supplier_payload.get('supplier_no') or 0
+            supplier_payload['name'] = best_candidate.get('name') or supplier_payload.get('name') or ''
+            supplier_payload['tax_id'] = best_candidate.get('tax_id') or supplier_payload.get('tax_id') or ''
+            supplier_payload['corrected_from'] = supplier_payload.get('corrected_from') or original_supplier_name
+            classification['supplier'] = supplier_payload
     if not str(classification.get('document_number') or '').strip():
         document_number = _document_number_from_visible_text(extracted_text)
         if document_number:
             classification['document_number'] = document_number
     return classification
+
+
+def _supplier_candidates_for_llm(text_value: str, feid: int | None = None, limit: int = 40) -> list[dict[str, Any]]:
+    normalized_text = _normalize_text(text_value)
+    digits_text = _digits_only(text_value)
+    candidates = []
+    for supplier in _load_suppliers(feid):
+        supplier_no = _safe_int(supplier.get('NO'), 0)
+        name = str(supplier.get('NOME') or '').strip()
+        tax_id = _digits_only(supplier.get('NIF'))
+        normalized_name = _normalize_text(name)
+        if not name:
+            continue
+        score = 0.0
+        if tax_id and tax_id in digits_text:
+            score = max(score, 0.99)
+        if normalized_name and normalized_name in normalized_text:
+            score = max(score, 0.95)
+        name_tokens = [token for token in normalized_name.split(' ') if len(token) > 2]
+        if name_tokens:
+            token_hits = sum(1 for token in name_tokens if token in normalized_text)
+            score = max(score, token_hits / max(len(name_tokens), 1))
+        if any(token in normalized_text for token in name_tokens):
+            score = max(score, 0.4)
+        candidates.append({
+            'supplier_no': supplier_no,
+            'name': name,
+            'tax_id': tax_id,
+            'score': round(float(score or 0), 4),
+        })
+    candidates.sort(key=lambda item: (-float(item.get('score') or 0), str(item.get('name') or '')))
+    scored = [item for item in candidates if float(item.get('score') or 0) >= 0.35]
+    selected = scored[:max(1, min(int(limit or 40), 80))]
+    if len(selected) < 12:
+        selected.extend([item for item in candidates if item not in selected][:12 - len(selected)])
+    return selected[:max(1, min(int(limit or 40), 80))]
 
 
 def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> dict[str, Any]:
@@ -2856,6 +2912,7 @@ def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> d
         except Exception:
             file_bytes = b''
     image_bytes, image_mime_type = _document_first_page_image_bytes(absolute_path, document.file_ext, document.mime_type)
+    supplier_candidates = _supplier_candidates_for_llm(document.extracted_text or '', document.feid, limit=50)
     payload = classify_document_visual({
         'file_name': document.file_name or os.path.basename(absolute_path),
         'mime_type': document.mime_type or mimetypes.guess_type(absolute_path)[0] or 'application/octet-stream',
@@ -2863,9 +2920,10 @@ def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> d
         'image_bytes': image_bytes,
         'image_mime_type': image_mime_type,
         'extracted_text': document.extracted_text or '',
+        'supplier_candidates': supplier_candidates,
     })
     if payload.get('ok') and isinstance(payload.get('classification'), dict):
-        classification = _postprocess_visual_classification(payload.get('classification') or {}, document.extracted_text or '')
+        classification = _postprocess_visual_classification(payload.get('classification') or {}, document.extracted_text or '', supplier_candidates)
         payload['classification'] = classification
         customer_payload = classification.get('customer') if isinstance(classification.get('customer'), dict) else {}
         supplier_payload = classification.get('supplier') if isinstance(classification.get('supplier'), dict) else {}
