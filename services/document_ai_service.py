@@ -2854,6 +2854,26 @@ def _postprocess_visual_classification(
         document_number = _document_number_from_visible_text(extracted_text)
         if document_number:
             classification['document_number'] = document_number
+    normalized_lines = []
+    for item in classification.get('lines') or []:
+        if not isinstance(item, dict):
+            continue
+        description = str(item.get('description') or '').strip()
+        qty = _safe_decimal(item.get('qty')) or 0
+        if not description and not qty:
+            continue
+        normalized_lines.append({
+            'ref': str(item.get('ref') or '').strip(),
+            'description': description,
+            'qty': float(qty),
+            'unit': str(item.get('unit') or '').strip(),
+            'unit_price': float(_safe_decimal(item.get('unit_price')) or 0),
+            'discount': float(_safe_decimal(item.get('discount')) or 0),
+            'tax_rate': float(_safe_decimal(item.get('tax_rate')) or 0),
+            'net_amount': float(_safe_decimal(item.get('net_amount')) or 0),
+            'gross_amount': float(_safe_decimal(item.get('gross_amount')) or 0),
+        })
+    classification['lines'] = normalized_lines
     return classification
 
 

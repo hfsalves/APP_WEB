@@ -1947,6 +1947,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setInputValue(bucket.tax, visibleValue(item.tax_amount, ''));
     });
     if (state.document) {
+      const extractedLines = Array.isArray(classification.lines) ? classification.lines : (state.document.result?.lines || []);
       state.document.result = {
         ...(state.document.result || {}),
         document_type: classification.document_type || state.document.result?.document_type || 'unknown',
@@ -1968,12 +1969,14 @@ document.addEventListener('DOMContentLoaded', () => {
         currency: classification.currency || state.document.result?.currency || '',
         totals: classification.totals || state.document.result?.totals || {},
         taxes: Array.isArray(classification.taxes) ? classification.taxes : (state.document.result?.taxes || []),
+        lines: extractedLines,
       };
     }
     if (classification.confidence != null) {
       setInputValue(els.confidence, Number(classification.confidence || 0).toFixed(2));
     }
     refreshAllFieldDisplays();
+    updateLinesSummary(state.document?.result?.lines || []);
     refreshTemplateSelectLabels();
   }
 
@@ -1988,6 +1991,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (totals.gross_total != null) parts.push(`C/IVA: ${totals.gross_total}`);
     if (Array.isArray(classification?.taxes) && classification.taxes.length) {
       parts.push(`Taxas: ${classification.taxes.map((item) => `${item.tax_rate}%`).join(', ')}`);
+    }
+    if (Array.isArray(classification?.lines) && classification.lines.length) {
+      parts.push(`Linhas: ${classification.lines.length}`);
     }
     return parts.join(' · ');
   }
@@ -2207,7 +2213,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lines = state.document?.result?.lines || [];
     if (!lines.length || !els.linesModalBody || !els.linesModal) {
       showMessage('Ainda não há linhas detetadas para mostrar.', 'warning');
-      setStatus('Ainda não há linhas detetadas. Reprocessa com as regras atuais para testar as linhas.', true);
+      setStatus('Ainda não há linhas detetadas. Usa "Classificar com LLM" ou reprocessa com regras de linhas.', true);
       return;
     }
     els.linesModalBody.innerHTML = `
