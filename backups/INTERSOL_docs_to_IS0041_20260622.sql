@@ -1,0 +1,7 @@
+-- Backup antes de colocar documentos INTERSOL em IS0041 - 2026-06-22
+-- FO
+-- ('AE26051152491,039792291  ', 'V/Facture', 'NDF 41                                            ', datetime.datetime(2026, 5, 11, 0, 0), 'ANTONIO CRUZ                                           ', 'IS0102')
+-- FN
+-- ('AE26051152491,153000001  ', 'AE26051152491,039792291  ', 'IS0102', '', '                  ', 'Notes de Frais no. 41 de 11.05.2026')
+-- ('AE26051152491,214000002  ', 'AE26051152491,039792291  ', 'IS0102', '6.2.06', 'B.02.06.000.0005  ', 'CONSOMMATION PIECES TELEPHONES')
+-- ('AE26051152491,243000003  ', 'AE26051152491,039792291  ', 'IS0102', 'IMPOTS', 'C.00.01.000.0001  ', 'TVA PAYÉE DANS LA COMMUNAUTÉ EUROPÉENNE')

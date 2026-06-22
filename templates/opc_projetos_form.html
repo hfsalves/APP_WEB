@@ -2,17 +2,17 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/opc_projetos_form.css') }}?v=opc-scroll-4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/opc_projetos_form.css') }}?v=opc-containers-1">
 {% endblock %}
 
 {% block dynamic_form_page_class %}opc-projetos-page{% endblock %}
 
 {% block dynamic_form_extra_content %}
-<section class="sz_panel opc-phc-info"
-         id="opcPhcInfo"
-         data-record-stamp="{{ record_stamp or '' }}"
-         data-info-url="{% if record_stamp %}{{ url_for('generic.api_opc_phc_info', record_stamp=record_stamp) }}{% endif %}">
-  <section class="opc-phc-grid-section" aria-labelledby="opcPhcDevisTitle">
+<div class="opc-phc-info"
+     id="opcPhcInfo"
+     data-record-stamp="{{ record_stamp or '' }}"
+     data-info-url="{% if record_stamp %}{{ url_for('generic.api_opc_phc_info', record_stamp=record_stamp) }}{% endif %}">
+  <section class="sz_panel opc-phc-container opc-phc-grid-section" aria-labelledby="opcPhcDevisTitle">
     <h3 class="sz_page_title opc-phc-section_title" id="opcPhcDevisTitle">Orçamentos</h3>
     <div class="sz_table_wrap opc-phc-table_wrap">
       <table class="sz_table sz_table_compact opc-phc-table" id="opcPhcDevisTable">
@@ -40,7 +40,7 @@
     </div>
   </section>
 
-  <section class="opc-phc-grid-section" aria-labelledby="opcPhcSituationsTitle">
+  <section class="sz_panel opc-phc-container opc-phc-grid-section" aria-labelledby="opcPhcSituationsTitle">
     <h3 class="sz_page_title opc-phc-section_title" id="opcPhcSituationsTitle">Autos de Medição de Cliente</h3>
     <div class="sz_table_wrap opc-phc-table_wrap">
       <table class="sz_table sz_table_compact opc-phc-table" id="opcPhcSituationsTable">
@@ -72,7 +72,7 @@
     </div>
   </section>
 
-  <section class="opc-phc-totals" aria-labelledby="opcPhcResumoTitle">
+  <section class="sz_panel opc-phc-container opc-phc-totals" aria-labelledby="opcPhcResumoTitle">
     <h3 class="sz_page_title opc-phc-section_title" id="opcPhcResumoTitle">Resumo</h3>
     <div class="sz_table_wrap opc-phc-totals_wrap">
       <table class="sz_table sz_table_compact opc-phc-totals_table">
@@ -125,7 +125,7 @@
       </table>
     </div>
   </section>
-</section>
+</div>
 {% endblock %}
 
 {% block scripts %}

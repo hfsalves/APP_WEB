@@ -44,6 +44,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--sz-space-3);
+  overflow: visible;
+}
+
+.opc-phc-container {
   padding: var(--sz-space-3);
   overflow: visible;
 }
