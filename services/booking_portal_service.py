@@ -207,31 +207,51 @@ def _alojamento_base_select(where_sql: str) -> str:
             LTRIM(RTRIM(ISNULL(AL.LON, ''))) AS LON,
             LTRIM(RTRIM(ISNULL(AL.NMPESQUISA, ''))) AS NMPESQUISA,
             CAST(ISNULL(AL.PBASE, 0) AS decimal(12, 2)) AS PBASE,
-            CAST(COALESCE(
-                (
-                    SELECT MIN(D.PRECO_FINAL)
-                    FROM dbo.PR_CALC_DAY AS D
-                    WHERE LTRIM(RTRIM(ISNULL(D.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
-                        = LTRIM(RTRIM(ISNULL(AL.NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
-                      AND CAST(D.[DATA] AS date) >= CAST(GETDATE() AS date)
-                      AND CAST(D.[DATA] AS date) < DATEADD(day, 365, CAST(GETDATE() AS date))
-                ),
-                (
-                    SELECT TOP 1 PA.PRECO_BASE
-                    FROM dbo.PR_ALOJAMENTO AS PA
-                    WHERE LTRIM(RTRIM(ISNULL(PA.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
-                        = LTRIM(RTRIM(ISNULL(AL.NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
-                      AND ISNULL(PA.ATIVO, 1) = 1
-                ),
-                0
-            ) AS decimal(12, 2)) AS PRECO_DESDE,
+            CAST(COALESCE(PA.PRECO_BASE, AL.PBASE, 0) AS decimal(12, 2)) AS PRECO_DESDE,
             CAST('' AS varchar(max)) AS DESCRICAO
         FROM dbo.AL AS AL
+        OUTER APPLY (
+            SELECT TOP 1 PA.PRECO_BASE
+            FROM dbo.PR_ALOJAMENTO AS PA
+            WHERE LTRIM(RTRIM(ISNULL(PA.AL_NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                = LTRIM(RTRIM(ISNULL(AL.NOME, ''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+              AND ISNULL(PA.ATIVO, 1) = 1
+        ) AS PA
         WHERE {where_sql}
         ORDER BY COALESCE(
             NULLIF(LTRIM(RTRIM(ISNULL(AL.NMAIRBNB, ''))), ''),
             LTRIM(RTRIM(ISNULL(AL.NOME, '')))
         )
+    """
+
+
+def _alojamento_count_select(where_sql: str) -> str:
+    return f"""
+        SELECT COUNT(*)
+        FROM dbo.AL AS AL
+        WHERE {where_sql}
+    """
+
+
+def _alojamento_capacity_sql() -> str:
+    normalized = "REPLACE(UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, '')))), ' ', '')"
+    return f"""
+        CASE
+            WHEN {normalized} LIKE '%T4%' THEN 8
+            WHEN {normalized} LIKE '%T3%' THEN 6
+            WHEN {normalized} LIKE '%T2%' THEN 4
+            WHEN {normalized} LIKE '%T1%' THEN 3
+            WHEN {normalized} LIKE '%T0%' THEN 2
+            ELSE 0
+        END
+    """
+
+
+def _alojamento_paged_select(where_sql: str) -> str:
+    base_sql = _alojamento_base_select(where_sql).rstrip()
+    return f"""
+        {base_sql}
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
     """
 
 
@@ -247,6 +267,7 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
     if include_gallery and foto_principal:
         fotos.append({
             "url": foto_principal,
+            "thumb_url": foto_principal,
             "alt": _clean(item.get("NOME")) or "Alojamento",
             "capa": True,
             "source": "cover",
@@ -373,7 +394,8 @@ def get_fotos_melhoradas_alojamento(al_id) -> list[dict]:
             """
             SELECT
                 ISNULL(F.ORIGINAL_FILENAME, '') AS ORIGINAL_FILENAME,
-                ISNULL(F.ENHANCED_PATH, '') AS ENHANCED_PATH
+                ISNULL(F.ENHANCED_PATH, '') AS ENHANCED_PATH,
+                ISNULL(F.THUMB_PATH, '') AS THUMB_PATH
             FROM dbo.PHOTO_ENHANCER_FILE AS F
             WHERE F.SESSION_ID = :session_id
               AND LTRIM(RTRIM(ISNULL(F.ENHANCED_PATH, ''))) <> ''
@@ -386,6 +408,7 @@ def get_fotos_melhoradas_alojamento(al_id) -> list[dict]:
     return [
         {
             "url": _public_image_url(row.get("ENHANCED_PATH")),
+            "thumb_url": _public_image_url(row.get("THUMB_PATH")) if _clean(row.get("THUMB_PATH")) else _public_image_url(row.get("ENHANCED_PATH")),
             "alt": _clean(row.get("ORIGINAL_FILENAME")) or "Alojamento",
             "capa": False,
             "source": "photo_enhancer",
@@ -531,16 +554,18 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
         params["checkin"] = checkin_date
         params["checkout"] = checkout_date
 
-    rows = list(db.session.execute(text(_alojamento_base_select(" AND ".join(where))), params).mappings().all())
     if guest_count:
-        rows = [row for row in rows if capacidade_por_tipologia(row.get("TIPOLOGIA")) >= guest_count]
+        where.append(f"({_alojamento_capacity_sql()}) >= :guest_count")
+        params["guest_count"] = guest_count
 
-    total = len(rows)
+    where_sql = " AND ".join(where)
+    total = int(db.session.execute(text(_alojamento_count_select(where_sql)), params).scalar() or 0)
     total_pages = max(1, ((total + page_size - 1) // page_size))
     page_number = min(page_number, total_pages)
     start = (page_number - 1) * page_size
-    end = start + page_size
-    alojamentos = [_decorate_alojamento(row) for row in rows[start:end]]
+    page_params = {**params, "offset": start, "limit": page_size}
+    rows = db.session.execute(text(_alojamento_paged_select(where_sql)), page_params).mappings().all()
+    alojamentos = [_decorate_alojamento(row) for row in rows]
     return {
         "items": alojamentos,
         "total": total,

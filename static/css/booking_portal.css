@@ -740,9 +740,9 @@ input {
 }
 
 .booking-detail-main h1 {
-  max-width: 22ch;
-  font-size: clamp(1.75rem, 3vw, 3rem);
-  line-height: 1.08;
+  max-width: 28ch;
+  font-size: clamp(1.45rem, 2.1vw, 2.2rem);
+  line-height: 1.14;
 }
 
 .booking-meta-large {

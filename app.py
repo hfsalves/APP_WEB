@@ -392,6 +392,14 @@ def create_app():
             elif mt == 'application/json':
                 # alguns navegadores assumem latin-1 sem charset
                 resp.headers['Content-Type'] = 'application/json; charset=utf-8'
+            path = request.path or ''
+            cacheable_static_prefixes = (
+                '/static/uploads/photo_enhancer/',
+                '/static/images/alojamentos/',
+                '/static/images/booking_portal/',
+            )
+            if resp.status_code == 200 and path.startswith(cacheable_static_prefixes) and (resp.mimetype or '').startswith('image/'):
+                resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         except Exception:
             pass
         return resp

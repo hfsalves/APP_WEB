@@ -32,7 +32,11 @@
             {% if alojamento.fotos %}
               {% for photo in alojamento.fotos %}
                 <button class="booking-gallery-slide {% if loop.first %}is-active{% endif %}" type="button" data-gallery-slide data-index="{{ loop.index0 }}" aria-label="{{ photo.alt or alojamento.nome }}">
-                  <img src="{{ photo.url }}" alt="{{ photo.alt or alojamento.nome }}" loading="{% if loop.first %}eager{% else %}lazy{% endif %}">
+                  <img
+                    {% if loop.first %}src="{{ photo.url }}"{% else %}data-src="{{ photo.url }}"{% endif %}
+                    alt="{{ photo.alt or alojamento.nome }}"
+                    loading="{% if loop.first %}eager{% else %}lazy{% endif %}"
+                    decoding="async">
                 </button>
               {% endfor %}
             {% else %}
@@ -54,7 +58,7 @@
             <div class="booking-gallery-thumbs" aria-label="{{ t.selected }}">
               {% for photo in alojamento.fotos %}
                 <button class="booking-gallery-thumb {% if loop.first %}is-active{% endif %}" type="button" data-gallery-thumb data-index="{{ loop.index0 }}" aria-label="{{ photo.alt or alojamento.nome }}">
-                  <img src="{{ photo.url }}" alt="" loading="lazy">
+                  <img src="{{ photo.thumb_url or photo.url }}" alt="" loading="lazy" decoding="async">
                 </button>
               {% endfor %}
             </div>
@@ -411,9 +415,20 @@
       var index = 0;
       var touchStartX = 0;
 
+      function ensureSlideImage(slideIndex) {
+        var slide = slides[slideIndex];
+        if (!slide) return;
+        var image = slide.querySelector("img[data-src]");
+        if (!image) return;
+        image.src = image.dataset.src;
+        image.removeAttribute("data-src");
+      }
+
       function setIndex(nextIndex) {
         if (!slides.length) return;
         index = (nextIndex + slides.length) % slides.length;
+        ensureSlideImage(index);
+        ensureSlideImage((index + 1) % slides.length);
         slides.forEach(function (slide, idx) {
           slide.classList.toggle("is-active", idx === index);
         });
