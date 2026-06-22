@@ -1912,11 +1912,24 @@ document.addEventListener('DOMContentLoaded', () => {
       setInputValue(els.supplierNo, visibleValue(classification.supplier.supplier_no, els.supplierNo?.value || ''));
       setInputValue(els.supplierTaxId, visibleValue(classification.supplier.tax_id, els.supplierTaxId?.value || ''));
       setInputValue(els.supplierName, visibleValue(classification.supplier.name, els.supplierName?.value || ''));
+      if (state.document) {
+        state.document.supplier_no = classification.supplier.supplier_no || state.document.supplier_no || null;
+        state.document.supplier_name = classification.supplier.name || state.document.supplier_name || '';
+      }
     }
     if (classification.customer && typeof classification.customer === 'object') {
       setInputValue(els.customerFeid, visibleValue(classification.customer.feid, els.customerFeid?.value || ''));
       setInputValue(els.customerTaxId, visibleValue(classification.customer.tax_id, els.customerTaxId?.value || ''));
       setInputValue(els.customerName, visibleValue(classification.customer.name, els.customerName?.value || ''));
+      if (state.document) {
+        state.document.feid = classification.customer.feid || state.document.feid || null;
+        state.document.entity = {
+          ...(state.document.entity || {}),
+          feid: classification.customer.feid || state.document.entity?.feid || null,
+          tax_id: classification.customer.tax_id || state.document.entity?.tax_id || '',
+          name: classification.customer.name || classification.customer.matched_name || state.document.entity?.name || '',
+        };
+      }
     }
     if (classification.totals && typeof classification.totals === 'object') {
       setInputValue(els.netTotal, visibleValue(classification.totals.net_total, els.netTotal?.value || ''));
@@ -1960,6 +1973,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (classification.confidence != null) {
       setInputValue(els.confidence, Number(classification.confidence || 0).toFixed(2));
     }
+    refreshAllFieldDisplays();
     refreshTemplateSelectLabels();
   }
 
