@@ -59,6 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--smb-user", default=os.environ.get("DOCUMENT_AI_SMB_USER", ""), help="Utilizador SMB opcional para montar no macOS.")
     parser.add_argument("--smb-password", default=os.environ.get("DOCUMENT_AI_SMB_PASSWORD", ""), help="Password SMB opcional para montar no macOS.")
     parser.add_argument("--smb-domain", default=os.environ.get("DOCUMENT_AI_SMB_DOMAIN", ""), help="Domínio SMB opcional.")
+    parser.add_argument(
+        "--storage-root",
+        default=os.environ.get("DOCUMENT_AI_STORAGE_ROOT", ""),
+        help="Raiz física da app web onde os ficheiros Document AI devem ficar visíveis.",
+    )
     parser.add_argument("--no-smb-mount", action="store_true", help="Não tenta montar o share SMB no macOS.")
     parser.add_argument(
         "--respect-database-url",
@@ -124,6 +129,9 @@ def configure_robot_database(args: argparse.Namespace) -> None:
     os.environ["DB_CLIENT_PASSWORD"] = os.environ["DB_PROD_PASSWORD"]
     os.environ["APP_DB_TARGET"] = "client"
     os.environ.setdefault("DB_SKIP_STARTUP_CONNECT_TEST", "1")
+    storage_root = str(getattr(args, "storage_root", "") or "").strip()
+    if storage_root:
+        os.environ["DOCUMENT_AI_STORAGE_ROOT"] = os.path.abspath(os.path.expanduser(storage_root))
 
 
 def _append_path_mapping(source_prefix: str, local_prefix: str) -> None:

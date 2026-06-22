@@ -13,6 +13,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from difflib import SequenceMatcher
 from typing import Any
+from urllib.parse import urljoin, urlparse
+from urllib.request import Request, urlopen
 
 from flask import current_app
 from sqlalchemy import text
@@ -431,8 +433,112 @@ def _build_preview_pages(blocks: list[dict[str, Any]], raw_pages: list[dict[str,
     return [page_map[key] for key in sorted(page_map)]
 
 
+def _document_storage_root() -> str:
+    configured_root = (
+        os.environ.get('DOCUMENT_AI_STORAGE_ROOT')
+        or current_app.config.get('DOCUMENT_AI_STORAGE_ROOT')
+        or current_app.root_path
+    )
+    return os.path.abspath(os.path.expanduser(str(configured_root or current_app.root_path).strip()))
+
+
+def _document_local_path(path_value: str) -> str:
+    raw = str(path_value or '').strip()
+    if not raw:
+        return ''
+    parsed = urlparse(raw)
+    if parsed.scheme in {'http', 'https'}:
+        file_name = os.path.basename(parsed.path or '') or _new_stamp()
+        return os.path.join(_document_storage_root(), 'static', 'images', 'document_ai', file_name)
+    expanded = os.path.expanduser(raw)
+    normalized_public_path = expanded.replace('\\', '/')
+    if normalized_public_path.startswith('/static/'):
+        return os.path.abspath(os.path.join(_document_storage_root(), normalized_public_path.lstrip('/').replace('/', os.sep)))
+    if os.path.isabs(expanded):
+        return os.path.abspath(expanded)
+    return os.path.abspath(os.path.join(_document_storage_root(), expanded.lstrip('/').replace('/', os.sep)))
+
+
+def _document_public_base_urls() -> list[str]:
+    values = [
+        os.environ.get('DOCUMENT_AI_PUBLIC_BASE_URLS'),
+        os.environ.get('DOCUMENT_AI_PUBLIC_BASE_URL'),
+        current_app.config.get('DOCUMENT_AI_PUBLIC_BASE_URLS'),
+        current_app.config.get('DOCUMENT_AI_PUBLIC_BASE_URL'),
+    ]
+    urls: list[str] = []
+    for value in values:
+        for item in re.split(r'[;\n,]', str(value or '')):
+            item = item.strip().rstrip('/')
+            if item and item not in urls:
+                urls.append(item)
+    return urls
+
+
+def _download_document_file(source_url: str, destination_path: str) -> bool:
+    if not source_url or not destination_path:
+        return False
+    try:
+        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+        request = Request(source_url, headers={'User-Agent': 'GR360 DocumentAI/1.0'})
+        with urlopen(request, timeout=20) as response:
+            if int(getattr(response, 'status', 200) or 200) >= 400:
+                return False
+            with open(destination_path, 'wb') as handle:
+                shutil.copyfileobj(response, handle)
+        return os.path.isfile(destination_path) and os.path.getsize(destination_path) > 0
+    except Exception:
+        current_app.logger.info('Document AI: nao foi possivel obter ficheiro remoto %s', source_url, exc_info=True)
+        return False
+
+
+def _try_cache_document_from_public_url(path_value: str, destination_path: str) -> bool:
+    raw = str(path_value or '').strip()
+    if not raw or not destination_path:
+        return False
+    parsed = urlparse(raw)
+    if parsed.scheme in {'http', 'https'}:
+        return _download_document_file(raw, destination_path)
+    if not raw.startswith('/'):
+        return False
+    for base_url in _document_public_base_urls():
+        if _download_document_file(urljoin(f'{base_url}/', raw.lstrip('/')), destination_path):
+            return True
+    return False
+
+
+def _mapped_document_path(path_value: str) -> str:
+    raw = str(path_value or '').strip()
+    if not raw:
+        return ''
+    normalized_path = _normalize_source_path_for_match(raw)
+    for source_prefix, local_prefix in _document_source_path_mappings():
+        normalized_prefix = _normalize_source_path_for_match(source_prefix)
+        if not normalized_prefix:
+            continue
+        if normalized_path == normalized_prefix or normalized_path.startswith(f'{normalized_prefix}/'):
+            source_prefix_slash = source_prefix.replace('\\', '/').rstrip('/')
+            suffix = raw.replace('\\', '/').rstrip('/')[len(source_prefix_slash):].lstrip('/')
+            candidate = os.path.abspath(os.path.join(os.path.expanduser(local_prefix), *suffix.split('/')))
+            if os.path.isfile(candidate):
+                return candidate
+    return ''
+
+
 def _document_absolute_path(document: DocInbox) -> str:
-    return os.path.join(current_app.root_path, str(document.file_path or '').lstrip('/').replace('/', os.sep))
+    raw_path = str(document.file_path or '').strip()
+    absolute_path = _document_local_path(raw_path)
+    if absolute_path and os.path.isfile(absolute_path):
+        return absolute_path
+
+    mapped_path = _mapped_document_path(raw_path)
+    if mapped_path:
+        return mapped_path
+
+    if absolute_path and _try_cache_document_from_public_url(raw_path, absolute_path):
+        return absolute_path
+
+    return absolute_path
 
 
 def _document_preview_payload(document: DocInbox, blocks: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -2663,9 +2769,12 @@ def _safe_document_file_path(path_value: str | None) -> str:
     raw = str(path_value or '').strip()
     if not raw:
         return ''
-    absolute_path = os.path.abspath(os.path.join(current_app.root_path, raw.lstrip('/').replace('/', os.sep)))
-    root_path = os.path.abspath(current_app.root_path)
+    absolute_path = _document_local_path(raw)
+    root_path = _document_storage_root()
+    app_root_path = os.path.abspath(current_app.root_path)
     if absolute_path != root_path and absolute_path.startswith(root_path + os.sep):
+        return absolute_path
+    if absolute_path != app_root_path and absolute_path.startswith(app_root_path + os.sep):
         return absolute_path
     return ''
 
@@ -2733,7 +2842,7 @@ def _store_file(uploaded_file, folder_name: str = 'document_ai') -> dict[str, An
     stamp = _new_stamp()
     safe_name = f'{stamp}{ext}'
     relative_dir = os.path.join('static', 'images', folder_name)
-    absolute_dir = os.path.join(current_app.root_path, relative_dir)
+    absolute_dir = os.path.join(_document_storage_root(), relative_dir)
     os.makedirs(absolute_dir, exist_ok=True)
     absolute_path = os.path.join(absolute_dir, safe_name)
     uploaded_file.save(absolute_path)
@@ -2761,7 +2870,7 @@ def _store_local_file(source_path: str, folder_name: str = 'document_ai') -> dic
     stamp = _new_stamp()
     safe_name = f'{stamp}{ext}'
     relative_dir = os.path.join('static', 'images', folder_name)
-    absolute_dir = os.path.join(current_app.root_path, relative_dir)
+    absolute_dir = os.path.join(_document_storage_root(), relative_dir)
     os.makedirs(absolute_dir, exist_ok=True)
     absolute_path = os.path.join(absolute_dir, safe_name)
     shutil.copy2(absolute_source, absolute_path)
@@ -2808,7 +2917,7 @@ def process_document(
         document.processing_stage = 'extract_text'
         document.last_processing_error = ''
         extraction = extract_document_text(
-            os.path.join(current_app.root_path, document.file_path.lstrip('/').replace('/', os.sep)),
+            _document_absolute_path(document),
             document.file_ext,
             document.mime_type,
             document_stamp=document.docinstamp,
