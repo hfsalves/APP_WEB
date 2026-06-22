@@ -118,7 +118,7 @@ class IntersolMonthlyTests(unittest.TestCase):
         ]
         res = self._run_single_employee(tasks, {"4": ROLE_POLISSEUR}, month_start, month_end)
         self.assertAlmostEqual(res.kg_pay, 262.50, places=2)
-        self.assertAlmostEqual(res.total, 412.50, places=2)
+        self.assertAlmostEqual(res.total, 262.50, places=2)
 
     def test_treillis_paid_below_threshold_when_coulage_present(self):
         month_start = date(2024, 2, 1)
@@ -442,6 +442,30 @@ class IntersolMonthlyTests(unittest.TestCase):
         self.assertAlmostEqual(res.finitions_pay, 160.00, places=2)
         self.assertAlmostEqual(res.total, 160.00, places=2)
 
+    def test_desactive_scie_is_included_in_forfait(self):
+        month_start = date(2024, 2, 1)
+        month_end = date(2024, 2, 29)
+        tasks = [
+            Task(
+                date=date(2024, 2, 9),
+                team_code="T8",
+                team_name="Team 8",
+                employee_number="9",
+                employee_name="Desactive scie",
+                chantier="CH9",
+                finish_type="RP.DESACTIVE",
+                sqm=Decimal("0"),
+                sqm_total_chantier=Decimal("220"),
+                sqm_scie=Decimal("46.28"),
+                kg_steel=Decimal("0"),
+                intervention_type="coulage",
+            )
+        ]
+        res = self._run_single_employee(tasks, {"9": ROLE_POLISSEUR}, month_start, month_end)
+        self.assertAlmostEqual(res.finitions_pay, 160.00, places=2)
+        self.assertAlmostEqual(res.scie_pay, 0.00, places=2)
+        self.assertAlmostEqual(res.total, 160.00, places=2)
+
     def test_scieur_coulage_day_adds_scie_on_top_of_forfait(self):
         month_start = date(2024, 2, 1)
         month_end = date(2024, 2, 29)
@@ -517,6 +541,30 @@ class IntersolMonthlyTests(unittest.TestCase):
         self.assertAlmostEqual(res.finitions_pay, 150.00, places=2)
         self.assertAlmostEqual(res.scie_pay, 0.00, places=2)
         self.assertAlmostEqual(res.total, 150.00, places=2)
+
+    def test_joint_filling_is_paid_like_scie_and_can_exceed_forfait(self):
+        month_start = date(2024, 2, 1)
+        month_end = date(2024, 2, 29)
+        tasks = [
+            Task(
+                date=date(2024, 2, 12),
+                team_code="T9A",
+                team_name="Team 9A",
+                employee_number="9A1C",
+                employee_name="Remplissage",
+                chantier="CH9R",
+                finish_type="Remplissage de joints",
+                sqm=Decimal("2500"),
+                sqm_total_chantier=Decimal("2500"),
+                sqm_scie=Decimal("0"),
+                kg_steel=Decimal("0"),
+                intervention_type="scie",
+            ),
+        ]
+        res = self._run_single_employee(tasks, {"9A1C": ROLE_SCIEUR}, month_start, month_end)
+        self.assertAlmostEqual(res.finitions_pay, 0.00, places=2)
+        self.assertAlmostEqual(res.scie_pay, 450.00, places=2)
+        self.assertAlmostEqual(res.total, 450.00, places=2)
 
     def test_chef_desactive_uses_polisseur_scale_and_daily_prime_chef_prorata(self):
         month_start = date(2024, 2, 1)
@@ -603,6 +651,30 @@ class IntersolMonthlyTests(unittest.TestCase):
         res = self._run_single_employee(tasks, {"10": ROLE_SCIEUR}, month_start, month_end)
         self.assertAlmostEqual(res.intemperies_total, 69.66, places=2)
         self.assertAlmostEqual(res.total, 69.66, places=2)
+
+    def test_aide_receives_intersol_intemperie_rate(self):
+        month_start = date(2024, 2, 1)
+        month_end = date(2024, 2, 29)
+        tasks = [
+            Task(
+                date=date(2024, 2, 12),
+                team_code="T9",
+                team_name="Team 9",
+                employee_number="10A",
+                employee_name="Aide intemp",
+                chantier="CH10",
+                finish_type="INTEMPERIE",
+                sqm=Decimal("0"),
+                sqm_total_chantier=Decimal("0"),
+                sqm_scie=Decimal("0"),
+                kg_steel=Decimal("0"),
+                intervention_type="intemperie",
+                is_intemperie=True,
+            )
+        ]
+        res = self._run_single_employee(tasks, {"10A": ROLE_AIDE}, month_start, month_end)
+        self.assertAlmostEqual(res.intemperies_total, 63.10, places=2)
+        self.assertAlmostEqual(res.total, 63.10, places=2)
 
     def test_deplacement_type_uses_opc_tpdep_and_highest_daily_type(self):
         month_start = date(2024, 2, 1)
@@ -715,6 +787,58 @@ class IntersolMonthlyTests(unittest.TestCase):
         monthly_without_intemp = Decimal(str(res.finitions_pay))
         complement = expected_minimum - monthly_without_intemp
         self.assertAlmostEqual(res.complement_minimum, float(complement), places=2)
+        self.assertAlmostEqual(res.total, float(expected_minimum), places=2)
+
+    def test_steel_above_forfait_does_not_add_daily_forfait(self):
+        month_start = date(2024, 1, 1)
+        month_end = date(2024, 1, 31)
+        tasks = [
+            Task(
+                date=date(2024, 1, 10),
+                team_code="T12",
+                team_name="Team 12",
+                employee_number="13",
+                employee_name="Steel over forfait",
+                chantier="CH13",
+                finish_type="prepa",
+                sqm=Decimal("0"),
+                sqm_total_chantier=Decimal("0"),
+                sqm_scie=Decimal("0"),
+                kg_steel=Decimal("2390.28"),
+                intervention_type="coulage",
+            )
+        ]
+        res = self._run_single_employee(tasks, {"13": ROLE_POLISSEUR}, month_start, month_end)
+        self.assertAlmostEqual(res.finitions_pay, 0.00, places=2)
+        self.assertAlmostEqual(res.kg_pay, 179.27, places=2)
+        self.assertAlmostEqual(res.total, 179.27, places=2)
+
+    def test_prime_chef_reduces_minimum_complement(self):
+        month_start = date(2024, 1, 1)
+        month_end = date(2024, 1, 31)
+        holidays = [date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)]
+        tasks = [
+            Task(
+                date=date(2024, 1, 8),
+                team_code="T13",
+                team_name="Team 13",
+                employee_number="14",
+                employee_name="Chef minimum",
+                chantier="CH14",
+                finish_type="prepa",
+                sqm=Decimal("0"),
+                sqm_total_chantier=Decimal("0"),
+                sqm_scie=Decimal("0"),
+                kg_steel=Decimal("0"),
+                intervention_type="coulage",
+                is_chief=True,
+            )
+        ]
+        res = self._run_single_employee(tasks, {"14": ROLE_CHEF}, month_start, month_end, holidays=holidays)
+        expected_prime = (Decimal("400") / Decimal("20")).quantize(Decimal("0.01"))
+        expected_minimum = (Decimal("3570") / Decimal("20")).quantize(Decimal("0.01"))
+        self.assertAlmostEqual(res.prime_chef, float(expected_prime), places=2)
+        self.assertAlmostEqual(res.complement_minimum, float(expected_minimum - Decimal("150") - expected_prime), places=2)
         self.assertAlmostEqual(res.total, float(expected_minimum), places=2)
 
 

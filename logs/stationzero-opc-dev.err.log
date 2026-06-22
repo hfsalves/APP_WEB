@@ -800,3 +800,226 @@ Press CTRL+C to quit
 127.0.0.1 - - [22/Jun/2026 12:55:16] "GET /generic/api/OPC/SRF25071552442,388786562 HTTP/1.1" 200 -
 127.0.0.1 - - [22/Jun/2026 12:55:16] "GET /api/anexos?table=OPC&rec=SRF25071552442,388786562 HTTP/1.1" 200 -
 127.0.0.1 - - [22/Jun/2026 12:55:17] "GET /service-worker.js HTTP/1.1" 304 -
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [22/Jun/2026 13:15:20] "GET /generic/opc_projetos_form/SRF25071552442,388786562%20?menustamp=C662E899ECD4419F905CCBB86&return_to=/generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:15:20] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:15:20] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:15:20] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:15:20] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:15:20] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:15:20] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:15:20] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:15:21] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:15:21] "GET /static/js/push.js?v=1782130497 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:15:21] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:15:21] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:15:21] "GET /generic/api/opc/SRF25071552442,388786562%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:15:21] "GET /generic/api/opc/SRF25071552442,388786562%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:15:21] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:15:21] "GET /generic/api/OPC/SRF25071552442,388786562 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:15:21] "GET /api/anexos?table=OPC&rec=SRF25071552442,388786562 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:15:22] "GET /service-worker.js HTTP/1.1" 304 -
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [22/Jun/2026 13:17:39] "GET /generic/opc_projetos_form/SRF25071552442,388786562%20?menustamp=C662E899ECD4419F905CCBB86&return_to=/generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:17:39] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /static/js/push.js?v=1782130571 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /generic/api/opc/SRF25071552442,388786562%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /generic/api/opc/SRF25071552442,388786562%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:17:40] "GET /generic/api/OPC/SRF25071552442,388786562 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:17:41] "GET /api/anexos?table=OPC&rec=SRF25071552442,388786562 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:17:41] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:19:55] "GET /generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:19:55] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:19:55] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:19:55] "GET /static/js/dynamic_list.js?v=1782130571 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:19:55] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:19:55] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:19:55] "GET /static/js/push.js?v=1782130571 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:19:55] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:19:55] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:19:56] "GET /generic/api/OPC?action=describe&include_screen_meta=1&menustamp=C662E899ECD4419F905CCBB86 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:19:56] "GET /generic/api/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:19:57] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /generic/opc_projetos_form/JO22061854682,968418449%20%20?menustamp=C662E899ECD4419F905CCBB86&return_to=/generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /static/js/push.js?v=1782130571 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /generic/api/opc/JO22061854682,968418449%20%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /generic/api/opc/JO22061854682,968418449%20%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:20:01] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:20:02] "GET /generic/api/OPC/JO22061854682,968418449 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:20:02] "GET /api/anexos?table=OPC&rec=JO22061854682,968418449 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:20:02] "GET /service-worker.js HTTP/1.1" 304 -
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /generic/opc_projetos_form/JO22061854682,968418449%20%20?menustamp=C662E899ECD4419F905CCBB86&return_to=/generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /static/js/push.js?v=1782131032 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /generic/api/opc/JO22061854682,968418449%20%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:25:47] "GET /generic/api/opc/JO22061854682,968418449%20%20/phc_info HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:25:48] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:25:48] "GET /generic/api/OPC/JO22061854682,968418449 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:25:48] "GET /api/anexos?table=OPC&rec=JO22061854682,968418449 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:25:49] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:27:16] "POST /api/profile/viewmode HTTP/1.1" 500 -
+127.0.0.1 - - [22/Jun/2026 13:27:16] "POST /api/profile/save HTTP/1.1" 500 -
+127.0.0.1 - - [22/Jun/2026 13:43:47] "GET /menu_manager HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:43:47] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:43:47] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:43:47] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:43:47] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:43:47] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:43:47] "GET /static/js/menu_manager_icons.js?v=1782131032 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:43:47] "GET /static/js/push.js?v=1782131032 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:43:47] "GET /static/js/menu_manager.js?v=1782131032 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:43:47] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:43:47] "GET /api/menu_manager HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:43:49] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:44:04] "GET /api/menu_manager/A02A9D43C7F748A593753FC83 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:46:31] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:46:31] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:46:31] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:46:31] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:46:31] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:46:31] "GET /static/js/dashboard.js HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:46:31] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:46:31] "GET /static/js/push.js?v=1782131032 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:46:31] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:46:31] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:46:35] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:46:36] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:46:36] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:46:36] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:37] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:51:37] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:37] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:37] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:37] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:37] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:37] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:37] "GET /static/js/push.js?v=1782131032 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:37] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:37] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:51:38] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:51:38] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:51:38] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:51:40] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:56] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:51:56] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:56] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:56] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:56] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:56] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:56] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:56] "GET /static/js/push.js?v=1782131032 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:56] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:51:56] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:51:57] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:51:57] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:51:57] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:51:59] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:52:58] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:52:58] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:52:58] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:52:58] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:52:58] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:52:58] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:52:58] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:52:58] "GET /static/js/push.js?v=1782131032 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:52:58] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:52:58] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:52:59] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:52:59] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:52:59] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:53:01] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:53:07] "GET /despesas HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:53:07] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:53:07] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:53:07] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:53:07] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:53:07] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:53:07] "GET /static/js/push.js?v=1782131032 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:53:07] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:53:09] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:04] "GET /generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:57:04] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:04] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:04] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:04] "GET /static/js/dynamic_list.js?v=1782131032 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:57:04] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:04] "GET /static/js/push.js?v=1782131032 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:04] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:04] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:05] "GET /generic/api/OPC?action=describe&include_screen_meta=1&menustamp=C662E899ECD4419F905CCBB86 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:57:05] "GET /generic/api/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:57:06] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /generic/opc_projetos_form/SM22021564638,432119522%20%20?menustamp=C662E899ECD4419F905CCBB86&return_to=/generic/view/OPC HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /static/css/opc_projetos_form.css?v=opc-containers-1 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /static/js/dynamic_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /static/js/push.js?v=1782131032 HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /static/js/opc_projetos_form.js HTTP/1.1" 304 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+[2026-06-22 13:57:13,448] ERROR in generic_crud: Erro ao consultar informação PHC da obra OPC
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/blueprints/generic_crud.py", line 2054, in api_opc_phc_info
+    return jsonify(get_opc_phc_info(record_stamp))
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/services/opc_phc_info_service.py", line 564, in get_opc_phc_info
+    autos = _fetch_all(cursor, AUTOS_SQL, (phc_processo,))
+  File "/Users/hugoalves/Projects/APP_WEB/services/opc_phc_info_service.py", line 178, in _fetch_all
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'IVA'. (207) (SQLExecDirectW)")
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /generic/api/opc/SM22021564638,432119522%20%20/phc_info HTTP/1.1" 500 -
+[2026-06-22 13:57:13,510] ERROR in generic_crud: Erro ao consultar informação PHC da obra OPC
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/blueprints/generic_crud.py", line 2054, in api_opc_phc_info
+    return jsonify(get_opc_phc_info(record_stamp))
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/services/opc_phc_info_service.py", line 564, in get_opc_phc_info
+    autos = _fetch_all(cursor, AUTOS_SQL, (phc_processo,))
+  File "/Users/hugoalves/Projects/APP_WEB/services/opc_phc_info_service.py", line 178, in _fetch_all
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'IVA'. (207) (SQLExecDirectW)")
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /generic/api/opc/SM22021564638,432119522%20%20/phc_info HTTP/1.1" 500 -
+127.0.0.1 - - [22/Jun/2026 13:57:13] "GET /generic/api/OPC?action=describe&menustamp=C662E899ECD4419F905CCBB86&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:57:14] "GET /generic/api/OPC/SM22021564638,432119522 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:57:14] "GET /api/anexos?table=OPC&rec=SM22021564638,432119522 HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jun/2026 13:57:15] "GET /service-worker.js HTTP/1.1" 304 -

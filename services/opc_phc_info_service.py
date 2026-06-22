@@ -180,12 +180,33 @@ def _fetch_all(cursor, sql: str, params: tuple = ()) -> list[dict]:
     return [_row_dict(columns, row) for row in cursor.fetchall()]
 
 
+def _has_column(cursor, table_name: str, column_name: str) -> bool:
+    cursor.execute("""
+        SELECT 1
+        FROM sys.columns
+        WHERE object_id = OBJECT_ID(?)
+          AND UPPER(name) = UPPER(?)
+    """, (f"dbo.{table_name}", column_name))
+    return cursor.fetchone() is not None
+
+
+def _with_uret_iva(sql: str, has_uret_iva: bool) -> str:
+    if not has_uret_iva:
+        return (
+            sql.replace("GROUP BY U.ORISTAMP, __URET_IVA_EXPR__", "GROUP BY U.ORISTAMP")
+               .replace("__URET_IVA_EXPR__", "CAST(0 AS decimal(9,3))")
+        )
+    expr = "CAST(ISNULL(U.IVA, 0) AS decimal(9,3))"
+    return sql.replace("__URET_IVA_EXPR__", expr)
+
+
 ORCAMENTOS_SQL = """
 WITH linhas AS (
     SELECT
         BO2.PROCESSO,
         BO.BOSTAMP,
         BO.NMDOS,
+        BO.OBRANO,
         BO.DATAOBRA,
         BO.MARCA,
         CAST(ISNULL(BI.IVA, 0) AS decimal(9,3)) AS TVAP,
@@ -198,16 +219,16 @@ WITH linhas AS (
 ),
 agg AS (
     SELECT
-        PROCESSO, BOSTAMP, NMDOS, DATAOBRA, MARCA, TVAP,
+        PROCESSO, BOSTAMP, NMDOS, OBRANO, DATAOBRA, MARCA, TVAP,
         SUM(BASE_LIN) AS TOTAL
     FROM linhas
-    GROUP BY PROCESSO, BOSTAMP, NMDOS, DATAOBRA, MARCA, TVAP
+    GROUP BY PROCESSO, BOSTAMP, NMDOS, OBRANO, DATAOBRA, MARCA, TVAP
 )
 SELECT
     PROCESSO AS processo,
     'BO' AS origem,
     BOSTAMP AS oristamp,
-    CAST('Orçamento nº ' + ISNULL(NMDOS, '') + ' de ' + CONVERT(varchar(10), DATAOBRA, 120) AS varchar(240)) AS descr,
+    CAST(LTRIM(RTRIM(ISNULL(NMDOS, ''))) + ' nº ' + CAST(CAST(ISNULL(OBRANO, 0) AS numeric(18,0)) AS varchar(30)) + ' de ' + CONVERT(varchar(10), DATAOBRA, 120) AS varchar(240)) AS descr,
     CAST(100 AS numeric(10,0)) AS ordem,
     TOTAL AS nonajustments,
     CAST(0 AS decimal(19,2)) AS ajustments,
@@ -236,7 +257,11 @@ WITH doc AS (
         BO.BOSTAMP,
         BO.NDOS,
         BO.NMDOS,
+        BO.OBRANO,
         BO.DATAOBRA,
+        ISNULL(BO.U_RG, 0) AS BO_RG,
+        ISNULL(BO.U_RFT, 0) AS BO_RFT,
+        ISNULL(BO.U_PRORATA, 0) AS BO_PRORATA,
         LTRIM(RTRIM(BO.MAQUINA)) AS STNUM,
         CAST(BO.MARCA AS varchar(30)) AS COMMCLI,
         CAST(BO2.PROCESSO AS varchar(50)) AS PROCESSO,
@@ -283,10 +308,18 @@ bi_agg AS (
     FROM bi_c
     GROUP BY BOSTAMP, TVAP
 ),
+bi_totals AS (
+    SELECT
+        BOSTAMP,
+        SUM(PROD) AS PROD_TOTAL,
+        COUNT(*) AS TAX_COUNT
+    FROM bi_agg
+    GROUP BY BOSTAMP
+),
 uret AS (
     SELECT
         U.ORISTAMP AS BOSTAMP,
-        CAST(ISNULL(U.IVA, 0) AS decimal(9,3)) AS TVAP,
+        __URET_IVA_EXPR__ AS TVAP,
         SUM(CASE WHEN U.REF='RG' THEN ISNULL(U.VALOR,0) ELSE 0 END) AS RG,
         SUM(CASE WHEN U.REF='RFT' THEN ISNULL(U.VALOR,0) ELSE 0 END) AS RFT,
         SUM(CASE WHEN U.REF='PRORATA' THEN ISNULL(U.VALOR,0) ELSE 0 END) AS PRORATA_RET,
@@ -294,7 +327,16 @@ uret AS (
     FROM U_RET U
     JOIN doc D ON D.BOSTAMP = U.ORISTAMP
     WHERE U.ORIGEM='BO'
-    GROUP BY U.ORISTAMP, CAST(ISNULL(U.IVA, 0) AS decimal(9,3))
+    GROUP BY U.ORISTAMP, __URET_IVA_EXPR__
+),
+uret_doc AS (
+    SELECT
+        U.ORISTAMP AS BOSTAMP,
+        COUNT(*) AS URET_COUNT
+    FROM U_RET U
+    JOIN doc D ON D.BOSTAMP = U.ORISTAMP
+    WHERE U.ORIGEM='BO'
+    GROUP BY U.ORISTAMP
 ),
 taxas AS (
     SELECT BOSTAMP, TVAP FROM bi_agg
@@ -305,6 +347,8 @@ calc AS (
     SELECT
         D.PROCESSO,
         D.BOSTAMP,
+        D.NMDOS,
+        D.OBRANO,
         D.DATAOBRA,
         D.STNUM,
         D.ORDEM,
@@ -314,14 +358,40 @@ calc AS (
         ISNULL(B.AJUST,0) AS AJUST,
         ISNULL(B.AMENDES,0) AS AMENDES,
         ISNULL(B.ACOMPTE,0) AS ACOMPTE,
-        ISNULL(B.PRORATA_LINHA,0) + ISNULL(U.PRORATA_RET,0) AS PRORATA,
-        ISNULL(U.RG,0) AS RG,
-        ISNULL(U.RFT,0) AS RFT,
+        ISNULL(B.PRORATA_LINHA,0) + CASE
+            WHEN ISNULL(UD.URET_COUNT, 0) = 0 THEN
+                CASE
+                    WHEN ISNULL(DT.PROD_TOTAL, 0) <> 0 THEN ISNULL(D.BO_PRORATA, 0) * ISNULL(B.PROD, 0) / DT.PROD_TOTAL
+                    WHEN ISNULL(DT.TAX_COUNT, 0) <> 0 THEN ISNULL(D.BO_PRORATA, 0) / DT.TAX_COUNT
+                    ELSE ISNULL(D.BO_PRORATA, 0)
+                END
+            ELSE ISNULL(U.PRORATA_RET,0)
+        END AS PRORATA,
+        CASE
+            WHEN ISNULL(UD.URET_COUNT, 0) = 0 THEN
+                CASE
+                    WHEN ISNULL(DT.PROD_TOTAL, 0) <> 0 THEN ISNULL(D.BO_RG, 0) * ISNULL(B.PROD, 0) / DT.PROD_TOTAL
+                    WHEN ISNULL(DT.TAX_COUNT, 0) <> 0 THEN ISNULL(D.BO_RG, 0) / DT.TAX_COUNT
+                    ELSE ISNULL(D.BO_RG, 0)
+                END
+            ELSE ISNULL(U.RG,0)
+        END AS RG,
+        CASE
+            WHEN ISNULL(UD.URET_COUNT, 0) = 0 THEN
+                CASE
+                    WHEN ISNULL(DT.PROD_TOTAL, 0) <> 0 THEN ISNULL(D.BO_RFT, 0) * ISNULL(B.PROD, 0) / DT.PROD_TOTAL
+                    WHEN ISNULL(DT.TAX_COUNT, 0) <> 0 THEN ISNULL(D.BO_RFT, 0) / DT.TAX_COUNT
+                    ELSE ISNULL(D.BO_RFT, 0)
+                END
+            ELSE ISNULL(U.RFT,0)
+        END AS RFT,
         ISNULL(U.AUTRET,0) AS AUTRET
     FROM taxas T
     JOIN doc D ON D.BOSTAMP = T.BOSTAMP
     LEFT JOIN bi_agg B ON B.BOSTAMP = T.BOSTAMP AND B.TVAP = T.TVAP
+    LEFT JOIN bi_totals DT ON DT.BOSTAMP = T.BOSTAMP
     LEFT JOIN uret U ON U.BOSTAMP = T.BOSTAMP AND U.TVAP = T.TVAP
+    LEFT JOIN uret_doc UD ON UD.BOSTAMP = T.BOSTAMP
 ),
 final AS (
     SELECT
@@ -333,7 +403,7 @@ SELECT
     F.PROCESSO AS processo,
     'BO' AS origem,
     F.BOSTAMP AS oristamp,
-    CAST('Auto de medição nº ' + ISNULL(F.STNUM, '') + ' de ' + REPLACE(CONVERT(char(10), F.DATAOBRA, 23), '-', '.') AS varchar(240)) AS descr,
+    CAST(LTRIM(RTRIM(ISNULL(F.NMDOS, ''))) + ' nº ' + CAST(CAST(ISNULL(F.OBRANO, 0) AS numeric(18,0)) AS varchar(30)) + ' de ' + CONVERT(varchar(10), F.DATAOBRA, 120) AS varchar(240)) AS descr,
     F.ORDEM AS ordem,
     CAST((F.PROD - F.AJUST) * F.SGN AS decimal(19,2)) AS nonajustments,
     CAST(F.AJUST * F.SGN AS decimal(19,2)) AS ajustments,
@@ -425,7 +495,7 @@ fi_agg AS (
 uret AS (
     SELECT
         U.ORISTAMP AS FTSTAMP,
-        CAST(ISNULL(U.IVA, 0) AS decimal(9,3)) AS TVAP,
+        __URET_IVA_EXPR__ AS TVAP,
         SUM(CASE WHEN U.REF='RG' THEN ISNULL(U.VALOR,0) ELSE 0 END) AS RG,
         SUM(CASE WHEN U.REF='RFT' THEN ISNULL(U.VALOR,0) ELSE 0 END) AS RFT,
         SUM(CASE WHEN U.REF='PRORATA' THEN ISNULL(U.VALOR,0) ELSE 0 END) AS PRORATA_RET,
@@ -433,7 +503,7 @@ uret AS (
     FROM U_RET U
     JOIN docs D ON D.FTSTAMP = U.ORISTAMP
     WHERE U.ORIGEM='FT'
-    GROUP BY U.ORISTAMP, CAST(ISNULL(U.IVA, 0) AS decimal(9,3))
+    GROUP BY U.ORISTAMP, __URET_IVA_EXPR__
 ),
 taxas AS (
     SELECT FTSTAMP, TVAP FROM fi_agg
@@ -510,9 +580,10 @@ def get_opc_phc_info(record_stamp: str) -> dict:
 
     with pyodbc.connect(conn_str, timeout=15) as conn:
         cursor = conn.cursor()
+        has_uret_iva = _has_column(cursor, "U_RET", "IVA")
         orcamentos = _fetch_all(cursor, ORCAMENTOS_SQL, (phc_processo,))
-        autos = _fetch_all(cursor, AUTOS_SQL, (phc_processo,))
-        autos.extend(_fetch_all(cursor, FT_STANDALONE_SQL, (phc_processo,)))
+        autos = _fetch_all(cursor, _with_uret_iva(AUTOS_SQL, has_uret_iva), (phc_processo,))
+        autos.extend(_fetch_all(cursor, _with_uret_iva(FT_STANDALONE_SQL, has_uret_iva), (phc_processo,)))
         autos.sort(key=lambda item: (item.get("ordem") or 0, item.get("descricao") or "", item.get("iva_percentagem") or 0))
 
     return {

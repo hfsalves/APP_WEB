@@ -29,7 +29,7 @@ ROLE_MINIMUM: dict[Role, Decimal] = {
 ROLE_INTEMPERIE: dict[Role, Decimal] = {
     ROLE_CHEF: Decimal("76.50"),
     ROLE_POLISSEUR: Decimal("69.66"),
-    ROLE_AIDE: Decimal("64.00"),
+    ROLE_AIDE: Decimal("63.10"),
     ROLE_SCIEUR: Decimal("69.66"),
 }
 
@@ -246,11 +246,33 @@ def _compute_finitions_value(tasks: Sequence[Task], role: Role) -> Decimal:
     return candidate
 
 
+def _is_desactive_task(task: Task) -> bool:
+    finish_norm = _normalize_label(task.finish_type)
+    return any(token in finish_norm for token in FINITIONS_DESACTIVE)
+
+
+def _is_joint_filling_task(task: Task) -> bool:
+    finish_norm = _normalize_label(task.finish_type)
+    compact = finish_norm.replace(" ", "")
+    return "remplissage" in compact and "joint" in compact
+
+
+def _compute_scie_sqm(tasks: Sequence[Task]) -> Decimal:
+    total = Decimal("0")
+    for task in tasks:
+        if _is_desactive_task(task):
+            continue
+        total += task.sqm_scie
+        if _is_joint_filling_task(task) and task.sqm_scie <= Decimal("0"):
+            total += task.sqm
+    return total
+
+
 def _compute_day_value(tasks: Sequence[Task], role: Role) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal, bool]:
     """Return (base_value, finitions_value, scie_value, steel_value, prime_multiple, forfait_used)."""
     forfait = ROLE_FORFAIT.get(role, Decimal("0"))
     finitions_value = _compute_finitions_value(tasks, role)
-    scie_value = sum((task.sqm_scie for task in tasks), start=Decimal("0")) * SCIE_RATE
+    scie_value = _compute_scie_sqm(tasks) * SCIE_RATE
     steel_total = sum((task.kg_steel for task in tasks), start=Decimal("0"))
     coulage_chantiers = {
         _normalize_label(task.chantier)
@@ -276,8 +298,11 @@ def _compute_day_value(tasks: Sequence[Task], role: Role) -> tuple[Decimal, Deci
     forfait_used = False
     base_value = finitions_value
     steel_only_day = steel_value > Decimal("0") and not has_coulage and finitions_value <= Decimal("0") and scie_value <= Decimal("0")
+    steel_covers_forfait = steel_value >= forfait and finitions_value <= Decimal("0") and scie_value <= Decimal("0")
 
     if steel_only_day:
+        base_value = Decimal("0")
+    elif steel_covers_forfait:
         base_value = Decimal("0")
     elif pure_scie_day:
         # Pure scie days for scieurs are paid either on sqm or at the forfait minimum.
@@ -488,11 +513,19 @@ def compute_monthly_sheet(
         if role in ROLE_MINIMUM and business_days:
             min_value = ROLE_MINIMUM[role] / Decimal(business_days) * Decimal(worked_days)
 
-        monthly_without_intemp = finitions_pay + scie_pay + kg_pay + prime_multiple_total + prime_effort_validated_total
+        monthly_without_intemp = (
+            finitions_pay
+            + scie_pay
+            + kg_pay
+            + prime_multiple_total
+            + prime_effort_validated_total
+            + prime_chef
+            + prime_depot
+        )
         complement_minimum = Decimal("0")
         if monthly_without_intemp < min_value:
             complement_minimum = min_value - monthly_without_intemp
-        total_pay = monthly_without_intemp + complement_minimum + prime_chef + prime_depot + intemperies_total
+        total_pay = monthly_without_intemp + complement_minimum + intemperies_total
 
         summary.append(
             EmployeeMonthlyResult(

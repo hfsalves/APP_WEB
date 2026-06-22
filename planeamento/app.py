@@ -13,6 +13,7 @@ from database import database
 from intersol_monthly import (
     ROLE_AIDE,
     ROLE_CHEF,
+    ROLE_MINIMUM,
     ROLE_POLISSEUR,
     ROLE_SCIEUR,
     Task as IntersolTask,
@@ -745,21 +746,13 @@ def _format_employee_label(employee_number: object, employee_name: object) -> st
 
 
 def _build_employee_name_lookup(rows: Iterable[dict[str, object]]) -> dict[str, str]:
-    names_by_number: dict[str, list[str]] = {}
+    lookup: dict[str, str] = {}
     for row in rows:
         employee_number = _normalize_code(row.get("no"))
         employee_name = _coerce_text(row.get("cval4") or row.get("nome"))
         if not employee_number or not employee_name:
             continue
-        bucket = names_by_number.setdefault(employee_number, [])
-        if employee_name not in bucket:
-            bucket.append(employee_name)
-    lookup: dict[str, str] = {}
-    for employee_number, names in names_by_number.items():
-        if len(names) == 1:
-            lookup[employee_number] = names[0]
-        else:
-            lookup[employee_number] = " / ".join(names)
+        lookup[employee_number] = employee_name
     return lookup
 
 
@@ -977,8 +970,80 @@ def _month_end(month_start: date) -> date:
     return date(month_start.year, month_start.month + 1, 1) - timedelta(days=1)
 
 
+def _easter_sunday(year: int) -> date:
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = ((h + l - 7 * m + 114) % 31) + 1
+    return date(year, month, day)
+
+
+def _french_public_holidays(year: int) -> set[date]:
+    easter = _easter_sunday(year)
+    return {
+        date(year, 1, 1),
+        easter + timedelta(days=1),
+        date(year, 5, 1),
+        date(year, 5, 8),
+        easter + timedelta(days=39),
+        easter + timedelta(days=50),
+        date(year, 7, 14),
+        date(year, 8, 15),
+        date(year, 11, 1),
+        date(year, 11, 11),
+        date(year, 12, 25),
+    }
+
+
+def _count_intersol_business_days(month_start: date) -> int:
+    month_end = _month_end(month_start)
+    holidays = _french_public_holidays(month_start.year)
+    current = month_start
+    days = 0
+    while current <= month_end:
+        if current.weekday() < 5 and current not in holidays:
+            days += 1
+        current += timedelta(days=1)
+    return days
+
+
 def _is_business_day(target_date: object) -> bool:
     return isinstance(target_date, date) and target_date.weekday() < 5
+
+
+def _is_intersol_salary_day(row: dict[str, object], selected_month_start: date) -> bool:
+    row_date = _coerce_date((row or {}).get("date"))
+    if not row_date or row_date < selected_month_start or row_date > _month_end(selected_month_start):
+        return False
+    if not _is_business_day(row_date):
+        return False
+    if row_date in _french_public_holidays(row_date.year):
+        return False
+    if (row or {}).get("is_regularization") or (row or {}).get("is_not_worked"):
+        return False
+    if _coerce_text((row or {}).get("finish_type")).upper() == "INTEMPERIE":
+        return False
+    return True
+
+
+def _count_intersol_salary_days(detail_rows: Iterable[dict[str, object]], selected_month_start: date) -> int:
+    return len(
+        {
+            _coerce_date((row or {}).get("date"))
+            for row in detail_rows
+            if _is_intersol_salary_day(row or {}, selected_month_start)
+        }
+    )
 
 
 def _is_intersol_pending_period(entry_date: object, selected_month_start: date) -> bool:
@@ -1352,6 +1417,9 @@ def _serialize_intersol_summary_row(
     total_value = getattr(row, "total", 0)
     paid_total = 0.0
     panier_repas = getattr(row, "panier_repas", 0)
+    worked_days = getattr(row, "worked_days", 0)
+    business_days = getattr(row, "business_days", 0)
+    complement_minimum = getattr(row, "complement_minimum", 0)
     if selected_month_start is not None:
         absence_intervals = _get_employee_absence_intervals(
             absence_lookup,
@@ -1364,15 +1432,31 @@ def _serialize_intersol_summary_row(
             absence_intervals=absence_intervals,
             role=getattr(row, "role", None),
         )
-        total_value = float(display_total_sum)
+        worked_days = _count_intersol_salary_days(detail_rows, selected_month_start)
+        business_days = _count_intersol_business_days(selected_month_start)
+        role_minimum = ROLE_MINIMUM.get(getattr(row, "role", None), Decimal("0"))
+        minimum_value = Decimal("0")
+        if business_days and role_minimum > 0:
+            minimum_value = role_minimum / Decimal(business_days) * Decimal(worked_days)
+        monthly_fixed = (
+            (_coerce_decimal(getattr(row, "prime_chef", 0)) or Decimal("0"))
+            + (_coerce_decimal(getattr(row, "prime_depot", 0)) or Decimal("0"))
+        )
+        salary_before_complement = display_total_sum + monthly_fixed
+        complement_minimum_dec = Decimal("0")
+        if salary_before_complement < minimum_value:
+            complement_minimum_dec = minimum_value - salary_before_complement
+        complement_minimum_dec = _quantize_money(complement_minimum_dec)
+        total_value = float(_quantize_money(salary_before_complement + complement_minimum_dec))
+        complement_minimum = float(complement_minimum_dec)
         paid_total = float(paid_total_dec)
         panier_repas = _compute_intersol_panier_repas(detail_rows, selected_month_start)
     return {
         "employee_number": getattr(row, "employee_number", ""),
         "employee_name": getattr(row, "employee_name", ""),
         "team_code": getattr(row, "team_code", ""),
-        "worked_days": getattr(row, "worked_days", 0),
-        "business_days": getattr(row, "business_days", 0),
+        "worked_days": worked_days,
+        "business_days": business_days,
         "m2_total": getattr(row, "m2_total", 0),
         "finitions_pay": getattr(row, "finitions_pay", 0),
         "scie_total_m2": getattr(row, "scie_total_m2", 0),
@@ -1386,7 +1470,7 @@ def _serialize_intersol_summary_row(
         "prime_effort_validated": getattr(row, "prime_effort_validated", 0),
         "prime_effort_pending": getattr(row, "prime_effort_pending", 0),
         "intemperies_total": getattr(row, "intemperies_total", 0),
-        "complement_minimum": getattr(row, "complement_minimum", 0),
+        "complement_minimum": complement_minimum,
         "panier_repas": panier_repas,
         "grand_deplacement": getattr(row, "grand_deplacement", 0),
         "zone_counts": getattr(row, "zone_counts", {}) or {},
@@ -2969,6 +3053,22 @@ def intersol_monthly_export():
             employee_regularizations,
             selected_month_start,
         )
+        employee_detail_for_minimum = [*serialized_rows, *serialized_regularizations]
+        salary_worked_days = _count_intersol_salary_days(employee_detail_for_minimum, selected_month_start)
+        salary_business_days = _count_intersol_business_days(selected_month_start)
+        role_minimum = ROLE_MINIMUM.get(employee.role, Decimal("0"))
+        minimum_value = Decimal("0")
+        if salary_business_days and role_minimum > 0:
+            minimum_value = role_minimum / Decimal(salary_business_days) * Decimal(salary_worked_days)
+        monthly_fixed = (
+            (_coerce_decimal(employee.prime_chef) or Decimal("0"))
+            + (_coerce_decimal(employee.prime_depot) or Decimal("0"))
+        )
+        salary_before_complement = display_total_sum + regularizations_total + monthly_fixed
+        complement_minimum = Decimal("0")
+        if salary_before_complement < minimum_value:
+            complement_minimum = minimum_value - salary_before_complement
+        complement_minimum = _quantize_money(complement_minimum)
         for item in serialized_rows:
             base_label = f"{float(item['base_value'] or 0):.2f}"
             detail_rows.append(
@@ -3008,6 +3108,12 @@ def intersol_monthly_export():
                     item["display_total"],
                 ]
             )
+        if employee.prime_chef:
+            detail_rows.append(["", "Prime chef", "", "", "", "", "", "", "", "", "", "", "", employee.prime_chef])
+        if employee.prime_depot:
+            detail_rows.append(["", "Prime dépôt", "", "", "", "", "", "", "", "", "", "", "", employee.prime_depot])
+        if complement_minimum:
+            detail_rows.append(["", "Compl. mínimo", "", "", "", "", "", "", "", "", "", "", "", float(complement_minimum)])
 
         detail_rows.append(
             [
@@ -3024,7 +3130,7 @@ def intersol_monthly_export():
                 employee.prime_multiple,
                 "",
                 float(paid_total),
-                float(_quantize_money(display_total_sum + regularizations_total)),
+                float(_quantize_money(salary_before_complement + complement_minimum)),
             ]
         )
 
@@ -3247,6 +3353,21 @@ def intersol_monthly_detail():
     if serialized_regularizations:
         detail_rows.extend(serialized_regularizations)
         display_total_sum = _quantize_money(display_total_sum + regularizations_total)
+    worked_days = _count_intersol_salary_days(detail_rows, selected_month_start)
+    business_days = _count_intersol_business_days(selected_month_start)
+    role_minimum = ROLE_MINIMUM.get(target.role, Decimal("0"))
+    minimum_value = Decimal("0")
+    if business_days and role_minimum > 0:
+        minimum_value = role_minimum / Decimal(business_days) * Decimal(worked_days)
+    monthly_fixed = (
+        (_coerce_decimal(target.prime_chef) or Decimal("0"))
+        + (_coerce_decimal(target.prime_depot) or Decimal("0"))
+    )
+    salary_before_complement = display_total_sum + monthly_fixed
+    complement_minimum = Decimal("0")
+    if salary_before_complement < minimum_value:
+        complement_minimum = minimum_value - salary_before_complement
+    complement_minimum = _quantize_money(complement_minimum)
 
     totals = {
         "m2": target.m2_total,
@@ -3262,16 +3383,16 @@ def intersol_monthly_detail():
         "prime_effort_validated": target.prime_effort_validated,
         "prime_effort_pending": target.prime_effort_pending,
         "intemperies_total": target.intemperies_total,
-        "complement_minimum": target.complement_minimum,
-        "worked_days": target.worked_days,
-        "business_days": target.business_days,
+        "complement_minimum": float(complement_minimum),
+        "worked_days": worked_days,
+        "business_days": business_days,
         "panier_repas": _compute_intersol_panier_repas(detail_rows, selected_month_start),
         "gd": target.grand_deplacement,
         "zones": target.zone_counts,
         "regularizations_total": float(regularizations_total),
         "paid_total": float(paid_total),
         "gross_total": target.total,
-        "total": float(display_total_sum),
+        "total": float(_quantize_money(salary_before_complement + complement_minimum)),
         "role": target.role,
     }
     return jsonify({"rows": detail_rows, "totals": totals})
@@ -4065,7 +4186,7 @@ def update_production_record_handler(am_stamp: str):
     if "acabamento" in payload:
         raw_finish = payload.get("acabamento")
         if raw_finish in (None, "", b""):
-            updates["acabamento"] = None
+            field_errors["acabamento"] = "required"
         else:
             finish_value = _normalize_code(raw_finish)
             if finish_value:

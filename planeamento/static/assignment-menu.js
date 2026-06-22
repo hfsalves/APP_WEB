@@ -1850,6 +1850,13 @@
                 return;
             }
             var payload = collectProductionFormPayload();
+            if (!payload.acabamento) {
+                showProductionFormFeedback('Selecione a finition antes de gravar.', true);
+                if (productionFields.acabamento) {
+                    productionFields.acabamento.focus({ preventScroll: true });
+                }
+                return;
+            }
             setProductionSaveState(true);
             showProductionFormFeedback('', false);
             var url = '/api/production-records/' + encodeURIComponent(amStamp);
@@ -3371,6 +3378,5 @@ if (productionLinesAddButton) {
         startChipObserver();
     });
 })();
-
 
 

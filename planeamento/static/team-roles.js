@@ -148,6 +148,7 @@
             placeholderOption.textContent = employeePlaceholder;
             employeeSelect.appendChild(placeholderOption);
 
+            var rowsByNumber = {};
             (rows || []).forEach(function (row) {
                 if (!row || row.no === undefined || row.no === null) {
                     return;
@@ -157,7 +158,15 @@
                 if (!number) {
                     return;
                 }
-                ensureEmployeeOption(number, name);
+                rowsByNumber[number] = { number: number, name: name };
+            });
+            Object.keys(rowsByNumber).sort(function (left, right) {
+                var leftName = rowsByNumber[left].name || '';
+                var rightName = rowsByNumber[right].name || '';
+                return leftName.localeCompare(rightName) || left.localeCompare(right);
+            }).forEach(function (number) {
+                var row = rowsByNumber[number];
+                ensureEmployeeOption(row.number, row.name);
             });
 
             if (currentValue) {
