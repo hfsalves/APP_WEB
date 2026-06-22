@@ -1,6 +1,7 @@
 import json
 import os
 import socket
+import base64
 from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
@@ -184,6 +185,69 @@ def _field_suggestion_schema() -> dict[str, Any]:
     }
 
 
+def _document_classification_schema() -> dict[str, Any]:
+    return {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'document_type': {
+                'type': 'string',
+                'enum': ['invoice', 'credit_note', 'purchase_order', 'delivery_note', 'unknown'],
+            },
+            'confidence': {'type': 'number'},
+            'reason': {'type': 'string'},
+            'document_number': {'type': 'string'},
+            'document_date': {'type': 'string'},
+            'due_date': {'type': 'string'},
+            'currency': {'type': 'string'},
+            'supplier': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'tax_id': {'type': 'string'},
+                    'name': {'type': 'string'},
+                },
+                'required': ['tax_id', 'name'],
+            },
+            'customer': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'tax_id': {'type': 'string'},
+                    'name': {'type': 'string'},
+                },
+                'required': ['tax_id', 'name'],
+            },
+            'totals': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'net_total': {'type': 'number'},
+                    'tax_total': {'type': 'number'},
+                    'gross_total': {'type': 'number'},
+                },
+                'required': ['net_total', 'tax_total', 'gross_total'],
+            },
+            'visible_language': {'type': 'string'},
+            'notes': {'type': 'array', 'items': {'type': 'string'}},
+        },
+        'required': [
+            'document_type',
+            'confidence',
+            'reason',
+            'document_number',
+            'document_date',
+            'due_date',
+            'currency',
+            'supplier',
+            'customer',
+            'totals',
+            'visible_language',
+            'notes',
+        ],
+    }
+
+
 def llm_suggestions_available() -> bool:
     return bool(_document_ai_api_key())
 
@@ -338,4 +402,171 @@ def suggest_template_definition(context: dict[str, Any]) -> dict[str, Any]:
         'message': 'Sugestão automática gerada.',
         'suggestion': suggestion,
         'model': _document_ai_model(),
+    }
+
+
+def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
+    if not llm_suggestions_available():
+        return {
+            'ok': False,
+            'available': False,
+            'message': 'Integração LLM indisponível. Configura DOC_AI_OPENAI_API_KEY na tabela PARA.',
+            'classification': None,
+        }
+
+    source_context = context or {}
+    file_name = str(source_context.get('file_name') or 'documento').strip() or 'documento'
+    mime_type = str(source_context.get('mime_type') or 'application/pdf').strip() or 'application/pdf'
+    file_bytes = source_context.get('file_bytes') or b''
+    image_bytes = source_context.get('image_bytes') or b''
+    image_mime_type = str(source_context.get('image_mime_type') or 'image/png').strip() or 'image/png'
+    extracted_text = str(source_context.get('extracted_text') or '')
+
+    if not file_bytes and not image_bytes:
+        return {
+            'ok': False,
+            'available': True,
+            'message': 'Não há ficheiro ou imagem disponível para enviar ao LLM.',
+            'classification': None,
+        }
+
+    base_prompt = {
+        'task': 'document_visual_classification',
+        'goal': 'Classify the visible business document and extract only clearly visible header values.',
+        'allowed_document_types': {
+            'invoice': 'Invoice / Fatura / Facture',
+            'credit_note': 'Credit note / Nota de crédito / Avoir',
+            'purchase_order': 'Purchase order / Nota de encomenda / Bon de commande',
+            'delivery_note': 'Delivery note / Guia / Bon de livraison / Bon d’enlèvement',
+            'unknown': 'Use this when the document is not one of the above.',
+        },
+        'rules': [
+            'Return JSON only.',
+            'Do not infer values that are not visible.',
+            'Prefer visual evidence from the PDF/image over OCR text when they conflict.',
+            'Dates must be ISO yyyy-mm-dd when visible; otherwise empty string.',
+            'Amounts must be numeric values without currency symbols.',
+            'Use unknown when the visible document type is uncertain.',
+        ],
+        'file_name': file_name,
+        'ocr_text_sample': extracted_text[:_document_ai_text_sample_limit()],
+    }
+
+    def call_openai(content: list[dict[str, Any]], mode: str) -> dict[str, Any]:
+        body = {
+            'model': _document_ai_model(),
+            'input': [
+                {
+                    'role': 'system',
+                    'content': [
+                        {
+                            'type': 'input_text',
+                            'text': (
+                                'You classify purchase-side business documents from visual evidence. '
+                                'Return valid JSON only, following the required schema.'
+                            ),
+                        }
+                    ],
+                },
+                {
+                    'role': 'user',
+                    'content': content,
+                },
+            ],
+            'text': {
+                'format': {
+                    'type': 'json_schema',
+                    'name': 'document_ai_visual_classification',
+                    'schema': _document_classification_schema(),
+                }
+            },
+            'max_output_tokens': min(_document_ai_max_output_tokens(), 3000),
+        }
+        body_bytes = json.dumps(body).encode('utf-8')
+        current_app.logger.info(
+            'Document AI OpenAI visual classification: model=%s mode=%s timeout=%ss input_bytes=%s',
+            _document_ai_model(),
+            mode,
+            _document_ai_timeout(),
+            len(body_bytes),
+        )
+        req = urllib_request.Request(
+            'https://api.openai.com/v1/responses',
+            data=body_bytes,
+            headers={
+                'Authorization': f'Bearer {_document_ai_api_key()}',
+                'Content-Type': 'application/json',
+            },
+            method='POST',
+        )
+        with urllib_request.urlopen(req, timeout=_document_ai_timeout()) as response:
+            return json.loads(response.read().decode('utf-8'))
+
+    attempts: list[tuple[str, list[dict[str, Any]]]] = []
+    if file_bytes and mime_type == 'application/pdf':
+        attempts.append((
+            'pdf',
+            [
+                {'type': 'input_text', 'text': json.dumps(base_prompt, ensure_ascii=False)},
+                {
+                    'type': 'input_file',
+                    'filename': file_name if file_name.lower().endswith('.pdf') else f'{file_name}.pdf',
+                    'file_data': f'data:{mime_type};base64,{base64.b64encode(file_bytes).decode("ascii")}',
+                },
+            ],
+        ))
+    if image_bytes:
+        attempts.append((
+            'image',
+            [
+                {'type': 'input_text', 'text': json.dumps(base_prompt, ensure_ascii=False)},
+                {
+                    'type': 'input_image',
+                    'image_url': f'data:{image_mime_type};base64,{base64.b64encode(image_bytes).decode("ascii")}',
+                },
+            ],
+        ))
+
+    last_message = ''
+    for mode, content in attempts:
+        try:
+            payload_response = call_openai(content, mode)
+        except urllib_error.HTTPError as exc:
+            try:
+                details = exc.read().decode('utf-8')
+            except Exception:
+                details = str(exc)
+            last_message = details[:500]
+            current_app.logger.info('Document AI visual classification failed with %s: %s', mode, last_message)
+            continue
+        except (TimeoutError, socket.timeout):
+            last_message = f'A OpenAI demorou mais do que {_document_ai_timeout()}s a responder.'
+            continue
+        except Exception as exc:
+            last_message = str(exc)
+            continue
+
+        raw_text = _strip_json_fence(_extract_openai_text(payload_response))
+        if not raw_text:
+            last_message = 'A OpenAI não devolveu conteúdo utilizável.'
+            continue
+        try:
+            classification = json.loads(raw_text)
+        except Exception:
+            last_message = 'A resposta da OpenAI não veio em JSON válido.'
+            continue
+        return {
+            'ok': True,
+            'available': True,
+            'message': f'Classificação LLM gerada por {mode}.',
+            'classification': classification,
+            'mode': mode,
+            'model': _document_ai_model(),
+        }
+
+    return {
+        'ok': False,
+        'available': True,
+        'message': f'Falha na classificação visual: {last_message or "sem resposta utilizável"}',
+        'classification': None,
     }

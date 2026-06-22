@@ -5,6 +5,7 @@ from flask_login import current_user, login_required
 
 from models import Acessos, db
 from services.document_ai_service import (
+    classify_document_with_llm,
     delete_document_from_inbox,
     delete_document_source,
     document_ai_lookups,
@@ -296,6 +297,22 @@ def api_document_ai_document_reprocess(docinstamp: str):
         return jsonify(payload)
     except Exception as exc:
         current_app.logger.exception('Erro ao reprocessar documento')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'error': str(exc)}), 500
+
+
+@bp.route('/api/document_ai/documents/<docinstamp>/classify_llm', methods=['POST'])
+@login_required
+def api_document_ai_document_classify_llm(docinstamp: str):
+    if not _document_ai_has_access('consultar'):
+        return jsonify({'error': 'Sem permissão.'}), 403
+    try:
+        return jsonify(classify_document_with_llm(docinstamp, _current_login()))
+    except Exception as exc:
+        current_app.logger.exception('Erro ao classificar documento com LLM')
         try:
             db.session.rollback()
         except Exception:

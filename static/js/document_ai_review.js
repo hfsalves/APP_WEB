@@ -74,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     templateKeywords: document.getElementById('docAiTemplateKeywords'),
     templateKeywordsBtn: document.getElementById('docAiTemplateKeywordsBtn'),
     suggestBtn: document.getElementById('docAiSuggestBtn'),
+    classifyLlmBtn: document.getElementById('docAiClassifyLlmBtn'),
     reviewStatus: document.getElementById('docAiReviewStatus'),
     reprocessBtn: document.getElementById('docAiReprocessBtn'),
     reprocessOcrBtn: document.getElementById('docAiReprocessOcrBtn'),
@@ -1893,6 +1894,60 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function applyLlmClassification(classification) {
+    if (!classification || typeof classification !== 'object') return;
+    if (classification.document_type) {
+      els.docType.value = classification.document_type || 'unknown';
+      if (state.document) state.document.doc_type = classification.document_type || 'unknown';
+    }
+    setInputValue(els.documentNumber, classification.document_number || els.documentNumber?.value || '');
+    setInputValue(els.documentDate, classification.document_date || els.documentDate?.value || '');
+    setInputValue(els.dueDate, classification.due_date || els.dueDate?.value || '');
+    setInputValue(els.currency, classification.currency || els.currency?.value || '');
+    if (classification.supplier && typeof classification.supplier === 'object') {
+      setInputValue(els.supplierTaxId, classification.supplier.tax_id || els.supplierTaxId?.value || '');
+      setInputValue(els.supplierName, classification.supplier.name || els.supplierName?.value || '');
+    }
+    if (classification.customer && typeof classification.customer === 'object') {
+      setInputValue(els.customerTaxId, classification.customer.tax_id || els.customerTaxId?.value || '');
+      setInputValue(els.customerName, classification.customer.name || els.customerName?.value || '');
+    }
+    if (classification.totals && typeof classification.totals === 'object') {
+      setInputValue(els.netTotal, classification.totals.net_total || els.netTotal?.value || '');
+      setInputValue(els.taxTotal, classification.totals.tax_total || els.taxTotal?.value || '');
+      setInputValue(els.grossTotal, classification.totals.gross_total || els.grossTotal?.value || '');
+    }
+    if (classification.confidence != null) {
+      setInputValue(els.confidence, Number(classification.confidence || 0).toFixed(2));
+    }
+    refreshTemplateSelectLabels();
+  }
+
+  async function classifyWithLlm() {
+    setStatus('A enviar documento para classificação LLM...');
+    if (els.classifyLlmBtn) els.classifyLlmBtn.disabled = true;
+    try {
+      const payload = await fetchJson(`/api/document_ai/documents/${encodeURIComponent(documentId)}/classify_llm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!payload.ok || !payload.classification) {
+        throw new Error(payload.message || 'A classificação LLM não devolveu conteúdo utilizável.');
+      }
+      applyLlmClassification(payload.classification);
+      const label = docTypeLabel(payload.classification.document_type || 'unknown');
+      showMessage(`${payload.message || 'Classificação LLM aplicada.'} Tipo: ${label}.`, 'success');
+      setStatus(`${payload.message || 'Classificação LLM aplicada.'} Tipo: ${label}.`);
+    } catch (error) {
+      console.error(error);
+      showMessage(error.message || 'Falha na classificação LLM.', 'error');
+      setStatus(error.message || 'Falha na classificação LLM.', true);
+    } finally {
+      if (els.classifyLlmBtn) els.classifyLlmBtn.disabled = !(state.document?.llm && state.document.llm.available);
+    }
+  }
+
   async function suggestFromReview() {
     setStatus('A gerar sugestão automática...');
     try {
@@ -1949,6 +2004,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderOcrList(detail.text_blocks || []);
       applyDocumentToForm(detail);
       els.suggestBtn.disabled = !(detail.llm && detail.llm.available);
+      if (els.classifyLlmBtn) els.classifyLlmBtn.disabled = !(detail.llm && detail.llm.available);
       setStatus('Documento carregado.');
     } catch (error) {
       console.error(error);
@@ -2451,6 +2507,7 @@ document.addEventListener('DOMContentLoaded', () => {
     previewBody.releasePointerCapture?.(event.pointerId);
   });
   els.suggestBtn?.addEventListener('click', suggestFromReview);
+  els.classifyLlmBtn?.addEventListener('click', classifyWithLlm);
   els.backBtn?.addEventListener('click', () => { window.location.href = '/document_ai/inbox'; });
   els.closeLinesModal?.addEventListener('click', closeLinesModal);
   els.closeLinesModalBottom?.addEventListener('click', closeLinesModal);

@@ -20,7 +20,7 @@ from flask import current_app
 from sqlalchemy import text
 
 from models import db, DocInbox, DocParser, DocProcessLog, DocSource, DocTemplate, DocTemplateField
-from services.document_ai_llm_service import llm_suggestions_available, suggest_template_definition
+from services.document_ai_llm_service import classify_document_visual, llm_suggestions_available, suggest_template_definition
 from services.document_ai_ocr_service import ocr_engine_available
 from services.document_ai_processing_orchestrator import extract_document_with_cascade
 from services.multiempresa_service import MissingCurrentEntityError, get_current_feid
@@ -545,6 +545,8 @@ def _document_preview_payload(document: DocInbox, blocks: list[dict[str, Any]]) 
     absolute_path = _document_absolute_path(document)
     current_blocks = list(blocks or [])
     preview_pages = _build_preview_pages(current_blocks)
+    if not os.path.isfile(absolute_path):
+        return current_blocks, preview_pages
     if _is_pdf(document.file_ext, document.mime_type):
         if not current_blocks or not any(block.get('page_width') and block.get('height') and block.get('width') for block in current_blocks):
             fitz_payload = _extract_pdf_blocks_with_fitz(absolute_path)
@@ -2763,6 +2765,74 @@ def get_document_original_file(document_stamp: str) -> dict[str, Any]:
         'mime_type': document.mime_type or mimetypes.guess_type(absolute_path)[0] or 'application/octet-stream',
         'file_name': document.file_name or os.path.basename(absolute_path),
     }
+
+
+def _document_first_page_image_bytes(absolute_path: str, file_ext: str, mime_type: str) -> tuple[bytes, str]:
+    if _is_image(file_ext, mime_type):
+        with open(absolute_path, 'rb') as handle:
+            return handle.read(), mime_type or mimetypes.guess_type(absolute_path)[0] or 'image/png'
+    if not _is_pdf(file_ext, mime_type):
+        return b'', ''
+    if not importlib.util.find_spec('fitz'):
+        return b'', ''
+    try:
+        import fitz  # type: ignore
+        with fitz.open(absolute_path) as pdf:
+            if len(pdf) < 1:
+                return b'', ''
+            pix = pdf[0].get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+            return pix.tobytes('png'), 'image/png'
+    except Exception:
+        current_app.logger.info('Document AI: nao foi possivel renderizar primeira pagina para LLM.', exc_info=True)
+        return b'', ''
+
+
+def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> dict[str, Any]:
+    _ensure_document_ai_schema()
+    document = db.session.get(DocInbox, str(document_stamp or '').strip())
+    if not document:
+        raise ValueError('Documento não encontrado.')
+
+    absolute_path = _document_absolute_path(document)
+    if not os.path.isfile(absolute_path):
+        raise FileNotFoundError('Ficheiro original não encontrado.')
+
+    file_bytes = b''
+    if _is_pdf(document.file_ext, document.mime_type):
+        try:
+            if os.path.getsize(absolute_path) <= 20 * 1024 * 1024:
+                with open(absolute_path, 'rb') as handle:
+                    file_bytes = handle.read()
+        except Exception:
+            file_bytes = b''
+    image_bytes, image_mime_type = _document_first_page_image_bytes(absolute_path, document.file_ext, document.mime_type)
+    payload = classify_document_visual({
+        'file_name': document.file_name or os.path.basename(absolute_path),
+        'mime_type': document.mime_type or mimetypes.guess_type(absolute_path)[0] or 'application/octet-stream',
+        'file_bytes': file_bytes,
+        'image_bytes': image_bytes,
+        'image_mime_type': image_mime_type,
+        'extracted_text': document.extracted_text or '',
+    })
+    if payload.get('ok') and isinstance(payload.get('classification'), dict):
+        classification = payload.get('classification') or {}
+        doc_type = str(classification.get('document_type') or '').strip() or 'unknown'
+        if doc_type:
+            document.doc_type_detected = doc_type
+            document.dtalt = _now()
+            document.useralteracao = requested_by or document.useralteracao or document.usercriacao
+            meta = _json_loads(document.processing_meta_json, {})
+            meta['llm_visual_classification'] = {
+                'doc_type': doc_type,
+                'confidence': classification.get('confidence'),
+                'mode': payload.get('mode') or '',
+                'model': payload.get('model') or '',
+                'reason': classification.get('reason') or '',
+            }
+            document.processing_meta_json = _json_dumps(meta)
+            _document_log(document.docinstamp, 'llm_classify', 'ok', 'Documento classificado por LLM visual.', meta['llm_visual_classification'])
+            db.session.commit()
+    return payload
 
 
 def _safe_document_file_path(path_value: str | None) -> str:
