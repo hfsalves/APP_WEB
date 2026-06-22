@@ -63,12 +63,10 @@ def _document_ai_api_key() -> str:
 def _document_ai_model() -> str:
     return (
         _para_value('DOC_AI_OPENAI_MODEL')
-        or _para_value('SHOP_TRANSLATE_MODEL')
-        or _para_value('OPENAI_MODEL')
         or os.getenv('DOC_AI_OPENAI_MODEL')
-        or os.getenv('SHOP_TRANSLATE_MODEL')
+        or _para_value('OPENAI_MODEL')
         or os.getenv('OPENAI_MODEL')
-        or 'gpt-4o-mini'
+        or 'gpt-4o'
     ).strip()
 
 
@@ -264,6 +262,43 @@ def _document_classification_schema() -> dict[str, Any]:
     }
 
 
+def _filtered_ocr_context_for_visual_classification(text_value: str) -> dict[str, Any]:
+    ignored_prefixes = (
+        'centrale',
+        'chantier',
+        'client',
+        'receptionnaire',
+        'réceptionnaire',
+        'chauffeur',
+        'adresse livraison',
+        'adresse client',
+        'code de chantier',
+        'mode de dechargement',
+        'mode de déchargement',
+        'quantite commandee',
+        'quantité commandée',
+        'quantite livree',
+        'quantité livrée',
+        'vehicule',
+        'véhicule',
+    )
+    kept_lines = []
+    ignored_lines = []
+    for raw_line in str(text_value or '').splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        normalized = line.lower().strip()
+        if any(normalized.startswith(prefix) for prefix in ignored_prefixes):
+            ignored_lines.append(line)
+            continue
+        kept_lines.append(line)
+    return {
+        'text': '\n'.join(kept_lines),
+        'ignored_operational_lines': ignored_lines[:40],
+    }
+
+
 def llm_suggestions_available() -> bool:
     return bool(_document_ai_api_key())
 
@@ -437,6 +472,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
     image_bytes = source_context.get('image_bytes') or b''
     image_mime_type = str(source_context.get('image_mime_type') or 'image/png').strip() or 'image/png'
     extracted_text = str(source_context.get('extracted_text') or '')
+    filtered_ocr = _filtered_ocr_context_for_visual_classification(extracted_text)
 
     if not file_bytes and not image_bytes:
         return {
@@ -460,6 +496,8 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Return JSON only.',
             'Do not infer values that are not visible.',
             'Prefer visual evidence from the PDF/image over OCR text when they conflict.',
+            'OCR text is secondary and may include operational fields. Do not let OCR-only operational labels override the visible legal supplier.',
+            'Use OCR mostly for document number, dates and amounts. For supplier identity, trust logo/header/footer/legal/tax blocks and known_supplier_candidates.',
             'Dates must be ISO yyyy-mm-dd when visible; otherwise empty string.',
             'Amounts must be numeric values without currency symbols.',
             'Extract supplier name and tax/VAT id from the issuer/seller section.',
@@ -479,7 +517,8 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
         ],
         'file_name': file_name,
         'known_supplier_candidates': source_context.get('supplier_candidates') or [],
-        'ocr_text_sample': extracted_text[:_document_ai_text_sample_limit()],
+        'ocr_text_sample_without_operational_lines': filtered_ocr.get('text', '')[:_document_ai_text_sample_limit()],
+        'ocr_operational_lines_to_ignore_for_supplier': filtered_ocr.get('ignored_operational_lines') or [],
     }
 
     def call_openai(content: list[dict[str, Any]], mode: str) -> dict[str, Any]:
