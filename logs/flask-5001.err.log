@@ -92,3 +92,7 @@ Traceback (most recent call last):
 FileNotFoundError: Ficheiro original não encontrado.
 127.0.0.1 - - [22/Jun/2026 16:19:28] "GET /api/document_ai/documents/2D9577540EED4BA99BD51E1ED/preview?page=1&_=2026-06-22T14:33:19.740000 HTTP/1.1" 500 -
 127.0.0.1 - - [22/Jun/2026 16:19:29] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-06-22 16:25:22,153] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit

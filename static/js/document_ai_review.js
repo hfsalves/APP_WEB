@@ -1896,31 +1896,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function applyLlmClassification(classification) {
     if (!classification || typeof classification !== 'object') return;
+    const visibleValue = (value, fallback = '') => {
+      if (value === null || value === undefined || value === '') return fallback;
+      return value;
+    };
     if (classification.document_type) {
       els.docType.value = classification.document_type || 'unknown';
       if (state.document) state.document.doc_type = classification.document_type || 'unknown';
     }
-    setInputValue(els.documentNumber, classification.document_number || els.documentNumber?.value || '');
-    setInputValue(els.documentDate, classification.document_date || els.documentDate?.value || '');
-    setInputValue(els.dueDate, classification.due_date || els.dueDate?.value || '');
-    setInputValue(els.currency, classification.currency || els.currency?.value || '');
+    setInputValue(els.documentNumber, visibleValue(classification.document_number, els.documentNumber?.value || ''));
+    setInputValue(els.documentDate, visibleValue(classification.document_date, els.documentDate?.value || ''));
+    setInputValue(els.dueDate, visibleValue(classification.due_date, els.dueDate?.value || ''));
+    setInputValue(els.currency, visibleValue(classification.currency, els.currency?.value || ''));
     if (classification.supplier && typeof classification.supplier === 'object') {
-      setInputValue(els.supplierTaxId, classification.supplier.tax_id || els.supplierTaxId?.value || '');
-      setInputValue(els.supplierName, classification.supplier.name || els.supplierName?.value || '');
+      setInputValue(els.supplierNo, visibleValue(classification.supplier.supplier_no, els.supplierNo?.value || ''));
+      setInputValue(els.supplierTaxId, visibleValue(classification.supplier.tax_id, els.supplierTaxId?.value || ''));
+      setInputValue(els.supplierName, visibleValue(classification.supplier.name, els.supplierName?.value || ''));
     }
     if (classification.customer && typeof classification.customer === 'object') {
-      setInputValue(els.customerTaxId, classification.customer.tax_id || els.customerTaxId?.value || '');
-      setInputValue(els.customerName, classification.customer.name || els.customerName?.value || '');
+      setInputValue(els.customerFeid, visibleValue(classification.customer.feid, els.customerFeid?.value || ''));
+      setInputValue(els.customerTaxId, visibleValue(classification.customer.tax_id, els.customerTaxId?.value || ''));
+      setInputValue(els.customerName, visibleValue(classification.customer.name, els.customerName?.value || ''));
     }
     if (classification.totals && typeof classification.totals === 'object') {
-      setInputValue(els.netTotal, classification.totals.net_total || els.netTotal?.value || '');
-      setInputValue(els.taxTotal, classification.totals.tax_total || els.taxTotal?.value || '');
-      setInputValue(els.grossTotal, classification.totals.gross_total || els.grossTotal?.value || '');
+      setInputValue(els.netTotal, visibleValue(classification.totals.net_total, els.netTotal?.value || ''));
+      setInputValue(els.taxTotal, visibleValue(classification.totals.tax_total, els.taxTotal?.value || ''));
+      setInputValue(els.grossTotal, visibleValue(classification.totals.gross_total, els.grossTotal?.value || ''));
+    }
+    Object.values(taxFieldMap).forEach((bucket) => {
+      setInputValue(bucket.base, '');
+      setInputValue(bucket.tax, '');
+    });
+    (classification.taxes || []).forEach((item) => {
+      const bucket = taxBucketFromRate(item.tax_rate);
+      if (!bucket) return;
+      setInputValue(bucket.base, visibleValue(item.taxable_base, ''));
+      setInputValue(bucket.tax, visibleValue(item.tax_amount, ''));
+    });
+    if (state.document) {
+      state.document.result = {
+        ...(state.document.result || {}),
+        document_type: classification.document_type || state.document.result?.document_type || 'unknown',
+        supplier: {
+          ...(state.document.result?.supplier || {}),
+          supplier_no: classification.supplier?.supplier_no || state.document.result?.supplier?.supplier_no || null,
+          tax_id: classification.supplier?.tax_id || state.document.result?.supplier?.tax_id || '',
+          name: classification.supplier?.name || state.document.result?.supplier?.name || '',
+        },
+        customer: {
+          ...(state.document.result?.customer || {}),
+          feid: classification.customer?.feid || state.document.result?.customer?.feid || null,
+          tax_id: classification.customer?.tax_id || state.document.result?.customer?.tax_id || '',
+          name: classification.customer?.name || state.document.result?.customer?.name || '',
+        },
+        document_number: classification.document_number || state.document.result?.document_number || '',
+        document_date: classification.document_date || state.document.result?.document_date || '',
+        due_date: classification.due_date || state.document.result?.due_date || '',
+        currency: classification.currency || state.document.result?.currency || '',
+        totals: classification.totals || state.document.result?.totals || {},
+        taxes: Array.isArray(classification.taxes) ? classification.taxes : (state.document.result?.taxes || []),
+      };
     }
     if (classification.confidence != null) {
       setInputValue(els.confidence, Number(classification.confidence || 0).toFixed(2));
     }
     refreshTemplateSelectLabels();
+  }
+
+  function llmClassificationSummary(classification) {
+    const parts = [];
+    const totals = classification?.totals || {};
+    if (classification?.supplier?.name) parts.push(`Fornecedor: ${classification.supplier.name}`);
+    if (classification?.customer?.name) parts.push(`Cliente: ${classification.customer.name}`);
+    if (classification?.document_date) parts.push(`Data: ${classification.document_date}`);
+    if (totals.net_total != null) parts.push(`S/IVA: ${totals.net_total}`);
+    if (totals.tax_total != null) parts.push(`IVA: ${totals.tax_total}`);
+    if (totals.gross_total != null) parts.push(`C/IVA: ${totals.gross_total}`);
+    if (Array.isArray(classification?.taxes) && classification.taxes.length) {
+      parts.push(`Taxas: ${classification.taxes.map((item) => `${item.tax_rate}%`).join(', ')}`);
+    }
+    return parts.join(' · ');
   }
 
   async function classifyWithLlm() {
@@ -1937,8 +1992,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       applyLlmClassification(payload.classification);
       const label = docTypeLabel(payload.classification.document_type || 'unknown');
-      showMessage(`${payload.message || 'Classificação LLM aplicada.'} Tipo: ${label}.`, 'success');
-      setStatus(`${payload.message || 'Classificação LLM aplicada.'} Tipo: ${label}.`);
+      const summary = llmClassificationSummary(payload.classification);
+      const message = `${payload.message || 'Classificação LLM aplicada.'} Tipo: ${label}${summary ? ` · ${summary}` : ''}.`;
+      showMessage(message, 'success');
+      setStatus(message);
     } catch (error) {
       console.error(error);
       showMessage(error.message || 'Falha na classificação LLM.', 'error');

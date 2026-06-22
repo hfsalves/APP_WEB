@@ -228,6 +228,20 @@ def _document_classification_schema() -> dict[str, Any]:
                 },
                 'required': ['net_total', 'tax_total', 'gross_total'],
             },
+            'taxes': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'additionalProperties': False,
+                    'properties': {
+                        'tax_rate': {'type': 'number'},
+                        'taxable_base': {'type': 'number'},
+                        'tax_amount': {'type': 'number'},
+                        'gross_total': {'type': 'number'},
+                    },
+                    'required': ['tax_rate', 'taxable_base', 'tax_amount', 'gross_total'],
+                },
+            },
             'visible_language': {'type': 'string'},
             'notes': {'type': 'array', 'items': {'type': 'string'}},
         },
@@ -242,6 +256,7 @@ def _document_classification_schema() -> dict[str, Any]:
             'supplier',
             'customer',
             'totals',
+            'taxes',
             'visible_language',
             'notes',
         ],
@@ -432,7 +447,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
 
     base_prompt = {
         'task': 'document_visual_classification',
-        'goal': 'Classify the visible business document and extract only clearly visible header values.',
+        'goal': 'Classify the visible business document and extract the accounting header values needed for purchase validation.',
         'allowed_document_types': {
             'invoice': 'Invoice / Fatura / Facture',
             'credit_note': 'Credit note / Nota de crédito / Avoir',
@@ -446,6 +461,11 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
             'Prefer visual evidence from the PDF/image over OCR text when they conflict.',
             'Dates must be ISO yyyy-mm-dd when visible; otherwise empty string.',
             'Amounts must be numeric values without currency symbols.',
+            'Extract supplier name and tax/VAT id from the issuer/seller section.',
+            'Extract customer name and tax/VAT id from the buyer/delivery/customer section.',
+            'Extract document number, document date, due date if visible, currency, net total without VAT, VAT total and gross total with VAT.',
+            'Extract VAT/tax breakdown rows by rate when visible. Use taxes=[] when no VAT breakdown is visible.',
+            'For delivery notes without prices, keep totals as 0 and explain that values are not visible in notes.',
             'Use unknown when the visible document type is uncertain.',
         ],
         'file_name': file_name,
@@ -462,7 +482,7 @@ def classify_document_visual(context: dict[str, Any]) -> dict[str, Any]:
                         {
                             'type': 'input_text',
                             'text': (
-                                'You classify purchase-side business documents from visual evidence. '
+                                'You classify and extract purchase-side business documents from visual evidence. '
                                 'Return valid JSON only, following the required schema.'
                             ),
                         }

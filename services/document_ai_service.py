@@ -2816,6 +2816,24 @@ def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> d
     })
     if payload.get('ok') and isinstance(payload.get('classification'), dict):
         classification = payload.get('classification') or {}
+        customer_payload = classification.get('customer') if isinstance(classification.get('customer'), dict) else {}
+        supplier_payload = classification.get('supplier') if isinstance(classification.get('supplier'), dict) else {}
+        customer_match = resolve_fe_entity(customer_payload.get('tax_id') or customer_payload.get('name') or '')
+        if customer_match.get('feid'):
+            customer_payload['feid'] = customer_match.get('feid')
+            customer_payload['matched_name'] = customer_match.get('name') or ''
+            classification['customer'] = customer_payload
+            document.feid = customer_match.get('feid')
+        supplier_match = {}
+        supplier_query = supplier_payload.get('tax_id') or supplier_payload.get('name') or ''
+        if supplier_query and (customer_match.get('feid') or document.feid):
+            candidates = search_suppliers(supplier_query, feid=customer_match.get('feid') or document.feid, limit=1)
+            if candidates:
+                supplier_match = candidates[0]
+                supplier_payload['supplier_no'] = supplier_match.get('no') or supplier_match.get('supplier_no')
+                supplier_payload['matched_name'] = supplier_match.get('name') or supplier_match.get('supplier_name') or ''
+                classification['supplier'] = supplier_payload
+                document.fornecedor_no = supplier_payload.get('supplier_no')
         doc_type = str(classification.get('document_type') or '').strip() or 'unknown'
         if doc_type:
             document.doc_type_detected = doc_type
@@ -2828,6 +2846,8 @@ def classify_document_with_llm(document_stamp: str, requested_by: str = '') -> d
                 'mode': payload.get('mode') or '',
                 'model': payload.get('model') or '',
                 'reason': classification.get('reason') or '',
+                'supplier_no': supplier_payload.get('supplier_no') if isinstance(supplier_payload, dict) else None,
+                'feid': customer_payload.get('feid') if isinstance(customer_payload, dict) else None,
             }
             document.processing_meta_json = _json_dumps(meta)
             _document_log(document.docinstamp, 'llm_classify', 'ok', 'Documento classificado por LLM visual.', meta['llm_visual_classification'])
