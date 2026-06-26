@@ -20796,6 +20796,7 @@ def create_app():
         faturado_expr = f"CASE WHEN {rs_faturado_expr}=1 THEN 1 ELSE 0 END"
         phc_doc_expr = "''"
         phc_numero_expr = "''"
+        phc_bdphc_expr = "''"
         if _faturacao_reservas_global_log_available():
             faturado_expr = """
               CASE WHEN {rs_faturado_expr}=1 OR EXISTS(
@@ -20817,6 +20818,15 @@ def create_app():
             phc_numero_expr = """
               ISNULL((
                 SELECT TOP 1 L.PHC_NUMERO
+                FROM dbo.FAT_RESERVAS_PHC_LOG L
+                WHERE L.RSSTAMP = RS.RSSTAMP
+                  AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
+                ORDER BY L.DTCRI DESC
+              ), '')
+            """
+            phc_bdphc_expr = """
+              ISNULL((
+                SELECT TOP 1 L.CLIENTE_BDPHC
                 FROM dbo.FAT_RESERVAS_PHC_LOG L
                 WHERE L.RSSTAMP = RS.RSSTAMP
                   AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
@@ -20848,7 +20858,8 @@ def create_app():
               {faturado_expr} AS FATURADO,
               {rs_ftstamp_expr} AS RS_FTSTAMP,
               {phc_doc_expr} AS PHC_DOC,
-              {phc_numero_expr} AS PHC_NUMERO
+              {phc_numero_expr} AS PHC_NUMERO,
+              {phc_bdphc_expr} AS PHC_BDPHC
             FROM dbo.RS RS
             INNER JOIN dbo.AL AL
               ON LTRIM(RTRIM(ISNULL(AL.NOME,''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,'')))
@@ -20959,12 +20970,15 @@ def create_app():
             payload['baseDados'] = bdphc
             payload['proprietario'] = str(row.get('CLIENTE_NOME') or row.get('CLIENTE') or '').strip()
         else:
-            guestspa_bd = os.environ.get('PHC_GUESTSPA_BDPHC', '').strip()
-            if guestspa_bd:
-                payload['bdphc'] = guestspa_bd
-                payload['bd'] = guestspa_bd
-                payload['database'] = guestspa_bd
-                payload['baseDados'] = guestspa_bd
+            guestspa_bd = (
+                os.environ.get('PHC_GUESTSPA_BDPHC', '').strip()
+                or os.environ.get('PHC_EXPLORACAO_BDPHC', '').strip()
+                or 'GUESTSPA'
+            )
+            payload['bdphc'] = guestspa_bd
+            payload['bd'] = guestspa_bd
+            payload['database'] = guestspa_bd
+            payload['baseDados'] = guestspa_bd
         payload['origem'] = {'app': 'stationzero', 'user': user_login}
         return payload
 
@@ -20982,7 +20996,15 @@ def create_app():
         return f"http://192.168.1.51/{quote(database_name)}/ws/wscript.asmx"
 
     def _phc_run_code(code: str, parameter_payload: dict):
-        endpoint = _phc_ws_endpoint_for_bdphc((parameter_payload or {}).get('bdphc'))
+        payload_data = parameter_payload or {}
+        endpoint_bdphc = str(payload_data.get('bdphc') or '').strip()
+        if str(payload_data.get('tipo') or '').strip().upper() == 'EXPLORACAO':
+            endpoint_bdphc = (
+                os.environ.get('PHC_GUESTSPA_BDPHC', '').strip()
+                or os.environ.get('PHC_EXPLORACAO_BDPHC', '').strip()
+                or 'GUESTSPA'
+            )
+        endpoint = _phc_ws_endpoint_for_bdphc(endpoint_bdphc)
         username = os.environ.get('PHC_WS_USER', '').strip() or 'sa'
         password = os.environ.get('PHC_WS_PASSWORD', '').strip() or 'maisritmo'
         timeout = _to_int(os.environ.get('PHC_WS_TIMEOUT'), 45)
@@ -21169,6 +21191,13 @@ def create_app():
                 row = dict(r)
                 tipo = str(row.get('TIPO') or '').strip().upper()
                 bdphc = str(row.get('CLIENTE_BDPHC') or '').strip()
+                phc_bdphc = str(row.get('PHC_BDPHC') or '').strip()
+                if not phc_bdphc and tipo == 'EXPLORACAO' and int(row.get('FATURADO') or 0) == 1:
+                    phc_bdphc = (
+                        os.environ.get('PHC_GUESTSPA_BDPHC', '').strip()
+                        or os.environ.get('PHC_EXPLORACAO_BDPHC', '').strip()
+                        or 'GUESTSPA'
+                    )
                 fdata = row.get('FDATA')
                 elegivel_data = 1 if (hasattr(fdata, 'toordinal') and fdata <= today_value) else 0
                 warnings = []
@@ -21204,9 +21233,10 @@ def create_app():
                     'RS_FTSTAMP': str(row.get('RS_FTSTAMP') or '').strip(),
                     'PHC_DOC': str(row.get('PHC_DOC') or '').strip(),
                     'PHC_NUMERO': str(row.get('PHC_NUMERO') or '').strip(),
+                    'PHC_BDPHC': phc_bdphc,
                     'PHC_PDF_URL': _fatglob_pdf_url_from_values(
                         str(row.get('RSSTAMP') or '').strip(),
-                        bdphc,
+                        phc_bdphc or bdphc,
                         str(row.get('PHC_NUMERO') or '').strip(),
                     ) if int(row.get('FATURADO') or 0) == 1 else '',
                     'ELEGIVEL_DATA': elegivel_data,
@@ -21273,6 +21303,7 @@ def create_app():
             if not payload.get('linhas'):
                 errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': 'Reserva sem linhas faturáveis.'})
                 continue
+            effective_bdphc = str(payload.get('bdphc') or bdphc or '').strip()
             result = _phc_run_code(os.environ.get('PHC_WS_CODE', 'CriaFT'), payload)
             response_obj = result.get('response') if isinstance(result.get('response'), dict) else {}
             dados = response_obj.get('dados') if isinstance(response_obj.get('dados'), dict) else {}
@@ -21294,7 +21325,7 @@ def create_app():
                 'alstamp': str(row.get('ALSTAMP') or '').strip()[:25],
                 'alojamento': str(row.get('ALOJAMENTO') or '').strip()[:120],
                 'cliente': str(row.get('CLIENTE_NOME') or row.get('CLIENTE') or '').strip()[:120],
-                'bdphc': bdphc[:120],
+                'bdphc': effective_bdphc[:120],
                 'datain': row.get('DATAIN'),
                 'dataout': dataout,
                 'fdata': fdata,
