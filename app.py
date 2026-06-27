@@ -21061,6 +21061,9 @@ def create_app():
             'error': str(response_obj.get('msg') or '') if phc_error else '',
         }
 
+    def _phc_batch_delay_seconds():
+        return max(0.0, min(_num(os.environ.get('PHC_WS_DELAY_SECONDS'), 0.75), 10.0))
+
     @app.route('/api/faturacao/reservas-global/options', methods=['GET'])
     @login_required
     def api_faturacao_reservas_global_options():
@@ -21275,7 +21278,8 @@ def create_app():
         row_map = {str(r.get('RSSTAMP') or '').strip(): r for r in rows}
         created, errors = [], []
         today_value = date.today()
-        for rsstamp in rsstamps:
+        batch_delay = _phc_batch_delay_seconds()
+        for idx, rsstamp in enumerate(rsstamps):
             row = row_map.get(rsstamp)
             if not row:
                 errors.append({'RSSTAMP': rsstamp, 'error': 'Reserva não encontrada ou não elegível.'})
@@ -21362,6 +21366,8 @@ def create_app():
                 })
             else:
                 errors.append({'RSSTAMP': rsstamp, 'RESERVA': reserva, 'error': str(result.get('error') or response_obj.get('msg') or 'Erro PHC')})
+            if batch_delay and idx < len(rsstamps) - 1:
+                time.sleep(batch_delay)
         return {'ok': len(errors) == 0, 'created': created, 'errors': errors, 'total_selected': len(rsstamps)}
 
     @app.route('/api/faturacao/reservas-global/emitir', methods=['POST'])

@@ -58,8 +58,6 @@ def _al_active_filter(alias='AL') -> str:
     clauses = []
     if column_exists('AL', 'INATIVO'):
         clauses.append(f"ISNULL({alias}.INATIVO, 0) = 0")
-    if column_exists('AL', 'FECHADO'):
-        clauses.append(f"ISNULL({alias}.FECHADO, 0) = 0")
     return (' AND ' + ' AND '.join(clauses)) if clauses else ''
 
 

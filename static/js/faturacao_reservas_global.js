@@ -195,6 +195,10 @@
     return { error: text ? text.slice(0, 500) : "" };
   }
 
+  function sleep(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
   async function loadOptions() {
     const response = await fetch("/api/faturacao/reservas-global/options");
     const data = await readPayload(response);
@@ -250,25 +254,67 @@
       window.alert("Seleciona pelo menos uma reserva.");
       return;
     }
-    if (!window.confirm("Emitir " + ids.length + " fatura(s) no PHC?")) return;
+    if (!window.confirm("Emitir " + ids.length + " fatura(s) no PHC?\n\nAs faturas vao ser enviadas uma a uma.")) return;
     try {
       if (els.emitir) els.emitir.disabled = true;
       if (els.overlay) els.overlay.classList.add("show");
-      if (els.overlaySub) els.overlaySub.textContent = "A enviar " + ids.length + " reserva(s)...";
-      const response = await fetch("/api/faturacao/reservas-global/emitir", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rsstamps: ids }),
-      });
-      const data = await readPayload(response);
-      if (!response.ok && data.error) throw new Error(data.error);
-      const created = Array.isArray(data.created) ? data.created : [];
-      const errors = Array.isArray(data.errors) ? data.errors : [];
-      if (created.length) {
-        ids.forEach((id) => state.selected.delete(id));
+      const created = [];
+      const errors = [];
+      let interrupted = false;
+
+      for (let index = 0; index < ids.length; index += 1) {
+        const id = ids[index];
+        const row = state.rows.find((item) => String(item.RSSTAMP || "") === id) || {};
+        const reserva = String(row.RESERVA || id);
+        if (els.overlaySub) {
+          els.overlaySub.textContent =
+            "A emitir " + (index + 1) + "/" + ids.length + " - " + reserva;
+        }
+
+        let response;
+        let data;
+        try {
+          response = await fetch("/api/faturacao/reservas-global/emitir", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rsstamps: [id] }),
+          });
+          data = await readPayload(response);
+        } catch (error) {
+          errors.push({ RSSTAMP: id, RESERVA: reserva, error: error.message || "Erro de comunicacao." });
+          interrupted = true;
+          break;
+        }
+
+        const itemCreated = Array.isArray(data.created) ? data.created : [];
+        const itemErrors = Array.isArray(data.errors) ? data.errors : [];
+        itemCreated.forEach((item) => {
+          created.push(item);
+          state.selected.delete(String(item.RSSTAMP || id));
+        });
+        itemErrors.forEach((item) => errors.push(item));
+
+        if (!response.ok && data.error) {
+          errors.push({ RSSTAMP: id, RESERVA: reserva, error: data.error });
+          interrupted = true;
+          break;
+        }
+
+        if (els.overlaySub) {
+          els.overlaySub.textContent =
+            "Emitidas " + created.length + "/" + ids.length +
+            (errors.length ? " - erros " + errors.length : "");
+        }
+        if (index < ids.length - 1) await sleep(750);
       }
+
       if (errors.length) {
-        window.alert("Emitidas: " + created.length + "\nErros: " + errors.length + "\n\n" + errors.slice(0, 5).map((err) => (err.RESERVA || err.RSSTAMP || "") + ": " + err.error).join("\n"));
+        window.alert(
+          (interrupted ? "Emissao interrompida.\n" : "") +
+          "Emitidas: " + created.length +
+          "\nErros: " + errors.length +
+          "\n\n" + errors.slice(0, 8).map((err) => (err.RESERVA || err.RSSTAMP || "") + ": " + err.error).join("\n")
+        );
       } else {
         window.alert("Faturas emitidas no PHC: " + created.length);
       }
