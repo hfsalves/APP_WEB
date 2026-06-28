@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}Faturação por Edifício{% endblock %}
+
+{% block content %}
+<div class="sz_page sz_faturacao_edificios_page">
+  <div class="sz_page_container">
+    <header class="sz_contextbar sz_page_contextbar sz_faturacao_edificios_contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_breadcrumbs">Indicadores</div>
+        <div class="sz_page_title">Faturação por Edifício</div>
+        <div class="sz_page_subtitle">Faturação mensal por edifício, com o mesmo cálculo da Faturação Anual.</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="sz_metric_pill">
+          <span>Total {{ ano }}</span>
+          <strong id="fatEdificioKpiTotal">--</strong>
+        </div>
+        <label class="sz_field" for="fatEdificioAno">
+          <span class="sz_label">Ano</span>
+          <select id="fatEdificioAno" name="ano" class="sz_select" data-current-year="{{ ano }}">
+            {% for y in anos %}
+              <option value="{{ y }}" {% if y == ano %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="button" class="sz_button sz_button_primary" id="fatEdificioRefresh">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="sz_page_body">
+      <section class="sz_panel sz_faturacao_edificios_panel">
+        <div class="sz_table_wrap sz_faturacao_edificios_table_wrap">
+          <table class="sz_table sz_faturacao_edificios_table">
+            <thead id="fatEdificioHead" class="sz_table_head"></thead>
+            <tbody id="fatEdificioBody">
+              <tr class="sz_table_row">
+                <td class="sz_table_cell sz_text_muted text-center" colspan="14">A carregar...</td>
+              </tr>
+            </tbody>
+            <tfoot id="fatEdificioFoot"></tfoot>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="sz_actionbar sz_page_footer">
+      <div class="sz_actionbar_left"></div>
+      <div class="sz_actionbar_right">
+        <a class="sz_button sz_button_ghost" href="{{ url_for('dashboard_page') }}">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Voltar</span>
+        </a>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<style>
+  .sz_faturacao_edificios_contextbar {
+    align-items: center;
+  }
+
+  .sz_faturacao_edificios_contextbar .sz_contextbar_left {
+    flex: 0 1 34rem;
+    width: auto;
+  }
+
+  .sz_faturacao_edificios_contextbar .sz_contextbar_right {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+  }
+
+  .sz_faturacao_edificios_contextbar .sz_field {
+    flex: 0 0 auto;
+  }
+
+  .sz_faturacao_edificios_contextbar #fatEdificioAno {
+    width: 7rem;
+  }
+
+  .sz_faturacao_edificios_contextbar .sz_button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .sz_faturacao_edificios_panel {
+    overflow: hidden;
+  }
+
+  .sz_faturacao_edificios_table_wrap {
+    max-height: calc(100vh - 250px);
+    overflow: auto;
+  }
+
+  .sz_faturacao_edificios_table {
+    min-width: 1180px;
+    table-layout: fixed;
+  }
+
+  .sz_faturacao_edificios_table .sz_table_cell {
+    padding: 8px 10px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .sz_faturacao_edificios_table th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--sz-panel-strong, var(--sz-color-surface));
+  }
+
+  .sz_faturacao_edificios_table tfoot th,
+  .sz_faturacao_edificios_table tfoot td {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--sz-panel-strong, var(--sz-color-surface));
+    font-weight: 800;
+  }
+
+  .sz_faturacao_edificios_col-name {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    min-width: 190px;
+    width: 190px;
+    background: var(--sz-color-surface);
+    box-shadow: 1px 0 0 var(--sz-color-border);
+  }
+
+  .sz_faturacao_edificios_table th.sz_faturacao_edificios_col-name {
+    z-index: 7;
+    background: var(--sz-panel-strong, var(--sz-color-surface));
+  }
+
+  .sz_faturacao_edificios_table tbody .sz_faturacao_edificios_col-name {
+    z-index: 2;
+    background: var(--sz-color-surface);
+  }
+
+  .sz_faturacao_edificios_table tfoot .sz_faturacao_edificios_col-name {
+    z-index: 6;
+    background: var(--sz-panel-strong, var(--sz-color-surface));
+  }
+
+  .sz_faturacao_edificios_col-money {
+    min-width: 82px;
+    width: 82px;
+  }
+
+  .sz_faturacao_edificios_col-total {
+    min-width: 105px;
+    width: 105px;
+  }
+
+  .sz_faturacao_edificios_table .text-end {
+    text-align: right;
+  }
+
+  @media (max-width: 900px) {
+    .sz_faturacao_edificios_contextbar {
+      align-items: stretch;
+    }
+
+    .sz_faturacao_edificios_contextbar .sz_contextbar_left,
+    .sz_faturacao_edificios_contextbar .sz_contextbar_right {
+      width: 100%;
+    }
+
+    .sz_faturacao_edificios_contextbar .sz_contextbar_right {
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+
+    .sz_faturacao_edificios_contextbar .sz_field,
+    .sz_faturacao_edificios_contextbar .sz_button,
+    .sz_faturacao_edificios_contextbar .sz_metric_pill {
+      flex: 1 1 auto;
+    }
+  }
+</style>
+
+<script src="{{ url_for('static', filename='js/indicador_faturacao_edificios.js') }}?v={{ static_version }}"></script>
+{% endblock %}

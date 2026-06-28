@@ -26500,6 +26500,97 @@ def create_app():
             out.append(item)
         return out, totals
 
+    def _faturacao_edificios_rows(ano: int):
+        sql = text("""
+            WITH Edificios AS (
+                SELECT *
+                FROM (VALUES
+                    (N'BELAS ARTES'),
+                    (N'CAMÕES'),
+                    (N'CAMPANHÃ'),
+                    (N'LAPA'),
+                    (N'PALÁCIO'),
+                    (N'PARAÍSO')
+                ) E(EDIFICIO)
+            ),
+            Alojamentos AS (
+                SELECT
+                    LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+                    LTRIM(RTRIM(ISNULL(NOMETG, ''))) AS NOMETG,
+                    CASE
+                        WHEN UPPER(LTRIM(RTRIM(ISNULL(NOME, '')))) COLLATE Latin1_General_CI_AI LIKE N'BELAS ARTES%' THEN N'BELAS ARTES'
+                        WHEN UPPER(LTRIM(RTRIM(ISNULL(NOME, '')))) COLLATE Latin1_General_CI_AI LIKE N'CAMOES%' THEN N'CAMÕES'
+                        WHEN UPPER(LTRIM(RTRIM(ISNULL(NOME, '')))) COLLATE Latin1_General_CI_AI LIKE N'CAMPANHA%' THEN N'CAMPANHÃ'
+                        WHEN UPPER(LTRIM(RTRIM(ISNULL(NOME, '')))) COLLATE Latin1_General_CI_AI LIKE N'LAPA%' THEN N'LAPA'
+                        WHEN UPPER(LTRIM(RTRIM(ISNULL(NOME, '')))) COLLATE Latin1_General_CI_AI LIKE N'PALACIO%' THEN N'PALÁCIO'
+                        WHEN UPPER(LTRIM(RTRIM(ISNULL(NOME, '')))) COLLATE Latin1_General_CI_AI LIKE N'PARAISO%' THEN N'PARAÍSO'
+                    END AS EDIFICIO
+                FROM dbo.AL
+                WHERE LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''
+            ),
+            Base AS (
+                SELECT
+                    A.EDIFICIO,
+                    MONTH(V.DATA) AS NMES,
+                    SUM(ISNULL(V.VALOR, 0)) AS FATURACAO
+                FROM dbo.v_diario_v2 V
+                INNER JOIN Alojamentos A
+                    ON LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = A.NOME COLLATE Latin1_General_CI_AI
+                    OR (
+                        A.NOMETG <> ''
+                        AND LTRIM(RTRIM(ISNULL(V.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = A.NOMETG COLLATE Latin1_General_CI_AI
+                    )
+                WHERE YEAR(V.DATA) = :ano
+                  AND ISNULL(V.VALOR, 0) <> 0
+                  AND ISNULL(V.OBS, '') <> 'CANCELADA'
+                  AND A.EDIFICIO IS NOT NULL
+                GROUP BY A.EDIFICIO, MONTH(V.DATA)
+            )
+            SELECT
+                E.EDIFICIO,
+                ISNULL(SUM(CASE WHEN B.NMES = 1 THEN B.FATURACAO ELSE 0 END), 0) AS M01,
+                ISNULL(SUM(CASE WHEN B.NMES = 2 THEN B.FATURACAO ELSE 0 END), 0) AS M02,
+                ISNULL(SUM(CASE WHEN B.NMES = 3 THEN B.FATURACAO ELSE 0 END), 0) AS M03,
+                ISNULL(SUM(CASE WHEN B.NMES = 4 THEN B.FATURACAO ELSE 0 END), 0) AS M04,
+                ISNULL(SUM(CASE WHEN B.NMES = 5 THEN B.FATURACAO ELSE 0 END), 0) AS M05,
+                ISNULL(SUM(CASE WHEN B.NMES = 6 THEN B.FATURACAO ELSE 0 END), 0) AS M06,
+                ISNULL(SUM(CASE WHEN B.NMES = 7 THEN B.FATURACAO ELSE 0 END), 0) AS M07,
+                ISNULL(SUM(CASE WHEN B.NMES = 8 THEN B.FATURACAO ELSE 0 END), 0) AS M08,
+                ISNULL(SUM(CASE WHEN B.NMES = 9 THEN B.FATURACAO ELSE 0 END), 0) AS M09,
+                ISNULL(SUM(CASE WHEN B.NMES = 10 THEN B.FATURACAO ELSE 0 END), 0) AS M10,
+                ISNULL(SUM(CASE WHEN B.NMES = 11 THEN B.FATURACAO ELSE 0 END), 0) AS M11,
+                ISNULL(SUM(CASE WHEN B.NMES = 12 THEN B.FATURACAO ELSE 0 END), 0) AS M12,
+                ISNULL(SUM(B.FATURACAO), 0) AS TOTAL
+            FROM Edificios E
+            LEFT JOIN Base B ON B.EDIFICIO = E.EDIFICIO
+            GROUP BY E.EDIFICIO
+            ORDER BY E.EDIFICIO COLLATE Latin1_General_CI_AI
+        """)
+        db_rows = db.session.execute(sql, {'ano': ano}).mappings().all()
+        months = [
+            {'n': n, 'short': str(db.session.execute(text("SELECT dbo.NOMEMESPT(:mes)"), {'mes': n}).scalar() or '')[:3]}
+            for n in range(1, 13)
+        ]
+        rows = []
+        totals = {'months': [0.0 for _ in range(12)], 'total': 0.0}
+        for row in db_rows:
+            month_values = [float(row.get(f'M{n:02d}') or 0) for n in range(1, 13)]
+            total = float(row.get('TOTAL') or 0)
+            rows.append({
+                'edificio': str(row.get('EDIFICIO') or '').strip(),
+                'months': month_values,
+                'total': total,
+            })
+            for idx, value in enumerate(month_values):
+                totals['months'][idx] += value
+            totals['total'] += total
+        return {
+            'ano': ano,
+            'months': months,
+            'rows': rows,
+            'totals': totals,
+        }
+
     def _faturacao_anual_estimativas_mensais(ano: int):
         try:
             current_month_start = date(date.today().year, date.today().month, 1)
@@ -26898,6 +26989,24 @@ def create_app():
             anos=anos,
         )
 
+    @app.route('/indicadores/faturacao-edificios')
+    @login_required
+    def indicador_faturacao_edificios_page():
+        anos = _faturacao_anual_years()
+        current_year = date.today().year
+        try:
+            ano = int(request.args.get('ano') or current_year)
+        except Exception:
+            ano = current_year
+        if ano not in anos:
+            anos = sorted(set(anos + [ano]), reverse=True)
+        return render_template(
+            'indicador_faturacao_edificios.html',
+            page_title='Faturação por Edifício',
+            ano=ano,
+            anos=anos,
+        )
+
     @app.route('/api/indicadores/faturacao-anual/resumo')
     @login_required
     def api_indicador_faturacao_anual_resumo():
@@ -26911,6 +27020,15 @@ def create_app():
             'rows': rows,
             'totals': totals,
         })
+
+    @app.route('/api/indicadores/faturacao-edificios')
+    @login_required
+    def api_indicador_faturacao_edificios():
+        try:
+            ano = int(request.args.get('ano') or date.today().year)
+        except Exception:
+            return jsonify({'error': 'Ano inválido'}), 400
+        return jsonify(_faturacao_edificios_rows(ano))
 
     @app.route('/api/indicadores/faturacao-anual/detalhe')
     @login_required
