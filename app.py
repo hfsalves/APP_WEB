@@ -39274,6 +39274,69 @@ OPTION (MAXRECURSION 32767);
     # -----------------------------
     # Processamento Mensal (DM)
     # -----------------------------
+    def _ensure_dm_cle_stab_schema(ano=None, mes=None):
+        has_col = db.session.execute(text("""
+            SELECT CASE WHEN COL_LENGTH('dbo.DM', 'CLESTAB') IS NULL THEN 0 ELSE 1 END
+        """)).scalar()
+        if not int(has_col or 0):
+            db.session.execute(text("""
+                ALTER TABLE dbo.DM
+                ADD CLESTAB int NOT NULL
+                    CONSTRAINT DF_DM_CLESTAB DEFAULT 0 WITH VALUES
+            """))
+            db.session.commit()
+
+        if ano is None or mes is None:
+            return
+
+        db.session.execute(text("""
+            WITH Existing AS (
+                SELECT DISTINCT DM.ANO, DM.MES, DM.NO, DM.NOME
+                FROM dbo.DM AS DM
+                WHERE DM.ANO = :ano AND DM.MES = :mes
+            ),
+            Estabs AS (
+                SELECT DISTINCT
+                    E.ANO,
+                    E.MES,
+                    E.NO,
+                    E.NOME,
+                    ISNULL(AL.CLESTAB, 0) AS CLESTAB
+                FROM Existing E
+                JOIN dbo.CL AS CL ON CL.NO = E.NO
+                JOIN dbo.AL AS AL
+                  ON LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) = LTRIM(RTRIM(ISNULL(CL.NOME,'')))
+                WHERE LTRIM(RTRIM(ISNULL(AL.NOME,''))) <> ''
+            )
+            INSERT INTO dbo.DM
+                (DMSTAMP, ANO, MES, NO, NOME, CLESTAB, FATURATG, FTVALOR, FDATA, DOSSIER, BOVALOR, DATAOBRA, FTFILE, ENVIADO)
+            SELECT
+                LEFT(CONVERT(varchar(36), NEWID()), 25),
+                E.ANO,
+                E.MES,
+                E.NO,
+                E.NOME,
+                E.CLESTAB,
+                '',
+                0,
+                CAST('19000101' AS date),
+                '',
+                0,
+                CAST('19000101' AS date),
+                '',
+                0
+            FROM Estabs E
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM dbo.DM DM
+                WHERE DM.ANO = E.ANO
+                  AND DM.MES = E.MES
+                  AND DM.NO = E.NO
+                  AND ISNULL(DM.CLESTAB, 0) = E.CLESTAB
+            )
+        """), {'ano': int(ano), 'mes': int(mes)})
+        db.session.commit()
+
     @app.route('/processamento_mensal')
     @login_required
     def processamento_mensal_page():
@@ -39285,6 +39348,7 @@ OPTION (MAXRECURSION 32767);
         try:
             ano = int(request.args.get('ano') or datetime.now().year)
             mes = int(request.args.get('mes') or (datetime.now().month))
+            _ensure_dm_cle_stab_schema(ano, mes)
             dm_cols = set(r[0] for r in db.session.execute(
                 text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='DM'")
             ).fetchall())
@@ -39293,7 +39357,7 @@ OPTION (MAXRECURSION 32767);
             has_tot = 'TOTAL' in dm_cols
             sql = text("""
                 SELECT
-                    DMSTAMP, ANO, MES, NO, NOME,
+                    DMSTAMP, ANO, MES, NO, NOME, ISNULL(CLESTAB, 0) AS CLESTAB,
                     CASE
                         WHEN LTRIM(RTRIM(ISNULL(FATURATG,''))) = ''
                          AND LTRIM(RTRIM(ISNULL(DOSSIER,''))) = ''
@@ -39302,7 +39366,7 @@ OPTION (MAXRECURSION 32767);
                     {extra_cols}
                 FROM dbo.DM
                 WHERE ANO = :ano AND MES = :mes
-                ORDER BY NOME, NO
+                ORDER BY NOME, NO, ISNULL(CLESTAB, 0)
             """.format(extra_cols=(
                 (", COMISSOES" if has_com else "") +
                 (", IMPUTACOES" if has_imp else "") +
@@ -39317,6 +39381,7 @@ OPTION (MAXRECURSION 32767);
                     'MES': int(r.get('MES') or 0),
                     'NO': r.get('NO') or '',
                     'NOME': r.get('NOME') or '',
+                    'CLESTAB': int(r.get('CLESTAB') or 0),
                     'CAN_DELETE': int(r.get('CAN_DELETE') or 0),
                     'COMISSOES': float(r.get('COMISSOES') or 0) if has_com else 0,
                     'IMPUTACOES': float(r.get('IMPUTACOES') or 0) if has_imp else 0,
@@ -39332,17 +39397,25 @@ OPTION (MAXRECURSION 32767);
         try:
             ano = int(request.args.get('ano') or datetime.now().year)
             mes = int(request.args.get('mes') or datetime.now().month)
+            _ensure_dm_cle_stab_schema(ano, mes)
             rows = db.session.execute(text("""
-                SELECT CL.NO, CL.NOME
+                SELECT DISTINCT CL.NO, CL.NOME, ISNULL(AL.CLESTAB, 0) AS CLESTAB
                 FROM dbo.CL AS CL
+                JOIN dbo.AL AS AL
+                  ON LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) = LTRIM(RTRIM(ISNULL(CL.NOME,'')))
                 WHERE ISNULL(CL.INATIVO,0)=0
+                  AND ISNULL(AL.INATIVO,0)=0
+                  AND ISNULL(AL.FECHADO,0)=0
                   AND NOT EXISTS (
                     SELECT 1 FROM dbo.DM
-                    WHERE ANO = :ano AND MES = :mes AND NO = CL.NO
+                    WHERE ANO = :ano
+                      AND MES = :mes
+                      AND NO = CL.NO
+                      AND ISNULL(CLESTAB,0) = ISNULL(AL.CLESTAB,0)
                   )
-                ORDER BY CL.NOME
+                ORDER BY CL.NOME, ISNULL(AL.CLESTAB, 0)
             """), {'ano': ano, 'mes': mes}).mappings().all()
-            out = [{'NO': r.get('NO'), 'NOME': r.get('NOME') or ''} for r in rows]
+            out = [{'NO': r.get('NO'), 'NOME': r.get('NOME') or '', 'CLESTAB': int(r.get('CLESTAB') or 0)} for r in rows]
             return jsonify({'rows': out})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -39354,6 +39427,7 @@ OPTION (MAXRECURSION 32767);
             payload = request.get_json(silent=True) or {}
             ano = int(payload.get('ano') or datetime.now().year)
             mes = int(payload.get('mes') or datetime.now().month)
+            _ensure_dm_cle_stab_schema(ano, mes)
             items = payload.get('items') or []
             if not isinstance(items, list):
                 return jsonify({'error': 'Formato inválido'}), 400
@@ -39361,27 +39435,34 @@ OPTION (MAXRECURSION 32767);
             added = []
             for it in items:
                 no = int(it.get('no') or 0)
+                clestab = int(it.get('clestab') or it.get('estab') or 0)
                 nome = (it.get('nome') or '').strip()[:60]
                 if not no or not nome:
                     continue
                 exists = db.session.execute(text("""
-                    SELECT 1 FROM dbo.DM WHERE ANO = :ano AND MES = :mes AND NO = :no
-                """), {'ano': ano, 'mes': mes, 'no': no}).fetchone()
+                    SELECT 1
+                    FROM dbo.DM
+                    WHERE ANO = :ano
+                      AND MES = :mes
+                      AND NO = :no
+                      AND ISNULL(CLESTAB,0) = :clestab
+                """), {'ano': ano, 'mes': mes, 'no': no, 'clestab': clestab}).fetchone()
                 if exists:
                     continue
                 stamp = db.session.execute(text("SELECT LEFT(CONVERT(varchar(36), NEWID()),25)")).scalar()
                 db.session.execute(text("""
                     INSERT INTO dbo.DM
-                    (DMSTAMP, ANO, MES, NO, NOME, FATURATG, FTVALOR, FDATA, DOSSIER, BOVALOR, DATAOBRA, FTFILE, ENVIADO)
+                    (DMSTAMP, ANO, MES, NO, NOME, CLESTAB, FATURATG, FTVALOR, FDATA, DOSSIER, BOVALOR, DATAOBRA, FTFILE, ENVIADO)
                     VALUES
-                    (:stamp, :ano, :mes, :no, :nome, '', 0, :fdata, '', 0, :fdata, '', 0)
-                """), {'stamp': stamp, 'ano': ano, 'mes': mes, 'no': no, 'nome': nome, 'fdata': datetime(1900,1,1)})
+                    (:stamp, :ano, :mes, :no, :nome, :clestab, '', 0, :fdata, '', 0, :fdata, '', 0)
+                """), {'stamp': stamp, 'ano': ano, 'mes': mes, 'no': no, 'nome': nome, 'clestab': clestab, 'fdata': datetime(1900,1,1)})
                 added.append({
                     'DMSTAMP': stamp,
                     'ANO': ano,
                     'MES': mes,
                     'NO': no,
                     'NOME': nome,
+                    'CLESTAB': clestab,
                     'CAN_DELETE': 1,
                     'COMISSOES': 0,
                     'IMPUTACOES': 0,
@@ -39426,7 +39507,7 @@ OPTION (MAXRECURSION 32767);
             if not stamp or dtype not in ('comissoes', 'imputacoes'):
                 return jsonify({'error': 'Parâmetros inválidos'}), 400
             dm = db.session.execute(text("""
-                SELECT ANO, MES, NO, NOME
+                SELECT ANO, MES, NO, NOME, ISNULL(CLESTAB, 0) AS CLESTAB
                 FROM dbo.DM
                 WHERE DMSTAMP = :s
             """), {'s': stamp}).mappings().first()
@@ -39436,11 +39517,14 @@ OPTION (MAXRECURSION 32767);
             ano = int(dm['ANO'])
             mes = int(dm['MES'])
             no = int(dm['NO'])
+            clestab = int(dm.get('CLESTAB') or 0)
 
             if dtype == 'comissoes':
                 rows = db.session.execute(text("""
                     SELECT
                         RS.ALOJAMENTO AS ALOJAMENTO,
+                        LTRIM(RTRIM(ISNULL(RS.RESERVA,''))) AS RESERVA,
+                        LTRIM(RTRIM(ISNULL(RS.ORIGEM,''))) AS ORIGEM,
                         CAST(RS.DATAOUT AS date) AS DATAOUT,
                         CASE WHEN ISNULL(RS.CANCELADA,0) = 1 THEN 'Cancelada' ELSE '' END AS ESTADO,
                         ISNULL(RS.ESTADIA,0) AS ESTADIA,
@@ -39463,11 +39547,16 @@ OPTION (MAXRECURSION 32767);
                     JOIN dbo.AL ON LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) = LTRIM(RTRIM(ISNULL(CL.NOME,'')))
                     JOIN dbo.RS ON LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) = LTRIM(RTRIM(ISNULL(AL.NOME,'')))
                     WHERE CL.NO = :no
+                      AND ISNULL(AL.CLESTAB, 0) = :clestab
                       AND YEAR(RS.DATAOUT) = :ano AND MONTH(RS.DATAOUT) = :mes
                     ORDER BY RS.DATAOUT, RS.ALOJAMENTO
-                """), {'no': no, 'ano': ano, 'mes': mes}).mappings().all()
-                cols = ['ALOJAMENTO', 'DATAOUT', 'ESTADO', 'ESTADIA', 'LIMPEZA', 'COMISSAO', 'PCANCEL', 'COMISSAO_PERC', 'VALOR']
-                out = [{c: r.get(c) for c in cols} for r in rows]
+                """), {'no': no, 'clestab': clestab, 'ano': ano, 'mes': mes}).mappings().all()
+                cols = ['ALOJAMENTO', 'RESERVA', 'DATAOUT', 'ESTADO', 'ESTADIA', 'LIMPEZA', 'COMISSAO', 'PCANCEL', 'COMISSAO_PERC', 'VALOR']
+                out = []
+                for r in rows:
+                    item = {c: r.get(c) for c in cols}
+                    item['ORIGEM'] = r.get('ORIGEM') or ''
+                    out.append(item)
                 return jsonify({'columns': cols, 'rows': out})
 
             # imputações
@@ -39540,6 +39629,15 @@ OPTION (MAXRECURSION 32767);
                     ISNULL(IM.{value_col},0) AS VALOR
             """
             cols = ['ORIGEM', 'DATA', 'DOCUMENTO', 'FORNECEDOR', 'ALOJAMENTO', 'DESCRICAO', 'VALOR']
+            im_alojamento_expr = "LTRIM(RTRIM(COALESCE(NULLIF(FO_SRC.CCUSTO,''), NULLIF(FN_SRC.FNCCUSTO,''), NULLIF(MN_SRC.ALOJAMENTO,''), '')))"
+            im_al_join = f"""
+                    LEFT JOIN dbo.AL AS AL_IM
+                      ON {im_alojamento_expr} <> ''
+                     AND (
+                            {im_alojamento_expr} COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(AL_IM.NOME,''))) COLLATE Latin1_General_CI_AI
+                         OR {im_alojamento_expr} COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(AL_IM.NOMETG,''))) COLLATE Latin1_General_CI_AI
+                     )
+            """
 
             if no_col == 'NO':
                 sql = text(f"""
@@ -39547,12 +39645,14 @@ OPTION (MAXRECURSION 32767);
                         {detail_select}
                     FROM dbo.IM AS IM
                     {source_joins}
+                    {im_al_join}
                     WHERE IM.{ano_col} = :ano
                       AND IM.{mes_col} = :mes
                       AND IM.{no_col} = :no
+                      AND ISNULL(AL_IM.CLESTAB, 0) = :clestab
                     ORDER BY DATA, ORIGEM, DOCUMENTO, DESCRICAO
                 """)
-                rows = db.session.execute(sql, {'ano': ano, 'mes': mes, 'no': no}).mappings().all()
+                rows = db.session.execute(sql, {'ano': ano, 'mes': mes, 'no': no, 'clestab': clestab}).mappings().all()
                 out = [{c: r.get(c) for c in cols} for r in rows]
                 return jsonify({'columns': cols, 'rows': out})
             else:
@@ -39562,12 +39662,14 @@ OPTION (MAXRECURSION 32767);
                     FROM dbo.IM AS IM
                     JOIN dbo.CL AS CL ON LTRIM(RTRIM(ISNULL(CL.NOME,''))) = LTRIM(RTRIM(ISNULL(IM.{no_col},'')))
                     {source_joins}
+                    {im_al_join}
                     WHERE IM.{ano_col} = :ano
                       AND IM.{mes_col} = :mes
                       AND CL.NO = :no
+                      AND ISNULL(AL_IM.CLESTAB, 0) = :clestab
                     ORDER BY DATA, ORIGEM, DOCUMENTO, DESCRICAO
                 """)
-                rows = db.session.execute(sql, {'ano': ano, 'mes': mes, 'no': no}).mappings().all()
+                rows = db.session.execute(sql, {'ano': ano, 'mes': mes, 'no': no, 'clestab': clestab}).mappings().all()
                 out = [{c: r.get(c) for c in cols} for r in rows]
                 return jsonify({'columns': cols, 'rows': out})
         except Exception as e:
@@ -39580,10 +39682,12 @@ OPTION (MAXRECURSION 32767);
             payload = request.get_json(silent=True) or {}
             ano = int(payload.get('ano') or datetime.now().year)
             mes = int(payload.get('mes') or datetime.now().month)
+            _ensure_dm_cle_stab_schema(ano, mes)
 
             # Comissões por cliente
             com_rows = db.session.execute(text("""
                 SELECT DM.NO,
+                       ISNULL(DM.CLESTAB, 0) AS CLESTAB,
                        SUM(
                          CASE WHEN ISNULL(AL.FTLIMPEZA,0) = 0 THEN
                            CASE WHEN ISNULL(RS.CANCELADA,0) = 1
@@ -39602,10 +39706,15 @@ OPTION (MAXRECURSION 32767);
                 JOIN dbo.AL ON LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) = LTRIM(RTRIM(ISNULL(CL.NOME,'')))
                 JOIN dbo.RS ON LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) = LTRIM(RTRIM(ISNULL(AL.NOME,'')))
                 WHERE DM.ANO = :ano AND DM.MES = :mes
+                  AND ISNULL(AL.CLESTAB, 0) = ISNULL(DM.CLESTAB, 0)
                   AND YEAR(RS.DATAOUT) = :ano AND MONTH(RS.DATAOUT) = :mes
-                GROUP BY DM.NO
+                GROUP BY DM.NO, ISNULL(DM.CLESTAB, 0)
             """), {'ano': ano, 'mes': mes}).mappings().all()
-            com_map = {int(r['NO']): float(r.get('COMISSOES') or 0) for r in com_rows if r.get('NO') is not None}
+            com_map = {
+                (int(r['NO']), int(r.get('CLESTAB') or 0)): float(r.get('COMISSOES') or 0)
+                for r in com_rows
+                if r.get('NO') is not None
+            }
 
             # Imputações por cliente (tabela IM)
             im_cols = set(r[0] for r in db.session.execute(
@@ -39618,28 +39727,82 @@ OPTION (MAXRECURSION 32767);
 
             imp_map = {}
             if value_col and ano_col and mes_col and no_col:
+                has_origem = 'ORIGEM' in im_cols
+                has_oristamp = 'ORISTAMP' in im_cols
+                origem_expr = "UPPER(LTRIM(RTRIM(ISNULL(IM.ORIGEM,''))))" if has_origem else "''"
+                oristamp_expr = "LTRIM(RTRIM(ISNULL(IM.ORISTAMP,'')))" if has_oristamp else "''"
+                if has_origem and has_oristamp:
+                    source_joins = f"""
+                        LEFT JOIN dbo.FO AS FO_SRC
+                          ON {origem_expr} = 'FO'
+                         AND LTRIM(RTRIM(ISNULL(FO_SRC.FOSTAMP,''))) = {oristamp_expr}
+                        LEFT JOIN dbo.FN AS FN_SRC
+                          ON {origem_expr} = 'FN'
+                         AND LTRIM(RTRIM(ISNULL(FN_SRC.FNSTAMP,''))) = {oristamp_expr}
+                        LEFT JOIN dbo.FO AS FO_FN_SRC
+                          ON LTRIM(RTRIM(ISNULL(FO_FN_SRC.FOSTAMP,''))) = LTRIM(RTRIM(ISNULL(FN_SRC.FOSTAMP,'')))
+                        LEFT JOIN dbo.MN AS MN_SRC
+                          ON {origem_expr} = 'MN'
+                         AND LTRIM(RTRIM(ISNULL(MN_SRC.MNSTAMP,''))) = {oristamp_expr}
+                    """
+                else:
+                    source_joins = """
+                        LEFT JOIN dbo.FO AS FO_SRC ON 1 = 0
+                        LEFT JOIN dbo.FN AS FN_SRC ON 1 = 0
+                        LEFT JOIN dbo.FO AS FO_FN_SRC ON 1 = 0
+                        LEFT JOIN dbo.MN AS MN_SRC ON 1 = 0
+                    """
+                im_alojamento_expr = "LTRIM(RTRIM(COALESCE(NULLIF(FO_SRC.CCUSTO,''), NULLIF(FN_SRC.FNCCUSTO,''), NULLIF(MN_SRC.ALOJAMENTO,''), '')))"
+                im_al_join = f"""
+                    LEFT JOIN dbo.AL AS AL_IM
+                      ON {im_alojamento_expr} <> ''
+                     AND (
+                            {im_alojamento_expr} COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(AL_IM.NOME,''))) COLLATE Latin1_General_CI_AI
+                         OR {im_alojamento_expr} COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(AL_IM.NOMETG,''))) COLLATE Latin1_General_CI_AI
+                     )
+                """
                 if no_col == 'NO':
                     sql_im = text(f"""
-                        SELECT NO, SUM(ISNULL({value_col},0)) AS IMPUTACOES
-                        FROM dbo.IM
-                        WHERE {ano_col} = :ano AND {mes_col} = :mes
-                        GROUP BY NO
+                        SELECT
+                            IM.NO AS NO,
+                            ISNULL(AL_IM.CLESTAB, 0) AS CLESTAB,
+                            SUM(ISNULL(IM.{value_col},0)) AS IMPUTACOES
+                        FROM dbo.IM AS IM
+                        {source_joins}
+                        {im_al_join}
+                        WHERE IM.{ano_col} = :ano AND IM.{mes_col} = :mes
+                        GROUP BY IM.NO, ISNULL(AL_IM.CLESTAB, 0)
                     """)
                     im_rows = db.session.execute(sql_im, {'ano': ano, 'mes': mes}).mappings().all()
-                    imp_map = {int(r['NO']): float(r.get('IMPUTACOES') or 0) for r in im_rows if r.get('NO') is not None}
+                    imp_map = {
+                        (int(r['NO']), int(r.get('CLESTAB') or 0)): float(r.get('IMPUTACOES') or 0)
+                        for r in im_rows
+                        if r.get('NO') is not None
+                    }
                 else:
                     sql_im = text(f"""
-                        SELECT CL.NO AS NO, SUM(ISNULL(IM.{value_col},0)) AS IMPUTACOES
+                        SELECT
+                            CL.NO AS NO,
+                            ISNULL(AL_IM.CLESTAB, 0) AS CLESTAB,
+                            SUM(ISNULL(IM.{value_col},0)) AS IMPUTACOES
                         FROM dbo.IM AS IM
                         JOIN dbo.CL AS CL ON LTRIM(RTRIM(ISNULL(CL.NOME,''))) = LTRIM(RTRIM(ISNULL(IM.{no_col},'')))
+                        {source_joins}
+                        {im_al_join}
                         WHERE IM.{ano_col} = :ano AND IM.{mes_col} = :mes
-                        GROUP BY CL.NO
+                        GROUP BY CL.NO, ISNULL(AL_IM.CLESTAB, 0)
                     """)
                     im_rows = db.session.execute(sql_im, {'ano': ano, 'mes': mes}).mappings().all()
-                    imp_map = {int(r['NO']): float(r.get('IMPUTACOES') or 0) for r in im_rows if r.get('NO') is not None}
+                    imp_map = {
+                        (int(r['NO']), int(r.get('CLESTAB') or 0)): float(r.get('IMPUTACOES') or 0)
+                        for r in im_rows
+                        if r.get('NO') is not None
+                    }
 
             rows = db.session.execute(text("""
-                SELECT DMSTAMP, NO FROM dbo.DM WHERE ANO = :ano AND MES = :mes
+                SELECT DMSTAMP, NO, ISNULL(CLESTAB, 0) AS CLESTAB
+                FROM dbo.DM
+                WHERE ANO = :ano AND MES = :mes
             """), {'ano': ano, 'mes': mes}).mappings().all()
 
             dm_cols = set(r[0] for r in db.session.execute(
@@ -39652,8 +39815,10 @@ OPTION (MAXRECURSION 32767);
             out = []
             for r in rows:
                 no = int(r.get('NO') or 0)
-                com = float(com_map.get(no, 0))
-                imp = float(imp_map.get(no, 0))
+                clestab = int(r.get('CLESTAB') or 0)
+                key = (no, clestab)
+                com = float(com_map.get(key, 0))
+                imp = float(imp_map.get(key, 0))
                 total = com + imp
                 if has_com or has_imp or has_tot:
                     db.session.execute(text("""
@@ -39669,6 +39834,7 @@ OPTION (MAXRECURSION 32767);
                     ))), {'com': com, 'imp': imp, 'tot': total, 's': r['DMSTAMP']})
                 out.append({
                     'DMSTAMP': r['DMSTAMP'],
+                    'CLESTAB': clestab,
                     'COMISSOES': com,
                     'IMPUTACOES': imp,
                     'TOTAL': total

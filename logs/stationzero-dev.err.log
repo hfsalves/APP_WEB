@@ -19865,3 +19865,766 @@ Traceback (most recent call last):
     )
 sqlalchemy.exc.PendingRollbackError: Can't reconnect until invalid transaction is rolled back.  Please rollback() fully before proceeding (Background on this error at: https://sqlalche.me/e/20/8s2b)
 127.0.0.1 - - [28/Jun/2026 19:57:08] "GET /service-worker.js HTTP/1.1" 500 -
+[2026-06-29 09:43:19,923] ERROR in app: Erro ao atualizar configuração multiidioma a partir de PARA.
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]TCP Provider: Error code 0x20 (32) (SQLExecDirectW)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 718, in _reload_i18n_runtime_from_params
+    para_values = _load_para_map()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 684, in _load_para_map
+    rows = db.session.execute(text("""
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        FROM dbo.PARA
+        ^^^^^^^^^^^^^
+    """)).mappings().all()
+    ^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]TCP Provider: Error code 0x20 (32) (SQLExecDirectW)')
+[SQL: 
+            SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+            FROM dbo.PARA
+        ]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[2026-06-29 09:43:19,927] ERROR in app: Exception on / [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 833, in _resolve_i18n_request_language
+    _resolve_i18n_runtime_for_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 805, in _resolve_i18n_runtime_for_request
+    _clear_current_user_language_when_i18n_disabled()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 766, in _clear_current_user_language_when_i18n_disabled
+    if i18n_enabled(app) or not getattr(current_user, 'is_authenticated', False):
+                                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2690, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 250, in get_user_by_stamp
+    row = session.execute(sql, {"stamp": (user_stamp or "").strip()}).mappings().first()
+          ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1809, in _execute_context
+    conn = self._revalidate_connection()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 675, in _revalidate_connection
+    self._invalid_transaction()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 665, in _invalid_transaction
+    raise exc.PendingRollbackError(
+    ...<4 lines>...
+    )
+sqlalchemy.exc.PendingRollbackError: Can't reconnect until invalid transaction is rolled back.  Please rollback() fully before proceeding (Background on this error at: https://sqlalche.me/e/20/8s2b)
+127.0.0.1 - - [29/Jun/2026 09:43:19] "GET / HTTP/1.1" 500 -
+[2026-06-29 09:43:20,934] ERROR in app: Erro ao atualizar configuração multiidioma a partir de PARA.
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]TCP Provider: Error code 0x20 (32) (SQLExecDirectW)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 718, in _reload_i18n_runtime_from_params
+    para_values = _load_para_map()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 684, in _load_para_map
+    rows = db.session.execute(text("""
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        FROM dbo.PARA
+        ^^^^^^^^^^^^^
+    """)).mappings().all()
+    ^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (pyodbc.OperationalError) ('08S01', '[08S01] [Microsoft][ODBC Driver 18 for SQL Server]TCP Provider: Error code 0x20 (32) (SQLExecDirectW)')
+[SQL: 
+            SELECT PARAMETRO, TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+            FROM dbo.PARA
+        ]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[2026-06-29 09:43:20,937] ERROR in app: Exception on /service-worker.js [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 833, in _resolve_i18n_request_language
+    _resolve_i18n_runtime_for_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 805, in _resolve_i18n_runtime_for_request
+    _clear_current_user_language_when_i18n_disabled()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 766, in _clear_current_user_language_when_i18n_disabled
+    if i18n_enabled(app) or not getattr(current_user, 'is_authenticated', False):
+                                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2690, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 250, in get_user_by_stamp
+    row = session.execute(sql, {"stamp": (user_stamp or "").strip()}).mappings().first()
+          ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1809, in _execute_context
+    conn = self._revalidate_connection()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 675, in _revalidate_connection
+    self._invalid_transaction()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 665, in _invalid_transaction
+    raise exc.PendingRollbackError(
+    ...<4 lines>...
+    )
+sqlalchemy.exc.PendingRollbackError: Can't reconnect until invalid transaction is rolled back.  Please rollback() fully before proceeding (Background on this error at: https://sqlalche.me/e/20/8s2b)
+127.0.0.1 - - [29/Jun/2026 09:43:20] "GET /service-worker.js HTTP/1.1" 500 -
+127.0.0.1 - - [29/Jun/2026 09:59:01] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "GET /static/js/push.js?v=1782666467 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "POST /api/widgets/SEGUROS_AL/run HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "POST /api/widgets/FATURACAO_ANUAL_CHART/run HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:03] "POST /api/widgets/SALDOS_TESOURARIA/run HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:04] "POST /api/widgets/FAT_MES_EDIFICIO/run HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:05] "POST /api/widgets/FATURACAO_ANUAL/run HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:05] "GET /service-worker.js HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:16] "GET /planeamento_limpezas HTTP/1.1" 302 -
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.1.194:8001
+Press CTRL+C to quit
+127.0.0.1 - - [29/Jun/2026 09:59:19] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:20] "GET /generic/planeamento_limpezas/ HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:20] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:20] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:20] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:20] "GET /static/js/push.js?v=1782723557 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:20] "GET /static/js/planeamento_limpezas.js HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:20] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:20] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:20] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:20] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:21] "GET /generic/api/planner2_teams?date=2026-06-29 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:21] "GET /generic/api/cleaning_plan?date=2026-06-29 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:21] "POST /generic/api/osm_distances HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:22] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:27] "GET /processamento_mensal HTTP/1.1" 302 -
+127.0.0.1 - - [29/Jun/2026 09:59:46] "GET /imputacao_proprietarios HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:47] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:47] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:47] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:47] "GET /static/js/imputacao_proprietarios.js?v=1782723557 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:47] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:47] "GET /static/js/push.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:47] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:47] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:47] "GET /api/imputacao_proprietarios HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:48] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:51] "GET /processamento_mensal HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:51] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:51] "GET /static/js/processamento_mensal.js?v=1782723557 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:51] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:51] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:51] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:51] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:51] "GET /static/js/push.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:52] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 09:59:52] "GET /api/processamento_mensal?ano=2026&mes=6 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 09:59:53] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:30] "GET /generic/view/AL HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:30] "GET /static/js/dynamic_list.js?v=1782723557 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:30] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:30] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:30] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:30] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:30] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:30] "GET /static/js/push.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:30] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:31] "GET /generic/api/AL?action=describe&include_screen_meta=1&menustamp=34BA0790-C450-4684-A388-5 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:32] "GET /generic/api/options?query=select%20'EXPLORACAO'%20as%20tipo%20union%20all%20select%20'GESTAO' HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:32] "GET /generic/api/options?query=SELECT%20ZONA%20FROM%20ZN%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:32] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:32] "GET /generic/api/AL HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:37] "GET /generic/form/AL/12D280DD-9F86-44C5-A902-5?menustamp=34BA0790-C450-4684-A388-5&return_to=/generic/view/AL HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:38] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:39] "GET /generic/form/AL/12D280DD-9F86-44C5-A902-5?menustamp=34BA0790-C450-4684-A388-5&return_to=/generic/view/AL HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:39] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:39] "GET /static/js/dynamic_form.js HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:39] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:39] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:39] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:39] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:39] "GET /static/js/push.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:39] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:40] "GET /generic/api/AL?action=describe&menustamp=34BA0790-C450-4684-A388-5&include_screen_meta=1 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:40] "GET /generic/api/options?query=SELECT%20NOME%20FROM%20PR%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:40] "GET /generic/api/options?query=SELECT%20ZONA%20FROM%20ZN%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:40] "GET /generic/api/options?query=SELECT%20NOME%20FROM%20CL%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:40] "GET /generic/api/options?query=SELECT%20NOME%20FROM%20EP%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:40] "GET /generic/api/options?query=select%20'EXPLORACAO'%20as%20tipo%20union%20all%20select%20'GESTAO' HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:40] "GET /generic/api/options?query=SELECT%20'T0'%20UNION%20ALL%20SELECT%20'T1'%20UNION%20ALL%20SELECT%20'T2'%20UNION%20ALL%20SELECT%20'T3'%20UNION%20ALL%20SELECT%20'T4' HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:40] "GET /generic/api/options?query=SELECT%20CCUSTO%20FROM%20V_CCT%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:41] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:41] "GET /generic/api/AL/12D280DD-9F86-44C5-A902-5 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:41] "GET /api/anexos?table=AL&rec=12D280DD-9F86-44C5-A902-5 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:41] "GET /generic/api/dynamic_details/AL/12D280DD-9F86-44C5-A902-5 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:49] "PUT /generic/api/AL/12D280DD-9F86-44C5-A902-5 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:51] "GET /generic/view/AL HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:51] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:51] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:51] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:51] "GET /static/js/dynamic_list.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:51] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:51] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:51] "GET /static/js/push.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:51] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:52] "GET /generic/api/AL?action=describe&include_screen_meta=1&menustamp=34BA0790-C450-4684-A388-5 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:52] "GET /generic/api/options?query=select%20'EXPLORACAO'%20as%20tipo%20union%20all%20select%20'GESTAO' HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:52] "GET /generic/api/options?query=SELECT%20ZONA%20FROM%20ZN%20ORDER%20BY%201 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:53] "GET /generic/api/AL HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:53] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:58] "GET /processamento_mensal HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:58] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:58] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:58] "GET /static/js/processamento_mensal.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:58] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:58] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:58] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:58] "GET /static/js/push.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:58] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:00:58] "GET /api/processamento_mensal?ano=2026&mes=6 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:00:59] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:01:00] "POST /api/processamento_mensal/calcular HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:01:18] "GET /imputacao_proprietarios HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:01:18] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:01:18] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:01:18] "GET /static/js/imputacao_proprietarios.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:01:18] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:01:19] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:01:19] "GET /static/js/push.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:01:19] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:01:19] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:01:19] "GET /api/imputacao_proprietarios HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:01:20] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:07:47] "GET /faturacao/reservas-global HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:07:47] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:07:47] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:07:47] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:07:47] "GET /static/js/faturacao_reservas_global.js?v=1782723557 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:07:47] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:07:47] "GET /static/js/push.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:07:47] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:07:48] "GET /api/faturacao/reservas-global/options HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:07:48] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:07:48] "GET /api/faturacao/reservas-global?data_ini=2026-06-01&data_fim=2026-06-28&faturado=por_faturar HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:07:49] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:07:52] "GET /api/faturacao/reservas-global?data_ini=2026-06-01&data_fim=2026-06-28&faturado=por_faturar&tipo=EXPLORACAO HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:12] "GET /api/faturacao/reservas-global?data_ini=2026-06-22&data_fim=2026-06-28&faturado=por_faturar&tipo=EXPLORACAO HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:34] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:35] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:37] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:38] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:40] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:41] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:42] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:43] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:45] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:46] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:47] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:49] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:50] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:51] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:53] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:54] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:55] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:57] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:58] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:08:59] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:01] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:02] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:03] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:05] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:06] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:07] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:09] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:10] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:11] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:13] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:14] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:15] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:16] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:18] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:19] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:21] "GET /api/faturacao/reservas-global?data_ini=2026-06-22&data_fim=2026-06-28&faturado=por_faturar&tipo=EXPLORACAO HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:32] "GET /api/faturacao/reservas-global?data_ini=2026-06-22&data_fim=2026-06-28&faturado=por_faturar HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:35] "GET /api/faturacao/reservas-global?data_ini=2026-06-22&data_fim=2026-06-28&faturado=por_faturar&cliente=MARCO+ANDRE+RAMOS+MOREIRA HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:41] "GET /api/faturacao/reservas-global?data_ini=2026-06-01&data_fim=2026-06-28&faturado=por_faturar&cliente=MARCO+ANDRE+RAMOS+MOREIRA HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:09:48] "GET /api/faturacao/reservas-global?data_ini=2026-06-01&data_fim=2026-06-28&faturado=por_faturar&cliente=JORDAN+MICHAEL+MEDINA HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:10:26] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:10:28] "POST /api/faturacao/reservas-global/emitir HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:10:29] "GET /api/faturacao/reservas-global?data_ini=2026-06-01&data_fim=2026-06-28&faturado=por_faturar&cliente=JORDAN+MICHAEL+MEDINA HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:10:51] "GET /api/faturacao/reservas-global?data_ini=2026-06-01&data_fim=2026-06-28&faturado=faturado&cliente=JORDAN+MICHAEL+MEDINA HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:10:57] "GET /api/faturacao/reservas-global?data_ini=2026-05-01&data_fim=2026-06-28&faturado=faturado&cliente=JORDAN+MICHAEL+MEDINA HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:12:00] "GET /processamento_mensal HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:12:00] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:12:00] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:12:00] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:12:00] "GET /static/js/processamento_mensal.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:12:00] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:12:00] "GET /static/js/push.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:12:00] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:12:00] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:12:00] "GET /api/processamento_mensal?ano=2026&mes=6 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:12:02] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:12:12] "GET /api/processamento_mensal/drilldown?stamp=D928B177-62C9-4B43-9146-7&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:15:09] "GET /api/processamento_mensal/drilldown?stamp=D928B177-62C9-4B43-9146-7&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:15:55] "GET /reservas_canceladas HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:15:55] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:15:55] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:15:55] "GET /static/js/reservas_canceladas.js?v=1782723557 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:15:55] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:15:56] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:15:56] "GET /static/js/push.js?v=1782723557 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:15:56] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:15:56] "GET /api/reservas/cancelamentos HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:15:56] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:15:57] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:16:12] "GET /api/reservas/cancelamentos?datain_from=2026-06-12 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:16:16] "GET /api/reservas/cancelamentos?datain_from=2026-06-12&datain_to=2026-07-06 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:16:20] "GET /api/reservas/cancelamentos?datain_from=2026-06-12&datain_to=2026-07-06&dias_cancel_max=5 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:16:20] "GET /api/reservas/cancelamentos?datain_from=2026-06-12&datain_to=2026-07-06&dias_cancel_max=5 HTTP/1.1" 200 -
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.1.194:8001
+Press CTRL+C to quit
+127.0.0.1 - - [29/Jun/2026 10:16:52] "GET /processamento_mensal HTTP/1.1" 302 -
+127.0.0.1 - - [29/Jun/2026 10:18:05] "GET /processamento_mensal HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:18:05] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:18:05] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:18:05] "GET /static/js/processamento_mensal.js?v=1782724602 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:18:05] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:18:05] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:18:05] "GET /static/js/push.js?v=1782724602 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:18:05] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:18:05] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:18:05] "GET /api/processamento_mensal?ano=2026&mes=6 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:18:07] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:18:07] "GET /api/processamento_mensal/drilldown?stamp=D928B177-62C9-4B43-9146-7&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:18:41] "GET /api/processamento_mensal/drilldown?stamp=040C7E7F-0419-4F38-A752-7&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:19:47] "GET /api/processamento_mensal/drilldown?stamp=D928B177-62C9-4B43-9146-7&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:19:52] "GET /api/processamento_mensal/drilldown?stamp=1505B8C7-95AD-401D-B93F-E&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:19:55] "GET /api/processamento_mensal/drilldown?stamp=CD449FF6-47AE-4768-9BA7-B&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:19:59] "GET /api/processamento_mensal/drilldown?stamp=E4C57ACC-FDA2-45BE-BE7C-B&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:20:03] "GET /api/processamento_mensal/drilldown?stamp=B4D49E45-BC92-4900-93C8-8&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:20:16] "GET /api/processamento_mensal/drilldown?stamp=794FC2CA-73C5-4151-8DCC-E&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:20:21] "GET /api/processamento_mensal/drilldown?stamp=60F594A6-7CA4-445C-910F-1&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:20:24] "GET /api/processamento_mensal/drilldown?stamp=822802F5-14CF-4AED-B55F-9&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:20:28] "GET /api/processamento_mensal/drilldown?stamp=003B3031-BD13-40D9-A3B7-B&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:20:32] "GET /api/processamento_mensal/drilldown?stamp=C4A3DDD9-62C2-480E-B210-1&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:20:39] "GET /api/processamento_mensal/drilldown?stamp=040C7E7F-0419-4F38-A752-7&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:21:44] "GET /api/processamento_mensal/drilldown?stamp=6FB2CF7A-7F0E-48D1-8359-F&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:21:47] "GET /api/processamento_mensal/drilldown?stamp=040C7E7F-0419-4F38-A752-7&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:21:51] "GET /api/processamento_mensal/drilldown?stamp=94A5E51E-BF6B-4824-93EE-D&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:21:54] "GET /api/processamento_mensal/drilldown?stamp=096249E0-67A7-4787-A09A-1&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:04] "GET /api/processamento_mensal/drilldown?stamp=4FDA25C3-6C9C-46AE-B66C-F&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:15] "GET /api/processamento_mensal/drilldown?stamp=C2EA56DD-9918-4AE2-AB16-8&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:17] "GET /api/processamento_mensal/drilldown?stamp=C2EA56DD-9918-4AE2-AB16-8&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:21] "GET /api/processamento_mensal/drilldown?stamp=756E2559-4575-47FC-8772-3&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:24] "GET /api/processamento_mensal/drilldown?stamp=0164476E-886D-4B8E-85A6-B&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:30] "GET /api/processamento_mensal/drilldown?stamp=0164476E-886D-4B8E-85A6-B&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:33] "GET /api/processamento_mensal/drilldown?stamp=36736141-B7C2-4C85-9B7A-4&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:47] "GET /reservas_canceladas HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:47] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:22:47] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:22:47] "GET /static/js/reservas_canceladas.js?v=1782724602 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:47] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:22:47] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:22:47] "GET /static/js/push.js?v=1782724602 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:22:47] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:22:47] "GET /api/reservas/cancelamentos HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:47] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:22:49] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:22:52] "GET /api/reservas/cancelamentos?dataout_from=2026-06-01 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:22:55] "GET /api/reservas/cancelamentos?dataout_from=2026-06-01&dataout_to=2026-06-30 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:23:14] "GET /api/reservas/cancelamentos?dataout_from=2026-06-01&dataout_to=2026-06-30&dias_cancel_max=5 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:23:14] "GET /api/reservas/cancelamentos?dataout_from=2026-06-01&dataout_to=2026-06-30&dias_cancel_max=5 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:23:50] "GET /generic/view/IM HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:23:50] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:50] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:50] "GET /static/js/dynamic_list.js?v=1782724602 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:23:50] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:50] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:50] "GET /static/js/push.js?v=1782724602 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:50] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:51] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:51] "GET /generic/api/IM?action=describe&include_screen_meta=1&menustamp=8643251C-63F4-4C74-A941-6 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:23:52] "GET /generic/api/IM HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:23:52] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:58] "GET /processamento_mensal HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:23:58] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:58] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:58] "GET /static/js/processamento_mensal.js?v=1782724602 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:58] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:58] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:58] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:58] "GET /static/js/push.js?v=1782724602 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:58] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:23:58] "GET /api/processamento_mensal?ano=2026&mes=6 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:23:59] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:24:39] "GET /api/processamento_mensal/drilldown?stamp=D928B177-62C9-4B43-9146-7&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:27:37] "GET /api/processamento_mensal/drilldown?stamp=2AF585EF-9202-41DA-A826-3&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:28:06] "GET /api/processamento_mensal/drilldown?stamp=CD449FF6-47AE-4768-9BA7-B&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:28:12] "GET /api/processamento_mensal/drilldown?stamp=B4D49E45-BC92-4900-93C8-8&type=comissoes HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:28:31] "GET /reservas_canceladas HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:28:31] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:28:31] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:28:31] "GET /static/js/reservas_canceladas.js?v=1782724602 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:28:31] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:28:31] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:28:31] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:28:31] "GET /static/js/push.js?v=1782724602 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:28:31] "GET /api/reservas/cancelamentos HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:28:31] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:28:33] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:28:36] "GET /api/reservas/cancelamentos?dataout_from=2026-06-01 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:28:40] "GET /api/reservas/cancelamentos?dataout_from=2026-06-01&dataout_to=2026-06-30 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:28:43] "GET /api/reservas/cancelamentos?dataout_from=2026-06-01&dataout_to=2026-06-30&dias_cancel_max=5 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:28:43] "GET /api/reservas/cancelamentos?dataout_from=2026-06-01&dataout_to=2026-06-30&dias_cancel_max=5 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:29:00] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [29/Jun/2026 10:29:01] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:29:01] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:29:01] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:29:01] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:29:01] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:29:01] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:29:02] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:29:02] "GET /static/js/push.js?v=1782724602 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:29:02] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:29:02] "GET /api/dashboard HTTP/1.1" 200 -
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.1.194:8001
+Press CTRL+C to quit
+127.0.0.1 - - [29/Jun/2026 10:31:21] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [29/Jun/2026 10:31:24] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "GET /static/js/push.js?v=1782725471 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "POST /api/widgets/SEGUROS_AL/run HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:31:26] "POST /api/widgets/FATURACAO_ANUAL_CHART/run HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:31:27] "POST /api/widgets/FAT_MES_EDIFICIO/run HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:31:27] "POST /api/widgets/SALDOS_TESOURARIA/run HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:31:28] "POST /api/widgets/FATURACAO_ANUAL/run HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:31:29] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:34] "GET /processamento_mensal HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:31:34] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:34] "GET /static/js/processamento_mensal.js?v=1782725471 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:31:34] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:34] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:34] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:34] "GET /static/js/push.js?v=1782725471 HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:34] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:34] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:34] "GET /api/processamento_mensal?ano=2026&mes=6 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jun/2026 10:31:36] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [29/Jun/2026 10:31:55] "GET /processamento_mensal HTTP/1.1" 302 -
+127.0.0.1 - - [29/Jun/2026 10:32:49] "GET /api/processamento_mensal/drilldown?stamp=4E9828DC-B1A3-4206-85AB-6&type=imputacoes HTTP/1.1" 200 -
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.1.194:8001
+Press CTRL+C to quit
+127.0.0.1 - - [29/Jun/2026 11:18:45] "GET /processamento_mensal HTTP/1.1" 302 -

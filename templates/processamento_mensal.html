@@ -43,6 +43,7 @@
             <thead>
               <tr>
                 <th>No</th>
+                <th>Estab.</th>
                 <th>Nome</th>
                 <th class="text-end">Comissões</th>
                 <th class="text-end">Imputações</th>
@@ -52,11 +53,11 @@
               </tr>
             </thead>
             <tbody id="pmBody">
-              <tr><td colspan="7" class="text-muted p-3">A carregar...</td></tr>
+              <tr><td colspan="8" class="text-muted p-3">A carregar...</td></tr>
             </tbody>
             <tfoot id="pmFoot">
               <tr>
-                <th colspan="7"></th>
+                <th colspan="8"></th>
               </tr>
             </tfoot>
           </table>
@@ -120,11 +121,12 @@
               <tr>
                 <th style="width:36px;"></th>
                 <th>No</th>
+                <th>Estab.</th>
                 <th>Nome</th>
               </tr>
             </thead>
             <tbody id="pmClientesBody">
-              <tr><td colspan="3" class="text-muted p-3">A carregar...</td></tr>
+              <tr><td colspan="4" class="text-muted p-3">A carregar...</td></tr>
             </tbody>
           </table>
         </div>
@@ -252,7 +254,9 @@
   }
 
   .pm-table tfoot th,
-  .pm-drill-table tfoot th {
+  .pm-table tfoot td,
+  .pm-drill-table tfoot th,
+  .pm-drill-table tfoot td {
     position: sticky;
     bottom: 0;
     z-index: 6;
@@ -260,6 +264,11 @@
     color: var(--sz-color-text);
     font-weight: var(--sz-font-weight-bold);
     border-top: 1px solid var(--sz-color-border);
+  }
+
+  .pm-total-row th,
+  .pm-total-row td {
+    font-weight: var(--sz-font-weight-bold);
   }
 
   .pm-cell-link {
@@ -273,6 +282,17 @@
   }
 
   .pm-cell-link:hover {
+    color: color-mix(in srgb, var(--sz-color-primary) 76%, var(--sz-color-text));
+    text-decoration: underline;
+  }
+
+  .pm-reservation-link {
+    color: var(--sz-color-primary);
+    font-weight: var(--sz-font-weight-bold);
+    text-decoration: none;
+  }
+
+  .pm-reservation-link:hover {
     color: color-mix(in srgb, var(--sz-color-primary) 76%, var(--sz-color-text));
     text-decoration: underline;
   }

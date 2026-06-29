@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   const body = document.getElementById('pmBody');
+  const foot = document.getElementById('pmFoot');
   const label = document.getElementById('pmMonthLabel');
   const countEl = document.getElementById('pmCount');
   const btnPrev = document.getElementById('pmPrev');
@@ -45,10 +46,32 @@ document.addEventListener('DOMContentLoaded', () => {
   function render(rows) {
     if (!body) return;
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="7" class="text-muted p-3">Sem registos.</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" class="text-muted p-3">Sem registos.</td></tr>';
+      if (foot) {
+        foot.innerHTML = `
+          <tr class="pm-total-row">
+            <th colspan="3">Totais</th>
+            <td class="text-end">0.00</td>
+            <td class="text-end">0.00</td>
+            <td class="text-end">0.00</td>
+            <td class="text-end">0.00</td>
+            <td></td>
+          </tr>
+        `;
+      }
       if (countEl) countEl.textContent = '0 registos';
       return;
     }
+    const totals = rows.reduce((acc, r) => {
+      const com = Number(r.COMISSOES || 0);
+      const imp = Number(r.IMPUTACOES || 0);
+      const tot = Number(r.TOTAL || 0);
+      acc.COMISSOES += Number.isFinite(com) ? com : 0;
+      acc.IMPUTACOES += Number.isFinite(imp) ? imp : 0;
+      acc.TOTAL += Number.isFinite(tot) ? tot : 0;
+      acc.TOTAL_IVA += Number.isFinite(tot) ? tot * 1.23 : 0;
+      return acc;
+    }, { COMISSOES: 0, IMPUTACOES: 0, TOTAL: 0, TOTAL_IVA: 0 });
     body.innerHTML = rows.map(r => {
       const canDelete = Number(r.CAN_DELETE || 0) === 1;
       const com = Number(r.COMISSOES || 0);
@@ -58,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return `
         <tr data-stamp="${escapeHtml(r.DMSTAMP || '')}">
           <td>${escapeHtml(r.NO)}</td>
+          <td>${escapeHtml(r.CLESTAB ?? 0)}</td>
           <td title="${escapeHtml(r.NOME)}">${escapeHtml(r.NOME)}</td>
           <td class="text-end"><span class="pm-cell-link pm-comm" data-stamp="${escapeHtml(r.DMSTAMP || '')}">${escapeHtml(com.toFixed(2))}</span></td>
           <td class="text-end"><span class="pm-cell-link pm-imp" data-stamp="${escapeHtml(r.DMSTAMP || '')}">${escapeHtml(imp.toFixed(2))}</span></td>
@@ -67,6 +91,18 @@ document.addEventListener('DOMContentLoaded', () => {
         </tr>
       `;
     }).join('');
+    if (foot) {
+      foot.innerHTML = `
+        <tr class="pm-total-row">
+          <th colspan="3">Totais</th>
+          <td class="text-end">${escapeHtml(totals.COMISSOES.toFixed(2))}</td>
+          <td class="text-end">${escapeHtml(totals.IMPUTACOES.toFixed(2))}</td>
+          <td class="text-end">${escapeHtml(totals.TOTAL.toFixed(2))}</td>
+          <td class="text-end">${escapeHtml(totals.TOTAL_IVA.toFixed(2))}</td>
+          <td></td>
+        </tr>
+      `;
+    }
     if (countEl) countEl.textContent = `${rows.length} registo(s)`;
 
     body.querySelectorAll('.pm-del').forEach(btn => {
@@ -106,11 +142,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!body) return;
     setLabel();
     const { ano, mes } = monthParams();
-    body.innerHTML = '<tr><td colspan="7" class="text-muted p-3">A carregar...</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" class="text-muted p-3">A carregar...</td></tr>';
     const res = await fetch(`/api/processamento_mensal?ano=${ano}&mes=${mes}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.error) {
-      body.innerHTML = `<tr><td colspan="13" class="text-danger p-3">Erro: ${escapeHtml(data.error || res.statusText)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="8" class="text-danger p-3">Erro: ${escapeHtml(data.error || res.statusText)}</td></tr>`;
       return;
     }
     lastRows = Array.isArray(data.rows) ? data.rows : [];
@@ -153,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnAddClientes?.addEventListener('click', async () => {
     if (!clientesModal) return;
     const { ano, mes } = monthParams();
-    clientesBody.innerHTML = '<tr><td colspan="3" class="text-muted p-3">A carregar...</td></tr>';
+    clientesBody.innerHTML = '<tr><td colspan="4" class="text-muted p-3">A carregar...</td></tr>';
     if (selectAllEl) selectAllEl.checked = false;
     try {
       const res = await fetch(`/api/processamento_mensal/clientes_disponiveis?ano=${ano}&mes=${mes}`);
@@ -161,12 +197,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok || data.error) throw new Error(data.error || res.statusText);
       const rows = Array.isArray(data.rows) ? data.rows : [];
       if (!rows.length) {
-        clientesBody.innerHTML = '<tr><td colspan="3" class="text-muted p-3">Sem clientes para adicionar.</td></tr>';
+        clientesBody.innerHTML = '<tr><td colspan="4" class="text-muted p-3">Sem clientes para adicionar.</td></tr>';
       } else {
         clientesBody.innerHTML = rows.map(r => `
-          <tr data-no="${escapeHtml(r.NO)}" data-nome="${escapeHtml(r.NOME)}">
+          <tr data-no="${escapeHtml(r.NO)}" data-estab="${escapeHtml(r.CLESTAB ?? 0)}" data-nome="${escapeHtml(r.NOME)}">
             <td><input type="checkbox" class="form-check-input pm-cli"></td>
             <td>${escapeHtml(r.NO)}</td>
+            <td>${escapeHtml(r.CLESTAB ?? 0)}</td>
             <td>${escapeHtml(r.NOME)}</td>
           </tr>
         `).join('');
@@ -196,7 +233,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const { ano, mes } = monthParams();
     const items = checks.map(c => {
       const tr = c.closest('tr');
-      return { no: tr?.getAttribute('data-no') || '', nome: tr?.getAttribute('data-nome') || '' };
+      return {
+        no: tr?.getAttribute('data-no') || '',
+        clestab: tr?.getAttribute('data-estab') || '0',
+        nome: tr?.getAttribute('data-nome') || ''
+      };
     });
     clientesSave.disabled = true;
     try {
@@ -309,6 +350,15 @@ document.addEventListener('DOMContentLoaded', () => {
               }
               if (key === 'ORIGEM') {
                 return `<td><span class="pm-origin-badge">${escapeHtml((val ?? '').toString())}</span></td>`;
+              }
+              if (key === 'RESERVA') {
+                const code = (val ?? '').toString().trim();
+                const origem = (r.ORIGEM ?? '').toString().trim().toLowerCase();
+                if (code && origem.includes('airbnb')) {
+                  const href = `https://www.airbnb.pt/hosting/stay/${encodeURIComponent(code)}`;
+                  return `<td class="pm-drill-text" title="${escapeHtml(code)}"><a class="pm-reservation-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(code)}</a></td>`;
+                }
+                return `<td class="pm-drill-text" title="${escapeHtml(code)}">${escapeHtml(code)}</td>`;
               }
               if (['DOCUMENTO','FORNECEDOR','ALOJAMENTO','DESCRICAO'].includes(key)) {
                 const text = (val ?? '').toString();
