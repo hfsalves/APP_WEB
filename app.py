@@ -38900,8 +38900,8 @@ OPTION (MAXRECURSION 32767);
                 JOIN dbo.FO AS F ON F.FOSTAMP = FN.FOSTAMP
                 JOIN dbo.AL AS A
                   ON (
-                       LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) COLLATE Latin1_General_CI_AI
-                    OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                       NULLIF(LTRIM(RTRIM(ISNULL(A.NOME, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))), '') COLLATE Latin1_General_CI_AI
+                    OR NULLIF(LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))), '') COLLATE Latin1_General_CI_AI
                   )
                 WHERE ISNULL(A.TIPO,'') = 'GESTAO'
             """)).mappings().all()
@@ -38941,8 +38941,8 @@ OPTION (MAXRECURSION 32767);
                 FROM dbo.FO AS F
                 LEFT JOIN dbo.AL AS A
                   ON (
-                       LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))) COLLATE Latin1_General_CI_AI
-                    OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                       NULLIF(LTRIM(RTRIM(ISNULL(A.NOME, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))), '') COLLATE Latin1_General_CI_AI
+                    OR NULLIF(LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))), '') COLLATE Latin1_General_CI_AI
                   )
                 WHERE {fo_filter}
             """)
@@ -39013,8 +39013,8 @@ OPTION (MAXRECURSION 32767);
                 FROM dbo.MN AS M
                 JOIN dbo.AL AS A
                   ON (
-                       LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))) COLLATE Latin1_General_CI_AI
-                    OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))) COLLATE Latin1_General_CI_AI
+                       NULLIF(LTRIM(RTRIM(ISNULL(A.NOME, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))), '') COLLATE Latin1_General_CI_AI
+                    OR NULLIF(LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))), '') COLLATE Latin1_General_CI_AI
                   )
                 WHERE ISNULL(A.TIPO,'') = 'GESTAO'
             """)).mappings().all()
@@ -39071,8 +39071,8 @@ OPTION (MAXRECURSION 32767);
                         FROM dbo.FO AS F
                         LEFT JOIN dbo.AL AS A
                           ON (
-                               LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))) COLLATE Latin1_General_CI_AI
-                            OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                               NULLIF(LTRIM(RTRIM(ISNULL(A.NOME, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))), '') COLLATE Latin1_General_CI_AI
+                            OR NULLIF(LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))), '') COLLATE Latin1_General_CI_AI
                           )
                         LEFT JOIN dbo.CL AS CL
                           ON ISNULL(CL.NO, 0) = ISNULL(A.CLIENTID, 0)
@@ -39108,8 +39108,8 @@ OPTION (MAXRECURSION 32767);
                           ON F.FOSTAMP = FN.FOSTAMP
                         LEFT JOIN dbo.AL AS A
                           ON (
-                               LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) COLLATE Latin1_General_CI_AI
-                            OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                               NULLIF(LTRIM(RTRIM(ISNULL(A.NOME, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))), '') COLLATE Latin1_General_CI_AI
+                            OR NULLIF(LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))), '') COLLATE Latin1_General_CI_AI
                           )
                         LEFT JOIN dbo.CL AS CL
                           ON ISNULL(CL.NO, 0) = ISNULL(A.CLIENTID, 0)
@@ -39128,8 +39128,8 @@ OPTION (MAXRECURSION 32767);
                         FROM dbo.MN AS M
                         LEFT JOIN dbo.AL AS A
                           ON (
-                               LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))) COLLATE Latin1_General_CI_AI
-                            OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))) COLLATE Latin1_General_CI_AI
+                               NULLIF(LTRIM(RTRIM(ISNULL(A.NOME, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))), '') COLLATE Latin1_General_CI_AI
+                            OR NULLIF(LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))), '') COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))), '') COLLATE Latin1_General_CI_AI
                           )
                         LEFT JOIN dbo.CL AS CL
                           ON ISNULL(CL.NO, 0) = ISNULL(A.CLIENTID, 0)

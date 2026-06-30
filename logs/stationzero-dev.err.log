@@ -21404,3 +21404,20 @@ Press CTRL+C to quit
 127.0.0.1 - - [30/Jun/2026 11:32:57] "GET /static/images/favicon.ico HTTP/1.1" 304 -
 127.0.0.1 - - [30/Jun/2026 11:32:57] "GET /api/imputacao_proprietarios HTTP/1.1" 200 -
 127.0.0.1 - - [30/Jun/2026 11:32:59] "GET /service-worker.js HTTP/1.1" 304 -
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://192.168.1.194:8001
+Press CTRL+C to quit
+127.0.0.1 - - [30/Jun/2026 11:43:08] "GET /imputacao_proprietarios HTTP/1.1" 200 -
+127.0.0.1 - - [30/Jun/2026 11:43:08] "GET /static/js/imputacao_proprietarios.js?v=1782816177 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Jun/2026 11:43:08] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [30/Jun/2026 11:43:08] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [30/Jun/2026 11:43:08] "GET /static/images/profile/68e1b19c6da045d7af82822fa4dd505a.png HTTP/1.1" 304 -
+127.0.0.1 - - [30/Jun/2026 11:43:08] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [30/Jun/2026 11:43:08] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Jun/2026 11:43:08] "GET /static/js/push.js?v=1782816177 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Jun/2026 11:43:08] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [30/Jun/2026 11:43:08] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [30/Jun/2026 11:43:08] "GET /api/imputacao_proprietarios HTTP/1.1" 200 -
+127.0.0.1 - - [30/Jun/2026 11:43:10] "GET /service-worker.js HTTP/1.1" 304 -
