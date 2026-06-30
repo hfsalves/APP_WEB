@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnNext = document.getElementById('pmNext');
   const btnAddClientes = document.getElementById('pmAddClientes');
   const btnCalcValores = document.getElementById('pmCalcValores');
+  const btnFaturacao = document.getElementById('pmFaturacao');
   const clientesModalEl = document.getElementById('pmClientesModal');
   const clientesBody = document.getElementById('pmClientesBody');
   const clientesSave = document.getElementById('pmAddClientesSave');
@@ -35,6 +36,31 @@ document.addEventListener('DOMContentLoaded', () => {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 
+  function invoiceBadge(row) {
+    const faturado = Number(row.FATURADO_GESTAO || 0) === 1;
+    if (faturado) {
+      const label = [row.PHC_DOC, row.PHC_NUMERO].filter(Boolean).join(' ') || 'Emitida';
+      return `<span class="pm-invoice-badge ok" title="${escapeHtml(label)}"><i class="fa-solid fa-circle-check"></i><span>${escapeHtml(label)}</span></span>`;
+    }
+    const warnings = Array.isArray(row.FATURACAO_WARNINGS) ? row.FATURACAO_WARNINGS.filter(Boolean) : [];
+    if (warnings.length) {
+      return `<span class="pm-invoice-badge warn" title="${escapeHtml(warnings.join('; '))}"><i class="fa-solid fa-triangle-exclamation"></i><span>${escapeHtml(warnings[0])}</span></span>`;
+    }
+    return '<span class="pm-invoice-badge"><i class="fa-regular fa-clock"></i><span>Por faturar</span></span>';
+  }
+
+  function pdfCell(row) {
+    const url = (row.PHC_PDF_URL || '').toString().trim();
+    if (url) {
+      return `<a class="pm-pdf-link" href="${escapeHtml(url)}" target="_blank" rel="noopener" title="Abrir PDF"><i class="fa-solid fa-file-pdf"></i></a>`;
+    }
+    return '<span class="pm-pdf-empty" title="PDF indisponível"><i class="fa-regular fa-file-pdf"></i></span>';
+  }
+
+  function invoiceEligibleRows() {
+    return lastRows.filter(r => Number(r.FATURADO_GESTAO || 0) !== 1 && Number(r.FATURACAO_OK || 0) === 1);
+  }
+
   function setLabel() {
     if (label) label.textContent = fmtMonth.format(cur);
   }
@@ -46,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function render(rows) {
     if (!body) return;
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="8" class="text-muted p-3">Sem registos.</td></tr>';
+      body.innerHTML = '<tr><td colspan="10" class="text-muted p-3">Sem registos.</td></tr>';
       if (foot) {
         foot.innerHTML = `
           <tr class="pm-total-row">
@@ -56,10 +82,13 @@ document.addEventListener('DOMContentLoaded', () => {
             <td class="text-end">0.00</td>
             <td class="text-end">0.00</td>
             <td></td>
+            <td></td>
+            <td></td>
           </tr>
         `;
       }
       if (countEl) countEl.textContent = '0 registos';
+      if (btnFaturacao) btnFaturacao.disabled = true;
       return;
     }
     const totals = rows.reduce((acc, r) => {
@@ -78,6 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const imp = Number(r.IMPUTACOES || 0);
       const tot = Number(r.TOTAL || 0);
       const totIva = tot * 1.23;
+      const canInvoice = Number(r.FATURADO_GESTAO || 0) !== 1 && Number(r.FATURACAO_OK || 0) === 1;
       return `
         <tr data-stamp="${escapeHtml(r.DMSTAMP || '')}">
           <td>${escapeHtml(r.NO)}</td>
@@ -87,7 +117,9 @@ document.addEventListener('DOMContentLoaded', () => {
           <td class="text-end"><span class="pm-cell-link pm-imp" data-stamp="${escapeHtml(r.DMSTAMP || '')}">${escapeHtml(imp.toFixed(2))}</span></td>
           <td class="text-end">${escapeHtml(tot.toFixed(2))}</td>
           <td class="text-end">${escapeHtml(totIva.toFixed(2))}</td>
-          <td>${canDelete ? '<button class="pm-del" title="Eliminar"><i class="fa-solid fa-trash"></i></button>' : ''}</td>
+          <td>${invoiceBadge(r)}</td>
+          <td>${pdfCell(r)}</td>
+          <td><span class="pm-row-actions">${canInvoice ? '<button class="pm-fat-btn" title="Emitir fatura"><i class="fa-solid fa-file-invoice"></i></button>' : ''}${canDelete ? '<button class="pm-del" title="Eliminar"><i class="fa-solid fa-trash"></i></button>' : ''}</span></td>
         </tr>
       `;
     }).join('');
@@ -100,10 +132,13 @@ document.addEventListener('DOMContentLoaded', () => {
           <td class="text-end">${escapeHtml(totals.TOTAL.toFixed(2))}</td>
           <td class="text-end">${escapeHtml(totals.TOTAL_IVA.toFixed(2))}</td>
           <td></td>
+          <td></td>
+          <td></td>
         </tr>
       `;
     }
     if (countEl) countEl.textContent = `${rows.length} registo(s)`;
+    if (btnFaturacao) btnFaturacao.disabled = invoiceEligibleRows().length === 0;
 
     body.querySelectorAll('.pm-del').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -130,6 +165,15 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
+    body.querySelectorAll('.pm-fat-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const tr = btn.closest('tr');
+        const stamp = tr?.getAttribute('data-stamp') || '';
+        if (!stamp) return;
+        await emitirFaturacao([stamp]);
+      });
+    });
+
     body.querySelectorAll('.pm-comm').forEach(el => {
       el.addEventListener('click', () => openDrill(el.getAttribute('data-stamp') || '', 'comissoes'));
     });
@@ -142,11 +186,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!body) return;
     setLabel();
     const { ano, mes } = monthParams();
-    body.innerHTML = '<tr><td colspan="8" class="text-muted p-3">A carregar...</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" class="text-muted p-3">A carregar...</td></tr>';
     const res = await fetch(`/api/processamento_mensal?ano=${ano}&mes=${mes}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.error) {
-      body.innerHTML = `<tr><td colspan="8" class="text-danger p-3">Erro: ${escapeHtml(data.error || res.statusText)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="10" class="text-danger p-3">Erro: ${escapeHtml(data.error || res.statusText)}</td></tr>`;
       return;
     }
     lastRows = Array.isArray(data.rows) ? data.rows : [];
@@ -185,6 +229,40 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally {
       btnCalcValores.disabled = false;
     }
+  });
+  async function emitirFaturacao(dmstamps) {
+    const ids = (dmstamps || []).map(x => String(x || '').trim()).filter(Boolean);
+    if (!ids.length) {
+      alert('Não há registos elegíveis para faturar.');
+      return;
+    }
+    if (!confirm(`Emitir ${ids.length} fatura(s) de gestão AL no PHC?`)) return;
+    if (btnFaturacao) btnFaturacao.disabled = true;
+    try {
+      const res = await fetch('/api/processamento_mensal/faturar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dmstamps: ids })
+      });
+      const data = await res.json().catch(() => ({}));
+      const created = Array.isArray(data.created) ? data.created : [];
+      const errors = Array.isArray(data.errors) ? data.errors : [];
+      if (!res.ok && data.error) throw new Error(data.error);
+      if (errors.length) {
+        alert(`Faturas emitidas: ${created.length}\nErros: ${errors.length}\n\n${errors.slice(0, 8).map(e => `${e.CLIENTE || e.DMSTAMP}: ${e.error}`).join('\n')}`);
+      } else {
+        alert(`Faturas emitidas: ${created.length}`);
+      }
+      await load();
+    } catch (e) {
+      alert(`Erro: ${e.message || e}`);
+    } finally {
+      if (btnFaturacao) btnFaturacao.disabled = invoiceEligibleRows().length === 0;
+    }
+  }
+  btnFaturacao?.addEventListener('click', async () => {
+    const ids = invoiceEligibleRows().map(r => String(r.DMSTAMP || '').trim()).filter(Boolean);
+    await emitirFaturacao(ids);
   });
   btnAddClientes?.addEventListener('click', async () => {
     if (!clientesModal) return;
@@ -380,14 +458,11 @@ document.addEventListener('DOMContentLoaded', () => {
             cols.forEach(c => {
               const key = (c || '').toUpperCase();
               if (!numericCols.has(key)) return;
-              if (isCancel && ['ESTADIA','LIMPEZA','COMISSAO','VALOR'].includes(key)) return;
-              const n = Number(r[c] || 0);
+              if (isCancel && ['ESTADIA','LIMPEZA','COMISSAO'].includes(key)) return;
+              const rawValue = key === 'VALOR' && r.VALOR_RAW !== undefined && r.VALOR_RAW !== null ? r.VALOR_RAW : r[c];
+              const n = Number(rawValue || 0);
               totals[key] = (totals[key] || 0) + (Number.isFinite(n) ? n : 0);
             });
-            if (isCancel) {
-              const pc = Number(r.PCANCEL || 0);
-              totals.VALOR = (totals.VALOR || 0) + (Number.isFinite(pc) ? pc : 0);
-            }
           });
           drillFoot.innerHTML = cols.map((c, idx) => {
             const key = (c || '').toUpperCase();

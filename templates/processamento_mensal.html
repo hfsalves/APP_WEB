@@ -10,7 +10,7 @@
     <header class="sz_contextbar sz_page_contextbar pm-contextbar">
       <div class="sz_contextbar_left">
         <div class="sz_page_title">Processamento Mensal</div>
-        <div class="sz_page_subtitle">Fecho mensal, dossiers e faturas por proprietário.</div>
+        <div class="sz_page_subtitle">Fecho mensal e faturação por proprietário.</div>
       </div>
       <div class="sz_contextbar_right pm-toolbar">
         <div class="pm-period-nav" aria-label="Período">
@@ -31,6 +31,10 @@
             <i class="fa-solid fa-calculator"></i>
             <span>Calcular valores</span>
           </button>
+          <button class="sz_button sz_button_primary" id="pmFaturacao" type="button">
+            <i class="fa-solid fa-file-invoice"></i>
+            <span>Faturação</span>
+          </button>
           <span class="sz_badge sz_badge_info pm-count" id="pmCount"></span>
         </div>
       </div>
@@ -49,15 +53,17 @@
                 <th class="text-end">Imputações</th>
                 <th class="text-end">Total</th>
                 <th class="text-end">Total c/IVA</th>
+                <th>Fatura</th>
+                <th>PDF</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="pmBody">
-              <tr><td colspan="8" class="text-muted p-3">A carregar...</td></tr>
+              <tr><td colspan="10" class="text-muted p-3">A carregar...</td></tr>
             </tbody>
             <tfoot id="pmFoot">
               <tr>
-                <th colspan="8"></th>
+                <th colspan="10"></th>
               </tr>
             </tfoot>
           </table>
@@ -372,6 +378,73 @@
     color: var(--sz-color-danger);
   }
 
+  .pm-row-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+  }
+
+  .pm-fat-btn,
+  .pm-pdf-link,
+  .pm-pdf-empty {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-muted);
+    text-decoration: none;
+  }
+
+  .pm-fat-btn {
+    color: var(--sz-color-primary);
+  }
+
+  .pm-fat-btn:hover,
+  .pm-pdf-link:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 46%, var(--sz-color-border));
+    color: var(--sz-color-primary);
+  }
+
+  .pm-pdf-link {
+    color: var(--sz-color-danger);
+  }
+
+  .pm-pdf-empty {
+    opacity: 0.52;
+  }
+
+  .pm-invoice-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 1.55rem;
+    padding: 0.16rem 0.55rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: 999px;
+    background: var(--sz-color-surface-alt);
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-xs);
+    font-weight: var(--sz-font-weight-bold);
+  }
+
+  .pm-invoice-badge.ok {
+    background: color-mix(in srgb, var(--sz-color-success) 13%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-success) 40%, var(--sz-color-border));
+    color: var(--sz-color-success);
+  }
+
+  .pm-invoice-badge.warn {
+    background: color-mix(in srgb, var(--sz-color-warning) 14%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-warning) 42%, var(--sz-color-border));
+    color: var(--sz-color-warning);
+  }
+
   .pm-cancel td.pm-strike {
     color: var(--sz-color-text-muted);
     text-decoration: line-through;
@@ -508,5 +581,5 @@
   }
 </style>
 
-<script src="{{ url_for('static', filename='js/processamento_mensal.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/processamento_mensal.js') }}?v={{ static_version }}&pmv=20260629_3"></script>
 {% endblock %}

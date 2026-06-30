@@ -20923,6 +20923,12 @@ def create_app():
             return value.strftime('%d.%m.%Y')
         return ''
 
+    def _phc_reservas_cliente_generico_no(tipo: str):
+        tipo_norm = str(tipo or '').strip().upper()
+        if tipo_norm == 'EXPLORACAO':
+            return _to_int(os.environ.get('PHC_EXPLORACAO_CLIENTE_NO'), 23)
+        return _to_int(os.environ.get('PHC_GESTAO_CLIENTE_NO'), 1)
+
     def _build_faturacao_reservas_global_phc_payload(row: dict, user_login: str):
         reserva = str(row.get('RESERVA') or row.get('RSSTAMP') or '').strip()
         datain = row.get('DATAIN') or row.get('DATAOUT')
@@ -20950,7 +20956,7 @@ def create_app():
             })
         payload = {
             'ndoc': _to_int(os.environ.get('PHC_RESERVAS_NDOC'), 3),
-            'no': 1,
+            'no': _phc_reservas_cliente_generico_no(tipo),
             'nome': hospede[:80],
             'morada': str(row.get('FTMORADA') or '').strip()[:120],
             'local': str(row.get('FTLOCAL') or '').strip()[:80],
@@ -38858,6 +38864,7 @@ OPTION (MAXRECURSION 32767);
                     FN.REF,
                     FN.DESIGN,
                     FN.FNCCUSTO,
+                    LTRIM(RTRIM(ISNULL(A.NOME, ''))) AS AL_NOME,
                     FN.ETILIQUIDO,
                     FN.EPV,
                     FN.QTT,
@@ -38891,7 +38898,11 @@ OPTION (MAXRECURSION 32767);
                     F.NOME AS NOME_FORN
                 FROM dbo.FN AS FN
                 JOIN dbo.FO AS F ON F.FOSTAMP = FN.FOSTAMP
-                JOIN dbo.AL AS A ON LTRIM(RTRIM(A.NOME)) = LTRIM(RTRIM(FN.FNCCUSTO))
+                JOIN dbo.AL AS A
+                  ON (
+                       LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                    OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                  )
                 WHERE ISNULL(A.TIPO,'') = 'GESTAO'
             """)).mappings().all()
 
@@ -38916,7 +38927,8 @@ OPTION (MAXRECURSION 32767);
                     CAST(F.DATA AS date) AS DATA,
                     CONCAT(ISNULL(F.DOCNOME,''), ' ', ISNULL(F.ADOC,'')) AS DOC,
                     ISNULL(F.NOME,'') AS NOME,
-                    ISNULL(F.CCUSTO,'') AS ALOJAMENTO,
+                    COALESCE(NULLIF(LTRIM(RTRIM(ISNULL(A.NOME,''))), ''), ISNULL(F.CCUSTO,'')) AS ALOJAMENTO,
+                    ISNULL(F.CCUSTO,'') AS CCUSTO_ORIG,
                     ISNULL(F.ETTILIQ,0) AS TOTAL,
                     ISNULL(F.ETTILIQ,0) AS BASE,
                     ISNULL(F.IMPUTAR,0) AS IMPUTAR,
@@ -38927,7 +38939,10 @@ OPTION (MAXRECURSION 32767);
                     ISNULL(F.NIMPUTAR,0) AS NIMPUTAR
                 FROM dbo.FO AS F
                 LEFT JOIN dbo.AL AS A
-                  ON LTRIM(RTRIM(A.NOME)) = LTRIM(RTRIM(F.CCUSTO))
+                  ON (
+                       LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                    OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                  )
                 WHERE {fo_filter}
             """)
             fo_rows = db.session.execute(fo_sql, fo_params).mappings().all()
@@ -38937,7 +38952,8 @@ OPTION (MAXRECURSION 32767);
                 fostamp = fo.get('STAMP')
                 lines = fn_by_fo.get(fostamp, [])
                 distinct_cc = {str(l.get('FNCCUSTO') or '').strip() for l in lines if (l.get('FNCCUSTO') or '').strip()}
-                fo_cc = str(fo.get('ALOJAMENTO') or '').strip()
+                fo_cc = str(fo.get('CCUSTO_ORIG') or fo.get('ALOJAMENTO') or '').strip()
+                fo_alojamento = str(fo.get('ALOJAMENTO') or '').strip()
                 split_to_lines = False
                 if lines:
                     if len(distinct_cc) > 1 or (distinct_cc and (fo_cc not in distinct_cc)):
@@ -38949,7 +38965,7 @@ OPTION (MAXRECURSION 32767);
                         'DATA': fo.get('DATA'),
                         'DOC': fo.get('DOC') or '',
                         'NOME': fo.get('NOME') or '',
-                        'ALOJAMENTO': fo_cc,
+                        'ALOJAMENTO': fo_alojamento or fo_cc,
                         'TOTAL': float(fo.get('TOTAL') or 0),
                         'BASE': float(fo.get('BASE') or 0),
                         'IMPUTAR': int(fo.get('IMPUTAR') or 0),
@@ -38969,7 +38985,7 @@ OPTION (MAXRECURSION 32767);
                             'DATA': l.get('DATA'),
                             'DOC': fo.get('DOC') or '',
                             'NOME': l.get('NOME_FORN') or '',
-                            'ALOJAMENTO': l.get('FNCCUSTO') or '',
+                            'ALOJAMENTO': l.get('AL_NOME') or l.get('FNCCUSTO') or '',
                             'TOTAL': float(base or 0),
                             'BASE': float(base or 0),
                             'IMPUTAR': int(l.get('IMPUTAR') or 0),
@@ -38987,7 +39003,7 @@ OPTION (MAXRECURSION 32767);
                     CAST(M.DATA AS date) AS DATA,
                     ISNULL(M.INCIDENCIA,'') AS DOC,
                     ISNULL(M.NOME,'') AS NOME,
-                    ISNULL(M.ALOJAMENTO,'') AS ALOJAMENTO,
+                    COALESCE(NULLIF(LTRIM(RTRIM(ISNULL(A.NOME,''))), ''), ISNULL(M.ALOJAMENTO,'')) AS ALOJAMENTO,
                     ISNULL(M.IMPUTAR,0) AS IMPUTAR,
                     ISNULL(M.IMPUTMES,0) AS IMPUTMES,
                     ISNULL(M.IMPUTANO,0) AS IMPUTANO,
@@ -38996,7 +39012,10 @@ OPTION (MAXRECURSION 32767);
                     ISNULL(M.NIMPUTAR,0) AS NIMPUTAR
                 FROM dbo.MN AS M
                 JOIN dbo.AL AS A
-                  ON LTRIM(RTRIM(A.NOME)) = LTRIM(RTRIM(M.ALOJAMENTO))
+                  ON (
+                       LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))) COLLATE Latin1_General_CI_AI
+                    OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))) COLLATE Latin1_General_CI_AI
+                  )
                 WHERE ISNULL(A.TIPO,'') = 'GESTAO'
             """)).mappings().all()
             for r in mn_rows:
@@ -39042,7 +39061,7 @@ OPTION (MAXRECURSION 32767);
                 if origem == 'FO':
                     return db.session.execute(text("""
                         SELECT TOP 1
-                            LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))) AS ALOJAMENTO,
+                            COALESCE(NULLIF(LTRIM(RTRIM(ISNULL(A.NOME, ''))), ''), LTRIM(RTRIM(ISNULL(F.CCUSTO, '')))) AS ALOJAMENTO,
                             LTRIM(RTRIM(ISNULL(F.DOCNOME, '') + ' ' + ISNULL(F.ADOC, ''))) AS DESCRICAO,
                             LTRIM(RTRIM(ISNULL(F.NOME, ''))) AS SOURCE_NOME,
                             ISNULL(F.ETTILIQ, 0) AS DEFAULT_VALOR,
@@ -39051,7 +39070,10 @@ OPTION (MAXRECURSION 32767);
                             LTRIM(RTRIM(ISNULL(CL.NOME, ''))) AS NOME
                         FROM dbo.FO AS F
                         LEFT JOIN dbo.AL AS A
-                          ON LTRIM(RTRIM(ISNULL(A.NOME, ''))) = LTRIM(RTRIM(ISNULL(F.CCUSTO, '')))
+                          ON (
+                               LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                            OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(F.CCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                          )
                         LEFT JOIN dbo.CL AS CL
                           ON ISNULL(CL.NO, 0) = ISNULL(A.CLIENTID, 0)
                         WHERE F.FOSTAMP = :stamp
@@ -39059,7 +39081,7 @@ OPTION (MAXRECURSION 32767);
                 if origem == 'FN':
                     return db.session.execute(text("""
                         SELECT TOP 1
-                            LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) AS ALOJAMENTO,
+                            COALESCE(NULLIF(LTRIM(RTRIM(ISNULL(A.NOME, ''))), ''), LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, '')))) AS ALOJAMENTO,
                             LTRIM(RTRIM(ISNULL(FN.DESIGN, ''))) AS DESCRICAO,
                             LTRIM(RTRIM(ISNULL(F.NOME, ''))) AS SOURCE_NOME,
                             CAST(
@@ -39085,7 +39107,10 @@ OPTION (MAXRECURSION 32767);
                         LEFT JOIN dbo.FO AS F
                           ON F.FOSTAMP = FN.FOSTAMP
                         LEFT JOIN dbo.AL AS A
-                          ON LTRIM(RTRIM(ISNULL(A.NOME, ''))) = LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, '')))
+                          ON (
+                               LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                            OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(FN.FNCCUSTO, ''))) COLLATE Latin1_General_CI_AI
+                          )
                         LEFT JOIN dbo.CL AS CL
                           ON ISNULL(CL.NO, 0) = ISNULL(A.CLIENTID, 0)
                         WHERE FN.FNSTAMP = :stamp
@@ -39093,7 +39118,7 @@ OPTION (MAXRECURSION 32767);
                 if origem == 'MN':
                     return db.session.execute(text("""
                         SELECT TOP 1
-                            LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))) AS ALOJAMENTO,
+                            COALESCE(NULLIF(LTRIM(RTRIM(ISNULL(A.NOME, ''))), ''), LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, '')))) AS ALOJAMENTO,
                             LTRIM(RTRIM(ISNULL(M.INCIDENCIA, ''))) AS DESCRICAO,
                             LTRIM(RTRIM(ISNULL(M.NOME, ''))) AS SOURCE_NOME,
                             ISNULL(M.IMPUTVALOR, 0) AS DEFAULT_VALOR,
@@ -39102,7 +39127,10 @@ OPTION (MAXRECURSION 32767);
                             LTRIM(RTRIM(ISNULL(CL.NOME, ''))) AS NOME
                         FROM dbo.MN AS M
                         LEFT JOIN dbo.AL AS A
-                          ON LTRIM(RTRIM(ISNULL(A.NOME, ''))) = LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, '')))
+                          ON (
+                               LTRIM(RTRIM(ISNULL(A.NOME, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))) COLLATE Latin1_General_CI_AI
+                            OR LTRIM(RTRIM(ISNULL(A.CCUSTO, ''))) COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(M.ALOJAMENTO, ''))) COLLATE Latin1_General_CI_AI
+                          )
                         LEFT JOIN dbo.CL AS CL
                           ON ISNULL(CL.NO, 0) = ISNULL(A.CLIENTID, 0)
                         WHERE M.MNSTAMP = :stamp
@@ -39337,6 +39365,216 @@ OPTION (MAXRECURSION 32767);
         """), {'ano': int(ano), 'mes': int(mes)})
         db.session.commit()
 
+    def _ensure_pm_faturacao_gestao_schema():
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.FAT_GESTAO_AL_PHC_LOG', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.FAT_GESTAO_AL_PHC_LOG (
+                    FATGESTAOSTAMP varchar(25) NOT NULL CONSTRAINT PK_FAT_GESTAO_AL_PHC_LOG PRIMARY KEY,
+                    DMSTAMP varchar(25) NOT NULL,
+                    ANO int NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_ANO DEFAULT 0,
+                    MES int NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_MES DEFAULT 0,
+                    NO int NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_NO DEFAULT 0,
+                    CLESTAB int NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_CLESTAB DEFAULT 0,
+                    CLIENTE varchar(120) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_CLIENTE DEFAULT '',
+                    CLIENTE_BDPHC varchar(120) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_BDPHC DEFAULT '',
+                    VALOR numeric(18,2) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_VALOR DEFAULT 0,
+                    STATUS varchar(20) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_STATUS DEFAULT 'PENDING',
+                    PHC_STAMP varchar(80) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_PHC_STAMP DEFAULT '',
+                    PHC_NUMERO varchar(80) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_PHC_NUMERO DEFAULT '',
+                    PHC_DOC varchar(80) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_PHC_DOC DEFAULT '',
+                    PHC_PDF nvarchar(500) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_PHC_PDF DEFAULT '',
+                    REQUEST_JSON nvarchar(max) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_REQUEST DEFAULT '',
+                    RESPONSE_JSON nvarchar(max) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_RESPONSE DEFAULT '',
+                    ERROR_MSG nvarchar(max) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_ERROR DEFAULT '',
+                    USERCRIACAO varchar(60) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_USER DEFAULT '',
+                    DTCRI datetime2(0) NOT NULL CONSTRAINT DF_FAT_GESTAO_AL_DTCRI DEFAULT SYSUTCDATETIME(),
+                    DTALT datetime2(0) NULL
+                );
+                CREATE INDEX IX_FAT_GESTAO_AL_DMS_STATUS ON dbo.FAT_GESTAO_AL_PHC_LOG (DMSTAMP, STATUS);
+                CREATE INDEX IX_FAT_GESTAO_AL_PERIODO ON dbo.FAT_GESTAO_AL_PHC_LOG (ANO, MES, NO, CLESTAB);
+            END
+        """))
+        db.session.commit()
+        return True
+
+    def _pm_faturacao_gestao_log_available():
+        try:
+            return bool(db.session.execute(text("SELECT OBJECT_ID('dbo.FAT_GESTAO_AL_PHC_LOG', 'U')")).scalar())
+        except Exception:
+            return False
+
+    def _try_ensure_pm_faturacao_gestao_schema():
+        try:
+            return _ensure_pm_faturacao_gestao_schema()
+        except Exception:
+            db.session.rollback()
+            app.logger.warning('Tabela FAT_GESTAO_AL_PHC_LOG indisponivel; processamento mensal segue sem estado PHC.', exc_info=True)
+            return False
+
+    def _pm_guestspa_bdphc():
+        return (
+            os.environ.get('PHC_GUESTSPA_BDPHC', '').strip()
+            or os.environ.get('PHC_EXPLORACAO_BDPHC', '').strip()
+            or 'GUESTSPA'
+        )
+
+    def _pm_month_label(ano, mes):
+        meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+        try:
+            return f"{meses[int(mes) - 1]} {int(ano)}"
+        except Exception:
+            return ''
+
+    def _pm_faturacao_gestao_pdf_url(dmstamp, has_invoice=True):
+        stamp = str(dmstamp or '').strip()
+        return f"/api/processamento_mensal/fatura/pdf/{quote(stamp, safe='')}" if stamp and has_invoice else ''
+
+    def _pm_pdf_public_filename(value):
+        raw = str(value or '').strip()
+        if not raw:
+            return ''
+        try:
+            if raw.lower().startswith(('http://', 'https://')):
+                parsed_path = urlsplit(raw).path
+                raw = parsed_path or raw
+        except Exception:
+            pass
+        normalized = raw.replace('\\', '/').rstrip('/')
+        filename = normalized.rsplit('/', 1)[-1].strip()
+        if not filename or filename in ('.', '..'):
+            return ''
+        return filename
+
+    def _pm_faturacao_pdf_candidates(bdphc, numero, phc_pdf=''):
+        candidates = []
+        pdf_raw = str(phc_pdf or '').strip()
+        if pdf_raw:
+            base = _pm_pdf_public_filename(pdf_raw)
+            if base:
+                candidates.append(base)
+            candidates.append(pdf_raw)
+        bd = _fatglob_pdf_safe_part(bdphc)
+        num = _fatglob_pdf_safe_part(numero)
+        if bd and num:
+            candidates.extend([f'{bd}_FT_{num}.pdf', f'{bd}_FR_{num}.pdf', f'{bd}_{num}.pdf'])
+        out, seen = [], set()
+        for item in candidates:
+            value = str(item or '').strip()
+            key = value.lower()
+            if value and key not in seen:
+                seen.add(key)
+                out.append(value)
+        return out
+
+    def _pm_commission_value_sql():
+        return """
+            CASE WHEN ISNULL(AL.CALCSIVA,0) = 1 THEN
+              CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                THEN ISNULL(RS.PCANCEL,0)
+                ELSE (ISNULL(RS.ESTADIA,0) / 1.06) - ISNULL(RS.COMISSAO,0)
+              END * (ISNULL(AL.COMISSAO,0) / 100.0)
+            WHEN ISNULL(AL.FTLIMPEZA,0) = 0 THEN
+              CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                THEN ISNULL(RS.PCANCEL,0)
+                ELSE ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0) - ISNULL(RS.COMISSAO,0)
+              END * (ISNULL(AL.COMISSAO,0) / 100.0)
+            ELSE
+              CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                THEN ISNULL(RS.PCANCEL,0) * (ISNULL(AL.COMISSAO,0) / 100.0)
+                ELSE ((ISNULL(RS.ESTADIA,0) - ISNULL(RS.COMISSAO,0)) * (ISNULL(AL.COMISSAO,0) / 100.0)) - (ISNULL(RS.LIMPEZA,0) * 0.155)
+              END
+            END
+        """
+
+    def _pm_faturacao_gestao_header(dmstamp):
+        return db.session.execute(text("""
+            SELECT
+              DM.DMSTAMP,
+              DM.ANO,
+              DM.MES,
+              DM.NO,
+              ISNULL(DM.CLESTAB, 0) AS CLESTAB,
+              LTRIM(RTRIM(ISNULL(DM.NOME, CL.NOME))) AS NOME,
+              LTRIM(RTRIM(ISNULL(CL.NOME, DM.NOME))) AS CLIENTE_NOME,
+              LTRIM(RTRIM(ISNULL(CL.NIF,''))) AS CLIENTE_NIF,
+              LTRIM(RTRIM(ISNULL(CL.MORADA,''))) AS CLIENTE_MORADA,
+              LTRIM(RTRIM(ISNULL(CL.CODPOST,''))) AS CLIENTE_CODPOST,
+              LTRIM(RTRIM(ISNULL(CL.LOCAL,''))) AS CLIENTE_LOCAL,
+              CAST(ISNULL(DM.COMISSOES,0) AS decimal(18,2)) AS COMISSOES,
+              CAST(ISNULL(DM.TOTAL,0) AS decimal(18,2)) AS TOTAL
+            FROM dbo.DM DM
+            LEFT JOIN dbo.CL CL ON CL.NO = DM.NO
+            WHERE DM.DMSTAMP = :dmstamp
+        """), {'dmstamp': str(dmstamp or '').strip()}).mappings().first()
+
+    def _pm_faturacao_gestao_lines(dmstamp):
+        value_expr = _pm_commission_value_sql()
+        rows = db.session.execute(text(f"""
+            SELECT
+              LTRIM(RTRIM(ISNULL(AL.NOME,''))) AS ALOJAMENTO,
+              CAST(SUM({value_expr}) AS decimal(18,6)) AS VALOR
+            FROM dbo.DM DM
+            JOIN dbo.CL CL ON CL.NO = DM.NO
+            JOIN dbo.AL AL
+              ON LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) = LTRIM(RTRIM(ISNULL(CL.NOME,'')))
+             AND ISNULL(AL.CLESTAB,0) = ISNULL(DM.CLESTAB,0)
+            JOIN dbo.RS RS
+              ON LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) = LTRIM(RTRIM(ISNULL(AL.NOME,'')))
+            WHERE DM.DMSTAMP = :dmstamp
+              AND UPPER(LTRIM(RTRIM(ISNULL(AL.TIPO,'')))) = 'GESTAO'
+              AND YEAR(RS.DATAOUT) = DM.ANO
+              AND MONTH(RS.DATAOUT) = DM.MES
+            GROUP BY LTRIM(RTRIM(ISNULL(AL.NOME,'')))
+            HAVING ABS(CAST(SUM({value_expr}) AS decimal(18,6))) >= 0.005
+            ORDER BY LTRIM(RTRIM(ISNULL(AL.NOME,'')))
+        """), {'dmstamp': str(dmstamp or '').strip()}).mappings().all()
+        return [
+            {
+                'alojamento': str(r.get('ALOJAMENTO') or '').strip(),
+                'valor': round(float(r.get('VALOR') or 0), 2),
+            }
+            for r in rows
+            if abs(round(float(r.get('VALOR') or 0), 2)) >= 0.01
+        ]
+
+    def _build_pm_faturacao_gestao_payload(header, lines, user_login):
+        ano = int(header.get('ANO') or date.today().year)
+        mes = int(header.get('MES') or date.today().month)
+        periodo = _pm_month_label(ano, mes)
+        bdphc = _pm_guestspa_bdphc()
+        payload_lines = []
+        for line in lines:
+            alojamento = str(line.get('alojamento') or '').strip()
+            payload_lines.append({
+                'ref': 'GESTAO.AL',
+                'design': f"Gestão AL - {alojamento} - {periodo}"[:120],
+                'qtt': 1,
+                'epv': round(float(line.get('valor') or 0), 2),
+            })
+        return {
+            'ndoc': 1,
+            'no': int(header.get('NO') or 0),
+            'nome': str(header.get('CLIENTE_NOME') or header.get('NOME') or '').strip()[:80],
+            'morada': str(header.get('CLIENTE_MORADA') or '').strip()[:120],
+            'local': str(header.get('CLIENTE_LOCAL') or '').strip()[:80],
+            'codpost': str(header.get('CLIENTE_CODPOST') or '').strip()[:30],
+            'ncont': str(header.get('CLIENTE_NIF') or '').strip()[:30],
+            'data': date.today().isoformat(),
+            'tipo': 'GESTAO_AL',
+            'bdphc': bdphc,
+            'bd': bdphc,
+            'database': bdphc,
+            'baseDados': bdphc,
+            'dmstamp': str(header.get('DMSTAMP') or '').strip(),
+            'ano': ano,
+            'mes': mes,
+            'clestab': int(header.get('CLESTAB') or 0),
+            'referencia': 'GESTAO.AL',
+            'linhas': payload_lines,
+            'origem': {'app': 'stationzero', 'user': user_login},
+        }
+
     @app.route('/processamento_mensal')
     @login_required
     def processamento_mensal_page():
@@ -39349,32 +39587,75 @@ OPTION (MAXRECURSION 32767);
             ano = int(request.args.get('ano') or datetime.now().year)
             mes = int(request.args.get('mes') or (datetime.now().month))
             _ensure_dm_cle_stab_schema(ano, mes)
+            log_ok = _try_ensure_pm_faturacao_gestao_schema()
             dm_cols = set(r[0] for r in db.session.execute(
                 text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='DM'")
             ).fetchall())
             has_com = 'COMISSOES' in dm_cols
             has_imp = 'IMPUTACOES' in dm_cols
             has_tot = 'TOTAL' in dm_cols
+            invoice_cols = ""
+            if log_ok:
+                invoice_cols = """,
+                    CASE WHEN FATLOG.DMSTAMP IS NULL THEN 0 ELSE 1 END AS FATURADO_GESTAO,
+                    ISNULL(FATLOG.STATUS, '') AS FATURACAO_STATUS,
+                    ISNULL(FATLOG.PHC_DOC, '') AS PHC_DOC,
+                    ISNULL(FATLOG.PHC_NUMERO, '') AS PHC_NUMERO,
+                    ISNULL(FATLOG.PHC_STAMP, '') AS PHC_STAMP,
+                    ISNULL(FATLOG.CLIENTE_BDPHC, '') AS PHC_BDPHC,
+                    ISNULL(FATLOG.PHC_PDF, '') AS PHC_PDF,
+                    ISNULL(FATLOG.ERROR_MSG, '') AS FATURACAO_ERROR
+                """
+            else:
+                invoice_cols = """,
+                    0 AS FATURADO_GESTAO,
+                    '' AS FATURACAO_STATUS,
+                    '' AS PHC_DOC,
+                    '' AS PHC_NUMERO,
+                    '' AS PHC_STAMP,
+                    '' AS PHC_BDPHC,
+                    '' AS PHC_PDF,
+                    '' AS FATURACAO_ERROR
+                """
             sql = text("""
                 SELECT
-                    DMSTAMP, ANO, MES, NO, NOME, ISNULL(CLESTAB, 0) AS CLESTAB,
+                    DM.DMSTAMP, DM.ANO, DM.MES, DM.NO, DM.NOME, ISNULL(DM.CLESTAB, 0) AS CLESTAB,
                     CASE
-                        WHEN LTRIM(RTRIM(ISNULL(FATURATG,''))) = ''
-                         AND LTRIM(RTRIM(ISNULL(DOSSIER,''))) = ''
+                        WHEN LTRIM(RTRIM(ISNULL(DM.FATURATG,''))) = ''
+                         AND LTRIM(RTRIM(ISNULL(DM.DOSSIER,''))) = ''
                         THEN 1 ELSE 0
                     END AS CAN_DELETE
                     {extra_cols}
+                    {invoice_cols}
                 FROM dbo.DM
-                WHERE ANO = :ano AND MES = :mes
-                ORDER BY NOME, NO, ISNULL(CLESTAB, 0)
+                {invoice_join}
+                WHERE DM.ANO = :ano AND DM.MES = :mes
+                ORDER BY DM.NOME, DM.NO, ISNULL(DM.CLESTAB, 0)
             """.format(extra_cols=(
                 (", COMISSOES" if has_com else "") +
                 (", IMPUTACOES" if has_imp else "") +
                 (", TOTAL" if has_tot else "")
-            )))
+            ), invoice_cols=invoice_cols, invoice_join=("""
+                OUTER APPLY (
+                    SELECT TOP 1 L.*
+                    FROM dbo.FAT_GESTAO_AL_PHC_LOG L
+                    WHERE L.DMSTAMP = DM.DMSTAMP
+                      AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
+                    ORDER BY L.DTCRI DESC
+                ) FATLOG
+            """ if log_ok else "")))
             rows = db.session.execute(sql, {'ano': ano, 'mes': mes}).mappings().all()
             out = []
             for r in rows:
+                faturado = int(r.get('FATURADO_GESTAO') or 0)
+                status = (r.get('FATURACAO_STATUS') or '').strip()
+                phc_numero = (r.get('PHC_NUMERO') or '').strip()
+                phc_doc = (r.get('PHC_DOC') or '').strip()
+                total_value = float(r.get('TOTAL') or 0) if has_tot else 0
+                com_value = float(r.get('COMISSOES') or 0) if has_com else 0
+                warnings = []
+                if total_value <= 0 and com_value <= 0:
+                    warnings.append('Sem valor a faturar')
                 out.append({
                     'DMSTAMP': r.get('DMSTAMP') or '',
                     'ANO': int(r.get('ANO') or 0),
@@ -39386,6 +39667,16 @@ OPTION (MAXRECURSION 32767);
                     'COMISSOES': float(r.get('COMISSOES') or 0) if has_com else 0,
                     'IMPUTACOES': float(r.get('IMPUTACOES') or 0) if has_imp else 0,
                     'TOTAL': float(r.get('TOTAL') or 0) if has_tot else 0,
+                    'FATURADO_GESTAO': faturado,
+                    'FATURACAO_STATUS': status,
+                    'FATURACAO_OK': 1 if not faturado and not warnings else 0,
+                    'FATURACAO_WARNINGS': warnings,
+                    'PHC_DOC': phc_doc,
+                    'PHC_NUMERO': phc_numero,
+                    'PHC_STAMP': (r.get('PHC_STAMP') or '').strip(),
+                    'PHC_BDPHC': (r.get('PHC_BDPHC') or '').strip(),
+                    'PHC_PDF_URL': _pm_faturacao_gestao_pdf_url(r.get('DMSTAMP') or '', bool(faturado and phc_numero)),
+                    'FATURACAO_ERROR': (r.get('FATURACAO_ERROR') or '').strip(),
                 })
             return jsonify({'rows': out})
         except Exception as e:
@@ -39532,16 +39823,37 @@ OPTION (MAXRECURSION 32767);
                         ISNULL(RS.COMISSAO,0) AS COMISSAO,
                         ISNULL(RS.PCANCEL,0) AS PCANCEL,
                         ISNULL(AL.COMISSAO,0) AS COMISSAO_PERC,
-                        ROUND(CASE WHEN ISNULL(AL.FTLIMPEZA,0) = 0 THEN
+                        CASE WHEN ISNULL(AL.CALCSIVA,0) = 1 THEN
+                          CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                            THEN ISNULL(RS.PCANCEL,0)
+                            ELSE (ISNULL(RS.ESTADIA,0) / 1.06) - ISNULL(RS.COMISSAO,0)
+                          END * (ISNULL(AL.COMISSAO,0) / 100.0)
+                        WHEN ISNULL(AL.FTLIMPEZA,0) = 0 THEN
                           CASE WHEN ISNULL(RS.CANCELADA,0) = 1
                             THEN ISNULL(RS.PCANCEL,0)
                             ELSE ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0) - ISNULL(RS.COMISSAO,0)
                           END * (ISNULL(AL.COMISSAO,0) / 100.0)
                         ELSE
                           CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                            THEN ISNULL(RS.PCANCEL,0) * (ISNULL(AL.COMISSAO,0) / 100.0)
+                            ELSE ((ISNULL(RS.ESTADIA,0) - ISNULL(RS.COMISSAO,0)) * (ISNULL(AL.COMISSAO,0) / 100.0)) - (ISNULL(RS.LIMPEZA,0) * 0.155)
+                          END
+                        END AS VALOR_RAW,
+                        ROUND(CASE WHEN ISNULL(AL.CALCSIVA,0) = 1 THEN
+                          CASE WHEN ISNULL(RS.CANCELADA,0) = 1
                             THEN ISNULL(RS.PCANCEL,0)
-                            ELSE ISNULL(RS.ESTADIA,0) - ISNULL(RS.COMISSAO,0)
-                          END * (ISNULL(AL.COMISSAO,0) / 100.0) + ISNULL(RS.LIMPEZA,0)
+                            ELSE (ISNULL(RS.ESTADIA,0) / 1.06) - ISNULL(RS.COMISSAO,0)
+                          END * (ISNULL(AL.COMISSAO,0) / 100.0)
+                        WHEN ISNULL(AL.FTLIMPEZA,0) = 0 THEN
+                          CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                            THEN ISNULL(RS.PCANCEL,0)
+                            ELSE ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0) - ISNULL(RS.COMISSAO,0)
+                          END * (ISNULL(AL.COMISSAO,0) / 100.0)
+                        ELSE
+                          CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                            THEN ISNULL(RS.PCANCEL,0) * (ISNULL(AL.COMISSAO,0) / 100.0)
+                            ELSE ((ISNULL(RS.ESTADIA,0) - ISNULL(RS.COMISSAO,0)) * (ISNULL(AL.COMISSAO,0) / 100.0)) - (ISNULL(RS.LIMPEZA,0) * 0.155)
+                          END
                         END, 2) AS VALOR
                     FROM dbo.CL
                     JOIN dbo.AL ON LTRIM(RTRIM(ISNULL(AL.CLIENTE,''))) = LTRIM(RTRIM(ISNULL(CL.NOME,'')))
@@ -39556,6 +39868,7 @@ OPTION (MAXRECURSION 32767);
                 for r in rows:
                     item = {c: r.get(c) for c in cols}
                     item['ORIGEM'] = r.get('ORIGEM') or ''
+                    item['VALOR_RAW'] = float(r.get('VALOR_RAW') or 0)
                     out.append(item)
                 return jsonify({'columns': cols, 'rows': out})
 
@@ -39689,16 +40002,21 @@ OPTION (MAXRECURSION 32767);
                 SELECT DM.NO,
                        ISNULL(DM.CLESTAB, 0) AS CLESTAB,
                        SUM(
-                         CASE WHEN ISNULL(AL.FTLIMPEZA,0) = 0 THEN
+                         CASE WHEN ISNULL(AL.CALCSIVA,0) = 1 THEN
+                           CASE WHEN ISNULL(RS.CANCELADA,0) = 1
+                             THEN ISNULL(RS.PCANCEL,0)
+                             ELSE (ISNULL(RS.ESTADIA,0) / 1.06) - ISNULL(RS.COMISSAO,0)
+                           END * (ISNULL(AL.COMISSAO,0) / 100.0)
+                         WHEN ISNULL(AL.FTLIMPEZA,0) = 0 THEN
                            CASE WHEN ISNULL(RS.CANCELADA,0) = 1
                              THEN ISNULL(RS.PCANCEL,0)
                              ELSE ISNULL(RS.ESTADIA,0) + ISNULL(RS.LIMPEZA,0) - ISNULL(RS.COMISSAO,0)
                            END * (ISNULL(AL.COMISSAO,0) / 100.0)
                          ELSE
                            CASE WHEN ISNULL(RS.CANCELADA,0) = 1
-                             THEN ISNULL(RS.PCANCEL,0)
-                             ELSE ISNULL(RS.ESTADIA,0) - ISNULL(RS.COMISSAO,0)
-                           END * (ISNULL(AL.COMISSAO,0) / 100.0) + ISNULL(RS.LIMPEZA,0)
+                             THEN ISNULL(RS.PCANCEL,0) * (ISNULL(AL.COMISSAO,0) / 100.0)
+                             ELSE ((ISNULL(RS.ESTADIA,0) - ISNULL(RS.COMISSAO,0)) * (ISNULL(AL.COMISSAO,0) / 100.0)) - (ISNULL(RS.LIMPEZA,0) * 0.155)
+                           END
                          END
                        ) AS COMISSOES
                 FROM dbo.DM
@@ -39843,6 +40161,181 @@ OPTION (MAXRECURSION 32767);
             return jsonify({'rows': out})
         except Exception as e:
             db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/fatura/pdf/<path:dmstamp>', methods=['GET'])
+    @login_required
+    def api_processamento_mensal_fatura_pdf(dmstamp):
+        stamp = str(dmstamp or '').strip()
+        if not stamp:
+            abort(404)
+        try:
+            _try_ensure_pm_faturacao_gestao_schema()
+            row = db.session.execute(text("""
+                SELECT TOP 1
+                  LTRIM(RTRIM(ISNULL(L.CLIENTE_BDPHC,''))) AS CLIENTE_BDPHC,
+                  LTRIM(RTRIM(ISNULL(L.PHC_NUMERO,''))) AS PHC_NUMERO,
+                  LTRIM(RTRIM(ISNULL(L.PHC_PDF,''))) AS PHC_PDF
+                FROM dbo.FAT_GESTAO_AL_PHC_LOG L
+                WHERE L.DMSTAMP = :dmstamp
+                  AND UPPER(LTRIM(RTRIM(ISNULL(L.STATUS,'')))) IN ('SENT','OK')
+                ORDER BY L.DTCRI DESC
+            """), {'dmstamp': stamp}).mappings().first()
+            if not row:
+                abort(404)
+
+            phc_pdf = str(row.get('PHC_PDF') or '').strip()
+            if phc_pdf.lower().startswith(('http://', 'https://')):
+                return redirect(phc_pdf)
+            if phc_pdf:
+                abs_pdf = os.path.abspath(phc_pdf)
+                if os.path.isfile(abs_pdf):
+                    return send_file(abs_pdf, mimetype='application/pdf', as_attachment=False, download_name=os.path.basename(abs_pdf), max_age=0, conditional=True)
+
+            for candidate in _pm_faturacao_pdf_candidates(row.get('CLIENTE_BDPHC'), row.get('PHC_NUMERO'), phc_pdf):
+                if candidate.lower().startswith(('http://', 'https://')):
+                    return redirect(candidate)
+                for base_dir in _fatglob_pdf_dirs():
+                    base_abs = os.path.abspath(base_dir)
+                    path = candidate if os.path.isabs(candidate) else os.path.join(base_abs, candidate)
+                    abs_path = os.path.abspath(path)
+                    if abs_path.startswith(base_abs + os.sep) and os.path.isfile(abs_path):
+                        return send_file(abs_path, mimetype='application/pdf', as_attachment=False, download_name=os.path.basename(abs_path), max_age=0, conditional=True)
+
+            for candidate in _pm_faturacao_pdf_candidates(row.get('CLIENTE_BDPHC'), row.get('PHC_NUMERO'), phc_pdf):
+                filename = _pm_pdf_public_filename(candidate)
+                if filename:
+                    return redirect(f"{_fatglob_pdf_base_url()}/{quote(filename)}")
+        except Exception:
+            app.logger.exception('Erro ao abrir PDF PHC do processamento mensal.')
+        abort(404)
+
+    @app.route('/api/processamento_mensal/faturar', methods=['POST'])
+    @login_required
+    def api_processamento_mensal_faturar():
+        try:
+            _ensure_pm_faturacao_gestao_schema()
+            body = request.get_json(silent=True) or {}
+            dmstamps = [str(x or '').strip() for x in (body.get('dmstamps') or []) if str(x or '').strip()]
+            if not dmstamps:
+                return jsonify({'error': 'Sem registos selecionados para faturar.'}), 400
+            if len(dmstamps) > 100:
+                return jsonify({'error': 'Seleciona no máximo 100 registos por emissão.'}), 400
+
+            created, errors = [], []
+            user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+            batch_delay = _phc_batch_delay_seconds()
+
+            for idx, dmstamp in enumerate(dmstamps):
+                header = _pm_faturacao_gestao_header(dmstamp)
+                if not header:
+                    errors.append({'DMSTAMP': dmstamp, 'error': 'Registo não encontrado.'})
+                    continue
+
+                already = db.session.execute(text("""
+                    SELECT TOP 1 PHC_DOC, PHC_NUMERO
+                    FROM dbo.FAT_GESTAO_AL_PHC_LOG
+                    WHERE DMSTAMP = :dmstamp
+                      AND UPPER(LTRIM(RTRIM(ISNULL(STATUS,'')))) IN ('SENT','OK')
+                    ORDER BY DTCRI DESC
+                """), {'dmstamp': dmstamp}).mappings().first()
+                if already:
+                    label = " ".join([str(already.get('PHC_DOC') or '').strip(), str(already.get('PHC_NUMERO') or '').strip()]).strip()
+                    errors.append({'DMSTAMP': dmstamp, 'CLIENTE': str(header.get('CLIENTE_NOME') or '').strip(), 'error': f'Já faturado{": " + label if label else ""}.'})
+                    continue
+
+                lines = _pm_faturacao_gestao_lines(dmstamp)
+                if not lines:
+                    errors.append({'DMSTAMP': dmstamp, 'CLIENTE': str(header.get('CLIENTE_NOME') or '').strip(), 'error': 'Sem linhas de gestão AL a faturar.'})
+                    continue
+
+                total_value = round(sum(float(line.get('valor') or 0) for line in lines), 2)
+                if total_value <= 0:
+                    errors.append({'DMSTAMP': dmstamp, 'CLIENTE': str(header.get('CLIENTE_NOME') or '').strip(), 'error': 'Valor a faturar inválido.'})
+                    continue
+
+                payload = _build_pm_faturacao_gestao_payload(header, lines, user_login)
+                result = _phc_run_code(os.environ.get('PHC_WS_CODE', 'CriaFT'), payload)
+                response_obj = result.get('response') if isinstance(result.get('response'), dict) else {}
+                dados = response_obj.get('dados') if isinstance(response_obj.get('dados'), dict) else {}
+                status = 'OK' if result.get('ok') else 'ERROR'
+                phc_stamp = str(dados.get('stamp') or '')[:80]
+                phc_numero = str(dados.get('numero') or '')[:80]
+                phc_doc = str(dados.get('documento') or '')[:80]
+                phc_pdf = str(dados.get('pdfCaminho') or '')[:500]
+                bdphc = str(payload.get('bdphc') or _pm_guestspa_bdphc()).strip()
+
+                db.session.execute(text("""
+                    INSERT INTO dbo.FAT_GESTAO_AL_PHC_LOG
+                    (FATGESTAOSTAMP, DMSTAMP, ANO, MES, NO, CLESTAB, CLIENTE, CLIENTE_BDPHC, VALOR,
+                     STATUS, PHC_STAMP, PHC_NUMERO, PHC_DOC, PHC_PDF,
+                     REQUEST_JSON, RESPONSE_JSON, ERROR_MSG, USERCRIACAO, DTCRI, DTALT)
+                    VALUES
+                    (:stamp, :dmstamp, :ano, :mes, :no, :clestab, :cliente, :bdphc, :valor,
+                     :status, :phc_stamp, :phc_numero, :phc_doc, :phc_pdf,
+                     :request_json, :response_json, :error_msg, :user, SYSUTCDATETIME(), SYSUTCDATETIME())
+                """), {
+                    'stamp': _new_stamp_25(),
+                    'dmstamp': dmstamp,
+                    'ano': int(header.get('ANO') or 0),
+                    'mes': int(header.get('MES') or 0),
+                    'no': int(header.get('NO') or 0),
+                    'clestab': int(header.get('CLESTAB') or 0),
+                    'cliente': str(header.get('CLIENTE_NOME') or header.get('NOME') or '').strip()[:120],
+                    'bdphc': bdphc[:120],
+                    'valor': total_value,
+                    'status': status,
+                    'phc_stamp': phc_stamp,
+                    'phc_numero': phc_numero,
+                    'phc_doc': phc_doc,
+                    'phc_pdf': phc_pdf,
+                    'request_json': json.dumps(payload, ensure_ascii=False, default=str),
+                    'response_json': json.dumps(result, ensure_ascii=False, default=str),
+                    'error_msg': str(result.get('error') or response_obj.get('msg') or '')[:4000] if not result.get('ok') else '',
+                    'user': user_login[:60],
+                })
+
+                if result.get('ok'):
+                    db.session.execute(text("""
+                        UPDATE dbo.DM
+                        SET ENVIADO = 1,
+                            FATURATG = :doc,
+                            FTVALOR = :valor,
+                            FDATA = :fdata,
+                            FTFILE = :pdf
+                        WHERE DMSTAMP = :dmstamp
+                    """), {
+                        'doc': " ".join([phc_doc, phc_numero]).strip()[:200],
+                        'valor': total_value,
+                        'fdata': date.today(),
+                        'pdf': phc_pdf[:200],
+                        'dmstamp': dmstamp,
+                    })
+                    created.append({
+                        'DMSTAMP': dmstamp,
+                        'CLIENTE': str(header.get('CLIENTE_NOME') or header.get('NOME') or '').strip(),
+                        'PHC_STAMP': phc_stamp,
+                        'PHC_NUMERO': phc_numero,
+                        'PHC_DOC': phc_doc,
+                        'PHC_PDF': phc_pdf,
+                        'PHC_PDF_URL': _pm_faturacao_gestao_pdf_url(dmstamp, bool(phc_numero)),
+                        'VALOR': total_value,
+                    })
+                else:
+                    errors.append({
+                        'DMSTAMP': dmstamp,
+                        'CLIENTE': str(header.get('CLIENTE_NOME') or header.get('NOME') or '').strip(),
+                        'error': str(result.get('error') or response_obj.get('msg') or 'Erro PHC'),
+                    })
+
+                db.session.commit()
+                if batch_delay and idx < len(dmstamps) - 1:
+                    time.sleep(batch_delay)
+
+            return jsonify({'ok': len(errors) == 0, 'created': created, 'errors': errors, 'total_selected': len(dmstamps)}), (200 if created or not errors else 400)
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception('Erro ao emitir faturas de gestão AL no processamento mensal.')
             return jsonify({'error': str(e)}), 500
     @app.route('/api/tempos_limpeza/start', methods=['POST'])
     @login_required
