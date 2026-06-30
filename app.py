@@ -39947,9 +39947,25 @@ OPTION (MAXRECURSION 32767);
                     LEFT JOIN dbo.AL AS AL_IM
                       ON {im_alojamento_expr} <> ''
                      AND (
-                            {im_alojamento_expr} COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(AL_IM.NOME,''))) COLLATE Latin1_General_CI_AI
-                         OR {im_alojamento_expr} COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(AL_IM.NOMETG,''))) COLLATE Latin1_General_CI_AI
+                            {im_alojamento_expr} COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(AL_IM.NOME,''))), '') COLLATE Latin1_General_CI_AI
+                         OR {im_alojamento_expr} COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(AL_IM.CCUSTO,''))), '') COLLATE Latin1_General_CI_AI
+                         OR {im_alojamento_expr} COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(AL_IM.NOMETG,''))), '') COLLATE Latin1_General_CI_AI
                      )
+            """
+            stale_fo_im_filter = f"""
+                      AND NOT (
+                            {origem_expr} = 'FO'
+                        AND EXISTS (
+                            SELECT 1
+                            FROM dbo.IM AS IM_DUP
+                            JOIN dbo.FN AS FN_SKIP
+                              ON UPPER(LTRIM(RTRIM(ISNULL(IM_DUP.ORIGEM,'')))) = 'FN'
+                             AND LTRIM(RTRIM(ISNULL(IM_DUP.ORISTAMP,''))) = LTRIM(RTRIM(ISNULL(FN_SKIP.FNSTAMP,'')))
+                            WHERE LTRIM(RTRIM(ISNULL(FN_SKIP.FOSTAMP,''))) = LTRIM(RTRIM(ISNULL(FO_SRC.FOSTAMP,'')))
+                              AND IM_DUP.{ano_col} = IM.{ano_col}
+                              AND IM_DUP.{mes_col} = IM.{mes_col}
+                        )
+                      )
             """
 
             if no_col == 'NO':
@@ -39963,6 +39979,7 @@ OPTION (MAXRECURSION 32767);
                       AND IM.{mes_col} = :mes
                       AND IM.{no_col} = :no
                       AND ISNULL(AL_IM.CLESTAB, 0) = :clestab
+                      {stale_fo_im_filter}
                     ORDER BY DATA, ORIGEM, DOCUMENTO, DESCRICAO
                 """)
                 rows = db.session.execute(sql, {'ano': ano, 'mes': mes, 'no': no, 'clestab': clestab}).mappings().all()
@@ -39980,6 +39997,7 @@ OPTION (MAXRECURSION 32767);
                       AND IM.{mes_col} = :mes
                       AND CL.NO = :no
                       AND ISNULL(AL_IM.CLESTAB, 0) = :clestab
+                      {stale_fo_im_filter}
                     ORDER BY DATA, ORIGEM, DOCUMENTO, DESCRICAO
                 """)
                 rows = db.session.execute(sql, {'ano': ano, 'mes': mes, 'no': no, 'clestab': clestab}).mappings().all()
@@ -40075,9 +40093,25 @@ OPTION (MAXRECURSION 32767);
                     LEFT JOIN dbo.AL AS AL_IM
                       ON {im_alojamento_expr} <> ''
                      AND (
-                            {im_alojamento_expr} COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(AL_IM.NOME,''))) COLLATE Latin1_General_CI_AI
-                         OR {im_alojamento_expr} COLLATE Latin1_General_CI_AI = LTRIM(RTRIM(ISNULL(AL_IM.NOMETG,''))) COLLATE Latin1_General_CI_AI
+                            {im_alojamento_expr} COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(AL_IM.NOME,''))), '') COLLATE Latin1_General_CI_AI
+                         OR {im_alojamento_expr} COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(AL_IM.CCUSTO,''))), '') COLLATE Latin1_General_CI_AI
+                         OR {im_alojamento_expr} COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(AL_IM.NOMETG,''))), '') COLLATE Latin1_General_CI_AI
                      )
+                """
+                stale_fo_im_filter = f"""
+                            AND NOT (
+                                  {origem_expr} = 'FO'
+                              AND EXISTS (
+                                  SELECT 1
+                                  FROM dbo.IM AS IM_DUP
+                                  JOIN dbo.FN AS FN_SKIP
+                                    ON UPPER(LTRIM(RTRIM(ISNULL(IM_DUP.ORIGEM,'')))) = 'FN'
+                                   AND LTRIM(RTRIM(ISNULL(IM_DUP.ORISTAMP,''))) = LTRIM(RTRIM(ISNULL(FN_SKIP.FNSTAMP,'')))
+                                  WHERE LTRIM(RTRIM(ISNULL(FN_SKIP.FOSTAMP,''))) = LTRIM(RTRIM(ISNULL(FO_SRC.FOSTAMP,'')))
+                                    AND IM_DUP.{ano_col} = IM.{ano_col}
+                                    AND IM_DUP.{mes_col} = IM.{mes_col}
+                              )
+                            )
                 """
                 if no_col == 'NO':
                     sql_im = text(f"""
@@ -40088,9 +40122,10 @@ OPTION (MAXRECURSION 32767);
                         FROM dbo.IM AS IM
                         {source_joins}
                         {im_al_join}
-                        WHERE IM.{ano_col} = :ano AND IM.{mes_col} = :mes
-                        GROUP BY IM.NO, ISNULL(AL_IM.CLESTAB, 0)
-                    """)
+	                        WHERE IM.{ano_col} = :ano AND IM.{mes_col} = :mes
+	                        {stale_fo_im_filter}
+	                        GROUP BY IM.NO, ISNULL(AL_IM.CLESTAB, 0)
+	                    """)
                     im_rows = db.session.execute(sql_im, {'ano': ano, 'mes': mes}).mappings().all()
                     imp_map = {
                         (int(r['NO']), int(r.get('CLESTAB') or 0)): float(r.get('IMPUTACOES') or 0)
@@ -40107,9 +40142,10 @@ OPTION (MAXRECURSION 32767);
                         JOIN dbo.CL AS CL ON LTRIM(RTRIM(ISNULL(CL.NOME,''))) = LTRIM(RTRIM(ISNULL(IM.{no_col},'')))
                         {source_joins}
                         {im_al_join}
-                        WHERE IM.{ano_col} = :ano AND IM.{mes_col} = :mes
-                        GROUP BY CL.NO, ISNULL(AL_IM.CLESTAB, 0)
-                    """)
+	                        WHERE IM.{ano_col} = :ano AND IM.{mes_col} = :mes
+	                        {stale_fo_im_filter}
+	                        GROUP BY CL.NO, ISNULL(AL_IM.CLESTAB, 0)
+	                    """)
                     im_rows = db.session.execute(sql_im, {'ano': ano, 'mes': mes}).mappings().all()
                     imp_map = {
                         (int(r['NO']), int(r.get('CLESTAB') or 0)): float(r.get('IMPUTACOES') or 0)
