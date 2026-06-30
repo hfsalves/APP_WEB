@@ -13,7 +13,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const clientesSave = document.getElementById('pmAddClientesSave');
   const selectAllEl = document.getElementById('pmSelectAll');
   const clientesModal = clientesModalEl ? new bootstrap.Modal(clientesModalEl) : null;
+  const docsModalEl = document.getElementById('pmDocsModal');
+  const docsTitle = document.getElementById('pmDocsTitle');
+  const docsFolder = document.getElementById('pmDocsFolder');
+  const docsBody = document.getElementById('pmDocsBody');
+  const docsStatus = document.getElementById('pmDocsStatus');
+  const docsInput = document.getElementById('pmDocsInput');
+  const docsPick = document.getElementById('pmDocsPick');
+  const docsModal = docsModalEl ? new bootstrap.Modal(docsModalEl) : null;
   let lastRows = [];
+  let currentDocsStamp = '';
   const drillModalEl = document.getElementById('pmDrillModal');
   const drillTitle = document.getElementById('pmDrillTitle');
   const drillHead = document.getElementById('pmDrillHead');
@@ -55,6 +64,12 @@ document.addEventListener('DOMContentLoaded', () => {
       return `<a class="pm-pdf-link" href="${escapeHtml(url)}" target="_blank" rel="noopener" title="Abrir PDF"><i class="fa-solid fa-file-pdf"></i></a>`;
     }
     return '<span class="pm-pdf-empty" title="PDF indisponível"><i class="fa-regular fa-file-pdf"></i></span>';
+  }
+
+  function docsButton(row) {
+    const count = Number(row.DOC_COUNT || 0);
+    const badge = count > 0 ? `<span class="pm-doc-count">${escapeHtml(String(count))}</span>` : '';
+    return `<button class="pm-doc-btn" title="Documentos do cliente"><i class="fa-solid fa-paperclip"></i>${badge}</button>`;
   }
 
   function invoiceEligibleRows() {
@@ -119,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td class="text-end">${escapeHtml(totIva.toFixed(2))}</td>
           <td>${invoiceBadge(r)}</td>
           <td>${pdfCell(r)}</td>
-          <td><span class="pm-row-actions">${canInvoice ? '<button class="pm-fat-btn" title="Emitir fatura"><i class="fa-solid fa-file-invoice"></i></button>' : ''}${canDelete ? '<button class="pm-del" title="Eliminar"><i class="fa-solid fa-trash"></i></button>' : ''}</span></td>
+          <td><span class="pm-row-actions">${docsButton(r)}${canInvoice ? '<button class="pm-fat-btn" title="Emitir fatura"><i class="fa-solid fa-file-invoice"></i></button>' : ''}${canDelete ? '<button class="pm-del" title="Eliminar"><i class="fa-solid fa-trash"></i></button>' : ''}</span></td>
         </tr>
       `;
     }).join('');
@@ -174,6 +189,15 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
+    body.querySelectorAll('.pm-doc-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const tr = btn.closest('tr');
+        const stamp = tr?.getAttribute('data-stamp') || '';
+        if (!stamp) return;
+        await openDocs(stamp);
+      });
+    });
+
     body.querySelectorAll('.pm-comm').forEach(el => {
       el.addEventListener('click', () => openDrill(el.getAttribute('data-stamp') || '', 'comissoes'));
     });
@@ -196,6 +220,114 @@ document.addEventListener('DOMContentLoaded', () => {
     lastRows = Array.isArray(data.rows) ? data.rows : [];
     render(lastRows);
   }
+
+  function formatFileSize(bytes) {
+    const n = Number(bytes || 0);
+    if (!Number.isFinite(n) || n <= 0) return '0 KB';
+    if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function formatFileDate(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  function renderDocs(files) {
+    if (!docsBody) return;
+    const rows = Array.isArray(files) ? files : [];
+    if (!rows.length) {
+      docsBody.innerHTML = '<div class="text-muted p-3">Sem documentos para este processamento.</div>';
+      return;
+    }
+    docsBody.innerHTML = rows.map(file => {
+      const name = (file.name || '').toString();
+      const ext = (file.ext || '').toString().toUpperCase();
+      const meta = [ext, formatFileSize(file.size), formatFileDate(file.modified)].filter(Boolean).join(' · ');
+      const url = (file.download_url || '').toString();
+      return `
+        <div class="pm-doc-row">
+          <div class="pm-doc-main">
+            <span class="pm-doc-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+            <span class="pm-doc-meta">${escapeHtml(meta)}</span>
+          </div>
+          <a class="pm-doc-download" href="${escapeHtml(url)}" target="_blank" rel="noopener" title="Descarregar">
+            <i class="fa-solid fa-download"></i>
+          </a>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function setDocsStatus(message, isError = false) {
+    if (!docsStatus) return;
+    docsStatus.textContent = message || '';
+    docsStatus.classList.toggle('is-error', Boolean(isError));
+  }
+
+  function updateRowDocCount(stamp, count) {
+    lastRows = lastRows.map(row => (
+      String(row.DMSTAMP || '') === String(stamp || '')
+        ? { ...row, DOC_COUNT: count }
+        : row
+    ));
+    render(lastRows);
+  }
+
+  async function openDocs(stamp) {
+    if (!docsModal || !stamp) return;
+    currentDocsStamp = stamp;
+    const row = lastRows.find(r => String(r.DMSTAMP || '') === String(stamp));
+    if (docsTitle) docsTitle.textContent = row ? `Documentos - ${row.NOME || ''}` : 'Documentos';
+    if (docsFolder) docsFolder.textContent = '';
+    if (docsBody) docsBody.innerHTML = '<div class="text-muted p-3">A carregar...</div>';
+    setDocsStatus('');
+    docsModal.show();
+    try {
+      const res = await fetch(`/api/processamento_mensal/documentos/${encodeURIComponent(stamp)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || res.statusText);
+      if (docsFolder) docsFolder.textContent = data.folder ? `Pasta no portal: ${data.folder}` : '';
+      renderDocs(data.files || []);
+      updateRowDocCount(stamp, Array.isArray(data.files) ? data.files.length : 0);
+    } catch (e) {
+      setDocsStatus(`Erro: ${e.message || e}`, true);
+      if (docsBody) docsBody.innerHTML = '<div class="text-muted p-3">Não foi possível carregar os documentos.</div>';
+    }
+  }
+
+  docsPick?.addEventListener('click', () => {
+    if (!currentDocsStamp || !docsInput) return;
+    docsInput.click();
+  });
+
+  docsInput?.addEventListener('change', async () => {
+    const files = Array.from(docsInput.files || []);
+    if (!files.length || !currentDocsStamp) return;
+    const form = new FormData();
+    files.forEach(file => form.append('files', file));
+    if (docsPick) docsPick.disabled = true;
+    setDocsStatus(`A enviar ${files.length} ficheiro(s)...`);
+    try {
+      const res = await fetch(`/api/processamento_mensal/documentos/${encodeURIComponent(currentDocsStamp)}/upload`, {
+        method: 'POST',
+        body: form
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || res.statusText);
+      const uploaded = Array.isArray(data.uploaded) ? data.uploaded.length : files.length;
+      setDocsStatus(`${uploaded} ficheiro(s) adicionado(s).`);
+      renderDocs(data.files || []);
+      updateRowDocCount(currentDocsStamp, Array.isArray(data.files) ? data.files.length : uploaded);
+    } catch (e) {
+      setDocsStatus(`Erro: ${e.message || e}`, true);
+    } finally {
+      docsInput.value = '';
+      if (docsPick) docsPick.disabled = false;
+    }
+  });
 
   btnPrev?.addEventListener('click', () => {
     cur.setMonth(cur.getMonth() - 1);

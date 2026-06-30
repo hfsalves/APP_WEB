@@ -144,6 +144,33 @@
     </div>
   </div>
 </div>
+<div class="modal fade pm-modal" id="pmDocsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered pm-docs-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="pmDocsTitle">Documentos</h5>
+          <div class="pm-muted" id="pmDocsFolder"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="pm-docs-status" id="pmDocsStatus"></div>
+        <div class="pm-docs-list" id="pmDocsBody">
+          <div class="text-muted p-3">A carregar...</div>
+        </div>
+        <input id="pmDocsInput" type="file" multiple hidden>
+      </div>
+      <div class="modal-footer">
+        <button class="sz_button sz_button_ghost" type="button" data-bs-dismiss="modal">Fechar</button>
+        <button class="sz_button sz_button_primary" type="button" id="pmDocsPick">
+          <i class="fa-solid fa-paperclip"></i>
+          <span>Adicionar ficheiros</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <style>
   .pm-page-container {
@@ -386,6 +413,7 @@
   }
 
   .pm-fat-btn,
+  .pm-doc-btn,
   .pm-pdf-link,
   .pm-pdf-empty {
     display: inline-flex;
@@ -404,11 +432,33 @@
     color: var(--sz-color-primary);
   }
 
+  .pm-doc-btn {
+    position: relative;
+    color: var(--sz-color-text-secondary);
+  }
+
   .pm-fat-btn:hover,
+  .pm-doc-btn:hover,
   .pm-pdf-link:hover {
     background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
     border-color: color-mix(in srgb, var(--sz-color-primary) 46%, var(--sz-color-border));
     color: var(--sz-color-primary);
+  }
+
+  .pm-doc-count {
+    position: absolute;
+    top: -0.45rem;
+    right: -0.45rem;
+    min-width: 1rem;
+    height: 1rem;
+    padding: 0 0.22rem;
+    border: 1px solid var(--sz-color-surface);
+    border-radius: 999px;
+    background: var(--sz-color-primary);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: var(--sz-font-weight-bold);
+    line-height: 0.95rem;
   }
 
   .pm-pdf-link {
@@ -464,6 +514,78 @@
 
   #pmDrillModal .modal-body {
     padding: var(--sz-space-4);
+  }
+
+  #pmDocsModal .pm-docs-dialog {
+    width: min(92vw, 780px);
+    max-width: min(92vw, 780px);
+  }
+
+  .pm-docs-list {
+    display: grid;
+    gap: var(--sz-space-2);
+  }
+
+  .pm-doc-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sz-space-3);
+    align-items: center;
+    min-height: 3.1rem;
+    padding: var(--sz-space-2) var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-alt);
+  }
+
+  .pm-doc-main {
+    min-width: 0;
+  }
+
+  .pm-doc-name {
+    display: block;
+    overflow: hidden;
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-bold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pm-doc-meta {
+    display: flex;
+    gap: var(--sz-space-2);
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-xs);
+  }
+
+  .pm-doc-download {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-primary);
+    text-decoration: none;
+  }
+
+  .pm-doc-download:hover {
+    background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 46%, var(--sz-color-border));
+    color: var(--sz-color-primary);
+  }
+
+  .pm-docs-status {
+    min-height: 1.25rem;
+    margin-bottom: var(--sz-space-2);
+    color: var(--sz-color-text-muted);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .pm-docs-status.is-error {
+    color: var(--sz-color-danger);
   }
 
   .pm-drill-filter {
@@ -581,5 +703,5 @@
   }
 </style>
 
-<script src="{{ url_for('static', filename='js/processamento_mensal.js') }}?v={{ static_version }}&pmv=20260629_3"></script>
+<script src="{{ url_for('static', filename='js/processamento_mensal.js') }}?v={{ static_version }}&pmv=20260630_1"></script>
 {% endblock %}

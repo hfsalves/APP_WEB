@@ -39508,6 +39508,94 @@ OPTION (MAXRECURSION 32767);
             WHERE DM.DMSTAMP = :dmstamp
         """), {'dmstamp': str(dmstamp or '').strip()}).mappings().first()
 
+    def _pm_client_docs_folder(header, create=False):
+        if not header:
+            return None, ''
+        try:
+            no = int(header.get('NO') or 0)
+            ano = int(header.get('ANO') or 0)
+            mes = int(header.get('MES') or 0)
+            clestab = int(header.get('CLESTAB') or 0)
+        except Exception:
+            return None, ''
+        if no <= 0 or ano <= 0 or mes < 1 or mes > 12:
+            return None, ''
+        root = _cliente_docs_root(no, create=create)
+        if not root:
+            return None, ''
+        parts = ['Processamento Mensal', f'{ano:04d}-{mes:02d}']
+        if clestab > 0:
+            parts.append(f'Estabelecimento {clestab}')
+        folder = os.path.realpath(os.path.abspath(os.path.join(root, *parts)))
+        try:
+            if os.path.commonpath([root, folder]) != root:
+                return None, ''
+        except Exception:
+            return None, ''
+        if create:
+            os.makedirs(folder, exist_ok=True)
+        return folder, '/'.join(parts)
+
+    def _pm_client_docs_files(header):
+        folder, rel_dir = _pm_client_docs_folder(header, create=False)
+        if not folder or not os.path.isdir(folder):
+            return []
+        files = []
+        for filename in sorted([f for f in os.listdir(folder) if not f.startswith('.')], key=str.lower):
+            full_path = os.path.join(folder, filename)
+            if not os.path.isfile(full_path):
+                continue
+            try:
+                stat = os.stat(full_path)
+            except OSError:
+                continue
+            rel_file = f'{rel_dir}/{filename}' if rel_dir else filename
+            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+            files.append({
+                'name': filename,
+                'path': rel_file,
+                'ext': ext,
+                'size': stat.st_size,
+                'modified': datetime.fromtimestamp(stat.st_mtime).isoformat(timespec='seconds'),
+                'download_url': url_for('api_processamento_mensal_documento_download', dmstamp=str(header.get('DMSTAMP') or ''), filename=filename),
+            })
+        return files
+
+    def _pm_client_docs_save_file(header, file_obj):
+        if not file_obj or not str(file_obj.filename or '').strip():
+            raise ValueError('Ficheiro obrigatório.')
+        original_name = secure_filename(str(file_obj.filename or '').strip())
+        if not original_name:
+            raise ValueError('Nome de ficheiro inválido.')
+        ext = original_name.rsplit('.', 1)[-1].lower() if '.' in original_name else ''
+        if ext not in CLIENT_DOCUMENTS_ALLOWED_EXT:
+            raise ValueError(f'Extensão .{ext or ""} não suportada.')
+        folder, rel_dir = _pm_client_docs_folder(header, create=True)
+        if not folder:
+            raise ValueError('Não foi possível preparar a pasta do cliente.')
+        base, extension = os.path.splitext(original_name)
+        filename = original_name
+        full_path = os.path.realpath(os.path.abspath(os.path.join(folder, filename)))
+        counter = 1
+        while os.path.exists(full_path):
+            filename = f'{base}_{counter}{extension}'
+            full_path = os.path.realpath(os.path.abspath(os.path.join(folder, filename)))
+            counter += 1
+        try:
+            if os.path.commonpath([folder, full_path]) != folder:
+                raise ValueError('Caminho inválido.')
+        except ValueError:
+            raise
+        except Exception:
+            raise ValueError('Caminho inválido.')
+        file_obj.save(full_path)
+        rel_file = f'{rel_dir}/{filename}' if rel_dir else filename
+        return {
+            'name': filename,
+            'path': rel_file,
+            'download_url': url_for('api_processamento_mensal_documento_download', dmstamp=str(header.get('DMSTAMP') or ''), filename=filename),
+        }
+
     def _pm_faturacao_gestao_lines(dmstamp):
         value_expr = _pm_commission_value_sql()
         rows = db.session.execute(text(f"""
@@ -39538,7 +39626,110 @@ OPTION (MAXRECURSION 32767);
             if abs(round(float(r.get('VALOR') or 0), 2)) >= 0.01
         ]
 
-    def _build_pm_faturacao_gestao_payload(header, lines, user_login):
+    def _pm_faturacao_gestao_imputation_lines(dmstamp):
+        im_cols = set(r[0] for r in db.session.execute(
+            text("SELECT UPPER(COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='IM'")
+        ).fetchall())
+        value_col = 'VALOR' if 'VALOR' in im_cols else ('IMPUTVALOR' if 'IMPUTVALOR' in im_cols else ('TOTAL' if 'TOTAL' in im_cols else None))
+        ano_col = 'ANO' if 'ANO' in im_cols else None
+        mes_col = 'MES' if 'MES' in im_cols else None
+        no_col = 'NO' if 'NO' in im_cols else ('CLIENTE' if 'CLIENTE' in im_cols else None)
+        descricao_col = 'DESCRICAO' if 'DESCRICAO' in im_cols else ('IMPUTDESIGN' if 'IMPUTDESIGN' in im_cols else None)
+        has_origem = 'ORIGEM' in im_cols
+        has_oristamp = 'ORISTAMP' in im_cols
+        if not (value_col and ano_col and mes_col and no_col):
+            return []
+
+        origem_expr = "UPPER(LTRIM(RTRIM(ISNULL(IM.ORIGEM,''))))" if has_origem else "''"
+        oristamp_expr = "LTRIM(RTRIM(ISNULL(IM.ORISTAMP,'')))" if has_oristamp else "''"
+        descricao_expr = f"LTRIM(RTRIM(ISNULL(IM.{descricao_col},'')))" if descricao_col else "''"
+        if has_origem and has_oristamp:
+            source_joins = f"""
+                LEFT JOIN dbo.FO AS FO_SRC
+                  ON {origem_expr} = 'FO'
+                 AND LTRIM(RTRIM(ISNULL(FO_SRC.FOSTAMP,''))) = {oristamp_expr}
+                LEFT JOIN dbo.FN AS FN_SRC
+                  ON {origem_expr} = 'FN'
+                 AND LTRIM(RTRIM(ISNULL(FN_SRC.FNSTAMP,''))) = {oristamp_expr}
+                LEFT JOIN dbo.FO AS FO_FN_SRC
+                  ON LTRIM(RTRIM(ISNULL(FO_FN_SRC.FOSTAMP,''))) = LTRIM(RTRIM(ISNULL(FN_SRC.FOSTAMP,'')))
+                LEFT JOIN dbo.MN AS MN_SRC
+                  ON {origem_expr} = 'MN'
+                 AND LTRIM(RTRIM(ISNULL(MN_SRC.MNSTAMP,''))) = {oristamp_expr}
+            """
+        else:
+            source_joins = """
+                LEFT JOIN dbo.FO AS FO_SRC ON 1 = 0
+                LEFT JOIN dbo.FN AS FN_SRC ON 1 = 0
+                LEFT JOIN dbo.FO AS FO_FN_SRC ON 1 = 0
+                LEFT JOIN dbo.MN AS MN_SRC ON 1 = 0
+            """
+        im_alojamento_expr = "LTRIM(RTRIM(COALESCE(NULLIF(FO_SRC.CCUSTO,''), NULLIF(FN_SRC.FNCCUSTO,''), NULLIF(MN_SRC.ALOJAMENTO,''), '')))"
+        im_al_join = f"""
+            LEFT JOIN dbo.AL AS AL_IM
+              ON {im_alojamento_expr} <> ''
+             AND (
+                    {im_alojamento_expr} COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(AL_IM.NOME,''))), '') COLLATE Latin1_General_CI_AI
+                 OR {im_alojamento_expr} COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(AL_IM.CCUSTO,''))), '') COLLATE Latin1_General_CI_AI
+                 OR {im_alojamento_expr} COLLATE Latin1_General_CI_AI = NULLIF(LTRIM(RTRIM(ISNULL(AL_IM.NOMETG,''))), '') COLLATE Latin1_General_CI_AI
+             )
+        """
+        stale_fo_im_filter = f"""
+            AND NOT (
+                  {origem_expr} = 'FO'
+              AND EXISTS (
+                  SELECT 1
+                  FROM dbo.IM AS IM_DUP
+                  JOIN dbo.FN AS FN_SKIP
+                    ON UPPER(LTRIM(RTRIM(ISNULL(IM_DUP.ORIGEM,'')))) = 'FN'
+                   AND LTRIM(RTRIM(ISNULL(IM_DUP.ORISTAMP,''))) = LTRIM(RTRIM(ISNULL(FN_SKIP.FNSTAMP,'')))
+                  WHERE LTRIM(RTRIM(ISNULL(FN_SKIP.FOSTAMP,''))) = LTRIM(RTRIM(ISNULL(FO_SRC.FOSTAMP,'')))
+                    AND IM_DUP.{ano_col} = IM.{ano_col}
+                    AND IM_DUP.{mes_col} = IM.{mes_col}
+              )
+            )
+        """
+        join_cliente = ""
+        cliente_where = "IM.{no_col} = DM.NO".format(no_col=no_col)
+        if no_col != 'NO':
+            join_cliente = f"JOIN dbo.CL AS CL_IM ON LTRIM(RTRIM(ISNULL(CL_IM.NOME,''))) = LTRIM(RTRIM(ISNULL(IM.{no_col},'')))"
+            cliente_where = "CL_IM.NO = DM.NO"
+
+        rows = db.session.execute(text(f"""
+            SELECT
+                LTRIM(RTRIM(COALESCE(NULLIF({descricao_expr}, ''), NULLIF(FN_SRC.DESIGN,''), NULLIF(MN_SRC.INCIDENCIA,''), 'Imputação de custos'))) AS DESCRICAO,
+                CAST(ISNULL(IM.{value_col}, 0) AS decimal(18, 6)) AS VALOR,
+                CAST(COALESCE(FO_SRC.DATA, FO_FN_SRC.DATA, MN_SRC.DATA) AS date) AS DATA,
+                CASE
+                    WHEN {origem_expr} = 'FO' THEN LTRIM(RTRIM(ISNULL(FO_SRC.DOCNOME,'') + ' ' + ISNULL(FO_SRC.ADOC,'')))
+                    WHEN {origem_expr} = 'FN' THEN LTRIM(RTRIM(ISNULL(FO_FN_SRC.DOCNOME,'') + ' ' + ISNULL(FO_FN_SRC.ADOC,'')))
+                    ELSE ''
+                END AS DOCUMENTO
+            FROM dbo.DM AS DM
+            JOIN dbo.IM AS IM
+              ON IM.{ano_col} = DM.ANO
+             AND IM.{mes_col} = DM.MES
+            {join_cliente}
+            {source_joins}
+            {im_al_join}
+            WHERE DM.DMSTAMP = :dmstamp
+              AND {cliente_where}
+              AND ISNULL(AL_IM.CLESTAB, 0) = ISNULL(DM.CLESTAB, 0)
+              {stale_fo_im_filter}
+            ORDER BY DATA, DOCUMENTO, DESCRICAO
+        """), {'dmstamp': str(dmstamp or '').strip()}).mappings().all()
+        out = []
+        for r in rows:
+            valor = round(float(r.get('VALOR') or 0), 2)
+            if abs(valor) < 0.01:
+                continue
+            out.append({
+                'descricao': str(r.get('DESCRICAO') or 'Imputação de custos').strip(),
+                'valor': valor,
+            })
+        return out
+
+    def _build_pm_faturacao_gestao_payload(header, lines, user_login, imput_lines=None):
         ano = int(header.get('ANO') or date.today().year)
         mes = int(header.get('MES') or date.today().month)
         periodo = _pm_month_label(ano, mes)
@@ -39549,6 +39740,14 @@ OPTION (MAXRECURSION 32767);
             payload_lines.append({
                 'ref': 'GESTAO.AL',
                 'design': f"Gestão AL - {alojamento} - {periodo}"[:120],
+                'qtt': 1,
+                'epv': round(float(line.get('valor') or 0), 2),
+            })
+        for line in (imput_lines or []):
+            descricao = str(line.get('descricao') or 'Imputação de custos').strip()
+            payload_lines.append({
+                'ref': 'IMP.CUSTOS',
+                'design': descricao[:120],
                 'qtt': 1,
                 'epv': round(float(line.get('valor') or 0), 2),
             })
@@ -39677,6 +39876,7 @@ OPTION (MAXRECURSION 32767);
                     'PHC_BDPHC': (r.get('PHC_BDPHC') or '').strip(),
                     'PHC_PDF_URL': _pm_faturacao_gestao_pdf_url(r.get('DMSTAMP') or '', bool(faturado and phc_numero)),
                     'FATURACAO_ERROR': (r.get('FATURACAO_ERROR') or '').strip(),
+                    'DOC_COUNT': len(_pm_client_docs_files(r)),
                 })
             return jsonify({'rows': out})
         except Exception as e:
@@ -39788,6 +39988,80 @@ OPTION (MAXRECURSION 32767);
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/documentos/<dmstamp>', methods=['GET'])
+    @login_required
+    def api_processamento_mensal_documentos(dmstamp):
+        try:
+            header = _pm_faturacao_gestao_header(dmstamp)
+            if not header:
+                return jsonify({'error': 'Registo não encontrado.'}), 404
+            folder, rel_dir = _pm_client_docs_folder(header, create=True)
+            if not folder:
+                return jsonify({'error': 'Não foi possível preparar a pasta do cliente.'}), 400
+            return jsonify({
+                'cliente': {
+                    'no': int(header.get('NO') or 0),
+                    'nome': str(header.get('CLIENTE_NOME') or header.get('NOME') or '').strip(),
+                    'estabelecimento': int(header.get('CLESTAB') or 0),
+                },
+                'folder': rel_dir,
+                'files': _pm_client_docs_files(header),
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/documentos/<dmstamp>/upload', methods=['POST'])
+    @login_required
+    def api_processamento_mensal_documentos_upload(dmstamp):
+        try:
+            header = _pm_faturacao_gestao_header(dmstamp)
+            if not header:
+                return jsonify({'error': 'Registo não encontrado.'}), 404
+            uploaded = []
+            files = request.files.getlist('files') or request.files.getlist('file')
+            if not files:
+                return jsonify({'error': 'Ficheiro obrigatório.'}), 400
+            for file_obj in files:
+                uploaded.append(_pm_client_docs_save_file(header, file_obj))
+            return jsonify({
+                'success': True,
+                'uploaded': uploaded,
+                'files': _pm_client_docs_files(header),
+            }), 201
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/processamento_mensal/documentos/<dmstamp>/download/<path:filename>', methods=['GET'])
+    @login_required
+    def api_processamento_mensal_documento_download(dmstamp, filename):
+        header = _pm_faturacao_gestao_header(dmstamp)
+        if not header:
+            abort(404)
+        folder, _rel_dir = _pm_client_docs_folder(header, create=False)
+        if not folder:
+            abort(404)
+        safe_name = os.path.basename(str(filename or '').replace('\\', '/'))
+        if not safe_name or safe_name in ('.', '..'):
+            abort(404)
+        full_path = os.path.realpath(os.path.abspath(os.path.join(folder, safe_name)))
+        folder_abs = os.path.realpath(os.path.abspath(folder))
+        try:
+            if os.path.commonpath([folder_abs, full_path]) != folder_abs:
+                abort(404)
+        except Exception:
+            abort(404)
+        if not os.path.isfile(full_path):
+            abort(404)
+        return send_from_directory(
+            folder_abs,
+            safe_name,
+            as_attachment=True,
+            download_name=safe_name,
+            max_age=0,
+        )
 
     @app.route('/api/processamento_mensal/drilldown')
     @login_required
@@ -40281,16 +40555,21 @@ OPTION (MAXRECURSION 32767);
                     continue
 
                 lines = _pm_faturacao_gestao_lines(dmstamp)
-                if not lines:
-                    errors.append({'DMSTAMP': dmstamp, 'CLIENTE': str(header.get('CLIENTE_NOME') or '').strip(), 'error': 'Sem linhas de gestão AL a faturar.'})
+                imput_lines = _pm_faturacao_gestao_imputation_lines(dmstamp)
+                if not lines and not imput_lines:
+                    errors.append({'DMSTAMP': dmstamp, 'CLIENTE': str(header.get('CLIENTE_NOME') or '').strip(), 'error': 'Sem linhas de gestão AL ou imputações a faturar.'})
                     continue
 
-                total_value = round(sum(float(line.get('valor') or 0) for line in lines), 2)
+                total_value = round(
+                    sum(float(line.get('valor') or 0) for line in lines)
+                    + sum(float(line.get('valor') or 0) for line in imput_lines),
+                    2
+                )
                 if total_value <= 0:
                     errors.append({'DMSTAMP': dmstamp, 'CLIENTE': str(header.get('CLIENTE_NOME') or '').strip(), 'error': 'Valor a faturar inválido.'})
                     continue
 
-                payload = _build_pm_faturacao_gestao_payload(header, lines, user_login)
+                payload = _build_pm_faturacao_gestao_payload(header, lines, user_login, imput_lines)
                 result = _phc_run_code(os.environ.get('PHC_WS_CODE', 'CriaFT'), payload)
                 response_obj = result.get('response') if isinstance(result.get('response'), dict) else {}
                 dados = response_obj.get('dados') if isinstance(response_obj.get('dados'), dict) else {}
