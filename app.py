@@ -24735,7 +24735,7 @@ def create_app():
     CLIENT_DOCUMENTS_UPLOAD_FOLDER = 'ENVIADOS_PELO_CLIENTE'
     CLIENT_DOCUMENTS_ALLOWED_EXT = {
         'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt',
-        'png', 'jpg', 'jpeg', 'webp', 'zip', 'rar', '7z'
+        'xml', 'png', 'jpg', 'jpeg', 'webp', 'zip', 'rar', '7z'
     }
 
     def _current_cliente_no():
