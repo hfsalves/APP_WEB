@@ -24963,6 +24963,31 @@ def create_app():
         rel = os.path.relpath(path, root).replace('\\', '/')
         return '' if rel == '.' else rel
 
+    def _cliente_docs_processing_estab_from_rel(rel_path):
+        parts = [p for p in str(rel_path or '').replace('\\', '/').strip('/').split('/') if p]
+        if len(parts) < 3:
+            return None
+        if parts[0].strip().lower() != 'processamento mensal':
+            return None
+        match = re.fullmatch(r'Estabelecimento\s+(\d+)', parts[2].strip(), flags=re.IGNORECASE)
+        if not match:
+            return 0
+        try:
+            return int(match.group(1))
+        except Exception:
+            return 0
+
+    def _cliente_docs_visible_for_current_user(rel_path, allow_processing_ancestors=False):
+        user_estab = _current_cliente_estab()
+        if user_estab <= 0:
+            return True
+        parts = [p for p in str(rel_path or '').replace('\\', '/').strip('/').split('/') if p]
+        if not parts or parts[0].strip().lower() != 'processamento mensal':
+            return True
+        if allow_processing_ancestors and len(parts) < 3:
+            return True
+        return _cliente_docs_processing_estab_from_rel('/'.join(parts)) == user_estab
+
     @app.route('/cliente/documentos')
     @app.route('/portal_cliente/documentos')
     @login_required
@@ -24985,19 +25010,24 @@ def create_app():
         if not root:
             return jsonify({'error': 'Cliente associado inválido.'}), 400
 
-        folders = []
+        raw_folders = []
         for current_dir, dirnames, filenames in os.walk(root):
-            dirnames[:] = sorted([d for d in dirnames if not d.startswith('.')], key=str.lower)
-            filenames = sorted([f for f in filenames if not f.startswith('.')], key=str.lower)
             rel_dir = _cliente_docs_rel(current_dir, root)
+            dirnames[:] = sorted([d for d in dirnames if not d.startswith('.') and _cliente_docs_visible_for_current_user(
+                f"{rel_dir}/{d}" if rel_dir else d,
+                allow_processing_ancestors=True,
+            )], key=str.lower)
+            filenames = sorted([f for f in filenames if not f.startswith('.')], key=str.lower)
             files = []
             for filename in filenames:
                 full_path = os.path.join(current_dir, filename)
+                rel_file = _cliente_docs_rel(full_path, root)
+                if not _cliente_docs_visible_for_current_user(rel_file):
+                    continue
                 try:
                     stat = os.stat(full_path)
                 except OSError:
                     continue
-                rel_file = _cliente_docs_rel(full_path, root)
                 ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
                 try:
                     upload_dir = os.path.realpath(os.path.abspath(os.path.join(root, CLIENT_DOCUMENTS_UPLOAD_FOLDER)))
@@ -25015,18 +25045,20 @@ def create_app():
                     'can_delete': can_delete,
                     'delete_url': url_for('api_cliente_documentos_delete') if can_delete else '',
                 })
-            folders.append({
+            raw_folders.append({
                 'name': 'Documentos' if not rel_dir else os.path.basename(current_dir),
                 'path': rel_dir,
                 'is_client_uploads': rel_dir == CLIENT_DOCUMENTS_UPLOAD_FOLDER,
                 'files': files,
             })
 
+        folders = raw_folders
         folders.sort(key=lambda item: (item.get('is_client_uploads') is True, str(item.get('path') or '').lower()))
         return jsonify({
             'cliente': {
                 'no': _current_cliente_no(),
                 'nome': str(getattr(current_user, 'CLNOME', '') or '').strip(),
+                'estabelecimento': _current_cliente_estab(),
             },
             'upload_folder': CLIENT_DOCUMENTS_UPLOAD_FOLDER,
             'folders': folders,
@@ -25041,6 +25073,9 @@ def create_app():
         full_path, root = _cliente_docs_safe_path(rel_path, require_file=True)
         if not full_path or not root:
             abort(404)
+        rel_file = _cliente_docs_rel(full_path, root)
+        if not _cliente_docs_visible_for_current_user(rel_file):
+            abort(403)
         return send_from_directory(
             os.path.dirname(full_path),
             os.path.basename(full_path),
