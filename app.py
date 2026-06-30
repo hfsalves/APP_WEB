@@ -38929,6 +38929,7 @@ OPTION (MAXRECURSION 32767);
                     ISNULL(F.NOME,'') AS NOME,
                     COALESCE(NULLIF(LTRIM(RTRIM(ISNULL(A.NOME,''))), ''), ISNULL(F.CCUSTO,'')) AS ALOJAMENTO,
                     ISNULL(F.CCUSTO,'') AS CCUSTO_ORIG,
+                    ISNULL(A.TIPO,'') AS AL_TIPO,
                     ISNULL(F.ETTILIQ,0) AS TOTAL,
                     ISNULL(F.ETTILIQ,0) AS BASE,
                     ISNULL(F.IMPUTAR,0) AS IMPUTAR,
@@ -38951,13 +38952,12 @@ OPTION (MAXRECURSION 32767);
             for fo in fo_rows:
                 fostamp = fo.get('STAMP')
                 lines = fn_by_fo.get(fostamp, [])
-                distinct_cc = {str(l.get('FNCCUSTO') or '').strip() for l in lines if (l.get('FNCCUSTO') or '').strip()}
                 fo_cc = str(fo.get('CCUSTO_ORIG') or fo.get('ALOJAMENTO') or '').strip()
                 fo_alojamento = str(fo.get('ALOJAMENTO') or '').strip()
-                split_to_lines = False
-                if lines:
-                    if len(distinct_cc) > 1 or (distinct_cc and (fo_cc not in distinct_cc)):
-                        split_to_lines = True
+                fo_is_gestao = str(fo.get('AL_TIPO') or '').strip().upper() == 'GESTAO'
+                split_to_lines = bool(lines)
+                if not fo_is_gestao and not split_to_lines:
+                    continue
                 if not split_to_lines:
                     out.append({
                         'ORIGEM': 'FO',
