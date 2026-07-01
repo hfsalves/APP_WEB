@@ -25539,7 +25539,7 @@ def create_app():
     @app.route('/colaborador/despesas')
     @login_required
     def colaborador_despesas_page():
-        from services.colaborador_despesas_service import get_or_create_draft_header, list_draft_lines
+        from services.colaborador_despesas_service import get_or_create_draft_header, list_draft_lines, list_expense_companies
 
         draft = get_or_create_draft_header(current_user)
         header = draft.get('header') or {}
@@ -25563,6 +25563,11 @@ def create_app():
         except Exception:
             app.logger.exception('Erro ao carregar viaturas para despesas.')
             expense_vehicles = []
+        try:
+            expense_companies = list_expense_companies()
+        except Exception:
+            app.logger.exception('Erro ao carregar empresas para despesas.')
+            expense_companies = []
 
         return render_template(
             'colaborador_despesas.html',
@@ -25570,6 +25575,7 @@ def create_app():
             colaborador=colaborador,
             expense_types=expense_types,
             expense_vehicles=expense_vehicles,
+            expense_companies=expense_companies,
             expense_draft=expense_draft,
             today=date.today().isoformat(),
         )
@@ -40031,7 +40037,7 @@ OPTION (MAXRECURSION 32767);
             header = _pm_faturacao_gestao_header(dmstamp)
             if not header:
                 return jsonify({'error': 'Registo não encontrado.'}), 404
-            folder, rel_dir = _pm_client_docs_folder(header, create=True)
+            folder, rel_dir = _pm_client_docs_folder(header, create=False)
             if not folder:
                 return jsonify({'error': 'Não foi possível preparar a pasta do cliente.'}), 400
             return jsonify({

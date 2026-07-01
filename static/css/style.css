@@ -1002,6 +1002,9 @@ body:not(.authenticated) .main-content {
   outline: none;
   box-shadow: none;
 }
+.input-with-icon .login-password-mask {
+  -webkit-text-security: disc;
+}
 .login-card .btn-primary {
   display: inline-flex;
   align-items: center;

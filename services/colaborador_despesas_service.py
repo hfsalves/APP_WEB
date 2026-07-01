@@ -46,6 +46,19 @@ def _safe_decimal(value: Any) -> Decimal:
         return Decimal('0.00')
 
 
+def _column_exists(table_name: str, column_name: str) -> bool:
+    return bool(db.session.execute(text("""
+        SELECT 1
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'dbo'
+          AND TABLE_NAME = :table_name
+          AND COLUMN_NAME = :column_name
+    """), {
+        'table_name': table_name,
+        'column_name': column_name,
+    }).scalar())
+
+
 def _file_hash(path: str) -> str:
     digest = hashlib.sha256()
     with open(path, 'rb') as handle:
@@ -120,8 +133,12 @@ def ensure_colaborador_despesas_schema() -> None:
                     CONSTRAINT DF_COLAB_DESPESA_LINHA_KMS DEFAULT 0,
                 VIATURA varchar(50) NOT NULL
                     CONSTRAINT DF_COLAB_DESPESA_LINHA_VIATURA DEFAULT '',
-                OBS nvarchar(500) NOT NULL
+                OBS nvarchar(100) NOT NULL
                     CONSTRAINT DF_COLAB_DESPESA_LINHA_OBS DEFAULT N'',
+                FEID int NOT NULL
+                    CONSTRAINT DF_COLAB_DESPESA_LINHA_FEID DEFAULT 0,
+                EMPRESA nvarchar(200) NOT NULL
+                    CONSTRAINT DF_COLAB_DESPESA_LINHA_EMPRESA DEFAULT N'',
                 ESTADO varchar(20) NOT NULL
                     CONSTRAINT DF_COLAB_DESPESA_LINHA_ESTADO DEFAULT 'RASCUNHO',
                 ANULADA bit NOT NULL
@@ -155,6 +172,36 @@ def ensure_colaborador_despesas_schema() -> None:
             CREATE INDEX IX_COLAB_DESPESA_LINHA_CAB_ORDEM
                 ON dbo.COLAB_DESPESA_LINHA (DESPCABSTAMP, ANULADA, ORDEM, DTCRI);
         END
+    """))
+
+    db.session.execute(text("""
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'FEID') IS NULL
+        BEGIN
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA
+            ADD FEID int NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_FEID DEFAULT 0;
+        END
+    """))
+    db.session.execute(text("""
+        IF COL_LENGTH('dbo.COLAB_DESPESA_LINHA', 'EMPRESA') IS NULL
+        BEGIN
+            ALTER TABLE dbo.COLAB_DESPESA_LINHA
+            ADD EMPRESA nvarchar(200) NOT NULL
+                CONSTRAINT DF_COLAB_DESPESA_LINHA_EMPRESA DEFAULT N'';
+        END
+    """))
+    db.session.execute(text("""
+        UPDATE L
+        SET FEID = ISNULL(NULLIF(L.FEID, 0), H.FEID),
+            EMPRESA = CASE
+                WHEN LTRIM(RTRIM(ISNULL(L.EMPRESA, ''))) = '' THEN ISNULL(H.EMPRESA, '')
+                ELSE L.EMPRESA
+            END
+        FROM dbo.COLAB_DESPESA_LINHA L
+        INNER JOIN dbo.COLAB_DESPESA_CAB H
+          ON H.DESPCABSTAMP = L.DESPCABSTAMP
+        WHERE ISNULL(L.FEID, 0) = 0
+           OR LTRIM(RTRIM(ISNULL(L.EMPRESA, ''))) = '';
     """))
 
     db.session.commit()
@@ -202,6 +249,49 @@ def get_colaborador_context(user) -> dict[str, Any]:
         and colaborador['phc_db']
     )
     return colaborador
+
+
+def list_expense_companies() -> list[dict[str, Any]]:
+    ensure_colaborador_despesas_schema()
+    e_cluster_filter = "AND ISNULL(E_CLUSTER, 0) = 0" if _column_exists('FE', 'E_CLUSTER') else ""
+    phc_db_select = "LTRIM(RTRIM(ISNULL(PHC_DB, ''))) AS PHC_DB" if _column_exists('FE', 'PHC_DB') else "CAST('' AS varchar(128)) AS PHC_DB"
+    rows = db.session.execute(text(f"""
+        SELECT
+            ISNULL(FEID, 0) AS FEID,
+            LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME,
+            {phc_db_select}
+        FROM dbo.FE
+        WHERE ISNULL(FEID, 0) <> 0
+          {e_cluster_filter}
+        ORDER BY LTRIM(RTRIM(ISNULL(NOME, '')))
+    """)).mappings().all()
+    return [
+        {
+            'feid': int(row.get('FEID') or 0),
+            'nome': str(row.get('NOME') or '').strip(),
+            'phc_db': str(row.get('PHC_DB') or '').strip(),
+        }
+        for row in rows
+        if int(row.get('FEID') or 0)
+    ]
+
+
+def _expense_company_by_feid(feid: int) -> dict[str, Any]:
+    if not feid:
+        return {}
+    e_cluster_filter = "AND ISNULL(E_CLUSTER, 0) = 0" if _column_exists('FE', 'E_CLUSTER') else ""
+    row = db.session.execute(text(f"""
+        SELECT TOP 1
+            ISNULL(FEID, 0) AS FEID,
+            LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
+        FROM dbo.FE
+        WHERE ISNULL(FEID, 0) = :feid
+          {e_cluster_filter}
+    """), {'feid': feid}).mappings().first()
+    return {
+        'feid': int(row.get('FEID') or 0),
+        'nome': str(row.get('NOME') or '').strip(),
+    } if row else {}
 
 
 def get_or_create_draft_header(user) -> dict[str, Any]:
@@ -294,6 +384,8 @@ def serialize_line(row: dict[str, Any]) -> dict[str, Any]:
         'kms': float(row.get('KMS') or 0),
         'viatura': str(row.get('VIATURA') or '').strip(),
         'obs': str(row.get('OBS') or '').strip(),
+        'feid': int(row.get('FEID') or 0),
+        'empresa': str(row.get('EMPRESA') or '').strip(),
         'estado': str(row.get('ESTADO') or '').strip(),
         'file_original': str(row.get('FICHEIRO_ORIGINAL') or '').strip(),
         'file_name': str(row.get('FICHEIRO') or '').strip(),
@@ -348,12 +440,14 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
         """), {'header_stamp': header_stamp}).scalar(), 10)
         db.session.execute(text("""
             INSERT INTO dbo.COLAB_DESPESA_LINHA
-            (DESPLINHASTAMP, DESPCABSTAMP, ORDEM, USERCRIACAO, USERALTERACAO)
-            VALUES (:stamp, :header_stamp, :ordem, :login, :login)
+            (DESPLINHASTAMP, DESPCABSTAMP, ORDEM, FEID, EMPRESA, USERCRIACAO, USERALTERACAO)
+            VALUES (:stamp, :header_stamp, :ordem, :feid, :empresa, :login, :login)
         """), {
             'stamp': line_stamp,
             'header_stamp': header_stamp,
             'ordem': ordem,
+            'feid': int(header.get('FEID') or colaborador.get('feid') or colaborador.get('pefeid') or 0),
+            'empresa': str(header.get('EMPRESA') or colaborador.get('empresa') or '').strip(),
             'login': login,
         })
     else:
@@ -381,7 +475,14 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
     valor = _safe_decimal(payload.get('valor'))
     kms = _safe_decimal(payload.get('kms'))
     viatura = str(payload.get('viatura') or '').strip()[:50]
-    obs = str(payload.get('obs') or '').strip()[:500]
+    obs = str(payload.get('obs') or '').strip()[:100]
+    line_feid = _safe_int(payload.get('feid') or payload.get('empresa_feid'))
+    if not line_feid:
+        line_feid = _safe_int(header.get('FEID') or colaborador.get('feid') or colaborador.get('pefeid'))
+    company = _expense_company_by_feid(line_feid) if line_feid else {}
+    if not company and line_feid:
+        raise ValueError('Empresa inválida para despesas.')
+    empresa = str(company.get('nome') or header.get('EMPRESA') or colaborador.get('empresa') or '').strip()[:200]
 
     params = {
         'stamp': line_stamp,
@@ -391,6 +492,8 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
         'kms': kms,
         'viatura': viatura,
         'obs': obs,
+        'feid': int(company.get('feid') or line_feid or 0),
+        'empresa': empresa,
         'login': login,
     }
     file_sql = ''
@@ -422,6 +525,8 @@ def upsert_expense_line(user, payload: dict[str, Any], file_storage=None) -> dic
             KMS = :kms,
             VIATURA = :viatura,
             OBS = :obs,
+            FEID = :feid,
+            EMPRESA = :empresa,
             ESTADO = 'RASCUNHO',
             ANULADA = 0,
             DTALT = GETDATE(),

@@ -632,6 +632,7 @@
   window.COLLAB_EXPENSE_CONTEXT = {{ colaborador|tojson }};
   window.COLLAB_EXPENSE_TYPES = {{ expense_types|tojson }};
   window.COLLAB_EXPENSE_VEHICLES = {{ expense_vehicles|tojson }};
+  window.COLLAB_EXPENSE_COMPANIES = {{ expense_companies|tojson }};
   window.COLLAB_EXPENSE_DRAFT = {{ expense_draft|tojson }};
   window.COLLAB_EXPENSE_TODAY = {{ today|tojson }};
   (() => {
@@ -647,6 +648,8 @@
     const photoInput = document.getElementById('expensePhotoInput');
     const vehicleExpenseTypes = new Set(['CARBURANT', 'DKV', 'VOITURES']);
     const defaultDate = window.COLLAB_EXPENSE_TODAY || '';
+    const context = window.COLLAB_EXPENSE_CONTEXT || {};
+    const defaultCompanyFeid = String(context.feid || context.pefeid || '');
     const draftState = window.COLLAB_EXPENSE_DRAFT || { header_stamp: '', lines: [] };
     let pendingPhotoZone = null;
     let activeCard = null;
@@ -735,17 +738,20 @@
       const typeSelect = card.querySelector('[data-expense-type]');
       const dateInput = card.querySelector('[data-expense-date]');
       const amountInput = card.querySelector('[data-expense-value]');
+      const companySelect = card.querySelector('[data-expense-company]');
       const kmsInput = card.querySelector('[data-expense-kms]');
       const vehicleSelect = card.querySelector('[data-expense-vehicle]');
       const title = card.querySelector('[data-summary-title]');
       const meta = card.querySelector('[data-summary-meta]');
       const typeLabel = typeSelect?.selectedOptions?.[0]?.textContent?.trim();
+      const companyLabel = companySelect?.selectedOptions?.[0]?.textContent?.trim();
       const vehicleLabel = vehicleSelect?.selectedOptions?.[0]?.textContent?.trim();
       if (title) title.textContent = typeSelect?.value ? typeLabel : 'Despesa por preencher';
       const metaParts = [
         formatDate(dateInput?.value),
         formatAmount(amountInput?.value)
       ];
+      if (companySelect?.value && companyLabel) metaParts.push(companyLabel);
       if (kmsInput?.value) metaParts.push(`${kmsInput.value} kms`);
       if (vehicleSelect?.value && vehicleLabel) metaParts.push(vehicleLabel);
       if (isClosedCard(card)) metaParts.push('Fechada');
@@ -794,9 +800,10 @@
         data_despesa: card?.querySelector('[data-expense-date]')?.value || '',
         tipo: card?.querySelector('[data-expense-type]')?.value || '',
         valor: card?.querySelector('[data-expense-value]')?.value || '',
+        feid: card?.querySelector('[data-expense-company]')?.value || '',
         kms: card?.querySelector('[data-expense-kms]')?.value || '',
         viatura: card?.querySelector('[data-expense-vehicle]')?.value || '',
-        obs: '',
+        obs: card?.querySelector('[data-expense-obs]')?.value || '',
       };
     }
 
@@ -910,6 +917,20 @@
           const value = row.MATRICULA || row.value || '';
           const label = row.LABEL || row.label || row.MATRICULA || row.value || '';
           const selected = String(value) === String(selectedValue || '') ? ' selected' : '';
+          return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(label)}</option>`;
+        })
+      ].join('');
+    }
+
+    function companyOptions(selectedValue = '') {
+      const rows = Array.isArray(window.COLLAB_EXPENSE_COMPANIES) ? window.COLLAB_EXPENSE_COMPANIES : [];
+      const current = String(selectedValue || defaultCompanyFeid || '');
+      return [
+        `<option value=""${current ? '' : ' selected'}>Selecione uma empresa</option>`,
+        ...rows.map((row) => {
+          const value = String(row.feid || row.FEID || '');
+          const label = String(row.nome || row.NOME || row.label || value);
+          const selected = value === current ? ' selected' : '';
           return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(label)}</option>`;
         })
       ].join('');
@@ -1149,6 +1170,8 @@
       card.dataset.estado = savedEstado;
       const savedDate = saved.data_despesa || defaultDate;
       const savedType = saved.tipo || '';
+      const savedCompany = String(saved.feid || defaultCompanyFeid || '');
+      const savedObs = String(saved.obs || '').slice(0, 100);
       const savedVehicle = saved.viatura || '';
       const savedValor = Number(saved.valor || 0) > 0 ? String(saved.valor) : '';
       const savedKms = Number(saved.kms || 0) > 0 ? String(saved.kms) : '';
@@ -1196,6 +1219,16 @@
                 <span class="sz_label">Valor</span>
                 <input class="sz_input_number" type="number" step="0.01" min="0" placeholder="0,00" value="${escapeHtml(savedValor)}" data-expense-value>
               </label>
+              <label class="sz_field">
+                <span class="sz_label">Empresa</span>
+                <select class="sz_select" data-expense-company>
+                  ${companyOptions(savedCompany)}
+                </select>
+              </label>
+              <label class="sz_field">
+                <span class="sz_label">Observações</span>
+                <textarea class="sz_textarea" rows="2" maxlength="100" placeholder="Observações da despesa" data-expense-obs>${escapeHtml(savedObs)}</textarea>
+              </label>
               <div class="expense-vehicle-fields" data-vehicle-fields hidden>
                 <label class="sz_field">
                   <span class="sz_label">Kms</span>
@@ -1217,7 +1250,7 @@
       if (hasFile && photoZone) setPhotoZoneFile(photoZone, file);
       if (hasSavedFile && photoZone) applySavedFile(card, photoZone, saved);
       wireVehicleVisibility(card);
-      card.querySelectorAll('input, select').forEach((field) => {
+      card.querySelectorAll('input, select, textarea').forEach((field) => {
         field.addEventListener('input', () => {
           refreshSummary(card);
           scheduleAutoSave(card);

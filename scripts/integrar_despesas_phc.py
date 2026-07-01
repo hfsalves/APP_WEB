@@ -404,7 +404,7 @@ def integrate_header(header: dict[str, Any], *, execute: bool, public_base_url: 
                 )
                 result_lines.append(
                     {
-                        "local": line["DESPLINHASTAMP"],
+                        "local_stamp": line["DESPLINHASTAMP"],
                         "dlstamp": dlstamp,
                         "anexosstamp": anexosstamp,
                         "tipo": tdsdesc,
