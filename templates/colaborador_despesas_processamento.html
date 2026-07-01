@@ -1,0 +1,1135 @@
+{% extends "base.html" %}
+
+{% block title %}Processamento de Despesas{% endblock %}
+
+{% block content %}
+<div class="sz_page expense-processing-page">
+  <div class="sz_page_container sz_page_container_wide expense-processing-shell">
+    <header class="sz_contextbar sz_page_contextbar expense-processing-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Processamento de despesas</div>
+        <div class="sz_page_subtitle">Análise das despesas validadas pelos colaboradores.</div>
+      </div>
+      <div class="sz_contextbar_right expense-processing-filters">
+        <label class="sz_field expense-processing-filter">
+          <span class="sz_label">Desde</span>
+          <input id="expProcDateFrom" class="sz_input" type="date" value="{{ default_date_from }}">
+        </label>
+        <label class="sz_field expense-processing-filter">
+          <span class="sz_label">Até</span>
+          <input id="expProcDateTo" class="sz_input" type="date" value="{{ default_date_to }}">
+        </label>
+        <label class="sz_field expense-processing-filter expense-processing-user-filter">
+          <span class="sz_label">Utilizador</span>
+          <select id="expProcUser" class="sz_select">
+            <option value="">Todos</option>
+            {% for user in expense_users %}
+              <option value="{{ user.login }}">{{ user.nome or user.login }}{% if user.peno %} · {{ user.peno }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button id="expProcRefresh" type="button" class="sz_button sz_button_secondary">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Atualizar</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="sz_page_body expense-processing-body">
+      <section class="sz_panel expense-processing-list-panel">
+        <div class="expense-processing-panel-head">
+          <div>
+            <div class="sz_h4">Despesas a analisar</div>
+            <div id="expProcMeta" class="sz_text_muted">A carregar...</div>
+            <div id="expProcSelection" class="expense-processing-selection" hidden></div>
+          </div>
+          <button id="expProcLaunchPhc" type="button" class="sz_button sz_button_primary" disabled>
+            <i class="fa-solid fa-file-export"></i>
+            <span>Lançar no PHC</span>
+          </button>
+        </div>
+        <div id="expProcBody" class="expense-processing-cards">
+          <div class="sz_text_muted">A carregar...</div>
+        </div>
+      </section>
+
+      <section class="sz_panel expense-processing-preview-panel">
+        <div class="expense-processing-panel-head">
+          <div>
+            <div class="sz_h4">Documento</div>
+            <div id="expProcPreviewMeta" class="sz_text_muted">Seleciona uma despesa.</div>
+          </div>
+          <a id="expProcOpenFile" class="sz_button sz_button_ghost expense-processing-open" href="#" target="_blank" rel="noopener" hidden>
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            <span>Abrir</span>
+          </a>
+        </div>
+        <div id="expProcPreview" class="expense-processing-preview">
+          <div class="expense-processing-empty">
+            <i class="fa-solid fa-receipt"></i>
+            <span>Sem documento selecionado</span>
+          </div>
+        </div>
+      </section>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .expense-processing-shell {
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: 100%;
+    max-width: none !important;
+    min-height: 0;
+  }
+
+  .expense-processing-contextbar {
+    display: grid !important;
+    grid-template-columns: minmax(22rem, 1fr) auto;
+    gap: var(--sz-space-4);
+    align-items: center;
+    min-height: auto;
+    padding-block: var(--sz-space-3);
+  }
+
+  .expense-processing-contextbar .sz_contextbar_left {
+    min-width: 0;
+  }
+
+  .expense-processing-contextbar .sz_page_subtitle {
+    margin-top: .15rem;
+  }
+
+  .expense-processing-filters {
+    display: grid;
+    grid-template-columns: auto auto auto auto;
+    align-items: center;
+    gap: var(--sz-space-2);
+    justify-content: flex-end;
+    min-width: 0;
+  }
+
+  .expense-processing-filter {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: .45rem;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .expense-processing-filter .sz_label {
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .expense-processing-filter .sz_input,
+  .expense-processing-filter .sz_select {
+    height: 2.35rem;
+  }
+
+  .expense-processing-filter .sz_input {
+    width: 8.8rem;
+  }
+
+  .expense-processing-user-filter {
+    width: 13.5rem;
+  }
+
+  .expense-processing-user-filter .sz_select {
+    width: 100%;
+  }
+
+  .expense-processing-body {
+    display: grid;
+    grid-template-columns: minmax(38rem, 1fr) minmax(22rem, 26rem);
+    gap: var(--sz-space-3);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .expense-processing-list-panel,
+  .expense-processing-preview-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .expense-processing-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-3);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .expense-processing-selection {
+    margin-top: .25rem;
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+    line-height: 1.25;
+  }
+
+  .expense-processing-cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    min-height: 0;
+    overflow: auto;
+    padding: var(--sz-space-3);
+  }
+
+  .expense-processing-card {
+    display: grid;
+    grid-template-columns: minmax(17rem, 24rem) minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 36%, var(--sz-color-surface));
+    padding: var(--sz-space-3);
+    cursor: pointer;
+  }
+
+  .expense-processing-select-line {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+    cursor: pointer;
+  }
+
+  .expense-processing-card .expense-processing-select-line {
+    display: inline-flex;
+    flex-direction: row;
+    width: fit-content;
+  }
+
+  .expense-processing-select-line input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--sz-color-primary);
+  }
+
+  .expense-processing-card.is-active {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface));
+  }
+
+  .expense-processing-card-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-2);
+    min-width: 0;
+  }
+
+  .expense-processing-card-date {
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .expense-processing-card-person {
+    color: var(--sz-color-text);
+    font-weight: var(--sz-font-weight-semibold);
+    line-height: 1.25;
+  }
+
+  .expense-processing-card-person.is-launch-required {
+    color: #fca5a5;
+  }
+
+  .expense-processing-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+    align-items: center;
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .expense-processing-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.65rem;
+    padding: .15rem .5rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sz-color-surface) 72%, transparent);
+    color: var(--sz-color-text-secondary);
+  }
+
+  .expense-processing-card label.is-launch-required .sz_label {
+    color: #fca5a5;
+  }
+
+  .expense-processing-card label.is-launch-required input,
+  .expense-processing-card label.is-launch-required select {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 1px color-mix(in srgb, #ef4444 55%, transparent);
+  }
+
+  .expense-processing-card label.is-launch-required input::placeholder {
+    color: color-mix(in srgb, #fca5a5 70%, var(--sz-color-text-secondary));
+  }
+
+  .expense-processing-card-obs {
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+    line-height: 1.35;
+  }
+
+  .expense-processing-card-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-2);
+    min-width: 0;
+  }
+
+  .expense-processing-line-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sz-space-2);
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .expense-processing-form-grid {
+    display: grid;
+    grid-template-columns: minmax(9rem, 1fr) minmax(7rem, .75fr) minmax(7rem, .7fr);
+    gap: var(--sz-space-2);
+    min-width: 0;
+  }
+
+  .expense-processing-article-grid {
+    display: grid;
+    grid-template-columns: minmax(7rem, .5fr) minmax(12rem, 1fr) minmax(7rem, .4fr) minmax(7rem, .4fr) minmax(7rem, .4fr);
+    gap: var(--sz-space-2);
+    min-width: 0;
+  }
+
+  .expense-processing-card label {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .expense-processing-card .sz_label {
+    margin: 0;
+    color: var(--sz-color-text-secondary);
+    font-size: .72rem;
+    line-height: 1;
+  }
+
+  .expense-processing-table-host {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .expense-processing-input,
+  .expense-processing-select {
+    width: 100%;
+    min-width: 0;
+    height: 2.15rem;
+    padding-inline: .55rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    color: var(--sz-color-text);
+    background: var(--sz-color-surface-alt);
+    font: inherit;
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .expense-processing-company {
+    width: 100%;
+  }
+
+  .expense-processing-matricula {
+    width: 100%;
+  }
+
+  .expense-processing-ref-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  .expense-processing-design {
+    width: 100%;
+  }
+
+  .expense-processing-ccusto {
+    width: 100%;
+  }
+
+  .expense-processing-value {
+    text-align: right;
+  }
+
+  .expense-processing-vat-value {
+    display: flex;
+    align-items: center;
+    height: 2.15rem;
+    padding-inline: .55rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    color: var(--sz-color-text);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 65%, var(--sz-color-surface));
+    font-size: var(--sz-font-size-sm);
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .expense-processing-autocomplete {
+    width: min(28rem, 70vw);
+    right: auto;
+  }
+
+  .expense-processing-save-state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    color: var(--sz-color-text-secondary);
+  }
+
+  .expense-processing-save-state.is-saved {
+    color: var(--sz-color-success, #22c55e);
+  }
+
+  .expense-processing-save-state.is-error {
+    color: var(--sz-color-danger, #ef4444);
+  }
+
+  .expense-processing-preview {
+    min-height: 0;
+    overflow: hidden;
+    padding: var(--sz-space-3);
+  }
+
+  .expense-processing-preview iframe,
+  .expense-processing-preview img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 30rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface-alt);
+  }
+
+  .expense-processing-preview img {
+    object-fit: contain;
+    padding: var(--sz-space-2);
+  }
+
+  .expense-processing-empty {
+    display: flex;
+    min-height: 30rem;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: var(--sz-space-2);
+    border: 1px dashed var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    color: var(--sz-color-text-secondary);
+    background: color-mix(in srgb, var(--sz-color-surface-alt) 45%, transparent);
+  }
+
+  .expense-processing-empty i {
+    font-size: 2rem;
+  }
+
+  @media (max-width: 1100px) {
+    .expense-processing-contextbar {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: stretch;
+    }
+
+    .expense-processing-filters {
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      overflow-x: auto;
+      padding-bottom: .15rem;
+    }
+
+    .expense-processing-body {
+      grid-template-columns: minmax(0, 1fr);
+      overflow: auto;
+    }
+
+    .expense-processing-preview-panel {
+      min-height: 34rem;
+    }
+
+    .expense-processing-card,
+    .expense-processing-form-grid,
+    .expense-processing-article-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>
+<script>
+  window.EXPENSE_PROCESSING_COMPANIES = {{ expense_companies|tojson }};
+  window.EXPENSE_PROCESSING_CCUSTOS = {{ expense_ccustos|tojson }};
+  (() => {
+    const els = {
+      dateFrom: document.getElementById('expProcDateFrom'),
+      dateTo: document.getElementById('expProcDateTo'),
+      user: document.getElementById('expProcUser'),
+      refresh: document.getElementById('expProcRefresh'),
+      body: document.getElementById('expProcBody'),
+      meta: document.getElementById('expProcMeta'),
+      preview: document.getElementById('expProcPreview'),
+      previewMeta: document.getElementById('expProcPreviewMeta'),
+      openFile: document.getElementById('expProcOpenFile'),
+      launchPhc: document.getElementById('expProcLaunchPhc'),
+      selection: document.getElementById('expProcSelection'),
+    };
+    let rows = [];
+    let activeStamp = '';
+    const selectedStamps = new Set();
+    const saveTimers = new Map();
+    const companies = Array.isArray(window.EXPENSE_PROCESSING_COMPANIES) ? window.EXPENSE_PROCESSING_COMPANIES : [];
+    const ccustos = Array.isArray(window.EXPENSE_PROCESSING_CCUSTOS) ? window.EXPENSE_PROCESSING_CCUSTOS : [];
+    const vatCache = new Map();
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[ch]));
+    }
+
+    function formatDate(value) {
+      if (!value) return '-';
+      const parts = String(value).split('-');
+      return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : value;
+    }
+
+    function formatAmount(value) {
+      const number = Number(value || 0);
+      return Number.isFinite(number) ? `${number.toFixed(2).replace('.', ',')} €` : '0,00 €';
+    }
+
+    function formatRate(value) {
+      const number = Number(value || 0);
+      if (!Number.isFinite(number)) return '0';
+      return number.toFixed(4).replace(/\.?0+$/, '');
+    }
+
+    function calculateVat(grossValue, rateValue) {
+      const gross = Number(grossValue || 0);
+      const rate = Number(rateValue || 0);
+      if (!Number.isFinite(gross) || !Number.isFinite(rate) || rate <= 0) return 0;
+      return gross - (gross / (1 + (rate / 100)));
+    }
+
+    function companyOptions(selectedValue) {
+      const current = String(selectedValue || '');
+      return companies.map((company) => {
+        const value = String(company.feid || company.FEID || '');
+        const label = String(company.nome || company.NOME || value);
+        return `<option value="${escapeHtml(value)}"${value === current ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+      }).join('');
+    }
+
+    function ccustoDatalist() {
+      return ccustos.map((value) => `<option value="${escapeHtml(value)}"></option>`).join('');
+    }
+
+    function isPdf(row) {
+      const mime = String(row.mime_type || '').toLowerCase();
+      const ext = String(row.file_ext || '').toLowerCase();
+      return mime.includes('pdf') || ext === '.pdf';
+    }
+
+    function renderPreview(row) {
+      if (!row) {
+        els.previewMeta.textContent = 'Seleciona uma despesa.';
+        els.openFile.hidden = true;
+        els.openFile.href = '#';
+        els.preview.innerHTML = `
+          <div class="expense-processing-empty">
+            <i class="fa-solid fa-receipt"></i>
+            <span>Sem documento selecionado</span>
+          </div>
+        `;
+        return;
+      }
+      const path = String(row.file_url || row.file_path || '').trim();
+      els.previewMeta.textContent = `${row.penome || row.login || 'Colaborador'} · ${formatDate(row.data_despesa)} · ${formatAmount(row.valor)}`;
+      if (path) {
+        els.openFile.hidden = false;
+        els.openFile.href = path;
+      } else {
+        els.openFile.hidden = true;
+        els.openFile.href = '#';
+      }
+      if (!path) {
+        els.preview.innerHTML = `
+          <div class="expense-processing-empty">
+            <i class="fa-solid fa-file-circle-question"></i>
+            <span>Esta despesa não tem ficheiro.</span>
+          </div>
+        `;
+        return;
+      }
+      if (isPdf(row)) {
+        els.preview.innerHTML = `<iframe src="${escapeHtml(path)}" title="PDF da despesa"></iframe>`;
+      } else {
+        els.preview.innerHTML = `<img src="${escapeHtml(path)}" alt="Documento da despesa">`;
+      }
+    }
+
+    function renderRows() {
+      if (!rows.length) {
+        els.body.innerHTML = '<div class="sz_text_muted">Sem despesas para os filtros atuais.</div>';
+        els.meta.textContent = '0 despesas encontradas.';
+        selectedStamps.clear();
+        updateSelectionUi();
+        renderPreview(null);
+        return;
+      }
+      els.meta.textContent = `${rows.length} despesa(s) encontrada(s).`;
+      els.body.innerHTML = rows.map((row) => {
+        const active = row.stamp === activeStamp ? ' is-active' : '';
+        const checked = selectedStamps.has(row.stamp) ? ' checked' : '';
+        return `
+          <article class="expense-processing-card expense-processing-row${active}" data-stamp="${escapeHtml(row.stamp)}">
+            <div class="expense-processing-card-main">
+              <label class="expense-processing-select-line">
+                <input type="checkbox" data-select-line value="${escapeHtml(row.stamp)}"${checked}>
+                <span>Selecionar</span>
+              </label>
+              <div class="expense-processing-card-date">${escapeHtml(formatDate(row.data_despesa))}</div>
+              <div class="expense-processing-card-person">
+                ${escapeHtml(row.penome || row.login || '-')}
+                <div class="sz_text_muted">${escapeHtml(row.peno ? `N.º ${row.peno}` : row.login || '')}</div>
+              </div>
+              <div class="expense-processing-card-meta">
+                <span class="expense-processing-pill">${escapeHtml(row.tipo || '-')}</span>
+              </div>
+              ${row.obs ? `<div class="expense-processing-card-obs">${escapeHtml(row.obs)}</div>` : ''}
+            </div>
+            <div class="expense-processing-card-form">
+              <div class="expense-processing-line-head">
+                <span></span>
+                <span class="expense-processing-save-state" data-save-state title="Estado de gravação"></span>
+              </div>
+              <div class="expense-processing-form-grid">
+                <label>
+                  <span class="sz_label">Empresa</span>
+                  <select class="expense-processing-select expense-processing-company" data-field="feid">
+                    ${companyOptions(row.feid)}
+                  </select>
+                </label>
+                <label>
+                  <span class="sz_label">Matrícula</span>
+                  <div class="expense-processing-ref-wrap sz_table_lookup">
+                    <input class="expense-processing-input expense-processing-matricula" data-field="viatura" value="${escapeHtml(row.viatura || '')}" placeholder="Matrícula" autocomplete="off">
+                    <div class="sz_table_lookup_dropdown expense-processing-autocomplete" hidden></div>
+                  </div>
+                </label>
+                <label>
+                  <span class="sz_label">Centro de custo</span>
+                  <input class="expense-processing-input expense-processing-ccusto" data-field="ccusto" list="expProcCcustos" value="${escapeHtml(row.ccusto || '')}" placeholder="C. custo">
+                </label>
+              </div>
+              <div class="expense-processing-article-grid">
+                <label>
+                  <span class="sz_label">Referência</span>
+                  <div class="expense-processing-ref-wrap sz_table_lookup">
+                    <input class="expense-processing-input" data-field="ref" value="${escapeHtml(row.ref || '')}" placeholder="Ref." autocomplete="off">
+                    <div class="sz_table_lookup_dropdown expense-processing-autocomplete" hidden></div>
+                  </div>
+                </label>
+                <label>
+                  <span class="sz_label">Designação</span>
+                  <input class="expense-processing-input expense-processing-design" data-field="design" value="${escapeHtml(row.design || '')}" placeholder="Designação">
+                </label>
+                <label>
+                  <span class="sz_label">IVA</span>
+                  <select class="expense-processing-select" data-field="tabiva" data-current-tabiva="${escapeHtml(row.tabiva || '')}" data-current-taxaiva="${escapeHtml(row.taxaiva || '')}">
+                    <option value="">A carregar...</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="sz_label">Valor</span>
+                  <input class="expense-processing-input expense-processing-value" data-field="valor" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(Number(row.valor || 0).toFixed(2))}" placeholder="0,00">
+                </label>
+                <label>
+                  <span class="sz_label">Valor IVA</span>
+                  <span class="expense-processing-vat-value" data-vat-value>${escapeHtml(formatAmount(row.valor_iva || calculateVat(row.valor, row.taxaiva)))}</span>
+                </label>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+      if (!document.getElementById('expProcCcustos')) {
+        const datalist = document.createElement('datalist');
+        datalist.id = 'expProcCcustos';
+        datalist.innerHTML = ccustoDatalist();
+        document.body.appendChild(datalist);
+      }
+      const selected = rows.find((row) => row.stamp === activeStamp) || rows[0];
+      activeStamp = selected.stamp || '';
+      els.body.querySelectorAll('.expense-processing-row').forEach((tr) => {
+        tr.classList.toggle('is-active', tr.dataset.stamp === activeStamp);
+        hydrateVatSelect(tr, rowByStamp(tr.dataset.stamp || ''));
+      });
+      updateSelectionUi();
+      renderPreview(selected);
+    }
+
+    function rowByStamp(stamp) {
+      return rows.find((row) => row.stamp === stamp) || null;
+    }
+
+    function collectRowPayload(rowEl) {
+      const stamp = rowEl.dataset.stamp || '';
+      const companySelect = rowEl.querySelector('[data-field="feid"]');
+      const companyOption = companySelect?.selectedOptions?.[0];
+      const vatSelect = rowEl.querySelector('[data-field="tabiva"]');
+      const vatOption = vatSelect?.selectedOptions?.[0];
+      return {
+        stamp,
+        feid: companySelect?.value || '',
+        empresa: companyOption?.textContent?.trim() || '',
+        viatura: rowEl.querySelector('[data-field="viatura"]')?.value || '',
+        ref: rowEl.querySelector('[data-field="ref"]')?.value || '',
+        design: rowEl.querySelector('[data-field="design"]')?.value || '',
+        ccusto: rowEl.querySelector('[data-field="ccusto"]')?.value || '',
+        valor: rowEl.querySelector('[data-field="valor"]')?.value || '0',
+        tabiva: vatSelect?.value || '',
+        taxaiva: vatOption?.dataset?.taxaiva || vatSelect?.dataset?.currentTaxaiva || '',
+      };
+    }
+
+    function updateLocalRow(stamp, payload) {
+      const row = rowByStamp(stamp);
+      if (!row) return;
+      Object.assign(row, payload);
+    }
+
+    function selectedRows() {
+      return rows.filter((row) => selectedStamps.has(row.stamp));
+    }
+
+    function launchIssuesForRow(row, rowEl = null) {
+      const values = rowEl ? collectRowPayload(rowEl) : row;
+      const issues = [];
+      if (!String(values.feid || '').trim() || Number(values.feid || 0) <= 0) issues.push('empresa');
+      if (!String(values.ref || '').trim()) issues.push('ref');
+      if (!Number(row?.peno || 0)) issues.push('peno');
+      return issues;
+    }
+
+    function applyLaunchValidation(rowEl) {
+      if (!rowEl) return;
+      const stamp = rowEl.dataset.stamp || '';
+      const row = rowByStamp(stamp);
+      const selected = selectedStamps.has(stamp);
+      const issues = selected && row ? launchIssuesForRow(row, rowEl) : [];
+      rowEl.querySelectorAll('.is-launch-required').forEach((node) => {
+        node.classList.remove('is-launch-required');
+        node.removeAttribute('title');
+      });
+      if (!issues.length) return;
+      if (issues.includes('empresa')) {
+        const field = rowEl.querySelector('[data-field="feid"]');
+        const label = field?.closest('label');
+        label?.classList.add('is-launch-required');
+        label?.setAttribute('title', 'Obrigatório para lançar no PHC.');
+      }
+      if (issues.includes('ref')) {
+        const field = rowEl.querySelector('[data-field="ref"]');
+        const label = field?.closest('label');
+        label?.classList.add('is-launch-required');
+        label?.setAttribute('title', 'Obrigatório para lançar no PHC.');
+      }
+      if (issues.includes('peno')) {
+        const person = rowEl.querySelector('.expense-processing-card-person');
+        person?.classList.add('is-launch-required');
+        person?.setAttribute('title', 'Utilizador sem número de colaborador.');
+      }
+    }
+
+    function refreshLaunchValidation() {
+      els.body?.querySelectorAll('.expense-processing-row').forEach(applyLaunchValidation);
+    }
+
+    function updateSelectionUi() {
+      const count = selectedStamps.size;
+      const list = selectedRows();
+      const invalid = list.some((row) => launchIssuesForRow(row).length > 0);
+      if (els.launchPhc) els.launchPhc.disabled = count === 0 || invalid;
+      if (!els.selection) return;
+      if (!count) {
+        els.selection.hidden = true;
+        els.selection.textContent = '';
+        refreshLaunchValidation();
+        return;
+      }
+      const total = list.reduce((sum, row) => sum + Number(row.valor || 0), 0);
+      const names = [...new Set(list.map((row) => row.penome || row.login || '').filter(Boolean))];
+      els.selection.hidden = false;
+      const required = invalid ? ' · preenche os campos assinalados' : '';
+      els.selection.textContent = `${count} selecionada(s) · ${formatAmount(total)}${names.length === 1 ? ` · ${names[0]}` : ''}${required}`;
+      refreshLaunchValidation();
+    }
+
+    function setSaveState(rowEl, state) {
+      const node = rowEl?.querySelector('[data-save-state]');
+      if (!node) return;
+      node.classList.remove('is-saved', 'is-error');
+      if (state === 'saving') {
+        node.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+      } else if (state === 'saved') {
+        node.classList.add('is-saved');
+        node.innerHTML = '<i class="fa-solid fa-check"></i>';
+        window.setTimeout(() => {
+          if (node.isConnected) node.innerHTML = '';
+        }, 1200);
+      } else if (state === 'error') {
+        node.classList.add('is-error');
+        node.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+      } else {
+        node.innerHTML = '';
+      }
+    }
+
+    async function saveClassification(rowEl) {
+      const payload = collectRowPayload(rowEl);
+      if (!payload.stamp) return;
+      setSaveState(rowEl, 'saving');
+      try {
+        const response = await fetch(`/api/colaborador/despesas/processamento/${encodeURIComponent(payload.stamp)}/classificacao`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao gravar classificação.');
+        updateLocalRow(payload.stamp, result.line || payload);
+        setSaveState(rowEl, 'saved');
+      } catch (error) {
+        console.error(error);
+        setSaveState(rowEl, 'error');
+      }
+    }
+
+    function scheduleSave(rowEl) {
+      const stamp = rowEl?.dataset?.stamp || '';
+      if (!stamp) return;
+      updateLocalRow(stamp, collectRowPayload(rowEl));
+      updateSelectionUi();
+      if (saveTimers.has(stamp)) window.clearTimeout(saveTimers.get(stamp));
+      saveTimers.set(stamp, window.setTimeout(() => {
+        saveTimers.delete(stamp);
+        saveClassification(rowEl);
+      }, 450));
+    }
+
+    function closeAutocomplete(rowEl) {
+      rowEl?.querySelectorAll('.expense-processing-autocomplete').forEach((menu) => {
+        menu.hidden = true;
+        menu.innerHTML = '';
+      });
+    }
+
+    async function fetchVatRates(feid) {
+      const key = String(feid || '');
+      if (!key) return [];
+      if (vatCache.has(key)) return vatCache.get(key);
+      const response = await fetch(`/api/colaborador/despesas/processamento/taxasiva?${new URLSearchParams({ feid: key }).toString()}`, {
+        credentials: 'same-origin',
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao carregar IVA.');
+      const rows = Array.isArray(result.rows) ? result.rows : [];
+      vatCache.set(key, rows);
+      return rows;
+    }
+
+    function updateVatValue(rowEl) {
+      const row = rowByStamp(rowEl?.dataset?.stamp || '') || {};
+      const vatSelect = rowEl?.querySelector('[data-field="tabiva"]');
+      const valueInput = rowEl?.querySelector('[data-field="valor"]');
+      const rate = vatSelect?.selectedOptions?.[0]?.dataset?.taxaiva || vatSelect?.dataset?.currentTaxaiva || row.taxaiva || 0;
+      const vatNode = rowEl?.querySelector('[data-vat-value]');
+      if (vatNode) vatNode.textContent = formatAmount(calculateVat(valueInput?.value ?? row.valor, rate));
+    }
+
+    async function hydrateVatSelect(rowEl, row) {
+      const select = rowEl?.querySelector('[data-field="tabiva"]');
+      if (!select || !row) return;
+      const feid = rowEl.querySelector('[data-field="feid"]')?.value || row.feid || '';
+      const selectedTab = String(row.tabiva || select.dataset.currentTabiva || '');
+      const selectedRate = String(row.taxaiva || select.dataset.currentTaxaiva || '');
+      select.disabled = true;
+      try {
+        const rates = await fetchVatRates(feid);
+        const known = rates.some((rate) => String(rate.tabiva || '') === selectedTab);
+        const fallback = selectedTab && !known
+          ? `<option value="${escapeHtml(selectedTab)}" data-taxaiva="${escapeHtml(selectedRate)}" selected>${escapeHtml(selectedTab)} · ${escapeHtml(formatRate(selectedRate))}%</option>`
+          : '';
+        select.innerHTML = `<option value="">Sem IVA</option>${fallback}${rates.map((rate) => {
+          const value = String(rate.tabiva || '');
+          const selected = value === selectedTab ? ' selected' : '';
+          return `<option value="${escapeHtml(value)}" data-taxaiva="${escapeHtml(rate.taxaiva || 0)}"${selected}>${escapeHtml(rate.label || `${value} · ${formatRate(rate.taxaiva)}%`)}</option>`;
+        }).join('')}`;
+      } catch (error) {
+        console.error(error);
+        select.innerHTML = selectedTab
+          ? `<option value="${escapeHtml(selectedTab)}" data-taxaiva="${escapeHtml(selectedRate)}" selected>${escapeHtml(selectedTab)} · ${escapeHtml(formatRate(selectedRate))}%</option>`
+          : '<option value="">Erro ao carregar IVA</option>';
+      } finally {
+        select.disabled = false;
+        updateVatValue(rowEl);
+      }
+    }
+
+    function renderLookupMessage(menu, message, tone = 'muted') {
+      if (!menu) return;
+      menu.innerHTML = `<div class="sz_table_lookup_empty${tone === 'danger' ? ' is-danger' : ''}">${escapeHtml(message)}</div>`;
+      menu.hidden = false;
+    }
+
+    async function searchArticle(rowEl, input) {
+      const term = String(input.value || '').trim();
+      const wrapper = input.closest('.expense-processing-ref-wrap');
+      const menu = wrapper?.querySelector('.expense-processing-autocomplete');
+      closeAutocomplete(rowEl);
+      if (!term) return;
+      renderLookupMessage(menu, 'A procurar...');
+      const feid = rowEl.querySelector('[data-field="feid"]')?.value || '';
+      try {
+        const params = new URLSearchParams({ q: term, feid });
+        const response = await fetch(`/api/colaborador/despesas/processamento/artigos?${params.toString()}`, {
+          credentials: 'same-origin',
+        });
+        const result = await response.json().catch(() => ({}));
+        const items = Array.isArray(result.rows) ? result.rows : [];
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro na pesquisa');
+        if (!items.length) {
+          renderLookupMessage(menu, 'Sem resultados');
+          return;
+        }
+        menu.innerHTML = items.map((item, index) => `
+          <button type="button" class="sz_table_lookup_item${index === 0 ? ' is-active' : ''}" data-article-index="${index}">
+            <span class="sz_table_lookup_item_label">${escapeHtml(item.ref || '')}</span>
+            <span class="sz_table_lookup_item_value">${escapeHtml(item.design || '')}</span>
+          </button>
+        `).join('');
+        menu.hidden = false;
+        menu.querySelectorAll('[data-article-index]').forEach((button) => {
+          button.addEventListener('mouseenter', () => {
+            menu.querySelectorAll('.sz_table_lookup_item').forEach((item) => item.classList.remove('is-active'));
+            button.classList.add('is-active');
+          });
+          button.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const item = items[Number(button.dataset.articleIndex || 0)] || {};
+            input.value = item.ref || '';
+            const design = rowEl.querySelector('[data-field="design"]');
+            if (design) design.value = item.design || '';
+            closeAutocomplete(rowEl);
+            scheduleSave(rowEl);
+          });
+        });
+      } catch (error) {
+        console.error(error);
+        renderLookupMessage(menu, error.message || 'Erro na pesquisa', 'danger');
+      }
+    }
+
+    async function searchVehicle(rowEl, input) {
+      const term = String(input.value || '').trim();
+      const wrapper = input.closest('.expense-processing-ref-wrap');
+      const menu = wrapper?.querySelector('.expense-processing-autocomplete');
+      closeAutocomplete(rowEl);
+      if (!term) return;
+      renderLookupMessage(menu, 'A procurar...');
+      try {
+        const params = new URLSearchParams({ q: term });
+        const response = await fetch(`/api/colaborador/despesas/processamento/viaturas?${params.toString()}`, {
+          credentials: 'same-origin',
+        });
+        const result = await response.json().catch(() => ({}));
+        const items = Array.isArray(result.rows) ? result.rows : [];
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro na pesquisa');
+        if (!items.length) {
+          renderLookupMessage(menu, 'Sem resultados');
+          return;
+        }
+        menu.innerHTML = items.map((item, index) => {
+          const meta = [item.marca || '', item.modelo || '', item.nofrota || ''].filter(Boolean).join(' · ');
+          return `
+            <button type="button" class="sz_table_lookup_item${index === 0 ? ' is-active' : ''}" data-vehicle-index="${index}">
+              <span class="sz_table_lookup_item_label">${escapeHtml(item.matricula || '')}</span>
+              <span class="sz_table_lookup_item_value">${escapeHtml(meta)}</span>
+            </button>
+          `;
+        }).join('');
+        menu.hidden = false;
+        menu.querySelectorAll('[data-vehicle-index]').forEach((button) => {
+          button.addEventListener('mouseenter', () => {
+            menu.querySelectorAll('.sz_table_lookup_item').forEach((item) => item.classList.remove('is-active'));
+            button.classList.add('is-active');
+          });
+          button.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const item = items[Number(button.dataset.vehicleIndex || 0)] || {};
+            input.value = item.matricula || '';
+            closeAutocomplete(rowEl);
+            scheduleSave(rowEl);
+          });
+        });
+      } catch (error) {
+        console.error(error);
+        renderLookupMessage(menu, error.message || 'Erro na pesquisa', 'danger');
+      }
+    }
+
+    async function loadRows() {
+      const params = new URLSearchParams();
+      if (els.dateFrom.value) params.set('date_from', els.dateFrom.value);
+      if (els.dateTo.value) params.set('date_to', els.dateTo.value);
+      if (els.user.value) params.set('user', els.user.value);
+      els.meta.textContent = 'A carregar...';
+      try {
+        const response = await fetch(`/api/colaborador/despesas/processamento?${params.toString()}`, {
+          credentials: 'same-origin',
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao carregar despesas.');
+        rows = Array.isArray(result.rows) ? result.rows : [];
+        [...selectedStamps].forEach((stamp) => {
+          if (!rows.some((row) => row.stamp === stamp)) selectedStamps.delete(stamp);
+        });
+        if (!rows.some((row) => row.stamp === activeStamp)) activeStamp = '';
+        renderRows();
+      } catch (error) {
+        rows = [];
+        els.body.innerHTML = `<div class="sz_text_danger">${escapeHtml(error.message || 'Erro ao carregar despesas.')}</div>`;
+        els.meta.textContent = 'Erro ao carregar.';
+        renderPreview(null);
+      }
+    }
+
+    els.body?.addEventListener('click', (event) => {
+      if (event.target.closest('input, select, button')) return;
+      const rowEl = event.target.closest('.expense-processing-row');
+      if (!rowEl) return;
+      activeStamp = rowEl.dataset.stamp || '';
+      renderRows();
+    });
+    els.body?.addEventListener('change', (event) => {
+      if (!event.target.matches('[data-select-line]')) return;
+      const stamp = event.target.value || '';
+      if (event.target.checked) selectedStamps.add(stamp);
+      else selectedStamps.delete(stamp);
+      updateSelectionUi();
+    });
+    els.body?.addEventListener('input', (event) => {
+      const rowEl = event.target.closest('.expense-processing-row');
+      if (!rowEl || !event.target.matches('[data-field]')) return;
+      if (event.target.dataset.field === 'ref') {
+        window.clearTimeout(event.target._articleTimer);
+        event.target._articleTimer = window.setTimeout(() => searchArticle(rowEl, event.target), 220);
+      } else if (event.target.dataset.field === 'viatura') {
+        window.clearTimeout(event.target._vehicleTimer);
+        event.target._vehicleTimer = window.setTimeout(() => searchVehicle(rowEl, event.target), 220);
+      } else if (event.target.dataset.field === 'valor') {
+        updateVatValue(rowEl);
+      }
+      scheduleSave(rowEl);
+    });
+    els.body?.addEventListener('change', (event) => {
+      const rowEl = event.target.closest('.expense-processing-row');
+      if (!rowEl || !event.target.matches('[data-field]')) return;
+      if (event.target.dataset.field === 'feid') {
+        const row = rowByStamp(rowEl.dataset.stamp || '');
+        if (row) {
+          row.feid = event.target.value || '';
+          row.empresa = event.target.selectedOptions?.[0]?.textContent?.trim() || '';
+          row.tabiva = '';
+          row.taxaiva = 0;
+        }
+        const vatSelect = rowEl.querySelector('[data-field="tabiva"]');
+        if (vatSelect) {
+          vatSelect.dataset.currentTabiva = '';
+          vatSelect.dataset.currentTaxaiva = '';
+          vatSelect.innerHTML = '<option value="">A carregar...</option>';
+        }
+        hydrateVatSelect(rowEl, row);
+      } else if (event.target.dataset.field === 'tabiva') {
+        const row = rowByStamp(rowEl.dataset.stamp || '');
+        if (row) {
+          row.tabiva = event.target.value || '';
+          row.taxaiva = event.target.selectedOptions?.[0]?.dataset?.taxaiva || 0;
+        }
+        updateVatValue(rowEl);
+      } else if (event.target.dataset.field === 'valor') {
+        updateVatValue(rowEl);
+      }
+      scheduleSave(rowEl);
+    });
+    els.launchPhc?.addEventListener('click', async () => {
+      const stamps = [...selectedStamps];
+      if (!stamps.length) return;
+      const list = selectedRows();
+      const total = list.reduce((sum, row) => sum + Number(row.valor || 0), 0);
+      const ok = window.confirm(`Lançar ${stamps.length} despesa(s) no PHC (${formatAmount(total)})?`);
+      if (!ok) return;
+      els.launchPhc.disabled = true;
+      els.launchPhc.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>A lançar...</span>';
+      try {
+        const response = await fetch('/api/colaborador/despesas/processamento/lancar-phc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ stamps }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao lançar no PHC.');
+        selectedStamps.clear();
+        window.alert(`Dossier criado no PHC: ${result.nmdos || 'Notes de Frais'} nº ${result.obrano || ''}`);
+        await loadRows();
+      } catch (error) {
+        console.error(error);
+        window.alert(error.message || 'Erro ao lançar no PHC.');
+      } finally {
+        els.launchPhc.innerHTML = '<i class="fa-solid fa-file-export"></i><span>Lançar no PHC</span>';
+        updateSelectionUi();
+      }
+    });
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('.expense-processing-ref-wrap')) return;
+      els.body?.querySelectorAll('.expense-processing-row').forEach(closeAutocomplete);
+    });
+
+    [els.dateFrom, els.dateTo, els.user].forEach((el) => el?.addEventListener('change', loadRows));
+    els.refresh?.addEventListener('click', loadRows);
+    loadRows();
+  })();
+</script>
+{% endblock %}

@@ -20,6 +20,47 @@
     </section>
   </div>
 </div>
+<div id="dashboardContextMenu" class="sz_dashboard_context_menu" hidden>
+  <button type="button" class="sz_dashboard_context_menu_item" data-dashboard-action="customize">
+    <i class="fa-solid fa-grip"></i>
+    <span>Personalizar dashboard</span>
+  </button>
+  <button type="button" class="sz_dashboard_context_menu_item" data-dashboard-action="shortcut">
+    <i class="fa-solid fa-plus"></i>
+    <span>Adicionar atalho</span>
+  </button>
+</div>
+<div class="modal fade sz_dashboard_shortcut_modal" id="dashboardShortcutModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content sz_panel">
+      <div class="modal-header sz_modal_header">
+        <div>
+          <h3 class="sz_h4 sz_modal_title">Adicionar atalho</h3>
+          <div class="sz_text_muted">Escolhe um ecrã para adicionar ao dashboard.</div>
+        </div>
+        <button type="button" class="btn-close sz_dashboard_filters_close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <div class="sz_field">
+          <label class="sz_label" for="dashboardShortcutSearch">Pesquisar</label>
+          <input id="dashboardShortcutSearch" class="sz_input" type="search" autocomplete="off" placeholder="Nome do ecrã...">
+        </div>
+        <div id="dashboardShortcutList" class="sz_dashboard_shortcut_list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="dashboardLayoutBar" class="sz_dashboard_layout_bar" hidden>
+  <span class="sz_dashboard_layout_hint">Arrasta os widgets para reorganizar o dashboard.</span>
+  <button id="dashboardCancelLayoutBtn" type="button" class="sz_button sz_button_ghost">
+    <i class="fa-solid fa-xmark"></i>
+    <span>Cancelar</span>
+  </button>
+  <button id="dashboardSaveLayoutBtn" type="button" class="sz_button sz_button_primary">
+    <i class="fa-solid fa-floppy-disk"></i>
+    <span>Guardar</span>
+  </button>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/static/js/dashboard.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ static_version }}"></script>
 {% endblock %}

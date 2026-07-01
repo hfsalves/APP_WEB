@@ -8,6 +8,7 @@ import json
 import threading
 import time
 import uuid
+import sys
 import unicodedata
 import re
 import io
@@ -35,6 +36,7 @@ from services.odbc_driver import (
     normalize_sqlalchemy_mssql_url_driver,
 )
 from services.dashboard_links_service import (
+    dashboard_links_widget_items,
     ensure_dashboard_links_for_user,
     ensure_dashboard_links_schema,
     render_dashboard_links_widgets,
@@ -24795,16 +24797,26 @@ def create_app():
         comissao_plataforma = 0.0 if is_cancelada else _cliente_money(row.get('COMISSAO'))
         gestao_pct = _cliente_money(row.get('AL_COMISSAO')) / 100.0
         ftlimpeza = _to_int(row.get('FTLIMPEZA'), 0) == 1
+        calcsiva = _to_int(row.get('CALCSIVA'), 0) == 1
 
         total_com_iva = _cliente_money(pcancel if is_cancelada else (estadia if ftlimpeza else estadia + limpeza))
         valor_liquido = _cliente_money(total_com_iva - comissao_plataforma)
-        comissao_gestao = _cliente_money(valor_liquido * gestao_pct)
-        ganhos = _cliente_money(valor_liquido - comissao_gestao)
+        if calcsiva:
+            base_comissao = pcancel if is_cancelada else (estadia / 1.06) - comissao_plataforma
+            comissao_gestao_raw = base_comissao * gestao_pct
+        elif not ftlimpeza:
+            base_comissao = pcancel if is_cancelada else estadia + limpeza - comissao_plataforma
+            comissao_gestao_raw = base_comissao * gestao_pct
+        else:
+            base_comissao = pcancel if is_cancelada else estadia - comissao_plataforma
+            comissao_gestao_raw = (base_comissao * gestao_pct) if is_cancelada else (base_comissao * gestao_pct) - (limpeza * 0.155)
+        comissao_gestao = _cliente_money(comissao_gestao_raw)
+        ganhos_raw = valor_liquido - comissao_gestao_raw
+        ganhos = _cliente_money(ganhos_raw)
 
-        plataforma_base = estadia + limpeza
-        plataforma_pct = (comissao_plataforma / plataforma_base) if plataforma_base else 0.0
-        acerto_plataforma = _cliente_money(-(limpeza * plataforma_pct)) if ftlimpeza and not is_cancelada else 0.0
-        ganhos_total = _cliente_money(ganhos + acerto_plataforma) if ftlimpeza else ganhos
+        acerto_plataforma = 0.0
+        ganhos_total_raw = ganhos_raw
+        ganhos_total = _cliente_money(ganhos_total_raw)
 
         return {
             'estadia': estadia,
@@ -24814,12 +24826,16 @@ def create_app():
             'comissao_plataforma': comissao_plataforma,
             'comissao_gestao_pct': _cliente_money(row.get('AL_COMISSAO')),
             'ftlimpeza': ftlimpeza,
+            'calcsiva': calcsiva,
             'total_com_iva': total_com_iva,
             'valor_liquido': valor_liquido,
             'ganhos': ganhos,
+            'ganhos_raw': ganhos_raw,
             'comissao_gestao': comissao_gestao,
+            'comissao_gestao_raw': comissao_gestao_raw,
             'acerto_plataforma': acerto_plataforma,
             'ganhos_total': ganhos_total,
+            'ganhos_total_raw': ganhos_total_raw,
         }
 
     def _cliente_faturacao_mes_detail(ano, mes, alojamento=''):
@@ -24837,7 +24853,7 @@ def create_app():
             }
 
         month_names = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-        data_ref_expr = "CAST(CASE WHEN ISNULL(RS.CANCELADA, 0) = 1 THEN RS.DATAIN ELSE RS.DATAOUT END AS date)"
+        data_ref_expr = "CAST(RS.DATAOUT AS date)"
         where = [
             "ISNULL(AL.INATIVO, 0) = 0",
             "ISNULL(AL.CLIENTID, 0) = :clno",
@@ -24872,7 +24888,8 @@ def create_app():
                 ISNULL(RS.CANCELADA, 0) AS CANCELADA,
                 ISNULL(RS.PCANCEL, 0) AS PCANCEL,
                 ISNULL(AL.COMISSAO, 0) AS AL_COMISSAO,
-                ISNULL(AL.FTLIMPEZA, 0) AS FTLIMPEZA
+                ISNULL(AL.FTLIMPEZA, 0) AS FTLIMPEZA,
+                ISNULL(AL.CALCSIVA, 0) AS CALCSIVA
             FROM dbo.RS AS RS
             INNER JOIN dbo.AL AS AL
               ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
@@ -24894,7 +24911,7 @@ def create_app():
         show_acerto = False
         for row in rows:
             calc = _cliente_faturacao_calc(row)
-            show_acerto = show_acerto or (bool(calc['ftlimpeza']) and not bool(calc['is_cancelada']))
+            show_acerto = False
             pessoas = int(row.get('ADULTOS') or 0) + int(row.get('CRIANCAS') or 0) + int(row.get('BEBES') or 0)
             item = {
                 'rsstamp': str(row.get('RSSTAMP') or '').strip(),
@@ -24908,7 +24925,7 @@ def create_app():
             }
             for key in ('total_com_iva', 'comissao_plataforma', 'valor_liquido', 'ganhos', 'comissao_gestao', 'acerto_plataforma', 'ganhos_total'):
                 item[f'{key}_label'] = _cliente_money_label(item[key])
-                totals[key] = _cliente_money(totals[key] + item[key])
+                totals[key] += float(item.get(f'{key}_raw', item[key]) or 0)
             reservas.append(item)
 
         totals['reservas'] = len(reservas)
@@ -25407,8 +25424,8 @@ def create_app():
         where = [
             "ISNULL(AL.INATIVO, 0) = 0",
             "ISNULL(AL.CLIENTID, 0) = :clno",
-            "CAST(CASE WHEN ISNULL(RS.CANCELADA, 0) = 1 THEN RS.DATAIN ELSE RS.DATAOUT END AS date) IS NOT NULL",
-            "YEAR(CAST(CASE WHEN ISNULL(RS.CANCELADA, 0) = 1 THEN RS.DATAIN ELSE RS.DATAOUT END AS date)) = :ano",
+            "CAST(RS.DATAOUT AS date) IS NOT NULL",
+            "YEAR(CAST(RS.DATAOUT AS date)) = :ano",
         ]
         params = {'clno': clno, 'ano': ano}
         estab_filter = _cliente_al_scope_sql('AL')
@@ -25421,7 +25438,7 @@ def create_app():
 
         rows = db.session.execute(text(f"""
             SELECT
-                CAST(CASE WHEN ISNULL(RS.CANCELADA, 0) = 1 THEN RS.DATAIN ELSE RS.DATAOUT END AS date) AS DATAREF,
+                CAST(RS.DATAOUT AS date) AS DATAREF,
                 CAST(RS.DATAOUT AS date) AS DATAOUT,
                 ISNULL(RS.ESTADIA, 0) AS ESTADIA,
                 ISNULL(RS.LIMPEZA, 0) AS LIMPEZA,
@@ -25429,12 +25446,13 @@ def create_app():
                 ISNULL(RS.CANCELADA, 0) AS CANCELADA,
                 ISNULL(RS.PCANCEL, 0) AS PCANCEL,
                 ISNULL(AL.COMISSAO, 0) AS AL_COMISSAO,
-                ISNULL(AL.FTLIMPEZA, 0) AS FTLIMPEZA
+                ISNULL(AL.FTLIMPEZA, 0) AS FTLIMPEZA,
+                ISNULL(AL.CALCSIVA, 0) AS CALCSIVA
             FROM dbo.RS AS RS
             INNER JOIN dbo.AL AS AL
               ON LTRIM(RTRIM(ISNULL(AL.NOME, ''))) = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO, '')))
             WHERE {' AND '.join(where)}
-            ORDER BY CAST(CASE WHEN ISNULL(RS.CANCELADA, 0) = 1 THEN RS.DATAIN ELSE RS.DATAOUT END AS date)
+            ORDER BY CAST(RS.DATAOUT AS date)
         """), params).mappings().all()
 
         by_month = {}
@@ -25461,8 +25479,8 @@ def create_app():
                     'liquido': 0.0,
                 })
                 item['reservas'] += 1
-                item['faturado'] = _cliente_money(item['faturado'] + calc['valor_liquido'])
-                item['comissao_gestao'] = _cliente_money(item['comissao_gestao'] + calc['comissao_gestao'])
+                item['faturado'] += float(calc['valor_liquido'] or 0)
+                item['comissao_gestao'] += float(calc.get('comissao_gestao_raw', calc['comissao_gestao']) or 0)
                 item['bruto'] = item['faturado']
                 item['comissao'] = item['comissao_gestao']
                 item['liquido'] = item['faturado']
@@ -25481,6 +25499,8 @@ def create_app():
                 'liquido': 0.0,
             }
             item['label'] = month_names[month - 1]
+            for key in ('faturado', 'comissao_gestao', 'bruto', 'comissao', 'liquido'):
+                item[key] = _cliente_money(item.get(key) or 0)
             detail_args = {'ano': ano, 'mes': month}
             if alojamento:
                 detail_args['alojamento'] = alojamento
@@ -25560,6 +25580,16 @@ def create_app():
         try:
             from modules.gr_workshop.service import list_vehicles
             expense_vehicles = list_vehicles(limit=100)
+            excluded_expense_plates = {'24-ZF-99'}
+            expense_vehicles = [
+                vehicle for vehicle in expense_vehicles
+                if str(
+                    vehicle.get('MATRICULA')
+                    or vehicle.get('value')
+                    or vehicle.get('matricula')
+                    or ''
+                ).strip().upper() not in excluded_expense_plates
+            ]
         except Exception:
             app.logger.exception('Erro ao carregar viaturas para despesas.')
             expense_vehicles = []
@@ -25630,6 +25660,115 @@ def create_app():
             db.session.rollback()
             app.logger.exception('Erro ao fechar despesa do colaborador.')
             return jsonify({'ok': False, 'error': 'Erro ao fechar despesa.'}), 500
+
+    @app.route('/despesas/processamento')
+    @app.route('/colaborador/despesas/processamento')
+    @login_required
+    def colaborador_despesas_processamento_page():
+        from services.colaborador_despesas_service import list_expense_companies, list_expense_cost_centers, list_expense_processing_users
+
+        today_value = date.today()
+        return render_template(
+            'colaborador_despesas_processamento.html',
+            page_title='Processamento de Despesas',
+            expense_users=list_expense_processing_users(),
+            expense_companies=list_expense_companies(),
+            expense_ccustos=list_expense_cost_centers(),
+            default_date_from=today_value.replace(day=1).isoformat(),
+            default_date_to=today_value.isoformat(),
+        )
+
+    @app.route('/api/colaborador/despesas/processamento')
+    @login_required
+    def api_colaborador_despesas_processamento():
+        from services.colaborador_despesas_service import list_expenses_for_processing
+
+        try:
+            rows = list_expenses_for_processing({
+                'date_from': request.args.get('date_from', ''),
+                'date_to': request.args.get('date_to', ''),
+                'user': request.args.get('user', ''),
+            })
+            return jsonify({'ok': True, 'rows': rows, 'total': len(rows)})
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao listar despesas para processamento.')
+            return jsonify({'ok': False, 'error': 'Erro ao listar despesas.'}), 500
+
+    @app.route('/api/colaborador/despesas/processamento/<string:line_stamp>/classificacao', methods=['POST'])
+    @login_required
+    def api_colaborador_despesas_processamento_classificacao(line_stamp):
+        from services.colaborador_despesas_service import update_expense_processing_classification
+
+        try:
+            payload = request.get_json(silent=True) or {}
+            return jsonify(update_expense_processing_classification(line_stamp, payload, current_user))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar classificação da despesa.')
+            return jsonify({'ok': False, 'error': 'Erro ao gravar classificação.'}), 500
+
+    @app.route('/api/colaborador/despesas/processamento/artigos')
+    @login_required
+    def api_colaborador_despesas_processamento_artigos():
+        from services.colaborador_despesas_service import search_expense_articles
+
+        try:
+            rows = search_expense_articles(
+                _to_int(request.args.get('feid'), 0),
+                request.args.get('q', ''),
+            )
+            return jsonify({'ok': True, 'rows': rows})
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao pesquisar artigos para despesas.')
+            return jsonify({'ok': False, 'rows': [], 'error': 'Erro ao pesquisar artigos.'}), 500
+
+    @app.route('/api/colaborador/despesas/processamento/viaturas')
+    @login_required
+    def api_colaborador_despesas_processamento_viaturas():
+        from services.colaborador_despesas_service import search_expense_vehicles
+
+        try:
+            rows = search_expense_vehicles(request.args.get('q', ''))
+            return jsonify({'ok': True, 'rows': rows})
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao pesquisar viaturas para despesas.')
+            return jsonify({'ok': False, 'rows': [], 'error': 'Erro ao pesquisar viaturas.'}), 500
+
+    @app.route('/api/colaborador/despesas/processamento/taxasiva')
+    @login_required
+    def api_colaborador_despesas_processamento_taxasiva():
+        from services.colaborador_despesas_service import list_expense_vat_rates
+
+        try:
+            rows = list_expense_vat_rates(_to_int(request.args.get('feid'), 0))
+            return jsonify({'ok': True, 'rows': rows})
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao listar taxas de IVA para despesas.')
+            return jsonify({'ok': False, 'rows': [], 'error': 'Erro ao listar taxas de IVA.'}), 500
+
+    @app.route('/api/colaborador/despesas/processamento/lancar-phc', methods=['POST'])
+    @login_required
+    def api_colaborador_despesas_processamento_lancar_phc():
+        from services.colaborador_despesas_service import launch_expenses_to_phc
+
+        try:
+            payload = request.get_json(silent=True) or {}
+            stamps = payload.get('stamps') or payload.get('linhas') or []
+            return jsonify(launch_expenses_to_phc(stamps, current_user))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao lançar despesas no PHC.')
+            return jsonify({'ok': False, 'error': f'Erro ao lançar despesas no PHC: {str(sys.exc_info()[1])}'}), 500
 
     @app.route('/alojamentos-seguros')
     @app.route('/alojamentos_seguros')
@@ -27200,15 +27339,11 @@ def create_app():
                 if existing:
                     db.session.execute(text("""
                         UPDATE dbo.USWIDGETS
-                        SET COLUNA = :coluna,
-                            ORDEM = :ordem,
-                            VISIVEL = 1,
+                        SET VISIVEL = 1,
                             MAXHEIGHT = :maxheight
                         WHERE USWIDGETSSTAMP = :stamp
                     """), {
                         'stamp': existing,
-                        'coluna': spec['coluna'],
-                        'ordem': spec['ordem'],
                         'maxheight': spec['maxheight'],
                     })
                 else:
@@ -27235,45 +27370,332 @@ def create_app():
         except Exception:
             db.session.rollback()
             app.logger.exception('Erro ao preparar Dashboard Links.')
-        user_login = current_user.LOGIN
-        query = (
-            db.session.query(UsWidget, Widget)
-            .join(Widget, UsWidget.WIDGET == Widget.NOME)
-            .filter(
-                UsWidget.UTILIZADOR == user_login,
-                UsWidget.VISIVEL == True,
-                Widget.ATIVO == True
+        try:
+            user_login = current_user.LOGIN
+            query = (
+                db.session.query(UsWidget, Widget)
+                .join(Widget, UsWidget.WIDGET == Widget.NOME)
+                .filter(
+                    UsWidget.UTILIZADOR == user_login,
+                    UsWidget.VISIVEL == True,
+                    Widget.ATIVO == True
+                )
+                .order_by(UsWidget.COLUNA, UsWidget.ORDEM)
+                .all()
             )
-            .order_by(UsWidget.COLUNA, UsWidget.ORDEM)
-            .all()
-        )
-        dashboard = {1: [], 2: [], 3: []}
-        for usw, widg in query:
-            try:
-                coluna = int(getattr(usw, 'COLUNA', 1) or 1)
-            except Exception:
-                coluna = 1
-            if coluna not in dashboard:
-                coluna = 1
+            dashboard = {1: [], 2: [], 3: []}
+            for usw, widg in query:
+                try:
+                    coluna = int(getattr(usw, 'COLUNA', 1) or 1)
+                except Exception:
+                    coluna = 1
+                if coluna not in dashboard:
+                    coluna = 1
 
-            dashboard[coluna].append({
-                'nome': widg.NOME,
-                'titulo': widg.TITULO,
-                'tipo': widg.TIPO,
-                'fonte': widg.FONTE,
-                'url': getattr(widg, 'URL', '') or '',
-                'config': widg.CONFIG,
-                'filtros': getattr(widg, 'FILTROS', '') or '',
-                'coluna': coluna,
-                'ordem': getattr(usw, 'ORDEM', 0) or 0,
-                'maxheight': getattr(usw, 'MAXHEIGHT', None)
+                dashboard[coluna].append({
+                    'kind': 'widget',
+                    'id': widg.NOME,
+                    'nome': widg.NOME,
+                    'titulo': widg.TITULO,
+                    'tipo': widg.TIPO,
+                    'fonte': widg.FONTE,
+                    'url': getattr(widg, 'URL', '') or '',
+                    'config': widg.CONFIG,
+                    'filtros': getattr(widg, 'FILTROS', '') or '',
+                    'coluna': coluna,
+                    'ordem': getattr(usw, 'ORDEM', 0) or 0,
+                    'maxheight': getattr(usw, 'MAXHEIGHT', None)
+                })
+            links_items = dashboard_links_widget_items(getattr(current_user, 'USSTAMP', ''))
+            for col, items in links_items.items():
+                if int(col or 1) not in dashboard:
+                    continue
+                dashboard[int(col or 1)].extend(items or [])
+            for col in dashboard:
+                dashboard[col].sort(key=lambda item: (int(item.get('ordem') or 0), str(item.get('kind') or ''), str(item.get('id') or item.get('nome') or '')))
+            payload = {str(col): widgets for col, widgets in dashboard.items()}
+            payload['links_html'] = {
+                str(col): html
+                for col, html in render_dashboard_links_widgets(getattr(current_user, 'USSTAMP', '')).items()
+            }
+            return jsonify(payload)
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar configuração do dashboard.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/dashboard/layout', methods=['POST'])
+    @login_required
+    def api_dashboard_layout_save():
+        try:
+            ensure_dashboard_links_schema()
+            body = request.get_json(silent=True) or {}
+            columns = body.get('columns') or {}
+            if not isinstance(columns, dict):
+                return jsonify({'error': 'Formato inválido.'}), 400
+
+            user_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+            userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
+            if not user_login:
+                return jsonify({'error': 'Utilizador inválido.'}), 400
+
+            for col_key, items in columns.items():
+                try:
+                    coluna = int(col_key)
+                except Exception:
+                    continue
+                if coluna not in (1, 2, 3) or not isinstance(items, list):
+                    continue
+                for index, item in enumerate(items):
+                    if not isinstance(item, dict):
+                        continue
+                    kind = str(item.get('kind') or '').strip().lower()
+                    item_id = str(item.get('id') or '').strip()
+                    if not kind or not item_id:
+                        continue
+                    ordem = (index + 1) * 10
+                    if kind == 'widget':
+                        db.session.execute(text("""
+                            UPDATE dbo.USWIDGETS
+                            SET COLUNA = :coluna,
+                                ORDEM = :ordem
+                            WHERE LTRIM(RTRIM(ISNULL(UTILIZADOR, ''))) = :utilizador
+                              AND LTRIM(RTRIM(ISNULL(WIDGET, ''))) = :widget
+                        """), {
+                            'coluna': coluna,
+                            'ordem': ordem,
+                            'utilizador': user_login,
+                            'widget': item_id,
+                        })
+                    elif kind == 'links' and userstamp:
+                        db.session.execute(text("""
+                            UPDATE dbo.DBWU
+                            SET COLUNA = :coluna,
+                                ORDEM_COLUNA = :ordem
+                            WHERE LTRIM(RTRIM(ISNULL(USRSTAMP, ''))) = :userstamp
+                              AND LTRIM(RTRIM(ISNULL(DBWSTAMP, ''))) = :dbwstamp
+                        """), {
+                            'coluna': coluna,
+                            'ordem': ordem,
+                            'userstamp': userstamp,
+                            'dbwstamp': item_id,
+                        })
+
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar layout do dashboard.')
+            return jsonify({'error': str(exc)}), 500
+
+    def _dashboard_accessible_shortcut_screens():
+        if not current_user.is_authenticated:
+            return []
+
+        user_is_admin = bool(getattr(current_user, 'ADMIN', False))
+        user_is_cliente = _is_cliente_user()
+        client_portal_tables = {'CLIENTE_DASHBOARD', 'CLIENTE_RESERVAS', 'CLIENTE_DOCUMENTOS'}
+
+        query = Menu.query.filter_by(inativo=False)
+        if not user_is_admin:
+            query = query.filter_by(admin=False)
+        menu_items = query.order_by(Menu.ordem).all()
+
+        allowed_menu_stamps = _get_allowed_menu_stamps_for_current_entity()
+        if allowed_menu_stamps is not None:
+            menu_items = [
+                item for item in menu_items
+                if (item.ordem % 100 == 0)
+                or (str(getattr(item, 'menustamp', '') or '').strip() in allowed_menu_stamps)
+                or (
+                    str(getattr(item, 'tabela', '') or '').strip().lower() == 'dashboard'
+                    or _app_relative_url(getattr(item, 'url', '') or '').rstrip('/') == '/dashboard'
+                )
+                or (user_is_cliente and str(getattr(item, 'tabela', '') or '').strip().upper() in client_portal_tables)
+            ]
+
+        menu_label_map = {}
+        if i18n_enabled(app):
+            menu_language = getattr(g, 'language', BASE_LANGUAGE)
+            menu_label_map = bulk_translate_db_records(
+                'MENU',
+                [
+                    (
+                        str(getattr(item, 'menustamp', '') or '').strip(),
+                        str(getattr(item, 'nome', '') or '').strip(),
+                    )
+                    for item in menu_items
+                ],
+                language=menu_language,
+            )
+
+        perms = {}
+        rows = Acessos.query.filter_by(utilizador=current_user.LOGIN).all()
+        for access in rows:
+            tabela = str(getattr(access, 'tabela', '') or '').strip().upper()
+            if not tabela:
+                continue
+            current = perms.setdefault(tabela, {'consultar': False})
+            current['consultar'] = current['consultar'] or bool(getattr(access, 'consultar', False))
+
+        screens = []
+        current_group_name = ''
+        seen = set()
+        for menu in menu_items:
+            table_key = str(getattr(menu, 'tabela', '') or '').strip().upper()
+            stamp = str(getattr(menu, 'menustamp', '') or '').strip()
+            name = menu_label_map.get(stamp, getattr(menu, 'nome', '') or '').strip()
+            ordem = int(getattr(menu, 'ordem', 0) or 0)
+
+            if ordem % 100 == 0:
+                current_group_name = name
+                continue
+
+            url = _app_relative_url(getattr(menu, 'url', '') or '')
+            if not stamp or not url or url == '#':
+                continue
+            if url.rstrip('/') == '/dashboard' or table_key == 'DASHBOARD':
+                continue
+
+            if user_is_cliente:
+                allowed = table_key in client_portal_tables
+            elif table_key in client_portal_tables:
+                allowed = False
+            elif table_key == 'MONITOR':
+                allowed = not user_is_cliente
+            else:
+                allowed = user_is_admin or perms.get(table_key, {}).get('consultar', False)
+            if not allowed:
+                continue
+
+            if stamp in seen:
+                continue
+            seen.add(stamp)
+            screens.append({
+                'menustamp': stamp,
+                'name': name or table_key or url,
+                'url': url,
+                'icon': str(getattr(menu, 'icone', '') or '').strip(),
+                'group': current_group_name,
+                'table': table_key,
             })
-        payload = {str(col): widgets for col, widgets in dashboard.items()}
-        payload['links_html'] = {
-            str(col): html
-            for col, html in render_dashboard_links_widgets(getattr(current_user, 'USSTAMP', '')).items()
-        }
-        return jsonify(payload)
+
+        screens.sort(key=lambda item: ((item.get('group') or '').lower(), (item.get('name') or '').lower()))
+        return screens
+
+    @app.route('/api/dashboard/shortcuts/screens', methods=['GET'])
+    @login_required
+    def api_dashboard_shortcut_screens():
+        try:
+            return jsonify({'screens': _dashboard_accessible_shortcut_screens()})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar ecrãs para atalhos do dashboard.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/dashboard/shortcuts', methods=['POST'])
+    @login_required
+    def api_dashboard_shortcut_create():
+        try:
+            ensure_dashboard_links_schema()
+            body = request.get_json(silent=True) or {}
+            menustamp = str(body.get('menustamp') or '').strip()
+            if not menustamp:
+                return jsonify({'error': 'Ecrã inválido.'}), 400
+
+            screens = _dashboard_accessible_shortcut_screens()
+            screen = next((item for item in screens if item.get('menustamp') == menustamp), None)
+            if not screen:
+                return jsonify({'error': 'Sem permissão para este ecrã.'}), 403
+
+            userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
+            login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+            if not userstamp:
+                return jsonify({'error': 'Utilizador inválido.'}), 400
+
+            widget_name = f"SHORTCUT_{userstamp}_{menustamp}"[:100]
+            title = str(screen.get('name') or 'Atalho').strip()[:100]
+            url = str(screen.get('url') or '').strip()[:500]
+            existing = db.session.execute(text("""
+                SELECT TOP 1 DBWSTAMP
+                FROM dbo.DBW
+                WHERE LTRIM(RTRIM(ISNULL(NOME, ''))) = :nome
+            """), {'nome': widget_name}).scalar()
+            dbwstamp = str(existing or '').strip() or uuid.uuid4().hex.upper()[:25]
+
+            if existing:
+                db.session.execute(text("""
+                    UPDATE dbo.DBW
+                    SET TITULO = :titulo,
+                        ATIVO = 1
+                    WHERE DBWSTAMP = :dbwstamp
+                """), {'dbwstamp': dbwstamp, 'titulo': title})
+            else:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DBW (DBWSTAMP, NOME, TITULO, ATIVO, COLUNA, ORDEM_COLUNA, USRCRIACAO)
+                    VALUES (:dbwstamp, :nome, :titulo, 1, 1, 0, :usercriacao)
+                """), {
+                    'dbwstamp': dbwstamp,
+                    'nome': widget_name,
+                    'titulo': title,
+                    'usercriacao': login[:25],
+                })
+
+            link_exists = db.session.execute(text("""
+                SELECT TOP 1 DBWLSTAMP
+                FROM dbo.DBWL
+                WHERE DBWSTAMP = :dbwstamp
+            """), {'dbwstamp': dbwstamp}).scalar()
+            if link_exists:
+                db.session.execute(text("""
+                    UPDATE dbo.DBWL
+                    SET TEXTO = :texto,
+                        URL = :url,
+                        ABRIR_NOVA_TAB = 0,
+                        ATIVO = 1,
+                        ORDEM = 10
+                    WHERE DBWLSTAMP = :dbwlstamp
+                """), {'dbwlstamp': link_exists, 'texto': title, 'url': url})
+            else:
+                db.session.execute(text("""
+                    INSERT INTO dbo.DBWL (DBWLSTAMP, DBWSTAMP, ORDEM, TEXTO, URL, ABRIR_NOVA_TAB, ATIVO)
+                    VALUES (:dbwlstamp, :dbwstamp, 10, :texto, :url, 0, 1)
+                """), {
+                    'dbwlstamp': uuid.uuid4().hex.upper()[:25],
+                    'dbwstamp': dbwstamp,
+                    'texto': title,
+                    'url': url,
+                })
+
+            user_link_exists = db.session.execute(text("""
+                SELECT TOP 1 DBWUSTAMP
+                FROM dbo.DBWU
+                WHERE LTRIM(RTRIM(ISNULL(DBWSTAMP, ''))) = :dbwstamp
+                  AND LTRIM(RTRIM(ISNULL(USRSTAMP, ''))) = :userstamp
+            """), {'dbwstamp': dbwstamp, 'userstamp': userstamp}).scalar()
+            if not user_link_exists:
+                next_order = db.session.execute(text("""
+                    SELECT ISNULL(MAX(ISNULL(ORDEM_COLUNA, 0)), 0) + 10
+                    FROM dbo.DBWU
+                    WHERE LTRIM(RTRIM(ISNULL(USRSTAMP, ''))) = :userstamp
+                      AND ISNULL(COLUNA, 1) = 1
+                """), {'userstamp': userstamp}).scalar() or 10
+                db.session.execute(text("""
+                    INSERT INTO dbo.DBWU (DBWUSTAMP, DBWSTAMP, USRSTAMP, COLUNA, ORDEM_COLUNA)
+                    VALUES (:dbwustamp, :dbwstamp, :userstamp, 1, :ordem)
+                """), {
+                    'dbwustamp': uuid.uuid4().hex.upper()[:25],
+                    'dbwstamp': dbwstamp,
+                    'userstamp': userstamp,
+                    'ordem': int(next_order or 10),
+                })
+
+            db.session.commit()
+            return jsonify({'ok': True, 'dbwstamp': dbwstamp})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao criar atalho no dashboard.')
+            return jsonify({'error': str(exc)}), 500
 
     def _dashboard_links_has_permission(action='consultar'):
         if getattr(current_user, 'ADMIN', False):

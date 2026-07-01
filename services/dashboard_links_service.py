@@ -90,6 +90,21 @@ def _column_exists(table_name: str, column_name: str) -> bool:
     return exists
 
 
+def _ensure_dashboard_links_layout_columns() -> None:
+    if not _table_exists("DBWU"):
+        return
+    db.session.execute(text("""
+        IF COL_LENGTH('dbo.DBWU', 'COLUNA') IS NULL
+            ALTER TABLE dbo.DBWU ADD COLUNA INT NULL;
+    """))
+    db.session.execute(text("""
+        IF COL_LENGTH('dbo.DBWU', 'ORDEM_COLUNA') IS NULL
+            ALTER TABLE dbo.DBWU ADD ORDEM_COLUNA INT NULL;
+    """))
+    _column_exists_cache.pop(("DBWU", "COLUNA"), None)
+    _column_exists_cache.pop(("DBWU", "ORDEM_COLUNA"), None)
+
+
 def _insert_campo_if_missing(table_name: str, field: dict) -> None:
     table_name = table_name.upper()
     field_name = field["name"].upper()
@@ -283,6 +298,8 @@ def _ensure_dashboard_links_metadata() -> None:
 def ensure_dashboard_links_schema() -> None:
     global _schema_ready
     if _schema_ready:
+        _ensure_dashboard_links_layout_columns()
+        db.session.commit()
         return
     db.session.execute(text("""
         IF OBJECT_ID('dbo.DBW', 'U') IS NULL
@@ -348,6 +365,7 @@ def ensure_dashboard_links_schema() -> None:
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_DBWU_DBW_USER' AND object_id = OBJECT_ID('dbo.DBWU'))
             CREATE UNIQUE INDEX UX_DBWU_DBW_USER ON dbo.DBWU (DBWSTAMP, USRSTAMP);
     """))
+    _ensure_dashboard_links_layout_columns()
     _ensure_dashboard_links_metadata()
     db.session.commit()
     _schema_ready = True
@@ -387,19 +405,24 @@ def ensure_dashboard_links_for_user(userstamp: str) -> None:
     db.session.commit()
 
 
-def render_dashboard_links_widgets(userstamp: str) -> dict[int, str]:
+def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
     stamp = str(userstamp or "").strip()
     grouped = {1: [], 2: [], 3: []}
     if not stamp or not _table_exists("DBW") or not _table_exists("DBWL") or not _table_exists("DBWU"):
-        return {1: "", 2: "", 3: ""}
+        return grouped
+    _ensure_dashboard_links_layout_columns()
+    has_user_col = _column_exists("DBWU", "COLUNA")
+    has_user_order = _column_exists("DBWU", "ORDEM_COLUNA")
+    col_expr = "ISNULL(U.COLUNA, ISNULL(W.COLUNA, 1))" if has_user_col else "ISNULL(W.COLUNA, 1)"
+    order_expr = "ISNULL(U.ORDEM_COLUNA, ISNULL(W.ORDEM_COLUNA, 0))" if has_user_order else "ISNULL(W.ORDEM_COLUNA, 0)"
 
-    widgets = db.session.execute(text("""
+    widgets = db.session.execute(text(f"""
         SELECT
             W.DBWSTAMP,
             ISNULL(W.NOME, '') AS NOME,
             ISNULL(W.TITULO, '') AS TITULO,
-            ISNULL(W.COLUNA, 1) AS COLUNA,
-            ISNULL(W.ORDEM_COLUNA, 0) AS ORDEM_COLUNA,
+            {col_expr} AS COLUNA,
+            {order_expr} AS ORDEM_COLUNA,
             ISNULL(W.BACKGROUND, '') AS BACKGROUND,
             ISNULL(W.BORDER_COLOR, '') AS BORDER_COLOR,
             ISNULL(W.TEXT_COLOR, '') AS TEXT_COLOR
@@ -407,7 +430,7 @@ def render_dashboard_links_widgets(userstamp: str) -> dict[int, str]:
         INNER JOIN dbo.DBWU U ON U.DBWSTAMP = W.DBWSTAMP
         WHERE U.USRSTAMP = :userstamp
           AND ISNULL(W.ATIVO, 1) = 1
-        ORDER BY ISNULL(W.COLUNA, 1), ISNULL(W.ORDEM_COLUNA, 0), ISNULL(W.NOME, '')
+        ORDER BY {col_expr}, {order_expr}, ISNULL(W.NOME, '')
     """), {"userstamp": stamp}).mappings().all()
 
     for widget in widgets:
@@ -457,10 +480,25 @@ def render_dashboard_links_widgets(userstamp: str) -> dict[int, str]:
 
         style_attr = f' style="{escape(widget_style)}"' if widget_style else ""
         grouped[coluna].append(
-            f'<div class="dashboard-links-widget"{style_attr}>'
-            f'<div class="widget-title">{escape(title)}</div>'
-            f'<div class="links-grid">{"".join(link_html)}</div>'
-            f'</div>'
+            {
+                "kind": "links",
+                "id": str(widget.get("DBWSTAMP") or "").strip(),
+                "coluna": coluna,
+                "ordem": int(widget.get("ORDEM_COLUNA") or 0),
+                "html": (
+                    f'<div class="dashboard-links-widget"{style_attr}>'
+                    f'<div class="widget-title">{escape(title)}</div>'
+                    f'<div class="links-grid">{"".join(link_html)}</div>'
+                    f'</div>'
+                ),
+            }
         )
 
-    return {col: "".join(items) for col, items in grouped.items()}
+    for col in grouped:
+        grouped[col].sort(key=lambda item: (int(item.get("ordem") or 0), str(item.get("id") or "")))
+    return grouped
+
+
+def render_dashboard_links_widgets(userstamp: str) -> dict[int, str]:
+    grouped = dashboard_links_widget_items(userstamp)
+    return {col: "".join(str(item.get("html") or "") for item in items) for col, items in grouped.items()}

@@ -2020,6 +2020,190 @@ input.sz_date[type="time"]::-webkit-calendar-picker-indicator {
   line-height: 1.1;
 }
 
+.sz_dashboard_actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sz-space-2);
+  min-width: 0;
+}
+
+.sz_dashboard_actions .sz_button {
+  white-space: nowrap;
+}
+
+.sz_dashboard_context_menu[hidden],
+.sz_dashboard_layout_bar[hidden] {
+  display: none !important;
+}
+
+.sz_dashboard_context_menu {
+  background: var(--sz-color-surface);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  box-shadow: var(--sz-shadow-3);
+  display: grid;
+  min-width: 13rem;
+  padding: 0.35rem;
+  position: fixed;
+  z-index: 1080;
+}
+
+.sz_dashboard_context_menu_item {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--sz-radius-sm) - 2px);
+  color: var(--sz-color-text);
+  cursor: pointer;
+  display: flex;
+  gap: var(--sz-space-2);
+  min-height: 2.35rem;
+  padding: 0 0.75rem;
+  text-align: left;
+  width: 100%;
+}
+
+.sz_dashboard_context_menu_item i {
+  color: var(--sz-color-primary);
+  width: 1rem;
+}
+
+.sz_dashboard_context_menu_item:hover,
+.sz_dashboard_context_menu_item:focus-visible {
+  background: color-mix(in srgb, var(--sz-color-primary) 14%, transparent);
+  color: var(--sz-color-primary);
+  outline: none;
+}
+
+.sz_dashboard_shortcut_modal .modal-content {
+  background: var(--sz-color-surface);
+  border: 1px solid var(--sz-color-border);
+  color: var(--sz-color-text);
+}
+
+.sz_dashboard_shortcut_list {
+  display: grid;
+  gap: var(--sz-space-2);
+  max-height: min(58vh, 34rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.15rem;
+}
+
+.sz_dashboard_shortcut_item {
+  align-items: center;
+  background: var(--sz-color-surface-alt);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  color: var(--sz-color-text);
+  cursor: pointer;
+  display: grid;
+  gap: var(--sz-space-3);
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  min-height: 3.75rem;
+  padding: 0.65rem 0.8rem;
+  text-align: left;
+  width: 100%;
+}
+
+.sz_dashboard_shortcut_item:hover,
+.sz_dashboard_shortcut_item:focus-visible {
+  background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface-alt));
+  border-color: color-mix(in srgb, var(--sz-color-primary) 62%, var(--sz-color-border));
+  outline: none;
+}
+
+.sz_dashboard_shortcut_item:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.sz_dashboard_shortcut_icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--sz-color-primary) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 36%, transparent);
+  border-radius: var(--sz-radius-sm);
+  color: var(--sz-color-primary);
+  display: inline-flex;
+  height: 2.25rem;
+  justify-content: center;
+  width: 2.25rem;
+}
+
+.sz_dashboard_shortcut_text {
+  display: grid;
+  min-width: 0;
+}
+
+.sz_dashboard_shortcut_text strong,
+.sz_dashboard_shortcut_text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sz_dashboard_shortcut_text small {
+  color: var(--sz-color-text-muted);
+  font-size: var(--sz-font-size-xs);
+}
+
+.sz_dashboard_shortcut_empty {
+  border: 1px dashed var(--sz-color-border);
+  border-radius: var(--sz-radius-sm);
+  color: var(--sz-color-text-muted);
+  padding: var(--sz-space-4);
+  text-align: center;
+}
+
+.sz_dashboard_shortcut_empty.is-error {
+  color: var(--sz-color-danger);
+}
+
+.sz_dashboard_layout_bar {
+  align-items: center;
+  background: var(--sz-color-surface);
+  border: 1px solid var(--sz-color-border);
+  border-radius: var(--sz-radius-md);
+  box-shadow: var(--sz-shadow-3);
+  color: var(--sz-color-text-secondary);
+  display: flex;
+  gap: var(--sz-space-2);
+  max-width: calc(100vw - 2rem);
+  padding: 0.6rem;
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1060;
+}
+
+.sz_dashboard_layout_hint {
+  font-size: var(--sz-font-size-sm);
+  padding: 0 0.4rem;
+  white-space: nowrap;
+}
+
+.sz_dashboard_layout_bar .sz_button {
+  min-height: 2.35rem;
+  padding: 0 0.9rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .sz_dashboard_layout_bar {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .sz_dashboard_layout_hint {
+    flex: 1 1 100%;
+    white-space: normal;
+  }
+}
+
 body.sz-base-shell.authenticated .main-content.sz_dashboard_host,
 body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page) {
   overflow-y: auto;
@@ -2075,6 +2259,7 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   gap: var(--sz-space-4);
   justify-content: flex-start;
   align-self: start;
+  min-height: 5rem;
 }
 
 .sz_dashboard_page .sz_dashboard_widget {
@@ -2096,6 +2281,49 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   color: var(--dashboard-links-text, var(--sz-color-text));
   min-width: 0;
   padding: var(--sz-space-4);
+}
+
+.sz_dashboard_layout_editing .sz_dashboard_col {
+  outline: 1px dashed color-mix(in srgb, var(--sz-color-primary) 38%, transparent);
+  outline-offset: 0.35rem;
+  border-radius: var(--sz-radius-md);
+}
+
+.sz_dashboard_draggable.is-dashboard-layout-editable {
+  cursor: grab;
+  position: relative;
+}
+
+.sz_dashboard_draggable.is-dashboard-layout-editable::before {
+  align-items: center;
+  background: color-mix(in srgb, var(--sz-color-primary) 16%, var(--sz-color-surface));
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 45%, var(--sz-color-border));
+  border-radius: var(--sz-radius-sm);
+  color: var(--sz-color-primary);
+  content: "\f58e";
+  display: inline-flex;
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  height: 1.75rem;
+  justify-content: center;
+  position: absolute;
+  right: 0.55rem;
+  top: 0.55rem;
+  width: 1.75rem;
+  z-index: 4;
+}
+
+.sz_dashboard_draggable.is-dashboard-layout-editable:active {
+  cursor: grabbing;
+}
+
+.sz_dashboard_draggable.is-dragging {
+  opacity: 0.48;
+  transform: scale(0.99);
+}
+
+.sz_dashboard_layout_editing .dashboard-link-btn {
+  pointer-events: none;
 }
 
 .dashboard-links-widget .widget-title {

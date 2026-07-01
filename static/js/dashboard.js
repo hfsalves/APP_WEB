@@ -90,6 +90,108 @@ function hideLoading() {
 
 // Filtros ------------------------------------------------
 const widgetState = new Map(); // name -> {widget, body, filtersDef, currentFilters}
+const dashboardLayoutState = {
+  editing: false,
+  dirty: false,
+};
+let dashboardShortcutScreens = [];
+
+function closeDashboardContextMenu() {
+  const menu = document.getElementById('dashboardContextMenu');
+  if (!menu) return;
+  menu.hidden = true;
+  menu.style.left = '';
+  menu.style.top = '';
+}
+
+function openDashboardContextMenu(x, y) {
+  const menu = document.getElementById('dashboardContextMenu');
+  if (!menu) return;
+  menu.hidden = false;
+  const rect = menu.getBoundingClientRect();
+  const margin = 10;
+  const left = Math.min(Math.max(margin, x), window.innerWidth - rect.width - margin);
+  const top = Math.min(Math.max(margin, y), window.innerHeight - rect.height - margin);
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+}
+
+function renderDashboardShortcutList(items) {
+  const list = document.getElementById('dashboardShortcutList');
+  if (!list) return;
+  if (!Array.isArray(items) || !items.length) {
+    list.innerHTML = '<div class="sz_dashboard_shortcut_empty">Sem ecrãs disponíveis.</div>';
+    return;
+  }
+  list.innerHTML = items.map((item) => `
+    <button type="button" class="sz_dashboard_shortcut_item" data-menustamp="${escapeAttr(item.menustamp)}">
+      <span class="sz_dashboard_shortcut_icon"><i class="fa-solid ${escapeAttr(item.icon || 'fa-window-maximize')}"></i></span>
+      <span class="sz_dashboard_shortcut_text">
+        <strong>${escapeAttr(item.name)}</strong>
+        <small>${escapeAttr(item.group || item.url || '')}</small>
+      </span>
+      <i class="fa-solid fa-plus"></i>
+    </button>
+  `).join('');
+}
+
+function filterDashboardShortcutList() {
+  const search = String(document.getElementById('dashboardShortcutSearch')?.value || '').trim().toLowerCase();
+  if (!search) {
+    renderDashboardShortcutList(dashboardShortcutScreens);
+    return;
+  }
+  renderDashboardShortcutList(dashboardShortcutScreens.filter((item) => {
+    const haystack = `${item.name || ''} ${item.group || ''} ${item.url || ''}`.toLowerCase();
+    return haystack.includes(search);
+  }));
+}
+
+async function openDashboardShortcutModal() {
+  const modalEl = document.getElementById('dashboardShortcutModal');
+  const search = document.getElementById('dashboardShortcutSearch');
+  if (!modalEl) return;
+  if (search) search.value = '';
+  renderDashboardShortcutList([]);
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  modal.show();
+  const list = document.getElementById('dashboardShortcutList');
+  if (list) list.innerHTML = '<div class="sz_dashboard_shortcut_empty">A carregar...</div>';
+  try {
+    const resp = await fetch('/api/dashboard/shortcuts/screens');
+    const data = await parseJsonResponse(resp, 'Erro ao carregar ecrãs');
+    if (!resp.ok || data.error) throw new Error(data.error || 'Erro ao carregar ecrãs.');
+    dashboardShortcutScreens = Array.isArray(data.screens) ? data.screens : [];
+    renderDashboardShortcutList(dashboardShortcutScreens);
+  } catch (error) {
+    console.error(error);
+    if (list) list.innerHTML = `<div class="sz_dashboard_shortcut_empty is-error">${escapeAttr(error.message || 'Erro ao carregar ecrãs.')}</div>`;
+  }
+}
+
+async function addDashboardShortcut(menustamp) {
+  const stamp = String(menustamp || '').trim();
+  if (!stamp) return;
+  const button = Array.from(document.querySelectorAll('.sz_dashboard_shortcut_item'))
+    .find((item) => String(item.dataset.menustamp || '') === stamp);
+  if (button) button.disabled = true;
+  try {
+    const resp = await fetch('/api/dashboard/shortcuts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ menustamp: stamp }),
+    });
+    const data = await parseJsonResponse(resp, 'Erro ao adicionar atalho');
+    if (!resp.ok || data.error) throw new Error(data.error || 'Erro ao adicionar atalho.');
+    bootstrap.Modal.getInstance(document.getElementById('dashboardShortcutModal'))?.hide();
+    loadDashboard();
+  } catch (error) {
+    console.error(error);
+    alert(error.message || 'Erro ao adicionar atalho.');
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
 
 function parseFiltersDef(widget) {
   try {
@@ -468,6 +570,9 @@ async function renderWidget(widget, colDiv) {
 
   const wDiv = document.createElement('div');
   wDiv.className = 'sz_dashboard_widget sz_dashboard_widget_' + widget.tipo.toLowerCase();
+  wDiv.dataset.dashboardKind = 'widget';
+  wDiv.dataset.dashboardId = widget.nome || widget.id || '';
+  wDiv.classList.add('sz_dashboard_draggable');
   const linkBtn = widgetUrl
     ? `<button class="sz_button sz_button_ghost sz_dashboard_link_btn widget-link-btn" data-url="${escapeAttr(widgetUrl)}" title="Abrir indicador"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>`
     : '';
@@ -486,6 +591,7 @@ async function renderWidget(widget, colDiv) {
     <div class="sz_dashboard_widget_body"></div>
   `;
   colDiv.appendChild(wDiv);
+  syncDashboardItemDragState(wDiv);
 
   const body = wDiv.querySelector('.sz_dashboard_widget_body');
   const expandBtn = wDiv.querySelector('.sz_dashboard_expand_btn');
@@ -552,21 +658,195 @@ async function renderWidget(widget, colDiv) {
   }
 }
 
+function renderDashboardLinksItem(item, colDiv) {
+  const temp = document.createElement('div');
+  temp.innerHTML = item.html || '';
+  const element = temp.firstElementChild;
+  if (!element) return;
+  element.dataset.dashboardKind = 'links';
+  element.dataset.dashboardId = item.id || '';
+  element.classList.add('sz_dashboard_draggable');
+  colDiv.appendChild(element);
+  syncDashboardItemDragState(element);
+}
+
+function dashboardColumns() {
+  return Array.from(document.querySelectorAll('.sz_dashboard_col'));
+}
+
+function dashboardItems(root = document) {
+  return Array.from(root.querySelectorAll('.sz_dashboard_draggable'));
+}
+
+function syncDashboardItemDragState(item) {
+  if (!item) return;
+  item.draggable = dashboardLayoutState.editing;
+  item.classList.toggle('is-dashboard-layout-editable', dashboardLayoutState.editing);
+}
+
+function syncDashboardLayoutControls() {
+  const saveBtn = document.getElementById('dashboardSaveLayoutBtn');
+  const cancelBtn = document.getElementById('dashboardCancelLayoutBtn');
+  const layoutBar = document.getElementById('dashboardLayoutBar');
+  if (saveBtn) saveBtn.hidden = !dashboardLayoutState.editing;
+  if (cancelBtn) cancelBtn.hidden = !dashboardLayoutState.editing;
+  if (layoutBar) layoutBar.hidden = !dashboardLayoutState.editing;
+  document.body?.classList.toggle('sz_dashboard_layout_editing', dashboardLayoutState.editing);
+  dashboardItems().forEach(syncDashboardItemDragState);
+  if (dashboardLayoutState.editing) closeDashboardContextMenu();
+}
+
+function setDashboardLayoutMode(editing) {
+  dashboardLayoutState.editing = Boolean(editing);
+  dashboardLayoutState.dirty = false;
+  syncDashboardLayoutControls();
+}
+
+function markDashboardLayoutDirty() {
+  dashboardLayoutState.dirty = true;
+}
+
+function getDashboardDragAfterElement(container, y) {
+  const draggableElements = Array.from(container.querySelectorAll('.sz_dashboard_draggable:not(.is-dragging)'));
+  return draggableElements.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      return { offset, element: child };
+    }
+    return closest;
+  }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+}
+
+function serializeDashboardLayout() {
+  const columns = {};
+  dashboardColumns().forEach((col) => {
+    const colNo = String(col.id || '').replace('col-', '');
+    columns[colNo] = dashboardItems(col)
+      .map((item) => ({
+        kind: String(item.dataset.dashboardKind || '').trim(),
+        id: String(item.dataset.dashboardId || '').trim(),
+      }))
+      .filter((item) => item.kind && item.id);
+  });
+  return { columns };
+}
+
+async function saveDashboardLayout() {
+  const saveBtn = document.getElementById('dashboardSaveLayoutBtn');
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    const resp = await fetch('/api/dashboard/layout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(serializeDashboardLayout()),
+    });
+    const data = await parseJsonResponse(resp, 'Erro ao gravar layout do dashboard');
+    if (!resp.ok || data.error) throw new Error(data.error || 'Erro ao gravar layout.');
+    setDashboardLayoutMode(false);
+  } catch (error) {
+    console.error(error);
+    alert(error.message || 'Erro ao gravar layout do dashboard.');
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+function bindDashboardLayoutEvents() {
+  document.getElementById('dashboardContextMenu')?.addEventListener('click', (event) => {
+    const action = event.target.closest?.('[data-dashboard-action]')?.dataset.dashboardAction;
+    if (action === 'customize') {
+      closeDashboardContextMenu();
+      setDashboardLayoutMode(true);
+    } else if (action === 'shortcut') {
+      closeDashboardContextMenu();
+      openDashboardShortcutModal();
+    }
+  });
+
+  document.getElementById('dashboardShortcutSearch')?.addEventListener('input', filterDashboardShortcutList);
+  document.getElementById('dashboardShortcutList')?.addEventListener('click', (event) => {
+    const item = event.target.closest?.('.sz_dashboard_shortcut_item');
+    if (!item) return;
+    addDashboardShortcut(item.dataset.menustamp || '');
+  });
+
+  document.querySelector('.sz_dashboard_body')?.addEventListener('contextmenu', (event) => {
+    if (dashboardLayoutState.editing) return;
+    if (event.target.closest?.('.sz_dashboard_draggable, a, button, input, select, textarea, .sz_dashboard_context_menu')) return;
+    event.preventDefault();
+    openDashboardContextMenu(event.clientX, event.clientY);
+  });
+
+  document.addEventListener('click', (event) => {
+    if (event.target.closest?.('#dashboardContextMenu')) return;
+    closeDashboardContextMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeDashboardContextMenu();
+  });
+  window.addEventListener('resize', closeDashboardContextMenu);
+  window.addEventListener('scroll', closeDashboardContextMenu, true);
+
+  document.getElementById('dashboardSaveLayoutBtn')?.addEventListener('click', saveDashboardLayout);
+  document.getElementById('dashboardCancelLayoutBtn')?.addEventListener('click', () => {
+    setDashboardLayoutMode(false);
+    loadDashboard();
+  });
+
+  dashboardColumns().forEach((col) => {
+    col.addEventListener('dragover', (event) => {
+      if (!dashboardLayoutState.editing) return;
+      event.preventDefault();
+      const dragging = document.querySelector('.sz_dashboard_draggable.is-dragging');
+      if (!dragging) return;
+      const afterElement = getDashboardDragAfterElement(col, event.clientY);
+      if (afterElement == null) col.appendChild(dragging);
+      else col.insertBefore(dragging, afterElement);
+      markDashboardLayoutDirty();
+    });
+    col.addEventListener('drop', (event) => {
+      if (!dashboardLayoutState.editing) return;
+      event.preventDefault();
+      markDashboardLayoutDirty();
+    });
+  });
+
+  document.addEventListener('dragstart', (event) => {
+    const item = event.target.closest?.('.sz_dashboard_draggable');
+    if (!dashboardLayoutState.editing || !item) return;
+    item.classList.add('is-dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', item.dataset.dashboardId || '');
+  });
+
+  document.addEventListener('dragend', (event) => {
+    const item = event.target.closest?.('.sz_dashboard_draggable');
+    if (!item) return;
+    item.classList.remove('is-dragging');
+  });
+}
+
 // Boot ---------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
+function loadDashboard() {
   showLoading();
   fetch('/api/dashboard')
     .then(r => parseJsonResponse(r, 'Erro ao carregar configuracao do dashboard'))
     .then(data => {
-      const linksHtml = data.links_html || {};
       [1,2,3].forEach(col => {
         const colDiv = document.getElementById('col-' + col);
-        colDiv.innerHTML = linksHtml[col] || linksHtml[String(col)] || '';
+        if (!colDiv) return;
+        colDiv.innerHTML = '';
         const widgets = Array.isArray(data[col]) ? data[col] : [];
-        widgets.forEach(widget => {
-          renderWidget(widget, colDiv);
+        widgets.forEach(item => {
+          if (String(item.kind || '').toLowerCase() === 'links') {
+            renderDashboardLinksItem(item, colDiv);
+          } else {
+            renderWidget(item, colDiv);
+          }
         });
       });
+      syncDashboardLayoutControls();
       hideLoading();
     })
     .catch((err) => {
@@ -574,4 +854,9 @@ document.addEventListener('DOMContentLoaded', () => {
       showDashboardError(err.message || 'Falha ao carregar dashboard.');
       hideLoading();
     });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  bindDashboardLayoutEvents();
+  loadDashboard();
 });

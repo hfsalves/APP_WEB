@@ -128,3 +128,963 @@ Press CTRL+C to quit
 WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
  * Running on http://127.0.0.1:5001
 Press CTRL+C to quit
+[2026-07-01 10:58:21,686] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [01/Jul/2026 11:00:02] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:02] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:02] "GET /static/js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:02] "GET /static/js/push.js?v=1782899899 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:02] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:02] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:02] "GET /static/images/favicon.ico HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:02] "GET /static/icons/icon-180.png HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:02] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:04] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:10] "GET /logout HTTP/1.1" 302 -
+127.0.0.1 - - [01/Jul/2026 11:00:10] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:10] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:10] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:10] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:10] "GET /static/js/push.js?v=1782899899 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:10] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:10] "GET /static/images/icon-512.png HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:10] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:11] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:21] "POST /login HTTP/1.1" 302 -
+127.0.0.1 - - [01/Jul/2026 11:00:21] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [01/Jul/2026 11:00:22] "GET /gr_planning/monitor HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /gr_planning/monitor HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /gr_planning/static/gr_planning_host.css HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /static/js/push.js?v=1782899899 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /gr_planning/static/gr_monitor.js HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /api/gr_planning/monitor/status-options HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:23] "GET /api/gr_planning/monitor/tasks?start=2026-06-01&end=2026-08-30&_=1782900023302 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:24] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:26] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:26] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:26] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:26] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:26] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:26] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:26] "GET /static/js/push.js?v=1782899899 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:27] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:27] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:28] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:00:37] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01&user=acruz HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:43] "GET /api/colaborador/despesas/processamento?date_from=2026-06-01&date_to=2026-07-01&user=acruz HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:00:43] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:00:45] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:00:45] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/3FD6C025045847C2BE802A16A.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:00:46] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/3CEFA0C3B8624B2BA7EB89997.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:00:46] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/7E5A95AEABE64CCCBD96270C1.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:00:47] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/3CEFA0C3B8624B2BA7EB89997.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:00:47] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/3FD6C025045847C2BE802A16A.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:00:48] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:00:48] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+[2026-07-01 11:16:17,174] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [01/Jul/2026 11:16:53] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:16:53] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:53] "GET /static/css/sz_styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:16:53] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:53] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:53] "GET /static/js/push.js?v=1782900975 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:16:53] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:53] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:53] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:53] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:16:54] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:58] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:16:58] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:58] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:58] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:58] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:58] "GET /static/js/push.js?v=1782900975 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:58] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:58] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:58] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:16:58] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:17:00] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-01 11:18:16,840] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [01/Jul/2026 11:18:25] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:18:25] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:18:25] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:18:25] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:18:25] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:18:25] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:18:25] "GET /static/js/push.js?v=1782901094 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:18:25] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:18:25] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:18:25] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:18:27] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:18:33] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01&user=acruz HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:18:39] "GET /api/colaborador/despesas/processamento?date_from=2026-06-01&date_to=2026-07-01&user=acruz HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:18:39] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:43] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:43] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/3FD6C025045847C2BE802A16A.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:44] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/3CEFA0C3B8624B2BA7EB89997.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:44] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/7E5A95AEABE64CCCBD96270C1.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:45] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/02557AC52BF84A819AA8C1CA7.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:45] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/50F6B9126C1B4E8DBF40744F1.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:46] "GET /static/uploads/colaborador_despesas/FA606DE2447E469FB651A9F98/ADF997B2BB5E445481E99727D.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:47] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:48] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:48] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/3FD6C025045847C2BE802A16A.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:49] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/3CEFA0C3B8624B2BA7EB89997.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:49] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/7E5A95AEABE64CCCBD96270C1.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:18:49] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/50F6B9126C1B4E8DBF40744F1.jpg HTTP/1.1" 404 -
+[2026-07-01 11:19:49,632] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [01/Jul/2026 11:20:19] "GET /generic/view/ST/ HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:20:19] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:20:19] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:20:19] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:20:19] "GET /static/js/dynamic_list.js?v=1782901187 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:20:19] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:20:19] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:20:19] "GET /static/js/push.js?v=1782901187 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:20:19] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:20:20] "GET /generic/api/ST?action=describe&include_screen_meta=1&menustamp=9562F12D6B044DB0A84B6E999 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:20:20] "GET /generic/api/ST HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:20:21] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:20:24] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:21:03] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:21:03] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:21:03] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:21:03] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:21:03] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:21:03] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:21:03] "GET /static/js/push.js?v=1782901187 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:21:03] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:21:03] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:21:03] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:21:04] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:21:09] "GET /api/colaborador/despesas/processamento?date_from=2026-06-28&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:21:09] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:21:10] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:24:33] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:24:33] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:24:33] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:24:33] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:24:33] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:24:33] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:24:33] "GET /static/js/push.js?v=1782901187 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:24:33] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:24:33] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:24:33] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:24:35] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:24:38] "GET /api/colaborador/despesas/processamento?date_from=2026-06-28&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:24:38] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:25:41] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:25:41] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:25:41] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:26:34] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:26:34] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:26:34] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:26:34] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:26:34] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:26:34] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:26:34] "GET /static/js/push.js?v=1782901187 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:26:34] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:26:34] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:26:34] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:26:36] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:26:38] "GET /api/colaborador/despesas/processamento?date_from=2026-06-28&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:26:38] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:26:39] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:26:39] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:26:40] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:26:41] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:26:41] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:27:27] "POST /api/profile/viewmode HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:27:27] "POST /api/profile/save HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:27:31] "POST /api/profile/viewmode HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:27:31] "POST /api/profile/save HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:27:32] "POST /api/profile/viewmode HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:27:32] "POST /api/profile/save HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:27:33] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:27:34] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:27:35] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:27:39] "POST /api/profile/viewmode HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:27:39] "POST /api/profile/save HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:27:47] "POST /api/profile/viewmode HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:27:47] "POST /api/profile/save HTTP/1.1" 500 -
+[2026-07-01 11:27:53,599] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [01/Jul/2026 11:28:01] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:01] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:28:01] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:28:01] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:28:01] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:28:01] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:28:01] "GET /static/js/push.js?v=1782901671 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:01] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:28:01] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:28:01] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:03] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:28:06] "GET /api/colaborador/despesas/processamento?date_from=2026-06-28&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:06] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:28:52] "GET /api/colaborador/despesas/processamento/artigos?q=as&feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:52] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:53] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:54] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:56] "GET /api/colaborador/despesas/processamento/artigos?q=p01&feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:56] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:57] "GET /api/colaborador/despesas/processamento/artigos?q=p.&feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:57] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:28:58] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+[2026-07-01 11:31:54,995] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [01/Jul/2026 11:32:01] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:32:01] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:32:01] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:32:01] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:32:01] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:32:01] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:32:01] "GET /static/js/push.js?v=1782901912 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:32:02] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:32:02] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:32:02] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:32:03] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:32:09] "GET /api/colaborador/despesas/processamento?date_from=2026-06-28&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:32:09] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:32:11] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:32:12] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:32:24] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:32:26] "GET /api/colaborador/despesas/processamento/artigos?q=p.&feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:32:27] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:32:29] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:32:36] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:32:49] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:32:50] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:34:23] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:34:25] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:34:25] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:34:46] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:34:49] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:34:56] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:34:57] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:35:19] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+[2026-07-01 11:35:35,201] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [01/Jul/2026 11:35:43] "GET /api/colaborador/despesas/processamento?date_from=2026-05-20&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:35:43] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:35:52] "GET /api/colaborador/despesas/processamento?date_from=2026-05-20&date_to=2026-07-01&user=acruz HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:35:52] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:36:10] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:36:11] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/3FD6C025045847C2BE802A16A.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:36:12] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:36:34] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:36:34] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:36:34] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:36:34] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:36:34] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:36:34] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:36:34] "GET /static/js/push.js?v=1782902133 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:36:34] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:36:34] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:36:34] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:36:36] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:36:43] "GET /api/colaborador/despesas/processamento?date_from=2026-06-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:36:43] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:36:46] "GET /api/colaborador/despesas/processamento/artigos?q=rep&feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:36:46] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:36:48] "GET /api/colaborador/despesas/processamento/artigos?q=repas&feid=2 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:36:48] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:36:51] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:36:52] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:37:24] "GET / HTTP/1.1" 302 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /gr_planning/monitor HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /gr_planning/static/gr_planning_host.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /static/js/push.js?v=1782902133 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /gr_planning/static/gr_monitor.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /api/gr_planning/monitor/status-options HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:37:25] "GET /api/gr_planning/monitor/tasks?start=2026-06-01&end=2026-08-30&_=1782902245782 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:37:27] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:28] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:37:28] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:28] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:28] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:28] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:28] "GET /static/js/dashboard.js HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:37:28] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:28] "GET /static/js/push.js?v=1782902133 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:28] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+[2026-07-01 11:37:29,157] ERROR in app: Exception on /api/dashboard [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'COLUNA'. (207) (SQLExecDirectW)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 290, in decorated_view
+    return current_app.ensure_sync(func)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 27358, in api_dashboard_widgets
+    links_items = dashboard_links_widget_items(getattr(current_user, 'USSTAMP', ''))
+  File "/Users/hugoalves/Projects/APP_WEB/services/dashboard_links_service.py", line 404, in dashboard_links_widget_items
+    widgets = db.session.execute(text("""
+              ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT
+        ^^^^^^
+    ...<12 lines>...
+        ORDER BY ISNULL(W.COLUNA, 1), ISNULL(W.ORDEM_COLUNA, 0), ISNULL(W.NOME, '')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """), {"userstamp": stamp}).mappings().all()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.ProgrammingError: (pyodbc.ProgrammingError) ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'COLUNA'. (207) (SQLExecDirectW)")
+[SQL: 
+        SELECT
+            W.DBWSTAMP,
+            ISNULL(W.NOME, '') AS NOME,
+            ISNULL(W.TITULO, '') AS TITULO,
+            ISNULL(U.COLUNA, ISNULL(W.COLUNA, 1)) AS COLUNA,
+            ISNULL(U.ORDEM_COLUNA, ISNULL(W.ORDEM_COLUNA, 0)) AS ORDEM_COLUNA,
+            ISNULL(W.BACKGROUND, '') AS BACKGROUND,
+            ISNULL(W.BORDER_COLOR, '') AS BORDER_COLOR,
+            ISNULL(W.TEXT_COLOR, '') AS TEXT_COLOR
+        FROM dbo.DBW W
+        INNER JOIN dbo.DBWU U ON U.DBWSTAMP = W.DBWSTAMP
+        WHERE U.USRSTAMP = ?
+          AND ISNULL(W.ATIVO, 1) = 1
+        ORDER BY ISNULL(W.COLUNA, 1), ISNULL(W.ORDEM_COLUNA, 0), ISNULL(W.NOME, '')
+    ]
+[parameters: ('QIUOIQUE8U98UOIU',)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+127.0.0.1 - - [01/Jul/2026 11:37:29] "GET /api/dashboard HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:37:30] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:36] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:37:36] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:36] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:36] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:36] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:36] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:36] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:36] "GET /static/js/push.js?v=1782902133 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:36] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:36] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+[2026-07-01 11:37:36,638] ERROR in app: Exception on /api/dashboard [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'COLUNA'. (207) (SQLExecDirectW)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 290, in decorated_view
+    return current_app.ensure_sync(func)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 27358, in api_dashboard_widgets
+    links_items = dashboard_links_widget_items(getattr(current_user, 'USSTAMP', ''))
+  File "/Users/hugoalves/Projects/APP_WEB/services/dashboard_links_service.py", line 404, in dashboard_links_widget_items
+    widgets = db.session.execute(text("""
+              ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT
+        ^^^^^^
+    ...<12 lines>...
+        ORDER BY ISNULL(W.COLUNA, 1), ISNULL(W.ORDEM_COLUNA, 0), ISNULL(W.NOME, '')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """), {"userstamp": stamp}).mappings().all()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.ProgrammingError: (pyodbc.ProgrammingError) ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'COLUNA'. (207) (SQLExecDirectW)")
+[SQL: 
+        SELECT
+            W.DBWSTAMP,
+            ISNULL(W.NOME, '') AS NOME,
+            ISNULL(W.TITULO, '') AS TITULO,
+            ISNULL(U.COLUNA, ISNULL(W.COLUNA, 1)) AS COLUNA,
+            ISNULL(U.ORDEM_COLUNA, ISNULL(W.ORDEM_COLUNA, 0)) AS ORDEM_COLUNA,
+            ISNULL(W.BACKGROUND, '') AS BACKGROUND,
+            ISNULL(W.BORDER_COLOR, '') AS BORDER_COLOR,
+            ISNULL(W.TEXT_COLOR, '') AS TEXT_COLOR
+        FROM dbo.DBW W
+        INNER JOIN dbo.DBWU U ON U.DBWSTAMP = W.DBWSTAMP
+        WHERE U.USRSTAMP = ?
+          AND ISNULL(W.ATIVO, 1) = 1
+        ORDER BY ISNULL(W.COLUNA, 1), ISNULL(W.ORDEM_COLUNA, 0), ISNULL(W.NOME, '')
+    ]
+[parameters: ('QIUOIQUE8U98UOIU',)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+127.0.0.1 - - [01/Jul/2026 11:37:36] "GET /api/dashboard HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:37:37] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:38] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:37:39] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:07] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:38:07] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:07] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:07] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:07] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:07] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:07] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:07] "GET /static/js/push.js?v=1782902133 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:07] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+[2026-07-01 11:38:07,541] ERROR in app: Exception on /api/dashboard [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'COLUNA'. (207) (SQLExecDirectW)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 290, in decorated_view
+    return current_app.ensure_sync(func)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 27358, in api_dashboard_widgets
+    'kind': 'widget',
+          ^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/services/dashboard_links_service.py", line 404, in dashboard_links_widget_items
+    widgets = db.session.execute(text("""
+              ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT
+        ^^^^^^
+    ...<12 lines>...
+        ORDER BY ISNULL(W.COLUNA, 1), ISNULL(W.ORDEM_COLUNA, 0), ISNULL(W.NOME, '')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """), {"userstamp": stamp}).mappings().all()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.ProgrammingError: (pyodbc.ProgrammingError) ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'COLUNA'. (207) (SQLExecDirectW)")
+[SQL: 
+        SELECT
+            W.DBWSTAMP,
+            ISNULL(W.NOME, '') AS NOME,
+            ISNULL(W.TITULO, '') AS TITULO,
+            ISNULL(U.COLUNA, ISNULL(W.COLUNA, 1)) AS COLUNA,
+            ISNULL(U.ORDEM_COLUNA, ISNULL(W.ORDEM_COLUNA, 0)) AS ORDEM_COLUNA,
+            ISNULL(W.BACKGROUND, '') AS BACKGROUND,
+            ISNULL(W.BORDER_COLOR, '') AS BORDER_COLOR,
+            ISNULL(W.TEXT_COLOR, '') AS TEXT_COLOR
+        FROM dbo.DBW W
+        INNER JOIN dbo.DBWU U ON U.DBWSTAMP = W.DBWSTAMP
+        WHERE U.USRSTAMP = ?
+          AND ISNULL(W.ATIVO, 1) = 1
+        ORDER BY ISNULL(W.COLUNA, 1), ISNULL(W.ORDEM_COLUNA, 0), ISNULL(W.NOME, '')
+    ]
+[parameters: ('QIUOIQUE8U98UOIU',)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+127.0.0.1 - - [01/Jul/2026 11:38:07] "GET /api/dashboard HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:38:08] "GET /service-worker.js HTTP/1.1" 304 -
+[2026-07-01 11:38:15,260] ERROR in app: Exception on /api/dashboard [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'COLUNA'. (207) (SQLExecDirectW)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 290, in decorated_view
+    return current_app.ensure_sync(func)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 27358, in api_dashboard_widgets
+    'kind': 'widget',
+          ^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/services/dashboard_links_service.py", line 404, in dashboard_links_widget_items
+    widgets = db.session.execute(text("""
+              ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        SELECT
+        ^^^^^^
+    ...<12 lines>...
+        ORDER BY ISNULL(W.COLUNA, 1), ISNULL(W.ORDEM_COLUNA, 0), ISNULL(W.NOME, '')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """), {"userstamp": stamp}).mappings().all()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.ProgrammingError: (pyodbc.ProgrammingError) ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'COLUNA'. (207) (SQLExecDirectW)")
+[SQL: 
+        SELECT
+            W.DBWSTAMP,
+            ISNULL(W.NOME, '') AS NOME,
+            ISNULL(W.TITULO, '') AS TITULO,
+            ISNULL(U.COLUNA, ISNULL(W.COLUNA, 1)) AS COLUNA,
+            ISNULL(U.ORDEM_COLUNA, ISNULL(W.ORDEM_COLUNA, 0)) AS ORDEM_COLUNA,
+            ISNULL(W.BACKGROUND, '') AS BACKGROUND,
+            ISNULL(W.BORDER_COLOR, '') AS BORDER_COLOR,
+            ISNULL(W.TEXT_COLOR, '') AS TEXT_COLOR
+        FROM dbo.DBW W
+        INNER JOIN dbo.DBWU U ON U.DBWSTAMP = W.DBWSTAMP
+        WHERE U.USRSTAMP = ?
+          AND ISNULL(W.ATIVO, 1) = 1
+        ORDER BY ISNULL(W.COLUNA, 1), ISNULL(W.ORDEM_COLUNA, 0), ISNULL(W.NOME, '')
+    ]
+[parameters: ('QIUOIQUE8U98UOIU',)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+127.0.0.1 - - [01/Jul/2026 11:38:15] "GET /api/dashboard HTTP/1.1" 500 -
+[2026-07-01 11:38:49,682] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [01/Jul/2026 11:38:55] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:59] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:38:59] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:59] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:59] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:59] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:59] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:59] "GET /static/js/push.js?v=1782902327 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:38:59] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:59] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:38:59] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:01] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:39:03] "GET /api/colaborador/despesas/processamento?date_from=2026-06-28&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:03] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:39:06] "GET /api/colaborador/despesas/processamento/viaturas?q=s HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:06] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:07] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:09] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:10] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:39:11] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:39:14] "GET /api/colaborador/despesas/processamento/viaturas?q=1 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:15] "GET /api/colaborador/despesas/processamento/viaturas?q=fe HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:15] "GET /api/colaborador/despesas/processamento/viaturas?q=fer HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:15] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:20] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:39:20] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:23] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:24] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:45] "GET /api/colaborador/despesas/processamento/viaturas?q=ferr HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:45] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:39:48] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:40:36] "POST /api/profile/viewmode HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:40:36] "POST /api/profile/save HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:40:42] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:40:43] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:40:44] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:40:44] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:40:51] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:40:52] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:41:10] "POST /api/profile/viewmode HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:41:10] "POST /api/profile/save HTTP/1.1" 500 -
+127.0.0.1 - - [01/Jul/2026 11:41:31] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/A3138DA8BC944C8B8F49CEFD3.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:41:31] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+[2026-07-01 11:41:50,206] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5001
+Press CTRL+C to quit
+127.0.0.1 - - [01/Jul/2026 11:42:17] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:42:17] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:42:17] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:42:17] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:42:17] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:42:17] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:42:17] "GET /static/js/push.js?v=1782902508 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:42:17] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:42:17] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:42:17] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:42:19] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:42:22] "GET /api/colaborador/despesas/processamento?date_from=2026-06-30&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:42:22] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:42:26] "GET /api/colaborador/despesas/processamento/viaturas?q=ferr HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:42:26] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:42:27] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
+127.0.0.1 - - [01/Jul/2026 11:42:27] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:42:30] "GET /api/colaborador/despesas/processamento/viaturas?q=fa HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:42:30] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:42:32] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:42:34] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:42:37] "POST /api/colaborador/despesas/processamento/8EDDF2138423484D9FD8E3369/classificacao HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:44:34] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:44:34] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:44:34] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:44:34] "GET /static/js/dashboard.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:44:34] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:44:34] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:44:34] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:44:34] "GET /static/js/push.js?v=1782902508 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:44:34] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:44:35] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:44:35] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:44:37] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:44:37] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:44:38] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:44:38] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:44:53] "POST /api/dashboard/layout HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:45:22] "POST /api/dashboard/layout HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:47:22] "POST /api/dashboard/layout HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:47:32] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:47:35] "GET /despesas/processamento HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:47:35] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:47:35] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:47:35] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:47:35] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:47:35] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:47:35] "GET /static/js/push.js?v=1782902508 HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:47:35] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:47:35] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:47:35] "GET /api/colaborador/despesas/processamento?date_from=2026-07-01&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:47:37] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Jul/2026 11:47:40] "GET /api/colaborador/despesas/processamento?date_from=2026-06-28&date_to=2026-07-01 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jul/2026 11:47:40] "GET /static/uploads/colaborador_despesas/352F81D220E24C35AD8381384/8EDDF2138423484D9FD8E3369.jpg HTTP/1.1" 404 -
