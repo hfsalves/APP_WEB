@@ -23,7 +23,6 @@
       {% if next_url %}
       <input type="hidden" name="next" value="{{ next_url }}">
       {% endif %}
-      <input type="hidden" id="loginPasswordPayload" value="">
       {% if show_db_target_select %}
       <div class="form-group">
         <label for="db_target">{{ _('login.db_target') }}</label>
@@ -110,12 +109,61 @@
   (function () {
     const form = document.querySelector('form.login-form');
     const maskedPassword = document.getElementById('loginPasswordMasked');
-    const password = document.getElementById('loginPasswordPayload');
-    if (!form || !maskedPassword || !password) return;
+    const submitButton = form ? form.querySelector('button[type="submit"]') : null;
+    if (!form || !maskedPassword || !window.fetch) return;
 
-    form.addEventListener('submit', function () {
-      password.name = 'password';
-      password.value = maskedPassword.value || '';
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+        form.reportValidity?.();
+        return;
+      }
+
+      const params = new URLSearchParams();
+      const formData = new FormData(form);
+      formData.forEach((value, key) => {
+        params.append(key, value);
+      });
+      params.set('password', maskedPassword.value || '');
+
+      const dbTarget = form.querySelector('#db_target');
+      const host = String(window.location.hostname || '').toLowerCase();
+      if (host === 'app.gr360flooringsystems.com') {
+        params.set('db_target', 'client');
+      } else if (dbTarget && !params.has('db_target')) {
+        params.set('db_target', dbTarget.value || '');
+      }
+
+      const originalDisabled = submitButton ? submitButton.disabled : false;
+      if (submitButton) submitButton.disabled = true;
+
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: params,
+          credentials: 'same-origin',
+          redirect: 'follow',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+          }
+        });
+
+        if (response.redirected && response.url) {
+          window.location.assign(response.url);
+          return;
+        }
+
+        const html = await response.text();
+        document.open();
+        document.write(html);
+        document.close();
+      } catch (error) {
+        console.error(error);
+        if (submitButton) submitButton.disabled = originalDisabled;
+        alert('Não foi possível iniciar sessão. Verifique a ligação e tente novamente.');
+      }
     });
   })();
 </script>
