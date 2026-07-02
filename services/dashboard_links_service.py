@@ -403,13 +403,18 @@ def user_has_dashboard_links(userstamp: str) -> bool:
     stamp = str(userstamp or "").strip()
     if not stamp:
         return False
+    shortcut_name = f"SHORTCUTS_{stamp}"[:100]
     row = db.session.execute(text("""
         SELECT TOP 1 1
         FROM dbo.DBWU U
         INNER JOIN dbo.DBW W ON W.DBWSTAMP = U.DBWSTAMP
         WHERE U.USRSTAMP = :userstamp
           AND ISNULL(W.ATIVO, 1) = 1
-    """), {"userstamp": stamp}).first()
+          AND (
+              LEFT(LTRIM(RTRIM(ISNULL(W.NOME, ''))), 10) <> 'SHORTCUTS_'
+              OR LTRIM(RTRIM(ISNULL(W.NOME, ''))) = :shortcut_name
+          )
+    """), {"userstamp": stamp, "shortcut_name": shortcut_name}).first()
     return bool(row)
 
 
@@ -417,17 +422,28 @@ def ensure_dashboard_links_for_user(userstamp: str) -> None:
     stamp = str(userstamp or "").strip()
     if not stamp or not _table_exists("DBW") or not _table_exists("DBWU"):
         return
+    shortcut_name = f"SHORTCUTS_{stamp}"[:100]
     db.session.execute(text("""
-        INSERT INTO dbo.DBWU (DBWSTAMP, USRSTAMP)
-        SELECT W.DBWSTAMP, :userstamp
+        DELETE U
+        FROM dbo.DBWU U
+        INNER JOIN dbo.DBW W ON W.DBWSTAMP = U.DBWSTAMP
+        WHERE LTRIM(RTRIM(ISNULL(U.USRSTAMP, ''))) = :userstamp
+          AND LEFT(LTRIM(RTRIM(ISNULL(W.NOME, ''))), 10) = 'SHORTCUTS_'
+          AND LTRIM(RTRIM(ISNULL(W.NOME, ''))) <> :shortcut_name
+    """), {"userstamp": stamp, "shortcut_name": shortcut_name})
+    db.session.execute(text("""
+        INSERT INTO dbo.DBWU (DBWUSTAMP, DBWSTAMP, USRSTAMP)
+        SELECT LEFT(REPLACE(CONVERT(VARCHAR(36), NEWID()), '-', ''), 25), W.DBWSTAMP, :userstamp
         FROM dbo.DBW W
         WHERE ISNULL(W.ATIVO, 1) = 1
+          AND LTRIM(RTRIM(ISNULL(W.NOME, ''))) = :shortcut_name
           AND NOT EXISTS (
               SELECT 1
               FROM dbo.DBWU U
               WHERE U.DBWSTAMP = W.DBWSTAMP
+                AND LTRIM(RTRIM(ISNULL(U.USRSTAMP, ''))) = :userstamp
           )
-    """), {"userstamp": stamp})
+    """), {"userstamp": stamp, "shortcut_name": shortcut_name})
     db.session.commit()
 
 
@@ -442,6 +458,7 @@ def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
     has_user_order = _column_exists("DBWU", "ORDEM_COLUNA")
     col_expr = "ISNULL(U.COLUNA, ISNULL(W.COLUNA, 1))" if has_user_col else "ISNULL(W.COLUNA, 1)"
     order_expr = "ISNULL(U.ORDEM_COLUNA, ISNULL(W.ORDEM_COLUNA, 0))" if has_user_order else "ISNULL(W.ORDEM_COLUNA, 0)"
+    shortcut_name = f"SHORTCUTS_{stamp}"[:100]
 
     widgets = db.session.execute(text(f"""
         SELECT
@@ -457,8 +474,12 @@ def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
         INNER JOIN dbo.DBWU U ON U.DBWSTAMP = W.DBWSTAMP
         WHERE U.USRSTAMP = :userstamp
           AND ISNULL(W.ATIVO, 1) = 1
+          AND (
+              LEFT(LTRIM(RTRIM(ISNULL(W.NOME, ''))), 10) <> 'SHORTCUTS_'
+              OR LTRIM(RTRIM(ISNULL(W.NOME, ''))) = :shortcut_name
+          )
         ORDER BY {col_expr}, {order_expr}, ISNULL(W.NOME, '')
-    """), {"userstamp": stamp}).mappings().all()
+    """), {"userstamp": stamp, "shortcut_name": shortcut_name}).mappings().all()
 
     for widget in widgets:
         try:
