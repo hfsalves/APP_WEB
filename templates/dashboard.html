@@ -25,10 +25,50 @@
     <i class="fa-solid fa-grip"></i>
     <span>Personalizar dashboard</span>
   </button>
+  <button type="button" class="sz_dashboard_context_menu_item" data-dashboard-action="layout">
+    <i class="fa-solid fa-columns-3"></i>
+    <span>Colunas e larguras</span>
+  </button>
   <button type="button" class="sz_dashboard_context_menu_item" data-dashboard-action="shortcut">
     <i class="fa-solid fa-plus"></i>
     <span>Adicionar atalho</span>
   </button>
+  <button type="button" class="sz_dashboard_context_menu_item" data-dashboard-action="widget">
+    <i class="fa-solid fa-table-cells-large"></i>
+    <span>Adicionar widget</span>
+  </button>
+</div>
+<div class="modal fade sz_dashboard_shortcut_modal" id="dashboardLayoutSettingsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content sz_panel">
+      <div class="modal-header sz_modal_header">
+        <div>
+          <h3 class="sz_h4 sz_modal_title">Colunas do dashboard</h3>
+          <div class="sz_text_muted">Define o número de colunas e a largura relativa de cada uma.</div>
+        </div>
+        <button type="button" class="btn-close sz_dashboard_filters_close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <div class="sz_field">
+          <label class="sz_label" for="dashboardColumnCount">Número de colunas</label>
+          <select id="dashboardColumnCount" class="sz_select">
+            <option value="1">1 coluna</option>
+            <option value="2">2 colunas</option>
+            <option value="3">3 colunas</option>
+            <option value="4">4 colunas</option>
+          </select>
+        </div>
+        <div id="dashboardColumnWidthControls" class="sz_dashboard_column_widths"></div>
+      </div>
+      <div class="modal-footer sz_modal_footer">
+        <button type="button" class="sz_button sz_button_ghost" data-bs-dismiss="modal">Fechar</button>
+        <button id="dashboardApplyLayoutSettingsBtn" type="button" class="sz_button sz_button_primary">
+          <i class="fa-solid fa-check"></i>
+          <span>Aplicar</span>
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 <div class="modal fade sz_dashboard_shortcut_modal" id="dashboardShortcutModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -45,13 +85,54 @@
           <label class="sz_label" for="dashboardShortcutSearch">Pesquisar</label>
           <input id="dashboardShortcutSearch" class="sz_input" type="search" autocomplete="off" placeholder="Nome do ecrã...">
         </div>
+        <div class="sz_field">
+          <label class="sz_label">Cor</label>
+          <div id="dashboardShortcutColors" class="sz_dashboard_shortcut_colors" aria-label="Cor do atalho"></div>
+        </div>
+        <div class="sz_dashboard_manual_shortcut">
+          <div class="sz_dashboard_manual_shortcut_title">URL manual</div>
+          <div class="sz_dashboard_manual_shortcut_grid">
+            <div class="sz_field">
+              <label class="sz_label" for="dashboardShortcutTitle">Título</label>
+              <input id="dashboardShortcutTitle" class="sz_input" type="text" autocomplete="off" placeholder="Ex: Portal fornecedor">
+            </div>
+            <div class="sz_field">
+              <label class="sz_label" for="dashboardShortcutUrl">URL</label>
+              <input id="dashboardShortcutUrl" class="sz_input" type="url" autocomplete="off" placeholder="https://...">
+            </div>
+            <button id="dashboardShortcutUrlBtn" type="button" class="sz_button sz_button_primary">
+              <i class="fa-solid fa-plus"></i>
+              <span>Adicionar</span>
+            </button>
+          </div>
+        </div>
         <div id="dashboardShortcutList" class="sz_dashboard_shortcut_list"></div>
       </div>
     </div>
   </div>
 </div>
+<div class="modal fade sz_dashboard_shortcut_modal" id="dashboardWidgetModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content sz_panel">
+      <div class="modal-header sz_modal_header">
+        <div>
+          <h3 class="sz_h4 sz_modal_title">Adicionar widget</h3>
+          <div class="sz_text_muted">Escolhe um widget invisível para voltar a mostrar no dashboard.</div>
+        </div>
+        <button type="button" class="btn-close sz_dashboard_filters_close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body sz_modal_body">
+        <div class="sz_field">
+          <label class="sz_label" for="dashboardWidgetSearch">Pesquisar</label>
+          <input id="dashboardWidgetSearch" class="sz_input" type="search" autocomplete="off" placeholder="Nome do widget...">
+        </div>
+        <div id="dashboardWidgetList" class="sz_dashboard_shortcut_list"></div>
+      </div>
+    </div>
+  </div>
+</div>
 <div id="dashboardLayoutBar" class="sz_dashboard_layout_bar" hidden>
-  <span class="sz_dashboard_layout_hint">Arrasta os widgets para reorganizar o dashboard.</span>
+  <span class="sz_dashboard_layout_hint">Arrasta widgets e atalhos. Usa o menu de contexto para ajustar colunas e larguras.</span>
   <button id="dashboardCancelLayoutBtn" type="button" class="sz_button sz_button_ghost">
     <i class="fa-solid fa-xmark"></i>
     <span>Cancelar</span>

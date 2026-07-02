@@ -105,6 +105,28 @@ def _ensure_dashboard_links_layout_columns() -> None:
     _column_exists_cache.pop(("DBWU", "ORDEM_COLUNA"), None)
 
 
+def _ensure_dashboard_links_line_columns() -> None:
+    if not _table_exists("DBWL"):
+        return
+    db.session.execute(text("""
+        IF COL_LENGTH('dbo.DBWL', 'ICONE') IS NULL
+            ALTER TABLE dbo.DBWL ADD ICONE VARCHAR(100) NOT NULL CONSTRAINT DF_DBWL_ICONE DEFAULT ('');
+    """))
+    _column_exists_cache.pop(("DBWL", "ICONE"), None)
+
+
+def _safe_icon_class(value: str) -> str:
+    raw = str(value or "").strip()[:100]
+    if not raw:
+        return "fa-link"
+    parts = []
+    for part in raw.split():
+        clean = re.sub(r"[^A-Za-z0-9_-]", "", part)
+        if clean and clean not in {"fa", "fa-solid", "fas"}:
+            parts.append(clean)
+    return " ".join(parts) or "fa-link"
+
+
 def _insert_campo_if_missing(table_name: str, field: dict) -> None:
     table_name = table_name.upper()
     field_name = field["name"].upper()
@@ -227,6 +249,7 @@ def _ensure_dashboard_links_metadata() -> None:
         {"name": "COR_BACKGROUND", "label": "Background", "tipo": "COLOR", "ordem": 0, "tam": 3, "visivel": False},
         {"name": "COR_BORDER", "label": "Cor border", "tipo": "COLOR", "ordem": 0, "tam": 3, "visivel": False},
         {"name": "COR_TEXTO", "label": "Cor texto", "tipo": "COLOR", "ordem": 0, "tam": 3, "visivel": False},
+        {"name": "ICONE", "label": "Ícone", "tipo": "TEXT", "ordem": 0, "tam": 3, "visivel": False},
     ]
     for field in dbw_fields:
         _insert_campo_if_missing("DBW", field)
@@ -299,6 +322,7 @@ def ensure_dashboard_links_schema() -> None:
     global _schema_ready
     if _schema_ready:
         _ensure_dashboard_links_layout_columns()
+        _ensure_dashboard_links_line_columns()
         db.session.commit()
         return
     db.session.execute(text("""
@@ -338,6 +362,7 @@ def ensure_dashboard_links_schema() -> None:
                 COR_BACKGROUND VARCHAR(30) NOT NULL CONSTRAINT DF_DBWL_COR_BACKGROUND DEFAULT (''),
                 COR_BORDER VARCHAR(30) NOT NULL CONSTRAINT DF_DBWL_COR_BORDER DEFAULT (''),
                 COR_TEXTO VARCHAR(30) NOT NULL CONSTRAINT DF_DBWL_COR_TEXTO DEFAULT (''),
+                ICONE VARCHAR(100) NOT NULL CONSTRAINT DF_DBWL_ICONE DEFAULT (''),
                 CONSTRAINT PK_DBWL PRIMARY KEY CLUSTERED (DBWLSTAMP)
             );
         END
@@ -366,6 +391,7 @@ def ensure_dashboard_links_schema() -> None:
             CREATE UNIQUE INDEX UX_DBWU_DBW_USER ON dbo.DBWU (DBWSTAMP, USRSTAMP);
     """))
     _ensure_dashboard_links_layout_columns()
+    _ensure_dashboard_links_line_columns()
     _ensure_dashboard_links_metadata()
     db.session.commit()
     _schema_ready = True
@@ -407,10 +433,11 @@ def ensure_dashboard_links_for_user(userstamp: str) -> None:
 
 def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
     stamp = str(userstamp or "").strip()
-    grouped = {1: [], 2: [], 3: []}
+    grouped = {1: [], 2: [], 3: [], 4: []}
     if not stamp or not _table_exists("DBW") or not _table_exists("DBWL") or not _table_exists("DBWU"):
         return grouped
     _ensure_dashboard_links_layout_columns()
+    _ensure_dashboard_links_line_columns()
     has_user_col = _column_exists("DBWU", "COLUNA")
     has_user_order = _column_exists("DBWU", "ORDEM_COLUNA")
     col_expr = "ISNULL(U.COLUNA, ISNULL(W.COLUNA, 1))" if has_user_col else "ISNULL(W.COLUNA, 1)"
@@ -443,12 +470,14 @@ def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
 
         links = db.session.execute(text("""
             SELECT
+                LTRIM(RTRIM(ISNULL(DBWLSTAMP, ''))) AS DBWLSTAMP,
                 ISNULL(TEXTO, '') AS TEXTO,
                 ISNULL(URL, '') AS URL,
                 ISNULL(ABRIR_NOVA_TAB, 1) AS ABRIR_NOVA_TAB,
                 ISNULL(COR_BACKGROUND, '') AS COR_BACKGROUND,
                 ISNULL(COR_BORDER, '') AS COR_BORDER,
-                ISNULL(COR_TEXTO, '') AS COR_TEXTO
+                ISNULL(COR_TEXTO, '') AS COR_TEXTO,
+                ISNULL(ICONE, '') AS ICONE
             FROM dbo.DBWL
             WHERE DBWSTAMP = :dbwstamp
               AND ISNULL(ATIVO, 1) = 1
@@ -469,11 +498,16 @@ def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
                 "--dashboard-link-bg": link.get("COR_BACKGROUND"),
                 "--dashboard-link-border": link.get("COR_BORDER"),
                 "--dashboard-link-text": link.get("COR_TEXTO"),
+                "--dashboard-link-accent": link.get("COR_BORDER"),
             })
             link_style_attr = f' style="{escape(link_style)}"' if link_style else ""
+            link_stamp_attr = f' data-dashboard-link-id="{escape(str(link.get("DBWLSTAMP") or "").strip())}"'
+            icon_class = _safe_icon_class(link.get("ICONE"))
             link_html.append(
-                f'<a class="dashboard-link-btn" href="{escape(url)}"{target}{link_style_attr}>'
-                f'{escape(str(link.get("TEXTO") or url))}</a>'
+                f'<a class="dashboard-link-btn" href="{escape(url)}"{target}{link_style_attr}{link_stamp_attr}>'
+                f'<span class="dashboard-link-icon"><i class="fa-solid {escape(icon_class)}"></i></span>'
+                f'<span class="dashboard-link-label">{escape(str(link.get("TEXTO") or url))}</span>'
+                f'</a>'
             )
         if not link_html:
             continue

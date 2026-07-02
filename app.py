@@ -27360,6 +27360,120 @@ def create_app():
                     })
         db.session.commit()
 
+    def _dashboard_user_pref_key():
+        userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
+        login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+        return (userstamp or login)[:25]
+
+    def _normalize_dashboard_column_count(value):
+        try:
+            count = int(value or 3)
+        except Exception:
+            count = 3
+        return max(1, min(4, count))
+
+    def _normalize_dashboard_widths(widths, count):
+        count = _normalize_dashboard_column_count(count)
+        raw = widths if isinstance(widths, list) else []
+        values = []
+        for index in range(count):
+            try:
+                value = float(raw[index])
+            except Exception:
+                value = 100.0 / count
+            values.append(value if value > 0 else 100.0 / count)
+        total = sum(values) or 1.0
+        return [round((value / total) * 100, 1) for value in values]
+
+    def _ensure_dashboard_prefs_schema():
+        db.session.execute(text("""
+            IF OBJECT_ID('dbo.DASHBOARD_PREFS', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.DASHBOARD_PREFS (
+                    DASHBOARDPREFSSTAMP VARCHAR(25) NOT NULL PRIMARY KEY,
+                    USERSTAMP VARCHAR(25) NOT NULL,
+                    COLUNAS INT NOT NULL CONSTRAINT DF_DASHBOARD_PREFS_COLUNAS DEFAULT (3),
+                    LARGURAS VARCHAR(200) NOT NULL CONSTRAINT DF_DASHBOARD_PREFS_LARGURAS DEFAULT (''),
+                    OUSRDATA DATETIME NULL,
+                    USRCRIACAO VARCHAR(25) NOT NULL CONSTRAINT DF_DASHBOARD_PREFS_USRCRIACAO DEFAULT ('')
+                );
+            END
+        """))
+        db.session.execute(text("""
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = 'UQ_DASHBOARD_PREFS_USERSTAMP'
+                  AND object_id = OBJECT_ID('dbo.DASHBOARD_PREFS')
+            )
+            BEGIN
+                CREATE UNIQUE INDEX UQ_DASHBOARD_PREFS_USERSTAMP
+                    ON dbo.DASHBOARD_PREFS (USERSTAMP);
+            END
+        """))
+        db.session.commit()
+
+    def _load_dashboard_layout_prefs():
+        _ensure_dashboard_prefs_schema()
+        pref_key = _dashboard_user_pref_key()
+        if not pref_key:
+            return {'columns': 3, 'widths': [33.4, 33.3, 33.3]}
+        row = db.session.execute(text("""
+            SELECT TOP 1 COLUNAS, LARGURAS
+            FROM dbo.DASHBOARD_PREFS
+            WHERE LTRIM(RTRIM(ISNULL(USERSTAMP, ''))) = :userstamp
+        """), {'userstamp': pref_key}).mappings().first()
+        if not row:
+            return {'columns': 3, 'widths': [33.4, 33.3, 33.3]}
+        count = _normalize_dashboard_column_count(row.get('COLUNAS'))
+        try:
+            widths = json.loads(row.get('LARGURAS') or '[]')
+        except Exception:
+            widths = []
+        return {'columns': count, 'widths': _normalize_dashboard_widths(widths, count)}
+
+    def _save_dashboard_layout_prefs(settings):
+        _ensure_dashboard_prefs_schema()
+        pref_key = _dashboard_user_pref_key()
+        if not pref_key or not isinstance(settings, dict):
+            return _load_dashboard_layout_prefs()
+        count = _normalize_dashboard_column_count(settings.get('columns'))
+        widths = _normalize_dashboard_widths(settings.get('widths'), count)
+        widths_json = json.dumps(widths)
+        login = str(getattr(current_user, 'LOGIN', '') or '').strip()[:25]
+        existing = db.session.execute(text("""
+            SELECT TOP 1 DASHBOARDPREFSSTAMP
+            FROM dbo.DASHBOARD_PREFS
+            WHERE LTRIM(RTRIM(ISNULL(USERSTAMP, ''))) = :userstamp
+        """), {'userstamp': pref_key}).scalar()
+        if existing:
+            db.session.execute(text("""
+                UPDATE dbo.DASHBOARD_PREFS
+                SET COLUNAS = :colunas,
+                    LARGURAS = :larguras,
+                    OUSRDATA = GETDATE(),
+                    USRCRIACAO = :login
+                WHERE DASHBOARDPREFSSTAMP = :stamp
+            """), {
+                'stamp': existing,
+                'colunas': count,
+                'larguras': widths_json,
+                'login': login,
+            })
+        else:
+            db.session.execute(text("""
+                INSERT INTO dbo.DASHBOARD_PREFS
+                    (DASHBOARDPREFSSTAMP, USERSTAMP, COLUNAS, LARGURAS, OUSRDATA, USRCRIACAO)
+                VALUES
+                    (:stamp, :userstamp, :colunas, :larguras, GETDATE(), :login)
+            """), {
+                'stamp': uuid.uuid4().hex.upper()[:25],
+                'userstamp': pref_key,
+                'colunas': count,
+                'larguras': widths_json,
+                'login': login,
+            })
+        return {'columns': count, 'widths': widths}
+
     @app.route('/api/dashboard')
     @login_required
     def api_dashboard_widgets():
@@ -27372,6 +27486,8 @@ def create_app():
             app.logger.exception('Erro ao preparar Dashboard Links.')
         try:
             user_login = current_user.LOGIN
+            layout_prefs = _load_dashboard_layout_prefs()
+            dashboard_columns = _normalize_dashboard_column_count(layout_prefs.get('columns'))
             query = (
                 db.session.query(UsWidget, Widget)
                 .join(Widget, UsWidget.WIDGET == Widget.NOME)
@@ -27383,14 +27499,14 @@ def create_app():
                 .order_by(UsWidget.COLUNA, UsWidget.ORDEM)
                 .all()
             )
-            dashboard = {1: [], 2: [], 3: []}
+            dashboard = {col: [] for col in range(1, dashboard_columns + 1)}
             for usw, widg in query:
                 try:
                     coluna = int(getattr(usw, 'COLUNA', 1) or 1)
                 except Exception:
                     coluna = 1
                 if coluna not in dashboard:
-                    coluna = 1
+                    coluna = dashboard_columns if coluna > dashboard_columns else 1
 
                 dashboard[coluna].append({
                     'kind': 'widget',
@@ -27409,11 +27525,14 @@ def create_app():
             links_items = dashboard_links_widget_items(getattr(current_user, 'USSTAMP', ''))
             for col, items in links_items.items():
                 if int(col or 1) not in dashboard:
-                    continue
-                dashboard[int(col or 1)].extend(items or [])
+                    target_col = dashboard_columns if int(col or 1) > dashboard_columns else 1
+                else:
+                    target_col = int(col or 1)
+                dashboard[target_col].extend(items or [])
             for col in dashboard:
                 dashboard[col].sort(key=lambda item: (int(item.get('ordem') or 0), str(item.get('kind') or ''), str(item.get('id') or item.get('nome') or '')))
             payload = {str(col): widgets for col, widgets in dashboard.items()}
+            payload['layout'] = layout_prefs
             payload['links_html'] = {
                 str(col): html
                 for col, html in render_dashboard_links_widgets(getattr(current_user, 'USSTAMP', '')).items()
@@ -27431,20 +27550,28 @@ def create_app():
             ensure_dashboard_links_schema()
             body = request.get_json(silent=True) or {}
             columns = body.get('columns') or {}
+            link_orders = body.get('link_orders') or {}
+            settings = body.get('settings') or {}
             if not isinstance(columns, dict):
                 return jsonify({'error': 'Formato inválido.'}), 400
+            if not isinstance(link_orders, dict):
+                link_orders = {}
+            if not isinstance(settings, dict):
+                settings = {}
 
             user_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
             userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
             if not user_login:
                 return jsonify({'error': 'Utilizador inválido.'}), 400
+            saved_layout = _save_dashboard_layout_prefs(settings) if settings else _load_dashboard_layout_prefs()
+            dashboard_columns = _normalize_dashboard_column_count(saved_layout.get('columns'))
 
             for col_key, items in columns.items():
                 try:
                     coluna = int(col_key)
                 except Exception:
                     continue
-                if coluna not in (1, 2, 3) or not isinstance(items, list):
+                if coluna < 1 or coluna > dashboard_columns or not isinstance(items, list):
                     continue
                 for index, item in enumerate(items):
                     if not isinstance(item, dict):
@@ -27479,6 +27606,36 @@ def create_app():
                             'ordem': ordem,
                             'userstamp': userstamp,
                             'dbwstamp': item_id,
+                        })
+
+            if userstamp:
+                for dbwstamp, links in link_orders.items():
+                    widget_stamp = str(dbwstamp or '').strip()
+                    if not widget_stamp or not isinstance(links, list):
+                        continue
+                    owns_widget = db.session.execute(text("""
+                        SELECT TOP 1 1
+                        FROM dbo.DBWU
+                        WHERE LTRIM(RTRIM(ISNULL(USRSTAMP, ''))) = :userstamp
+                          AND LTRIM(RTRIM(ISNULL(DBWSTAMP, ''))) = :dbwstamp
+                    """), {'userstamp': userstamp, 'dbwstamp': widget_stamp}).first()
+                    if not owns_widget:
+                        continue
+                    seen_links = set()
+                    for index, link_id in enumerate(links):
+                        link_stamp = str(link_id or '').strip()
+                        if not link_stamp or link_stamp in seen_links:
+                            continue
+                        seen_links.add(link_stamp)
+                        db.session.execute(text("""
+                            UPDATE dbo.DBWL
+                            SET ORDEM = :ordem
+                            WHERE LTRIM(RTRIM(ISNULL(DBWSTAMP, ''))) = :dbwstamp
+                              AND LTRIM(RTRIM(ISNULL(DBWLSTAMP, ''))) = :dbwlstamp
+                        """), {
+                            'dbwstamp': widget_stamp,
+                            'dbwlstamp': link_stamp,
+                            'ordem': (index + 1) * 10,
                         })
 
             db.session.commit()
@@ -27593,6 +27750,109 @@ def create_app():
             app.logger.exception('Erro ao carregar ecrãs para atalhos do dashboard.')
             return jsonify({'error': str(exc)}), 500
 
+    @app.route('/api/dashboard/widgets/hidden', methods=['GET'])
+    @login_required
+    def api_dashboard_hidden_widgets():
+        try:
+            user_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+            if not user_login:
+                return jsonify({'widgets': []})
+            rows = db.session.execute(text("""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(W.NOME, ''))) AS NOME,
+                    ISNULL(W.TITULO, '') AS TITULO,
+                    ISNULL(W.TIPO, '') AS TIPO,
+                    ISNULL(W.FONTE, '') AS FONTE
+                FROM dbo.USWIDGETS UW
+                INNER JOIN dbo.WIDGETS W
+                    ON LTRIM(RTRIM(ISNULL(W.NOME, ''))) = LTRIM(RTRIM(ISNULL(UW.WIDGET, '')))
+                WHERE LTRIM(RTRIM(ISNULL(UW.UTILIZADOR, ''))) = :utilizador
+                  AND ISNULL(UW.VISIVEL, 0) = 0
+                  AND ISNULL(W.ATIVO, 1) = 1
+                ORDER BY ISNULL(W.TITULO, ''), ISNULL(W.NOME, '')
+            """), {'utilizador': user_login}).mappings().all()
+            return jsonify({'widgets': [dict(row) for row in rows]})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao carregar widgets invisíveis do dashboard.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/dashboard/widgets/<path:widget_id>/show', methods=['POST'])
+    @login_required
+    def api_dashboard_widget_show(widget_id):
+        try:
+            user_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+            widget_name = str(widget_id or '').strip()
+            if not user_login or not widget_name:
+                return jsonify({'error': 'Widget inválido.'}), 400
+
+            exists = db.session.execute(text("""
+                SELECT TOP 1 1
+                FROM dbo.USWIDGETS UW
+                INNER JOIN dbo.WIDGETS W
+                    ON LTRIM(RTRIM(ISNULL(W.NOME, ''))) = LTRIM(RTRIM(ISNULL(UW.WIDGET, '')))
+                WHERE LTRIM(RTRIM(ISNULL(UW.UTILIZADOR, ''))) = :utilizador
+                  AND LTRIM(RTRIM(ISNULL(UW.WIDGET, ''))) = :widget
+                  AND ISNULL(W.ATIVO, 1) = 1
+            """), {'utilizador': user_login, 'widget': widget_name}).first()
+            if not exists:
+                return jsonify({'error': 'Widget não encontrado para este utilizador.'}), 404
+
+            next_order = db.session.execute(text("""
+                SELECT ISNULL(MAX(ISNULL(ORDEM, 0)), 0) + 10
+                FROM dbo.USWIDGETS
+                WHERE LTRIM(RTRIM(ISNULL(UTILIZADOR, ''))) = :utilizador
+                  AND ISNULL(VISIVEL, 0) = 1
+                  AND ISNULL(COLUNA, 1) = 1
+            """), {'utilizador': user_login}).scalar() or 10
+            db.session.execute(text("""
+                UPDATE dbo.USWIDGETS
+                SET VISIVEL = 1,
+                    COLUNA = ISNULL(NULLIF(COLUNA, 0), 1),
+                    ORDEM = :ordem
+                WHERE LTRIM(RTRIM(ISNULL(UTILIZADOR, ''))) = :utilizador
+                  AND LTRIM(RTRIM(ISNULL(WIDGET, ''))) = :widget
+            """), {'utilizador': user_login, 'widget': widget_name, 'ordem': int(next_order or 10)})
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao mostrar widget no dashboard.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/dashboard/items/hide', methods=['POST'])
+    @login_required
+    def api_dashboard_item_hide():
+        try:
+            body = request.get_json(silent=True) or {}
+            kind = str(body.get('kind') or '').strip().lower()
+            item_id = str(body.get('id') or '').strip()
+            user_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+            userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
+            if not kind or not item_id:
+                return jsonify({'error': 'Item inválido.'}), 400
+            if kind == 'widget':
+                db.session.execute(text("""
+                    UPDATE dbo.USWIDGETS
+                    SET VISIVEL = 0
+                    WHERE LTRIM(RTRIM(ISNULL(UTILIZADOR, ''))) = :utilizador
+                      AND LTRIM(RTRIM(ISNULL(WIDGET, ''))) = :widget
+                """), {'utilizador': user_login, 'widget': item_id})
+            elif kind == 'links' and userstamp:
+                db.session.execute(text("""
+                    DELETE FROM dbo.DBWU
+                    WHERE LTRIM(RTRIM(ISNULL(USRSTAMP, ''))) = :userstamp
+                      AND LTRIM(RTRIM(ISNULL(DBWSTAMP, ''))) = :dbwstamp
+                """), {'userstamp': userstamp, 'dbwstamp': item_id})
+            else:
+                return jsonify({'error': 'Tipo de item inválido.'}), 400
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao esconder item do dashboard.')
+            return jsonify({'error': str(exc)}), 500
+
     @app.route('/api/dashboard/shortcuts', methods=['POST'])
     @login_required
     def api_dashboard_shortcut_create():
@@ -27600,13 +27860,29 @@ def create_app():
             ensure_dashboard_links_schema()
             body = request.get_json(silent=True) or {}
             menustamp = str(body.get('menustamp') or '').strip()
-            if not menustamp:
-                return jsonify({'error': 'Ecrã inválido.'}), 400
+            raw_url = str(body.get('url') or '').strip()
+            is_manual_url = bool(raw_url and not menustamp)
 
-            screens = _dashboard_accessible_shortcut_screens()
-            screen = next((item for item in screens if item.get('menustamp') == menustamp), None)
-            if not screen:
-                return jsonify({'error': 'Sem permissão para este ecrã.'}), 403
+            if is_manual_url:
+                if re.match(r'^(javascript|data|vbscript):', raw_url, flags=re.IGNORECASE):
+                    return jsonify({'error': 'URL inválido.'}), 400
+                if raw_url.startswith('/'):
+                    shortcut_url = raw_url[:500]
+                elif re.match(r'^(https?|mailto|tel):', raw_url, flags=re.IGNORECASE):
+                    shortcut_url = raw_url[:500]
+                else:
+                    shortcut_url = f"https://{raw_url}"[:500]
+                title = str(body.get('title') or '').strip()[:100]
+                if not title:
+                    title = shortcut_url.replace('https://', '').replace('http://', '').strip('/')[:100] or 'Atalho'
+                screen = {'name': title, 'url': shortcut_url, 'icon': 'fa-link'}
+            else:
+                if not menustamp:
+                    return jsonify({'error': 'Ecrã inválido.'}), 400
+                screens = _dashboard_accessible_shortcut_screens()
+                screen = next((item for item in screens if item.get('menustamp') == menustamp), None)
+                if not screen:
+                    return jsonify({'error': 'Sem permissão para este ecrã.'}), 403
 
             userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
             login = str(getattr(current_user, 'LOGIN', '') or '').strip()
@@ -27614,9 +27890,17 @@ def create_app():
                 return jsonify({'error': 'Utilizador inválido.'}), 400
 
             widget_name = f"SHORTCUTS_{userstamp}"[:100]
-            widget_title = "Atalhos"
+            widget_title = "Links"
             title = str(screen.get('name') or 'Atalho').strip()[:100]
             url = str(screen.get('url') or '').strip()[:500]
+            color = str(body.get('color') or '').strip()[:30]
+            if not re.match(r"^#[0-9A-Fa-f]{6}$", color):
+                color = "#5b9dff"
+            icon = str(screen.get('icon') or 'fa-link').strip()[:100]
+            icon = " ".join(
+                part for part in (re.sub(r"[^A-Za-z0-9_-]", "", p) for p in icon.split())
+                if part and part not in {"fa", "fa-solid", "fas"}
+            )[:100] or "fa-link"
             existing = db.session.execute(text("""
                 SELECT TOP 1 DBWSTAMP
                 FROM dbo.DBW
@@ -27703,14 +27987,16 @@ def create_app():
                         WHERE DBWSTAMP = :dbwstamp
                     """), {'dbwstamp': dbwstamp}).scalar() or 10
                     db.session.execute(text("""
-                        INSERT INTO dbo.DBWL (DBWLSTAMP, DBWSTAMP, ORDEM, TEXTO, URL, ABRIR_NOVA_TAB, ATIVO)
-                        VALUES (:dbwlstamp, :dbwstamp, :ordem, :texto, :url, 0, 1)
+                        INSERT INTO dbo.DBWL (DBWLSTAMP, DBWSTAMP, ORDEM, TEXTO, URL, ABRIR_NOVA_TAB, ATIVO, COR_BORDER, ICONE)
+                        VALUES (:dbwlstamp, :dbwstamp, :ordem, :texto, :url, 0, 1, :cor, :icone)
                     """), {
                         'dbwlstamp': uuid.uuid4().hex.upper()[:25],
                         'dbwstamp': dbwstamp,
                         'ordem': int(next_line_order or 10),
                         'texto': old_text,
                         'url': old_url,
+                        'cor': '#5b9dff',
+                        'icone': 'fa-link',
                     })
                 db.session.execute(text("""
                     DELETE FROM dbo.DBWU
@@ -27736,9 +28022,11 @@ def create_app():
                         URL = :url,
                         ABRIR_NOVA_TAB = 0,
                         ATIVO = 1,
+                        COR_BORDER = :cor,
+                        ICONE = :icone,
                         ORDEM = ISNULL(NULLIF(ORDEM, 0), 10)
                     WHERE DBWLSTAMP = :dbwlstamp
-                """), {'dbwlstamp': link_exists, 'texto': title, 'url': url})
+                """), {'dbwlstamp': link_exists, 'texto': title, 'url': url, 'cor': color, 'icone': icon})
             else:
                 next_line_order = db.session.execute(text("""
                     SELECT ISNULL(MAX(ISNULL(ORDEM, 0)), 0) + 10
@@ -27746,14 +28034,16 @@ def create_app():
                     WHERE DBWSTAMP = :dbwstamp
                 """), {'dbwstamp': dbwstamp}).scalar() or 10
                 db.session.execute(text("""
-                    INSERT INTO dbo.DBWL (DBWLSTAMP, DBWSTAMP, ORDEM, TEXTO, URL, ABRIR_NOVA_TAB, ATIVO)
-                    VALUES (:dbwlstamp, :dbwstamp, :ordem, :texto, :url, 0, 1)
+                    INSERT INTO dbo.DBWL (DBWLSTAMP, DBWSTAMP, ORDEM, TEXTO, URL, ABRIR_NOVA_TAB, ATIVO, COR_BORDER, ICONE)
+                    VALUES (:dbwlstamp, :dbwstamp, :ordem, :texto, :url, 0, 1, :cor, :icone)
                 """), {
                     'dbwlstamp': uuid.uuid4().hex.upper()[:25],
                     'dbwstamp': dbwstamp,
                     'ordem': int(next_line_order or 10),
                     'texto': title,
                     'url': url,
+                    'cor': color,
+                    'icone': icon,
                 })
 
             db.session.commit()
@@ -27761,6 +28051,46 @@ def create_app():
         except Exception as exc:
             db.session.rollback()
             app.logger.exception('Erro ao criar atalho no dashboard.')
+            return jsonify({'error': str(exc)}), 500
+
+    @app.route('/api/dashboard/shortcuts/<linkstamp>', methods=['DELETE'])
+    @login_required
+    def api_dashboard_shortcut_delete(linkstamp):
+        try:
+            ensure_dashboard_links_schema()
+            stamp = str(linkstamp or '').strip()
+            userstamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
+            if not stamp or not userstamp:
+                return jsonify({'error': 'Atalho inválido.'}), 400
+
+            row = db.session.execute(text("""
+                SELECT TOP 1 L.DBWLSTAMP
+                FROM dbo.DBWL L
+                INNER JOIN dbo.DBWU U
+                    ON LTRIM(RTRIM(ISNULL(U.DBWSTAMP, ''))) = LTRIM(RTRIM(ISNULL(L.DBWSTAMP, '')))
+                INNER JOIN dbo.DBW W
+                    ON LTRIM(RTRIM(ISNULL(W.DBWSTAMP, ''))) = LTRIM(RTRIM(ISNULL(L.DBWSTAMP, '')))
+                WHERE LTRIM(RTRIM(ISNULL(L.DBWLSTAMP, ''))) = :linkstamp
+                  AND LTRIM(RTRIM(ISNULL(U.USRSTAMP, ''))) = :userstamp
+                  AND LEFT(LTRIM(RTRIM(ISNULL(W.NOME, ''))), LEN(:prefix)) = :prefix
+            """), {
+                'linkstamp': stamp,
+                'userstamp': userstamp,
+                'prefix': f"SHORTCUTS_{userstamp}",
+            }).first()
+            if not row:
+                return jsonify({'error': 'Atalho não encontrado.'}), 404
+
+            db.session.execute(text("""
+                UPDATE dbo.DBWL
+                SET ATIVO = 0
+                WHERE LTRIM(RTRIM(ISNULL(DBWLSTAMP, ''))) = :linkstamp
+            """), {'linkstamp': stamp})
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.exception('Erro ao remover atalho do dashboard.')
             return jsonify({'error': str(exc)}), 500
 
     def _dashboard_links_has_permission(action='consultar'):
