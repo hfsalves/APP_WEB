@@ -27613,7 +27613,8 @@ def create_app():
             if not userstamp:
                 return jsonify({'error': 'Utilizador inválido.'}), 400
 
-            widget_name = f"SHORTCUT_{userstamp}_{menustamp}"[:100]
+            widget_name = f"SHORTCUTS_{userstamp}"[:100]
+            widget_title = "Atalhos"
             title = str(screen.get('name') or 'Atalho').strip()[:100]
             url = str(screen.get('url') or '').strip()[:500]
             existing = db.session.execute(text("""
@@ -27629,7 +27630,7 @@ def create_app():
                     SET TITULO = :titulo,
                         ATIVO = 1
                     WHERE DBWSTAMP = :dbwstamp
-                """), {'dbwstamp': dbwstamp, 'titulo': title})
+                """), {'dbwstamp': dbwstamp, 'titulo': widget_title})
             else:
                 db.session.execute(text("""
                     INSERT INTO dbo.DBW (DBWSTAMP, NOME, TITULO, ATIVO, COLUNA, ORDEM_COLUNA, USRCRIACAO)
@@ -27637,34 +27638,8 @@ def create_app():
                 """), {
                     'dbwstamp': dbwstamp,
                     'nome': widget_name,
-                    'titulo': title,
+                    'titulo': widget_title,
                     'usercriacao': login[:25],
-                })
-
-            link_exists = db.session.execute(text("""
-                SELECT TOP 1 DBWLSTAMP
-                FROM dbo.DBWL
-                WHERE DBWSTAMP = :dbwstamp
-            """), {'dbwstamp': dbwstamp}).scalar()
-            if link_exists:
-                db.session.execute(text("""
-                    UPDATE dbo.DBWL
-                    SET TEXTO = :texto,
-                        URL = :url,
-                        ABRIR_NOVA_TAB = 0,
-                        ATIVO = 1,
-                        ORDEM = 10
-                    WHERE DBWLSTAMP = :dbwlstamp
-                """), {'dbwlstamp': link_exists, 'texto': title, 'url': url})
-            else:
-                db.session.execute(text("""
-                    INSERT INTO dbo.DBWL (DBWLSTAMP, DBWSTAMP, ORDEM, TEXTO, URL, ABRIR_NOVA_TAB, ATIVO)
-                    VALUES (:dbwlstamp, :dbwstamp, 10, :texto, :url, 0, 1)
-                """), {
-                    'dbwlstamp': uuid.uuid4().hex.upper()[:25],
-                    'dbwstamp': dbwstamp,
-                    'texto': title,
-                    'url': url,
                 })
 
             user_link_exists = db.session.execute(text("""
@@ -27674,7 +27649,7 @@ def create_app():
                   AND LTRIM(RTRIM(ISNULL(USRSTAMP, ''))) = :userstamp
             """), {'dbwstamp': dbwstamp, 'userstamp': userstamp}).scalar()
             if not user_link_exists:
-                next_order = db.session.execute(text("""
+                next_widget_order = db.session.execute(text("""
                     SELECT ISNULL(MAX(ISNULL(ORDEM_COLUNA, 0)), 0) + 10
                     FROM dbo.DBWU
                     WHERE LTRIM(RTRIM(ISNULL(USRSTAMP, ''))) = :userstamp
@@ -27687,7 +27662,98 @@ def create_app():
                     'dbwustamp': uuid.uuid4().hex.upper()[:25],
                     'dbwstamp': dbwstamp,
                     'userstamp': userstamp,
-                    'ordem': int(next_order or 10),
+                    'ordem': int(next_widget_order or 10),
+                })
+
+            old_shortcuts = db.session.execute(text("""
+                SELECT DBWSTAMP
+                FROM dbo.DBW
+                WHERE LEFT(LTRIM(RTRIM(ISNULL(NOME, ''))), LEN(:prefix)) = :prefix
+                  AND LTRIM(RTRIM(ISNULL(DBWSTAMP, ''))) <> :dbwstamp
+            """), {'prefix': f"SHORTCUT_{userstamp}_", 'dbwstamp': dbwstamp}).mappings().all()
+            for old_widget in old_shortcuts:
+                old_stamp = str(old_widget.get('DBWSTAMP') or '').strip()
+                if not old_stamp:
+                    continue
+                old_links = db.session.execute(text("""
+                    SELECT
+                        ISNULL(TEXTO, '') AS TEXTO,
+                        ISNULL(URL, '') AS URL
+                    FROM dbo.DBWL
+                    WHERE DBWSTAMP = :oldstamp
+                      AND ISNULL(ATIVO, 1) = 1
+                    ORDER BY ISNULL(ORDEM, 0), ISNULL(TEXTO, '')
+                """), {'oldstamp': old_stamp}).mappings().all()
+                for old_link in old_links:
+                    old_url = str(old_link.get('URL') or '').strip()[:500]
+                    old_text = str(old_link.get('TEXTO') or old_url or 'Atalho').strip()[:100]
+                    if not old_url:
+                        continue
+                    exists_line = db.session.execute(text("""
+                        SELECT TOP 1 1
+                        FROM dbo.DBWL
+                        WHERE DBWSTAMP = :dbwstamp
+                          AND LTRIM(RTRIM(ISNULL(URL, ''))) = :url
+                    """), {'dbwstamp': dbwstamp, 'url': old_url}).first()
+                    if exists_line:
+                        continue
+                    next_line_order = db.session.execute(text("""
+                        SELECT ISNULL(MAX(ISNULL(ORDEM, 0)), 0) + 10
+                        FROM dbo.DBWL
+                        WHERE DBWSTAMP = :dbwstamp
+                    """), {'dbwstamp': dbwstamp}).scalar() or 10
+                    db.session.execute(text("""
+                        INSERT INTO dbo.DBWL (DBWLSTAMP, DBWSTAMP, ORDEM, TEXTO, URL, ABRIR_NOVA_TAB, ATIVO)
+                        VALUES (:dbwlstamp, :dbwstamp, :ordem, :texto, :url, 0, 1)
+                    """), {
+                        'dbwlstamp': uuid.uuid4().hex.upper()[:25],
+                        'dbwstamp': dbwstamp,
+                        'ordem': int(next_line_order or 10),
+                        'texto': old_text,
+                        'url': old_url,
+                    })
+                db.session.execute(text("""
+                    DELETE FROM dbo.DBWU
+                    WHERE DBWSTAMP = :oldstamp
+                      AND LTRIM(RTRIM(ISNULL(USRSTAMP, ''))) = :userstamp
+                """), {'oldstamp': old_stamp, 'userstamp': userstamp})
+                db.session.execute(text("""
+                    UPDATE dbo.DBW
+                    SET ATIVO = 0
+                    WHERE DBWSTAMP = :oldstamp
+                """), {'oldstamp': old_stamp})
+
+            link_exists = db.session.execute(text("""
+                SELECT TOP 1 DBWLSTAMP
+                FROM dbo.DBWL
+                WHERE DBWSTAMP = :dbwstamp
+                  AND LTRIM(RTRIM(ISNULL(URL, ''))) = :url
+            """), {'dbwstamp': dbwstamp, 'url': url}).scalar()
+            if link_exists:
+                db.session.execute(text("""
+                    UPDATE dbo.DBWL
+                    SET TEXTO = :texto,
+                        URL = :url,
+                        ABRIR_NOVA_TAB = 0,
+                        ATIVO = 1,
+                        ORDEM = ISNULL(NULLIF(ORDEM, 0), 10)
+                    WHERE DBWLSTAMP = :dbwlstamp
+                """), {'dbwlstamp': link_exists, 'texto': title, 'url': url})
+            else:
+                next_line_order = db.session.execute(text("""
+                    SELECT ISNULL(MAX(ISNULL(ORDEM, 0)), 0) + 10
+                    FROM dbo.DBWL
+                    WHERE DBWSTAMP = :dbwstamp
+                """), {'dbwstamp': dbwstamp}).scalar() or 10
+                db.session.execute(text("""
+                    INSERT INTO dbo.DBWL (DBWLSTAMP, DBWSTAMP, ORDEM, TEXTO, URL, ABRIR_NOVA_TAB, ATIVO)
+                    VALUES (:dbwlstamp, :dbwstamp, :ordem, :texto, :url, 0, 1)
+                """), {
+                    'dbwlstamp': uuid.uuid4().hex.upper()[:25],
+                    'dbwstamp': dbwstamp,
+                    'ordem': int(next_line_order or 10),
+                    'texto': title,
+                    'url': url,
                 })
 
             db.session.commit()
