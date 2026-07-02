@@ -2969,7 +2969,22 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   }
 
   .links-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .dashboard-link-btn {
+    min-height: 4.65rem;
+    padding: 0.55rem 0.5rem;
+  }
+
+  .dashboard-link-icon {
+    font-size: 0.9rem;
+    height: 1rem;
+  }
+
+  .dashboard-link-label {
+    font-size: calc(var(--sz-font-size-xs) + 1px);
   }
 }
 
