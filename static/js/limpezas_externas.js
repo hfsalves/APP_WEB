@@ -60,20 +60,23 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     body.innerHTML = rows.map((row) => {
+      const isPaidLeave = row.TIPO_LINHA === 'FOLGA_PAGA';
       const done = Number(row.TERMINADA || 0) === 1 || Number(row.TAREFA_TRATADA || 0) === 1;
       const hasPrice = Number(row.TEM_PRECO || 0) === 1;
       const priceLabel = hasPrice ? fmtMoney.format(Number(row.PRECO || 0)) : 'Sem preço';
       const custodia = Number(row.CUSTODIA || 0);
       const custodiaLabel = custodia ? fmtMoney.format(custodia) : '';
+      const statusLabel = isPaidLeave ? 'Folga paga' : (done ? 'Feita' : 'Planeada');
+      const statusClass = isPaidLeave ? 'paid-leave' : (done ? 'done' : '');
       return `
-        <tr>
+        <tr class="${isPaidLeave ? 'external-cleanings-paid-leave-row' : ''}">
           <td>${escapeHtml(row.DATA || '')}</td>
           <td>${escapeHtml(row.HORA || '')}</td>
           <td title="${escapeHtml(row.ALOJAMENTO || '')}">${escapeHtml(row.ALOJAMENTO || '')}</td>
           <td>${escapeHtml(row.TIPOLOGIA || '')}</td>
           <td>${escapeHtml(row.HOSPEDES ?? 0)}</td>
           <td>${escapeHtml(row.NOITES ?? 0)}</td>
-          <td><span class="clex-badge ${done ? 'done' : ''}">${done ? 'Feita' : 'Planeada'}</span></td>
+          <td><span class="clex-badge ${statusClass}">${statusLabel}</span></td>
           <td>${escapeHtml(row.HORAINI || '')}</td>
           <td>${escapeHtml(row.HORAFIM || '')}</td>
           <td class="text-end"><span class="${hasPrice ? '' : 'clex-badge missing'}">${escapeHtml(priceLabel)}</span></td>

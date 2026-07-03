@@ -1152,6 +1152,7 @@ def create_app():
                = LTRIM(RTRIM(ISNULL(RS.ALOJAMENTO,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
             WHERE LTRIM(RTRIM(ISNULL(RS.RESERVA,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
                 = LTRIM(RTRIM(:r)) COLLATE SQL_Latin1_General_CP1_CI_AI
+              AND ISNULL(RS.BLOQ, 0) = 0
             ORDER BY ISNULL(RS.DATAIN, RS.DATAOUT) DESC
         """), {'r': reserva_code}).mappings().first()
         if not row:
@@ -15093,7 +15094,13 @@ def create_app():
                 WHERE LTRIM(RTRIM(ISNULL(ALV.NOME,''))) = LTRIM(RTRIM(ISNULL({aloj_expr},'')))
                   AND (
                         (ISNULL(ALV.FEID_GESTOR, 0) <> 0 AND ISNULL(ALV.FEID_GESTOR, 0) = :current_feid)
-                     OR (ISNULL(ALV.FEID_GESTOR, 0) = 0 AND ISNULL({prefix}FEID, 0) = :current_feid)
+                     OR (
+                            ISNULL(ALV.FEID_GESTOR, 0) = 0
+                        AND (
+                                ISNULL({prefix}FEID, 0) = :current_feid
+                             OR ISNULL(ALV.FEID, 0) = :current_feid
+                        )
+                     )
                   )
             )
         """
@@ -27869,7 +27876,14 @@ def create_app():
                 if raw_url.startswith('/'):
                     shortcut_url = raw_url[:500]
                 elif re.match(r'^(https?|mailto|tel):', raw_url, flags=re.IGNORECASE):
-                    shortcut_url = raw_url[:500]
+                    parsed_shortcut_url = urlsplit(raw_url)
+                    if parsed_shortcut_url.scheme.lower() in {'http', 'https'} and parsed_shortcut_url.hostname in {'127.0.0.1', 'localhost'}:
+                        local_path = parsed_shortcut_url.path or '/'
+                        if parsed_shortcut_url.query:
+                            local_path = f"{local_path}?{parsed_shortcut_url.query}"
+                        shortcut_url = local_path[:500]
+                    else:
+                        shortcut_url = raw_url[:500]
                 else:
                     shortcut_url = f"https://{raw_url}"[:500]
                 title = str(body.get('title') or '').strip()[:100]
@@ -39127,9 +39141,38 @@ OPTION (MAXRECURSION 32767);
                 ORDER BY CAST(LP.DATA AS date), ISNULL(LP.HORA,''), ISNULL(LP.ALOJAMENTO,'')
             """), params).mappings().all()
 
+            paid_leave_weekend_where = ''
+            if only_weekend:
+                paid_leave_weekend_where = "AND DATEDIFF(day, '19000101', CAST(ND.DATA AS date)) % 7 IN (5, 6)"
+            paid_leave_rows = db.session.execute(text(f"""
+                SELECT
+                    LTRIM(RTRIM(ISNULL(ND.NDSTAMP,''))) AS NDSTAMP,
+                    CAST(ND.DATA AS date) AS DATA,
+                    LTRIM(RTRIM(ISNULL(ND.UTILIZADOR,''))) AS UTILIZADOR,
+                    LTRIM(RTRIM(ISNULL(US.NOME,''))) AS NOME,
+                    LTRIM(RTRIM(ISNULL(ND.OBS,''))) AS OBS,
+                    ISNULL(ND.VALOR,0) AS VALOR
+                FROM dbo.ND AS ND
+                LEFT JOIN dbo.US AS US
+                  ON LTRIM(RTRIM(ISNULL(US.LOGIN,''))) = LTRIM(RTRIM(ISNULL(ND.UTILIZADOR,'')))
+                LEFT JOIN dbo.EQ AS EQ
+                  ON UPPER(LTRIM(RTRIM(ISNULL(EQ.NOME,'')))) = UPPER(LTRIM(RTRIM(ISNULL(US.NOME,''))))
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(ND.TIPO,'')))) = 'FOLGA'
+                  AND ISNULL(ND.VALOR,0) <> 0
+                  AND CAST(ND.DATA AS date) BETWEEN :data_ini AND :data_fim
+                  AND (
+                        UPPER(LTRIM(RTRIM(ISNULL(EQ.NOME,'')))) = UPPER(:equipa)
+                     OR UPPER(LTRIM(RTRIM(ISNULL(US.NOME,'')))) = UPPER(:equipa)
+                     OR UPPER(LTRIM(RTRIM(ISNULL(ND.UTILIZADOR,'')))) = UPPER(:equipa)
+                  )
+                  {paid_leave_weekend_where}
+                ORDER BY CAST(ND.DATA AS date), ND.NDSTAMP
+            """), params).mappings().all()
+
             out = []
             total = 0.0
             custodia_total = 0.0
+            paid_leave_total = 0.0
             missing_prices = 0
             custodia_dates = set()
             for r in rows:
@@ -39160,12 +39203,48 @@ OPTION (MAXRECURSION 32767);
                     'PRECO': round(preco, 2),
                     'CUSTODIA': round(custodia_linha, 2),
                     'TEM_PRECO': int(r.get('TEM_PRECO') or 0),
+                    'TIPO_LINHA': 'LIMPEZA',
                 })
+
+            for r in paid_leave_rows:
+                data_val = r.get('DATA')
+                data_str = data_val.strftime('%Y-%m-%d') if isinstance(data_val, (date, datetime)) else (str(data_val)[:10] if data_val else '')
+                valor = float(r.get('VALOR') or 0)
+                obs = (r.get('OBS') or '').strip()
+                paid_leave_total += valor
+                total += valor
+                out.append({
+                    'LPSTAMP': r.get('NDSTAMP') or '',
+                    'DATA': data_str,
+                    'HORA': '',
+                    'EQUIPA': equipa,
+                    'ALOJAMENTO': obs or 'Folga paga',
+                    'TIPOLOGIA': '',
+                    'HOSPEDES': 0,
+                    'NOITES': 0,
+                    'OBS': (r.get('NOME') or r.get('UTILIZADOR') or '').strip(),
+                    'TERMINADA': 1,
+                    'TAREFA_TRATADA': 1,
+                    'HORAINI': '',
+                    'HORAFIM': '',
+                    'PRECO': round(valor, 2),
+                    'CUSTODIA': 0.0,
+                    'TEM_PRECO': 1,
+                    'TIPO_LINHA': 'FOLGA_PAGA',
+                })
+
+            out.sort(key=lambda item: (
+                item.get('DATA') or '',
+                item.get('HORA') or '',
+                1 if item.get('TIPO_LINHA') == 'FOLGA_PAGA' else 0,
+                item.get('ALOJAMENTO') or '',
+            ))
 
             return jsonify({
                 'rows': out,
                 'summary': {
-                    'count': len(out),
+                    'count': len(rows),
+                    'rows_count': len(out),
                     'total': round(total, 2),
                     'missing_prices': missing_prices,
                     'equipa': equipa,
@@ -39173,6 +39252,8 @@ OPTION (MAXRECURSION 32767);
                     'data_fim': data_fim.strftime('%Y-%m-%d'),
                     'custodia_dia': round(custodia_dia, 2),
                     'custodia_total': round(custodia_total, 2),
+                    'folgas_pagas_count': len(paid_leave_rows),
+                    'folgas_pagas_total': round(paid_leave_total, 2),
                 }
             })
         except Exception as e:
