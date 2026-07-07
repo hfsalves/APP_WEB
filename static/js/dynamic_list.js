@@ -263,7 +263,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }).join(', ');
       const canImport = row.can_import !== false;
       const status = row.status || '';
-      const statusHtml = !canImport && status
+      const emailMissing = !String(row.email || '').trim();
+      const statusHtml = ((!canImport || emailMissing) && status)
         ? `<span class="sz_phc_users_import_reason">${escapeHtml(status)}</span>`
         : '';
       return `

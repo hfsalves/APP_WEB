@@ -164,6 +164,14 @@ def _local_users_by_email() -> dict[str, dict]:
     return {str(row.get("EMAIL") or "").strip().upper(): dict(row) for row in rows}
 
 
+def _generated_missing_email(login: str) -> str:
+    clean_login = re.sub(r"[^A-Za-z0-9._-]+", "", str(login or "").strip()) or "user"
+    clean_login = clean_login[:40].strip(".-_") or "user"
+    stamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+    suffix = uuid.uuid4().hex[:6].upper()
+    return f"sem-email-{clean_login}-{stamp}-{suffix}@phc.local"[:120]
+
+
 def _aggregate_source_users() -> tuple[list[dict], list[str], list[dict]]:
     warnings: list[str] = []
     sources = _active_fe_sources()
@@ -217,8 +225,7 @@ def _aggregate_source_users() -> tuple[list[dict], list[str], list[dict]]:
         item["status"] = "Novo"
         email_key = str(item.get("email") or "").strip().upper()
         if not email_key:
-            item["can_import"] = False
-            item["status"] = "Sem email"
+            item["status"] = "Sem email; será gerado ao importar"
         else:
             email_user = local_emails.get(email_key)
             if email_user and str(email_user.get("LOGIN") or "").strip().upper() != str(item.get("login") or "").strip().upper():
@@ -274,7 +281,7 @@ def _insert_or_update_user(row: dict) -> tuple[str, bool]:
     email = str(row.get("email") or "").strip()[:120]
     password = str(row.get("password") or "").strip()[:128]
     if not email:
-        raise ValueError("Email em falta no PHC.")
+        email = _generated_missing_email(login)
     local = _find_local_user_by_login(login)
     if local:
         usstamp = str(local.get("USSTAMP") or "").strip()

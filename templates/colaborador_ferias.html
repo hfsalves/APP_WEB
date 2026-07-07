@@ -1,0 +1,862 @@
+{% extends "base.html" %}
+
+{% block title %}Férias{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <script>
+    (() => {
+      const viewport = document.querySelector('meta[name="viewport"]');
+      const content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+      if (viewport) viewport.setAttribute('content', content);
+    })();
+  </script>
+{% endblock %}
+
+{% block content %}
+<div class="sz_page vacation-page">
+  <div class="sz_page_container vacation-shell">
+    <header class="sz_contextbar sz_page_contextbar vacation-contextbar">
+      <div class="sz_contextbar_left vacation-context-main">
+        <div class="sz_page_title">Marcação de férias</div>
+        <div class="sz_page_subtitle">
+          N.º {{ colaborador.peno or '-' }} · {{ colaborador.penome or 'Sem ficha associada' }} · {{ colaborador.empresa or 'Sem empresa' }}
+        </div>
+      </div>
+    </header>
+
+    <main class="sz_page_body vacation-body">
+      {% if not colaborador.completo %}
+        <section class="vacation-alert" role="status">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <div>
+            <strong>Ficha de colaborador incompleta</strong>
+            <span>Confirma os campos US.PENO, US.PENOME e US.PEFEID para associar as férias ao colaborador.</span>
+          </div>
+        </section>
+      {% endif %}
+      {% if vacation_warning %}
+        <section class="vacation-alert" role="status">
+          <i class="fa-solid fa-circle-info"></i>
+          <div>
+            <strong>Férias PHC</strong>
+            <span>{{ vacation_warning }}</span>
+          </div>
+        </section>
+      {% endif %}
+
+      <section class="vacation-summary" aria-label="Resumo">
+        <div class="vacation-summary-item-year">
+          <span class="vacation-summary-label">Ano</span>
+          <div class="vacation-yearbar" aria-label="Ano">
+            <button type="button" class="sz_button sz_button_ghost vacation-icon-button" id="vacationPrevYear" aria-label="Ano anterior">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <strong class="vacation-year-pill" id="vacationYearLabel">{{ year }}</strong>
+            <button type="button" class="sz_button sz_button_ghost vacation-icon-button" id="vacationNextYear" aria-label="Ano seguinte">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        <div>
+          <span class="vacation-summary-label">Marcados</span>
+          <strong><span id="vacationMarkedCount">0</span> dias</strong>
+        </div>
+        <div class="vacation-legend">
+          <span><i class="vacation-legend-dot is-weekend"></i>Fim de semana</span>
+          <span><i class="vacation-legend-dot is-holiday"></i>Feriado</span>
+          <span><i class="vacation-legend-dot is-vacation"></i>Férias</span>
+          <span><i class="vacation-legend-dot is-pending"></i>Por aprovar</span>
+        </div>
+      </section>
+
+      <section class="vacation-calendar-panel" aria-label="Calendário anual">
+        <div id="vacationCalendarGrid" class="vacation-calendar-grid"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="vacation-month-modal" id="vacationMonthModal" hidden>
+    <div class="vacation-month-modal-backdrop" data-vacation-modal-close></div>
+    <section class="vacation-month-dialog" role="dialog" aria-modal="true" aria-labelledby="vacationMonthModalTitle">
+      <header class="vacation-month-dialog-header">
+        <div>
+          <div class="vacation-month-dialog-title" id="vacationMonthModalTitle">Mês</div>
+          <div class="vacation-month-dialog-subtitle" id="vacationMonthModalSubtitle"></div>
+        </div>
+        <button type="button" class="sz_button sz_button_ghost vacation-modal-close" data-vacation-modal-close aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </header>
+      <div class="vacation-month-detail-weekdays" aria-hidden="true"></div>
+      <div class="vacation-month-detail-days" id="vacationMonthModalDays"></div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .vacation-page {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
+    scrollbar-width: none;
+  }
+
+  .vacation-page::-webkit-scrollbar,
+  .vacation-body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .vacation-shell {
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: 100%;
+    max-width: none;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    padding-bottom: var(--sz-space-4);
+  }
+
+  .vacation-contextbar {
+    gap: var(--sz-space-3);
+  }
+
+  .vacation-context-main {
+    min-width: 0;
+  }
+
+  .vacation-yearbar {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    flex: 0 0 auto;
+    margin-top: .15rem;
+  }
+
+  .vacation-icon-button {
+    width: 2.2rem;
+    height: 2.2rem;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .vacation-year-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 4.35rem;
+    height: 2.2rem;
+    padding: 0 .6rem;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+    color: var(--sz-color-text);
+    font-size: 1rem;
+    font-weight: var(--sz-font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .vacation-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sz-space-3);
+    min-height: 0;
+    max-width: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .vacation-alert,
+  .vacation-summary,
+  .vacation-calendar-panel {
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: var(--sz-color-surface);
+  }
+
+  .vacation-alert {
+    display: flex;
+    gap: var(--sz-space-3);
+    align-items: flex-start;
+    padding: var(--sz-space-3);
+    color: var(--sz-color-text);
+    background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 12%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 44%, var(--sz-color-border));
+  }
+
+  .vacation-alert i {
+    margin-top: .15rem;
+    color: var(--sz-color-warning, #f59e0b);
+  }
+
+  .vacation-alert strong,
+  .vacation-alert span {
+    display: block;
+  }
+
+  .vacation-alert span {
+    margin-top: .18rem;
+    color: var(--sz-color-text-secondary);
+    font-size: var(--sz-font-size-sm);
+  }
+
+  .vacation-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--sz-space-3);
+    align-items: center;
+    padding: var(--sz-space-3);
+  }
+
+  .vacation-summary-item-year {
+    min-width: 0;
+  }
+
+  .vacation-summary-label {
+    display: block;
+    margin-bottom: .1rem;
+    color: var(--sz-color-text-secondary);
+    font-size: .72rem;
+    font-weight: var(--sz-font-weight-semibold);
+    text-transform: uppercase;
+  }
+
+  .vacation-summary strong {
+    color: var(--sz-color-text);
+    font-size: 1.12rem;
+    line-height: 1.1;
+  }
+
+  .vacation-legend {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .55rem .9rem;
+    align-items: center;
+    color: var(--sz-color-text-secondary);
+    font-size: .78rem;
+  }
+
+  .vacation-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+  }
+
+  .vacation-legend-dot {
+    width: .75rem;
+    height: .75rem;
+    border-radius: 999px;
+    border: 1px solid var(--sz-color-border);
+  }
+
+  .vacation-legend-dot.is-weekend {
+    background: color-mix(in srgb, var(--sz-color-text-secondary) 22%, var(--sz-color-surface));
+  }
+
+  .vacation-legend-dot.is-vacation {
+    background: var(--sz-color-primary);
+    border-color: var(--sz-color-primary);
+  }
+
+  .vacation-legend-dot.is-pending {
+    background: color-mix(in srgb, var(--sz-color-primary) 38%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 54%, var(--sz-color-border));
+  }
+
+  .vacation-legend-dot.is-holiday {
+    background: color-mix(in srgb, var(--sz-color-danger, #ef4444) 48%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-danger, #ef4444) 60%, var(--sz-color-border));
+  }
+
+  .vacation-calendar-panel {
+    padding: var(--sz-space-3);
+    min-width: 0;
+  }
+
+  .vacation-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .7rem;
+    min-width: 0;
+  }
+
+  .vacation-month {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-md);
+    background: color-mix(in srgb, var(--sz-color-surface) 86%, var(--sz-color-bg-main));
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+  }
+
+  .vacation-month:hover,
+  .vacation-month:focus-visible {
+    border-color: color-mix(in srgb, var(--sz-color-primary) 62%, var(--sz-color-border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--sz-color-primary) 18%, transparent);
+    outline: none;
+  }
+
+  .vacation-month:active {
+    transform: scale(.99);
+  }
+
+  .vacation-month-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .35rem;
+    min-height: 2rem;
+    padding: .45rem .55rem .35rem;
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .vacation-month-name {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--sz-color-text);
+    font-size: .8rem;
+    font-weight: var(--sz-font-weight-semibold);
+    line-height: 1.05;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .vacation-month-count {
+    color: var(--sz-color-text-secondary);
+    font-size: .68rem;
+    font-weight: var(--sz-font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .vacation-weekdays,
+  .vacation-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .vacation-weekdays {
+    padding: .35rem .45rem .1rem;
+    color: var(--sz-color-text-secondary);
+    font-size: .54rem;
+    font-weight: var(--sz-font-weight-semibold);
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .vacation-days {
+    gap: .16rem;
+    padding: .35rem .45rem .55rem;
+  }
+
+  .vacation-day {
+    aspect-ratio: 1;
+    min-width: 0;
+    border: 1px solid color-mix(in srgb, var(--sz-color-border) 76%, transparent);
+    border-radius: .22rem;
+    background: color-mix(in srgb, var(--sz-color-text-secondary) 10%, var(--sz-color-surface));
+  }
+
+  .vacation-day.is-empty {
+    background: transparent;
+  }
+
+  .vacation-day.is-weekend {
+    background: color-mix(in srgb, var(--sz-color-text-secondary) 30%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-text-secondary) 32%, var(--sz-color-border));
+  }
+
+  .vacation-day.is-holiday {
+    background: color-mix(in srgb, var(--sz-color-danger, #ef4444) 30%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-danger, #ef4444) 54%, var(--sz-color-border));
+  }
+
+  .vacation-day.is-vacation {
+    background: var(--sz-color-primary);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 72%, white);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, white 22%, transparent);
+  }
+
+  .vacation-day.is-pending {
+    background: color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, white 14%, transparent);
+  }
+
+  .vacation-day.is-weekend.is-vacation,
+  .vacation-day.is-holiday.is-vacation,
+  .vacation-day.is-weekend.is-pending,
+  .vacation-day.is-holiday.is-pending {
+    background: color-mix(in srgb, var(--sz-color-primary) 80%, var(--sz-color-text-secondary));
+  }
+
+  .vacation-month-modal[hidden] {
+    display: none;
+  }
+
+  body.vacation-modal-open {
+    overflow: hidden;
+  }
+
+  .vacation-month-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: grid;
+    place-items: center;
+    padding: var(--sz-space-4);
+  }
+
+  .vacation-month-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgb(2 8 23 / 68%);
+    backdrop-filter: blur(6px);
+  }
+
+  .vacation-month-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(34rem, 100%);
+    max-height: min(88vh, 44rem);
+    overflow: hidden;
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-lg, 1rem);
+    background: var(--sz-color-surface);
+    box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 42%);
+  }
+
+  .vacation-month-dialog-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sz-space-3);
+    padding: var(--sz-space-4) var(--sz-space-4) var(--sz-space-3);
+    border-bottom: 1px solid var(--sz-color-border);
+  }
+
+  .vacation-month-dialog-title {
+    color: var(--sz-color-text);
+    font-size: 1.1rem;
+    font-weight: var(--sz-font-weight-semibold);
+  }
+
+  .vacation-month-dialog-subtitle {
+    margin-top: .15rem;
+    color: var(--sz-color-text-secondary);
+    font-size: .82rem;
+  }
+
+  .vacation-modal-close {
+    width: 2.35rem;
+    height: 2.35rem;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .vacation-month-detail-weekdays,
+  .vacation-month-detail-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .vacation-month-detail-weekdays {
+    gap: .35rem;
+    padding: var(--sz-space-3) var(--sz-space-4) .35rem;
+    color: var(--sz-color-text-secondary);
+    font-size: .72rem;
+    font-weight: var(--sz-font-weight-semibold);
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .vacation-month-detail-days {
+    gap: .35rem;
+    padding: .35rem var(--sz-space-4) var(--sz-space-4);
+  }
+
+  .vacation-month-detail-day {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    aspect-ratio: 1;
+    min-width: 0;
+    padding: .38rem;
+    border: 1px solid color-mix(in srgb, var(--sz-color-border) 82%, transparent);
+    border-radius: .5rem;
+    background: color-mix(in srgb, var(--sz-color-text-secondary) 9%, var(--sz-color-surface));
+    color: var(--sz-color-text);
+    font-size: .86rem;
+    font-weight: var(--sz-font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .vacation-month-detail-day.is-empty {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .vacation-month-detail-day.is-weekend {
+    background: color-mix(in srgb, var(--sz-color-text-secondary) 30%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-text-secondary) 36%, var(--sz-color-border));
+    color: color-mix(in srgb, var(--sz-color-text) 72%, var(--sz-color-text-secondary));
+  }
+
+  .vacation-month-detail-day.is-holiday {
+    background: color-mix(in srgb, var(--sz-color-danger, #ef4444) 30%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-danger, #ef4444) 58%, var(--sz-color-border));
+  }
+
+  .vacation-month-detail-day.is-vacation {
+    background: var(--sz-color-primary);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 72%, white);
+    color: white;
+  }
+
+  .vacation-month-detail-day.is-pending {
+    background: color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+  }
+
+  @media (max-width: 768px) {
+    .vacation-shell {
+      padding: var(--sz-space-3);
+      padding-top: calc(var(--sz-space-3) + env(safe-area-inset-top, 0px));
+      padding-bottom: calc(var(--sz-space-3) + env(safe-area-inset-bottom, 0px));
+    }
+
+    .vacation-contextbar {
+      display: block;
+      align-items: center;
+      padding: var(--sz-space-3);
+    }
+
+    .vacation-yearbar {
+      display: grid;
+      grid-template-columns: auto auto auto;
+      justify-content: start;
+      width: auto;
+      gap: .3rem;
+    }
+
+    .vacation-icon-button {
+      width: 2rem;
+      height: 2rem;
+    }
+
+    .vacation-year-pill {
+      min-width: 3.85rem;
+      height: 2rem;
+      padding: 0 .45rem;
+    }
+
+    .vacation-summary {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: .65rem .9rem;
+    }
+
+    .vacation-calendar-panel {
+      padding: .65rem;
+    }
+
+    .vacation-calendar-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .42rem;
+    }
+
+    .vacation-month-header {
+      min-height: 1.75rem;
+      padding: .38rem .42rem .3rem;
+    }
+
+    .vacation-month-name {
+      font-size: clamp(.62rem, 2.5vw, .76rem);
+    }
+
+    .vacation-month-count {
+      font-size: .58rem;
+    }
+
+    .vacation-weekdays {
+      padding: .25rem .28rem 0;
+      font-size: .45rem;
+    }
+
+    .vacation-days {
+      gap: .09rem;
+      padding: .28rem .28rem .38rem;
+    }
+
+    .vacation-day {
+      border-radius: .16rem;
+    }
+
+    .vacation-month-modal {
+      padding: .75rem;
+      padding-top: calc(.75rem + env(safe-area-inset-top, 0px));
+      padding-bottom: calc(.75rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    .vacation-month-dialog {
+      width: 100%;
+      max-width: 24rem;
+      border-radius: 1rem;
+    }
+
+    .vacation-month-dialog-header {
+      padding: .9rem .9rem .75rem;
+    }
+
+    .vacation-month-detail-weekdays {
+      gap: .22rem;
+      padding: .7rem .9rem .25rem;
+      font-size: .64rem;
+    }
+
+    .vacation-month-detail-days {
+      gap: .22rem;
+      padding: .25rem .9rem .9rem;
+    }
+
+    .vacation-month-detail-day {
+      border-radius: .38rem;
+      padding: .28rem;
+      font-size: .78rem;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .vacation-calendar-grid {
+      gap: .32rem;
+    }
+
+    .vacation-weekdays {
+      font-size: .4rem;
+    }
+  }
+</style>
+
+<script>
+  (() => {
+    const initialYear = Number({{ year|tojson }}) || new Date().getFullYear();
+    let vacationDays = new Set({{ vacation_days|tojson }});
+    let pendingVacationDays = new Set({{ vacation_pending_days|tojson }});
+    let holidayDays = new Set({{ vacation_holiday_days|tojson }});
+    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const weekLabels = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+    let currentYear = initialYear;
+
+    const grid = document.getElementById('vacationCalendarGrid');
+    const yearLabel = document.getElementById('vacationYearLabel');
+    const markedCount = document.getElementById('vacationMarkedCount');
+    const prevBtn = document.getElementById('vacationPrevYear');
+    const nextBtn = document.getElementById('vacationNextYear');
+    const monthModal = document.getElementById('vacationMonthModal');
+    const monthModalTitle = document.getElementById('vacationMonthModalTitle');
+    const monthModalSubtitle = document.getElementById('vacationMonthModalSubtitle');
+    const monthModalDays = document.getElementById('vacationMonthModalDays');
+    const monthModalWeekdays = document.querySelector('.vacation-month-detail-weekdays');
+
+    const pad = (value) => String(value).padStart(2, '0');
+    const isoDate = (year, monthIndex, day) => `${year}-${pad(monthIndex + 1)}-${pad(day)}`;
+    const escapeHtml = (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    function monthHtml(year, monthIndex) {
+      const firstDay = new Date(year, monthIndex, 1);
+      const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+      const mondayFirstOffset = (firstDay.getDay() + 6) % 7;
+      let vacationCount = 0;
+      const cells = [];
+
+      for (let i = 0; i < mondayFirstOffset; i += 1) {
+        cells.push('<span class="vacation-day is-empty" aria-hidden="true"></span>');
+      }
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const date = new Date(year, monthIndex, day);
+        const key = isoDate(year, monthIndex, day);
+        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+        const isHoliday = holidayDays.has(key);
+        const isVacation = vacationDays.has(key) && !isWeekend && !isHoliday;
+        const isPending = pendingVacationDays.has(key) && !isVacation && !isWeekend && !isHoliday;
+        if (isVacation || isPending) vacationCount += 1;
+        const classes = [
+          'vacation-day',
+          isWeekend ? 'is-weekend' : '',
+          isHoliday ? 'is-holiday' : '',
+          isVacation ? 'is-vacation' : '',
+          isPending ? 'is-pending' : '',
+        ].filter(Boolean).join(' ');
+        cells.push(`<span class="${classes}" title="${escapeHtml(key)}"></span>`);
+      }
+
+      while (cells.length % 7 !== 0) {
+        cells.push('<span class="vacation-day is-empty" aria-hidden="true"></span>');
+      }
+
+      return `
+        <article class="vacation-month" role="button" tabindex="0" data-month-index="${monthIndex}" aria-label="Abrir ${escapeHtml(monthNames[monthIndex])} de ${year}">
+          <div class="vacation-month-header">
+            <div class="vacation-month-name">${escapeHtml(monthNames[monthIndex])}</div>
+            <div class="vacation-month-count">${vacationCount || ''}</div>
+          </div>
+          <div class="vacation-weekdays" aria-hidden="true">
+            ${weekLabels.map((label) => `<span>${label}</span>`).join('')}
+          </div>
+          <div class="vacation-days">
+            ${cells.join('')}
+          </div>
+        </article>
+      `;
+    }
+
+    function detailedMonthHtml(year, monthIndex) {
+      const firstDay = new Date(year, monthIndex, 1);
+      const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+      const mondayFirstOffset = (firstDay.getDay() + 6) % 7;
+      const cells = [];
+
+      for (let i = 0; i < mondayFirstOffset; i += 1) {
+        cells.push('<span class="vacation-month-detail-day is-empty" aria-hidden="true"></span>');
+      }
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const date = new Date(year, monthIndex, day);
+        const key = isoDate(year, monthIndex, day);
+        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+        const isHoliday = holidayDays.has(key);
+        const isVacation = vacationDays.has(key) && !isWeekend && !isHoliday;
+        const isPending = pendingVacationDays.has(key) && !isVacation && !isWeekend && !isHoliday;
+        const classes = [
+          'vacation-month-detail-day',
+          isWeekend ? 'is-weekend' : '',
+          isHoliday ? 'is-holiday' : '',
+          isVacation ? 'is-vacation' : '',
+          isPending ? 'is-pending' : '',
+        ].filter(Boolean).join(' ');
+        cells.push(`<span class="${classes}" title="${escapeHtml(key)}">${day}</span>`);
+      }
+
+      while (cells.length % 7 !== 0) {
+        cells.push('<span class="vacation-month-detail-day is-empty" aria-hidden="true"></span>');
+      }
+
+      return cells.join('');
+    }
+
+    function openMonthModal(monthIndex) {
+      if (!monthModal || !monthModalDays || !monthModalTitle) return;
+      monthModalTitle.textContent = `${monthNames[monthIndex]} ${currentYear}`;
+      if (monthModalSubtitle) monthModalSubtitle.textContent = 'Férias, feriados e fins de semana';
+      if (monthModalWeekdays) {
+        monthModalWeekdays.innerHTML = weekLabels.map((label) => `<span>${label}</span>`).join('');
+      }
+      monthModalDays.innerHTML = detailedMonthHtml(currentYear, monthIndex);
+      monthModal.hidden = false;
+      document.body.classList.add('vacation-modal-open');
+      monthModal.querySelector('.vacation-modal-close')?.focus();
+    }
+
+    function closeMonthModal() {
+      if (!monthModal) return;
+      monthModal.hidden = true;
+      document.body.classList.remove('vacation-modal-open');
+    }
+
+    function render() {
+      if (!grid) return;
+      grid.innerHTML = Array.from({ length: 12 }, (_, index) => monthHtml(currentYear, index)).join('');
+      if (yearLabel) yearLabel.textContent = String(currentYear);
+      if (markedCount) {
+        const count = [...new Set([...vacationDays, ...pendingVacationDays])]
+          .filter((key) => key.startsWith(`${currentYear}-`)).length;
+        markedCount.textContent = String(count);
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.set('ano', String(currentYear));
+      window.history.replaceState({}, '', url.toString());
+    }
+
+    async function loadYear(year) {
+      currentYear = year;
+      if (grid) {
+        grid.style.opacity = '.58';
+        grid.style.pointerEvents = 'none';
+      }
+      try {
+        const response = await fetch(`/api/colaborador/ferias?${new URLSearchParams({ ano: String(year) }).toString()}`);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || payload.warning || `Erro ${response.status}`);
+        vacationDays = new Set(Array.isArray(payload.vacation_days) ? payload.vacation_days : []);
+        pendingVacationDays = new Set(Array.isArray(payload.pending_vacation_days) ? payload.pending_vacation_days : []);
+        holidayDays = new Set(Array.isArray(payload.holiday_days) ? payload.holiday_days : []);
+      } catch (error) {
+        vacationDays = new Set();
+        pendingVacationDays = new Set();
+        holidayDays = new Set();
+      } finally {
+        if (grid) {
+          grid.style.opacity = '';
+          grid.style.pointerEvents = '';
+        }
+      }
+      render();
+    }
+
+    prevBtn?.addEventListener('click', () => {
+      loadYear(currentYear - 1);
+    });
+
+    nextBtn?.addEventListener('click', () => {
+      loadYear(currentYear + 1);
+    });
+
+    grid?.addEventListener('click', (event) => {
+      const month = event.target.closest('.vacation-month');
+      if (!month) return;
+      const monthIndex = Number(month.dataset.monthIndex);
+      if (Number.isInteger(monthIndex)) openMonthModal(monthIndex);
+    });
+
+    grid?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const month = event.target.closest('.vacation-month');
+      if (!month) return;
+      event.preventDefault();
+      const monthIndex = Number(month.dataset.monthIndex);
+      if (Number.isInteger(monthIndex)) openMonthModal(monthIndex);
+    });
+
+    monthModal?.addEventListener('click', (event) => {
+      if (event.target.closest('[data-vacation-modal-close]')) closeMonthModal();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && monthModal && !monthModal.hidden) closeMonthModal();
+    });
+
+    render();
+  })();
+</script>
+{% endblock %}

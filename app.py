@@ -25620,6 +25620,61 @@ def create_app():
             today=date.today().isoformat(),
         )
 
+    @app.route('/ferias')
+    @app.route('/colaborador/ferias')
+    @login_required
+    def colaborador_ferias_page():
+        from services.colaborador_ferias_service import list_colaborador_ferias
+
+        year = _to_int(request.args.get('ano'), date.today().year)
+        if year < 2000 or year > 2100:
+            year = date.today().year
+        try:
+            payload = list_colaborador_ferias(current_user, year)
+        except Exception:
+            app.logger.exception('Erro ao carregar colaborador para férias.')
+            payload = {
+                'year': year,
+                'colaborador': {
+                    'peno': 0,
+                    'penome': '',
+                    'empresa': '',
+                    'completo': False,
+                },
+                'vacation_days': [],
+                'pending_vacation_days': [],
+                'holiday_days': [],
+                'periods': [],
+                'marked_days': 0,
+                'working_days': 0,
+                'warning': 'Erro ao carregar férias.',
+            }
+        return render_template(
+            'colaborador_ferias.html',
+            page_title='Férias',
+            colaborador=payload.get('colaborador') or {},
+            year=payload.get('year') or year,
+            vacation_days=payload.get('vacation_days') or [],
+            vacation_pending_days=payload.get('pending_vacation_days') or [],
+            vacation_holiday_days=payload.get('holiday_days') or [],
+            vacation_periods=payload.get('periods') or [],
+            vacation_working_days=payload.get('working_days') or 0,
+            vacation_warning=payload.get('warning') or '',
+        )
+
+    @app.route('/api/colaborador/ferias')
+    @login_required
+    def api_colaborador_ferias():
+        from services.colaborador_ferias_service import list_colaborador_ferias
+
+        try:
+            payload = list_colaborador_ferias(current_user, request.args.get('ano'))
+            return jsonify(payload)
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao listar férias do colaborador.')
+            return jsonify({'ok': False, 'error': 'Erro ao listar férias.'}), 500
+
     @app.route('/api/colaborador/despesas/line', methods=['POST'])
     @login_required
     def api_colaborador_despesas_line_save():
