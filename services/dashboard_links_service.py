@@ -449,7 +449,7 @@ def ensure_dashboard_links_for_user(userstamp: str) -> None:
 
 def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
     stamp = str(userstamp or "").strip()
-    grouped = {1: [], 2: [], 3: [], 4: []}
+    grouped = {1: [], 2: [], 3: [], 4: [], 5: []}
     if not stamp or not _table_exists("DBW") or not _table_exists("DBWL") or not _table_exists("DBWU"):
         return grouped
     _ensure_dashboard_links_layout_columns()

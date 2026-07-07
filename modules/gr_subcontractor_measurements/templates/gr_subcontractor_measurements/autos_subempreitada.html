@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Autos de Subempreitada{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('gr_subcontractor_measurements.static', filename='autos_subempreitada.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sz_page gr-submeasure-page" id="grSubmeasurePage">
+  <div class="sz_page_container gr-submeasure-shell">
+    <header class="sz_contextbar sz_page_contextbar gr-submeasure-contextbar">
+      <div class="sz_contextbar_left">
+        <div class="sz_page_title">Autos de Subempreitada</div>
+        <div class="sz_breadcrumbs">GR360 / SITUATIONS DE TRAVAUX FOURNISSEURS</div>
+      </div>
+      <div class="sz_contextbar_right">
+        <div class="gr-submeasure-filters">
+          <div class="sz_field gr-submeasure-company">
+            <label class="sz_label" for="submeasureCompany">Empresa</label>
+            <select id="submeasureCompany" class="sz_select"></select>
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="submeasureDateStart">De</label>
+            <input id="submeasureDateStart" class="sz_input" type="date">
+          </div>
+          <div class="sz_field">
+            <label class="sz_label" for="submeasureDateEnd">Ate</label>
+            <input id="submeasureDateEnd" class="sz_input" type="date">
+          </div>
+          <div class="sz_field gr-submeasure-filter-text">
+            <label class="sz_label" for="submeasureCostCenter">Obra</label>
+            <input id="submeasureCostCenter" class="sz_input" type="search" placeholder="Centro de custo">
+          </div>
+          <div class="sz_field gr-submeasure-filter-text">
+            <label class="sz_label" for="submeasureSupplier">Fornecedor</label>
+            <input id="submeasureSupplier" class="sz_input" type="search" placeholder="Nome ou numero">
+          </div>
+          <label class="gr-submeasure-check">
+            <input id="submeasureOnlyOpen" type="checkbox" checked>
+            <span>Abertos</span>
+          </label>
+          <button id="submeasureRefreshBtn" type="button" class="sz_button sz_button_secondary">
+            <i class="fa-solid fa-rotate"></i>
+            <span>Atualizar</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="sz_page_body gr-submeasure-body">
+      <div class="gr-submeasure-tabs" role="tablist" aria-label="Autos de subempreitada">
+        <button id="submeasureContractsTab" class="gr-submeasure-tab is-active" type="button" data-view="contracts">Contratos</button>
+        <button id="submeasureMeasurementTab" class="gr-submeasure-tab" type="button" data-view="measurement" disabled>Medição</button>
+      </div>
+
+      <section id="submeasureContractsView" class="gr-submeasure-view is-active">
+        <div class="gr-submeasure-summary">
+          <div class="gr-submeasure-metric">
+            <span>Contratos</span>
+            <strong id="submeasureMetricContracts">0</strong>
+          </div>
+          <div class="gr-submeasure-metric">
+            <span>Total contratado</span>
+            <strong id="submeasureMetricContracted">0,00 EUR</strong>
+          </div>
+          <div class="gr-submeasure-metric">
+            <span>Executado</span>
+            <strong id="submeasureMetricExecuted">0,00 EUR</strong>
+          </div>
+          <div class="gr-submeasure-metric">
+            <span>Em falta</span>
+            <strong id="submeasureMetricRemaining">0,00 EUR</strong>
+          </div>
+        </div>
+
+        <div class="sz_panel gr-submeasure-table-panel">
+          <div class="sz_table_host">
+            <table class="sz_table gr-submeasure-contracts-table">
+              <thead class="sz_table_head">
+                <tr>
+                  <th>Contrato</th>
+                  <th>Data</th>
+                  <th>Obra</th>
+                  <th>Fornecedor</th>
+                  <th class="sz_text_right">Contratado</th>
+                  <th class="sz_text_right">Executado</th>
+                  <th class="sz_text_right">Falta</th>
+                  <th class="sz_text_right">%</th>
+                  <th class="sz_text_right">Autos</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="submeasureContractsBody">
+                <tr><td colspan="10" class="sz_table_cell sz_text_muted">A carregar...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="submeasureMeasurementView" class="gr-submeasure-view">
+        <div class="gr-submeasure-measure-head">
+          <button id="submeasureBackBtn" type="button" class="sz_button sz_button_secondary">
+            <i class="fa-solid fa-arrow-left"></i>
+            <span>Contratos</span>
+          </button>
+          <div class="gr-submeasure-selected">
+            <strong id="submeasureSelectedTitle">Contrato</strong>
+            <span id="submeasureSelectedMeta"></span>
+          </div>
+          <div class="gr-submeasure-measure-actions">
+            <button id="submeasureFillRemainingBtn" type="button" class="sz_button sz_button_secondary">
+              <i class="fa-solid fa-list-check"></i>
+              <span>Qtd. em falta</span>
+            </button>
+            <button id="submeasureClearLinesBtn" type="button" class="sz_button sz_button_secondary">
+              <i class="fa-solid fa-eraser"></i>
+              <span>Limpar</span>
+            </button>
+            <button id="submeasureCancelBtn" type="button" class="sz_button sz_button_secondary">
+              <i class="fa-solid fa-xmark"></i>
+              <span>Cancelar</span>
+            </button>
+            <button id="submeasureDraftBtn" type="button" class="sz_button sz_button_primary" disabled>
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span>Gravar</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="gr-submeasure-summary">
+          <div class="gr-submeasure-metric">
+            <span>Contrato</span>
+            <strong id="submeasureDetailContracted">0,00 EUR</strong>
+          </div>
+          <div class="gr-submeasure-metric">
+            <span>Ja executado</span>
+            <strong id="submeasureDetailExecuted">0,00 EUR</strong>
+          </div>
+          <div class="gr-submeasure-metric">
+            <span>Disponivel</span>
+            <strong id="submeasureDetailRemaining">0,00 EUR</strong>
+          </div>
+          <div class="gr-submeasure-metric is-accent">
+            <span>Este auto</span>
+            <strong id="submeasureDetailDraft">0,00 EUR</strong>
+          </div>
+        </div>
+
+        <div class="sz_panel gr-submeasure-lines-panel">
+          <div class="sz_table_host">
+            <table class="sz_table gr-submeasure-lines-table">
+              <thead class="sz_table_head">
+                <tr>
+                  <th>Ref.</th>
+                  <th>Descricao</th>
+                  <th class="gr-submeasure-unit-col">Un.</th>
+                  <th class="sz_text_right">Qtd. contrato</th>
+                  <th class="sz_text_right">Qtd. exec.</th>
+                  <th class="sz_text_right">Qtd. falta</th>
+                  <th class="sz_text_right">P. unit.</th>
+                  <th class="sz_text_right">Valor falta</th>
+                  <th class="sz_text_right">Qtd. auto</th>
+                  <th class="sz_text_right">Valor auto</th>
+                  <th class="sz_text_right">% auto</th>
+                </tr>
+              </thead>
+              <tbody id="submeasureLinesBody">
+                <tr><td colspan="11" class="sz_table_cell sz_text_muted">Escolhe um contrato.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <div id="submeasureAutosModal" class="gr-submeasure-modal" hidden>
+    <div class="gr-submeasure-modal-backdrop" data-close-autos-modal></div>
+    <section class="gr-submeasure-modal-panel" role="dialog" aria-modal="true" aria-labelledby="submeasureAutosModalTitle">
+      <header class="gr-submeasure-modal-head">
+        <div>
+          <strong id="submeasureAutosModalTitle">Autos do contrato</strong>
+          <span id="submeasureAutosModalMeta"></span>
+        </div>
+        <button id="submeasureAutosModalClose" type="button" class="sz_button sz_button_secondary" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </header>
+      <div class="gr-submeasure-modal-body">
+        <aside class="gr-submeasure-autos-list" id="submeasureAutosList"></aside>
+        <section class="gr-submeasure-auto-lines">
+          <div class="gr-submeasure-auto-lines-head">
+            <div>
+              <strong id="submeasureSelectedAutoTitle">Auto</strong>
+              <span id="submeasureSelectedAutoMeta"></span>
+            </div>
+            <a id="submeasureOpenAutoAttachmentBtn" class="sz_button sz_button_secondary" href="#" target="_blank" rel="noopener" hidden>
+              <i class="fa-solid fa-paperclip"></i>
+              <span>Abrir anexo</span>
+            </a>
+          </div>
+          <div class="sz_table_host">
+            <table class="sz_table gr-submeasure-auto-lines-table">
+              <thead class="sz_table_head">
+                <tr>
+                  <th>Ref.</th>
+                  <th>Descricao</th>
+                  <th>Un.</th>
+                  <th class="sz_text_right">Qtd.</th>
+                  <th class="sz_text_right">P. unit.</th>
+                  <th class="sz_text_right">Valor</th>
+                  <th class="sz_text_right">%</th>
+                </tr>
+              </thead>
+              <tbody id="submeasureAutosLinesBody">
+                <tr><td colspan="7" class="sz_table_cell sz_text_muted">Sem auto selecionado.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('gr_subcontractor_measurements.static', filename='autos_subempreitada.js') }}?v={{ config.get('STATIC_VERSION', 1) }}" defer></script>
+{% endblock %}

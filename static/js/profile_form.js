@@ -31,7 +31,12 @@ function applyThemeFromViewMode(viewMode) {
   const theme = THEME_BY_VIEWMODE[normalized] || 'light';
   document.documentElement.setAttribute('data-sz-theme', theme);
   try {
+    const userStamp = String(window.CURRENT_USERSTAMP || '').trim();
+    if (userStamp) {
+      localStorage.setItem(`${THEME_KEY}:${userStamp}`, theme);
+    }
     localStorage.setItem(THEME_KEY, theme);
+    localStorage.setItem(`${THEME_KEY}:updated_at`, String(Date.now()));
   } catch (_) {}
 }
 function showLoading() {
@@ -402,4 +407,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
-

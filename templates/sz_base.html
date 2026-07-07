@@ -462,6 +462,8 @@
       var allowed = { light: true, dark: true, geek: true };
       var theme = "light";
       var serverViewMode = {{ ((current_user.VIEWMODE|default('') if current_user.is_authenticated else ''))|tojson }};
+      var userStamp = {{ ((current_user.USSTAMP|default('') if current_user.is_authenticated else ''))|tojson }};
+      var userThemeKey = userStamp ? (themeKey + ":" + userStamp) : themeKey;
 
       function viewModeToTheme(viewMode) {
         var raw = String(viewMode || '').trim().toUpperCase();
@@ -473,9 +475,12 @@
 
       try {
         var serverTheme = viewModeToTheme(serverViewMode);
-        theme = serverTheme || localStorage.getItem(themeKey) || localStorage.getItem(legacyThemeKey) || theme;
+        theme = localStorage.getItem(userThemeKey) || localStorage.getItem(themeKey) || localStorage.getItem(legacyThemeKey) || serverTheme || theme;
         if (!allowed[theme]) {
           theme = "light";
+        }
+        if (userStamp) {
+          localStorage.setItem(userThemeKey, theme);
         }
         localStorage.setItem(themeKey, theme);
       } catch (_) {}
@@ -487,7 +492,7 @@
       window.CURRENT_USERSTAMP = {{ (current_user.USSTAMP if current_user.is_authenticated else '')|tojson }};
   </script>
 </head>
-<body class="sz-base-shell{% if request.endpoint == 'sz_dev_ui.sz_ui_catalog' or request.endpoint == 'dashboard_page' or request.endpoint == 'gr_planning.index' or request.endpoint == 'reservas_siba_page' or request.endpoint == 'cliente_portal_page' or request.endpoint == 'cliente_reservas_page' or request.endpoint == 'cliente_documentos_page' or request.endpoint == 'cliente_faturacao_mes_page' or request.endpoint == 'processamento_mensal_page' or request.endpoint == 'limpezas_externas_page' or request.endpoint == 'controlo_rendas_page' or request.endpoint == 'contratos_page' or request.endpoint == 'photo_enhancer.photo_enhancer_page' or request.endpoint == 'analytics_revpar.revpar_page' or request.endpoint == 'pricing.pricing_attention_now' %} sz-ui-layout{% endif %}{% if request.endpoint == 'orcamento_page' %} sz-budget-layout{% endif %}{% if request.endpoint == 'reconciliacao_bancaria_page' %} sz-reconciliation-layout{% endif %}{% if request.endpoint == 'tesouraria_page' %} sz-treasury-layout{% endif %}{% if request.endpoint == 'pagina_analise' %} sz-analysis-layout{% endif %}{% if request.endpoint == 'performance_page' %} sz-performance-layout{% endif %}{% if request.endpoint == 'mapa_gestao_page' or request.endpoint == 'gr_management_map.mapa_gestao_gr_page' %} sz-management-map-layout{% endif %}{% if request.endpoint == 'cc_fornecedores_page' or request.endpoint == 'cc_clientes_page' %} sz-cc-layout{% endif %}{% if request.endpoint == 'generic.view_table' %} sz-dynamic-list-layout{% endif %}{% if request.endpoint == 'generic.edit_table' or request.endpoint == 'generic.opc_projetos_form' or request.endpoint == 'reservas_rs_form' %} sz-dynamic-form-layout{% endif %}{% if current_user.is_authenticated %} authenticated{% endif %}">
+<body class="sz-base-shell{% if request.endpoint == 'sz_dev_ui.sz_ui_catalog' or request.endpoint == 'dashboard_page' or request.endpoint == 'gr_planning.index' or request.endpoint == 'gr_planning.gr_monitor' or request.endpoint == 'reservas_siba_page' or request.endpoint == 'cliente_portal_page' or request.endpoint == 'cliente_reservas_page' or request.endpoint == 'cliente_documentos_page' or request.endpoint == 'cliente_faturacao_mes_page' or request.endpoint == 'processamento_mensal_page' or request.endpoint == 'limpezas_externas_page' or request.endpoint == 'controlo_rendas_page' or request.endpoint == 'contratos_page' or request.endpoint == 'photo_enhancer.photo_enhancer_page' or request.endpoint == 'analytics_revpar.revpar_page' or request.endpoint == 'pricing.pricing_attention_now' %} sz-ui-layout{% endif %}{% if request.endpoint == 'orcamento_page' %} sz-budget-layout{% endif %}{% if request.endpoint == 'reconciliacao_bancaria_page' %} sz-reconciliation-layout{% endif %}{% if request.endpoint == 'tesouraria_page' %} sz-treasury-layout{% endif %}{% if request.endpoint == 'pagina_analise' %} sz-analysis-layout{% endif %}{% if request.endpoint == 'performance_page' %} sz-performance-layout{% endif %}{% if request.endpoint == 'mapa_gestao_page' or request.endpoint == 'gr_management_map.mapa_gestao_gr_page' %} sz-management-map-layout{% endif %}{% if request.endpoint == 'cc_fornecedores_page' or request.endpoint == 'cc_clientes_page' %} sz-cc-layout{% endif %}{% if request.endpoint == 'generic.view_table' %} sz-dynamic-list-layout{% endif %}{% if request.endpoint == 'generic.edit_table' or request.endpoint == 'generic.opc_projetos_form' or request.endpoint == 'reservas_rs_form' %} sz-dynamic-form-layout{% endif %}{% if current_user.is_authenticated %} authenticated{% endif %}">
   <script>
     try {
       if (localStorage.getItem('sidebarCollapsed') === '1' && window.matchMedia('(min-width: 769px)').matches) {
@@ -917,9 +922,13 @@
   // Header interactions
   document.addEventListener('DOMContentLoaded', function() {
     var themeKey = 'sz_theme_mode';
+    var legacyThemeKey = 'sz_ui_theme';
     var allowedThemes = { light: true, dark: true, geek: true };
     var root = document.documentElement;
     var isAuthenticated = {{ 'true' if current_user.is_authenticated else 'false' }};
+    var userStamp = {{ ((current_user.USSTAMP|default('') if current_user.is_authenticated else ''))|tojson }};
+    var userThemeKey = userStamp ? (themeKey + ':' + userStamp) : themeKey;
+    var serverViewMode = {{ ((current_user.VIEWMODE|default('') if current_user.is_authenticated else ''))|tojson }};
     var themeSwitcher = document.querySelector('[data-sz-theme-switcher]');
     var userBtn   = document.getElementById('userMenuToggle');
     var menu      = document.getElementById('userDropdownMenu');
@@ -938,9 +947,49 @@
       return 'LIGHT MODE';
     }
 
+    function viewModeToTheme(viewMode) {
+      var raw = String(viewMode || '').trim().toUpperCase();
+      if (raw === 'LIGHT' || raw === 'LIGHT MODE') return 'light';
+      if (raw === 'DARK' || raw === 'DARK MODE') return 'dark';
+      if (raw === 'GEEK' || raw === 'GEEK MODE') return 'geek';
+      return '';
+    }
+
+    function storeTheme(theme) {
+      try {
+        if (userStamp) {
+          localStorage.setItem(userThemeKey, theme);
+        }
+        localStorage.setItem(themeKey, theme);
+        localStorage.setItem(themeKey + ':updated_at', String(Date.now()));
+      } catch (_) {}
+    }
+
+    function readStoredTheme() {
+      try {
+        return localStorage.getItem(userThemeKey)
+          || localStorage.getItem(themeKey)
+          || localStorage.getItem(legacyThemeKey)
+          || '';
+      } catch (_) {
+        return '';
+      }
+    }
+
     function persistViewMode(theme) {
       if (!isAuthenticated) return;
       var payload = { viewmode: themeToViewMode(theme) };
+      var body = JSON.stringify(payload);
+
+      if (navigator.sendBeacon) {
+        try {
+          navigator.sendBeacon(
+            '/api/profile/viewmode',
+            new Blob([body], { type: 'application/json' })
+          );
+        } catch (_) {}
+      }
+
       fetch('/api/profile/viewmode', {
         method: 'POST',
         headers: {
@@ -948,8 +997,7 @@
           'Accept': 'application/json'
         },
         credentials: 'same-origin',
-        keepalive: true,
-        body: JSON.stringify(payload)
+        body: body
       })
       .then(function(resp) {
         if (resp.ok) return resp;
@@ -963,7 +1011,6 @@
             'Accept': 'application/json'
           },
           credentials: 'same-origin',
-          keepalive: true,
           body: JSON.stringify({ VIEWMODE: payload.viewmode })
         }).catch(function() {});
       });
@@ -993,9 +1040,7 @@
       root.setAttribute('data-sz-theme', safeTheme);
 
       if (persist !== false) {
-        try {
-          localStorage.setItem(themeKey, safeTheme);
-        } catch (_) {}
+        storeTheme(safeTheme);
         persistViewMode(safeTheme);
       }
 
@@ -1009,11 +1054,7 @@
     }
 
     var initialTheme = 'light';
-    try {
-      initialTheme = localStorage.getItem(themeKey) || root.getAttribute('data-sz-theme') || 'light';
-    } catch (_) {
-      initialTheme = root.getAttribute('data-sz-theme') || 'light';
-    }
+    initialTheme = readStoredTheme() || root.getAttribute('data-sz-theme') || viewModeToTheme(serverViewMode) || 'light';
     applyTheme(initialTheme, false);
 
     if (themeButtons && themeButtons.length) {

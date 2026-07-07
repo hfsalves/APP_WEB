@@ -33,7 +33,7 @@
 
 {% block extra_head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('gr_planning.static', filename='gr_planning_host.css') }}">
+  <link rel="stylesheet" href="{{ url_for('gr_planning.static', filename='gr_planning_host.css') }}?v={{ static_version }}">
 {% endblock %}
 
 {% block content %}
@@ -134,5 +134,5 @@
   <script>
     window.SZ_I18N = Object.assign({}, window.SZ_I18N || {}, {{ i18n_js(gr_monitor_i18n_keys)|tojson }});
   </script>
-  <script src="{{ url_for('gr_planning.static', filename='gr_monitor.js') }}" defer></script>
+  <script src="{{ url_for('gr_planning.static', filename='gr_monitor.js') }}?v={{ static_version }}" defer></script>
 {% endblock %}

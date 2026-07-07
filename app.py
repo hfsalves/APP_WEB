@@ -644,6 +644,9 @@ def create_app():
     from modules.gr_management_map.routes import bp as gr_management_map_bp
     app.register_blueprint(gr_management_map_bp)
 
+    from modules.gr_subcontractor_measurements.routes import bp as gr_subcontractor_measurements_bp
+    app.register_blueprint(gr_subcontractor_measurements_bp)
+
     register_pricing(app)
 
     @app.cli.command('process-email-queue')
@@ -27377,7 +27380,7 @@ def create_app():
             count = int(value or 3)
         except Exception:
             count = 3
-        return max(1, min(4, count))
+        return max(1, min(5, count))
 
     def _normalize_dashboard_widths(widths, count):
         count = _normalize_dashboard_column_count(count)
@@ -27558,11 +27561,14 @@ def create_app():
             body = request.get_json(silent=True) or {}
             columns = body.get('columns') or {}
             link_orders = body.get('link_orders') or {}
+            widget_heights = body.get('widget_heights') or {}
             settings = body.get('settings') or {}
             if not isinstance(columns, dict):
                 return jsonify({'error': 'Formato inválido.'}), 400
             if not isinstance(link_orders, dict):
                 link_orders = {}
+            if not isinstance(widget_heights, dict):
+                widget_heights = {}
             if not isinstance(settings, dict):
                 settings = {}
 
@@ -27614,6 +27620,26 @@ def create_app():
                             'userstamp': userstamp,
                             'dbwstamp': item_id,
                         })
+
+            for widget_name, height in widget_heights.items():
+                widget_id = str(widget_name or '').strip()
+                if not widget_id:
+                    continue
+                try:
+                    maxheight = int(height or 0)
+                except Exception:
+                    maxheight = 0
+                maxheight = max(0, min(5000, maxheight))
+                db.session.execute(text("""
+                    UPDATE dbo.USWIDGETS
+                    SET MAXHEIGHT = :maxheight
+                    WHERE LTRIM(RTRIM(ISNULL(UTILIZADOR, ''))) = :utilizador
+                      AND LTRIM(RTRIM(ISNULL(WIDGET, ''))) = :widget
+                """), {
+                    'maxheight': maxheight,
+                    'utilizador': user_login,
+                    'widget': widget_id,
+                })
 
             if userstamp:
                 for dbwstamp, links in link_orders.items():
@@ -42065,6 +42091,46 @@ OPTION (MAXRECURSION 32767);
     @app.route('/api/profile/save', methods=['POST'])
     @login_required
     def save_profile():
+        def _normalize_profile_viewmode(value):
+            raw = str(value or '').strip().upper()
+            if raw in ('LIGHT', 'DARK', 'GEEK'):
+                raw = f'{raw} MODE'
+            if raw not in {'LIGHT MODE', 'DARK MODE', 'GEEK MODE'}:
+                return ''
+            return raw
+
+        def _save_current_user_viewmode(value):
+            raw = _normalize_profile_viewmode(value)
+            if not raw:
+                return ''
+            user_stamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
+            user_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+            result = db.session.execute(
+                text(
+                    """
+                    UPDATE US
+                       SET VIEWMODE = :viewmode
+                     WHERE (
+                            NULLIF(:user_stamp, '') IS NOT NULL
+                        AND LTRIM(RTRIM(ISNULL(USSTAMP, ''))) = :user_stamp
+                     )
+                        OR (
+                            NULLIF(:user_login, '') IS NOT NULL
+                        AND LTRIM(RTRIM(ISNULL(LOGIN, ''))) = :user_login
+                     )
+                    """
+                ),
+                {
+                    'viewmode': raw,
+                    'user_stamp': user_stamp,
+                    'user_login': user_login,
+                },
+            )
+            if result.rowcount == 0:
+                raise ValueError('Utilizador nao encontrado')
+            setattr(current_user, 'VIEWMODE', raw)
+            return raw
+
         try:
             data = request.get_json(force=True) or {}
             # Campos permitidos a serem atualizados no perfil
@@ -42072,20 +42138,23 @@ OPTION (MAXRECURSION 32767);
 
             user = db.session.query(US).get(current_user.USSTAMP)
             if not user:
-                return {'error': 'Utilizador nÃ£o encontrado'}, 404
+                user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
+                if user_login:
+                    user = db.session.query(US).filter_by(LOGIN=user_login).first()
+            if not user:
+                if set(data.keys()) - {'VIEWMODE'}:
+                    return {'error': 'Utilizador nÃ£o encontrado'}, 404
 
             updated = {}
             for field in allowed_fields:
                 if field in data:
                     value = data[field]
                     if field == 'VIEWMODE':
-                        raw = str(value or '').strip().upper()
-                        if raw in ('LIGHT', 'DARK', 'GEEK'):
-                            raw = f'{raw} MODE'
-                        if raw not in {'LIGHT MODE', 'DARK MODE', 'GEEK MODE'}:
+                        value = _save_current_user_viewmode(value)
+                        if not value:
                             return {'error': 'VIEWMODE invalido'}, 400
-                        value = raw
-                    setattr(user, field, value)
+                    elif user:
+                        setattr(user, field, value)
                     updated[field] = value
 
             if not updated:
@@ -42100,23 +42169,46 @@ OPTION (MAXRECURSION 32767);
     @app.route('/api/profile/viewmode', methods=['POST'])
     @login_required
     def save_profile_viewmode():
-        try:
-            data = request.get_json(force=True) or {}
-            raw = str(data.get('viewmode') or data.get('VIEWMODE') or '').strip().upper()
+        def _normalize_profile_viewmode(value):
+            raw = str(value or '').strip().upper()
             if raw in ('LIGHT', 'DARK', 'GEEK'):
                 raw = f'{raw} MODE'
             if raw not in {'LIGHT MODE', 'DARK MODE', 'GEEK MODE'}:
+                return ''
+            return raw
+
+        try:
+            data = request.get_json(force=True) or {}
+            raw = _normalize_profile_viewmode(data.get('viewmode') or data.get('VIEWMODE'))
+            if not raw:
                 return {'error': 'VIEWMODE invalido'}, 400
 
-            user = db.session.query(US).get(current_user.USSTAMP)
-            if not user:
-                user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
-                if user_login:
-                    user = db.session.query(US).filter_by(LOGIN=user_login).first()
-            if not user:
+            user_stamp = str(getattr(current_user, 'USSTAMP', '') or '').strip()
+            user_login = str(getattr(current_user, 'LOGIN', '') or '').strip()
+            result = db.session.execute(
+                text(
+                    """
+                    UPDATE US
+                       SET VIEWMODE = :viewmode
+                     WHERE (
+                            NULLIF(:user_stamp, '') IS NOT NULL
+                        AND LTRIM(RTRIM(ISNULL(USSTAMP, ''))) = :user_stamp
+                     )
+                        OR (
+                            NULLIF(:user_login, '') IS NOT NULL
+                        AND LTRIM(RTRIM(ISNULL(LOGIN, ''))) = :user_login
+                     )
+                    """
+                ),
+                {
+                    'viewmode': raw,
+                    'user_stamp': user_stamp,
+                    'user_login': user_login,
+                },
+            )
+            if result.rowcount == 0:
                 return {'error': 'Utilizador nao encontrado'}, 404
 
-            user.VIEWMODE = raw
             setattr(current_user, 'VIEWMODE', raw)
             db.session.commit()
             return jsonify({'success': True, 'VIEWMODE': raw})

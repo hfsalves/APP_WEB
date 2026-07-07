@@ -26,7 +26,7 @@
     <span>Personalizar dashboard</span>
   </button>
   <button type="button" class="sz_dashboard_context_menu_item" data-dashboard-action="layout">
-    <i class="fa-solid fa-columns-3"></i>
+    <i class="fa-solid fa-table-columns"></i>
     <span>Colunas e larguras</span>
   </button>
   <button type="button" class="sz_dashboard_context_menu_item" data-dashboard-action="shortcut">
@@ -56,8 +56,13 @@
             <option value="2">2 colunas</option>
             <option value="3">3 colunas</option>
             <option value="4">4 colunas</option>
+            <option value="5">5 colunas</option>
           </select>
         </div>
+        <button id="dashboardEqualizeColumnsBtn" type="button" class="sz_button sz_button_ghost sz_dashboard_equalize_columns">
+          <i class="fa-solid fa-equals"></i>
+          <span>Igualar larguras</span>
+        </button>
         <div id="dashboardColumnWidthControls" class="sz_dashboard_column_widths"></div>
       </div>
       <div class="modal-footer sz_modal_footer">

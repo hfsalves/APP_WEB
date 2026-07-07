@@ -2215,6 +2215,11 @@ input.sz_date[type="time"]::-webkit-calendar-picker-indicator {
   gap: var(--sz-space-3);
 }
 
+.sz_dashboard_equalize_columns {
+  margin: 0 0 var(--sz-space-3);
+  width: fit-content;
+}
+
 .sz_dashboard_column_width {
   background: var(--sz-color-surface-alt);
   border: 1px solid var(--sz-color-border);
@@ -2476,6 +2481,34 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
 .sz_dashboard_draggable.is-dragging {
   opacity: 0.48;
   transform: scale(0.99);
+}
+
+.sz_dashboard_widget_resize_handle {
+  align-items: center;
+  cursor: ns-resize;
+  display: none;
+  height: 1.25rem;
+  justify-content: center;
+  margin: var(--sz-space-2) auto calc(var(--sz-space-2) * -1);
+  touch-action: none;
+  width: min(8rem, 45%);
+}
+
+.sz_dashboard_widget_resize_handle::before {
+  background: color-mix(in srgb, var(--sz-color-primary) 52%, transparent);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sz-color-primary) 24%, transparent);
+  content: "";
+  height: 0.25rem;
+  width: 100%;
+}
+
+.sz_dashboard_layout_editing .sz_dashboard_widget_resize_handle {
+  display: flex;
+}
+
+.sz_dashboard_widget.is-dashboard-resizing {
+  user-select: none;
 }
 
 .sz_dashboard_layout_editing .dashboard-link-btn {
@@ -2832,8 +2865,8 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
 .sz_dashboard_widget_grafico .sz_dashboard_widget_body canvas {
   display: block;
   width: 100% !important;
-  height: 320px !important;
-  max-height: 320px !important;
+  height: 100% !important;
+  max-height: none !important;
 }
 
 .sz_dashboard_widget_body::-webkit-scrollbar {

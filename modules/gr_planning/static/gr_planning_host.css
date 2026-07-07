@@ -2745,12 +2745,15 @@
 
 .gr-monitor-page {
   height: 100%;
+  min-height: 0;
 }
 
 .gr-monitor-shell {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
+  display: grid;
+  gap: var(--sz-space-3);
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
 }
 
 .gr-monitor-contextbar .sz_contextbar_left {
@@ -2761,24 +2764,27 @@
 }
 
 .gr-monitor-body {
+  height: 100%;
   min-height: 0;
   overflow: hidden;
 }
 
 .gr-monitor-board {
+  align-items: stretch;
   display: grid;
   gap: var(--sz-space-3);
   grid-template-columns: repeat(5, minmax(180px, 1fr));
   height: 100%;
-  min-height: 560px;
+  min-height: 0;
 }
 
 .gr-monitor-column {
-  background: color-mix(in srgb, var(--sz-color-surface) 92%, var(--sz-color-primary));
-  border: 1px solid color-mix(in srgb, var(--sz-color-border) 88%, var(--sz-color-primary));
+  background: color-mix(in srgb, var(--sz-color-surface) 26%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sz-color-border) 34%, transparent);
   border-radius: var(--sz-radius-sm);
   display: flex;
   flex-direction: column;
+  min-height: 0;
   min-width: 0;
   overflow: hidden;
   padding: 0.35rem;
@@ -2786,10 +2792,9 @@
 
 .gr-monitor-column-header {
   align-items: center;
-  background: color-mix(in srgb, var(--sz-color-primary) 12%, var(--sz-color-surface-alt));
-  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 28%, var(--sz-color-border));
+  background: color-mix(in srgb, var(--sz-color-primary) 8%, var(--sz-color-surface-alt));
+  border: 1px solid color-mix(in srgb, var(--sz-color-primary) 16%, var(--sz-color-border));
   border-radius: var(--sz-radius-sm);
-  box-shadow: var(--sz-shadow-1);
   display: flex;
   gap: var(--sz-space-2);
   justify-content: space-between;
@@ -2839,23 +2844,25 @@
 
 .gr-monitor-lane {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--sz-space-2);
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: var(--sz-space-2) 0 0;
 }
 
 .gr-monitor-empty {
   align-items: center;
-  border: 1px dashed var(--sz-color-border);
+  background: color-mix(in srgb, var(--sz-color-surface) 20%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--sz-color-border) 38%, transparent);
   border-radius: var(--sz-radius-sm);
   color: var(--sz-color-text-muted);
   display: flex;
   font-size: var(--sz-font-size-sm);
   justify-content: center;
-  min-height: 88px;
+  min-height: 5rem;
   padding: var(--sz-space-3);
   text-align: center;
 }

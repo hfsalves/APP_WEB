@@ -113,7 +113,7 @@ let dashboardShortcutColor = dashboardShortcutPalette[0];
 function clampDashboardColumnCount(value) {
   const n = parseInt(value, 10);
   if (!Number.isFinite(n)) return 3;
-  return Math.max(1, Math.min(4, n));
+  return Math.max(1, Math.min(5, n));
 }
 
 function normalizeDashboardWidths(widths, count = dashboardLayoutState.columns) {
@@ -538,6 +538,51 @@ function renderDataIntoWidget(state, data) {
   applyWidgetTableClass(body);
 }
 
+function parseDashboardHeight(value, fallback = 0) {
+  if (value === null || value === undefined || value === '') return fallback;
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+function applyDashboardWidgetHeight(widgetEl, body, height, tipo) {
+  if (!widgetEl || !body) return;
+  const requestedHeight = parseDashboardHeight(height, 0);
+  widgetEl.dataset.dashboardHeight = String(requestedHeight);
+  widgetEl.classList.remove('expanded');
+  widgetEl.classList.toggle('is-dashboard-height-full', requestedHeight === 0);
+  if (requestedHeight === 0) {
+    body.style.height = '';
+    body.style.maxHeight = 'none';
+    body.style.overflowY = tipo === 'GRAFICO' ? 'hidden' : 'visible';
+    return;
+  }
+  if (tipo === 'GRAFICO') {
+    body.style.height = `${requestedHeight}px`;
+    body.style.maxHeight = `${requestedHeight}px`;
+    body.style.overflowY = 'hidden';
+  } else {
+    body.style.height = '';
+    body.style.maxHeight = `${requestedHeight}px`;
+    body.style.overflowY = 'auto';
+  }
+}
+
+function getDashboardWidgetExpandedHeight(widgetEl) {
+  const body = widgetEl?.querySelector('.sz_dashboard_widget_body');
+  if (!body) return 0;
+  const previousMaxHeight = body.style.maxHeight;
+  const previousHeight = body.style.height;
+  const previousOverflow = body.style.overflowY;
+  body.style.maxHeight = 'none';
+  body.style.height = '';
+  body.style.overflowY = 'visible';
+  const expandedHeight = Math.ceil(Math.max(body.scrollHeight, body.offsetHeight, body.clientHeight));
+  body.style.maxHeight = previousMaxHeight;
+  body.style.height = previousHeight;
+  body.style.overflowY = previousOverflow;
+  return expandedHeight;
+}
+
 // Render -------------------------------------------------
 function applyWidgetTableClass(body) {
   if (!body) return;
@@ -785,6 +830,7 @@ async function renderWidget(widget, colDiv) {
       </div>
     </div>
     <div class="sz_dashboard_widget_body"></div>
+    <div class="sz_dashboard_widget_resize_handle" data-dashboard-resize-widget title="Ajustar altura"></div>
   `;
   colDiv.appendChild(wDiv);
   syncDashboardItemDragState(wDiv);
@@ -793,23 +839,15 @@ async function renderWidget(widget, colDiv) {
   const expandBtn = wDiv.querySelector('.sz_dashboard_expand_btn');
   expandBtn.style.display = 'none';
 
-  let maxH = widget.maxheight;
+  const hasStoredMaxHeight = widget.maxheight !== null && widget.maxheight !== undefined && widget.maxheight !== '';
+  let maxH = hasStoredMaxHeight ? parseDashboardHeight(widget.maxheight, 0) : 0;
   try {
     const cfg = JSON.parse(widget.config || '{}');
-    if (!maxH && cfg.maxheight) maxH = cfg.maxheight;
+    if (!hasStoredMaxHeight && cfg.maxheight) maxH = parseDashboardHeight(cfg.maxheight, 0);
   } catch {}
-  if (maxH) {
-    if (widget.tipo === 'GRAFICO') {
-      body.style.height = maxH + 'px';
-      body.style.maxHeight = maxH + 'px';
-      body.style.overflowY = 'hidden';
-    } else {
-      body.style.maxHeight = maxH + 'px';
-      body.style.overflowY = 'auto';
-    }
-  } else if (widget.tipo === 'GRAFICO') {
+  applyDashboardWidgetHeight(wDiv, body, maxH, widget.tipo);
+  if (widget.tipo === 'GRAFICO' && !maxH) {
     body.style.minHeight = '240px';
-    body.style.overflowY = 'hidden';
   }
 
   const toggleExpandBtn = () => {
@@ -1044,9 +1082,16 @@ function serializeDashboardLayout() {
       .map((item) => String(item.dataset.dashboardLinkId || '').trim())
       .filter(Boolean);
   });
+  const widgetHeights = {};
+  document.querySelectorAll('.sz_dashboard_widget[data-dashboard-kind="widget"]').forEach((widget) => {
+    const widgetId = String(widget.dataset.dashboardId || '').trim();
+    if (!widgetId) return;
+    widgetHeights[widgetId] = parseDashboardHeight(widget.dataset.dashboardHeight, 0);
+  });
   return {
     columns,
     link_orders: linkOrders,
+    widget_heights: widgetHeights,
     settings: {
       columns: clampDashboardColumnCount(dashboardLayoutState.columns),
       widths: normalizeDashboardWidths(dashboardLayoutState.widths, dashboardLayoutState.columns),
@@ -1091,6 +1136,13 @@ function applyDashboardLayoutSettingsFromModal() {
   }
 }
 
+function equalizeDashboardColumnWidths() {
+  const count = clampDashboardColumnCount(document.getElementById('dashboardColumnCount')?.value || dashboardLayoutState.columns);
+  dashboardLayoutState.columns = count;
+  dashboardLayoutState.widths = Array.from({ length: count }, () => 100 / count);
+  renderDashboardColumnWidthControls();
+}
+
 function bindDashboardColumnDragEvents() {
   dashboardColumns().forEach((col) => {
     if (col.dataset.dashboardDropBound === '1') return;
@@ -1112,6 +1164,53 @@ function bindDashboardColumnDragEvents() {
       markDashboardLayoutDirty();
     });
   });
+}
+
+function startDashboardWidgetResize(handle, event) {
+  if (!dashboardLayoutState.editing || !handle) return;
+  const widgetEl = handle.closest('.sz_dashboard_widget[data-dashboard-kind="widget"]');
+  const body = widgetEl?.querySelector('.sz_dashboard_widget_body');
+  if (!widgetEl || !body) return;
+  event.preventDefault();
+  event.stopPropagation();
+
+  const tipo = widgetEl.classList.contains('sz_dashboard_widget_grafico') ? 'GRAFICO' : '';
+  const startY = event.clientY;
+  const startHeight = Math.ceil(body.getBoundingClientRect().height || body.clientHeight || 0);
+  const minHeight = tipo === 'GRAFICO' ? 180 : 96;
+  const expandedHeight = Math.max(getDashboardWidgetExpandedHeight(widgetEl), startHeight, minHeight);
+  const pointerId = event.pointerId;
+
+  widgetEl.classList.add('is-dashboard-resizing');
+  try {
+    handle.setPointerCapture(pointerId);
+  } catch (_) {}
+
+  const onMove = (moveEvent) => {
+    const delta = moveEvent.clientY - startY;
+    const nextHeight = Math.max(minHeight, Math.min(expandedHeight, startHeight + delta));
+    const saveHeight = nextHeight >= expandedHeight - 4 ? 0 : Math.round(nextHeight);
+    applyDashboardWidgetHeight(widgetEl, body, saveHeight || expandedHeight, tipo);
+    widgetEl.dataset.dashboardHeight = String(saveHeight);
+    if (saveHeight === 0) {
+      applyDashboardWidgetHeight(widgetEl, body, 0, tipo);
+    }
+    markDashboardLayoutDirty();
+  };
+
+  const onEnd = () => {
+    widgetEl.classList.remove('is-dashboard-resizing');
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onEnd);
+    document.removeEventListener('pointercancel', onEnd);
+    try {
+      handle.releasePointerCapture(pointerId);
+    } catch (_) {}
+  };
+
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onEnd);
+  document.addEventListener('pointercancel', onEnd);
 }
 
 function bindDashboardLayoutEvents() {
@@ -1154,6 +1253,7 @@ function bindDashboardLayoutEvents() {
       });
     }
   });
+  document.getElementById('dashboardEqualizeColumnsBtn')?.addEventListener('click', equalizeDashboardColumnWidths);
   document.getElementById('dashboardApplyLayoutSettingsBtn')?.addEventListener('click', applyDashboardLayoutSettingsFromModal);
 
   document.getElementById('dashboardShortcutSearch')?.addEventListener('input', filterDashboardShortcutList);
@@ -1207,6 +1307,11 @@ function bindDashboardLayoutEvents() {
     if (event.target.closest?.('#dashboardContextMenu')) return;
     closeDashboardContextMenu();
   });
+  document.addEventListener('pointerdown', (event) => {
+    const handle = event.target.closest?.('[data-dashboard-resize-widget]');
+    if (!handle) return;
+    startDashboardWidgetResize(handle, event);
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeDashboardContextMenu();
   });
@@ -1243,6 +1348,10 @@ function bindDashboardLayoutEvents() {
   });
 
   document.addEventListener('dragstart', (event) => {
+    if (event.target.closest?.('[data-dashboard-resize-widget]')) {
+      event.preventDefault();
+      return;
+    }
     const shortcut = event.target.closest?.('.dashboard-link-wrap');
     if (dashboardLayoutState.editing && shortcut && !event.target.closest?.('button')) {
       shortcut.classList.add('is-shortcut-dragging');
