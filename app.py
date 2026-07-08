@@ -24744,6 +24744,144 @@ def create_app():
             detail=detail,
         )
 
+    @app.route('/cliente/faturacao/<int:ano>/<int:mes>/export')
+    @app.route('/portal_cliente/faturacao/<int:ano>/<int:mes>/export')
+    @login_required
+    def cliente_faturacao_mes_export(ano, mes):
+        if not _is_cliente_user():
+            return redirect(url_for('home_page'))
+        if mes < 1 or mes > 12:
+            abort(404)
+        ano = max(2000, min(2100, int(ano or date.today().year)))
+        alojamento = str(request.args.get('alojamento') or '').strip()
+        detail = _cliente_faturacao_mes_detail(ano, mes, alojamento)
+
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Alignment, Font, PatternFill
+            from openpyxl.utils import get_column_letter
+        except Exception:
+            return jsonify({'error': 'openpyxl não está disponível no servidor.'}), 500
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Detalhe'
+
+        title = f"Detalhe de Faturação - {detail.get('mes_label') or mes} {detail.get('ano') or ano}"
+        if detail.get('alojamento'):
+            title = f"{title} - {detail.get('alojamento')}"
+        ws.append([title])
+        ws.append([f"Cliente: {(detail.get('cliente') or {}).get('nome') or ''}"])
+        ws.append([])
+
+        headers = [
+            'Reserva',
+            'Estado',
+            'Alojamento',
+            'Nome',
+            'Check-in',
+            'Check-out',
+            'Pessoas',
+            'Total c/IVA',
+            'Comissão Plataforma',
+            'Valor Líquido',
+            'Ganhos',
+            'Comissão Gestão',
+        ]
+        if detail.get('show_acerto'):
+            headers.extend(['Acerto Plataforma', 'Ganhos Total'])
+        ws.append(headers)
+        header_row = ws.max_row
+
+        for row in detail.get('reservas') or []:
+            values = [
+                row.get('reserva') or '',
+                'Cancelada' if row.get('is_cancelada') else '',
+                row.get('alojamento') or '',
+                row.get('hospede') or '',
+                row.get('datain') or '',
+                row.get('dataout') or '',
+                int(row.get('pessoas') or 0),
+                float(row.get('total_com_iva') or 0),
+                float(row.get('comissao_plataforma') or 0),
+                float(row.get('valor_liquido') or 0),
+                float(row.get('ganhos') or 0),
+                float(row.get('comissao_gestao') or 0),
+            ]
+            if detail.get('show_acerto'):
+                values.extend([
+                    float(row.get('acerto_plataforma') or 0),
+                    float(row.get('ganhos_total') or 0),
+                ])
+            ws.append(values)
+
+        totals = detail.get('totals') or {}
+        total_row = [
+            'Totais',
+            '',
+            '',
+            '',
+            '',
+            '',
+            int(totals.get('reservas') or 0),
+            float(totals.get('total_com_iva') or 0),
+            float(totals.get('comissao_plataforma') or 0),
+            float(totals.get('valor_liquido') or 0),
+            float(totals.get('ganhos') or 0),
+            float(totals.get('comissao_gestao') or 0),
+        ]
+        if detail.get('show_acerto'):
+            total_row.extend([
+                float(totals.get('acerto_plataforma') or 0),
+                float(totals.get('ganhos_total') or 0),
+            ])
+        ws.append(total_row)
+        total_row_idx = ws.max_row
+
+        title_fill = PatternFill('solid', fgColor='1F4E78')
+        header_fill = PatternFill('solid', fgColor='D9EAF7')
+        total_fill = PatternFill('solid', fgColor='EAF3F8')
+        ws['A1'].font = Font(bold=True, color='FFFFFF', size=14)
+        ws['A1'].fill = title_fill
+        ws['A2'].font = Font(italic=True)
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
+
+        for cell in ws[header_row]:
+            cell.font = Font(bold=True)
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center')
+        for cell in ws[total_row_idx]:
+            cell.font = Font(bold=True)
+            cell.fill = total_fill
+
+        money_columns = range(8, len(headers) + 1)
+        for row_cells in ws.iter_rows(min_row=header_row + 1, max_row=total_row_idx):
+            for idx in money_columns:
+                row_cells[idx - 1].number_format = '#,##0.00 €'
+                row_cells[idx - 1].alignment = Alignment(horizontal='right')
+            row_cells[6].alignment = Alignment(horizontal='right')
+
+        widths = [16, 12, 24, 28, 13, 13, 10, 16, 20, 16, 16, 18, 18, 16]
+        for idx, width in enumerate(widths[:len(headers)], start=1):
+            ws.column_dimensions[get_column_letter(idx)].width = width
+        ws.freeze_panes = f"A{header_row + 1}"
+        ws.auto_filter.ref = f"A{header_row}:{get_column_letter(len(headers))}{max(header_row, total_row_idx)}"
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        filename_part = (detail.get('alojamento') or 'todos').strip() or 'todos'
+        filename_part = re.sub(r'[^A-Za-z0-9_.-]+', '_', filename_part)[:50]
+        filename = f"faturacao_{int(ano):04d}_{int(mes):02d}_{filename_part}.xlsx"
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename,
+            max_age=0,
+        )
+
     CLIENT_DOCUMENTS_UPLOAD_FOLDER = 'ENVIADOS_PELO_CLIENTE'
     CLIENT_DOCUMENTS_ALLOWED_EXT = {
         'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt',
@@ -24769,6 +24907,27 @@ def create_app():
     def _cliente_al_scope_params():
         estab = _current_cliente_estab()
         return {'clestab': estab} if estab > 0 else {}
+
+    def _cliente_alojamentos_list(clno=None):
+        clno = clno if clno is not None else _current_cliente_no()
+        if not clno:
+            return []
+        where = [
+            "ISNULL(INATIVO, 0) = 0",
+            "ISNULL(CLIENTID, 0) = :clno",
+            "LTRIM(RTRIM(ISNULL(NOME, ''))) <> ''",
+        ]
+        params = {'clno': int(clno)}
+        if _current_cliente_estab() > 0:
+            where.append("ISNULL(CLESTAB, 0) = :clestab")
+            params.update(_cliente_al_scope_params())
+        rows = db.session.execute(text(f"""
+            SELECT LTRIM(RTRIM(ISNULL(NOME, ''))) AS NOME
+            FROM dbo.AL
+            WHERE {' AND '.join(where)}
+            ORDER BY NOME
+        """), params).mappings().all()
+        return [str(r.get('NOME') or '').strip() for r in rows if str(r.get('NOME') or '').strip()]
 
     def _cliente_money(value):
         try:
@@ -24857,12 +25016,14 @@ def create_app():
                 'mes': mes,
                 'mes_label': '',
                 'alojamento': alojamento,
+                'alojamentos': [],
                 'reservas': [],
                 'totals': {},
                 'show_acerto': False,
             }
 
         month_names = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+        alojamentos = _cliente_alojamentos_list(clno)
         data_ref_expr = "CAST(RS.DATAOUT AS date)"
         where = [
             "ISNULL(AL.INATIVO, 0) = 0",
@@ -24951,6 +25112,7 @@ def create_app():
             'mes': int(mes),
             'mes_label': month_names[int(mes) - 1],
             'alojamento': alojamento,
+            'alojamentos': alojamentos,
             'reservas': reservas,
             'totals': totals,
             'show_acerto': show_acerto,

@@ -24670,3 +24670,355 @@ Press CTRL+C to quit
 127.0.0.1 - - [07/Jul/2026 17:56:28] "GET /static/images/favicon.ico HTTP/1.1" 200 -
 127.0.0.1 - - [07/Jul/2026 17:57:16] "GET /api/colaborador/ferias?ano=2027 HTTP/1.1" 200 -
 127.0.0.1 - - [07/Jul/2026 17:57:17] "GET /api/colaborador/ferias?ano=2026 HTTP/1.1" 200 -
+[2026-07-08 10:04:26,520] ERROR in app: Exception on / [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2892, in _enforce_database_consistency
+    if _database_consistency_allow_request():
+       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2867, in _database_consistency_allow_request
+    if not current_user.is_authenticated:
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2696, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 250, in get_user_by_stamp
+    row = session.execute(sql, {"stamp": (user_stamp or "").strip()}).mappings().first()
+          ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1809, in _execute_context
+    conn = self._revalidate_connection()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 675, in _revalidate_connection
+    self._invalid_transaction()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 665, in _invalid_transaction
+    raise exc.PendingRollbackError(
+    ...<4 lines>...
+    )
+sqlalchemy.exc.PendingRollbackError: Can't reconnect until invalid transaction is rolled back.  Please rollback() fully before proceeding (Background on this error at: https://sqlalche.me/e/20/8s2b)
+127.0.0.1 - - [08/Jul/2026 10:04:26] "GET / HTTP/1.1" 500 -
+[2026-07-08 10:04:27,891] ERROR in app: Exception on / [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2892, in _enforce_database_consistency
+    if _database_consistency_allow_request():
+       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2867, in _database_consistency_allow_request
+    if not current_user.is_authenticated:
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2696, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 250, in get_user_by_stamp
+    row = session.execute(sql, {"stamp": (user_stamp or "").strip()}).mappings().first()
+          ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1809, in _execute_context
+    conn = self._revalidate_connection()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 675, in _revalidate_connection
+    self._invalid_transaction()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 665, in _invalid_transaction
+    raise exc.PendingRollbackError(
+    ...<4 lines>...
+    )
+sqlalchemy.exc.PendingRollbackError: Can't reconnect until invalid transaction is rolled back.  Please rollback() fully before proceeding (Background on this error at: https://sqlalche.me/e/20/8s2b)
+127.0.0.1 - - [08/Jul/2026 10:04:27] "GET / HTTP/1.1" 500 -
+[2026-07-08 10:05:27,976] ERROR in app: Exception on / [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2892, in _enforce_database_consistency
+    if _database_consistency_allow_request():
+       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2867, in _database_consistency_allow_request
+    if not current_user.is_authenticated:
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2696, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 250, in get_user_by_stamp
+    row = session.execute(sql, {"stamp": (user_stamp or "").strip()}).mappings().first()
+          ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1809, in _execute_context
+    conn = self._revalidate_connection()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 675, in _revalidate_connection
+    self._invalid_transaction()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 665, in _invalid_transaction
+    raise exc.PendingRollbackError(
+    ...<4 lines>...
+    )
+sqlalchemy.exc.PendingRollbackError: Can't reconnect until invalid transaction is rolled back.  Please rollback() fully before proceeding (Background on this error at: https://sqlalche.me/e/20/8s2b)
+127.0.0.1 - - [08/Jul/2026 10:05:27] "GET / HTTP/1.1" 500 -
+[2026-07-08 10:05:28,046] ERROR in app: Exception on /favicon.ico [GET]
+Traceback (most recent call last):
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 915, in full_dispatch_request
+    rv = self.preprocess_request()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask/app.py", line 1291, in preprocess_request
+    rv = self.ensure_sync(before_func)()
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2892, in _enforce_database_consistency
+    if _database_consistency_allow_request():
+       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2867, in _database_consistency_allow_request
+    if not current_user.is_authenticated:
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/werkzeug/local.py", line 526, in _get_current_object
+    return get_name(local())
+                    ~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 25, in <lambda>
+    current_user = LocalProxy(lambda: _get_user())
+                                      ~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+  File "/Users/hugoalves/Projects/APP_WEB/app.py", line 2696, in load_user
+    row = get_user_by_stamp(db.session, user_stamp)
+  File "/Users/hugoalves/Projects/APP_WEB/services/auth_service.py", line 250, in get_user_by_stamp
+    row = session.execute(sql, {"stamp": (user_stamp or "").strip()}).mappings().first()
+          ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/scoping.py", line 779, in execute
+    return self._proxied.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1809, in _execute_context
+    conn = self._revalidate_connection()
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 675, in _revalidate_connection
+    self._invalid_transaction()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hugoalves/Projects/APP_WEB/venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 665, in _invalid_transaction
+    raise exc.PendingRollbackError(
+    ...<4 lines>...
+    )
+sqlalchemy.exc.PendingRollbackError: Can't reconnect until invalid transaction is rolled back.  Please rollback() fully before proceeding (Background on this error at: https://sqlalche.me/e/20/8s2b)
+127.0.0.1 - - [08/Jul/2026 10:05:28] "GET /favicon.ico HTTP/1.1" 500 -

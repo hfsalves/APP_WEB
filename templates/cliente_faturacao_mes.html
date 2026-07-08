@@ -16,8 +16,45 @@
     }
 
     .client-billing-detail-page .sz_contextbar_left {
+      flex: 1 1 18rem;
+      width: auto;
+      max-width: calc(100% - 30rem);
       min-width: 0;
       gap: var(--sz-space-1);
+    }
+
+    .client-billing-detail-page .sz_contextbar_right {
+      display: flex;
+      flex-direction: row;
+      align-items: end;
+      justify-content: flex-end;
+      gap: var(--sz-space-2);
+      flex: 0 0 29rem;
+      min-width: 0;
+      flex-wrap: nowrap;
+    }
+
+    .client-billing-detail-filters {
+      display: inline-flex;
+      align-items: end;
+      gap: var(--sz-space-2);
+      min-width: 0;
+    }
+
+    .client-billing-detail-filters .sz_field {
+      width: 18rem;
+      margin: 0;
+    }
+
+    .client-billing-detail-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sz-space-2);
+      white-space: nowrap;
+    }
+
+    .client-billing-detail-actions .sz_button {
+      min-height: var(--sz-input-height);
     }
 
     .client-billing-detail-page .sz_page_body {
@@ -175,12 +212,38 @@
         align-items: flex-start;
       }
 
+      .client-billing-detail-page .sz_contextbar_left {
+        max-width: none;
+      }
+
+      .client-billing-detail-page .sz_contextbar_right {
+        flex-basis: auto;
+        width: 100%;
+        align-items: stretch;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+
       .client-billing-detail-kpis {
         grid-template-columns: 1fr;
       }
 
       .client-billing-detail-page .sz_actionbar {
         padding: var(--sz-space-2);
+      }
+
+      .client-billing-detail-filters {
+        width: 100%;
+        flex-wrap: wrap;
+      }
+
+      .client-billing-detail-filters .sz_field {
+        width: 100%;
+      }
+
+      .client-billing-detail-actions {
+        width: 100%;
+        justify-content: flex-start;
       }
     }
   </style>
@@ -198,10 +261,25 @@
         </div>
       </div>
       <div class="sz_contextbar_right">
-        <a class="sz_button sz_button_ghost" href="{{ url_for('cliente_portal_page') }}">
-          <i class="fa-solid fa-arrow-left"></i>
-          <span>Voltar</span>
-        </a>
+        {% if detail.alojamentos and detail.alojamentos|length > 1 %}
+          <form class="client-billing-detail-filters" method="get" action="{{ url_for('cliente_faturacao_mes_page', ano=detail.ano, mes=detail.mes) }}">
+            <label class="sz_field" for="clientBillingDetailAlojamento">
+              <span class="sz_label">Alojamento</span>
+              <select class="sz_select" id="clientBillingDetailAlojamento" name="alojamento" onchange="this.form.submit()">
+                <option value=""{% if not detail.alojamento %} selected{% endif %}>Todos</option>
+                {% for aloj in detail.alojamentos %}
+                  <option value="{{ aloj }}"{% if aloj == detail.alojamento %} selected{% endif %}>{{ aloj }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </form>
+        {% endif %}
+        <div class="client-billing-detail-actions">
+          <a class="sz_button sz_button_ghost" href="{% if detail.alojamento %}{{ url_for('cliente_faturacao_mes_export', ano=detail.ano, mes=detail.mes, alojamento=detail.alojamento) }}{% else %}{{ url_for('cliente_faturacao_mes_export', ano=detail.ano, mes=detail.mes) }}{% endif %}">
+            <i class="fa-solid fa-file-excel"></i>
+            <span>Excel</span>
+          </a>
+        </div>
       </div>
     </header>
 
