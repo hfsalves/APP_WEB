@@ -1146,6 +1146,10 @@ def create_app():
                 ISNULL(AL.INSTRUCOES_EN,'') AS AL_INSTRUCOES_EN,
                 ISNULL(AL.INSTRUCOES_FR,'') AS AL_INSTRUCOES_FR,
                 ISNULL(AL.INSTRUCOES_ES,'') AS AL_INSTRUCOES_ES,
+                ISNULL(CAST(AL.ESTACIONAMENTO AS varchar(max)), '') AS AL_ESTACIONAMENTO,
+                ISNULL(CAST(AL.ESTACIONAMENTOEN AS varchar(max)), '') AS AL_ESTACIONAMENTOEN,
+                ISNULL(CAST(AL.ESTACIONAMENTOFR AS varchar(max)), '') AS AL_ESTACIONAMENTOFR,
+                ISNULL(CAST(AL.ESTACIONAMENTOES AS varchar(max)), '') AS AL_ESTACIONAMENTOES,
                 AL.ALSTAMP,
                 AL.LAT,
                 AL.LON
@@ -1285,6 +1289,38 @@ def create_app():
                 })
         return images
 
+    def _public_al_parking_images(alstamp):
+        stamp = str(alstamp or '').strip()
+        if not stamp or not _shop_table_exists('AL_FOTOS'):
+            return []
+        try:
+            rows = db.session.execute(text("""
+                SELECT
+                    ISNULL(FICHEIRO, '') AS FICHEIRO,
+                    ISNULL(CAMINHO, '') AS CAMINHO,
+                    ISNULL(ALT_TEXT, '') AS ALT_TEXT
+                FROM dbo.AL_FOTOS
+                WHERE ALSTAMP = :alstamp
+                  AND ISNULL(ATIVO, 1) = 1
+                  AND ISNULL(ESTACIONAMENTO, 0) = 1
+                ORDER BY
+                  ISNULL(ORDEM, 999999),
+                  LOWER(ISNULL(FICHEIRO, '')),
+                  DTCRI
+            """), {'alstamp': stamp}).mappings().all()
+        except Exception:
+            current_app.logger.exception('Erro ao carregar imagens de estacionamento do AL')
+            return []
+        images = []
+        for r in rows:
+            url = _public_static_url_from_path(r.get('CAMINHO'))
+            if url:
+                images.append({
+                    'url': url,
+                    'alt': str(r.get('ALT_TEXT') or r.get('FICHEIRO') or 'Estacionamento').strip(),
+                })
+        return images
+
     def _public_checkin_instructions_payload(row):
         row = row or {}
         tag_values = _public_al_tag_values(row.get('ALOJAMENTO'))
@@ -1299,6 +1335,31 @@ def create_app():
             'texts': texts,
             'images': _public_al_checkin_images(row.get('ALSTAMP')),
         }
+
+    def _public_parking_instructions_payload(row):
+        row = row or {}
+        tag_values = _public_al_tag_values(row.get('ALOJAMENTO'))
+        raw_texts = {
+            'pt': _public_replace_instruction_tags(row.get('AL_ESTACIONAMENTO'), tag_values),
+            'en': _public_replace_instruction_tags(row.get('AL_ESTACIONAMENTOEN'), tag_values),
+            'fr': _public_replace_instruction_tags(row.get('AL_ESTACIONAMENTOFR'), tag_values),
+            'es': _public_replace_instruction_tags(row.get('AL_ESTACIONAMENTOES'), tag_values),
+        }
+        fallback_text = next((str(v or '').strip() for v in raw_texts.values() if str(v or '').strip()), '')
+        texts = {
+            lang: (str(value or '').strip() or fallback_text)
+            for lang, value in raw_texts.items()
+        }
+        return {
+            'available': bool(fallback_text),
+            'texts': texts,
+        }
+
+    def _public_is_parking_poi_type(value):
+        normalized = unicodedata.normalize('NFD', str(value or '').strip().lower())
+        normalized = ''.join(ch for ch in normalized if unicodedata.category(ch) != 'Mn')
+        normalized = re.sub(r'\s+', ' ', normalized)
+        return normalized in {'estacionamento', 'parking', 'parque estacionamento', 'parque de estacionamento'}
 
     def _public_reserva_guests_complete(row):
         rsstamp = str((row or {}).get('RSSTAMP') or '').strip()
@@ -3055,6 +3116,7 @@ def create_app():
         al_tag_values = _public_al_tag_values(row.get('ALOJAMENTO'))
         wifi_ssid = str(al_tag_values.get('wifi-ssid') or '').strip()
         wifi_password = str(al_tag_values.get('wifi_password') or al_tag_values.get('wifi-password') or '').strip()
+        parking_instructions = _public_parking_instructions_payload(row)
 
         page_data = {
             'public_code': canonical_reserva_code,
@@ -3093,6 +3155,13 @@ def create_app():
             'wifi_ssid': wifi_ssid,
             'wifi_password': wifi_password,
             'wifi_available': bool(wifi_ssid and wifi_password),
+            'parking_instructions': parking_instructions.get('texts') or {},
+            'parking_instructions_available': bool(parking_instructions.get('available')),
+            'parking_images': (
+                _public_al_parking_images(row.get('ALSTAMP'))
+                if parking_instructions.get('available')
+                else []
+            ),
         }
 
         # POI associados ao alojamento (agrupados por grupo)
@@ -3144,6 +3213,8 @@ def create_app():
         poi_groups_map = {}
         poi_groups_order = []
         for r in poi_rows:
+            if page_data['parking_instructions_available'] and _public_is_parking_poi_type(r.get('POI_TIPO')):
+                continue
             gkey = str(r.get('POIGSTAMP') or '').strip() or '__OUTROS__'
             if gkey not in poi_groups_map:
                 poi_groups_map[gkey] = {
@@ -14979,6 +15050,7 @@ def create_app():
             'RDATA': today,
             'ORIGEM': '',
             'RESERVA': '',
+            'INTERNA': 0,
             'DATAIN': today,
             'DATAOUT': tomorrow,
             'HORAIN': '15:00',
@@ -15115,6 +15187,38 @@ def create_app():
             WHERE RSSTAMP = :s
         """), {'s': rsstamp}).mappings().first()
         return bool(row)
+
+    def _rs_external_channel_origin(value):
+        origem = (str(value or '').strip().upper()
+                  .replace('Á', 'A').replace('À', 'A').replace('Â', 'A').replace('Ã', 'A')
+                  .replace('É', 'E').replace('Ê', 'E')
+                  .replace('Í', 'I')
+                  .replace('Ó', 'O').replace('Õ', 'O').replace('Ô', 'O')
+                  .replace('Ú', 'U')
+                  .replace('Ç', 'C'))
+        origem = ''.join(origem.split())
+        return 'AIRBNB' in origem or 'BOOKING' in origem
+
+    def _generate_rs_reservation_code(prefix):
+        prefix = str(prefix or 'R-')[:8]
+        for _ in range(20):
+            code = f"{prefix}{int(time.time() * 1000) % 100000000:08d}"[:25]
+            exists = db.session.execute(text("""
+                SELECT TOP 1 1
+                FROM dbo.RS
+                WHERE LTRIM(RTRIM(ISNULL(RESERVA,''))) = :code
+            """), {'code': code}).scalar()
+            if not exists:
+                return code
+            time.sleep(0.001)
+        return f"{prefix}{uuid.uuid4().int % 100000000:08d}"[:25]
+
+    def _generate_internal_reservation_code():
+        return _generate_rs_reservation_code('I-')
+
+    def _is_provisional_rs_reservation_code(value):
+        raw = str(value or '').strip().upper()
+        return len(raw) == 10 and raw.startswith('R-') and raw[2:].isdigit()
 
     @app.route('/faturacao/ft')
     @login_required
@@ -15438,17 +15542,23 @@ def create_app():
     @app.route('/reservas/rs/new')
     @login_required
     def reservas_rs_new():
+        try:
+            current_feid = get_current_feid()
+        except MissingCurrentEntityError as exc:
+            return Response(str(exc), status=403, content_type='text/plain; charset=utf-8')
         user_login = (getattr(current_user, 'LOGIN', '') or '').strip()
         payload = _default_rs_payload(user_login)
+        payload['RESERVA'] = _generate_rs_reservation_code('R-')
+        payload['FEID'] = current_feid
         db.session.execute(text("""
             INSERT INTO dbo.RS
-            (RSSTAMP, ALOJAMENTO, RDATA, ORIGEM, RESERVA, DATAIN, DATAOUT, HORAIN, HORAOUT, NOITES,
+            (RSSTAMP, FEID, ALOJAMENTO, RDATA, ORIGEM, RESERVA, INTERNA, DATAIN, DATAOUT, HORAIN, HORAOUT, NOITES,
              NOME, PAIS, ADULTOS, CRIANCAS, BEBES, ESTADIA, LIMPEZA, COMISSAO, READY, ENTROU, SAIU,
              ALERTA, OBS, CANCELADA, DTCANCEL, DIASCANCEL, NOTIF, NOTIF2, PCANCEL, BERCO, SOFACAMA,
              RTOTAL, USRCHECKIN, PRESENCIAL, SEF, USRSEF, USRINSRT, INSTR, USRINSTR, GUIDE_TOKEN,
              GUIDE_TOKEN_EXPIRES, GUIDE_TOKEN_REVOKED, FTNOME, FTMORADA, FTLOCAL, FTCODPOST, FTNCONT, FTEMAIL)
             VALUES
-            (:RSSTAMP, :ALOJAMENTO, :RDATA, :ORIGEM, :RESERVA, :DATAIN, :DATAOUT, :HORAIN, :HORAOUT, :NOITES,
+            (:RSSTAMP, :FEID, :ALOJAMENTO, :RDATA, :ORIGEM, :RESERVA, :INTERNA, :DATAIN, :DATAOUT, :HORAIN, :HORAOUT, :NOITES,
              :NOME, :PAIS, :ADULTOS, :CRIANCAS, :BEBES, :ESTADIA, :LIMPEZA, :COMISSAO, :READY, :ENTROU, :SAIU,
              :ALERTA, :OBS, :CANCELADA, :DTCANCEL, :DIASCANCEL, :NOTIF, :NOTIF2, :PCANCEL, :BERCO, :SOFACAMA,
              :RTOTAL, :USRCHECKIN, :PRESENCIAL, :SEF, :USRSEF, :USRINSRT, :INSTR, :USRINSTR, :GUIDE_TOKEN,
@@ -16115,6 +16225,20 @@ def create_app():
                 return header.get(name)
             return current.get(name, default)
 
+        origem = str(_h('ORIGEM') or '').strip()
+        current_external_origin = _rs_external_channel_origin(current.get('ORIGEM'))
+        final_external_origin = _rs_external_channel_origin(origem)
+        interna = (
+            1 if _to_int(current.get('INTERNA'), 0) == 1 else 0
+        ) if current_external_origin else (0 if final_external_origin else (
+            1 if _to_int(_h('INTERNA', 0), 0) == 1 else 0
+        ))
+        reserva = str(_h('RESERVA') or '').strip()
+        if interna == 1 and (not reserva or _is_provisional_rs_reservation_code(reserva)):
+            reserva = _generate_internal_reservation_code()
+        elif not reserva:
+            reserva = str(current.get('RESERVA') or '').strip() or _generate_rs_reservation_code('R-')
+
         db.session.execute(text(f"""
             UPDATE dbo.RS
             SET
@@ -16122,6 +16246,7 @@ def create_app():
                 RDATA=:RDATA,
                 ORIGEM=:ORIGEM,
                 RESERVA=:RESERVA,
+                INTERNA=:INTERNA,
                 DATAIN=:DATAIN,
                 DATAOUT=:DATAOUT,
                 HORAIN=:HORAIN,
@@ -16169,8 +16294,9 @@ def create_app():
             'current_feid': current_feid,
             'ALOJAMENTO': str(_h('ALOJAMENTO') or '').strip(),
             'RDATA': rdata,
-            'ORIGEM': str(_h('ORIGEM') or '').strip(),
-            'RESERVA': str(_h('RESERVA') or '').strip(),
+            'ORIGEM': origem,
+            'RESERVA': reserva,
+            'INTERNA': interna,
             'DATAIN': datain,
             'DATAOUT': dataout,
             'HORAIN': str(_h('HORAIN') or '').strip()[:5],
@@ -16274,7 +16400,13 @@ def create_app():
             })
 
         db.session.commit()
-        return jsonify({'ok': True})
+        saved, _ = _get_rs_bundle(rsstamp)
+        saved_header = dict(saved or {})
+        for key in ('RDATA', 'DATAIN', 'DATAOUT'):
+            saved_header[key] = _fmt_rs_date(saved_header.get(key))
+        saved_header['DTCANCEL'] = _fmt_rs_date(saved_header.get('DTCANCEL'), allow_blank=True)
+        saved_header['GUIDE_TOKEN_EXPIRES'] = _fmt_rs_datetime(saved_header.get('GUIDE_TOKEN_EXPIRES'))
+        return jsonify({'ok': True, 'header': saved_header})
 
     def _siba_prepare_and_send_reservation(rsstamp, current_feid, user_login='', send=True):
         _ensure_rsguests_siba_columns()

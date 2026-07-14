@@ -1181,14 +1181,14 @@ def _restore_square_tags(value: str, tags: dict[str, str]) -> str:
         text_value = text_value.replace(token, original)
     return text_value
 
-def _translate_al_instructions_with_openai(source_text: str) -> dict[str, str]:
+def _translate_al_text_with_openai(source_text: str, *, context: str, schema_name: str, timeout_seconds: int = 120) -> dict[str, str]:
     api_key = _al_translate_api_key()
     if not api_key:
         raise RuntimeError('Configura SHOP_TRANSLATE_OPENAI_API_KEY para usar a traducao.')
 
     protected_text, tags = _protect_square_tags(source_text)
     if not protected_text.strip():
-        raise ValueError('O campo INSTRUCOES esta vazio.')
+        raise ValueError('O texto a traduzir esta vazio.')
 
     request_body = {
         'model': _translation_model(db.session),
@@ -1199,7 +1199,7 @@ def _translate_al_instructions_with_openai(source_text: str) -> dict[str, str]:
                     {
                         'type': 'input_text',
                         'text': (
-                            'You translate Portuguese accommodation instructions for guests. '
+                            f'You translate Portuguese short-term rental accommodation {context} for guests. '
                             'Return valid JSON only. Keep every placeholder token matching __SZTAG<number>__ exactly unchanged.'
                         ),
                     }
@@ -1219,7 +1219,7 @@ def _translate_al_instructions_with_openai(source_text: str) -> dict[str, str]:
                                 'es': 'Spanish',
                             },
                             'rules': [
-                                'Translate naturally for guests staying in short-term accommodation.',
+                                'Translate naturally for guests considering or staying in short-term accommodation.',
                                 'Keep line breaks and list structure as much as possible.',
                                 'Do not translate, remove or alter placeholder tokens such as __SZTAG0__.',
                                 'Do not add explanations.',
@@ -1232,7 +1232,7 @@ def _translate_al_instructions_with_openai(source_text: str) -> dict[str, str]:
         'text': {
             'format': {
                 'type': 'json_schema',
-                'name': 'al_instrucoes_translations',
+                'name': schema_name,
                 'schema': {
                     'type': 'object',
                     'additionalProperties': False,
@@ -1257,7 +1257,7 @@ def _translate_al_instructions_with_openai(source_text: str) -> dict[str, str]:
         method='POST',
     )
     try:
-        with urllib_request.urlopen(req, timeout=90) as response:
+        with urllib_request.urlopen(req, timeout=timeout_seconds) as response:
             payload_response = json.loads(response.read().decode('utf-8'))
     except urllib_error.HTTPError as exc:
         details = ''
@@ -1278,9 +1278,131 @@ def _translate_al_instructions_with_openai(source_text: str) -> dict[str, str]:
         raise RuntimeError('A resposta da OpenAI nao veio em JSON valido.') from exc
 
     return {
-        'INSTRUCOES_EN': _restore_square_tags(parsed.get('en') or '', tags).strip(),
-        'INSTRUCOES_FR': _restore_square_tags(parsed.get('fr') or '', tags).strip(),
-        'INSTRUCOES_ES': _restore_square_tags(parsed.get('es') or '', tags).strip(),
+        'en': _restore_square_tags(parsed.get('en') or '', tags).strip(),
+        'fr': _restore_square_tags(parsed.get('fr') or '', tags).strip(),
+        'es': _restore_square_tags(parsed.get('es') or '', tags).strip(),
+    }
+
+def _split_al_translation_text(source_text: str, max_chars: int = 4200) -> list[str]:
+    text_value = str(source_text or '').strip()
+    if not text_value:
+        return []
+    if len(text_value) <= max_chars:
+        return [text_value]
+
+    parts = re.split(r'(\n\s*\n)', text_value)
+    chunks: list[str] = []
+    current = ''
+
+    def push_current():
+        nonlocal current
+        if current.strip():
+            chunks.append(current.strip())
+        current = ''
+
+    for part in parts:
+        if not part:
+            continue
+        candidate = f'{current}{part}'
+        if len(candidate) <= max_chars:
+            current = candidate
+            continue
+        push_current()
+        stripped = part.strip()
+        if not stripped:
+            continue
+        if len(stripped) <= max_chars:
+            current = stripped
+            continue
+        sentence_parts = re.split(r'(?<=[.!?])\s+', stripped)
+        for sentence in sentence_parts:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            if len(sentence) > max_chars:
+                for idx in range(0, len(sentence), max_chars):
+                    piece = sentence[idx:idx + max_chars].strip()
+                    if piece:
+                        if current:
+                            push_current()
+                        chunks.append(piece)
+                continue
+            candidate = f'{current} {sentence}'.strip() if current else sentence
+            if len(candidate) <= max_chars:
+                current = candidate
+            else:
+                push_current()
+                current = sentence
+
+    push_current()
+    return chunks
+
+def _translate_al_long_text_with_openai(source_text: str, *, context: str, schema_name: str) -> dict[str, str]:
+    chunks = _split_al_translation_text(source_text)
+    if not chunks:
+        raise ValueError('O texto a traduzir esta vazio.')
+    if len(chunks) == 1:
+        return _translate_al_text_with_openai(
+            chunks[0],
+            context=context,
+            schema_name=schema_name,
+            timeout_seconds=180,
+        )
+
+    translated_chunks = {'en': [], 'fr': [], 'es': []}
+    total = len(chunks)
+    for index, chunk in enumerate(chunks, start=1):
+        translated = _translate_al_text_with_openai(
+            chunk,
+            context=f'{context} part {index} of {total}',
+            schema_name=f'{schema_name}_part_{index}',
+            timeout_seconds=180,
+        )
+        for lang in translated_chunks:
+            value = str(translated.get(lang) or '').strip()
+            if value:
+                translated_chunks[lang].append(value)
+
+    return {
+        lang: '\n\n'.join(values).strip()
+        for lang, values in translated_chunks.items()
+    }
+
+def _translate_al_instructions_with_openai(source_text: str) -> dict[str, str]:
+    translated = _translate_al_text_with_openai(
+        source_text,
+        context='guest instructions',
+        schema_name='al_instrucoes_translations',
+        timeout_seconds=120,
+    )
+    return {
+        'INSTRUCOES_EN': translated.get('en') or '',
+        'INSTRUCOES_FR': translated.get('fr') or '',
+        'INSTRUCOES_ES': translated.get('es') or '',
+    }
+
+def _translate_al_description_with_openai(source_text: str) -> dict[str, str]:
+    translated = _translate_al_long_text_with_openai(
+        source_text,
+        context='listing descriptions',
+        schema_name='al_descricao_translations',
+    )
+    return {
+        'DESCRICAOEN': translated.get('en') or '',
+        'DESCRICAOFR': translated.get('fr') or '',
+        'DESCRICAOES': translated.get('es') or '',
+    }
+
+def _translate_al_parking_with_openai(source_text: str) -> dict[str, str]:
+    translated = _translate_al_long_text_with_openai(
+        source_text,
+        context='parking instructions',
+        schema_name='al_estacionamento_translations',
+    )
+    return {
+        'ESTACIONAMENTOEN': translated.get('en') or '',
+        'ESTACIONAMENTOFR': translated.get('fr') or '',
+        'ESTACIONAMENTOES': translated.get('es') or '',
     }
 
 def ensure_al_fotos_schema() -> bool:
@@ -1291,6 +1413,13 @@ def ensure_al_fotos_schema() -> bool:
             ALTER TABLE dbo.AL_FOTOS
             ADD CHECKIN BIT NOT NULL
                 CONSTRAINT DF_AL_FOTOS_CHECKIN DEFAULT (0)
+        """))
+        db.session.commit()
+    if not _column_exists('AL_FOTOS', 'ESTACIONAMENTO'):
+        db.session.execute(text("""
+            ALTER TABLE dbo.AL_FOTOS
+            ADD ESTACIONAMENTO BIT NOT NULL
+                CONSTRAINT DF_AL_FOTOS_ESTACIONAMENTO DEFAULT (0)
         """))
         db.session.commit()
     return True
@@ -1304,13 +1433,30 @@ def al_translate_instrucoes(alstamp):
         alstamp = (alstamp or '').strip()
         if not alstamp:
             return jsonify({'error': 'ALSTAMP em falta'}), 400
-        required_cols = ['INSTRUCOES', 'INSTRUCOES_EN', 'INSTRUCOES_FR', 'INSTRUCOES_ES']
+        required_cols = [
+            'INSTRUCOES', 'INSTRUCOES_EN', 'INSTRUCOES_FR', 'INSTRUCOES_ES',
+            'DESCRICAO', 'DESCRICAOEN', 'DESCRICAOFR', 'DESCRICAOES',
+            'ESTACIONAMENTO', 'ESTACIONAMENTOEN', 'ESTACIONAMENTOFR', 'ESTACIONAMENTOES',
+        ]
         missing = [col for col in required_cols if not _column_exists('AL', col)]
         if missing:
             return jsonify({'error': f'Campos em falta na tabela AL: {", ".join(missing)}'}), 400
 
         row = db.session.execute(text("""
-            SELECT TOP 1 ALSTAMP, ISNULL(INSTRUCOES, '') AS INSTRUCOES
+            SELECT TOP 1
+                   ALSTAMP,
+                   ISNULL(CAST(INSTRUCOES AS varchar(max)), '') AS INSTRUCOES,
+                   ISNULL(CAST(DESCRICAO AS varchar(max)), '') AS DESCRICAO,
+                   ISNULL(CAST(INSTRUCOES_EN AS varchar(max)), '') AS INSTRUCOES_EN,
+                   ISNULL(CAST(INSTRUCOES_FR AS varchar(max)), '') AS INSTRUCOES_FR,
+                   ISNULL(CAST(INSTRUCOES_ES AS varchar(max)), '') AS INSTRUCOES_ES,
+                   ISNULL(CAST(DESCRICAOEN AS varchar(max)), '') AS DESCRICAOEN,
+                   ISNULL(CAST(DESCRICAOFR AS varchar(max)), '') AS DESCRICAOFR,
+                   ISNULL(CAST(DESCRICAOES AS varchar(max)), '') AS DESCRICAOES,
+                   ISNULL(CAST(ESTACIONAMENTO AS varchar(max)), '') AS ESTACIONAMENTO,
+                   ISNULL(CAST(ESTACIONAMENTOEN AS varchar(max)), '') AS ESTACIONAMENTOEN,
+                   ISNULL(CAST(ESTACIONAMENTOFR AS varchar(max)), '') AS ESTACIONAMENTOFR,
+                   ISNULL(CAST(ESTACIONAMENTOES AS varchar(max)), '') AS ESTACIONAMENTOES
             FROM dbo.AL
             WHERE ALSTAMP = :alstamp
         """), {'alstamp': alstamp}).mappings().first()
@@ -1318,19 +1464,42 @@ def al_translate_instrucoes(alstamp):
             return jsonify({'error': 'Alojamento não encontrado'}), 404
 
         payload = request.get_json(silent=True) or {}
-        source_text = str(payload.get('source_text') if payload.get('source_text') is not None else row.get('INSTRUCOES') or '')
-        translations = _translate_al_instructions_with_openai(source_text)
+        instructions_text = str(payload.get('source_text') if payload.get('source_text') is not None else row.get('INSTRUCOES') or '')
+        description_text = str(payload.get('description_text') if payload.get('description_text') is not None else row.get('DESCRICAO') or '')
+        parking_text = str(payload.get('parking_text') if payload.get('parking_text') is not None else row.get('ESTACIONAMENTO') or '')
+        if not instructions_text.strip() and not description_text.strip() and not parking_text.strip():
+            return jsonify({'error': 'Os campos INSTRUCOES, DESCRICAO e ESTACIONAMENTO estão vazios.'}), 400
+
+        translations = {}
+        if instructions_text.strip():
+            translations.update(_translate_al_instructions_with_openai(instructions_text))
+        if description_text.strip():
+            translations.update(_translate_al_description_with_openai(description_text))
+        if parking_text.strip():
+            translations.update(_translate_al_parking_with_openai(parking_text))
 
         db.session.execute(text("""
             UPDATE dbo.AL
-               SET INSTRUCOES_EN = :en,
-                   INSTRUCOES_FR = :fr,
-                   INSTRUCOES_ES = :es
+               SET INSTRUCOES_EN = :instrucoes_en,
+                   INSTRUCOES_FR = :instrucoes_fr,
+                   INSTRUCOES_ES = :instrucoes_es,
+                   DESCRICAOEN = :descricao_en,
+                   DESCRICAOFR = :descricao_fr,
+                   DESCRICAOES = :descricao_es,
+                   ESTACIONAMENTOEN = :estacionamento_en,
+                   ESTACIONAMENTOFR = :estacionamento_fr,
+                   ESTACIONAMENTOES = :estacionamento_es
              WHERE ALSTAMP = :alstamp
         """), {
-            'en': translations.get('INSTRUCOES_EN') or '',
-            'fr': translations.get('INSTRUCOES_FR') or '',
-            'es': translations.get('INSTRUCOES_ES') or '',
+            'instrucoes_en': translations.get('INSTRUCOES_EN') if 'INSTRUCOES_EN' in translations else (row.get('INSTRUCOES_EN') or ''),
+            'instrucoes_fr': translations.get('INSTRUCOES_FR') if 'INSTRUCOES_FR' in translations else (row.get('INSTRUCOES_FR') or ''),
+            'instrucoes_es': translations.get('INSTRUCOES_ES') if 'INSTRUCOES_ES' in translations else (row.get('INSTRUCOES_ES') or ''),
+            'descricao_en': translations.get('DESCRICAOEN') if 'DESCRICAOEN' in translations else (row.get('DESCRICAOEN') or ''),
+            'descricao_fr': translations.get('DESCRICAOFR') if 'DESCRICAOFR' in translations else (row.get('DESCRICAOFR') or ''),
+            'descricao_es': translations.get('DESCRICAOES') if 'DESCRICAOES' in translations else (row.get('DESCRICAOES') or ''),
+            'estacionamento_en': translations.get('ESTACIONAMENTOEN') if 'ESTACIONAMENTOEN' in translations else (row.get('ESTACIONAMENTOEN') or ''),
+            'estacionamento_fr': translations.get('ESTACIONAMENTOFR') if 'ESTACIONAMENTOFR' in translations else (row.get('ESTACIONAMENTOFR') or ''),
+            'estacionamento_es': translations.get('ESTACIONAMENTOES') if 'ESTACIONAMENTOES' in translations else (row.get('ESTACIONAMENTOES') or ''),
             'alstamp': alstamp,
         })
         db.session.commit()
@@ -1685,6 +1854,7 @@ def al_fotos_list(alstamp):
                 ORDEM,
                 CAPA,
                 CHECKIN,
+                ESTACIONAMENTO,
                 ATIVO,
                 DTCRI,
                 DTALT,
@@ -1757,6 +1927,7 @@ def al_fotos_upload(alstamp):
                     ORDEM,
                     CAPA,
                     CHECKIN,
+                    ESTACIONAMENTO,
                     ATIVO,
                     DTCRI,
                     DTALT,
@@ -1771,6 +1942,7 @@ def al_fotos_upload(alstamp):
                     :alt_text,
                     :ordem,
                     :capa,
+                    0,
                     0,
                     1,
                     GETDATE(),
@@ -1877,6 +2049,47 @@ def al_fotos_set_checkin(alstamp, alfotostamp):
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception('Erro ao definir check-in AL_FOTOS')
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/al_fotos/<alstamp>/estacionamento/<alfotostamp>', methods=['POST'])
+@login_required
+def al_fotos_set_estacionamento(alstamp, alfotostamp):
+    try:
+        if not ensure_al_fotos_schema():
+            return jsonify({'error': 'Tabela AL_FOTOS inexistente. Executa a migration primeiro.'}), 400
+        alstamp = (alstamp or '').strip()
+        alfotostamp = (alfotostamp or '').strip()
+        if not alstamp or not alfotostamp:
+            return jsonify({'error': 'Dados em falta'}), 400
+
+        photo = db.session.execute(text("""
+            SELECT TOP 1 ISNULL(ESTACIONAMENTO, 0) AS ESTACIONAMENTO
+            FROM dbo.AL_FOTOS
+            WHERE ALSTAMP = :alstamp
+              AND ALFOTOSTAMP = :stamp
+        """), {'alstamp': alstamp, 'stamp': alfotostamp}).mappings().first()
+        if not photo:
+            return jsonify({'error': 'Foto não encontrada'}), 404
+
+        payload = request.get_json(silent=True) or {}
+        if 'estacionamento' in payload:
+            estacionamento = 1 if bool(payload.get('estacionamento')) else 0
+        else:
+            estacionamento = 0 if int(photo.get('ESTACIONAMENTO') or 0) else 1
+
+        db.session.execute(text("""
+            UPDATE dbo.AL_FOTOS
+            SET ESTACIONAMENTO = :estacionamento,
+                DTALT = GETDATE()
+            WHERE ALSTAMP = :alstamp
+              AND ALFOTOSTAMP = :stamp
+        """), {'estacionamento': estacionamento, 'alstamp': alstamp, 'stamp': alfotostamp})
+        db.session.commit()
+        return jsonify({'success': True, 'ESTACIONAMENTO': estacionamento})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Erro ao definir estacionamento AL_FOTOS')
         return jsonify({'error': str(e)}), 500
 
 
@@ -4300,6 +4513,95 @@ def api_cleaning_plan():
 
     # Convert RowMapping to plain dicts for JSON serialization
     result = [dict(row) for row in rows]
+    for item in result:
+        item['row_type'] = 'ALOJAMENTO'
+
+    if _column_exists('LC', 'NOME') and _column_exists('LP', 'LOCAL'):
+        lc_codpost_expr = "NULLIF(LTRIM(RTRIM(lc.[CODPOST])), '') AS al_codpost" if _column_exists('LC', 'CODPOST') else "'' AS al_codpost"
+        lc_local_expr = "NULLIF(LTRIM(RTRIM(lc.[LOCAL])), '') AS al_local" if _column_exists('LC', 'LOCAL') else "'' AS al_local"
+        lc_morada_expr = "NULLIF(LTRIM(RTRIM(lc.[MORADA])), '') AS al_morada" if _column_exists('LC', 'MORADA') else "'' AS al_morada"
+        local_rows = db.session.execute(text(f"""
+            SELECT
+              'LOCAL'                AS row_type,
+              ''                     AS al_stamp,
+              lc.NOME                AS lodging,
+              'Local'                AS typology,
+              ''                     AS zone,
+              60                     AS cleaning_minutes,
+              0                      AS min_nights,
+              {lc_codpost_expr},
+              {lc_local_expr},
+              {lc_morada_expr},
+              NULL                   AS last_clean_date,
+              ''                     AS last_clean_hour,
+              ''                     AS last_team,
+              0                      AS clean_since_last,
+              ''                     AS checkout_time,
+              ''                     AS checkout_reservation,
+              0                      AS checkout_people,
+              0                      AS checkout_nights,
+              ''                     AS checkout_guest,
+              ''                     AS checkout_country,
+              ''                     AS checkin_time,
+              ''                     AS checkin_reservation,
+              0                      AS checkin_people,
+              0                      AS checkin_nights,
+              ''                     AS checkin_guest,
+              ''                     AS checkin_country,
+              0                      AS occupied_people,
+              0                      AS occupied_nights,
+              ''                     AS occupied_guest,
+              ''                     AS occupied_country,
+              pl_day.LPSTAMP         AS cleaning_id,
+              pl_day.HORA            AS cleaning_time,
+              pl_day.EQUIPA          AS cleaning_team,
+              pl_day.TERMINADA       AS cleaning_done,
+              {lp_folga_expr},
+              pl_day.HOSPEDES        AS cleaning_guests,
+              pl_day.NOITES          AS cleaning_nights,
+              pl_day.OBS             AS cleaning_notes,
+              ta.TAREFASSTAMP        AS cleaning_task_id,
+              ta.TRATADO             AS cleaning_task_done,
+              ta.HORAINI             AS cleaning_started_at,
+              ta.HORAFIM             AS cleaning_finished_at,
+              ta.UTILIZADOR_NOME     AS cleaning_task_user,
+              NULL                   AS next_checkin_date,
+              NULL                   AS postponed_date,
+              ''                     AS postponed_team,
+              5                      AS planner_status,
+              0                      AS cost
+            FROM dbo.LC AS lc
+            LEFT JOIN dbo.LP AS pl_day
+              ON LTRIM(RTRIM(ISNULL(pl_day.LOCAL, ''))) = LTRIM(RTRIM(ISNULL(lc.NOME, '')))
+             AND CAST(pl_day.DATA AS date) = :date
+            OUTER APPLY (
+              SELECT TOP 1
+                T.TAREFASSTAMP,
+                ISNULL(T.TRATADO, 0) AS TRATADO,
+                ISNULL(T.HORAINI, '') AS HORAINI,
+                ISNULL(T.HORAFIM, '') AS HORAFIM,
+                ISNULL(U.NOME, T.UTILIZADOR) AS UTILIZADOR_NOME
+              FROM dbo.TAREFAS AS T
+              LEFT JOIN dbo.US AS U ON U.LOGIN = T.UTILIZADOR
+              WHERE pl_day.LPSTAMP IS NOT NULL
+                AND LTRIM(RTRIM(ISNULL(T.ORIGEM, ''))) = 'LP'
+                AND CAST(T.DATA AS date) = :date
+                AND LTRIM(RTRIM(ISNULL(T.LOCAL, ''))) = LTRIM(RTRIM(ISNULL(pl_day.LOCAL, '')))
+                AND (
+                  LTRIM(RTRIM(ISNULL(T.ORISTAMP, ''))) = LTRIM(RTRIM(ISNULL(pl_day.LPSTAMP, '')))
+                  OR (
+                    LTRIM(RTRIM(ISNULL(T.ORISTAMP, ''))) = ''
+                    AND LTRIM(RTRIM(ISNULL(T.HORA, ''))) = LTRIM(RTRIM(ISNULL(pl_day.HORA, '')))
+                  )
+                )
+              ORDER BY
+                CASE WHEN LTRIM(RTRIM(ISNULL(T.ORISTAMP, ''))) = LTRIM(RTRIM(ISNULL(pl_day.LPSTAMP, ''))) THEN 0 ELSE 1 END,
+                T.TAREFASSTAMP
+            ) ta
+            WHERE LTRIM(RTRIM(ISNULL(lc.NOME, ''))) <> ''
+            ORDER BY lc.NOME
+        """), {'date': date}).mappings().all()
+        result.extend(dict(row) for row in local_rows)
     return jsonify(result)
 
 
@@ -4411,13 +4713,19 @@ def api_gravar_limpezas():
         return jsonify(success=False, message="Nenhum dado recebido"), 400
     push_queue = []
     lp_has_folga = _column_exists('LP', 'FOLGA')
+    lp_has_local = _column_exists('LP', 'LOCAL')
     for lp in limpezas:
         lp_folga = 1 if str(lp.get("FOLGA") or lp.get("folga") or "").strip().lower() in ("1", "true", "yes", "on") else 0
+        lp_local = str(lp.get("LOCAL") or lp.get("local") or "").strip() if lp_has_local else ""
+        lp_alojamento = str(lp.get("ALOJAMENTO") or lp.get("alojamento") or "").strip()
+        if lp_local:
+            lp_alojamento = ""
         lpstamp = lp.get("LPSTAMP") or lp.get("lpstamp")
         if lpstamp:
             previous = db.session.execute(text("""
                 SELECT TOP 1
                     ISNULL(ALOJAMENTO,'') AS ALOJAMENTO,
+                    {local_select}
                     CONVERT(varchar(10), DATA, 23) AS DATA,
                     ISNULL(HORA,'') AS HORA,
                     ISNULL(EQUIPA,'') AS EQUIPA
@@ -4425,12 +4733,14 @@ def api_gravar_limpezas():
                 FROM LP
                 WHERE LPSTAMP = :lpstamp
             """.format(
+                local_select="ISNULL(LOCAL,'') AS LOCAL," if lp_has_local else "'' AS LOCAL,",
                 folga_select=', ISNULL(FOLGA, 0) AS FOLGA' if lp_has_folga else ''
             )), {"lpstamp": lpstamp}).mappings().first()
             res = db.session.execute(
                 text("""
                 UPDATE LP
                 SET ALOJAMENTO = :alojamento,
+                    {local_sql}
                     DATA = :data,
                     HORA = :hora,
                     EQUIPA = :equipa
@@ -4438,12 +4748,14 @@ def api_gravar_limpezas():
                     {feid_sql}
                 WHERE LPSTAMP = :lpstamp
                 """.format(
+                    local_sql='LOCAL = :local,' if lp_has_local else '',
                     folga_sql=', FOLGA = :folga' if lp_has_folga else '',
                     feid_sql=', FEID = :feid' if current_feid is not None else ''
                 )),
                 dict(
                     lpstamp=lpstamp,
-                    alojamento=lp["ALOJAMENTO"],
+                    alojamento=lp_alojamento,
+                    **({'local': lp_local} if lp_has_local else {}),
                     data=lp["DATA"],
                     hora=lp["HORA"],
                     equipa=lp["EQUIPA"],
@@ -4454,38 +4766,43 @@ def api_gravar_limpezas():
             if res.rowcount:
                 prev = dict(previous or {})
                 changed = any([
-                    str(prev.get("ALOJAMENTO") or "") != str(lp.get("ALOJAMENTO") or ""),
+                    str(prev.get("ALOJAMENTO") or "") != lp_alojamento,
+                    lp_has_local and str(prev.get("LOCAL") or "") != lp_local,
                     str(prev.get("DATA") or "") != str(lp.get("DATA") or ""),
                     str(prev.get("HORA") or "") != str(lp.get("HORA") or ""),
                     str(prev.get("EQUIPA") or "") != str(lp.get("EQUIPA") or ""),
                     lp_has_folga and int(prev.get("FOLGA") or 0) != lp_folga,
                 ])
                 if changed and str(lp.get("EQUIPA") or "").strip():
+                    target_name = lp_local or lp_alojamento or 'Alojamento'
                     push_queue.append({
                         "event_type": "TASK_REASSIGNED" if str(prev.get("EQUIPA") or "").strip() else "CLEANING_ASSIGNED",
                         "team": lp["EQUIPA"],
                         "context": {
-                            "alojamento": lp.get("ALOJAMENTO"),
+                            "alojamento": target_name,
                             "data": lp.get("DATA"),
                             "hora": lp.get("HORA"),
-                            "body": f"{lp.get('ALOJAMENTO') or 'Alojamento'} - {lp.get('DATA') or ''} {lp.get('HORA') or ''}".strip(),
+                            "body": f"{target_name} - {lp.get('DATA') or ''} {lp.get('HORA') or ''}".strip(),
                             "url": "/monitor",
                         },
                     })
                 continue
-        # Verifica se jÃ¡ existe (mesmo ALOJAMENTO, DATA, HORA, EQUIPA)
+        # Verifica se já existe (mesmo destino, DATA, HORA, EQUIPA)
         reg = db.session.execute(
             text("""
             SELECT LPSTAMP FROM LP WHERE
               ALOJAMENTO = :alojamento
+              {local_where}
               AND DATA = :data
               AND HORA = :hora
               AND EQUIPA = :equipa
               {feid_where}
             """.format(
+                local_where='AND LOCAL = :local' if lp_has_local else '',
                 feid_where='AND FEID = :feid' if current_feid is not None else ''
             )), dict(
-                alojamento=lp["ALOJAMENTO"],
+                alojamento=lp_alojamento,
+                **({'local': lp_local} if lp_has_local else {}),
                 data=lp["DATA"],
                 hora=lp["HORA"],
                 equipa=lp["EQUIPA"],
@@ -4493,13 +4810,15 @@ def api_gravar_limpezas():
             )
         ).fetchone()
         if reg:
-            continue  # jÃ¡ existe, nÃ£o grava de novo
-        # SenÃ£o, cria
+            continue  # já existe, não grava de novo
+        # Senão, cria
         db.session.execute(
             text("""
-            INSERT INTO LP (LPSTAMP, ALOJAMENTO, DATA, HORA, EQUIPA, TERMINADA, CUSTO, HOSPEDES, NOITES, OBS{folga_cols}{feid_cols})
-            VALUES (:lpstamp, :alojamento, :data, :hora, :equipe, 0, 0, 0, 0, ''{folga_vals}{feid_vals})
+            INSERT INTO LP (LPSTAMP, ALOJAMENTO{local_cols}, DATA, HORA, EQUIPA, TERMINADA, CUSTO, HOSPEDES, NOITES, OBS{folga_cols}{feid_cols})
+            VALUES (:lpstamp, :alojamento{local_vals}, :data, :hora, :equipe, 0, 0, 0, 0, ''{folga_vals}{feid_vals})
             """.format(
+                local_cols=', LOCAL' if lp_has_local else '',
+                local_vals=', :local' if lp_has_local else '',
                 folga_cols=', FOLGA' if lp_has_folga else '',
                 folga_vals=', :folga' if lp_has_folga else '',
                 feid_cols=', FEID' if current_feid is not None else '',
@@ -4507,7 +4826,8 @@ def api_gravar_limpezas():
             )),
             dict(
                 lpstamp=uuid.uuid4().hex[:25],
-                alojamento=lp["ALOJAMENTO"],
+                alojamento=lp_alojamento,
+                **({'local': lp_local} if lp_has_local else {}),
                 data=lp["DATA"],
                 hora=lp["HORA"],
                 equipe=lp["EQUIPA"],
@@ -4516,11 +4836,12 @@ def api_gravar_limpezas():
             )
         )
         if str(lp.get("EQUIPA") or "").strip():
+            target_name = lp_local or lp_alojamento or 'Alojamento'
             push_queue.append({
                 "event_type": "CLEANING_ASSIGNED",
                 "team": lp["EQUIPA"],
                 "context": {
-                    "alojamento": lp.get("ALOJAMENTO"),
+                    "alojamento": target_name,
                     "data": lp.get("DATA"),
                     "hora": lp.get("HORA"),
                     "url": "/monitor",

@@ -52,6 +52,19 @@ def _to_int(value, default=None):
         return default
 
 
+def _to_count(value, default=None):
+    if value is None:
+        return default
+    text_value = str(value).strip()
+    if text_value == "":
+        return default
+    try:
+        number = int(text_value)
+        return number if number >= 0 else default
+    except Exception:
+        return default
+
+
 def _to_decimal(value):
     try:
         return Decimal(str(value or "0")).quantize(_DEC2, rounding=ROUND_HALF_UP)
@@ -189,7 +202,21 @@ def alojamento_disponivel(al_id, checkin, checkout) -> bool:
     return not bool(conflicts or 0)
 
 
-def _alojamento_base_select(where_sql: str) -> str:
+def _descricao_alojamento_sql(lang=None) -> str:
+    lang_key = _clean(lang).lower()
+    translated_column = {
+        "en": "DESCRICAOEN",
+        "fr": "DESCRICAOFR",
+        "es": "DESCRICAOES",
+    }.get(lang_key)
+    base = "LTRIM(RTRIM(CAST(ISNULL(AL.DESCRICAO, '') AS varchar(max))))"
+    if not translated_column:
+        return base
+    translated = f"LTRIM(RTRIM(CAST(ISNULL(AL.{translated_column}, '') AS varchar(max))))"
+    return f"COALESCE(NULLIF({translated}, ''), {base})"
+
+
+def _alojamento_base_select(where_sql: str, lang=None) -> str:
     return f"""
         SELECT
             AL.ALSTAMP,
@@ -206,9 +233,14 @@ def _alojamento_base_select(where_sql: str) -> str:
             LTRIM(RTRIM(ISNULL(AL.LAT, ''))) AS LAT,
             LTRIM(RTRIM(ISNULL(AL.LON, ''))) AS LON,
             LTRIM(RTRIM(ISNULL(AL.NMPESQUISA, ''))) AS NMPESQUISA,
+            CAST(ISNULL(AL.LOTADULTOS, 0) AS int) AS LOTADULTOS,
+            CAST(ISNULL(AL.LOTCRIANCAS, 0) AS int) AS LOTCRIANCAS,
+            CAST(ISNULL(AL.BERCO, 0) AS bit) AS BERCO,
+            CAST(ISNULL(AL.VALOREXTRA, 0) AS decimal(12, 2)) AS VALOREXTRA,
+            CAST(ISNULL(AL.EXTRAMAISQUE, 0) AS int) AS EXTRAMAISQUE,
             CAST(ISNULL(AL.PBASE, 0) AS decimal(12, 2)) AS PBASE,
             CAST(COALESCE(PA.PRECO_BASE, AL.PBASE, 0) AS decimal(12, 2)) AS PRECO_DESDE,
-            CAST('' AS varchar(max)) AS DESCRICAO
+            {_descricao_alojamento_sql(lang)} AS DESCRICAO
         FROM dbo.AL AS AL
         OUTER APPLY (
             SELECT TOP 1 PA.PRECO_BASE
@@ -235,7 +267,7 @@ def _alojamento_count_select(where_sql: str) -> str:
 
 def _alojamento_capacity_sql() -> str:
     normalized = "REPLACE(UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, '')))), ' ', '')"
-    return f"""
+    typology_capacity = f"""
         CASE
             WHEN {normalized} LIKE '%T4%' THEN 8
             WHEN {normalized} LIKE '%T3%' THEN 6
@@ -245,10 +277,37 @@ def _alojamento_capacity_sql() -> str:
             ELSE 0
         END
     """
+    return f"""
+        CASE
+            WHEN ISNULL(AL.LOTADULTOS, 0) > 0 OR ISNULL(AL.LOTCRIANCAS, 0) > 0
+                THEN ISNULL(AL.LOTADULTOS, 0) + ISNULL(AL.LOTCRIANCAS, 0)
+            ELSE {typology_capacity}
+        END
+    """
 
 
-def _alojamento_paged_select(where_sql: str) -> str:
-    base_sql = _alojamento_base_select(where_sql).rstrip()
+def _alojamento_adult_capacity_sql() -> str:
+    normalized = "REPLACE(UPPER(LTRIM(RTRIM(ISNULL(AL.TIPOLOGIA, '')))), ' ', '')"
+    typology_capacity = f"""
+        CASE
+            WHEN {normalized} LIKE '%T4%' THEN 8
+            WHEN {normalized} LIKE '%T3%' THEN 6
+            WHEN {normalized} LIKE '%T2%' THEN 4
+            WHEN {normalized} LIKE '%T1%' THEN 3
+            WHEN {normalized} LIKE '%T0%' THEN 2
+            ELSE 0
+        END
+    """
+    return f"""
+        CASE
+            WHEN ISNULL(AL.LOTADULTOS, 0) > 0 THEN ISNULL(AL.LOTADULTOS, 0)
+            ELSE {typology_capacity}
+        END
+    """
+
+
+def _alojamento_paged_select(where_sql: str, lang=None) -> str:
+    base_sql = _alojamento_base_select(where_sql, lang=lang).rstrip()
     return f"""
         {base_sql}
         OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
@@ -258,7 +317,13 @@ def _alojamento_paged_select(where_sql: str) -> str:
 def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
     item = _row_dict(row)
     tipologia = _clean(item.get("TIPOLOGIA"))
-    capacidade = capacidade_por_tipologia(tipologia)
+    capacidade_tipologia = capacidade_por_tipologia(tipologia)
+    lot_adultos_raw = _to_count(item.get("LOTADULTOS"), default=0) or 0
+    lot_criancas_raw = _to_count(item.get("LOTCRIANCAS"), default=0) or 0
+    has_lotacao_detalhada = lot_adultos_raw > 0 or lot_criancas_raw > 0
+    lot_adultos = lot_adultos_raw if lot_adultos_raw > 0 else capacidade_tipologia
+    lot_criancas = lot_criancas_raw if has_lotacao_detalhada else 0
+    capacidade = (lot_adultos + lot_criancas) if has_lotacao_detalhada else capacidade_tipologia
     alstamp = item.get("ALSTAMP")
     fotos_al = get_fotos_alojamento(alstamp) if include_gallery else []
     foto_principal = fotos_al[0]["url"] if fotos_al else get_foto_principal(alstamp)
@@ -289,6 +354,11 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
         "nome_interno": _clean(item.get("NOME_INTERNO")),
         "tipologia": tipologia,
         "capacidade": capacidade,
+        "lot_adultos": lot_adultos,
+        "lot_criancas": lot_criancas,
+        "berco": bool(item.get("BERCO")),
+        "valor_extra": _to_decimal(item.get("VALOREXTRA")),
+        "extra_mais_que": _to_count(item.get("EXTRAMAISQUE"), default=0) or 0,
         "morada": _clean(item.get("MORADA")),
         "local": _clean(item.get("LOCAL")),
         "codpost": _clean(item.get("CODPOST")),
@@ -418,7 +488,7 @@ def get_fotos_melhoradas_alojamento(al_id) -> list[dict]:
     ]
 
 
-def get_alojamento(al_id) -> dict | None:
+def get_alojamento(al_id, lang=None) -> dict | None:
     al_id_clean = _clean(al_id)
     if not al_id_clean:
         return None
@@ -430,7 +500,8 @@ def get_alojamento(al_id) -> dict | None:
                 AND LTRIM(RTRIM(ISNULL(AL.NOME, ''))) <> ''
                 AND ISNULL(AL.INATIVO, 0) = 0
                 AND ISNULL(AL.FECHADO, 0) = 0
-                """
+                """,
+                lang=lang,
             )
         ),
         {"al_id": al_id_clean},
@@ -499,10 +570,12 @@ def get_noites_ocupadas(al_id, start=None, months=12) -> list[str]:
     return sorted(occupied)
 
 
-def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None, query=None, page=1, per_page=18) -> dict:
+def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None, query=None, page=1, per_page=18, lang=None, adultos=None, criancas=None, bebes=None) -> dict:
     checkin_date = _to_date(checkin)
     checkout_date = _to_date(checkout)
     guest_count = _to_int(hospedes)
+    adult_count = _to_count(adultos)
+    child_count = _to_count(criancas, default=0) or 0
     query_clean = _clean(query)
     try:
         page_number = max(1, int(page or 1))
@@ -554,7 +627,15 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
         params["checkin"] = checkin_date
         params["checkout"] = checkout_date
 
-    if guest_count:
+    if adult_count:
+        where.append(f"({_alojamento_adult_capacity_sql()}) >= :adult_count")
+        params["adult_count"] = adult_count
+        where.append(f"({_alojamento_capacity_sql()}) >= :guest_count")
+        params["guest_count"] = adult_count + child_count
+    elif child_count:
+        where.append(f"({_alojamento_capacity_sql()}) >= :guest_count")
+        params["guest_count"] = child_count
+    elif guest_count:
         where.append(f"({_alojamento_capacity_sql()}) >= :guest_count")
         params["guest_count"] = guest_count
 
@@ -564,7 +645,7 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
     page_number = min(page_number, total_pages)
     start = (page_number - 1) * page_size
     page_params = {**params, "offset": start, "limit": page_size}
-    rows = db.session.execute(text(_alojamento_paged_select(where_sql)), page_params).mappings().all()
+    rows = db.session.execute(text(_alojamento_paged_select(where_sql, lang=lang)), page_params).mappings().all()
     alojamentos = [_decorate_alojamento(row) for row in rows]
     return {
         "items": alojamentos,
@@ -579,12 +660,16 @@ def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None,
     }
 
 
-def get_alojamentos_disponiveis(checkin=None, checkout=None, hospedes=None, query=None) -> list[dict]:
+def get_alojamentos_disponiveis(checkin=None, checkout=None, hospedes=None, query=None, lang=None, adultos=None, criancas=None, bebes=None) -> list[dict]:
     return get_alojamentos_disponiveis_page(
         checkin=checkin,
         checkout=checkout,
         hospedes=hospedes,
         query=query,
+        lang=lang,
+        adultos=adultos,
+        criancas=criancas,
+        bebes=bebes,
         page=1,
         per_page=10000,
     )["items"]
@@ -671,7 +756,11 @@ def calcular_preco(al_id, checkin=None, checkout=None, hospedes=None):
 
     tourist_days = min(noites, TOURIST_TAX_MAX_DAYS)
     tourist_tax = (TOURIST_TAX_PER_GUEST_NIGHT * Decimal(guest_count) * Decimal(tourist_days)).quantize(_DEC2)
-    total = (subtotal_noites + CLEANING_FEE + tourist_tax).quantize(_DEC2)
+    extra_rate = _to_decimal(alojamento.get("valor_extra"))
+    extra_threshold = _to_count(alojamento.get("extra_mais_que"), default=0) or 0
+    extra_guest_count = max(0, guest_count - extra_threshold) if extra_rate > 0 and extra_threshold > 0 else 0
+    extra_guest_total = (extra_rate * Decimal(extra_guest_count) * Decimal(noites)).quantize(_DEC2)
+    total = (subtotal_noites + extra_guest_total + CLEANING_FEE + tourist_tax).quantize(_DEC2)
 
     return {
         "valor": total,
@@ -681,6 +770,12 @@ def calcular_preco(al_id, checkin=None, checkout=None, hospedes=None):
         "precos_noite": nightly_prices,
         "preco_noites": subtotal_noites,
         "preco_noites_label": _money(subtotal_noites),
+        "hospedes_extra": extra_guest_count,
+        "hospedes_extra_valor_noite": extra_rate,
+        "hospedes_extra_valor_noite_label": _money(extra_rate),
+        "hospedes_extra_total": extra_guest_total,
+        "hospedes_extra_total_label": _money(extra_guest_total),
+        "hospedes_extra_limite": extra_threshold,
         "limpeza": CLEANING_FEE,
         "limpeza_label": _money(CLEANING_FEE),
         "taxa_turistica": tourist_tax,
@@ -688,6 +783,7 @@ def calcular_preco(al_id, checkin=None, checkout=None, hospedes=None):
         "taxa_turistica_dias": tourist_days,
         "linhas": [
             {"label": f"Noites ({noites})", "value": _money(subtotal_noites)},
+            {"label": f"Hospedes extra ({extra_guest_count} x {noites} noite{'s' if noites != 1 else ''})", "value": _money(extra_guest_total)} if extra_guest_total > 0 else None,
             {"label": "Taxa de limpeza", "value": _money(CLEANING_FEE)},
             {"label": f"Taxa turistica ({guest_count} hospede{'s' if guest_count != 1 else ''} x {tourist_days} dia{'s' if tourist_days != 1 else ''})", "value": _money(tourist_tax)},
         ],

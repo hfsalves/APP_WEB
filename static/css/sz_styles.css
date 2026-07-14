@@ -1311,6 +1311,10 @@ input.sz_date[type="time"]::-webkit-calendar-picker-indicator {
   border-color: color-mix(in srgb, var(--sz-color-info) 55%, var(--sz-color-border));
 }
 
+.sz_al_fotos_card.is-parking {
+  border-color: color-mix(in srgb, var(--sz-color-warning) 58%, var(--sz-color-border));
+}
+
 .sz_al_fotos_card.is-dragging {
   opacity: .45;
   transform: scale(.98);
@@ -1380,6 +1384,11 @@ input.sz_date[type="time"]::-webkit-calendar-picker-indicator {
 .sz_al_fotos_badge_checkin {
   color: var(--sz-color-info);
   background: color-mix(in srgb, var(--sz-color-info) 14%, var(--sz-color-surface));
+}
+
+.sz_al_fotos_badge_parking {
+  color: var(--sz-color-warning);
+  background: color-mix(in srgb, var(--sz-color-warning) 16%, var(--sz-color-surface));
 }
 
 .sz_al_fotos_controls {
@@ -5187,6 +5196,16 @@ body.sz-base-shell.authenticated .main-content:has(.sz_dashboard_page)::-webkit-
   background: var(--sz-color-surface-alt);
   color: var(--sz-color-text-secondary);
   border-color: var(--sz-color-border);
+}
+
+[data-sz-theme="dark"] .planner2-row-local .planner2-col-lodge,
+[data-sz-theme="geek"] .planner2-row-local .planner2-col-lodge {
+  color: color-mix(in srgb, var(--sz-color-primary) 68%, var(--sz-color-text));
+}
+
+[data-sz-theme="dark"] .planner2-local-label i,
+[data-sz-theme="geek"] .planner2-local-label i {
+  color: var(--sz-color-primary);
 }
 
 [data-sz-theme="dark"] .planner2-table th,

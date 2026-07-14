@@ -1,0 +1,125 @@
+IF COL_LENGTH('dbo.AL', 'VALOREXTRA') IS NULL
+BEGIN
+    ALTER TABLE dbo.AL
+    ADD VALOREXTRA DECIMAL(12, 2) NOT NULL
+        CONSTRAINT DF_AL_VALOREXTRA DEFAULT (0);
+END;
+
+IF COL_LENGTH('dbo.AL', 'EXTRAMAISQUE') IS NULL
+BEGIN
+    ALTER TABLE dbo.AL
+    ADD EXTRAMAISQUE INT NOT NULL
+        CONSTRAINT DF_AL_EXTRAMAISQUE DEFAULT (0);
+END;
+
+DECLARE @campos TABLE (
+    NMCAMPO varchar(25) NOT NULL,
+    DESCRICAO varchar(60) NOT NULL,
+    TIPO varchar(18) NOT NULL,
+    ORDEM int NOT NULL,
+    TAM int NOT NULL,
+    ORDEM_MOBILE int NOT NULL,
+    TAM_MOBILE int NOT NULL,
+    DECIMAIS int NOT NULL,
+    MINIMO decimal(18, 4) NOT NULL,
+    MAXIMO decimal(18, 4) NOT NULL
+);
+
+INSERT INTO @campos (NMCAMPO, DESCRICAO, TIPO, ORDEM, TAM, ORDEM_MOBILE, TAM_MOBILE, DECIMAIS, MINIMO, MAXIMO)
+VALUES
+    ('VALOREXTRA', 'Valor hospede extra/noite', 'DECIMAL', 49, 10, 41, 10, 2, 0, 999999999),
+    ('EXTRAMAISQUE', 'Extra a partir de hospedes', 'INT', 50, 10, 42, 10, 0, 0, 999999999);
+
+INSERT INTO dbo.CAMPOS (
+    CAMPOSSTAMP,
+    ORDEM,
+    NMCAMPO,
+    DESCRICAO,
+    TIPO,
+    TABELA,
+    LISTA,
+    FILTRO,
+    ADMIN,
+    RONLY,
+    COMBO,
+    VIRTUAL,
+    TAM,
+    ORDEM_MOBILE,
+    TAM_MOBILE,
+    CONDICAO_VISIVEL,
+    OBRIGATORIO,
+    obrigatorio_se,
+    formula,
+    decimais,
+    minimo,
+    maximo,
+    FILTRODEFAULT,
+    VISIVEL,
+    ORDEM_LISTA,
+    TAM_LISTA,
+    ORDEM_LISTA_MOBILE,
+    TAM_LISTA_MOBILE,
+    LISTA_MOBILE_BOLD,
+    LISTA_MOBILE_ITALIC,
+    LISTA_MOBILE_SHOW_LABEL,
+    LISTA_MOBILE_LABEL,
+    PROPRIEDADES
+)
+SELECT
+    LEFT(NEWID(), 25),
+    C.ORDEM,
+    C.NMCAMPO,
+    C.DESCRICAO,
+    C.TIPO,
+    'AL',
+    0,
+    0,
+    0,
+    0,
+    '',
+    '',
+    C.TAM,
+    C.ORDEM_MOBILE,
+    C.TAM_MOBILE,
+    '',
+    0,
+    '',
+    '',
+    C.DECIMAIS,
+    C.MINIMO,
+    C.MAXIMO,
+    '',
+    1,
+    0,
+    5,
+    0,
+    5,
+    0,
+    0,
+    1,
+    '',
+    N'{}'
+FROM @campos C
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM dbo.CAMPOS X
+    WHERE UPPER(LTRIM(RTRIM(X.TABELA))) = 'AL'
+      AND UPPER(LTRIM(RTRIM(X.NMCAMPO))) = C.NMCAMPO
+);
+
+UPDATE X
+SET
+    X.DESCRICAO = C.DESCRICAO,
+    X.TIPO = C.TIPO,
+    X.VISIVEL = 1,
+    X.TAM = C.TAM,
+    X.ORDEM = C.ORDEM,
+    X.ORDEM_MOBILE = C.ORDEM_MOBILE,
+    X.TAM_MOBILE = C.TAM_MOBILE,
+    X.DECIMAIS = C.DECIMAIS,
+    X.MINIMO = C.MINIMO,
+    X.MAXIMO = C.MAXIMO
+FROM dbo.CAMPOS X
+JOIN @campos C
+  ON UPPER(LTRIM(RTRIM(X.NMCAMPO))) = C.NMCAMPO
+WHERE UPPER(LTRIM(RTRIM(X.TABELA))) = 'AL';

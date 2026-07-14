@@ -3403,8 +3403,12 @@ hideLoading()
       if (!isAlojamentoForm || !RECORD_STAMP || !btnALTranslate) return;
       const sourceEl = findALField('INSTRUCOES');
       const sourceText = sourceEl ? String(sourceEl.value || '') : '';
-      if (!sourceText.trim()) {
-        showDynamicFormToast('O campo INSTRUCOES esta vazio.', 'warning');
+      const descriptionEl = findALField('DESCRICAO');
+      const descriptionText = descriptionEl ? String(descriptionEl.value || '') : '';
+      const parkingEl = findALField('ESTACIONAMENTO');
+      const parkingText = parkingEl ? String(parkingEl.value || '') : '';
+      if (!sourceText.trim() && !descriptionText.trim() && !parkingText.trim()) {
+        showDynamicFormToast('Os campos INSTRUCOES, DESCRICAO e ESTACIONAMENTO estao vazios.', 'warning');
         return;
       }
 
@@ -3416,7 +3420,11 @@ hideLoading()
         const res = await fetch(`/generic/api/al/${encodeURIComponent(RECORD_STAMP)}/translate_instrucoes`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ source_text: sourceText })
+          body: JSON.stringify({
+            source_text: sourceText,
+            description_text: descriptionText,
+            parking_text: parkingText
+          })
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.success) {
@@ -3424,10 +3432,22 @@ hideLoading()
           return;
         }
         const translations = data.translations || {};
-        setALFieldValue('INSTRUCOES_EN', translations.INSTRUCOES_EN || '');
-        setALFieldValue('INSTRUCOES_FR', translations.INSTRUCOES_FR || '');
-        setALFieldValue('INSTRUCOES_ES', translations.INSTRUCOES_ES || '');
-        showDynamicFormToast('Instrucoes traduzidas para EN, FR e ES.');
+        if (Object.prototype.hasOwnProperty.call(translations, 'INSTRUCOES_EN')) {
+          setALFieldValue('INSTRUCOES_EN', translations.INSTRUCOES_EN || '');
+          setALFieldValue('INSTRUCOES_FR', translations.INSTRUCOES_FR || '');
+          setALFieldValue('INSTRUCOES_ES', translations.INSTRUCOES_ES || '');
+        }
+        if (Object.prototype.hasOwnProperty.call(translations, 'DESCRICAOEN')) {
+          setALFieldValue('DESCRICAOEN', translations.DESCRICAOEN || '');
+          setALFieldValue('DESCRICAOFR', translations.DESCRICAOFR || '');
+          setALFieldValue('DESCRICAOES', translations.DESCRICAOES || '');
+        }
+        if (Object.prototype.hasOwnProperty.call(translations, 'ESTACIONAMENTOEN')) {
+          setALFieldValue('ESTACIONAMENTOEN', translations.ESTACIONAMENTOEN || '');
+          setALFieldValue('ESTACIONAMENTOFR', translations.ESTACIONAMENTOFR || '');
+          setALFieldValue('ESTACIONAMENTOES', translations.ESTACIONAMENTOES || '');
+        }
+        showDynamicFormToast('Instrucoes, descricao e estacionamento traduzidos para EN, FR e ES.');
       } catch (err) {
         console.error('Erro ao traduzir instrucoes AL:', err);
         showDynamicFormToast('Erro ao traduzir instrucoes.', 'danger');
@@ -3464,8 +3484,9 @@ hideLoading()
         const stamp = row.ALFOTOSTAMP || '';
         const isCover = Boolean(row.CAPA);
         const isCheckin = Boolean(row.CHECKIN);
+        const isParking = Boolean(row.ESTACIONAMENTO);
         return `
-          <article class="sz_al_fotos_card${isCover ? ' is-cover' : ''}${isCheckin ? ' is-checkin' : ''}" draggable="true" data-foto-stamp="${stamp}">
+          <article class="sz_al_fotos_card${isCover ? ' is-cover' : ''}${isCheckin ? ' is-checkin' : ''}${isParking ? ' is-parking' : ''}" draggable="true" data-foto-stamp="${stamp}">
             <div class="sz_al_fotos_thumb">
               <img src="${getALFotoStaticUrl(row.CAMINHO)}" alt="${row.ALT_TEXT || row.FICHEIRO || 'Imagem do alojamento'}">
             </div>
@@ -3475,6 +3496,7 @@ hideLoading()
                 <div class="sz_al_fotos_badges">
                   ${isCover ? '<span class="sz_al_fotos_badge">Capa</span>' : ''}
                   ${isCheckin ? '<span class="sz_al_fotos_badge sz_al_fotos_badge_checkin">Check-in</span>' : ''}
+                  ${isParking ? '<span class="sz_al_fotos_badge sz_al_fotos_badge_parking">Estacionamento</span>' : ''}
                 </div>
               </div>
               <div class="sz_al_fotos_controls">
@@ -3485,6 +3507,10 @@ hideLoading()
                 <button type="button" class="sz_button sz_button_ghost btn-al-foto-checkin${isCheckin ? ' is-active' : ''}" data-foto-stamp="${stamp}" aria-pressed="${isCheckin ? 'true' : 'false'}">
                   <i class="fa fa-key"></i>
                   <span>${isCheckin ? 'Imagem check-in' : 'Marcar check-in'}</span>
+                </button>
+                <button type="button" class="sz_button sz_button_ghost btn-al-foto-parking${isParking ? ' is-active' : ''}" data-foto-stamp="${stamp}" aria-pressed="${isParking ? 'true' : 'false'}">
+                  <i class="fa fa-square-parking"></i>
+                  <span>Estacionamento</span>
                 </button>
                 <button type="button" class="sz_button sz_button_danger btn-al-foto-delete" data-foto-stamp="${stamp}">
                   <i class="fa fa-trash-alt"></i>
@@ -3562,6 +3588,19 @@ hideLoading()
       await refreshALFotos({ silent: true });
     }
 
+    async function setALFotoParking(fotoStamp) {
+      const res = await fetch(`/generic/api/al_fotos/${encodeURIComponent(RECORD_STAMP)}/estacionamento/${encodeURIComponent(fotoStamp)}`, {
+        method: 'POST'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setALFotosStatus(data.error || 'Erro ao atualizar imagem de estacionamento.', { isError: true });
+        return;
+      }
+      setALFotosStatus(data.ESTACIONAMENTO ? 'Imagem marcada como estacionamento.' : 'Imagem removida do estacionamento.');
+      await refreshALFotos({ silent: true });
+    }
+
     async function deleteALFoto(fotoStamp) {
       const res = await fetch(`/generic/api/al_fotos/${encodeURIComponent(RECORD_STAMP)}/${encodeURIComponent(fotoStamp)}`, {
         method: 'DELETE'
@@ -3622,6 +3661,11 @@ hideLoading()
         const checkinBtn = e.target.closest('.btn-al-foto-checkin');
         if (checkinBtn) {
           await setALFotoCheckin(checkinBtn.dataset.fotoStamp);
+          return;
+        }
+        const parkingBtn = e.target.closest('.btn-al-foto-parking');
+        if (parkingBtn) {
+          await setALFotoParking(parkingBtn.dataset.fotoStamp);
           return;
         }
         const deleteBtn = e.target.closest('.btn-al-foto-delete');

@@ -3563,6 +3563,19 @@ body:not(.authenticated) .main-content {
 .planner2-table tbody tr:hover {
   background: #eef2f7;
 }
+.planner2-row-local .planner2-col-lodge {
+  color: #075985;
+}
+.planner2-local-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.planner2-local-label i {
+  color: #0284c7;
+  font-size: 0.8rem;
+}
 .planner2-bar {
   position: absolute;
   top: 4px;

@@ -255,6 +255,10 @@ const planner2Flag = (value) => {
   return value === true || value === 1 || String(value || '').trim() === '1';
 };
 
+const isPlanner2LocalRow = (row) => {
+  return String(row?.row_type || row?.type || '').trim().toUpperCase() === 'LOCAL';
+};
+
 const getPlanner2LocalDateString = (date = new Date()) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -351,7 +355,7 @@ const getPlanner2CleaningStatus = (cl, row, duration) => {
 
 const buildHead = (slots) => {
   const headRow = document.getElementById('planner2-head-row');
-  headRow.innerHTML = `<th class="planner2-col-lodge">Alojamento</th>`;
+  headRow.innerHTML = `<th class="planner2-col-lodge">Alojamento / Local</th>`;
   for (let h = PLANNER2.startHour; h < PLANNER2.endHour; h++) {
     const th = document.createElement('th');
     th.className = 'planner2-col-hour';
@@ -450,10 +454,12 @@ const buildPlanner2Rows = (data) => {
   (Array.isArray(data) ? data : []).forEach((row) => {
     const key = String(row.lodging || '').trim();
     if (!key) return;
-    if (!map.has(key)) {
-      map.set(key, { ...row, cleanings: [] });
+    const rowType = isPlanner2LocalRow(row) ? 'LOCAL' : 'ALOJAMENTO';
+    const mapKey = `${rowType}::${key}`;
+    if (!map.has(mapKey)) {
+      map.set(mapKey, { ...row, row_type: rowType, cleanings: [] });
     }
-    const entry = map.get(key);
+    const entry = map.get(mapKey);
     if (row.cleaning_time || row.cleaning_team) {
       entry.cleanings.push({
         time: row.cleaning_time,
@@ -467,7 +473,8 @@ const buildPlanner2Rows = (data) => {
         taskDone: row.cleaning_task_done,
         taskStartedAt: row.cleaning_started_at,
         taskFinishedAt: row.cleaning_finished_at,
-        taskUser: row.cleaning_task_user
+        taskUser: row.cleaning_task_user,
+        local: rowType === 'LOCAL' ? key : ''
       });
     }
   });
@@ -481,8 +488,10 @@ const collectPlanner2Payload = (dateStr) => {
       const time = String(cl.time || '').trim();
       const team = String(cl.team || '').trim();
       if (!time || !team) return;
+      const isLocal = isPlanner2LocalRow(row);
       const entry = {
-        ALOJAMENTO: String(row.lodging || '').trim(),
+        ALOJAMENTO: isLocal ? '' : String(row.lodging || '').trim(),
+        LOCAL: isLocal ? String(row.lodging || '').trim() : '',
         DATA: dateStr,
         HORA: time,
         EQUIPA: team
@@ -564,7 +573,7 @@ const buildPlanner2TeamDetailData = () => {
       detail.cleanings.push({
         lodging: String(row.lodging || '').trim(),
         time: normalizePlanner2Time(cl.time) || '-',
-        typology: String(cl.typology || row.typology || row.tp || '').trim() || '-',
+        typology: isPlanner2LocalRow(row) ? 'Local' : (String(cl.typology || row.typology || row.tp || '').trim() || '-'),
         duration
       });
       detail.totalMinutes += duration;
@@ -730,13 +739,13 @@ const renderPlanner2TeamCards = () => {
     (row.cleanings || []).forEach((cl) => {
       const teamName = String(cl.team || '').trim();
       if (!teamName) return;
-      const typology = String(cl.typology || row.typology || row.tp || '').trim() || '-';
+      const typology = isPlanner2LocalRow(row) ? 'Local' : (String(cl.typology || row.typology || row.tp || '').trim() || '-');
       const duration = getCleaningDuration(
         { ...cl, cleaningMinutes: Number(cl.cleaningMinutes || row.cleaning_minutes || 0) },
         row.typology || row.tp || ''
       );
       const startMinutes = timeToMinutes(cl.time || '');
-      const lodgingStamp = String(row.al_stamp || '').trim();
+      const lodgingStamp = isPlanner2LocalRow(row) ? '' : String(row.al_stamp || '').trim();
       const lodgingName = row.lodging || '';
       const hasCheckout = String(row.checkout_reservation || '').trim() || String(row.checkout_time || '').trim();
       const hasCheckin = String(row.checkin_reservation || '').trim() || String(row.checkin_time || '').trim();
@@ -1277,6 +1286,7 @@ const renderRows = (data, slots) => {
   const tooltip = getPlanner2Tooltip();
   const showOccupied = document.getElementById('planner2-show-occupied')?.checked ?? true;
   const showEmpty = document.getElementById('planner2-show-empty')?.checked ?? true;
+  const showLocals = document.getElementById('planner2-show-locals')?.checked ?? false;
 
   const rows = data.map((row, index) => ({ row, index }));
   if (planner2SortMode) {
@@ -1311,13 +1321,18 @@ const renderRows = (data, slots) => {
   });
 
   rows.forEach(({ row }) => {
+    const isLocal = isPlanner2LocalRow(row);
     const hasCheckout = !!row.checkout_reservation;
     const hasCheckin = !!row.checkin_reservation;
     const hasCleaning = Array.isArray(row.cleanings) && row.cleanings.length > 0;
     const isOccupied = Number(row.planner_status || 0) === 3;
     const isEmpty = Number(row.planner_status || 0) === 4;
 
-    if (!hasCheckout && !hasCheckin && !hasCleaning) {
+    if (isLocal && !showLocals) {
+      return;
+    }
+
+    if (!isLocal && !hasCheckout && !hasCheckin && !hasCleaning) {
       if ((isOccupied && !showOccupied) || (isEmpty && !showEmpty)) {
         return;
       }
@@ -1327,9 +1342,22 @@ const renderRows = (data, slots) => {
     }
 
     const tr = document.createElement('tr');
+    if (isLocal) tr.classList.add('planner2-row-local');
     const lodgeTd = document.createElement('td');
     lodgeTd.className = 'planner2-col-lodge';
-    lodgeTd.textContent = row.lodging || '';
+    if (isLocal) {
+      const localLabel = document.createElement('span');
+      localLabel.className = 'planner2-local-label';
+      const localIcon = document.createElement('i');
+      localIcon.className = 'fa-solid fa-location-dot';
+      const localName = document.createElement('span');
+      localName.textContent = row.lodging || '';
+      localLabel.appendChild(localIcon);
+      localLabel.appendChild(localName);
+      lodgeTd.appendChild(localLabel);
+    } else {
+      lodgeTd.textContent = row.lodging || '';
+    }
     lodgeTd.style.width = `${lodgeWidth}px`;
     lodgeTd.style.minWidth = `${lodgeWidth}px`;
     lodgeTd.style.maxWidth = `${lodgeWidth}px`;
@@ -1495,7 +1523,7 @@ const renderRows = (data, slots) => {
         if (startIdx < 0) startIdx = 0;
         const duration = getCleaningDuration(
           { ...cl, cleaningMinutes: Number(cl.cleaningMinutes || row.cleaning_minutes || 0) },
-          row.typology || row.tp || ''
+          isLocal ? 'Local' : (row.typology || row.tp || '')
         );
         const status = getPlanner2CleaningStatus(cl, row, duration);
         const slotsCount = Math.max(1, Math.ceil(duration / 30));
@@ -1573,6 +1601,7 @@ const renderRows = (data, slots) => {
           const taskUser = String(cl.taskUser || '').trim();
           attachTooltip(bar, [
             `Limpeza: ${String(cl.team || '').trim() || '-'}`,
+            isLocal ? `Local: ${String(row.lodging || '').trim() || '-'}` : '',
             isPlanner2TeamOnLeave(cl) ? 'Folga: sim' : '',
             `Estado: ${status.detail || status.label}`,
             taskUser ? `Utilizador: ${taskUser}` : '',
@@ -1581,9 +1610,10 @@ const renderRows = (data, slots) => {
         } else if (isPlanner2TeamOnLeave(cl)) {
           attachTooltip(bar, [
             `Limpeza: ${String(cl.team || '').trim() || '-'}`,
+            isLocal ? `Local: ${String(row.lodging || '').trim() || '-'}` : '',
             'Folga: sim',
             `Hora: ${normalizePlanner2Time(cl.time) || '-'}`
-          ].join('\n'), tooltip);
+          ].filter(Boolean).join('\n'), tooltip);
         }
         tr.appendChild(bar);
         bar.addEventListener('mousedown', (e) => {
@@ -1779,6 +1809,7 @@ const setupPlanner2 = () => {
   if (planner2CancelBtn) planner2CancelBtn.disabled = true;
   const showOcc = document.getElementById('planner2-show-occupied');
   const showEmpty = document.getElementById('planner2-show-empty');
+  const showLocals = document.getElementById('planner2-show-locals');
   let currentDate = window.PLANNER2_INITIAL_DATE || new Date().toISOString().slice(0, 10);
   let suppressDateChange = false;
 
@@ -1850,6 +1881,7 @@ const setupPlanner2 = () => {
   };
   showOcc?.addEventListener('change', rerender);
   showEmpty?.addEventListener('change', rerender);
+  showLocals?.addEventListener('change', rerender);
   teamSummaryBtn?.addEventListener('click', openPlanner2TeamDetailModal);
   teamDetailModal?.querySelectorAll('.planner2-team-detail-close').forEach((btn) => {
     btn.addEventListener('click', closePlanner2TeamDetailModal);
@@ -1987,8 +2019,9 @@ const openPlanner2TeamDropdown = (cell, row, slot) => {
         time: slot,
         team: team.NOME,
         folga: isPlanner2TeamOnLeave(team) ? 1 : 0,
-        typology: row.typology || row.tp,
+        typology: isPlanner2LocalRow(row) ? 'Local' : (row.typology || row.tp),
         cleaningMinutes: Number(row.cleaning_minutes || 0),
+        local: isPlanner2LocalRow(row) ? String(row.lodging || '').trim() : '',
         _tmpId: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`
       });
       row.cleanings = existing;

@@ -1,0 +1,126 @@
+IF COL_LENGTH('dbo.AL', 'LOTADULTOS') IS NULL
+BEGIN
+    ALTER TABLE dbo.AL
+    ADD LOTADULTOS INT NOT NULL
+        CONSTRAINT DF_AL_LOTADULTOS DEFAULT (0);
+END;
+
+IF COL_LENGTH('dbo.AL', 'LOTCRIANCAS') IS NULL
+BEGIN
+    ALTER TABLE dbo.AL
+    ADD LOTCRIANCAS INT NOT NULL
+        CONSTRAINT DF_AL_LOTCRIANCAS DEFAULT (0);
+END;
+
+IF COL_LENGTH('dbo.AL', 'BERCO') IS NULL
+BEGIN
+    ALTER TABLE dbo.AL
+    ADD BERCO BIT NOT NULL
+        CONSTRAINT DF_AL_BERCO DEFAULT (0);
+END;
+
+DECLARE @campos TABLE (
+    NMCAMPO varchar(25) NOT NULL,
+    DESCRICAO varchar(60) NOT NULL,
+    TIPO varchar(18) NOT NULL,
+    ORDEM int NOT NULL,
+    TAM int NOT NULL,
+    ORDEM_MOBILE int NOT NULL,
+    TAM_MOBILE int NOT NULL
+);
+
+INSERT INTO @campos (NMCAMPO, DESCRICAO, TIPO, ORDEM, TAM, ORDEM_MOBILE, TAM_MOBILE)
+VALUES
+    ('LOTADULTOS', 'Lotacao adultos', 'INT', 46, 10, 38, 10),
+    ('LOTCRIANCAS', 'Lotacao criancas', 'INT', 47, 10, 39, 10),
+    ('BERCO', 'Suporta berco', 'BIT', 48, 5, 40, 5);
+
+INSERT INTO dbo.CAMPOS (
+    CAMPOSSTAMP,
+    ORDEM,
+    NMCAMPO,
+    DESCRICAO,
+    TIPO,
+    TABELA,
+    LISTA,
+    FILTRO,
+    ADMIN,
+    RONLY,
+    COMBO,
+    VIRTUAL,
+    TAM,
+    ORDEM_MOBILE,
+    TAM_MOBILE,
+    CONDICAO_VISIVEL,
+    OBRIGATORIO,
+    obrigatorio_se,
+    formula,
+    decimais,
+    minimo,
+    maximo,
+    FILTRODEFAULT,
+    VISIVEL,
+    ORDEM_LISTA,
+    TAM_LISTA,
+    ORDEM_LISTA_MOBILE,
+    TAM_LISTA_MOBILE,
+    LISTA_MOBILE_BOLD,
+    LISTA_MOBILE_ITALIC,
+    LISTA_MOBILE_SHOW_LABEL,
+    LISTA_MOBILE_LABEL,
+    PROPRIEDADES
+)
+SELECT
+    LEFT(NEWID(), 25),
+    C.ORDEM,
+    C.NMCAMPO,
+    C.DESCRICAO,
+    C.TIPO,
+    'AL',
+    0,
+    0,
+    0,
+    0,
+    '',
+    '',
+    C.TAM,
+    C.ORDEM_MOBILE,
+    C.TAM_MOBILE,
+    '',
+    0,
+    '',
+    '',
+    CASE WHEN C.TIPO = 'INT' THEN 0 ELSE 2 END,
+    -999999999,
+    999999999,
+    '',
+    1,
+    0,
+    5,
+    0,
+    5,
+    0,
+    0,
+    1,
+    '',
+    N'{}'
+FROM @campos C
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM dbo.CAMPOS X
+    WHERE UPPER(LTRIM(RTRIM(X.TABELA))) = 'AL'
+      AND UPPER(LTRIM(RTRIM(X.NMCAMPO))) = C.NMCAMPO
+);
+
+UPDATE X
+SET
+    X.DESCRICAO = C.DESCRICAO,
+    X.TIPO = C.TIPO,
+    X.VISIVEL = 1,
+    X.TAM = C.TAM,
+    X.ORDEM_MOBILE = C.ORDEM_MOBILE,
+    X.TAM_MOBILE = C.TAM_MOBILE
+FROM dbo.CAMPOS X
+JOIN @campos C
+  ON UPPER(LTRIM(RTRIM(X.NMCAMPO))) = C.NMCAMPO
+WHERE UPPER(LTRIM(RTRIM(X.TABELA))) = 'AL';

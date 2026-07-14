@@ -60,7 +60,7 @@ const billingFieldIds = ['FTNOME', 'FTMORADA', 'FTLOCAL', 'FTCODPOST', 'FTNCONT'
 const billingInputMap = Object.fromEntries(billingFieldIds.map((name) => [name, document.getElementById(`RSB_${name}`)]));
 
 const fieldIds = [
-  'ALOJAMENTO', 'RDATA', 'ORIGEM', 'RESERVA', 'DATAIN', 'DATAOUT', 'HORAIN', 'HORAOUT', 'NOITES', 'NOME', 'PAIS',
+  'ALOJAMENTO', 'RDATA', 'ORIGEM', 'RESERVA', 'INTERNA', 'DATAIN', 'DATAOUT', 'HORAIN', 'HORAOUT', 'NOITES', 'NOME', 'PAIS',
   'ADULTOS', 'CRIANCAS', 'ESTADIA', 'LIMPEZA', 'COMISSAO', 'OBS',
   'READY', 'ENTROU', 'SAIU', 'ALERTA', 'CANCELADA', 'DTCANCEL', 'DIASCANCEL', 'NOTIF', 'NOTIF2', 'PCANCEL',
   'BERCO', 'SOFACAMA', 'RTOTAL', 'USRCHECKIN', 'PRESENCIAL', 'SEF', 'USRSEF', 'INSTR', 'USRINSTR',
@@ -249,16 +249,57 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+function toggleCancelFields() {
+  if (!cancelFieldsWrap) return;
+  cancelFieldsWrap.style.display = inputMap.CANCELADA?.checked ? '' : 'none';
+}
+
+function normalizedOrigin(value) {
+  return normalizeMojibake(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/\s+/g, '');
+}
+
+function isExternalChannelOrigin(value) {
+  const origem = normalizedOrigin(value);
+  return origem.includes('AIRBNB') || origem.includes('BOOKING');
+}
+
+function makeInternalReservationCode() {
+  return `I-${String(Date.now() % 100000000).padStart(8, '0')}`;
+}
+
+function isProvisionalReservationCode(value) {
+  return /^R-\d{8}$/.test(String(value || '').trim().toUpperCase());
+}
+
+function reservationCodeForDisplay(value) {
+  const code = String(value || '').trim();
+  return isProvisionalReservationCode(code) ? '' : code;
+}
+
 function updateTitle() {
   if (!titleEl) return;
-  const ref = String(header.RESERVA || '').trim();
+  const ref = reservationCodeForDisplay(inputMap.RESERVA?.value || header.RESERVA || '');
   const aloj = String(header.ALOJAMENTO || '').trim();
   titleEl.textContent = ref ? `Reserva ${ref}${aloj ? ` - ${aloj}` : ''}` : (aloj ? `Reserva - ${aloj}` : 'Reserva');
 }
 
-function toggleCancelFields() {
-  if (!cancelFieldsWrap) return;
-  cancelFieldsWrap.style.display = inputMap.CANCELADA?.checked ? '' : 'none';
+function syncInternalReservationUi() {
+  const el = inputMap.INTERNA;
+  if (!el) return;
+  const externalOrigin = isExternalChannelOrigin(header?.ORIGEM || '') || isExternalChannelOrigin(inputMap.ORIGEM?.value || '');
+  el.disabled = externalOrigin;
+  el.title = externalOrigin
+    ? 'Reserva importada de Airbnb/Booking. O tipo interno não pode ser alterado.'
+    : 'Reserva interna para bloqueio manual de noites.';
+  if (externalOrigin) return;
+  const reserva = String(inputMap.RESERVA?.value || '').trim();
+  if (el.checked && inputMap.RESERVA && (!reserva || isProvisionalReservationCode(reserva))) {
+    inputMap.RESERVA.value = makeInternalReservationCode();
+  }
 }
 
 function syncNights() {
@@ -288,9 +329,11 @@ function writeHeaderToForm() {
     if (!el) return;
     const value = header?.[name];
     if (el.type === 'checkbox') el.checked = n(value, 0) === 1;
+    else if (name === 'RESERVA') el.value = reservationCodeForDisplay(value);
     else el.value = value == null ? '' : value;
   });
   toggleCancelFields();
+  syncInternalReservationUi();
   updateTitle();
 }
 
@@ -990,6 +1033,7 @@ async function loadDocument() {
 async function saveDocument(options = {}) {
   const useOverlay = options.overlay !== false;
   const silent = options.silent === true;
+  syncInternalReservationUi();
   header = { ...header, ...readHeaderFromForm() };
   guests = (Array.isArray(guests) ? guests : []).map((guest) => ({
     ...guest,
@@ -1005,7 +1049,12 @@ async function saveDocument(options = {}) {
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || 'Erro ao gravar reserva');
-    header = { ...header, ...readHeaderFromForm() };
+    if (data.header) {
+      header = data.header;
+      writeHeaderToForm();
+    } else {
+      header = { ...header, ...readHeaderFromForm() };
+    }
     updateTitle();
     updateGuestsStatus();
     updatePublicLinkUi();
@@ -1100,6 +1149,13 @@ function bindHeaderEvents() {
     inputMap[key]?.addEventListener('change', updateGuestsStatus);
   });
   inputMap.CANCELADA?.addEventListener('change', toggleCancelFields);
+  inputMap.INTERNA?.addEventListener('change', () => {
+    syncInternalReservationUi();
+    header = { ...header, INTERNA: inputMap.INTERNA.checked ? 1 : 0, RESERVA: inputMap.RESERVA?.value || header.RESERVA || '' };
+    updateTitle();
+  });
+  inputMap.ORIGEM?.addEventListener('input', syncInternalReservationUi);
+  inputMap.ORIGEM?.addEventListener('change', syncInternalReservationUi);
   inputMap.SEF?.addEventListener('change', () => {
     header = { ...header, SEF: inputMap.SEF.checked ? 1 : 0 };
     updateSibaUi();

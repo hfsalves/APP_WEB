@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from flask import Blueprint, abort, make_response, render_template, request, url_for
+from flask import Blueprint, abort, jsonify, make_response, render_template, request, url_for
 
 from services.booking_portal_service import (
     alojamento_disponivel,
@@ -34,6 +34,9 @@ TRANSLATIONS = {
         "checkout": "Check-out",
         "guests": "Hospedes",
         "guest": "hospede",
+        "adults": "Adultos",
+        "children": "Criancas",
+        "babies": "Bebes",
         "name_location": "Nome ou localizacao",
         "search_placeholder": "Porto, centro, estudio...",
         "search": "Pesquisar",
@@ -71,9 +74,16 @@ TRANSLATIONS = {
         "calendar_need_dates": "Escolha a data de entrada e a data de saida.",
         "invalid_date": "Data invalida.",
         "invalid_guests": "Indique um numero de hospedes valido.",
+        "need_adult": "Indique pelo menos 1 adulto quando existem criancas ou bebes.",
+        "adults_capacity_error": "Este alojamento permite no maximo {max} adulto(s).",
+        "total_capacity_error": "Este alojamento permite no maximo {max} hospede(s), excluindo bebes.",
+        "babies_capacity_error": "Este alojamento permite no maximo 2 bebes.",
+        "crib_one_only": "So e possivel colocar um berco neste alojamento.",
+        "crib_unavailable": "Neste alojamento nao e possivel a colocacao de berco.",
         "need_dates": "Indique as datas de check-in e check-out.",
         "checkout_after_checkin": "A data de check-out deve ser posterior ao check-in.",
         "nights_line": "Noites",
+        "extra_guests_line": "Hospedes extra",
         "cleaning_fee": "Taxa de limpeza",
         "tourist_tax": "Taxa turistica",
         "day": "dia",
@@ -86,6 +96,8 @@ TRANSLATIONS = {
         "open_map": "Abrir mapa",
         "close": "Fechar",
         "map_unavailable": "Localizacao indisponivel",
+        "read_more": "Ver mais",
+        "read_less": "Ver menos",
     },
     "en": {
         "page_reservations": "Bookings",
@@ -101,6 +113,9 @@ TRANSLATIONS = {
         "checkout": "Check-out",
         "guests": "Guests",
         "guest": "guest",
+        "adults": "Adults",
+        "children": "Children",
+        "babies": "Babies",
         "name_location": "Name or location",
         "search_placeholder": "Porto, centre, studio...",
         "search": "Search",
@@ -138,9 +153,16 @@ TRANSLATIONS = {
         "calendar_need_dates": "Choose the check-in and check-out dates.",
         "invalid_date": "Invalid date.",
         "invalid_guests": "Enter a valid number of guests.",
+        "need_adult": "Enter at least 1 adult when children or babies are included.",
+        "adults_capacity_error": "This stay allows up to {max} adult(s).",
+        "total_capacity_error": "This stay allows up to {max} guest(s), excluding babies.",
+        "babies_capacity_error": "This stay allows up to 2 babies.",
+        "crib_one_only": "Only one crib can be placed in this stay.",
+        "crib_unavailable": "A crib cannot be placed in this stay.",
         "need_dates": "Enter both check-in and check-out dates.",
         "checkout_after_checkin": "Check-out must be after check-in.",
         "nights_line": "Nights",
+        "extra_guests_line": "Extra guests",
         "cleaning_fee": "Cleaning fee",
         "tourist_tax": "Tourist tax",
         "day": "day",
@@ -153,6 +175,8 @@ TRANSLATIONS = {
         "open_map": "Open map",
         "close": "Close",
         "map_unavailable": "Location unavailable",
+        "read_more": "Read more",
+        "read_less": "Show less",
     },
     "es": {
         "page_reservations": "Reservas",
@@ -168,6 +192,9 @@ TRANSLATIONS = {
         "checkout": "Salida",
         "guests": "Huespedes",
         "guest": "huesped",
+        "adults": "Adultos",
+        "children": "Ninos",
+        "babies": "Bebes",
         "name_location": "Nombre o ubicacion",
         "search_placeholder": "Oporto, centro, estudio...",
         "search": "Buscar",
@@ -205,9 +232,16 @@ TRANSLATIONS = {
         "calendar_need_dates": "Elige la fecha de entrada y la fecha de salida.",
         "invalid_date": "Fecha invalida.",
         "invalid_guests": "Indica un numero valido de huespedes.",
+        "need_adult": "Indica al menos 1 adulto cuando hay ninos o bebes.",
+        "adults_capacity_error": "Este alojamiento permite como maximo {max} adulto(s).",
+        "total_capacity_error": "Este alojamiento permite como maximo {max} huesped(es), sin contar bebes.",
+        "babies_capacity_error": "Este alojamiento permite como maximo 2 bebes.",
+        "crib_one_only": "Solo es posible colocar una cuna en este alojamiento.",
+        "crib_unavailable": "En este alojamiento no es posible colocar una cuna.",
         "need_dates": "Indica las fechas de entrada y salida.",
         "checkout_after_checkin": "La salida debe ser posterior a la entrada.",
         "nights_line": "Noches",
+        "extra_guests_line": "Huespedes extra",
         "cleaning_fee": "Tasa de limpieza",
         "tourist_tax": "Tasa turistica",
         "day": "dia",
@@ -220,6 +254,8 @@ TRANSLATIONS = {
         "open_map": "Abrir mapa",
         "close": "Cerrar",
         "map_unavailable": "Ubicacion no disponible",
+        "read_more": "Ver mas",
+        "read_less": "Ver menos",
     },
     "fr": {
         "page_reservations": "Reservations",
@@ -235,6 +271,9 @@ TRANSLATIONS = {
         "checkout": "Depart",
         "guests": "Voyageurs",
         "guest": "voyageur",
+        "adults": "Adultes",
+        "children": "Enfants",
+        "babies": "Bebes",
         "name_location": "Nom ou emplacement",
         "search_placeholder": "Porto, centre, studio...",
         "search": "Rechercher",
@@ -272,9 +311,16 @@ TRANSLATIONS = {
         "calendar_need_dates": "Choisissez les dates d'arrivee et de depart.",
         "invalid_date": "Date invalide.",
         "invalid_guests": "Indiquez un nombre de voyageurs valide.",
+        "need_adult": "Indiquez au moins 1 adulte lorsqu'il y a des enfants ou des bebes.",
+        "adults_capacity_error": "Ce logement accepte au maximum {max} adulte(s).",
+        "total_capacity_error": "Ce logement accepte au maximum {max} voyageur(s), hors bebes.",
+        "babies_capacity_error": "Ce logement accepte au maximum 2 bebes.",
+        "crib_one_only": "Un seul lit bebe peut etre installe dans ce logement.",
+        "crib_unavailable": "Il n'est pas possible d'installer un lit bebe dans ce logement.",
         "need_dates": "Indiquez les dates d'arrivee et de depart.",
         "checkout_after_checkin": "La date de depart doit etre apres l'arrivee.",
         "nights_line": "Nuits",
+        "extra_guests_line": "Voyageurs supplementaires",
         "cleaning_fee": "Frais de menage",
         "tourist_tax": "Taxe de sejour",
         "day": "jour",
@@ -287,6 +333,8 @@ TRANSLATIONS = {
         "open_map": "Ouvrir la carte",
         "close": "Fermer",
         "map_unavailable": "Emplacement indisponible",
+        "read_more": "Lire plus",
+        "read_less": "Lire moins",
     },
 }
 
@@ -357,13 +405,13 @@ def _parse_date_arg(name: str):
         return None, "invalid_date"
 
 
-def _parse_hospedes_arg():
-    value = str(request.args.get("hospedes") or "").strip()
+def _parse_people_arg(name, *, minimum=0, maximum=50):
+    value = str(request.args.get(name) or "").strip()
     if not value:
         return None, ""
     try:
         number = int(value)
-        if number <= 0 or number > 50:
+        if number < minimum or number > maximum:
             return None, "invalid_guests"
         return number, ""
     except Exception:
@@ -374,32 +422,56 @@ def _search_params(lang):
     t = _t(lang)
     checkin, checkin_error = _parse_date_arg("checkin")
     checkout, checkout_error = _parse_date_arg("checkout")
-    hospedes, hospedes_error = _parse_hospedes_arg()
+    has_party_args = any(name in request.args for name in ("adultos", "criancas", "bebes"))
+    adultos, adultos_error = _parse_people_arg("adultos", minimum=1)
+    criancas, criancas_error = _parse_people_arg("criancas", minimum=0)
+    bebes, bebes_error = _parse_people_arg("bebes", minimum=0)
+    hospedes_legacy, hospedes_error = _parse_people_arg("hospedes", minimum=1)
+    if not has_party_args and hospedes_legacy:
+        adultos = hospedes_legacy
+    hospedes = ((adultos or 0) + (criancas or 0)) if (adultos or criancas) else hospedes_legacy
     query = str(request.args.get("q") or request.args.get("query") or "").strip()
 
     errors = []
     error_keys = set()
-    for error in (checkin_error, checkout_error, hospedes_error):
+    for error in (checkin_error, checkout_error, adultos_error, criancas_error, bebes_error, hospedes_error):
         if error and error not in error_keys:
             errors.append(t.get(error, error))
             error_keys.add(error)
 
+    if (criancas or bebes) and not adultos:
+        errors.append(t["need_adult"])
     if (checkin and not checkout) or (checkout and not checkin):
         errors.append(t["need_dates"])
     if checkin and checkout and checkout <= checkin:
         errors.append(t["checkout_after_checkin"])
 
+    guest_summary = []
+    if adultos:
+        guest_summary.append(f"{adultos} {t['adults']}")
+    if criancas:
+        guest_summary.append(f"{criancas} {t['children']}")
+    if bebes:
+        guest_summary.append(f"{bebes} {t['babies']}")
+
     return {
         "checkin": checkin,
         "checkout": checkout,
         "hospedes": hospedes,
+        "adultos": adultos,
+        "criancas": criancas or 0,
+        "bebes": bebes or 0,
         "query": query,
         "errors": errors,
-        "has_search": any([checkin, checkout, hospedes, query]),
+        "guest_summary": " / ".join(guest_summary),
+        "has_search": any([checkin, checkout, hospedes, bebes, query]),
         "raw": {
             "checkin": request.args.get("checkin", ""),
             "checkout": request.args.get("checkout", ""),
             "hospedes": request.args.get("hospedes", ""),
+            "adultos": request.args.get("adultos", str(adultos or "") if (not has_party_args and hospedes_legacy) else ""),
+            "criancas": request.args.get("criancas", ""),
+            "bebes": request.args.get("bebes", ""),
             "query": query,
             "lang": lang,
         },
@@ -415,7 +487,7 @@ def _parse_page_arg():
 
 def _detail_url(al_id: str, params: dict):
     query = {}
-    for key in ("checkin", "checkout", "hospedes"):
+    for key in ("checkin", "checkout", "adultos", "criancas", "bebes", "hospedes"):
         value = (params.get("raw") or {}).get(key)
         if value:
             query[key] = value
@@ -427,7 +499,7 @@ def _detail_url(al_id: str, params: dict):
 
 def _pagination_url(page_number: int, lang: str):
     args = {}
-    for key in ("checkin", "checkout", "hospedes", "q"):
+    for key in ("checkin", "checkout", "adultos", "criancas", "bebes", "hospedes", "q"):
         value = request.args.get(key)
         if value:
             args[key] = value
@@ -469,6 +541,17 @@ def _translate_price(preco, t):
         dias_taxa = int(translated.get("taxa_turistica_dias") or 0)
         translated["linhas"] = [
             {"label": f"{t['nights_line']} ({noites})", "value": translated.get("preco_noites_label", "")},
+        ]
+        hospedes_extra = int(translated.get("hospedes_extra") or 0)
+        if hospedes_extra > 0:
+            translated["linhas"].append({
+                "label": (
+                    f"{t['extra_guests_line']} ({hospedes_extra} x {noites} "
+                    f"{t['night'] if noites == 1 else t['nights']})"
+                ),
+                "value": translated.get("hospedes_extra_total_label", ""),
+            })
+        translated["linhas"].extend([
             {"label": t["cleaning_fee"], "value": translated.get("limpeza_label", "")},
             {
                 "label": (
@@ -478,10 +561,36 @@ def _translate_price(preco, t):
                 ),
                 "value": translated.get("taxa_turistica_label", ""),
             },
-        ]
+        ])
     else:
         translated["label"] = t["price_on_request"] if translated.get("label") == "Preco sob consulta" else translated.get("label")
     return translated
+
+
+def _guest_constraints(alojamento: dict, params: dict, t: dict) -> dict:
+    adultos = int(params.get("adultos") or 0)
+    criancas = int(params.get("criancas") or 0)
+    bebes = int(params.get("bebes") or 0)
+    max_adultos = int(alojamento.get("lot_adultos") or 0)
+    max_criancas = int(alojamento.get("lot_criancas") or 0)
+    max_total = max_adultos + max_criancas if (max_adultos or max_criancas) else int(alojamento.get("capacidade") or 0)
+    errors = []
+    notes = []
+
+    if adultos and max_adultos and adultos > max_adultos:
+        errors.append(t["adults_capacity_error"].format(max=max_adultos))
+    if (adultos or criancas) and max_total and (adultos + criancas) > max_total:
+        errors.append(t["total_capacity_error"].format(max=max_total))
+    if bebes:
+        if bebes > 2:
+            errors.append(t["babies_capacity_error"])
+        elif alojamento.get("berco"):
+            if bebes > 1:
+                notes.append(t["crib_one_only"])
+        else:
+            notes.append(t["crib_unavailable"])
+
+    return {"errors": errors, "notes": notes}
 
 
 @bp.route("/portal-reservas")
@@ -495,9 +604,13 @@ def index():
         checkin=params["checkin"] if query_allowed else None,
         checkout=params["checkout"] if query_allowed else None,
         hospedes=params["hospedes"] if query_allowed else None,
+        adultos=params["adultos"] if query_allowed else None,
+        criancas=params["criancas"] if query_allowed else None,
+        bebes=params["bebes"] if query_allowed else None,
         query=params["query"] if query_allowed else None,
         page=page,
         per_page=BOOKING_PAGE_SIZE,
+        lang=lang,
     )
     alojamentos = pagination["items"]
     for alojamento in alojamentos:
@@ -519,13 +632,17 @@ def detail(al_id):
     lang = _resolve_lang()
     params = _search_params(lang)
     t = _t(lang)
-    alojamento = get_alojamento(al_id)
+    alojamento = get_alojamento(al_id, lang=lang)
     if not alojamento:
         abort(404)
 
+    guest_constraints = _guest_constraints(alojamento, params, t)
     disponibilidade = None
-    preco = _translate_price(calcular_preco(al_id, params["checkin"], params["checkout"], params["hospedes"]), t)
-    if params["checkin"] and params["checkout"] and not params["errors"]:
+    if guest_constraints["errors"]:
+        preco = _translate_price(calcular_preco(al_id, None, None, None), t)
+    else:
+        preco = _translate_price(calcular_preco(al_id, params["checkin"], params["checkout"], params["hospedes"]), t)
+    if params["checkin"] and params["checkout"] and not params["errors"] and not guest_constraints["errors"]:
         disponibilidade = alojamento_disponivel(al_id, params["checkin"], params["checkout"])
 
     calendar_start = (params["checkin"] or date.today()).replace(day=1)
@@ -539,8 +656,27 @@ def detail(al_id):
         lang,
         alojamento=alojamento,
         search=params,
+        guest_errors=guest_constraints["errors"],
+        guest_notes=guest_constraints["notes"],
         disponibilidade=disponibilidade,
         preco=preco,
         calendario=calendario,
         page_title=alojamento["nome"],
     )
+
+
+@bp.route("/portal-reservas/alojamento/<al_id>/ocupacao")
+@bp.route("/reservas/<al_id>/ocupacao")
+def occupied_nights(al_id):
+    start, start_error = _parse_date_arg("start")
+    if start_error:
+        return jsonify({"error": _t(_resolve_lang()).get(start_error, start_error)}), 400
+
+    try:
+        months = max(1, min(int(str(request.args.get("months") or "2").strip()), 12))
+    except Exception:
+        months = 2
+
+    return jsonify({
+        "occupied": get_noites_ocupadas(al_id, start=start or date.today(), months=months),
+    })

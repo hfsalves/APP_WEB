@@ -74,10 +74,16 @@ input {
 
 .booking-nav {
   display: grid;
-  align-items: start;
+  align-items: center;
   justify-content: flex-start;
   gap: 0;
   min-width: 0;
+  align-self: end;
+  padding-bottom: 8px;
+}
+
+.booking-topbar > .booking-nav {
+  transform: translateY(4px);
 }
 
 .booking-site-header {
@@ -240,7 +246,7 @@ input {
 .booking-search {
   position: static;
   display: grid;
-  grid-template-columns: minmax(125px, 0.9fr) minmax(125px, 0.9fr) minmax(110px, 0.7fr) minmax(190px, 1.25fr) auto;
+  grid-template-columns: minmax(136px, 0.95fr) minmax(136px, 0.95fr) minmax(72px, 0.45fr) minmax(72px, 0.45fr) minmax(72px, 0.45fr) minmax(150px, 1.1fr) auto;
   gap: 10px;
   align-items: end;
   width: 100%;
@@ -272,7 +278,9 @@ input {
 .booking-search input,
 .booking-panel-form input {
   width: 100%;
+  min-width: 0;
   min-height: 46px;
+  box-sizing: border-box;
   border: 1px solid var(--bp-line);
   border-radius: 6px;
   padding: 0 12px;
@@ -316,6 +324,13 @@ input {
   border-color: var(--bp-warm);
   background: var(--bp-warm);
   color: #fff;
+}
+
+.booking-button-primary:disabled,
+.booking-button-primary[disabled] {
+  border-color: #cfc7bb;
+  background: #cfc7bb;
+  color: rgba(24, 22, 20, 0.62);
 }
 
 .booking-button-primary:hover:not(:disabled) {
@@ -1011,6 +1026,32 @@ input {
   white-space: pre-line;
 }
 
+.booking-copy.is-collapsed .booking-copy-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+}
+
+.booking-copy-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  border: 1px solid var(--bp-line);
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--bp-accent-dark);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.booking-copy-toggle:hover {
+  border-color: rgba(11, 95, 158, 0.32);
+  background: #fff;
+}
+
 .booking-rules {
   margin-top: 34px;
 }
@@ -1130,6 +1171,54 @@ input {
   gap: 10px;
 }
 
+.booking-guest-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.booking-guest-notes {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(249, 115, 22, 0.28);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(249, 115, 22, 0.08);
+  color: #8a4b13;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.booking-guest-notes p {
+  margin: 0;
+}
+
+.booking-guest-notes[hidden] {
+  display: none;
+}
+
+.booking-guest-errors {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(190, 18, 60, 0.22);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(244, 63, 94, 0.08);
+  color: #9f1239;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.booking-guest-errors[hidden] {
+  display: none;
+}
+
+.booking-guest-errors p {
+  margin: 0;
+}
+
 .booking-calendar {
   display: grid;
   gap: 10px;
@@ -1228,6 +1317,19 @@ input {
   border-color: rgba(159, 18, 57, 0.2);
 }
 
+.booking-calendar-day.is-checkout-only {
+  background:
+    linear-gradient(135deg, #ffffff 0 48%, transparent 49%),
+    repeating-linear-gradient(
+      135deg,
+      #fff1f2,
+      #fff1f2 5px,
+      #ffe4e6 5px,
+      #ffe4e6 10px
+    );
+  border-color: rgba(159, 18, 57, 0.2);
+}
+
 .booking-calendar-day.is-range {
   background: #e1f2fb;
   border-color: rgba(11, 95, 158, 0.2);
@@ -1296,6 +1398,33 @@ input {
   width: 100%;
 }
 
+@media (max-width: 1180px) and (min-width: 981px) {
+  .booking-topbar {
+    grid-template-columns: 230px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .booking-brand img {
+    width: 230px;
+  }
+
+  .booking-search {
+    grid-template-columns: minmax(128px, 0.95fr) minmax(128px, 0.95fr) minmax(64px, 0.45fr) minmax(64px, 0.45fr) minmax(64px, 0.45fr) minmax(132px, 1fr) auto;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .booking-search input {
+    min-height: 44px;
+    padding: 0 10px;
+  }
+
+  .booking-search .booking-button {
+    min-height: 44px;
+    padding: 0 12px;
+  }
+}
+
 @media (max-width: 980px) {
   .booking-topbar {
     grid-template-columns: 1fr;
@@ -1342,6 +1471,7 @@ input {
 
   .booking-nav {
     gap: 12px;
+    transform: none;
   }
 
   .booking-hero {

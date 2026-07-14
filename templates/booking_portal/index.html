@@ -39,8 +39,16 @@
             <input type="date" name="checkout" value="{{ search.raw.checkout }}">
           </label>
           <label>
-            <span>{{ t.guests }}</span>
-            <input type="number" name="hospedes" min="1" max="50" inputmode="numeric" value="{{ search.raw.hospedes }}" placeholder="2">
+            <span>{{ t.adults }}</span>
+            <input type="number" name="adultos" min="1" max="50" inputmode="numeric" value="{{ search.raw.adultos }}" placeholder="2">
+          </label>
+          <label>
+            <span>{{ t.children }}</span>
+            <input type="number" name="criancas" min="0" max="50" inputmode="numeric" value="{{ search.raw.criancas }}" placeholder="0">
+          </label>
+          <label>
+            <span>{{ t.babies }}</span>
+            <input type="number" name="bebes" min="0" max="10" inputmode="numeric" value="{{ search.raw.bebes }}" placeholder="0">
           </label>
           <label class="booking-search-query">
             <span>{{ t.name_location }}</span>

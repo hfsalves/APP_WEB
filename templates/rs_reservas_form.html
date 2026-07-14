@@ -29,7 +29,14 @@
                 <label class="form-label">Reserva</label>
                 <input id="RS_RESERVA" class="form-control">
               </div>
-              <div class="col-md-4">
+              <div class="col-md-2">
+                <label class="form-label">Tipo</label>
+                <label class="form-check rsf-inline-check" title="Reserva interna para bloqueio manual de noites">
+                  <input id="RS_INTERNA" type="checkbox" class="form-check-input">
+                  <span class="form-check-label">Interna</span>
+                </label>
+              </div>
+              <div class="col-md-2">
                 <label class="form-label">Cliente</label>
                 <input id="RS_NOME" class="form-control">
               </div>
@@ -482,6 +489,32 @@
     margin: 0;
     color: var(--sz-color-text-secondary);
     font-weight: 600;
+  }
+  .rsf-inline-check {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 38px;
+    margin: 0;
+    padding: 0 var(--sz-space-3);
+    border: 1px solid var(--sz-color-border);
+    border-radius: var(--sz-radius-sm);
+    background: var(--sz-color-surface-raised);
+  }
+  .rsf-inline-check .form-check-input {
+    width: 1.05rem;
+    min-width: 1.05rem;
+    height: 1.05rem;
+    margin: 0;
+  }
+  .rsf-inline-check .form-check-label {
+    margin: 0;
+    color: var(--sz-color-text-secondary);
+    font-weight: 700;
+  }
+  .rsf-inline-check:has(.form-check-input:disabled) {
+    opacity: 0.58;
+    cursor: not-allowed;
   }
   .rsf-reserva-line {
     display: grid;
