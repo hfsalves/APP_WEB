@@ -34,6 +34,9 @@
           {% for error in login_errors %}<p>{{ error }}</p>{% endfor %}
         </div>
       {% endif %}
+      {% if resend_status %}
+        <div class="booking-alert booking-alert-success"><p>{{ resend_status }}</p></div>
+      {% endif %}
 
       <form method="post" class="booking-login-form">
         {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
@@ -47,6 +50,16 @@
         </label>
         <button class="booking-button booking-button-primary booking-button-wide" type="submit">{{ t.login_submit }}</button>
       </form>
+
+      <a class="booking-form-link" href="{{ url_for('booking_portal.password_recovery', lang=lang) }}">{{ t.forgot_password }}</a>
+
+      {% if can_resend_verification %}
+        <form method="post" action="{{ url_for('booking_portal.resend_email_verification', lang=lang) }}" class="booking-resend-verification">
+          <input type="hidden" name="email" value="{{ login_email }}">
+          {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+          <button type="submit">{{ t.resend_validation_email }}</button>
+        </form>
+      {% endif %}
     </section>
   </main>
 </body>

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import os
+import time
 from datetime import date
 from urllib.parse import urlsplit
 
@@ -17,12 +18,15 @@ from services.booking_portal_service import (
     calcular_preco,
     confirmar_email_portal,
     criar_pedido_reserva,
+    criar_password_reset_portal,
     get_alojamento,
     get_alojamentos_disponiveis_page,
     get_calendario_ocupacao,
     get_portal_user,
+    get_unverified_portal_user_by_email,
     criar_verificacao_email_portal,
     portal_user_exists,
+    redefinir_password_portal,
 )
 from services.email_service import EmailServiceError, queue_email, send_email_now
 
@@ -33,6 +37,10 @@ SUPPORTED_LANGS = ("pt", "en", "es", "fr")
 LANG_COOKIE = "portobreak_lang"
 BOOKING_PAGE_SIZE = 18
 PORTAL_USER_SESSION_KEY = "PORTOBREAK_USER_ID"
+PORTAL_RESEND_COOLDOWN_SESSION_KEY = "PORTOBREAK_VERIFICATION_RESEND_AT"
+PORTAL_RESEND_COOLDOWN_SECONDS = 60
+PORTAL_PASSWORD_RESET_COOLDOWN_SESSION_KEY = "PORTOBREAK_PASSWORD_RESET_AT"
+PORTAL_PASSWORD_RESET_COOLDOWN_SECONDS = 60
 
 TRANSLATIONS = {
     "pt": {
@@ -121,6 +129,23 @@ TRANSLATIONS = {
         "login_submit": "Entrar",
         "invalid_credentials": "Email ou password incorretos.",
         "email_unverified": "Valide o email da sua conta antes de entrar.",
+        "resend_validation_email": "Reenviar email de validacao",
+        "resend_validation_sent": "Se a conta ainda estiver por validar, enviamos um novo link para o email indicado.",
+        "resend_validation_wait": "Aguarde um minuto antes de pedir outro email de validacao.",
+        "resend_validation_failed": "Nao foi possivel reenviar o email de validacao. Tente novamente.",
+        "forgot_password": "Esqueceu-se da password?",
+        "password_recovery": "Recuperar password",
+        "password_recovery_lead": "Indique o email da sua conta. Se estiver registado, enviamos um link para definir uma nova password.",
+        "send_password_reset": "Enviar link de recuperacao",
+        "password_reset_sent": "Se existir uma conta validada com este email, enviamos um link de recuperacao.",
+        "new_password": "Nova password",
+        "set_new_password": "Definir nova password",
+        "password_reset_title": "Definir nova password",
+        "password_reset_lead": "Escolha uma password nova para a sua conta Porto Break.",
+        "password_reset_success": "Password atualizada",
+        "password_reset_success_text": "A sua password foi alterada. Ja pode entrar na sua conta.",
+        "password_reset_invalid": "Este link de recuperacao nao e valido ou ja foi utilizado.",
+        "password_reset_expired": "Este link de recuperacao expirou. Peca um novo link.",
         "calendar_pick_free": "Escolha uma noite livre para iniciar a estadia.",
         "calendar_pick_checkout": "Agora escolha a data de saida.",
         "calendar_range_occupied": "O intervalo escolhido cruza noites ocupadas.",
@@ -242,6 +267,23 @@ TRANSLATIONS = {
         "login_submit": "Sign in",
         "invalid_credentials": "Incorrect email or password.",
         "email_unverified": "Verify your account email before signing in.",
+        "resend_validation_email": "Resend verification email",
+        "resend_validation_sent": "If the account is still unverified, we sent a new link to the provided email.",
+        "resend_validation_wait": "Wait one minute before requesting another verification email.",
+        "resend_validation_failed": "The verification email could not be resent. Please try again.",
+        "forgot_password": "Forgot your password?",
+        "password_recovery": "Recover password",
+        "password_recovery_lead": "Enter your account email. If it is registered, we will send a link to set a new password.",
+        "send_password_reset": "Send recovery link",
+        "password_reset_sent": "If there is a verified account with this email, we sent a recovery link.",
+        "new_password": "New password",
+        "set_new_password": "Set new password",
+        "password_reset_title": "Set a new password",
+        "password_reset_lead": "Choose a new password for your Porto Break account.",
+        "password_reset_success": "Password updated",
+        "password_reset_success_text": "Your password was changed. You can now sign in to your account.",
+        "password_reset_invalid": "This recovery link is invalid or has already been used.",
+        "password_reset_expired": "This recovery link has expired. Request a new link.",
         "calendar_pick_free": "Choose a free night to start the stay.",
         "calendar_pick_checkout": "Now choose the check-out date.",
         "calendar_range_occupied": "The selected range crosses occupied nights.",
@@ -363,6 +405,23 @@ TRANSLATIONS = {
         "login_submit": "Entrar",
         "invalid_credentials": "Email o password incorrectos.",
         "email_unverified": "Valida el email de tu cuenta antes de entrar.",
+        "resend_validation_email": "Reenviar email de validacion",
+        "resend_validation_sent": "Si la cuenta sigue sin validar, hemos enviado un nuevo enlace al email indicado.",
+        "resend_validation_wait": "Espera un minuto antes de solicitar otro email de validacion.",
+        "resend_validation_failed": "No ha sido posible reenviar el email de validacion. Intentalo de nuevo.",
+        "forgot_password": "Has olvidado tu password?",
+        "password_recovery": "Recuperar password",
+        "password_recovery_lead": "Indica el email de tu cuenta. Si esta registrado, enviaremos un enlace para definir una nueva password.",
+        "send_password_reset": "Enviar enlace de recuperacion",
+        "password_reset_sent": "Si existe una cuenta validada con este email, hemos enviado un enlace de recuperacion.",
+        "new_password": "Nueva password",
+        "set_new_password": "Definir nueva password",
+        "password_reset_title": "Definir nueva password",
+        "password_reset_lead": "Elige una nueva password para tu cuenta de Porto Break.",
+        "password_reset_success": "Password actualizada",
+        "password_reset_success_text": "Tu password se ha cambiado. Ya puedes entrar en tu cuenta.",
+        "password_reset_invalid": "Este enlace de recuperacion no es valido o ya se ha utilizado.",
+        "password_reset_expired": "Este enlace de recuperacion ha caducado. Solicita un nuevo enlace.",
         "calendar_pick_free": "Elige una noche libre para iniciar la estancia.",
         "calendar_pick_checkout": "Ahora elige la fecha de salida.",
         "calendar_range_occupied": "El intervalo elegido cruza noches ocupadas.",
@@ -484,6 +543,23 @@ TRANSLATIONS = {
         "login_submit": "Se connecter",
         "invalid_credentials": "Email ou mot de passe incorrect.",
         "email_unverified": "Validez l'email de votre compte avant de vous connecter.",
+        "resend_validation_email": "Renvoyer l'email de validation",
+        "resend_validation_sent": "Si le compte n'est pas encore valide, nous avons envoye un nouveau lien a l'email indique.",
+        "resend_validation_wait": "Attendez une minute avant de demander un autre email de validation.",
+        "resend_validation_failed": "Impossible de renvoyer l'email de validation. Reessayez.",
+        "forgot_password": "Mot de passe oublie ?",
+        "password_recovery": "Recuperer le mot de passe",
+        "password_recovery_lead": "Indiquez l'email de votre compte. S'il est enregistre, nous enverrons un lien pour definir un nouveau mot de passe.",
+        "send_password_reset": "Envoyer le lien de recuperation",
+        "password_reset_sent": "Si un compte valide existe avec cet email, nous avons envoye un lien de recuperation.",
+        "new_password": "Nouveau mot de passe",
+        "set_new_password": "Definir le nouveau mot de passe",
+        "password_reset_title": "Definir un nouveau mot de passe",
+        "password_reset_lead": "Choisissez un nouveau mot de passe pour votre compte Porto Break.",
+        "password_reset_success": "Mot de passe mis a jour",
+        "password_reset_success_text": "Votre mot de passe a ete modifie. Vous pouvez maintenant vous connecter.",
+        "password_reset_invalid": "Ce lien de recuperation n'est pas valide ou a deja ete utilise.",
+        "password_reset_expired": "Ce lien de recuperation a expire. Demandez un nouveau lien.",
         "calendar_pick_free": "Choisissez une nuit libre pour commencer le sejour.",
         "calendar_pick_checkout": "Choisissez maintenant la date de depart.",
         "calendar_range_occupied": "La periode choisie traverse des nuits occupees.",
@@ -986,6 +1062,118 @@ def _send_account_verification_email(verification: dict, *, lang: str) -> int | 
     return None
 
 
+def _send_password_reset_email(reset: dict, *, lang: str) -> int | None:
+    email = str(reset.get("email") or "").strip()
+    token = str(reset.get("token") or "").strip()
+    if not email or not token:
+        return None
+
+    subjects = {
+        "pt": "Recuperacao de password - Porto Break",
+        "en": "Password recovery - Porto Break",
+        "es": "Recuperacion de password - Porto Break",
+        "fr": "Recuperation du mot de passe - Porto Break",
+    }
+    content = {
+        "pt": {
+            "greeting": "Olá",
+            "intro": "Recebemos um pedido para definir uma nova password para a sua conta Porto Break.",
+            "button": "Definir nova password",
+            "expiry": "Este link e valido durante uma hora.",
+            "ignore": "Se nao fez este pedido, pode ignorar este email.",
+        },
+        "en": {
+            "greeting": "Hello",
+            "intro": "We received a request to set a new password for your Porto Break account.",
+            "button": "Set new password",
+            "expiry": "This link is valid for one hour.",
+            "ignore": "If you did not make this request, you can ignore this email.",
+        },
+        "es": {
+            "greeting": "Hola",
+            "intro": "Hemos recibido una solicitud para definir una nueva password para tu cuenta de Porto Break.",
+            "button": "Definir nueva password",
+            "expiry": "Este enlace es valido durante una hora.",
+            "ignore": "Si no hiciste esta solicitud, puedes ignorar este email.",
+        },
+        "fr": {
+            "greeting": "Bonjour",
+            "intro": "Nous avons recu une demande pour definir un nouveau mot de passe pour votre compte Porto Break.",
+            "button": "Definir le nouveau mot de passe",
+            "expiry": "Ce lien est valable pendant une heure.",
+            "ignore": "Si vous n'avez pas fait cette demande, vous pouvez ignorer cet email.",
+        },
+    }
+    text_content = content.get(lang) or content["pt"]
+    name = str(reset.get("nome") or "").strip()
+    greeting = f"{text_content['greeting']} {name}".strip() + ","
+    reset_url = _portobreak_public_url("booking_portal.password_reset", token=token, lang=lang)
+    body_text = "\n".join([
+        greeting,
+        "",
+        text_content["intro"],
+        "",
+        text_content["button"] + ": " + reset_url,
+        text_content["expiry"],
+        text_content["ignore"],
+        "",
+        "Porto Break",
+    ])
+    body_html = f"""
+    <div style="font-family:Inter,Arial,sans-serif;color:#1c1917;background:#f7f3ed;padding:24px;">
+      <div style="max-width:620px;margin:0 auto;background:#fff;border:1px solid #ded6cb;border-radius:10px;padding:24px;">
+        <h1 style="margin:0 0 12px;font-size:24px;">Porto Break</h1>
+        <p style="margin:0 0 18px;">{html.escape(greeting)}</p>
+        <p style="margin:0 0 24px;">{html.escape(text_content['intro'])}</p>
+        <p style="margin:0 0 24px;">
+          <a href="{html.escape(reset_url, quote=True)}" style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;padding:12px 18px;font-weight:800;">{html.escape(text_content['button'])}</a>
+        </p>
+        <p style="margin:0 0 12px;color:#6b6258;font-size:14px;">{html.escape(text_content['expiry'])}</p>
+        <p style="margin:0;color:#6b6258;font-size:14px;">{html.escape(text_content['ignore'])}</p>
+      </div>
+    </div>
+    """
+    try:
+        email_id = queue_email(
+            to=email,
+            subject=subjects.get(lang, subjects["pt"]),
+            body_html=body_html,
+            body_text=body_text,
+            priority=2,
+            context="PORTOBREAK_PASSWORD_RESET",
+            context_id=str(reset.get("id") or ""),
+            created_by="portobreak_public",
+            from_email="noreply@portobreak.com",
+            from_name="Porto Break",
+        )
+        db.session.execute(
+            text(
+                """
+                UPDATE dbo.PB_PASSWORD_RESETS
+                SET EMAIL_ID = :email_id
+                WHERE PBPASSWORDRESETSTAMP = :reset_id
+                """
+            ),
+            {"email_id": email_id, "reset_id": reset.get("id")},
+        )
+        db.session.commit()
+        send_result = send_email_now(email_id)
+        if not send_result.get("ok"):
+            current_app.logger.warning(
+                "Email de recuperacao Porto Break %s ficou com erro: %s",
+                email_id,
+                send_result.get("error") or "",
+            )
+        return int(email_id)
+    except EmailServiceError:
+        db.session.rollback()
+        current_app.logger.exception("Nao foi possivel enviar email de recuperacao Porto Break")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Erro inesperado ao enviar email de recuperacao Porto Break")
+    return None
+
+
 def _send_booking_confirmation_email(success: dict, customer: dict, params: dict, preco: dict, lang: str) -> int | None:
     email = str(customer.get("email") or "").strip()
     if not email:
@@ -1099,6 +1287,73 @@ def _send_booking_confirmation_email(success: dict, customer: dict, params: dict
     return None
 
 
+@bp.route("/portal-reservas/recuperar-password", methods=["GET", "POST"])
+@bp.route("/reservas/recuperar-password", methods=["GET", "POST"])
+def password_recovery():
+    lang = _resolve_lang()
+    t = _t(lang)
+    email = ""
+    status = ""
+    if request.method == "POST":
+        email = str(request.form.get("email") or "").strip()
+        now = int(time.time())
+        last_sent_at = int(session.get(PORTAL_PASSWORD_RESET_COOLDOWN_SESSION_KEY) or 0)
+        if last_sent_at and now - last_sent_at < PORTAL_PASSWORD_RESET_COOLDOWN_SECONDS:
+            status = t["resend_validation_wait"]
+        else:
+            try:
+                reset = criar_password_reset_portal(email)
+                if reset:
+                    _send_password_reset_email(reset, lang=lang)
+                session[PORTAL_PASSWORD_RESET_COOLDOWN_SESSION_KEY] = now
+                status = t["password_reset_sent"]
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception("Erro ao preparar recuperacao de password Porto Break")
+                status = t["password_reset_sent"]
+
+    return _render_booking_template(
+        "booking_portal/password_recovery.html",
+        lang,
+        recovery_email=email,
+        recovery_status=status,
+        page_title=t["password_recovery"],
+    )
+
+
+@bp.route("/portal-reservas/redefinir-password/<token>", methods=["GET", "POST"])
+@bp.route("/reservas/redefinir-password/<token>", methods=["GET", "POST"])
+def password_reset(token):
+    lang = _resolve_lang()
+    t = _t(lang)
+    errors = []
+    success = False
+    if request.method == "POST":
+        password = str(request.form.get("password") or "")
+        confirm_password = str(request.form.get("confirm_password") or "")
+        if len(password) < 8:
+            errors.append(t["password_short"])
+        if password != confirm_password:
+            errors.append(t["password_mismatch"])
+        if not errors:
+            result = redefinir_password_portal(token, password)
+            if result == "updated":
+                success = True
+            elif result == "expired":
+                errors.append(t["password_reset_expired"])
+            else:
+                errors.append(t["password_reset_invalid"])
+
+    return _render_booking_template(
+        "booking_portal/password_reset.html",
+        lang,
+        reset_token=token,
+        reset_errors=errors,
+        reset_success=success,
+        page_title=t["password_reset_title"],
+    )
+
+
 @bp.route("/portal-reservas/entrar", methods=["GET", "POST"])
 @bp.route("/reservas/entrar", methods=["GET", "POST"])
 def login():
@@ -1111,6 +1366,7 @@ def login():
 
     email = ""
     errors = []
+    can_resend_verification = False
     if request.method == "POST":
         email = str(request.form.get("email") or "").strip()
         password = str(request.form.get("password") or "")
@@ -1120,12 +1376,60 @@ def login():
             session.modified = True
             return redirect(next_url or url_for("booking_portal.index", lang=lang))
         errors.append(t.get(reason, t["invalid_credentials"]))
+        can_resend_verification = reason == "email_unverified"
 
     return _render_booking_template(
         "booking_portal/login.html",
         lang,
         login_email=email,
         login_errors=errors,
+        can_resend_verification=can_resend_verification,
+        resend_status="",
+        next_url=next_url,
+        page_title=t["login_title"],
+    )
+
+
+@bp.route("/portal-reservas/reenviar-validacao", methods=["POST"])
+@bp.route("/reservas/reenviar-validacao", methods=["POST"])
+def resend_email_verification():
+    lang = _resolve_lang()
+    t = _t(lang)
+    email = str(request.form.get("email") or "").strip()
+    next_url = _safe_portal_next(request.form.get("next") or "")
+    now = int(time.time())
+    last_sent_at = int(session.get(PORTAL_RESEND_COOLDOWN_SESSION_KEY) or 0)
+    resend_status = ""
+
+    if last_sent_at and now - last_sent_at < PORTAL_RESEND_COOLDOWN_SECONDS:
+        resend_status = t["resend_validation_wait"]
+    else:
+        user = get_unverified_portal_user_by_email(email)
+        if user:
+            try:
+                verification = criar_verificacao_email_portal(user.get("PBUSERSTAMP"))
+                email_id = _send_account_verification_email(verification or {}, lang=lang)
+                if not email_id:
+                    resend_status = t["resend_validation_failed"]
+                else:
+                    session[PORTAL_RESEND_COOLDOWN_SESSION_KEY] = now
+                    resend_status = t["resend_validation_sent"]
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception("Erro ao reenviar validacao de email Porto Break")
+                resend_status = t["resend_validation_failed"]
+        else:
+            # A resposta e intencionalmente generica para nao expor contas existentes.
+            session[PORTAL_RESEND_COOLDOWN_SESSION_KEY] = now
+            resend_status = t["resend_validation_sent"]
+
+    return _render_booking_template(
+        "booking_portal/login.html",
+        lang,
+        login_email=email,
+        login_errors=[],
+        can_resend_verification=True,
+        resend_status=resend_status,
         next_url=next_url,
         page_title=t["login_title"],
     )

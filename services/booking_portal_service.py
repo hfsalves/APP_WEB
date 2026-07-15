@@ -904,6 +904,25 @@ def get_portal_user(pbuserstamp: str) -> dict | None:
     return dict(row) if row else None
 
 
+def get_unverified_portal_user_by_email(email: str) -> dict | None:
+    email_normalizado = _normalize_email(email)
+    if not email_normalizado:
+        return None
+    row = db.session.execute(
+        text(
+            """
+            SELECT PBUSERSTAMP, NOME, EMAIL
+            FROM dbo.PB_USERS
+            WHERE EMAIL_NORMALIZADO = :email
+              AND ISNULL(ATIVO, 0) = 1
+              AND ISNULL(EMAIL_CONFIRMADO, 0) = 0
+            """
+        ),
+        {"email": email_normalizado},
+    ).mappings().first()
+    return dict(row) if row else None
+
+
 def autenticar_portal_user(email: str, password: str) -> tuple[dict | None, str]:
     email_normalizado = _normalize_email(email)
     if not email_normalizado or not password:
@@ -1032,6 +1051,128 @@ def confirmar_email_portal(token: str) -> str:
     )
     db.session.commit()
     return "confirmed"
+
+
+def _create_password_reset_record(pbuserstamp: str) -> dict:
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    reset_id = _new_stamp()
+    db.session.execute(
+        text(
+            """
+            UPDATE dbo.PB_PASSWORD_RESETS
+            SET USADO_EM = SYSUTCDATETIME()
+            WHERE PBUSERSTAMP = :user_id
+              AND USADO_EM IS NULL
+            """
+        ),
+        {"user_id": _clean(pbuserstamp)},
+    )
+    db.session.execute(
+        text(
+            """
+            INSERT INTO dbo.PB_PASSWORD_RESETS (
+                PBPASSWORDRESETSTAMP, PBUSERSTAMP, TOKEN_HASH, EXPIRA_EM
+            )
+            VALUES (
+                :reset_id, :user_id, :token_hash, DATEADD(hour, 1, SYSUTCDATETIME())
+            )
+            """
+        ),
+        {
+            "reset_id": reset_id,
+            "user_id": _clean(pbuserstamp),
+            "token_hash": token_hash,
+        },
+    )
+    return {"id": reset_id, "token": token}
+
+
+def criar_password_reset_portal(email: str) -> dict | None:
+    email_normalizado = _normalize_email(email)
+    if not email_normalizado:
+        return None
+    user = db.session.execute(
+        text(
+            """
+            SELECT PBUSERSTAMP, NOME, EMAIL
+            FROM dbo.PB_USERS
+            WHERE EMAIL_NORMALIZADO = :email
+              AND ISNULL(ATIVO, 0) = 1
+              AND ISNULL(EMAIL_CONFIRMADO, 0) = 1
+            """
+        ),
+        {"email": email_normalizado},
+    ).mappings().first()
+    if not user:
+        return None
+    reset = _create_password_reset_record(user["PBUSERSTAMP"])
+    db.session.commit()
+    return {
+        **reset,
+        "user_id": _clean(user.get("PBUSERSTAMP")),
+        "nome": _clean(user.get("NOME")),
+        "email": _clean(user.get("EMAIL")),
+    }
+
+
+def redefinir_password_portal(token: str, password: str) -> str:
+    token_value = _clean(token)
+    if len(token_value) < 20 or len(password or "") < 8:
+        return "invalid"
+    token_hash = hashlib.sha256(token_value.encode("utf-8")).hexdigest()
+    row = db.session.execute(
+        text(
+            """
+            SELECT TOP 1 R.PBPASSWORDRESETSTAMP, R.PBUSERSTAMP, R.EXPIRA_EM, R.USADO_EM
+            FROM dbo.PB_PASSWORD_RESETS AS R
+            INNER JOIN dbo.PB_USERS AS U ON U.PBUSERSTAMP = R.PBUSERSTAMP
+            WHERE R.TOKEN_HASH = :token_hash
+              AND ISNULL(U.ATIVO, 0) = 1
+              AND ISNULL(U.EMAIL_CONFIRMADO, 0) = 1
+            """
+        ),
+        {"token_hash": token_hash},
+    ).mappings().first()
+    if not row:
+        return "invalid"
+    if row.get("USADO_EM") is not None:
+        return "used"
+    if row.get("EXPIRA_EM") is None or row["EXPIRA_EM"] <= datetime.utcnow():
+        return "expired"
+
+    password_hash, password_algo = hash_password(password)
+    now = datetime.utcnow()
+    db.session.execute(
+        text(
+            """
+            UPDATE dbo.PB_USERS
+            SET PASSWORD_HASH = :password_hash,
+                PASSWORD_ALGO = :password_algo,
+                DTALT = :now
+            WHERE PBUSERSTAMP = :user_id
+            """
+        ),
+        {
+            "password_hash": password_hash,
+            "password_algo": password_algo,
+            "now": now,
+            "user_id": row["PBUSERSTAMP"],
+        },
+    )
+    db.session.execute(
+        text(
+            """
+            UPDATE dbo.PB_PASSWORD_RESETS
+            SET USADO_EM = :now
+            WHERE PBUSERSTAMP = :user_id
+              AND USADO_EM IS NULL
+            """
+        ),
+        {"now": now, "user_id": row["PBUSERSTAMP"]},
+    )
+    db.session.commit()
+    return "updated"
 
 
 def criar_pedido_reserva(al_id, params: dict, customer: dict, *, create_account=False, password=None, ip="", user_agent="") -> dict:

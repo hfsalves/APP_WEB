@@ -463,6 +463,12 @@ input {
   margin: 0;
 }
 
+.booking-alert-success {
+  border-color: rgba(4, 120, 87, 0.24);
+  background: #effcf6;
+  color: var(--bp-ok);
+}
+
 .booking-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1699,6 +1705,31 @@ input {
 .booking-login-form {
   display: grid;
   gap: 14px;
+}
+
+.booking-resend-verification {
+  display: flex;
+  justify-content: center;
+}
+
+.booking-resend-verification button {
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: var(--bp-accent-dark);
+  cursor: pointer;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.booking-form-link {
+  justify-self: center;
+  color: var(--bp-accent-dark);
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 @media (max-width: 1180px) and (min-width: 981px) {
