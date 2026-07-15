@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 
 from flask import Blueprint, current_app, jsonify, render_template, request, send_file
@@ -133,7 +134,7 @@ def photo_enhancer_page():
         current_app.logger.exception('Erro ao preparar tabelas do Photo Enhancer.')
     return render_template(
         'photo_enhancer.html',
-        page_title='Melhoria de Fotos',
+        page_title='Sessões Fotográficas',
         max_upload_mb=photo_enhancer_max_bytes() // 1024 // 1024,
         prompt_used=PHOTO_ENHANCER_PROMPT,
     )
@@ -375,6 +376,70 @@ def api_photo_enhancer_enhance(file_id):
             db.session.rollback()
         status = 403 if isinstance(exc, PhotoEnhancerError) else 500
         return jsonify({'ok': False, 'error': str(exc), 'file': row_to_file(get_file(file_id)) if get_file(file_id) else None}), status
+
+
+@bp.route('/api/photo-enhancer/files/<file_id>/metadata', methods=['PATCH'])
+@login_required
+def api_photo_enhancer_update_file_metadata(file_id):
+    try:
+        ensure_photo_enhancer_schema()
+        file_row, session_row = _assert_file_access(file_id)
+        payload = request.get_json(silent=True) or {}
+        raw_tag = str(payload.get('tags') or '').strip()
+        tags = next((part.strip() for part in re.split(r'[,;\r\n]+', raw_tag) if part.strip()), '')[:80]
+        db.session.execute(text("""
+            UPDATE dbo.PHOTO_ENHANCER_FILE
+            SET TAGS = :tags,
+                UPDATED_AT = SYSUTCDATETIME()
+            WHERE ID = :id
+        """), {'id': _stamp(file_id), 'tags': tags})
+        db.session.execute(text("""
+            UPDATE dbo.PHOTO_ENHANCER_SESSION
+            SET UPDATED_AT = SYSUTCDATETIME()
+            WHERE ID = :id
+        """), {'id': _stamp(session_row.get('ID'))})
+        db.session.commit()
+        return jsonify({'ok': True, 'file': row_to_file(get_file(file_row.get('ID')))})
+    except PhotoEnhancerError as exc:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(exc)}), 403
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(exc)}), 500
+
+
+@bp.route('/api/photo-enhancer/files/<file_id>/cover', methods=['POST'])
+@login_required
+def api_photo_enhancer_set_cover(file_id):
+    try:
+        ensure_photo_enhancer_schema()
+        file_row, session_row = _assert_file_access(file_id)
+        session_id = _stamp(session_row.get('ID'))
+        db.session.execute(text("""
+            UPDATE dbo.PHOTO_ENHANCER_FILE
+            SET IS_COVER = 0,
+                UPDATED_AT = SYSUTCDATETIME()
+            WHERE SESSION_ID = :session_id
+        """), {'session_id': session_id})
+        db.session.execute(text("""
+            UPDATE dbo.PHOTO_ENHANCER_FILE
+            SET IS_COVER = 1,
+                UPDATED_AT = SYSUTCDATETIME()
+            WHERE ID = :id
+        """), {'id': _stamp(file_row.get('ID'))})
+        db.session.execute(text("""
+            UPDATE dbo.PHOTO_ENHANCER_SESSION
+            SET UPDATED_AT = SYSUTCDATETIME()
+            WHERE ID = :id
+        """), {'id': session_id})
+        db.session.commit()
+        return jsonify({'ok': True, 'session': _session_payload(get_session(session_id))})
+    except PhotoEnhancerError as exc:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(exc)}), 403
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(exc)}), 500
 
 
 @bp.route('/api/photo-enhancer/files/<file_id>/download')

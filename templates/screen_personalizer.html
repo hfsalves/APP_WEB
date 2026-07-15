@@ -990,6 +990,38 @@
     opacity: .55;
   }
 
+  .spv-preview-field-separator {
+    padding: .12rem .2rem;
+    border-style: solid;
+    background: transparent;
+  }
+
+  .spv-preview-separator {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    min-height: 2rem;
+    color: var(--sz-color-text);
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+
+  .spv-preview-separator::before,
+  .spv-preview-separator::after {
+    content: '';
+    height: 1px;
+    flex: 1 1 auto;
+    background: color-mix(in srgb, var(--sz-color-border) 82%, transparent);
+  }
+
+  .spv-preview-separator span {
+    min-width: 0;
+    max-width: 72%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .spv-preview-table-block {
     display: flex;
     flex-direction: column;
@@ -1878,4 +1910,3 @@
   }
 </style>
 {% endblock %}
-

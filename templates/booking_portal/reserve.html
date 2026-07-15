@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PortoBreak.com - {{ page_title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+</head>
+<body>
+  <main class="booking-shell booking-detail-shell">
+    <nav class="booking-nav booking-topbar-light" aria-label="{{ t.page_reservations }}">
+      <a class="booking-brand" href="{{ detail_url }}" aria-label="PortoBreak.com">
+        <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}" alt="PortoBreak.com">
+      </a>
+      <div class="booking-nav-actions">
+        <div class="booking-language-switcher booking-language-switcher-nav" aria-label="Language">
+          {% for item in language_links %}
+            <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
+          {% endfor %}
+        </div>
+        {% if portal_user %}
+          <details class="booking-account-menu">
+            <summary>{{ portal_user.nome or t.account }}</summary>
+            <form method="post" action="{{ url_for('booking_portal.logout', lang=lang) }}">
+              <button type="submit">{{ t.logout }}</button>
+            </form>
+          </details>
+        {% else %}
+          <a class="booking-account-link" href="{{ url_for('booking_portal.login', lang=lang) }}">{{ t.login }}</a>
+        {% endif %}
+      </div>
+    </nav>
+
+    {% if success %}
+      <section class="booking-success-panel">
+        <p class="booking-kicker booking-kicker-dark">{{ t.booking_request }}</p>
+        <h1>{{ t.booking_request_sent }}</h1>
+        <p>{{ t.booking_request_sent_text }}</p>
+        {% if success.user_id %}
+          <p>{{ t.account_confirmation_sent }}</p>
+        {% endif %}
+        <div class="booking-success-reference">#{{ success.id }}</div>
+        <a class="booking-button booking-button-primary" href="{{ detail_url }}">{{ t.view_stay }}</a>
+      </section>
+    {% else %}
+      <section class="booking-reservation-layout">
+        <aside class="booking-summary-card">
+          {% if alojamento.foto %}
+            <img src="{{ alojamento.foto }}" alt="{{ alojamento.nome }}" loading="eager" decoding="async">
+          {% endif %}
+          <div class="booking-summary-body">
+            <p class="booking-kicker booking-kicker-dark">{{ t.stay_label }}</p>
+            <h1>{{ alojamento.nome }}</h1>
+            {% if alojamento.localizacao %}
+              <span class="booking-summary-location">{{ alojamento.localizacao }}</span>
+            {% endif %}
+
+            <dl class="booking-selected booking-selected-summary">
+              <div>
+                <dt>{{ t.checkin }}</dt>
+                <dd>{{ search.raw.checkin or t.choose }}</dd>
+              </div>
+              <div>
+                <dt>{{ t.checkout }}</dt>
+                <dd>{{ search.raw.checkout or t.choose }}</dd>
+              </div>
+              <div>
+                <dt>{{ t.guests }}</dt>
+                <dd>{{ search.guest_summary or t.choose }}</dd>
+              </div>
+            </dl>
+
+            {% if preco.valor %}
+              <div class="booking-panel-price booking-panel-price-summary">
+                <small>{{ t.estimate }}</small>
+                <strong>{{ preco.label }}</strong>
+                <span>{{ preco.noites }} {% if preco.noites == 1 %}{{ t.night }}{% else %}{{ t.nights }}{% endif %}</span>
+              </div>
+              {% if preco.linhas %}
+                <div class="booking-price-breakdown">
+                  {% for linha in preco.linhas %}
+                    <div>
+                      <span>{{ linha.label }}</span>
+                      <strong>{{ linha.value }}</strong>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            {% elif alojamento.preco_desde %}
+              <div class="booking-panel-price booking-panel-price-summary">
+                <small>{{ t.from }}</small>
+                <strong>{{ alojamento.preco_desde }}</strong>
+                <span>{{ t.per_night }}</span>
+              </div>
+            {% endif %}
+          </div>
+        </aside>
+
+        <section class="booking-reservation-card">
+          <p class="booking-kicker booking-kicker-dark">{{ t.booking_request }}</p>
+          <h2>{{ t.customer_details }}</h2>
+
+          {% if booking_errors %}
+            <div class="booking-alert">
+              {% for error in booking_errors %}
+                <p>{{ error }}</p>
+              {% endfor %}
+            </div>
+          {% endif %}
+          {% if form_errors %}
+            <div class="booking-alert">
+              {% for error in form_errors %}
+                <p>{{ error }}</p>
+              {% endfor %}
+            </div>
+          {% endif %}
+          {% if guest_notes %}
+            <div class="booking-guest-notes">
+              {% for note in guest_notes %}
+                <p>{{ note }}</p>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <form method="post" class="booking-reservation-form" data-reservation-form>
+            <div class="booking-choice-grid">
+              <label class="{% if account_mode != 'account' %}is-active{% endif %}">
+                <input type="radio" name="account_mode" value="guest" {% if account_mode != 'account' %}checked{% endif %}>
+                <span>{{ t.reserve_as_guest }}</span>
+              </label>
+              <label class="{% if account_mode == 'account' %}is-active{% endif %}">
+                <input type="radio" name="account_mode" value="account" {% if account_mode == 'account' %}checked{% endif %}>
+                <span>{{ t.create_user_account }}</span>
+              </label>
+            </div>
+
+            <div class="booking-form-grid">
+              <label class="booking-form-field">
+                <span>{{ t.full_name }} *</span>
+                <input name="nome" value="{{ customer.nome }}" autocomplete="name" required maxlength="160">
+              </label>
+              <label class="booking-form-field">
+                <span>{{ t.email }} *</span>
+                <input name="email" type="email" value="{{ customer.email }}" autocomplete="email" required maxlength="255">
+              </label>
+              <label class="booking-form-field">
+                <span>{{ t.country }} *</span>
+                <input name="pais" value="{{ customer.pais }}" autocomplete="country-name" required maxlength="100">
+              </label>
+              <label class="booking-form-field">
+                <span>{{ t.phone }}</span>
+                <input name="telefone" value="{{ customer.telefone }}" autocomplete="tel" maxlength="60">
+              </label>
+              <label class="booking-form-field booking-span-2">
+                <span>{{ t.address }}</span>
+                <input name="morada" value="{{ customer.morada }}" autocomplete="street-address" maxlength="300">
+              </label>
+              <label class="booking-form-field">
+                <span>{{ t.tax_id }}</span>
+                <input name="nif" value="{{ customer.nif }}" maxlength="40">
+              </label>
+            </div>
+
+            <div class="booking-form-grid booking-password-fields" data-account-fields {% if account_mode != 'account' %}hidden{% endif %}>
+              <label class="booking-form-field">
+                <span>{{ t.password }} *</span>
+                <input name="password" type="password" autocomplete="new-password" minlength="8">
+              </label>
+              <label class="booking-form-field">
+                <span>{{ t.confirm_password }} *</span>
+                <input name="confirm_password" type="password" autocomplete="new-password" minlength="8">
+              </label>
+            </div>
+
+            <label class="booking-form-field">
+              <span>{{ t.notes }}</span>
+              <textarea name="observacoes" rows="4">{{ customer.observacoes }}</textarea>
+            </label>
+
+            <button class="booking-button booking-button-primary booking-button-wide" type="submit" {% if booking_errors %}disabled{% endif %}>
+              {{ t.submit_booking_request }}
+            </button>
+          </form>
+        </section>
+      </section>
+    {% endif %}
+  </main>
+
+  <script>
+    (function () {
+      var form = document.querySelector("[data-reservation-form]");
+      if (!form) return;
+      var accountFields = form.querySelector("[data-account-fields]");
+      var choices = Array.prototype.slice.call(form.querySelectorAll(".booking-choice-grid label"));
+      function syncMode() {
+        var selected = form.querySelector("input[name='account_mode']:checked");
+        var isAccount = selected && selected.value === "account";
+        if (accountFields) accountFields.hidden = !isAccount;
+        choices.forEach(function (label) {
+          var input = label.querySelector("input");
+          label.classList.toggle("is-active", !!input && input.checked);
+        });
+      }
+      form.addEventListener("change", function (event) {
+        if (event.target && event.target.name === "account_mode") syncMode();
+      });
+      syncMode();
+    })();
+  </script>
+</body>
+</html>

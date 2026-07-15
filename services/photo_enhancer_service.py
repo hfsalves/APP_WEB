@@ -297,6 +297,8 @@ def ensure_photo_enhancer_schema() -> None:
                 ORIGINAL_PATH varchar(500) NOT NULL CONSTRAINT DF_PHOTO_ENHANCER_FILE_ORIGPATH DEFAULT '',
                 ENHANCED_PATH varchar(500) NOT NULL CONSTRAINT DF_PHOTO_ENHANCER_FILE_ENHPATH DEFAULT '',
                 THUMB_PATH varchar(500) NOT NULL CONSTRAINT DF_PHOTO_ENHANCER_FILE_THUMBPATH DEFAULT '',
+                TAGS nvarchar(500) NOT NULL CONSTRAINT DF_PHOTO_ENHANCER_FILE_TAGS DEFAULT '',
+                IS_COVER bit NOT NULL CONSTRAINT DF_PHOTO_ENHANCER_FILE_IS_COVER DEFAULT 0,
                 STATUS varchar(30) NOT NULL CONSTRAINT DF_PHOTO_ENHANCER_FILE_STATUS DEFAULT 'carregada',
                 ERROR_MESSAGE nvarchar(max) NULL,
                 PROCESSING_PROFILE varchar(40) NOT NULL CONSTRAINT DF_PHOTO_ENHANCER_FILE_PROFILE DEFAULT 'guestspa_premium',
@@ -330,6 +332,16 @@ def ensure_photo_enhancer_schema() -> None:
             ALTER TABLE dbo.PHOTO_ENHANCER_FILE
             ADD PROCESSING_PROFILE varchar(40) NOT NULL
                 CONSTRAINT DF_PHOTO_ENHANCER_FILE_PROFILE_LATE DEFAULT 'guestspa_premium'
+
+        IF COL_LENGTH('dbo.PHOTO_ENHANCER_FILE', 'TAGS') IS NULL
+            ALTER TABLE dbo.PHOTO_ENHANCER_FILE
+            ADD TAGS nvarchar(500) NOT NULL
+                CONSTRAINT DF_PHOTO_ENHANCER_FILE_TAGS_LATE DEFAULT ''
+
+        IF COL_LENGTH('dbo.PHOTO_ENHANCER_FILE', 'IS_COVER') IS NULL
+            ALTER TABLE dbo.PHOTO_ENHANCER_FILE
+            ADD IS_COVER bit NOT NULL
+                CONSTRAINT DF_PHOTO_ENHANCER_FILE_IS_COVER_LATE DEFAULT 0
     """))
     db.session.commit()
 
@@ -734,6 +746,8 @@ def row_to_file(row) -> dict[str, Any]:
         'original_path': _clean_text(data.get('ORIGINAL_PATH')),
         'enhanced_path': _clean_text(data.get('ENHANCED_PATH')),
         'thumb_path': _clean_text(data.get('THUMB_PATH')),
+        'tags': _clean_text(data.get('TAGS')),
+        'is_cover': bool(data.get('IS_COVER') or 0),
         'status': _clean_text(data.get('STATUS'), 30),
         'error_message': _clean_text(data.get('ERROR_MESSAGE')),
         'processing_profile': _clean_text(data.get('PROCESSING_PROFILE'), 40) or PHOTO_ENHANCER_DEFAULT_PROFILE,

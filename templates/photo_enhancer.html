@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Melhoria de Fotos{% endblock %}
+{% block title %}Sessões Fotográficas{% endblock %}
 
 {% block extra_head %}
 {{ super() }}
@@ -239,6 +239,40 @@
     border-color: color-mix(in srgb, var(--sz-color-danger) 42%, var(--sz-color-border));
   }
 
+  .photo-card_status.is-cover {
+    color: var(--sz-color-warning);
+    border-color: color-mix(in srgb, var(--sz-color-warning) 52%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-warning) 12%, var(--sz-color-surface-alt));
+  }
+
+  .photo-card_status.is-tag {
+    color: var(--sz-color-primary);
+    border-color: color-mix(in srgb, var(--sz-color-primary) 46%, var(--sz-color-border));
+    background: color-mix(in srgb, var(--sz-color-primary) 10%, var(--sz-color-surface-alt));
+  }
+
+  .photo-card_meta {
+    display: grid;
+    gap: var(--sz-space-1);
+    min-width: 0;
+  }
+
+  .photo-card_meta .sz_label {
+    font-size: 0.66rem;
+  }
+
+  .photo-card_tag_row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sz-space-2);
+    align-items: center;
+  }
+
+  .photo-card_tag {
+    min-width: 0;
+    height: 2.1rem;
+  }
+
   .photo-card_error {
     display: none;
     color: var(--sz-color-danger);
@@ -419,7 +453,7 @@
   <div class="sz_page_container">
     <header class="sz_contextbar sz_page_contextbar">
       <div class="sz_contextbar_left">
-        <div class="sz_page_title">Melhoria de Fotos</div>
+        <div class="sz_page_title">Sessões Fotográficas</div>
         <div class="sz_page_subtitle">Fotos de alojamentos para listagens.</div>
       </div>
       <div class="sz_contextbar_right photo-enhancer-toolbar">

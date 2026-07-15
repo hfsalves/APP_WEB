@@ -18,10 +18,22 @@
       <a class="booking-brand" href="{{ url_for('booking_portal.index', checkin=search.raw.checkin, checkout=search.raw.checkout, adultos=search.raw.adultos, criancas=search.raw.criancas, bebes=search.raw.bebes, q=search.raw.query, lang=lang) }}" aria-label="PortoBreak.com">
         <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}" alt="PortoBreak.com">
       </a>
-      <div class="booking-language-switcher booking-language-switcher-nav" aria-label="Language">
-        {% for item in language_links %}
-          <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
-        {% endfor %}
+      <div class="booking-nav-actions">
+        <div class="booking-language-switcher booking-language-switcher-nav" aria-label="Language">
+          {% for item in language_links %}
+            <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
+          {% endfor %}
+        </div>
+        {% if portal_user %}
+          <details class="booking-account-menu">
+            <summary>{{ portal_user.nome or t.account }}</summary>
+            <form method="post" action="{{ url_for('booking_portal.logout', lang=lang) }}">
+              <button type="submit">{{ t.logout }}</button>
+            </form>
+          </details>
+        {% else %}
+          <a class="booking-account-link" href="{{ url_for('booking_portal.login', lang=lang) }}">{{ t.login }}</a>
+        {% endif %}
       </div>
     </nav>
 
@@ -237,7 +249,11 @@
           <button class="booking-button booking-button-primary" type="submit" data-update-button {% if guest_errors %}disabled{% endif %}>{{ t["update"] }}</button>
         </form>
 
-        <button class="booking-button booking-button-wide" type="button" disabled>{{ t.request_soon }}</button>
+        {% if reserve_enabled %}
+          <a class="booking-button booking-button-primary booking-button-wide" href="{{ reserve_url }}">{{ t.book_now }}</a>
+        {% else %}
+          <button class="booking-button booking-button-primary booking-button-wide" type="button" disabled>{{ t.book_now }}</button>
+        {% endif %}
       </aside>
     </section>
   </main>
@@ -269,6 +285,7 @@
     </div>
   {% endif %}
   <script type="application/json" id="booking-occupied-nights">{{ calendario.occupied|tojson }}</script>
+  <script type="application/json" id="booking-calendar-policy">{{ calendario|tojson }}</script>
   <script type="application/json" id="booking-i18n">{{ t|tojson }}</script>
   <script type="application/json" id="booking-gallery-photos">{{ alojamento.fotos|tojson }}</script>
   {% if alojamento.tem_mapa %}
@@ -313,6 +330,11 @@
 
       var occupiedNode = document.getElementById("booking-occupied-nights");
       var occupied = new Set(JSON.parse((occupiedNode && occupiedNode.textContent) || "[]"));
+      var policyNode = document.getElementById("booking-calendar-policy");
+      var policy = JSON.parse((policyNode && policyNode.textContent) || "{}");
+      var blockedCheckin = new Set(Array.isArray(policy.blocked_checkin) ? policy.blocked_checkin : []);
+      var blockedCheckout = new Set(Array.isArray(policy.blocked_checkout) ? policy.blocked_checkout : []);
+      var minNights = Number(policy.min_nights || 1);
       var i18nNode = document.getElementById("booking-i18n");
       var i18n = JSON.parse((i18nNode && i18nNode.textContent) || "{}");
       var monthsEl = root.querySelector("[data-calendar-months]");
@@ -320,6 +342,7 @@
       var messageEl = root.querySelector("[data-calendar-message]");
       var checkinInput = form.querySelector("[data-checkin-input]");
       var checkoutInput = form.querySelector("[data-checkout-input]");
+      var updateButton = form.querySelector("[data-update-button]");
       var selectedStart = root.dataset.selectedCheckin || "";
       var selectedEnd = root.dataset.selectedCheckout || "";
       var cursor = parseIso(root.dataset.initialMonth) || firstOfMonth(new Date());
@@ -399,6 +422,13 @@
             (Array.isArray(payload.occupied) ? payload.occupied : []).forEach(function (dayIso) {
               occupied.add(dayIso);
             });
+            (Array.isArray(payload.blocked_checkin) ? payload.blocked_checkin : []).forEach(function (dayIso) {
+              blockedCheckin.add(dayIso);
+            });
+            (Array.isArray(payload.blocked_checkout) ? payload.blocked_checkout : []).forEach(function (dayIso) {
+              blockedCheckout.add(dayIso);
+            });
+            minNights = Number(payload.min_nights || minNights || 1);
             markLoadedMonths(loadStart, 4);
           })
           .catch(function () {});
@@ -423,9 +453,58 @@
         return false;
       }
 
+      function nightsBetween(startIso, endIso) {
+        var startDay = parseIso(startIso);
+        var endDay = parseIso(endIso);
+        if (!startDay || !endDay) return 0;
+        return Math.round((endDay.getTime() - startDay.getTime()) / 86400000);
+      }
+
+      function minNightsMessage() {
+        return String(i18n.calendar_min_nights || "Este alojamento exige no minimo {min} noite(s).").replace(/\{min\}/g, String(minNights || 1));
+      }
+
+      function checkinBlockedMessage() {
+        return i18n.calendar_blocked_checkin || "Nao e possivel fazer check-in nesta data.";
+      }
+
+      function checkoutBlockedMessage() {
+        return i18n.calendar_blocked_checkout || "Nao e possivel fazer check-out nesta data.";
+      }
+
+      function normalizeSelectedDates() {
+        if (selectedStart && blockedCheckin.has(selectedStart)) {
+          selectedStart = "";
+          selectedEnd = "";
+          setDatePolicyValid(false);
+          setMessage(checkinBlockedMessage(), "error");
+          return;
+        }
+        if (selectedStart && selectedEnd) {
+          if (blockedCheckout.has(selectedEnd)) {
+            selectedEnd = "";
+            setDatePolicyValid(false);
+            setMessage(checkoutBlockedMessage(), "error");
+          } else if (minNights > 1 && nightsBetween(selectedStart, selectedEnd) < minNights) {
+            selectedEnd = "";
+            setDatePolicyValid(false);
+            setMessage(minNightsMessage(), "error");
+          } else {
+            setDatePolicyValid(true);
+          }
+        }
+      }
+
       function setMessage(text, tone) {
         messageEl.textContent = text;
         messageEl.dataset.tone = tone || "";
+      }
+
+      function setDatePolicyValid(valid) {
+        form.dataset.datesValid = valid ? "1" : "0";
+        if (updateButton && form.dataset.guestsValid !== "0") {
+          updateButton.disabled = !valid;
+        }
       }
 
       function selectDay(dayIso) {
@@ -436,10 +515,27 @@
             setMessage(i18n.calendar_pick_free || "Escolha uma noite livre para iniciar a estadia.", "error");
             return;
           }
+          if (blockedCheckin.has(dayIso)) {
+            setMessage(checkinBlockedMessage(), "error");
+            setDatePolicyValid(false);
+            return;
+          }
           selectedStart = dayIso;
           selectedEnd = "";
+          setDatePolicyValid(true);
           setMessage(i18n.calendar_pick_checkout || "Agora escolha a data de saida.", "");
           render();
+          return;
+        }
+
+        if (blockedCheckout.has(dayIso)) {
+          setMessage(checkoutBlockedMessage(), "error");
+          setDatePolicyValid(false);
+          return;
+        }
+        if (minNights > 1 && nightsBetween(selectedStart, dayIso) < minNights) {
+          setMessage(minNightsMessage(), "error");
+          setDatePolicyValid(false);
           return;
         }
 
@@ -447,11 +543,13 @@
           setMessage(i18n.calendar_range_occupied || "O intervalo escolhido cruza noites ocupadas.", "error");
           selectedStart = isOccupied || isPast ? "" : dayIso;
           selectedEnd = "";
+          setDatePolicyValid(false);
           render();
           return;
         }
 
         selectedEnd = dayIso;
+        setDatePolicyValid(true);
         setMessage(i18n.calendar_dates_selected || "Datas selecionadas. Atualize para recalcular disponibilidade e preco.", "ok");
         render();
       }
@@ -486,6 +584,15 @@
           if (iso < todayIso) button.classList.add("is-past");
           if (occupied.has(iso)) button.classList.add("is-occupied");
           if (occupied.has(iso) && !occupied.has(previousIso(iso))) button.classList.add("is-checkout-only");
+          if (blockedCheckin.has(iso)) button.classList.add("is-checkin-blocked");
+          if (blockedCheckout.has(iso)) button.classList.add("is-checkout-blocked");
+          var restrictionTitle = [];
+          if (blockedCheckin.has(iso)) restrictionTitle.push(checkinBlockedMessage());
+          if (blockedCheckout.has(iso)) restrictionTitle.push(checkoutBlockedMessage());
+          if (restrictionTitle.length) {
+            button.title = restrictionTitle.join(" ");
+            button.setAttribute("aria-label", String(day) + ". " + restrictionTitle.join(" "));
+          }
           if (iso === selectedStart) button.classList.add("is-start");
           if (iso === selectedEnd) button.classList.add("is-end");
           if (isBetween(iso, selectedStart, selectedEnd)) button.classList.add("is-range");
@@ -523,8 +630,12 @@
         }
       });
 
+      normalizeSelectedDates();
       render();
-      ensureVisibleOccupied().then(render);
+      ensureVisibleOccupied().then(function () {
+        normalizeSelectedDates();
+        render();
+      });
     })();
     (function () {
       var form = document.querySelector("[data-booking-calendar-form]");
@@ -608,10 +719,10 @@
           }
         }
 
+        form.dataset.guestsValid = errors.length ? "0" : "1";
         setErrors(errors);
         setNotes(notes);
-        if (submitButton) submitButton.disabled = errors.length > 0;
-        form.dataset.guestsValid = errors.length ? "0" : "1";
+        if (submitButton) submitButton.disabled = errors.length > 0 || form.dataset.datesValid === "0";
         return errors.length === 0;
       }
 

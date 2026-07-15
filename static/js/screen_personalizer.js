@@ -93,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
     COLOR: { icon: 'fa-solid fa-palette', label: 'Cor' },
     LINK: { icon: 'fa-solid fa-link', label: 'Link' },
     SPACE: { icon: 'fa-solid fa-left-right', label: 'Espaço' },
+    SEPARATOR: { icon: 'fa-solid fa-grip-lines', label: 'Separador' },
   };
   const TYPE_LABELS_EN = {
     TEXT: 'Text',
@@ -109,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
     COLOR: 'Color',
     LINK: 'Link',
     SPACE: 'Spacer',
+    SEPARATOR: 'Separator',
     BOOL: 'Boolean',
     JSON: 'JSON',
   };
@@ -127,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { id: 'COLOR', icon: TYPE_META.COLOR.icon, label: 'Color', key: 'COLOR' },
     { id: 'LINK', icon: TYPE_META.LINK.icon, label: 'Link', key: 'LINK' },
     { id: 'SPACE', icon: TYPE_META.SPACE.icon, label: 'Spacer', key: 'SPACE' },
+    { id: 'SEPARATOR', icon: TYPE_META.SEPARATOR.icon, label: 'Separador', key: 'SEPARATOR' },
   ];
   const FIELD_TYPE_OPTIONS = [
     'TEXT',
@@ -143,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'TABLE',
     'TABLE_FIELD',
     'SPACE',
+    'SEPARATOR',
   ].map((type) => ({ value: type, label: TYPE_LABELS_EN[type] || type }));
   const VARIABLE_META = {
     TEXT: { icon: 'fa-solid fa-font', label: 'Text', hint: 'Valor livre em texto simples.' },
@@ -658,6 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
     normalized.PROPRIEDADES = normalizePropertiesObject(
       normalized.PROPRIEDADES ?? normalized.propriedades ?? normalized.properties
     );
+    enforceSeparatorField(normalized);
     if (row && typeof row === 'object') {
       Object.assign(row, normalized);
       return row;
@@ -703,6 +708,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function isCustomObject(field) {
     return String(field?._SPV_ORIGIN || '').trim().toLowerCase() === 'object';
+  }
+
+  function isSeparatorField(field) {
+    return String(field?.TIPO || '').trim().toUpperCase() === 'SEPARATOR';
+  }
+
+  function enforceSeparatorField(field) {
+    if (!field || !isSeparatorField(field)) return field;
+    field.TAM = PREVIEW_GRID_UNITS;
+    field.TAM_MOBILE = PREVIEW_GRID_UNITS_MOBILE;
+    field.RONLY = 1;
+    field.OBRIGATORIO = 0;
+    field.LISTA = 0;
+    field.FILTRO = 0;
+    field.DECIMAIS = 0;
+    field.MINIMO = '';
+    field.MAXIMO = '';
+    field.COMBO = '';
+    field.HAS_COMBO = false;
+    return field;
   }
 
   function getDetailFields() {
@@ -1464,19 +1489,36 @@ document.addEventListener('DOMContentLoaded', () => {
     const rowKey = getActiveRowKey();
     const posKey = getActivePosKey();
     const visible = getVisibleLayoutFields(fields);
-    const rowMap = new Map();
-    let nextRowId = 1;
+    const normalizedRows = [];
+    let currentSourceRow = null;
+    let currentRowFields = [];
+    const flushCurrentRow = () => {
+      if (!currentRowFields.length) return;
+      normalizedRows.push(currentRowFields);
+      currentRowFields = [];
+    };
+
     visible.forEach((field) => {
-      const rowId = getFieldRowId(field);
-      if (!rowMap.has(rowId)) rowMap.set(rowId, nextRowId++);
-      field[rowKey] = rowMap.get(rowId);
+      enforceSeparatorField(field);
+      const sourceRow = getFieldRowId(field);
+      if (currentSourceRow !== null && sourceRow !== currentSourceRow) {
+        flushCurrentRow();
+      }
+      currentSourceRow = sourceRow;
+      if (isSeparatorField(field)) {
+        flushCurrentRow();
+        normalizedRows.push([field]);
+        return;
+      }
+      currentRowFields.push(field);
     });
-    const rowCounters = new Map();
-    visible.forEach((field) => {
-      const rowId = getFieldRowId(field);
-      const index = rowCounters.get(rowId) || 0;
-      field[posKey] = index;
-      rowCounters.set(rowId, index + 1);
+    flushCurrentRow();
+
+    normalizedRows.forEach((rowFields, rowIndex) => {
+      rowFields.forEach((field, pos) => {
+        field[rowKey] = rowIndex + 1;
+        field[posKey] = pos;
+      });
     });
     (Array.isArray(fields) ? fields : [])
       .map(normalizeCampoRow)
@@ -1533,7 +1575,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getFieldSize(field) {
+    if (isSeparatorField(field)) {
+      enforceSeparatorField(field);
+    }
     return Math.min(getPreviewGridUnits(), Math.max(5, Number(field?.[getActiveWidthField()] || 5)));
+  }
+
+  function getCatalogTemplateWidth(templateId) {
+    const key = String(templateId || '').trim().toUpperCase();
+    if (key === 'SEPARATOR') return getPreviewGridUnits();
+    if (key === 'TABLE') return getPreviewGridUnits();
+    if (key === 'BUTTON') return 15;
+    if (key === 'TABLE_FIELD') return 25;
+    return 5;
   }
 
   function getRowUsedWidth(rowId, { excludeStamp = '' } = {}) {
@@ -1542,17 +1596,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function getDragSize(drag) {
     if (!drag) return 0;
-    if (String(drag.sourceKind || 'layout') === 'catalog') return 5;
+    if (String(drag.sourceKind || 'layout') === 'catalog') {
+      return getCatalogTemplateWidth(drag.templateId);
+    }
     const target = findFieldByStamp(drag.fieldStamp);
     return target ? getFieldSize(target) : 0;
   }
 
-  function canFieldFitRow(fieldStamp, rowId, { sourceKind = 'layout' } = {}) {
+  function canFieldFitRow(fieldStamp, rowId, { sourceKind = 'layout', templateId = '' } = {}) {
     const used = getRowUsedWidth(rowId, {
       excludeStamp: sourceKind === 'layout' ? fieldStamp : '',
     });
     const size = sourceKind === 'catalog'
-      ? 5
+      ? getCatalogTemplateWidth(templateId)
       : getFieldSize(findFieldByStamp(fieldStamp));
     return size > 0 && (used + size) <= getPreviewGridUnits();
   }
@@ -1618,16 +1674,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!template) return null;
     const stamp = nextCustomObjectStamp();
     const baseName = `OBJ_${template.id}_${state.customObjectSeq}`;
-    const defaultWidth = template.id === 'TABLE'
+    const defaultWidth = template.id === 'SEPARATOR'
+      ? PREVIEW_GRID_UNITS
+      : template.id === 'TABLE'
       ? 100
       : (template.id === 'BUTTON' ? 15 : (template.id === 'TABLE_FIELD' ? 25 : 5));
-    const defaultMobileWidth = template.id === 'TABLE'
+    const defaultMobileWidth = template.id === 'SEPARATOR'
+      ? PREVIEW_GRID_UNITS_MOBILE
+      : template.id === 'TABLE'
       ? 40
       : (template.id === 'TABLE_FIELD' ? 40 : defaultWidth);
     const objectRow = normalizeCampoRow({
       CAMPOSSTAMP: stamp,
       NMCAMPO: baseName,
-      DESCRICAO: template.label,
+      DESCRICAO: template.id === 'SEPARATOR' ? 'Novo separador' : template.label,
       TIPO: template.id,
       TAM: defaultWidth,
       TAM_MOBILE: defaultMobileWidth,
@@ -2109,6 +2169,14 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }
 
+    if (type === 'SEPARATOR') {
+      return `
+        <div class="spv-preview-separator" aria-hidden="true">
+          <span>${escapeHtml(fieldLabel(field))}</span>
+        </div>
+      `;
+    }
+
     if (type === 'BUTTON') {
       return `
         <button type="button" class="sz_button sz_button_secondary spv-preview-button" ${enabled ? '' : 'disabled'}>${escapeHtml(fieldLabel(field))}</button>
@@ -2476,7 +2544,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const listMode = isListLayoutMode();
     const listMobileMode = isListMobileLayoutMode();
     const editableName = isCustomObject(field);
-    const canBindVariable = isCustomObject(field) && !['SPACE', 'BUTTON', 'TABLE', 'TABLE_FIELD'].includes(fieldType);
+    const canBindVariable = isCustomObject(field) && !['SPACE', 'SEPARATOR', 'BUTTON', 'TABLE', 'TABLE_FIELD'].includes(fieldType);
     const boundVariable = getFieldBoundVariable(field);
     const fieldProps = getFieldProperties(field);
     const tableSourceType = String(fieldProps.source_type || 'sql_table').trim() || 'sql_table';
@@ -2521,9 +2589,11 @@ document.addEventListener('DOMContentLoaded', () => {
         value: fieldType,
         editor: 'TIPO',
         editorType: 'select',
-        options: FIELD_TYPE_OPTIONS,
+        options: isCustomObject(field)
+          ? FIELD_TYPE_OPTIONS
+          : FIELD_TYPE_OPTIONS.filter((option) => option.value !== 'SEPARATOR'),
       },
-      { name: 'Width', value: `${Number(field?.[getActiveWidthField()] || 0)}%` },
+      { name: 'Width', value: isSeparatorField(field) ? 'Full line' : `${Number(field?.[getActiveWidthField()] || 0)}%` },
       { name: listMode ? (listMobileMode ? 'Placement' : 'Position') : 'Line', value: lineValue },
       {
         name: listMode ? (listMobileMode ? 'In Mobile Card' : 'In List') : 'Visible',
@@ -2601,7 +2671,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : 'O evento passa a ser desenhado por comandos visuais e pseudo-codigo.',
         },
       );
-    } else if (!listMode && !['TABLE', 'TABLE_FIELD'].includes(fieldType)) {
+    } else if (!listMode && !['TABLE', 'TABLE_FIELD', 'SEPARATOR'].includes(fieldType)) {
       props.push(
         {
           name: 'Required',
@@ -2817,7 +2887,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (propName === 'TIPO') {
       const nextType = value.toUpperCase();
       if (!FIELD_TYPE_OPTIONS.some((option) => option.value === nextType)) return;
+      if (nextType === 'SEPARATOR' && !isCustomObject(field)) return;
       field.TIPO = nextType;
+      if (nextType === 'SEPARATOR') {
+        enforceSeparatorField(field);
+      }
       if (nextType !== 'COMBO') {
         field.COMBO = '';
         field.HAS_COMBO = false;
@@ -4519,6 +4593,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const size = getFieldSize(field);
         const fieldStamp = getFieldStamp(field);
         const fieldClasses = ['spv-preview-field'];
+        if (isSeparatorField(field)) fieldClasses.push('spv-preview-field-separator');
         if (state.selectedScope === 'field' && fieldStamp && fieldStamp === state.selectedFieldStamp) fieldClasses.push('is-selected');
         if (state.drag?.active && String(state.drag?.sourceKind || 'layout') === 'layout' && fieldStamp && fieldStamp === draggedStamp) fieldClasses.push('is-drag-source');
         return `
@@ -4667,7 +4742,10 @@ document.addEventListener('DOMContentLoaded', () => {
         rowId,
         index,
         mode: 'row',
-        valid: canFieldFitRow(state.drag.fieldStamp, rowId, { sourceKind: state.drag.sourceKind }),
+        valid: canFieldFitRow(state.drag.fieldStamp, rowId, {
+          sourceKind: state.drag.sourceKind,
+          templateId: state.drag.templateId,
+        }),
       });
       return;
     }
@@ -4739,7 +4817,10 @@ document.addEventListener('DOMContentLoaded', () => {
       rowId,
       index,
       mode: 'row',
-      valid: canFieldFitRow(state.drag.fieldStamp, rowId, { sourceKind: state.drag.sourceKind }),
+      valid: canFieldFitRow(state.drag.fieldStamp, rowId, {
+        sourceKind: state.drag.sourceKind,
+        templateId: state.drag.templateId,
+      }),
     });
   }
 

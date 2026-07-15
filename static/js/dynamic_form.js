@@ -186,6 +186,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   const layoutWidthUnits = useExactWidths ? (isMobile ? 40 : 100) : null;
   const isColumnVisible = col => !(col && (col.visivel === false || Number(col.visivel) === 0));
   const isUiOnlyColumn = col => !!(col && (col.ui_only || col.is_menu_object));
+  const isSeparatorColumn = col => String(col?.tipo || '').trim().toUpperCase() === 'SEPARATOR';
   const getColumnProperties = col => {
     if (!col || typeof col !== 'object') return {};
     if (col.propriedades && typeof col.propriedades === 'object') return col.propriedades;
@@ -331,6 +332,9 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
     });
   };
   const getLayoutFieldSize = col => {
+    if (String(col?.tipo || '').trim().toUpperCase() === 'SEPARATOR') {
+      return Number.isFinite(layoutWidthUnits) ? layoutWidthUnits : 100;
+    }
     const rawValue = Number(isMobile ? col.tam_mobile : col.tam);
     if (Number.isFinite(rawValue) && rawValue > 0) {
       if (!useExactWidths || !Number.isFinite(layoutWidthUnits)) {
@@ -2222,27 +2226,163 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
   form.innerHTML = '';
 
   // agrupa por dezena de ORDEM
-  const grupos = {};
-  cols
+  const visibleLayoutCols = cols
     .filter(c => (!c.admin || isAdminUser) && isColumnVisible(c))
     .sort((a, b) => {
       const oa = isMobile ? a.ordem_mobile : a.ordem;
       const ob = isMobile ? b.ordem_mobile : b.ordem;
       return (oa || 0) - (ob || 0);
-    })
-    .forEach(col => {
-      const ordemUsada = isMobile ? col.ordem_mobile : col.ordem;
-      if ((ordemUsada || 0) === 0) return; // se 0, ignorar no mobile (por convenção)
-
-      const key = Math.floor(ordemUsada / 10) * 10;
-      (grupos[key] ||= []).push(col);
     });
 
-  // monta cada grupo numa única row
-  Object.keys(grupos)
-    .sort((a, b) => a - b)
-    .forEach(key => {
-      const fields = grupos[key];
+  const grupos = [];
+  let currentGroupKey = null;
+  let currentGroupFields = [];
+  const flushCurrentGroup = () => {
+    if (!currentGroupFields.length) return;
+    grupos.push({
+      type: 'fields',
+      fields: currentGroupFields,
+    });
+    currentGroupFields = [];
+  };
+
+  visibleLayoutCols.forEach(col => {
+    const ordemUsada = isMobile ? col.ordem_mobile : col.ordem;
+    if ((ordemUsada || 0) === 0) return; // se 0, ignorar no mobile (por convenção)
+
+    const key = Math.floor(ordemUsada / 10) * 10;
+    if (isSeparatorColumn(col)) {
+      flushCurrentGroup();
+      grupos.push({
+        type: 'section',
+        col,
+      });
+      currentGroupKey = null;
+      return;
+    }
+    if (currentGroupKey !== null && currentGroupKey !== key) {
+      flushCurrentGroup();
+    }
+    currentGroupKey = key;
+    currentGroupFields.push(col);
+  });
+  flushCurrentGroup();
+
+  const splitContainers = grupos.some(group => group.type === 'section');
+  const bodyContainer = form.closest('.sz_dynamic_form_body');
+  bodyContainer?.classList.toggle('has_split_containers', splitContainers);
+  form.classList.toggle('sz_dynamic_form_split', splitContainers);
+
+  let activeFormContainer = splitContainers ? null : form;
+  const closeDynamicFormPanels = () => {
+    document.querySelectorAll('#accordionExtras .accordion-collapse.show').forEach(panel => {
+      if (!window.bootstrap?.Collapse) return;
+      window.bootstrap.Collapse.getOrCreateInstance(panel, { toggle: false }).hide();
+    });
+  };
+  const closeDynamicFormSplitContainers = (exceptContainer = null) => {
+    form.querySelectorAll('.sz_dynamic_form_container.is_collapsible').forEach(item => {
+      if (exceptContainer && item === exceptContainer) return;
+      item.classList.add('is_collapsed');
+      const itemContent = item.querySelector('.sz_dynamic_form_container_content');
+      if (itemContent) itemContent.hidden = true;
+      const itemHeader = item.querySelector('.sz_dynamic_form_container_title');
+      const itemTitle = String(itemHeader?.querySelector('span')?.textContent || '').trim();
+      if (itemHeader) {
+        itemHeader.setAttribute('aria-expanded', 'false');
+        itemHeader.setAttribute('aria-label', itemTitle ? `Expandir ${itemTitle}` : 'Expandir');
+      }
+    });
+  };
+  window.SZ_DYNAMIC_FORM_CLOSE_SPLIT_CONTAINERS = closeDynamicFormSplitContainers;
+  const createFormContainer = (separatorCol = null) => {
+    const collapsible = !!separatorCol;
+    const container = document.createElement('section');
+    container.className = 'sz_dynamic_form_container';
+    if (collapsible) {
+      container.classList.add('is_collapsible', 'is_collapsed');
+    }
+
+    if (separatorCol?.name) {
+      const marker = document.createElement('input');
+      marker.type = 'text';
+      marker.name = separatorCol.name;
+      marker.dataset.uiOnly = 'true';
+      marker.disabled = true;
+      marker.hidden = true;
+      camposByName[separatorCol.name] = marker;
+      setFormStateValue(separatorCol.name, '');
+      container.appendChild(marker);
+    }
+
+    const titleText = String(separatorCol?.descricao || separatorCol?.name || '').trim();
+    if (titleText) {
+      const header = document.createElement('div');
+      header.className = 'sz_dynamic_form_container_title';
+      if (collapsible) {
+        header.classList.add('is_clickable');
+        header.setAttribute('role', 'button');
+        header.setAttribute('tabindex', '0');
+        header.setAttribute('aria-expanded', 'false');
+        header.setAttribute('aria-label', `Expandir ${titleText}`);
+      }
+
+      const title = document.createElement('span');
+      title.textContent = titleText;
+      header.appendChild(title);
+
+      if (collapsible) {
+        const toggle = document.createElement('span');
+        toggle.className = 'sz_dynamic_form_container_toggle';
+        toggle.setAttribute('aria-hidden', 'true');
+        toggle.innerHTML = '<i class="fa-solid fa-chevron-down" aria-hidden="true"></i>';
+        const toggleContainer = () => {
+          const willOpen = container.classList.contains('is_collapsed');
+          if (willOpen) {
+            closeDynamicFormSplitContainers(container);
+            closeDynamicFormPanels();
+          }
+          container.classList.toggle('is_collapsed', !willOpen);
+          content.hidden = !willOpen;
+          header.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+          header.setAttribute('aria-label', `${willOpen ? 'Encolher' : 'Expandir'} ${titleText}`);
+        };
+        header.addEventListener('click', toggleContainer);
+        header.addEventListener('keydown', event => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          toggleContainer();
+        });
+        header.appendChild(toggle);
+      }
+
+      container.appendChild(header);
+    }
+
+    const content = document.createElement('div');
+    content.className = 'sz_dynamic_form_container_content';
+    if (collapsible) {
+      content.hidden = true;
+    }
+    container.appendChild(content);
+    form.appendChild(container);
+    return content;
+  };
+
+  // monta cada grupo numa única row, criando containers quando há separadores
+  grupos
+    .forEach(group => {
+      if (group.type === 'section') {
+        activeFormContainer = createFormContainer(group.col);
+        return;
+      }
+
+      const fields = Array.isArray(group.fields) ? group.fields : [];
+      if (!fields.length) return;
+      if (splitContainers && !activeFormContainer) {
+        activeFormContainer = createFormContainer();
+      }
+
       const row    = document.createElement('div');
       row.className = 'row gx-3 gy-2';
 
@@ -2271,6 +2411,31 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         // se for um campo "vazio", desenha apenas um espaço reservado
         if (!col.name) {
           colDiv.innerHTML = '<div class="invisible">.</div>'; // ocupa espaço mas invisível
+          return;
+        }
+
+        if (isSeparatorColumn(col)) {
+          colDiv.classList.add('sz_dynamic_form_separator_col');
+
+          const marker = document.createElement('input');
+          marker.type = 'text';
+          marker.name = col.name;
+          marker.dataset.uiOnly = 'true';
+          marker.disabled = true;
+          marker.hidden = true;
+          camposByName[col.name] = marker;
+          setFormStateValue(col.name, '');
+
+          const separator = document.createElement('div');
+          separator.className = 'sz_dynamic_form_separator';
+
+          const title = document.createElement('div');
+          title.className = 'sz_dynamic_form_separator_title';
+          title.textContent = String(col.descricao || col.name || '').trim() || 'Separador';
+
+          separator.appendChild(title);
+          colDiv.appendChild(marker);
+          colDiv.appendChild(separator);
           return;
         }
 
@@ -2716,7 +2881,7 @@ console.log('🧪 dropdown-item encontrados:', document.querySelectorAll('.dropd
         colDiv.appendChild(wrapper);
       });
       
-      form.appendChild(row);
+      activeFormContainer.appendChild(row);
     });
 
     console.log("💬 formState final antes de aplicar visibilidade:", formState);

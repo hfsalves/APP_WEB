@@ -12019,6 +12019,8 @@ def create_app():
     def _screen_personalizer_default_width(field_type: str, char_len=0) -> int:
         type_name = str(field_type or '').strip().upper()
         length = _to_int(char_len, 0)
+        if type_name == 'SEPARATOR':
+            return 100
         if type_name == 'BIT':
             return 5
         if type_name in {'DATE', 'HOUR'}:
@@ -12409,6 +12411,10 @@ def create_app():
             if raw_properties is None:
                 raw_properties = raw.get('properties')
 
+            if field_type == 'SEPARATOR':
+                tam = 100
+                tam_mobile = 40
+
             normalized.append({
                 'MENUOBJSTAMP': str((existing or {}).get('MENUOBJSTAMP') or raw.get('CAMPOSSTAMP') or '').strip(),
                 'MENUSTAMP': stamp,
@@ -12420,17 +12426,17 @@ def create_app():
                 'ORDEM_MOBILE': ordem_mobile,
                 'TAM_MOBILE': tam_mobile,
                 'VISIVEL': _to_int(raw.get('VISIVEL'), _to_int((existing or {}).get('VISIVEL'), 1)),
-                'RONLY': _to_int(raw.get('RONLY'), _to_int((existing or {}).get('RONLY'), 0)),
-                'OBRIGATORIO': _to_int(raw.get('OBRIGATORIO'), _to_int((existing or {}).get('OBRIGATORIO'), 0)),
+                'RONLY': 1 if field_type == 'SEPARATOR' else _to_int(raw.get('RONLY'), _to_int((existing or {}).get('RONLY'), 0)),
+                'OBRIGATORIO': 0 if field_type == 'SEPARATOR' else _to_int(raw.get('OBRIGATORIO'), _to_int((existing or {}).get('OBRIGATORIO'), 0)),
                 'CONDICAO_VISIVEL': str(
                     raw.get('CONDICAO_VISIVEL')
                     or (existing or {}).get('CONDICAO_VISIVEL')
                     or ''
                 ).strip()[:200],
-                'COMBO': str(raw.get('COMBO') or (existing or {}).get('COMBO') or '').strip(),
-                'DECIMAIS': max(0, _to_int(raw.get('DECIMAIS'), _to_int((existing or {}).get('DECIMAIS'), 2 if field_type == 'DECIMAL' else 0))),
-                'MINIMO': _screen_personalizer_decimal_or_none(raw.get('MINIMO'), (existing or {}).get('MINIMO')),
-                'MAXIMO': _screen_personalizer_decimal_or_none(raw.get('MAXIMO'), (existing or {}).get('MAXIMO')),
+                'COMBO': '' if field_type == 'SEPARATOR' else str(raw.get('COMBO') or (existing or {}).get('COMBO') or '').strip(),
+                'DECIMAIS': 0 if field_type == 'SEPARATOR' else max(0, _to_int(raw.get('DECIMAIS'), _to_int((existing or {}).get('DECIMAIS'), 2 if field_type == 'DECIMAL' else 0))),
+                'MINIMO': None if field_type == 'SEPARATOR' else _screen_personalizer_decimal_or_none(raw.get('MINIMO'), (existing or {}).get('MINIMO')),
+                'MAXIMO': None if field_type == 'SEPARATOR' else _screen_personalizer_decimal_or_none(raw.get('MAXIMO'), (existing or {}).get('MAXIMO')),
                 'PROPRIEDADES': _screen_personalizer_properties_dump(
                     raw_properties,
                     (existing or {}).get('PROPRIEDADES'),
@@ -15180,6 +15186,48 @@ def create_app():
             )
         """
 
+    def _rs_save_access_clause(alias='RS'):
+        prefix = f'{alias}.' if alias else ''
+        return f"""
+            AND (
+                    ISNULL({prefix}FEID, 0) = :current_feid
+                 OR EXISTS (
+                        SELECT 1
+                        FROM dbo.AL ALV
+                        WHERE LTRIM(RTRIM(ISNULL(ALV.NOME,''))) = LTRIM(RTRIM(ISNULL({prefix}ALOJAMENTO,'')))
+                          AND (
+                                (ISNULL(ALV.FEID_GESTOR, 0) <> 0 AND ISNULL(ALV.FEID_GESTOR, 0) = :current_feid)
+                             OR (
+                                    ISNULL(ALV.FEID_GESTOR, 0) = 0
+                                AND (
+                                        ISNULL({prefix}FEID, 0) = :current_feid
+                                     OR ISNULL(ALV.FEID, 0) = :current_feid
+                                )
+                             )
+                          )
+                    )
+            )
+        """
+
+    def _rs_alojamento_allowed_for_write(alojamento, current_feid):
+        aloj = str(alojamento or '').strip()
+        if not aloj:
+            return True
+        row = db.session.execute(text("""
+            SELECT TOP 1 1
+            FROM dbo.AL ALV
+            WHERE LTRIM(RTRIM(ISNULL(ALV.NOME,''))) COLLATE SQL_Latin1_General_CP1_CI_AI
+                = LTRIM(RTRIM(:aloj)) COLLATE SQL_Latin1_General_CP1_CI_AI
+              AND (
+                    (ISNULL(ALV.FEID_GESTOR, 0) <> 0 AND ISNULL(ALV.FEID_GESTOR, 0) = :current_feid)
+                 OR (
+                        ISNULL(ALV.FEID_GESTOR, 0) = 0
+                    AND ISNULL(ALV.FEID, 0) = :current_feid
+                 )
+              )
+        """), {'aloj': aloj, 'current_feid': current_feid}).fetchone()
+        return bool(row)
+
     def _rs_exists_any(rsstamp):
         row = db.session.execute(text("""
             SELECT TOP 1 RSSTAMP
@@ -16183,7 +16231,7 @@ def create_app():
             SELECT *
             FROM dbo.RS
             WHERE RSSTAMP = :s
-              {_rs_write_clause('RS')}
+              {_rs_save_access_clause('RS')}
         """), {'s': rsstamp, 'current_feid': current_feid}).mappings().first()
         if not current:
             if _rs_exists_any(rsstamp):
@@ -16224,6 +16272,10 @@ def create_app():
             if name in header:
                 return header.get(name)
             return current.get(name, default)
+
+        target_alojamento = str(_h('ALOJAMENTO') or '').strip()
+        if not _rs_alojamento_allowed_for_write(target_alojamento, current_feid):
+            return jsonify({'error': 'Sem permissão para usar este alojamento na empresa ativa.'}), 403
 
         origem = str(_h('ORIGEM') or '').strip()
         current_external_origin = _rs_external_channel_origin(current.get('ORIGEM'))
@@ -16288,11 +16340,11 @@ def create_app():
                 FTNCONT=:FTNCONT,
                 FTEMAIL=:FTEMAIL
             WHERE RSSTAMP=:RSSTAMP
-            {_rs_write_clause('RS')}
+            {_rs_save_access_clause('RS')}
         """), {
             'RSSTAMP': rsstamp,
             'current_feid': current_feid,
-            'ALOJAMENTO': str(_h('ALOJAMENTO') or '').strip(),
+            'ALOJAMENTO': target_alojamento,
             'RDATA': rdata,
             'ORIGEM': origem,
             'RESERVA': reserva,
@@ -17158,14 +17210,14 @@ def create_app():
             SELECT RSSTAMP
             FROM dbo.RS
             WHERE RSSTAMP=:s
-            {_rs_write_clause('RS')}
+            {_rs_save_access_clause('RS')}
         """), {'s': rsstamp, 'current_feid': current_feid}).mappings().first()
         if not exists:
             if _rs_exists_any(rsstamp):
                 return jsonify({'error': 'Sem permissão para eliminar esta reserva na empresa ativa.'}), 403
             return jsonify({'error': 'Reserva não encontrada'}), 404
         db.session.execute(text("DELETE FROM dbo.RSGUESTS WHERE RSSTAMP=:s"), {'s': rsstamp})
-        db.session.execute(text(f"DELETE FROM dbo.RS WHERE RSSTAMP=:s {_rs_write_clause('RS')}"), {'s': rsstamp, 'current_feid': current_feid})
+        db.session.execute(text(f"DELETE FROM dbo.RS WHERE RSSTAMP=:s {_rs_save_access_clause('RS')}"), {'s': rsstamp, 'current_feid': current_feid})
         db.session.commit()
         return jsonify({'ok': True})
 

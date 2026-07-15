@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PortoBreak.com - {{ page_title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/booking_portal.css') }}?v={{ config.get('STATIC_VERSION', 1) }}">
+</head>
+<body>
+  <main class="booking-shell booking-detail-shell">
+    <nav class="booking-nav booking-topbar-light" aria-label="{{ t.page_reservations }}">
+      <a class="booking-brand" href="{{ url_for('booking_portal.index', lang=lang) }}" aria-label="PortoBreak.com">
+        <img src="{{ url_for('static', filename='images/booking_portal/portobreak-logo-simple.png') }}" alt="PortoBreak.com">
+      </a>
+      <div class="booking-nav-actions">
+        <div class="booking-language-switcher booking-language-switcher-nav" aria-label="Language">
+          {% for item in language_links %}
+            <a href="{{ item.url }}" class="{% if item.active %}is-active{% endif %}" lang="{{ item.code }}">{{ item.label }}</a>
+          {% endfor %}
+        </div>
+        {% if portal_user %}
+          <details class="booking-account-menu">
+            <summary>{{ portal_user.nome or t.account }}</summary>
+            <form method="post" action="{{ url_for('booking_portal.logout', lang=lang) }}">
+              <button type="submit">{{ t.logout }}</button>
+            </form>
+          </details>
+        {% else %}
+          <a class="booking-account-link" href="{{ url_for('booking_portal.login', lang=lang) }}">{{ t.login }}</a>
+        {% endif %}
+      </div>
+    </nav>
+
+    <section class="booking-success-panel booking-email-verification {% if not verification_success %}is-error{% endif %}">
+      <p class="booking-kicker booking-kicker-dark">{{ t.email_verification_title }}</p>
+      <h1>{{ verification_title }}</h1>
+      <p>{{ verification_message }}</p>
+      <a class="booking-button booking-button-primary" href="{{ url_for('booking_portal.index', lang=lang) }}">{{ t.back_to_reservations }}</a>
+    </section>
+  </main>
+</body>
+</html>

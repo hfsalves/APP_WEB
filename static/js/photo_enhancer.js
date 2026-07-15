@@ -87,6 +87,23 @@
     return `${path}${joiner}v=${Date.now()}`;
   }
 
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[char]));
+  }
+
+  function firstPhotoTag(value) {
+    return String(value || '')
+      .split(/[,;\n\r]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)[0] || '';
+  }
+
   function selectedAlojamento() {
     const value = String(els.lodge?.value || '').trim().toLowerCase();
     if (!value) return null;
@@ -251,6 +268,52 @@
       error.className = 'photo-card_error';
       error.textContent = item.error_message || '';
 
+      const meta = document.createElement('div');
+      meta.className = 'photo-card_meta';
+
+      if (item.is_cover) {
+        const coverBadge = document.createElement('div');
+        coverBadge.className = 'photo-card_status is-cover';
+        coverBadge.innerHTML = '<i class="fa-solid fa-star"></i><span>Foto de capa</span>';
+        meta.appendChild(coverBadge);
+      }
+
+      const tagValue = firstPhotoTag(item.tags || '');
+      if (tagValue) {
+        const tagBadge = document.createElement('div');
+        tagBadge.className = 'photo-card_status is-tag';
+        tagBadge.innerHTML = `<i class="fa-solid fa-tag"></i><span>${escapeHtml(tagValue)}</span>`;
+        meta.appendChild(tagBadge);
+      }
+
+      const tagLabel = document.createElement('label');
+      tagLabel.className = 'sz_field';
+      const tagLabelText = document.createElement('span');
+      tagLabelText.className = 'sz_label';
+      tagLabelText.textContent = 'Tag';
+      const tagRow = document.createElement('div');
+      tagRow.className = 'photo-card_tag_row';
+      const tagInput = document.createElement('input');
+      tagInput.className = 'sz_input photo-card_tag';
+      tagInput.type = 'text';
+      tagInput.placeholder = 'ex.: quarto';
+      tagInput.value = tagValue;
+      tagInput.disabled = state.busy;
+      const saveTagBtn = button('sz_button sz_button_secondary', 'tag', 'Guardar');
+      saveTagBtn.disabled = state.busy;
+      saveTagBtn.addEventListener('click', () => saveFileTags(item.id, tagInput.value));
+      tagInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          saveFileTags(item.id, tagInput.value);
+        }
+      });
+      tagRow.appendChild(tagInput);
+      tagRow.appendChild(saveTagBtn);
+      tagLabel.appendChild(tagLabelText);
+      tagLabel.appendChild(tagRow);
+      meta.appendChild(tagLabel);
+
       const actions = document.createElement('div');
       actions.className = 'photo-card_actions';
       const enhanceBtn = button('sz_button sz_button_secondary', 'wand-magic-sparkles', item.enhanced_path ? 'Melhorar novamente' : 'Melhorar');
@@ -276,6 +339,11 @@
         actions.appendChild(download);
       }
 
+      const coverBtn = button('sz_button sz_button_secondary', 'star', item.is_cover ? 'Capa definida' : 'Definir capa');
+      coverBtn.disabled = state.busy || item.is_cover;
+      coverBtn.addEventListener('click', () => setCoverPhoto(item.id));
+      actions.appendChild(coverBtn);
+
       const removeBtn = button('sz_button sz_button_danger', 'trash', 'Remover');
       removeBtn.disabled = state.busy;
       removeBtn.addEventListener('click', () => deleteFile(item));
@@ -284,6 +352,7 @@
       body.appendChild(name);
       body.appendChild(status);
       body.appendChild(error);
+      body.appendChild(meta);
       body.appendChild(actions);
       card.appendChild(thumbs);
       card.appendChild(body);
@@ -471,6 +540,48 @@
       } catch (innerError) {
         // Mantem o estado local se a atualização falhar.
       }
+    } finally {
+      state.busy = false;
+      renderCards();
+    }
+  }
+
+  async function saveFileTags(fileId, tags) {
+    if (!fileId || state.busy) return;
+    state.busy = true;
+    setStatus('A guardar tags...', 'busy');
+    updateSummary();
+    try {
+      const payload = await fetchJson(`/api/photo-enhancer/files/${encodeURIComponent(fileId)}/metadata`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tags: tags || ''})
+      });
+      mergeFile(payload.file);
+      setStatus('Tags guardadas.', 'success');
+    } catch (error) {
+      setStatus(error.message || 'Erro ao guardar tags.', 'error');
+    } finally {
+      state.busy = false;
+      renderCards();
+    }
+  }
+
+  async function setCoverPhoto(fileId) {
+    if (!fileId || state.busy) return;
+    state.busy = true;
+    setStatus('A definir foto de capa...', 'busy');
+    renderCards();
+    try {
+      const payload = await fetchJson(`/api/photo-enhancer/files/${encodeURIComponent(fileId)}/cover`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      });
+      state.session = payload.session || state.session;
+      setStatus('Foto de capa definida.', 'success');
+    } catch (error) {
+      setStatus(error.message || 'Erro ao definir foto de capa.', 'error');
     } finally {
       state.busy = false;
       renderCards();

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import hashlib
 import re
+import secrets
+import uuid
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
+import json
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from models import db
+from services.auth_service import hash_password, verify_password_hash
 
 
 TIPOLOGIA_CAPACIDADE = {
@@ -25,6 +30,10 @@ CLEANING_FEE = Decimal("30.00")
 TOURIST_TAX_PER_GUEST_NIGHT = Decimal("3.00")
 TOURIST_TAX_MAX_DAYS = 7
 _TABLE_EXISTS_CACHE = {}
+
+
+def _new_stamp() -> str:
+    return str(uuid.uuid4()).upper()
 
 
 def _clean(value) -> str:
@@ -104,6 +113,14 @@ def _add_months(value: date, months: int) -> date:
     year = value.year + (month_index // 12)
     month = (month_index % 12) + 1
     return date(year, month, 1)
+
+
+def _in_medium_high_season(day_value: date) -> bool:
+    return 4 <= day_value.month <= 10
+
+
+def _range_touches_medium_high_season(start_date: date, end_date: date) -> bool:
+    return any(_in_medium_high_season(day_value) for day_value in _daterange(start_date, end_date))
 
 
 def capacidade_por_tipologia(tipologia) -> int:
@@ -236,6 +253,7 @@ def _alojamento_base_select(where_sql: str, lang=None) -> str:
             CAST(ISNULL(AL.LOTADULTOS, 0) AS int) AS LOTADULTOS,
             CAST(ISNULL(AL.LOTCRIANCAS, 0) AS int) AS LOTCRIANCAS,
             CAST(ISNULL(AL.BERCO, 0) AS bit) AS BERCO,
+            CAST(ISNULL(AL.NOITES, 1) AS int) AS NOITES,
             CAST(ISNULL(AL.VALOREXTRA, 0) AS decimal(12, 2)) AS VALOREXTRA,
             CAST(ISNULL(AL.EXTRAMAISQUE, 0) AS int) AS EXTRAMAISQUE,
             CAST(ISNULL(AL.PBASE, 0) AS decimal(12, 2)) AS PBASE,
@@ -357,6 +375,7 @@ def _decorate_alojamento(row: dict, include_gallery: bool = False) -> dict:
         "lot_adultos": lot_adultos,
         "lot_criancas": lot_criancas,
         "berco": bool(item.get("BERCO")),
+        "noites_minimas": max(1, _to_count(item.get("NOITES"), default=1) or 1),
         "valor_extra": _to_decimal(item.get("VALOREXTRA")),
         "extra_mais_que": _to_count(item.get("EXTRAMAISQUE"), default=0) or 0,
         "morada": _clean(item.get("MORADA")),
@@ -511,18 +530,20 @@ def get_alojamento(al_id, lang=None) -> dict | None:
     return _decorate_alojamento(row, include_gallery=True)
 
 
-def get_noites_ocupadas(al_id, start=None, months=12) -> list[str]:
+def get_calendario_ocupacao(al_id, start=None, months=12) -> dict:
     al_id_clean = _clean(al_id)
     start_date = _to_date(start) or date.today()
     start_date = start_date.replace(day=1)
     end_date = _add_months(start_date, months)
     if not al_id_clean:
-        return []
+        return {"occupied": [], "blocked_checkin": [], "blocked_checkout": [], "min_nights": 1}
 
     row = db.session.execute(
         text(
             """
-            SELECT TOP 1 LTRIM(RTRIM(ISNULL(AL.NOME, ''))) AS NOME
+            SELECT TOP 1
+                LTRIM(RTRIM(ISNULL(AL.NOME, ''))) AS NOME,
+                CAST(ISNULL(AL.NOITES, 1) AS int) AS NOITES
             FROM dbo.AL AS AL
             WHERE AL.ALSTAMP = :al_id
               AND LTRIM(RTRIM(ISNULL(AL.NOME, ''))) <> ''
@@ -533,8 +554,13 @@ def get_noites_ocupadas(al_id, start=None, months=12) -> list[str]:
         {"al_id": al_id_clean},
     ).mappings().first()
     alojamento_nome = _clean((row or {}).get("NOME"))
+    min_nights = max(1, _to_count((row or {}).get("NOITES"), default=1) or 1)
     if not alojamento_nome:
-        return []
+        return {"occupied": [], "blocked_checkin": [], "blocked_checkout": [], "min_nights": min_nights}
+
+    gap_days = max(0, min_nights - 1)
+    query_start = date.fromordinal(start_date.toordinal() - gap_days)
+    query_end = date.fromordinal(end_date.toordinal() + gap_days)
 
     rows = db.session.execute(
         text(
@@ -548,18 +574,20 @@ def get_noites_ocupadas(al_id, start=None, months=12) -> list[str]:
               AND RS.DATAIN IS NOT NULL
               AND RS.DATAOUT IS NOT NULL
               AND ISNULL(RS.CANCELADA, 0) = 0
-              AND CAST(RS.DATAIN AS date) < :end_date
-              AND CAST(RS.DATAOUT AS date) > :start_date
+              AND CAST(RS.DATAIN AS date) < :query_end
+              AND CAST(RS.DATAOUT AS date) > :query_start
             """
         ),
         {
             "alojamento": alojamento_nome,
-            "start_date": start_date,
-            "end_date": end_date,
+            "query_start": query_start,
+            "query_end": query_end,
         },
     ).mappings().all()
 
     occupied = set()
+    blocked_checkin = set()
+    blocked_checkout = set()
     for row in rows:
         data_in = _to_date(row.get("DATAIN"))
         data_out = _to_date(row.get("DATAOUT"))
@@ -567,7 +595,48 @@ def get_noites_ocupadas(al_id, start=None, months=12) -> list[str]:
             continue
         for day_value in _daterange(max(data_in, start_date), min(data_out, end_date)):
             occupied.add(day_value.isoformat())
-    return sorted(occupied)
+        for offset in range(1, gap_days + 1):
+            checkout_candidate = date.fromordinal(data_in.toordinal() - offset)
+            gap_start = checkout_candidate
+            gap_end = data_in
+            if start_date <= checkout_candidate < end_date and _range_touches_medium_high_season(gap_start, gap_end):
+                blocked_checkout.add(checkout_candidate.isoformat())
+
+            checkin_candidate = date.fromordinal(data_out.toordinal() + offset)
+            gap_start = data_out
+            gap_end = checkin_candidate
+            if start_date <= checkin_candidate < end_date and _range_touches_medium_high_season(gap_start, gap_end):
+                blocked_checkin.add(checkin_candidate.isoformat())
+    return {
+        "occupied": sorted(occupied),
+        "blocked_checkin": sorted(blocked_checkin),
+        "blocked_checkout": sorted(blocked_checkout),
+        "min_nights": min_nights,
+    }
+
+
+def get_noites_ocupadas(al_id, start=None, months=12) -> list[str]:
+    return get_calendario_ocupacao(al_id, start=start, months=months).get("occupied", [])
+
+
+def alojamento_datas_permitidas(al_id, checkin, checkout) -> dict:
+    checkin_date = _to_date(checkin)
+    checkout_date = _to_date(checkout)
+    if not checkin_date or not checkout_date or checkout_date <= checkin_date:
+        return {"allowed": False, "errors": ["invalid_dates"], "min_nights": 1}
+
+    start_date = min(checkin_date, checkout_date).replace(day=1)
+    months = max(2, ((checkout_date.year - start_date.year) * 12) + checkout_date.month - start_date.month + 2)
+    calendario = get_calendario_ocupacao(al_id, start=start_date, months=months)
+    min_nights = int(calendario.get("min_nights") or 1)
+    errors = []
+    if (checkout_date - checkin_date).days < min_nights:
+        errors.append("min_nights")
+    if checkin_date.isoformat() in set(calendario.get("blocked_checkin") or []):
+        errors.append("blocked_checkin")
+    if checkout_date.isoformat() in set(calendario.get("blocked_checkout") or []):
+        errors.append("blocked_checkout")
+    return {"allowed": not errors, "errors": errors, "min_nights": min_nights}
 
 
 def get_alojamentos_disponiveis_page(checkin=None, checkout=None, hospedes=None, query=None, page=1, per_page=18, lang=None, adultos=None, criancas=None, bebes=None) -> dict:
@@ -761,6 +830,18 @@ def calcular_preco(al_id, checkin=None, checkout=None, hospedes=None):
     extra_guest_count = max(0, guest_count - extra_threshold) if extra_rate > 0 and extra_threshold > 0 else 0
     extra_guest_total = (extra_rate * Decimal(extra_guest_count) * Decimal(noites)).quantize(_DEC2)
     total = (subtotal_noites + extra_guest_total + CLEANING_FEE + tourist_tax).quantize(_DEC2)
+    linhas = [
+        {"label": f"Noites ({noites})", "value": _money(subtotal_noites)},
+    ]
+    if extra_guest_total > 0:
+        linhas.append({
+            "label": f"Hospedes extra ({extra_guest_count} x {noites} noite{'s' if noites != 1 else ''})",
+            "value": _money(extra_guest_total),
+        })
+    linhas.extend([
+        {"label": "Taxa de limpeza", "value": _money(CLEANING_FEE)},
+        {"label": f"Taxa turistica ({guest_count} hospede{'s' if guest_count != 1 else ''} x {tourist_days} dia{'s' if tourist_days != 1 else ''})", "value": _money(tourist_tax)},
+    ])
 
     return {
         "valor": total,
@@ -781,10 +862,299 @@ def calcular_preco(al_id, checkin=None, checkout=None, hospedes=None):
         "taxa_turistica": tourist_tax,
         "taxa_turistica_label": _money(tourist_tax),
         "taxa_turistica_dias": tourist_days,
-        "linhas": [
-            {"label": f"Noites ({noites})", "value": _money(subtotal_noites)},
-            {"label": f"Hospedes extra ({extra_guest_count} x {noites} noite{'s' if noites != 1 else ''})", "value": _money(extra_guest_total)} if extra_guest_total > 0 else None,
-            {"label": "Taxa de limpeza", "value": _money(CLEANING_FEE)},
-            {"label": f"Taxa turistica ({guest_count} hospede{'s' if guest_count != 1 else ''} x {tourist_days} dia{'s' if tourist_days != 1 else ''})", "value": _money(tourist_tax)},
-        ],
+        "linhas": linhas,
+    }
+
+
+def _normalize_email(value) -> str:
+    return _clean(value).lower()
+
+
+def portal_user_exists(email) -> bool:
+    email_normalizado = _normalize_email(email)
+    if not email_normalizado:
+        return False
+    return bool(db.session.execute(
+        text(
+            """
+            SELECT TOP 1 1
+            FROM dbo.PB_USERS
+            WHERE EMAIL_NORMALIZADO = :email
+            """
+        ),
+        {"email": email_normalizado},
+    ).scalar())
+
+
+def get_portal_user(pbuserstamp: str) -> dict | None:
+    user_id = _clean(pbuserstamp)
+    if not user_id:
+        return None
+    row = db.session.execute(
+        text(
+            """
+            SELECT PBUSERSTAMP, NOME, EMAIL, EMAIL_CONFIRMADO, ATIVO
+            FROM dbo.PB_USERS
+            WHERE PBUSERSTAMP = :user_id
+              AND ISNULL(ATIVO, 0) = 1
+            """
+        ),
+        {"user_id": user_id},
+    ).mappings().first()
+    return dict(row) if row else None
+
+
+def autenticar_portal_user(email: str, password: str) -> tuple[dict | None, str]:
+    email_normalizado = _normalize_email(email)
+    if not email_normalizado or not password:
+        return None, "invalid_credentials"
+    row = db.session.execute(
+        text(
+            """
+            SELECT PBUSERSTAMP, NOME, EMAIL, PASSWORD_HASH, PASSWORD_ALGO,
+                   EMAIL_CONFIRMADO, ATIVO
+            FROM dbo.PB_USERS
+            WHERE EMAIL_NORMALIZADO = :email
+            """
+        ),
+        {"email": email_normalizado},
+    ).mappings().first()
+    if not row or not bool(row.get("ATIVO")):
+        return None, "invalid_credentials"
+    user = dict(row)
+    if not verify_password_hash(user, password):
+        return None, "invalid_credentials"
+    if not bool(user.get("EMAIL_CONFIRMADO")):
+        return None, "email_unverified"
+    return {
+        "id": _clean(user.get("PBUSERSTAMP")),
+        "nome": _clean(user.get("NOME")),
+        "email": _clean(user.get("EMAIL")),
+    }, "ok"
+
+
+def _create_email_verification_record(pbuserstamp: str) -> dict:
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    verification_id = _new_stamp()
+    db.session.execute(
+        text(
+            """
+            INSERT INTO dbo.PB_EMAIL_VERIFICATIONS (
+                PBEMAILVERSTAMP, PBUSERSTAMP, TOKEN_HASH, EXPIRA_EM
+            )
+            VALUES (
+                :verification_id, :user_id, :token_hash, DATEADD(hour, 48, SYSUTCDATETIME())
+            )
+            """
+        ),
+        {
+            "verification_id": verification_id,
+            "user_id": _clean(pbuserstamp),
+            "token_hash": token_hash,
+        },
+    )
+    return {"id": verification_id, "token": token}
+
+
+def criar_verificacao_email_portal(pbuserstamp: str) -> dict | None:
+    user_id = _clean(pbuserstamp)
+    user = db.session.execute(
+        text(
+            """
+            SELECT PBUSERSTAMP, NOME, EMAIL, EMAIL_CONFIRMADO
+            FROM dbo.PB_USERS
+            WHERE PBUSERSTAMP = :user_id
+            """
+        ),
+        {"user_id": user_id},
+    ).mappings().first()
+    if not user or bool(user.get("EMAIL_CONFIRMADO")):
+        return None
+    verification = _create_email_verification_record(user_id)
+    db.session.commit()
+    return {**verification, "user_id": user_id, "nome": _clean(user.get("NOME")), "email": _clean(user.get("EMAIL"))}
+
+
+def confirmar_email_portal(token: str) -> str:
+    token_value = _clean(token)
+    if len(token_value) < 20:
+        return "invalid"
+    token_hash = hashlib.sha256(token_value.encode("utf-8")).hexdigest()
+    row = db.session.execute(
+        text(
+            """
+            SELECT TOP 1
+                V.PBEMAILVERSTAMP,
+                V.PBUSERSTAMP,
+                V.EXPIRA_EM,
+                V.USADO_EM,
+                U.EMAIL_CONFIRMADO
+            FROM dbo.PB_EMAIL_VERIFICATIONS AS V
+            INNER JOIN dbo.PB_USERS AS U ON U.PBUSERSTAMP = V.PBUSERSTAMP
+            WHERE V.TOKEN_HASH = :token_hash
+            """
+        ),
+        {"token_hash": token_hash},
+    ).mappings().first()
+    if not row:
+        return "invalid"
+    if bool(row.get("EMAIL_CONFIRMADO")):
+        return "already_confirmed"
+    if row.get("USADO_EM") is not None:
+        return "used"
+    if row.get("EXPIRA_EM") is None or row["EXPIRA_EM"] <= datetime.utcnow():
+        return "expired"
+
+    now = datetime.utcnow()
+    db.session.execute(
+        text(
+            """
+            UPDATE dbo.PB_USERS
+            SET EMAIL_CONFIRMADO = 1,
+                EMAIL_CONFIRMADO_EM = :now,
+                DTALT = :now
+            WHERE PBUSERSTAMP = :user_id
+            """
+        ),
+        {"now": now, "user_id": row["PBUSERSTAMP"]},
+    )
+    db.session.execute(
+        text(
+            """
+            UPDATE dbo.PB_EMAIL_VERIFICATIONS
+            SET USADO_EM = :now
+            WHERE PBEMAILVERSTAMP = :verification_id
+              AND USADO_EM IS NULL
+            """
+        ),
+        {"now": now, "verification_id": row["PBEMAILVERSTAMP"]},
+    )
+    db.session.commit()
+    return "confirmed"
+
+
+def criar_pedido_reserva(al_id, params: dict, customer: dict, *, create_account=False, password=None, ip="", user_agent="") -> dict:
+    alojamento = get_alojamento(al_id)
+    if not alojamento:
+        raise ValueError("alojamento_inexistente")
+
+    checkin_date = _to_date(params.get("checkin"))
+    checkout_date = _to_date(params.get("checkout"))
+    if not checkin_date or not checkout_date or checkout_date <= checkin_date:
+        raise ValueError("datas_invalidas")
+
+    if not alojamento_disponivel(al_id, checkin_date, checkout_date):
+        raise ValueError("indisponivel")
+    date_policy = alojamento_datas_permitidas(al_id, checkin_date, checkout_date)
+    if not date_policy.get("allowed"):
+        raise ValueError("datas_nao_permitidas")
+
+    adultos = _to_count(params.get("adultos"), default=0) or 0
+    criancas = _to_count(params.get("criancas"), default=0) or 0
+    bebes = _to_count(params.get("bebes"), default=0) or 0
+    hospedes = adultos + criancas
+    preco = calcular_preco(al_id, checkin_date, checkout_date, hospedes)
+    noites = (checkout_date - checkin_date).days
+
+    pbuserstamp = None
+    email_verification = None
+    email_normalizado = _normalize_email(customer.get("email"))
+    if create_account:
+        if portal_user_exists(email_normalizado):
+            raise ValueError("email_ja_registado")
+        password_hash, password_algo = hash_password(password or "")
+        pbuserstamp = _new_stamp()
+        db.session.execute(
+            text(
+                """
+                INSERT INTO dbo.PB_USERS (
+                    PBUSERSTAMP, NOME, EMAIL, EMAIL_NORMALIZADO, TELEFONE, MORADA, PAIS, NIF,
+                    PASSWORD_HASH, PASSWORD_ALGO
+                )
+                VALUES (
+                    :stamp, :nome, :email, :email_normalizado, :telefone, :morada, :pais, :nif,
+                    :password_hash, :password_algo
+                )
+                """
+            ),
+            {
+                "stamp": pbuserstamp,
+                "nome": _clean(customer.get("nome")),
+                "email": _clean(customer.get("email")),
+                "email_normalizado": email_normalizado,
+                "telefone": _clean(customer.get("telefone")),
+                "morada": _clean(customer.get("morada")),
+                "pais": _clean(customer.get("pais")),
+                "nif": _clean(customer.get("nif")),
+                "password_hash": password_hash,
+                "password_algo": password_algo,
+            },
+        )
+        email_verification = _create_email_verification_record(pbuserstamp)
+
+    request_stamp = _new_stamp()
+    dados = {
+        "alojamento": {"id": alojamento.get("id"), "nome": alojamento.get("nome"), "nome_interno": alojamento.get("nome_interno")},
+        "datas": {"checkin": checkin_date.isoformat(), "checkout": checkout_date.isoformat(), "noites": noites},
+        "hospedes": {"adultos": adultos, "criancas": criancas, "bebes": bebes},
+        "preco": {
+            "valor": str(preco.get("valor") or ""),
+            "label": preco.get("label") or "",
+            "linhas": preco.get("linhas") or [],
+        },
+    }
+    db.session.execute(
+        text(
+            """
+            INSERT INTO dbo.PB_BOOKING_REQUESTS (
+                PBBKSTAMP, PBUSERSTAMP, ALSTAMP, AL_NOME, CHECKIN, CHECKOUT, NOITES,
+                ADULTOS, CRIANCAS, BEBES,
+                CLIENTE_NOME, CLIENTE_EMAIL, CLIENTE_TELEFONE, CLIENTE_MORADA, CLIENTE_PAIS, CLIENTE_NIF,
+                CRIOU_CONTA, PRECO_ESTIMADO, PRECO_LABEL, OBSERVACOES, DADOS_JSON, IP_CLIENTE, USER_AGENT
+            )
+            VALUES (
+                :stamp, :user_stamp, :alstamp, :al_nome, :checkin, :checkout, :noites,
+                :adultos, :criancas, :bebes,
+                :nome, :email, :telefone, :morada, :pais, :nif,
+                :criou_conta, :preco_estimado, :preco_label, :observacoes, :dados_json, :ip, :user_agent
+            )
+            """
+        ),
+        {
+            "stamp": request_stamp,
+            "user_stamp": pbuserstamp,
+            "alstamp": alojamento.get("id"),
+            "al_nome": alojamento.get("nome"),
+            "checkin": checkin_date,
+            "checkout": checkout_date,
+            "noites": noites,
+            "adultos": adultos,
+            "criancas": criancas,
+            "bebes": bebes,
+            "nome": _clean(customer.get("nome")),
+            "email": _clean(customer.get("email")),
+            "telefone": _clean(customer.get("telefone")),
+            "morada": _clean(customer.get("morada")),
+            "pais": _clean(customer.get("pais")),
+            "nif": _clean(customer.get("nif")),
+            "criou_conta": 1 if create_account else 0,
+            "preco_estimado": preco.get("valor"),
+            "preco_label": preco.get("label") or "",
+            "observacoes": _clean(customer.get("observacoes")),
+            "dados_json": json.dumps(dados, ensure_ascii=False),
+            "ip": _clean(ip)[:80],
+            "user_agent": _clean(user_agent)[:500],
+        },
+    )
+    db.session.commit()
+    return {
+        "id": request_stamp,
+        "user_id": pbuserstamp,
+        "preco": preco,
+        "alojamento": alojamento,
+        "checkin": checkin_date,
+        "checkout": checkout_date,
+        "noites": noites,
+        "email_verification": email_verification,
     }
