@@ -524,6 +524,7 @@
     color: var(--sz-color-text);
     background: color-mix(in srgb, var(--sz-color-primary) 5%, var(--sz-color-surface));
     cursor: pointer;
+    touch-action: manipulation;
   }
 
   .expense-payment-toggle input[type="checkbox"] {
@@ -1257,8 +1258,8 @@
               </label>
               ${canUseCompanyCreditCard ? `
                 <label class="expense-payment-toggle">
-                  <input type="checkbox" data-expense-company-card${savedPaidWithCompanyCard ? ' checked' : ''}>
-                  <span>Pago com cartão de crédito da empresa</span>
+                  <input type="checkbox" data-expense-company-card${savedPaidWithCompanyCard ? ' checked' : ''} aria-label="Cartão de Crédito">
+                  <span>Cartão de Crédito</span>
                 </label>
               ` : ''}
               <label class="sz_field">

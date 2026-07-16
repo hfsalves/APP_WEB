@@ -32,6 +32,7 @@
       'submeasureMetricExecuted',
       'submeasureMetricRemaining',
       'submeasureBackBtn',
+      'submeasureAutoDate',
       'submeasureFillRemainingBtn',
       'submeasureClearLinesBtn',
       'submeasureCancelBtn',
@@ -538,6 +539,9 @@
   async function openContract(bostamp) {
     els.submeasureLinesBody.innerHTML = '<tr><td colspan="11" class="sz_table_cell sz_text_muted">A carregar linhas...</td></tr>';
     showView('measurement');
+    if (!els.submeasureAutoDate.value) {
+      els.submeasureAutoDate.value = els.submeasureDateEnd.value || new Date().toISOString().slice(0, 10);
+    }
     const params = new URLSearchParams({ feid: selectedFeid(), bostamp });
     try {
       const payload = await fetchJson(`/api/gr_autos_subempreitada/contrato?${params.toString()}`);
@@ -600,6 +604,11 @@
 
   async function saveMeasurement() {
     if (!state.detail || els.submeasureDraftBtn.disabled) return;
+    if (!els.submeasureAutoDate.value) {
+      window.alert('Indique a data do auto.');
+      els.submeasureAutoDate.focus();
+      return;
+    }
     const lines = draftLinesForSave();
     if (!lines.length) {
       window.alert('Indique pelo menos uma linha para gravar.');
@@ -616,7 +625,7 @@
       const payload = await postJson('/api/gr_autos_subempreitada/autos', {
         feid: selectedFeid(),
         bostamp: state.detail.contract.bostamp,
-        data_auto: els.submeasureDateEnd.value,
+        data_auto: els.submeasureAutoDate.value,
         lines,
       });
       const auto = payload.auto || {};
@@ -710,6 +719,7 @@
     const start = new Date(today.getFullYear(), 0, 1);
     els.submeasureDateStart.value = start.toISOString().slice(0, 10);
     els.submeasureDateEnd.value = today.toISOString().slice(0, 10);
+    els.submeasureAutoDate.value = today.toISOString().slice(0, 10);
   }
 
   async function init() {
