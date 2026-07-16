@@ -209,6 +209,30 @@
   grid-column: span 4;
 }
 
+.gr-workshop-type-control {
+  display: flex;
+  gap: .55rem;
+  min-width: 0;
+}
+
+.gr-workshop-type-control .sz_input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+#workshopAiSuggestBtn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+#workshopAiSuggestBtn.is-loading i {
+  animation: gr-workshop-ai-spin .8s linear infinite;
+}
+
+@keyframes gr-workshop-ai-spin {
+  to { transform: rotate(360deg); }
+}
+
 .gr-workshop-field-job {
   grid-column: span 8;
 }

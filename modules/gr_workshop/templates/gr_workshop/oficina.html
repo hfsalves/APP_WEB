@@ -169,7 +169,13 @@
           </div>
           <div class="sz_field gr-workshop-autocomplete gr-workshop-field-type">
             <label class="sz_label" for="workshopTypeSearch">Trabalho pré-definido</label>
-            <input id="workshopTypeSearch" class="sz_input" type="text" maxlength="255" autocomplete="off">
+            <div class="gr-workshop-type-control">
+              <input id="workshopTypeSearch" class="sz_input" type="text" maxlength="255" autocomplete="off">
+              <button id="workshopAiSuggestBtn" type="button" class="sz_button sz_button_secondary" disabled title="Sugerir tempo e instruções" aria-label="Sugerir tempo e instruções com AI">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>AI</span>
+              </button>
+            </div>
             <div id="workshopTypeResults" class="gr-workshop-results" hidden></div>
           </div>
           <div class="sz_field gr-workshop-field-job">
@@ -178,7 +184,7 @@
           </div>
           <div class="sz_field gr-workshop-field-obs">
             <label class="sz_label" for="workshopObs">Observações</label>
-            <textarea id="workshopObs" class="sz_textarea" rows="2" maxlength="1000"></textarea>
+            <textarea id="workshopObs" class="sz_textarea" rows="5" maxlength="4000"></textarea>
           </div>
         </div>
 
@@ -273,7 +279,8 @@
       vehiclesUrl: {{ url_for('gr_workshop.api_vehicles')|tojson }},
       articlesUrl: {{ url_for('gr_workshop.api_articles')|tojson }},
       mechanicsUrl: {{ url_for('gr_workshop.api_mechanics')|tojson }},
-      workTypesUrl: {{ url_for('gr_workshop.api_work_types')|tojson }}
+      workTypesUrl: {{ url_for('gr_workshop.api_work_types')|tojson }},
+      aiSuggestionUrl: {{ url_for('gr_workshop.api_ai_suggestion')|tojson }}
     };
   </script>
   <script src="{{ url_for('gr_workshop.static', filename='gr_workshop.js') }}" defer></script>

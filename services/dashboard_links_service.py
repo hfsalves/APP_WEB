@@ -5,7 +5,9 @@ from urllib.parse import urlsplit
 from markupsafe import escape
 from sqlalchemy import text
 
+from i18n import BASE_LANGUAGE, normalize_language
 from models import db
+from services.db_i18n_service import bulk_translate_db_records
 
 
 DASHBOARD_LINKS_TABLES = {"DBW", "DBWL", "DBWU"}
@@ -112,7 +114,12 @@ def _ensure_dashboard_links_line_columns() -> None:
         IF COL_LENGTH('dbo.DBWL', 'ICONE') IS NULL
             ALTER TABLE dbo.DBWL ADD ICONE VARCHAR(100) NOT NULL CONSTRAINT DF_DBWL_ICONE DEFAULT ('');
     """))
+    db.session.execute(text("""
+        IF COL_LENGTH('dbo.DBWL', 'MENUSTAMP') IS NULL
+            ALTER TABLE dbo.DBWL ADD MENUSTAMP VARCHAR(25) NOT NULL CONSTRAINT DF_DBWL_MENUSTAMP DEFAULT ('');
+    """))
     _column_exists_cache.pop(("DBWL", "ICONE"), None)
+    _column_exists_cache.pop(("DBWL", "MENUSTAMP"), None)
 
 
 def _safe_icon_class(value: str) -> str:
@@ -250,6 +257,7 @@ def _ensure_dashboard_links_metadata() -> None:
         {"name": "COR_BORDER", "label": "Cor border", "tipo": "COLOR", "ordem": 0, "tam": 3, "visivel": False},
         {"name": "COR_TEXTO", "label": "Cor texto", "tipo": "COLOR", "ordem": 0, "tam": 3, "visivel": False},
         {"name": "ICONE", "label": "Ícone", "tipo": "TEXT", "ordem": 0, "tam": 3, "visivel": False},
+        {"name": "MENUSTAMP", "label": "Menu", "tipo": "TEXT", "ordem": 0, "tam": 3, "visivel": False},
     ]
     for field in dbw_fields:
         _insert_campo_if_missing("DBW", field)
@@ -363,6 +371,7 @@ def ensure_dashboard_links_schema() -> None:
                 COR_BORDER VARCHAR(30) NOT NULL CONSTRAINT DF_DBWL_COR_BORDER DEFAULT (''),
                 COR_TEXTO VARCHAR(30) NOT NULL CONSTRAINT DF_DBWL_COR_TEXTO DEFAULT (''),
                 ICONE VARCHAR(100) NOT NULL CONSTRAINT DF_DBWL_ICONE DEFAULT (''),
+                MENUSTAMP VARCHAR(25) NOT NULL CONSTRAINT DF_DBWL_MENUSTAMP DEFAULT (''),
                 CONSTRAINT PK_DBWL PRIMARY KEY CLUSTERED (DBWLSTAMP)
             );
         END
@@ -447,7 +456,7 @@ def ensure_dashboard_links_for_user(userstamp: str) -> None:
     db.session.commit()
 
 
-def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
+def dashboard_links_widget_items(userstamp: str, language: str = BASE_LANGUAGE) -> dict[int, list[dict]]:
     stamp = str(userstamp or "").strip()
     grouped = {1: [], 2: [], 3: [], 4: [], 5: []}
     if not stamp or not _table_exists("DBW") or not _table_exists("DBWL") or not _table_exists("DBWU"):
@@ -459,6 +468,7 @@ def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
     col_expr = "ISNULL(U.COLUNA, ISNULL(W.COLUNA, 1))" if has_user_col else "ISNULL(W.COLUNA, 1)"
     order_expr = "ISNULL(U.ORDEM_COLUNA, ISNULL(W.ORDEM_COLUNA, 0))" if has_user_order else "ISNULL(W.ORDEM_COLUNA, 0)"
     shortcut_name = f"SHORTCUTS_{stamp}"[:100]
+    language_key = normalize_language(language) or BASE_LANGUAGE
 
     widgets = db.session.execute(text(f"""
         SELECT
@@ -489,21 +499,52 @@ def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
         if coluna not in grouped:
             coluna = 1
 
-        links = db.session.execute(text("""
+        menu_stamp_expr = (
+            "COALESCE(NULLIF(LTRIM(RTRIM(ISNULL(L.MENUSTAMP, ''))), ''), MENU_MATCH.MENUSTAMP, '')"
+            if _column_exists("DBWL", "MENUSTAMP")
+            else "COALESCE(MENU_MATCH.MENUSTAMP, '')"
+        )
+        links = db.session.execute(text(f"""
             SELECT
-                LTRIM(RTRIM(ISNULL(DBWLSTAMP, ''))) AS DBWLSTAMP,
-                ISNULL(TEXTO, '') AS TEXTO,
-                ISNULL(URL, '') AS URL,
-                ISNULL(ABRIR_NOVA_TAB, 1) AS ABRIR_NOVA_TAB,
-                ISNULL(COR_BACKGROUND, '') AS COR_BACKGROUND,
-                ISNULL(COR_BORDER, '') AS COR_BORDER,
-                ISNULL(COR_TEXTO, '') AS COR_TEXTO,
-                ISNULL(ICONE, '') AS ICONE
-            FROM dbo.DBWL
-            WHERE DBWSTAMP = :dbwstamp
-              AND ISNULL(ATIVO, 1) = 1
-            ORDER BY ISNULL(ORDEM, 0), ISNULL(TEXTO, '')
+                LTRIM(RTRIM(ISNULL(L.DBWLSTAMP, ''))) AS DBWLSTAMP,
+                ISNULL(L.TEXTO, '') AS TEXTO,
+                ISNULL(L.URL, '') AS URL,
+                ISNULL(L.ABRIR_NOVA_TAB, 1) AS ABRIR_NOVA_TAB,
+                ISNULL(L.COR_BACKGROUND, '') AS COR_BACKGROUND,
+                ISNULL(L.COR_BORDER, '') AS COR_BORDER,
+                ISNULL(L.COR_TEXTO, '') AS COR_TEXTO,
+                ISNULL(L.ICONE, '') AS ICONE,
+                {menu_stamp_expr} AS MENUSTAMP,
+                COALESCE(NULLIF(MENU_MATCH.NOME, ''), ISNULL(L.TEXTO, '')) AS MENU_NOME
+            FROM dbo.DBWL L
+            OUTER APPLY (
+                SELECT TOP 1
+                    LTRIM(RTRIM(ISNULL(M.MENUSTAMP, ''))) AS MENUSTAMP,
+                    LTRIM(RTRIM(ISNULL(M.NOME, ''))) AS NOME
+                FROM dbo.MENU M
+                WHERE LTRIM(RTRIM(ISNULL(M.URL, ''))) = LTRIM(RTRIM(ISNULL(L.URL, '')))
+                  AND LTRIM(RTRIM(ISNULL(M.MENUSTAMP, ''))) <> ''
+                ORDER BY ISNULL(M.ORDEM, 0), LTRIM(RTRIM(ISNULL(M.NOME, '')))
+            ) MENU_MATCH
+            WHERE L.DBWSTAMP = :dbwstamp
+              AND ISNULL(L.ATIVO, 1) = 1
+            ORDER BY ISNULL(L.ORDEM, 0), ISNULL(L.TEXTO, '')
         """), {"dbwstamp": widget.get("DBWSTAMP")}).mappings().all()
+
+        translated_menu_labels = {}
+        if language_key != BASE_LANGUAGE:
+            translated_menu_labels = bulk_translate_db_records(
+                "MENU",
+                [
+                    (
+                        str(link.get("MENUSTAMP") or "").strip(),
+                        str(link.get("MENU_NOME") or link.get("TEXTO") or "").strip(),
+                    )
+                    for link in links
+                    if str(link.get("MENUSTAMP") or "").strip()
+                ],
+                language=language_key,
+            )
 
         widget_style = _style_attr({
             "--dashboard-links-bg": widget.get("BACKGROUND"),
@@ -524,10 +565,12 @@ def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
             link_style_attr = f' style="{escape(link_style)}"' if link_style else ""
             link_stamp_attr = f' data-dashboard-link-id="{escape(str(link.get("DBWLSTAMP") or "").strip())}"'
             icon_class = _safe_icon_class(link.get("ICONE"))
+            menu_stamp = str(link.get("MENUSTAMP") or "").strip()
+            link_label = translated_menu_labels.get(menu_stamp) or str(link.get("TEXTO") or url)
             link_html.append(
                 f'<a class="dashboard-link-btn" href="{escape(url)}"{target}{link_style_attr}{link_stamp_attr}>'
                 f'<span class="dashboard-link-icon"><i class="fa-solid {escape(icon_class)}"></i></span>'
-                f'<span class="dashboard-link-label">{escape(str(link.get("TEXTO") or url))}</span>'
+                f'<span class="dashboard-link-label">{escape(link_label)}</span>'
                 f'</a>'
             )
         if not link_html:
@@ -554,6 +597,6 @@ def dashboard_links_widget_items(userstamp: str) -> dict[int, list[dict]]:
     return grouped
 
 
-def render_dashboard_links_widgets(userstamp: str) -> dict[int, str]:
-    grouped = dashboard_links_widget_items(userstamp)
+def render_dashboard_links_widgets(userstamp: str, language: str = BASE_LANGUAGE) -> dict[int, str]:
+    grouped = dashboard_links_widget_items(userstamp, language=language)
     return {col: "".join(str(item.get("html") or "") for item in items) for col, items in grouped.items()}

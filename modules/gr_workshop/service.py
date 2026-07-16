@@ -3,8 +3,13 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
+import json
+import os
 import uuid
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
+from flask import current_app
 from sqlalchemy import text
 
 from models import db
@@ -37,6 +42,97 @@ class WorkshopNotFoundError(WorkshopError):
 
 def _new_stamp() -> str:
     return uuid.uuid4().hex.upper()[:25]
+
+
+def _para_value(code: str, default: str = "") -> str:
+    key = _text(code)
+    if not key:
+        return default
+
+    try:
+        configured = current_app.config.get("PARA_VALUES") or {}
+        value = configured.get(key)
+        if value in (None, ""):
+            value = configured.get(key.upper())
+        if value not in (None, ""):
+            return str(value).strip()
+    except Exception:
+        pass
+
+    row = db.session.execute(
+        text(
+            """
+            SELECT TOP 1 TIPO, CVALOR, DVALOR, NVALOR, LVALOR
+            FROM dbo.PARA
+            WHERE UPPER(LTRIM(RTRIM(PARAMETRO))) = UPPER(LTRIM(RTRIM(:code)))
+            """
+        ),
+        {"code": key},
+    ).mappings().first()
+    if not row:
+        return default
+
+    value_type = _text(row.get("TIPO")).upper()
+    if value_type == "N":
+        return str(row.get("NVALOR") or "")
+    if value_type == "D":
+        return str(row.get("DVALOR") or "")
+    if value_type == "L":
+        return "1" if bool(row.get("LVALOR") or 0) else "0"
+    return _text(row.get("CVALOR")) or default
+
+
+def _workshop_ai_api_key() -> str:
+    return (
+        _para_value("WORKSHOP_OPENAI_API_KEY")
+        or _para_value("SHOP_TRANSLATE_OPENAI_API_KEY")
+        or _para_value("OPENAI_API_KEY")
+        or os.getenv("WORKSHOP_OPENAI_API_KEY")
+        or os.getenv("SHOP_TRANSLATE_OPENAI_API_KEY")
+        or os.getenv("OPENAI_API_KEY")
+        or ""
+    ).strip()
+
+
+def _workshop_ai_model() -> str:
+    return (
+        _para_value("WORKSHOP_OPENAI_MODEL")
+        or _para_value("OPENAI_MODEL")
+        or os.getenv("WORKSHOP_OPENAI_MODEL")
+        or os.getenv("OPENAI_MODEL")
+        or "gpt-5"
+    ).strip()
+
+
+def workshop_ai_available() -> bool:
+    return bool(_workshop_ai_api_key())
+
+
+def _extract_openai_text(payload: dict[str, Any]) -> str:
+    direct = _text(payload.get("output_text"))
+    if direct:
+        return direct
+    for output in payload.get("output") or []:
+        for content in output.get("content") or []:
+            if content.get("type") == "output_text":
+                value = _text(content.get("text"))
+                if value:
+                    return value
+    return ""
+
+
+def _parse_openai_json(raw: str) -> dict[str, Any]:
+    value = _text(raw)
+    if value.startswith("```"):
+        lines = value.splitlines()
+        value = "\n".join(lines[1:-1] if len(lines) > 2 else [])
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError) as exc:
+        raise WorkshopError("A AI não devolveu uma sugestão válida.") from exc
+    if not isinstance(parsed, dict):
+        raise WorkshopError("A AI não devolveu uma sugestão válida.")
+    return parsed
 
 
 def _text(value: Any, limit: int = 0) -> str:
@@ -327,17 +423,12 @@ def _vehicle_by_stamp_or_plate(vastamp: str = "", matricula: str = "") -> dict[s
     row = db.session.execute(
         text(
             """
-            SELECT TOP 1
-                LTRIM(RTRIM(ISNULL(VASTAMP, ''))) AS VASTAMP,
-                LTRIM(RTRIM(ISNULL(MATRICULA, ''))) AS MATRICULA,
-                LTRIM(RTRIM(ISNULL(MARCA, ''))) AS MARCA,
-                LTRIM(RTRIM(ISNULL(MODELO, ''))) AS MODELO,
-                LTRIM(RTRIM(ISNULL(NOFROTA, ''))) AS NOFROTA
-            FROM dbo.VA
-            WHERE ISNULL(INATIVO, 0) = 0
+            SELECT TOP 1 VA.*
+            FROM dbo.VA VA
+            WHERE ISNULL(VA.INATIVO, 0) = 0
               AND (
-                    (:vastamp <> '' AND VASTAMP = :vastamp)
-                 OR (:matricula <> '' AND MATRICULA = :matricula)
+                    (:vastamp <> '' AND VA.VASTAMP = :vastamp)
+                 OR (:matricula <> '' AND VA.MATRICULA = :matricula)
               )
             """
         ),
@@ -512,6 +603,271 @@ def get_work_type(stamp: str) -> dict[str, Any]:
         "DESCRICAO": _text(row["DESCRICAO"]),
         "ATIVO": bool(row["ATIVO"]),
         "ORDEM": int(row["ORDEM"] or 0),
+    }
+
+
+def _vehicle_ai_context(vehicle: dict[str, Any]) -> dict[str, Any]:
+    """Expose all filled operational VA fields, while omitting internal audit data."""
+    excluded = {
+        "VASTAMP",
+        "FEID",
+        "INATIVO",
+        "DTCRI",
+        "DTALT",
+        "USERCRIACAO",
+        "USERALTERACAO",
+    }
+    context: dict[str, Any] = {}
+    for raw_key, raw_value in vehicle.items():
+        key = _text(raw_key).upper()
+        if not key or key in excluded or isinstance(raw_value, (bytes, bytearray, memoryview)):
+            continue
+        if raw_value is None or (isinstance(raw_value, str) and not raw_value.strip()):
+            continue
+        if isinstance(raw_value, datetime):
+            context[key] = raw_value.isoformat(sep=" ", timespec="minutes")
+        elif isinstance(raw_value, date):
+            context[key] = raw_value.isoformat()
+        elif isinstance(raw_value, Decimal):
+            context[key] = float(raw_value)
+        elif isinstance(raw_value, (bool, int, float)):
+            context[key] = raw_value
+        else:
+            context[key] = _text(raw_value, 500)
+    return context
+
+
+def _suggestion_parts(value: Any, limit: int = 8) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    rows: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        description = _text(item.get("description"), 140)
+        if not description:
+            continue
+        row = {
+            "description": description,
+            "supplier_reference": _text(item.get("supplier_reference"), 80),
+            "quantity": _text(item.get("quantity"), 30),
+            "note": _text(item.get("note"), 120),
+            "source_url": _text(item.get("source_url"), 300),
+        }
+        if row not in rows:
+            rows.append(row)
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def _suggestion_list(value: Any, limit: int = 8) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    rows: list[str] = []
+    for item in value:
+        cleaned = _text(item, 180)
+        if cleaned and cleaned not in rows:
+            rows.append(cleaned)
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def _format_ai_observations(procedure: str, parts: list[dict[str, str]], tools: list[str]) -> str:
+    sections = [procedure]
+    if parts:
+        part_lines = []
+        for part in parts:
+            line = part["description"]
+            if part["supplier_reference"]:
+                line += f" | Ref. fornecedor/OEM (confirmar): {part['supplier_reference']}"
+            if part["quantity"]:
+                line += f" | Qtd.: {part['quantity']}"
+            if part["note"]:
+                line += f" | {part['note']}"
+            if part["source_url"]:
+                line += f" | Fonte: {part['source_url']}"
+            part_lines.append(f"- {line}")
+        sections.append("PEÇAS A PREPARAR/CONFIRMAR:\n" + "\n".join(part_lines))
+    if tools:
+        sections.append("FERRAMENTAS/EQUIPAMENTO:\n" + "\n".join(f"- {tool}" for tool in tools))
+    return _text("\n\n".join(sections), 4000)
+
+
+def suggest_workshop_job(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return an AI estimate without changing the work order itself."""
+    ensure_schema_available()
+    api_key = _workshop_ai_api_key()
+    if not api_key:
+        raise WorkshopValidationError(
+            "Integração AI indisponível. Configura WORKSHOP_OPENAI_API_KEY ou OPENAI_API_KEY na tabela PARA."
+        )
+
+    vehicle = _vehicle_by_stamp_or_plate(
+        _text(payload.get("VASTAMP"), 25),
+        _text(payload.get("MATRICULA"), 12),
+    )
+    work_type = get_work_type(_text(payload.get("OFICINA_TRABSTAMP"), 25))
+    if not work_type["ATIVO"]:
+        raise WorkshopValidationError("O trabalho pré-definido selecionado está inativo.")
+
+    vehicle_context = _vehicle_ai_context(vehicle)
+    request_context = {
+        "dados_da_ficha_da_viatura": vehicle_context,
+        "trabalho_pre_definido": {
+            "codigo": work_type["CODIGO"],
+            "descricao": work_type["DESCRICAO"],
+        },
+    }
+    request_body = {
+        "model": _workshop_ai_model(),
+        "reasoning": {"effort": "low"},
+        "tools": [{"type": "web_search", "search_context_size": "medium"}],
+        "tool_choice": "required",
+        "input": [
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": (
+                            "És um assistente de planeamento para uma oficina de automóveis de ligeiros e pesados. "
+                            "Estima o tempo de mão de obra habitualmente necessário e cria instruções práticas para o mecânico. "
+                            "Usa todos os dados preenchidos da ficha da viatura para adequar a sugestão. "
+                            "Tens de pesquisar na internet antes de responder, procurando catálogos OEM, fabricantes e fornecedores. "
+                            "Não inventes dados específicos do manual ou do veículo. Quando a informação for insuficiente, "
+                            "assinala verificações a confirmar. Não incluas preços, nem texto em Markdown."
+                        ),
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": json.dumps(
+                            {
+                                "pedido": "Estimar duração e instruções de trabalho.",
+                                "regras": [
+                                    "estimated_minutes deve ser um número inteiro entre 5 e 1440, arredondado a 5 minutos.",
+                                    "Antes de responder, pesquisa pelo VIN/chassis exato, pelo motor exato e por marca/modelo/ano. Faz pesquisa específica apenas para as três peças principais.",
+                                    "instructions deve ser um procedimento conciso em português, até 1200 caracteres.",
+                                    "parts deve listar as peças ou consumíveis a preparar/confirmar, incluindo quantidades apenas quando seguras.",
+                                    "Para cada peça, supplier_reference deve conter a referência OEM ou do fornecedor para encomenda, nunca uma referência interna de stock.",
+                                    "source_url deve conter o URL da página de catálogo/fabricante/fornecedor onde a referência foi encontrada.",
+                                    "tools deve listar ferramentas e equipamento necessários.",
+                                    "Só devolve supplier_reference e source_url quando a pesquisa os confirmar explicitamente; caso contrário devolve strings vazias.",
+                                    "Nunca inventes uma referência OEM/fornecedor e indica sempre confirmar compatibilidade quando aplicável.",
+                                    "Inclui preparação, verificações de segurança e testes finais relevantes.",
+                                ],
+                                "contexto": request_context,
+                            },
+                            ensure_ascii=False,
+                        ),
+                    }
+                ],
+            },
+        ],
+        # A pesquisa web e o raciocínio do GPT-5 também consomem o orçamento.
+        # Com 1.000 tokens a resposta podia ficar incompleta antes do JSON final.
+        "max_output_tokens": 3000,
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "workshop_job_suggestion",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "estimated_minutes": {"type": "integer"},
+                        "instructions": {"type": "string"},
+                        "parts": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "properties": {
+                                    "description": {"type": "string"},
+                                    "supplier_reference": {"type": "string"},
+                                    "quantity": {"type": "string"},
+                                    "note": {"type": "string"},
+                                    "source_url": {"type": "string"},
+                                },
+                                "required": ["description", "supplier_reference", "quantity", "note", "source_url"],
+                            },
+                        },
+                        "tools": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["estimated_minutes", "instructions", "parts", "tools"],
+                },
+            }
+        },
+    }
+    req = urllib_request.Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps(request_body).encode("utf-8"),
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    result: dict[str, Any] | None = None
+    last_http_error: urllib_error.HTTPError | None = None
+    try:
+        # A chamada ocorre dentro de uma interação do utilizador. Nunca deve
+        # prender o modal por vários minutos quando a pesquisa externa atrasa.
+        with urllib_request.urlopen(req, timeout=50) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urllib_error.HTTPError as exc:
+        last_http_error = exc
+    except Exception as exc:
+        raise WorkshopError(
+            "A pesquisa AI demorou demasiado a responder. Tenta novamente dentro de instantes."
+        ) from exc
+
+    if last_http_error:
+        if last_http_error.code in {401, 403}:
+            raise WorkshopError("A chave da integração AI foi recusada pela OpenAI.") from last_http_error
+        if last_http_error.code == 429:
+            raise WorkshopError("A integração AI atingiu temporariamente o limite de utilização.") from last_http_error
+        if last_http_error.code >= 500:
+            raise WorkshopError(
+                "A pesquisa web da OpenAI está temporariamente indisponível. Tenta novamente dentro de instantes."
+            ) from last_http_error
+        raise WorkshopError(f"A integração AI rejeitou o pedido (HTTP {last_http_error.code}).") from last_http_error
+    if not isinstance(result, dict):
+        raise WorkshopError("A integração AI não devolveu uma resposta utilizável.")
+    if result.get("status") == "incomplete":
+        detail = result.get("incomplete_details") or {}
+        if detail.get("reason") == "max_output_tokens":
+            raise WorkshopError(
+                "A AI demorou demasiado na pesquisa das referências e não concluiu a sugestão. Tenta novamente."
+            )
+        raise WorkshopError("A AI não concluiu a sugestão. Tenta novamente.")
+
+    suggestion = _parse_openai_json(_extract_openai_text(result))
+    try:
+        estimated_minutes = int(suggestion.get("estimated_minutes"))
+    except (TypeError, ValueError) as exc:
+        raise WorkshopError("A AI não devolveu um tempo de trabalho válido.") from exc
+    estimated_minutes = max(5, min(1440, int(round(estimated_minutes / 5.0) * 5)))
+    procedure = _text(suggestion.get("instructions"), 1200)
+    if not procedure:
+        raise WorkshopError("A AI não devolveu instruções de trabalho válidas.")
+    parts = _suggestion_parts(suggestion.get("parts"))
+    tools = _suggestion_list(suggestion.get("tools"))
+    instructions = _format_ai_observations(procedure, parts, tools)
+
+    return {
+        "estimated_minutes": estimated_minutes,
+        "instructions": instructions,
+        "procedure": procedure,
+        "parts": parts,
+        "tools": tools,
+        "vehicle": vehicle_context,
+        "work_type": request_context["trabalho_pre_definido"],
+        "model": _workshop_ai_model(),
     }
 
 
@@ -1137,7 +1493,7 @@ def save_sheet(payload: dict[str, Any], user_login: str = "", stamp: str = "") -
         "dtinicio": _legacy_dt(data_value, horaini),
         "dtfim": _legacy_dt(data_value, horafim),
         "estado": estado,
-        "obs": _text(payload.get("OBS"), 1000),
+        "obs": _text(payload.get("OBS"), 4000),
         "total": total,
         "user": user,
     }

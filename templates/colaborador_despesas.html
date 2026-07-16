@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Despesas{% endblock %}
+{% block title %}{{ _('colab_expenses.title') }}{% endblock %}
 
 {% block extra_head %}
   {{ super() }}
@@ -18,9 +18,9 @@
   <div class="sz_page_container expense-shell">
     <header class="sz_contextbar sz_page_contextbar expense-contextbar">
       <div class="sz_contextbar_left expense-context-main">
-        <div class="sz_page_title">Lançamento de despesas</div>
+        <div class="sz_page_title">{{ _('colab_expenses.title') }}</div>
         <div class="sz_page_subtitle">
-          N.º {{ colaborador.peno or '-' }} · {{ colaborador.penome or 'Sem ficha associada' }} · {{ colaborador.empresa or 'Sem empresa' }}
+          N.º {{ colaborador.peno or '-' }} · {{ colaborador.penome or _('colab_expenses.card_incomplete') }} · {{ colaborador.empresa or '-' }}
         </div>
       </div>
     </header>
@@ -30,8 +30,8 @@
         <section class="expense-alert" role="status">
           <i class="fa-solid fa-triangle-exclamation"></i>
           <div>
-            <strong>Ficha de colaborador incompleta</strong>
-            <span>Confirma os campos US.PENO, US.PENOME e US.PEFEID antes de gravarmos despesas.</span>
+            <strong>{{ _('colab_expenses.incomplete_profile') }}</strong>
+            <span>{{ _('colab_expenses.incomplete_profile_hint') }}</span>
           </div>
         </section>
       {% endif %}
@@ -39,8 +39,8 @@
       <section class="expense-section">
         <div class="expense-section-head">
           <div>
-            <h2>Linhas da despesa</h2>
-            <p>Cada linha tem a sua data, tipo, valor e fotografia.</p>
+            <h2>{{ _('colab_expenses.lines') }}</h2>
+            <p>{{ _('colab_expenses.line_count_hint') }}</p>
           </div>
           <span class="expense-counter" id="expenseLineCount">0</span>
         </div>
@@ -48,7 +48,7 @@
         <div id="expenseLines" class="expense-lines">
           <button type="button" class="expense-add-card" id="expenseAddCard">
             <i class="fa-solid fa-plus"></i>
-            <span>Adicionar despesa</span>
+            <span>{{ _('colab_expenses.add') }}</span>
           </button>
         </div>
       </section>
@@ -663,6 +663,36 @@
   window.COLLAB_EXPENSE_COMPANIES = {{ expense_companies|tojson }};
   window.COLLAB_EXPENSE_DRAFT = {{ expense_draft|tojson }};
   window.COLLAB_EXPENSE_TODAY = {{ today|tojson }};
+  window.COLLAB_EXPENSE_I18N = {{ i18n_js([
+    'colab_expenses.card_closed',
+    'colab_expenses.card_incomplete',
+    'colab_expenses.company',
+    'colab_expenses.confirm_close',
+    'colab_expenses.confirm_delete',
+    'colab_expenses.credit_card',
+    'colab_expenses.date',
+    'colab_expenses.empty_amount',
+    'colab_expenses.empty_date',
+    'colab_expenses.file',
+    'colab_expenses.file_closed',
+    'colab_expenses.file_loading',
+    'colab_expenses.kms',
+    'colab_expenses.loading_error',
+    'colab_expenses.locked',
+    'colab_expenses.missing_photo',
+    'colab_expenses.notes',
+    'colab_expenses.notes_placeholder',
+    'colab_expenses.photo_classify',
+    'colab_expenses.photo_replace',
+    'colab_expenses.select_company',
+    'colab_expenses.select_option',
+    'colab_expenses.select_vehicle',
+    'colab_expenses.type',
+    'colab_expenses.validate',
+    'colab_expenses.value',
+    'colab_expenses.vehicle',
+    'colab_expenses.delete'
+  ])|tojson }};
   (() => {
     document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
     document.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
@@ -680,11 +710,16 @@
     const canUseCompanyCreditCard = Boolean(context.tem_cartao_credito);
     const defaultCompanyFeid = String(context.feid || context.pefeid || '');
     const draftState = window.COLLAB_EXPENSE_DRAFT || { header_stamp: '', lines: [] };
+    const expenseI18n = window.COLLAB_EXPENSE_I18N || {};
     let pendingPhotoZone = null;
     let activeCard = null;
     const autoCollapseTimers = new WeakMap();
     const autoSaveTimers = new WeakMap();
     const pendingFiles = new WeakMap();
+
+    function translateExpense(key) {
+      return expenseI18n[key] || key;
+    }
 
     function updateCounter() {
       if (!counter || !linesHost) return;
@@ -700,7 +735,7 @@
 
     function filePreview(file, photoZone) {
       if (!file) return '';
-      const name = String(file.name || 'Ficheiro').replace(/[&<>"']/g, (ch) => ({
+      const name = String(file.name || translateExpense('colab_expenses.file')).replace(/[&<>"']/g, (ch) => ({
         '&': '&amp;',
         '<': '&lt;',
         '>': '&gt;',
@@ -748,7 +783,7 @@
     }
 
     function formatDate(value) {
-      if (!value) return 'Sem data';
+      if (!value) return translateExpense('colab_expenses.empty_date');
       const parts = String(value).split('-');
       if (parts.length !== 3) return value;
       return `${parts[2]}/${parts[1]}/${parts[0]}`;
@@ -756,9 +791,9 @@
 
     function formatAmount(value) {
       const raw = String(value || '').replace(',', '.');
-      if (!raw) return 'Sem valor';
+      if (!raw) return translateExpense('colab_expenses.empty_amount');
       const number = Number(raw);
-      if (!Number.isFinite(number)) return 'Sem valor';
+      if (!Number.isFinite(number)) return translateExpense('colab_expenses.empty_amount');
       return `${number.toFixed(2).replace('.', ',')} €`;
     }
 
@@ -775,7 +810,7 @@
       const typeLabel = typeSelect?.selectedOptions?.[0]?.textContent?.trim();
       const companyLabel = companySelect?.selectedOptions?.[0]?.textContent?.trim();
       const vehicleLabel = vehicleSelect?.selectedOptions?.[0]?.textContent?.trim();
-      if (title) title.textContent = typeSelect?.value ? typeLabel : 'Despesa por preencher';
+      if (title) title.textContent = typeSelect?.value ? typeLabel : translateExpense('colab_expenses.card_incomplete');
       const metaParts = [
         formatDate(dateInput?.value),
         formatAmount(amountInput?.value)
@@ -783,7 +818,7 @@
       if (companySelect?.value && companyLabel) metaParts.push(companyLabel);
       if (kmsInput?.value) metaParts.push(`${kmsInput.value} kms`);
       if (vehicleSelect?.value && vehicleLabel) metaParts.push(vehicleLabel);
-      if (isClosedCard(card)) metaParts.push('Fechada');
+      if (isClosedCard(card)) metaParts.push(translateExpense('colab_expenses.locked'));
       if (meta) meta.textContent = metaParts.join(' · ');
       renderSummaryThumb(card);
     }
@@ -861,7 +896,7 @@
           credentials: 'same-origin',
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao gravar despesa.');
+        if (!response.ok || !result.ok) throw new Error(result.error || translateExpense('colab_expenses.loading_error'));
         const line = result.line || {};
         card.dataset.lineStamp = line.stamp || card.dataset.lineStamp || '';
         draftState.header_stamp = result.header_stamp || draftState.header_stamp || '';
@@ -902,7 +937,7 @@
       });
       const photoZone = card.querySelector('.expense-line-photo');
       if (photoZone) {
-        photoZone.setAttribute('aria-label', 'Ficheiro da despesa fechada');
+        photoZone.setAttribute('aria-label', translateExpense('colab_expenses.file_closed'));
         photoZone.tabIndex = -1;
       }
       if (options.collapse !== false) {
@@ -930,7 +965,7 @@
     function expenseTypeOptions(selectedValue = '') {
       const rows = Array.isArray(window.COLLAB_EXPENSE_TYPES) ? window.COLLAB_EXPENSE_TYPES : [];
       return [
-        `<option value=""${selectedValue ? '' : ' selected'}>Selecione uma opção</option>`,
+        `<option value=""${selectedValue ? '' : ' selected'}>${escapeHtml(translateExpense('colab_expenses.select_option'))}</option>`,
         ...rows.map((row) => {
           const value = String(row.value || '');
           const selected = value === String(selectedValue || '') ? ' selected' : '';
@@ -942,7 +977,7 @@
     function vehicleOptions(selectedValue = '') {
       const rows = Array.isArray(window.COLLAB_EXPENSE_VEHICLES) ? window.COLLAB_EXPENSE_VEHICLES : [];
       return [
-        `<option value=""${selectedValue ? '' : ' selected'}>Selecione uma viatura</option>`,
+        `<option value=""${selectedValue ? '' : ' selected'}>${escapeHtml(translateExpense('colab_expenses.select_vehicle'))}</option>`,
         ...rows.map((row) => {
           const value = row.MATRICULA || row.value || '';
           const label = row.LABEL || row.label || row.MATRICULA || row.value || '';
@@ -956,7 +991,7 @@
       const rows = Array.isArray(window.COLLAB_EXPENSE_COMPANIES) ? window.COLLAB_EXPENSE_COMPANIES : [];
       const current = String(selectedValue || defaultCompanyFeid || '');
       return [
-        `<option value=""${current ? '' : ' selected'}>Selecione uma empresa</option>`,
+        `<option value=""${current ? '' : ' selected'}>${escapeHtml(translateExpense('colab_expenses.select_company'))}</option>`,
         ...rows.map((row) => {
           const value = String(row.feid || row.FEID || '');
           const label = String(row.nome || row.NOME || row.label || value);
@@ -1098,7 +1133,7 @@
           credentials: 'same-origin',
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao fechar despesa.');
+        if (!response.ok || !result.ok) throw new Error(result.error || translateExpense('colab_expenses.loading_error'));
       } catch (error) {
         card.classList.add('is-save-error');
         console.error(error);
@@ -1124,7 +1159,7 @@
       deleteBtn.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (!window.confirm('Quer eliminar esta despesa?')) {
+        if (!window.confirm(translateExpense('colab_expenses.confirm_delete'))) {
           closeDeleteActions();
           return;
         }
@@ -1134,7 +1169,7 @@
       validateBtn.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (!window.confirm('Quer validar esta despesa?')) {
+        if (!window.confirm(translateExpense('colab_expenses.confirm_close'))) {
           closeDeleteActions();
           return;
         }
@@ -1207,16 +1242,16 @@
       const savedValor = Number(saved.valor || 0) > 0 ? String(saved.valor) : '';
       const savedKms = Number(saved.kms || 0) > 0 ? String(saved.kms) : '';
       const savedFileName = saved.file_original || saved.file_name || '';
-      const photoText = hasFile ? file.name : (savedFileName || (mode === 'photo' ? 'Foto por classificar' : 'Foto em falta'));
+      const photoText = hasFile ? file.name : (savedFileName || (mode === 'photo' ? translateExpense('colab_expenses.photo_classify') : translateExpense('colab_expenses.missing_photo')));
       const hasSavedFile = !!savedFileName;
       card.innerHTML = `
-        <button type="button" class="expense-line-validate" data-expense-validate aria-label="Fechar despesa">
+        <button type="button" class="expense-line-validate" data-expense-validate aria-label="${escapeHtml(translateExpense('colab_expenses.validate'))}">
           <i class="fa-solid fa-check"></i>
-          <span>Validar</span>
+          <span>${escapeHtml(translateExpense('colab_expenses.validate'))}</span>
         </button>
-        <button type="button" class="expense-line-delete" data-expense-delete aria-label="Eliminar despesa">
+        <button type="button" class="expense-line-delete" data-expense-delete aria-label="${escapeHtml(translateExpense('colab_expenses.delete'))}">
           <i class="fa-solid fa-trash"></i>
-          <span>Eliminar</span>
+          <span>${escapeHtml(translateExpense('colab_expenses.delete'))}</span>
         </button>
         <div class="expense-line-content" data-expense-card-content>
           <div class="expense-line-summary">
@@ -1225,54 +1260,54 @@
             </div>
             <div class="expense-line-summary-body">
               <div class="expense-line-summary-title-row">
-                <strong class="expense-line-summary-title" data-summary-title>Despesa por preencher</strong>
-                <span class="expense-line-lock" aria-label="Despesa fechada"><i class="fa-solid fa-lock"></i></span>
+                <strong class="expense-line-summary-title" data-summary-title>${escapeHtml(translateExpense('colab_expenses.card_incomplete'))}</strong>
+                <span class="expense-line-lock" aria-label="${escapeHtml(translateExpense('colab_expenses.card_closed'))}"><i class="fa-solid fa-lock"></i></span>
               </div>
-              <span class="expense-line-summary-meta" data-summary-meta>Sem data · Sem valor</span>
+              <span class="expense-line-summary-meta" data-summary-meta>${escapeHtml(translateExpense('colab_expenses.empty_date'))} · ${escapeHtml(translateExpense('colab_expenses.empty_amount'))}</span>
             </div>
           </div>
           <div class="expense-line-editor">
-            <div class="expense-line-photo ${hasFile || hasSavedFile || mode === 'photo' ? 'has-photo' : ''} ${hasFile || hasSavedFile ? 'is-preview' : ''}" role="button" tabindex="0" aria-label="Adicionar ou substituir foto">
-              ${hasFile ? '<i class="fa-solid fa-image"></i><span>A carregar ficheiro</span>' : `<i class="fa-solid ${hasSavedFile || mode === 'photo' ? 'fa-image' : 'fa-camera'}"></i><span>${escapeHtml(photoText)}</span>`}
+            <div class="expense-line-photo ${hasFile || hasSavedFile || mode === 'photo' ? 'has-photo' : ''} ${hasFile || hasSavedFile ? 'is-preview' : ''}" role="button" tabindex="0" aria-label="${escapeHtml(translateExpense('colab_expenses.photo_replace'))}">
+              ${hasFile ? `<i class="fa-solid fa-image"></i><span>${escapeHtml(translateExpense('colab_expenses.file_loading'))}</span>` : `<i class="fa-solid ${hasSavedFile || mode === 'photo' ? 'fa-image' : 'fa-camera'}"></i><span>${escapeHtml(photoText)}</span>`}
             </div>
             <div class="expense-line-fields">
               <label class="sz_field">
-                <span class="sz_label">Data da despesa</span>
+                <span class="sz_label">${escapeHtml(translateExpense('colab_expenses.date'))}</span>
                 <input class="sz_date" type="date" value="${escapeHtml(savedDate)}" autocomplete="off" data-expense-date>
               </label>
               <label class="sz_field">
-                <span class="sz_label">Tipo de despesa</span>
+                <span class="sz_label">${escapeHtml(translateExpense('colab_expenses.type'))}</span>
                 <select class="sz_select" data-expense-type>
                   ${expenseTypeOptions(savedType)}
                 </select>
               </label>
               <label class="sz_field">
-                <span class="sz_label">Valor</span>
+                <span class="sz_label">${escapeHtml(translateExpense('colab_expenses.value'))}</span>
                 <input class="sz_input_number" type="number" step="0.01" min="0" placeholder="0,00" value="${escapeHtml(savedValor)}" data-expense-value>
               </label>
               <label class="sz_field">
-                <span class="sz_label">Empresa</span>
+                <span class="sz_label">${escapeHtml(translateExpense('colab_expenses.company'))}</span>
                 <select class="sz_select" data-expense-company>
                   ${companyOptions(savedCompany)}
                 </select>
               </label>
               ${canUseCompanyCreditCard ? `
                 <label class="expense-payment-toggle">
-                  <input type="checkbox" data-expense-company-card${savedPaidWithCompanyCard ? ' checked' : ''} aria-label="Cartão de Crédito">
-                  <span>Cartão de Crédito</span>
+                  <input type="checkbox" data-expense-company-card${savedPaidWithCompanyCard ? ' checked' : ''} aria-label="${escapeHtml(translateExpense('colab_expenses.credit_card'))}">
+                  <span>${escapeHtml(translateExpense('colab_expenses.credit_card'))}</span>
                 </label>
               ` : ''}
               <label class="sz_field">
-                <span class="sz_label">Observações</span>
-                <textarea class="sz_textarea" rows="2" maxlength="100" placeholder="Observações da despesa" data-expense-obs>${escapeHtml(savedObs)}</textarea>
+                <span class="sz_label">${escapeHtml(translateExpense('colab_expenses.notes'))}</span>
+                <textarea class="sz_textarea" rows="2" maxlength="100" placeholder="${escapeHtml(translateExpense('colab_expenses.notes_placeholder'))}" data-expense-obs>${escapeHtml(savedObs)}</textarea>
               </label>
               <div class="expense-vehicle-fields" data-vehicle-fields hidden>
                 <label class="sz_field">
-                  <span class="sz_label">Kms</span>
+                  <span class="sz_label">${escapeHtml(translateExpense('colab_expenses.kms'))}</span>
                   <input class="sz_input_number" type="number" step="1" min="0" inputmode="numeric" value="${escapeHtml(savedKms)}" data-expense-kms>
                 </label>
                 <label class="sz_field">
-                  <span class="sz_label">Viatura</span>
+                  <span class="sz_label">${escapeHtml(translateExpense('colab_expenses.vehicle'))}</span>
                   <select class="sz_select" data-expense-vehicle>
                     ${vehicleOptions(savedVehicle)}
                   </select>

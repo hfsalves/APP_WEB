@@ -2555,6 +2555,10 @@ def create_app():
 
             menu_label_map = {}
             if i18n_enabled(app):
+                # Os menus podem ser traduzidos diretamente em I18N_TRADUCOES.
+                # Atualiza a cache antes de montar a sidebar para que alterações
+                # feitas nessa tabela sejam refletidas sem reiniciar a aplicação.
+                ensure_db_translations_cache(db.session, force=True)
                 menu_language = getattr(g, 'language', BASE_LANGUAGE)
                 menu_label_map = bulk_translate_db_records(
                     'MENU',
@@ -28090,7 +28094,8 @@ def create_app():
                     'ordem': getattr(usw, 'ORDEM', 0) or 0,
                     'maxheight': getattr(usw, 'MAXHEIGHT', None)
                 })
-            links_items = dashboard_links_widget_items(getattr(current_user, 'USSTAMP', ''))
+            dashboard_language = getattr(g, 'language', BASE_LANGUAGE)
+            links_items = dashboard_links_widget_items(getattr(current_user, 'USSTAMP', ''), language=dashboard_language)
             for col, items in links_items.items():
                 if int(col or 1) not in dashboard:
                     target_col = dashboard_columns if int(col or 1) > dashboard_columns else 1
@@ -28103,7 +28108,7 @@ def create_app():
             payload['layout'] = layout_prefs
             payload['links_html'] = {
                 str(col): html
-                for col, html in render_dashboard_links_widgets(getattr(current_user, 'USSTAMP', '')).items()
+                for col, html in render_dashboard_links_widgets(getattr(current_user, 'USSTAMP', ''), language=dashboard_language).items()
             }
             return jsonify(payload)
         except Exception as exc:
@@ -28491,6 +28496,7 @@ def create_app():
             widget_title = "Links"
             title = str(screen.get('name') or 'Atalho').strip()[:100]
             url = str(screen.get('url') or '').strip()[:500]
+            shortcut_menustamp = '' if is_manual_url else str(screen.get('menustamp') or menustamp or '').strip()[:25]
             color = str(body.get('color') or '').strip()[:30]
             if not re.match(r"^#[0-9A-Fa-f]{6}$", color):
                 color = "#5b9dff"
@@ -28622,9 +28628,10 @@ def create_app():
                         ATIVO = 1,
                         COR_BORDER = :cor,
                         ICONE = :icone,
+                        MENUSTAMP = :menustamp,
                         ORDEM = ISNULL(NULLIF(ORDEM, 0), 10)
                     WHERE DBWLSTAMP = :dbwlstamp
-                """), {'dbwlstamp': link_exists, 'texto': title, 'url': url, 'cor': color, 'icone': icon})
+                """), {'dbwlstamp': link_exists, 'texto': title, 'url': url, 'cor': color, 'icone': icon, 'menustamp': shortcut_menustamp})
             else:
                 next_line_order = db.session.execute(text("""
                     SELECT ISNULL(MAX(ISNULL(ORDEM, 0)), 0) + 10
@@ -28632,8 +28639,8 @@ def create_app():
                     WHERE DBWSTAMP = :dbwstamp
                 """), {'dbwstamp': dbwstamp}).scalar() or 10
                 db.session.execute(text("""
-                    INSERT INTO dbo.DBWL (DBWLSTAMP, DBWSTAMP, ORDEM, TEXTO, URL, ABRIR_NOVA_TAB, ATIVO, COR_BORDER, ICONE)
-                    VALUES (:dbwlstamp, :dbwstamp, :ordem, :texto, :url, 0, 1, :cor, :icone)
+                    INSERT INTO dbo.DBWL (DBWLSTAMP, DBWSTAMP, ORDEM, TEXTO, URL, ABRIR_NOVA_TAB, ATIVO, COR_BORDER, ICONE, MENUSTAMP)
+                    VALUES (:dbwlstamp, :dbwstamp, :ordem, :texto, :url, 0, 1, :cor, :icone, :menustamp)
                 """), {
                     'dbwlstamp': uuid.uuid4().hex.upper()[:25],
                     'dbwstamp': dbwstamp,
@@ -28642,6 +28649,7 @@ def create_app():
                     'url': url,
                     'cor': color,
                     'icone': icon,
+                    'menustamp': shortcut_menustamp,
                 })
 
             db.session.commit()

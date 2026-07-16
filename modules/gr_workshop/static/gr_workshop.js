@@ -34,6 +34,7 @@
     typeStamp: document.getElementById('workshopTypeStamp'),
     typeSearch: document.getElementById('workshopTypeSearch'),
     typeResults: document.getElementById('workshopTypeResults'),
+    aiSuggestBtn: document.getElementById('workshopAiSuggestBtn'),
     jobText: document.getElementById('workshopJobText'),
     date: document.getElementById('workshopDate'),
     start: document.getElementById('workshopStart'),
@@ -140,6 +141,14 @@
     return !!(state.meta && state.meta.permissions && state.meta.permissions[action]);
   }
 
+  function refreshAiSuggestionButton() {
+    if (!els.aiSuggestBtn) return;
+    const ready = can('aiSuggestion')
+      && !!els.vehicleStamp.value.trim()
+      && !!els.typeStamp.value.trim();
+    els.aiSuggestBtn.disabled = !ready || els.aiSuggestBtn.classList.contains('is-loading');
+  }
+
   function setSheetStatus(message, tone = 'muted') {
     els.sheetStatus.className = tone === 'danger' ? 'gr-workshop-modal-subtitle text-danger' : 'gr-workshop-modal-subtitle';
     els.sheetStatus.textContent = message || '';
@@ -206,6 +215,7 @@
     renderMechanicOptions();
     els.newBtn.disabled = !can('insert') && !can('edit');
     els.typesBtn.hidden = !can('workTypes');
+    refreshAiSuggestionButton();
   }
 
   async function loadSheets() {
@@ -240,6 +250,7 @@
     state.lines = [];
     setSheetStatus('');
     renderLines();
+    refreshAiSuggestionButton();
   }
 
   function fillSheet(sheet) {
@@ -262,6 +273,7 @@
     els.obs.value = sheet.OBS || '';
     state.lines = (sheet.lines || []).map((line) => ({ ...line, cid: line.OFICINA_LINHASTAMP || crypto.randomUUID() }));
     renderLines();
+    refreshAiSuggestionButton();
   }
 
   function openNew() {
@@ -353,6 +365,48 @@
       await loadSheets();
     } catch (error) {
       setSheetStatus(error.message, 'danger');
+    }
+  }
+
+  async function suggestWithAi() {
+    if (!can('aiSuggestion')) return;
+    const vastamp = els.vehicleStamp.value.trim();
+    const workTypeStamp = els.typeStamp.value.trim();
+    if (!vastamp || !workTypeStamp) {
+      toast('Seleciona a matrícula e o trabalho pré-definido.', 'warning');
+      refreshAiSuggestionButton();
+      return;
+    }
+    els.aiSuggestBtn.classList.add('is-loading');
+    els.aiSuggestBtn.setAttribute('aria-busy', 'true');
+    els.aiSuggestBtn.disabled = true;
+    setSheetStatus('A gerar sugestão AI...');
+    const controller = new AbortController();
+    const requestTimeout = window.setTimeout(() => controller.abort(), 60000);
+    try {
+      const payload = await api(cfg.aiSuggestionUrl, {
+        method: 'POST',
+        signal: controller.signal,
+        body: JSON.stringify({
+          VASTAMP: vastamp,
+          OFICINA_TRABSTAMP: workTypeStamp,
+        }),
+      });
+      const suggestion = payload.suggestion || {};
+      els.tempo.value = suggestion.estimated_minutes || '';
+      els.obs.value = suggestion.instructions || '';
+      setSheetStatus('Sugestão AI aplicada. Revê antes de gravar.');
+      toast('Tempo e instruções sugeridos pela AI.');
+    } catch (error) {
+      const message = error?.name === 'AbortError'
+        ? 'A pesquisa AI está a demorar demasiado. Tenta novamente dentro de instantes.'
+        : error.message;
+      setSheetStatus(message, 'danger');
+    } finally {
+      window.clearTimeout(requestTimeout);
+      els.aiSuggestBtn.classList.remove('is-loading');
+      els.aiSuggestBtn.removeAttribute('aria-busy');
+      refreshAiSuggestionButton();
     }
   }
 
@@ -485,6 +539,7 @@
     els.vehicleSearch.value = plate;
     closeVehicleLookup();
     els.vehicleSearch.focus();
+    refreshAiSuggestionButton();
   }
 
   function renderVehicleLookupRows(rows) {
@@ -558,6 +613,7 @@
             els.typeSearch.value = row.DESCRICAO || '';
             if (!els.jobText.value.trim()) els.jobText.value = row.DESCRICAO || '';
             els.typeResults.hidden = true;
+            refreshAiSuggestionButton();
           }
         );
       } catch (_) {
@@ -675,8 +731,10 @@
   els.saveBtn.addEventListener('click', saveCurrentSheet);
   els.annulBtn.addEventListener('click', annulCurrentSheet);
   els.addLineBtn.addEventListener('click', () => addLine());
+  els.aiSuggestBtn?.addEventListener('click', suggestWithAi);
   els.vehicleSearch.addEventListener('input', () => {
     els.vehicleStamp.value = '';
+    refreshAiSuggestionButton();
     queueVehicleSearch();
   });
   els.vehicleSearch.addEventListener('focus', queueVehicleSearch);
@@ -702,6 +760,7 @@
   });
   els.typeSearch.addEventListener('input', () => {
     els.typeStamp.value = '';
+    refreshAiSuggestionButton();
     queueTypeSearch();
   });
   els.typeSearch.addEventListener('focus', queueTypeSearch);

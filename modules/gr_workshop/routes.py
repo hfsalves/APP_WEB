@@ -21,7 +21,9 @@ from .service import (
     plan_sheet,
     save_sheet,
     save_work_type,
+    suggest_workshop_job,
     unplan_sheet,
+    workshop_ai_available,
 )
 
 
@@ -107,6 +109,7 @@ def api_meta():
                     "edit": _can_sheet("editar"),
                     "delete": _can_sheet("eliminar"),
                     "workTypes": _can_work_type("editar") or _can_work_type("inserir"),
+                    "aiSuggestion": workshop_ai_available() and (_can_sheet("inserir") or _can_sheet("editar")),
                 },
             }
         )
@@ -182,6 +185,18 @@ def api_work_type_detail(stamp: str):
     try:
         payload = request.get_json(silent=True) or {}
         return jsonify({"ok": True, **save_work_type(payload, _current_login(), stamp=stamp)})
+    except Exception as exc:
+        return _handle_error(exc)
+
+
+@bp.route("/api/gr_oficina/ai/sugestao", methods=["POST"])
+@login_required
+def api_ai_suggestion():
+    if not (_can_sheet("inserir") or _can_sheet("editar")):
+        return _forbidden()
+    try:
+        payload = request.get_json(silent=True) or {}
+        return jsonify({"ok": True, "suggestion": suggest_workshop_job(payload)})
     except Exception as exc:
         return _handle_error(exc)
 

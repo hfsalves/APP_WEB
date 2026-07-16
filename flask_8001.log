@@ -1,0 +1,41 @@
+[2026-07-16 18:10:09,292] WARNING in app: Falhou ligação SQL Server via 192.168.1.50,1433 (DRIVER={ODBC Driver 18 for SQL Server};SERVER=192.168.1.50,1433;DATABASE=GESTAO;UID=sa;PWD=***;TrustServerCertificate=Yes;Application Name=SZERO): ('HYT00', '[HYT00] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0) (SQLDriverConnect)')
+ * Serving Flask app 'app:app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8001
+ * Running on http://10.0.1.114:8001
+Press CTRL+C to quit
+127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/js/dashboard.js?v=1784221807 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:26] "GET /static/js/push.js?v=1784221807 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:27] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:27] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:27] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:27] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:28] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:28] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:28] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:28] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:36] "POST /api/i18n/language HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/css/sz_styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/images/profile/05cf659404654e1094f9aa6099fe04f6.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/js/dashboard.js?v=1784221807 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/manifest.json HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/js/ui.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/js/push.js?v=1784221807 HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/images/favicon.ico HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /static/icons/icon-180.png HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "GET /api/dashboard HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:38] "POST /api/widgets/COMPLIANCE_DATAS_30D/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:39] "GET /service-worker.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Jul/2026 18:10:39] "POST /api/widgets/MAPA_GESTAO_GR_RESUMO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:39] "POST /api/widgets/MAPA_GESTAO_GR_TOP_PREJUIZO/run HTTP/1.1" 200 -
+127.0.0.1 - - [16/Jul/2026 18:10:39] "POST /api/widgets/MAPA_GESTAO_GR_TOP_LUCRO/run HTTP/1.1" 200 -

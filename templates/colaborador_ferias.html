@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Férias{% endblock %}
+{% block title %}{{ _('colab_vacations.title') }}{% endblock %}
 
 {% block extra_head %}
   {{ super() }}
@@ -18,9 +18,9 @@
   <div class="sz_page_container vacation-shell">
     <header class="sz_contextbar sz_page_contextbar vacation-contextbar">
       <div class="sz_contextbar_left vacation-context-main">
-        <div class="sz_page_title">Marcação de férias</div>
+        <div class="sz_page_title">{{ _('colab_vacations.title') }}</div>
         <div class="sz_page_subtitle">
-          N.º {{ colaborador.peno or '-' }} · {{ colaborador.penome or 'Sem ficha associada' }} · {{ colaborador.empresa or 'Sem empresa' }}
+          N.º {{ colaborador.peno or '-' }} · {{ colaborador.penome or _('colab_vacations.incomplete_profile') }} · {{ colaborador.empresa or '-' }}
         </div>
       </div>
     </header>
@@ -30,8 +30,8 @@
         <section class="vacation-alert" role="status">
           <i class="fa-solid fa-triangle-exclamation"></i>
           <div>
-            <strong>Ficha de colaborador incompleta</strong>
-            <span>Confirma os campos US.PENO, US.PENOME e US.PEFEID para associar as férias ao colaborador.</span>
+            <strong>{{ _('colab_vacations.incomplete_profile') }}</strong>
+            <span>{{ _('colab_vacations.incomplete_profile_hint') }}</span>
           </div>
         </section>
       {% endif %}
@@ -39,39 +39,39 @@
         <section class="vacation-alert" role="status">
           <i class="fa-solid fa-circle-info"></i>
           <div>
-            <strong>Férias PHC</strong>
+            <strong>{{ _('colab_vacations.phc') }}</strong>
             <span>{{ vacation_warning }}</span>
           </div>
         </section>
       {% endif %}
 
-      <section class="vacation-summary" aria-label="Resumo">
+      <section class="vacation-summary" aria-label="{{ _('colab_vacations.summary') }}">
         <div class="vacation-summary-item-year">
-          <span class="vacation-summary-label">Ano</span>
-          <div class="vacation-yearbar" aria-label="Ano">
-            <button type="button" class="sz_button sz_button_ghost vacation-icon-button" id="vacationPrevYear" aria-label="Ano anterior">
+          <span class="vacation-summary-label">{{ _('colab_vacations.year') }}</span>
+          <div class="vacation-yearbar" aria-label="{{ _('colab_vacations.year') }}">
+            <button type="button" class="sz_button sz_button_ghost vacation-icon-button" id="vacationPrevYear" aria-label="{{ _('colab_vacations.month_previous') }}">
               <i class="fa-solid fa-chevron-left"></i>
             </button>
             <strong class="vacation-year-pill" id="vacationYearLabel">{{ year }}</strong>
-            <button type="button" class="sz_button sz_button_ghost vacation-icon-button" id="vacationNextYear" aria-label="Ano seguinte">
+            <button type="button" class="sz_button sz_button_ghost vacation-icon-button" id="vacationNextYear" aria-label="{{ _('colab_vacations.month_next') }}">
               <i class="fa-solid fa-chevron-right"></i>
             </button>
           </div>
         </div>
         <div>
-          <span class="vacation-summary-label">Marcados</span>
-          <strong><span id="vacationMarkedCount">0</span> dias</strong>
+          <span class="vacation-summary-label">{{ _('colab_vacations.marked') }}</span>
+          <strong><span id="vacationMarkedCount">0</span> {{ _('colab_vacations.days') }}</strong>
         </div>
         <div class="vacation-legend">
-          <span><i class="vacation-legend-dot is-weekend"></i>Fim de semana</span>
-          <span><i class="vacation-legend-dot is-holiday"></i>Feriado</span>
-          <span><i class="vacation-legend-dot is-vacation"></i>Férias</span>
-          <span><i class="vacation-legend-dot is-pending"></i>Por aprovar</span>
-          <span><i class="vacation-legend-dot is-unmark-requested"></i>Pedido RH</span>
+          <span><i class="vacation-legend-dot is-weekend"></i>{{ _('colab_vacations.weekend') }}</span>
+          <span><i class="vacation-legend-dot is-holiday"></i>{{ _('colab_vacations.holiday') }}</span>
+          <span><i class="vacation-legend-dot is-vacation"></i>{{ _('colab_vacations.vacation') }}</span>
+          <span><i class="vacation-legend-dot is-pending"></i>{{ _('colab_vacations.pending') }}</span>
+          <span><i class="vacation-legend-dot is-unmark-requested"></i>{{ _('colab_vacations.request_hr') }}</span>
         </div>
       </section>
 
-      <section class="vacation-calendar-panel" aria-label="Calendário anual">
+      <section class="vacation-calendar-panel" aria-label="{{ _('colab_vacations.calendar_annual') }}">
         <div id="vacationCalendarGrid" class="vacation-calendar-grid"></div>
       </section>
     </main>
@@ -82,20 +82,20 @@
     <section class="vacation-month-dialog" role="dialog" aria-modal="true" aria-labelledby="vacationMonthModalTitle">
       <header class="vacation-month-dialog-header">
         <div>
-          <div class="vacation-month-dialog-title" id="vacationMonthModalTitle">Mês</div>
+          <div class="vacation-month-dialog-title" id="vacationMonthModalTitle">{{ _('colab_vacations.month') }}</div>
           <div class="vacation-month-dialog-subtitle" id="vacationMonthModalSubtitle"></div>
         </div>
-        <button type="button" class="sz_button sz_button_ghost vacation-modal-close" data-vacation-modal-close aria-label="Fechar">
+        <button type="button" class="sz_button sz_button_ghost vacation-modal-close" data-vacation-modal-close aria-label="{{ _('colab_vacations.close') }}">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </header>
       <div class="vacation-month-detail-weekdays" aria-hidden="true"></div>
       <div class="vacation-month-detail-days" id="vacationMonthModalDays"></div>
       <footer class="vacation-month-dialog-actions">
-        <button type="button" class="sz_button sz_button_ghost" id="vacationMonthCancel">Cancelar</button>
+        <button type="button" class="sz_button sz_button_ghost" id="vacationMonthCancel">{{ _('colab_vacations.cancel') }}</button>
         <button type="button" class="sz_button sz_button_primary" id="vacationMonthSave" disabled>
           <i class="fa-solid fa-floppy-disk"></i>
-          <span>Gravar</span>
+          <span>{{ _('colab_vacations.save') }}</span>
         </button>
       </footer>
     </section>
@@ -716,14 +716,53 @@
 </style>
 
 <script>
+  window.COLLAB_VACATION_I18N = {{ i18n_js([
+    'colab_vacations.approved_unmark_request_cancel',
+    'colab_vacations.approved_unmark_request_sent',
+    'colab_vacations.confirm_save',
+    'colab_vacations.legend',
+    'colab_vacations.month_april',
+    'colab_vacations.month_august',
+    'colab_vacations.month_december',
+    'colab_vacations.month_february',
+    'colab_vacations.month_january',
+    'colab_vacations.month_july',
+    'colab_vacations.month_june',
+    'colab_vacations.month_march',
+    'colab_vacations.month_may',
+    'colab_vacations.month_november',
+    'colab_vacations.month_october',
+    'colab_vacations.month_open',
+    'colab_vacations.month_september',
+    'colab_vacations.pending_change_one',
+    'colab_vacations.pending_change_other',
+    'colab_vacations.save_error',
+    'colab_vacations.weekday_friday',
+    'colab_vacations.weekday_monday',
+    'colab_vacations.weekday_saturday',
+    'colab_vacations.weekday_sunday',
+    'colab_vacations.weekday_thursday',
+    'colab_vacations.weekday_tuesday',
+    'colab_vacations.weekday_wednesday'
+  ])|tojson }};
   (() => {
     const initialYear = Number({{ year|tojson }}) || new Date().getFullYear();
     let vacationDays = new Set({{ vacation_days|tojson }});
     let pendingVacationDays = new Set({{ vacation_pending_days|tojson }});
     let unmarkRequestDays = new Set({{ vacation_unmark_request_days|tojson }});
     let holidayDays = new Set({{ vacation_holiday_days|tojson }});
-    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-    const weekLabels = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+    const vacationI18n = window.COLLAB_VACATION_I18N || {};
+    const translateVacation = (key, vars = {}) => String(vacationI18n[key] || key).replace(/\{([A-Za-z0-9_]+)\}/g, (match, name) => (
+      Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : match
+    ));
+    const monthNames = [
+      'month_january', 'month_february', 'month_march', 'month_april', 'month_may', 'month_june',
+      'month_july', 'month_august', 'month_september', 'month_october', 'month_november', 'month_december'
+    ].map((month) => translateVacation(`colab_vacations.${month}`));
+    const weekLabels = [
+      'weekday_monday', 'weekday_tuesday', 'weekday_wednesday', 'weekday_thursday',
+      'weekday_friday', 'weekday_saturday', 'weekday_sunday'
+    ].map((weekday) => translateVacation(`colab_vacations.${weekday}`));
     let currentYear = initialYear;
     let activeMonthIndex = null;
     let addedDays = new Set();
@@ -812,7 +851,7 @@
       }
 
       return `
-        <article class="vacation-month" role="button" tabindex="0" data-month-index="${monthIndex}" aria-label="Abrir ${escapeHtml(monthNames[monthIndex])} de ${year}">
+        <article class="vacation-month" role="button" tabindex="0" data-month-index="${monthIndex}" aria-label="${escapeHtml(translateVacation('colab_vacations.month_open', { month: monthNames[monthIndex], year }))}">
           <div class="vacation-month-header">
             <div class="vacation-month-name">${escapeHtml(monthNames[monthIndex])}</div>
             <div class="vacation-month-count">${vacationCount || ''}</div>
@@ -863,7 +902,9 @@
           isCancelUnmarkRequest ? 'is-cancel-unmark-request' : '',
           selectable ? 'is-selectable' : '',
         ].filter(Boolean).join(' ');
-        const status = isCancelUnmarkRequest ? 'Remover pedido de desmarcação' : (isUnmarkRequested ? 'Pedido de desmarcação enviado' : key);
+        const status = isCancelUnmarkRequest
+          ? translateVacation('colab_vacations.approved_unmark_request_cancel')
+          : (isUnmarkRequested ? translateVacation('colab_vacations.approved_unmark_request_sent') : key);
         cells.push(`<button type="button" class="${classes}" data-vacation-day="${escapeHtml(key)}" title="${escapeHtml(status)}"${selectable ? '' : ' disabled'}>${day}</button>`);
       }
 
@@ -880,8 +921,8 @@
       const totalChanges = changeCount();
       if (monthModalSubtitle) {
         monthModalSubtitle.textContent = totalChanges
-          ? `${totalChanges} alteração${totalChanges === 1 ? '' : 'ões'} pendente${totalChanges === 1 ? '' : 's'}`
-          : 'Férias, feriados e fins de semana';
+          ? translateVacation(totalChanges === 1 ? 'colab_vacations.pending_change_one' : 'colab_vacations.pending_change_other', { count: totalChanges })
+          : translateVacation('colab_vacations.legend');
       }
       if (monthSaveButton) monthSaveButton.disabled = totalChanges === 0;
       render();
@@ -1004,7 +1045,7 @@
     monthSaveButton?.addEventListener('click', async () => {
       const totalChanges = changeCount();
       if (!totalChanges) return;
-      if (!window.confirm('Quer mesmo gravar estas alterações de férias?')) return;
+      if (!window.confirm(translateVacation('colab_vacations.confirm_save'))) return;
       monthSaveButton.disabled = true;
       try {
         const response = await fetch('/api/colaborador/ferias/alteracoes', {
@@ -1020,12 +1061,12 @@
           }),
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao gravar alterações de férias.');
+        if (!response.ok || !result.ok) throw new Error(result.error || translateVacation('colab_vacations.save_error'));
         closeMonthModal({ discard: false });
         clearPendingChanges();
         await loadYear(currentYear);
       } catch (error) {
-        window.alert(error.message || 'Erro ao gravar alterações de férias.');
+        window.alert(error.message || translateVacation('colab_vacations.save_error'));
         updateMonthModal();
       }
     });

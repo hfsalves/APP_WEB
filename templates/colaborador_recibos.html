@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Recibos{% endblock %}
+{% block title %}{{ _('colab_receipts.title') }}{% endblock %}
 
 {% block extra_head %}
   {{ super() }}
@@ -17,9 +17,9 @@
   <div class="sz_page_container receipts-shell">
     <header class="sz_contextbar sz_page_contextbar receipts-contextbar">
       <div class="sz_contextbar_left">
-        <div class="sz_page_title">Recibos</div>
+        <div class="sz_page_title">{{ _('colab_receipts.title') }}</div>
         <div class="sz_page_subtitle">
-          N.º {{ colaborador.peno or '-' }} · {{ colaborador.penome or 'Sem ficha associada' }} · {{ colaborador.empresa or 'Sem empresa' }}
+          N.º {{ colaborador.peno or '-' }} · {{ colaborador.penome or _('colab_receipts.incomplete_profile') }} · {{ colaborador.empresa or '-' }}
         </div>
       </div>
     </header>
@@ -32,11 +32,11 @@
         </section>
       {% endif %}
 
-      <section class="receipts-section" aria-label="Documentos do colaborador">
+      <section class="receipts-section" aria-label="{{ _('colab_receipts.documents') }}">
         <div class="receipts-section-head">
           <div>
-            <h2>Documentos</h2>
-            <p>{{ documents|length }} documento{{ '' if documents|length == 1 else 's' }}</p>
+            <h2>{{ _('colab_receipts.documents') }}</h2>
+            <p>{{ _('colab_receipts.document_count_one' if documents|length == 1 else 'colab_receipts.document_count_other', count=documents|length) }}</p>
           </div>
         </div>
 
@@ -49,22 +49,22 @@
                   href="{{ url_for('api_colaborador_recibo_pdf', filename=document.filename) }}"
                   target="_blank"
                   rel="noopener"
-                  aria-label="Abrir {{ document.title }} de {{ document.period_label }}">
+                  aria-label="{{ _('colab_receipts.file_open', title=_('colab_receipts.payroll_receipt' if document.type == 'RV' else 'colab_receipts.map_expenses'), period=document.period_label) }}">
                   <span class="receipt-card-icon {{ 'is-expense' if document.type == 'AC' else '' }}">
                     <i class="fa-solid {{ 'fa-receipt' if document.type == 'AC' else 'fa-file-invoice-dollar' }}"></i>
                   </span>
                   <span class="receipt-card-main">
-                    <strong>{{ document.title }}</strong>
+                    <strong>{{ _('colab_receipts.payroll_receipt' if document.type == 'RV' else 'colab_receipts.map_expenses') }}</strong>
                     <span>{{ document.period_label }}</span>
                   </span>
                   {% if document.type == 'AC' and document.signed %}
-                    <span class="receipt-signed"><i class="fa-solid fa-check"></i> Assinado</span>
+                    <span class="receipt-signed"><i class="fa-solid fa-check"></i> {{ _('colab_receipts.signed') }}</span>
                   {% endif %}
                 </a>
                 {% if document.type == 'AC' and document.signable %}
                   <button class="receipt-sign-button" type="button" data-sign-ac="{{ document.filename }}" data-title="{{ document.period_label }}">
                     <i class="fa-solid fa-signature"></i>
-                    <span>Assinar</span>
+                    <span>{{ _('colab_receipts.sign') }}</span>
                   </button>
                 {% endif %}
               </article>
@@ -73,7 +73,7 @@
         {% else %}
           <div class="receipts-empty">
             <i class="fa-regular fa-folder-open"></i>
-            <span>Sem documentos disponíveis.</span>
+            <span>{{ _('colab_receipts.empty') }}</span>
           </div>
         {% endif %}
       </section>
@@ -85,18 +85,18 @@
     <section class="receipt-sign-dialog" role="dialog" aria-modal="true" aria-labelledby="receiptSignatureTitle">
       <header class="receipt-sign-head">
         <div>
-          <h2 id="receiptSignatureTitle">Assinar mapa</h2>
+          <h2 id="receiptSignatureTitle">{{ _('colab_receipts.signature_title') }}</h2>
           <p id="receiptSignaturePeriod"></p>
         </div>
-        <button class="receipt-icon-button" type="button" data-sign-close aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+        <button class="receipt-icon-button" type="button" data-sign-close aria-label="{{ _('colab_receipts.close') }}"><i class="fa-solid fa-xmark"></i></button>
       </header>
       <div class="receipt-sign-pad-wrap">
-        <canvas id="receiptSignaturePad" aria-label="Área para assinatura"></canvas>
-        <span>Assine aqui</span>
+        <canvas id="receiptSignaturePad" aria-label="{{ _('colab_receipts.signature_pad') }}"></canvas>
+        <span>{{ _('colab_receipts.signature_sign_here') }}</span>
       </div>
       <footer class="receipt-sign-actions">
-        <button class="receipt-secondary-button" type="button" id="receiptSignatureClear"><i class="fa-solid fa-eraser"></i><span>Limpar</span></button>
-        <button class="receipt-primary-button" type="button" id="receiptSignatureSubmit"><i class="fa-solid fa-check"></i><span>Confirmar assinatura</span></button>
+        <button class="receipt-secondary-button" type="button" id="receiptSignatureClear"><i class="fa-solid fa-eraser"></i><span>{{ _('common.clear') }}</span></button>
+        <button class="receipt-primary-button" type="button" id="receiptSignatureSubmit"><i class="fa-solid fa-check"></i><span>{{ _('colab_receipts.confirm_signature') }}</span></button>
       </footer>
     </section>
   </div>
@@ -418,6 +418,10 @@
   }
 </style>
 <script>
+  window.COLLAB_RECEIPTS_I18N = {{ i18n_js([
+    'colab_receipts.signature_draw',
+    'colab_receipts.signature_error'
+  ])|tojson }};
   (() => {
     const modal = document.getElementById('receiptSignatureModal');
     const canvas = document.getElementById('receiptSignaturePad');
@@ -431,6 +435,8 @@
     let drawing = false;
     let hasStroke = false;
     let previous = null;
+    const receiptsI18n = window.COLLAB_RECEIPTS_I18N || {};
+    const translateReceipt = (key) => receiptsI18n[key] || key;
 
     function resizeCanvas() {
       const rect = canvas.getBoundingClientRect();
@@ -495,7 +501,7 @@
 
     submitButton.addEventListener('click', async () => {
       if (!hasStroke) {
-        window.alert('Desenhe a sua assinatura antes de confirmar.');
+        window.alert(translateReceipt('colab_receipts.signature_draw'));
         return;
       }
       submitButton.disabled = true;
@@ -506,10 +512,10 @@
           body: JSON.stringify({ signature_data: canvas.toDataURL('image/png') }),
         });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível guardar a assinatura.');
+        if (!response.ok || !payload.ok) throw new Error(payload.error || translateReceipt('colab_receipts.signature_error'));
         window.location.reload();
       } catch (error) {
-        window.alert(error.message || 'Não foi possível guardar a assinatura.');
+        window.alert(error.message || translateReceipt('colab_receipts.signature_error'));
       } finally {
         submitButton.disabled = false;
       }
