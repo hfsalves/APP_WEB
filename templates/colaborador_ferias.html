@@ -67,6 +67,7 @@
           <span><i class="vacation-legend-dot is-holiday"></i>Feriado</span>
           <span><i class="vacation-legend-dot is-vacation"></i>Férias</span>
           <span><i class="vacation-legend-dot is-pending"></i>Por aprovar</span>
+          <span><i class="vacation-legend-dot is-unmark-requested"></i>Pedido RH</span>
         </div>
       </section>
 
@@ -90,6 +91,13 @@
       </header>
       <div class="vacation-month-detail-weekdays" aria-hidden="true"></div>
       <div class="vacation-month-detail-days" id="vacationMonthModalDays"></div>
+      <footer class="vacation-month-dialog-actions">
+        <button type="button" class="sz_button sz_button_ghost" id="vacationMonthCancel">Cancelar</button>
+        <button type="button" class="sz_button sz_button_primary" id="vacationMonthSave" disabled>
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Gravar</span>
+        </button>
+      </footer>
     </section>
   </div>
 </div>
@@ -280,6 +288,11 @@
   .vacation-legend-dot.is-holiday {
     background: color-mix(in srgb, var(--sz-color-danger, #ef4444) 48%, var(--sz-color-surface));
     border-color: color-mix(in srgb, var(--sz-color-danger, #ef4444) 60%, var(--sz-color-border));
+  }
+
+  .vacation-legend-dot.is-unmark-requested {
+    background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 56%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 74%, var(--sz-color-border));
   }
 
   .vacation-calendar-panel {
@@ -505,6 +518,11 @@
     font-size: .86rem;
     font-weight: var(--sz-font-weight-semibold);
     font-variant-numeric: tabular-nums;
+    font: inherit;
+    text-align: left;
+    appearance: none;
+    cursor: default;
+    touch-action: manipulation;
   }
 
   .vacation-month-detail-day.is-empty {
@@ -532,6 +550,41 @@
   .vacation-month-detail-day.is-pending {
     background: color-mix(in srgb, var(--sz-color-primary) 42%, var(--sz-color-surface));
     border-color: color-mix(in srgb, var(--sz-color-primary) 58%, var(--sz-color-border));
+  }
+
+  .vacation-month-detail-day.is-selectable {
+    cursor: pointer;
+  }
+
+  .vacation-month-detail-day.is-selectable:active {
+    transform: scale(.96);
+  }
+
+  .vacation-month-detail-day.is-new {
+    background: color-mix(in srgb, var(--sz-color-success, #22c55e) 54%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-success, #22c55e) 76%, var(--sz-color-border));
+    color: var(--sz-color-text);
+  }
+
+  .vacation-month-detail-day.is-remove-pending {
+    background: color-mix(in srgb, var(--sz-color-danger, #ef4444) 47%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-danger, #ef4444) 75%, var(--sz-color-border));
+    color: var(--sz-color-text);
+  }
+
+  .vacation-month-detail-day.is-unmark-request,
+  .vacation-month-detail-day.is-unmark-requested {
+    background: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 48%, var(--sz-color-surface));
+    border-color: color-mix(in srgb, var(--sz-color-warning, #f59e0b) 74%, var(--sz-color-border));
+    color: var(--sz-color-text);
+  }
+
+  .vacation-month-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sz-space-2);
+    padding: var(--sz-space-3) var(--sz-space-4) var(--sz-space-4);
+    border-top: 1px solid var(--sz-color-border);
   }
 
   @media (max-width: 768px) {
@@ -639,6 +692,10 @@
       padding: .28rem;
       font-size: .78rem;
     }
+
+    .vacation-month-dialog-actions {
+      padding: .75rem .9rem .9rem;
+    }
   }
 
   @media (max-width: 360px) {
@@ -657,10 +714,15 @@
     const initialYear = Number({{ year|tojson }}) || new Date().getFullYear();
     let vacationDays = new Set({{ vacation_days|tojson }});
     let pendingVacationDays = new Set({{ vacation_pending_days|tojson }});
+    let unmarkRequestDays = new Set({{ vacation_unmark_request_days|tojson }});
     let holidayDays = new Set({{ vacation_holiday_days|tojson }});
     const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const weekLabels = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
     let currentYear = initialYear;
+    let activeMonthIndex = null;
+    let addedDays = new Set();
+    let removedPendingDays = new Set();
+    let requestedApprovedUnmarkDays = new Set();
 
     const grid = document.getElementById('vacationCalendarGrid');
     const yearLabel = document.getElementById('vacationYearLabel');
@@ -672,6 +734,8 @@
     const monthModalSubtitle = document.getElementById('vacationMonthModalSubtitle');
     const monthModalDays = document.getElementById('vacationMonthModalDays');
     const monthModalWeekdays = document.querySelector('.vacation-month-detail-weekdays');
+    const monthCancelButton = document.getElementById('vacationMonthCancel');
+    const monthSaveButton = document.getElementById('vacationMonthSave');
 
     const pad = (value) => String(value).padStart(2, '0');
     const isoDate = (year, monthIndex, day) => `${year}-${pad(monthIndex + 1)}-${pad(day)}`;
@@ -681,6 +745,20 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+
+    function isWeekendOrHoliday(date, key) {
+      return date.getDay() === 0 || date.getDay() === 6 || holidayDays.has(key);
+    }
+
+    function changeCount() {
+      return addedDays.size + removedPendingDays.size + requestedApprovedUnmarkDays.size;
+    }
+
+    function clearPendingChanges() {
+      addedDays = new Set();
+      removedPendingDays = new Set();
+      requestedApprovedUnmarkDays = new Set();
+    }
 
     function monthHtml(year, monthIndex) {
       const firstDay = new Date(year, monthIndex, 1);
@@ -700,13 +778,21 @@
         const isHoliday = holidayDays.has(key);
         const isVacation = vacationDays.has(key) && !isWeekend && !isHoliday;
         const isPending = pendingVacationDays.has(key) && !isVacation && !isWeekend && !isHoliday;
-        if (isVacation || isPending) vacationCount += 1;
+        const isNew = addedDays.has(key) && !isWeekendOrHoliday(date, key);
+        const isRemovePending = removedPendingDays.has(key) && !isWeekendOrHoliday(date, key);
+        const isUnmarkRequest = requestedApprovedUnmarkDays.has(key) && !isWeekendOrHoliday(date, key);
+        const isUnmarkRequested = unmarkRequestDays.has(key) && !isWeekendOrHoliday(date, key);
+        if ((isVacation && !isUnmarkRequest) || (isPending && !isRemovePending) || isNew) vacationCount += 1;
         const classes = [
           'vacation-day',
           isWeekend ? 'is-weekend' : '',
           isHoliday ? 'is-holiday' : '',
           isVacation ? 'is-vacation' : '',
           isPending ? 'is-pending' : '',
+          isNew ? 'is-new' : '',
+          isRemovePending ? 'is-remove-pending' : '',
+          isUnmarkRequest ? 'is-unmark-request' : '',
+          isUnmarkRequested ? 'is-unmark-requested' : '',
         ].filter(Boolean).join(' ');
         cells.push(`<span class="${classes}" title="${escapeHtml(key)}"></span>`);
       }
@@ -748,14 +834,25 @@
         const isHoliday = holidayDays.has(key);
         const isVacation = vacationDays.has(key) && !isWeekend && !isHoliday;
         const isPending = pendingVacationDays.has(key) && !isVacation && !isWeekend && !isHoliday;
+        const isNew = addedDays.has(key) && !isWeekendOrHoliday(date, key);
+        const isRemovePending = removedPendingDays.has(key) && !isWeekendOrHoliday(date, key);
+        const isUnmarkRequest = requestedApprovedUnmarkDays.has(key) && !isWeekendOrHoliday(date, key);
+        const isUnmarkRequested = unmarkRequestDays.has(key) && !isWeekendOrHoliday(date, key);
+        const selectable = !isWeekendOrHoliday(date, key) && !isUnmarkRequested;
         const classes = [
           'vacation-month-detail-day',
           isWeekend ? 'is-weekend' : '',
           isHoliday ? 'is-holiday' : '',
           isVacation ? 'is-vacation' : '',
           isPending ? 'is-pending' : '',
+          isNew ? 'is-new' : '',
+          isRemovePending ? 'is-remove-pending' : '',
+          isUnmarkRequest ? 'is-unmark-request' : '',
+          isUnmarkRequested ? 'is-unmark-requested' : '',
+          selectable ? 'is-selectable' : '',
         ].filter(Boolean).join(' ');
-        cells.push(`<span class="${classes}" title="${escapeHtml(key)}">${day}</span>`);
+        const status = isUnmarkRequested ? 'Pedido de desmarcação enviado' : key;
+        cells.push(`<button type="button" class="${classes}" data-vacation-day="${escapeHtml(key)}" title="${escapeHtml(status)}"${selectable ? '' : ' disabled'}>${day}</button>`);
       }
 
       while (cells.length % 7 !== 0) {
@@ -765,21 +862,36 @@
       return cells.join('');
     }
 
+    function updateMonthModal() {
+      if (!Number.isInteger(activeMonthIndex) || !monthModalDays) return;
+      monthModalDays.innerHTML = detailedMonthHtml(currentYear, activeMonthIndex);
+      const totalChanges = changeCount();
+      if (monthModalSubtitle) {
+        monthModalSubtitle.textContent = totalChanges
+          ? `${totalChanges} alteração${totalChanges === 1 ? '' : 'ões'} pendente${totalChanges === 1 ? '' : 's'}`
+          : 'Férias, feriados e fins de semana';
+      }
+      if (monthSaveButton) monthSaveButton.disabled = totalChanges === 0;
+      render();
+    }
+
     function openMonthModal(monthIndex) {
       if (!monthModal || !monthModalDays || !monthModalTitle) return;
+      activeMonthIndex = monthIndex;
       monthModalTitle.textContent = `${monthNames[monthIndex]} ${currentYear}`;
-      if (monthModalSubtitle) monthModalSubtitle.textContent = 'Férias, feriados e fins de semana';
       if (monthModalWeekdays) {
         monthModalWeekdays.innerHTML = weekLabels.map((label) => `<span>${label}</span>`).join('');
       }
-      monthModalDays.innerHTML = detailedMonthHtml(currentYear, monthIndex);
+      updateMonthModal();
       monthModal.hidden = false;
       document.body.classList.add('vacation-modal-open');
       monthModal.querySelector('.vacation-modal-close')?.focus();
     }
 
-    function closeMonthModal() {
+    function closeMonthModal({ discard = true } = {}) {
       if (!monthModal) return;
+      if (discard) clearPendingChanges();
+      activeMonthIndex = null;
       monthModal.hidden = true;
       document.body.classList.remove('vacation-modal-open');
     }
@@ -789,8 +901,8 @@
       grid.innerHTML = Array.from({ length: 12 }, (_, index) => monthHtml(currentYear, index)).join('');
       if (yearLabel) yearLabel.textContent = String(currentYear);
       if (markedCount) {
-        const count = [...new Set([...vacationDays, ...pendingVacationDays])]
-          .filter((key) => key.startsWith(`${currentYear}-`)).length;
+        const count = [...new Set([...vacationDays, ...pendingVacationDays, ...addedDays])]
+          .filter((key) => key.startsWith(`${currentYear}-`) && !removedPendingDays.has(key)).length;
         markedCount.textContent = String(count);
       }
       const url = new URL(window.location.href);
@@ -799,6 +911,7 @@
     }
 
     async function loadYear(year) {
+      if (monthModal && !monthModal.hidden) closeMonthModal();
       currentYear = year;
       if (grid) {
         grid.style.opacity = '.58';
@@ -810,10 +923,12 @@
         if (!response.ok || payload.ok === false) throw new Error(payload.error || payload.warning || `Erro ${response.status}`);
         vacationDays = new Set(Array.isArray(payload.vacation_days) ? payload.vacation_days : []);
         pendingVacationDays = new Set(Array.isArray(payload.pending_vacation_days) ? payload.pending_vacation_days : []);
+        unmarkRequestDays = new Set(Array.isArray(payload.unmark_request_days) ? payload.unmark_request_days : []);
         holidayDays = new Set(Array.isArray(payload.holiday_days) ? payload.holiday_days : []);
       } catch (error) {
         vacationDays = new Set();
         pendingVacationDays = new Set();
+        unmarkRequestDays = new Set();
         holidayDays = new Set();
       } finally {
         if (grid) {
@@ -850,6 +965,53 @@
 
     monthModal?.addEventListener('click', (event) => {
       if (event.target.closest('[data-vacation-modal-close]')) closeMonthModal();
+      const dayButton = event.target.closest('[data-vacation-day]');
+      if (!dayButton || dayButton.disabled) return;
+      const key = String(dayButton.dataset.vacationDay || '');
+      const clickedDate = new Date(`${key}T12:00:00`);
+      if (!key || Number.isNaN(clickedDate.getTime()) || isWeekendOrHoliday(clickedDate, key)) return;
+      if (vacationDays.has(key)) {
+        if (requestedApprovedUnmarkDays.has(key)) requestedApprovedUnmarkDays.delete(key);
+        else requestedApprovedUnmarkDays.add(key);
+      } else if (pendingVacationDays.has(key)) {
+        if (removedPendingDays.has(key)) removedPendingDays.delete(key);
+        else removedPendingDays.add(key);
+      } else if (addedDays.has(key)) {
+        addedDays.delete(key);
+      } else {
+        addedDays.add(key);
+      }
+      updateMonthModal();
+    });
+
+    monthCancelButton?.addEventListener('click', () => closeMonthModal());
+
+    monthSaveButton?.addEventListener('click', async () => {
+      const totalChanges = changeCount();
+      if (!totalChanges) return;
+      if (!window.confirm('Quer mesmo gravar estas alterações de férias?')) return;
+      monthSaveButton.disabled = true;
+      try {
+        const response = await fetch('/api/colaborador/ferias/alteracoes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            year: currentYear,
+            add_days: [...addedDays],
+            remove_pending_days: [...removedPendingDays],
+            request_approved_unmark_days: [...requestedApprovedUnmarkDays],
+          }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao gravar alterações de férias.');
+        closeMonthModal({ discard: false });
+        clearPendingChanges();
+        await loadYear(currentYear);
+      } catch (error) {
+        window.alert(error.message || 'Erro ao gravar alterações de férias.');
+        updateMonthModal();
+      }
     });
 
     document.addEventListener('keydown', (event) => {

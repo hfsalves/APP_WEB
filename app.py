@@ -25989,6 +25989,7 @@ def create_app():
                 },
                 'vacation_days': [],
                 'pending_vacation_days': [],
+                'unmark_request_days': [],
                 'holiday_days': [],
                 'periods': [],
                 'marked_days': 0,
@@ -26002,6 +26003,7 @@ def create_app():
             year=payload.get('year') or year,
             vacation_days=payload.get('vacation_days') or [],
             vacation_pending_days=payload.get('pending_vacation_days') or [],
+            vacation_unmark_request_days=payload.get('unmark_request_days') or [],
             vacation_holiday_days=payload.get('holiday_days') or [],
             vacation_periods=payload.get('periods') or [],
             vacation_working_days=payload.get('working_days') or 0,
@@ -26020,6 +26022,22 @@ def create_app():
             db.session.rollback()
             app.logger.exception('Erro ao listar férias do colaborador.')
             return jsonify({'ok': False, 'error': 'Erro ao listar férias.'}), 500
+
+    @app.route('/api/colaborador/ferias/alteracoes', methods=['POST'])
+    @login_required
+    def api_colaborador_ferias_alteracoes():
+        from services.colaborador_ferias_service import apply_colaborador_ferias_changes
+
+        try:
+            payload = request.get_json(silent=True) or {}
+            return jsonify(apply_colaborador_ferias_changes(current_user, payload))
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Erro ao gravar alterações de férias.')
+            return jsonify({'ok': False, 'error': 'Erro ao gravar alterações de férias.'}), 500
 
     @app.route('/api/colaborador/despesas/line', methods=['POST'])
     @login_required
