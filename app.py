@@ -26039,6 +26039,27 @@ def create_app():
             app.logger.exception('Erro ao gravar alterações de férias.')
             return jsonify({'ok': False, 'error': 'Erro ao gravar alterações de férias.'}), 500
 
+    @app.route('/ferias/aprovacao')
+    @app.route('/aprovacao-ferias')
+    @login_required
+    def ferias_aprovacao_page():
+        from services.ferias_aprovacao_service import list_ferias_aprovacao
+
+        try:
+            payload = list_ferias_aprovacao(request.args.get('semana'))
+        except Exception:
+            app.logger.exception('Erro ao carregar o painel de aprovação de férias.')
+            payload = {
+                'start': date.today() - timedelta(days=date.today().weekday()),
+                'end': date.today() + timedelta(days=55 - date.today().weekday()),
+                'previous_week': date.today() - timedelta(days=7 + date.today().weekday()),
+                'next_week': date.today() + timedelta(days=7 - date.today().weekday()),
+                'days': [],
+                'employees': [],
+                'warnings': ['as empresas configuradas'],
+            }
+        return render_template('ferias_aprovacao.html', page_title='Aprovação de férias', **payload)
+
     @app.route('/recibos')
     @app.route('/colaborador/recibos')
     @login_required

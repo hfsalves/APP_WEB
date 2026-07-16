@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import base64
+import io
 import os
 import re
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pyodbc
 from flask import current_app
+from PIL import Image
+from pypdf import PdfReader, PdfWriter
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas
 
 from services.colaborador_despesas_service import (
     _new_stamp,
@@ -229,28 +235,96 @@ def _user_login(user: Any) -> str:
     return "APP"
 
 
-def _store_signature_file(phc_db: str, bostamp: str, peno: int, year: int, month: int, image: bytes) -> dict[str, Any]:
-    root = _signatures_root()
-    if not root:
-        raise ValueError("A pasta partilhada para assinaturas não está disponível.")
+def _signature_overlay_pdf(page_width: float, page_height: float, image: bytes) -> bytes:
+    """Builds a transparent signature overlay for the standard AC map layout."""
+    with Image.open(io.BytesIO(image)).convert("RGBA") as source:
+        grayscale = source.convert("L")
+        alpha = grayscale.point(lambda value: max(0, min(255, (255 - value) * 3)))
+        box = alpha.getbbox()
+        if not box:
+            raise ValueError("A assinatura não contém traço visível.")
+        padding = 8
+        box = (
+            max(0, box[0] - padding), max(0, box[1] - padding),
+            min(source.width, box[2] + padding), min(source.height, box[3] + padding),
+        )
+        signature = Image.new("RGBA", source.size, (23, 38, 59, 0))
+        signature.putalpha(alpha)
+        signature = signature.crop(box)
+        signature_buffer = io.BytesIO()
+        signature.save(signature_buffer, format="PNG")
 
-    db_folder = re.sub(r"[^A-Za-z0-9_-]", "_", str(phc_db or "").upper()) or "PHC"
-    stamp_suffix = re.sub(r"[^A-Za-z0-9]", "", str(bostamp or ""))[-12:] or _new_stamp()[-12:]
-    fname = f"assinatura_ac_{int(peno)}_{int(year):04d}{int(month):02d}_{stamp_suffix}.png"
-    directory = root / db_folder
+    overlay_buffer = io.BytesIO()
+    overlay = canvas.Canvas(overlay_buffer, pagesize=(page_width, page_height))
+    # The standard PHC map is A4 landscape; these proportional coordinates
+    # keep the signature above the "Recebi a importância supra" signature line.
+    overlay.drawImage(
+        ImageReader(io.BytesIO(signature_buffer.getvalue())),
+        page_width * 0.485,
+        page_height * 0.162,
+        width=page_width * 0.120,
+        height=page_height * 0.045,
+        preserveAspectRatio=True,
+        anchor="c",
+        mask="auto",
+    )
+    overlay.save()
+    return overlay_buffer.getvalue()
+
+
+def _create_signed_ac_pdf(phc_db: str, peno: int, year: int, month: int, bostamp: str, image: bytes) -> dict[str, Any]:
+    documents_root = _documents_root()
+    signatures_root = _signatures_root()
+    clean_db = re.sub(r"[^A-Za-z0-9_-]", "_", str(phc_db or "").upper()) or "PHC"
+    source_name = f"AC_{int(peno):05d}_{int(year):04d}{int(month):02d}.pdf"
+    if not documents_root or not signatures_root:
+        raise ValueError("A pasta partilhada de documentos não está disponível.")
+
     try:
-        directory.mkdir(parents=True, exist_ok=True)
-        path = (directory / fname).resolve()
-        path.relative_to(root)
-        path.write_bytes(image)
-    except OSError as exc:
-        raise ValueError("Não foi possível guardar a assinatura na pasta partilhada.") from exc
+        source = (documents_root / clean_db / source_name).resolve()
+        source.relative_to(documents_root)
+    except (OSError, ValueError) as exc:
+        raise ValueError("Não foi possível localizar o mapa original de ajudas de custo.") from exc
+    if not source.is_file():
+        raise ValueError("O PDF original deste mapa não está disponível. Contacte o departamento de RH.")
+
+    stamp_suffix = re.sub(r"[^A-Za-z0-9]", "", str(bostamp or ""))[-12:] or _new_stamp()[-12:]
+    fname = f"mapa_ac_assinado_{int(peno):05d}_{int(year):04d}{int(month):02d}_{stamp_suffix}.pdf"
+    target_dir = signatures_root / clean_db
+    temporary_path = None
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = (target_dir / fname).resolve()
+        target.relative_to(signatures_root)
+        reader = PdfReader(str(source))
+        if not reader.pages:
+            raise ValueError("O PDF original do mapa não tem páginas.")
+        writer = PdfWriter()
+        for index, page in enumerate(reader.pages):
+            if index == 0:
+                overlay = PdfReader(io.BytesIO(_signature_overlay_pdf(float(page.mediabox.width), float(page.mediabox.height), image)))
+                page.merge_page(overlay.pages[0])
+            writer.add_page(page)
+        with tempfile.NamedTemporaryFile(dir=target_dir, suffix=".pdf", delete=False) as handle:
+            temporary_path = Path(handle.name)
+            writer.write(handle)
+        os.replace(temporary_path, target)
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError("Não foi possível criar o PDF assinado do mapa.") from exc
+    finally:
+        if temporary_path:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
     return {
-        "path": path,
-        "fullname": str(path),
-        "fname": Path(fname).stem[:150],
-        "fext": "png",
-        "flen": len(image),
+        "path": target,
+        "fullname": str(target),
+        "fname": target.stem[:150],
+        "fext": "pdf",
+        "flen": target.stat().st_size,
     }
 
 
@@ -440,12 +514,12 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
         row = cursor.fetchone()
         if not row:
             raise ValueError("O mapa já foi assinado ou deixou de estar disponível.")
-        signature_file = _store_signature_file(
+        signature_file = _create_signed_ac_pdf(
             phc_db,
-            str(row.BOSTAMP or "").strip(),
             peno,
             document["year"],
             document["month"],
+            str(row.BOSTAMP or "").strip(),
             image,
         )
         _insert_signature_attachment(
@@ -474,7 +548,7 @@ def sign_colaborador_ac_document(user: Any, filename: str, signature_data: Any) 
 
 
 def migrate_legacy_signature_attachments(phc_db: str) -> int:
-    """Moves signatures previously stored in BDADOS to the shared document server."""
+    """Converts the early standalone PNG signatures into signed AC PDFs."""
     connection = None
     cursor = None
     migrated = 0
@@ -482,31 +556,35 @@ def migrate_legacy_signature_attachments(phc_db: str) -> int:
         connection = pyodbc.connect(_phc_conn_str(phc_db), timeout=12)
         cursor = connection.cursor()
         cursor.execute("""
-            SELECT ANEXOSSTAMP, RECSTAMP, FNAME, FEXT, BDADOS
+            SELECT ANEXOSSTAMP, RECSTAMP, FNAME, FEXT, FULLNAME, BDADOS
             FROM dbo.ANEXOS
             WHERE CONVERT(varchar(max), DESCRICAO) = ?
               AND ASSINATURA = 1
-              AND (FULLNAME IS NULL OR LTRIM(RTRIM(CONVERT(varchar(max), FULLNAME))) = '')
         """, SIGNATURE_DESCRIPTION)
         for row in cursor.fetchall():
+            if str(row.FEXT or "").strip().lower() == "pdf":
+                continue
             image = bytes(row.BDADOS or b"")
+            if not image and str(row.FULLNAME or "").strip():
+                try:
+                    image = Path(str(row.FULLNAME).strip()).read_bytes()
+                except OSError:
+                    image = b""
             if not image.startswith(b"\x89PNG\r\n\x1a\n"):
                 continue
-            original = Path(str(row.FNAME or "assinatura")).stem
-            safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", original) or "assinatura"
-            root = _signatures_root()
-            if not root:
-                raise ValueError("A pasta partilhada para assinaturas não está disponível.")
-            folder = root / (re.sub(r"[^A-Za-z0-9_-]", "_", str(phc_db).upper()) or "PHC")
-            folder.mkdir(parents=True, exist_ok=True)
-            path = (folder / f"{safe_name}_{str(row.ANEXOSSTAMP or '').strip()[-8:]}.png").resolve()
-            path.relative_to(root)
-            path.write_bytes(image)
+            match = re.search(r"assinatura_ac_(\d+)_(20\d{4})", str(row.FNAME or ""), re.IGNORECASE)
+            if not match:
+                continue
+            peno = int(match.group(1))
+            period = match.group(2)
+            signed_pdf = _create_signed_ac_pdf(
+                phc_db, peno, int(period[:4]), int(period[4:]), str(row.RECSTAMP or ""), image,
+            )
             cursor.execute("""
                 UPDATE dbo.ANEXOS
-                SET FULLNAME = ?, FNAME = ?, FEXT = 'png', FLEN = ?, BDADOS = ?
+                SET FULLNAME = ?, FNAME = ?, FEXT = 'pdf', FLEN = ?, BDADOS = ?
                 WHERE ANEXOSSTAMP = ?
-            """, str(path), path.stem[:150], len(image), pyodbc.Binary(b""), row.ANEXOSSTAMP)
+            """, signed_pdf["fullname"], signed_pdf["fname"], signed_pdf["flen"], pyodbc.Binary(b""), row.ANEXOSSTAMP)
             migrated += 1
         connection.commit()
         return migrated

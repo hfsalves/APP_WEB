@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block title %}Aprovação de férias{% endblock %}
+
+{% block content %}
+<div class="vacation-approval-page">
+  <section class="sz_contextbar vacation-approval-context">
+    <div>
+      <h1>Aprovação de férias</h1>
+      <p>{{ employees|length }} colaboradores · 8 semanas de planeamento</p>
+    </div>
+    <div class="vacation-approval-navigation" aria-label="Navegação semanal">
+      <a class="vacation-nav-button" href="{{ url_for('ferias_aprovacao_page', semana=previous_week.isoformat()) }}" title="Recuar uma semana" aria-label="Recuar uma semana">
+        <i class="fa-solid fa-chevron-left"></i>
+      </a>
+      <div class="vacation-range">
+        <strong>{{ start.strftime('%d/%m/%Y') }} - {{ end.strftime('%d/%m/%Y') }}</strong>
+        <span>Segunda-feira a domingo</span>
+      </div>
+      <a class="vacation-nav-button" href="{{ url_for('ferias_aprovacao_page', semana=next_week.isoformat()) }}" title="Avançar uma semana" aria-label="Avançar uma semana">
+        <i class="fa-solid fa-chevron-right"></i>
+      </a>
+      <a class="sz_button sz_button_secondary" href="{{ url_for('ferias_aprovacao_page') }}">
+        <i class="fa-solid fa-calendar-day"></i><span>Semana atual</span>
+      </a>
+    </div>
+  </section>
+
+  {% if warnings %}
+    <div class="vacation-approval-warning"><i class="fa-solid fa-triangle-exclamation"></i> Não foi possível ler férias em: {{ warnings|join(', ') }}.</div>
+  {% endif %}
+
+  <section class="vacation-approval-panel">
+    <div class="vacation-approval-legend" aria-label="Legenda">
+      <span><i class="legend-swatch is-approved"></i> Aprovada</span>
+      <span><i class="legend-swatch is-pending"></i> Por aprovar</span>
+      <span><i class="legend-swatch is-weekend"></i> Fim de semana</span>
+      <span><i class="legend-swatch is-holiday"></i> Feriado</span>
+    </div>
+
+    <div class="vacation-grid-scroll">
+      <table class="vacation-grid">
+        <thead>
+          <tr>
+            <th class="vacation-person-header">Colaborador</th>
+            {% for day in days %}
+              <th class="{{ 'is-weekend' if day.weekend else '' }} {{ 'is-week-break' if day.week_break else '' }}">
+                <span>{{ day.weekday }}</span><strong>{{ day.day }}</strong><small>{{ day.month }}</small>
+              </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for employee in employees %}
+            <tr>
+              <th class="vacation-person-cell">
+                <strong>{{ employee.nome or 'Sem nome' }}</strong>
+                <span>N.º {{ employee.no }} · {{ employee.empresa }}</span>
+              </th>
+              {% for day in days %}
+                {% set status = employee.statuses.get(day.key, '') %}
+                {% set is_holiday = day.key in employee.holidays %}
+                <td class="{{ 'is-weekend' if day.weekend else '' }} {{ 'is-holiday' if is_holiday else '' }} {{ 'is-approved' if status == 'approved' else '' }} {{ 'is-pending' if status == 'pending' else '' }} {{ 'is-week-break' if day.week_break else '' }}" title="{{ 'Férias aprovadas' if status == 'approved' else ('Férias por aprovar' if status == 'pending' else ('Feriado' if is_holiday else ('Fim de semana' if day.weekend else '')) ) }}">
+                  {% if status == 'approved' %}<i class="fa-solid fa-check"></i>{% elif status == 'pending' %}<i class="fa-solid fa-clock"></i>{% endif %}
+                </td>
+              {% endfor %}
+            </tr>
+          {% else %}
+            <tr><td class="vacation-grid-empty" colspan="57">Sem colaboradores ativos.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+  .vacation-approval-page { display: grid; gap: var(--sz-space-3); min-height: 0; }
+  .vacation-approval-context { display: flex; justify-content: space-between; align-items: center; gap: var(--sz-space-4); }
+  .vacation-approval-context h1 { margin: 0; font-size: 1.3rem; }
+  .vacation-approval-context p { margin: .25rem 0 0; color: var(--sz-color-text-muted); }
+  .vacation-approval-navigation { display: flex; align-items: center; justify-content: flex-end; gap: var(--sz-space-2); }
+  .vacation-nav-button { width: 2.55rem; height: 2.55rem; display: inline-grid; place-items: center; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); color: var(--sz-color-text); background: var(--sz-color-surface); text-decoration: none; }
+  .vacation-nav-button:hover { border-color: var(--sz-color-primary); color: var(--sz-color-primary); }
+  .vacation-range { min-width: 13.5rem; text-align: center; }
+  .vacation-range strong, .vacation-range span { display: block; }
+  .vacation-range span { margin-top: .15rem; color: var(--sz-color-text-muted); font-size: .78rem; }
+  .vacation-approval-warning { padding: .7rem .9rem; border: 1px solid #a67c32; border-radius: var(--sz-radius-sm); background: rgba(166, 124, 50, .14); color: var(--sz-color-text); }
+  .vacation-approval-panel { min-width: 0; padding: var(--sz-space-3); border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-md); background: var(--sz-color-surface); }
+  .vacation-approval-legend { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: var(--sz-space-3); color: var(--sz-color-text-muted); font-size: .82rem; }
+  .vacation-approval-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+  .legend-swatch { width: .75rem; height: .75rem; display: inline-block; border: 1px solid var(--sz-color-border); border-radius: 2px; }
+  .legend-swatch.is-approved { background: #2f67b5; border-color: #2f67b5; }
+  .legend-swatch.is-pending { background: #a8c2e6; border-color: #85a8d9; }
+  .legend-swatch.is-weekend { background: rgba(167, 181, 199, .35); }
+  .legend-swatch.is-holiday { background: rgba(213, 128, 145, .45); border-color: #c97989; }
+  .vacation-grid-scroll { max-width: 100%; overflow: auto; border: 1px solid var(--sz-color-border); border-radius: var(--sz-radius-sm); scrollbar-color: var(--sz-color-border) transparent; }
+  .vacation-grid { width: max-content; min-width: 100%; border-spacing: 0; border-collapse: separate; font-size: .75rem; }
+  .vacation-grid th, .vacation-grid td { width: 2rem; min-width: 2rem; height: 2.45rem; padding: 0; border-right: 1px solid var(--sz-color-border); border-bottom: 1px solid var(--sz-color-border); text-align: center; }
+  .vacation-grid thead th { position: sticky; top: 0; z-index: 3; background: var(--sz-color-surface-raised, var(--sz-color-surface)); color: var(--sz-color-text-muted); font-weight: 600; }
+  .vacation-grid thead th span, .vacation-grid thead th strong, .vacation-grid thead th small { display: block; line-height: 1; }
+  .vacation-grid thead th span { margin-bottom: .18rem; font-size: .64rem; text-transform: uppercase; }
+  .vacation-grid thead th strong { color: var(--sz-color-text); font-size: .82rem; }
+  .vacation-grid thead th small { margin-top: .14rem; font-size: .6rem; }
+  .vacation-person-header, .vacation-person-cell { position: sticky; left: 0; z-index: 2; width: 18rem !important; min-width: 18rem !important; padding: .45rem .7rem !important; text-align: left !important; background: var(--sz-color-surface-raised, var(--sz-color-surface)); box-shadow: 2px 0 0 rgba(0, 0, 0, .08); }
+  .vacation-person-header { z-index: 5 !important; }
+  .vacation-person-cell strong, .vacation-person-cell span { display: block; }
+  .vacation-person-cell strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sz-color-text); }
+  .vacation-person-cell span { margin-top: .14rem; overflow: hidden; color: var(--sz-color-text-muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+  .vacation-grid td { color: #fff; background: transparent; }
+  .vacation-grid td.is-weekend, .vacation-grid th.is-weekend { background: rgba(167, 181, 199, .20); }
+  .vacation-grid td.is-holiday { background: rgba(213, 128, 145, .32); }
+  .vacation-grid td.is-approved { background: #2f67b5; }
+  .vacation-grid td.is-pending { background: #a8c2e6; color: #274b78; }
+  .vacation-grid td i { font-size: .63rem; }
+  .vacation-grid .is-week-break { border-left: 2px solid var(--sz-color-primary); }
+  .vacation-grid-empty { width: auto !important; padding: 1.25rem !important; color: var(--sz-color-text-muted); text-align: center !important; }
+  @media (max-width: 760px) {
+    .vacation-approval-context { align-items: flex-start; flex-direction: column; }
+    .vacation-approval-navigation { width: 100%; justify-content: space-between; }
+    .vacation-range { min-width: 0; flex: 1; }
+    .vacation-approval-navigation .sz_button span { display: none; }
+    .vacation-person-header, .vacation-person-cell { width: 12.5rem !important; min-width: 12.5rem !important; }
+  }
+</style>
+{% endblock %}
